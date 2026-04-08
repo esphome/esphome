@@ -1,12 +1,12 @@
 #pragma once
 
-#if defined(USE_ESP32) && defined(USE_ARDUINO)
+#ifdef USE_ESP32
 
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include "SPI.h"
+#include "esphome/components/spi/spi.h"
 #include "driver/gpio.h"
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/component.h"
@@ -21,10 +21,6 @@ enum IT8951Model {
 };
 
 struct IT8951Pins {
-  gpio_num_t sck;
-  gpio_num_t miso;
-  gpio_num_t mosi;
-  gpio_num_t cs;
   gpio_num_t busy;
   gpio_num_t enable;
   gpio_num_t reset;
@@ -67,7 +63,9 @@ struct IT8951DevInfo {
   uint16_t lut_version[8];
 };
 
-class IT8951Display : public display::DisplayBuffer {
+class IT8951Display : public display::DisplayBuffer,
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                            spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
   void set_model(IT8951Model model) { this->model_ = model; }
   void set_vcom(uint16_t vcom) { this->vcom_ = vcom; }
@@ -121,6 +119,7 @@ class IT8951Display : public display::DisplayBuffer {
   bool has_valid_dev_info_() const;
   void write_vcom_(uint16_t selector, uint16_t value);
   bool probe_controller_(const char *label, bool send_sys_run, int vcom_selector);
+  void reconfigure_spi_(uint32_t data_rate);
 
   IT8951Model model_{IT8951_MODEL_SEEED_RETERMINAL_E1003};
   IT8951Pins pins_{};
@@ -138,4 +137,4 @@ class IT8951Display : public display::DisplayBuffer {
 }  // namespace it8951
 }  // namespace esphome
 
-#endif  // defined(USE_ESP32) && defined(USE_ARDUINO)
+#endif  // USE_ESP32

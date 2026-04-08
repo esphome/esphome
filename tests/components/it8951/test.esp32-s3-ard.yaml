@@ -1,3 +1,6 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-ard.yaml
+
 esphome:
   name: test-it8951
 
@@ -12,7 +15,9 @@ psram:
 display:
   - platform: it8951
     id: e1003_display
+    spi_id: spi_bus
     model: seeed-reterminal-e1003
+    cs_pin: GPIO10
     vcom: 1400
     update_interval: never
     lambda: |-
@@ -20,7 +25,9 @@ display:
 
   - platform: it8951
     id: ee03_display
+    spi_id: spi_bus
     model: seeed-ee03
+    cs_pin: GPIO44
     vcom: 1450
     update_interval: 60s
     lambda: |-
