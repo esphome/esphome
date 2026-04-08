@@ -33,6 +33,7 @@ from esphome.core import (
     MACAddress,
     TimePeriod,
 )
+from esphome.expression import has_substitution_or_expression
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
 
@@ -110,24 +111,6 @@ def make_data_base(
         return value
 
 
-class ConfigContext:
-    """This is a mixin class that holds substitution vars that should be applied
-    to the tagged node and its children. During configuration loading, context vars can
-    be added to nodes using `add_context` function, which applies the mixin storing
-    the captured values and unevaluated expressions.
-    The substitution pass then recreates the effective context by merging the context vars
-    from this node and parent nodes.
-    """
-
-    @property
-    def vars(self) -> dict[str, Any]:
-        return self._context_vars
-
-    def set_context(self, vars: dict[str, Any]) -> None:
-        # pylint: disable=attribute-defined-outside-init
-        self._context_vars = vars
-
-
 def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     """Tags a list/string/dict value with context vars that must be applied to it and its children
     during the substitution pass. If no vars are given, no tagging is done.
@@ -151,6 +134,94 @@ def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     return value
 
 
+class ConfigContext:
+    """This is a mixin class that holds substitution vars that should be applied
+    to the tagged node and its children. During configuration loading, context vars can
+    be added to nodes using `add_context` function, which applies the mixin storing
+    the captured values and unevaluated expressions.
+    The substitution pass then recreates the effective context by merging the context vars
+    from this node and parent nodes.
+    """
+
+    @property
+    def vars(self) -> dict[str, Any]:
+        return self._context_vars
+
+    def set_context(self, vars: dict[str, Any]) -> None:
+        # pylint: disable=attribute-defined-outside-init
+        self._context_vars = vars
+
+    def copy_context_to_children(self) -> None:
+        """Propagate context to children.
+
+        isinstance(self, dict/list) works because ConfigContext is dynamically
+        mixed into dict/list subclasses via add_class_to_obj in add_context().
+        """
+        if isinstance(self, dict):
+            # pylint: disable=no-member
+            tagged = {
+                add_context(k, self.vars): add_context(v, self.vars)
+                for k, v in self.items()
+            }
+            self.clear()
+            self.update(tagged)
+        elif isinstance(self, list):
+            for i, item in enumerate(self):
+                # pylint: disable=unsupported-assignment-operation
+                self[i] = add_context(item, self.vars)
+
+
+_UNSET = object()
+
+
+class IncludeFile:
+    """Deferred !include that is resolved during the substitution pass.
+
+    Created during YAML parsing instead of loading the file immediately,
+    allowing substitution variables to appear in the filename path
+    (e.g. ``!include device-${platform}.yaml``). The actual file is
+    loaded on the first call to ``load()``, and the result is cached.
+    """
+
+    def __init__(
+        self,
+        parent_file: Path,
+        file: Path | str,
+        vars: dict[str, Any] | None,
+        yaml_loader: Callable[[Path], Any],
+    ) -> None:
+        self.parent_file = parent_file
+        self.file = Path(file)
+        self.vars = vars
+        self.yaml_loader = yaml_loader
+        self._content: Any = _UNSET
+
+    def __repr__(self) -> str:
+        return f"IncludeFile({self.file.as_posix()})"
+
+    def load(self) -> Any:
+        """Load and cache the included file content.
+
+        Note: returns the cached mutable object on subsequent calls.
+        Callers that need to modify the result should copy it first.
+        """
+        if self._content is not _UNSET:
+            return self._content
+        if self.has_unresolved_expressions():
+            from esphome.config_validation import Invalid
+
+            raise Invalid(
+                f"Cannot load include with unresolved substitutions: {self.file}"
+            )
+        self._content = self.yaml_loader(Path(self.parent_file.parent / self.file))
+        self._content = add_context(self._content, self.vars)
+        return self._content
+
+    def has_unresolved_expressions(self) -> bool:
+        """Check if the filename contains substitution variables or Jinja expressions."""
+        return has_substitution_or_expression(str(self.file))
+
+
 def _add_data_ref(fn):
     @functools.wraps(fn)
     def wrapped(loader, node):
@@ -168,6 +239,36 @@ def _add_data_ref(fn):
         return res
 
     return wrapped
+
+
+_MAX_MERGE_INCLUDE_DEPTH = 10
+
+
+def _resolve_merge_include(value: Any, node: yaml.Node, value_node: yaml.Node) -> Any:
+    """Resolve an IncludeFile (and chains) and propagate context for merge key handling."""
+    for _ in range(_MAX_MERGE_INCLUDE_DEPTH):
+        if not isinstance(value, IncludeFile):
+            break
+        if value.has_unresolved_expressions():
+            raise yaml.constructor.ConstructorError(
+                "While constructing a mapping",
+                node.start_mark,
+                "Substitution in include filename with merge keys is not supported yet.",
+                value_node.start_mark,
+            )
+        value = value.load()
+    else:
+        raise yaml.constructor.ConstructorError(
+            "While constructing a mapping",
+            node.start_mark,
+            f"Maximum include chain depth ({_MAX_MERGE_INCLUDE_DEPTH}) exceeded in merge key",
+            value_node.start_mark,
+        )
+    if isinstance(value, ConfigContext):
+        # Since the parent dict/list will disappear, propagate
+        # context to children now to retain context vars
+        value.copy_context_to_children()
+    return value
 
 
 class ESPHomeLoaderMixin:
@@ -261,6 +362,9 @@ class ESPHomeLoaderMixin:
 
             # This is a merge key, resolve value and add to merge_pairs
             value = self.construct_object(value_node)
+
+            value = _resolve_merge_include(value, node, value_node)
+
             if isinstance(value, dict):
                 # base case, copy directly to merge_pairs
                 # direct merge, like "<<: {some_key: some_value}"
@@ -268,6 +372,7 @@ class ESPHomeLoaderMixin:
             elif isinstance(value, list):
                 # sequence merge, like "<<: [{some_key: some_value}, {other_key: some_value}]"
                 for item in value:
+                    item = _resolve_merge_include(item, node, value_node)
                     if not isinstance(item, dict):
                         raise yaml.constructor.ConstructorError(
                             "While constructing a mapping",
@@ -362,8 +467,11 @@ class ESPHomeLoaderMixin:
         else:
             file, vars = node.value, None
 
-        result = self.yaml_loader(self._rel_path(file))
-        return add_context(result, vars)
+        return IncludeFile(self.name, file, vars, self.yaml_loader)
+
+    # Directory includes (!include_dir_*) load eagerly during YAML parsing
+    # because their paths are directory names, not individual files, and
+    # substitutions in directory paths are not supported.
 
     @_add_data_ref
     def construct_include_dir_list(self, node: yaml.Node) -> list[dict[str, Any]]:
