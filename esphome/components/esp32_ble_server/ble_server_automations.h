@@ -69,7 +69,8 @@ class BLECharacteristicSetValueActionManager {
 template<typename... Ts> class BLECharacteristicSetValueAction : public Action<Ts...> {
  public:
   BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, buffer)
+  // TemplatableValue (not TemplatableFn) — also set from C++ with raw values (initializer_list, ByteBuffer)
+  template<typename V> void set_buffer(V buffer) { this->buffer_ = buffer; }
   void set_buffer(std::initializer_list<uint8_t> buffer) { this->buffer_ = std::vector<uint8_t>(buffer); }
   void set_buffer(ByteBuffer buffer) { this->set_buffer(buffer.get_data()); }
   void play(const Ts &...x) override {
@@ -90,6 +91,7 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
 
  protected:
   BLECharacteristic *parent_;
+  TemplatableValue<std::vector<uint8_t>, Ts...> buffer_{};
 };
 #endif  // USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
 
@@ -115,13 +117,15 @@ template<typename... Ts> class BLECharacteristicNotifyAction : public Action<Ts.
 template<typename... Ts> class BLEDescriptorSetValueAction : public Action<Ts...> {
  public:
   BLEDescriptorSetValueAction(BLEDescriptor *descriptor) : parent_(descriptor) {}
-  TEMPLATABLE_VALUE(std::vector<uint8_t>, buffer)
+  // TemplatableValue (not TemplatableFn) — also set from C++ with raw values (initializer_list, ByteBuffer)
+  template<typename V> void set_buffer(V buffer) { this->buffer_ = buffer; }
   void set_buffer(std::initializer_list<uint8_t> buffer) { this->buffer_ = std::vector<uint8_t>(buffer); }
   void set_buffer(ByteBuffer buffer) { this->set_buffer(buffer.get_data()); }
   void play(const Ts &...x) override { this->parent_->set_value(this->buffer_.value(x...)); }
 
  protected:
   BLEDescriptor *parent_;
+  TemplatableValue<std::vector<uint8_t>, Ts...> buffer_{};
 };
 #endif  // USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION
 

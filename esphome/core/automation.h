@@ -80,11 +80,11 @@ template<typename T, typename... X> class TemplatableFn {
 // Forward declaration for TemplatableValue (string specialization needs it)
 template<typename T, typename... X> class TemplatableValue;
 
-/// Selects TemplatableFn (4 bytes) for non-string types, TemplatableValue (8 bytes) for std::string.
-/// std::string needs TemplatableValue for const char*, __FlashStringHelper*, and PROGMEM support.
-template<typename T, typename... X>
-using TemplatableStorage =
-    std::conditional_t<std::same_as<T, std::string>, TemplatableValue<T, X...>, TemplatableFn<T, X...>>;
+/// TemplatableStorage uses TemplatableValue (8 bytes) for the TEMPLATABLE_VALUE macro.
+/// Many components pass raw constants to macro-generated setters from codegen, so the
+/// macro must accept both raw values and function pointers. Components that want the
+/// 4-byte savings can use TemplatableFn directly instead of the macro.
+template<typename T, typename... X> using TemplatableStorage = TemplatableValue<T, X...>;
 
 #define TEMPLATABLE_VALUE_(type, name) \
  protected: \
