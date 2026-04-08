@@ -8,7 +8,7 @@ import APIRef from '@components/APIRef.astro';
 This ESPHome component enables *wired* Ethernet connections for ESP32 and RP2040 boards.
 
 - **ESP32**: Supports RMII PHY chips (LAN8720, RTL8201, etc.) and SPI Ethernet chips (W5500, DM9051, ENC28J60).
-- **RP2040**: Supports SPI Ethernet chips (W5100, W5500, ENC28J60).
+- **RP2040/RP2350**: Supports SPI/PIO Ethernet chips (W5100, W5500, W6100, W6300, ENC28J60).
 
 This component and the Wi-Fi component may **not** be used simultaneously, even if both are physically available.
 
@@ -72,6 +72,8 @@ ethernet:
   - `OPENETH` (QEMU, ESP32 only)
   - `DM9051` (SPI, ESP32 only)
   - `ENC28J60` (SPI, 10Mbps, ESP32 and RP2040)
+  - `W6100` (SPI, RP2040/RP2350 only)
+  - `W6300` (PIO QSPI, RP2040/RP2350 only)
   - `LAN8670` (RMII, ESP32 only)
 
 ### RMII configuration variables
@@ -472,6 +474,46 @@ rp2040:
 
 ethernet:
   type: W5100
+  clk_pin: 18
+  mosi_pin: 19
+  miso_pin: 16
+  cs_pin: 17
+  interrupt_pin: 21
+  reset_pin: 20
+```
+
+**WIZnet W6300-EVB-Pico2** (RP2350):
+
+```yaml
+rp2040:
+  board: wiznet_6300_evb_pico2
+
+ethernet:
+  type: W6300
+  clk_pin: 17
+  mosi_pin: 18
+  miso_pin: 19
+  cs_pin: 16
+  interrupt_pin: 15
+  reset_pin: 22
+```
+
+> [!NOTE]
+> The W6300 uses PIO QSPI with hardcoded pins — it does not use Arduino SPI. The `clk_pin`,
+> `mosi_pin`, `miso_pin`, and `cs_pin` fields are still required by the YAML schema for this board,
+> but they are **not** user-configurable for pin remapping; they must be set to the board's fixed
+> QSPI pinout as shown above. An upstream arduino-pico driver issue causes GPIO 0 (UART TX) to be
+> reset during initialization, which disrupts UART serial logging. Device operation and OTA are
+> unaffected.
+
+**WIZnet W6100-EVB-Pico** (RP2040):
+
+```yaml
+rp2040:
+  board: wiznet_6100_evb_pico
+
+ethernet:
+  type: W6100
   clk_pin: 18
   mosi_pin: 19
   miso_pin: 16
