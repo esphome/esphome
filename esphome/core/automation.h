@@ -289,13 +289,13 @@ template<typename... X> class TemplatableValue<std::string, X...> {
     }
   }
 
-  optional<std::string> optional_value(X... x) {
+  optional<std::string> optional_value(X... x) const {
     if (!this->has_value())
       return {};
     return this->value(x...);
   }
 
-  std::string value_or(X... x, std::string default_value) {
+  std::string value_or(X... x, std::string default_value) const {
     if (!this->has_value())
       return default_value;
     return this->value(x...);
