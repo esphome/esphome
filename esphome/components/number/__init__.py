@@ -257,10 +257,14 @@ async def _build_number_automations(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await cg.register_component(trigger, conf)
         if CONF_ABOVE in conf:
-            template_ = await cg.templatable(conf[CONF_ABOVE], [(float, "x")], float)
+            template_ = await cg.templatable(
+                conf[CONF_ABOVE], [(float, "x")], cg.float_
+            )
             cg.add(trigger.set_min(template_))
         if CONF_BELOW in conf:
-            template_ = await cg.templatable(conf[CONF_BELOW], [(float, "x")], float)
+            template_ = await cg.templatable(
+                conf[CONF_BELOW], [(float, "x")], cg.float_
+            )
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
@@ -362,7 +366,7 @@ OPERATION_BASE_SCHEMA = cv.Schema(
 async def number_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, float)
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.float_)
     cg.add(var.set_value(template_))
     return var
 

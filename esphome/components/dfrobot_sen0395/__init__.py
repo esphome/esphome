@@ -166,24 +166,24 @@ async def dfrobot_sen0395_settings_to_code(config, action_id, template_arg, args
         segments = config[CONF_DETECTION_SEGMENTS]
 
         if len(segments) >= 2:
-            template_ = await cg.templatable(segments[0], args, float)
+            template_ = await cg.templatable(segments[0], args, cg.float_)
             cg.add(var.set_det_min1(template_))
-            template_ = await cg.templatable(segments[1], args, float)
+            template_ = await cg.templatable(segments[1], args, cg.float_)
             cg.add(var.set_det_max1(template_))
         if len(segments) >= 4:
-            template_ = await cg.templatable(segments[2], args, float)
+            template_ = await cg.templatable(segments[2], args, cg.float_)
             cg.add(var.set_det_min2(template_))
-            template_ = await cg.templatable(segments[3], args, float)
+            template_ = await cg.templatable(segments[3], args, cg.float_)
             cg.add(var.set_det_max2(template_))
         if len(segments) >= 6:
-            template_ = await cg.templatable(segments[4], args, float)
+            template_ = await cg.templatable(segments[4], args, cg.float_)
             cg.add(var.set_det_min3(template_))
-            template_ = await cg.templatable(segments[5], args, float)
+            template_ = await cg.templatable(segments[5], args, cg.float_)
             cg.add(var.set_det_max3(template_))
         if len(segments) >= 8:
-            template_ = await cg.templatable(segments[6], args, float)
+            template_ = await cg.templatable(segments[6], args, cg.float_)
             cg.add(var.set_det_min4(template_))
-            template_ = await cg.templatable(segments[7], args, float)
+            template_ = await cg.templatable(segments[7], args, cg.float_)
             cg.add(var.set_det_max4(template_))
     if CONF_OUTPUT_LATENCY in config:
         template_ = await cg.templatable(
