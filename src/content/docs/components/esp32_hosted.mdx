@@ -8,9 +8,14 @@ solution that allows you to use ESP32 modules as communication co-processors. Th
 solution provides wireless connectivity (Wi-Fi and Bluetooth) to the host module,
 enabling it to communicate with other devices.
 
+Two transport modes are supported: SDIO (default) and SPI.
+
+## SDIO Transport
+
 ```yaml
-# Example configuration entry
+# Example SDIO configuration (4-bit, default)
 esp32_hosted:
+  type: sdio
   variant: ESP32C6
   reset_pin: GPIOXX
   cmd_pin: GPIOXX
@@ -27,26 +32,84 @@ wifi:
   password: !secret wifi_password
 ```
 
+```yaml
+# Example SDIO configuration (1-bit)
+esp32_hosted:
+  type: sdio
+  variant: ESP32C6
+  bus_width: 1
+  reset_pin: GPIOXX
+  cmd_pin: GPIOXX
+  clk_pin: GPIOXX
+  d0_pin: GPIOXX
+  active_high: true
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+```
+
 <span id="esp32_hosted-configuration_variables"></span>
 
-## Configuration variables
+### SDIO Configuration variables
 
+- **type** (*Optional*, string): The transport mode. Set to `sdio` for SDIO transport. Defaults to `sdio`.
 - **variant** (*Required*, string): The variant of the ESP32 co-processor that is used by the
   host. One of `ESP32`, `ESP32S2`, `ESP32S3`, `ESP32C2`, `ESP32C3` and `ESP32C6`.
-
-- **clk_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO clock pin.
-- **cmd_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO command pin.
-- **d0_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO d0 pin.
-- **d1_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO d1 pin.
-- **d2_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO d2 pin.
-- **d3_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO d3 pin.
-- **slot** (*Optional*, int): The SDIO slot number. Defaults to 1.
 - **reset_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The reset pin of the co-processor.
 - **active_high** (*Required*, boolean): If enabled, the co-processor is active when reset is
   high. If disabled, the co-processor is active when reset is low.
-- **sdio_frequency** (*Optional*): Set the speed of communication between the master and
-  the slave. If you experience loss of communication, or reboots, then try reducing this value.
-  The value can be between 400KHz and 50MHz, with a default of 40MHz.
+- **clk_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO clock pin.
+- **cmd_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO command pin.
+- **d0_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SDIO D0 pin.
+- **d1_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The SDIO D1 pin. Required when `bus_width` is 4.
+- **d2_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The SDIO D2 pin. Required when `bus_width` is 4.
+- **d3_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The SDIO D3 pin. Required when `bus_width` is 4.
+- **bus_width** (*Optional*, int): The SDIO bus width. Either `1` or `4`. Defaults to `4`.
+- **slot** (*Optional*, int): The SDIO slot number. Defaults to `1`.
+- **sdio_frequency** (*Optional*, frequency): Set the speed of communication between the host and
+  the co-processor. If you experience loss of communication, or reboots, then try reducing this value.
+  The value can be between 400kHz and 50MHz, with a default of 40MHz.
+
+## SPI Transport
+
+```yaml
+# Example SPI configuration
+esp32_hosted:
+  type: spi
+  variant: ESP32C6
+  reset_pin: GPIOXX
+  clk_pin: GPIOXX
+  mosi_pin: GPIOXX
+  miso_pin: GPIOXX
+  cs_pin: GPIOXX
+  handshake_pin: GPIOXX
+  data_ready_pin: GPIOXX
+  active_high: true
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+```
+
+### SPI Configuration variables
+
+- **type** (*Required*, string): The transport mode. Set to `spi` for SPI transport.
+- **variant** (*Required*, string): The variant of the ESP32 co-processor that is used by the
+  host. One of `ESP32`, `ESP32S2`, `ESP32S3`, `ESP32C2`, `ESP32C3` and `ESP32C6`.
+- **reset_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The reset pin of the co-processor.
+- **active_high** (*Required*, boolean): If enabled, the co-processor is active when reset is
+  high. If disabled, the co-processor is active when reset is low.
+- **clk_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SPI clock pin.
+- **mosi_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SPI MOSI pin.
+- **miso_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SPI MISO pin.
+- **cs_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The SPI chip select pin.
+- **handshake_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The handshake pin used by the co-processor to signal readiness.
+- **data_ready_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The data ready pin used by the co-processor to signal available data.
+- **spi_mode** (*Optional*, int): The SPI mode (0-3). Defaults depend on the variant: mode 2 for ESP32, mode 3 for all others.
+- **frequency** (*Optional*, frequency): The SPI clock frequency. Maximum depends on variant: 10MHz for ESP32, 40MHz for all other variants. Defaults to the maximum for each variant.
+- **handshake_active_high** (*Optional*, boolean): Polarity of the handshake signal. Defaults to `true`.
+- **data_ready_active_high** (*Optional*, boolean): Polarity of the data ready signal. Defaults to `true`.
 
 ## Updating co-processor firmware
 
