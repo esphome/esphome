@@ -1,5 +1,3 @@
-from typing import Any
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.config import path_context
@@ -30,7 +28,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError, Lambda
 from esphome.cpp_generator import LambdaExpression
-from esphome.types import ConfigType, SafeExpType
+from esphome.types import ConfigType
 
 from .types import (
     COLOR_MODES,
@@ -143,28 +141,6 @@ LIGHT_TURN_ON_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-async def _as_lambda(
-    value: Any,
-    args: list[tuple[SafeExpType, str]],
-    output_type: SafeExpType,
-) -> LambdaExpression:
-    """Return a stateless lambda expression for a templatable value.
-
-    If value is already a lambda, process it normally. Otherwise wrap
-    the constant in a ``[](...) -> T { return <value>; }`` expression
-    so that LightControlAction can store every field as a plain
-    function pointer.
-    """
-    if cg.is_template(value):
-        return await cg.process_lambda(value, args, return_type=output_type)
-    return LambdaExpression(
-        f"return {cg.safe_exp(value)};",
-        args,
-        capture="",
-        return_type=output_type,
-    )
-
-
 def _resolve_effect_index(config: ConfigType) -> int:
     """Resolve a static effect name to its 1-based index at codegen time.
 
@@ -222,9 +198,8 @@ async def light_control_to_code(config, action_id, template_arg, args):
     )
     for conf_key, setter, type_ in FIELDS:
         if conf_key in config:
-            cg.add(
-                getattr(var, setter)(await _as_lambda(config[conf_key], args, type_))
-            )
+            template_ = await cg.templatable(config[conf_key], args, type_)
+            cg.add(getattr(var, setter)(template_))
 
     if CONF_EFFECT in config:
         if isinstance(config[CONF_EFFECT], Lambda):
@@ -248,11 +223,10 @@ async def light_control_to_code(config, action_id, template_arg, args):
             cg.add(var.set_effect(wrapper))
         else:
             # Static string — resolve effect name to index at codegen time
-            cg.add(
-                var.set_effect(
-                    await _as_lambda(_resolve_effect_index(config), args, cg.uint32)
-                )
+            template_ = await cg.templatable(
+                _resolve_effect_index(config), args, cg.uint32
             )
+            cg.add(var.set_effect(template_))
     return var
 
 
