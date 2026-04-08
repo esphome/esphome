@@ -47,6 +47,7 @@
 #define USE_BLE_DEVICE_IRK
 #define USE_BUTTON
 #define USE_CAMERA
+#define USE_CSI_CAMERA
 #define USE_CLIMATE
 #define USE_CLIMATE_VISUAL_OVERRIDES
 #define USE_CONTROLLER_REGISTRY
@@ -460,7 +461,7 @@
 #define USE_SHD_FIRMWARE_MINOR_VERSION 5
 // clang-format off
 #define USE_SHD_FIRMWARE_DATA \
-  {}
+{}
 // clang-format on
 
 #define USE_WEBSERVER

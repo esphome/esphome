@@ -126,6 +126,7 @@ esphome/components/copy/* @OttoWinter
 esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
+esphome/components/csi_camera/* @jvgelder
 esphome/components/cst226/* @clydebarrow
 esphome/components/cst328/* @latonita
 esphome/components/cst816/* @clydebarrow
