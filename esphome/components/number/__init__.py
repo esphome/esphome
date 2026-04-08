@@ -79,6 +79,7 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     setup_device_class,
@@ -186,7 +187,11 @@ NUMBER_OPERATION_OPTIONS = {
 }
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
-validate_unit_of_measurement = cv.string_strict
+validate_unit_of_measurement = cv.All(
+    cv.string_strict,
+    # Keep in sync with max_data_length in api.proto
+    cv.ByteLength(max=UNIT_OF_MEASUREMENT_MAX_LENGTH),
+)
 
 _NUMBER_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -238,12 +243,16 @@ def number_schema(
     return _NUMBER_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_VALUE, "add_on_state_callback", [(float, "x")]
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_number_automations(var, config):
-    for conf in config.get(CONF_ON_VALUE, []):
-        await automation.build_callback_automation(
-            var, "add_on_state_callback", [(float, "x")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await cg.register_component(trigger, conf)
@@ -439,7 +448,11 @@ async def number_to_to_code(config, action_id, template_arg, args):
             template_ = await cg.templatable(cycle, args, bool)
             cg.add(var.set_cycle(template_))
     if (mode := config.get(CONF_MODE)) is not None:
-        cg.add(var.set_operation(NUMBER_OPERATION_OPTIONS[mode]))
+        template_ = await cg.templatable(
+            NUMBER_OPERATION_OPTIONS[mode], args, NumberOperation
+        )
+        cg.add(var.set_operation(template_))
         if (cycle := config.get(CONF_CYCLE)) is not None:
-            cg.add(var.set_cycle(cycle))
+            template_ = await cg.templatable(cycle, args, cg.bool_)
+            cg.add(var.set_cycle(template_))
     return var

@@ -80,11 +80,9 @@ async def grove_tb6612fng_run_to_code(config, action_id, template_arg, args):
 
     template_channel = await cg.templatable(config[CONF_CHANNEL], args, int)
     template_speed = await cg.templatable(config[CONF_SPEED], args, cg.uint16)
-    template_speed = (
-        template_speed if config[CONF_DIRECTION] == "FORWARD" else -template_speed
-    )
     cg.add(var.set_channel(template_channel))
     cg.add(var.set_speed(template_speed))
+    cg.add(var.set_direction(config[CONF_DIRECTION] == "FORWARD"))
     return var
 
 

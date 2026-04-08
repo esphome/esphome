@@ -118,10 +118,8 @@ PRESET_CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MODE): validate_climate_mode,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
-        cv.Optional(CONF_FAN_MODE): cv.templatable(climate.validate_climate_fan_mode),
-        cv.Optional(CONF_SWING_MODE): cv.templatable(
-            climate.validate_climate_swing_mode
-        ),
+        cv.Optional(CONF_FAN_MODE): climate.validate_climate_fan_mode,
+        cv.Optional(CONF_SWING_MODE): climate.validate_climate_swing_mode,
     }
 )
 
@@ -631,7 +629,7 @@ CONFIG_SCHEMA = cv.All(
             ): automation.validate_automation(single=True),
             cv.Optional(CONF_HUMIDITY_HYSTERESIS, default=1.0): cv.percentage,
             cv.Optional(CONF_DEFAULT_MODE, default=None): cv.valid,
-            cv.Optional(CONF_DEFAULT_PRESET): cv.templatable(cv.string),
+            cv.Optional(CONF_DEFAULT_PRESET): cv.string,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
             cv.Optional(
