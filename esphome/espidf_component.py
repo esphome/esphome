@@ -714,13 +714,13 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # Generate the component
     content = "idf_component_register(\n"
     if build_src_files:
-        str_srcs = " ".join([escape_entry(p) for p in build_src_files])
+        str_srcs = " ".join([escape_entry(p) for p in sorted(build_src_files)])
         content += f"  SRCS {str_srcs}\n"
     if build_include_dirs:
         str_include_dirs = " ".join([escape_entry(p) for p in build_include_dirs])
         content += f"  INCLUDE_DIRS {str_include_dirs}\n"
     if requires:
-        str_requires = " ".join(requires)
+        str_requires = " ".join(sorted(requires))
         content += f"  REQUIRES {str_requires}\n"
     content += ")\n"
 
