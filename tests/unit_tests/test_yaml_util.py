@@ -640,6 +640,18 @@ def test_include_in_list_context() -> None:
     assert config["values"] == ["alpha", "beta", "gamma"]
 
 
+def test_top_level_include_resolved_by_load_yaml(tmp_path: Path) -> None:
+    """load_yaml resolves a top-level !include so callers always get a dict."""
+    child = tmp_path / "child.yaml"
+    child.write_text("key: value\n")
+    main = tmp_path / "main.yaml"
+    main.write_text("!include child.yaml\n")
+
+    result = yaml_util.load_yaml(main)
+    assert isinstance(result, dict)
+    assert result["key"] == "value"
+
+
 def test_include_plain_filename_loads_after_deferred_refactor() -> None:
     """!include with a plain filename (no $ expressions) still loads correctly.
 
