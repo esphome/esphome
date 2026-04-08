@@ -240,6 +240,7 @@ def register_bt_logger(*loggers: BTLoggers) -> None:
 
 
 CONF_BLE_ID = "ble_id"
+CONF_BT_CLASSIC_COMPATIBILITY = "bt_classic_compatibility"
 CONF_IO_CAPABILITY = "io_capability"
 CONF_AUTH_REQ_MODE = "auth_req_mode"
 CONF_MAX_KEY_SIZE = "max_key_size"
@@ -319,6 +320,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32BLE),
         cv.Optional(CONF_NAME): cv.All(cv.string, cv.Length(max=20)),
+        cv.Optional(CONF_BT_CLASSIC_COMPATIBILITY, default=False): cv.boolean,
         cv.Optional(CONF_IO_CAPABILITY, default="none"): cv.enum(
             IO_CAPABILITY, lower=True
         ),
@@ -603,6 +605,9 @@ async def to_code(config):
 
     add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
     add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+
+    if config.get(CONF_BT_CLASSIC_COMPATIBILITY, False):
+        cg.add_define("USE_ESP32_BT_CLASSIC_COMPATIBILITY")
 
     # Register the core BLE loggers that are always needed
     register_bt_logger(BTLoggers.GAP, BTLoggers.BTM, BTLoggers.HCI)
