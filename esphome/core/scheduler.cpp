@@ -529,7 +529,7 @@ void HOT Scheduler::call(uint32_t now) {
   const auto now_64 = this->millis_64_from_(now);
   this->process_to_add();
 
-  // Track if any items were added to to_add_ during this call (intervals or from callbacks)
+  // Track if any items were added to to_add_ during callbacks
   bool has_added_items = false;
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
@@ -578,6 +578,12 @@ void HOT Scheduler::call(uint32_t now) {
   if (this->to_remove_count_() >= MAX_LOGICALLY_DELETED_ITEMS) {
     this->full_cleanup_removed_items_();
   }
+  // IMPORTANT: This loop uses index-based access (items_[0]), NOT iterators.
+  // This is intentional — fired intervals are pushed back into items_ via
+  // push_back() + push_heap() below, which may reallocate the vector's storage.
+  // Index-based access is safe across reallocations because we re-read items_[0]
+  // at the top of each iteration. Do NOT convert this to a range-based for loop
+  // or iterator-based loop, as that would break when items are added.
   while (!this->items_.empty()) {
     // Don't copy-by value yet
     SchedulerItem *item = this->items_[0];
@@ -646,10 +652,18 @@ void HOT Scheduler::call(uint32_t now) {
 
     if (executed_item->type == SchedulerItem::INTERVAL) {
       executed_item->set_next_execution(now_64 + executed_item->interval);
-      // Add new item directly to to_add_
-      // since we have the lock held
-      this->to_add_.push_back(executed_item);
-      this->to_add_count_increment_();
+      // Push directly back into the heap instead of routing through to_add_.
+      // This is safe because:
+      // 1. We're on the main loop and already hold the lock
+      // 2. The item was already popped from items_ via pop_raw_locked_() above
+      // 3. The while loop uses index-based access (items_[0]), not iterators,
+      //    so push_back() reallocation cannot invalidate our iteration
+      // 4. push_heap() restores the heap invariant before the next iteration
+      //    peeks at items_[0]
+      // This avoids the to_add_ detour and the overhead of
+      // process_to_add_slow_path_() (lock acquisition, vector iteration, clear).
+      this->items_.push_back(executed_item);
+      std::push_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
     } else {
       // Timeout completed - recycle it
       this->recycle_item_main_loop_(executed_item);
