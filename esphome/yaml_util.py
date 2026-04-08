@@ -626,6 +626,7 @@ def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) ->
             ESPHomePurePythonLoader, file_name, file_handle, yaml_loader
         )
     # Add built-in context variables scoped to this file
+    # Note: built-in 'this' takes precedence over user substitutions
     return add_context(
         content,
         {
