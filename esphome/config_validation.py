@@ -75,7 +75,6 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
-    VALID_SUBSTITUTIONS_CHARACTERS,
     Framework,
     __version__ as ESPHOME_VERSION,
 )
@@ -90,6 +89,7 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
+from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
 from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
@@ -103,11 +103,6 @@ from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
 _LOGGER = logging.getLogger(__name__)
-
-# pylint: disable=consider-using-f-string
-VARIABLE_PROG = re.compile(
-    f"\\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+|\\{{[{VALID_SUBSTITUTIONS_CHARACTERS}]*\\}})"
-)
 
 # pylint: disable=invalid-name
 

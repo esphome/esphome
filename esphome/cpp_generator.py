@@ -835,27 +835,26 @@ async def templatable(
     """
     if is_template(value):
         return await process_lambda(value, args, return_type=output_type)
+    # Late import to avoid circular dependency (cpp_generator <-> cpp_types).
+    from esphome.cpp_types import std_string
+
     if to_exp is not None:
         value = to_exp[value] if isinstance(to_exp, dict) else to_exp(value)
-    elif isinstance(value, str) and output_type is not None:
+    elif (
+        isinstance(value, str) and output_type is not None and output_type is std_string
+    ):
         # Automatically wrap static strings in ESPHOME_F() for PROGMEM storage on ESP8266.
         # On other platforms ESPHOME_F() is a no-op returning const char*.
-        from esphome.cpp_types import std_string
-
-        if output_type is std_string:
-            return FlashStringLiteral(value)
+        return FlashStringLiteral(value)
     # For non-string types, wrap constants in stateless lambdas so that
     # TemplatableFn (used by TEMPLATABLE_VALUE macro) stores them as function pointers.
-    if output_type is not None:
-        from esphome.cpp_types import std_string
-
-        if output_type is not std_string:
-            return LambdaExpression(
-                f"return {safe_exp(value)};",
-                args,
-                capture="",
-                return_type=output_type,
-            )
+    if output_type is not None and output_type is not std_string:
+        return LambdaExpression(
+            f"return {safe_exp(value)};",
+            args,
+            capture="",
+            return_type=output_type,
+        )
     return value
 
 

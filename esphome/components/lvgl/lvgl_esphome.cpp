@@ -158,8 +158,15 @@ void LvglComponent::dump_config() {
                 "  Draw rounding: %d",
                 this->width_, this->height_, 100 / this->buffer_frac_, this->rotation_, (int) this->draw_rounding);
   if (this->rotation_type_ != ROTATION_UNUSED) {
-    ESP_LOGCONFIG(TAG, "  Rotation type: %s",
-                  this->rotation_type_ == RotationType::ROTATION_SOFTWARE ? "software" : "hardware via display driver");
+    const char *rot_type = "hardware via display driver";
+    if (this->rotation_type_ == RotationType::ROTATION_SOFTWARE) {
+#ifdef USE_ESP32_VARIANT_ESP32P4
+      rot_type = this->ppa_client_ != nullptr ? "software (PPA accelerated)" : "software";
+#else
+      rot_type = "software";
+#endif
+    }
+    ESP_LOGCONFIG(TAG, "  Rotation type: %s", rot_type);
   }
 }
 
@@ -252,21 +259,120 @@ void LvglComponent::show_prev_page(lv_screen_load_anim_t anim, uint32_t time) {
 size_t LvglComponent::get_current_page() const { return this->current_page_; }
 bool LvPageType::is_showing() const { return this->parent_->get_current_page() == this->index; }
 
+#ifdef USE_ESP32_VARIANT_ESP32P4
+bool LvglComponent::ppa_rotate_(const lv_color_data *src, lv_color_data *dst, uint16_t width, uint16_t height,
+                                uint32_t height_rounded) {
+  ppa_srm_rotation_angle_t angle;
+  uint16_t out_w, out_h;
+
+  // Map ESPHome clockwise display rotation to PPA counter-clockwise angles
+  switch (this->rotation_) {
+    case display::DISPLAY_ROTATION_90_DEGREES:
+      angle = PPA_SRM_ROTATION_ANGLE_270;  // 270° CCW = 90° CW
+      out_w = height_rounded;
+      out_h = width;
+      break;
+    case display::DISPLAY_ROTATION_180_DEGREES:
+      angle = PPA_SRM_ROTATION_ANGLE_180;
+      out_w = width;
+      out_h = height;
+      break;
+    case display::DISPLAY_ROTATION_270_DEGREES:
+      angle = PPA_SRM_ROTATION_ANGLE_90;  // 90° CCW = 270° CW
+      out_w = height_rounded;
+      out_h = width;
+      break;
+    default:
+      return false;  // No rotation needed
+  }
+
+  // Align buffer size to cache line (LV_DRAW_BUF_ALIGN) as required by PPA DMA
+  // the underlying buffer will be large enough as the size is also padded when allocating.
+  size_t out_buf_size = out_w * out_h * sizeof(lv_color_data);
+  out_buf_size = LV_ROUND_UP(out_buf_size, LV_DRAW_BUF_ALIGN);
+
+  ppa_srm_oper_config_t srm_config{};
+  srm_config.in.buffer = src;
+  srm_config.in.pic_w = width;
+  srm_config.in.pic_h = height;
+  srm_config.in.block_w = width;
+  srm_config.in.block_h = height;
+#if LV_COLOR_DEPTH == 16
+  srm_config.in.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
+#elif LV_COLOR_DEPTH == 32
+  srm_config.in.srm_cm = PPA_SRM_COLOR_MODE_ARGB8888;
+#endif
+  srm_config.out.buffer = dst;
+  srm_config.out.buffer_size = out_buf_size;
+  srm_config.out.pic_w = out_w;
+  srm_config.out.pic_h = out_h;
+#if LV_COLOR_DEPTH == 16
+  srm_config.out.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
+#elif LV_COLOR_DEPTH == 32
+  srm_config.out.srm_cm = PPA_SRM_COLOR_MODE_ARGB8888;
+#endif
+  srm_config.rotation_angle = angle;
+  srm_config.scale_x = 1.0f;
+  srm_config.scale_y = 1.0f;
+  srm_config.mode = PPA_TRANS_MODE_BLOCKING;
+
+  esp_err_t ret = ppa_do_scale_rotate_mirror(this->ppa_client_, &srm_config);
+  if (ret != ESP_OK) {
+    ESP_LOGW(TAG, "PPA rotation failed: %s", esp_err_to_name(ret));
+    ESP_LOGW(TAG, "PPA SRM: in=%ux%u src=%p, out=%ux%u dst=%p size=%zu, angle=%d", width, height, src, out_w, out_h,
+             dst, out_buf_size, (int) angle);
+    return false;
+  }
+  return true;
+}
+#endif  // USE_ESP32_VARIANT_ESP32P4
+
 void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
   auto width = lv_area_get_width(area);
   auto height = lv_area_get_height(area);
   auto height_rounded = (height + this->draw_rounding - 1) / this->draw_rounding * this->draw_rounding;
   auto x1 = area->x1;
   auto y1 = area->y1;
-  if (this->rotation_type_ == RotationType::ROTATION_SOFTWARE) {
+  if (this->rotation_type_ == ROTATION_SOFTWARE) {
     lv_color_data *dst = reinterpret_cast<lv_color_data *>(this->rotate_buf_);
+#ifdef USE_ESP32_VARIANT_ESP32P4
+    bool ppa_done = this->ppa_client_ != nullptr && this->ppa_rotate_(ptr, dst, width, height, height_rounded);
+    if (!ppa_done)
+#endif
+    {
+      switch (this->rotation_) {
+        case display::DISPLAY_ROTATION_90_DEGREES:
+          for (lv_coord_t x = height; x-- != 0;) {
+            for (lv_coord_t y = 0; y != width; y++) {
+              dst[y * height_rounded + x] = *ptr++;
+            }
+          }
+          break;
+
+        case display::DISPLAY_ROTATION_180_DEGREES:
+          for (lv_coord_t y = height; y-- != 0;) {
+            for (lv_coord_t x = width; x-- != 0;) {
+              dst[y * width + x] = *ptr++;
+            }
+          }
+          break;
+
+        case display::DISPLAY_ROTATION_270_DEGREES:
+          for (lv_coord_t x = 0; x != height; x++) {
+            for (lv_coord_t y = width; y-- != 0;) {
+              dst[y * height_rounded + x] = *ptr++;
+            }
+          }
+          break;
+
+        default:
+          dst = ptr;
+          break;
+      }
+    }
+    // Coordinate adjustments apply regardless of PPA or SW rotation
     switch (this->rotation_) {
       case display::DISPLAY_ROTATION_90_DEGREES:
-        for (lv_coord_t x = height; x-- != 0;) {
-          for (lv_coord_t y = 0; y != width; y++) {
-            dst[y * height_rounded + x] = *ptr++;
-          }
-        }
         y1 = x1;
         x1 = this->width_ - area->y1 - height;
         height = width;
@@ -274,21 +380,11 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
         break;
 
       case display::DISPLAY_ROTATION_180_DEGREES:
-        for (lv_coord_t y = height; y-- != 0;) {
-          for (lv_coord_t x = width; x-- != 0;) {
-            dst[y * width + x] = *ptr++;
-          }
-        }
         x1 = this->width_ - x1 - width;
         y1 = this->height_ - y1 - height;
         break;
 
       case display::DISPLAY_ROTATION_270_DEGREES:
-        for (lv_coord_t x = 0; x != height; x++) {
-          for (lv_coord_t y = width; y-- != 0;) {
-            dst[y * height_rounded + x] = *ptr++;
-          }
-        }
         x1 = y1;
         y1 = this->height_ - area->x1 - width;
         height = width;
@@ -296,7 +392,6 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
         break;
 
       default:
-        dst = ptr;
         break;
     }
     ptr = dst;
@@ -664,6 +759,15 @@ void LvglComponent::setup() {
       this->mark_failed();
       return;
     }
+#ifdef USE_ESP32_VARIANT_ESP32P4
+    ppa_client_config_t ppa_config{};
+    ppa_config.oper_type = PPA_OPERATION_SRM;
+    ppa_config.max_pending_trans_num = 1;
+    if (ppa_register_client(&ppa_config, &this->ppa_client_) != ESP_OK) {
+      ESP_LOGW(TAG, "PPA client registration failed, using software rotation");
+      this->ppa_client_ = nullptr;
+    }
+#endif
   }
   if (this->draw_start_callback_ != nullptr) {
     lv_display_add_event_cb(this->disp_, render_start_cb, LV_EVENT_RENDER_START, this);
@@ -804,7 +908,7 @@ static unsigned cap_bits = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;  // NOLINT
 
 static void *lv_alloc_draw_buf(size_t size, bool internal) {
   void *buffer;
-  size = ((size + LV_DRAW_BUF_ALIGN - 1) / LV_DRAW_BUF_ALIGN) * LV_DRAW_BUF_ALIGN;
+  size = LV_ROUND_UP(size, LV_DRAW_BUF_ALIGN);
   buffer = heap_caps_aligned_alloc(LV_DRAW_BUF_ALIGN, size, internal ? MALLOC_CAP_8BIT : cap_bits);  // NOLINT
   if (buffer == nullptr)
     ESP_LOGW(esphome::lvgl::TAG, "Failed to allocate %zu bytes for %sdraw buffer", size, internal ? "internal " : "");
