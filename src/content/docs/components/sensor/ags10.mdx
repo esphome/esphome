@@ -76,13 +76,13 @@ on_...:
 Configuration option:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the AGS10 sensor.
-- **mode** (**Required**, enum): One of supported modes:
+- **mode** (**Required**, enum, [templatable](/automations/templates)): One of supported modes:
 
   - `FACTORY_DEFAULT` - reset to the factory zero-point
   - `CURRENT_VALUE` - set zero-point calibration with current resistance
   - `CUSTOM_VALUE` - set zero-point calibration with resistance pointed with `value` option
 
-- **value** (*Optional*, int): nominated resistance value to set (unit: 0.1 kΩ).
+- **value** (*Optional*, int, [templatable](/automations/templates)): nominated resistance value to set (unit: 0.1 kΩ).
 
 <span id="sensor-ags10newi2caddressaction"></span>
 
