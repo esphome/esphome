@@ -169,11 +169,18 @@ void crash_handler_read_and_clear() {
       s_raw_crash_data.other_reg_frame_count = s_raw_crash_data.other_backtrace_count;
 #endif
   }
-  // Clear magic regardless so we don't re-report on next normal reboot
-  s_raw_crash_data.magic = 0;
+  // Don't clear magic here — crash data must survive OTA rollback reboots.
+  // Magic is cleared by crash_handler_clear() after an API client receives the data.
 }
 
 bool crash_handler_has_data() { return s_crash_data_valid; }
+
+void crash_handler_clear() {
+  // Only clear the magic so data doesn't survive the next reboot.
+  // Keep s_crash_data_valid so crash_handler_log() still works for
+  // additional API clients connecting during this boot session.
+  s_raw_crash_data.magic = 0;
+}
 
 // Look up the exception cause as a human-readable string.
 // Tables mirror ESP-IDF's panic_arch_fill_info() which uses local static arrays
