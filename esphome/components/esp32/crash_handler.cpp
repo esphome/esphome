@@ -81,7 +81,6 @@ struct RawCrashData {
 #if SOC_CPU_CORES_NUM > 1
   uint8_t other_backtrace_count;
   uint8_t other_reg_frame_count;
-  // 1 byte implicit padding before uint32_t array
   uint32_t other_backtrace[MAX_BACKTRACE];
 #endif
 };
