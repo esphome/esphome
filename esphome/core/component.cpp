@@ -299,7 +299,7 @@ void Component::enable_loop_slow_path_() {
   this->set_component_state_(COMPONENT_STATE_LOOP);
   App.enable_component_loop_(this);
 }
-void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
+void IRAM_ATTR Component::enable_loop_soon_any_context() {
   // This method is thread and ISR-safe because:
   // 1. Only performs simple assignments to volatile variables (atomic on all platforms)
   // 2. No read-modify-write operations that could be interrupted
@@ -311,15 +311,9 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // 8. Race condition with main loop is handled by clearing flag before processing
   this->pending_enable_loop_ = true;
   App.has_pending_enable_loop_requests_ = true;
-#if (defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)) || \
-    ((defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP))
   // Wake the main loop from sleep. Without this, the main loop would not
   // wake until the select/delay timeout expires (~16ms).
-  // ESP32: uses xPortInIsrContext() to choose the correct FreeRTOS notify API.
-  // ESP8266: sets socket wake flag and calls esp_schedule() to exit esp_delay() early.
-  // RP2040: sets socket wake flag and calls __sev() to exit __wfe() early.
-  Application::wake_loop_any_context();
-#endif
+  wake_loop_any_context();
 }
 void Component::reset_to_construction_state() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {

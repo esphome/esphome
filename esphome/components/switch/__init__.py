@@ -121,17 +121,26 @@ def switch_schema(
     return _SWITCH_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", [(bool, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_TURN_ON,
+        "add_on_state_callback",
+        forwarder=automation.TriggerOnTrueForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_TURN_OFF,
+        "add_on_state_callback",
+        forwarder=automation.TriggerOnFalseForwarder,
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_switch_automations(var, config):
-    for conf_key, args, forwarder in (
-        (CONF_ON_STATE, [(bool, "x")], None),
-        (CONF_ON_TURN_ON, [], automation.TriggerOnTrueForwarder),
-        (CONF_ON_TURN_OFF, [], automation.TriggerOnFalseForwarder),
-    ):
-        for conf in config.get(conf_key, []):
-            await automation.build_callback_automation(
-                var, "add_on_state_callback", args, conf, forwarder=forwarder
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @setup_entity("switch")

@@ -56,6 +56,11 @@ class MitsubishiCN105 {
                                                : !std::isnan(this->status_.target_temperature);
   }
 
+  void set_power(bool power_on);
+  void set_target_temperature(float target_temperature);
+  void set_mode(Mode mode);
+  void set_fan_mode(FanMode fan_mode);
+
  protected:
   enum class State : uint8_t {
     NOT_CONNECTED,
@@ -65,6 +70,8 @@ class MitsubishiCN105 {
     STATUS_UPDATED,
     SCHEDULE_NEXT_STATUS_UPDATE,
     WAITING_FOR_SCHEDULED_STATUS_UPDATE,
+    APPLYING_SETTINGS,
+    SETTINGS_APPLIED,
     READ_TIMEOUT
   };
 
@@ -83,6 +90,23 @@ class MitsubishiCN105 {
     uint8_t read_pos_{0};
   };
 
+  enum class UpdateFlag : uint8_t {
+    TEMPERATURE = 1 << 0,
+    POWER = 1 << 1,
+    MODE = 1 << 2,
+    FAN = 1 << 3,
+  };
+
+  struct UpdateFlags {
+    void set(UpdateFlag f) { flags_ |= static_cast<uint8_t>(f); }
+    void clear() { flags_ = 0; }
+    bool any() const { return flags_ != 0; }
+    bool has(UpdateFlag f) const { return (flags_ & static_cast<uint8_t>(f)) != 0; }
+
+   protected:
+    uint8_t flags_{0};
+  };
+
   void set_state_(State new_state);
   void did_transition_(State to);
   bool process_rx_packet_(uint8_t type, const uint8_t *payload, size_t len);
@@ -94,6 +118,7 @@ class MitsubishiCN105 {
   void update_status_();
   void cancel_waiting_and_transition_to_(State state);
   bool should_request_room_temperature_() const;
+  void apply_settings_();
   template<typename T> void send_packet_(const T &packet) { this->send_packet_(packet.data(), packet.size()); }
   static bool should_transition(State from, State to);
   static const LogString *state_to_string(State state);
@@ -106,6 +131,8 @@ class MitsubishiCN105 {
   std::optional<uint32_t> last_room_temperature_update_ms_;
   Status status_{};
   State state_{State::NOT_CONNECTED};
+  UpdateFlags pending_updates_;
+  bool use_temperature_encoding_b_{false};
   uint8_t current_status_msg_type_{0};
   FrameParser frame_parser_;
 };

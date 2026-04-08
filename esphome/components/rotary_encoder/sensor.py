@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_RESTORE_MODE,
     CONF_VALUE,
     ICON_ROTATE_RIGHT,
+    STATE_CLASS_MEASUREMENT,
     UNIT_STEPS,
 )
 
@@ -49,7 +50,7 @@ def validate_min_max_value(config):
         max_val = config[CONF_MAX_VALUE]
         if min_val >= max_val:
             raise cv.Invalid(
-                f"Max value {max_val} must be smaller than min value {min_val}"
+                f"Max value {max_val} must be greater than min value {min_val}"
             )
     return config
 
@@ -60,6 +61,7 @@ CONFIG_SCHEMA = cv.All(
         unit_of_measurement=UNIT_STEPS,
         icon=ICON_ROTATE_RIGHT,
         accuracy_decimals=0,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {
@@ -79,6 +81,14 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA),
     validate_min_max_value,
+)
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_CLOCKWISE, "add_on_clockwise_callback"),
+    automation.CallbackAutomation(
+        CONF_ON_ANTICLOCKWISE, "add_on_anticlockwise_callback"
+    ),
 )
 
 
@@ -102,14 +112,7 @@ async def to_code(config):
     if CONF_MAX_VALUE in config:
         cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
 
-    for conf in config.get(CONF_ON_CLOCKWISE, []):
-        await automation.build_callback_automation(
-            var, "add_on_clockwise_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_ANTICLOCKWISE, []):
-        await automation.build_callback_automation(
-            var, "add_on_anticlockwise_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_action(
@@ -117,7 +120,7 @@ async def to_code(config):
     RotaryEncoderSetValueAction,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_ID): cv.use_id(RotaryEncoderSensor),
             cv.Required(CONF_VALUE): cv.templatable(cv.int_),
         }
     ),
