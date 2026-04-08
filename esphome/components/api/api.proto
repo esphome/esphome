@@ -2575,10 +2575,10 @@ message ListEntitiesRadioFrequencyResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_RADIO_FREQUENCY";
 
-  string object_id = 1;
-  fixed32 key = 2;
-  string name = 3;
-  string icon = 4;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
+  fixed32 key = 2 [(force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true];
+  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 5;
   EntityCategory entity_category = 6;
   uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];

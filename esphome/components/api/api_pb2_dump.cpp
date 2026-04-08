@@ -2612,7 +2612,9 @@ const char *ListEntitiesRadioFrequencyResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
   dump_field(out, ESPHOME_PSTR("key"), this->key);
   dump_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
   dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
 #ifdef USE_DEVICES

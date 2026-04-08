@@ -3934,10 +3934,12 @@ uint32_t InfraredRFReceiveEvent::calculate_size() const {
 #ifdef USE_RADIO_FREQUENCY
 uint8_t *ListEntitiesRadioFrequencyResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
-  ProtoEncode::encode_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
+  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+#ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->icon);
+#endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->disabled_by_default);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
@@ -3951,10 +3953,12 @@ uint8_t *ListEntitiesRadioFrequencyResponse::encode(ProtoWriteBuffer &buffer PRO
 }
 uint32_t ListEntitiesRadioFrequencyResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
-  size += ProtoSize::calc_fixed32(1, this->key);
-  size += ProtoSize::calc_length(1, this->name.size());
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += 2 + this->object_id.size();
+  size += 5;
+  size += 2 + this->name.size();
+#ifdef USE_ENTITY_ICON
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+#endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
 #ifdef USE_DEVICES
