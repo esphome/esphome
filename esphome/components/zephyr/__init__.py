@@ -199,7 +199,7 @@ def zephyr_add_user(key, value):
 def copy_files():
     user = zephyr_data()[KEY_USER]
     if user:
-        entries = "\n".join(
+        entries = " ".join(
             f"{key} = {', '.join(value)};" for key, value in user.items()
         )
         zephyr_add_overlay(
