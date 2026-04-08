@@ -19,6 +19,18 @@ void EPaperSSD1683::refresh_screen(bool partial) {
   this->command(0x20);
 }
 
+// Puts the display into deep sleep mode 1, only way to get out is to reset the display
+// Mode 1 retains RAM while sleeping, necessary for future partial and window updates
+void EPaperSSD1683::deep_sleep() {
+  if (this->is_using_partial_update_()) {
+    ESP_LOGV(TAG, "Deep sleep mode 1");
+    this->cmd_data(0x10, {0x01});  // deep sleep, retain RAM
+  } else {
+    ESP_LOGV(TAG, "Deep sleep mode 2");
+    this->cmd_data(0x10, {0x03});  // deep sleep, lose RAM
+  }
+}
+
 void EPaperSSD1683::set_window() {
   // round x-coordinates to byte boundaries
   this->x_low_ /= 8;

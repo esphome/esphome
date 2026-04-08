@@ -13,12 +13,10 @@ void EPaperMono::refresh_screen(bool partial) {
   this->command(0x20);
 }
 
-// Puts the display into deep sleep mode 1, only way to get out is to reset the display
-// Mode 1 retains RAM while sleeping, necessary for future partial and window updates
 void EPaperMono::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
-  if (this->is_using_partial_update_()) {
-    this->cmd_data(0x10, {0x01});  // sleep in power on mode
+  if (!this->is_using_partial_update_()) {
+    this->cmd_data(0x10, {0x00});  // sleep in power on mode
   } else {
     this->cmd_data(0x10, {0x03});  // deep sleep
   }
