@@ -428,7 +428,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     "-p",
                     host,
                 ],
-                check=True,
+                check=False,
             ).returncode
 
             if result != 0:
