@@ -233,7 +233,7 @@ bool ESP32BLE::ble_setup_() {
       ESP_LOGE(TAG, "esp_bluedroid_enable failed: %d", err);
       return false;
     }
-}
+  }
 
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
   err = esp_ble_gap_register_callback(ESP32BLE::gap_event_handler);
