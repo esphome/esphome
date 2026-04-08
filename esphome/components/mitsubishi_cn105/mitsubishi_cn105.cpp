@@ -388,7 +388,7 @@ void MitsubishiCN105::set_remote_temperature(float temperature) {
   this->set_remote_temperature_(temperature_half_deg);
 }
 
-void MitsubishiCN105::clear_remote_temperature() { this->set_remote_temperature_(0); }
+void MitsubishiCN105::clear_remote_temperature() { this->set_remote_temperature_(REMOTE_TEMPERATURE_DISABLED); }
 
 void MitsubishiCN105::set_remote_temperature_(uint8_t temperature_half_deg) {
   this->remote_temperature_half_deg_ = temperature_half_deg;
@@ -401,7 +401,7 @@ void MitsubishiCN105::apply_settings_() {
   // If any setting is pending, set it before remote temperature
   if (this->pending_updates_.has_only(UpdateFlag::REMOTE_TEMPERATURE)) {
     payload[0] = 0x07;
-    if (this->remote_temperature_half_deg_ == 0) {
+    if (this->remote_temperature_half_deg_ == REMOTE_TEMPERATURE_DISABLED) {
       payload[3] = 0x80;
     } else {
       payload[1] = 0x01;

@@ -138,9 +138,11 @@ class MitsubishiCN105 {
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;
   bool use_temperature_encoding_b_{false};
-  uint8_t current_status_msg_type_{0};
-  uint8_t remote_temperature_half_deg_{0};
   FrameParser frame_parser_;
+  uint8_t current_status_msg_type_{0};
+
+  static constexpr uint8_t REMOTE_TEMPERATURE_DISABLED = 0;
+  uint8_t remote_temperature_half_deg_{REMOTE_TEMPERATURE_DISABLED};
 };
 
 }  // namespace esphome::mitsubishi_cn105
