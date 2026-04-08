@@ -108,8 +108,10 @@ void crash_handler_read_and_clear() {
 bool crash_handler_has_data() { return s_crash_data_valid; }
 
 void crash_handler_clear() {
+  // Only clear the magic so data doesn't survive the next reboot.
+  // Keep s_crash_data_valid so crash_handler_log() still works for
+  // additional API clients connecting during this boot session.
   s_raw_crash_data.magic = 0;
-  s_crash_data_valid = false;
 }
 
 // Look up the exception cause as a human-readable string.
