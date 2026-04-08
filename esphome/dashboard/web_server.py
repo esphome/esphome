@@ -1477,6 +1477,29 @@ class JsonConfigRequestHandler(BaseHandler):
         self.finish()
 
 
+class ConfigHashRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    async def get(self, configuration: str | None = None) -> None:
+        filename = settings.rel_path(configuration)
+        if not filename.is_file():
+            self.send_error(404)
+            return
+
+        args = [*ESPHOME_COMMAND, "config-hash", str(filename)]
+
+        rc, stdout, stderr = await async_run_system_command(args)
+
+        if rc != 0:
+            self.set_status(422)
+            self.write(stderr)
+            return
+
+        self.set_header("content-type", "text/plain")
+        self.write(stdout)
+        self.finish()
+
+
 def get_base_frontend_path() -> Path:
     if ENV_DEV not in os.environ:
         import esphome_dashboard
@@ -1597,6 +1620,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}boards/([a-z0-9]+)", BoardsRequestHandler),
             (f"{rel}version", EsphomeVersionHandler),
             (f"{rel}ignore-device", IgnoreDeviceRequestHandler),
+            (f"{rel}config-hash", ConfigHashRequestHandler),
         ],
         **app_settings,
     )

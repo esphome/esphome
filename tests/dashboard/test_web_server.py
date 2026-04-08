@@ -832,6 +832,48 @@ async def test_json_config_handler_not_found(dashboard: DashboardTestHelper) -> 
     assert exc_info.value.code == 404
 
 
+@pytest.mark.asyncio
+async def test_config_hash_handler(
+    dashboard: DashboardTestHelper,
+    mock_async_run_system_command: MagicMock,
+) -> None:
+    """Test the ConfigHashRequestHandler.get method."""
+    # This will actually run the esphome config command on pico.yaml
+    mock_output = "0x12345678\n"
+    mock_async_run_system_command.return_value = (0, mock_output, "")
+
+    response = await dashboard.fetch(
+        "/config-hash?configuration=pico.yaml", method="GET"
+    )
+    assert response.code == 200
+    data = response.body.decode()
+    assert data == "0x12345678\n"
+
+
+@pytest.mark.asyncio
+async def test_config_hash_handler_invalid_config(
+    dashboard: DashboardTestHelper,
+    mock_async_run_system_command: MagicMock,
+) -> None:
+    """Test the ConfigHashRequestHandler.get with invalid config."""
+    # Simulate esphome config command failure
+    mock_async_run_system_command.return_value = (1, "", "Error: Invalid configuration")
+
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch("/config-hash?configuration=pico.yaml", method="GET")
+    assert exc_info.value.code == 422
+
+
+@pytest.mark.asyncio
+async def test_config_hash_handler_not_found(dashboard: DashboardTestHelper) -> None:
+    """Test the ConfigHashRequestHandler.get with non-existent file."""
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            "/config-hash?configuration=nonexistent.yaml", method="GET"
+        )
+    assert exc_info.value.code == 404
+
+
 def test_start_web_server_with_address_port(
     tmp_path: Path,
     mock_trash_storage_path: MagicMock,
