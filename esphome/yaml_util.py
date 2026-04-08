@@ -755,6 +755,11 @@ class ESPHomeDumper(yaml.SafeDumper):
         return self.represent_scalar(tag="!remove", value=value.value)
 
     def represent_include_file(self, value):
+        if value.vars:
+            mapping = {"file": value.file.as_posix(), "vars": value.vars}
+            return self.represent_mapping(
+                tag="!include", mapping=mapping, flow_style=False
+            )
         return self.represent_scalar(tag="!include", value=value.file.as_posix())
 
     def represent_id(self, value):
