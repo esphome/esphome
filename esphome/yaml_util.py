@@ -630,7 +630,7 @@ def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) ->
         content,
         {
             "this": {
-                "file": PurePath(file_name),
+                "file": PurePath(file_name.absolute()),
                 "dir": PurePath(file_name.parent.absolute()),
             }
         },
@@ -807,5 +807,5 @@ ESPHomeDumper.add_multi_representer(Extend, ESPHomeDumper.represent_extend)
 ESPHomeDumper.add_multi_representer(Remove, ESPHomeDumper.represent_remove)
 ESPHomeDumper.add_multi_representer(core.ID, ESPHomeDumper.represent_id)
 ESPHomeDumper.add_multi_representer(uuid.UUID, ESPHomeDumper.represent_stringify)
-ESPHomeDumper.add_multi_representer(Path, ESPHomeDumper.represent_stringify)
+ESPHomeDumper.add_multi_representer(PurePath, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(IncludeFile, ESPHomeDumper.represent_include_file)
