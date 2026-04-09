@@ -3,7 +3,6 @@
 #include "preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <cinttypes>
 #include <cstring>
 #include <vector>
 
@@ -11,8 +10,7 @@ namespace esphome::libretiny {
 
 static const char *const TAG = "preferences";
 
-// Buffer size for converting uint32_t to string: max "4294967295" (10 chars) + null terminator + 1 padding
-static constexpr size_t KEY_BUFFER_SIZE = 12;
+static constexpr size_t KEY_BUFFER_SIZE = UINT32_MAX_STR_SIZE;
 
 struct NVSData {
   uint32_t key;
@@ -51,7 +49,7 @@ bool LibreTinyPreferenceBackend::load(uint8_t *data, size_t len) {
   }
 
   char key_str[KEY_BUFFER_SIZE];
-  snprintf(key_str, sizeof(key_str), "%" PRIu32, this->key);
+  uint32_to_str(key_str, this->key);
   fdb_blob_make(this->blob, data, len);
   size_t actual_len = fdb_kv_get_blob(this->db, key_str, this->blob);
   if (actual_len != len) {
@@ -93,7 +91,7 @@ bool LibreTinyPreferences::sync() {
 
   for (const auto &save : s_pending_save) {
     char key_str[KEY_BUFFER_SIZE];
-    snprintf(key_str, sizeof(key_str), "%" PRIu32, save.key);
+    uint32_to_str(key_str, save.key);
     ESP_LOGVV(TAG, "Checking if FDB data %s has changed", key_str);
     if (this->is_changed_(&this->db, save, key_str)) {
       ESP_LOGV(TAG, "sync: key: %s, len: %zu", key_str, save.data.size());
