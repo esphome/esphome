@@ -3,7 +3,7 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome::testing {
+namespace esphome::core::testing {
 
 // --- format_hex_to() ---
 
@@ -81,8 +81,8 @@ TEST(FormatHexPrettyTo, ZeroBufferSize) {
 TEST(FormatHexPrettyTo, CustomSeparator) {
   const uint8_t data[] = {0xAA, 0xBB, 0xCC};
   char buffer[9];
-  format_hex_pretty_to(buffer, data, 3, ':');
-  EXPECT_STREQ(buffer, "AA:BB:CC");
+  format_hex_pretty_to(buffer, data, 3, '-');
+  EXPECT_STREQ(buffer, "AA-BB-CC");
 }
 
 // --- format_mac_addr_upper() ---
@@ -117,4 +117,4 @@ TEST(FormatHexChar, UppercaseDigits) {
   EXPECT_EQ(format_hex_pretty_char(15), 'F');
 }
 
-}  // namespace esphome::testing
+}  // namespace esphome::core::testing
