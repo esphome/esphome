@@ -60,6 +60,7 @@ class LD2420Component : public Component, public uart::UARTDevice {
   };
 
   void setup() override;
+  void set_startup_delay(const uint32_t startup_delay) { this->startup_delay_ = startup_delay; }
   void dump_config() override;
   void loop() override;
 #ifdef USE_SELECT
@@ -183,6 +184,7 @@ class LD2420Component : public Component, public uart::UARTDevice {
   std::vector<number::Number *> gate_move_threshold_numbers_ = std::vector<number::Number *>(16);
 #endif
 
+  uint32_t startup_delay_{0};
   uint16_t distance_{0};
   uint16_t system_mode_;
   uint16_t gate_energy_[TOTAL_GATES];

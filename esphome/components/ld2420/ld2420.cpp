@@ -218,6 +218,9 @@ void LD2420Component::dump_config() {
 }
 
 void LD2420Component::setup() {
+  if (this->startup_delay_ > 0) {
+    delay(this->startup_delay_);
+  }
   if (this->set_config_mode(true) == LD2420_ERROR_TIMEOUT) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
