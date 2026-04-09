@@ -345,10 +345,10 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if (oscillating := config.get(CONF_OSCILLATING)) is not None:
-        template_ = await cg.templatable(oscillating, args, bool)
+        template_ = await cg.templatable(oscillating, args, cg.bool_)
         cg.add(var.set_oscillating(template_))
     if (speed := config.get(CONF_SPEED)) is not None:
-        template_ = await cg.templatable(speed, args, int)
+        template_ = await cg.templatable(speed, args, cg.int_)
         cg.add(var.set_speed(template_))
     if (direction := config.get(CONF_DIRECTION)) is not None:
         template_ = await cg.templatable(direction, args, FanDirection)
@@ -370,7 +370,7 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
 async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_OFF_SPEED_CYCLE], args, bool)
+    template_ = await cg.templatable(config[CONF_OFF_SPEED_CYCLE], args, cg.bool_)
     cg.add(var.set_no_off_cycle(template_))
     return var
 
