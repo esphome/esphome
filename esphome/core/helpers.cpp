@@ -348,48 +348,34 @@ std::string format_mac_address_pretty(const uint8_t *mac) {
 }
 
 // Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase.
-// Splits into two loops to eliminate per-byte branch on separator.
+// When separator is set, it is written unconditionally after each byte and the last
+// one is overwritten with '\0', eliminating the per-byte `i < length - 1` check.
 static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator,
                                  char base) {
   if (length == 0) {
     buffer[0] = '\0';
     return buffer;
   }
-  if (separator) {
-    // With separator: "XX:XX:...:XX\0" = length * 3 bytes total
-    size_t max_bytes = buffer_size / 3;
-    if (max_bytes == 0) {
-      buffer[0] = '\0';
-      return buffer;
-    }
-    if (length > max_bytes) {
-      length = max_bytes;
-    }
-    for (size_t i = 0; i < length; i++) {
-      size_t pos = i * 3;
-      buffer[pos] = format_hex_char(data[i] >> 4, base);
-      buffer[pos + 1] = format_hex_char(data[i] & 0x0F, base);
+  uint8_t stride = separator ? 3 : 2;
+  size_t max_bytes = separator ? (buffer_size / 3) : ((buffer_size - 1) / 2);
+  if (max_bytes == 0) {
+    buffer[0] = '\0';
+    return buffer;
+  }
+  if (length > max_bytes) {
+    length = max_bytes;
+  }
+  for (size_t i = 0; i < length; i++) {
+    size_t pos = i * stride;
+    buffer[pos] = format_hex_char(data[i] >> 4, base);
+    buffer[pos + 1] = format_hex_char(data[i] & 0x0F, base);
+    if (separator) {
       buffer[pos + 2] = separator;
     }
-    // Overwrite last separator with null terminator
-    buffer[length * 3 - 1] = '\0';
-  } else {
-    // Without separator: "XXXX...XX\0" = length * 2 + 1 bytes total
-    size_t max_bytes = (buffer_size - 1) / 2;
-    if (max_bytes == 0) {
-      buffer[0] = '\0';
-      return buffer;
-    }
-    if (length > max_bytes) {
-      length = max_bytes;
-    }
-    for (size_t i = 0; i < length; i++) {
-      size_t pos = i * 2;
-      buffer[pos] = format_hex_char(data[i] >> 4, base);
-      buffer[pos + 1] = format_hex_char(data[i] & 0x0F, base);
-    }
-    buffer[length * 2] = '\0';
   }
+  // With separator: overwrite last separator with '\0'
+  // Without: write '\0' after last hex char
+  buffer[length * stride - (separator ? 1 : 0)] = '\0';
   return buffer;
 }
 
