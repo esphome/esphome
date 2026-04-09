@@ -1168,7 +1168,7 @@ def test_named_dict_with_include_files_no_false_deprecation_warning(
 
     call_count = 0
 
-    def failing_callback(package_config, context):
+    def failing_callback(package_config: dict, context: object) -> dict:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -1185,6 +1185,136 @@ def test_named_dict_with_include_files_no_false_deprecation_warning(
 
     # Must NOT emit the deprecated single-package warning
     assert "deprecated" not in caplog.text.lower()
+
+
+def test_nested_dict_error_raises_directly_with_validate_deprecated_false(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Errors in nested dicts raise directly when validate_deprecated=False."""
+    config = {
+        CONF_PACKAGES: {
+            "pkg_a": {CONF_WIFI: {CONF_SSID: "test"}},
+            "pkg_b": {CONF_WIFI: {CONF_SSID: "test2"}},
+        },
+    }
+
+    call_count = 0
+
+    def failing_callback(package_config: dict, context: object) -> dict:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return package_config
+        raise cv.Invalid("nested error")
+
+    with (
+        caplog.at_level(logging.WARNING),
+        pytest.raises(cv.Invalid, match="nested error"),
+    ):
+        _walk_packages(config, failing_callback, validate_deprecated=False)
+
+    assert "deprecated" not in caplog.text.lower()
+
+
+def test_remote_package_resolved_dict_error_no_false_deprecation(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Resolved dicts from remote packages must not trigger the deprecated fallback.
+
+    Simulates the structure returned by _process_remote_package where values
+    are already-resolved YAML dicts (not IncludeFiles).
+    """
+    # Simulate _process_remote_package output: {"file.yaml0": loaded_content}
+    config = {
+        CONF_PACKAGES: {
+            "nspanel_esphome.yaml0": {
+                CONF_PACKAGES: {
+                    "core_package": MagicMock(spec=IncludeFile),
+                }
+            },
+        },
+    }
+
+    call_count = 0
+
+    def callback_with_nested_error(package_config: dict, context: object) -> dict:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # First call processes the outer package successfully,
+            # but it contains nested packages that will error
+            nested = package_config.copy()
+            nested[CONF_PACKAGES] = {"core_package": MagicMock(spec=IncludeFile)}
+            raise cv.Invalid("error in nested package")
+        return package_config
+
+    with (
+        caplog.at_level(logging.WARNING),
+        pytest.raises(cv.Invalid, match="error in nested package"),
+    ):
+        _walk_packages(config, callback_with_nested_error, validate_deprecated=False)
+
+    assert "deprecated" not in caplog.text.lower()
+
+
+def test_error_on_first_declared_package_still_detected() -> None:
+    """When the first declared package errors, it's the last processed in reverse.
+
+    All other entries are already resolved to dicts, but the failing entry
+    retains its original IncludeFile value since assignment was skipped.
+    """
+    config = {
+        CONF_PACKAGES: {
+            "first_pkg": MagicMock(spec=IncludeFile),
+            "second_pkg": MagicMock(spec=IncludeFile),
+            "third_pkg": MagicMock(spec=IncludeFile),
+        },
+    }
+
+    call_count = 0
+
+    def fail_on_last(package_config: dict, context: object) -> dict:
+        nonlocal call_count
+        call_count += 1
+        # Reverse iteration: third_pkg (1), second_pkg (2), first_pkg (3)
+        if call_count < 3:
+            return {CONF_WIFI: {CONF_SSID: "test"}}
+        raise cv.Invalid("error in first_pkg")
+
+    with pytest.raises(cv.Invalid, match="error in first_pkg"):
+        _walk_packages(config, fail_on_last)
+
+
+def test_deprecated_single_package_fallback_still_works(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The deprecated single-package form still falls back at the top level.
+
+    When a dict's values are plain config fragments (not package definitions)
+    and the callback fails, the deprecated fallback wraps the dict in a list
+    and retries with a deprecation warning.
+    """
+    config = {
+        CONF_PACKAGES: {
+            CONF_WIFI: {CONF_SSID: "test", CONF_PASSWORD: "secret"},
+        },
+    }
+
+    attempt = 0
+
+    def fail_then_succeed(package_config: dict, context: object) -> dict:
+        nonlocal attempt
+        attempt += 1
+        if attempt == 1:
+            # First attempt: treating as named dict fails
+            raise cv.Invalid("not a valid package")
+        # Second attempt: after fallback wraps as list, succeeds
+        return package_config
+
+    with caplog.at_level(logging.WARNING):
+        _walk_packages(config, fail_then_succeed)
+
+    assert "deprecated" in caplog.text.lower()
 
 
 def test_merge_packages_invalid_nested_type_raises() -> None:
