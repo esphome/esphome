@@ -1823,21 +1823,6 @@ class FixedArrayRepeatedType(TypeInfo):
         # For fixed arrays, we always encode all elements
 
         if is_inline:
-            # Special case for single-element arrays - no loop needed
-            if self.array_size == 1:
-                return _generate_inline_size_block(
-                    self.number, self._ti.cpp_type, f"{name}[0]"
-                )
-            if self.array_size == 2:
-                return (
-                    _generate_inline_size_block(
-                        self.number, self._ti.cpp_type, f"{name}[0]"
-                    )
-                    + "\n  "
-                    + _generate_inline_size_block(
-                        self.number, self._ti.cpp_type, f"{name}[1]"
-                    )
-                )
             o = f"for (const auto &it : {name}) {{\n"
             o += indent(
                 _generate_inline_size_block(self.number, self._ti.cpp_type, "it")
