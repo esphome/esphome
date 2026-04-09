@@ -1187,10 +1187,14 @@ def test_named_dict_with_include_files_no_false_deprecation_warning(
     assert "deprecated" not in caplog.text.lower()
 
 
-def test_nested_dict_error_raises_directly_with_validate_deprecated_false(
+def test_validate_deprecated_false_raises_directly(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Errors in nested dicts raise directly when validate_deprecated=False."""
+    """With validate_deprecated=False, errors raise directly without fallback.
+
+    This is the codepath used for remote packages where _process_remote_package
+    returns already-resolved dicts that is_package_definition cannot detect.
+    """
     config = {
         CONF_PACKAGES: {
             "pkg_a": {CONF_WIFI: {CONF_SSID: "test"}},
@@ -1212,47 +1216,6 @@ def test_nested_dict_error_raises_directly_with_validate_deprecated_false(
         pytest.raises(cv.Invalid, match="nested error"),
     ):
         _walk_packages(config, failing_callback, validate_deprecated=False)
-
-    assert "deprecated" not in caplog.text.lower()
-
-
-def test_remote_package_resolved_dict_error_no_false_deprecation(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Resolved dicts from remote packages must not trigger the deprecated fallback.
-
-    Simulates the structure returned by _process_remote_package where values
-    are already-resolved YAML dicts (not IncludeFiles).
-    """
-    # Simulate _process_remote_package output: {"file.yaml0": loaded_content}
-    config = {
-        CONF_PACKAGES: {
-            "nspanel_esphome.yaml0": {
-                CONF_PACKAGES: {
-                    "core_package": MagicMock(spec=IncludeFile),
-                }
-            },
-        },
-    }
-
-    call_count = 0
-
-    def callback_with_nested_error(package_config: dict, context: object) -> dict:
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            # First call processes the outer package successfully,
-            # but it contains nested packages that will error
-            nested = package_config.copy()
-            nested[CONF_PACKAGES] = {"core_package": MagicMock(spec=IncludeFile)}
-            raise cv.Invalid("error in nested package")
-        return package_config
-
-    with (
-        caplog.at_level(logging.WARNING),
-        pytest.raises(cv.Invalid, match="error in nested package"),
-    ):
-        _walk_packages(config, callback_with_nested_error, validate_deprecated=False)
 
     assert "deprecated" not in caplog.text.lower()
 
