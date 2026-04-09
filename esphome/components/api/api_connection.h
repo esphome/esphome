@@ -771,6 +771,7 @@ class APIConnection final : public APIServerConnectionBase {
     uint8_t batch_scheduled : 1;
     uint8_t batch_first_message : 1;          // For batch buffer allocation
     uint8_t should_try_send_immediately : 1;  // True after initial states are sent
+    uint8_t may_have_remaining_data : 1;      // Read loop hit limit, retry without ready check
 #ifdef HAS_PROTO_MESSAGE_DUMP
     uint8_t log_only_mode : 1;
 #endif
