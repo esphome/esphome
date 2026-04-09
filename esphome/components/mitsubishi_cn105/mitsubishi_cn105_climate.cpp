@@ -62,9 +62,9 @@ void MitsubishiCN105Climate::dump_config() {
   }
   ESP_LOGCONFIG(TAG,
                 "  Update interval: %" PRIu32 " ms\n"
-                "  Temperature mapping: %s\n"
+                "  Use Fahrenheit: %s\n"
                 "  UART: baud_rate=%" PRIu32 " data_bits=%u parity=%s stop_bits=%u",
-                this->hp_.get_update_interval(), this->temperature_mapping_.get_fahrenheit() ? "F" : "C",
+                this->hp_.get_update_interval(), YESNO(this->temperature_mapping_.get_fahrenheit()),
                 this->parent_->get_baud_rate(), this->parent_->get_data_bits(),
                 LOG_STR_ARG(parity_to_str(this->parent_->get_parity())), this->parent_->get_stop_bits());
 }
