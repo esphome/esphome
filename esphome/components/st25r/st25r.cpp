@@ -58,13 +58,11 @@ void ST25R::update() {
   this->last_state_change_ = millis();
 }
 
-bool ST25R::transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                        uint32_t timeout_ms) {
+bool ST25R::transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms) {
   return this->transceive_ex(data, len, resp, resp_len, true, timeout_ms);
 }
 
-bool ST25R::transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                               uint32_t timeout_ms) {
+bool ST25R::transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms) {
   return this->transceive_ex(data, len, resp, resp_len, false, timeout_ms);
 }
 
@@ -236,15 +234,14 @@ void ST25R::process_state() {
           }
           if (this->anticol_prefix_bits_ > 0) {
             uint8_t mask = (uint8_t) ((1 << this->anticol_prefix_bits_) - 1);
-            full_uid[this->anticol_prefix_full_] =
-                (this->anticol_prefix_[this->anticol_prefix_full_] & mask) |
-                (resp[this->anticol_prefix_full_] & (uint8_t) (~mask));
+            full_uid[this->anticol_prefix_full_] = (this->anticol_prefix_[this->anticol_prefix_full_] & mask) |
+                                                   (resp[this->anticol_prefix_full_] & (uint8_t) (~mask));
           }
           uint8_t bcc = full_uid[0] ^ full_uid[1] ^ full_uid[2] ^ full_uid[3];
 
           uint8_t sel_cmds[] = {0x93, 0x95, 0x97};
-          uint8_t sel_pk[7] = {sel_cmds[this->cascade_level_], 0x70,       full_uid[0], full_uid[1],
-                               full_uid[2],                    full_uid[3], bcc};
+          uint8_t sel_pk[7] = {
+              sel_cmds[this->cascade_level_], 0x70, full_uid[0], full_uid[1], full_uid[2], full_uid[3], bcc};
 
           if (full_uid[0] == 0x88) {
             for (int i = 1; i < 4; i++) {
@@ -277,8 +274,7 @@ void ST25R::process_state() {
             if (this->cascade_level_ == 0) {
               this->saved_col_pos_ = this->anticol_col_pos_;
               this->saved_prefix_val_ = this->anticol_prefix_val_;
-              this->saved_anticol_valid_ =
-                  (this->anticol_col_pos_ > 0 || this->anticol_prefix_bits_ > 0);
+              this->saved_anticol_valid_ = (this->anticol_col_pos_ > 0 || this->anticol_prefix_bits_ > 0);
             }
             this->cascade_level_++;
             if (this->cascade_level_ > 2) {
@@ -309,8 +305,7 @@ void ST25R::process_state() {
             if (!this->present_tags_.count(this->current_uid_)) {
               std::vector<uint8_t> uid_bytes;
               for (size_t i = 0; i < this->current_uid_.length(); i += 2)
-                uid_bytes.push_back(
-                    (uint8_t) strtol(this->current_uid_.substr(i, 2).c_str(), nullptr, 16));
+                uid_bytes.push_back((uint8_t) strtol(this->current_uid_.substr(i, 2).c_str(), nullptr, 16));
               this->tags_data_[this->current_uid_] = this->read_tag(uid_bytes);
             }
 

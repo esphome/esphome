@@ -3,11 +3,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_IRQ_PIN,
     CONF_ON_TAG,
     CONF_ON_TAG_REMOVED,
-    CONF_TRIGGER_ID,
-    CONF_IRQ_PIN,
     CONF_RESET_PIN,
+    CONF_TRIGGER_ID,
 )
 
 CODEOWNERS = ["@JohnMcLear"]
@@ -40,9 +40,7 @@ ST25R_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_ON_TAG_REMOVED): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    ST25RTagRemovedTrigger
-                ),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ST25RTagRemovedTrigger),
             }
         ),
     }
@@ -65,13 +63,9 @@ async def setup_st25r(var, config):
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         cg.add(var.register_on_tag_trigger(trigger))
-        await automation.build_automation(
-            trigger, [(cg.std_string, "x")], conf
-        )
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
     for conf in config.get(CONF_ON_TAG_REMOVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         cg.add(var.register_on_tag_removed_trigger(trigger))
-        await automation.build_automation(
-            trigger, [(cg.std_string, "x")], conf
-        )
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)

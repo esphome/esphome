@@ -115,9 +115,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   void set_rf_power(uint8_t power) { this->rf_power_ = power; }
 
   void register_on_tag_trigger(ST25RTagTrigger *trig) { this->on_tag_triggers_.push_back(trig); }
-  void register_on_tag_removed_trigger(ST25RTagRemovedTrigger *trig) {
-    this->on_tag_removed_triggers_.push_back(trig);
-  }
+  void register_on_tag_removed_trigger(ST25RTagRemovedTrigger *trig) { this->on_tag_removed_triggers_.push_back(trig); }
 
   bool is_tag_present() const { return !this->present_tags_.empty(); }
 
@@ -145,10 +143,8 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   void finalize_scan_();
   void apply_anticol_prefix_();
   bool wait_for_irq_(uint8_t mask, uint32_t timeout_ms);
-  bool transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                   uint32_t timeout_ms = 150);
-  bool transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                          uint32_t timeout_ms = 150);
+  bool transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
+  bool transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
   static void isr(ST25R *arg);
 
   GPIOPin *reset_pin_{nullptr};
