@@ -88,7 +88,31 @@ on_...:
 
 Configuration variables:
 
-**media_url** (**Required**, string): The media url to play.
+**media_url** (**Required**, string, [templatable](/automations/templates)): The media URL to play.
+
+<span id="media_player-enqueue"></span>
+
+### `media_player.enqueue` Action
+
+This action will add the specified media to the media player's queue.
+
+```yaml
+on_...:
+  # Simple
+  - media_player.enqueue: 'http://media-url/media.mp3'
+
+  # Full
+  - media_player.enqueue:
+      id: media_player_id
+      media_url: 'http://media-url/media.mp3'
+
+  # Simple with lambda
+  - media_player.enqueue: !lambda 'return "http://media-url/media.mp3";'
+```
+
+Configuration variables:
+
+**media_url** (**Required**, string, [templatable](/automations/templates)): The media URL to enqueue.
 
 <span id="media_player-pause"></span>
 

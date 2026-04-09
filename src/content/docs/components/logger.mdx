@@ -138,12 +138,33 @@ Possible log levels are (sorted by severity):
 | `ERROR`            | Red    | Only errors are logged. Errors prevent the ESP from working correctly. |
 | `WARN`             | Yellow | Warnings and errors. Warnings are recoverable issues like invalid sensor readings. |
 | `INFO`             | Green  | Errors, warnings and info messages are logged. |
-| `DEBUG` (default)  | Cyan   | Everything up to debug. Includes sensor readings and status messages. |
-| `VERBOSE`          | Gray   | Like debug, but includes additional messages usually deemed to be spam. |
+| `DEBUG` (default)  | Cyan   | Everything up to debug. Includes initialization details and general status messages. |
+| `VERBOSE`          | Gray   | Like debug, but also includes sensor state changes and other frequent messages. |
 | `VERY_VERBOSE`     | White  | All internal messages including data flowing through I²C, SPI and UART buses. |
 
+### Performance Impact
+
+The log level you choose has a direct impact on device performance. Every log message that is printed requires
+CPU time to format and transmit over the serial port and/or network, which takes time away from other tasks
+like reading sensors, handling network communication, and running automations.
+
+- **`DEBUG` (default):** Suitable for production use. As of ESPHome 2026.4.0, state change messages
+  (sensor readings, binary sensor updates, etc.) were moved from `DEBUG` to `VERBOSE`, significantly reducing
+  the logging overhead at the default level. Prior to 2026.4.0, `DEBUG` produced substantially more output
+  and had a measurable performance impact, so older guides may recommend `INFO` — this is generally no longer
+  necessary with current versions.
+- **`INFO` / `WARN`:** Recommended for performance-sensitive or timing-sensitive devices (e.g., devices using
+  precise PWM dimming, infrared communication, or high-frequency sensor polling). Reducing log output frees
+  CPU cycles for time-critical operations.
+- **`VERBOSE` / `VERY_VERBOSE`:** Intended **only for short-term debugging sessions**. These levels produce
+  a large volume of output that will slow down the device, cause network timeouts, and lead to connection
+  instability. Do not leave devices running at these levels long-term. ESPHome will log a warning at boot
+  when these levels are active as a reminder.
+
 > [!WARNING]
-> Using `VERY_VERBOSE` can significantly impact device performance and may cause connection instability.
+> `VERBOSE` and `VERY_VERBOSE` are **not suitable for long-term use**. They are designed for diagnosing
+> specific issues during active debugging sessions. Running a device at these levels continuously will degrade
+> performance and may cause instability. Switch back to `DEBUG` or lower once the issue is resolved.
 
 <span id="logger-manual_tag_specific_levels"></span>
 

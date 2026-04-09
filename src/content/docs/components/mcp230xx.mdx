@@ -61,6 +61,10 @@ binary_sensor:
 - **open_drain_interrupt** (*Optional*, boolean): Configure the interrupt pin to open-drain mode.
   Useful when the MCP23008's power supply is greater than 3.3 volts. Note that this pin
   will require a pull-up resistor (to 3.3 volts) when this mode is enabled.
+- **interrupt_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The pin connected to the
+  INT output of the MCP23008. When configured, the component becomes interrupt-driven instead of
+  polling — it only reads the chip when a pin actually changes state, significantly reducing I²C bus traffic
+  and CPU usage. Must be an internal GPIO pin (not another expander pin).
 
 ### Pin configuration variables
 
@@ -183,6 +187,10 @@ binary_sensor:
 - **open_drain_interrupt** (*Optional*, boolean): Configure interrupt pins to open-drain mode.
   Useful when the MCP23017's power supply is greater than 3.3 volts. Note that these pins
   will require pull-up resistors (to 3.3 volts) when this mode is enabled.
+- **interrupt_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The pin connected to the
+  INTA or INTB output of the MCP23017. When configured, the component becomes interrupt-driven instead of
+  polling — it only reads the chip when a pin actually changes state, significantly reducing I²C bus traffic
+  and CPU usage. Must be an internal GPIO pin (not another expander pin).
 
 ### Pin configuration variables
 

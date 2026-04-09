@@ -7,8 +7,7 @@ import { Image } from 'astro:assets';
 import Figure from '@components/Figure.astro';
 
 The `bmp581` sensor platform allows you to use your BMP581
-([datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmp581-ds004.pdf), [SparkFun](https://www.sparkfun.com/products/20170) or [Adafruit](https://www.adafruit.com/product/6407)) temperature and pressure sensors with ESPHome. The [I²C](/components/i2c) bus is
-required to be set up in your configuration for this sensor to work. While technically possible, ESPHome does not yet support communication with this sensor via the SPI bus.
+([datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmp581-ds004.pdf), [SparkFun](https://www.sparkfun.com/products/20170) or [Adafruit](https://www.adafruit.com/product/6407)) and BMP585 ([datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmp585-ds003.pdf)) temperature and pressure sensors with ESPHome. Either an [I²C](/components/i2c) bus or an [SPI](/components/spi) bus are required to be set up in your configuration for this sensor to work.
 
 <Figure
   src="/images/bmp581.jpg"
@@ -31,7 +30,22 @@ sensor:
       name: "Indoor Pressure"
 ```
 
+## Over SPI
+
+```yaml
+# Example configuration entry for SPI connection
+sensor:
+  - platform: bmp581_spi
+    cs_pin: GPIOXX
+    temperature:
+      name: "Indoor Temperature"
+    pressure:
+      name: "Indoor Pressure"
+```
+
 ## Configuration variables
+
+### Common
 
 - **temperature** (*Optional*): The information for the temperature sensor.
 
@@ -53,11 +67,17 @@ sensor:
 
   - All other options from [Sensor](/components/sensor).
 
-- **address** (*Optional*, int): Manually specify the I²C address of
-  the sensor. Defaults to `0x46`. Another address can be `0x47`.
-
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
   sensor. Defaults to `60s`.
+
+### I²C
+
+- **address** (*Optional*, int): Manually specify the I²C address of the sensor.
+  Defaults to `0x46`. Another address can be `0x47`.
+
+### SPI
+
+- **cs_pin** (*Required*, [Pin Schema](/guides/configuration-types#pin-schema)): The SPI CS pin connected to the BMP581 sensor.
 
 <span id="bmp581-oversampling"></span>
 
@@ -82,12 +102,12 @@ The datasheet (page 19) gives suggestions for oversampling combinations:
 | ------------------------- | --------------------- | ------------------------ |
 | Lowest power              | `NONE`                | `NONE`                   |
 |                           | `2x`                  | `NONE`                   |
-| Standard resolution | `4x`                  | `NONE`                   |
-| | `8x`                  | `NONE`                   |
+| Standard resolution       | `4x`                  | `NONE`                   |
+| | `8x`                    | `NONE`                |
 | High resolution (default) | `16x`                 | `NONE`                   |
-| | `32x`                 | `2x`                     |
-| | `64x`                 | `4x`                     |
-| Highest resolution | `128x`                | `8x`                     |
+| | `32x`                   | `2x`                  |
+| | `64x`                   | `4x`                  |
+| Highest resolution        | `128x`                | `8x`                     |
 
 > [!NOTE]
 > High oversampling rates increase power consumption and the time it takes for the sensor to measure temperature and pressure. For example, with no oversampling enabled, the measurement time is approximately 3 ms. The measurement time is approximately 107 ms if the temperature and pressure oversampling rates are `128x`. The BMP581 component waits the minimum time necessary for the specfically configured oversampling rates before attempting to read a measurement. Consider using lower oversampling rates to reduce power consumption or to speed up measurements for small update intervals.

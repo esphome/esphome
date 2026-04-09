@@ -77,7 +77,12 @@ switch:
   Defaults to `0x20`.
 
 - **pin_count** (*Optional*, int): The number of bits implemented in the expander. Defaults to 8. This should be set
-  to 16 when using a PCA9535 and 4 when using a PCA95367.
+  to 16 when using a PCA9535 and 4 when using a PCA9536.
+- **interrupt_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The pin connected to the
+  INT output of the PCA9554/PCA9535. When configured, the component becomes interrupt-driven instead of
+  polling — it only reads the chip when a pin actually changes state, significantly reducing I²C bus traffic
+  and CPU usage. The INT pin is active-low and open-drain, so an external or internal pull-up resistor is
+  required. Must be an internal GPIO pin (not another expander pin).
 
 > [!NOTE]
 > A PCA9535 will not work (even on the lower 8 bits) unless the **pin_count** is set to 16.

@@ -20,5 +20,5 @@ A list of values may be supplied, and values are templatable:
 filters:
   - filter_out:
       - 85.0
-      - !lambda return id(some_sensor).state;
+      - !lambda return id(some_sensor).get_state();
 ```

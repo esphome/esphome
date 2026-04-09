@@ -78,7 +78,7 @@ button:
     on_press:
       then:
         - scd30.force_recalibration_with_reference:
-            value: !lambda 'return id(co2_cal).state;'
+            value: !lambda 'return id(co2_cal).get_state();'
 
 number:
   - platform: template

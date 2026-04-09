@@ -194,6 +194,53 @@ printh FF FF FF
 - `prints r0.val,0`   The actual value to send. For a variable use the Nextion variable name `r0`   with out `.val`
 - `printh FF FF FF`   Nextion command ack
 
+<span id="nextion_custom_binary_sensor_automation"></span>
+
+## Reacting to Custom Binary Sensor Protocol Frames (Automation)
+
+In addition to updating a Nextion binary sensor entity, the **Nextion Custom Binary Sensor Protocol (0x93)** can also trigger automations directly on the Nextion display component.
+
+This is useful when binary data from the Nextion is intended to be handled as an **event** rather than as persistent state, for example:
+
+- button or mode changes that should immediately trigger logic
+- lightweight command or control signals
+- custom interaction patterns where no Home Assistant entity is required
+
+### Example
+
+```yaml
+display:
+  - platform: nextion
+    id: nextion1
+    uart_id: uart_nextion
+    on_custom_binary_sensor:
+      then:
+        - lambda: |-
+            // key: name sent by the Nextion (string)
+            // value: decoded boolean value
+            if (key == "r0") {
+              ESP_LOGI("nextion", "Binary sensor r0 = %s", ONOFF(value));
+            }
+```
+
+### Parameters passed to the automation
+
+- **key** (`string`):  
+  The name sent by the Nextion using the custom binary sensor protocol.  
+  This corresponds to the value sent in `prints "<name>",0`.
+
+- **value** (`bool`):  
+  The boolean value decoded from the protocol frame.  
+  Any value greater than `0` is interpreted as `true`.
+
+### Notes
+
+- The automation is triggered **when the custom protocol frame is received**, not when a binary sensor entity updates.
+- Defining a `binary_sensor:` entry is **not required** to use this automation.
+- Existing Nextion binary sensor entities and polling behavior are unchanged.
+- This automation reflects the same protocol described in [Nextion Custom Binary Sensor Protocol](#nextion_custom_binary_sensor_protocol).
+- This mechanism allows event-driven handling of Nextion binary data without the overhead of maintaining a binary sensor entity when no persistent state is needed.
+
 ## See Also
 
 - [Nextion TFT LCD Display](/components/display/nextion/)

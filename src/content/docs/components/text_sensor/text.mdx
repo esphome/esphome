@@ -1,0 +1,39 @@
+---
+description: "Instructions for setting up text component text sensors with ESPHome."
+title: "Text Text Sensor"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+<span id="text-text-sensor"></span>
+
+The Text component Text Sensor platform allows you to view the state of any text component as a
+read-only text sensor.
+
+```yaml
+# Example configuration entry
+text_sensor:
+  - platform: text
+    name: "Text state"
+    source_id: my_text
+
+text:
+  - platform: template
+    id: my_text
+    name: "My Text"
+    optimistic: true
+    min_length: 0
+    max_length: 100
+    mode: text
+```
+
+## Configuration variables
+
+- **source_id** (**Required**, [ID](/guides/configuration-types#id)): The source text to observe.
+- All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
+
+## See Also
+
+- [Text Sensor Component](/components/text_sensor/)
+- [Text Component](/components/text/)
+- <APIRef text="text_text_sensor.h" path="text/text_sensor/text_text_sensor.h" />

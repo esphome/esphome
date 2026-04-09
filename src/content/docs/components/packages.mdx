@@ -187,6 +187,40 @@ The above utilizes a [Jinja expression](/components/substitutions#jinja-expressi
 `left_garage_door` package is actually included. `enable_extra_door` can be set from the
 [command line](/components/substitutions#command-line-substitutions) as well.
 
+## Including packages with dynamic filenames
+
+Substitutions can be used directly in the filename of a `!include`, allowing you to dynamically select which file
+is loaded based on a substitution value:
+
+```yaml
+# config.yaml
+substitutions:
+  platform: esp32
+
+packages:
+  hardware: !include device-${platform}.yaml
+
+light:
+  - platform: status_led
+    name: "Board Status"
+    pin: $LED_GPIO
+```
+
+```yaml
+# device-esp32.yaml
+substitutions:
+  LED_GPIO: GPIO2
+esp32:
+  board: esp32dev
+```
+
+ESPHome will expand `${platform}` before loading the file, so `device-${platform}.yaml` resolves to
+`device-esp32.yaml` in the example above. Any substitution expression valid in ESPHome — including
+[Jinja expressions](/components/substitutions#jinja-expressions) — can be used in the filename.
+
+> [!NOTE]
+> Filename substitutions are not supported when using the YAML merge key (`<<: !include filename.yaml`).
+
 <span id="config-packages_extend"></span>
 
 ## Extend

@@ -38,8 +38,8 @@ esp32:
 - **cpu_frequency** (*Optional*, string): The CPU frequency to use. One of `40MHz`, `80MHz`, `160MHz`, `240MHz`,
   `360MHz` or `400MHz`. Defaults to `160MHz`. Not all values are available for all chips.
 
-- **partitions** (*Optional*, filename): The name of (optionally including the path to) the file containing the
-  partitioning scheme to be used. When not specified, partitions are automatically generated based on `flash_size`.
+- **partitions** (*Optional*, filename or list): A partition table CSV file or a list of custom partitions to add.
+  See [Partitions](#esp32-partitions).
 
 - **framework** (*Optional*): Options for the underlying framework used by ESPHome. See [Framework](#esp32-framework).
 
@@ -355,6 +355,20 @@ esp32:
   To find your chip's revision, check the ESPHome boot logs for a line like `ESP32 Chip: ESP32 r3.0, 2 core(s)`
   or use `esptool.py chip_id`.
 
+- **sram1_as_iram** (*Optional*, boolean): Use the SRAM1 memory region as additional IRAM, providing an extra **40 KB of IRAM**.
+  This reclaims memory that was previously reserved for the bootloader's DRAM and not available to the application.
+  The extra IRAM expands the flash cache window for XIP (execute in place), reducing cache misses and improving
+  performance for all code running from flash (WiFi, BLE, API server, etc.). It also helps avoid IRAM overflow
+  compile errors (`section '.iram0.text' will not fit in region 'iram0_0_seg'`). Since this memory was never part
+  of the heap, there is **no cost to free heap/DRAM**.
+  **Valid only on original ESP32 with** `esp-idf` **framework.** Defaults to `false`.
+
+  **Important:** This requires a bootloader from ESP-IDF v5.1 or later. Flashing via USB automatically updates the
+  bootloader, but OTA updates do not. If the device has an older bootloader, enabling this option will cause the
+  device to **fail to boot**. If you have previously flashed your device via USB with a recent version of ESPHome,
+  the bootloader is already compatible. ESPHome will log a suggestion at boot if it detects a compatible bootloader
+  and this option is not yet enabled.
+
 - **enable_idf_experimental_features** (*Optional*, boolean): Can be set to `true` to enable experimental features. Use of
   experimental features may cause instability or other issues.
 
@@ -368,9 +382,59 @@ esp32:
   `boot_is_good_after` time (default 60s), the firmware is marked as valid. If the device crashes before that,
   it will roll back to the previous working firmware. Defaults to `true`.
 
-> [!NOTE]
-> OTA rollback requires the bootloader to be compiled with rollback support. Existing devices may need to be
-> reflashed via serial to update the bootloader - OTA updates do not update the bootloader.
+  > [!NOTE]
+  > OTA rollback requires the bootloader to be compiled with rollback support. Existing devices may need to be
+  > reflashed via serial to update the bootloader - OTA updates do not update the bootloader.
+
+- **signed_ota_verification** (*Optional*, mapping): Enable
+  [Signed App Verification Without Hardware Secure Boot](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/security/secure-boot-v2.html#signed-app-verification-without-hardware-secure-boot).
+  When configured, OTA firmware updates are verified using a cryptographic signature. The public key is embedded in
+  the running firmware's signature block and used to verify the signature of any incoming OTA update. This protects
+  against tampered firmware from network-based attacks without requiring hardware Secure Boot (eFuse).
+  Contains the following options:
+
+  - **signing_key** (*Optional*, filename): Path to a PEM-encoded private signing key. When provided, the firmware
+    is **automatically signed during build** using `espsecure`. This is the simplest workflow — the public key is
+    derived automatically and embedded in the signature block. **Mutually exclusive with `verification_key`.**
+  - **verification_key** (*Optional*, filename): Path to a PEM-encoded public verification key. When provided, the
+    public key is embedded for verification but the binary is **not signed during build**. You must sign the firmware
+    externally (typically by way of `espsecure.py sign-data --version 2 --keyfile private.pem firmware.bin`) before
+    flashing. This is useful for CI/CD pipelines where the private key is stored in a secure vault.
+    **Mutually exclusive with `signing_key`.**
+  - **signing_scheme** (*Optional*, string): The signing algorithm. One of `rsa3072` or `ecdsa256`. Defaults to
+    `rsa3072`. **Not all schemes are supported on all variants** — see the table below.
+
+    | Variant | `rsa3072` | `ecdsa256` |
+    |---------|-----------|------------|
+    | ESP32 (rev 3+) | yes | no |
+    | ESP32-S2 | yes | no |
+    | ESP32-S3 | yes | no |
+    | ESP32-C2 | no | yes |
+    | ESP32-C3 | yes | no |
+    | ESP32-C5 | yes | yes |
+    | ESP32-C6 | yes | yes |
+    | ESP32-C61 | no | yes |
+    | ESP32-H2 | yes | yes |
+    | ESP32-P4 | yes | yes |
+
+  > [!WARNING]
+  > **Keep your signing key safe!** If you lose the private signing key, you will **not be able to OTA update** any
+  > devices running firmware signed with that key. Without the signing key, you must reflash the device via serial.
+
+  > [!NOTE]
+  > The **first firmware** flashed to a device must also be signed. When using `signing_key`, this happens
+  > automatically. Flash the initial firmware via serial — serial flashing does not perform signature verification.
+  > All subsequent OTA updates will be verified against the public key in the running firmware.
+
+  To generate a signing key, use the `espsecure.py` tool from ESP-IDF:
+
+  ```bash
+  # Generate an RSA-3072 signing key
+  espsecure.py generate_signing_key --version 2 --scheme rsa3072 secure_boot_signing_key.pem
+
+  # Extract the public verification key (for the verification_key workflow)
+  espsecure.py extract_public_key --keyfile secure_boot_signing_key.pem secure_boot_verification_key.pem
+  ```
 
 **LWIP Optimization Options (ESP-IDF only):**
 
@@ -564,6 +628,9 @@ esp32:
       # Filesystem and peripheral options
       disable_fatfs: true  # Saves code size (auto-enabled by SD card components)
       disable_regi2c_in_iram: true  # Saves IRAM
+
+      # ESP32 (original) only options
+      # sram1_as_iram: true  # +40 KB IRAM (requires bootloader from ESP-IDF >= 5.1)
 ```
 
 **Example for development/debugging with JTAG:**
@@ -646,6 +713,38 @@ esp32:
   custom or patched version of the component.
 - **path** (*Optional*, string): The path of the component in the git repository or a local path to the
   component if `source` is not set.
+
+<span id="esp32-partitions"></span>
+
+## Partitions
+
+By default, ESPHome automatically generates a partition table based on `flash_size`. The `partitions` option allows you to either
+provide a custom partition table CSV file for full control over the layout, or add extra partitions to the auto-generated table.
+
+```yaml
+esp32:
+  partitions: my_partitions.csv
+```
+
+Alternatively, you can provide a list of custom partitions to append to the auto-generated table. The app partition size is
+automatically reduced to make room. Valid partition types and subtypes are documented in the
+[ESP-IDF partition tables documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/partition-tables.html).
+
+```yaml
+esp32:
+  partitions:
+    - name: my_data
+      type: data
+      subtype: spiffs
+      size: 0x10000
+```
+
+### Configuration Variables
+
+- **name** (*Required*, string): Name of the partition. Cannot be any of the reserved names: `nvs`, `app0`, `app1`, `otadata`, `eeprom`, `spiffs`, `phy_init`.
+- **type** (*Required*, string or integer): Partition type. One of `app` or `data`, or a custom type as an integer between 0x40 and 0xFE.
+- **subtype** (*Required*, string or integer): Partition subtype. For `app` type: `factory` or `test`. For `data` type: `nvs`, `nvs_keys`, `spiffs`, `coredump`, `efuse`, `fat`, `undefined`, or `littlefs`. Can also be an integer between 0x0 and 0xFE.
+- **size** (*Required*, integer): Partition size in bytes. Must be 4KB (0x1000) aligned.
 
 ## GPIO Pin Numbering
 

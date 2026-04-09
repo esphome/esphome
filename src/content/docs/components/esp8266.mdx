@@ -140,6 +140,27 @@ These reset causes [are documented](https://www.espressif.com/sites/default/file
 
 After a software reset, the reset cause will not change.
 
+## Crash Handler
+
+ESPHome automatically captures crash data from the previous boot and logs it on startup. This works
+for all crash types: exceptions (null pointer dereference, illegal instruction), software watchdog
+resets, and hardware watchdog resets.
+
+When a crash occurs, the exception cause, fault PC, and up to 16 stack-scanned return addresses are
+preserved across the reboot and logged at the `ERROR` level. The ESPHome CLI automatically decodes
+the addresses to function names.
+
+```log
+[E][esp8266]: *** CRASH DETECTED ON PREVIOUS BOOT ***
+[E][esp8266]:   Reason: Exception - StoreProhibit (exccause=29)
+[E][esp8266]:   PC: 0x40212EC5
+[E][esp8266]:   BT0: 0x40212F5A
+[E][esp8266]:   BT1: 0x40203B10
+[E][esp8266]:   BT2: 0x40203270
+```
+
+No configuration is needed — the crash handler is always enabled.
+
 ## Electrical Characteristics
 
 | **Parameter**                                      | **Min.**  | **Typical** | **Max.**  | **Unit** |

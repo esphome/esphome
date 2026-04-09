@@ -112,7 +112,7 @@ with the information retrieved from the sensor. For more information on the comm
 - `set_tempcomp_value(float temp)`  : Send the given temperature (in Celcius) to the sensor (this is an alias of `set_t()` for backwards compatibility)
 
 ```cpp
-    id(ph_ezo).set_tempcomp_value(id(rtd_ezo).state);
+    id(ph_ezo).set_tempcomp_value(id(rtd_ezo).get_state());
 ```
 
 - `get_calibration()`  : Sensor retrieves calibration and triggers `on_calibration:` once done

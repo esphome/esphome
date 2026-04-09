@@ -201,6 +201,52 @@ printh FF FF FF
 - `prints temperature.val,0` The actual value to send. For a variable use the Nextion variable name `temperature` with out `.val`
 - `printh FF FF FF` Nextion command ack
 
+<span id="nextion_custom_sensor_automation"></span>
+
+## Reacting to Custom Sensor Protocol Frames (Automation)
+
+In addition to updating a Nextion sensor entity, the **Nextion Custom Sensor Protocol (0x91)** can also trigger automations directly on the Nextion display component.
+
+This is useful when the sensor data is intended to be handled as an **event** rather than as persistent state, for example:
+
+- lightweight command or control messages
+- compact numeric payloads
+- custom protocols where no Home Assistant entity is required
+
+### Example
+
+```yaml
+display:
+  - platform: nextion
+    id: nextion1
+    uart_id: uart_nextion
+    on_custom_sensor:
+      then:
+        - lambda: |-
+            // key: name sent by the Nextion (string)
+            // value: decoded integer value
+            if (key == "temperature") {
+              ESP_LOGI("nextion", "Temperature=%d", value);
+            }
+```
+
+### Parameters passed to the automation
+
+- **key** (`string`):  
+  The name sent by the Nextion using the custom sensor protocol.  
+  This corresponds to the value sent in `prints "<name>",0`.
+
+- **value** (`int`):  
+  The integer value decoded from the protocol frame.
+
+### Notes
+
+- The automation is triggered **when the custom protocol frame is received**, not when a sensor entity updates.
+- Defining a `sensor:` entry is **not required** to use this automation.
+- Existing Nextion sensor entities and polling behavior are unchanged.
+- This automation reflects the same protocol described in [Nextion Custom Sensor Protocol](#nextion_custom_sensor_protocol).
+- This mechanism allows event-driven handling of Nextion data without the overhead of maintaining a sensor entity when no persistent state is needed.
+
 ## See Also
 
 - [Nextion TFT LCD Display](/components/display/nextion/)

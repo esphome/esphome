@@ -163,6 +163,52 @@ printh FF FF FF
 - `printh 00` Sends a NULL
 - `printh FF FF FF` Nextion command ack
 
+<span id="nextion_custom_text_sensor_automation"></span>
+
+## Reacting to Custom Text Sensor Protocol Frames (Automation)
+
+In addition to updating a Nextion text sensor entity, the **Nextion Custom Text Sensor Protocol (0x92)** can also trigger automations directly on the Nextion display component.
+
+This is useful when text data from the Nextion is intended to be handled as an **event** rather than as persistent state, for example:
+
+- lightweight command messages
+- CSV or structured text payloads
+- custom communication patterns where no Home Assistant text sensor entity is required
+
+### Example
+
+```yaml
+display:
+  - platform: nextion
+    id: nextion1
+    uart_id: uart_nextion
+    on_custom_text_sensor:
+      then:
+        - lambda: |-
+            // key: name sent by the Nextion (string)
+            // value: decoded text value
+            if (key == "text0") {
+              ESP_LOGI("nextion", "Received text: %s", value.c_str());
+            }
+```
+
+### Parameters passed to the automation
+
+- **key** (`string`):  
+  The name sent by the Nextion using the custom text sensor protocol.  
+  This corresponds to the value sent in `prints "<name>",0`.
+
+- **value** (`string`):  
+  The text value decoded from the protocol frame.
+
+### Notes
+
+- The automation is triggered **when the custom protocol frame is received**, not when a text sensor entity updates.
+- Defining a `text_sensor:` entry is **not required** to use this automation.
+- Existing Nextion text sensor entities and polling behavior are unchanged.
+- This automation reflects the same protocol described in [Nextion Custom Text Sensor Protocol](#nextion_custom_text_sensor_protocol).
+- This mechanism allows event-driven handling of Nextion text data without the overhead of maintaining a text sensor entity when no persistent state is needed.
+
 ## See Also
 
 - [Nextion TFT LCD Display](/components/display/nextion/)

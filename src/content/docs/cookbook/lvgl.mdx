@@ -147,11 +147,12 @@ lvgl:
               id: dimmer_slider
               x: 20
               y: 50
-              width: 30
+              width: 20
               height: 220
               pad_all: 8
               min_value: 0
               max_value: 255
+              ext_click_area: 20
               on_release:
                 - homeassistant.action:
                     action: light.turn_on
@@ -160,11 +161,12 @@ lvgl:
                       brightness: !lambda return int(x);
 ```
 
-Note that Home Assistant expects an integer at the `brightness` parameter of the `light.turn_on` action call, and since
-ESPHome uses floats, `x` needs to be converted.
+The `ext_click_area` option is used to enlarge the touchable area around the widget by `20` pixels.
 
-This is applicable to action calls like `fan.set_percentage` or `valve.set_valve_position`, too; the only difference
-is that `max_value` has to be `100`.
+> [!NOTE]
+> Home Assistant expects an integer at the `brightness` parameter of the `light.turn_on` action call, and since ESPHome uses floats, `x` needs to be converted.
+> 
+> This is applicable to action calls like `fan.set_percentage` or `valve.set_valve_position` too; the only difference is that `max_value` has to be `100`.
 
 <span id="lvgl-cookbook-volume"></span>
 
@@ -270,45 +272,37 @@ lvgl:
                     width: 100%
                     border_width: 0
                     bg_opa: TRANSP
+                    indicator:
+                      bg_opa: TRANSP
                     align: CENTER
                     scales:
                       - range_from: -10
                         range_to: 10
                         angle_range: 180 # sets the total angle to 180 = starts mid left and ends mid right
-                        ticks:
-                          count: 0
                         indicators:
-                          - line:
-                              id: val_needle
-                              width: 8
-                              r_mod: 12 # sets line length by this much difference from the scale default radius
-                              value: -2
                           - arc: # first half of the scale background
                               color: 0xFF3000
-                              r_mod: 10 # radius difference from the scale default radius
                               width: 31
                               start_value: -10
                               end_value: 0
                           - arc: # second half of the scale background
                               color: 0x00FF00
-                              r_mod: 10
                               width: 31
                               start_value: 0
                               end_value: 10
-                - obj: # to cover the middle part of meter indicator line
-                    height: 146
-                    width: 146
-                    radius: 73
-                    align: CENTER
-                    border_width: 0
-                    bg_color: 0xFFFFFF
-                    pad_all: 0
+                          - line: # needle
+                              id: val_needle
+                              width: 8
+                              value: -3
+                              rounded: false
+                              length: 33
+                              radial_offset: 73
                 - label: # gauge numeric indicator
                     id: val_text
                     text_font: montserrat_48
                     align: CENTER
                     y: -5
-                    text: "0"
+                    text: "-3"
                 - label: # lower range indicator
                     text_font: montserrat_18
                     align: CENTER
@@ -323,13 +317,9 @@ lvgl:
                     text: "+10"
 ```
 
-> [!TIP]
-> The `obj` used to hide the middle part of the meter indicator line has `radius` equal to half of the `width` and
-> `height`. This results in a circle - which is actually a square with extra large rounded corners.
-
 <span id="lvgl-cookbook-thermometer"></span>
 
-## Thermometer
+## Thermometer classic
 
 A thermometer with a precise gauge also made from a [`meter`](/components/lvgl/widgets#lvgl-widget-meter) widget and a numeric display using
 [`label`](/components/lvgl/widgets#lvgl-widget-label):
@@ -366,22 +356,6 @@ lvgl:
               height: 180
               width: 180
               scales:
-                - range_from: -100 # scale for the needle value
-                  range_to: 400
-                  angle_range: 240
-                  rotation: 150
-                  indicators:
-                    - line:
-                        id: temperature_needle
-                        width: 2
-                        color: 0xFF0000
-                        r_mod: -4
-                    - tick_style:
-                        start_value: -10
-                        end_value: 40
-                        color_start: 0x0000bd
-                        color_end: 0xbd0000
-                        width: 1
                 - range_from: -10 # scale for the value labels
                   range_to: 40
                   angle_range: 240
@@ -397,6 +371,23 @@ lvgl:
                       length: 10
                       color: 0x404040
                       label_gap: 10
+                  indicators:
+                    - tick_style:
+                        start_value: -10
+                        end_value: 40
+                        color_start: 0x0000bd
+                        color_end: 0xbd0000
+                        width: 1
+                - range_from: -100 # scale for the needle value
+                  range_to: 400
+                  angle_range: 240
+                  rotation: 150
+                  indicators:
+                    - line:
+                        id: temperature_needle
+                        width: 2
+                        color: 0xFF0000
+                        length: 96%
               widgets:
                 - label:
                     id: temperature_text
@@ -408,6 +399,8 @@ lvgl:
                     align: CENTER
                     y: 65
 ```
+
+## Thermometer semicircle
 
 And here's the same sensor configuration, but instead with a semicircle gauge with a gradient background drawn by a
 multitude of ticks:
@@ -438,14 +431,17 @@ lvgl:
                     border_width: 0
                     align: CENTER
                     bg_opa: TRANSP
+                    indicator:
+                      bg_opa: TRANSP
                     scales:
                       - range_from: -15
                         range_to: 35
                         angle_range: 180
                         ticks:
-                          count: 70
-                          width: 1
-                          length: 31
+                          count: 100
+                          width: 10
+                          length: 30
+                          radial_offset: 2
                         indicators:
                           - tick_style:
                               start_value: -15
@@ -455,22 +451,14 @@ lvgl:
                       - range_from: -150
                         range_to: 350
                         angle_range: 180
-                        ticks:
-                          count: 0
                         indicators:
                           - line:
-                              id: temperature_needle
+                              id: temperature_needle2
                               width: 8
-                              r_mod: 2
                               value: -150
-                - obj: # to cover the middle part of meter indicator line
-                    height: 123
-                    width: 123
-                    radius: 73
-                    align: CENTER
-                    border_width: 0
-                    pad_all: 0
-                    bg_color: 0xFFFFFF
+                              rounded: false
+                              length: 32
+                              radial_offset: 61
                 - label:
                     id: temperature_text
                     text: "--.-°C"
@@ -481,10 +469,6 @@ lvgl:
                     align: CENTER
                     y: -6
 ```
-
-> [!TIP]
-> You can omit the `obj` used to hide the middle part of meter indicator line by using a bitmap `image` indicator as
-> needle, were only the part hanging above the ticks scale is visible, the rest is transparent.
 
 <span id="lvgl-cookbook-climate"></span>
 
@@ -614,7 +598,7 @@ text_sensor:
       - if:
           condition:
             lambda: |-
-              return ((0 == x.compare(std::string{"opening"})) or (0 == x.compare(std::string{"closing"})));
+              return (x == "opening" or x == "closing");
           then:
             - lvgl.label.update:
                 id: cov_stop_myroom
@@ -858,11 +842,11 @@ In the example below, we only show the icon when the connection with Home Assist
 ```yaml
 api:
   on_client_connected:
-    - if:
+    - wait_until:
         condition:
-          lambda: 'return (0 == client_info.find("Home Assistant "));'
-        then:
-          - lvgl.widget.show: lbl_hastatus
+          api.connected:
+            state_subscription_only: true
+    - lvgl.widget.show: lbl_hastatus
   on_client_disconnected:
     - if:
         condition:
@@ -885,11 +869,9 @@ lvgl:
           text_color: 0xFFFFFF
 ```
 
-Of note:
-
-- The widget starts *hidden* at boot and it's only shown when triggered by connection with the API.
-- Alignment of the widget: since the *align* option is given, the *x* and *y* options are used to position the widget
-- relative to the calculated position.
+> [!NOTE]
+> - The widget starts *hidden* at boot and it's only shown when triggered by connection with the API.
+> - Alignment of the widget: since the *align* option is given, the *x* and *y* options are used to position the widget relative to the calculated position.
 
 <span id="lvgl-cookbook-titlebar"></span>
 
@@ -981,7 +963,8 @@ lvgl:
                       - label:
                           id: cov_up_east
                           align: CENTER
-                          text: "\U000F005D" # mdi:arrow-up
+                          text: "\uF077"
+                          text_font: montserrat_48
                 - button:
                     id: but_cov_stop_east
                     width: 70
@@ -990,7 +973,8 @@ lvgl:
                       - label:
                           id: cov_stop_east
                           align: CENTER
-                          text: "\U000F04DB" # mdi:stop
+                          text: "\uF04D"
+                          text_font: montserrat_30
                 - button:
                     id: but_cov_down_east
                     width: 70
@@ -999,7 +983,8 @@ lvgl:
                       - label:
                           id: cov_down_east
                           align: CENTER
-                          text: "\U000F0045" # mdi:arrow-down
+                          text: "\uF078"
+                          text_font: montserrat_48
 
                 - label:
                     text: "South"
@@ -1011,7 +996,8 @@ lvgl:
                       - label:
                           id: cov_up_south
                           align: CENTER
-                          text: "\U000F005D"
+                          text: "\uF077"
+                          text_font: montserrat_48
                 - button:
                     id: but_cov_stop_south
                     width: 70
@@ -1020,7 +1006,8 @@ lvgl:
                       - label:
                           id: cov_stop_south
                           align: CENTER
-                          text: "\U000F04DB"
+                          text: "\uF04D"
+                          text_font: montserrat_30
                 - button:
                     id: but_cov_down_south
                     width: 70
@@ -1029,7 +1016,8 @@ lvgl:
                       - label:
                           id: cov_down_south
                           align: CENTER
-                          text: "\U000F0045"
+                          text: "\uF078"
+                          text_font: montserrat_48
 
                 - label:
                     text: "West"
@@ -1041,7 +1029,8 @@ lvgl:
                       - label:
                           id: cov_up_west
                           align: CENTER
-                          text: "\U000F005D"
+                          text: "\uF077"
+                          text_font: montserrat_48
                 - button:
                     id: but_cov_stop_west
                     width: 70
@@ -1050,7 +1039,8 @@ lvgl:
                       - label:
                           id: cov_stop_west
                           align: CENTER
-                          text: "\U000F04DB"
+                          text: "\uF04D"
+                          text_font: montserrat_30
                 - button:
                     id: but_cov_down_west
                     width: 70
@@ -1059,7 +1049,8 @@ lvgl:
                       - label:
                           id: cov_down_west
                           align: CENTER
-                          text: "\U000F0045"
+                          text: "\uF078"
+                          text_font: montserrat_48
 ```
 
 This saved you from a considerable amount of manual calculation of widget positioning which would otherwise be required
@@ -1099,7 +1090,7 @@ lvgl:
                     text: "East"
                     grid_cell_column_pos: 0 # place the widget in
                     grid_cell_row_pos: 0 # the corresponding cell
-                    grid_cell_x_align: STRETCH
+                    grid_cell_x_align: CENTER
                     grid_cell_y_align: STRETCH
                 - button:
                     id: but_cov_up_east
@@ -1111,7 +1102,8 @@ lvgl:
                       - label:
                           id: cov_up_east
                           align: CENTER
-                          text: "\U000F005D"
+                          text: "\uF077"
+                          text_font: montserrat_48
                 - button:
                     id: but_cov_stop_east
                     grid_cell_column_pos: 0
@@ -1122,7 +1114,8 @@ lvgl:
                       - label:
                           id: cov_stop_east
                           align: CENTER
-                          text: "\U000F04DB"
+                          text: "\uF04D"
+                          text_font: montserrat_30
                 - button:
                     id: but_cov_down_east
                     grid_cell_column_pos: 0
@@ -1133,13 +1126,14 @@ lvgl:
                       - label:
                           id: cov_down_east
                           align: CENTER
-                          text: "\U000F0045"
+                          text: "\uF078"
+                          text_font: montserrat_48
 
                 - label:
                     text: "South"
                     grid_cell_column_pos: 1
                     grid_cell_row_pos: 0
-                    grid_cell_x_align: STRETCH
+                    grid_cell_x_align: CENTER
                     grid_cell_y_align: STRETCH
                 - button:
                     id: but_cov_up_south
@@ -1151,7 +1145,8 @@ lvgl:
                       - label:
                           id: cov_up_south
                           align: CENTER
-                          text: "\U000F005D"
+                          text: "\uF077"
+                          text_font: montserrat_48
                 - button:
                     id: but_cov_stop_south
                     grid_cell_column_pos: 1
@@ -1162,7 +1157,8 @@ lvgl:
                       - label:
                           id: cov_stop_south
                           align: CENTER
-                          text: "\U000F04DB"
+                          text: "\uF04D"
+                          text_font: montserrat_30
                 - button:
                     id: but_cov_down_south
                     grid_cell_column_pos: 1
@@ -1173,13 +1169,14 @@ lvgl:
                       - label:
                           id: cov_down_south
                           align: CENTER
-                          text: "\U000F0045"
+                          text: "\uF078"
+                          text_font: montserrat_48
 
                 - label:
                     text: "West"
                     grid_cell_column_pos: 2
                     grid_cell_row_pos: 0
-                    grid_cell_x_align: STRETCH
+                    grid_cell_x_align: CENTER
                     grid_cell_y_align: STRETCH
                 - button:
                     id: but_cov_up_west
@@ -1191,7 +1188,8 @@ lvgl:
                       - label:
                           id: cov_up_west
                           align: CENTER
-                          text: "\U000F005D"
+                          text: "\uF077"
+                          text_font: montserrat_48
                 - button:
                     id: but_cov_stop_west
                     grid_cell_column_pos: 2
@@ -1202,7 +1200,8 @@ lvgl:
                       - label:
                           id: cov_stop_west
                           align: CENTER
-                          text: "\U000F04DB"
+                          text: "\uF04D"
+                          text_font: montserrat_30
                 - button:
                     id: but_cov_down_west
                     grid_cell_column_pos: 2
@@ -1213,7 +1212,8 @@ lvgl:
                       - label:
                           id: cov_down_west
                           align: CENTER
-                          text: "\U000F0045"
+                          text: "\uF078"
+                          text_font: montserrat_48
 ```
 
 The big advantage here is that whenever you need to add, for example, an extra column of buttons for a new cover, you
@@ -1265,10 +1265,10 @@ lvgl:
             - image:
                 align: CENTER
                 src: boot_logo
-                y: -40
+                y: -50
             - spinner:
                 align: CENTER
-                y: 95
+                y: 50
                 height: 50
                 width: 50
                 spin_time: 1s
@@ -1340,23 +1340,25 @@ lvgl:
 
 <span id="lvgl-cookbook-ckboxmark"></span>
 
-## Restore checkbox mark
+## Fix missing checkbox and chevron
 
-If you configure a custom font as the `default_font` used by LVGL and this font does not contain the
-[FontAwesome](https://fontawesome.com/) symbols, you may observe that some widgets won't display correctly; specifically
-[`checkbox`](/components/lvgl/widgets#lvgl-widget-checkbox) won't show the checkmark when it's checked.
+If you configure your custom font as the `default_font` used by LVGL, it will likely not contain the
+[FontAwesome](https://fontawesome.com/) symbols. You may observe that some widgets won't display correctly;
+specifically [`checkbox`](/components/lvgl/widgets#checkbox) won't show the checkmark when it's checked, and
+[`dropdown`](/components/lvgl/widgets#dropdown) won't show the chevron pointing downwards to open the list.
 
-To work around this issue, simply import only the checkmark symbol in the desired size and apply it through
-[Theme and style definitions](#lvgl-cookbook-theme) to all the checkboxes in the configuration:
+To work around this issue, simply import just the checkmark and chevron symbols in the desired size and apply
+them through [Theme and style definitions](#lvgl-cookbook-theme) to all the checkboxes and dropdowns in the configuration:
 
 ```yaml
 font:
   - file: 'fonts/FontAwesome5-Solid+Brands+Regular.woff'
     id: fontawesome_checkmark
-    size: 18
+    size: 16
     bpp: 4
     glyphs: [
-      "\uF00C", # ckeckmark, for checkbox
+      "\uF00C", # checkmark, for checkbox
+      "\uF078", # chevron down, for dropdown
       ]
 
 lvgl:
@@ -1366,6 +1368,10 @@ lvgl:
         indicator:
           checked:
             text_font: fontawesome_checkmark
+      dropdown:
+        indicator:
+          text_font: fontawesome_checkmark
+
 ```
 
 You could of course simply apply one of the built-in `montserrat_` packs, but that would not be beneficial on the
@@ -1388,7 +1394,7 @@ If we take our previous [Remote light button](#lvgl-cookbook-binent) example, we
 
 ```yaml
 font:
-  - file: "custom/materialdesignicons-webfont.ttf"
+  - file: "fonts/materialdesignicons-webfont.ttf"
     id: mdi_42
     size: 42
     bpp: 4
@@ -1406,14 +1412,14 @@ text_sensor:
         - lvgl.widget.update:
             id: btn_lightbulb
             state:
-              checked: !lambda return (0 == x.compare(std::string{"on"}));
-              disabled: !lambda return ((0 == x.compare(std::string{"unavailable"})) or (0 == x.compare(std::string{"unknown"})));
+              checked: !lambda return (x == "on");
+              disabled: !lambda return ((x == "unavailable") or (x == "unknown"));
         - lvgl.label.update:
             id: lbl_lightbulb
             text: !lambda |-
               static char buf[10];
               std::string icon;
-              if (0 == x.compare(std::string{"on"})) {
+              if (x == "on") {
                   icon = "\U000F0335";
               } else {
                   icon = "\U000F0336";
@@ -1427,8 +1433,7 @@ lvgl:
       - id: room_page
         widgets:
           - button:
-              x: 110
-              y: 40
+              align: CENTER
               width: 90
               height: 50
               checkable: true
@@ -1511,7 +1516,7 @@ sensor:
             } else if (x > 0) {
                 icon = "\U000F008E"; // mdi-battery-outline
             } else {
-                icon = "\U000F0091"; // mdi-battery-unknown
+                icon = "\U000F0091"; // mdi-battery-unknown (questionmark)
             }
             snprintf(buf, sizeof(buf), "%s", icon.c_str());
             return buf;
@@ -1524,8 +1529,8 @@ lvgl:
           - label:
               id: lbl_battery_status
               align: TOP_RIGHT
-              y: 40
-              x: -10
+              y: 5
+              x: -15
               text_font: battery_icons_20
               text: "\U000F0091" # start with mdi-battery-unknown
 ```
@@ -1542,36 +1547,47 @@ To have an animation illustrating a battery charging, you can use [`animimg`](/c
 ```yaml
 image:
   - file: mdi:battery-10
+    type: BINARY
     id: batt_10
     resize: 20x20
   - file: mdi:battery-20
+    type: BINARY
     id: batt_20
     resize: 20x20
   - file: mdi:battery-30
+    type: BINARY
     id: batt_30
     resize: 20x20
   - file: mdi:battery-40
+    type: BINARY
     id: batt_40
     resize: 20x20
   - file: mdi:battery-50
+    type: BINARY
     id: batt_50
     resize: 20x20
   - file: mdi:battery-60
+    type: BINARY
     id: batt_60
     resize: 20x20
   - file: mdi:battery-70
+    type: BINARY
     id: batt_70
     resize: 20x20
   - file: mdi:battery-80
+    type: BINARY
     id: batt_80
     resize: 20x20
   - file: mdi:battery-90
+    type: BINARY
     id: batt_90
     resize: 20x20
   - file: mdi:battery
+    type: BINARY
     id: batt_full
     resize: 20x20
   - file: mdi:battery-outline
+    type: BINARY
     id: batt_empty
     resize: 20x20
 
@@ -1582,8 +1598,8 @@ lvgl:
         widgets:
           - animimg:
               align: TOP_RIGHT
-              y: 41
-              x: -10
+              y: 5
+              x: -15
               id: ani_battery_charging
               src: [
                 batt_empty,
@@ -1641,6 +1657,14 @@ text.
 ```yaml
 lvgl:
   ...
+  style_definitions:
+    - id: date_style
+      text_font: unscii_8
+      align: center
+      text_color: 0x000000
+      bg_opa: 60%
+      radius: 4
+      pad_all: 2
   pages:
     - id: clock_page
       widgets:
@@ -1674,7 +1698,7 @@ lvgl:
                             id: minute_hand
                             width: 3
                             color: 0xa6a6a6
-                            r_mod: -4
+                            length: 96%
                             value: 0
                     - range_from: 1 # hours scale for labels
                       range_to: 12
@@ -1694,14 +1718,12 @@ lvgl:
                       range_to: 720
                       angle_range: 360
                       rotation: 270
-                      ticks:
-                        count: 0
                       indicators:
                         - line:
                             id: hour_hand
                             width: 5
                             color: 0xa6a6a6
-                            r_mod: -30
+                            length: 70%
                             value: 0
               - label:
                   styles: date_style
@@ -1864,7 +1886,7 @@ key_collector:
     on_progress:
       - if:
           condition:
-            lambda: return (0 != x.compare(std::string{""}));
+            lambda: return (x != "");
           then:
             - lvgl.label.update:
                 id: lvgl_label
@@ -1876,7 +1898,7 @@ key_collector:
     on_result:
       - if:
           condition:
-            lambda: return (0 == x.compare(std::string{"1234"}));
+            lambda: return (x == "1234");
           then:
             - lvgl.led.update:
                 id: lvgl_led
@@ -1887,13 +1909,11 @@ key_collector:
                 color: 0xFF0000
 ```
 
-Of note:
-
-- A base object `obj` is used as a parent for the label; this allows proper centering of the label as well as
-- emphasizing it with shadows independently of the label's dimensions.
-- `align_to` is used to align the label to the `led` vertically.
-- Changing the background color of the buttons in `pressed` state.
-- Use of the `key_code` configuration to send a different character to `key_collector` instead of the displayed symbol.
+> [!NOTE]
+> - A base object `obj` is used as a parent for the label; this allows proper centering of the label as well as emphasizing it with shadows independently of the label's dimensions.
+> - `align_to` is used to align the label to the `led` vertically.
+> - Changing the background color of the buttons in `pressed` state.
+> - Use of the `key_code` configuration to send a different character to `key_collector` instead of the displayed symbol.
 
 <span id="lvgl-cookbook-weather"></span>
 

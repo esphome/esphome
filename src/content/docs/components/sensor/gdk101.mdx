@@ -148,7 +148,7 @@ text_sensor:
   - platform: template
     name: "GDK101 Status Description"
     lambda: |-
-      int status = int(id(gdk101_status).state);
+      int status = int(id(gdk101_status).get_state());
       if (status == 0) {
         return {"Powered On"};
       } else if (status == 1) {

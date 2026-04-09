@@ -1,13 +1,14 @@
 ---
-description: "Instructions for setting up the Ethernet configuration for your ESP32 node in ESPHome."
+description: "Instructions for setting up the Ethernet configuration for your ESP32 or RP2040 node in ESPHome."
 title: "Ethernet Component"
 ---
 import APIRef from '@components/APIRef.astro';
 
 
-This ESPHome component enables *wired* Ethernet connections for ESP32s.
+This ESPHome component enables *wired* Ethernet connections for ESP32 and RP2040 boards.
 
-Ethernet for ESP8266 is not supported.
+- **ESP32**: Supports RMII PHY chips (LAN8720, RTL8201, etc.) and SPI Ethernet chips (W5500, DM9051, ENC28J60).
+- **RP2040/RP2350**: Supports SPI/PIO Ethernet chips (W5100, W5500, W6100, W6300, ENC28J60).
 
 This component and the Wi-Fi component may **not** be used simultaneously, even if both are physically available.
 
@@ -30,7 +31,7 @@ ethernet:
 ```
 
 ```yaml
-# Example configuration entry for SPI chips
+# Example configuration entry for SPI chips (ESP32)
 ethernet:
   type: W5500
   clk_pin: GPIOXX
@@ -41,23 +42,39 @@ ethernet:
   reset_pin: GPIOXX
 ```
 
+```yaml
+# Example configuration entry for SPI chips (RP2040 Pico)
+ethernet:
+  type: W5500
+  clk_pin: 18
+  mosi_pin: 19
+  miso_pin: 16
+  cs_pin: 17
+  interrupt_pin: 21
+  reset_pin: 20
+```
+
 ## Configuration variables
 
 - **type** (**Required**, string): The type of LAN chipset/phy.
 
   Supported chipsets are:
 
-  - `LAN8720` (RMII)
-  - `RTL8201` (RMII)
-  - `DP83848` (RMII)
-  - `IP101` (RMII)
-  - `JL1101` (RMII)
-  - `KSZ8081` (RMII)
-  - `KSZ8081RNA` (RMII)
-  - `W5500` (SPI)
-  - `OPENETH` (QEMU, ESP-IDF only)
-  - `DM9051` (SPI, ESP-IDF only)
-  - `LAN8670` (RMII)
+  - `LAN8720` (RMII, ESP32 only)
+  - `RTL8201` (RMII, ESP32 only)
+  - `DP83848` (RMII, ESP32 only)
+  - `IP101` (RMII, ESP32 only)
+  - `JL1101` (RMII, ESP32 only)
+  - `KSZ8081` (RMII, ESP32 only)
+  - `KSZ8081RNA` (RMII, ESP32 only)
+  - `W5100` (SPI, RP2040 only)
+  - `W5500` (SPI, ESP32 and RP2040)
+  - `OPENETH` (QEMU, ESP32 only)
+  - `DM9051` (SPI, ESP32 only)
+  - `ENC28J60` (SPI, 10Mbps, ESP32 and RP2040)
+  - `W6100` (SPI, RP2040/RP2350 only)
+  - `W6300` (PIO QSPI, RP2040/RP2350 only)
+  - `LAN8670` (RMII, ESP32 only)
 
 ### RMII configuration variables
 
@@ -96,28 +113,28 @@ ethernet:
   This variable is **required** for older frameworks. See below.
 
 - **reset_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The reset pin.
-- **clock_speed** (*Optional*, float): The SPI clock speed.
+- **clock_speed** (*Optional*, float): The SPI clock speed. ESP32 only.
   Any frequency between `8MHz` and `80MHz` is allowed, but the nearest integer division
   of `80MHz` is used, i.e. `16MHz` (`80MHz` / 5) is used when `15MHz` is configured.
   Default: `26.67MHz`.
 
 - **polling_interval** (*Optional*, [Time](/guides/configuration-types#time)): If `interrupt_pin` is not set,
-  set the time interval for periodic polling. Minimum is 1ms, Defaults to 10ms.
+  set the time interval for periodic polling. Minimum is 1ms; defaults to 10ms. ESP32 only.
   Older frameworks may not support this variable. See below for details.
+- **interface** (*Optional*, string): Controls which ESP-IDF SPI implementation should be used.
+  Value may be either `spi2` or `spi3`.
 
-If you are using a framework with the latest version, ESPHome provides
-an SPI-based Ethernet module without interrupt pin.
-Support for SPI polling mode (no interrupt pin) is provided by the following frameworks:
+On ESP32, the `interrupt_pin` and `polling_interval` options control how the SPI Ethernet
+chip is polled. On RP2040, the arduino-pico framework handles packet processing automatically.
 
-- ESP-IDF 5.3 or later
-- ESP-IDF 5.2.1 and later 5.2.x versions
-- ESP-IDF 5.1.4
-- Arduino-ESP32 3.0.0 or later (**Caution**: PlatformIO does not support these Arduino-ESP32 versions)
+**ESP32 SPI polling mode details:**
+
+Support for SPI polling mode (no interrupt pin) is provided by ESP-IDF 5.1.4+.
 
 When building with frameworks that support SPI polling mode, either `interrupt_pin`
 or `polling_interval` can be set. If you set both, ESPHome will throw an error.
 
-If you are using a framework that does not support SPI-based ethernet modules without interrupt pin,
+If you are using a framework that does not support SPI polling mode,
 `interrupt_pin` is **required** and you cannot set `polling_interval`.
 
 ### Advanced common configuration variables
@@ -146,11 +163,10 @@ If you are using a framework that does not support SPI-based ethernet modules wi
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 
 > [!NOTE]
-> If your Ethernet board is not designed with an ESP32 built in, it's common to attempt
-> to use flying leads, dupont wires, etc. to connect the Ethernet controller to the ESP32.
-> This approach is likely to fail, however, as the Ethernet interface uses a high frequency
-> clock signal that will not travel reliably over these types of connections. For more
-> information and wiring details refer to the link in the *See also* section.
+> If your Ethernet board is not designed with the microcontroller built in, it's common to attempt
+> to use flying leads, dupont wires, etc. to connect the Ethernet controller. This approach is
+> likely to fail, however, as the Ethernet interface uses a high frequency clock signal that will
+> not travel reliably over these types of connections.
 
 > [!NOTE]
 > SPI based chips do *not* use [Spi](/components/spi/). This means that SPI pins can't be shared with other devices.
@@ -403,6 +419,108 @@ ethernet:
 
 > [!NOTE]
 > Using a higher clock_speed, including default, might cause rx errors and dropped packets.
+
+**ENC28J60** (ESP32, SPI):
+
+```yaml
+ethernet:
+  type: ENC28J60
+  clk_pin: GPIOXX
+  mosi_pin: GPIOXX
+  miso_pin: GPIOXX
+  cs_pin: GPIOXX
+  interrupt_pin: GPIOXX
+  reset_pin: GPIOXX
+  clock_speed: 10MHz
+```
+
+> [!NOTE]
+> The ENC28J60 is a 10Mbps Ethernet controller. For higher throughput, consider using a W5500 (100Mbps) instead.
+
+**ENC28J60** (RP2040 Pico, SPI):
+
+```yaml
+ethernet:
+  type: ENC28J60
+  clk_pin: 18
+  mosi_pin: 19
+  miso_pin: 16
+  cs_pin: 17
+  interrupt_pin: 21
+  reset_pin: 20
+```
+
+**WIZnet W5500-EVB-Pico** (RP2040):
+
+```yaml
+rp2040:
+  board: wiznet_5500_evb_pico
+
+ethernet:
+  type: W5500
+  clk_pin: 18
+  mosi_pin: 19
+  miso_pin: 16
+  cs_pin: 17
+  interrupt_pin: 21
+  reset_pin: 20
+```
+
+**WIZnet W5100S-EVB-Pico** (RP2040):
+
+```yaml
+rp2040:
+  board: wiznet_5100s_evb_pico
+
+ethernet:
+  type: W5100
+  clk_pin: 18
+  mosi_pin: 19
+  miso_pin: 16
+  cs_pin: 17
+  interrupt_pin: 21
+  reset_pin: 20
+```
+
+**WIZnet W6300-EVB-Pico2** (RP2350):
+
+```yaml
+rp2040:
+  board: wiznet_6300_evb_pico2
+
+ethernet:
+  type: W6300
+  clk_pin: 17
+  mosi_pin: 18
+  miso_pin: 19
+  cs_pin: 16
+  interrupt_pin: 15
+  reset_pin: 22
+```
+
+> [!NOTE]
+> The W6300 uses PIO QSPI with hardcoded pins — it does not use Arduino SPI. The `clk_pin`,
+> `mosi_pin`, `miso_pin`, and `cs_pin` fields are still required by the YAML schema for this board,
+> but they are **not** user-configurable for pin remapping; they must be set to the board's fixed
+> QSPI pinout as shown above. An upstream arduino-pico driver issue causes GPIO 0 (UART TX) to be
+> reset during initialization, which disrupts UART serial logging. Device operation and OTA are
+> unaffected.
+
+**WIZnet W6100-EVB-Pico** (RP2040):
+
+```yaml
+rp2040:
+  board: wiznet_6100_evb_pico
+
+ethernet:
+  type: W6100
+  clk_pin: 18
+  mosi_pin: 19
+  miso_pin: 16
+  cs_pin: 17
+  interrupt_pin: 21
+  reset_pin: 20
+```
 
 ## `on_connect` / `on_disconnect` Trigger
 

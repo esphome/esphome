@@ -26,7 +26,7 @@ Then enter these values in the calibration parameter:
   id: to_ntc_temperature_sensor1
   unit_of_measurement: "°C"
   lambda: |-
-    return id(some_sensor).state;
+    return id(some_sensor).get_state();
   update_interval: 1s
   filters:
     - to_ntc_temperature:
@@ -45,7 +45,7 @@ pairs of values which can also be specified directly as an alternative.
   id: to_ntc_temperature_sensor2
   unit_of_measurement: "°C"
   lambda: |-
-    return id(some_sensor).state;
+    return id(some_sensor).get_state();
   update_interval: 1s
   filters:
     - to_ntc_temperature:
