@@ -534,39 +534,15 @@ static size_t value_accuracy_to_buf_fast(char *buf, float value, int8_t accuracy
     *p++ = '-';
     value = -value;
   }
-  uint32_t mult = 1;
-  if (accuracy_decimals == 1) {
-    mult = 10;
-  } else if (accuracy_decimals == 2) {
-    mult = 100;
-  } else if (accuracy_decimals == 3) {
-    mult = 1000;
-  }
-  // Cast to double for the multiply to match snprintf's precision.
+  uint32_t mult = small_pow10(accuracy_decimals);
+  // Cast to double for the multiply to match snprintf's rounding precision.
   // float*int loses bits at exact-half boundaries (e.g. 23.45f*10 = 234.5 in float,
   // but snprintf sees 234.500007... via double promotion and rounds differently).
   uint32_t scaled = static_cast<uint32_t>(lrint(static_cast<double>(value) * mult));
-  uint32_t int_part = scaled / mult;
-  // Write integer part in reverse, then flip
-  char *start = p;
-  if (int_part == 0) {
-    *p++ = '0';
-  } else {
-    while (int_part > 0) {
-      *p++ = '0' + (int_part % 10);
-      int_part /= 10;
-    }
-    std::reverse(start, p);
-  }
+  p = uint32_to_str(p, scaled / mult);
   if (accuracy_decimals > 0) {
     *p++ = '.';
-    uint32_t frac = scaled % mult;
-    uint32_t d = mult / 10;
-    while (d > 0) {
-      *p++ = '0' + static_cast<char>(frac / d);
-      frac %= d;
-      d /= 10;
-    }
+    p = frac_to_str(p, scaled % mult, mult / 10);
   }
   *p = '\0';
   return static_cast<size_t>(p - buf);

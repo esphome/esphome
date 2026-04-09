@@ -1295,6 +1295,46 @@ inline char *int8_to_str(char *buf, int8_t val) {
   return buf;
 }
 
+/// Return 10^n for small non-negative n (0-3) as uint32_t, avoiding float.
+inline uint32_t small_pow10(int8_t n) {
+  if (n == 1) {
+    return 10;
+  } else if (n == 2) {
+    return 100;
+  } else if (n == 3) {
+    return 1000;
+  }
+  return 1;
+}
+
+/// Write unsigned 32-bit integer to buffer. Returns pointer past last char written.
+/// Buffer must have at least 10 bytes free (max uint32 is 4294967295).
+inline char *uint32_to_str(char *buf, uint32_t val) {
+  if (val == 0) {
+    *buf++ = '0';
+    return buf;
+  }
+  char *start = buf;
+  while (val > 0) {
+    *buf++ = '0' + (val % 10);
+    val /= 10;
+  }
+  std::reverse(start, buf);
+  return buf;
+}
+
+/// Write fractional digits with leading zeros to buffer.
+/// frac is the fractional value, divisor is the highest place value (e.g. 100 for 3 digits).
+/// Returns pointer past last char written.
+inline char *frac_to_str(char *buf, uint32_t frac, uint32_t divisor) {
+  while (divisor > 0) {
+    *buf++ = '0' + static_cast<char>(frac / divisor);
+    frac %= divisor;
+    divisor /= 10;
+  }
+  return buf;
+}
+
 /// Format byte array as lowercase hex to buffer (base implementation).
 char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length);
 
