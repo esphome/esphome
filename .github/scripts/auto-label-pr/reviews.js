@@ -148,15 +148,20 @@ async function handleOrgForkComment(github, context, isOrgFork) {
   const prAuthor = context.payload.pull_request.user.login;
   const orgName = context.payload.pull_request.head.repo.owner.login;
 
-  // Check if we already posted the warning
-  const comments = await github.paginate(
+  // Check if we already posted the warning (iterate pages to exit early)
+  let existingComment;
+  for await (const { data: comments } of github.paginate.iterator(
     github.rest.issues.listComments,
     { owner, repo, issue_number: pr_number }
-  );
-  const existingComment = comments.find(comment =>
-    comment.user.type === 'Bot' &&
-    comment.body && comment.body.includes(ORG_FORK_MARKER)
-  );
+  )) {
+    existingComment = comments.find(comment =>
+      comment.user.type === 'Bot' &&
+      comment.body && comment.body.includes(ORG_FORK_MARKER)
+    );
+    if (existingComment) {
+      break;
+    }
+  }
 
   if (existingComment) {
     console.log('Org fork warning comment already exists, skipping');

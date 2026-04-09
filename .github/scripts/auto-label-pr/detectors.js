@@ -282,7 +282,7 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
 }
 
 // Strategy: Org fork detection
-async function detectOrgFork(context) {
+function detectOrgFork(context) {
   const pr = context.payload.pull_request;
 
   // Only relevant for cross-repo PRs (forks)
