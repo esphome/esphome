@@ -86,7 +86,8 @@ void SafeModeComponent::mark_successful() {
 }
 
 void SafeModeComponent::loop() {
-  if (!this->boot_successful_ && (millis() - this->safe_mode_start_time_) > this->safe_mode_boot_is_good_after_) {
+  if (!this->boot_successful_ &&
+      (App.get_loop_component_start_time() - this->safe_mode_start_time_) > this->safe_mode_boot_is_good_after_) {
     // successful boot, reset counter
     ESP_LOGI(TAG, "Boot seems successful; resetting boot loop counter");
     this->mark_successful();
