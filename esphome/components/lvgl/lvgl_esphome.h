@@ -284,10 +284,10 @@ class LvglComponent : public PollingComponent {
 
 class IdleTrigger : public Trigger<> {
  public:
-  explicit IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeout);
+  explicit IdleTrigger(LvglComponent *parent, TemplatableFn<uint32_t> timeout);
 
  protected:
-  TemplatableValue<uint32_t> timeout_;
+  TemplatableFn<uint32_t> timeout_;
   bool is_idle_{};
 };
 

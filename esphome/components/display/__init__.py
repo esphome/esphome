@@ -207,7 +207,8 @@ async def display_page_show_to_code(config, action_id, template_arg, args):
         cg.add(var.set_page(template_))
     else:
         paren = await cg.get_variable(config[CONF_ID])
-        cg.add(var.set_page(paren))
+        template_ = await cg.templatable(paren, args, DisplayPagePtr)
+        cg.add(var.set_page(template_))
     return var
 
 

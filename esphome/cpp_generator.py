@@ -819,11 +819,17 @@ async def templatable(
     args: list[tuple[SafeExpType, str]],
     output_type: SafeExpType | None,
     to_exp: Callable | dict = None,
+    *,
+    wrap_constant: bool = False,
 ):
     """Generate code for a templatable config option.
 
     If `value` is a templated value, the lambda expression is returned.
-    Otherwise the value is returned as-is (optionally process with to_exp).
+    For std::string output, constants are returned as-is (with PROGMEM wrapping),
+    using the std::string-specific TemplatableValue specialization.
+    For all other output types, constants are wrapped in stateless lambdas
+    so that TemplatableFn-backed macro-generated fields can store them as
+    function pointers.
 
     :param value: The value to process.
     :param args: The arguments for the lambda expression.
@@ -833,20 +839,28 @@ async def templatable(
     """
     if is_template(value):
         return await process_lambda(value, args, return_type=output_type)
-    if to_exp is None:
+    # Late import to avoid circular dependency (cpp_generator <-> cpp_types).
+    from esphome.cpp_types import std_string
+
+    if to_exp is not None:
+        value = to_exp[value] if isinstance(to_exp, dict) else to_exp(value)
+    elif (
+        isinstance(value, str) and output_type is not None and output_type is std_string
+    ):
         # Automatically wrap static strings in ESPHOME_F() for PROGMEM storage on ESP8266.
         # On other platforms ESPHOME_F() is a no-op returning const char*.
-        # Lazy import to avoid circular dependency (cpp_generator <-> cpp_types).
-        # Identity check (is) avoids brittle string comparison.
-        if isinstance(value, str) and output_type is not None:
-            from esphome.cpp_types import std_string
-
-            if output_type is std_string:
-                return FlashStringLiteral(value)
-        return value
-    if isinstance(to_exp, dict):
-        return to_exp[value]
-    return to_exp(value)
+        return FlashStringLiteral(value)
+    # Wrap non-string constants in stateless lambdas so that TemplatableFn
+    # (used by TEMPLATABLE_VALUE macro) stores them as function pointers.
+    # wrap_constant=True forces wrapping even with output_type=None (compiler deduces type).
+    if (output_type is not None or wrap_constant) and output_type is not std_string:
+        return LambdaExpression(
+            f"return {safe_exp(value)};",
+            args,
+            capture="",
+            return_type=output_type,
+        )
+    return value
 
 
 class MockObj(Expression):
