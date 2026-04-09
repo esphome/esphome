@@ -128,13 +128,23 @@ void EPaperWeActBW::power_off() {
   this->cmd_data(0x4E, {0x00});
   this->cmd_data(0x4F, {0x00, 0x00});
   this->command(0x26);
-  this->start_data_();
-  for (uint16_t y = 0; y < this->height_; ++y) {
-    for (uint16_t x = 0; x < this->row_width_; ++x) {
-      this->write_byte((uint8_t) this->buffer_[(size_t) y * this->row_width_ + x]);
+  uint8_t chunk[MAX_TRANSFER_SIZE];
+  size_t chunk_idx = 0;
+  const size_t buffer_length = (size_t) this->height_ * this->row_width_;
+  for (size_t i = 0; i < buffer_length; ++i) {
+    chunk[chunk_idx++] = this->buffer_[i];
+    if (chunk_idx == sizeof chunk) {
+      this->start_data_();
+      this->write_array(chunk, chunk_idx);
+      this->disable();
+      chunk_idx = 0;
     }
   }
-  this->disable();
+  if (chunk_idx != 0) {
+    this->start_data_();
+    this->write_array(chunk, chunk_idx);
+    this->disable();
+  }
 }
 
 void EPaperWeActBW::deep_sleep() {
