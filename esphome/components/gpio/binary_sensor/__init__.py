@@ -61,33 +61,13 @@ CONFIG_SCHEMA = (
 
 
 def _pin_is_deep_sleep_wakeup(pin_num: int) -> bool:
-    # Check if pin is configured as deep_sleep wakeup pin.
-    # When allow_other_uses is True, a pin might be shared with multiple components.
-    # However, if the pin is used as a deep_sleep wakeup, we allow interrupts since both
-    # components use the pin for the same purpose (detecting state changes for wakeup).
-    # This function checks both single-pin and ext1 multi-pin wakeup configurations.
+    """Check if pin is configured as a deep_sleep wakeup pin."""
     if not CORE.config or "deep_sleep" not in CORE.config:
         return False
 
-    deep_sleep_config = CORE.config.get("deep_sleep")
-    if not deep_sleep_config:
-        return False
+    from esphome.components.deep_sleep import is_wakeup_pin
 
-    # Check single pin wakeup (standard ESP32 wakeup_pin)
-    if "wakeup_pin" in deep_sleep_config:
-        return deep_sleep_config["wakeup_pin"][CONF_NUMBER] == pin_num
-
-    # Check esp32_ext1_wakeup pins (multiple pins with bitmask wakeup)
-    # ESP32 ext1 allows up to 16 pins to be monitored simultaneously
-    if "esp32_ext1_wakeup" in deep_sleep_config:
-        ext1_config = deep_sleep_config["esp32_ext1_wakeup"]
-        if "pins" in ext1_config:
-            return any(
-                pin_config.get(CONF_NUMBER) == pin_num
-                for pin_config in ext1_config["pins"]
-            )
-
-    return False
+    return is_wakeup_pin(pin_num)
 
 
 async def to_code(config):
@@ -115,13 +95,12 @@ async def to_code(config):
         )
         use_interrupt = False
 
-    # Check if pin is shared with other components except deep_sleep (allow_other_uses)
+    # Check if pin is shared with other components (allow_other_uses)
     # When a pin is shared, interrupts can interfere with other components
-    # (e.g., duty_cycle sensor) that need to monitor the pin's state changes
+    # (e.g., duty_cycle sensor) that need to monitor the pin's state changes.
+    # Exception: deep_sleep wakeup pins are compatible with interrupts.
     if use_interrupt and config[CONF_PIN].get(CONF_ALLOW_OTHER_USES, False):
-        is_deep_sleep_pin = _pin_is_deep_sleep_wakeup(pin_num)
-
-        if not is_deep_sleep_pin:
+        if not _pin_is_deep_sleep_wakeup(pin_num):
             _LOGGER.info(
                 "GPIO binary_sensor '%s': Disabling interrupts because pin %s is shared with other components. "
                 "The sensor will use polling mode for compatibility with other pin uses.",
