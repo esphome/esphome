@@ -137,16 +137,15 @@ async function handleReviews(github, context, finalLabels, originalLabelCount, d
   }
 }
 
-// Handle org fork warning comment
-async function handleOrgForkComment(github, context, isOrgFork) {
-  if (!isOrgFork) {
+// Handle maintainer access warning comment
+async function handleMaintainerAccessComment(github, context, maintainerAccess) {
+  if (!maintainerAccess) {
     return;
   }
 
   const { owner, repo } = context.repo;
   const pr_number = context.issue.number;
   const prAuthor = context.payload.pull_request.user.login;
-  const orgName = context.payload.pull_request.head.repo.owner.login;
 
   // Check if we already posted the warning (iterate pages to exit early)
   let existingComment;
@@ -164,17 +163,26 @@ async function handleOrgForkComment(github, context, isOrgFork) {
   }
 
   if (existingComment) {
-    console.log('Org fork warning comment already exists, skipping');
+    console.log('Maintainer access warning comment already exists, skipping');
     return;
   }
 
-  const body = `${ORG_FORK_MARKER}\n### ⚠️ Organization Fork Detected\n\n` +
-    `Hey there @${prAuthor},\n` +
-    `It looks like this PR was submitted from a fork owned by the **${orgName}** organization. ` +
-    `GitHub does not allow maintainers to push changes to pull request branches when the fork is owned by an organization. ` +
-    `This means we won't be able to make small adjustments or fixups to your PR directly.\n\n` +
-    `To allow maintainer collaboration, please re-submit this PR from a personal fork instead.\n\n` +
-    `See: [Setting up the local repository](https://developers.esphome.io/contributing/development-environment/?h=org#set-up-the-local-repository) for more details.`;
+  let body;
+  if (maintainerAccess.isOrgFork) {
+    body = `${ORG_FORK_MARKER}\n### ⚠️ Organization Fork Detected\n\n` +
+      `Hey there @${prAuthor},\n` +
+      `It looks like this PR was submitted from a fork owned by the **${maintainerAccess.orgName}** organization. ` +
+      `GitHub does not allow maintainers to push changes to pull request branches when the fork is owned by an organization. ` +
+      `This means we won't be able to make small adjustments or fixups to your PR directly.\n\n` +
+      `To allow maintainer collaboration, please re-submit this PR from a personal fork instead.\n\n` +
+      `See: [Setting up the local repository](https://developers.esphome.io/contributing/development-environment/?h=org#set-up-the-local-repository) for more details.`;
+  } else {
+    body = `${ORG_FORK_MARKER}\n### ⚠️ Maintainer Access Disabled\n\n` +
+      `Hey there @${prAuthor},\n` +
+      `It looks like this PR does not have the "Allow edits from maintainers" option enabled. ` +
+      `This means we won't be able to make small adjustments or fixups to your PR directly.\n\n` +
+      `Please enable this option in the PR sidebar to allow maintainer collaboration.`;
+  }
 
   await github.rest.issues.createComment({
     owner,
@@ -182,10 +190,10 @@ async function handleOrgForkComment(github, context, isOrgFork) {
     issue_number: pr_number,
     body
   });
-  console.log('Created org fork warning comment');
+  console.log('Created maintainer access warning comment');
 }
 
 module.exports = {
   handleReviews,
-  handleOrgForkComment
+  handleMaintainerAccessComment
 };

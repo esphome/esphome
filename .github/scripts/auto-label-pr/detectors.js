@@ -281,22 +281,22 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
   return { labels, deprecatedInfo };
 }
 
-// Strategy: Org fork detection
-function detectOrgFork(context) {
+// Strategy: Detect when maintainers cannot modify the PR branch
+function detectMaintainerAccess(context) {
   const pr = context.payload.pull_request;
 
   // Only relevant for cross-repo PRs (forks)
   if (!pr.head.repo || pr.head.repo.full_name === pr.base.repo.full_name) {
-    return false;
+    return null;
   }
 
-  const ownerType = pr.head.repo.owner.type;
-  if (ownerType === 'Organization') {
-    console.log(`PR branch is owned by organization: ${pr.head.repo.owner.login}`);
-    return true;
+  if (pr.maintainer_can_modify) {
+    return null;
   }
 
-  return false;
+  const isOrgFork = pr.head.repo.owner.type === 'Organization';
+  console.log(`Maintainer cannot modify PR branch (${isOrgFork ? 'org fork: ' + pr.head.repo.owner.login : 'user disabled'})`);
+  return { isOrgFork, orgName: pr.head.repo.owner.login };
 }
 
 // Strategy: Requirements detection
@@ -347,6 +347,6 @@ module.exports = {
   detectTests,
   detectPRTemplateCheckboxes,
   detectDeprecatedComponents,
-  detectOrgFork,
+  detectMaintainerAccess,
   detectRequirements
 };
