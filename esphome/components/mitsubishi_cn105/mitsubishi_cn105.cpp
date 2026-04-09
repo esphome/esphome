@@ -92,6 +92,7 @@ void MitsubishiCN105::initialize() { this->set_state_(State::CONNECTING); }
 bool MitsubishiCN105::update() {
   if (const auto start = this->status_update_start_ms_) {
     if (this->pending_updates_.any()) {
+      this->status_update_wait_credit_ms_ = std::min(this->update_interval_ms_, get_loop_time_ms() - *start);
       this->cancel_waiting_and_transition_to_(State::APPLYING_SETTINGS);
       return false;
     }
@@ -191,7 +192,8 @@ void MitsubishiCN105::did_transition_(State to) {
     }
 
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
-      this->status_update_start_ms_ = get_loop_time_ms();
+      this->status_update_start_ms_ = get_loop_time_ms() - this->status_update_wait_credit_ms_;
+      this->status_update_wait_credit_ms_ = 0;
       this->current_status_msg_type_ = STATUS_MSG_SETTINGS;
       this->set_state_(State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
       break;

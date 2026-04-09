@@ -130,6 +130,7 @@ class MitsubishiCN105 {
 
   uart::UARTDevice &device_;
   uint32_t update_interval_ms_{1000};
+  uint32_t status_update_wait_credit_ms_{0};
   uint32_t room_temperature_min_interval_ms_{60000};
   std::optional<uint32_t> write_timeout_start_ms_;
   std::optional<uint32_t> status_update_start_ms_;
