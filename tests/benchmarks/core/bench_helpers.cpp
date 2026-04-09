@@ -72,8 +72,9 @@ BENCHMARK(FormatHexTo_16Bytes);
 
 static void FormatHexTo_100Bytes(benchmark::State &state) {
   uint8_t data[100];
-  for (int i = 0; i < 100; i++)
+  for (int i = 0; i < 100; i++) {
     data[i] = static_cast<uint8_t>(i);
+  }
   char buffer[201];  // 100 * 2 + 1
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -183,12 +184,14 @@ BENCHMARK(Fnv1aHash_Long);
 // --- fnv1_hash_object_id() - typical entity name ---
 
 static void Fnv1HashObjectId(benchmark::State &state) {
-  const char *name = "Living Room Temperature Sensor";
-  size_t len = strlen(name);
+  char name[] = "Living Room Temperature Sensor";
+  size_t len = sizeof(name) - 1;
+  benchmark::DoNotOptimize(name);
   for (auto _ : state) {
     uint32_t result = 0;
     for (int i = 0; i < kInnerIterations; i++) {
       result ^= fnv1_hash_object_id(name, len);
+      benchmark::ClobberMemory();
     }
     benchmark::DoNotOptimize(result);
   }
@@ -259,7 +262,7 @@ BENCHMARK(CRC16_8Bytes);
 // --- value_accuracy_to_buf() - typical sensor value ---
 
 static void ValueAccuracyToBuf(benchmark::State &state) {
-  char raw_buf[VALUE_ACCURACY_MAX_LEN];
+  char raw_buf[VALUE_ACCURACY_MAX_LEN] = {};
   std::span<char, VALUE_ACCURACY_MAX_LEN> buf(raw_buf);
   float value = 23.456f;
   for (auto _ : state) {
@@ -275,12 +278,13 @@ BENCHMARK(ValueAccuracyToBuf);
 // --- int8_to_str() ---
 
 static void Int8ToStr(benchmark::State &state) {
-  char buffer[5];
+  char buffer[5] = {};
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       int8_to_str(buffer, static_cast<int8_t>(i & 0xFF));
+      benchmark::DoNotOptimize(buffer);
+      benchmark::ClobberMemory();
     }
-    benchmark::DoNotOptimize(buffer);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
