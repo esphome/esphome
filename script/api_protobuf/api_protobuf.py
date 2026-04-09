@@ -1628,7 +1628,8 @@ def _generate_inline_size_block(
 
     lines = []
     lines.append(f"auto &sub_msg = {element};")
-    lines.append("uint32_t sub_size = 0;")
+    # 1 byte tag + 1 byte length (guaranteed < 128 by validation)
+    lines.append("size += 2;")
 
     for field in sub_desc.field:
         if field.options.deprecated:
@@ -1636,14 +1637,10 @@ def _generate_inline_size_block(
         ti = create_field_type_info(field, needs_decode=False, needs_encode=True)
         force = get_field_opt(field, pb.force, False)
         size_line = ti.get_size_calculation(f"sub_msg.{ti.field_name}", force)
-        # Replace "size +=" with "sub_size +=" for the local accumulator
-        size_line = size_line.replace("size +=", "sub_size +=")
         # Replace hardcoded this-> references (e.g., FixedArrayBytesType uses this->field_len)
         size_line = size_line.replace("this->", "sub_msg.")
         lines.extend(size_line.split("\n"))
 
-    # 1 byte tag + 1 byte length (guaranteed < 128) + body
-    lines.append("size += 2 + sub_size;")
     return "\n".join(lines)
 
 

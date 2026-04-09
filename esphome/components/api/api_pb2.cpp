@@ -2353,12 +2353,11 @@ uint32_t BluetoothLERawAdvertisementsResponse::calculate_size() const {
   uint32_t size = 0;
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
     auto &sub_msg = this->advertisements[i];
-    uint32_t sub_size = 0;
-    sub_size += ProtoSize::calc_uint64_force(1, sub_msg.address);
-    sub_size += ProtoSize::calc_sint32_force(1, sub_msg.rssi);
-    sub_size += sub_msg.address_type ? 2 : 0;
-    sub_size += 2 + sub_msg.data_len;
-    size += 2 + sub_size;
+    size += 2;
+    size += ProtoSize::calc_uint64_force(1, sub_msg.address);
+    size += ProtoSize::calc_sint32_force(1, sub_msg.rssi);
+    size += sub_msg.address_type ? 2 : 0;
+    size += 2 + sub_msg.data_len;
   }
   return size;
 }
