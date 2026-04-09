@@ -87,8 +87,8 @@ void TimeBasedValve::set_position(float position, bool relative) {
 
   if (relative) {
     op = position < 0 ? VALVE_OPERATION_CLOSING : VALVE_OPERATION_OPENING;
-    if (op == VALVE_OPERATION_CLOSING && this->position == VALVE_CLOSED ||
-        op == VALVE_OPERATION_OPENING && this->position == VALVE_OPEN)
+    if ((op == VALVE_OPERATION_CLOSING && this->position == VALVE_CLOSED) ||
+        (op == VALVE_OPERATION_OPENING && this->position == VALVE_OPEN))
       return;
   } else {
     if (position == this->position)

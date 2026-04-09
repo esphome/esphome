@@ -48,7 +48,7 @@ class TimeBasedValve : public valve::Valve, public Component {
   uint32_t last_recompute_time_{0};
   valve::ValveOperation last_operation_{valve::VALVE_OPERATION_OPENING};
   float target_position_{0};
-  bool target_position_relative_{0};
+  bool target_position_relative_{false};
   float measured_position_{0};
   float measured_position_max_{0};
   float measured_position_min_{0};
