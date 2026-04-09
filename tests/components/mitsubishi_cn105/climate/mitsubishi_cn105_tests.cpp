@@ -453,4 +453,27 @@ TEST(MitsubishiCN105Tests, SetAndClearRemoteRoomTemp) {
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
 }
 
+TEST(MitsubishiCN105Tests, SetOutOfRangeRemoteRoomTempIsIgnored) {
+  auto ctx = TestContext{};
+
+  ctx.sut.set_remote_temperature(7.0f);
+  EXPECT_FALSE(ctx.sut.pending_updates_.has(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+
+  ctx.sut.set_remote_temperature(40.0f);
+  EXPECT_FALSE(ctx.sut.pending_updates_.has(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+
+  ctx.sut.set_remote_temperature(NAN);
+  EXPECT_FALSE(ctx.sut.pending_updates_.has(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+
+  ctx.sut.set_remote_temperature(8.0f);
+  EXPECT_TRUE(ctx.sut.pending_updates_.has(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+
+  // Clear flag
+  ctx.sut.pending_updates_.clear(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE);
+  EXPECT_FALSE(ctx.sut.pending_updates_.has(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+
+  ctx.sut.set_remote_temperature(39.5f);
+  EXPECT_TRUE(ctx.sut.pending_updates_.has(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+}
+
 }  // namespace esphome::mitsubishi_cn105::testing

@@ -106,6 +106,7 @@ bool MitsubishiCN105::update() {
   if (const auto start = this->write_timeout_start_ms_; start && (get_loop_time_ms() - *start) >= WRITE_TIMEOUT_MS) {
     this->write_timeout_start_ms_.reset();
     this->frame_parser_.reset();
+    this->status_update_wait_credit_ms_ = 0;
     this->set_state_(State::READ_TIMEOUT);
     return false;
   }
@@ -382,12 +383,12 @@ void MitsubishiCN105::set_remote_temperature(float temperature) {
     ESP_LOGD(TAG, "Ignoring NaN remote temperature");
     return;
   }
-  const uint8_t temperature_half_deg = static_cast<uint8_t>(std::round(temperature * 2.0f));
+  const int temperature_half_deg = static_cast<int>(std::round(temperature * 2.0f));
   if (temperature_half_deg < 16 || temperature_half_deg > 79) {
     ESP_LOGD(TAG, "Ignoring out-of-range remote temperature: %.1f", temperature);
     return;
   }
-  this->set_remote_temperature_(temperature_half_deg);
+  this->set_remote_temperature_(static_cast<uint8_t>(temperature_half_deg));
 }
 
 void MitsubishiCN105::clear_remote_temperature() { this->set_remote_temperature_(REMOTE_TEMPERATURE_DISABLED); }
