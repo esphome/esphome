@@ -38,7 +38,6 @@ class MipiRgb : public display::Display {
   display::ColorOrder get_color_mode() { return this->color_mode_; }
   void set_color_mode(display::ColorOrder color_mode) { this->color_mode_ = color_mode; }
   void set_invert_colors(bool invert_colors) { this->invert_colors_ = invert_colors; }
-  void set_madctl(uint8_t madctl) { this->madctl_ = madctl; }
 
   void add_data_pin(InternalGPIOPin *data_pin, size_t index) { this->data_pins_[index] = data_pin; };
   void set_de_pin(InternalGPIOPin *de_pin) { this->de_pin_ = de_pin; }
@@ -84,7 +83,6 @@ class MipiRgb : public display::Display {
   uint16_t vsync_front_porch_ = 10;
   uint32_t pclk_frequency_ = 16 * 1000 * 1000;
   bool pclk_inverted_{true};
-  uint8_t madctl_{};
   const char *model_{"Unknown"};
   bool invert_colors_{};
   display::ColorOrder color_mode_{display::COLOR_ORDER_BGR};
