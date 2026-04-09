@@ -183,6 +183,13 @@ def validate_config(config: ConfigType) -> ConfigType:
             "Your platform does not support providing multiple entries in wakeup_pin"
         )
 
+    # Register wakeup pins so other components can check them
+    for item in config.get(CONF_WAKEUP_PIN, []):
+        _register_wakeup_pin(item[CONF_PIN][CONF_NUMBER])
+    if CONF_ESP32_EXT1_WAKEUP in config:
+        for pin in config[CONF_ESP32_EXT1_WAKEUP][CONF_PINS]:
+            _register_wakeup_pin(pin[CONF_NUMBER])
+
     return config
 
 
@@ -332,8 +339,6 @@ async def to_code(config):
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PIN in config:
         pins_as_list = config.get(CONF_WAKEUP_PIN, [])
-        for item in pins_as_list:
-            _register_wakeup_pin(item[CONF_PIN][CONF_NUMBER])
         if CORE.is_bk72xx:
             cg.add(var.init_wakeup_pins_(len(pins_as_list)))
             for item in pins_as_list:
@@ -378,7 +383,6 @@ async def to_code(config):
         conf = config[CONF_ESP32_EXT1_WAKEUP]
         mask = 0
         for pin in conf[CONF_PINS]:
-            _register_wakeup_pin(pin[CONF_NUMBER])
             mask |= 1 << pin[CONF_NUMBER]
         struct = cg.StructInitializer(
             Ext1Wakeup, ("mask", mask), ("wakeup_mode", conf[CONF_MODE])
