@@ -383,7 +383,7 @@ void SX127x::set_mode_(uint8_t modulation, uint8_t mode) {
     if (millis() - start > 20) {
       ESP_LOGE(TAG, "Set mode failure");
       this->mark_failed();
-      break;
+      return;
     }
   }
   if (mode == MODE_RX && (modulation == MOD_LORA || this->packet_mode_)) {

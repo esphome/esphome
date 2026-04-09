@@ -664,13 +664,16 @@ void CC1101Component::set_packet_mode(bool value) {
     this->state_.FIFO_THR = 15;
     // Don't append status bytes to FIFO - we read from registers instead
     this->state_.APPEND_STATUS = 0;
-    this->enable_loop();
   } else {
     // Configure GDO0 for serial data (async serial mode)
     this->state_.GDO0_CFG = 0x0D;
-    this->disable_loop();
   }
   if (this->initialized_) {
+    if (value) {
+      this->enable_loop();
+    } else {
+      this->disable_loop();
+    }
     this->write_(Register::PKTCTRL0);
     this->write_(Register::PKTCTRL1);
     this->write_(Register::IOCFG0);
