@@ -517,6 +517,8 @@ esphome/components/st7701s/* @clydebarrow
 esphome/components/st7735/* @SenexCrenshaw
 esphome/components/st7789v/* @kbx81
 esphome/components/st7920/* @marsjan155
+esphome/components/st25r/* @JohnMcLear
+esphome/components/st25r_spi/* @JohnMcLear
 esphome/components/statsd/* @Links2004
 esphome/components/stts22h/* @B48D81EFCC
 esphome/components/substitutions/* @esphome/core
