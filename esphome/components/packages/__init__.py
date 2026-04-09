@@ -329,23 +329,16 @@ def _walk_packages(
     with cv.prepend_path(CONF_PACKAGES):
         if not isinstance(packages, dict):
             _walk_package_list(packages, callback, context)
-        else:
-            # Check if any values are clearly package definitions (not
-            # config fragments) before _walk_package_dict modifies the
-            # dict in-place. If so, this is a named packages dict and
-            # errors must be raised directly instead of triggering the
-            # deprecated single-package fallback.
-            is_named = any(is_package_definition(v) for v in packages.values())
-            if (result := _walk_package_dict(packages, callback, context)) is not None:
-                if not validate_deprecated or is_named:
-                    raise result
-                # Fallback: treat the dict as a single deprecated package.
-                # This block can be removed once the single-package
-                # deprecation period (2026.7.0) is over.
-                config[CONF_PACKAGES] = [packages]
-                return _walk_packages(
-                    deprecate_single_package(config), callback, context
-                )
+        elif (result := _walk_package_dict(packages, callback, context)) is not None:
+            if not validate_deprecated or any(
+                is_package_definition(v) for v in packages.values()
+            ):
+                raise result
+            # Fallback: treat the dict as a single deprecated package.
+            # This block can be removed once the single-package
+            # deprecation period (2026.7.0) is over.
+            config[CONF_PACKAGES] = [packages]
+            return _walk_packages(deprecate_single_package(config), callback, context)
 
     config[CONF_PACKAGES] = packages
     return config

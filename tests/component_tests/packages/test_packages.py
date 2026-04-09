@@ -85,11 +85,14 @@ def packages_pass(config):
     return config
 
 
+_INCLUDE_FILE = "INCLUDE_FILE"
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
         # IncludeFile objects are package definitions
-        (MagicMock(spec="IncludeFile"), True),
+        (_INCLUDE_FILE, True),
         # Git URL shorthand strings are package definitions
         ("github://esphome/firmware/base.yaml@main", True),
         # Remote package dicts (with url key) are package definitions
@@ -115,10 +118,9 @@ def packages_pass(config):
 )
 def test_is_package_definition(value: object, expected: bool) -> None:
     """Test that is_package_definition correctly identifies package definitions."""
-    from esphome.yaml_util import IncludeFile
+    if value is _INCLUDE_FILE:
+        from esphome.yaml_util import IncludeFile
 
-    if isinstance(value, MagicMock):
-        # Replace the mock with a real spec check
         value = MagicMock(spec=IncludeFile)
     assert is_package_definition(value) is expected
 
