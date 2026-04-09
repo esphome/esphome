@@ -475,6 +475,8 @@ async def obj_refresh_to_code(config, action_id, template_arg, args):
 
     async def do_refresh(widget: Widget):
         w_conf = widget.config
+        if not w_conf:
+            return
         if isinstance(widget.type, LvScrActType):
             widget = get_screen_active(widget.var)
         # only update style properties that might have changed, i.e. are templated
