@@ -352,8 +352,9 @@ std::string format_mac_address_pretty(const uint8_t *mac) {
 // one is overwritten with '\0', eliminating the per-byte `i < length - 1` check.
 static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator,
                                  char base) {
-  if (length == 0) {
-    buffer[0] = '\0';
+  if (length == 0 || buffer_size == 0) {
+    if (buffer_size > 0)
+      buffer[0] = '\0';
     return buffer;
   }
   uint8_t stride = separator ? 3 : 2;
