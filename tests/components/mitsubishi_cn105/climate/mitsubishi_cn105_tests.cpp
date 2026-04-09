@@ -375,14 +375,22 @@ TEST(MitsubishiCN105Tests, ApplyFanModeSpeed1) {
 TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   auto ctx = TestContext{};
 
+  ctx.sut.set_update_interval(2000);
+  ctx.sut.set_current_time(5000);
+
   // Waiting for next scheduled status update
   ctx.sut.state_ = TestableMitsubishiCN105::State::STATUS_UPDATED;
   ctx.sut.set_state(TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_UPDATE);
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+  EXPECT_EQ(ctx.sut.status_update_start_ms_, std::optional<uint32_t>{5000});
+  EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 
   // Nothing to do in update (rx empty, no timeout)
+  ctx.sut.set_current_time(5500);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_TRUE(ctx.uart.tx.empty());
+  EXPECT_EQ(ctx.sut.status_update_start_ms_, std::optional<uint32_t>{5000});
+  EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 
   // Write new values
   ctx.sut.use_temperature_encoding_b_ = true;
@@ -392,7 +400,10 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   ctx.sut.set_fan_mode(MitsubishiCN105::FanMode::AUTO);
 
   // Waiting for next status update must be interrupted and new values send to AC
+  ctx.sut.set_current_time(6000);
   ASSERT_FALSE(ctx.sut.update());
+  EXPECT_FALSE(ctx.sut.status_update_start_ms_.has_value());
+  EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 1000);
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x0F, 0x00, 0x00, 0x01, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB2, 0x00, 0xBB));
@@ -400,8 +411,11 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   // Write ACK response
   ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  ctx.sut.set_current_time(6500);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+  EXPECT_EQ(ctx.sut.status_update_start_ms_, std::optional<uint32_t>{6500 - 1000});
+  EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 }
 
 TEST(MitsubishiCN105Tests, SetAndClearRemoteRoomTemp) {
