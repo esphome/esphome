@@ -482,8 +482,14 @@ class _PackageProcessor:
         # Push context from !include vars on the package root and on the packages key
         context_vars = push_context(package_config, context_vars)
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
-        # Nested packages are always named package dicts, never the
-        # deprecated single-package form, so disable the fallback.
+        # Disable the deprecated single-package fallback for nested
+        # packages.  The fallback masks real validation errors by
+        # swallowing cv.Invalid and re-wrapping the dict as a list,
+        # which produces wrong error paths (packages->0 instead of
+        # packages-><name>).  If a nested package file happens to use
+        # the deprecated form, the user will get a direct error
+        # instead of the fallback — acceptable since the deprecated
+        # form is being removed in 2026.7.0.
         return _walk_packages(
             package_config,
             self.process_package,
