@@ -347,33 +347,49 @@ std::string format_mac_address_pretty(const uint8_t *mac) {
   return std::string(buf);
 }
 
-// Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase
+// Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase.
+// Splits into two loops to eliminate per-byte branch on separator.
 static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator,
                                  char base) {
   if (length == 0) {
     buffer[0] = '\0';
     return buffer;
   }
-  // With separator: total length is 3*length (2*length hex chars, (length-1) separators, 1 null terminator)
-  // Without separator: total length is 2*length + 1 (2*length hex chars, 1 null terminator)
-  uint8_t stride = separator ? 3 : 2;
-  size_t max_bytes = separator ? (buffer_size / stride) : ((buffer_size - 1) / stride);
-  if (max_bytes == 0) {
-    buffer[0] = '\0';
-    return buffer;
-  }
-  if (length > max_bytes) {
-    length = max_bytes;
-  }
-  for (size_t i = 0; i < length; i++) {
-    size_t pos = i * stride;
-    buffer[pos] = format_hex_char(data[i] >> 4, base);
-    buffer[pos + 1] = format_hex_char(data[i] & 0x0F, base);
-    if (separator && i < length - 1) {
+  if (separator) {
+    // With separator: "XX:XX:...:XX\0" = length * 3 bytes total
+    size_t max_bytes = buffer_size / 3;
+    if (max_bytes == 0) {
+      buffer[0] = '\0';
+      return buffer;
+    }
+    if (length > max_bytes) {
+      length = max_bytes;
+    }
+    for (size_t i = 0; i < length; i++) {
+      size_t pos = i * 3;
+      buffer[pos] = format_hex_char(data[i] >> 4, base);
+      buffer[pos + 1] = format_hex_char(data[i] & 0x0F, base);
       buffer[pos + 2] = separator;
     }
+    // Overwrite last separator with null terminator
+    buffer[length * 3 - 1] = '\0';
+  } else {
+    // Without separator: "XXXX...XX\0" = length * 2 + 1 bytes total
+    size_t max_bytes = (buffer_size - 1) / 2;
+    if (max_bytes == 0) {
+      buffer[0] = '\0';
+      return buffer;
+    }
+    if (length > max_bytes) {
+      length = max_bytes;
+    }
+    for (size_t i = 0; i < length; i++) {
+      size_t pos = i * 2;
+      buffer[pos] = format_hex_char(data[i] >> 4, base);
+      buffer[pos + 1] = format_hex_char(data[i] & 0x0F, base);
+    }
+    buffer[length * 2] = '\0';
   }
-  buffer[length * stride - (separator ? 1 : 0)] = '\0';
   return buffer;
 }
 
