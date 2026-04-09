@@ -535,12 +535,13 @@ static size_t value_accuracy_to_buf_fast(char *buf, float value, int8_t accuracy
     value = -value;
   }
   uint32_t mult = 1;
-  if (accuracy_decimals == 1)
+  if (accuracy_decimals == 1) {
     mult = 10;
-  else if (accuracy_decimals == 2)
+  } else if (accuracy_decimals == 2) {
     mult = 100;
-  else if (accuracy_decimals == 3)
+  } else if (accuracy_decimals == 3) {
     mult = 1000;
+  }
   // Cast to double for the multiply to match snprintf's precision.
   // float*int loses bits at exact-half boundaries (e.g. 23.45f*10 = 234.5 in float,
   // but snprintf sees 234.500007... via double promotion and rounds differently).
