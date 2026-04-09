@@ -182,7 +182,9 @@ def FILTER_SOURCE_FILES() -> list[str]:
     # Build list of files to exclude based on selected implementation
     excluded = []
     if impl != IMPLEMENTATION_LWIP_TCP:
+        excluded.append("lwip_raw_common_impl.cpp")
         excluded.append("lwip_raw_tcp_impl.cpp")
+        excluded.append("lwip_raw_udp_impl.cpp")
     if impl != IMPLEMENTATION_BSD_SOCKETS:
         excluded.append("bsd_sockets_impl.cpp")
     if impl != IMPLEMENTATION_LWIP_SOCKETS:
