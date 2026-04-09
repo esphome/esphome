@@ -217,6 +217,16 @@ def test_check_library_data_invalid_framework(esp32_idf_core):
         _check_library_data({"platforms": "*", "frameworks": ["other"]})
 
 
+def test_extra_script_logs_warning(caplog, esp32_idf_core):
+    extra_script = "myscript.sh"
+
+    with caplog.at_level("WARNING"):
+        _check_library_data({"build": {"extraScript": extra_script}})
+
+    assert "not supported" in caplog.text
+    assert "myscript.sh" in caplog.text
+
+
 def test_parse_library_json(tmp_path):
     f = tmp_path / "library.json"
     f.write_text(json.dumps({"name": "test"}))

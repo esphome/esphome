@@ -841,6 +841,13 @@ def _check_library_data(data: dict):
     if not valid_framework:
         raise InvalidIDFComponent(f"Unsupported library frameworks: {frameworks}")
 
+    extra_script = data.get("build", {}).get("extraScript", None)
+    if extra_script:
+        _LOGGER.warning(
+            'Extra scripts are not supported. The script "%s" will not be executed.',
+            extra_script,
+        )
+
 
 def _process_dependencies(component: IDFComponent):
     """
