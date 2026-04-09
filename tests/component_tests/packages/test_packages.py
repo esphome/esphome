@@ -1154,14 +1154,7 @@ def test_invalid_package_contents_masked_by_deprecation(
 def test_named_dict_with_include_files_no_false_deprecation_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Named package dicts with IncludeFile values must not trigger the deprecated single-package fallback.
-
-    Regression test: when a named package dict contained IncludeFile values
-    and one of the packages had an error (e.g. jinja syntax error), the error
-    was incorrectly caught by the deprecated single-package fallback. This
-    caused a false deprecation warning and wrong error paths (packages->0
-    instead of packages-><package_name>).
-    """
+    """Package errors in named dicts must not trigger the deprecated fallback."""
     good_include = MagicMock(spec=IncludeFile)
     bad_include = MagicMock(spec=IncludeFile)
 
