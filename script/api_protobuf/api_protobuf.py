@@ -854,6 +854,16 @@ class StringType(TypeInfo):
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
 
+    def get_max_encoded_size(self) -> int | None:
+        max_len = self.max_data_length
+        if max_len is not None:
+            return (
+                self.calculate_field_id_size()
+                + _varint_max_size(max_len.bit_length())
+                + max_len
+            )
+        return None  # Unbounded
+
 
 @register_type(11)
 class MessageType(TypeInfo):
@@ -1168,6 +1178,16 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
+
+    def get_max_encoded_size(self) -> int | None:
+        max_len = self.max_data_length
+        if max_len is not None:
+            return (
+                self.calculate_field_id_size()
+                + _varint_max_size(max_len.bit_length())
+                + max_len
+            )
+        return None
 
 
 class PackedBufferTypeInfo(TypeInfo):
