@@ -291,17 +291,18 @@ ssize_t LWIPRawUDPRecvImpl::recvfrom(void *buf, size_t len, struct sockaddr *src
   size_t pkt_len = pkt.pb->tot_len;
   size_t copy_len = std::min(len, pkt_len);
 
-  // Copy data from pbuf chain
-  pbuf_copy_partial(pkt.pb, buf, copy_len, 0);
-
   // Fill in source address if requested.
   // If ip2sockaddr_ fails (e.g., addrlen too small), fail the entire recvfrom
   // rather than silently returning data without a source address.
   if (src_addr != nullptr && addrlen != nullptr &&
       this->ip2sockaddr_(&pkt.src_addr, pkt.src_port, src_addr, addrlen) != 0) {
-    // Don't consume the packet on address conversion failure
+    // Don't consume the packet or modify the caller buffer on address conversion failure
     return -1;
   }
+
+  // Copy data from pbuf chain — done after validation so caller buffer is
+  // not modified on error paths.
+  pbuf_copy_partial(pkt.pb, buf, copy_len, 0);
 
   // Free the pbuf and advance the read pointer
   pbuf_free(pkt.pb);
