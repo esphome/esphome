@@ -19,13 +19,17 @@ SML_TYPES = {
 
 SmlTextSensor = sml_ns.class_("SmlTextSensor", text_sensor.TextSensor, cg.Component)
 
-CONFIG_SCHEMA = text_sensor.text_sensor_schema(SmlTextSensor).extend(
-    {
-        cv.GenerateID(CONF_SML_ID): cv.use_id(Sml),
-        cv.Required(CONF_OBIS_CODE): obis_code,
-        cv.Optional(CONF_SERVER_ID, default=""): cv.string,
-        cv.Optional(CONF_FORMAT, default=""): cv.enum(SML_TYPES, lower=True),
-    }
+CONFIG_SCHEMA = (
+    text_sensor.text_sensor_schema(SmlTextSensor)
+    .extend(
+        {
+            cv.GenerateID(CONF_SML_ID): cv.use_id(Sml),
+            cv.Required(CONF_OBIS_CODE): obis_code,
+            cv.Optional(CONF_SERVER_ID, default=""): cv.string,
+            cv.Optional(CONF_FORMAT, default=""): cv.enum(SML_TYPES, lower=True),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 

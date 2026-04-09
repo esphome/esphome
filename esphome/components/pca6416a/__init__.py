@@ -51,7 +51,7 @@ PCA6416A_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(PCA6416AGPIOPin),
         cv.Required(CONF_PCA6416A): cv.use_id(PCA6416AComponent),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=16),
+        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=15),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {
                 cv.Optional(CONF_INPUT, default=False): cv.boolean,
