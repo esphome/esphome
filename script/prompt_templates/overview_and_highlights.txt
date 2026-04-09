@@ -71,21 +71,28 @@ These are detailed deep-dive sections that appear AFTER the release overview and
 WHAT TO WRITE ABOUT:
 Select the 3-10 MOST IMPORTANT features/changes from the PRs and ORDER BY PRIORITY:
 
-**Priority Order (most important first):**
-1. **New Major Features** - Groundbreaking user-facing functionality (new protocols, major capabilities)
-2. **New Hardware/Platform Support** - New chips, new sensors, new component types
-3. **Architectural Improvements** - Framework changes, major refactorings with significant impact
-4. **Performance/Memory Optimizations** - Only if substantial (multiple KB savings, major speedups)
-5. **Security Enhancements** - Critical security improvements
-6. **Notable Bug Fixes** - Important fixes for crashes, data corruption, or major functionality issues
+**Priority Order (MOST USERS AFFECTED first, niche features last):**
+1. **Platform-Wide Changes** - Changes that affect ALL users of a platform (default setting changes, crash handlers, new diagnostics). ~40% of ESPHome users are on ESP8266, so ESP8266 changes are high-impact.
+2. **Performance/Memory Optimizations** - These affect every device. Separate performance (speed, CPU) from memory (RAM, flash, heap) into distinct sections. Include benchmarking infrastructure if it drove visible improvements.
+3. **Architectural Improvements** - Framework changes affecting many components (e.g., moving allocations from heap to BSS, substitution engine rewrites)
+4. **IDF/SDK Compatibility** - Preparation for future framework versions (e.g., ESP-IDF 6.0 compatibility) if substantial (10+ PRs)
+5. **Connectivity/Networking** - Ethernet, WiFi, BLE proxy improvements
+6. **Security Enhancements** - OTA signing, authentication improvements
+7. **Developer Infrastructure** - CI improvements, new tooling (CodSpeed, analyze-memory) if they drove user-visible improvements
+8. **New Hardware/Platform Support** - New sensors, chips, component types (group together)
+9. **New Major Features** - Niche but significant new capabilities (new climate components, new protocols)
+10. **Other Notable Features** - Catch-all for smaller features that didn't get their own section
+11. **Codebase Correctness** - Large-scale fix sweeps if substantial
 
 **What qualifies as "Major":**
+- Affects a large percentage of users (platform defaults, crash handlers, logging changes)
 - Enables entirely new use cases (Z-Wave support, USB host)
 - Adds support for popular/widely-used hardware
 - Framework changes affecting many components
-- Performance gains of 5KB+ or 50%+ improvements
+- Performance gains visible in benchmarks or real-world measurements
+- Memory savings across many component instances
 - Fixes that prevent crashes, data loss, or major malfunctions
-- Fixes for widely-used components affecting many users
+- Large coordinated efforts (10+ PRs for IDF 6.0 compat, 20+ PRs for correctness sweep)
 
 STYLE EXAMPLES from ESPHome 2025.10.0:
 
@@ -143,13 +150,24 @@ INSTRUCTIONS:
    - Framework PRs = internal improvements affecting existing components
    - Don't mischaracterize platform features (read the PR description!)
 
-3. **Identify 3-10 major themes** - group related PRs:
-   - All memory optimizations together (if substantial)
-   - All new sensor/hardware components together
-   - Major new features separately (if truly groundbreaking)
-   - Notable bug fixes in their own section (especially crashes, data corruption, major malfunctions)
+3. **Identify 5-15 major themes** - group related PRs:
+   - Performance optimizations in their own section (API, scheduler, loop elimination, etc.)
+   - Memory optimizations in a SEPARATE section from performance (RAM savings, heap→BSS, field packing)
+   - IDF/SDK compatibility prep in its own section if 10+ PRs
+   - All new sensor/hardware components together in one section
+   - Niche but significant new components (e.g., climate, media player) get their own section
+   - An "Other Notable Features" catch-all for smaller features not covered elsewhere
+   - Codebase correctness sweeps in their own section if substantial
+   - Credit the lead contributor with @username link when one person drove a section
 
-4. **Write detailed sections**:
+4. **Credit contributors in their sections** (IMPORTANT):
+   - When one person led a major effort, credit them in the opening: "Led by [@username](https://github.com/username), ..."
+   - For new components, credit the author: "Built by [@author](https://github.com/author) across N PRs, ..."
+   - For new sensors/hardware, add "by [@author](https://github.com/author)" after the component name
+   - For large coordinated efforts (IDF compat, correctness sweeps), credit the lead contributor
+   - Do NOT credit bdraco in feature sections
+
+5. **Write detailed sections**:
    - ## Heading for each major feature
    - Opening paragraph: what it is and why it matters
    - **Key Features/Benefits** bulleted list with bold labels
@@ -158,14 +176,17 @@ INSTRUCTIONS:
    - Use `code formatting` for config keys
    - Use **bold** for emphasis
 
-5. **What makes good sections**:
+6. **What makes good sections**:
    ✓ Explains WHY the feature matters, not just what it does
-   ✓ Includes specific numbers (RAM savings, performance gains)
+   ✓ Includes specific numbers (RAM savings, performance gains, benchmark results)
    ✓ Groups related PRs into one cohesive narrative
-   ✓ Provides actionable guidance (migration steps, recommendations)
+   ✓ Credits the lead contributor with [@username](https://github.com/username) when one person drove the work
+   ✓ Credits authors of new components (e.g., "by [@author](https://github.com/author)")
+   ✓ Links back to previous release notes when continuing multi-release efforts
+   ✓ Links to relevant documentation pages for detailed config (don't duplicate docs)
    ✓ Professional but enthusiastic tone
 
-6. **What to avoid**:
+7. **What to avoid**:
    ✗ Don't write about every PR - focus on major themes
    ✗ Don't just list features - explain benefits and context
    ✗ Don't discuss breaking changes themselves (they go in their own section)
@@ -173,6 +194,11 @@ INSTRUCTIONS:
    ✗ Skip minor bug fixes and small improvements
    ✗ Don't include sections about "Deprecation Removals" or "Migration Considerations"
    ✗ Don't claim breaking changes are "backward compatible" - be honest about compatibility
+   ✗ Don't use em dashes (—) or double dashes (--) to separate clauses; use commas or semicolons
+   ✗ Don't use "The problem:" / "The fix:" as bold headers - write flowing prose instead
+   ✗ Don't include config examples for dangerous options (e.g., options that can brick devices) - link to docs instead
+   ✗ Don't include config examples for niche features - link to docs instead
+   ✗ Don't put non-sensor items in the "New Sensors" section - use "Other Notable Features" instead
 
    **CRITICAL - Handling Breaking Change PRs:**
 
@@ -191,11 +217,12 @@ INSTRUCTIONS:
    - Save migration details for the Breaking Changes section
 
 OUTPUT FORMAT FOR HIGHLIGHTS:
-- 3-10 complete ## sections ordered by PRIORITY (see Priority Order above)
-- Order: New Major Features → New Hardware → Architectural Changes → Optimizations
+- 5-15 complete ## sections ordered by PRIORITY (see Priority Order above)
+- Order: Platform-wide changes → Performance → Memory → Architecture → IDF compat → Networking → Security → Infrastructure → New Hardware → New Features → Other Notable → Correctness
 - Do NOT include "Feature Highlights" heading - just write the ## sections
 - Do NOT include introductory text
 - Do NOT include "Deprecation Removals" or "Migration Considerations" sections
+- The release overview should match the section ordering (broadest impact first)
 
 ────────────────────────────────────────────────────────────────────────────────
 📁 PR DATA FILES - CRITICAL: You MUST read ALL of these files using the Read tool
@@ -225,6 +252,19 @@ NEW FEATURE PR FILES ({{ new_features|length }} total) - READ ALL {{ new_feature
 {% for pr in new_features %}
   {{ prs_cache_dir }}/{{ pr.number }}.json
 {% endfor %}
+
+{% if code_quality %}
+CODE QUALITY PR FILES ({{ code_quality|length }} total) - SCAN ALL TITLES, READ NOTABLE ONES:
+
+⚠️  These PRs contain performance optimizations, memory savings, architecture changes,
+    IDF compatibility work, and other improvements that may deserve their own sections.
+    Scan ALL titles below. Read the full JSON for any that look like they contain
+    benchmark results, significant memory savings, or architectural changes.
+
+{% for pr in code_quality %}
+  {{ prs_cache_dir }}/{{ pr.number }}.json — {{ pr.title }}
+{% endfor %}
+{% endif %}
 
 {% if breaking_changes %}
 BREAKING CHANGE PR FILES ({{ breaking_changes|length }} total) - READ ALL {{ breaking_changes|length }} FILES:
