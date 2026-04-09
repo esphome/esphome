@@ -281,6 +281,24 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
   return { labels, deprecatedInfo };
 }
 
+// Strategy: Org fork detection
+async function detectOrgFork(context) {
+  const pr = context.payload.pull_request;
+
+  // Only relevant for cross-repo PRs (forks)
+  if (!pr.head.repo || pr.head.repo.full_name === pr.base.repo.full_name) {
+    return false;
+  }
+
+  const ownerType = pr.head.repo.owner.type;
+  if (ownerType === 'Organization') {
+    console.log(`PR branch is owned by organization: ${pr.head.repo.owner.login}`);
+    return true;
+  }
+
+  return false;
+}
+
 // Strategy: Requirements detection
 async function detectRequirements(allLabels, prFiles, context) {
   const labels = new Set();
@@ -329,5 +347,6 @@ module.exports = {
   detectTests,
   detectPRTemplateCheckboxes,
   detectDeprecatedComponents,
+  detectOrgFork,
   detectRequirements
 };
