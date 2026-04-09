@@ -1593,11 +1593,10 @@ def _generate_inline_encode_block(
     assert tag < 128, f"inline_encode requires single-byte tag, got {tag}"
 
     lines = []
-    lines.append("{")
-    lines.append(f"  auto &sub_msg = {element};")
-    lines.append(f"  ProtoEncode::write_raw_byte(pos, {tag});")
-    lines.append("  uint8_t *len_pos = pos++;")
-    lines.append("  uint8_t *body_start = pos;")
+    lines.append(f"auto &sub_msg = {element};")
+    lines.append(f"ProtoEncode::write_raw_byte(pos, {tag});")
+    lines.append("uint8_t *len_pos = pos++;")
+    lines.append("uint8_t *body_start = pos;")
 
     # Generate inline field encoding for each sub-message field
     for field in sub_desc.field:
@@ -1607,10 +1606,9 @@ def _generate_inline_encode_block(
         encode_line = ti.encode_content
         # Replace this-> with sub_msg reference for the sub-message fields
         encode_line = encode_line.replace("this->", "sub_msg.")
-        lines.extend(f"  {line}" for line in encode_line.split("\n"))
+        lines.extend(encode_line.split("\n"))
 
-    lines.append("  *len_pos = static_cast<uint8_t>(pos - body_start);")
-    lines.append("}")
+    lines.append("*len_pos = static_cast<uint8_t>(pos - body_start);")
     return "\n".join(lines)
 
 
@@ -1630,9 +1628,8 @@ def _generate_inline_size_block(
     sub_desc = _message_desc_map[sub_msg_name]
 
     lines = []
-    lines.append("{")
-    lines.append(f"  auto &sub_msg = {element};")
-    lines.append("  uint32_t sub_size = 0;")
+    lines.append(f"auto &sub_msg = {element};")
+    lines.append("uint32_t sub_size = 0;")
 
     for field in sub_desc.field:
         if field.options.deprecated:
@@ -1644,11 +1641,10 @@ def _generate_inline_size_block(
         size_line = size_line.replace("size +=", "sub_size +=")
         # Replace hardcoded this-> references (e.g., FixedArrayBytesType uses this->field_len)
         size_line = size_line.replace("this->", "sub_msg.")
-        lines.extend(f"  {line}" for line in size_line.split("\n"))
+        lines.extend(size_line.split("\n"))
 
     # 1 byte tag + 1 byte length (guaranteed < 128) + body
-    lines.append("  size += 2 + sub_size;")
-    lines.append("}")
+    lines.append("size += 2 + sub_size;")
     return "\n".join(lines)
 
 
