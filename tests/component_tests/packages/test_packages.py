@@ -43,7 +43,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.util import OrderedDict
-from esphome.yaml_util import add_context
+from esphome.yaml_util import IncludeFile, add_context
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -119,8 +119,6 @@ _INCLUDE_FILE = "INCLUDE_FILE"
 def test_is_package_definition(value: object, expected: bool) -> None:
     """Test that is_package_definition correctly identifies package definitions."""
     if value is _INCLUDE_FILE:
-        from esphome.yaml_util import IncludeFile
-
         value = MagicMock(spec=IncludeFile)
     assert is_package_definition(value) is expected
 
@@ -1164,8 +1162,6 @@ def test_named_dict_with_include_files_no_false_deprecation_warning(
     caused a false deprecation warning and wrong error paths (packages->0
     instead of packages-><package_name>).
     """
-    from esphome.yaml_util import IncludeFile
-
     good_include = MagicMock(spec=IncludeFile)
     bad_include = MagicMock(spec=IncludeFile)
 
