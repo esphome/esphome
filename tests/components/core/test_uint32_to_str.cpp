@@ -1,14 +1,13 @@
 #include <gtest/gtest.h>
-#include <cstring>
 
 #include "esphome/core/helpers.h"
 
-namespace esphome::testing {
+namespace esphome::core::testing {
 
 // --- uint32_to_str_() (internal, raw pointer) ---
 
 TEST(Uint32ToStr, InternalZero) {
-  char buf[12];
+  char buf[UINT32_MAX_STR_SIZE];
   char *end = uint32_to_str_(buf, 0);
   *end = '\0';
   EXPECT_STREQ(buf, "0");
@@ -16,14 +15,14 @@ TEST(Uint32ToStr, InternalZero) {
 }
 
 TEST(Uint32ToStr, InternalSingleDigit) {
-  char buf[12];
+  char buf[UINT32_MAX_STR_SIZE];
   char *end = uint32_to_str_(buf, 7);
   *end = '\0';
   EXPECT_STREQ(buf, "7");
 }
 
 TEST(Uint32ToStr, InternalMultiDigit) {
-  char buf[12];
+  char buf[UINT32_MAX_STR_SIZE];
   char *end = uint32_to_str_(buf, 12345);
   *end = '\0';
   EXPECT_STREQ(buf, "12345");
@@ -31,7 +30,7 @@ TEST(Uint32ToStr, InternalMultiDigit) {
 }
 
 TEST(Uint32ToStr, InternalMaxValue) {
-  char buf[12];
+  char buf[UINT32_MAX_STR_SIZE];
   char *end = uint32_to_str_(buf, 4294967295u);
   *end = '\0';
   EXPECT_STREQ(buf, "4294967295");
@@ -39,7 +38,7 @@ TEST(Uint32ToStr, InternalMaxValue) {
 }
 
 TEST(Uint32ToStr, InternalPowersOfTen) {
-  char buf[12];
+  char buf[UINT32_MAX_STR_SIZE];
   char *end;
 
   end = uint32_to_str_(buf, 10);
@@ -75,4 +74,4 @@ TEST(Uint32ToStr, SpanMaxValue) {
   EXPECT_STREQ(buf, "4294967295");
 }
 
-}  // namespace esphome::testing
+}  // namespace esphome::core::testing
