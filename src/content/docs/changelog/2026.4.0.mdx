@@ -29,7 +29,7 @@ ESPHome 2026.4.0 delivers major performance and reliability improvements across 
 ## Upgrade Checklist
 
 {/* UPGRADE_CHECKLIST_START */}
-- If you use LVGL with `rotation` configured on the display component, move the `rotation` setting to the `lvgl:` block instead
+- If you use LVGL with `rotation` configured on the display component, move the `rotation` setting to the `lvgl:` block, and remove touchscreen `transform:`.
 - If you use the `i2s_audio` media player, migrate to the `speaker` media player component (the `i2s_audio` media player has been removed)
 - If you use `use_legacy` in your `i2s_audio` config, remove it (the legacy I2S driver has been removed)
 - If you have battery-powered ESP32/S2/S3/C5 devices, add `cpu_frequency: 160MHZ` to your config (the default is now 240MHz)
@@ -316,7 +316,10 @@ Led by [@clydebarrow](https://github.com/clydebarrow) with 27 PRs, ESPHome's LVG
 
 **Key changes:**
 
-- **Native rotation with hardware acceleration** - Rotation is now handled directly by LVGL instead of the display driver, with runtime rotation changes via `lvgl.display.set_rotation` and automatic use of hardware rotation when available. On ESP32-P4, rotation uses the PPA (Pixel Processing Accelerator) for zero-CPU-cost transforms ([#14955](https://github.com/esphome/esphome/pull/14955), [#15453](https://github.com/esphome/esphome/pull/15453)). Users will need to move their `rotation` config from the display component to the `lvgl:` block.
+- **Native rotation with hardware acceleration** - Rotation is now handled directly by [LVGL](/components/lvgl) instead of the display driver, with runtime rotation changes via `lvgl.display.set_rotation` and automatic use of hardware rotation when available.
+  On ESP32-P4, rotation uses the PPA (Pixel Processing Accelerator) for zero-CPU-cost transforms ([#14955](https://github.com/esphome/esphome/pull/14955), [#15453](https://github.com/esphome/esphome/pull/15453)).
+- **Automatic touchscreen rotation** - Touch input is automatically rotated to match display orientation, eliminating the need for manual coordinate transforms in most cases.
+  Users will need to move their `rotation` config from the display component to the `lvgl:` block, and remove or adjust the `transform:` block in the touchscreen component.
 - **Built-in dark theme** - A single `dark_mode: true` under `theme:` enables LVGL's native dark default theme, replacing the tedious process of manually replicating dark theme properties ([#15389](https://github.com/esphome/esphome/pull/15389))
 - **All LVGL 9 events** - Complete mapping of LVGL 9 events to ESPHome automation triggers ([#15362](https://github.com/esphome/esphome/pull/15362))
 - **Drop shadow support** - New `bitmap_mask_src` style property and A8 image format for drop shadow effects ([#15334](https://github.com/esphome/esphome/pull/15334))
@@ -412,7 +415,8 @@ Also thank you to [@bdraco](https://github.com/bdraco), [@thomwiggers](https://g
 
 ### Component Changes
 
-- **LVGL rotation**: The `rotation` option must now be configured under `lvgl:` instead of the display component. LVGL now handles rotation directly, with support for runtime rotation changes via `lvgl.display.set_rotation`. Users must move their `rotation` setting from the display config to the `lvgl:` block. [#14955](https://github.com/esphome/esphome/pull/14955)
+- **LVGL rotation**: The `rotation` option must now be configured under `lvgl:` instead of the display component. LVGL now handles rotation for the display and touchscreen directly, with support for runtime rotation changes via `lvgl.display.set_rotation`.
+  Users must move their `rotation` setting from the display config to the `lvgl:` block. [#14955](https://github.com/esphome/esphome/pull/14955) and remove or adjust the `transform:` block in their touchscreen config if they have one.
 
 - **I2S Audio**: The legacy I2S driver (`use_legacy` option) has been removed. The new I2S driver is always used. The `i2s_audio` media player sub-component has been removed entirely; users should migrate to the [speaker media player](/components/media_player/speaker) component. [#14932](https://github.com/esphome/esphome/pull/14932)
 
