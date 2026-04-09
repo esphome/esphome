@@ -2328,40 +2328,42 @@ bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id,
   }
   return true;
 }
-uint8_t *BluetoothLERawAdvertisement::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-  uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 8);
-  ProtoEncode::encode_varint_raw_64(pos PROTO_ENCODE_DEBUG_ARG, this->address);
-  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
-  ProtoEncode::encode_varint_raw_short(pos PROTO_ENCODE_DEBUG_ARG, encode_zigzag32(this->rssi));
-  if (this->address_type) {
-    ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 24);
-    ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, this->address_type);
-  }
-  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 34);
-  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(this->data_len));
-  ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, this->data, this->data_len);
-  return pos;
-}
-uint32_t BluetoothLERawAdvertisement::calculate_size() const {
-  uint32_t size = 0;
-  size += ProtoSize::calc_uint64_force(1, this->address);
-  size += ProtoSize::calc_sint32_force(1, this->rssi);
-  size += this->address_type ? 2 : 0;
-  size += 2 + this->data_len;
-  return size;
-}
 uint8_t *BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 1, this->advertisements[i]);
+    {
+      auto &sub_msg = this->advertisements[i];
+      ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 10);
+      uint8_t *len_pos = pos++;
+      uint8_t *body_start = pos;
+      ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 8);
+      ProtoEncode::encode_varint_raw_64(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.address);
+      ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
+      ProtoEncode::encode_varint_raw_short(pos PROTO_ENCODE_DEBUG_ARG, encode_zigzag32(sub_msg.rssi));
+      if (sub_msg.address_type) {
+        ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 24);
+        ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.address_type);
+      }
+      ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 34);
+      ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(sub_msg.data_len));
+      ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.data, sub_msg.data_len);
+      *len_pos = static_cast<uint8_t>(pos - body_start);
+    }
   }
   return pos;
 }
 uint32_t BluetoothLERawAdvertisementsResponse::calculate_size() const {
   uint32_t size = 0;
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
-    size += ProtoSize::calc_message_force(1, this->advertisements[i].calculate_size());
+    {
+      auto &sub_msg = this->advertisements[i];
+      uint32_t sub_size = 0;
+      sub_size += ProtoSize::calc_uint64_force(1, sub_msg.address);
+      sub_size += ProtoSize::calc_sint32_force(1, sub_msg.rssi);
+      sub_size += sub_msg.address_type ? 2 : 0;
+      sub_size += 2 + sub_msg.data_len;
+      size += 2 + sub_size;
+    }
   }
   return size;
 }
