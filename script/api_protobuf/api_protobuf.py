@@ -1596,7 +1596,6 @@ def _generate_inline_encode_block(
     lines.append(f"auto &sub_msg = {element};")
     lines.append(f"ProtoEncode::write_raw_byte(pos, {tag});")
     lines.append("uint8_t *len_pos = pos++;")
-    lines.append("uint8_t *body_start = pos;")
 
     # Generate inline field encoding for each sub-message field
     for field in sub_desc.field:
@@ -1608,7 +1607,7 @@ def _generate_inline_encode_block(
         encode_line = encode_line.replace("this->", "sub_msg.")
         lines.extend(encode_line.split("\n"))
 
-    lines.append("*len_pos = static_cast<uint8_t>(pos - body_start);")
+    lines.append("*len_pos = static_cast<uint8_t>(pos - len_pos - 1);")
     return "\n".join(lines)
 
 
