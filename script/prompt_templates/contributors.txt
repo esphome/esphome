@@ -1,0 +1,65 @@
+SAVE YOUR RESPONSE TO:
+  {{ contributors_file }}
+
+NOTE: The output file and directories may not exist yet - that's fine, create them.
+
+════════════════════════════════════════════════════════════════════════════════
+
+TASK: Write the "Thank You, Contributors" section for ESPHome {{ version }}.
+
+════════════════════════════════════════════════════════════════════════════════
+
+CONTEXT:
+This section acknowledges the people who contributed code to this release.
+It appears in the changelog between the feature highlights and breaking changes.
+
+CONTRIBUTOR DATA:
+Read the contributor statistics file for PR counts and titles:
+  {{ stats_file }}
+
+Total PRs (excluding bots): {{ total_prs }}
+Unique human contributors: {{ human_count }}
+
+For detailed context on what each contributor worked on, you can read individual
+PR JSON files from: {{ prs_cache_dir }}/
+
+════════════════════════════════════════════════════════════════════════════════
+
+FORMAT:
+
+1. Opening line:
+   "This release includes N pull requests from over M contributors. A huge
+    thank you to everyone who made {VERSION} possible:"
+
+   Round M down to the nearest 10 (e.g., 54 contributors → "over 50").
+
+2. Highlighted contributors (2+ PRs), listed in descending PR count order:
+   - [@username](https://github.com/username) - N PRs including [short description of their main contributions]
+
+   For each highlighted contributor:
+   - Read their PR titles from the stats file
+   - Summarize their work in a concise phrase (not a full sentence)
+   - Focus on the most notable contributions, not an exhaustive list
+   - Mention new components, major features, or thematic work
+   - Example: "101 PRs including a correctness sweep across 100+ components and ESP32-C5 dual-band WiFi"
+   - Example: "20 PRs building the new media player architecture and Ogg Opus codec support"
+   - Example: "the new dew point sensor component"
+
+3. Notable single-PR contributors (optional):
+   If a single-PR contributor added a significant new component or feature,
+   you may promote them to the highlighted list with a brief description.
+   Example: "the new SEN6x sensor component"
+
+4. Remaining single-PR contributors in an "Also thank you to" paragraph:
+   List ALL remaining contributors as [@username](https://github.com/username),
+   separated by commas, ending with:
+   "for their contributions, and to everyone who reported issues, tested
+    pre-releases, and helped in the community."
+
+IMPORTANT:
+- Do NOT include bot accounts (dependabot, esphomebot, copilot-swe-agent)
+- Do NOT include bdraco in the highlighted list; instead include bdraco
+  in the "Also thank you to" paragraph with the single-PR contributors
+- DO verify PR counts match the stats file exactly
+- DO use GitHub profile links for every @mention
+- Keep descriptions factual - derive them from actual PR titles, don't embellish
