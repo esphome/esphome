@@ -44,20 +44,25 @@ bool HOT EPaperWeActBW::transfer_data() {
     }
   }
 
+  const size_t buffer_length = (size_t) this->height_ * this->row_width_;
+  uint8_t chunk[MAX_TRANSFER_SIZE];
+  size_t chunk_idx = 0;
   const uint32_t start_time = millis();
-  this->start_data_();
-  while (this->current_data_index_ < this->height_) {
-    for (uint16_t x = 0; x < this->row_width_; ++x) {
-      this->write_byte((uint8_t) this->buffer_[(size_t) this->current_data_index_ * this->row_width_ + x]);
-    }
-    ++this->current_data_index_;
-    if (millis() - start_time > MAX_TRANSFER_TIME) {
+  while (this->current_data_index_ < buffer_length) {
+    chunk[chunk_idx++] = this->buffer_[this->current_data_index_++];
+    if (chunk_idx == sizeof chunk) {
+      this->start_data_();
+      this->write_array(chunk, chunk_idx);
       this->disable();
-      return false;
+      chunk_idx = 0;
+      if (millis() - start_time > MAX_TRANSFER_TIME) return false;
     }
   }
-
-  this->disable();
+  if (chunk_idx != 0) {
+    this->start_data_();
+    this->write_array(chunk, chunk_idx);
+    this->disable();
+  }
   this->current_data_index_ = 0;
 
   if (full_cycle_update && !this->write_old_buffer_pass_) {
