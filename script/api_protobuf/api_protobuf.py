@@ -446,7 +446,7 @@ class TypeInfo(ABC):
 
 def _varint_max_size(bits: int) -> int:
     """Return the maximum varint encoding size for a value with the given number of bits."""
-    return (bits + 6) // 7  # ceil(bits / 7)
+    return (max(bits, 1) + 6) // 7  # ceil(bits / 7), min 1 byte for varint(0)
 
 
 TYPE_INFO: dict[int, TypeInfo] = {}
@@ -1615,7 +1615,8 @@ def _generate_inline_encode_block(
     lines = []
     lines.append(f"auto &sub_msg = {element};")
     lines.append(f"ProtoEncode::write_raw_byte(pos, {tag});")
-    lines.append("uint8_t *len_pos = pos++;")
+    lines.append("uint8_t *len_pos = pos;")
+    lines.append("ProtoEncode::reserve_byte(pos);")
 
     # Generate inline field encoding for each sub-message field
     for field in sub_desc.field:
@@ -1625,7 +1626,13 @@ def _generate_inline_encode_block(
         encode_line = ti.encode_content
         # Replace this-> with sub_msg reference for the sub-message fields
         encode_line = encode_line.replace("this->", "sub_msg.")
-        lines.extend(encode_line.split("\n"))
+        # Honor per-field ifdef guards
+        field_ifdef = (
+            get_field_opt(field, pb.field_ifdef, None)
+            if field.options.HasExtension(pb.field_ifdef)
+            else None
+        )
+        lines.extend(wrap_with_ifdef(encode_line, field_ifdef))
 
     lines.append("*len_pos = static_cast<uint8_t>(pos - len_pos - 1);")
     return "\n".join(lines)
@@ -1659,7 +1666,13 @@ def _generate_inline_size_block(
         size_line = ti.get_size_calculation(f"sub_msg.{ti.field_name}", force)
         # Replace hardcoded this-> references (e.g., FixedArrayBytesType uses this->field_len)
         size_line = size_line.replace("this->", "sub_msg.")
-        lines.extend(size_line.split("\n"))
+        # Honor per-field ifdef guards
+        field_ifdef = (
+            get_field_opt(field, pb.field_ifdef, None)
+            if field.options.HasExtension(pb.field_ifdef)
+            else None
+        )
+        lines.extend(wrap_with_ifdef(size_line, field_ifdef))
 
     return "\n".join(lines)
 
@@ -2686,16 +2699,21 @@ def build_message_type(
 
     # Check if this message uses inline_encode — if so, skip generating standalone
     # encode/calculate_size methods since the encoding is inlined into the parent.
+    inline_opt = getattr(pb, "inline_encode", None)
     is_inline_only = (
         message_id is None  # Not a service message (no id)
-        and get_opt(desc, getattr(pb, "inline_encode", None), False)
+        and inline_opt is not None
+        and get_opt(desc, inline_opt, False)
     )
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode and not is_inline_only:
         # Add PROTO_ENCODE_DEBUG_ARG after pos in all proto_* calls
         encode_debug = [
-            line.replace("(pos,", "(pos PROTO_ENCODE_DEBUG_ARG,") for line in encode
+            line.replace("(pos,", "(pos PROTO_ENCODE_DEBUG_ARG,").replace(
+                "(pos)", "(pos PROTO_ENCODE_DEBUG_ARG)"
+            )
+            for line in encode
         ]
         o = f"uint8_t *{desc.name}::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {{\n"
         o += "  uint8_t *__restrict__ pos = buffer.get_pos();\n"

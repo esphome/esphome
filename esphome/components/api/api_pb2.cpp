@@ -2333,7 +2333,8 @@ uint8_t *BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer P
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
     auto &sub_msg = this->advertisements[i];
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 10);
-    uint8_t *len_pos = pos++;
+    uint8_t *len_pos = pos;
+    ProtoEncode::reserve_byte(pos PROTO_ENCODE_DEBUG_ARG);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 8);
     ProtoEncode::encode_varint_raw_64(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.address);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
