@@ -311,54 +311,6 @@ def _patch_component(component: IDFComponent, first_pass: bool):
         )
 
     #
-    # boschsensortec/Bosch-BSEC2-Library
-    #
-
-    # Patch only on the second step
-    if not first_pass and component.name in [
-        _owner_pkgname_to_name("boschsensortec", "Bosch-BSEC2-Library"),
-        _owner_pkgname_to_name("boschsensortec", "bsec2"),
-    ]:
-        # Ensure that dependencies is a list
-        if "dependencies" not in component.data:
-            component.data["dependencies"] = []
-        component.data["dependencies"] = _ensure_list(component.data["dependencies"])
-
-        # Add the missing dependency to BME68x Sensor library
-        dependency = {}
-        dependency["owner"] = "boschsensortec"
-        dependency["name"] = "BME68x Sensor library"
-        dependency["version"] = "1.3.40408"
-        component.data["dependencies"].append(dependency)
-
-        # Ensure that ESPHOME_DATA_KEY/ESPHOME_DATA_EXTRA_CMAKE_KEY is a list
-        if ESPHOME_DATA_KEY not in component.data:
-            component.data[ESPHOME_DATA_KEY] = {}
-        if ESPHOME_DATA_EXTRA_CMAKE_KEY not in component.data[ESPHOME_DATA_KEY]:
-            component.data[ESPHOME_DATA_KEY][ESPHOME_DATA_EXTRA_CMAKE_KEY] = []
-        component.data[ESPHOME_DATA_KEY][ESPHOME_DATA_EXTRA_CMAKE_KEY] = _ensure_list(
-            component.data[ESPHOME_DATA_KEY][ESPHOME_DATA_EXTRA_CMAKE_KEY]
-        )
-
-        # Custom library linking CMake script inspired by extra_script.py
-        extra_cmake = component.data[ESPHOME_DATA_KEY][ESPHOME_DATA_EXTRA_CMAKE_KEY]
-        extra_cmake.append(
-            "\n".join(
-                [
-                    "set(cpu ${IDF_TARGET})",
-                    'if(cpu MATCHES "^esp32" AND NOT cpu MATCHES "^esp32s" AND NOT cpu STREQUAL "esp32")',
-                    '    set(cpu "esp32c3")',
-                    "endif()",
-                    'message(STATUS "CPU variant: ${cpu}")',
-                    'target_link_libraries(${COMPONENT_LIB} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/src/${cpu}/libalgobsec.a")',
-                ]
-            )
-        )
-
-        # Avoid warning about extraScript
-        component.data.get("build", {}).pop("extraScript", None)
-
-    #
     # tonia/HeatpumpIR
     #
 
