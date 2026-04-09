@@ -333,32 +333,6 @@ def _patch_component(component: IDFComponent, first_pass: bool):
         build_flags.append("-Wno-error=overloaded-virtual")
 
     #
-    # functionpointer/arduino-MLX90393
-    #
-
-    # Patch only on the first step
-    if first_pass and component.name == _owner_pkgname_to_name(
-        "functionpointer", "arduino-MLX90393"
-    ):
-        library_json_file = component.path / "library.json"
-        if library_json_file.is_file():
-            return
-        library_json_template_file = component.path / "library.json.template"
-        if not library_json_template_file.is_file():
-            return
-
-        # Read template
-        with open(library_json_template_file, encoding="utf-8") as f:
-            content = f.read()
-
-        # Substitute version
-        content = content.replace("${VERSION}", component.version)
-
-        # Write final file (non-template)
-        with open(library_json_file, "w", encoding="utf-8") as f:
-            f.write(content)
-
-    #
     # fastled/FastLED
     #
 
