@@ -569,21 +569,9 @@ size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> bu
   if (unit_of_measurement.empty()) {
     return len;
   }
-  // Append " <uom>" directly
-  char *p = buf.data() + len;
-  size_t remaining = buf.size() - len;
-  size_t uom_len = unit_of_measurement.size();
-  // Need space for: ' ' + uom + '\0'
-  if (remaining < 2) {
-    return len;
-  }
-  *p++ = ' ';
-  remaining--;
-  size_t copy_len = std::min(uom_len, remaining - 1);
-  memcpy(p, unit_of_measurement.c_str(), copy_len);
-  p += copy_len;
-  *p = '\0';
-  return static_cast<size_t>(p - buf.data());
+  char *end = buf_append_sep_str(buf.data() + len, buf.size() - len, ' ', unit_of_measurement.c_str(),
+                                 unit_of_measurement.size());
+  return static_cast<size_t>(end - buf.data());
 }
 
 int8_t step_to_accuracy_decimals(float step) {

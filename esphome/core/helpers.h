@@ -1295,6 +1295,21 @@ inline char *int8_to_str(char *buf, int8_t val) {
   return buf;
 }
 
+/// Append a separator char and a string to a buffer, respecting remaining space.
+/// Returns pointer past last char written (null terminator is written).
+inline char *buf_append_sep_str(char *buf, size_t remaining, char separator, const char *str, size_t str_len) {
+  if (remaining < 2) {
+    return buf;
+  }
+  *buf++ = separator;
+  remaining--;
+  size_t copy_len = std::min(str_len, remaining - 1);
+  memcpy(buf, str, copy_len);
+  buf += copy_len;
+  *buf = '\0';
+  return buf;
+}
+
 /// Return 10^n for small non-negative n (0-3) as uint32_t, avoiding float.
 inline uint32_t small_pow10(int8_t n) {
   if (n == 1) {

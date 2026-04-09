@@ -116,4 +116,39 @@ TEST(FracToStr, ZeroDivisor) {
   EXPECT_EQ(end, buf);  // writes nothing
 }
 
+// --- buf_append_sep_str() ---
+
+TEST(BufAppendSepStr, Basic) {
+  char buf[32] = "23.46";
+  char *start = buf + 5;
+  char *end = buf_append_sep_str(start, sizeof(buf) - 5, ' ', "°C", 3);
+  EXPECT_STREQ(buf, "23.46 °C");
+  EXPECT_EQ(end - buf, 9);  // "°C" is 3 bytes (UTF-8)
+}
+
+TEST(BufAppendSepStr, EmptyString) {
+  char buf[32] = "100";
+  char *start = buf + 3;
+  char *end = buf_append_sep_str(start, sizeof(buf) - 3, ' ', "", 0);
+  EXPECT_STREQ(buf, "100 ");
+  EXPECT_EQ(end - start, 1);  // just the separator
+}
+
+TEST(BufAppendSepStr, NoRoom) {
+  char buf[8] = "1234567";
+  char *start = buf + 7;
+  char *end = buf_append_sep_str(start, 1, ' ', "unit", 4);
+  EXPECT_EQ(end, start);  // nothing written
+}
+
+TEST(BufAppendSepStr, Truncation) {
+  char buf[8] = "val";
+  char *start = buf + 3;
+  // remaining = 5, separator takes 1, so 3 chars of string fit + null
+  char *end = buf_append_sep_str(start, 5, ' ', "longunit", 8);
+  *end = '\0';
+  EXPECT_STREQ(buf, "val lon");
+  EXPECT_EQ(end - buf, 7);
+}
+
 }  // namespace esphome::testing
