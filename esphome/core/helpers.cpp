@@ -377,7 +377,7 @@ static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t
   return buffer;
 }
 
-char *uint32_to_str_(char *buf, uint32_t val) {
+char *uint32_to_str_unchecked(char *buf, uint32_t val) {
   if (val == 0) {
     *buf++ = '0';
     return buf;

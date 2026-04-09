@@ -1,4 +1,6 @@
 #include <benchmark/benchmark.h>
+#include <cinttypes>
+#include <cstdio>
 
 #include "esphome/core/helpers.h"
 
@@ -37,5 +39,59 @@ static void RandomUint32(benchmark::State &state) {
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(RandomUint32);
+
+// --- uint32_to_str() vs snprintf ---
+
+static void Uint32ToStr_Small(benchmark::State &state) {
+  char buf[UINT32_MAX_STR_SIZE];
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      uint32_to_str(buf, 12345);
+      benchmark::DoNotOptimize(buf);
+      benchmark::ClobberMemory();
+    }
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(Uint32ToStr_Small);
+
+static void Snprintf_Uint32_Small(benchmark::State &state) {
+  char buf[UINT32_MAX_STR_SIZE];
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      snprintf(buf, sizeof(buf), "%" PRIu32, static_cast<uint32_t>(12345));
+      benchmark::DoNotOptimize(buf);
+      benchmark::ClobberMemory();
+    }
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(Snprintf_Uint32_Small);
+
+static void Uint32ToStr_Large(benchmark::State &state) {
+  char buf[UINT32_MAX_STR_SIZE];
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      uint32_to_str(buf, 4294967295u);
+      benchmark::DoNotOptimize(buf);
+      benchmark::ClobberMemory();
+    }
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(Uint32ToStr_Large);
+
+static void Snprintf_Uint32_Large(benchmark::State &state) {
+  char buf[UINT32_MAX_STR_SIZE];
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      snprintf(buf, sizeof(buf), "%" PRIu32, static_cast<uint32_t>(4294967295u));
+      benchmark::DoNotOptimize(buf);
+      benchmark::ClobberMemory();
+    }
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(Snprintf_Uint32_Large);
 
 }  // namespace esphome::benchmarks
