@@ -482,7 +482,14 @@ class _PackageProcessor:
         # Push context from !include vars on the package root and on the packages key
         context_vars = push_context(package_config, context_vars)
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
-        return _walk_packages(package_config, self.process_package, context_vars)
+        # Nested packages are always named package dicts, never the
+        # deprecated single-package form, so disable the fallback.
+        return _walk_packages(
+            package_config,
+            self.process_package,
+            context_vars,
+            validate_deprecated=False,
+        )
 
 
 def do_packages_pass(
