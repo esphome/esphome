@@ -1203,7 +1203,7 @@ void LWIPRawUDPRecvImpl::recv_fn_(struct pbuf *p, const ip_addr_t *addr, u16_t p
   this->rx_count_++;
 
 #if defined(USE_ESP8266) || defined(USE_RP2040)
-  socket_wake();
+  esphome::wake_loop_any_context();
 #endif
 }
 
@@ -1251,7 +1251,7 @@ std::unique_ptr<UDPRecvSocket> socket_udp_recv(int domain, int protocol) {
 
 std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) {
   if (type != SOCK_STREAM) {
-    ESP_LOGE(TAG, "Use socket_udp() for UDP sockets on this platform");
+    ESP_LOGE(TAG, "Use socket_udp_recv() for UDP sockets on this platform");
     errno = EPROTOTYPE;
     return nullptr;
   }
