@@ -78,6 +78,8 @@ class LwIPSocketImpl {
   int setblocking(bool blocking);
   int loop() { return 0; }
 
+  /// Check if the socket has buffered data ready to read.
+  /// See the ready() contract in socket.h — callers must drain or track remaining data.
   bool ready() const;
 
   int get_fd() const { return this->fd_; }
