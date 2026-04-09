@@ -1334,11 +1334,10 @@ inline char *uint32_to_str_(char *buf, uint32_t val) {
 
 /// Write unsigned 32-bit integer to buffer with compile-time size check.
 /// Null-terminates the output. Returns number of chars written (excluding null).
-template<size_t N> inline size_t uint32_to_str(char (&buf)[N], uint32_t val) {
-  static_assert(N >= UINT32_MAX_STR_SIZE, "Buffer too small for uint32 (need 11 bytes)");
-  char *end = uint32_to_str_(buf, val);
+inline size_t uint32_to_str(std::span<char, UINT32_MAX_STR_SIZE> buf, uint32_t val) {
+  char *end = uint32_to_str_(buf.data(), val);
   *end = '\0';
-  return static_cast<size_t>(end - buf);
+  return static_cast<size_t>(end - buf.data());
 }
 
 /// Write fractional digits with leading zeros to buffer (internal, no size check).
