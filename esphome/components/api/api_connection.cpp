@@ -52,7 +52,7 @@
 
 namespace esphome::api {
 
-// Read a maximum of 5 messages per loop iteration to prevent starving other components.
+// Maximum messages to read per loop iteration to prevent starving other components.
 // This is a balance between API responsiveness and allowing other components to run.
 // Since each message could contain multiple protobuf messages when using packet batching,
 // this limits the number of messages processed, not the number of TCP packets.
