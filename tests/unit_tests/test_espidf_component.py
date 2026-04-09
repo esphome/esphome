@@ -38,6 +38,13 @@ def fixture_tmp_component(tmp_path):
     return c
 
 
+@pytest.fixture(name="esp32_idf_core")
+def fixture_esp32_idf_core():
+    CORE.data[KEY_CORE] = {}
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = str(Platform.ESP32)
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ESP_IDF)
+
+
 def test_idf_component_str():
     c = IDFComponent("foo/bar", "1.0", source=URLSource("http://dummy.com"))
     assert str(c) == "foo/bar@1.0=http://dummy.com"
@@ -180,53 +187,32 @@ dependencies:
     )
 
 
-def test_check_library_data_valid():
-    CORE.data[KEY_CORE] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = str(Platform.ESP32)
-    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ESP_IDF)
+def test_check_library_data_valid(esp32_idf_core):
     _check_library_data({"platforms": "*", "frameworks": "*"})
 
 
-def test_check_library_data_valid2():
-    CORE.data[KEY_CORE] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = str(Platform.ESP32)
-    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ESP_IDF)
+def test_check_library_data_valid2(esp32_idf_core):
     _check_library_data({"platforms": "*"})
 
 
-def test_check_library_data_valid3():
-    CORE.data[KEY_CORE] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = str(Platform.ESP32)
-    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ESP_IDF)
+def test_check_library_data_valid3(esp32_idf_core):
     _check_library_data({})
 
 
-def test_check_library_data_valid4():
-    CORE.data[KEY_CORE] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = str(Platform.ESP32)
-    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ESP_IDF)
+def test_check_library_data_valid4(esp32_idf_core):
     _check_library_data({"platforms": "espressif32", "frameworks": "*"})
 
 
-def test_check_library_data_valid5():
-    CORE.data[KEY_CORE] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = str(Platform.ESP32)
-    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ESP_IDF)
+def test_check_library_data_valid5(esp32_idf_core):
     _check_library_data({"platforms": "*", "frameworks": "espidf"})
 
 
-def test_check_library_data_invalid_platform():
-    CORE.data[KEY_CORE] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = str(Platform.ESP32)
-    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ESP_IDF)
+def test_check_library_data_invalid_platform(esp32_idf_core):
     with pytest.raises(InvalidIDFComponent):
         _check_library_data({"platforms": ["other"], "frameworks": "*"})
 
 
-def test_check_library_data_invalid_framework():
-    CORE.data[KEY_CORE] = {}
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = str(Platform.ESP32)
-    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = str(Framework.ESP_IDF)
+def test_check_library_data_invalid_framework(esp32_idf_core):
     with pytest.raises(InvalidIDFComponent):
         _check_library_data({"platforms": "*", "frameworks": ["other"]})
 
