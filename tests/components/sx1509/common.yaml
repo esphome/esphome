@@ -2,6 +2,7 @@ sx1509:
   - id: sx1509_hub
     i2c_id: i2c_bus
     address: 0x3E
+    interrupt_pin: ${interrupt_pin}
     keypad:
       key_rows: 2
       key_columns: 2

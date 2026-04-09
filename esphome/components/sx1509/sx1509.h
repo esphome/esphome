@@ -46,6 +46,7 @@ class SX1509Component : public Component,
   uint16_t read_key_data();
   void set_pin_value(uint8_t pin, uint8_t i_on) { this->write_byte(REG_I_ON[pin], i_on); };
   void pin_mode(uint8_t pin, gpio::Flags flags);
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   uint32_t get_clock() { return this->clk_x_; };
   void set_rows_cols(uint8_t rows, uint8_t cols) {
     this->rows_ = rows;
@@ -63,6 +64,8 @@ class SX1509Component : public Component,
   void setup_led_driver(uint8_t pin);
 
  protected:
+  static void IRAM_ATTR gpio_intr(SX1509Component *arg);
+
   // Virtual methods from CachedGpioExpander
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
@@ -85,6 +88,7 @@ class SX1509Component : public Component,
   std::vector<SX1509Processor *> keypad_binary_sensors_;
   std::vector<SX1509KeyTrigger *> key_triggers_;
 
+  InternalGPIOPin *interrupt_pin_{nullptr};
   uint32_t last_loop_timestamp_ = 0;
   const uint32_t min_loop_period_ = 15;  // ms
 

@@ -28,10 +28,23 @@ void SX1509Component::setup() {
   delayMicroseconds(500);
   if (this->has_keypad_)
     this->setup_keypad_();
+
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&SX1509Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    this->set_invalidate_on_read_(false);
+  }
+  // Disable loop until an input pin is configured via pin_mode()
+  // or keypad is active. For interrupt-driven mode, loop is re-enabled by the ISR.
+  if (!this->has_keypad_) {
+    this->disable_loop();
+  }
 }
 
+void IRAM_ATTR SX1509Component::gpio_intr(SX1509Component *arg) { arg->enable_loop_soon_any_context(); }
 void SX1509Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SX1509:");
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Setting up SX1509 failed!");
   }
@@ -41,6 +54,9 @@ void SX1509Component::dump_config() {
 void SX1509Component::loop() {
   // Reset cache at the start of each loop
   this->reset_pin_cache_();
+  if (this->interrupt_pin_ != nullptr && !this->has_keypad_) {
+    this->disable_loop();
+  }
 
   if (this->has_keypad_) {
     if (millis() - this->last_loop_timestamp_ < min_loop_period_)
@@ -169,6 +185,9 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     // Set direction to input
     this->ddr_mask_ |= (1 << pin);
     this->write_byte_16(REG_DIR_B, this->ddr_mask_);
+    if (this->interrupt_pin_ == nullptr) {
+      this->enable_loop();
+    }
   }
 }
 
