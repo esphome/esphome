@@ -231,12 +231,12 @@ lvgl:
 
 The `rotation` option allows you to rotate the display content by a specified angle. Valid values are `0`, `90`, `180` and `270`. Defaults to `0`.
 Using this in the LVGL configuration will automatically adjust both the display and touch input (if a touchscreen is configured) to the specified rotation.
-When using this the display configuration should not include a rotation option (it will be ignored if it does), and the touchscreen configuration should not
+When using this the display configuration should not include a rotation option and the touchscreen configuration should not
 transform the touchscreen unless required (for example if the touchscreen axes don't match the display.)
 
 If the display driver can rotate the display content in hardware, (for example, most `mipi_spi` display models can do this)
 LVGL will automatically use this to improve performance. If not, the rotation will be performed in software by LVGL,
-which will reduce performance.
+which will reduce performance. On ESP32P4 the software rotation is hardware accelerated using the PPA peripheral.
 
 Touchscreen coordinates will be automatically rotated when using LVGL rotation.
 
