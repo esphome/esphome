@@ -310,6 +310,7 @@ lvgl:
                   src: !lambda "return {dog_image, cat_image};"
                   duration: 2s
               - lvgl.widget.refresh: anim_img
+              - lvgl.widget.refresh:
         - label:
             on_boot:
               lvgl.label.update:
