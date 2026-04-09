@@ -97,6 +97,8 @@ class LWIPRawImpl : public LWIPRawCommon {
     errno = ENOSYS;
     return -1;
   }
+  // Check if the socket has buffered data ready to read.
+  // See the ready() contract in socket.h — callers must drain or track remaining data.
   // Intentionally unlocked — this is a polling check called every loop iteration.
   // A stale read at worst delays processing by one loop tick; the actual I/O in
   // read() holds the lwip lock and re-checks properly. See esphome#10681.
@@ -110,7 +112,7 @@ class LWIPRawImpl : public LWIPRawCommon {
       return -1;
     }
     // Raw TCP doesn't use a blocking flag directly. Blocking behavior
-    // is provided by SO_RCVTIMEO which makes read() wait via socket_delay().
+    // is provided by SO_RCVTIMEO which makes read() wait via wakeable_delay().
     return 0;
   }
   int loop() { return 0; }

@@ -16,6 +16,19 @@ class DemoClimate : public climate::Climate, public Component {
  public:
   void set_type(DemoClimateType type) { type_ = type; }
   void setup() override {
+    // Set custom modes once during setup — stored on Climate base class, wired via get_traits()
+    switch (type_) {
+      case DemoClimateType::TYPE_1:
+        break;
+      case DemoClimateType::TYPE_2:
+        this->set_supported_custom_fan_modes({"Auto Low", "Auto High"});
+        this->set_supported_custom_presets({"My Preset"});
+        break;
+      case DemoClimateType::TYPE_3:
+        this->set_supported_custom_fan_modes({"Auto Low", "Auto High"});
+        break;
+    }
+    // Set initial state
     switch (type_) {
       case DemoClimateType::TYPE_1:
         this->current_temperature = 20.0;
@@ -105,14 +118,13 @@ class DemoClimate : public climate::Climate, public Component {
             climate::CLIMATE_FAN_DIFFUSE,
             climate::CLIMATE_FAN_QUIET,
         });
-        traits.set_supported_custom_fan_modes({"Auto Low", "Auto High"});
+        // Custom fan modes and presets are set once in setup()
         traits.set_supported_swing_modes({
             climate::CLIMATE_SWING_OFF,
             climate::CLIMATE_SWING_BOTH,
             climate::CLIMATE_SWING_VERTICAL,
             climate::CLIMATE_SWING_HORIZONTAL,
         });
-        traits.set_supported_custom_presets({"My Preset"});
         break;
       case DemoClimateType::TYPE_3:
         traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE |
@@ -123,7 +135,7 @@ class DemoClimate : public climate::Climate, public Component {
             climate::CLIMATE_MODE_HEAT,
             climate::CLIMATE_MODE_HEAT_COOL,
         });
-        traits.set_supported_custom_fan_modes({"Auto Low", "Auto High"});
+        // Custom fan modes are set once in setup()
         traits.set_supported_swing_modes({
             climate::CLIMATE_SWING_OFF,
             climate::CLIMATE_SWING_HORIZONTAL,

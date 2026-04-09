@@ -8,7 +8,7 @@
 
 namespace esphome::socket {
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
 // Shared ready() implementation for fd-based socket implementations (BSD and LWIP sockets).
 // Checks if the Application's select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || App.is_socket_ready_(fd); }

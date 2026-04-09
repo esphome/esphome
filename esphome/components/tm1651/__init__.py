@@ -39,7 +39,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_DIO_PIN): pins.internal_gpio_output_pin_schema,
         }
-    ),
+    ).extend(cv.COMPONENT_SCHEMA),
 )
 
 
