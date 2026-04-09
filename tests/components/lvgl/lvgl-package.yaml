@@ -194,6 +194,7 @@ lvgl:
           text: "Close"
           on_click:
             then:
+              - lvgl.display.set_rotation: 0
               - lvgl.widget.hide: message_box
               - lvgl.style.update:
                   id: style_test

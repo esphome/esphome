@@ -645,6 +645,17 @@ class ProtoSize {
   static constexpr uint32_t VARINT_THRESHOLD_3_BYTE = 1 << 21;  // 2097152
   static constexpr uint32_t VARINT_THRESHOLD_4_BYTE = 1 << 28;  // 268435456
 
+  // Varint encoded length for a 16-bit value (1, 2, or 3 bytes).
+  // Fully inline — no slow path call for values >= 128.
+  static constexpr inline uint8_t ESPHOME_ALWAYS_INLINE varint16(uint16_t value) {
+    return value < VARINT_THRESHOLD_1_BYTE ? 1 : (value < VARINT_THRESHOLD_2_BYTE ? 2 : 3);
+  }
+
+  // Varint encoded length for an 8-bit value (1 or 2 bytes).
+  static constexpr inline uint8_t ESPHOME_ALWAYS_INLINE varint8(uint8_t value) {
+    return value < VARINT_THRESHOLD_1_BYTE ? 1 : 2;
+  }
+
   /**
    * @brief Calculates the size in bytes needed to encode a uint32_t value as a varint
    *

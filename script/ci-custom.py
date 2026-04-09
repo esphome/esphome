@@ -1006,6 +1006,38 @@ def lint_log_in_header(fname, line, col, content):
     )
 
 
+PACKAGE_BUS_RE = re.compile(
+    r"^\s+(\w+):\s*!include\s+\S*test_build_components/common/(\w+)/",
+    re.MULTILINE,
+)
+
+
+@lint_content_check(include=["tests/components/*/test.*.yaml"])
+def lint_test_package_key_matches_bus(fname, content):
+    """Ensure package keys match the common bus directory name.
+
+    For example, a package using uart_115200 includes must use
+    'uart_115200' as the key, not 'uart'.
+    """
+    errs: list[tuple[int, int, str]] = []
+    for match in PACKAGE_BUS_RE.finditer(content):
+        pkg_key = match.group(1)
+        bus_dir = match.group(2)
+        if pkg_key != bus_dir:
+            lineno = content.count("\n", 0, match.start()) + 1
+            errs.append(
+                (
+                    lineno,
+                    1,
+                    f"Package key {highlight(pkg_key)} does not match bus directory "
+                    f"{highlight(bus_dir)}. The package key must match the directory "
+                    f"name under tests/test_build_components/common/. "
+                    f"Change {highlight(pkg_key)} to {highlight(bus_dir)}.",
+                )
+            )
+    return errs
+
+
 @lint_content_find_check(
     "FINAL_VALIDATE_SCHEMA",
     include=["esphome/core/*.py"],
