@@ -464,14 +464,16 @@ TEST(MitsubishiCN105Tests, SetOutOfRangeRemoteRoomTempIsIgnored) {
 
   ctx.sut.set_remote_temperature(NAN);
   EXPECT_FALSE(ctx.sut.pending_updates_.has(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+}
 
+TEST(MitsubishiCN105Tests, SetMinRemoteRoomTemp) {
+  auto ctx = TestContext{};
   ctx.sut.set_remote_temperature(8.0f);
   EXPECT_TRUE(ctx.sut.pending_updates_.has(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+}
 
-  // Clear flag
-  ctx.sut.pending_updates_.clear(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE);
-  EXPECT_FALSE(ctx.sut.pending_updates_.has(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
-
+TEST(MitsubishiCN105Tests, SetMaxRemoteRoomTemp) {
+  auto ctx = TestContext{};
   ctx.sut.set_remote_temperature(39.5f);
   EXPECT_TRUE(ctx.sut.pending_updates_.has(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
 }
