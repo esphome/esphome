@@ -473,6 +473,9 @@ class _PackageProcessor:
         self, package_config: dict | str, context_vars: ContextVars | None
     ) -> dict:
         """Resolve a single package and recurse into any nested packages."""
+        from_remote = isinstance(package_config, dict) and is_remote_package(
+            package_config
+        )
         package_config = self.resolve_package(package_config, context_vars)
         self.collect_substitutions(package_config)
 
@@ -482,19 +485,17 @@ class _PackageProcessor:
         # Push context from !include vars on the package root and on the packages key
         context_vars = push_context(package_config, context_vars)
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
-        # Disable the deprecated single-package fallback for nested
-        # packages.  The fallback masks real validation errors by
-        # swallowing cv.Invalid and re-wrapping the dict as a list,
-        # which produces wrong error paths (packages->0 instead of
-        # packages-><name>).  If a nested package file happens to use
-        # the deprecated form, the user will get a direct error
-        # instead of the fallback — acceptable since the deprecated
-        # form is being removed in 2026.7.0.
+        # Disable the deprecated single-package fallback for remote
+        # packages.  _process_remote_package returns dicts with
+        # already-resolved values that is_package_definition cannot
+        # distinguish from config fragments, so the fallback would
+        # always fire and mask real errors with wrong paths
+        # (packages->0 instead of packages-><name>).
         return _walk_packages(
             package_config,
             self.process_package,
             context_vars,
-            validate_deprecated=False,
+            validate_deprecated=not from_remote,
         )
 
 
