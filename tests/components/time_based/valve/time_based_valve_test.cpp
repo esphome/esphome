@@ -62,8 +62,6 @@ TEST_F(TimeBasedValvePositionTest, TriggersAreCalled) {
 }
 
 TEST_F(TimeBasedValvePositionTest, RestoredPositionFullyClosed) {
-  auto mock_ESPPreferences = MockESPPreferences();
-  global_preferences = &mock_ESPPreferences;
   valve.position = 0;
   valve.set_restore_mode(VALVE_RESTORE);
   valve.setup();
