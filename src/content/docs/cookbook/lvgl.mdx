@@ -1414,18 +1414,17 @@ text_sensor:
             state:
               checked: !lambda return (x == "on");
               disabled: !lambda return ((x == "unavailable") or (x == "unknown"));
-        - lvgl.label.update:
-            id: lbl_lightbulb
-            text: !lambda |-
-              static char buf[10];
-              std::string icon;
-              if (x == "on") {
-                  icon = "\U000F0335";
-              } else {
-                  icon = "\U000F0336";
-              }
-              snprintf(buf, sizeof(buf), "%s", icon.c_str());
-              return buf;
+        - if:
+            condition:
+              lambda: return (x == "on");
+            then:
+              - lvgl.label.update:
+                  id: lbl_lightbulb
+                  text: "\U000F0335"
+            else:
+              - lvgl.label.update:
+                  id: lbl_lightbulb
+                  text: "\U000F0336"
 
 lvgl:
     ...
