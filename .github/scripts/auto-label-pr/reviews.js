@@ -139,12 +139,16 @@ async function handleReviews(github, context, finalLabels, originalLabelCount, d
 
 // Handle org fork warning comment
 async function handleOrgForkComment(github, context, isOrgFork) {
+  if (!isOrgFork) {
+    return;
+  }
+
   const { owner, repo } = context.repo;
   const pr_number = context.issue.number;
   const prAuthor = context.payload.pull_request.user.login;
-  const orgName = context.payload.pull_request.head.repo?.owner?.login;
+  const orgName = context.payload.pull_request.head.repo.owner.login;
 
-  // Find existing org fork comment
+  // Check if we already posted the warning
   const comments = await github.paginate(
     github.rest.issues.listComments,
     { owner, repo, issue_number: pr_number }
@@ -154,41 +158,26 @@ async function handleOrgForkComment(github, context, isOrgFork) {
     comment.body && comment.body.includes(ORG_FORK_MARKER)
   );
 
-  if (isOrgFork) {
-    const body = `${ORG_FORK_MARKER}\n### ⚠️ Organization Fork Detected\n\n` +
-      `Hey there @${prAuthor},\n` +
-      `It looks like this PR was submitted from a fork owned by the **${orgName}** organization. ` +
-      `GitHub does not allow maintainers to push changes to pull request branches when the fork is owned by an organization. ` +
-      `This means we won't be able to make small adjustments or fixups to your PR directly.\n\n` +
-      `To allow maintainer collaboration, please re-submit this PR from a personal fork instead.\n\n` +
-      `See: [Setting up the local repository](https://developers.esphome.io/contributing/development-environment/?h=org#set-up-the-local-repository) for more details.`;
-
-    if (existingComment) {
-      await github.rest.issues.updateComment({
-        owner,
-        repo,
-        comment_id: existingComment.id,
-        body
-      });
-      console.log('Updated existing org fork warning comment');
-    } else {
-      await github.rest.issues.createComment({
-        owner,
-        repo,
-        issue_number: pr_number,
-        body
-      });
-      console.log('Created org fork warning comment');
-    }
-  } else if (existingComment) {
-    // Remove the comment if the condition is no longer met (e.g., PR was re-submitted)
-    await github.rest.issues.deleteComment({
-      owner,
-      repo,
-      comment_id: existingComment.id
-    });
-    console.log('Deleted org fork warning comment (no longer applicable)');
+  if (existingComment) {
+    console.log('Org fork warning comment already exists, skipping');
+    return;
   }
+
+  const body = `${ORG_FORK_MARKER}\n### ⚠️ Organization Fork Detected\n\n` +
+    `Hey there @${prAuthor},\n` +
+    `It looks like this PR was submitted from a fork owned by the **${orgName}** organization. ` +
+    `GitHub does not allow maintainers to push changes to pull request branches when the fork is owned by an organization. ` +
+    `This means we won't be able to make small adjustments or fixups to your PR directly.\n\n` +
+    `To allow maintainer collaboration, please re-submit this PR from a personal fork instead.\n\n` +
+    `See: [Setting up the local repository](https://developers.esphome.io/contributing/development-environment/?h=org#set-up-the-local-repository) for more details.`;
+
+  await github.rest.issues.createComment({
+    owner,
+    repo,
+    issue_number: pr_number,
+    body
+  });
+  console.log('Created org fork warning comment');
 }
 
 module.exports = {
