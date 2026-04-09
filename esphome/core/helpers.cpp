@@ -377,6 +377,20 @@ static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t
   return buffer;
 }
 
+char *uint32_to_str_(char *buf, uint32_t val) {
+  if (val == 0) {
+    *buf++ = '0';
+    return buf;
+  }
+  char *start = buf;
+  while (val > 0) {
+    *buf++ = '0' + (val % 10);
+    val /= 10;
+  }
+  std::reverse(start, buf);
+  return buf;
+}
+
 char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
   return format_hex_internal(buffer, buffer_size, data, length, 0, 'a');
 }

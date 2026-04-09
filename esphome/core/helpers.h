@@ -1300,19 +1300,7 @@ static constexpr size_t UINT32_MAX_STR_SIZE = 11;
 
 /// Write unsigned 32-bit integer to buffer (internal, no size check).
 /// Buffer must have at least 10 bytes free. Returns pointer past last char written.
-inline char *uint32_to_str_(char *buf, uint32_t val) {
-  if (val == 0) {
-    *buf++ = '0';
-    return buf;
-  }
-  char *start = buf;
-  while (val > 0) {
-    *buf++ = '0' + (val % 10);
-    val /= 10;
-  }
-  std::reverse(start, buf);
-  return buf;
-}
+char *uint32_to_str_(char *buf, uint32_t val);
 
 /// Write unsigned 32-bit integer to buffer with compile-time size check.
 /// Null-terminates the output. Returns number of chars written (excluding null).
