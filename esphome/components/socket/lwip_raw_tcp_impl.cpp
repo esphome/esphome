@@ -1249,6 +1249,11 @@ std::unique_ptr<UDPRecvSocket> socket_udp_recv(int domain, int protocol) {
   return sock;
 }
 
+std::unique_ptr<UDPRecvSocket> socket_udp_recv_loop_monitored(int domain, int protocol) {
+  // LWIPRawUDPRecvImpl has wake built into the recv callback, so no extra monitoring needed
+  return socket_udp_recv(domain, protocol);
+}
+
 std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) {
   if (type != SOCK_STREAM) {
     ESP_LOGE(TAG, "Use socket_udp_recv() for UDP sockets on this platform");

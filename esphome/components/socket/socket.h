@@ -98,6 +98,25 @@ std::unique_ptr<UDPRecvSocket> socket_udp_recv(int domain, int protocol);
 /// Create a UDP socket with receive support in the newest available IP domain.
 std::unique_ptr<UDPRecvSocket> socket_ip_udp_recv(int protocol);
 
+/// Create a UDP recv socket and monitor it for data in the main loop.
+/// On LWIP_TCP platforms, wake is built into the recv callback so this just delegates to socket_udp_recv().
+/// On BSD/LWIP_SOCKETS platforms, this registers the socket with the Application's select() loop.
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+std::unique_ptr<UDPRecvSocket> socket_udp_recv_loop_monitored(int domain, int protocol);
+std::unique_ptr<UDPRecvSocket> socket_ip_udp_recv_loop_monitored(int protocol);
+#else
+inline std::unique_ptr<UDPRecvSocket> socket_udp_recv_loop_monitored(int domain, int protocol) {
+  return socket_loop_monitored(domain, SOCK_DGRAM, protocol);
+}
+inline std::unique_ptr<UDPRecvSocket> socket_ip_udp_recv_loop_monitored(int protocol) {
+#if USE_NETWORK_IPV6
+  return socket_udp_recv_loop_monitored(AF_INET6, protocol);
+#else
+  return socket_udp_recv_loop_monitored(AF_INET, protocol);
+#endif
+}
+#endif
+
 /// Create a socket and monitor it for data in the main loop.
 /// Like socket() but also registers the socket with the Application's select() loop.
 /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop

@@ -101,6 +101,18 @@ std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
 }
 #endif
 
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+// LWIP_TCP has separate UDPRecvSocket type — needs out-of-line factory.
+// BSD and LWIP_SOCKETS define this inline in socket.h.
+std::unique_ptr<UDPRecvSocket> socket_ip_udp_recv_loop_monitored(int protocol) {
+#if USE_NETWORK_IPV6
+  return socket_udp_recv_loop_monitored(AF_INET6, protocol);
+#else
+  return socket_udp_recv_loop_monitored(AF_INET, protocol);
+#endif /* USE_NETWORK_IPV6 */
+}
+#endif
+
 #if !defined(USE_SOCKET_IMPL_LWIP_TCP)
 // BSD and LWIP_SOCKETS: UDPSocket == UDPRecvSocket == Socket, so these just delegate.
 std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
