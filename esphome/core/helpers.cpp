@@ -382,17 +382,13 @@ char *uint32_to_str_unchecked(char *buf, uint32_t val) {
     *buf++ = '0';
     return buf;
   }
-  // Write digits backwards into stack buffer, then copy forward.
-  // Avoids std::reverse (saves ~24 bytes on Xtensa).
-  char tmp[10];
-  char *p = tmp + sizeof(tmp);
+  char *start = buf;
   while (val > 0) {
-    *--p = '0' + (val % 10);
+    *buf++ = '0' + (val % 10);
     val /= 10;
   }
-  size_t len = tmp + sizeof(tmp) - p;
-  memcpy(buf, p, len);
-  return buf + len;
+  std::reverse(start, buf);
+  return buf;
 }
 
 char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
