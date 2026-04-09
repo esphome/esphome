@@ -150,6 +150,10 @@ void CC1101Component::setup() {
   if (this->gdo0_pin_ != nullptr) {
     this->defer([this]() { this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT); });
   }
+
+  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+    this->disable_loop();
+  }
 }
 
 void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi) {
@@ -669,6 +673,11 @@ void CC1101Component::set_packet_mode(bool value) {
     this->state_.GDO0_CFG = 0x0D;
   }
   if (this->initialized_) {
+    if (value) {
+      this->enable_loop();
+    } else {
+      this->disable_loop();
+    }
     this->write_(Register::PKTCTRL0);
     this->write_(Register::PKTCTRL1);
     this->write_(Register::IOCFG0);
