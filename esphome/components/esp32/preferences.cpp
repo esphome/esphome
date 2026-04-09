@@ -11,8 +11,6 @@ namespace esphome::esp32 {
 
 static const char *const TAG = "preferences";
 
-static constexpr size_t KEY_BUFFER_SIZE = UINT32_MAX_STR_SIZE;
-
 struct NVSData {
   uint32_t key;
   SmallInlineBuffer<8> data;  // Most prefs fit in 8 bytes (covers fan, cover, select, etc.)
@@ -49,7 +47,7 @@ bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
     }
   }
 
-  char key_str[KEY_BUFFER_SIZE];
+  char key_str[UINT32_MAX_STR_SIZE];
   uint32_to_str(key_str, this->key);
   size_t actual_len;
   esp_err_t err = nvs_get_blob(this->nvs_handle, key_str, nullptr, &actual_len);
@@ -106,7 +104,7 @@ bool ESP32Preferences::sync() {
   uint32_t last_key = 0;
 
   for (const auto &save : s_pending_save) {
-    char key_str[KEY_BUFFER_SIZE];
+    char key_str[UINT32_MAX_STR_SIZE];
     uint32_to_str(key_str, save.key);
     ESP_LOGVV(TAG, "Checking if NVS data %s has changed", key_str);
     if (this->is_changed_(this->nvs_handle, save, key_str)) {

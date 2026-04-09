@@ -10,8 +10,6 @@ namespace esphome::libretiny {
 
 static const char *const TAG = "preferences";
 
-static constexpr size_t KEY_BUFFER_SIZE = UINT32_MAX_STR_SIZE;
-
 struct NVSData {
   uint32_t key;
   SmallInlineBuffer<8> data;  // Most prefs fit in 8 bytes (covers fan, cover, select, etc.)
@@ -48,7 +46,7 @@ bool LibreTinyPreferenceBackend::load(uint8_t *data, size_t len) {
     }
   }
 
-  char key_str[KEY_BUFFER_SIZE];
+  char key_str[UINT32_MAX_STR_SIZE];
   uint32_to_str(key_str, this->key);
   fdb_blob_make(this->blob, data, len);
   size_t actual_len = fdb_kv_get_blob(this->db, key_str, this->blob);
@@ -90,7 +88,7 @@ bool LibreTinyPreferences::sync() {
   uint32_t last_key = 0;
 
   for (const auto &save : s_pending_save) {
-    char key_str[KEY_BUFFER_SIZE];
+    char key_str[UINT32_MAX_STR_SIZE];
     uint32_to_str(key_str, save.key);
     ESP_LOGVV(TAG, "Checking if FDB data %s has changed", key_str);
     if (this->is_changed_(&this->db, save, key_str)) {
