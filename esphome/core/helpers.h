@@ -1311,20 +1311,14 @@ inline char *buf_append_sep_str(char *buf, size_t remaining, char separator, con
 }
 
 /// Return 10^n for small non-negative n (0-3) as uint32_t, avoiding float.
-inline uint32_t small_pow10(int8_t n) {
-  if (n == 1) {
-    return 10;
-  } else if (n == 2) {
-    return 100;
-  } else if (n == 3) {
-    return 1000;
-  }
-  return 1;
-}
+inline uint32_t small_pow10(int8_t n) { return n == 3 ? 1000 : n == 2 ? 100 : n == 1 ? 10 : 1; }
 
-/// Write unsigned 32-bit integer to buffer. Returns pointer past last char written.
-/// Buffer must have at least 10 bytes free (max uint32 is 4294967295).
-inline char *uint32_to_str(char *buf, uint32_t val) {
+/// Minimum buffer size for uint32_to_str: 10 digits + null terminator.
+static constexpr size_t UINT32_MAX_STR_SIZE = 11;
+
+/// Write unsigned 32-bit integer to buffer (internal, no size check).
+/// Buffer must have at least 10 bytes free. Returns pointer past last char written.
+inline char *uint32_to_str_(char *buf, uint32_t val) {
   if (val == 0) {
     *buf++ = '0';
     return buf;
@@ -1338,10 +1332,19 @@ inline char *uint32_to_str(char *buf, uint32_t val) {
   return buf;
 }
 
-/// Write fractional digits with leading zeros to buffer.
+/// Write unsigned 32-bit integer to buffer with compile-time size check.
+/// Null-terminates the output. Returns number of chars written (excluding null).
+template<size_t N> inline size_t uint32_to_str(char (&buf)[N], uint32_t val) {
+  static_assert(N >= UINT32_MAX_STR_SIZE, "Buffer too small for uint32 (need 11 bytes)");
+  char *end = uint32_to_str_(buf, val);
+  *end = '\0';
+  return static_cast<size_t>(end - buf);
+}
+
+/// Write fractional digits with leading zeros to buffer (internal, no size check).
 /// frac is the fractional value, divisor is the highest place value (e.g. 100 for 3 digits).
 /// Returns pointer past last char written.
-inline char *frac_to_str(char *buf, uint32_t frac, uint32_t divisor) {
+inline char *frac_to_str_(char *buf, uint32_t frac, uint32_t divisor) {
   while (divisor > 0) {
     *buf++ = '0' + static_cast<char>(frac / divisor);
     frac %= divisor;

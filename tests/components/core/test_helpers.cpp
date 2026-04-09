@@ -16,7 +16,7 @@ TEST(SmallPow10, Three) { EXPECT_EQ(small_pow10(3), 1000u); }
 
 TEST(Uint32ToStr, Zero) {
   char buf[12];
-  char *end = uint32_to_str(buf, 0);
+  char *end = uint32_to_str_(buf, 0);
   *end = '\0';
   EXPECT_STREQ(buf, "0");
   EXPECT_EQ(end - buf, 1);
@@ -24,14 +24,14 @@ TEST(Uint32ToStr, Zero) {
 
 TEST(Uint32ToStr, SingleDigit) {
   char buf[12];
-  char *end = uint32_to_str(buf, 7);
+  char *end = uint32_to_str_(buf, 7);
   *end = '\0';
   EXPECT_STREQ(buf, "7");
 }
 
 TEST(Uint32ToStr, MultiDigit) {
   char buf[12];
-  char *end = uint32_to_str(buf, 12345);
+  char *end = uint32_to_str_(buf, 12345);
   *end = '\0';
   EXPECT_STREQ(buf, "12345");
   EXPECT_EQ(end - buf, 5);
@@ -39,7 +39,7 @@ TEST(Uint32ToStr, MultiDigit) {
 
 TEST(Uint32ToStr, Large) {
   char buf[12];
-  char *end = uint32_to_str(buf, 4294967295u);
+  char *end = uint32_to_str_(buf, 4294967295u);
   *end = '\0';
   EXPECT_STREQ(buf, "4294967295");
   EXPECT_EQ(end - buf, 10);
@@ -49,24 +49,36 @@ TEST(Uint32ToStr, PowersOfTen) {
   char buf[12];
   char *end;
 
-  end = uint32_to_str(buf, 10);
+  end = uint32_to_str_(buf, 10);
   *end = '\0';
   EXPECT_STREQ(buf, "10");
 
-  end = uint32_to_str(buf, 100);
+  end = uint32_to_str_(buf, 100);
   *end = '\0';
   EXPECT_STREQ(buf, "100");
 
-  end = uint32_to_str(buf, 1000);
+  end = uint32_to_str_(buf, 1000);
   *end = '\0';
   EXPECT_STREQ(buf, "1000");
 }
 
-// --- frac_to_str() ---
+// --- uint32_to_str() (public, template with size check) ---
+
+TEST(Uint32ToStr, PublicApi) {
+  char buf[UINT32_MAX_STR_SIZE];
+  EXPECT_EQ(uint32_to_str(buf, 0), 1u);
+  EXPECT_STREQ(buf, "0");
+  EXPECT_EQ(uint32_to_str(buf, 12345), 5u);
+  EXPECT_STREQ(buf, "12345");
+  EXPECT_EQ(uint32_to_str(buf, 4294967295u), 10u);
+  EXPECT_STREQ(buf, "4294967295");
+}
+
+// --- frac_to_str_() ---
 
 TEST(FracToStr, OneDigit) {
   char buf[8];
-  char *end = frac_to_str(buf, 5, 1);
+  char *end = frac_to_str_(buf, 5, 1);
   *end = '\0';
   EXPECT_STREQ(buf, "5");
   EXPECT_EQ(end - buf, 1);
@@ -74,14 +86,14 @@ TEST(FracToStr, OneDigit) {
 
 TEST(FracToStr, TwoDigits) {
   char buf[8];
-  char *end = frac_to_str(buf, 46, 10);
+  char *end = frac_to_str_(buf, 46, 10);
   *end = '\0';
   EXPECT_STREQ(buf, "46");
 }
 
 TEST(FracToStr, ThreeDigits) {
   char buf[8];
-  char *end = frac_to_str(buf, 456, 100);
+  char *end = frac_to_str_(buf, 456, 100);
   *end = '\0';
   EXPECT_STREQ(buf, "456");
   EXPECT_EQ(end - buf, 3);
@@ -89,22 +101,22 @@ TEST(FracToStr, ThreeDigits) {
 
 TEST(FracToStr, LeadingZeros) {
   char buf[8];
-  char *end = frac_to_str(buf, 1, 100);
+  char *end = frac_to_str_(buf, 1, 100);
   *end = '\0';
   EXPECT_STREQ(buf, "001");
 
-  end = frac_to_str(buf, 5, 10);
+  end = frac_to_str_(buf, 5, 10);
   *end = '\0';
   EXPECT_STREQ(buf, "05");
 }
 
 TEST(FracToStr, AllZeros) {
   char buf[8];
-  char *end = frac_to_str(buf, 0, 100);
+  char *end = frac_to_str_(buf, 0, 100);
   *end = '\0';
   EXPECT_STREQ(buf, "000");
 
-  end = frac_to_str(buf, 0, 1);
+  end = frac_to_str_(buf, 0, 1);
   *end = '\0';
   EXPECT_STREQ(buf, "0");
 }
@@ -112,7 +124,7 @@ TEST(FracToStr, AllZeros) {
 TEST(FracToStr, ZeroDivisor) {
   char buf[8];
   buf[0] = 'X';
-  char *end = frac_to_str(buf, 0, 0);
+  char *end = frac_to_str_(buf, 0, 0);
   EXPECT_EQ(end, buf);  // writes nothing
 }
 

@@ -539,10 +539,10 @@ static size_t value_accuracy_to_buf_fast(char *buf, float value, int8_t accuracy
   // float*int loses bits at exact-half boundaries (e.g. 23.45f*10 = 234.5 in float,
   // but snprintf sees 234.500007... via double promotion and rounds differently).
   uint32_t scaled = static_cast<uint32_t>(lrint(static_cast<double>(value) * mult));
-  p = uint32_to_str(p, scaled / mult);
+  p = uint32_to_str_(p, scaled / mult);
   if (accuracy_decimals > 0) {
     *p++ = '.';
-    p = frac_to_str(p, scaled % mult, mult / 10);
+    p = frac_to_str_(p, scaled % mult, mult / 10);
   }
   *p = '\0';
   return static_cast<size_t>(p - buf);
