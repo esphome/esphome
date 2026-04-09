@@ -45,6 +45,18 @@ def is_remote_package(package_config: dict) -> bool:
     return CONF_URL in package_config
 
 
+def is_package_definition(value: object) -> bool:
+    """Returns True if the value looks like a package definition rather than a config fragment.
+
+    Package definitions are IncludeFile objects, git URL shorthand strings, or
+    remote package dicts (containing a ``url:`` key).  Config fragments are
+    plain dicts that represent component configuration.
+    """
+    return isinstance(value, (yaml_util.IncludeFile, str)) or (
+        isinstance(value, dict) and is_remote_package(value)
+    )
+
+
 def valid_package_contents(package_config: dict) -> dict:
     """Validate that a package looks like a plausible ESPHome config fragment.
 
@@ -317,12 +329,20 @@ def _walk_packages(
     with cv.prepend_path(CONF_PACKAGES):
         if not isinstance(packages, dict):
             _walk_package_list(packages, callback, context)
-        elif (result := _walk_package_dict(packages, callback, context)) is not None:
-            if not validate_deprecated:
-                raise result
+        # Check if any values are clearly package definitions (not config
+        # fragments) before _walk_package_dict modifies the dict in-place.
+        # If so, this is a named packages dict and errors must be raised
+        # directly instead of triggering the deprecated single-package
+        # fallback.
+        elif (
+            is_named := any(is_package_definition(v) for v in packages.values()),
+            result := _walk_package_dict(packages, callback, context),
+        )[1] is None:
+            pass
+        elif not validate_deprecated or is_named:
+            raise result
+        else:
             # Fallback: treat the dict as a single deprecated package.
-            # Note: this catches *any* cv.Invalid from the callback, which may
-            # mask real validation errors in named package dicts.
             # This block can be removed once the single-package
             # deprecation period (2026.7.0) is over.
             config[CONF_PACKAGES] = [packages]

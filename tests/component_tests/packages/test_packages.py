@@ -5,7 +5,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass, merge_packages
+from esphome.components.packages import (
+    CONFIG_SCHEMA,
+    _walk_packages,
+    do_packages_pass,
+    is_package_definition,
+    merge_packages,
+)
 from esphome.components.substitutions import do_substitution_pass
 import esphome.config as config_module
 from esphome.config import resolve_extend_remove
@@ -77,6 +83,44 @@ def packages_pass(config):
     config = merge_packages(config)
     resolve_extend_remove(config)
     return config
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # IncludeFile objects are package definitions
+        (MagicMock(spec="IncludeFile"), True),
+        # Git URL shorthand strings are package definitions
+        ("github://esphome/firmware/base.yaml@main", True),
+        # Remote package dicts (with url key) are package definitions
+        ({"url": "https://github.com/esphome/firmware", "file": "base.yaml"}, True),
+        # Plain config dicts are NOT package definitions (they are config fragments)
+        ({"wifi": {"ssid": "test"}}, False),
+        # None is not a package definition
+        (None, False),
+        # Lists are not package definitions
+        ([{"wifi": {"ssid": "test"}}], False),
+        # Empty dicts are not package definitions
+        ({}, False),
+    ],
+    ids=[
+        "include_file",
+        "git_shorthand",
+        "remote_package",
+        "config_fragment",
+        "none",
+        "list",
+        "empty_dict",
+    ],
+)
+def test_is_package_definition(value: object, expected: bool) -> None:
+    """Test that is_package_definition correctly identifies package definitions."""
+    from esphome.yaml_util import IncludeFile
+
+    if isinstance(value, MagicMock):
+        # Replace the mock with a real spec check
+        value = MagicMock(spec=IncludeFile)
+    assert is_package_definition(value) is expected
 
 
 def test_package_unused(basic_esphome, basic_wifi) -> None:
@@ -1105,6 +1149,47 @@ def test_invalid_package_contents_masked_by_deprecation(
     }
     with pytest.raises(cv.Invalid):
         do_packages_pass(config)
+
+
+def test_named_dict_with_include_files_no_false_deprecation_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Named package dicts with IncludeFile values must not trigger the deprecated single-package fallback.
+
+    Regression test: when a named package dict contained IncludeFile values
+    and one of the packages had an error (e.g. jinja syntax error), the error
+    was incorrectly caught by the deprecated single-package fallback. This
+    caused a false deprecation warning and wrong error paths (packages->0
+    instead of packages-><package_name>).
+    """
+    from esphome.yaml_util import IncludeFile
+
+    good_include = MagicMock(spec=IncludeFile)
+    bad_include = MagicMock(spec=IncludeFile)
+
+    config = {
+        CONF_PACKAGES: {
+            "good_pkg": good_include,
+            "bad_pkg": bad_include,
+        },
+    }
+
+    call_count = 0
+
+    def failing_callback(package_config, context):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # First package processes fine
+            return {CONF_WIFI: {CONF_SSID: "test"}}
+        # Second package has an error (e.g. jinja syntax error)
+        raise cv.Invalid("simulated jinja error in bad_pkg")
+
+    with pytest.raises(cv.Invalid, match="simulated jinja error"):
+        _walk_packages(config, failing_callback)
+
+    # Must NOT emit the deprecated single-package warning
+    assert "deprecated" not in caplog.text.lower()
 
 
 def test_merge_packages_invalid_nested_type_raises() -> None:
