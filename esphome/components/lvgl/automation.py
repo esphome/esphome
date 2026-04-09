@@ -68,6 +68,7 @@ from .widgets import (
     get_widgets,
     set_obj_properties,
     wait_for_widgets,
+    widget_map,
 )
 
 # Record widgets that are used in a focused action here
@@ -468,7 +469,8 @@ def validate_refresh_config(config):
     synchronous=True,
 )
 async def obj_refresh_to_code(config, action_id, template_arg, args):
-    widget = await get_widgets(config)
+    await wait_for_widgets()
+    widget = await get_widgets(config) or list(widget_map.values())
 
     async def do_refresh(widget: Widget):
         # only update style properties that might have changed, i.e. are templated
