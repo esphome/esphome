@@ -178,6 +178,7 @@ bool ESP32BLE::ble_setup_() {
         ;
     }
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
+// For compatibility with (external) components that need BT Classic
 #ifdef USE_ESP32_BT_CLASSIC_COMPATIBILITY
       err = esp_bt_controller_enable(ESP_BT_MODE_BTDM);
 #else
@@ -194,6 +195,7 @@ bool ESP32BLE::ble_setup_() {
     }
   }
 
+// For compatibility with (external) components that need BT Classic
 #ifndef USE_ESP32_BT_CLASSIC_COMPATIBILITY
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 #endif
