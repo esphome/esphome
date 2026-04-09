@@ -1,3 +1,5 @@
+#include <array>
+#include <utility>
 #include "../common.h"
 
 namespace esphome::mitsubishi_cn105::testing {
@@ -5,11 +7,11 @@ namespace esphome::mitsubishi_cn105::testing {
 TEST(MitsubishiCN105ClimateTests, CelsiusTemperatureMappingMatchesExpectedValues) {
   const auto mapping = TemperatureMapping();
 
-  for (int t = 16.0; t <= 31.0; t += 1.0) {
+  for (int t = 16; t <= 31; ++t) {
     EXPECT_EQ(mapping.to_mitsubishi(t), t);
   }
 
-  for (int t = 16.0; t <= 31.0; t += 1.0) {
+  for (int t = 16; t <= 31; ++t) {
     EXPECT_EQ(mapping.from_mitsubishi(t), t);
   }
 }
@@ -29,7 +31,7 @@ TEST(MitsubishiCN105ClimateTests, FahrenheitTemperatureMappingMatchesExpectedVal
 
   for (const auto &[fahrenheit, mitsubishi_celsius] : cases) {
     const float actual = mapping.to_mitsubishi((fahrenheit - 32.0f) / 1.8f);
-    EXPECT_EQ(actual, mitsubishi_celsius);
+    EXPECT_FLOAT_EQ(actual, mitsubishi_celsius);
   }
 
   for (const auto &[fahrenheit, mitsubishi_celsius] : cases) {

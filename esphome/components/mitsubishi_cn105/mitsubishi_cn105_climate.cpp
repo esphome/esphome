@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <cinttypes>
+#include <cmath>
 #include "mitsubishi_cn105_climate.h"
 #include "esphome/core/log.h"
 
