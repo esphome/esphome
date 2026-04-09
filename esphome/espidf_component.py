@@ -355,6 +355,9 @@ def _patch_component(component: IDFComponent, first_pass: bool):
             )
         )
 
+        # Avoid warning about extraScript
+        component.data.get("build", {}).pop("extraScript", None)
+
     #
     # tonia/HeatpumpIR
     #
