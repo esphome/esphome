@@ -55,7 +55,8 @@ bool HOT EPaperWeActBW::transfer_data() {
       this->write_array(chunk, chunk_idx);
       this->disable();
       chunk_idx = 0;
-      if (millis() - start_time > MAX_TRANSFER_TIME) return false;
+      if (millis() - start_time > MAX_TRANSFER_TIME)
+        return false;
     }
   }
   if (chunk_idx != 0) {
