@@ -61,6 +61,7 @@ from .types import (
     lv_pseudo_button_t,
 )
 from .widgets import (
+    LvScrActType,
     Widget,
     WidgetType,
     add_widgets,
@@ -473,12 +474,15 @@ async def obj_refresh_to_code(config, action_id, template_arg, args):
     widget = await get_widgets(config) or list(widget_map.values())
 
     async def do_refresh(widget: Widget):
+        w_conf = widget.config
+        if isinstance(widget.type, LvScrActType):
+            widget = get_screen_active(widget.var)
         # only update style properties that might have changed, i.e. are templated
-        config = {k: v for k, v in widget.config.items() if isinstance(v, Lambda)}
+        config = {k: v for k, v in w_conf.items() if isinstance(v, Lambda)}
         await set_obj_properties(widget, config)
         # must pass all widget-specific options here, even if not templated, but only do so if at least one is
         # templated. First filter out common style properties.
-        config = {k: v for k, v in widget.config.items() if k not in ALL_STYLES}
+        config = {k: v for k, v in w_conf.items() if k not in ALL_STYLES}
         # Check if v is a Lambda or a dict, implying it is dynamic
         if any(isinstance(v, (Lambda, dict)) for v in config.values()):
             await widget.type.to_code(widget, config)
