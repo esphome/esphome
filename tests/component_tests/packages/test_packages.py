@@ -1,5 +1,6 @@
 """Tests for the packages component."""
 
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -1176,7 +1177,10 @@ def test_named_dict_with_include_files_no_false_deprecation_warning(
         # Second package has an error (e.g. jinja syntax error)
         raise cv.Invalid("simulated jinja error in bad_pkg")
 
-    with pytest.raises(cv.Invalid, match="simulated jinja error"):
+    with (
+        caplog.at_level(logging.WARNING),
+        pytest.raises(cv.Invalid, match="simulated jinja error"),
+    ):
         _walk_packages(config, failing_callback)
 
     # Must NOT emit the deprecated single-package warning
