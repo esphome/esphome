@@ -386,6 +386,11 @@ void SX127x::set_mode_(uint8_t modulation, uint8_t mode) {
       break;
     }
   }
+  if (mode == MODE_RX && (modulation == MOD_LORA || this->packet_mode_)) {
+    this->enable_loop();
+  } else {
+    this->disable_loop();
+  }
 }
 
 void SX127x::set_mode_rx() {
