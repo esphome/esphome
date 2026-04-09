@@ -349,6 +349,7 @@ This release adds support for several new sensors and hardware platforms:
 - **TM1637 buffer manipulation** - `set_buffer` method for raw segment writes and custom glyphs ([#13686](https://github.com/esphome/esphome/pull/13686))
 - **HUB75 scan wiring** - New `SCAN_1_8_32PX_FULL` wiring option ([#15130](https://github.com/esphome/esphome/pull/15130))
 - **`*/N` cron syntax** - Time-based automations now support `*/5` style step expressions ([#15434](https://github.com/esphome/esphome/pull/15434))
+- **microFLAC audio decoding** by [@kahrendt](https://github.com/kahrendt) - New FLAC decoder is **9% faster** on ESP32-S3 with CRC validation re-enabled, plus true streaming support that eliminates unnecessary memory copies ([#15372](https://github.com/esphome/esphome/pull/15372))
 
 ## Mitsubishi CN105 Climate Component
 
