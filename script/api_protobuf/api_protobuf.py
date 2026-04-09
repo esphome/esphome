@@ -1626,13 +1626,7 @@ def _generate_inline_encode_block(
         encode_line = ti.encode_content
         # Replace this-> with sub_msg reference for the sub-message fields
         encode_line = encode_line.replace("this->", "sub_msg.")
-        # Honor per-field ifdef guards
-        field_ifdef = (
-            get_field_opt(field, pb.field_ifdef, None)
-            if field.options.HasExtension(pb.field_ifdef)
-            else None
-        )
-        lines.extend(wrap_with_ifdef(encode_line, field_ifdef))
+        lines.extend(wrap_with_ifdef(encode_line, get_field_opt(field, pb.field_ifdef)))
 
     lines.append("*len_pos = static_cast<uint8_t>(pos - len_pos - 1);")
     return "\n".join(lines)
@@ -1666,13 +1660,7 @@ def _generate_inline_size_block(
         size_line = ti.get_size_calculation(f"sub_msg.{ti.field_name}", force)
         # Replace hardcoded this-> references (e.g., FixedArrayBytesType uses this->field_len)
         size_line = size_line.replace("this->", "sub_msg.")
-        # Honor per-field ifdef guards
-        field_ifdef = (
-            get_field_opt(field, pb.field_ifdef, None)
-            if field.options.HasExtension(pb.field_ifdef)
-            else None
-        )
-        lines.extend(wrap_with_ifdef(size_line, field_ifdef))
+        lines.extend(wrap_with_ifdef(size_line, get_field_opt(field, pb.field_ifdef)))
 
     return "\n".join(lines)
 
