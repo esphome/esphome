@@ -29,14 +29,6 @@ void VADModel::log_model_config() {
 bool StreamingModel::load_model_() {
   RAMAllocator<uint8_t> arena_allocator;
 
-  if (this->tensor_arena_ == nullptr) {
-    this->tensor_arena_ = arena_allocator.allocate(this->tensor_arena_size_);
-    if (this->tensor_arena_ == nullptr) {
-      ESP_LOGE(TAG, "Could not allocate the streaming model's tensor arena.");
-      return false;
-    }
-  }
-
   if (this->var_arena_ == nullptr) {
     this->var_arena_ = arena_allocator.allocate(STREAMING_MODEL_VARIABLE_ARENA_SIZE);
     if (this->var_arena_ == nullptr) {
@@ -51,6 +43,26 @@ bool StreamingModel::load_model_() {
   if (model->version() != TFLITE_SCHEMA_VERSION) {
     ESP_LOGE(TAG, "Streaming model's schema is not supported");
     return false;
+  }
+
+  // Probe for the actual required tensor arena size if not yet determined
+  if (!this->tensor_arena_size_probed_) {
+    size_t probed_size = this->probe_arena_size_();
+    if (probed_size > 0) {
+      ESP_LOGD(TAG, "Probed tensor arena size: %zu bytes", probed_size);
+      this->tensor_arena_size_ = probed_size;
+    } else {
+      ESP_LOGW(TAG, "Arena size probe failed, using manifest size: %zu bytes", this->tensor_arena_size_);
+    }
+    this->tensor_arena_size_probed_ = true;
+  }
+
+  if (this->tensor_arena_ == nullptr) {
+    this->tensor_arena_ = arena_allocator.allocate(this->tensor_arena_size_);
+    if (this->tensor_arena_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate the streaming model's tensor arena.");
+      return false;
+    }
   }
 
   if (this->interpreter_ == nullptr) {
@@ -92,6 +104,38 @@ bool StreamingModel::load_model_() {
   this->loaded_ = true;
   this->reset_probabilities();
   return true;
+}
+
+size_t StreamingModel::probe_arena_size_() {
+  RAMAllocator<uint8_t> arena_allocator;
+
+  // Try with the manifest size first, then escalate to 2x if it fails
+  size_t attempt_sizes[] = {this->tensor_arena_size_, this->tensor_arena_size_ * 2};
+
+  for (size_t attempt_size : attempt_sizes) {
+    uint8_t *probe_arena = arena_allocator.allocate(attempt_size);
+    if (probe_arena == nullptr) {
+      continue;
+    }
+
+    auto probe_interpreter = make_unique<tflite::MicroInterpreter>(
+        tflite::GetModel(this->model_start_), this->streaming_op_resolver_, probe_arena, attempt_size, this->mrv_);
+
+    size_t needed = 0;
+    if (probe_interpreter->AllocateTensors() == kTfLiteOk) {
+      // Add 16 and then round to nearest 16 for a safe alignment
+      needed = (probe_interpreter->arena_used_bytes() + 16) & ~15;
+    }
+
+    probe_interpreter.reset();
+    arena_allocator.deallocate(probe_arena, attempt_size);
+
+    if (needed > 0) {
+      return needed;
+    }
+  }
+
+  return 0;
 }
 
 void StreamingModel::unload_model() {
