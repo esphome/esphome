@@ -298,13 +298,25 @@ constexpr uint32_t VARINT_MAX_2_BYTE = 1 << 14;  // 16384
 class ProtoEncode {
  public:
   /// Write a multi-byte varint directly through a pos pointer.
+  /// Unrolled based on the compile-time max varint length for T
+  /// (5 bytes for uint32_t, 10 bytes for uint64_t). The explicit unroll gives
+  /// the compiler straight-line code with early exits instead of a
+  /// data-dependent back-edge branch, which measurably speeds up BLE raw
+  /// advertisement MAC encoding (always 7-byte varints) among other hot paths.
   template<typename T>
   static inline void encode_varint_raw_loop(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, T value) {
-    do {
+    constexpr int MAX_VARINT_BYTES = (sizeof(T) * 8 + 6) / 7;  // 5 for u32, 10 for u64
+#pragma GCC unroll 10
+    for (int i = 0; i < MAX_VARINT_BYTES - 1; i++) {
       PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
-      *pos++ = static_cast<uint8_t>(value | 0x80);
+      *pos++ = static_cast<uint8_t>(value) | 0x80;
       value >>= 7;
-    } while (value > 0x7F);
+      if (value <= 0x7F) {
+        PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
+        *pos++ = static_cast<uint8_t>(value);
+        return;
+      }
+    }
     PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
     *pos++ = static_cast<uint8_t>(value);
   }
