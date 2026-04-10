@@ -24,6 +24,18 @@ namespace esphome {
 /// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_truncate(const std::string &str, size_t length);
 
+/// Extract the part of the string until either the first occurrence of the specified character, or the end
+/// (requires str to be null-terminated).
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
+std::string str_until(const char *str, char ch);
+/// Extract the part of the string until either the first occurrence of the specified character, or the end.
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
+std::string str_until(const std::string &str, char ch);
+
+/// Convert the string to lower case.
+/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
+std::string str_lower_case(const std::string &str);
+
 /// Convert the string to upper case.
 /// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
 std::string str_upper_case(const std::string &str);

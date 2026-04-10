@@ -221,22 +221,7 @@ bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffi
   return strncasecmp(str + str_len - suffix_len, suffix, suffix_len) == 0;
 }
 
-// str_truncate moved to alloc_helpers.cpp
-std::string str_until(const char *str, char ch) {
-  const char *pos = strchr(str, ch);
-  return pos == nullptr ? std::string(str) : std::string(str, pos - str);
-}
-std::string str_until(const std::string &str, char ch) { return str.substr(0, str.find(ch)); }
-// wrapper around std::transform to run safely on functions from the ctype.h header
-// see https://en.cppreference.com/w/cpp/string/byte/toupper#Notes
-template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str) {
-  std::string result;
-  result.resize(str.length());
-  std::transform(str.begin(), str.end(), result.begin(), [](unsigned char ch) { return fn(ch); });
-  return result;
-}
-std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
-// str_upper_case, str_snake_case moved to alloc_helpers.cpp
+// str_truncate, str_until, str_lower_case, str_upper_case, str_snake_case moved to alloc_helpers.cpp
 char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
   if (buffer_size == 0) {
     return buffer;

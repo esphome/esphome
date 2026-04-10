@@ -17,6 +17,22 @@ std::string str_truncate(const std::string &str, size_t length) {
   return str.length() > length ? str.substr(0, length) : str;
 }
 
+std::string str_until(const char *str, char ch) {
+  const char *pos = strchr(str, ch);
+  return pos == nullptr ? std::string(str) : std::string(str, pos - str);
+}
+std::string str_until(const std::string &str, char ch) { return str.substr(0, str.find(ch)); }
+
+// wrapper around std::transform to run safely on functions from the ctype.h header
+// see https://en.cppreference.com/w/cpp/string/byte/toupper#Notes
+template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str) {
+  std::string result;
+  result.resize(str.length());
+  std::transform(str.begin(), str.end(), result.begin(), [](unsigned char ch) { return fn(ch); });
+  return result;
+}
+std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
+
 std::string str_upper_case(const std::string &str) {
   std::string result;
   result.resize(str.length());

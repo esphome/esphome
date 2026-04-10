@@ -987,15 +987,7 @@ inline bool str_endswith_ignore_case(const std::string &str, const char *suffix)
 
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
 
-/// Extract the part of the string until either the first occurrence of the specified character, or the end
-/// (requires str to be null-terminated).
-std::string str_until(const char *str, char ch);
-/// Extract the part of the string until either the first occurrence of the specified character, or the end.
-std::string str_until(const std::string &str, char ch);
-
-/// Convert the string to lower case.
-std::string str_lower_case(const std::string &str);
-// str_upper_case moved to alloc_helpers.h - remove this comment before 2026.11.0
+// str_until, str_lower_case, str_upper_case moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Convert a single char to snake_case: lowercase and space to underscore.
 constexpr char to_snake_case_char(char c) { return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }

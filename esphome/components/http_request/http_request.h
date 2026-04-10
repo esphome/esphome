@@ -400,7 +400,7 @@ class HttpRequestComponent : public Component {
     std::vector<std::string> lower;
     lower.reserve(collect_headers.size());
     for (const auto &h : collect_headers) {
-      lower.push_back(str_lower_case(h));
+      lower.push_back(str_lower_case(h));  // NOLINT
     }
     return this->perform(url, method, body, request_headers, lower);
   }
@@ -415,7 +415,7 @@ class HttpRequestComponent : public Component {
     std::vector<std::string> lower;
     lower.reserve(collect_headers.size());
     for (const auto &h : collect_headers) {
-      lower.push_back(str_lower_case(h));
+      lower.push_back(str_lower_case(h));  // NOLINT
     }
     return this->perform(url, method, body, std::vector<Header>(request_headers.begin(), request_headers.end()), lower);
   }
