@@ -18,7 +18,7 @@ static const char *const TAG = "ethernet";
 
 void EthernetComponent::setup() {
   // Configure SPI pins
-#if !defined(USE_ETHERNET_W6300)
+#if !defined(USE_ETHERNET_W6300) && !defined(USE_ETHERNET_W55RP20)
   SPI.setRX(this->miso_pin_);
   SPI.setTX(this->mosi_pin_);
   SPI.setSCK(this->clk_pin_);
@@ -26,6 +26,7 @@ void EthernetComponent::setup() {
   // W6300 uses PIO QSPI with hardcoded pins, not Arduino SPI.
   // SPI pin config is skipped; Wiznet6300lwIPFixed (needsSPI()=false)
   // prevents LwipIntfDev::begin() from calling SPI.begin().
+  // W55RP20 has the Ethernet MAC+PHY integrated with internal SPI — only CS pin is needed.
 
   // Toggle reset pin if configured
   if (this->reset_pin_ >= 0) {
@@ -51,6 +52,8 @@ void EthernetComponent::setup() {
   this->eth_ = new Wiznet6300lwIPFixed(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #elif defined(USE_ETHERNET_ENC28J60)
   this->eth_ = new ENC28J60lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
+#elif defined(USE_ETHERNET_W55RP20)
+  this->eth_ = new Wiznet55rp20lwIP(this->cs_pin_);  // NOLINT — internal SPI, CS only
 #endif
 
   // Set hostname before begin() so the LWIP netif gets it
@@ -109,9 +112,11 @@ void EthernetComponent::loop() {
   // value, which is benign for polling.
   if (this->eth_ != nullptr && now - this->last_link_check_ >= LINK_CHECK_INTERVAL) {
     this->last_link_check_ = now;
-#if defined(USE_ETHERNET_W5100)
+#if defined(USE_ETHERNET_W5100) || defined(USE_ETHERNET_W55RP20)
     // W5100 can't detect link (isLinkDetectable() returns false), so linkStatus()
-    // returns Unknown — assume link is up after successful begin()
+    // returns Unknown — assume link is up after successful begin().
+    // W55RP20 isLinked() reads PHY register which may not report correctly
+    // on all boards despite the physical link being up — use connected() only.
     bool link_up = true;
 #else
     bool link_up = this->eth_->linkStatus() == LinkON;
@@ -198,8 +203,18 @@ void EthernetComponent::dump_config() {
   type_str = "W6300";
 #elif defined(USE_ETHERNET_ENC28J60)
   type_str = "ENC28J60";
+#elif defined(USE_ETHERNET_W55RP20)
+  type_str = "W55RP20";
 #endif
-#if defined(USE_ETHERNET_W6300)
+#if defined(USE_ETHERNET_W55RP20)
+  // W55RP20 has internal SPI — only CS pin is relevant
+  ESP_LOGCONFIG(TAG,
+                "Ethernet:\n"
+                "  Type: %s (internal SPI)\n"
+                "  Connected: %s\n"
+                "  CS Pin: %u",
+                type_str, YESNO(this->is_connected()), this->cs_pin_);
+#elif defined(USE_ETHERNET_W6300)
   // W6300 uses PIO QSPI with hardcoded pins — SPI pin fields are not used
   ESP_LOGCONFIG(TAG,
                 "Ethernet:\n"
