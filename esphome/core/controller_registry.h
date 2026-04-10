@@ -34,7 +34,7 @@ class ControllerRegistry {
    * Controllers should call this in their setup() method.
    * Typically only APIServer and WebServer register.
    */
-  static void register_controller(Controller *controller);
+  static void register_controller(Controller *controller) { controllers.push_back(controller); }
 
 // Notify method declarations (generated from entity_types.inc)
 // NOLINTBEGIN(bugprone-macro-parentheses)
