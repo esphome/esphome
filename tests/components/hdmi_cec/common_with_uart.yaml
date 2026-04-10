@@ -17,12 +17,15 @@ hdmi_cec:
   promiscuous_mode: true
   monitor_mode: false
   on_message:
-    # Give Device Power Status
-    - opcode: 0x8F
+    - opcode: 0x8F  # Give Device Power Status
       then:
-        - lambda: !lambda |-
-            id(cec).send(source, {0x90, 0x01});
-     # Volume Up from TV remote
-    - data: [0x44, 0x41]
+        hdmi_cec.send:
+          destination: 0      # answer to TV
+          data: [0x90, 0x01]  # power is 'standby'
+    - opcode: 0x8C  # Give Device VendorID
+      then:
+        - lambda: |-
+            id(cec).send(0xf, {0x87, 0x00, 0x09, 0xb0}); // broadcast myself as Onkyo
+    - data: [0x44, 0x41]  # Volume Up from TV remote
       then:
         - logger.log: "HDMI-CEC Volume Up"

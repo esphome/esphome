@@ -1,4 +1,3 @@
-# Note: this target relies on the missing '#define ESPHOME_THREAD_MULTI_ATOMICS'
 # tested with LOLIN D1 mini which has an esp8266ex
 substitutions:
   uart_pin: GPIO2
