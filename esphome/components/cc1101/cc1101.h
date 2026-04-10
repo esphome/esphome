@@ -26,6 +26,9 @@ class CC1101Component : public Component,
   void loop() override;
   void dump_config() override;
 
+  // Apply chip configuration: RES strobe, verify, write all registers, enter RX.
+  void configure();
+
   // Actions
   void begin_tx();
   void begin_rx();

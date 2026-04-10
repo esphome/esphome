@@ -115,6 +115,28 @@ void CC1101Component::setup() {
   this->cs_->digital_write(false);
   delay(5);
 
+  if (this->gdo0_pin_ != nullptr) {
+    this->gdo0_pin_->setup();
+  }
+
+  this->configure();
+  if (this->is_failed()) {
+    return;
+  }
+
+  // Defer pin mode setup until after all components have completed setup()
+  // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
+  if (this->gdo0_pin_ != nullptr) {
+    this->defer([this]() {
+      this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
+      if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+        this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
+      }
+    });
+  }
+}
+
+void CC1101Component::configure() {
   this->strobe_(Command::RES);
   delay(5);
 
@@ -128,11 +150,6 @@ void CC1101Component::setup() {
     return;
   }
 
-  // Setup GDO0 pin if configured
-  if (this->gdo0_pin_ != nullptr) {
-    this->gdo0_pin_->setup();
-  }
-
   this->initialized_ = true;
 
   for (uint8_t i = 0; i <= static_cast<uint8_t>(Register::TEST0); i++) {
@@ -142,20 +159,10 @@ void CC1101Component::setup() {
     this->write_(static_cast<Register>(i));
   }
   this->set_output_power(this->output_power_requested_);
+
   if (!this->enter_rx_()) {
     this->mark_failed();
     return;
-  }
-
-  // Defer pin mode setup until after all components have completed setup()
-  // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
-  if (this->gdo0_pin_ != nullptr) {
-    this->defer([this]() {
-      this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
-      if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
-        this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
-      }
-    });
   }
 }
 
@@ -272,8 +279,8 @@ void CC1101Component::begin_rx() {
 }
 
 void CC1101Component::reset() {
-  this->strobe_(Command::RES);
-  this->setup();
+  ESP_LOGD(TAG, "Resetting CC1101");
+  this->configure();
 }
 
 void CC1101Component::set_idle() {
