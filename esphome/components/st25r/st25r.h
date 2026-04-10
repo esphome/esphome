@@ -147,10 +147,10 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   std::vector<std::string> tags_this_scan_;
 
   // IRQ_MAIN bit definitions
-  static const uint8_t IRQ_RXE = 0x10;
-  static const uint8_t IRQ_TXE = 0x08;
-  static const uint8_t IRQ_COL = 0x04;
-  static const uint8_t IRQ_NRE = 0x01;
+  static constexpr uint8_t IRQ_RXE = 0x10;
+  static constexpr uint8_t IRQ_TXE = 0x08;
+  static constexpr uint8_t IRQ_COL = 0x04;
+  static constexpr uint8_t IRQ_NRE = 0x01;
 
   State state_{STATE_IDLE};
   uint32_t last_state_change_{0};
