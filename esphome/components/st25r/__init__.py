@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_ON_TAG,
     CONF_ON_TAG_REMOVED,
     CONF_RESET_PIN,
-    CONF_TRIGGER_ID,
 )
 
 CODEOWNERS = ["@JohnMcLear"]
@@ -20,29 +19,14 @@ CONF_RF_POWER = "rf_power"
 st25r_ns = cg.esphome_ns.namespace("st25r")
 ST25R = st25r_ns.class_("ST25R", nfc.Nfcc, cg.PollingComponent)
 
-ST25RTagTrigger = st25r_ns.class_(
-    "ST25RTagTrigger", automation.Trigger.template(cg.std_string)
-)
-ST25RTagRemovedTrigger = st25r_ns.class_(
-    "ST25RTagRemovedTrigger", automation.Trigger.template(cg.std_string)
-)
-
 ST25R_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ST25R),
         cv.Optional(CONF_IRQ_PIN): pins.internal_gpio_input_pin_schema,
         cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
         cv.Optional(CONF_RF_POWER, default=15): cv.int_range(min=0, max=15),
-        cv.Optional(CONF_ON_TAG): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ST25RTagTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_TAG_REMOVED): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ST25RTagRemovedTrigger),
-            }
-        ),
+        cv.Optional(CONF_ON_TAG): automation.validate_automation({}),
+        cv.Optional(CONF_ON_TAG_REMOVED): automation.validate_automation({}),
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -61,11 +45,11 @@ async def setup_st25r(var: cg.Pvariable, config: dict) -> None:
     cg.add(var.set_rf_power(config[CONF_RF_POWER]))
 
     for conf in config.get(CONF_ON_TAG, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        cg.add(var.register_on_tag_trigger(trigger))
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_tag_callback", [(cg.std_string, "x")], conf
+        )
 
     for conf in config.get(CONF_ON_TAG_REMOVED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        cg.add(var.register_on_tag_removed_trigger(trigger))
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_tag_removed_callback", [(cg.std_string, "x")], conf
+        )

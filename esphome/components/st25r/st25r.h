@@ -74,24 +74,6 @@ enum ST25RCommand : uint8_t {
   ST25R_CMD_MEASURE_VDD = 0xDF,
 };
 
-class ST25R;
-
-class ST25RTagTrigger : public Trigger<std::string> {
- public:
-  explicit ST25RTagTrigger(ST25R *parent) : parent_(parent) {}
-
- protected:
-  ST25R *parent_;
-};
-
-class ST25RTagRemovedTrigger : public Trigger<std::string> {
- public:
-  explicit ST25RTagRemovedTrigger(ST25R *parent) : parent_(parent) {}
-
- protected:
-  ST25R *parent_;
-};
-
 class ST25R : public PollingComponent, public nfc::Nfcc {
  public:
   enum State {
@@ -112,8 +94,10 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   void set_irq_pin(InternalGPIOPin *irq_pin) { this->irq_pin_ = irq_pin; }
   void set_rf_power(uint8_t power) { this->rf_power_ = power; }
 
-  void register_on_tag_trigger(ST25RTagTrigger *trig) { this->on_tag_triggers_.push_back(trig); }
-  void register_on_tag_removed_trigger(ST25RTagRemovedTrigger *trig) { this->on_tag_removed_triggers_.push_back(trig); }
+  template<typename F> void add_on_tag_callback(F &&callback) { this->on_tag_callback_.add(std::forward<F>(callback)); }
+  template<typename F> void add_on_tag_removed_callback(F &&callback) {
+    this->on_tag_removed_callback_.add(std::forward<F>(callback));
+  }
 
   bool is_tag_present() const { return !this->present_tags_.empty(); }
 
@@ -172,8 +156,8 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   std::string current_uid_;
   uint8_t last_sak_{0};
 
-  std::vector<ST25RTagTrigger *> on_tag_triggers_;
-  std::vector<ST25RTagRemovedTrigger *> on_tag_removed_triggers_;
+  CallbackManager<void(std::string)> on_tag_callback_;
+  CallbackManager<void(std::string)> on_tag_removed_callback_;
 };
 
 }  // namespace esphome::st25r

@@ -278,8 +278,7 @@ void ST25R::finalize_scan_() {
   }
   for (const auto &uid : to_remove) {
     ESP_LOGI(TAG, "Tag removed: %s", uid.c_str());
-    for (auto *trigger : this->on_tag_removed_triggers_)
-      trigger->trigger(uid);
+    this->on_tag_removed_callback_.call(uid);
     this->tags_data_.erase(uid);
     this->present_tags_.erase(uid);
   }
@@ -288,8 +287,7 @@ void ST25R::finalize_scan_() {
   for (const auto &uid : this->tags_this_scan_) {
     if (!this->present_tags_.count(uid)) {
       this->present_tags_[uid] = 0;
-      for (auto *trigger : this->on_tag_triggers_)
-        trigger->trigger(uid);
+      this->on_tag_callback_.call(uid);
       if (this->tags_data_.count(uid) && this->tags_data_[uid]) {
         for (auto *listener : this->tag_listeners_)
           listener->tag_on(*this->tags_data_[uid]);
