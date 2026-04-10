@@ -39,78 +39,7 @@
 #include "esphome/components/runtime_stats/runtime_stats.h"
 #endif
 #include "esphome/core/wake.h"
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
-#ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
-#endif
-#ifdef USE_SWITCH
-#include "esphome/components/switch/switch.h"
-#endif
-#ifdef USE_BUTTON
-#include "esphome/components/button/button.h"
-#endif
-#ifdef USE_TEXT_SENSOR
-#include "esphome/components/text_sensor/text_sensor.h"
-#endif
-#ifdef USE_FAN
-#include "esphome/components/fan/fan.h"
-#endif
-#ifdef USE_CLIMATE
-#include "esphome/components/climate/climate.h"
-#endif
-#ifdef USE_LIGHT
-#include "esphome/components/light/light_state.h"
-#endif
-#ifdef USE_COVER
-#include "esphome/components/cover/cover.h"
-#endif
-#ifdef USE_NUMBER
-#include "esphome/components/number/number.h"
-#endif
-#ifdef USE_DATETIME_DATE
-#include "esphome/components/datetime/date_entity.h"
-#endif
-#ifdef USE_DATETIME_TIME
-#include "esphome/components/datetime/time_entity.h"
-#endif
-#ifdef USE_DATETIME_DATETIME
-#include "esphome/components/datetime/datetime_entity.h"
-#endif
-#ifdef USE_TEXT
-#include "esphome/components/text/text.h"
-#endif
-#ifdef USE_SELECT
-#include "esphome/components/select/select.h"
-#endif
-#ifdef USE_LOCK
-#include "esphome/components/lock/lock.h"
-#endif
-#ifdef USE_VALVE
-#include "esphome/components/valve/valve.h"
-#endif
-#ifdef USE_MEDIA_PLAYER
-#include "esphome/components/media_player/media_player.h"
-#endif
-#ifdef USE_ALARM_CONTROL_PANEL
-#include "esphome/components/alarm_control_panel/alarm_control_panel.h"
-#endif
-#ifdef USE_WATER_HEATER
-#include "esphome/components/water_heater/water_heater.h"
-#endif
-#ifdef USE_INFRARED
-#include "esphome/components/infrared/infrared.h"
-#endif
-#ifdef USE_SERIAL_PROXY
-#include "esphome/components/serial_proxy/serial_proxy.h"
-#endif
-#ifdef USE_EVENT
-#include "esphome/components/event/event.h"
-#endif
-#ifdef USE_UPDATE
-#include "esphome/components/update/update_entity.h"
-#endif
+#include "esphome/core/entity_includes.h"
 
 namespace esphome::socket {
 #ifdef USE_HOST
@@ -190,107 +119,22 @@ class Application {
   void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
 
-#ifdef USE_BINARY_SENSOR
-  void register_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
-    this->binary_sensors_.push_back(binary_sensor);
-  }
-#endif
-
-#ifdef USE_SENSOR
-  void register_sensor(sensor::Sensor *sensor) { this->sensors_.push_back(sensor); }
-#endif
-
-#ifdef USE_SWITCH
-  void register_switch(switch_::Switch *a_switch) { this->switches_.push_back(a_switch); }
-#endif
-
-#ifdef USE_BUTTON
-  void register_button(button::Button *button) { this->buttons_.push_back(button); }
-#endif
-
-#ifdef USE_TEXT_SENSOR
-  void register_text_sensor(text_sensor::TextSensor *sensor) { this->text_sensors_.push_back(sensor); }
-#endif
-
-#ifdef USE_FAN
-  void register_fan(fan::Fan *state) { this->fans_.push_back(state); }
-#endif
-
-#ifdef USE_COVER
-  void register_cover(cover::Cover *cover) { this->covers_.push_back(cover); }
-#endif
-
-#ifdef USE_CLIMATE
-  void register_climate(climate::Climate *climate) { this->climates_.push_back(climate); }
-#endif
-
-#ifdef USE_LIGHT
-  void register_light(light::LightState *light) { this->lights_.push_back(light); }
-#endif
-
-#ifdef USE_NUMBER
-  void register_number(number::Number *number) { this->numbers_.push_back(number); }
-#endif
-
-#ifdef USE_DATETIME_DATE
-  void register_date(datetime::DateEntity *date) { this->dates_.push_back(date); }
-#endif
-
-#ifdef USE_DATETIME_TIME
-  void register_time(datetime::TimeEntity *time) { this->times_.push_back(time); }
-#endif
-
-#ifdef USE_DATETIME_DATETIME
-  void register_datetime(datetime::DateTimeEntity *datetime) { this->datetimes_.push_back(datetime); }
-#endif
-
-#ifdef USE_TEXT
-  void register_text(text::Text *text) { this->texts_.push_back(text); }
-#endif
-
-#ifdef USE_SELECT
-  void register_select(select::Select *select) { this->selects_.push_back(select); }
-#endif
-
-#ifdef USE_LOCK
-  void register_lock(lock::Lock *a_lock) { this->locks_.push_back(a_lock); }
-#endif
-
-#ifdef USE_VALVE
-  void register_valve(valve::Valve *valve) { this->valves_.push_back(valve); }
-#endif
-
-#ifdef USE_MEDIA_PLAYER
-  void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
-#endif
-
-#ifdef USE_ALARM_CONTROL_PANEL
-  void register_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
-    this->alarm_control_panels_.push_back(a_alarm_control_panel);
-  }
-#endif
-
-#ifdef USE_WATER_HEATER
-  void register_water_heater(water_heater::WaterHeater *water_heater) { this->water_heaters_.push_back(water_heater); }
-#endif
-
-#ifdef USE_INFRARED
-  void register_infrared(infrared::Infrared *infrared) { this->infrareds_.push_back(infrared); }
-#endif
+// Entity register methods (generated from entity_types.inc)
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) \
+  void register_##singular(type *obj) { this->plural##_.push_back(obj); }
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.inc"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+  // NOLINTEND(bugprone-macro-parentheses)
 
 #ifdef USE_SERIAL_PROXY
   void register_serial_proxy(serial_proxy::SerialProxy *proxy) {
     proxy->set_instance_index(this->serial_proxies_.size());
     this->serial_proxies_.push_back(proxy);
   }
-#endif
-
-#ifdef USE_EVENT
-  void register_event(event::Event *event) { this->events_.push_back(event); }
-#endif
-
-#ifdef USE_UPDATE
-  void register_update(update::UpdateEntity *update) { this->updates_.push_back(update); }
 #endif
 
   /// Reserve space for components to avoid memory fragmentation
@@ -428,106 +272,18 @@ class Application {
 #ifdef USE_AREAS
   const auto &get_areas() { return this->areas_; }
 #endif
-#ifdef USE_BINARY_SENSOR
-  auto &get_binary_sensors() const { return this->binary_sensors_; }
-  GET_ENTITY_METHOD(binary_sensor::BinarySensor, binary_sensor, binary_sensors)
-#endif
-#ifdef USE_SWITCH
-  auto &get_switches() const { return this->switches_; }
-  GET_ENTITY_METHOD(switch_::Switch, switch, switches)
-#endif
-#ifdef USE_BUTTON
-  auto &get_buttons() const { return this->buttons_; }
-  GET_ENTITY_METHOD(button::Button, button, buttons)
-#endif
-#ifdef USE_SENSOR
-  auto &get_sensors() const { return this->sensors_; }
-  GET_ENTITY_METHOD(sensor::Sensor, sensor, sensors)
-#endif
-#ifdef USE_TEXT_SENSOR
-  auto &get_text_sensors() const { return this->text_sensors_; }
-  GET_ENTITY_METHOD(text_sensor::TextSensor, text_sensor, text_sensors)
-#endif
-#ifdef USE_FAN
-  auto &get_fans() const { return this->fans_; }
-  GET_ENTITY_METHOD(fan::Fan, fan, fans)
-#endif
-#ifdef USE_COVER
-  auto &get_covers() const { return this->covers_; }
-  GET_ENTITY_METHOD(cover::Cover, cover, covers)
-#endif
-#ifdef USE_LIGHT
-  auto &get_lights() const { return this->lights_; }
-  GET_ENTITY_METHOD(light::LightState, light, lights)
-#endif
-#ifdef USE_CLIMATE
-  auto &get_climates() const { return this->climates_; }
-  GET_ENTITY_METHOD(climate::Climate, climate, climates)
-#endif
-#ifdef USE_NUMBER
-  auto &get_numbers() const { return this->numbers_; }
-  GET_ENTITY_METHOD(number::Number, number, numbers)
-#endif
-#ifdef USE_DATETIME_DATE
-  auto &get_dates() const { return this->dates_; }
-  GET_ENTITY_METHOD(datetime::DateEntity, date, dates)
-#endif
-#ifdef USE_DATETIME_TIME
-  auto &get_times() const { return this->times_; }
-  GET_ENTITY_METHOD(datetime::TimeEntity, time, times)
-#endif
-#ifdef USE_DATETIME_DATETIME
-  auto &get_datetimes() const { return this->datetimes_; }
-  GET_ENTITY_METHOD(datetime::DateTimeEntity, datetime, datetimes)
-#endif
-#ifdef USE_TEXT
-  auto &get_texts() const { return this->texts_; }
-  GET_ENTITY_METHOD(text::Text, text, texts)
-#endif
-#ifdef USE_SELECT
-  auto &get_selects() const { return this->selects_; }
-  GET_ENTITY_METHOD(select::Select, select, selects)
-#endif
-#ifdef USE_LOCK
-  auto &get_locks() const { return this->locks_; }
-  GET_ENTITY_METHOD(lock::Lock, lock, locks)
-#endif
-#ifdef USE_VALVE
-  auto &get_valves() const { return this->valves_; }
-  GET_ENTITY_METHOD(valve::Valve, valve, valves)
-#endif
-#ifdef USE_MEDIA_PLAYER
-  auto &get_media_players() const { return this->media_players_; }
-  GET_ENTITY_METHOD(media_player::MediaPlayer, media_player, media_players)
-#endif
-
-#ifdef USE_ALARM_CONTROL_PANEL
-  auto &get_alarm_control_panels() const { return this->alarm_control_panels_; }
-  GET_ENTITY_METHOD(alarm_control_panel::AlarmControlPanel, alarm_control_panel, alarm_control_panels)
-#endif
-
-#ifdef USE_WATER_HEATER
-  auto &get_water_heaters() const { return this->water_heaters_; }
-  GET_ENTITY_METHOD(water_heater::WaterHeater, water_heater, water_heaters)
-#endif
-
-#ifdef USE_INFRARED
-  auto &get_infrareds() const { return this->infrareds_; }
-  GET_ENTITY_METHOD(infrared::Infrared, infrared, infrareds)
-#endif
+// Entity getter methods (generated from entity_types.inc)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) \
+  auto &get_##plural() const { return this->plural##_; } \
+  GET_ENTITY_METHOD(type, singular, plural)
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.inc"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
 
 #ifdef USE_SERIAL_PROXY
   auto &get_serial_proxies() const { return this->serial_proxies_; }
-#endif
-
-#ifdef USE_EVENT
-  auto &get_events() const { return this->events_; }
-  GET_ENTITY_METHOD(event::Event, event, events)
-#endif
-
-#ifdef USE_UPDATE
-  auto &get_updates() const { return this->updates_; }
-  GET_ENTITY_METHOD(update::UpdateEntity, update, updates)
 #endif
 
   Scheduler scheduler;
@@ -705,78 +461,16 @@ class Application {
 #ifdef USE_AREAS
   StaticVector<Area *, ESPHOME_AREA_COUNT> areas_{};
 #endif
-#ifdef USE_BINARY_SENSOR
-  StaticVector<binary_sensor::BinarySensor *, ESPHOME_ENTITY_BINARY_SENSOR_COUNT> binary_sensors_{};
-#endif
-#ifdef USE_SWITCH
-  StaticVector<switch_::Switch *, ESPHOME_ENTITY_SWITCH_COUNT> switches_{};
-#endif
-#ifdef USE_BUTTON
-  StaticVector<button::Button *, ESPHOME_ENTITY_BUTTON_COUNT> buttons_{};
-#endif
-#ifdef USE_EVENT
-  StaticVector<event::Event *, ESPHOME_ENTITY_EVENT_COUNT> events_{};
-#endif
-#ifdef USE_SENSOR
-  StaticVector<sensor::Sensor *, ESPHOME_ENTITY_SENSOR_COUNT> sensors_{};
-#endif
-#ifdef USE_TEXT_SENSOR
-  StaticVector<text_sensor::TextSensor *, ESPHOME_ENTITY_TEXT_SENSOR_COUNT> text_sensors_{};
-#endif
-#ifdef USE_FAN
-  StaticVector<fan::Fan *, ESPHOME_ENTITY_FAN_COUNT> fans_{};
-#endif
-#ifdef USE_COVER
-  StaticVector<cover::Cover *, ESPHOME_ENTITY_COVER_COUNT> covers_{};
-#endif
-#ifdef USE_CLIMATE
-  StaticVector<climate::Climate *, ESPHOME_ENTITY_CLIMATE_COUNT> climates_{};
-#endif
-#ifdef USE_LIGHT
-  StaticVector<light::LightState *, ESPHOME_ENTITY_LIGHT_COUNT> lights_{};
-#endif
-#ifdef USE_NUMBER
-  StaticVector<number::Number *, ESPHOME_ENTITY_NUMBER_COUNT> numbers_{};
-#endif
-#ifdef USE_DATETIME_DATE
-  StaticVector<datetime::DateEntity *, ESPHOME_ENTITY_DATE_COUNT> dates_{};
-#endif
-#ifdef USE_DATETIME_TIME
-  StaticVector<datetime::TimeEntity *, ESPHOME_ENTITY_TIME_COUNT> times_{};
-#endif
-#ifdef USE_DATETIME_DATETIME
-  StaticVector<datetime::DateTimeEntity *, ESPHOME_ENTITY_DATETIME_COUNT> datetimes_{};
-#endif
-#ifdef USE_SELECT
-  StaticVector<select::Select *, ESPHOME_ENTITY_SELECT_COUNT> selects_{};
-#endif
-#ifdef USE_TEXT
-  StaticVector<text::Text *, ESPHOME_ENTITY_TEXT_COUNT> texts_{};
-#endif
-#ifdef USE_LOCK
-  StaticVector<lock::Lock *, ESPHOME_ENTITY_LOCK_COUNT> locks_{};
-#endif
-#ifdef USE_VALVE
-  StaticVector<valve::Valve *, ESPHOME_ENTITY_VALVE_COUNT> valves_{};
-#endif
-#ifdef USE_MEDIA_PLAYER
-  StaticVector<media_player::MediaPlayer *, ESPHOME_ENTITY_MEDIA_PLAYER_COUNT> media_players_{};
-#endif
-#ifdef USE_ALARM_CONTROL_PANEL
-  StaticVector<alarm_control_panel::AlarmControlPanel *, ESPHOME_ENTITY_ALARM_CONTROL_PANEL_COUNT>
-      alarm_control_panels_{};
-#endif
-#ifdef USE_WATER_HEATER
-  StaticVector<water_heater::WaterHeater *, ESPHOME_ENTITY_WATER_HEATER_COUNT> water_heaters_{};
-#endif
-#ifdef USE_INFRARED
-  StaticVector<infrared::Infrared *, ESPHOME_ENTITY_INFRARED_COUNT> infrareds_{};
-#endif
+// Entity StaticVector fields (generated from entity_types.inc)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) StaticVector<type *, count> plural##_{};
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.inc"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+
 #ifdef USE_SERIAL_PROXY
   StaticVector<serial_proxy::SerialProxy *, SERIAL_PROXY_COUNT> serial_proxies_{};
-#endif
-#ifdef USE_UPDATE
-  StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};
 #endif
 };
 
