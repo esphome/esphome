@@ -303,9 +303,13 @@ class ProtoEncode {
   /// the compiler straight-line code with early exits instead of a
   /// data-dependent back-edge branch, which measurably speeds up BLE raw
   /// advertisement MAC encoding (always 7-byte varints) among other hot paths.
+  ///
+  /// Takes/returns pos by value so this function can remain out-of-line without
+  /// forcing the caller to spill pos to memory on every byte write. Callers
+  /// (which are ALWAYS_INLINE) should assign the returned pos back to their
+  /// local. Code size win vs. inlining the whole unroll at every call site.
   template<typename T>
-  static inline void ESPHOME_ALWAYS_INLINE encode_varint_raw_loop(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
-                                                                  T value) {
+  static uint8_t *encode_varint_raw_loop(uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM, T value) {
     constexpr int MAX_VARINT_BYTES = (sizeof(T) * 8 + 6) / 7;  // 5 for u32, 10 for u64
 #pragma GCC unroll 10
     for (int i = 0; i < MAX_VARINT_BYTES - 1; i++) {
@@ -315,11 +319,12 @@ class ProtoEncode {
       if (value <= 0x7F) {
         PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
         *pos++ = static_cast<uint8_t>(value);
-        return;
+        return pos;
       }
     }
     PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
     *pos++ = static_cast<uint8_t>(value);
+    return pos;
   }
   static inline void ESPHOME_ALWAYS_INLINE encode_varint_raw(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
                                                              uint32_t value) {
@@ -328,7 +333,7 @@ class ProtoEncode {
       *pos++ = static_cast<uint8_t>(value);
       return;
     }
-    encode_varint_raw_loop(pos PROTO_ENCODE_DEBUG_ARG, value);
+    pos = encode_varint_raw_loop(pos PROTO_ENCODE_DEBUG_ARG, value);
   }
   /// Encode a varint that is expected to be 1-2 bytes (e.g. zigzag RSSI, small lengths).
   static inline void ESPHOME_ALWAYS_INLINE encode_varint_raw_short(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
@@ -344,7 +349,7 @@ class ProtoEncode {
       *pos++ = static_cast<uint8_t>(value >> 7);
       return;
     }
-    encode_varint_raw_loop(pos PROTO_ENCODE_DEBUG_ARG, value);
+    pos = encode_varint_raw_loop(pos PROTO_ENCODE_DEBUG_ARG, value);
   }
   static inline void ESPHOME_ALWAYS_INLINE encode_varint_raw_64(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
                                                                 uint64_t value) {
@@ -353,7 +358,7 @@ class ProtoEncode {
       *pos++ = static_cast<uint8_t>(value);
       return;
     }
-    encode_varint_raw_loop(pos PROTO_ENCODE_DEBUG_ARG, value);
+    pos = encode_varint_raw_loop(pos PROTO_ENCODE_DEBUG_ARG, value);
   }
   static inline void ESPHOME_ALWAYS_INLINE encode_field_raw(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
                                                             uint32_t field_id, uint32_t type) {
@@ -415,7 +420,7 @@ class ProtoEncode {
       PROTO_ENCODE_CHECK_BOUNDS(pos, 1 + len);
       *pos++ = static_cast<uint8_t>(len);
     } else {
-      encode_varint_raw_loop(pos PROTO_ENCODE_DEBUG_ARG, len);
+      pos = encode_varint_raw_loop(pos PROTO_ENCODE_DEBUG_ARG, len);
       PROTO_ENCODE_CHECK_BOUNDS(pos, len);
     }
     std::memcpy(pos, string, len);
