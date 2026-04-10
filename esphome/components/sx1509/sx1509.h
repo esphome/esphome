@@ -94,6 +94,10 @@ class SX1509Component : public Component,
   const uint32_t min_loop_period_ = 15;  // ms
 
   void enable_pin_interrupt_(uint8_t pin);
+  void clear_interrupt_() {
+    uint16_t interrupt_source = 0;
+    this->read_byte_16(REG_INTERRUPT_SOURCE_B, &interrupt_source);
+  }
   void setup_keypad_();
   void set_debounce_config_(uint8_t config_value);
   void set_debounce_time_(uint8_t time);

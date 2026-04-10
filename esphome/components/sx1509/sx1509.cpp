@@ -59,8 +59,7 @@ void SX1509Component::loop() {
     this->interrupt_pending_ = false;
     // Clear interrupt source before resetting cache to avoid losing
     // pin changes that occur between cache reset and interrupt clear
-    uint16_t interrupt_source = 0;
-    this->read_byte_16(REG_INTERRUPT_SOURCE_B, &interrupt_source);
+    this->clear_interrupt_();
     this->reset_pin_cache_();
     if (!this->has_keypad_) {
       this->disable_loop();
