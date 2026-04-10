@@ -96,7 +96,6 @@ class SX127x : public Component,
   void write_register_(uint8_t reg, uint8_t value);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
   uint8_t read_register_(uint8_t reg);
-  volatile bool dio0_triggered_{false};
   Trigger<std::vector<uint8_t>, float, float> packet_trigger_;
   std::vector<SX127xListener *> listeners_;
   std::vector<uint8_t> packet_;

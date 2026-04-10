@@ -53,10 +53,7 @@ void SX127x::write_fifo_(const std::vector<uint8_t> &packet) {
   this->disable();
 }
 
-void IRAM_ATTR SX127x::gpio_intr(SX127x *arg) {
-  arg->dio0_triggered_ = true;
-  arg->enable_loop_soon_any_context();
-}
+void IRAM_ATTR SX127x::gpio_intr(SX127x *arg) { arg->enable_loop_soon_any_context(); }
 
 void SX127x::setup() {
   // setup reset
@@ -306,8 +303,6 @@ SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
       break;
     }
   }
-  // discard the dio0 trigger from tx completion so loop does not act on it
-  this->dio0_triggered_ = false;
   if (this->rx_start_) {
     this->set_mode_rx();
   } else {
@@ -324,11 +319,10 @@ void SX127x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
 }
 
 void SX127x::loop() {
-  if (!this->dio0_triggered_) {
-    this->disable_loop();
+  this->disable_loop();
+  if (this->dio0_pin_ == nullptr || !this->dio0_pin_->digital_read()) {
     return;
   }
-  this->dio0_triggered_ = false;
 
   if (this->modulation_ == MOD_LORA) {
     uint8_t status = this->read_register_(REG_IRQ_FLAGS);

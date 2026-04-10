@@ -104,10 +104,7 @@ void SX126x::write_register_(uint16_t reg, uint8_t *data, uint8_t size) {
   delayMicroseconds(SWITCHING_DELAY_US);
 }
 
-void IRAM_ATTR SX126x::gpio_intr(SX126x *arg) {
-  arg->dio1_triggered_ = true;
-  arg->enable_loop_soon_any_context();
-}
+void IRAM_ATTR SX126x::gpio_intr(SX126x *arg) { arg->enable_loop_soon_any_context(); }
 
 void SX126x::setup() {
   // setup pins
@@ -338,8 +335,6 @@ SX126xError SX126x::transmit_packet(const std::vector<uint8_t> &packet) {
       break;
     }
   }
-  // discard the dio1 trigger from tx completion so loop does not act on it
-  this->dio1_triggered_ = false;
 
   uint8_t buf[2];
   buf[0] = 0xFF;
@@ -365,12 +360,9 @@ void SX126x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
 
 void SX126x::loop() {
   if (this->dio1_pin_->is_internal()) {
-    if (!this->dio1_triggered_) {
-      this->disable_loop();
-      return;
-    }
-    this->dio1_triggered_ = false;
-  } else if (!this->dio1_pin_->digital_read()) {
+    this->disable_loop();
+  }
+  if (!this->dio1_pin_->digital_read()) {
     return;
   }
 

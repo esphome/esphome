@@ -102,10 +102,7 @@ CC1101Component::CC1101Component() {
   memset(this->pa_table_, 0, sizeof(this->pa_table_));
 }
 
-void IRAM_ATTR CC1101Component::gpio_intr(CC1101Component *arg) {
-  arg->gdo0_triggered_ = true;
-  arg->enable_loop_soon_any_context();
-}
+void IRAM_ATTR CC1101Component::gpio_intr(CC1101Component *arg) { arg->enable_loop_soon_any_context(); }
 
 void CC1101Component::setup() {
   this->spi_setup();
@@ -173,12 +170,9 @@ void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float 
 }
 
 void CC1101Component::loop() {
-  if (!this->gdo0_triggered_) {
-    this->disable_loop();
-    return;
-  }
-  this->gdo0_triggered_ = false;
-  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+  this->disable_loop();
+  if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr ||
+      !this->gdo0_pin_->digital_read()) {
     return;
   }
 
