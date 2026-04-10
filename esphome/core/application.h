@@ -273,6 +273,7 @@ class Application {
   const auto &get_areas() { return this->areas_; }
 #endif
 // Entity getter methods (generated from entity_types.inc)
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
   auto &get_##plural() const { return this->plural##_; } \
   GET_ENTITY_METHOD(type, singular, plural)
@@ -281,6 +282,7 @@ class Application {
 #include "esphome/core/entity_types.inc"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
+  // NOLINTEND(bugprone-macro-parentheses)
 
 #ifdef USE_SERIAL_PROXY
   auto &get_serial_proxies() const { return this->serial_proxies_; }
@@ -462,12 +464,14 @@ class Application {
   StaticVector<Area *, ESPHOME_AREA_COUNT> areas_{};
 #endif
 // Entity StaticVector fields (generated from entity_types.inc)
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) StaticVector<type *, count> plural##_{};
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
 #include "esphome/core/entity_types.inc"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
+  // NOLINTEND(bugprone-macro-parentheses)
 
 #ifdef USE_SERIAL_PROXY
   StaticVector<serial_proxy::SerialProxy *, SERIAL_PROXY_COUNT> serial_proxies_{};

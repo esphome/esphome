@@ -53,11 +53,13 @@ class ComponentIterator {
     NONE = 0,
     BEGIN,
 // Entity iterator states (generated from entity_types.inc)
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) upper,
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) upper,
 #include "esphome/core/entity_types.inc"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
+// NOLINTEND(bugprone-macro-parentheses)
 #ifdef USE_API_USER_DEFINED_ACTIONS
     SERVICE,
 #endif
