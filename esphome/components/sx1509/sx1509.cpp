@@ -52,15 +52,15 @@ void SX1509Component::dump_config() {
 }
 
 void SX1509Component::loop() {
-  // Reset cache at the start of each loop
-  this->reset_pin_cache_();
   if (this->interrupt_pin_ != nullptr) {
-    // Clear interrupt source to deassert INT line
+    // Clear interrupt source before resetting cache to avoid losing
+    // pin changes that occur between cache reset and interrupt clear
     uint16_t interrupt_source = 0;
     this->read_byte_16(REG_INTERRUPT_SOURCE_B, &interrupt_source);
-    if (!this->has_keypad_) {
-      this->disable_loop();
-    }
+  }
+  this->reset_pin_cache_();
+  if (this->interrupt_pin_ != nullptr && !this->has_keypad_) {
+    this->disable_loop();
   }
 
   if (this->has_keypad_) {
