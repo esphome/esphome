@@ -6,7 +6,6 @@
 namespace esphome::dlms_meter {
 
 static constexpr auto &TAG = "dlms_meter";
-
 static void log_callback(dlms_parser::LogLevel level, const char *fmt, va_list args) {
   std::array<char, 256> buf;
   vsnprintf(buf.data(), buf.size(), fmt, args);
@@ -134,7 +133,14 @@ void DlmsMeterComponent::read_rx_buffer_() {
     return;
   }
 
-  this->read_array(this->rx_buffer_.data() + this->bytes_accumulated_, available);
+  bool success = this->read_array(this->rx_buffer_.data() + this->bytes_accumulated_, available);
+  if (!success) {
+    ESP_LOGW(TAG, "UART read failed. Dropping frame.");
+    this->bytes_accumulated_ = 0;
+    this->flush_rx_buffer_();
+    return;
+  }
+
   this->bytes_accumulated_ += available;
 
   this->last_rx_char_time_ = millis();
