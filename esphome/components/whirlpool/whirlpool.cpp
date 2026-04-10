@@ -86,7 +86,8 @@ void WhirlpoolClimate::transmit_state() {
 
   // Temperature
   auto temp = static_cast<uint8_t>(roundf(clamp(this->target_temperature, minimum_temperature_, maximum_temperature_)));
-  remote_state[3] |= (static_cast<uint8_t>(temp - minimum_temperature_) << 4) + static_cast<uint8_t>(temperature_correction_);
+  remote_state[3] |=
+      (static_cast<uint8_t>(temp - minimum_temperature_) << 4) + static_cast<uint8_t>(temperature_correction_);
 
   // Fan speed
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
