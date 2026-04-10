@@ -209,7 +209,8 @@ void EPaperIT8951E::set_state_(EPaperState state, uint16_t delay) {
   if (state == EPaperState::IDLE) {
     if (this->update_pending_) {
       this->update_pending_ = false;
-      this->pending_mode_ = this->queued_update_mode_;
+      this->queued_update_mode_ = this->pending_update_mode_;
+      this->pending_mode_ = this->pending_update_mode_;
       this->update_started_at_ = millis();
       this->update_timing_active_ = true;
       this->state_ = EPaperState::UPDATE;
@@ -450,7 +451,7 @@ void EPaperIT8951E::start_update_(UpdateModeE hw_mode) {
     this->set_state_(EPaperState::UPDATE);
   } else {
     this->update_pending_ = true;
-    this->queued_update_mode_ = hw_mode;
+    this->pending_update_mode_ = hw_mode;
   }
 }
 

@@ -82,6 +82,7 @@ class EPaperIT8951E : public EPaperBase {
   uint32_t partial_update_{0};
   UpdateModeE pending_mode_{UPDATE_MODE_NONE};
   UpdateModeE queued_update_mode_{UPDATE_MODE_NONE};
+  UpdateModeE pending_update_mode_{UPDATE_MODE_NONE};  // mode for queued pending update
   uint16_t pending_x_{0}, pending_y_{0}, pending_w_{0}, pending_h_{0};
   uint16_t transfer_row_{0};
   uint32_t update_started_at_{0};
