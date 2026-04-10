@@ -59,8 +59,7 @@ bool ST25R::transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t 
   return this->transceive_ex(data, len, resp, resp_len, true, timeout_ms);
 }
 
-bool ST25R::transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                               uint32_t timeout_ms) {
+bool ST25R::transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms) {
   return this->transceive_ex(data, len, resp, resp_len, false, timeout_ms);
 }
 

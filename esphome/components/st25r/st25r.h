@@ -114,9 +114,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   void set_rf_power(uint8_t power) { this->rf_power_ = power; }
 
   void register_on_tag_trigger(ST25RTagTrigger *trig) { this->on_tag_triggers_.push_back(trig); }
-  void register_on_tag_removed_trigger(ST25RTagRemovedTrigger *trig) {
-    this->on_tag_removed_triggers_.push_back(trig);
-  }
+  void register_on_tag_removed_trigger(ST25RTagRemovedTrigger *trig) { this->on_tag_removed_triggers_.push_back(trig); }
 
   bool is_tag_present() const { return !this->present_tags_.empty(); }
 
