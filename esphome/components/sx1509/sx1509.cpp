@@ -54,8 +54,13 @@ void SX1509Component::dump_config() {
 void SX1509Component::loop() {
   // Reset cache at the start of each loop
   this->reset_pin_cache_();
-  if (this->interrupt_pin_ != nullptr && !this->has_keypad_) {
-    this->disable_loop();
+  if (this->interrupt_pin_ != nullptr) {
+    // Clear interrupt source to deassert INT line
+    uint16_t interrupt_source = 0;
+    this->read_byte_16(REG_INTERRUPT_SOURCE_B, &interrupt_source);
+    if (!this->has_keypad_) {
+      this->disable_loop();
+    }
   }
 
   if (this->has_keypad_) {
@@ -185,7 +190,30 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     // Set direction to input
     this->ddr_mask_ |= (1 << pin);
     this->write_byte_16(REG_DIR_B, this->ddr_mask_);
-    if (this->interrupt_pin_ == nullptr) {
+    if (this->interrupt_pin_ != nullptr) {
+      // Unmask this pin's interrupt (clear bit = enabled)
+      this->read_byte_16(REG_INTERRUPT_MASK_B, &temp_word);
+      temp_word &= ~(1 << pin);
+      this->write_byte_16(REG_INTERRUPT_MASK_B, temp_word);
+
+      // Configure sense to trigger on both edges (0b11)
+      // Sense registers: 2 bits per pin, 4 pins per byte
+      // REG_SENSE_HIGH_B: pins 12-15, REG_SENSE_LOW_B: pins 8-11
+      // REG_SENSE_HIGH_A: pins 4-7, REG_SENSE_LOW_A: pins 0-3
+      uint8_t sense_reg = pin < 4    ? REG_SENSE_LOW_A
+                          : pin < 8  ? REG_SENSE_HIGH_A
+                          : pin < 12 ? REG_SENSE_LOW_B
+                                     : REG_SENSE_HIGH_B;
+      uint8_t sense_val = 0;
+      this->read_byte(sense_reg, &sense_val);
+      uint8_t shift = (pin % 4) * 2;
+      sense_val &= ~(0x03 << shift);
+      sense_val |= (0x03 << shift);  // Both edges
+      this->write_byte(sense_reg, sense_val);
+
+      // Clear any pending interrupt for this pin
+      this->write_byte_16(REG_INTERRUPT_SOURCE_B, 1 << pin);
+    } else {
       this->enable_loop();
     }
   }
