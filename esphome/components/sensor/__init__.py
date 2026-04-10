@@ -371,13 +371,13 @@ def sensor_schema(
 
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.templatable(cv.float_))
 async def offset_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config, [], float)
+    template_ = await cg.templatable(config, [], cg.float_)
     return cg.new_Pvariable(filter_id, template_)
 
 
 @FILTER_REGISTRY.register("multiply", MultiplyFilter, cv.templatable(cv.float_))
 async def multiply_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config, [], float)
+    template_ = await cg.templatable(config, [], cg.float_)
     return cg.new_Pvariable(filter_id, template_)
 
 
@@ -389,7 +389,7 @@ async def multiply_filter_to_code(config, filter_id):
 async def filter_out_filter_to_code(config, filter_id):
     if not isinstance(config, list):
         config = [config]
-    template_ = [await cg.templatable(x, [], float) for x in config]
+    template_ = [await cg.templatable(x, [], cg.float_) for x in config]
     return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(template_)), template_)
 
 
@@ -658,7 +658,7 @@ THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
 async def throttle_with_priority_filter_to_code(config, filter_id):
     if not isinstance(config[CONF_VALUE], list):
         config[CONF_VALUE] = [config[CONF_VALUE]]
-    template_ = [await cg.templatable(x, [], float) for x in config[CONF_VALUE]]
+    template_ = [await cg.templatable(x, [], cg.float_) for x in config[CONF_VALUE]]
     return cg.new_Pvariable(
         filter_id, cg.TemplateArguments(len(template_)), config[CONF_TIMEOUT], template_
     )
@@ -713,7 +713,7 @@ async def timeout_filter_to_code(config, filter_id):
     else:
         # Use TimeoutFilterConfigured for configured value mode
         filter_id.type = TimeoutFilterConfigured
-        template_ = await cg.templatable(config[CONF_VALUE], [], float)
+        template_ = await cg.templatable(config[CONF_VALUE], [], cg.float_)
         var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
     await cg.register_component(var, {})
     return var
@@ -909,10 +909,10 @@ async def _build_sensor_automations(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await cg.register_component(trigger, conf)
         if (above := conf.get(CONF_ABOVE)) is not None:
-            template_ = await cg.templatable(above, [(float, "x")], float)
+            template_ = await cg.templatable(above, [(float, "x")], cg.float_)
             cg.add(trigger.set_min(template_))
         if (below := conf.get(CONF_BELOW)) is not None:
-            template_ = await cg.templatable(below, [(float, "x")], float)
+            template_ = await cg.templatable(below, [(float, "x")], cg.float_)
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
