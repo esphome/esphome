@@ -343,7 +343,7 @@ async def to_code(configs):
             else:
                 rotation_type = RotationType.ROTATION_SOFTWARE
                 if (
-                    CORE.target_platform == PLATFORM_ESP32
+                    CORE.is_esp32
                     and get_esp32_variant() == VARIANT_ESP32P4
                 ):
                     df.LOGGER.info("LVGL will use software rotation (PPA accelerated)")
