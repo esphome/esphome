@@ -65,6 +65,7 @@ class EPaperBase : public Display,
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
   void set_reversed(bool reversed) { this->reversed_ = reversed; }
   void set_sleep_when_done(bool sleep_when_done) { this->sleep_when_done_ = sleep_when_done; }
+  void set_vcom(uint16_t vcom) { this->vcom_ = vcom; }
   void dump_config() override;
 
   void command(uint8_t value);
@@ -215,6 +216,7 @@ class EPaperBase : public Display,
   uint8_t full_update_every_{1};
   bool reversed_{false};
   bool sleep_when_done_{false};
+  uint16_t vcom_{0};
   std::string update_mode_{};
 };
 

@@ -19,6 +19,7 @@ EpaperModel(
     dc_pin=False,
     reversed=False,
     sleep_when_done=True,
+    vcom=2300,
 )
 
 # M5EPD-specific model with pre-filled dimensions
@@ -34,4 +35,5 @@ EpaperModel(
     dc_pin=False,
     reversed=False,
     sleep_when_done=True,
+    vcom=2300,
 )

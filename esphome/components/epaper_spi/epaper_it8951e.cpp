@@ -165,10 +165,12 @@ void EPaperIT8951E::setup() {
   // Enable packed write mode
   this->write_reg_(IT8951_I80CPCR, 0x0001);
 
-  // Set VCOM to default (-2.30V)
+  // Set VCOM voltage
   const uint16_t vcom = this->get_vcom_();
-  if (IT8951_DEFAULT_VCOM != vcom) {
-    this->set_vcom_(IT8951_DEFAULT_VCOM);
+  if (this->vcom_ != vcom) {
+    ESP_LOGI(TAG, "Setting VCOM to %.02fV (was %.02fV)",
+             static_cast<float>(this->vcom_) / 1000.0f, static_cast<float>(vcom) / 1000.0f);
+    this->set_vcom_(this->vcom_);
     this->get_vcom_();
   }
 

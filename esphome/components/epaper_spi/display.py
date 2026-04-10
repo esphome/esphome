@@ -54,6 +54,7 @@ EPaperUpdateAction = epaper_spi_ns.class_("EPaperUpdateAction", automation.Actio
 Transform = epaper_spi_ns.enum("Transform")
 
 CONF_UPDATE_MODE = "update_mode"
+CONF_VCOM = "vcom"
 
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
@@ -137,6 +138,15 @@ def model_schema(config):
                 else {}
             ),
             cv.Optional(CONF_UPDATE_MODE): cv.string_strict,
+            **(
+                {
+                    cv.Optional(
+                        CONF_VCOM, default=model.get_default(CONF_VCOM, 2300)
+                    ): cv.int_range(0, 5000)
+                }
+                if model.get_default(CONF_VCOM, None) is not None
+                else {}
+            ),
         }
     )
 
@@ -238,6 +248,8 @@ async def to_code(config):
         cg.add(var.set_sleep_when_done(config[CONF_SLEEP_WHEN_DONE]))
     if CONF_UPDATE_MODE in config:
         cg.add(var.set_update_mode(config[CONF_UPDATE_MODE]))
+    if CONF_VCOM in config:
+        cg.add(var.set_vcom(config[CONF_VCOM]))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False
     else:
