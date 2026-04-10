@@ -191,28 +191,7 @@ void SX1509Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->ddr_mask_ |= (1 << pin);
     this->write_byte_16(REG_DIR_B, this->ddr_mask_);
     if (this->interrupt_pin_ != nullptr) {
-      // Unmask this pin's interrupt (clear bit = enabled)
-      this->read_byte_16(REG_INTERRUPT_MASK_B, &temp_word);
-      temp_word &= ~(1 << pin);
-      this->write_byte_16(REG_INTERRUPT_MASK_B, temp_word);
-
-      // Configure sense to trigger on both edges (0b11)
-      // Sense registers: 2 bits per pin, 4 pins per byte
-      // REG_SENSE_HIGH_B: pins 12-15, REG_SENSE_LOW_B: pins 8-11
-      // REG_SENSE_HIGH_A: pins 4-7, REG_SENSE_LOW_A: pins 0-3
-      uint8_t sense_reg = pin < 4    ? REG_SENSE_LOW_A
-                          : pin < 8  ? REG_SENSE_HIGH_A
-                          : pin < 12 ? REG_SENSE_LOW_B
-                                     : REG_SENSE_HIGH_B;
-      uint8_t sense_val = 0;
-      this->read_byte(sense_reg, &sense_val);
-      uint8_t shift = (pin % 4) * 2;
-      sense_val &= ~(0x03 << shift);
-      sense_val |= (0x03 << shift);  // Both edges
-      this->write_byte(sense_reg, sense_val);
-
-      // Clear any pending interrupt for this pin
-      this->write_byte_16(REG_INTERRUPT_SOURCE_B, 1 << pin);
+      this->enable_pin_interrupt_(pin);
     } else {
       this->enable_loop();
     }
@@ -358,6 +337,31 @@ void SX1509Component::set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8
     set_debounce_pin_(i);
   for (uint16_t i = 0; i < num_cols; i++)
     set_debounce_pin_(i + 8);
+}
+
+void SX1509Component::enable_pin_interrupt_(uint8_t pin) {
+  // Unmask this pin's interrupt (clear bit = enabled)
+  uint16_t mask = 0;
+  this->read_byte_16(REG_INTERRUPT_MASK_B, &mask);
+  mask &= ~(1 << pin);
+  this->write_byte_16(REG_INTERRUPT_MASK_B, mask);
+
+  // Configure sense to trigger on both edges
+  // Sense registers use 2 bits per pin, 4 pins per byte
+  static constexpr uint8_t SENSE_BOTH_EDGES = 0x03;
+  uint8_t sense_reg = pin < 4    ? REG_SENSE_LOW_A
+                      : pin < 8  ? REG_SENSE_HIGH_A
+                      : pin < 12 ? REG_SENSE_LOW_B
+                                 : REG_SENSE_HIGH_B;
+  uint8_t sense_val = 0;
+  this->read_byte(sense_reg, &sense_val);
+  uint8_t shift = (pin % 4) * 2;
+  sense_val &= ~(SENSE_BOTH_EDGES << shift);
+  sense_val |= (SENSE_BOTH_EDGES << shift);
+  this->write_byte(sense_reg, sense_val);
+
+  // Clear any pending interrupt for this pin
+  this->write_byte_16(REG_INTERRUPT_SOURCE_B, 1 << pin);
 }
 
 }  // namespace sx1509
