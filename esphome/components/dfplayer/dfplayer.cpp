@@ -260,6 +260,7 @@ void DFPlayer::loop() {
               ESP_LOGV(TAG, "Playback finished (USB drive)");
               this->is_playing_ = false;
               this->on_finished_playback_callback_.call();
+              break;
             case 0x3D:
               ESP_LOGV(TAG, "Playback finished (SD card)");
               this->is_playing_ = false;

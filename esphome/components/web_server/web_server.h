@@ -169,7 +169,8 @@ class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEvent
   void on_client_disconnect_(DeferredUpdateEventSource *source);
 
  public:
-  void loop();
+  /// Returns true if there are event sources remaining (including pending cleanup).
+  bool loop();
 
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
   void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
@@ -533,13 +534,13 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
     }
   }
 
-  // Generic helper to parse and apply a string parameter
+  // Generic helper to parse and apply a string parameter using const char* setter (avoids std::string allocation)
   template<typename T, typename Ret>
-  void parse_string_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
-                           Ret (T::*setter)(const std::string &)) {
+  void parse_cstr_param_(AsyncWebServerRequest *request, ParamNameType param_name, T &call,
+                         Ret (T::*setter)(const char *, size_t)) {
     if (request->hasArg(param_name)) {
       const auto &value = request->arg(param_name);
-      (call.*setter)(std::string(value.c_str(), value.length()));
+      (call.*setter)(value.c_str(), value.length());
     }
   }
 

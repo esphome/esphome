@@ -673,6 +673,34 @@ def test_process_stacktrace_bad_alloc(
     assert state is False
 
 
+def test_process_stacktrace_esp32_crash_handler(
+    setup_core: Path, mock_decode_pc: Mock
+) -> None:
+    """Test process_stacktrace handles ESP32 crash handler backtrace lines."""
+    config = {"name": "test"}
+
+    # Simulate crash handler log lines as they appear from the API/serial
+    line_pc = "[E][esp32.crash:078]:   PC:  0x400D1234  (fault location)"
+    state = platformio_api.process_stacktrace(config, line_pc, False)
+    # PC line is matched by existing STACKTRACE_ESP32_PC_RE
+    mock_decode_pc.assert_called_with(config, "400D1234")
+    assert state is False
+
+    mock_decode_pc.reset_mock()
+
+    line_bt0 = "[E][esp32.crash:080]:   BT0: 0x400D5678  (backtrace)"
+    state = platformio_api.process_stacktrace(config, line_bt0, False)
+    mock_decode_pc.assert_called_once_with(config, "400D5678")
+    assert state is False
+
+    mock_decode_pc.reset_mock()
+
+    line_bt1 = "[E][esp32.crash:080]:   BT1: 0x42005ABC  (backtrace)"
+    state = platformio_api.process_stacktrace(config, line_bt1, False)
+    mock_decode_pc.assert_called_once_with(config, "42005ABC")
+    assert state is False
+
+
 def test_patch_file_downloader_succeeds_first_try() -> None:
     """Test patch_file_downloader succeeds on first attempt."""
     mock_exception_cls = type("PackageException", (Exception,), {})

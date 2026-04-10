@@ -41,20 +41,18 @@ void Lock::publish_state(LockState state) {
 
   this->state = state;
   this->rtc_.save(&this->state);
-  ESP_LOGD(TAG, "'%s' >> %s", this->name_.c_str(), LOG_STR_ARG(lock_state_to_string(state)));
-  this->state_callback_.call();
+  ESP_LOGV(TAG, "'%s' >> %s", this->name_.c_str(), LOG_STR_ARG(lock_state_to_string(state)));
+  this->state_callback_.call(state);
 #if defined(USE_LOCK) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_lock_update(this);
 #endif
 }
 
-void Lock::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
-
 void LockCall::perform() {
-  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
   if (this->state_.has_value()) {
-    ESP_LOGD(TAG, "  State: %s", LOG_STR_ARG(lock_state_to_string(*this->state_)));
+    ESP_LOGV(TAG, "  State: %s", LOG_STR_ARG(lock_state_to_string(*this->state_)));
   }
   this->parent_->control(*this);
 }

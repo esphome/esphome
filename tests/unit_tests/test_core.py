@@ -841,6 +841,18 @@ class TestEsphomeCore:
 
         assert "WiFi" in target.platformio_libraries
 
+    def test_testing_ensure_platform_registered__sets_count(self, target):
+        """Test testing_ensure_platform_registered sets count to 1 for new platform."""
+        assert target.platform_counts["sensor"] == 0
+        target.testing_ensure_platform_registered("sensor")
+        assert target.platform_counts["sensor"] == 1
+
+    def test_testing_ensure_platform_registered__does_not_overwrite(self, target):
+        """Test testing_ensure_platform_registered preserves existing count."""
+        target.platform_counts["sensor"] = 3
+        target.testing_ensure_platform_registered("sensor")
+        assert target.platform_counts["sensor"] == 3
+
     def test_add_library__extracts_short_name_from_path(self, target):
         """Test add_library extracts short name from library paths like owner/lib."""
         target.data[const.KEY_CORE] = {

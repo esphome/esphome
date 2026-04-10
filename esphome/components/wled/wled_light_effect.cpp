@@ -161,7 +161,7 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
   // https://kno.wled.ge/interfaces/udp-notifier/
   // https://github.com/Aircoookie/WLED/blob/main/wled00/udp.cpp
 
-  if (size < 34) {
+  if (size <= 34) {
     return false;
   }
 

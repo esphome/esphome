@@ -7,6 +7,7 @@ const {
   hasDashboardChanges,
   hasGitHubActionsChanges,
 } = require('../detect-tags');
+const { loadCodeowners, getEffectiveOwners } = require('../codeowners');
 
 // Strategy: Merge branch detection
 async function detectMergeBranch(context) {
@@ -102,11 +103,16 @@ async function detectCoreChanges(changedFiles) {
 }
 
 // Strategy: PR size detection
-async function detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, TOO_BIG_THRESHOLD) {
+async function detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD) {
   const labels = new Set();
 
   if (totalChanges <= SMALL_PR_THRESHOLD) {
     labels.add('small-pr');
+    return labels;
+  }
+
+  if (totalChanges <= MEDIUM_PR_THRESHOLD) {
+    labels.add('medium-pr');
     return labels;
   }
 
@@ -148,51 +154,15 @@ async function detectGitHubActionsChanges(changedFiles) {
 // Strategy: Code owner detection
 async function detectCodeOwner(github, context, changedFiles) {
   const labels = new Set();
-  const { owner, repo } = context.repo;
 
   try {
-    const { data: codeownersFile } = await github.rest.repos.getContent({
-      owner,
-      repo,
-      path: 'CODEOWNERS',
-    });
-
-    const codeownersContent = Buffer.from(codeownersFile.content, 'base64').toString('utf8');
+    const codeownersPatterns = loadCodeowners();
     const prAuthor = context.payload.pull_request.user.login;
 
-    const codeownersLines = codeownersContent.split('\n')
-      .map(line => line.trim())
-      .filter(line => line && !line.startsWith('#'));
-
-    const codeownersRegexes = codeownersLines.map(line => {
-      const parts = line.split(/\s+/);
-      const pattern = parts[0];
-      const owners = parts.slice(1);
-
-      let regex;
-      if (pattern.endsWith('*')) {
-        const dir = pattern.slice(0, -1);
-        regex = new RegExp(`^${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
-      } else if (pattern.includes('*')) {
-        // First escape all regex special chars except *, then replace * with .*
-        const regexPattern = pattern
-          .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-          .replace(/\*/g, '.*');
-        regex = new RegExp(`^${regexPattern}$`);
-      } else {
-        regex = new RegExp(`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
-      }
-
-      return { regex, owners };
-    });
-
-    for (const file of changedFiles) {
-      for (const { regex, owners } of codeownersRegexes) {
-        if (regex.test(file) && owners.some(owner => owner === `@${prAuthor}`)) {
-          labels.add('by-code-owner');
-          return labels;
-        }
-      }
+    // Check if PR author is a codeowner of any changed file
+    const effective = getEffectiveOwners(changedFiles, codeownersPatterns);
+    if (effective.users.has(prAuthor)) {
+      labels.add('by-code-owner');
     }
   } catch (error) {
     console.log('Failed to read or parse CODEOWNERS file:', error.message);
@@ -265,19 +235,20 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
     }
   }
 
-  // Get PR head to fetch files from the PR branch
-  const prNumber = context.payload.pull_request.number;
+  // Get base branch ref to check if deprecation already exists for the component
+  // This prevents flagging a PR that simply adds deprecation
+  const baseRef = context.payload.pull_request.base.ref;
 
   // Check each component's __init__.py for DEPRECATED_COMPONENT constant
   for (const component of components) {
     const initFile = `esphome/components/${component}/__init__.py`;
     try {
-      // Fetch file content from PR head using GitHub API
+      // Fetch file content from base branch using GitHub API
       const { data: fileData } = await github.rest.repos.getContent({
         owner,
         repo,
         path: initFile,
-        ref: `refs/pull/${prNumber}/head`
+        ref: baseRef
       });
 
       // Decode base64 content
@@ -308,6 +279,24 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
   }
 
   return { labels, deprecatedInfo };
+}
+
+// Strategy: Detect when maintainers cannot modify the PR branch
+function detectMaintainerAccess(context) {
+  const pr = context.payload.pull_request;
+
+  // Only relevant for cross-repo PRs (forks)
+  if (!pr.head.repo || pr.head.repo.full_name === pr.base.repo.full_name) {
+    return null;
+  }
+
+  if (pr.maintainer_can_modify) {
+    return null;
+  }
+
+  const isOrgFork = pr.head.repo.owner.type === 'Organization';
+  console.log(`Maintainer cannot modify PR branch (${isOrgFork ? 'org fork: ' + pr.head.repo.owner.login : 'user disabled'})`);
+  return { isOrgFork, orgName: pr.head.repo.owner.login };
 }
 
 // Strategy: Requirements detection
@@ -358,5 +347,6 @@ module.exports = {
   detectTests,
   detectPRTemplateCheckboxes,
   detectDeprecatedComponents,
+  detectMaintainerAccess,
   detectRequirements
 };

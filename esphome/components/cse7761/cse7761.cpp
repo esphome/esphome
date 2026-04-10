@@ -147,13 +147,17 @@ uint32_t CSE7761Component::read_(uint8_t reg, uint8_t size) {
 }
 
 uint32_t CSE7761Component::coefficient_by_unit_(uint32_t unit) {
+  uint32_t coeff = 0;
   switch (unit) {
     case RMS_UC:
-      return 0x400000 * 100 / this->data_.coefficient[RMS_UC];
+      coeff = this->data_.coefficient[RMS_UC];
+      return coeff ? 0x400000 * 100 / coeff : 0;
     case RMS_IAC:
-      return (0x800000 * 100 / this->data_.coefficient[RMS_IAC]) * 10;  // Stay within 32 bits
+      coeff = this->data_.coefficient[RMS_IAC];
+      return coeff ? (0x800000 * 100 / coeff) * 10 : 0;  // Stay within 32 bits
     case POWER_PAC:
-      return 0x80000000 / this->data_.coefficient[POWER_PAC];
+      coeff = this->data_.coefficient[POWER_PAC];
+      return coeff ? 0x80000000 / coeff : 0;
   }
   return 0;
 }

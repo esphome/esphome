@@ -90,7 +90,7 @@ class Font
   uint8_t bpp_;  // bits per pixel
 #ifdef USE_LVGL_FONT
   lv_font_t lv_font_{};
-  static const uint8_t *get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_letter);
+  static const void *get_glyph_bitmap(lv_font_glyph_dsc_t *dsc, lv_draw_buf_t *draw_buf);
   static bool get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter, uint32_t next);
   const Glyph *get_glyph_data_(uint32_t unicode_letter);
   uint32_t last_letter_{};

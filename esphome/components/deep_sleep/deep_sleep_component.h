@@ -113,9 +113,6 @@ class DeepSleepComponent : public Component {
   void setup() override;
   void dump_config() override;
   void loop() override;
-#ifdef USE_LOOP_PRIORITY
-  float get_loop_priority() const override;
-#endif
   float get_setup_priority() const override;
 
   /// Helper to enter deep sleep mode
@@ -145,7 +142,7 @@ class DeepSleepComponent : public Component {
 #endif  // USE_BK72XX
 
 #ifdef USE_ESP32
-  InternalGPIOPin *wakeup_pin_;
+  InternalGPIOPin *wakeup_pin_{nullptr};
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
 
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)

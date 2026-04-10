@@ -13,8 +13,8 @@ from ..lvcode import (
     LambdaContext,
     LvConditional,
     LvContext,
-    lv,
     lv_add,
+    lv_obj,
     lvgl_static,
 )
 from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t, lvgl_ns
@@ -39,7 +39,7 @@ async def to_code(config):
             widget.add_state(LV_STATE.CHECKED)
             cond.else_()
             widget.clear_state(LV_STATE.CHECKED)
-        lv.event_send(widget.obj, API_EVENT, cg.nullptr)
+        lv_obj.send_event(widget.obj, API_EVENT, cg.nullptr)
         control.add(switch_id.publish_state(v))
     switch = cg.new_Pvariable(config[CONF_ID], await control.get_lambda())
     await cg.register_component(switch, config)

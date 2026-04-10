@@ -1,22 +1,19 @@
 import esphome.codegen as cg
-from esphome.components import socket
-from esphome.components.uart import UARTComponent
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
 from esphome.components.usb_host import register_usb_client, usb_device_schema
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_BUFFER_SIZE,
     CONF_CHANNELS,
-    CONF_DATA_BITS,
     CONF_DEBUG,
     CONF_DUMMY_RECEIVER,
     CONF_ID,
-    CONF_PARITY,
-    CONF_STOP_BITS,
 )
 from esphome.cpp_types import Component
 
-AUTO_LOAD = ["uart", "usb_host", "bytebuffer", "socket"]
+AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
 
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
@@ -92,6 +89,10 @@ def channel_schema(channels, baud_rate_required):
                             ),
                             cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
                             cv.Optional(CONF_DEBUG, default=False): cv.boolean,
+                            cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
+                            cv.Optional(
+                                CONF_FLUSH_TIMEOUT, default="100ms"
+                            ): cv.positive_time_period_milliseconds,
                         }
                     )
                 ),
@@ -115,10 +116,6 @@ CONFIG_SCHEMA = cv.ensure_list(
 
 
 async def to_code(config):
-    # Enable wake_loop_threadsafe for low-latency USB data processing
-    # The USB task queues data events that need immediate processing
-    socket.require_wake_loop_threadsafe()
-
     for device in config:
         var = await register_usb_client(device)
         for index, channel in enumerate(device[CONF_CHANNELS]):
@@ -130,7 +127,10 @@ async def to_code(config):
             cg.add(chvar.set_parity(channel[CONF_PARITY]))
             cg.add(chvar.set_baud_rate(channel[CONF_BAUD_RATE]))
             cg.add(chvar.set_dummy_receiver(channel[CONF_DUMMY_RECEIVER]))
+            cg.add(chvar.set_flush_timeout(channel[CONF_FLUSH_TIMEOUT]))
             cg.add(chvar.set_debug(channel[CONF_DEBUG]))
+            if channel[CONF_DEBUG_PREFIX]:
+                cg.add(chvar.set_debug_prefix(channel[CONF_DEBUG_PREFIX]))
             cg.add(var.add_channel(chvar))
             if channel[CONF_DEBUG]:
                 cg.add_define("USE_UART_DEBUGGER")
