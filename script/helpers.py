@@ -167,9 +167,11 @@ def build_all_include(header_files: list[str] | None = None) -> None:
         cmd = ["git", "ls-files", "esphome/**/*.h"]
         proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
+        from esphome.writer import ENTITY_TYPES_H_TARGET
+
         # X-macro files are included multiple times with different macro definitions
         # and must not be included bare
-        exclude = {"esphome/core/entity_types.h"}
+        exclude = {ENTITY_TYPES_H_TARGET}
 
         # Process git output - git already returns paths relative to repo root
         header_files = [
