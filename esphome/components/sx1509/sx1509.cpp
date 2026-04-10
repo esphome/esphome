@@ -347,13 +347,12 @@ void SX1509Component::enable_pin_interrupt_(uint8_t pin) {
   this->write_byte_16(REG_INTERRUPT_MASK_B, mask);
 
   // Configure sense to trigger on both edges
-  // Sense registers use 2 bits per pin, 4 pins per byte
-  uint8_t sense_reg = pin < 4    ? REG_SENSE_LOW_A
-                      : pin < 8  ? REG_SENSE_HIGH_A
-                      : pin < 12 ? REG_SENSE_LOW_B
-                                 : REG_SENSE_HIGH_B;
+  // Each sense register covers 4 pins with 2 bits per pin
+  static constexpr uint8_t SENSE_REGS[] = {REG_SENSE_LOW_A, REG_SENSE_HIGH_A, REG_SENSE_LOW_B, REG_SENSE_HIGH_B};
+  uint8_t sense_reg = SENSE_REGS[pin / 4];
   uint8_t sense_val = 0;
   this->read_byte(sense_reg, &sense_val);
+  // 2-bit field position within the sense register (4 pins per register, 2 bits each)
   uint8_t shift = (pin % 4) * 2;
   sense_val &= ~(SENSE_BOTH_EDGES << shift);
   sense_val |= (SENSE_BOTH_EDGES << shift);
