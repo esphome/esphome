@@ -55,7 +55,7 @@ class EPaperBase : public Display,
     this->transform_ = transform;
     this->update_effective_transform_();
   }
-  void set_rotation(DisplayRotation rotation) {
+  void set_rotation(DisplayRotation rotation) override {
     Display::set_rotation(rotation);
     this->update_effective_transform_();
   }
