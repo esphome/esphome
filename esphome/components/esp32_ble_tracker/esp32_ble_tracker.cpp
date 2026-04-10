@@ -249,7 +249,7 @@ void ESP32BLETracker::start_scan_(bool first) {
     return;
   }
   this->set_scanner_state_(ScannerState::STARTING);
-  ESP_LOGD(TAG, "Starting scan, set scanner state to STARTING.");
+  ESP_LOGV(TAG, "Starting scan, set scanner state to STARTING.");
   if (!first) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
     for (auto *listener : this->listeners_)
@@ -855,7 +855,7 @@ void ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
 }
 
 void ESP32BLETracker::cleanup_scan_state_(bool is_stop_complete) {
-  ESP_LOGD(TAG, "Scan %scomplete, set scanner state to IDLE.", is_stop_complete ? "stop " : "");
+  ESP_LOGV(TAG, "Scan %scomplete, set scanner state to IDLE.", is_stop_complete ? "stop " : "");
 #ifdef USE_ESP32_BLE_DEVICE
   this->already_discovered_.clear();
 #endif

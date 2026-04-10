@@ -40,10 +40,10 @@ async def to_code(config):
     cg.add(var.set_sensor(sens))
 
     if isinstance(config[CONF_THRESHOLD], dict):
-        lower = await cg.templatable(config[CONF_THRESHOLD][CONF_LOWER], [], float)
-        upper = await cg.templatable(config[CONF_THRESHOLD][CONF_UPPER], [], float)
+        lower = await cg.templatable(config[CONF_THRESHOLD][CONF_LOWER], [], cg.float_)
+        upper = await cg.templatable(config[CONF_THRESHOLD][CONF_UPPER], [], cg.float_)
     else:
-        lower = await cg.templatable(config[CONF_THRESHOLD], [], float)
+        lower = await cg.templatable(config[CONF_THRESHOLD], [], cg.float_)
         upper = lower
     cg.add(var.set_upper_threshold(upper))
     cg.add(var.set_lower_threshold(lower))

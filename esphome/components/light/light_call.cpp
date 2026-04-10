@@ -198,13 +198,13 @@ LightColorValues LightCall::validate_() {
 
   // Ensure there is always a color mode set
   if (!this->has_color_mode()) {
-    this->color_mode_ = this->compute_color_mode_();
+    this->color_mode_ = this->compute_color_mode_(traits);
     this->set_flag_(FLAG_HAS_COLOR_MODE);
   }
   auto color_mode = this->color_mode_;
 
   // Transform calls that use non-native parameters for the current mode.
-  this->transform_parameters_();
+  this->transform_parameters_(traits);
 
   // Business logic adjustments before validation
   // Flag whether an explicit turn off was requested, in which case we'll also stop the effect.
@@ -366,9 +366,7 @@ LightColorValues LightCall::validate_() {
 
   return v;
 }
-void LightCall::transform_parameters_() {
-  auto traits = this->parent_->get_traits();
-
+void LightCall::transform_parameters_(const LightTraits &traits) {
   // Allow CWWW modes to be set with a white value and/or color temperature.
   // This is used in three cases in HA:
   // - CW/WW lights, which set the "brightness" and "color_temperature"
@@ -407,8 +405,8 @@ void LightCall::transform_parameters_() {
     }
   }
 }
-ColorMode LightCall::compute_color_mode_() {
-  auto supported_modes = this->parent_->get_traits().get_supported_color_modes();
+ColorMode LightCall::compute_color_mode_(const LightTraits &traits) {
+  auto supported_modes = traits.get_supported_color_modes();
   int supported_count = supported_modes.size();
 
   // Some lights don't support any color modes (e.g. monochromatic light), leave it at unknown.
