@@ -109,10 +109,12 @@ bool StreamingModel::load_model_() {
 size_t StreamingModel::probe_arena_size_() {
   RAMAllocator<uint8_t> arena_allocator;
 
-  // Try with the manifest size first, then escalate to 2x if it fails. Different platforms and different versions of
-  // the esp-nn library require different amounts of memory, so the manifest size may not always be correct, and probing
-  // allows us to find the actual required size for the current build and platform. Aligns test sizes to 16 bytes.
-  size_t attempt_sizes[] = {(this->tensor_arena_size_ + 15) & ~15, (this->tensor_arena_size_ * 2 + 15) & ~15};
+  // Try with the manifest size first, then escalates to 1.5, then 2x if it fails. Different platforms and different
+  // versions of the esp-nn library require different amounts of memory, so the manifest size may not always be correct,
+  // and probing allows us to find the actual required size for the current build and platform. Aligns test sizes to 16
+  // bytes.
+  size_t attempt_sizes[] = {(this->tensor_arena_size_ + 15) & ~15, (this->tensor_arena_size_ * 3 / 2 + 15) & ~15,
+                            (this->tensor_arena_size_ * 2 + 15) & ~15};
 
   for (size_t attempt_size : attempt_sizes) {
     uint8_t *probe_arena = arena_allocator.allocate(attempt_size);
