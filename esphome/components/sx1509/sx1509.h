@@ -78,6 +78,7 @@ class SX1509Component : public Component,
   uint16_t port_mask_ = 0x00;
   uint16_t output_state_ = 0x00;
   bool has_keypad_ = false;
+  volatile bool interrupt_pending_{false};
   uint8_t rows_ = 0;
   uint8_t cols_ = 0;
   std::string keys_;
@@ -89,7 +90,6 @@ class SX1509Component : public Component,
   std::vector<SX1509KeyTrigger *> key_triggers_;
 
   InternalGPIOPin *interrupt_pin_{nullptr};
-  volatile bool interrupt_pending_{false};
   uint32_t last_loop_timestamp_ = 0;
   const uint32_t min_loop_period_ = 15;  // ms
 
