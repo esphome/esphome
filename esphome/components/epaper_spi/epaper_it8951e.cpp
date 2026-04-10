@@ -168,8 +168,8 @@ void EPaperIT8951E::setup() {
   // Set VCOM voltage
   const uint16_t vcom = this->get_vcom_();
   if (this->vcom_ != vcom) {
-    ESP_LOGI(TAG, "Setting VCOM to %.02fV (was %.02fV)",
-             static_cast<float>(this->vcom_) / 1000.0f, static_cast<float>(vcom) / 1000.0f);
+    ESP_LOGI(TAG, "Setting VCOM to %.02fV (was %.02fV)", static_cast<float>(this->vcom_) / 1000.0f,
+             static_cast<float>(vcom) / 1000.0f);
     this->set_vcom_(this->vcom_);
     this->get_vcom_();
   }
