@@ -451,6 +451,8 @@ async def to_code(config):
     ota.request_ota_state_listeners()
 
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.3~1")
+    # Pin esp-nn for stable future builds (esp-tflite-micro depends on esp-nn)
+    esp32.add_idf_component(name="espressif/esp-nn", ref="1.2.1")
 
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
