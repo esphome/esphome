@@ -13,6 +13,14 @@
 //   - devices/areas: not entities
 //   - serial_proxy: custom register logic, no by-key lookup
 
+#ifndef ENTITY_TYPE_
+#error "ENTITY_TYPE_(type, singular, plural, count, upper) must be defined before including entity_types.h"
+#endif
+#ifndef ENTITY_CONTROLLER_TYPE_
+#error \
+    "ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) must be defined before including entity_types.h"
+#endif
+
 #ifdef USE_BINARY_SENSOR
 ENTITY_CONTROLLER_TYPE_(binary_sensor::BinarySensor, binary_sensor, binary_sensors, ESPHOME_ENTITY_BINARY_SENSOR_COUNT,
                         BINARY_SENSOR, binary_sensor_update)
