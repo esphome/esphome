@@ -157,9 +157,6 @@ void CC1101Component::setup() {
       }
     });
   }
-
-  // wake the loop only on gdo0 interrupt
-  this->disable_loop();
 }
 
 void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi) {

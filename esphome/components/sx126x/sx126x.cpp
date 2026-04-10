@@ -121,11 +121,6 @@ void SX126x::setup() {
 
   // configure rf
   this->configure();
-
-  // wake the loop only on dio1 interrupt (when internal pin)
-  if (this->dio1_pin_->is_internal()) {
-    this->disable_loop();
-  }
 }
 
 void SX126x::configure() {

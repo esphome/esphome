@@ -70,9 +70,6 @@ void SX127x::setup() {
 
   // configure rf
   this->configure();
-
-  // wake the loop only on dio0 interrupt
-  this->disable_loop();
 }
 
 void SX127x::configure() {
