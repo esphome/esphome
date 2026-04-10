@@ -235,13 +235,6 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const uint8_t *payload_b
   return xmit_.queue_for_send(source, destination, payload_bytes, payload_size);
 }
 
-inline void IRAM_ATTR CECTransmit::set_pin_input_high() { pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
-
-inline void IRAM_ATTR CECTransmit::set_pin_output_low() {
-  pin_->pin_mode(gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN);
-  pin_->digital_write(false);
-}
-
 void CECTransmit::setup(InternalGPIOPin *pin) {
   // This CEC software component optionally uses a UART to transmit (write) on the cec bus.
   // When used, the uart output pin is connected to the GPIO CEC pin through a diode: cathode to uart pin.

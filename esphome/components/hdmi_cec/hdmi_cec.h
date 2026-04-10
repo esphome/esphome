@@ -144,8 +144,12 @@ class CECTransmit {
   bool is_idle() const { return send_queue_.is_empty() && (transmit_state_ == TransmitState::IDLE); }
   void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
   bool has_uart() const { return uart_ != nullptr; }
-  void set_pin_input_high();
-  void set_pin_output_low();
+  // Note: 'ESPHOME_ALWAYS_INLINE' allows the following methods to be also used in 'IRAM_ATTR' methods.
+  ESPHOME_ALWAYS_INLINE void set_pin_input_high() { pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
+  ESPHOME_ALWAYS_INLINE void set_pin_output_low() {
+    pin_->pin_mode(gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN);
+    pin_->digital_write(false);
+  }
 
   /**
    * Transmit the message on the front of the send_queue out on the CEC line
