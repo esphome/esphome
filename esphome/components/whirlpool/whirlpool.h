@@ -13,7 +13,7 @@ namespace whirlpool {
 enum Model {
   MODEL_DG11J1_3A = 0, /* Temperature range is from 18 to 32 */
   MODEL_DG11J1_91,     /* Temperature range is from 16 to 30 */
-  MODEL_DG11J1_39,
+  MODEL_DG11J1_39,     /* Temperature range is from 18 to 32 */
   MODEL_COUNT
 };
 

@@ -86,7 +86,7 @@ void WhirlpoolClimate::transmit_state() {
 
   // Temperature
   auto temp = static_cast<uint8_t>(roundf(clamp(this->target_temperature, minimum_temperature_, maximum_temperature_)));
-  remote_state[3] |= static_cast<uint8_t>(temp - minimum_temperature_) << 4 + temperature_correction_;
+  remote_state[3] |= (static_cast<uint8_t>(temp - minimum_temperature_) << 4) + static_cast<uint8_t>(temperature_correction_);
 
   // Fan speed
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
@@ -270,7 +270,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   int temp = remote_state[3] & 0xF0;
   ESP_LOGVV(TAG, "Temperature Raw: %02X", temp);
   temp = (uint8_t) temp >> 4;
-  temp += static_cast<int>(this->temperature_min_());
+  temp += static_cast<int>(this->minimum_temperature_);
   ESP_LOGVV(TAG, "Temperature Climate: %u", temp);
   this->target_temperature = temp;
 
