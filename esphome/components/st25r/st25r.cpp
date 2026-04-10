@@ -239,14 +239,7 @@ void ST25R::process_state() {
 
         ESP_LOGI(TAG, "Tag selected: %s (SAK=0x%02X)", this->current_uid_.c_str(), sak);
 
-        if (!this->present_tags_.count(this->current_uid_)) {
-          std::vector<uint8_t> uid_bytes;
-          for (size_t i = 0; i < this->current_uid_.length(); i += 2)
-            uid_bytes.push_back((uint8_t) strtol(this->current_uid_.substr(i, 2).c_str(), nullptr, 16));
-          this->tags_data_[this->current_uid_] = this->read_tag(uid_bytes);
-        }
-
-        this->tags_this_scan_.insert(this->current_uid_);
+        this->tags_this_scan_.push_back(this->current_uid_);
         this->send_halt();
         this->state_ = STATE_IDLE;
         this->finalize_scan_();
@@ -265,33 +258,51 @@ void ST25R::process_state() {
 }
 
 void ST25R::finalize_scan_() {
-  // Increment miss counters; fire on_tag_removed when threshold reached
-  std::vector<std::string> to_remove;
-  for (auto &kv : this->present_tags_) {
-    if (this->tags_this_scan_.count(kv.first)) {
-      kv.second = 0;
-    } else {
-      kv.second++;
-      if (kv.second >= this->miss_threshold_)
-        to_remove.push_back(kv.first);
+  // Remove stale tags; increment miss counters
+  auto it = this->present_tags_.begin();
+  while (it != this->present_tags_.end()) {
+    bool seen = false;
+    for (const auto &uid : this->tags_this_scan_) {
+      if (uid == it->uid) {
+        seen = true;
+        break;
+      }
     }
-  }
-  for (const auto &uid : to_remove) {
-    ESP_LOGI(TAG, "Tag removed: %s", uid.c_str());
-    this->on_tag_removed_callback_.call(uid);
-    this->tags_data_.erase(uid);
-    this->present_tags_.erase(uid);
+    if (seen) {
+      it->miss_count = 0;
+      ++it;
+    } else if (++it->miss_count >= this->miss_threshold_) {
+      ESP_LOGI(TAG, "Tag removed: %s", it->uid.c_str());
+      this->on_tag_removed_callback_.call(it->uid);
+      it = this->present_tags_.erase(it);
+    } else {
+      ++it;
+    }
   }
 
   // Fire on_tag for newly seen UIDs
   for (const auto &uid : this->tags_this_scan_) {
-    if (!this->present_tags_.count(uid)) {
-      this->present_tags_[uid] = 0;
-      this->on_tag_callback_.call(uid);
-      if (this->tags_data_.count(uid) && this->tags_data_[uid]) {
-        for (auto *listener : this->tag_listeners_)
-          listener->tag_on(*this->tags_data_[uid]);
+    bool found = false;
+    for (const auto &entry : this->present_tags_) {
+      if (entry.uid == uid) {
+        found = true;
+        break;
       }
+    }
+    if (!found) {
+      ESP_LOGI(TAG, "Tag detected: %s", uid.c_str());
+      std::vector<uint8_t> uid_bytes;
+      for (size_t i = 0; i < uid.length(); i += 2)
+        uid_bytes.push_back((uint8_t) strtol(uid.substr(i, 2).c_str(), nullptr, 16));
+      TagEntry entry;
+      entry.uid = uid;
+      entry.tag = this->read_tag(uid_bytes);
+      this->on_tag_callback_.call(uid);
+      if (entry.tag) {
+        for (auto *listener : this->tag_listeners_)
+          listener->tag_on(*entry.tag);
+      }
+      this->present_tags_.push_back(std::move(entry));
     }
   }
 

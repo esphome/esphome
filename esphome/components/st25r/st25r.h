@@ -4,8 +4,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/nfc/nfc.h"
-#include <map>
-#include <set>
 #include <vector>
 #include <string>
 
@@ -139,10 +137,14 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   volatile bool irq_triggered_{false};
   volatile uint8_t irq_status_{0};
 
-  // Tag tracking
-  std::map<std::string, uint8_t> present_tags_;
-  std::set<std::string> tags_this_scan_;
-  std::map<std::string, std::unique_ptr<nfc::NfcTag>> tags_data_;
+  // Tag tracking — small linear containers (typically 0-3 tags)
+  struct TagEntry {
+    std::string uid;
+    uint8_t miss_count{0};
+    std::unique_ptr<nfc::NfcTag> tag;
+  };
+  std::vector<TagEntry> present_tags_;
+  std::vector<std::string> tags_this_scan_;
 
   // IRQ_MAIN bit definitions
   static const uint8_t IRQ_RXE = 0x10;
