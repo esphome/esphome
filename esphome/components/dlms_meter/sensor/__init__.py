@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
@@ -23,6 +25,8 @@ from .. import (
     obis_code,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 DEPENDENCIES = ["dlms_meter"]
 
 DYNAMIC_SCHEMA = sensor.sensor_schema().extend(
@@ -31,6 +35,15 @@ DYNAMIC_SCHEMA = sensor.sensor_schema().extend(
         cv.Required(CONF_OBIS_CODE): obis_code,
     }
 )
+
+
+def deprecation_warning(config):
+    _LOGGER.warning(
+        "The dlms_meter sensor schema using predefined keys (e.g., 'voltage_l1') is deprecated and will be removed in a future release. "
+        "Please update your configuration to use the new schema with 'obis_code'."
+    )
+    return config
+
 
 OLD_SCHEMA = cv.All(
     cv.Schema(
@@ -114,7 +127,8 @@ OLD_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
-    ).extend(cv.COMPONENT_SCHEMA)
+    ).extend(cv.COMPONENT_SCHEMA),
+    deprecation_warning,
 )
 
 CONFIG_SCHEMA = cv.Any(DYNAMIC_SCHEMA, OLD_SCHEMA)
