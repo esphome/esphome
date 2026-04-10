@@ -140,8 +140,11 @@ SerializationBuffer<> JsonBuilder::serialize() {
     heap_size *= 2;
   }
   // Payload exceeds 5120 bytes - return truncated result
-  ESP_LOGW(TAG, "JSON payload too large, truncated to %zu bytes", size);
-  result.set_size_(size);
+  // heap_size was doubled after the last iteration, so the actual allocated
+  // buffer capacity is heap_size/2. Clamp to avoid writing past the buffer.
+  size_t max_content = heap_size / 2 - 1;
+  ESP_LOGW(TAG, "JSON payload too large, truncated to %zu bytes", max_content);
+  result.set_size_(max_content);
   return result;
 }
 
