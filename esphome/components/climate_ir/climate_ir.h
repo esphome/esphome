@@ -27,16 +27,17 @@ class ClimateIR : public Component,
             bool supports_dry = false, bool supports_fan_only = false,
             climate::ClimateFanModeMask fan_modes = climate::ClimateFanModeMask(),
             climate::ClimateSwingModeMask swing_modes = climate::ClimateSwingModeMask(),
-            climate::ClimatePresetMask presets = climate::ClimatePresetMask()) {
-    this->minimum_temperature_ = minimum_temperature;
-    this->maximum_temperature_ = maximum_temperature;
-    this->temperature_step_ = temperature_step;
-    this->supports_dry_ = supports_dry;
-    this->supports_fan_only_ = supports_fan_only;
-    this->fan_modes_ = fan_modes;
-    this->swing_modes_ = swing_modes;
-    this->presets_ = presets;
-  }
+            climate::ClimatePresetMask presets = climate::ClimatePresetMask()) :
+            minimum_temperature_(minimum_temperature),
+            maximum_temperature_(maximum_temperature),
+            temperature_step_(temperature_step),
+            supports_dry_(supports_dry),
+            supports_fan_only_(supports_fan_only),
+            fan_modes_(fan_modes),
+            swing_modes_(swing_modes),
+            presets_(presets)
+    {
+    }
 
   void setup() override;
   void dump_config() override;
@@ -44,6 +45,9 @@ class ClimateIR : public Component,
   void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
   void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
   void set_humidity_sensor(sensor::Sensor *sensor) { this->humidity_sensor_ = sensor; }
+  void set_minimum_temperature(float minimum_temperature) { this->minimum_temperature_ = minimum_temperature; }
+  void set_maximum_temperature(float maximum_temperature) { this->maximum_temperature_ = maximum_temperature; }
+  void set_temperature_step(float temperature_step) { this->temperature_step_ = temperature_step; }
 
  protected:
   float minimum_temperature_, maximum_temperature_, temperature_step_;

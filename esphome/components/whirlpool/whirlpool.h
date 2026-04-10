@@ -1,21 +1,21 @@
 #pragma once
 
+#include <array>
+
 #include "esphome/components/climate_ir/climate_ir.h"
 
 namespace esphome {
 namespace whirlpool {
 
-/// Simple enum to represent models.
+/**
+ * @brief Simple enum to represent models.
+ */
 enum Model {
-  MODEL_DG11J1_3A = 0,  /// Temperature range is from 18 to 32
-  MODEL_DG11J1_91 = 1,  /// Temperature range is from 16 to 30
+  MODEL_DG11J1_3A = 0,  /* Temperature range is from 18 to 32 */
+  MODEL_DG11J1_91,  /* Temperature range is from 16 to 30 */
+  MODEL_DG11J1_39,
+  MODEL_COUNT
 };
-
-// Temperature
-const float WHIRLPOOL_DG11J1_3A_TEMP_MAX = 32.0;
-const float WHIRLPOOL_DG11J1_3A_TEMP_MIN = 18.0;
-const float WHIRLPOOL_DG11J1_91_TEMP_MAX = 30.0;
-const float WHIRLPOOL_DG11J1_91_TEMP_MIN = 16.0;
 
 class WhirlpoolClimate : public climate_ir::ClimateIR {
  public:
@@ -34,15 +34,28 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
   }
 
   void set_model(Model model) {
-    this->model_ = model;
-    this->minimum_temperature_ = temperature_min_();
-    this->maximum_temperature_ = temperature_max_();
+    auto& model_settings = MODEL_SETTINGS_ARR[model];
+    set_minimum_temperature(model_settings.minimum_temperature);
+    set_maximum_temperature(model_settings.maximum_temperature);
+    temperature_correction_ = model_settings.temperature_correction;
   }
 
   // used to track when to send the power toggle command
   bool powered_on_assumed;
 
  protected:
+  struct ModelSettings {
+    decltype(climate_ir::ClimateIR::minimum_temperature_) minimum_temperature;
+    decltype(climate_ir::ClimateIR::maximum_temperature_) maximum_temperature;
+    decltype(temperature_correction_) temperature_correction;
+  };
+
+  static constexpr std::array<ModelSettings, Model::MODEL_COUNT> MODEL_SETTINGS_ARR = {
+    ModelSettings(18.f, 32.f, 0.f),   /* MODEL_DG11J1_3A */
+    ModelSettings(30.f, 16.f, 0.f),   /* MODEL_DG11J1_91 */
+    ModelSettings(18.f, 32.f, 2.f)    /* MODEL_DG11J1_39 */
+  };
+
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
   /// Handle received IR Buffer
@@ -50,15 +63,9 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
   /// Set the time of the last transmission.
   uint32_t last_transmit_time_{};
 
-  bool send_swing_cmd_{false};
-  Model model_;
+  float temperature_correction_{0.f};
 
-  float temperature_min_() {
-    return (model_ == MODEL_DG11J1_3A) ? WHIRLPOOL_DG11J1_3A_TEMP_MIN : WHIRLPOOL_DG11J1_91_TEMP_MIN;
-  }
-  float temperature_max_() {
-    return (model_ == MODEL_DG11J1_3A) ? WHIRLPOOL_DG11J1_3A_TEMP_MAX : WHIRLPOOL_DG11J1_91_TEMP_MAX;
-  }
+  bool send_swing_cmd_{false};
 };
 
 }  // namespace whirlpool
