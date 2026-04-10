@@ -85,6 +85,10 @@ class UARTComponent {
   // @return UARTFlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
   virtual UARTFlushResult flush() = 0;
 
+  // Returns true if the underlying transport is connected and operational.
+  // Hardware UARTs always return true. USB-backed UARTs override to reflect actual connection state.
+  virtual bool is_connected() { return true; }
+
   // Sets the maximum time to wait for TX to drain during flush().
   // Only meaningful on ESP32 (IDF). Other platforms ignore this value.
   // @param flush_timeout_ms Timeout in milliseconds; 0 means wait indefinitely.
