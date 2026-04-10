@@ -107,7 +107,7 @@ void IRAM_ATTR CC1101Component::gpio_intr(CC1101Component *arg) { arg->enable_lo
 void CC1101Component::setup() {
   this->spi_setup();
 
-    if (this->gdo0_pin_ != nullptr) {
+  if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->setup();
   }
 
