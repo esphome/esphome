@@ -48,6 +48,7 @@ void ST25R::update() {
 
   this->write_register(OP_CONTROL, 0xC8);  // en=1, rx_en=1, tx_en=1
 
+  this->tag_found_this_scan_ = false;
   this->irq_triggered_ = false;
   this->write_command(ST25R_CMD_TRANSMIT_WUPA);
   this->state_ = STATE_WUPA;
@@ -58,7 +59,8 @@ bool ST25R::transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t 
   return this->transceive_ex(data, len, resp, resp_len, true, timeout_ms);
 }
 
-bool ST25R::transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms) {
+bool ST25R::transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
+                               uint32_t timeout_ms) {
   return this->transceive_ex(data, len, resp, resp_len, false, timeout_ms);
 }
 
@@ -127,6 +129,16 @@ void ST25R::loop() {
   this->process_state();
 }
 
+// Append hex bytes to current_uid_ buffer without heap allocation
+void ST25R::uid_append_hex_(const uint8_t *data, uint8_t count) {
+  static constexpr char HEX[] = "0123456789ABCDEF";
+  for (uint8_t i = 0; i < count && this->current_uid_pos_ + 2 < MAX_UID_HEX; i++) {
+    this->current_uid_[this->current_uid_pos_++] = HEX[data[i] >> 4];
+    this->current_uid_[this->current_uid_pos_++] = HEX[data[i] & 0x0F];
+  }
+  this->current_uid_[this->current_uid_pos_] = '\0';
+}
+
 void ST25R::process_state() {
   switch (this->state_) {
     case STATE_IDLE:
@@ -135,7 +147,8 @@ void ST25R::process_state() {
     case STATE_WUPA: {
       if (this->irq_status_ & (IRQ_RXE | IRQ_COL)) {
         this->cascade_level_ = 0;
-        this->current_uid_ = "";
+        this->current_uid_pos_ = 0;
+        this->current_uid_[0] = '\0';
         this->send_anticol_frame();
         this->state_ = STATE_ANTICOL;
         this->last_state_change_ = millis();
@@ -168,7 +181,6 @@ void ST25R::process_state() {
       uint8_t f1 = this->read_fifo_status1();
 
       if (this->irq_status_ & IRQ_COL) {
-        // Collision: drain FIFO, scan will retry next update()
         if (f1 > 0) {
           uint8_t tmp[8];
           this->read_fifo(tmp, std::min(f1, (uint8_t) 8));
@@ -188,19 +200,11 @@ void ST25R::process_state() {
       uint8_t sel_cmds[] = {0x93, 0x95, 0x97};
       uint8_t sel_pk[7] = {sel_cmds[this->cascade_level_], 0x70, resp[0], resp[1], resp[2], resp[3], bcc};
 
-      // Build UID string: skip cascade tag (0x88)
+      // Build UID: skip cascade tag (0x88)
       if (resp[0] == 0x88) {
-        for (int i = 1; i < 4; i++) {
-          char buf[3];
-          snprintf(buf, sizeof(buf), "%02X", resp[i]);
-          this->current_uid_ += buf;
-        }
+        this->uid_append_hex_(resp + 1, 3);
       } else {
-        for (int i = 0; i < 4; i++) {
-          char buf[3];
-          snprintf(buf, sizeof(buf), "%02X", resp[i]);
-          this->current_uid_ += buf;
-        }
+        this->uid_append_hex_(resp, 4);
       }
 
       this->pre_select();
@@ -216,7 +220,7 @@ void ST25R::process_state() {
       uint8_t sak = sak_buf[0];
       this->last_sak_ = sak;
 
-      if (sak & 0x04) {  // Cascade bit — need another level
+      if (sak & 0x04) {  // Cascade bit
         this->cascade_level_++;
         if (this->cascade_level_ > 2) {
           ESP_LOGE(TAG, "Too many cascade levels");
@@ -229,17 +233,16 @@ void ST25R::process_state() {
         this->last_state_change_ = millis();
       } else {
         // Tag fully selected
-        size_t uid_bytes_len = this->current_uid_.length() / 2;
-        if (uid_bytes_len != 4 && uid_bytes_len != 7 && uid_bytes_len != 10) {
-          ESP_LOGW(TAG, "Discarding invalid UID len=%zu", uid_bytes_len);
+        uint8_t uid_len = this->current_uid_pos_ / 2;
+        if (uid_len != 4 && uid_len != 7 && uid_len != 10) {
+          ESP_LOGW(TAG, "Discarding invalid UID len=%u", uid_len);
           this->state_ = STATE_IDLE;
           this->finalize_scan_();
           return;
         }
 
-        ESP_LOGI(TAG, "Tag selected: %s (SAK=0x%02X)", this->current_uid_.c_str(), sak);
-
-        this->tags_this_scan_.push_back(this->current_uid_);
+        ESP_LOGI(TAG, "Tag selected: %s (SAK=0x%02X)", this->current_uid_, sak);
+        this->tag_found_this_scan_ = true;
         this->send_halt();
         this->state_ = STATE_IDLE;
         this->finalize_scan_();
@@ -261,43 +264,44 @@ void ST25R::finalize_scan_() {
   // Remove stale tags; increment miss counters
   auto it = this->present_tags_.begin();
   while (it != this->present_tags_.end()) {
-    bool seen = false;
-    for (const auto &uid : this->tags_this_scan_) {
-      if (uid == it->uid) {
-        seen = true;
-        break;
-      }
-    }
+    bool seen = this->tag_found_this_scan_ && strcmp(it->uid, this->current_uid_) == 0;
     if (seen) {
       it->miss_count = 0;
       ++it;
     } else if (++it->miss_count >= this->miss_threshold_) {
-      ESP_LOGI(TAG, "Tag removed: %s", it->uid.c_str());
-      this->on_tag_removed_callback_.call(it->uid);
+      ESP_LOGI(TAG, "Tag removed: %s", it->uid);
+      this->on_tag_removed_callback_.call(std::string(it->uid));
       it = this->present_tags_.erase(it);
     } else {
       ++it;
     }
   }
 
-  // Fire on_tag for newly seen UIDs
-  for (const auto &uid : this->tags_this_scan_) {
+  // Fire on_tag if this is a new UID
+  if (this->tag_found_this_scan_) {
     bool found = false;
     for (const auto &entry : this->present_tags_) {
-      if (entry.uid == uid) {
+      if (strcmp(entry.uid, this->current_uid_) == 0) {
         found = true;
         break;
       }
     }
     if (!found) {
-      ESP_LOGI(TAG, "Tag detected: %s", uid.c_str());
+      ESP_LOGI(TAG, "Tag detected: %s", this->current_uid_);
+
+      // Parse hex UID to bytes (only on first detection)
       std::vector<uint8_t> uid_bytes;
-      for (size_t i = 0; i < uid.length(); i += 2)
-        uid_bytes.push_back((uint8_t) strtol(uid.substr(i, 2).c_str(), nullptr, 16));
+      for (uint8_t i = 0; i < this->current_uid_pos_; i += 2) {
+        uint8_t hi = (this->current_uid_[i] >= 'A') ? (this->current_uid_[i] - 'A' + 10) : (this->current_uid_[i] - '0');
+        uint8_t lo = (this->current_uid_[i + 1] >= 'A') ? (this->current_uid_[i + 1] - 'A' + 10) : (this->current_uid_[i + 1] - '0');
+        uid_bytes.push_back((hi << 4) | lo);
+      }
+
       TagEntry entry;
-      entry.uid = uid;
+      strncpy(entry.uid, this->current_uid_, MAX_UID_HEX);
       entry.tag = this->read_tag(uid_bytes);
-      this->on_tag_callback_.call(uid);
+
+      this->on_tag_callback_.call(std::string(this->current_uid_));
       if (entry.tag) {
         for (auto *listener : this->tag_listeners_)
           listener->tag_on(*entry.tag);
@@ -305,8 +309,6 @@ void ST25R::finalize_scan_() {
       this->present_tags_.push_back(std::move(entry));
     }
   }
-
-  this->tags_this_scan_.clear();
 }
 
 bool ST25R::wait_for_irq_(uint8_t mask, uint32_t timeout_ms) {
@@ -415,7 +417,7 @@ void ST25R::reinitialize() {
 
 void ST25R::send_anticol_frame() {
   uint8_t sel_cmds[] = {0x93, 0x95, 0x97};
-  uint8_t frame[2] = {sel_cmds[this->cascade_level_], 0x20};  // NVB=0x20: no prefix
+  uint8_t frame[2] = {sel_cmds[this->cascade_level_], 0x20};
 
   this->write_register(ISO14443A_CONF, 0x01);  // antcl=1
   this->write_command(ST25R_CMD_CLEAR_FIFO);
@@ -425,7 +427,7 @@ void ST25R::send_anticol_frame() {
   this->irq_triggered_ = false;
   this->write_fifo(frame, 2);
   this->write_register(NUM_TX_BYTES1, 0x00);
-  this->write_register(NUM_TX_BYTES2, 0x10);  // 2 bytes, 0 bits
+  this->write_register(NUM_TX_BYTES2, 0x10);
   this->write_command(ST25R_CMD_TRANSMIT_WITHOUT_CRC);
 }
 

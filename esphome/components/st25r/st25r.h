@@ -121,6 +121,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
 
   void field_on_();
   void finalize_scan_();
+  void uid_append_hex_(const uint8_t *data, uint8_t count);
   bool wait_for_irq_(uint8_t mask, uint32_t timeout_ms);
   bool transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
   bool transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
@@ -137,14 +138,16 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   volatile bool irq_triggered_{false};
   volatile uint8_t irq_status_{0};
 
+  // Max UID hex string: 10-byte UID = 20 hex chars + null
+  static constexpr uint8_t MAX_UID_HEX = 21;
+
   // Tag tracking — small linear containers (typically 0-3 tags)
   struct TagEntry {
-    std::string uid;
+    char uid[MAX_UID_HEX]{};
     uint8_t miss_count{0};
     std::unique_ptr<nfc::NfcTag> tag;
   };
   std::vector<TagEntry> present_tags_;
-  std::vector<std::string> tags_this_scan_;
 
   // IRQ_MAIN bit definitions
   static constexpr uint8_t IRQ_RXE = 0x10;
@@ -155,8 +158,10 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   State state_{STATE_IDLE};
   uint32_t last_state_change_{0};
   uint8_t cascade_level_{0};
-  std::string current_uid_;
+  char current_uid_[MAX_UID_HEX]{};
+  uint8_t current_uid_pos_{0};
   uint8_t last_sak_{0};
+  bool tag_found_this_scan_{false};
 
   CallbackManager<void(std::string)> on_tag_callback_;
   CallbackManager<void(std::string)> on_tag_removed_callback_;
