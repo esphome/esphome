@@ -32,12 +32,12 @@ const uint8_t WHIRLPOOL_SWING_MASK = 128;
 
 const uint8_t WHIRLPOOL_POWER = 0x04;
 
-  WhirlpoolClimate()
-      : climate_ir::ClimateIR(MODEL_SETTINGS_ARR.front().minimum_temperature,
-                              MODEL_SETTINGS_ARR.front().maximum_temperature, 1.0f, true, true,
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH},
-                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
+WhirlpoolClimate()
+    : climate_ir::ClimateIR(MODEL_SETTINGS_ARR[MODEL_DG11J1_3A].minimum_temperature,
+                            MODEL_SETTINGS_ARR[MODEL_DG11J1_3A].maximum_temperature, 1.0f, true, true,
+                            {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
+                              climate::CLIMATE_FAN_HIGH},
+                            {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
 
 void WhirlpoolClimate::transmit_state() {
   this->last_transmit_time_ = millis();  // setting the time of the last transmission.

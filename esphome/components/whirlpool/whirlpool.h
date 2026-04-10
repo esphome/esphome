@@ -11,7 +11,7 @@ namespace whirlpool {
  * @brief Simple enum to represent models.
  */
 enum Model {
-  MODEL_DG11J1_3A = 0, /* Temperature range is from 18 to 32 */
+  MODEL_DG11J1_3A = 0, /* Temperature range is from 18 to 32 (default) */
   MODEL_DG11J1_91,     /* Temperature range is from 16 to 30 */
   MODEL_DG11J1_39,     /* Temperature range is from 18 to 32 */
   MODEL_COUNT
@@ -45,9 +45,9 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
 
  protected:
   struct ModelSettings {
-    decltype(climate_ir::ClimateIR::minimum_temperature_) minimum_temperature;
-    decltype(climate_ir::ClimateIR::maximum_temperature_) maximum_temperature;
-    decltype(temperature_correction_) temperature_correction;
+    float minimum_temperature;
+    float maximum_temperature;
+    float temperature_correction;
   };
 
   static constexpr std::array<ModelSettings, Model::MODEL_COUNT> MODEL_SETTINGS_ARR = {
