@@ -361,9 +361,6 @@ void SX1509Component::enable_pin_interrupt_(uint8_t pin) {
   sense_val &= ~(SENSE_BOTH_EDGES << shift);
   sense_val |= (SENSE_BOTH_EDGES << shift);
   this->write_byte(sense_reg, sense_val);
-
-  // Clear any pending interrupt for this pin
-  this->write_byte_16(REG_INTERRUPT_SOURCE_B, 1 << pin);
 }
 
 }  // namespace sx1509
