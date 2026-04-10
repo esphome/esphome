@@ -89,6 +89,7 @@ class SX1509Component : public Component,
   std::vector<SX1509KeyTrigger *> key_triggers_;
 
   InternalGPIOPin *interrupt_pin_{nullptr};
+  volatile bool interrupt_pending_{false};
   uint32_t last_loop_timestamp_ = 0;
   const uint32_t min_loop_period_ = 15;  // ms
 

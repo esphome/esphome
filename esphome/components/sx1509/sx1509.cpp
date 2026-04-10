@@ -41,7 +41,10 @@ void SX1509Component::setup() {
   }
 }
 
-void IRAM_ATTR SX1509Component::gpio_intr(SX1509Component *arg) { arg->enable_loop_soon_any_context(); }
+void IRAM_ATTR SX1509Component::gpio_intr(SX1509Component *arg) {
+  arg->interrupt_pending_ = true;
+  arg->enable_loop_soon_any_context();
+}
 void SX1509Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SX1509:");
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
@@ -52,16 +55,19 @@ void SX1509Component::dump_config() {
 }
 
 void SX1509Component::loop() {
-  if (this->interrupt_pin_ != nullptr) {
+  if (this->interrupt_pending_) {
+    this->interrupt_pending_ = false;
     // Clear interrupt source before resetting cache to avoid losing
     // pin changes that occur between cache reset and interrupt clear
     uint16_t interrupt_source = 0;
     this->read_byte_16(REG_INTERRUPT_SOURCE_B, &interrupt_source);
+    this->reset_pin_cache_();
+    if (!this->has_keypad_) {
+      this->disable_loop();
+    }
+    return;
   }
   this->reset_pin_cache_();
-  if (this->interrupt_pin_ != nullptr && !this->has_keypad_) {
-    this->disable_loop();
-  }
 
   if (this->has_keypad_) {
     if (millis() - this->last_loop_timestamp_ < min_loop_period_)
