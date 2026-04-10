@@ -4,8 +4,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/st25r/st25r.h"
 
-namespace esphome {
-namespace st25r_spi {
+namespace esphome::st25r_spi {
 
 class ST25RSpi : public st25r::ST25R,
                  public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_TRAILING,
@@ -22,5 +21,4 @@ class ST25RSpi : public st25r::ST25R,
   void read_fifo(uint8_t *data, size_t len) override;
 };
 
-}  // namespace st25r_spi
-}  // namespace esphome
+}  // namespace esphome::st25r_spi

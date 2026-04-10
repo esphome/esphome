@@ -9,8 +9,7 @@
 #include <vector>
 #include <string>
 
-namespace esphome {
-namespace st25r {
+namespace esphome::st25r {
 
 // ST25R Register Definitions
 enum ST25RRegister : uint8_t {
@@ -177,5 +176,4 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   std::vector<ST25RTagRemovedTrigger *> on_tag_removed_triggers_;
 };
 
-}  // namespace st25r
-}  // namespace esphome
+}  // namespace esphome::st25r

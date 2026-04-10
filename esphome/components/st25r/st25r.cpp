@@ -7,8 +7,7 @@
 #include <algorithm>
 #include <cstring>
 
-namespace esphome {
-namespace st25r {
+namespace esphome::st25r {
 
 static const char *const TAG = "st25r";
 
@@ -467,5 +466,4 @@ void ST25R::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace st25r
-}  // namespace esphome
+}  // namespace esphome::st25r

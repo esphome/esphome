@@ -47,7 +47,7 @@ ST25R_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def setup_st25r(var, config):
+async def setup_st25r(var: cg.Pvariable, config: dict) -> None:
     await cg.register_component(var, config)
 
     if CONF_IRQ_PIN in config:

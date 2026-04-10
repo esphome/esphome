@@ -1,8 +1,7 @@
 #include "st25r_spi.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace st25r_spi {
+namespace esphome::st25r_spi {
 
 static const char *const TAG = "st25r_spi";
 
@@ -61,5 +60,4 @@ void ST25RSpi::read_fifo(uint8_t *data, size_t len) {
   this->disable();
 }
 
-}  // namespace st25r_spi
-}  // namespace esphome
+}  // namespace esphome::st25r_spi

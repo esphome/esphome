@@ -20,7 +20,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: dict) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await st25r.setup_st25r(var, config)
     await spi.register_spi_device(var, config)
