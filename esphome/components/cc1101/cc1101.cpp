@@ -106,14 +106,6 @@ void IRAM_ATTR CC1101Component::gpio_intr(CC1101Component *arg) { arg->enable_lo
 
 void CC1101Component::setup() {
   this->spi_setup();
-  this->cs_->digital_write(true);
-  delayMicroseconds(1);
-  this->cs_->digital_write(false);
-  delayMicroseconds(1);
-  this->cs_->digital_write(true);
-  delayMicroseconds(41);
-  this->cs_->digital_write(false);
-  delay(5);
 
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->setup();
@@ -137,6 +129,16 @@ void CC1101Component::setup() {
 }
 
 void CC1101Component::configure() {
+  // Manual reset sequence per CC1101 datasheet section 19.1.2
+  this->cs_->digital_write(true);
+  delayMicroseconds(1);
+  this->cs_->digital_write(false);
+  delayMicroseconds(1);
+  this->cs_->digital_write(true);
+  delayMicroseconds(41);
+  this->cs_->digital_write(false);
+  delay(5);
+
   this->strobe_(Command::RES);
   delay(5);
 
