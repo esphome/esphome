@@ -1,5 +1,6 @@
 from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components import nfc
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_IRQ_PIN,
@@ -8,8 +9,6 @@ from esphome.const import (
     CONF_RESET_PIN,
     CONF_TRIGGER_ID,
 )
-
-from esphome.components import nfc
 
 CODEOWNERS = ["@JohnMcLear"]
 AUTO_LOAD = ["nfc"]
