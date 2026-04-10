@@ -868,7 +868,8 @@ jobs:
           python script/test_build_components.py \
             -e compile \
             -c "$component_list" \
-            -t "$platform" 2>&1 | \
+            -t "$platform" \
+            --base-only 2>&1 | \
             tee /dev/stderr | \
             python script/ci_memory_impact_extract.py \
               --output-env \
@@ -954,7 +955,8 @@ jobs:
           python script/test_build_components.py \
             -e compile \
             -c "$component_list" \
-            -t "$platform" 2>&1 | \
+            -t "$platform" \
+            --base-only 2>&1 | \
             tee /dev/stderr | \
             python script/ci_memory_impact_extract.py \
               --output-env \
