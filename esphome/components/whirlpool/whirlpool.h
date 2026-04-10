@@ -52,7 +52,7 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
 
   static constexpr std::array<ModelSettings, Model::MODEL_COUNT> MODEL_SETTINGS_ARR = {
       ModelSettings(18.f, 32.f, 0.f), /* MODEL_DG11J1_3A */
-      ModelSettings(30.f, 16.f, 0.f), /* MODEL_DG11J1_91 */
+      ModelSettings(16.f, 30.f, 0.f), /* MODEL_DG11J1_91 */
       ModelSettings(18.f, 32.f, 2.f)  /* MODEL_DG11J1_39 */
   };
 
