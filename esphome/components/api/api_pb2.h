@@ -1888,8 +1888,6 @@ class BluetoothLERawAdvertisement final : public ProtoMessage {
   uint32_t address_type{0};
   uint8_t data[62]{};
   uint8_t data_len{0};
-  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
-  uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
