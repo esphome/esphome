@@ -1,9 +1,9 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/components/output/float_output.h"
 #include "esphome/components/light/light_output.h"
-#include "esphome/core/log.h"
+#include "esphome/components/output/float_output.h"
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace hbridge {
@@ -42,14 +42,17 @@ class HBridgeLightOutput : public Component, public light::LightOutput {
   void write_state(light::LightState *state) override {
     float new_pina, new_pinb;
     state->current_values_as_cwww(&new_pina, &new_pinb, false);
+
     this->pina_duty_ = new_pina;
     this->pinb_duty_ = new_pinb;
 
     if (new_pina != 0.0f && new_pinb != 0.0f) {
       // Both channels active — need loop to alternate H-bridge direction
+      this->high_freq_.start();
       this->enable_loop();
     } else {
       // Zero or one channel active — drive pins directly, no multiplexing needed
+      this->high_freq_.stop();
       this->disable_loop();
       this->pina_pin_->set_level(new_pina);
       this->pinb_pin_->set_level(new_pinb);
@@ -62,6 +65,7 @@ class HBridgeLightOutput : public Component, public light::LightOutput {
   float pina_duty_{0};
   float pinb_duty_{0};
   bool forward_direction_{false};
+  HighFrequencyLoopRequester high_freq_;
 };
 
 }  // namespace hbridge
