@@ -449,6 +449,12 @@ void Application::enable_pending_loops_() {
   }
 }
 
+#if defined(USE_OTA) && defined(USE_LWIP_FAST_SELECT)
+// Called from the LwIP TCP/IP task via esphome_socket_event_callback() on NETCONN_EVT_RCVPLUS.
+// enable_loop_soon_any_context() is task-safe and IRAM-resident.
+extern "C" void IRAM_ATTR esphome_wake_ota_component_any_context() { App.wake_ota_component_any_context(); }
+#endif
+
 #ifdef USE_LWIP_FAST_SELECT
 bool Application::register_socket(struct lwip_sock *sock) {
   // It modifies monitored_sockets_ without locking — must only be called from the main loop.
@@ -554,6 +560,13 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     // ret > 0: socket(s) have data ready - normal and expected
     // ret == 0: timeout occurred - normal and expected
     if (ret >= 0) [[likely]] {
+#ifdef USE_OTA
+      // A socket is ready; re-enable the OTA component loop if it disabled itself while idle.
+      // The wake is a no-op if OTA didn't register or is already active.
+      if (ret > 0) {
+        this->wake_ota_component_any_context();
+      }
+#endif
       // Yield if zero timeout since select(0) only polls without yielding
       if (delay_ms == 0) [[unlikely]] {
         yield();

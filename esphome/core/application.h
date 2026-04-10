@@ -559,6 +559,20 @@ class Application {
   /// Wake from any context (ISR, thread, callback).
   static void IRAM_ATTR wake_loop_any_context() { esphome::wake_loop_any_context(); }
 
+#ifdef USE_OTA
+  /// Register the OTA component so socket-wake paths can enable its loop when
+  /// a new connection arrives on the listening socket. OTA disables its own
+  /// loop while idle to avoid per-tick dispatch overhead.
+  void set_ota_wake_component(Component *component) { this->ota_wake_component_ = component; }
+  /// Wake the registered OTA component (if any) from any context. Safe to call
+  /// from the LwIP TCP/IP task and other callback contexts.
+  void IRAM_ATTR wake_ota_component_any_context() {
+    if (this->ota_wake_component_ != nullptr) {
+      this->ota_wake_component_->enable_loop_soon_any_context();
+    }
+  }
+#endif
+
  protected:
   friend Component;
 #ifdef USE_HOST
@@ -634,6 +648,9 @@ class Application {
 
   // Pointer-sized members first
   Component *current_component_{nullptr};
+#ifdef USE_OTA
+  Component *ota_wake_component_{nullptr};  // Set by ESPHomeOTAComponent to receive socket-wake notifications
+#endif
 
   // std::vector (3 pointers each: begin, end, capacity)
   // Partitioned vector design for looping components

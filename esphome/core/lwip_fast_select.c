@@ -157,6 +157,13 @@ _Static_assert(offsetof(struct lwip_sock, rcvevent) == ESPHOME_LWIP_SOCK_RCVEVEN
 // Saved original event_callback pointer — written once in first hook_socket(), read from TCP/IP task.
 static netconn_callback s_original_callback = NULL;
 
+#ifdef USE_OTA
+// Extern wake hook for the OTA component (implemented in application.cpp). Called from the
+// TCP/IP task so the OTA component's disabled loop can be re-enabled when a new connection
+// arrives on its listening socket. Safe from task context via enable_loop_soon_any_context().
+extern void esphome_wake_ota_component_any_context(void);
+#endif
+
 // Wrapper callback: calls original event_callback + notifies main loop task.
 // Called from LwIP's TCP/IP thread when socket events occur (task context, not ISR).
 static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len) {
@@ -175,6 +182,10 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
     if (task != NULL) {
       xTaskNotifyGive(task);
     }
+#ifdef USE_OTA
+    // Re-enable the OTA component loop if it disabled itself while idle.
+    esphome_wake_ota_component_any_context();
+#endif
   }
 }
 

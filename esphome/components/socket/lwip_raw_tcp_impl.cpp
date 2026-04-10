@@ -10,6 +10,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/wake.h"
 #include "esphome/core/log.h"
+#ifdef USE_OTA
+#include "esphome/core/application.h"
+#endif
 
 #ifdef USE_ESP8266
 #include <coredecls.h>  // For esp_schedule()
@@ -856,6 +859,12 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   LWIP_LOG("Accepted connection, queue size: %d", this->accepted_socket_count_);
   // Wake the main loop immediately so it can accept the new connection.
   esphome::wake_loop_any_context();
+#ifdef USE_OTA
+  // Re-enable the OTA component loop if it disabled itself while idle.
+  // enable_loop_soon_any_context() is IRAM/IRQ-safe, which is required on RP2040
+  // where this callback runs in a low-priority user IRQ context.
+  esphome::App.wake_ota_component_any_context();
+#endif
   return ERR_OK;
 }
 

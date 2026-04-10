@@ -65,6 +65,12 @@ void ESPHomeOTAComponent::setup() {
     this->server_failed_(LOG_STR("listen"));
     return;
   }
+
+  // Disable loop() while idle. Socket wake paths (LwIP fast select, raw TCP accept
+  // callback, host select) call App.wake_ota_component_any_context() which re-enables
+  // this component's loop when an incoming connection arrives.
+  App.set_ota_wake_component(this);
+  this->disable_loop();
 }
 
 void ESPHomeOTAComponent::dump_config() {
@@ -81,13 +87,18 @@ void ESPHomeOTAComponent::dump_config() {
 }
 
 void ESPHomeOTAComponent::loop() {
-  // Skip handle_handshake_() call if no client connected and no incoming connections
-  // This optimization reduces idle loop overhead when OTA is not active
-  // Note: No need to check server_ for null as the component is marked failed in setup()
-  // if server_ creation fails
-  if (this->client_ != nullptr || this->server_->ready()) {
-    this->handle_handshake_();
+  // loop() is disabled while idle (see setup() / cleanup_connection_()). Socket-wake
+  // paths (LwIP fast select, raw TCP accept, host select) call
+  // App.wake_ota_component_any_context() to re-enable this loop when a monitored
+  // socket signals activity. False wakes (e.g. an API-socket event) land here with
+  // no pending work — in that case we disable the loop again and go back to sleep.
+  // Note: No need to check server_ for null as the component is marked failed in
+  // setup() if server_ creation fails.
+  if (this->client_ == nullptr && !this->server_->ready()) {
+    this->disable_loop();
+    return;
   }
+  this->handle_handshake_();
 }
 
 static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
@@ -566,6 +577,8 @@ void ESPHomeOTAComponent::cleanup_connection_() {
 #ifdef USE_OTA_PASSWORD
   this->cleanup_auth_();
 #endif
+  // Back to idle — sleep until the next incoming connection wakes us.
+  this->disable_loop();
 }
 
 void ESPHomeOTAComponent::yield_and_feed_watchdog_() {
