@@ -425,7 +425,9 @@ W55RP20_SCHEMA = cv.All(
     BASE_SCHEMA.extend(
         cv.Schema(
             {
-                cv.Optional(CONF_CS_PIN, default=17): pins.internal_gpio_output_pin_number,
+                cv.Optional(
+                    CONF_CS_PIN, default=17
+                ): pins.internal_gpio_output_pin_number,
             }
         ),
     ),
