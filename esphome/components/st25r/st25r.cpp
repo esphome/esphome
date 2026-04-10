@@ -59,8 +59,7 @@ bool ST25R::transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t 
   return this->transceive_ex(data, len, resp, resp_len, true, timeout_ms);
 }
 
-bool ST25R::transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                               uint32_t timeout_ms) {
+bool ST25R::transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms) {
   return this->transceive_ex(data, len, resp, resp_len, false, timeout_ms);
 }
 
@@ -292,8 +291,10 @@ void ST25R::finalize_scan_() {
       // Parse hex UID to bytes (only on first detection)
       std::vector<uint8_t> uid_bytes;
       for (uint8_t i = 0; i < this->current_uid_pos_; i += 2) {
-        uint8_t hi = (this->current_uid_[i] >= 'A') ? (this->current_uid_[i] - 'A' + 10) : (this->current_uid_[i] - '0');
-        uint8_t lo = (this->current_uid_[i + 1] >= 'A') ? (this->current_uid_[i + 1] - 'A' + 10) : (this->current_uid_[i + 1] - '0');
+        uint8_t hi =
+            (this->current_uid_[i] >= 'A') ? (this->current_uid_[i] - 'A' + 10) : (this->current_uid_[i] - '0');
+        uint8_t lo = (this->current_uid_[i + 1] >= 'A') ? (this->current_uid_[i + 1] - 'A' + 10)
+                                                        : (this->current_uid_[i + 1] - '0');
         uid_bytes.push_back((hi << 4) | lo);
       }
 
