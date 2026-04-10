@@ -57,6 +57,8 @@ const uint8_t REG_SENSE_HIGH_B = 0x14;  //    RegSenseHighB Sense register for I
 const uint8_t REG_SENSE_LOW_B = 0x15;   //    RegSenseLowB Sense register for I/O[11:8] 0000 0000
 const uint8_t REG_SENSE_HIGH_A = 0x16;  //    RegSenseHighA Sense register for I/O[7:4] 0000 0000
 const uint8_t REG_SENSE_LOW_A = 0x17;   //    RegSenseLowA Sense register for I/O[3:0] 0000 0000
+// Sense register values (2 bits per pin): 00=None, 01=Rising, 10=Falling, 11=Both
+const uint8_t SENSE_BOTH_EDGES = 0x03;
 const uint8_t REG_INTERRUPT_SOURCE_B =
     0x18;  //    RegInterruptSourceB Interrupt source register _ I/O[15_8] (Bank B) 0000 0000
 const uint8_t REG_INTERRUPT_SOURCE_A =
