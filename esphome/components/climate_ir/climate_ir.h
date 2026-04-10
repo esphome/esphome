@@ -27,17 +27,15 @@ class ClimateIR : public Component,
             bool supports_dry = false, bool supports_fan_only = false,
             climate::ClimateFanModeMask fan_modes = climate::ClimateFanModeMask(),
             climate::ClimateSwingModeMask swing_modes = climate::ClimateSwingModeMask(),
-            climate::ClimatePresetMask presets = climate::ClimatePresetMask()) :
-            minimum_temperature_(minimum_temperature),
-            maximum_temperature_(maximum_temperature),
-            temperature_step_(temperature_step),
-            supports_dry_(supports_dry),
-            supports_fan_only_(supports_fan_only),
-            fan_modes_(fan_modes),
-            swing_modes_(swing_modes),
-            presets_(presets)
-    {
-    }
+            climate::ClimatePresetMask presets = climate::ClimatePresetMask())
+      : minimum_temperature_(minimum_temperature),
+        maximum_temperature_(maximum_temperature),
+        temperature_step_(temperature_step),
+        supports_dry_(supports_dry),
+        supports_fan_only_(supports_fan_only),
+        fan_modes_(fan_modes),
+        swing_modes_(swing_modes),
+        presets_(presets) {}
 
   void setup() override;
   void dump_config() override;

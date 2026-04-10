@@ -11,8 +11,8 @@ namespace whirlpool {
  * @brief Simple enum to represent models.
  */
 enum Model {
-  MODEL_DG11J1_3A = 0,  /* Temperature range is from 18 to 32 */
-  MODEL_DG11J1_91,  /* Temperature range is from 16 to 30 */
+  MODEL_DG11J1_3A = 0, /* Temperature range is from 18 to 32 */
+  MODEL_DG11J1_91,     /* Temperature range is from 16 to 30 */
   MODEL_DG11J1_39,
   MODEL_COUNT
 };
@@ -34,7 +34,7 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
   }
 
   void set_model(Model model) {
-    auto& model_settings = MODEL_SETTINGS_ARR[model];
+    auto &model_settings = MODEL_SETTINGS_ARR[model];
     set_minimum_temperature(model_settings.minimum_temperature);
     set_maximum_temperature(model_settings.maximum_temperature);
     temperature_correction_ = model_settings.temperature_correction;
@@ -51,9 +51,9 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
   };
 
   static constexpr std::array<ModelSettings, Model::MODEL_COUNT> MODEL_SETTINGS_ARR = {
-    ModelSettings(18.f, 32.f, 0.f),   /* MODEL_DG11J1_3A */
-    ModelSettings(30.f, 16.f, 0.f),   /* MODEL_DG11J1_91 */
-    ModelSettings(18.f, 32.f, 2.f)    /* MODEL_DG11J1_39 */
+      ModelSettings(18.f, 32.f, 0.f), /* MODEL_DG11J1_3A */
+      ModelSettings(30.f, 16.f, 0.f), /* MODEL_DG11J1_91 */
+      ModelSettings(18.f, 32.f, 2.f)  /* MODEL_DG11J1_39 */
   };
 
   /// Transmit via IR the state of this climate controller.
