@@ -2,13 +2,14 @@ from esphome import automation, pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_IRQ_PIN,
     CONF_ON_TAG,
     CONF_ON_TAG_REMOVED,
     CONF_RESET_PIN,
     CONF_TRIGGER_ID,
 )
+
+from esphome.components import nfc
 
 CODEOWNERS = ["@JohnMcLear"]
 AUTO_LOAD = ["nfc"]
@@ -18,7 +19,7 @@ CONF_ST25R_ID = "st25r_id"
 CONF_RF_POWER = "rf_power"
 
 st25r_ns = cg.esphome_ns.namespace("st25r")
-ST25R = st25r_ns.class_("ST25R", cg.PollingComponent)
+ST25R = st25r_ns.class_("ST25R", nfc.Nfcc, cg.PollingComponent)
 
 ST25RTagTrigger = st25r_ns.class_(
     "ST25RTagTrigger", automation.Trigger.template(cg.std_string)

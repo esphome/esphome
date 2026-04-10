@@ -12,7 +12,7 @@ namespace st25r {
 
 static const char *const TAG = "st25r";
 
-void ST25R::isr(ST25R *arg) { arg->irq_triggered_ = true; }
+void IRAM_ATTR ST25R::isr(ST25R *arg) { arg->irq_triggered_ = true; }
 
 void ST25R::setup() {
   ESP_LOGI(TAG, "Setting up ST25R...");
@@ -183,7 +183,8 @@ void ST25R::process_state() {
 
     case STATE_ANTICOL: {
       if (millis() - this->last_state_change_ > 20) {
-        uint8_t max_prefix_val = (1 << (this->anticol_col_pos_ + 1)) - 1;
+        uint8_t capped_pos = std::min(this->anticol_col_pos_, (uint8_t) 7);
+        uint8_t max_prefix_val = (uint8_t) ((1u << (capped_pos + 1)) - 1);
         if (this->anticol_col_pos_ > 0 && this->anticol_prefix_val_ < max_prefix_val) {
           this->anticol_prefix_val_++;
           this->apply_anticol_prefix_();
@@ -210,6 +211,8 @@ void ST25R::process_state() {
           int uid_col_pos = (int) (c_byte * 8 + c_bit) - 16;
           if (uid_col_pos < 0)
             uid_col_pos = 0;
+          if (uid_col_pos > 31)
+            uid_col_pos = 31;  // Clamp to max UID bits per cascade level
           if (f1 > 0) {
             uint8_t tmp[8];
             this->read_fifo(tmp, std::min(f1, (uint8_t) 8));
@@ -334,7 +337,8 @@ void ST25R::process_state() {
               this->anticol_prefix_val_ = resume_prefix_val + 1;
               this->apply_anticol_prefix_();
 
-              uint8_t max_val = (1 << (resume_col_pos + 1)) - 1;
+              uint8_t capped_resume = std::min(resume_col_pos, (uint8_t) 7);
+              uint8_t max_val = (uint8_t) ((1u << (capped_resume + 1)) - 1);
               if (this->anticol_prefix_val_ > max_val) {
                 this->state_ = STATE_IDLE;
                 this->finalize_scan_();
@@ -528,7 +532,10 @@ void ST25R::reinitialize() {
 }
 
 void ST25R::apply_anticol_prefix_() {
+  // Clamp to protocol max: 4 UID bytes + 1 BCC = 40 bits per cascade level
   int total_bits = this->anticol_col_pos_ + 1;
+  if (total_bits > 40)
+    total_bits = 40;
   this->anticol_prefix_full_ = total_bits >> 3;
   this->anticol_prefix_bits_ = total_bits & 7;
   memset(this->anticol_prefix_, 0, sizeof(this->anticol_prefix_));

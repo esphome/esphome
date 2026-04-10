@@ -145,7 +145,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   bool wait_for_irq_(uint8_t mask, uint32_t timeout_ms);
   bool transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
   bool transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
-  static void isr(ST25R *arg);
+  static void IRAM_ATTR isr(ST25R *arg);
 
   GPIOPin *reset_pin_{nullptr};
   InternalGPIOPin *irq_pin_{nullptr};
