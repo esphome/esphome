@@ -99,7 +99,6 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
     STATE_IDLE,
     STATE_WUPA,
     STATE_ANTICOL,
-    STATE_SELECT,
     STATE_REINITIALIZING,
   };
 
@@ -115,7 +114,9 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   void set_rf_power(uint8_t power) { this->rf_power_ = power; }
 
   void register_on_tag_trigger(ST25RTagTrigger *trig) { this->on_tag_triggers_.push_back(trig); }
-  void register_on_tag_removed_trigger(ST25RTagRemovedTrigger *trig) { this->on_tag_removed_triggers_.push_back(trig); }
+  void register_on_tag_removed_trigger(ST25RTagRemovedTrigger *trig) {
+    this->on_tag_removed_triggers_.push_back(trig);
+  }
 
   bool is_tag_present() const { return !this->present_tags_.empty(); }
 
@@ -141,7 +142,6 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
 
   void field_on_();
   void finalize_scan_();
-  void apply_anticol_prefix_();
   bool wait_for_irq_(uint8_t mask, uint32_t timeout_ms);
   bool transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
   bool transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
@@ -158,7 +158,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   volatile bool irq_triggered_{false};
   volatile uint8_t irq_status_{0};
 
-  // Multi-tag tracking
+  // Tag tracking
   std::map<std::string, uint8_t> present_tags_;
   std::set<std::string> tags_this_scan_;
   std::map<std::string, std::unique_ptr<nfc::NfcTag>> tags_data_;
@@ -174,19 +174,6 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   uint8_t cascade_level_{0};
   std::string current_uid_;
   uint8_t last_sak_{0};
-
-  // Anticollision state
-  uint8_t anticol_prefix_[5]{};
-  uint8_t anticol_prefix_full_;
-  uint8_t anticol_prefix_bits_;
-  uint8_t anticol_col_pos_{0};
-  uint8_t anticol_prefix_val_{0};
-
-  // Saved CL1 state for cascade CL2 resume
-  uint8_t saved_col_pos_{0};
-  uint8_t saved_prefix_val_{0};
-  bool saved_anticol_valid_{false};
-  bool anticol_resume_{false};
 
   std::vector<ST25RTagTrigger *> on_tag_triggers_;
   std::vector<ST25RTagRemovedTrigger *> on_tag_removed_triggers_;
