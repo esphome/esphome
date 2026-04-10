@@ -280,7 +280,7 @@ void CC1101Component::begin_rx() {
 }
 
 void CC1101Component::reset() {
-  ESP_LOGD(TAG, "Resetting CC1101");
+  this->strobe_(Command::RES);
   this->configure();
 }
 
