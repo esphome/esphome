@@ -1,4 +1,16 @@
 climate:
   - platform: whirlpool
-    name: Whirlpool Climate
+    name: "Whirlpool AC 3A"
+    model: "DG11J1-3A"
     transmitter_id: xmitr
+
+  - platform: whirlpool
+    name: "Whirlpool AC 91"
+    model: "DG11J1-91"
+    transmitter_id: xmitr
+
+  - platform: whirlpool
+    name: "Whirlpool AC 39"
+    model: "DG11J1-39"
+    transmitter_id: xmitr
+
