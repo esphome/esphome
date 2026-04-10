@@ -304,7 +304,8 @@ class ProtoEncode {
   /// data-dependent back-edge branch, which measurably speeds up BLE raw
   /// advertisement MAC encoding (always 7-byte varints) among other hot paths.
   template<typename T>
-  static inline void encode_varint_raw_loop(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, T value) {
+  static inline void ESPHOME_ALWAYS_INLINE encode_varint_raw_loop(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
+                                                                  T value) {
     constexpr int MAX_VARINT_BYTES = (sizeof(T) * 8 + 6) / 7;  // 5 for u32, 10 for u64
 #pragma GCC unroll 10
     for (int i = 0; i < MAX_VARINT_BYTES - 1; i++) {
