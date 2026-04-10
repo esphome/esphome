@@ -59,7 +59,15 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
   bool check_auth(AsyncWebServerRequest *request) {
     bool success = request->authenticate(credentials_->username.c_str(), credentials_->password.c_str());
     if (!success) {
+#if USE_ESP32
       request->requestAuthentication();
+#else
+      // Force Basic auth on Arduino platforms (ESP8266, RP2040).
+      // ESPAsyncWebServer defaults to Digest auth, which browsers don't
+      // preemptively send with XHR/fetch requests, causing 401 failures
+      // on button presses and other JS-initiated actions.
+      request->requestAuthentication(nullptr, false);
+#endif
     }
     return success;
   }
