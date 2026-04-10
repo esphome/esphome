@@ -14,6 +14,8 @@ from esphome.const import (
     CONF_BOARD,
     CONF_COMPONENTS,
     CONF_DISABLED,
+    CONF_ENABLE_FULL_PRINTF,
+    CONF_ENABLE_OTA_ROLLBACK,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
     CONF_IGNORE_EFUSE_CUSTOM_MAC,
@@ -25,8 +27,8 @@ from esphome.const import (
     CONF_PLATFORM_VERSION,
     CONF_PLATFORMIO_OPTIONS,
     CONF_REF,
-    CONF_REFRESH,
     CONF_SAFE_MODE,
+    CONF_SIZE,
     CONF_SOURCE,
     CONF_TYPE,
     CONF_VARIANT,
@@ -41,12 +43,13 @@ from esphome.const import (
     ThreadModel,
     __version__,
 )
-from esphome.core import CORE, HexInt, TimePeriod
+from esphome.core import CORE, HexInt
+from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
-from esphome.helpers import copy_file_if_changed, write_file_if_changed
+from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
-from esphome.writer import clean_cmake_cache, rmtree
+from esphome.writer import clean_build, clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
@@ -58,6 +61,7 @@ from .const import (  # noqa
     KEY_EXTRA_BUILD_FILES,
     KEY_FLASH_SIZE,
     KEY_FULL_CERT_BUNDLE,
+    KEY_IDF_VERSION,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
@@ -88,12 +92,18 @@ IS_TARGET_PLATFORM = True
 CONF_ASSERTION_LEVEL = "assertion_level"
 CONF_COMPILER_OPTIMIZATION = "compiler_optimization"
 CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES = "enable_idf_experimental_features"
+CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
-CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
+CONF_SIGNED_OTA_VERIFICATION = "signed_ota_verification"
+CONF_SIGNING_KEY = "signing_key"
+CONF_SIGNING_SCHEME = "signing_scheme"
+CONF_SRAM1_AS_IRAM = "sram1_as_iram"
+CONF_SUBTYPE = "subtype"
+CONF_VERIFICATION_KEY = "verification_key"
 
 ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
 ARDUINO_FRAMEWORK_PKG = f"pioarduino/{ARDUINO_FRAMEWORK_NAME}"
@@ -113,6 +123,27 @@ ASSERTION_LEVELS = {
     "DISABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_DISABLE",
     "ENABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_ENABLE",
     "SILENT": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT",
+}
+
+SIGNING_SCHEMES = {
+    "rsa3072": "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME",
+    "ecdsa256": "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME",
+}
+
+# Chip variants that only support one signing scheme for Secure Boot V2.
+# Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h.
+# Variants not listed in either set support both RSA and ECDSA
+# (e.g. C5, C6, H2, P4). New variants should be added to the
+# appropriate set if they only support one scheme.
+SIGNED_OTA_RSA_ONLY_VARIANTS = {
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32C3,
+}
+SIGNED_OTA_ECC_ONLY_VARIANTS = {
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C61,
 }
 
 COMPILER_OPTIMIZATIONS = {
@@ -374,12 +405,11 @@ FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values(
 def set_core_data(config):
     cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
     variant = config[CONF_VARIANT]
-    # if not specified in config, set to 160MHz if supported, the fastest otherwise
+    # if not specified in config, default to the maximum supported frequency
+    # (ESP32-P4 engineering samples are limited to 360MHz, non-engineering can do 400MHz)
     if cpu_frequency is None:
         choices = CPU_FREQUENCIES[variant]
-        if "160MHZ" in choices:
-            cpu_frequency = "160MHZ"
-        elif "360MHZ" in choices:
+        if variant == VARIANT_ESP32P4 and config.get(CONF_ENGINEERING_SAMPLE):
             cpu_frequency = "360MHZ"
         else:
             cpu_frequency = choices[-1]
@@ -419,9 +449,20 @@ def set_core_data(config):
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = excluded
     # Initialize Arduino library tracking - cg.add_library() auto-enables libraries
     CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES] = set()
-    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
-        config[CONF_FRAMEWORK][CONF_VERSION]
-    )
+    framework_ver = cv.Version.parse(config[CONF_FRAMEWORK][CONF_VERSION])
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
+
+    # Store the underlying IDF version for framework-agnostic checks
+    if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = framework_ver
+    elif (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
+        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
+    else:
+        raise cv.Invalid(
+            f"Arduino version {framework_ver} has no known ESP-IDF version mapping. "
+            "Please update ARDUINO_IDF_VERSION_LOOKUP.",
+            path=[CONF_FRAMEWORK, CONF_VERSION],
+        )
 
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
@@ -464,6 +505,8 @@ def only_on_variant(*, supported=None, unsupported=None, msg_prefix="This featur
         unsupported = [unsupported]
 
     def validator_(obj):
+        if not CORE.is_esp32:
+            raise cv.Invalid(f"{msg_prefix} is only available on ESP32")
         variant = get_esp32_variant()
         if supported is not None and variant not in supported:
             raise cv.Invalid(
@@ -499,49 +542,24 @@ def add_idf_component(
     repo: str | None = None,
     ref: str | None = None,
     path: str | None = None,
-    refresh: TimePeriod | None = None,
-    components: list[str] | None = None,
-    submodules: list[str] | None = None,
 ):
     """Add an esp-idf component to the project."""
     if not repo and not ref and not path:
         raise ValueError("Requires at least one of repo, ref or path")
-    if refresh or submodules or components:
-        _LOGGER.warning(
-            "The refresh, components and submodules parameters in add_idf_component() are "
-            "deprecated and will be removed in ESPHome 2026.1. If you are seeing this, report "
-            "an issue to the external_component author and ask them to update it."
-        )
     components_registry = CORE.data[KEY_ESP32][KEY_COMPONENTS]
-    if components:
-        for comp in components:
-            existing = components_registry.get(comp)
-            if existing and existing.get(KEY_REF) != ref:
-                _LOGGER.warning(
-                    "IDF component %s version conflict %s replaced by %s",
-                    comp,
-                    existing.get(KEY_REF),
-                    ref,
-                )
-            components_registry[comp] = {
-                KEY_REPO: repo,
-                KEY_REF: ref,
-                KEY_PATH: f"{path}/{comp}" if path else comp,
-            }
-    else:
-        existing = components_registry.get(name)
-        if existing and existing.get(KEY_REF) != ref:
-            _LOGGER.warning(
-                "IDF component %s version conflict %s replaced by %s",
-                name,
-                existing.get(KEY_REF),
-                ref,
-            )
-        components_registry[name] = {
-            KEY_REPO: repo,
-            KEY_REF: ref,
-            KEY_PATH: path,
-        }
+    existing = components_registry.get(name)
+    if existing and existing.get(KEY_REF) != ref:
+        _LOGGER.warning(
+            "IDF component %s version conflict %s replaced by %s",
+            name,
+            existing.get(KEY_REF),
+            ref,
+        )
+    components_registry[name] = {
+        KEY_REPO: repo,
+        KEY_REF: ref,
+        KEY_PATH: path,
+    }
 
 
 def exclude_builtin_idf_component(name: str) -> None:
@@ -613,16 +631,24 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     return f"{ARDUINO_FRAMEWORK_PKG}@https://github.com/espressif/arduino-esp32/releases/download/{ver}/{filename}"
 
 
-def _format_framework_espidf_version(ver: cv.Version, release: str) -> str:
+def _format_framework_espidf_version(
+    ver: cv.Version, release: str | None = None
+) -> str:
     # format the given espidf (https://github.com/pioarduino/esp-idf/releases) version to
     # a PIO platformio/framework-espidf value
     if ver == cv.Version(5, 4, 3) or ver >= cv.Version(5, 5, 1):
         ext = "tar.xz"
     else:
         ext = "zip"
+    # Build version string with extra separator based on type:
+    # numeric extra uses dot (e.g., "5.5.3.1"), string extra uses dash (e.g., "6.0.0-rc1")
+    ver_str = f"{ver.major}.{ver.minor}.{ver.patch}"
+    if ver.extra:
+        sep = "." if str(ver.extra).isdigit() else "-"
+        ver_str += f"{sep}{ver.extra}"
     if release:
-        return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}.{release}/esp-idf-v{str(ver)}.{ext}"
-    return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{str(ver)}/esp-idf-v{str(ver)}.{ext}"
+        return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{ver_str}.{release}/esp-idf-v{ver_str}.{ext}"
+    return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{ver_str}/esp-idf-v{ver_str}.{ext}"
 
 
 def _is_framework_url(source: str) -> bool:
@@ -669,7 +695,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
-    cv.Version(3, 3, 7): cv.Version(5, 5, 2),
+    cv.Version(3, 3, 7): cv.Version(5, 5, 3, "1"),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
     cv.Version(3, 3, 5): cv.Version(5, 5, 2),
     cv.Version(3, 3, 4): cv.Version(5, 5, 1),
@@ -688,11 +714,19 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 2),
-    "latest": cv.Version(5, 5, 2),
-    "dev": cv.Version(5, 5, 2),
+    "recommended": cv.Version(5, 5, 3, "1"),
+    "latest": cv.Version(5, 5, 3, "1"),
+    "dev": cv.Version(5, 5, 4),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(
+        6, 0, 0
+    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(
+        5, 5, 4
+    ): "https://github.com/pioarduino/platform-espressif32.git#develop",
+    cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
+    cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),
     cv.Version(5, 5, 1): cv.Version(55, 3, 31, "2"),
     cv.Version(5, 5, 0): cv.Version(55, 3, 31, "2"),
@@ -755,7 +789,7 @@ def _check_versions(config):
         platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE,
-            _format_framework_espidf_version(version, value.get(CONF_RELEASE, None)),
+            _format_framework_espidf_version(version, value.get(CONF_RELEASE)),
         )
         if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = f"pioarduino/framework-espidf@{value[CONF_SOURCE]}"
@@ -803,6 +837,22 @@ def _detect_variant(value):
         # variant has already been validated against the known set
         value = value.copy()
         value[CONF_BOARD] = STANDARD_BOARDS[variant]
+        if variant == VARIANT_ESP32P4:
+            engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
+            if engineering_sample is None:
+                _LOGGER.warning(
+                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3).\n"
+                    "If you have an early engineering sample (pre-rev3), add this to your config:\n"
+                    "\n"
+                    "  esp32:\n"
+                    "    engineering_sample: true\n"
+                    "\n"
+                    "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
+                    "Engineering samples will show a revision below v3.0.\n"
+                    "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
+                )
+            elif engineering_sample:
+                value[CONF_BOARD] = "esp32-p4-evboard"
     elif board in BOARDS:
         variant = variant or BOARDS[board][KEY_VARIANT]
         if variant != BOARDS[board][KEY_VARIANT]:
@@ -866,11 +916,42 @@ def final_validate(config):
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_MINIMUM_CHIP_REVISION],
             )
         )
-    if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if config[CONF_VARIANT] != VARIANT_ESP32S3:
+    if config[CONF_VARIANT] != VARIANT_ESP32 and advanced[CONF_SRAM1_AS_IRAM]:
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_SRAM1_AS_IRAM}' is only supported on {VARIANT_ESP32}",
+                path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_SRAM1_AS_IRAM],
+            )
+        )
+    if (
+        config[CONF_VARIANT] != VARIANT_ESP32P4
+        and config.get(CONF_ENGINEERING_SAMPLE) is not None
+    ):
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENGINEERING_SAMPLE}' is only supported on {VARIANT_ESP32P4}",
+                path=[CONF_ENGINEERING_SAMPLE],
+            )
+        )
+    if (
+        config[CONF_VARIANT] == VARIANT_ESP32P4
+        and config.get(CONF_ENGINEERING_SAMPLE) is not None
+    ):
+        board_is_es = BOARDS.get(config[CONF_BOARD], {}).get(
+            "engineering_sample", False
+        )
+        if config[CONF_ENGINEERING_SAMPLE] != board_is_es:
             errs.append(
                 cv.Invalid(
-                    f"'{CONF_EXECUTE_FROM_PSRAM}' is only supported on {VARIANT_ESP32S3} variant",
+                    f"'{CONF_ENGINEERING_SAMPLE}' does not match board '{config[CONF_BOARD]}'",
+                    path=[CONF_ENGINEERING_SAMPLE],
+                )
+            )
+    if advanced[CONF_EXECUTE_FROM_PSRAM]:
+        if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
+            errs.append(
+                cv.Invalid(
+                    f"'{CONF_EXECUTE_FROM_PSRAM}' is not available on this esp32 variant",
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
@@ -907,6 +988,47 @@ def final_validate(config):
                 )
             # disable the rollback feature anyway since it can't be used.
             advanced[CONF_ENABLE_OTA_ROLLBACK] = False
+    if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
+        scheme = signed_ota[CONF_SIGNING_SCHEME]
+        variant = config[CONF_VARIANT]
+        scheme_variant_conflicts = {
+            "ecdsa256": (SIGNED_OTA_RSA_ONLY_VARIANTS, "rsa3072"),
+            "rsa3072": (SIGNED_OTA_ECC_ONLY_VARIANTS, "ecdsa256"),
+        }
+        if (conflict := scheme_variant_conflicts.get(scheme)) and variant in conflict[
+            0
+        ]:
+            errs.append(
+                cv.Invalid(
+                    f"Signing scheme '{scheme}' is not supported on "
+                    f"{VARIANT_FRIENDLY[variant]}. Use '{conflict[1]}' instead.",
+                    path=[
+                        CONF_FRAMEWORK,
+                        CONF_ADVANCED,
+                        CONF_SIGNED_OTA_VERIFICATION,
+                        CONF_SIGNING_SCHEME,
+                    ],
+                )
+            )
+        if CONF_OTA not in full_config:
+            _LOGGER.warning(
+                "Signed OTA verification is enabled but no OTA component is configured. "
+                "The initial firmware will be signed but OTA updates won't be possible "
+                "until an OTA component is added."
+            )
+        if CONF_SIGNING_KEY in signed_ota:
+            _LOGGER.info(
+                "Signed OTA verification is enabled. Keep your signing key safe! "
+                "If you lose the signing key, you will NOT be able to OTA update "
+                "devices running firmware signed with this key. "
+                "Without the key, you'll need to reflash via serial."
+            )
+        else:
+            _LOGGER.info(
+                "Signed OTA verification is configured with a public verification key. "
+                "Binaries will NOT be signed automatically during build. "
+                "You must sign them externally before flashing."
+            )
     if errs:
         raise cv.MultipleInvalid(errs)
 
@@ -948,6 +1070,7 @@ KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
 KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
 KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
+KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
 
 
 def require_vfs_select() -> None:
@@ -1017,6 +1140,25 @@ def require_mbedtls_pkcs7() -> None:
     CORE.data[KEY_ESP32][KEY_MBEDTLS_PKCS7_REQUIRED] = True
 
 
+def require_mbedtls_sha512() -> None:
+    """Mark that mbedTLS SHA-384/SHA-512 support is required by a component.
+
+    Call this from components that need to verify TLS certificates or signatures
+    using SHA-384 or SHA-512 algorithms. This prevents CONFIG_MBEDTLS_SHA384_C
+    and CONFIG_MBEDTLS_SHA512_C from being disabled.
+    """
+    CORE.data[KEY_ESP32][KEY_MBEDTLS_SHA512_REQUIRED] = True
+
+
+def idf_version() -> cv.Version:
+    """Return the underlying ESP-IDF version regardless of framework choice.
+
+    For ESP-IDF builds this is the framework version directly.
+    For Arduino builds this is the mapped IDF version from ARDUINO_IDF_VERSION_LOOKUP.
+    """
+    return CORE.data[KEY_ESP32][KEY_IDF_VERSION]
+
+
 def require_fatfs() -> None:
     """Mark that FATFS support is required by a component.
 
@@ -1035,16 +1177,6 @@ def _parse_idf_component(value: str) -> ConfigType:
         f"Invalid IDF component shorthand '{value}'. "
         f"Expected format: 'owner/component<op>version' where <op> is one of: ^, ~, ~=, ==, !=, >=, >, <=, <"
     )
-
-
-def _validate_idf_component(config: ConfigType) -> ConfigType:
-    """Validate IDF component config and warn about deprecated options."""
-    if CONF_REFRESH in config:
-        _LOGGER.warning(
-            "The 'refresh' option for IDF components is deprecated and has no effect. "
-            "It will be removed in ESPHome 2026.1. Please remove it from your configuration."
-        )
-    return config
 
 
 FRAMEWORK_ESP_IDF = "esp-idf"
@@ -1079,6 +1211,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_MINIMUM_CHIP_REVISION): cv.one_of(
                     *ESP32_CHIP_REVISIONS
                 ),
+                cv.Optional(CONF_SRAM1_AS_IRAM, default=False): cv.boolean,
                 # DHCP server is needed for WiFi AP mode. When WiFi component is used,
                 # it will handle disabling DHCP server when AP is not configured.
                 # Default to false (disabled) when WiFi is not used.
@@ -1107,12 +1240,25 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     min=8192, max=32768
                 ),
                 cv.Optional(CONF_ENABLE_OTA_ROLLBACK, default=True): cv.boolean,
+                cv.Optional(CONF_SIGNED_OTA_VERIFICATION): cv.All(
+                    cv.Schema(
+                        {
+                            cv.Optional(CONF_SIGNING_KEY): cv.file_,
+                            cv.Optional(CONF_VERIFICATION_KEY): cv.file_,
+                            cv.Optional(
+                                CONF_SIGNING_SCHEME, default="rsa3072"
+                            ): cv.one_of(*SIGNING_SCHEMES, lower=True),
+                        }
+                    ),
+                    cv.has_exactly_one_key(CONF_SIGNING_KEY, CONF_VERIFICATION_KEY),
+                ),
                 cv.Optional(
                     CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
                 ): cv.boolean,
                 cv.Optional(
                     CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, default=[]
                 ): cv.ensure_list(cv.string_strict),
+                cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
                 cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
                 cv.Optional(
@@ -1135,13 +1281,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                             cv.Optional(CONF_SOURCE): cv.git_ref,
                             cv.Optional(CONF_REF): cv.string,
                             cv.Optional(CONF_PATH): cv.string,
-                            cv.Optional(CONF_REFRESH): cv.All(
-                                cv.string, cv.source_refresh
-                            ),
                         }
                     ),
                 ),
-                _validate_idf_component,
             )
         ),
     }
@@ -1211,6 +1353,43 @@ def _set_default_framework(config):
     return config
 
 
+RESERVED_PARTITION_NAMES = {
+    "nvs",
+    "app0",
+    "app1",
+    "otadata",
+    "eeprom",
+    "spiffs",
+    "phy_init",
+}
+
+VALID_APP_SUBTYPES = {"factory", "test"}
+VALID_DATA_SUBTYPES = {
+    "nvs",
+    "nvs_keys",
+    "spiffs",
+    "coredump",
+    "efuse",
+    "fat",
+    "undefined",
+    "littlefs",
+}
+
+
+def _validate_custom_partition(config: ConfigType) -> ConfigType:
+    """Voluptuous validator for custom partition schema."""
+    try:
+        _validate_partition(
+            config[CONF_NAME],
+            config[CONF_TYPE],
+            config[CONF_SUBTYPE],
+            config[CONF_SIZE],
+        )
+    except ValueError as e:
+        raise cv.Invalid(str(e)) from e
+    return config
+
+
 FLASH_SIZES = [
     "2MB",
     "4MB",
@@ -1225,14 +1404,38 @@ CONF_PARTITIONS = "partitions"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_BOARD): cv.string_strict,
+            cv.Optional(CONF_BOARD): cv.All(
+                cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
+            ),
             cv.Optional(CONF_CPU_FREQUENCY): cv.one_of(
                 *FULL_CPU_FREQUENCIES, upper=True
             ),
+            cv.Optional(CONF_ENGINEERING_SAMPLE): cv.boolean,
             cv.Optional(CONF_FLASH_SIZE, default="4MB"): cv.one_of(
                 *FLASH_SIZES, upper=True
             ),
-            cv.Optional(CONF_PARTITIONS): cv.file_,
+            cv.Optional(CONF_PARTITIONS): cv.Any(
+                cv.file_,
+                cv.ensure_list(
+                    cv.All(
+                        cv.Schema(
+                            {
+                                cv.Required(CONF_NAME): cv.string_strict,
+                                cv.Required(CONF_TYPE): cv.All(
+                                    cv.Any(cv.string_strict, cv.int_range(0x40, 0xFE)),
+                                    cv.int_to_hex_string,
+                                ),
+                                cv.Required(CONF_SUBTYPE): cv.All(
+                                    cv.Any(cv.string_strict, cv.int_range(0, 0xFE)),
+                                    cv.int_to_hex_string,
+                                ),
+                                cv.Required(CONF_SIZE): cv.int_range(min=0x1000),
+                            }
+                        ),
+                        _validate_custom_partition,
+                    ),
+                ),
+            ),
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
         }
@@ -1255,21 +1458,15 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     This function runs in to_code() after all components have registered their socket needs.
     User-provided sdkconfig_options take precedence.
     """
-    from esphome.components.socket import KEY_SOCKET_CONSUMERS
+    from esphome.components.socket import get_socket_counts
 
     # Check if user manually specified CONFIG_LWIP_MAX_SOCKETS
     user_max_sockets = conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_LWIP_MAX_SOCKETS")
 
-    socket_consumers: dict[str, int] = CORE.data.get(KEY_SOCKET_CONSUMERS, {})
-    total_sockets = sum(socket_consumers.values())
-
-    # Early return if no sockets registered and no user override
-    if total_sockets == 0 and user_max_sockets is None:
-        return
-
-    components_list = ", ".join(
-        f"{name}={count}" for name, count in sorted(socket_consumers.items())
-    )
+    # CONFIG_LWIP_MAX_SOCKETS is a single VFS socket pool shared by all socket
+    # types (TCP clients, TCP listeners, and UDP). Include all three counts.
+    sc = get_socket_counts()
+    total_sockets = sc.tcp + sc.udp + sc.tcp_listen
 
     # User specified their own value - respect it but warn if insufficient
     if user_max_sockets is not None:
@@ -1278,22 +1475,23 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
             user_max_sockets,
         )
 
-        # Warn if user's value is less than what components need
-        if total_sockets > 0:
-            user_sockets_int = 0
-            with contextlib.suppress(ValueError, TypeError):
-                user_sockets_int = int(user_max_sockets)
+        user_sockets_int = 0
+        with contextlib.suppress(ValueError, TypeError):
+            user_sockets_int = int(user_max_sockets)
 
-            if user_sockets_int < total_sockets:
-                _LOGGER.warning(
-                    "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
-                    "needs %d sockets (registered: %s). You may experience socket "
-                    "exhaustion errors. Consider increasing to at least %d.",
-                    user_sockets_int,
-                    total_sockets,
-                    components_list,
-                    total_sockets,
-                )
+        if user_sockets_int < total_sockets:
+            _LOGGER.warning(
+                "CONFIG_LWIP_MAX_SOCKETS is set to %d but your configuration "
+                "needs %d sockets (%d TCP + %d UDP + %d TCP_LISTEN). You may "
+                "experience socket exhaustion errors. Consider increasing to "
+                "at least %d.",
+                user_sockets_int,
+                total_sockets,
+                sc.tcp,
+                sc.udp,
+                sc.tcp_listen,
+                total_sockets,
+            )
         # User's value already added via sdkconfig_options processing
         return
 
@@ -1302,11 +1500,19 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     max_sockets = max(DEFAULT_MAX_SOCKETS, total_sockets)
 
     log_level = logging.INFO if max_sockets > DEFAULT_MAX_SOCKETS else logging.DEBUG
+    sock_min = " (min)" if max_sockets > total_sockets else ""
     _LOGGER.log(
         log_level,
-        "Setting CONFIG_LWIP_MAX_SOCKETS to %d (registered: %s)",
+        "Setting CONFIG_LWIP_MAX_SOCKETS to %d%s "
+        "(TCP=%d [%s], UDP=%d [%s], TCP_LISTEN=%d [%s])",
         max_sockets,
-        components_list,
+        sock_min,
+        sc.tcp,
+        sc.tcp_details,
+        sc.udp,
+        sc.udp_details,
+        sc.tcp_listen,
+        sc.tcp_listen_details,
     )
 
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
@@ -1423,7 +1629,13 @@ async def to_code(config):
 
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
+    cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.add_build_flag("-Wl,-z,noexecstack")
+    # Arduino already wraps esp_panic_handler for its own backtrace handler,
+    # so only add our wrap when using ESP-IDF framework to avoid linker conflicts.
+    if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+        cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
+        cg.add_define("USE_ESP32_CRASH_HANDLER")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     variant = config[CONF_VARIANT]
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{variant}")
@@ -1456,6 +1668,14 @@ async def to_code(config):
             "_ZSt25__throw_bad_function_callv",
         ]:
             cg.add_build_flag(f"-Wl,--wrap={mangled}")
+
+        # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
+        # (~11 KB). See printf_stubs.cpp for implementation.
+        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF]:
+            cg.add_define("USE_FULL_PRINTF")
+        else:
+            for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
+                cg.add_build_flag(f"-Wl,--wrap={symbol}")
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
@@ -1467,7 +1687,7 @@ async def to_code(config):
             if (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
                 cg.add_platformio_option(
                     "platform_packages",
-                    [_format_framework_espidf_version(idf_ver, None)],
+                    [_format_framework_espidf_version(idf_ver)],
                 )
                 # Use stub package to skip downloading precompiled libs
                 stubs_dir = CORE.relative_build_path("arduino_libs_stub")
@@ -1511,6 +1731,16 @@ async def to_code(config):
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
 
+    # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
+    # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
+    # sections.rev3.ld.in (for rev >=3) based on board definition.
+    # Set the sdkconfig option to match the board's chip revision.
+    if variant == VARIANT_ESP32P4:
+        is_eng_sample = BOARDS.get(config[CONF_BOARD], {}).get(
+            "engineering_sample", False
+        )
+        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", is_eng_sample)
+
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
     # and for PSRAM users saves significant IRAM by keeping C library functions in ROM.
@@ -1520,6 +1750,16 @@ async def to_code(config):
             for rev, flag in ESP32_CHIP_REVISIONS.items():
                 add_idf_sdkconfig_option(flag, rev == min_rev)
             cg.add_define("USE_ESP32_MIN_CHIP_REVISION_SET")
+
+    # Use SRAM1 region as IRAM on ESP32 (original) variant
+    # This provides an additional 40KB of IRAM by using SRAM1 memory that was previously
+    # reserved for bootloader DRAM. Requires a bootloader from ESP-IDF v5.1 or later.
+    # WARNING: If the device has an old bootloader (pre-v5.1), the app will fail to boot.
+    # A USB flash will update the bootloader automatically. OTA updates do not.
+    # See: https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/performance/ram-usage.html
+    if variant == VARIANT_ESP32 and conf[CONF_ADVANCED][CONF_SRAM1_AS_IRAM]:
+        add_idf_sdkconfig_option("CONFIG_ESP_SYSTEM_ESP32_SRAM1_REGION_AS_IRAM", True)
+        cg.add_define("USE_ESP32_SRAM1_AS_IRAM")
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM_FILENAME", "partitions.csv")
@@ -1604,8 +1844,13 @@ async def to_code(config):
     _configure_lwip_max_sockets(conf)
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
+        if variant == VARIANT_ESP32S3:
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
+        elif variant == VARIANT_ESP32P4:
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
+        else:
+            raise ValueError("Unhandled ESP32 variant")
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides
@@ -1669,9 +1914,18 @@ async def to_code(config):
     if use_platformio:
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:
-        add_extra_build_file(
-            "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
-        )
+        if isinstance(config[CONF_PARTITIONS], list):
+            for partition in config[CONF_PARTITIONS]:
+                add_partition(
+                    partition[CONF_NAME],
+                    partition[CONF_TYPE],
+                    partition[CONF_SUBTYPE],
+                    partition[CONF_SIZE],
+                )
+        else:
+            add_extra_build_file(
+                "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
+            )
 
     if assertion_level := advanced.get(CONF_ASSERTION_LEVEL):
         for key, flag in ASSERTION_LEVELS.items():
@@ -1704,6 +1958,32 @@ async def to_code(config):
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
         cg.add_define("USE_OTA_ROLLBACK")
+
+    # Enable signed app verification without hardware secure boot
+    if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
+        add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT", True)
+        add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", True)
+
+        scheme = signed_ota[CONF_SIGNING_SCHEME]
+        for key, flag in SIGNING_SCHEMES.items():
+            add_idf_sdkconfig_option(flag, scheme == key)
+
+        if CONF_SIGNING_KEY in signed_ota:
+            # Private key mode — auto-sign binaries during build
+            add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", True)
+            add_idf_sdkconfig_option(
+                "CONFIG_SECURE_BOOT_SIGNING_KEY",
+                str(signed_ota[CONF_SIGNING_KEY].resolve()),
+            )
+        else:
+            # Public key mode — verification only, external signing required
+            add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", False)
+            add_idf_sdkconfig_option(
+                "CONFIG_SECURE_BOOT_VERIFICATION_KEY",
+                str(signed_ota[CONF_VERIFICATION_KEY].resolve()),
+            )
+
+        cg.add_define("USE_OTA_SIGNED_VERIFICATION")
 
     cg.add_define("ESPHOME_LOOP_TASK_STACK_SIZE", advanced[CONF_LOOP_TASK_STACK_SIZE])
 
@@ -1756,6 +2036,33 @@ async def to_code(config):
     elif advanced[CONF_DISABLE_MBEDTLS_PKCS7]:
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", False)
 
+    # Disable SHA-384 and SHA-512 in mbedTLS
+    # ESPHome doesn't use either algorithm. SHA-384 shares the same
+    # compression function as SHA-512 (mbedtls_internal_sha512_process),
+    # so both must be disabled to eliminate the ~3KB software fallback
+    # that IDF 6.0's PSA parallel engine always links in.
+    # On IDF < 6.0 these are a single config and hardware-only (no
+    # software fallback), so there was no code size cost to leaving
+    # them enabled.
+    # Components that need SHA-384/SHA-512 can call require_mbedtls_sha512()
+    if idf_version() >= cv.Version(6, 0, 0) and not CORE.data[KEY_ESP32].get(
+        KEY_MBEDTLS_SHA512_REQUIRED, False
+    ):
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA384_C", False)
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA512_C", False)
+
+    # Disable PicolibC Newlib compatibility shim on IDF 6.0+
+    # IDF 6.0 switched from Newlib to PicolibC. The shim provides thread-local
+    # stdin/stdout/stderr and getreent() for code compiled against Newlib.
+    # ESPHome doesn't link against Newlib-built libraries that use stdio.
+    # If a component needs it (e.g. precompiled Newlib binaries), re-enable via:
+    #   esp32:
+    #     framework:
+    #       sdkconfig_options:
+    #         CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY: "y"
+    if idf_version() >= cv.Version(6, 0, 0):
+        add_idf_sdkconfig_option("CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY", False)
+
     # Disable regi2c control functions in IRAM
     # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
     if advanced[CONF_DISABLE_REGI2C_IN_IRAM]:
@@ -1790,45 +2097,175 @@ async def to_code(config):
         CORE.add_job(_write_arduino_libraries_sdkconfig)
 
 
-APP_PARTITION_SIZES = {
-    "2MB": 0x0C0000,  # 768 KB
-    "4MB": 0x1C0000,  # 1792 KB
-    "8MB": 0x3C0000,  # 3840 KB
-    "16MB": 0x7C0000,  # 7936 KB
-    "32MB": 0xFC0000,  # 16128 KB
+KEY_CUSTOM_PARTITIONS = "custom_partitions"
+
+
+@dataclass
+class PartitionEntry:
+    name: str
+    type: str
+    subtype: str
+    size: int
+
+
+# Partition sizes (offsets auto-placed by gen_esp32part.py).
+# These constants are the single source of truth — used in both
+# the CSV generation and the overhead calculation.
+BOOTLOADER_SIZE = 0x8000
+PARTITION_TABLE_SIZE = 0x1000
+FIRST_PARTITION_OFFSET = BOOTLOADER_SIZE + PARTITION_TABLE_SIZE
+OTADATA_SIZE = 0x2000
+PHY_INIT_SIZE = 0x1000
+EEPROM_SIZE = 0x1000  # Arduino only
+SPIFFS_SIZE = 0xF000  # Arduino only
+ARDUINO_NVS_SIZE = 0x60000
+IDF_NVS_SIZE = 0x70000
+
+
+def _get_partition_overhead() -> int:
+    """Total non-app partition budget (system partitions + nvs + padding).
+
+    Custom partitions are appended at the end and steal from app.
+    """
+    # otadata + phy_init are followed by app0 which requires 64KB alignment,
+    # so pad up to the next 64KB boundary.
+    overhead = (
+        FIRST_PARTITION_OFFSET + OTADATA_SIZE + PHY_INIT_SIZE + 0xFFFF
+    ) & ~0xFFFF
+    if CORE.using_arduino:
+        overhead += EEPROM_SIZE + SPIFFS_SIZE + ARDUINO_NVS_SIZE
+    else:
+        overhead += IDF_NVS_SIZE
+    return overhead
+
+
+VALID_SUBTYPES: dict[str, set[str]] = {
+    "app": VALID_APP_SUBTYPES,
+    "data": VALID_DATA_SUBTYPES,
 }
 
 
-def get_arduino_partition_csv(flash_size: str):
-    app_partition_size = APP_PARTITION_SIZES[flash_size]
-    eeprom_partition_size = 0x1000  # 4 KB
-    spiffs_partition_size = 0xF000  # 60 KB
+def _validate_partition(
+    name: str, p_type: str | int, subtype: str | int, size: int
+) -> None:
+    """Validate partition parameters. Raises ValueError on invalid input."""
+    if name in RESERVED_PARTITION_NAMES:
+        raise ValueError(f"Partition name '{name}' is reserved.")
+    if size % 0x1000 != 0:
+        raise ValueError("Partition size must be 4KB (0x1000) aligned.")
+    # Numeric or already-normalized hex types/subtypes skip string validation
+    if not isinstance(p_type, str) or p_type.startswith("0x"):
+        return
+    if p_type not in VALID_SUBTYPES:
+        raise ValueError(
+            f"Type '{p_type}' is invalid. Only 'app' and 'data' are allowed."
+            " Use numbers for custom types."
+        )
+    if not isinstance(subtype, str) or subtype.startswith("0x"):
+        return
+    valid = VALID_SUBTYPES[p_type]
+    if subtype not in valid:
+        raise ValueError(
+            f"Subtype '{subtype}' is invalid for {p_type} type."
+            f" Only {', '.join(sorted(valid))} are allowed."
+            " Use numbers for custom subtypes."
+        )
 
-    app0_partition_start = 0x010000  # 64 KB
-    app1_partition_start = app0_partition_start + app_partition_size
-    eeprom_partition_start = app1_partition_start + app_partition_size
-    spiffs_partition_start = eeprom_partition_start + eeprom_partition_size
 
-    return f"""\
-nvs,      data, nvs,     0x9000, 0x5000,
-otadata,  data, ota,     0xE000, 0x2000,
-app0,     app,  ota_0,   0x{app0_partition_start:X}, 0x{app_partition_size:X},
-app1,     app,  ota_1,   0x{app1_partition_start:X}, 0x{app_partition_size:X},
-eeprom,   data, 0x99,    0x{eeprom_partition_start:X}, 0x{eeprom_partition_size:X},
-spiffs,   data, spiffs,  0x{spiffs_partition_start:X}, 0x{spiffs_partition_size:X}
-"""
+def add_partition(name: str, p_type: str | int, subtype: str | int, size: int) -> None:
+    """Register a custom partition to be appended to the partition table.
+
+    Called from component to_code() to request additional flash partitions.
+    Size must be 4KB aligned. Integer types/subtypes are converted to hex strings.
+    """
+    if name in CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}):
+        raise ValueError(f"Partition name '{name}' is already defined.")
+    _validate_partition(name, p_type, subtype, size)
+    p_type_str = f"0x{p_type:X}" if isinstance(p_type, int) else p_type
+    subtype_str = f"0x{subtype:X}" if isinstance(subtype, int) else subtype
+    custom_partitions = CORE.data[KEY_ESP32].setdefault(KEY_CUSTOM_PARTITIONS, {})
+    custom_partitions[name] = PartitionEntry(
+        name=name, type=p_type_str, subtype=subtype_str, size=size
+    )
 
 
-def get_idf_partition_csv(flash_size: str):
-    app_partition_size = APP_PARTITION_SIZES[flash_size]
+def _flash_size_to_bytes(flash_size_mb: str) -> int:
+    """Convert flash size string (e.g. '4MB') to bytes."""
+    return int(flash_size_mb.removesuffix("MB")) * 1024 * 1024
 
-    return f"""\
-otadata,  data, ota,     ,        0x2000,
-phy_init, data, phy,     ,        0x1000,
-app0,     app,  ota_0,   ,        0x{app_partition_size:X},
-app1,     app,  ota_1,   ,        0x{app_partition_size:X},
-nvs,      data, nvs,     ,        0x6D000,
-"""
+
+def _get_custom_partitions_total_size() -> int:
+    """Total size of custom partitions including alignment padding."""
+    size = 0
+    for partition in CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}).values():
+        if partition.type == "app":
+            size = (size + 0xFFFF) & ~0xFFFF  # align to 64KB
+        size += partition.size
+    return size
+
+
+def _get_app_partition_size(flash_size_mb: str) -> int:
+    flash_bytes = _flash_size_to_bytes(flash_size_mb)
+    custom_total = _get_custom_partitions_total_size()
+    # Align down to 64KB — app partitions require 64KB-aligned offsets,
+    # so the size must also be aligned to avoid unbudgeted padding.
+    raw_size = (flash_bytes - _get_partition_overhead() - custom_total) // 2
+    app_size = raw_size & ~0xFFFF
+    wasted = (raw_size - app_size) * 2
+    if wasted:
+        _LOGGER.info(
+            "Custom partitions cause %dKB of wasted flash due to 64KB app partition alignment.",
+            wasted // 1024,
+        )
+    if app_size <= 0x10000:  # 64 KB
+        raise ValueError(
+            "Custom partitions are too large to fit in the available flash size. "
+            "Reduce custom partition sizes."
+        )
+    if app_size <= 0x80000:  # 512 KB
+        _LOGGER.warning(
+            "App partition size is only %dKB. This may be too small for firmware with "
+            "many components. Consider reducing custom partition sizes or using a "
+            "larger flash chip.",
+            app_size // 1024,
+        )
+    return app_size
+
+
+def get_partition_csv(flash_size_mb: str) -> str:
+    app_size = _get_app_partition_size(flash_size_mb)
+
+    partitions: list[PartitionEntry] = [
+        PartitionEntry(name="otadata", type="data", subtype="ota", size=OTADATA_SIZE),
+        PartitionEntry(name="phy_init", type="data", subtype="phy", size=PHY_INIT_SIZE),
+        PartitionEntry(name="app0", type="app", subtype="ota_0", size=app_size),
+        PartitionEntry(name="app1", type="app", subtype="ota_1", size=app_size),
+    ]
+    if CORE.using_arduino:
+        partitions.append(
+            PartitionEntry(name="eeprom", type="data", subtype="0x99", size=EEPROM_SIZE)
+        )
+        partitions.append(
+            PartitionEntry(
+                name="spiffs", type="data", subtype="spiffs", size=SPIFFS_SIZE
+            )
+        )
+        partitions.append(
+            PartitionEntry(
+                name="nvs", type="data", subtype="nvs", size=ARDUINO_NVS_SIZE
+            )
+        )
+    else:
+        partitions.append(
+            PartitionEntry(name="nvs", type="data", subtype="nvs", size=IDF_NVS_SIZE)
+        )
+    partitions.extend(CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}).values())
+
+    csv = "".join(
+        f"{p.name}, {p.type}, {p.subtype}, , 0x{p.size:X},\n" for p in partitions
+    )
+    _LOGGER.debug("Partition table:\n%s", csv)
+    return csv
 
 
 def _format_sdkconfig_val(value: SdkconfigValueType) -> str:
@@ -1865,6 +2302,7 @@ def _write_sdkconfig():
     if write_file_if_changed(internal_path, contents):
         # internal changed, update real one
         write_file_if_changed(sdk_path, contents)
+        clean_build(clear_pio_cache=False)
 
 
 def _write_idf_component_yml():
@@ -1935,16 +2373,10 @@ def copy_files():
 
     if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
         flash_size = CORE.data[KEY_ESP32][KEY_FLASH_SIZE]
-        if CORE.using_arduino:
-            write_file_if_changed(
-                CORE.relative_build_path("partitions.csv"),
-                get_arduino_partition_csv(flash_size),
-            )
-        else:
-            write_file_if_changed(
-                CORE.relative_build_path("partitions.csv"),
-                get_idf_partition_csv(flash_size),
-            )
+        write_file_if_changed(
+            CORE.relative_build_path("partitions.csv"),
+            get_partition_csv(flash_size),
+        )
     # IDF build scripts look for version string to put in the build.
     # However, if the build path does not have an initialized git repo,
     # and no version.txt file exists, the CMake script fails for some setups.

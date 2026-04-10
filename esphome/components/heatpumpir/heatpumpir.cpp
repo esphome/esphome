@@ -114,7 +114,7 @@ void HeatpumpIRClimate::setup() {
       this->current_temperature = state;
 
       IRSenderESPHome esp_sender(this->transmitter_);
-      this->heatpump_ir_->send(esp_sender, uint8_t(lround(this->current_temperature + 0.5)));
+      this->heatpump_ir_->send(esp_sender, uint8_t(lround(this->current_temperature)));
 
       // current temperature changed, publish state
       this->publish_state();

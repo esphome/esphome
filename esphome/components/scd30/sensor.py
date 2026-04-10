@@ -128,6 +128,7 @@ async def to_code(config):
         },
         key=CONF_VALUE,
     ),
+    synchronous=True,
 )
 async def scd30_force_recalibration_with_reference_to_code(
     config, action_id, template_arg, args

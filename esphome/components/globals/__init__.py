@@ -51,7 +51,7 @@ _RESTORING_SCHEMA = cv.Schema(
 
 def _globals_schema(config: ConfigType) -> ConfigType:
     """Select schema based on restore_value setting."""
-    if config.get(CONF_RESTORE_VALUE, False):
+    if cv.boolean(config.get(CONF_RESTORE_VALUE, False)):
         return _RESTORING_SCHEMA(config)
     return _NON_RESTORING_SCHEMA(config)
 
@@ -102,13 +102,14 @@ async def to_code(config):
             cv.Required(CONF_VALUE): cv.templatable(cv.string_strict),
         }
     ),
+    synchronous=True,
 )
 async def globals_set_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
     template_arg = cg.TemplateArguments(full_id.type, *template_arg)
     var = cg.new_Pvariable(action_id, template_arg, paren)
     templ = await cg.templatable(
-        config[CONF_VALUE], args, None, to_exp=cg.RawExpression
+        config[CONF_VALUE], args, None, to_exp=cg.RawExpression, wrap_constant=True
     )
     cg.add(var.set_value(templ))
     return var

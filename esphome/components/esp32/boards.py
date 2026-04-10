@@ -20,7 +20,7 @@ STANDARD_BOARDS = {
     VARIANT_ESP32C6: "esp32-c6-devkitm-1",
     VARIANT_ESP32C61: "esp32-c61-devkitc1-n8r2",
     VARIANT_ESP32H2: "esp32-h2-devkitm-1",
-    VARIANT_ESP32P4: "esp32-p4-evboard",
+    VARIANT_ESP32P4: "esp32-p4_r3-evboard",
     VARIANT_ESP32S2: "esp32-s2-kaluga-1",
     VARIANT_ESP32S3: "esp32-s3-devkitc-1",
 }
@@ -1713,10 +1713,12 @@ BOARDS = {
     "esp32-p4": {
         "name": "Espressif ESP32-P4 ES (pre rev.300) generic",
         "variant": VARIANT_ESP32P4,
+        "engineering_sample": True,
     },
     "esp32-p4-evboard": {
         "name": "Espressif ESP32-P4 Function EV Board (ES pre rev.300)",
         "variant": VARIANT_ESP32P4,
+        "engineering_sample": True,
     },
     "esp32-p4_r3": {
         "name": "Espressif ESP32-P4 rev.300 generic",
@@ -2141,6 +2143,7 @@ BOARDS = {
     "m5stack-tab5-p4": {
         "name": "M5STACK Tab5 esp32-p4 Board (ES pre rev.300)",
         "variant": VARIANT_ESP32P4,
+        "engineering_sample": True,
     },
     "m5stack-timer-cam": {
         "name": "M5Stack Timer CAM",

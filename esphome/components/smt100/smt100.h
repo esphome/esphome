@@ -28,6 +28,9 @@ class SMT100Component : public PollingComponent, public uart::UARTDevice {
  protected:
   int readline_(int readch, char *buffer, int len);
 
+  char readline_buffer_[MAX_LINE_LENGTH]{};
+  int readline_pos_{0};
+
   sensor::Sensor *counts_sensor_{nullptr};
   sensor::Sensor *permittivity_sensor_{nullptr};
   sensor::Sensor *moisture_sensor_{nullptr};

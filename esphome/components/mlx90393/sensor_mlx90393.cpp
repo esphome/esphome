@@ -160,7 +160,7 @@ bool MLX90393Cls::verify_setting_(MLX90393Setting which) {
   uint8_t read_value = 0xFF;
   uint8_t expected_value = 0xFF;
   uint8_t read_status = -1;
-  char read_back_str[25] = {0};
+  char read_back_str[33] = {0};
 
   switch (which) {
     case MLX90393_GAIN_SEL: {
