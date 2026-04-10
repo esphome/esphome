@@ -210,64 +210,6 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   CallbackManager<void(uint16_t)> enrollment_failed_callback_;
 };
 
-class FingerScanStartTrigger : public Trigger<> {
- public:
-  explicit FingerScanStartTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_finger_scan_start_callback([this]() { this->trigger(); });
-  }
-};
-
-class FingerScanMatchedTrigger : public Trigger<uint16_t, uint16_t> {
- public:
-  explicit FingerScanMatchedTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_finger_scan_matched_callback(
-        [this](uint16_t finger_id, uint16_t confidence) { this->trigger(finger_id, confidence); });
-  }
-};
-
-class FingerScanUnmatchedTrigger : public Trigger<> {
- public:
-  explicit FingerScanUnmatchedTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_finger_scan_unmatched_callback([this]() { this->trigger(); });
-  }
-};
-
-class FingerScanMisplacedTrigger : public Trigger<> {
- public:
-  explicit FingerScanMisplacedTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_finger_scan_misplaced_callback([this]() { this->trigger(); });
-  }
-};
-
-class FingerScanInvalidTrigger : public Trigger<> {
- public:
-  explicit FingerScanInvalidTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_finger_scan_invalid_callback([this]() { this->trigger(); });
-  }
-};
-
-class EnrollmentScanTrigger : public Trigger<uint8_t, uint16_t> {
- public:
-  explicit EnrollmentScanTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_enrollment_scan_callback(
-        [this](uint8_t scan_num, uint16_t finger_id) { this->trigger(scan_num, finger_id); });
-  }
-};
-
-class EnrollmentDoneTrigger : public Trigger<uint16_t> {
- public:
-  explicit EnrollmentDoneTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_enrollment_done_callback([this](uint16_t finger_id) { this->trigger(finger_id); });
-  }
-};
-
-class EnrollmentFailedTrigger : public Trigger<uint16_t> {
- public:
-  explicit EnrollmentFailedTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_enrollment_failed_callback([this](uint16_t finger_id) { this->trigger(finger_id); });
-  }
-};
-
 template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(uint16_t, finger_id)

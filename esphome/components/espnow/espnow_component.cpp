@@ -4,6 +4,8 @@
 
 #include "espnow_err.h"
 
+#include <cinttypes>
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -90,10 +92,8 @@ void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
 
-  // Wake main loop immediately to process ESP-NOW send event instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Wake main loop immediately to process ESP-NOW send event
   App.wake_loop_threadsafe();
-#endif
 }
 
 void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
@@ -113,10 +113,8 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
 
-  // Wake main loop immediately to process ESP-NOW receive event instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Wake main loop immediately to process ESP-NOW receive event
   App.wake_loop_threadsafe();
-#endif
 }
 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
@@ -266,7 +264,7 @@ void ESPNowComponent::loop() {
   if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected()) {
     int32_t new_channel = wifi::global_wifi_component->get_wifi_channel();
     if (new_channel != this->wifi_channel_) {
-      ESP_LOGI(TAG, "Wifi Channel is changed from %d to %d.", this->wifi_channel_, new_channel);
+      ESP_LOGI(TAG, "Wifi Channel is changed from %d to %" PRId32 ".", this->wifi_channel_, new_channel);
       this->wifi_channel_ = new_channel;
     }
   }
