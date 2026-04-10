@@ -36,12 +36,12 @@ class ControllerRegistry {
    */
   static void register_controller(Controller *controller) { controllers.push_back(controller); }
 
-// Notify method declarations (generated from entity_types.inc)
+// Notify method declarations (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper)  // no controller callback
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   static void notify_##callback(type *obj);
-#include "esphome/core/entity_types.inc"
+#include "esphome/core/entity_types.h"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
   // NOLINTEND(bugprone-macro-parentheses)
@@ -72,7 +72,7 @@ namespace esphome {
       controller->on_##callback(obj); \
     } \
   }
-#include "esphome/core/entity_types.inc"
+#include "esphome/core/entity_types.h"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
 // NOLINTEND(bugprone-macro-parentheses)

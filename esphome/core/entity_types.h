@@ -14,7 +14,8 @@
 //   - serial_proxy: custom register logic, no by-key lookup
 
 #ifdef USE_BINARY_SENSOR
-ENTITY_CONTROLLER_TYPE_(binary_sensor::BinarySensor, binary_sensor, binary_sensors, ESPHOME_ENTITY_BINARY_SENSOR_COUNT, BINARY_SENSOR, binary_sensor_update)
+ENTITY_CONTROLLER_TYPE_(binary_sensor::BinarySensor, binary_sensor, binary_sensors, ESPHOME_ENTITY_BINARY_SENSOR_COUNT,
+                        BINARY_SENSOR, binary_sensor_update)
 #endif
 #ifdef USE_COVER
 ENTITY_CONTROLLER_TYPE_(cover::Cover, cover, covers, ESPHOME_ENTITY_COVER_COUNT, COVER, cover_update)
@@ -35,7 +36,8 @@ ENTITY_CONTROLLER_TYPE_(switch_::Switch, switch, switches, ESPHOME_ENTITY_SWITCH
 ENTITY_TYPE_(button::Button, button, buttons, ESPHOME_ENTITY_BUTTON_COUNT, BUTTON)
 #endif
 #ifdef USE_TEXT_SENSOR
-ENTITY_CONTROLLER_TYPE_(text_sensor::TextSensor, text_sensor, text_sensors, ESPHOME_ENTITY_TEXT_SENSOR_COUNT, TEXT_SENSOR, text_sensor_update)
+ENTITY_CONTROLLER_TYPE_(text_sensor::TextSensor, text_sensor, text_sensors, ESPHOME_ENTITY_TEXT_SENSOR_COUNT,
+                        TEXT_SENSOR, text_sensor_update)
 #endif
 #ifdef USE_CLIMATE
 ENTITY_CONTROLLER_TYPE_(climate::Climate, climate, climates, ESPHOME_ENTITY_CLIMATE_COUNT, CLIMATE, climate_update)
@@ -50,7 +52,8 @@ ENTITY_CONTROLLER_TYPE_(datetime::DateEntity, date, dates, ESPHOME_ENTITY_DATE_C
 ENTITY_CONTROLLER_TYPE_(datetime::TimeEntity, time, times, ESPHOME_ENTITY_TIME_COUNT, DATETIME_TIME, time_update)
 #endif
 #ifdef USE_DATETIME_DATETIME
-ENTITY_CONTROLLER_TYPE_(datetime::DateTimeEntity, datetime, datetimes, ESPHOME_ENTITY_DATETIME_COUNT, DATETIME_DATETIME, datetime_update)
+ENTITY_CONTROLLER_TYPE_(datetime::DateTimeEntity, datetime, datetimes, ESPHOME_ENTITY_DATETIME_COUNT, DATETIME_DATETIME,
+                        datetime_update)
 #endif
 #ifdef USE_TEXT
 ENTITY_CONTROLLER_TYPE_(text::Text, text, texts, ESPHOME_ENTITY_TEXT_COUNT, TEXT, text_update)
@@ -65,13 +68,16 @@ ENTITY_CONTROLLER_TYPE_(lock::Lock, lock, locks, ESPHOME_ENTITY_LOCK_COUNT, LOCK
 ENTITY_CONTROLLER_TYPE_(valve::Valve, valve, valves, ESPHOME_ENTITY_VALVE_COUNT, VALVE, valve_update)
 #endif
 #ifdef USE_MEDIA_PLAYER
-ENTITY_CONTROLLER_TYPE_(media_player::MediaPlayer, media_player, media_players, ESPHOME_ENTITY_MEDIA_PLAYER_COUNT, MEDIA_PLAYER, media_player_update)
+ENTITY_CONTROLLER_TYPE_(media_player::MediaPlayer, media_player, media_players, ESPHOME_ENTITY_MEDIA_PLAYER_COUNT,
+                        MEDIA_PLAYER, media_player_update)
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-ENTITY_CONTROLLER_TYPE_(alarm_control_panel::AlarmControlPanel, alarm_control_panel, alarm_control_panels, ESPHOME_ENTITY_ALARM_CONTROL_PANEL_COUNT, ALARM_CONTROL_PANEL, alarm_control_panel_update)
+ENTITY_CONTROLLER_TYPE_(alarm_control_panel::AlarmControlPanel, alarm_control_panel, alarm_control_panels,
+                        ESPHOME_ENTITY_ALARM_CONTROL_PANEL_COUNT, ALARM_CONTROL_PANEL, alarm_control_panel_update)
 #endif
 #ifdef USE_WATER_HEATER
-ENTITY_CONTROLLER_TYPE_(water_heater::WaterHeater, water_heater, water_heaters, ESPHOME_ENTITY_WATER_HEATER_COUNT, WATER_HEATER, water_heater_update)
+ENTITY_CONTROLLER_TYPE_(water_heater::WaterHeater, water_heater, water_heaters, ESPHOME_ENTITY_WATER_HEATER_COUNT,
+                        WATER_HEATER, water_heater_update)
 #endif
 #ifdef USE_INFRARED
 ENTITY_TYPE_(infrared::Infrared, infrared, infrareds, ESPHOME_ENTITY_INFRARED_COUNT, INFRARED)

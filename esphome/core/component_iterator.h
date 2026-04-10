@@ -28,12 +28,12 @@ class ComponentIterator {
   void advance();
   bool completed() const { return this->state_ == IteratorState::NONE; }
   virtual bool on_begin();
-// Pure virtual entity callbacks (generated from entity_types.inc)
+// Pure virtual entity callbacks (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) virtual bool on_##singular(type *obj) = 0;
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
-#include "esphome/core/entity_types.inc"
+#include "esphome/core/entity_types.h"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
 // NOLINTEND(bugprone-macro-parentheses)
@@ -52,11 +52,11 @@ class ComponentIterator {
   enum class IteratorState : uint8_t {
     NONE = 0,
     BEGIN,
-// Entity iterator states (generated from entity_types.inc)
+// Entity iterator states (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) upper,
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) upper,
-#include "esphome/core/entity_types.inc"
+#include "esphome/core/entity_types.h"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
 // NOLINTEND(bugprone-macro-parentheses)

@@ -33,7 +33,7 @@ void ComponentIterator::advance() {
       }
       break;
 
-// Entity iterator cases (generated from entity_types.inc)
+// Entity iterator cases (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
   case IteratorState::upper: \
@@ -41,7 +41,7 @@ void ComponentIterator::advance() {
     break;
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
-#include "esphome/core/entity_types.inc"
+#include "esphome/core/entity_types.h"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
       // NOLINTEND(bugprone-macro-parentheses)

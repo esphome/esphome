@@ -119,13 +119,13 @@ class Application {
   void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
 
-// Entity register methods (generated from entity_types.inc)
+// Entity register methods (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
   void register_##singular(type *obj) { this->plural##_.push_back(obj); }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
-#include "esphome/core/entity_types.inc"
+#include "esphome/core/entity_types.h"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
   // NOLINTEND(bugprone-macro-parentheses)
@@ -272,14 +272,14 @@ class Application {
 #ifdef USE_AREAS
   const auto &get_areas() { return this->areas_; }
 #endif
-// Entity getter methods (generated from entity_types.inc)
+// Entity getter methods (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
   auto &get_##plural() const { return this->plural##_; } \
   GET_ENTITY_METHOD(type, singular, plural)
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
-#include "esphome/core/entity_types.inc"
+#include "esphome/core/entity_types.h"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
   // NOLINTEND(bugprone-macro-parentheses)
@@ -463,12 +463,12 @@ class Application {
 #ifdef USE_AREAS
   StaticVector<Area *, ESPHOME_AREA_COUNT> areas_{};
 #endif
-// Entity StaticVector fields (generated from entity_types.inc)
+// Entity StaticVector fields (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) StaticVector<type *, count> plural##_{};
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
-#include "esphome/core/entity_types.inc"
+#include "esphome/core/entity_types.h"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
   // NOLINTEND(bugprone-macro-parentheses)
