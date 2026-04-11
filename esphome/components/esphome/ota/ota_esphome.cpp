@@ -69,22 +69,11 @@ void ESPHomeOTAComponent::setup() {
     return;
   }
 
-  // Register for socket wake notifications. loop() disables itself on its first
-  // idle tick — no need to disable_loop() here explicitly.
+  // loop() self-disables on its first idle tick; no explicit disable_loop() needed here.
   App.set_ota_wake_component(this);
 #ifdef USE_LWIP_FAST_SELECT
-  // Install the listener filter so the fast-select RCVPLUS wake hook only fires for
-  // events on this listener's netconn (i.e. new incoming connections). Without this,
-  // every RCVPLUS across all monitored sockets (API client data, mDNS, etc.) would
-  // pay the wake hook cost to mark OTA pending-enable, even though OTA would just
-  // re-disable itself on the next tick. Uses the existing public esphome_lwip_get_sock()
-  // lookup instead of adding a dedicated accessor on Socket — the lookup happens once
-  // at setup, not per event. If the lookup ever returns nullptr (shouldn't after a
-  // successful listen()), the filter is installed with nullptr and the callback
-  // compare never matches, so no wakes fire — loop() falls back to the self-disable
-  // safety net. That degraded mode is the correct behavior: OTA will still work on
-  // the first loop tick (which runs during setup before disable), and any subsequent
-  // wakes go through the wake_loop_any_context() path that fires unconditionally.
+  // Filter fast-select wakes to this listener only. If the sock lookup returns nullptr,
+  // no wakes fire and loop() falls back to the self-disable safety net.
   esphome_fast_select_set_ota_listener_sock(esphome_lwip_get_sock(this->server_->get_fd()));
 #endif
 }
@@ -103,31 +92,10 @@ void ESPHomeOTAComponent::dump_config() {
 }
 
 void ESPHomeOTAComponent::loop() {
-  // Self-disabling idle loop. On the first tick after setup() (and after every session
-  // ends), if there's no client and the listener has nothing queued, we disable
-  // ourselves and go back to sleep. Wake paths (LwIP fast select with listener filter,
-  // raw TCP accept_fn_, host select) mark us pending-enable via
-  // App.wake_ota_component_any_context() when an incoming connection arrives on the OTA
-  // listen socket; enable_pending_loops_() reactivates us.
-  //
-  // On fast-select platforms (ESP32 / LibreTiny), the callback is filtered to OTA's
-  // listener netconn, so unrelated monitored sockets (API client data, mDNS, etc.) do
-  // NOT wake OTA through that path. Raw TCP (ESP8266 / RP2040) is inherently filtered:
-  // accept_fn_ is registered per listener pcb and only fires on completed handshakes
-  // to that specific listener. So in normal steady state this loop() runs exactly
-  // once per real incoming OTA connection.
-  //
-  // We can still land here with no pending work in a few narrow cases — a second
-  // connection queued on the listener while an OTA session was active, a listener
-  // filter that hasn't been installed yet, or the host select path (no filter) — which
-  // is why the idle-check and self-disable are retained as a safety net.
-  //
-  // cleanup_connection_() deliberately does NOT call disable_loop() — letting loop()
-  // run one more iteration after a session ends guarantees we re-read server_->ready()
-  // and either accept a client that queued during the session or disable cleanly here.
-  //
-  // Note: No need to check server_ for null — setup() marks the component failed if
-  // server_ creation fails.
+  // Self-disabling idle loop. Runs when a wake path marks us pending-enable (fast-select
+  // listener filter, raw-TCP accept_fn_, or host select), finds no work, and goes back
+  // to sleep. cleanup_connection_() deliberately leaves the loop enabled for one more
+  // iteration so a connection queued mid-session is still caught here.
   if (this->client_ == nullptr && !this->server_->ready()) {
     this->disable_loop();
     return;
@@ -611,12 +579,9 @@ void ESPHomeOTAComponent::cleanup_connection_() {
 #ifdef USE_OTA_PASSWORD
   this->cleanup_auth_();
 #endif
-  // Do not disable_loop() here. loop() itself disables when idle. If a second
-  // connection was queued on the listener while we were busy, the wake flag was
-  // set while this component was in LOOP state — enable_pending_loops_() only
-  // scans the inactive section and would never clear it. Letting loop() run one
-  // more iteration guarantees we re-check server_->ready() and either accept the
-  // queued client or disable ourselves cleanly.
+  // Intentionally no disable_loop() — letting loop() run one more iteration catches
+  // any connection that queued on the listener mid-session (otherwise the wake flag,
+  // set while we were in LOOP state, would be lost to enable_pending_loops_()).
 }
 
 void ESPHomeOTAComponent::yield_and_feed_watchdog_() {

@@ -11,7 +11,7 @@
 #include "esphome/core/wake.h"
 #include "esphome/core/log.h"
 #ifdef USE_OTA
-#include "esphome/core/application.h"  // for App.wake_ota_component_any_context()
+#include "esphome/core/application.h"
 #endif
 
 #ifdef USE_ESP8266
@@ -858,13 +858,8 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   tcp_recv(newpcb, LWIPRawListenImpl::s_queued_recv_fn);
   LWIP_LOG("Accepted connection, queue size: %d", this->accepted_socket_count_);
 #ifdef USE_OTA
-  // Mark the OTA component loop to be re-enabled if it disabled itself while idle.
-  // This MUST happen before wake_loop_any_context() below — otherwise the main loop
-  // could wake, run a full iteration, and finish before we set the pending-enable
-  // flags, losing the wake event. accept_fn_ only fires for the specific listener
-  // pcb it was registered on, so there's implicit filtering here (no "false wakes"
-  // from unrelated sockets, unlike the fast-select path). Safe from RP2040's
-  // low-priority user IRQ context — only writes a volatile bool, no locks.
+  // Mark OTA pending-enable before the wake below — flags must be visible before the
+  // main task runs. accept_fn_ is per-pcb, so filtering is implicit here.
   esphome::App.wake_ota_component_any_context();
 #endif
   // Wake the main loop immediately so it can accept the new connection.

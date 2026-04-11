@@ -103,11 +103,8 @@ BASE_OTA_SCHEMA = cv.Schema(
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
 async def to_code(config):
     cg.add_define("USE_OTA")
-    # Separate compiler -D flag using an ESPHOME_-prefixed name so .c translation units
-    # (which cannot include defines.h because macros.h → Arduino.h breaks the C compile
-    # under Arduino builds) can still tell OTA is compiled in. Needed by the fast-select
-    # OTA wake hook in lwip_fast_select.c. A distinct name avoids the "USE_OTA redefined"
-    # warning that would fire if we also emitted -DUSE_OTA — defines.h already has it.
+    # Separate -D flag so .c files can see it — .c can't include defines.h (macros.h
+    # pulls in Arduino.h). Different name avoids USE_OTA redefinition warnings.
     cg.add_build_flag("-DESPHOME_USE_OTA")
     CORE.add_job(final_step)
 
