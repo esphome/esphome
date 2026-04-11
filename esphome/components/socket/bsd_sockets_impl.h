@@ -124,9 +124,13 @@ class BSDSocketImpl {
   // destructor / double-close path just check fd_ < 0.
   int fd_{-1};
 #ifdef USE_LWIP_FAST_SELECT
-  // Non-null iff this socket is being monitored for read events. Replaces loop_monitored_
-  // on the fast-select path: the pointer itself carries the "monitored" bit.
-  struct lwip_sock *cached_sock_{nullptr};  // Cached for direct rcvevent read in ready()
+  // Cached lwip_sock pointer used for direct rcvevent reads in ready() on the
+  // fast-select path. Replaces loop_monitored_: null means this socket is not being
+  // monitored for read events — either monitoring was not requested, the fd was
+  // invalid, or esphome_lwip_get_sock() failed. Non-null means the netconn event
+  // callback was hooked and notifications are flowing. close() nulls this to prevent
+  // use-after-free via a recycled lwip slot.
+  struct lwip_sock *cached_sock_{nullptr};
 #else
   bool loop_monitored_{false};
 #endif
