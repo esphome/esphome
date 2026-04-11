@@ -15,6 +15,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#ifdef USE_LWIP_FAST_SELECT
+#include "esphome/core/lwip_fast_select.h"
+#endif
 
 #include <cerrno>
 #include <cstdio>
@@ -34,6 +37,13 @@ void ESPHomeOTAComponent::setup() {
     this->server_failed_(LOG_STR("creation"));
     return;
   }
+  // DEBUG: immediately after socket creation, ready() on an idle monitored socket
+  // MUST return false. If it returns true, loop_monitored_ is false — meaning
+  // App.register_socket() failed (likely because esphome_lwip_get_sock returned null
+  // because the socket fd is outside the lwip socket table range), and our wake hook
+  // was never installed on this socket. In that case the whole disable_loop+wake
+  // approach silently degrades — ready() stays true forever and we poll every tick.
+  ESP_LOGD(TAG, "setup: server_->ready() immediately after socket creation = %d (expect 0)", this->server_->ready());
   int enable = 1;
   int err = this->server_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
   if (err != 0) {
@@ -104,16 +114,23 @@ void ESPHomeOTAComponent::loop() {
   //
   // Note: No need to check server_ for null — setup() marks the component failed
   // if server_ creation fails.
-  // DEBUG: self-disable removed. Log every tick with wake counter + ready state so
-  // we can tell (a) whether the lwip listener wake hook ever fires and (b) whether
-  // server_->ready() ever flips to true when a client tries to connect.
+  // DEBUG: self-disable removed; always poll so we can see ready/wake state.
   const uint32_t wake_count = App.ota_wake_count_debug();
+#ifdef USE_LWIP_FAST_SELECT
+  const uint32_t total_rcvplus = esphome_fast_select_rcvplus_total_debug;
+#else
+  const uint32_t total_rcvplus = 0;
+#endif
   const bool ready = this->server_->ready();
   static uint32_t last_wake_count = 0;
+  static uint32_t last_total_rcvplus = 0;
   static bool last_ready = false;
-  if (wake_count != last_wake_count || ready != last_ready || this->client_ != nullptr) {
-    ESP_LOGD(TAG, "loop tick: client=%p ready=%d wakes=%u", (void *) this->client_.get(), ready, wake_count);
+  if (wake_count != last_wake_count || total_rcvplus != last_total_rcvplus || ready != last_ready ||
+      this->client_ != nullptr) {
+    ESP_LOGD(TAG, "loop tick: client=%p ready=%d wakes=%u total_rcvplus=%u", (void *) this->client_.get(), ready,
+             wake_count, total_rcvplus);
     last_wake_count = wake_count;
+    last_total_rcvplus = total_rcvplus;
     last_ready = ready;
   }
   if (this->client_ == nullptr && !ready) {

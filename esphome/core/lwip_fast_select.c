@@ -157,6 +157,11 @@ _Static_assert(offsetof(struct lwip_sock, rcvevent) == ESPHOME_LWIP_SOCK_RCVEVEN
 // Saved original event_callback pointer — written once in first hook_socket(), read from TCP/IP task.
 static netconn_callback s_original_callback = NULL;
 
+// DEBUG: counts every RCVPLUS the wrapper callback observes, for any monitored socket.
+// Read by OTA's debug logging to distinguish "callback not firing at all" from
+// "callback fires for other sockets but not OTA's listener".
+volatile uint32_t esphome_fast_select_rcvplus_total_debug = 0;
+
 #ifdef USE_OTA
 // Extern wake hook for the OTA component (implemented in application.cpp). Called from the
 // TCP/IP task on every NETCONN_EVT_RCVPLUS — not just OTA's listener, so this can be a false
@@ -180,6 +185,7 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
   // (rcvevent++ with a NULL pbuf or error in recvmbox), so error conditions
   // already wake the main loop through the RCVPLUS path.
   if (evt == NETCONN_EVT_RCVPLUS) {
+    esphome_fast_select_rcvplus_total_debug++;  // DEBUG
 #ifdef USE_OTA
     // Mark the OTA component loop to be re-enabled if it disabled itself while idle.
     // This MUST happen before xTaskNotifyGive below — otherwise the main task could
