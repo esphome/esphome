@@ -109,6 +109,7 @@ async def to_code(config):
         "ulp/pulse_cnt.S",
         Path(__file__).parent / "ulp/pulse_cnt.S",
     )
+    esp32.include_builtin_idf_component("ulp")
     esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_ENABLED", True)
     esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_TYPE_FSM", True)
     esp32.add_idf_sdkconfig_option("CONFIG_ULP_COPROC_RESERVE_MEM", 1024)
