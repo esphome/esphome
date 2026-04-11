@@ -27,9 +27,14 @@ int BSDSocketImpl::close() {
     // Already closed, or never opened.
     return 0;
   }
-#ifndef USE_LWIP_FAST_SELECT
-  // On the fast-select path there is no per-socket unhook needed — all LwIP sockets
-  // share the same static event_callback.
+#ifdef USE_LWIP_FAST_SELECT
+  // Null the cached lwip_sock pointer before closing. The underlying lwip slot can be
+  // recycled for a new connection as soon as ::close() returns, so anything that might
+  // dereference cached_sock_ post-close (e.g. setsockopt(TCP_NODELAY)) would otherwise
+  // touch an unrelated socket's pcb. No per-socket callback unhook is needed —
+  // all LwIP sockets share the same static event_callback.
+  this->cached_sock_ = nullptr;
+#else
   if (this->loop_monitored_) {
     App.unregister_socket_fd(this->fd_);
   }
