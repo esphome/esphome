@@ -694,10 +694,6 @@ def pte_encode_bitmap(font, code_point):
                     run_of_on, pixels_so_far, pixel
                 )
 
-    ascender = pt_to_px(font.size.ascender)
-    if ascender == 0:
-        ascender = PTE_SAMPLE_SIZE
-
     return PTEGlyphInfo(
         code_point,
         bitmap_data,

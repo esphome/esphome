@@ -311,9 +311,24 @@ class BaseImage {
 
 class BaseFont {
  public:
+  virtual ~BaseFont() = default;
   virtual void print(int x, int y, Display *display, Color color, const char *text, Color background) = 0;
+  virtual void print(int x, int y, Display *display, Color color, const char *text, Color background, int) {
+    this->print(x, y, display, color, text, background);
+  }
   virtual void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) = 0;
+  virtual void measure(const char *str, int *width, int *x_offset, int *baseline, int *height, int) {
+    this->measure(str, width, x_offset, baseline, height);
+  }
+  virtual BaseFont *get_size_font(int) { return this; }
 };
+
+inline BaseFont *pte_font(BaseFont *font, int size) {
+  if (font == nullptr) {
+    return nullptr;
+  }
+  return font->get_size_font(size);
+}
 
 class Display : public PollingComponent {
  public:
