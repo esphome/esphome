@@ -2,6 +2,9 @@
 #include "esphome/core/build_info_data.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
+#ifdef USE_OTA
+#include "esphome/core/ota_wake_hook.h"
+#endif
 #include <cstring>
 
 #ifdef USE_ESP8266
@@ -449,14 +452,24 @@ void Application::enable_pending_loops_() {
   }
 }
 
-#if defined(USE_OTA) && defined(USE_LWIP_FAST_SELECT)
-// Called from the LwIP TCP/IP task via esphome_socket_event_callback() on NETCONN_EVT_RCVPLUS,
-// BEFORE that callback calls xTaskNotifyGive() — pending-enable flags must be visible before
-// the main task wakes, or the main loop can run a full iteration without seeing the request.
-// Only marks the OTA component as pending loop-enable; does not itself wake the main task.
-// OTA's __init__.py emits USE_OTA as both a cg.add_define (for static analyzers) AND a
-// cg.add_build_flag (so the .c fast-select file also sees it).
-extern "C" void esphome_wake_ota_component_any_context() { App.wake_ota_component_any_context(); }
+#ifdef USE_OTA
+// Storage for the inline OTA wake hook (see esphome/core/ota_wake_hook.h). Set in
+// Application::set_ota_wake_component() and read from the lwip fast-select callback on
+// every NETCONN_EVT_RCVPLUS. Kept as raw C globals so the .c file can inline the wake
+// body (two volatile stores) without a function-call round trip into application.cpp.
+extern "C" {
+volatile bool *esphome_ota_pending_enable_loop_ptr = nullptr;
+volatile bool *esphome_ota_has_pending_requests_ptr = nullptr;
+}
+
+void Application::set_ota_wake_component(Component *component) {
+  // Application is a friend of Component — can take the address of its protected
+  // pending_enable_loop_ field. The C-side inline hook writes through that pointer when
+  // any monitored socket fires RCVPLUS, making the flags visible to enable_pending_loops_()
+  // on the next main loop iteration.
+  esphome_ota_pending_enable_loop_ptr = &component->pending_enable_loop_;
+  esphome_ota_has_pending_requests_ptr = &this->has_pending_enable_loop_requests_;
+}
 #endif
 
 #ifdef USE_LWIP_FAST_SELECT
@@ -566,11 +579,10 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     if (ret >= 0) [[likely]] {
 #ifdef USE_OTA
       // Dead code today — host does not currently support the esphome OTA platform,
-      // so ota_wake_component_ is never set and this call is a no-op. Kept so the
-      // wake path works out of the box if host ever gains OTA support. Harmless
-      // cost: a single nullptr check per select() return.
+      // so the inline hook's pointers are always NULL and this is a no-op. Kept so the
+      // wake path works out of the box if host ever gains OTA support.
       if (ret > 0) {
-        this->wake_ota_component_any_context();
+        esphome_wake_ota_component_any_context();
       }
 #endif
       // Yield if zero timeout since select(0) only polls without yielding

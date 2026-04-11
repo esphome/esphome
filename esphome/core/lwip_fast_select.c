@@ -124,6 +124,9 @@
 
 #include "esphome/core/lwip_fast_select.h"
 #include "esphome/core/main_task.h"
+#ifdef ESPHOME_USE_OTA
+#include "esphome/core/ota_wake_hook.h"
+#endif
 
 #include <stddef.h>
 

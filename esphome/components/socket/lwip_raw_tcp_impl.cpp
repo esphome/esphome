@@ -11,7 +11,7 @@
 #include "esphome/core/wake.h"
 #include "esphome/core/log.h"
 #ifdef USE_OTA
-#include "esphome/core/application.h"
+#include "esphome/core/ota_wake_hook.h"
 #endif
 
 #ifdef USE_ESP8266
@@ -861,9 +861,9 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   // Mark the OTA component loop to be re-enabled if it disabled itself while idle.
   // This MUST happen before wake_loop_any_context() below — otherwise the main loop
   // could wake, run a full iteration, and finish before we set the pending-enable
-  // flags, losing the wake event. Safe from RP2040's low-priority user IRQ context:
-  // it only writes volatile bools, no heap or locks.
-  esphome::App.wake_ota_component_any_context();
+  // flags, losing the wake event. Inline hook (ota_wake_hook.h) — two volatile stores,
+  // no function call. Safe from RP2040's low-priority user IRQ context.
+  esphome_wake_ota_component_any_context();
 #endif
   // Wake the main loop immediately so it can accept the new connection.
   esphome::wake_loop_any_context();
