@@ -1,8 +1,9 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, uart
+from esphome.components.climate import ClimateSwingMode
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_ID, CONF_TEMPERATURE, CONF_SUPPORTED_SWING_MODES, CONF_UPDATE_INTERVAL
 from esphome.core import ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType, TemplateArgsType
@@ -12,6 +13,13 @@ AUTO_LOAD = ["climate"]
 CODEOWNERS = ["@crnjan"]
 
 CONF_CURRENT_TEMPERATURE_MIN_INTERVAL = "current_temperature_min_interval"
+
+SUPPORTED_SWING_MODES_OPTIONS = {
+    "OFF": ClimateSwingMode.CLIMATE_SWING_OFF,
+    "VERTICAL": ClimateSwingMode.CLIMATE_SWING_VERTICAL,
+    "HORIZONTAL": ClimateSwingMode.CLIMATE_SWING_HORIZONTAL,
+    "BOTH": ClimateSwingMode.CLIMATE_SWING_BOTH,
+}
 
 mitsubishi_ns = cg.esphome_ns.namespace("mitsubishi_cn105")
 
@@ -43,6 +51,9 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_CURRENT_TEMPERATURE_MIN_INTERVAL, default="60s"
             ): cv.update_interval,
+            cv.Optional(CONF_SUPPORTED_SWING_MODES, default="VERTICAL"): cv.enum(
+                SUPPORTED_SWING_MODES_OPTIONS, upper=True
+            ),
         }
     )
 )
@@ -63,6 +74,7 @@ async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+    cg.add(var.set_supported_swing_mode(config[CONF_SUPPORTED_SWING_MODES]))
     cg.add(
         var.set_current_temperature_min_interval(
             config[CONF_CURRENT_TEMPERATURE_MIN_INTERVAL]
