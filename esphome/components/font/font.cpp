@@ -70,7 +70,7 @@ void hw_blend_pixel(int x, int y, int a, int col) {
 }
 #endif
 
-#ifdef USE_DISPLAY
+#if defined(USE_DISPLAY) && defined(USE_FONT_PTE)
 namespace {
 
 class PTEFontSizedVariant : public BaseFont {
