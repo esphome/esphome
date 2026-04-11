@@ -30,6 +30,8 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "pte.h"
 
+#include "esphome/core/defines.h"
+
 #include <cstdlib>
 #include <cstring>
 
