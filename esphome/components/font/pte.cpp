@@ -195,7 +195,7 @@ static int search_kern(uint32_t c, const PteBaseFont *f) {
   return -1;
 }
 
-static const PteKern *find_kern(int c1, int c2, const PteBaseFont *f) {
+static const PteKern *find_kern(uint32_t c1, uint32_t c2, const PteBaseFont *f) {
   // Find the first kern of this type in the array
   int mid_p = search_kern(c1, f);
 
@@ -434,8 +434,11 @@ int pte_draw_text(PteFontT *f, int x, int y, int r, const char *text, size_t siz
           }
 
           if (lines > 0) {
-            blt_horz_cmprs_resize(&ptr, &col, &pixels_to_go, g->width, offset_x, offset_y, pixel_xinc, pixel_yinc,
-                                  f->m_ra, f->m_rb, sub_offset_dx, lines, overspill, c);
+            const int destination_x = offset_x;
+            const int destination_y = offset_y;
+            const int subpixel_offset_x = sub_offset_dx;
+            blt_horz_cmprs_resize(&ptr, &col, &pixels_to_go, g->width, destination_x, destination_y, pixel_xinc,
+                                  pixel_yinc, f->m_ra, f->m_rb, subpixel_offset_x, lines, overspill, c);
           }
           offset_x += line_xinc;
           offset_y += line_yinc;
