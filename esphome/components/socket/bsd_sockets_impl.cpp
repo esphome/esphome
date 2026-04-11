@@ -34,11 +34,10 @@ BSDSocketImpl::~BSDSocketImpl() {
 
 int BSDSocketImpl::close() {
   if (!this->closed_) {
-#ifdef USE_LWIP_FAST_SELECT
-    // All LwIP sockets share the same static event_callback, so there is no per-socket
-    // unhook needed — just drop the cached pointer before the socket is destroyed.
-    this->cached_sock_ = nullptr;
-#else
+#ifndef USE_LWIP_FAST_SELECT
+    // All LwIP sockets share the same static event_callback, so on the fast-select path
+    // there is no per-socket unhook needed. cached_sock_ is not cleared because closed_
+    // makes the socket a corpse — no ready() or other member access is valid afterwards.
     if (this->loop_monitored_) {
       App.unregister_socket_fd(this->fd_);
     }
