@@ -572,15 +572,11 @@ class Application {
   /// Not IRAM_ATTR: all callers run in task / user-IRQ context, not a real ISR,
   /// and the LwIP event callbacks that invoke this are not IRAM-resident either.
   void wake_ota_component_any_context() {
-    this->ota_wake_count_debug_++;
     if (this->ota_wake_component_ != nullptr) {
       this->ota_wake_component_->pending_enable_loop_ = true;
       this->has_pending_enable_loop_requests_ = true;
     }
   }
-  /// DEBUG: monotonically increasing count of wake calls, regardless of whether
-  /// ota_wake_component_ was set. Read from OTA::loop() to verify the hook fires.
-  uint32_t ota_wake_count_debug() const { return this->ota_wake_count_debug_; }
 #endif
 
  protected:
@@ -659,8 +655,7 @@ class Application {
   // Pointer-sized members first
   Component *current_component_{nullptr};
 #ifdef USE_OTA
-  Component *ota_wake_component_{nullptr};     // Set by ESPHomeOTAComponent to receive socket-wake notifications
-  volatile uint32_t ota_wake_count_debug_{0};  // DEBUG: incremented by wake_ota_component_any_context
+  Component *ota_wake_component_{nullptr};  // Set by ESPHomeOTAComponent to receive socket-wake notifications
 #endif
 
   // std::vector (3 pointers each: begin, end, capacity)

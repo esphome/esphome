@@ -15,9 +15,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
-#ifdef USE_LWIP_FAST_SELECT
-#include "esphome/core/lwip_fast_select.h"
-#endif
 
 #include <cerrno>
 #include <cstdio>
@@ -37,13 +34,6 @@ void ESPHomeOTAComponent::setup() {
     this->server_failed_(LOG_STR("creation"));
     return;
   }
-  // DEBUG: immediately after socket creation, ready() on an idle monitored socket
-  // MUST return false. If it returns true, loop_monitored_ is false — meaning
-  // App.register_socket() failed (likely because esphome_lwip_get_sock returned null
-  // because the socket fd is outside the lwip socket table range), and our wake hook
-  // was never installed on this socket. In that case the whole disable_loop+wake
-  // approach silently degrades — ready() stays true forever and we poll every tick.
-  ESP_LOGD(TAG, "setup: server_->ready() immediately after socket creation = %d (expect 0)", this->server_->ready());
   int enable = 1;
   int err = this->server_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
   if (err != 0) {
@@ -79,7 +69,6 @@ void ESPHomeOTAComponent::setup() {
   // Register for socket wake notifications. loop() disables itself on its first
   // idle tick — no need to disable_loop() here explicitly.
   App.set_ota_wake_component(this);
-  ESP_LOGD(TAG, "setup complete: registered wake component, listener fd ready");
 }
 
 void ESPHomeOTAComponent::dump_config() {
@@ -96,49 +85,26 @@ void ESPHomeOTAComponent::dump_config() {
 }
 
 void ESPHomeOTAComponent::loop() {
-  // Self-disabling idle loop. On the first tick after setup() (and after every
-  // session cleanup and after every false wake), if there's no client and the
-  // listener has nothing queued, we disable ourselves and go back to sleep.
-  // Socket-wake paths (LwIP fast select, raw TCP accept, host select) mark us
-  // pending-enable via App.wake_ota_component_any_context() when a monitored
-  // socket signals activity, and enable_pending_loops_() reactivates us.
+  // Self-disabling idle loop. On the first tick after setup() (and after every session
+  // cleanup and every false wake), if there's no client and the listener has nothing
+  // queued, we disable ourselves and go back to sleep. Socket-wake paths (LwIP fast
+  // select, raw TCP accept, host select) mark us pending-enable via
+  // App.wake_ota_component_any_context() when a monitored socket signals activity, and
+  // enable_pending_loops_() reactivates us.
   //
-  // False wakes from unrelated monitored sockets are expected — the event
-  // callbacks fire on every RCVPLUS across all monitored sockets, not just
-  // OTA's listener — and they land here with no pending work.
+  // False wakes from unrelated monitored sockets are expected — the event callbacks
+  // fire on every RCVPLUS across all monitored sockets, not just OTA's listener — and
+  // they land here with no pending work.
   //
-  // cleanup_connection_() deliberately does NOT call disable_loop() — letting
-  // loop() run one more iteration after a session ends guarantees we re-read
-  // server_->ready() and either accept a client that queued during the session
-  // or disable cleanly here.
+  // cleanup_connection_() deliberately does NOT call disable_loop() — letting loop()
+  // run one more iteration after a session ends guarantees we re-read server_->ready()
+  // and either accept a client that queued during the session or disable cleanly here.
   //
-  // Note: No need to check server_ for null — setup() marks the component failed
-  // if server_ creation fails.
-  // DEBUG: self-disable removed; always poll so we can see ready/wake state.
-  const uint32_t wake_count = App.ota_wake_count_debug();
-#ifdef USE_LWIP_FAST_SELECT
-  const uint32_t total_rcvplus = esphome_fast_select_rcvplus_total_debug;
-  const uint32_t shim_count = esphome_ota_shim_call_count_debug;
-#else
-  const uint32_t total_rcvplus = 0;
-  const uint32_t shim_count = 0;
-#endif
-  const bool ready = this->server_->ready();
-  static uint32_t last_wake_count = 0;
-  static uint32_t last_total_rcvplus = 0;
-  static uint32_t last_shim_count = 0;
-  static bool last_ready = false;
-  if (wake_count != last_wake_count || total_rcvplus != last_total_rcvplus || shim_count != last_shim_count ||
-      ready != last_ready || this->client_ != nullptr) {
-    ESP_LOGD(TAG, "loop tick: client=%p ready=%d wakes=%u shim=%u total_rcvplus=%u", (void *) this->client_.get(),
-             ready, wake_count, shim_count, total_rcvplus);
-    last_wake_count = wake_count;
-    last_total_rcvplus = total_rcvplus;
-    last_shim_count = shim_count;
-    last_ready = ready;
-  }
-  if (this->client_ == nullptr && !ready) {
-    return;  // stay in LOOP state so we can poll every tick for diagnosis
+  // Note: No need to check server_ for null — setup() marks the component failed if
+  // server_ creation fails.
+  if (this->client_ == nullptr && !this->server_->ready()) {
+    this->disable_loop();
+    return;
   }
   this->handle_handshake_();
 }
@@ -159,13 +125,9 @@ void ESPHomeOTAComponent::handle_handshake_() {
     socklen_t addr_len = sizeof(source_addr);
     int enable = 1;
 
-    ESP_LOGD(TAG, "handle_handshake_: attempting accept");
     this->client_ = this->server_->accept_loop_monitored((struct sockaddr *) &source_addr, &addr_len);
-    if (this->client_ == nullptr) {
-      ESP_LOGD(TAG, "handle_handshake_: accept returned null (would-block)");
+    if (this->client_ == nullptr)
       return;
-    }
-    ESP_LOGD(TAG, "handle_handshake_: accept ok, client=%p", (void *) this->client_.get());
     int err = this->client_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
     if (err != 0) {
       this->log_socket_error_(LOG_STR("nodelay"));

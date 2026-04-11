@@ -102,7 +102,13 @@ BASE_OTA_SCHEMA = cv.Schema(
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
 async def to_code(config):
+    # Both: add_define keeps defines.h in sync for static analyzers / IDEs that read it,
+    # while add_build_flag passes -DUSE_OTA as a compiler flag so USE_OTA is visible in .c
+    # translation units that cannot include defines.h (lwip_fast_select.c in particular —
+    # including defines.h would drag in macros.h → Arduino.h under Arduino builds and
+    # break the C compile). Needed for the fast-select OTA wake hook.
     cg.add_define("USE_OTA")
+    cg.add_build_flag("-DUSE_OTA")
     CORE.add_job(final_step)
 
     if CORE.is_rp2040 and CORE.using_arduino:

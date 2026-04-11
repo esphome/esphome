@@ -53,13 +53,6 @@ static inline bool esphome_lwip_socket_has_data(struct lwip_sock *sock) {
 /// The sock pointer must have been obtained from esphome_lwip_get_sock().
 void esphome_lwip_hook_socket(struct lwip_sock *sock);
 
-// DEBUG counter: total RCVPLUS events the wrapper callback observed across all monitored sockets.
-extern volatile uint32_t esphome_fast_select_rcvplus_total_debug;
-
-// DEBUG counter: number of times esphome_wake_ota_component_any_context() C shim was entered.
-// Independent of whether App.wake_ota_component_any_context() inside it actually ran.
-extern volatile uint32_t esphome_ota_shim_call_count_debug;
-
 /// Set or clear TCP_NODELAY on a socket's tcp_pcb directly.
 /// Must be called with the TCPIP core lock held (LwIPLock in C++).
 /// This bypasses lwip_setsockopt() overhead (socket lookups, switch cascade,

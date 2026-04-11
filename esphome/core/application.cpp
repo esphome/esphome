@@ -450,19 +450,13 @@ void Application::enable_pending_loops_() {
 }
 
 #if defined(USE_OTA) && defined(USE_LWIP_FAST_SELECT)
-// DEBUG: directly-incremented C counter so we can tell whether the shim is being called at all,
-// independent of whether the App.wake_ota_component_any_context() call inside it is working.
-extern "C" {
-volatile uint32_t esphome_ota_shim_call_count_debug = 0;
-}
 // Called from the LwIP TCP/IP task via esphome_socket_event_callback() on NETCONN_EVT_RCVPLUS,
-// BEFORE the callback calls xTaskNotifyGive() — the flag-set must happen before the wake,
-// otherwise the main task could wake, run a full iteration, and miss the pending-enable.
+// BEFORE that callback calls xTaskNotifyGive() — pending-enable flags must be visible before
+// the main task wakes, or the main loop can run a full iteration without seeing the request.
 // Only marks the OTA component as pending loop-enable; does not itself wake the main task.
-extern "C" void esphome_wake_ota_component_any_context() {
-  esphome_ota_shim_call_count_debug++;
-  esphome::App.wake_ota_component_any_context();
-}
+// OTA's __init__.py emits USE_OTA as both a cg.add_define (for static analyzers) AND a
+// cg.add_build_flag (so the .c fast-select file also sees it).
+extern "C" void esphome_wake_ota_component_any_context() { App.wake_ota_component_any_context(); }
 #endif
 
 #ifdef USE_LWIP_FAST_SELECT
