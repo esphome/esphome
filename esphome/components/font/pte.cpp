@@ -33,6 +33,8 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstdlib>
 #include <cstring>
 
+#ifdef USE_FONT_PTE
+
 namespace esphome::font {
 
 static uint32_t extract_codepoint(const char *utf8_str, size_t *length) {
@@ -625,3 +627,5 @@ PteFontT pte_get_font(const PteBaseFont *f, int size) {
 }
 
 }  // namespace esphome::font
+
+#endif
