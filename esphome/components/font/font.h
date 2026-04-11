@@ -49,9 +49,7 @@ class BaseFont
 #endif
 {
  public:
-#ifdef USE_DISPLAY
-  ~BaseFont() override = default;
-#else
+#ifndef USE_DISPLAY
   virtual ~BaseFont() = default;
 #endif
 #ifdef USE_LVGL_FONT
