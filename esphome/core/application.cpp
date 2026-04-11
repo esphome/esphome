@@ -462,6 +462,34 @@ void Application::log_fast_select_scan_stats_() {
            load_bearing);
 }
 
+void Application::note_fast_select_load_bearing_(struct lwip_sock *sock, uint32_t delay_ms) {
+  uint32_t load_bearing = fast_select_scan_load_bearing_.fetch_add(1, std::memory_order_relaxed) + 1;
+  // Find the socket's index in monitored_sockets_ for easier correlation with registration order.
+  int index = -1;
+  for (size_t i = 0; i < this->monitored_sockets_.size(); i++) {
+    if (this->monitored_sockets_[i] == sock) {
+      index = static_cast<int>(i);
+      break;
+    }
+  }
+  // Read the rcvevent value directly. This is the same offset-based read used by
+  // esphome_lwip_socket_has_data(); value > 0 means unread data is queued.
+  int16_t rcvevent =
+      *reinterpret_cast<volatile int16_t *>(reinterpret_cast<char *>(sock) + ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET);
+  // Count how many other sockets also had data at this scan (could reveal whether it's always
+  // the same socket or a burst across multiple).
+  size_t sockets_with_data = 0;
+  for (struct lwip_sock *s : this->monitored_sockets_) {
+    if (esphome_lwip_socket_has_data(s))
+      sockets_with_data++;
+  }
+  ESP_LOGW(TAG,
+           "fast_select LOAD-BEARING hit #%" PRIu32 ": sock=%p idx=%d/%u rcvevent=%d delay_ms=%" PRIu32
+           " sockets_with_data=%u",
+           load_bearing, sock, index, static_cast<unsigned>(this->monitored_sockets_.size()), rcvevent, delay_ms,
+           static_cast<unsigned>(sockets_with_data));
+}
+
 bool Application::register_socket(struct lwip_sock *sock) {
   // It modifies monitored_sockets_ without locking — must only be called from the main loop.
   if (sock == nullptr)

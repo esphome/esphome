@@ -664,6 +664,8 @@ class Application {
   static std::atomic<uint32_t> fast_select_scan_load_bearing_;
   uint32_t fast_select_scan_stats_last_log_{0};
   void log_fast_select_scan_stats_();
+  // Non-inline, called only on the rare load-bearing event so the hot path stays unchanged.
+  void note_fast_select_load_bearing_(struct lwip_sock *sock, uint32_t delay_ms);
 #elif defined(USE_HOST)
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
 #endif
@@ -947,7 +949,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay
       fast_select_scan_found_data_.fetch_add(1, std::memory_order_relaxed);
       if (fast_select_notify_value_before_scan == 0) {
         // Scan was load-bearing: no notification pending, so Take would have stalled.
-        fast_select_scan_load_bearing_.fetch_add(1, std::memory_order_relaxed);
+        // Delegate to a non-inline helper so the hot path stays the same size.
+        this->note_fast_select_load_bearing_(sock, delay_ms);
       }
       yield();
       return;
