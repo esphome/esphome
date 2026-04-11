@@ -180,16 +180,17 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
   // (rcvevent++ with a NULL pbuf or error in recvmbox), so error conditions
   // already wake the main loop through the RCVPLUS path.
   if (evt == NETCONN_EVT_RCVPLUS) {
+#ifdef USE_OTA
+    // Mark the OTA component loop to be re-enabled if it disabled itself while idle.
+    // This MUST happen before xTaskNotifyGive below — otherwise the main task could
+    // wake, run a full iteration, and finish before we set the pending-enable flags,
+    // causing the wake event to be lost until the next unrelated socket activity.
+    esphome_wake_ota_component_any_context();
+#endif
     TaskHandle_t task = esphome_main_task_handle;
     if (task != NULL) {
       xTaskNotifyGive(task);
     }
-#ifdef USE_OTA
-    // Mark the OTA component loop to be re-enabled if it disabled itself while idle.
-    // Only sets pending-enable flags — the xTaskNotifyGive above has already woken
-    // the main task, which will process the pending enable on its next iteration.
-    esphome_wake_ota_component_any_context();
-#endif
   }
 }
 

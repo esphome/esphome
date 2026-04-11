@@ -450,9 +450,10 @@ void Application::enable_pending_loops_() {
 }
 
 #if defined(USE_OTA) && defined(USE_LWIP_FAST_SELECT)
-// Called from the LwIP TCP/IP task via esphome_socket_event_callback() on NETCONN_EVT_RCVPLUS.
-// Only marks the OTA component as pending loop-enable; the fast-select callback itself has
-// already woken the main task via xTaskNotifyGive().
+// Called from the LwIP TCP/IP task via esphome_socket_event_callback() on NETCONN_EVT_RCVPLUS,
+// BEFORE the callback calls xTaskNotifyGive() — the flag-set must happen before the wake,
+// otherwise the main task could wake, run a full iteration, and miss the pending-enable.
+// Only marks the OTA component as pending loop-enable; does not itself wake the main task.
 extern "C" void esphome_wake_ota_component_any_context() { App.wake_ota_component_any_context(); }
 #endif
 

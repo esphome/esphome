@@ -857,16 +857,16 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   tcp_err(newpcb, LWIPRawListenImpl::s_queued_err_fn);
   tcp_recv(newpcb, LWIPRawListenImpl::s_queued_recv_fn);
   LWIP_LOG("Accepted connection, queue size: %d", this->accepted_socket_count_);
-  // Wake the main loop immediately so it can accept the new connection.
-  esphome::wake_loop_any_context();
 #ifdef USE_OTA
   // Mark the OTA component loop to be re-enabled if it disabled itself while idle.
-  // This only sets pending-enable flags; the wake_loop_any_context() call above has
-  // already woken the main loop, which will process the pending enable on its next
-  // iteration. Safe to call from RP2040's low-priority user IRQ context — it only
-  // writes volatile bools, no heap or locks.
+  // This MUST happen before wake_loop_any_context() below — otherwise the main loop
+  // could wake, run a full iteration, and finish before we set the pending-enable
+  // flags, losing the wake event. Safe from RP2040's low-priority user IRQ context:
+  // it only writes volatile bools, no heap or locks.
   esphome::App.wake_ota_component_any_context();
 #endif
+  // Wake the main loop immediately so it can accept the new connection.
+  esphome::wake_loop_any_context();
   return ERR_OK;
 }
 
