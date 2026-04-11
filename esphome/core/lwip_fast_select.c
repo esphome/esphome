@@ -157,15 +157,16 @@ _Static_assert(offsetof(struct lwip_sock, rcvevent) == ESPHOME_LWIP_SOCK_RCVEVEN
 // Saved original event_callback pointer — written once in first hook_socket(), read from TCP/IP task.
 static netconn_callback s_original_callback = NULL;
 
-#ifdef USE_OTA
+#ifdef ESPHOME_USE_OTA
 // Extern wake hook for the OTA component (implemented in application.cpp). Called from the
 // TCP/IP task on every NETCONN_EVT_RCVPLUS — not just OTA's listener, so this can be a false
 // wake from an unrelated monitored socket. OTA::loop() handles that by disabling itself again
 // when there is no pending work. The hook only marks the OTA component as pending loop-enable;
 // it does not itself wake the main task (the caller below already does that).
-// NOTE: USE_OTA reaches this file only because ota/__init__.py adds it as a build flag
-// (not a cg.add_define). defines.h cannot be included from this .c file (it pulls in
-// macros.h → Arduino.h under Arduino builds).
+// NOTE: ESPHOME_USE_OTA (not USE_OTA) because USE_OTA only lives in defines.h, and this .c
+// file cannot include defines.h — macros.h → Arduino.h would break the C compile under
+// Arduino builds. ota/__init__.py emits -DESPHOME_USE_OTA as a build flag specifically so
+// this file can see it without a name collision with the defines.h USE_OTA entry.
 extern void esphome_wake_ota_component_any_context(void);
 #endif
 
@@ -183,11 +184,12 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
   // (rcvevent++ with a NULL pbuf or error in recvmbox), so error conditions
   // already wake the main loop through the RCVPLUS path.
   if (evt == NETCONN_EVT_RCVPLUS) {
-    // Invoke the OTA wake hook BEFORE xTaskNotifyGive — if OTA is compiled in, this marks
-    // its component pending-enable, and those flags must be visible before we wake the
-    // main task. Otherwise the main loop could run a full iteration without seeing the
-    // pending-enable request. When OTA is not compiled in, this function's body is empty.
+#ifdef ESPHOME_USE_OTA
+    // Mark the OTA component pending-enable BEFORE xTaskNotifyGive — the flags must be
+    // visible before we wake the main task, otherwise the main loop could run a full
+    // iteration without seeing the pending-enable request.
     esphome_wake_ota_component_any_context();
+#endif
     TaskHandle_t task = esphome_main_task_handle;
     if (task != NULL) {
       xTaskNotifyGive(task);
