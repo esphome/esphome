@@ -76,10 +76,15 @@ void ESPHomeOTAComponent::setup() {
   // Install the listener filter so the fast-select RCVPLUS wake hook only fires for
   // events on this listener's netconn (i.e. new incoming connections). Without this,
   // every RCVPLUS across all monitored sockets (API client data, mDNS, etc.) would
-  // pay the inline hook's two volatile stores + memw barriers to mark OTA
-  // pending-enable, even though OTA would just re-disable itself on the next tick.
-  // Uses the existing public esphome_lwip_get_sock() lookup instead of adding a
-  // dedicated accessor on Socket — the lookup happens once at setup, not per event.
+  // pay the wake hook cost to mark OTA pending-enable, even though OTA would just
+  // re-disable itself on the next tick. Uses the existing public esphome_lwip_get_sock()
+  // lookup instead of adding a dedicated accessor on Socket — the lookup happens once
+  // at setup, not per event. If the lookup ever returns nullptr (shouldn't after a
+  // successful listen()), the filter is installed with nullptr and the callback
+  // compare never matches, so no wakes fire — loop() falls back to the self-disable
+  // safety net. That degraded mode is the correct behavior: OTA will still work on
+  // the first loop tick (which runs during setup before disable), and any subsequent
+  // wakes go through the wake_loop_any_context() path that fires unconditionally.
   esphome_fast_select_set_ota_listener_sock(esphome_lwip_get_sock(this->server_->get_fd()));
 #endif
 }
