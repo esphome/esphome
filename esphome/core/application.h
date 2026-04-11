@@ -535,7 +535,7 @@ class Application {
 #ifdef USE_HOST
   /// Register/unregister a socket file descriptor with the host select() fallback loop.
   /// USE_LWIP_FAST_SELECT builds do not use this API — sockets hook the lwIP netconn
-  /// event_callback directly (see socket.h fast_select_hook_fd) and rely on FreeRTOS
+  /// event_callback directly (see socket.h hook_fd_for_fast_select) and rely on FreeRTOS
   /// task notifications for wake-up.
   /// NOTE: File descriptors >= FD_SETSIZE (typically 10 on ESP) will be rejected with an error.
   /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop.
