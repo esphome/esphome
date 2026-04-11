@@ -45,6 +45,17 @@ using ListenSocket = LWIPRawListenImpl;
 inline bool socket_ready(struct lwip_sock *cached_sock, bool loop_monitored) {
   return !loop_monitored || (cached_sock != nullptr && esphome_lwip_socket_has_data(cached_sock));
 }
+
+/// Resolve an fd to its lwip_sock and hook the netconn event callback so the main loop
+/// is woken by FreeRTOS task notifications. Shared between BSD and LwIP socket impls.
+/// Returns the cached lwip_sock pointer (or nullptr if fd is invalid).
+inline struct lwip_sock *fast_select_hook_fd(int fd) {
+  struct lwip_sock *sock = esphome_lwip_get_sock(fd);
+  if (sock != nullptr) {
+    esphome_lwip_hook_socket(sock);
+  }
+  return sock;
+}
 #elif defined(USE_HOST)
 /// Shared ready() helper for fd-based socket implementations.
 /// Checks if the Application's select() loop has marked this fd as ready.

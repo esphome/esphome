@@ -14,13 +14,8 @@ LwIPSocketImpl::LwIPSocketImpl(int fd, bool monitor_loop) {
   if (!monitor_loop || this->fd_ < 0)
     return;
 #ifdef USE_LWIP_FAST_SELECT
-  // Cache lwip_sock pointer (used by ready() for direct rcvevent reads) and hook the
-  // netconn event callback so the main loop is notified via FreeRTOS task notifications.
-  this->cached_sock_ = esphome_lwip_get_sock(this->fd_);
-  if (this->cached_sock_ != nullptr) {
-    esphome_lwip_hook_socket(this->cached_sock_);
-    this->loop_monitored_ = true;
-  }
+  this->cached_sock_ = fast_select_hook_fd(this->fd_);
+  this->loop_monitored_ = this->cached_sock_ != nullptr;
 #else
   this->loop_monitored_ = App.register_socket_fd(this->fd_);
 #endif
