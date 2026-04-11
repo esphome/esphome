@@ -3,7 +3,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
-#include <vector>
 
 namespace esphome::sen6x {
 
@@ -37,11 +36,6 @@ static constexpr uint16_t SEN6X_CMD_CO2_SENSOR_AUTOMATIC_SELF_CAL = 0x6711;
 static constexpr uint16_t SEN6X_CMD_AMBIENT_PRESSURE = 0x6720;
 static constexpr uint16_t SEN6X_CMD_SENSOR_ALTITUDE = 0x6736;
 static constexpr uint16_t SEN6X_CMD_RESET = 0xD304;
-
-static constexpr int8_t SEN6X_INDEX_SCALE_FACTOR = 10;                         // used for VOC and NOx index values
-static constexpr int8_t SEN6X_MIN_INDEX_VALUE = 1 * SEN6X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
-static constexpr int16_t SEN6X_MAX_INDEX_VALUE =
-    500 * SEN6X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
 
 static inline void set_read_command_and_words(SEN6XComponent::Sen6xType type, uint16_t &read_cmd, uint8_t &read_words) {
   read_cmd = SEN6X_CMD_READ_MEASUREMENT;
@@ -167,93 +161,110 @@ void SEN6XComponent::setup() {
 }
 
 void SEN6XComponent::schedule_post_setup_commands_() {
-  std::vector<std::function<void()>> steps;
-
-  if (this->voc_tuning_params_.has_value()) {
-    steps.emplace_back(
-        [this]() { this->write_tuning_parameters_(SEN6X_CMD_VOC_ALGORITHM_TUNING, this->voc_tuning_params_.value()); });
-  }
-  if (this->nox_tuning_params_.has_value()) {
-    steps.emplace_back(
-        [this]() { this->write_tuning_parameters_(SEN6X_CMD_NOX_ALGORITHM_TUNING, this->nox_tuning_params_.value()); });
-  }
-  if (this->temperature_compensation_.has_value()) {
-    steps.emplace_back([this]() { this->write_temperature_compensation_(this->temperature_compensation_.value()); });
-  }
-  if (this->temperature_acceleration_.has_value()) {
-    steps.emplace_back([this]() { this->write_temperature_acceleration_(this->temperature_acceleration_.value()); });
-  }
-  if (this->ambient_pressure_.has_value()) {
-    steps.emplace_back([this]() {
-      uint16_t params[1];
-      params[0] = this->ambient_pressure_.value();
-      if (!this->write_command(SEN6X_CMD_AMBIENT_PRESSURE, params, 1)) {
-        ESP_LOGE(TAG, "set ambient pressure failed. Err=%d", this->last_error_);
-      }
-    });
-  }
-  if (this->sensor_altitude_.has_value()) {
-    steps.emplace_back([this]() {
-      uint16_t params[1];
-      params[0] = this->sensor_altitude_.value();
-
-      if (!this->write_command(SEN6X_CMD_SENSOR_ALTITUDE, params, 1)) {
-        ESP_LOGE(TAG, "set sensor altitude failed. Err=%d", this->last_error_);
-      }
-    });
-  }
-  if (this->co2_asc_.has_value()) {
-    steps.emplace_back([this]() {
-      uint16_t params[1];
-      params[0] = this->co2_asc_.value() ? 0x0001 : 0x0000;
-      if (!this->write_command(SEN6X_CMD_CO2_SENSOR_AUTOMATIC_SELF_CAL, params, 1)) {
-        ESP_LOGE(TAG, "set CO2 ASC failed. Err=%d", this->last_error_);
-      }
-    });
-  }
-
-  // Read back CO2-related settings to confirm what the device has applied
-  const bool supports_co2 = this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C;
-  if (supports_co2) {
-    steps.emplace_back([this]() {
-      uint16_t ambient_pressure = 0;
-      if (this->get_register(SEN6X_CMD_AMBIENT_PRESSURE, ambient_pressure, 20)) {
-        if (ambient_pressure != 0xFFFF)
-          this->ambient_pressure_read_ = ambient_pressure;
-      }
-    });
-    steps.emplace_back([this]() {
-      uint16_t sensor_altitude = 0;
-      if (this->get_register(SEN6X_CMD_SENSOR_ALTITUDE, sensor_altitude, 20)) {
-        if (sensor_altitude != 0xFFFF)
-          this->sensor_altitude_read_ = sensor_altitude;
-      }
-    });
-    steps.emplace_back([this]() {
-      uint16_t asc_raw = 0;
-      if (this->get_register(SEN6X_CMD_CO2_SENSOR_AUTOMATIC_SELF_CAL, asc_raw, 20))
-        this->co2_asc_read_ = (asc_raw & 0x00FF) != 0;
-    });
-  }
-
-  if (steps.empty()) {
-    this->finish_setup_();
-    return;
-  }
-
-  this->setup_steps_ = std::move(steps);
   this->setup_step_index_ = 0;
   this->run_next_setup_step_();
 }
 
 void SEN6XComponent::run_next_setup_step_() {
-  if (this->setup_step_index_ >= this->setup_steps_.size()) {
-    this->setup_steps_.clear();
-    this->finish_setup_();
-    return;
+  const bool supports_co2 = this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C;
+  switch (this->setup_step_index_) {
+    case 0:
+      this->setup_step_index_++;
+      if (this->voc_tuning_params_.has_value()) {
+        this->write_tuning_parameters_(SEN6X_CMD_VOC_ALGORITHM_TUNING, this->voc_tuning_params_.value());
+        break;
+      }
+      [[fallthrough]];
+    case 1:
+      this->setup_step_index_++;
+      if (this->nox_tuning_params_.has_value()) {
+        this->write_tuning_parameters_(SEN6X_CMD_NOX_ALGORITHM_TUNING, this->nox_tuning_params_.value());
+        break;
+      }
+      [[fallthrough]];
+    case 2:
+      this->setup_step_index_++;
+      if (this->temperature_compensation_.has_value()) {
+        this->write_temperature_compensation_(this->temperature_compensation_.value());
+        break;
+      }
+      [[fallthrough]];
+    case 3:
+      this->setup_step_index_++;
+      if (this->temperature_acceleration_.has_value()) {
+        this->write_temperature_acceleration_(this->temperature_acceleration_.value());
+        break;
+      }
+      [[fallthrough]];
+    case 4:
+      this->setup_step_index_++;
+      if (this->ambient_pressure_.has_value()) {
+        uint16_t params[1];
+        params[0] = this->ambient_pressure_.value();
+        if (!this->write_command(SEN6X_CMD_AMBIENT_PRESSURE, params, 1)) {
+          ESP_LOGE(TAG, "set ambient pressure failed. Err=%d", this->last_error_);
+        }
+        break;
+      }
+      [[fallthrough]];
+    case 5:
+      this->setup_step_index_++;
+      if (this->sensor_altitude_.has_value()) {
+        uint16_t params[1];
+        params[0] = this->sensor_altitude_.value();
+        if (!this->write_command(SEN6X_CMD_SENSOR_ALTITUDE, params, 1)) {
+          ESP_LOGE(TAG, "set sensor altitude failed. Err=%d", this->last_error_);
+        }
+        break;
+      }
+      [[fallthrough]];
+    case 6:
+      this->setup_step_index_++;
+      if (this->co2_asc_.has_value()) {
+        uint16_t params[1];
+        params[0] = this->co2_asc_.value() ? 0x0001 : 0x0000;
+        if (!this->write_command(SEN6X_CMD_CO2_SENSOR_AUTOMATIC_SELF_CAL, params, 1)) {
+          ESP_LOGE(TAG, "set CO2 ASC failed. Err=%d", this->last_error_);
+        }
+        break;
+      }
+      [[fallthrough]];
+    case 7:
+      // Read back CO2-related settings to confirm what the device has applied
+      this->setup_step_index_++;
+      if (supports_co2) {
+        uint16_t ambient_pressure = 0;
+        if (this->get_register(SEN6X_CMD_AMBIENT_PRESSURE, ambient_pressure, 20)) {
+          if (ambient_pressure != 0xFFFF)
+            this->ambient_pressure_read_ = ambient_pressure;
+        }
+        break;
+      }
+      [[fallthrough]];
+    case 8:
+      this->setup_step_index_++;
+      if (supports_co2) {
+        uint16_t sensor_altitude = 0;
+        if (this->get_register(SEN6X_CMD_SENSOR_ALTITUDE, sensor_altitude, 20)) {
+          if (sensor_altitude != 0xFFFF)
+            this->sensor_altitude_read_ = sensor_altitude;
+        }
+        break;
+      }
+      [[fallthrough]];
+    case 9:
+      this->setup_step_index_++;
+      if (supports_co2) {
+        uint16_t asc_raw = 0;
+        if (this->get_register(SEN6X_CMD_CO2_SENSOR_AUTOMATIC_SELF_CAL, asc_raw, 20))
+          this->co2_asc_read_ = (asc_raw & 0x00FF) != 0;
+        break;
+      }
+      [[fallthrough]];
+    default:
+      this->finish_setup_();
+      return;
   }
-  this->setup_steps_[this->setup_step_index_]();
-  this->setup_step_index_++;
   this->set_timeout(TIMEOUT_SETUP_STEP, I2C_READ_DELAY, [this]() { this->run_next_setup_step_(); });
 }
 

@@ -3,10 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
-#include "esphome/core/application.h"
 
-#include <functional>
-#include <vector>
+#include <cmath>
 
 namespace esphome::sen6x {
 
@@ -92,18 +90,18 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
                                     uint16_t slot) {
     TemperatureCompensation temp_comp;
-    temp_comp.offset = offset * 200;
-    temp_comp.normalized_offset_slope = normalized_offset_slope * 10000;
+    temp_comp.offset = static_cast<int16_t>(lroundf(offset * 200.0f));
+    temp_comp.normalized_offset_slope = static_cast<int16_t>(lroundf(normalized_offset_slope * 10000.0f));
     temp_comp.time_constant = time_constant;
     temp_comp.slot = slot;
     this->temperature_compensation_ = temp_comp;
   }
   void set_temperature_acceleration(float k, float p, float t1, float t2) {
     TemperatureAcceleration temp_accel;
-    temp_accel.k = k * 10;
-    temp_accel.p = p * 10;
-    temp_accel.t1 = t1 * 10;
-    temp_accel.t2 = t2 * 10;
+    temp_accel.k = static_cast<uint16_t>(lroundf(k * 10.0f));
+    temp_accel.p = static_cast<uint16_t>(lroundf(p * 10.0f));
+    temp_accel.t1 = static_cast<uint16_t>(lroundf(t1 * 10.0f));
+    temp_accel.t2 = static_cast<uint16_t>(lroundf(t2 * 10.0f));
     this->temperature_acceleration_ = temp_accel;
   }
   void set_type(const std::string &type) { this->sen6x_type_ = infer_type_from_product_name_(type); }
@@ -131,7 +129,6 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   uint8_t firmware_version_minor_{0};
   uint8_t poll_retries_remaining_{0};
   uint8_t read_words_{0};
-  std::vector<std::function<void()>> setup_steps_;
   size_t setup_step_index_{0};
 
   optional<GasTuning> voc_tuning_params_;

@@ -207,6 +207,7 @@ CONFIG_SCHEMA = (
                         CONF_NORMALIZED_OFFSET_SLOPE, default=0
                     ): cv.float_range(-3.2768, 3.2767),
                     cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_range(0, 65535),
+                    cv.Optional(CONF_SLOT, default=0): cv.int_range(0, 4),
                 }
             ),
             cv.Optional(CONF_TEMPERATURE_ACCELERATION): cv.Schema(
@@ -280,7 +281,7 @@ async def to_code(config):
                 cfg[CONF_OFFSET],
                 cfg[CONF_NORMALIZED_OFFSET_SLOPE],
                 cfg[CONF_TIME_CONSTANT],
-                cfg.get(CONF_SLOT, 0),
+                cfg[CONF_SLOT],
             )
         )
     if cfg := config.get(CONF_TEMPERATURE_ACCELERATION):
