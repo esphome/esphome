@@ -207,13 +207,16 @@ void HOT Application::feed_wdt(uint32_t time) {
 #ifdef USE_STATUS_LED
     if (status_led::global_status_led != nullptr) {
       auto *sl = status_led::global_status_led;
-      // If an error or warning bit is set while status_led's loop is disabled, re-enable it
-      // so it starts blinking again. disable_loop() is called from loop() itself when idle.
-      if ((sl->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE &&
-          (this->app_state_ & STATUS_LED_MASK) != 0) {
-        sl->enable_loop();
+      if ((sl->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
+        // Loop was disabled by status_led itself when it went idle. Only re-enable (and
+        // dispatch) if an error or warning bit has been set since; otherwise skip entirely.
+        if ((this->app_state_ & STATUS_LED_MASK) != 0) {
+          sl->enable_loop();
+          sl->call();
+        }
+      } else {
+        sl->call();
       }
-      sl->call();
     }
 #endif
   }
