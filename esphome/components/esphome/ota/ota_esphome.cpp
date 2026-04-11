@@ -69,6 +69,7 @@ void ESPHomeOTAComponent::setup() {
   // Register for socket wake notifications. loop() disables itself on its first
   // idle tick — no need to disable_loop() here explicitly.
   App.set_ota_wake_component(this);
+  ESP_LOGD(TAG, "setup complete: registered wake component, listener fd ready");
 }
 
 void ESPHomeOTAComponent::dump_config() {
@@ -103,7 +104,12 @@ void ESPHomeOTAComponent::loop() {
   //
   // Note: No need to check server_ for null — setup() marks the component failed
   // if server_ creation fails.
-  if (this->client_ == nullptr && !this->server_->ready()) {
+  // DEBUG: trace every loop tick while we investigate a wake/accept race.
+  const uint32_t wake_count = App.ota_wake_count_debug();
+  const bool ready = this->server_->ready();
+  ESP_LOGD(TAG, "loop tick: client=%p ready=%d wakes=%u", (void *) this->client_.get(), ready, wake_count);
+  if (this->client_ == nullptr && !ready) {
+    ESP_LOGD(TAG, "loop tick: idle, disabling");
     this->disable_loop();
     return;
   }
@@ -126,9 +132,13 @@ void ESPHomeOTAComponent::handle_handshake_() {
     socklen_t addr_len = sizeof(source_addr);
     int enable = 1;
 
+    ESP_LOGD(TAG, "handle_handshake_: attempting accept");
     this->client_ = this->server_->accept_loop_monitored((struct sockaddr *) &source_addr, &addr_len);
-    if (this->client_ == nullptr)
+    if (this->client_ == nullptr) {
+      ESP_LOGD(TAG, "handle_handshake_: accept returned null (would-block)");
       return;
+    }
+    ESP_LOGD(TAG, "handle_handshake_: accept ok, client=%p", (void *) this->client_.get());
     int err = this->client_->setsockopt(IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(int));
     if (err != 0) {
       this->log_socket_error_(LOG_STR("nodelay"));
