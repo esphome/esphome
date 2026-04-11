@@ -157,11 +157,12 @@ _Static_assert(offsetof(struct lwip_sock, rcvevent) == ESPHOME_LWIP_SOCK_RCVEVEN
 // Saved original event_callback pointer — written once in first hook_socket(), read from TCP/IP task.
 static netconn_callback s_original_callback = NULL;
 
-#ifdef ESPHOME_USE_OTA
-// ESPHOME_USE_OTA (not USE_OTA): this .c file can't include defines.h — macros.h →
-// Arduino.h would break the C compile. ota/__init__.py emits -DESPHOME_USE_OTA.
+#ifdef USE_OTA_PLATFORM_ESPHOME
+// This .c file can't include defines.h — macros.h → Arduino.h would break the C
+// compile. esphome/ota/__init__.py emits -DUSE_OTA_PLATFORM_ESPHOME via
+// cg.add_build_flag so both this TU and C++ call sites can see the same name.
 static struct netconn *s_ota_listener_conn = NULL;
-extern void esphome_wake_ota_component_any_context(void);  // trampoline in application.cpp
+extern void esphome_wake_ota_component_any_context(void);  // defined in ota_esphome.cpp
 
 void esphome_fast_select_set_ota_listener_sock(struct lwip_sock *sock) {
   s_ota_listener_conn = (sock != NULL) ? sock->conn : NULL;
@@ -184,7 +185,7 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
   // (rcvevent++ with a NULL pbuf or error in recvmbox), so error conditions
   // already wake the main loop through the RCVPLUS path.
   if (evt == NETCONN_EVT_RCVPLUS) {
-#ifdef ESPHOME_USE_OTA
+#ifdef USE_OTA_PLATFORM_ESPHOME
     // Mark OTA pending-enable only for events on its listen socket. MUST happen
     // before xTaskNotifyGive so the flags are visible when the main task wakes.
     if (conn == s_ota_listener_conn) {

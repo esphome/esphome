@@ -31,6 +31,22 @@ static constexpr size_t OTA_BUFFER_SIZE = 1024;                  // buffer size 
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
 
+// File-scope pointer to the single ESPHomeOTAComponent instance. The final_validate in
+// __init__.py rejects multi-port configs, so only one exists. Set in setup() and used
+// by the extern "C" wake trampoline below, which is called from socket wake paths
+// (lwip_fast_select listener filter, raw-TCP accept_fn_).
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static ESPHomeOTAComponent *global_esphome_ota_component = nullptr;
+
+// Trampoline called from C and C++ socket wake paths. Must be safe from any context
+// (LwIP TCP/IP task, user-level IRQ on RP2040). enable_loop_soon_any_context() uses
+// volatile flags only — no locks, no allocations.
+extern "C" void esphome_wake_ota_component_any_context() {
+  if (global_esphome_ota_component != nullptr) {
+    global_esphome_ota_component->enable_loop_soon_any_context();
+  }
+}
+
 void ESPHomeOTAComponent::setup() {
   this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
   if (this->server_ == nullptr) {
@@ -70,7 +86,7 @@ void ESPHomeOTAComponent::setup() {
   }
 
   // loop() self-disables on its first idle tick; no explicit disable_loop() needed here.
-  App.set_ota_wake_component(this);
+  global_esphome_ota_component = this;
 #ifdef USE_LWIP_FAST_SELECT
   // Filter fast-select wakes to this listener only. If the sock lookup returns nullptr,
   // no wakes fire and loop() falls back to the self-disable safety net.

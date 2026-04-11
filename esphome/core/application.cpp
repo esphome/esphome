@@ -449,11 +449,6 @@ void Application::enable_pending_loops_() {
   }
 }
 
-#if defined(USE_OTA) && defined(USE_LWIP_FAST_SELECT)
-// C trampoline called from lwip_fast_select.c when the listener filter matches.
-extern "C" void esphome_wake_ota_component_any_context() { App.wake_ota_component_any_context(); }
-#endif
-
 #ifdef USE_LWIP_FAST_SELECT
 bool Application::register_socket(struct lwip_sock *sock) {
   // It modifies monitored_sockets_ without locking — must only be called from the main loop.
@@ -559,12 +554,6 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     // ret > 0: socket(s) have data ready - normal and expected
     // ret == 0: timeout occurred - normal and expected
     if (ret >= 0) [[likely]] {
-#ifdef USE_OTA
-      // No-op today — host has no esphome OTA platform, so ota_wake_component_ is null.
-      if (ret > 0) {
-        this->wake_ota_component_any_context();
-      }
-#endif
       // Yield if zero timeout since select(0) only polls without yielding
       if (delay_ms == 0) [[unlikely]] {
         yield();

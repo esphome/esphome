@@ -103,9 +103,6 @@ BASE_OTA_SCHEMA = cv.Schema(
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
 async def to_code(config):
     cg.add_define("USE_OTA")
-    # Separate -D flag so .c files can see it — .c can't include defines.h (macros.h
-    # pulls in Arduino.h). Different name avoids USE_OTA redefinition warnings.
-    cg.add_build_flag("-DESPHOME_USE_OTA")
     CORE.add_job(final_step)
 
     if CORE.is_rp2040 and CORE.using_arduino:

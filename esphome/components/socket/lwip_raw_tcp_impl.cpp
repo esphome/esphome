@@ -10,8 +10,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/wake.h"
 #include "esphome/core/log.h"
-#ifdef USE_OTA
-#include "esphome/core/application.h"
+
+#ifdef USE_OTA_PLATFORM_ESPHOME
+// Defined in components/esphome/ota/ota_esphome.cpp. Marks the ESPHome OTA component
+// pending-enable from the raw-TCP accept callback (per-pcb, implicitly filtered).
+extern "C" void esphome_wake_ota_component_any_context();
 #endif
 
 #ifdef USE_ESP8266
@@ -857,10 +860,11 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   tcp_err(newpcb, LWIPRawListenImpl::s_queued_err_fn);
   tcp_recv(newpcb, LWIPRawListenImpl::s_queued_recv_fn);
   LWIP_LOG("Accepted connection, queue size: %d", this->accepted_socket_count_);
-#ifdef USE_OTA
+#ifdef USE_OTA_PLATFORM_ESPHOME
   // Mark OTA pending-enable before the wake below — flags must be visible before the
-  // main task runs. accept_fn_ is per-pcb, so filtering is implicit here.
-  esphome::App.wake_ota_component_any_context();
+  // main task runs. accept_fn_ is per-pcb, so filtering is implicit here (only fires
+  // for completed handshakes to whichever listener owns newpcb).
+  esphome_wake_ota_component_any_context();
 #endif
   // Wake the main loop immediately so it can accept the new connection.
   esphome::wake_loop_any_context();

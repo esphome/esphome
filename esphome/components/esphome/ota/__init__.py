@@ -155,6 +155,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_auth_password(config[CONF_PASSWORD]))
         cg.add_define("USE_OTA_PASSWORD")
     cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
+    # Build flag (not a define in defines.h) so lwip_fast_select.c — a .c file that
+    # can't include defines.h — can still gate its wake hook on the esphome OTA
+    # platform being compiled in.
+    cg.add_build_flag("-DUSE_OTA_PLATFORM_ESPHOME")
 
     await cg.register_component(var, config)
     await ota_to_code(var, config)
