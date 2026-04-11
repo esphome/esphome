@@ -564,11 +564,16 @@ class Application {
   /// a new connection arrives on the listening socket. OTA disables its own
   /// loop while idle to avoid per-tick dispatch overhead.
   void set_ota_wake_component(Component *component) { this->ota_wake_component_ = component; }
-  /// Wake the registered OTA component (if any) from any context. Safe to call
-  /// from the LwIP TCP/IP task and other callback contexts.
+  /// Mark the registered OTA component (if any) for loop re-enable from any
+  /// context. Intentionally does NOT call wake_loop_any_context() — every
+  /// caller (lwip fast-select callback, raw-tcp accept callback, host
+  /// select() return path) has already woken the main loop, so a second wake
+  /// here would be redundant. Application is a friend of Component, so we
+  /// set the pending-enable flags directly.
   void IRAM_ATTR wake_ota_component_any_context() {
     if (this->ota_wake_component_ != nullptr) {
-      this->ota_wake_component_->enable_loop_soon_any_context();
+      this->ota_wake_component_->pending_enable_loop_ = true;
+      this->has_pending_enable_loop_requests_ = true;
     }
   }
 #endif

@@ -78,6 +78,20 @@ def ota_esphome_final_validate(config):
         else:
             new_ota_conf.append(ota_conf)
 
+    # BREAKING CHANGE: Only a single ESPHome OTA instance is supported. Historically
+    # the config layer merged multiple configs by port to accommodate users who had a
+    # local 'ota:' block and then imported a remote package that also declared one —
+    # the merge kept their build working. That merge behavior is preserved. But two
+    # ESPHome OTA instances on *different* ports is not a real-world use case and
+    # creates ambiguity for listeners, socket wake hooks, and safe_mode coordination.
+    if len(merged_ota_esphome_configs_by_port) > 1:
+        raise cv.Invalid(
+            f"Only a single '{CONF_OTA}' '{CONF_PLATFORM}: {CONF_ESPHOME}' instance is "
+            f"supported, but multiple were configured on different ports "
+            f"({sorted(merged_ota_esphome_configs_by_port.keys())}). Remove the extra "
+            f"configurations or place them on the same port so they can be merged."
+        )
+
     new_ota_conf.extend(merged_ota_esphome_configs_by_port.values())
 
     full_conf[CONF_OTA] = new_ota_conf
