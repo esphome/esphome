@@ -35,81 +35,76 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <stdint.h>
 
 typedef int pte_Placement;
-#define		TEXT_VCENTER		0x0
-#define		TEXT_LEFT			0x1
-#define		TEXT_RIGHT			0x2
-#define		TEXT_HCENTER		0x0
-#define		TEXT_TOP			0x10
-#define		TEXT_BOTTOM			0x20
-#define		TEXT_CENTER			0
+#define TEXT_VCENTER 0x0
+#define TEXT_LEFT 0x1
+#define TEXT_RIGHT 0x2
+#define TEXT_HCENTER 0x0
+#define TEXT_TOP 0x10
+#define TEXT_BOTTOM 0x20
+#define TEXT_CENTER 0
 
-typedef struct
-{
-	uint32_t code;
-	int width;
-	int height;
-	int xoffset;
-	int yoffset;
-	int xadvance;
-	int ptr;
+typedef struct {
+  uint32_t code;
+  int width;
+  int height;
+  int xoffset;
+  int yoffset;
+  int xadvance;
+  int ptr;
 } pte_glyph;
 
-typedef struct
-{
-	uint32_t first;
-	uint32_t second;
+typedef struct {
+  uint32_t first;
+  uint32_t second;
 
-	int amount;
+  int amount;
 } pte_kern;
 
-typedef struct
-{
-	// The size of the font
-	int						m_size;
+typedef struct {
+  // The size of the font
+  int m_size;
 
-	// The actual font data
-	const unsigned char* m_data;
+  // The actual font data
+  const unsigned char *m_data;
 
-	// The glyph data
-	int                 m_number_glyphs;
-	const pte_glyph* m_gylphs;
+  // The glyph data
+  int m_number_glyphs;
+  const pte_glyph *m_gylphs;
 
-	// The kerning data
-	int                 m_number_kerns;
-	const pte_kern* m_kerns;
+  // The kerning data
+  int m_number_kerns;
+  const pte_kern *m_kerns;
 
-	// Placement
-	int                 m_line_height;
-	int                 m_baseline;
+  // Placement
+  int m_line_height;
+  int m_baseline;
 } pte_base_font;
 
 #ifdef __cplusplus
-struct pte_font_t
-{
-	// The base font
-	const pte_base_font* m_font;
+struct pte_font_t {
+  // The base font
+  const pte_base_font *m_font;
 
-	// Resizing data
-	int				m_ra;
-	int				m_rb;
+  // Resizing data
+  int m_ra;
+  int m_rb;
 
-	// Placement (of resized font)
-	int				m_line_height;
-	int				m_baseline;
+  // Placement (of resized font)
+  int m_line_height;
+  int m_baseline;
 };
 #else
-typedef struct _pte_font
-{
-	// The base font
-	const pte_base_font* m_font;
+typedef struct _pte_font {
+  // The base font
+  const pte_base_font *m_font;
 
-	// Resizing data
-	int				m_ra;
-	int				m_rb;
+  // Resizing data
+  int m_ra;
+  int m_rb;
 
-	// Placement (of resized font)
-	int				m_line_height;
-	int				m_baseline;
+  // Placement (of resized font)
+  int m_line_height;
+  int m_baseline;
 } pte_font;
 #endif
 
@@ -128,9 +123,9 @@ typedef struct _pte_font
 //      c           - the colour to draw the text, this is passed directly to the hw_blendPixel function
 //
 #ifdef __cplusplus
-int		pte_drawText(pte_font_t* font, int x, int y, int r, const char* text, size_t size, int c);
+int pte_drawText(pte_font_t *font, int x, int y, int r, const char *text, size_t size, int c);
 #else
-int		pte_drawText(pte_font* font, int x, int y, int r, const char* text, size_t size, int c);
+int pte_drawText(pte_font *font, int x, int y, int r, const char *text, size_t size, int c);
 #endif
 
 // Draw text using a rectangle for positioning.  Note: the text is *not* clipped to the rectangle
@@ -144,9 +139,11 @@ int		pte_drawText(pte_font* font, int x, int y, int r, const char* text, size_t 
 //      c               - the colour to draw the text, this is passed directly to the hw_blendPixel function
 //
 #ifdef __cplusplus
-void		pte_drawTextRect(pte_Placement o, pte_font_t* f, int x1, int y1, int x2, int y2, int r, const char* text, size_t size, int c);
+void pte_drawTextRect(pte_Placement o, pte_font_t *f, int x1, int y1, int x2, int y2, int r, const char *text,
+                      size_t size, int c);
 #else
-void		pte_drawTextRect(pte_Placement o, pte_font* f, int x1, int y1, int x2, int y2, int r, const char* text, size_t size, int c);
+void pte_drawTextRect(pte_Placement o, pte_font *f, int x1, int y1, int x2, int y2, int r, const char *text,
+                      size_t size, int c);
 #endif
 
 // Draw text using a rectangle for positioning.  The text is wrapped to fit within the rectangle.
@@ -159,9 +156,11 @@ void		pte_drawTextRect(pte_Placement o, pte_font* f, int x1, int y1, int x2, int
 //      c               - the colour to draw the text, this is passed directly to the hw_blendPixel function
 //
 #ifdef __cplusplus
-void pte_drawTextRectWrapped(pte_Placement o, pte_font_t* f, int x1, int y1, int x2, int y2, int r, const char* text, size_t size, int c);
+void pte_drawTextRectWrapped(pte_Placement o, pte_font_t *f, int x1, int y1, int x2, int y2, int r, const char *text,
+                             size_t size, int c);
 #else
-void pte_drawTextRectWrapped(pte_Placement o, pte_font* f, int x1, int y1, int x2, int y2, int r, const char* text, size_t size, int c);
+void pte_drawTextRectWrapped(pte_Placement o, pte_font *f, int x1, int y1, int x2, int y2, int r, const char *text,
+                             size_t size, int c);
 #endif
 
 // Determine the bounding rectangle for a string in pixels
@@ -173,19 +172,19 @@ void pte_drawTextRectWrapped(pte_Placement o, pte_font* f, int x1, int y1, int x
 //      dy          - the height of the string in pixels
 //
 #ifdef __cplusplus
-void	pte_measureText(pte_font_t* f, const char* text, size_t size, int* dx, int* dy);
+void pte_measureText(pte_font_t *f, const char *text, size_t size, int *dx, int *dy);
 #else
-void	pte_measureText(pte_font* f, const char* text, size_t size, int* dx, int* dy);
+void pte_measureText(pte_font *f, const char *text, size_t size, int *dx, int *dy);
 #endif
 
 // Get a font
 #ifdef __cplusplus
-pte_font_t pte_getFont(const pte_base_font* f, int size);
+pte_font_t pte_getFont(const pte_base_font *f, int size);
 #else
-pte_font pte_getFont(const pte_base_font* f, int size);
+pte_font pte_getFont(const pte_base_font *f, int size);
 #endif
 
 // Interface to the hardware
-void	hw_blendPixel(int x, int y, int a, int col);
+void hw_blendPixel(int x, int y, int a, int col);
 
 #endif  // _PORTABLE_TYPE_ENGINE_H_

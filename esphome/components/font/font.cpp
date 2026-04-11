@@ -18,7 +18,7 @@ int g_pte_min_x;
 int g_pte_min_y;
 int g_pte_max_x;
 int g_pte_max_y;
-}
+}  // namespace
 
 extern "C" void hw_blendPixel(int x, int y, int a, int col) {
   (void) col;
@@ -55,7 +55,7 @@ extern "C" void hw_blendPixel(int x, int y, int a, int col) {
     return;
   }
 
-	int b = 256 - a;
+  int b = 256 - a;
   auto blended = esphome::Color(((g_pte_background.r * b) >> 8) + ((g_pte_color.r * a) >> 8),
                                 ((g_pte_background.g * b) >> 8) + ((g_pte_color.g * a) >> 8),
                                 ((g_pte_background.b * b) >> 8) + ((g_pte_color.b * a) >> 8),
@@ -502,8 +502,8 @@ size_t PTEFont::encode_utf8_(uint32_t codepoint, char *buffer) {
   return 4;
 }
 
-bool PTEFont::measure_lv_glyph_bounds_(const LVGLFontAdapter *adapter, const pte_glyph *glyph, int *ofs_x,
-                                       int *ofs_y, int *box_w, int *box_h) const {
+bool PTEFont::measure_lv_glyph_bounds_(const LVGLFontAdapter *adapter, const pte_glyph *glyph, int *ofs_x, int *ofs_y,
+                                       int *box_w, int *box_h) const {
   if (adapter->last_metrics_letter == glyph->code) {
     *ofs_x = adapter->last_metrics_ofs_x;
     *ofs_y = adapter->last_metrics_ofs_y;

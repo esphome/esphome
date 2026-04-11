@@ -208,14 +208,18 @@ def validate_font_config(config):
         glyphspoints = flatten(config[CONF_GLYPHS])
         if len(set(glyphspoints)) != len(glyphspoints):
             duplicates = {x for x in glyphspoints if glyphspoints.count(x) > 1}
-            dup_str = ", ".join(f"{x} ({x.encode('unicode_escape')})" for x in duplicates)
+            dup_str = ", ".join(
+                f"{x} ({x.encode('unicode_escape')})" for x in duplicates
+            )
             raise cv.Invalid(
                 f"Found duplicate glyph{'s' if len(duplicates) != 1 else ''}: {dup_str}"
             )
 
         glyphspoints = {ord(x) for x in glyphspoints}
         setpoints = set(
-            flatten([glyphsets.unicodes_per_glyphset(x) for x in config[CONF_GLYPHSETS]])
+            flatten(
+                [glyphsets.unicodes_per_glyphset(x) for x in config[CONF_GLYPHSETS]]
+            )
         )
         setpoints.difference_update(glyphspoints)
 
@@ -495,7 +499,9 @@ FONT_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.declare_id(BaseFont),
         cv.Required(CONF_FILE): font_file_schema,
-        cv.Optional(CONF_ENGINE, default=ENGINE_BITMAP): cv.one_of(ENGINE_BITMAP, ENGINE_PTE),
+        cv.Optional(CONF_ENGINE, default=ENGINE_BITMAP): cv.one_of(
+            ENGINE_BITMAP, ENGINE_PTE
+        ),
         cv.Optional(CONF_GLYPHS, default=[]): cv.ensure_list(cv.string_strict),
         cv.Optional(CONF_GLYPHSETS, default=[]): cv.ensure_list(
             cv.one_of(*glyphsets.defined_glyphsets())
@@ -525,9 +531,7 @@ def _validate_pte_font_reference_shorthand(value):
     value = cv.string_strict(value)
     match = PTE_FONT_REFERENCE_RE.fullmatch(value)
     if match is None:
-        raise cv.Invalid(
-            "Expected a font ID or pte_font(<font_id>, <size>) shorthand"
-        )
+        raise cv.Invalid("Expected a font ID or pte_font(<font_id>, <size>) shorthand")
     return {
         CONF_FONT: cv.use_id(BaseFont)(match.group(1).strip()),
         CONF_SIZE: cv.int_range(min=1)(match.group(2)),

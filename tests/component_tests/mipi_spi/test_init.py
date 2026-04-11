@@ -13,6 +13,8 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32S3,
 )
+from esphome.components.lvgl.automation import focused_widgets, refreshed_widgets
+from esphome.components.lvgl.widgets import styles_used, theme_widget_map, widget_map
 from esphome.components.mipi import CONF_NATIVE_HEIGHT
 from esphome.components.mipi_spi.display import (
     CONF_BUS_MODE,
@@ -21,8 +23,6 @@ from esphome.components.mipi_spi.display import (
     MODELS,
     dimension_schema,
 )
-from esphome.components.lvgl.automation import focused_widgets, refreshed_widgets
-from esphome.components.lvgl.widgets import styles_used, theme_widget_map, widget_map
 from esphome.const import (
     CONF_DC_PIN,
     CONF_DIMENSIONS,

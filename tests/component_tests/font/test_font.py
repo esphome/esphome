@@ -10,21 +10,20 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.cpp_generator import MockObj
 from esphome.components.font import (
     CONF_BPP,
     CONF_ENGINE,
     CONF_EXTRAS,
     CONF_GLYPHSETS,
     CONF_IGNORE_MISSING_GLYPHS,
-    CONF_RAW_KERN_ID,
     CONF_RAW_GLYPH_ID,
+    CONF_RAW_KERN_ID,
     CONF_RAW_PTE_GLYPH_ID,
     ENGINE_PTE,
-    FONT_REFERENCE_SCHEMA,
     FONT_CACHE,
-    font_reference_to_code,
+    FONT_REFERENCE_SCHEMA,
     flatten,
+    font_reference_to_code,
     glyph_comparator,
     to_code,
     validate_font_config,
@@ -40,6 +39,7 @@ from esphome.const import (
     CONF_SIZE,
     CONF_TYPE,
 )
+from esphome.cpp_generator import MockObj
 
 FONT_DIR = Path(__file__).parent
 FONT_PATH = FONT_DIR / "NotoSans-Regular.ttf"

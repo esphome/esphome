@@ -47,7 +47,7 @@ class Glyph {
 
 class BaseFont
 #ifdef USE_DISPLAY
-  : public display::BaseFont
+    : public display::BaseFont
 #endif
 {
  public:
