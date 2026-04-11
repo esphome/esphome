@@ -99,15 +99,23 @@ void ESPHomeOTAComponent::dump_config() {
 
 void ESPHomeOTAComponent::loop() {
   // Self-disabling idle loop. On the first tick after setup() (and after every session
-  // cleanup and every false wake), if there's no client and the listener has nothing
-  // queued, we disable ourselves and go back to sleep. Socket-wake paths (LwIP fast
-  // select, raw TCP accept, host select) mark us pending-enable via
-  // App.wake_ota_component_any_context() when a monitored socket signals activity, and
-  // enable_pending_loops_() reactivates us.
+  // ends), if there's no client and the listener has nothing queued, we disable
+  // ourselves and go back to sleep. Wake paths (LwIP fast select with listener filter,
+  // raw TCP accept_fn_, host select) mark us pending-enable via
+  // App.wake_ota_component_any_context() when an incoming connection arrives on the OTA
+  // listen socket; enable_pending_loops_() reactivates us.
   //
-  // False wakes from unrelated monitored sockets are expected — the event callbacks
-  // fire on every RCVPLUS across all monitored sockets, not just OTA's listener — and
-  // they land here with no pending work.
+  // On fast-select platforms (ESP32 / LibreTiny), the callback is filtered to OTA's
+  // listener netconn, so unrelated monitored sockets (API client data, mDNS, etc.) do
+  // NOT wake OTA through that path. Raw TCP (ESP8266 / RP2040) is inherently filtered:
+  // accept_fn_ is registered per listener pcb and only fires on completed handshakes
+  // to that specific listener. So in normal steady state this loop() runs exactly
+  // once per real incoming OTA connection.
+  //
+  // We can still land here with no pending work in a few narrow cases — a second
+  // connection queued on the listener while an OTA session was active, a listener
+  // filter that hasn't been installed yet, or the host select path (no filter) — which
+  // is why the idle-check and self-disable are retained as a safety net.
   //
   // cleanup_connection_() deliberately does NOT call disable_loop() — letting loop()
   // run one more iteration after a session ends guarantees we re-read server_->ready()
