@@ -159,8 +159,10 @@ static netconn_callback s_original_callback = NULL;
 
 #ifdef USE_OTA
 // Extern wake hook for the OTA component (implemented in application.cpp). Called from the
-// TCP/IP task so the OTA component's disabled loop can be re-enabled when a new connection
-// arrives on its listening socket. Safe from task context via enable_loop_soon_any_context().
+// TCP/IP task on every NETCONN_EVT_RCVPLUS — not just OTA's listener, so this can be a false
+// wake from an unrelated monitored socket. OTA::loop() handles that by disabling itself again
+// when there is no pending work. The hook only marks the OTA component as pending loop-enable;
+// it does not itself wake the main task (the caller below already does that).
 extern void esphome_wake_ota_component_any_context(void);
 #endif
 
@@ -183,7 +185,9 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
       xTaskNotifyGive(task);
     }
 #ifdef USE_OTA
-    // Re-enable the OTA component loop if it disabled itself while idle.
+    // Mark the OTA component loop to be re-enabled if it disabled itself while idle.
+    // Only sets pending-enable flags — the xTaskNotifyGive above has already woken
+    // the main task, which will process the pending enable on its next iteration.
     esphome_wake_ota_component_any_context();
 #endif
   }

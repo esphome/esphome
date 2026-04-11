@@ -577,8 +577,12 @@ void ESPHomeOTAComponent::cleanup_connection_() {
 #ifdef USE_OTA_PASSWORD
   this->cleanup_auth_();
 #endif
-  // Back to idle — sleep until the next incoming connection wakes us.
-  this->disable_loop();
+  // Do not disable_loop() here. loop() itself disables when idle. If a second
+  // connection was queued on the listener while we were busy, the wake flag was
+  // set while this component was in LOOP state — enable_pending_loops_() only
+  // scans the inactive section and would never clear it. Letting loop() run one
+  // more iteration guarantees we re-check server_->ready() and either accept the
+  // queued client or disable ourselves cleanly.
 }
 
 void ESPHomeOTAComponent::yield_and_feed_watchdog_() {

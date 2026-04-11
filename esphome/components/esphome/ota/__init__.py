@@ -80,10 +80,10 @@ def ota_esphome_final_validate(config):
 
     if len(merged_ota_esphome_configs_by_port) > 1:
         raise cv.Invalid(
-            f"Only a single '{CONF_OTA}' '{CONF_PLATFORM}: {CONF_ESPHOME}' instance is "
-            f"supported, but multiple were configured on different ports "
-            f"({sorted(merged_ota_esphome_configs_by_port.keys())}). Remove the extra "
-            f"configurations or place them on the same port so they can be merged."
+            f"Only a single port is supported for '{CONF_OTA}' "
+            f"'{CONF_PLATFORM}: {CONF_ESPHOME}'. Got ports "
+            f"{sorted(merged_ota_esphome_configs_by_port.keys())}. Consolidate "
+            f"onto a single port; configs sharing a port are merged automatically."
         )
 
     new_ota_conf.extend(merged_ota_esphome_configs_by_port.values())
