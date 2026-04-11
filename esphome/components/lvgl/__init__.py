@@ -41,7 +41,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 from esphome.core import CORE, ID, Lambda
-from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
 from esphome.yaml_util import load_yaml

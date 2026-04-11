@@ -511,13 +511,13 @@ class LvFont(LValidator):
 
         super().__init__(validator, BaseFont.operator("ptr"))
 
-    async def process(self, value, args=(), size=0):
+    async def process(self, value, args=(), font_size=0):
         if is_lv_font(value):
             return literal(f"&lv_font_{value}")
         if isinstance(value, str):
             return literal(f"{value}")
         font = await super().process(value, args)
-        return MockObj(font, "->").get_lv_font(size)
+        return MockObj(font, "->").get_lv_font(font_size)
 
 
 lv_font = LvFont()
