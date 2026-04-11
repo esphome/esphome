@@ -21,7 +21,7 @@
 
 namespace esphome::snapclient {
 
-SnapClientComponent *global_snapclient = nullptr;
+SnapClientComponent *global_snapclient = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static void player_set_mute(bool mute) { global_snapclient->set_mute_from_isr(mute, false); }
 
@@ -212,7 +212,7 @@ void SnapClientComponent::control(const media_player::MediaPlayerCall &call) {
     return;
   }
   if (call.get_volume().has_value()) {
-    this->set_volume_(call.get_volume().value());
+    this->set_volume_(call.get_volume().value(), true);
   }
   if (call.get_command().has_value()) {
     switch (call.get_command().value()) {
@@ -222,12 +222,8 @@ void SnapClientComponent::control(const media_player::MediaPlayerCall &call) {
       case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
         this->set_mute_(false);
         break;
-      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP: {
-        break;
-      }
-      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN: {
-        break;
-      }
+      // case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP:
+      // case media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
       default:
         break;
     }
