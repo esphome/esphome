@@ -50,7 +50,8 @@ class BaseFont
 {
  public:
 #ifdef USE_LVGL_FONT
-  virtual const lv_font_t *get_lv_font(int size = 0) const = 0;
+  const lv_font_t *get_lv_font() const { return this->get_lv_font(0); }
+  virtual const lv_font_t *get_lv_font(int size) const = 0;
 #endif
 };
 
@@ -86,7 +87,10 @@ class Font : public BaseFont {
   inline int get_capheight() { return this->capheight_; }
   inline int get_bpp() { return this->bpp_; }
 #ifdef USE_LVGL_FONT
-  const lv_font_t *get_lv_font(int size = 0) const override { return &this->lv_font_; }
+  const lv_font_t *get_lv_font(int size) const override {
+    (void) size;
+    return &this->lv_font_;
+  }
 #endif
 
   const ConstVector<Glyph> &get_glyphs() const { return glyphs_; }
@@ -127,7 +131,7 @@ class PTEFont : public BaseFont {
 #endif
 
 #ifdef USE_LVGL_FONT
-  const lv_font_t *get_lv_font(int size = 0) const override;
+  const lv_font_t *get_lv_font(int size) const override;
 #endif
 
  protected:

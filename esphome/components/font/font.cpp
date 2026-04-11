@@ -89,7 +89,7 @@ class PTEFontSizedVariant : public BaseFont {
   display::BaseFont *get_size_font(int size) override { return this->owner_->get_size_font(size); }
 
 #ifdef USE_LVGL_FONT
-  const lv_font_t *get_lv_font(int size = 0) const override {
+  const lv_font_t *get_lv_font(int size) const override {
     return this->owner_->get_lv_font(size > 0 ? size : this->size_);
   }
 #endif
