@@ -16,6 +16,7 @@ from esphome.components.font import (
     CONF_EXTRAS,
     CONF_GLYPHSETS,
     CONF_IGNORE_MISSING_GLYPHS,
+    CONF_KERNING,
     CONF_RAW_GLYPH_ID,
     CONF_RAW_KERN_ID,
     CONF_RAW_PTE_GLYPH_ID,
@@ -25,6 +26,7 @@ from esphome.components.font import (
     flatten,
     font_reference_to_code,
     glyph_comparator,
+    pte_build_kerns,
     to_code,
     validate_font_config,
 )
@@ -56,6 +58,7 @@ def _make_config(
     glyphs: list[str],
     *,
     ignore_missing: bool = False,
+    kerning: bool = True,
     size: int = 20,
     bpp: int = 1,
     extras: list | None = None,
@@ -68,6 +71,7 @@ def _make_config(
         CONF_GLYPHS: glyphs,
         CONF_GLYPHSETS: glyphsets or [],
         CONF_IGNORE_MISSING_GLYPHS: ignore_missing,
+        CONF_KERNING: kerning,
         CONF_SIZE: size,
         CONF_BPP: bpp,
         CONF_EXTRAS: extras or [],
@@ -191,6 +195,14 @@ def test_pte_font_rejects_bpp():
     config.pop(CONF_SIZE)
     with pytest.raises(cv.Invalid, match="bpp"):
         validate_font_config(config)
+
+
+def test_pte_build_kerns_skips_lookup_when_disabled():
+    font = MagicMock()
+    font.has_kerning = True
+
+    assert pte_build_kerns(font, [ord("A"), ord("V")], kerning_enabled=False) == []
+    font.get_kerning.assert_not_called()
 
 
 def test_font_reference_schema_accepts_pte_font_shorthand():
@@ -395,6 +407,25 @@ async def test_to_code_pte_emits_runtime_font_tables(mock_cg):
     mock_cg["progmem_array"].assert_called_once()
     mock_cg["static_const_array"].assert_called()
     assert mock_cg["Pvariable"].called
+
+
+@pytest.mark.asyncio
+async def test_to_code_pte_passes_disabled_kerning_flag(mock_cg):
+    config = _make_config(["ABC"], kerning=False)
+    config[CONF_ENGINE] = ENGINE_PTE
+    config.pop(CONF_SIZE)
+    config.pop(CONF_BPP)
+    config[CONF_ID] = MagicMock()
+    config[CONF_RAW_DATA_ID] = MagicMock()
+    config[CONF_RAW_GLYPH_ID] = MagicMock()
+    config[CONF_RAW_PTE_GLYPH_ID] = MagicMock()
+    config[CONF_RAW_KERN_ID] = MagicMock()
+
+    with patch("esphome.components.font.pte_build_kerns", return_value=[]) as mock_kerns:
+        await to_code(config)
+
+    mock_kerns.assert_called_once()
+    assert mock_kerns.call_args.kwargs["kerning_enabled"] is False
 
 
 @pytest.mark.asyncio

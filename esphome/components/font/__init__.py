@@ -62,6 +62,7 @@ CONF_EXTRAS = "extras"
 CONF_FONTS = "fonts"
 CONF_GLYPHSETS = "glyphsets"
 CONF_IGNORE_MISSING_GLYPHS = "ignore_missing_glyphs"
+CONF_KERNING = "kerning"
 CONF_RAW_KERN_ID = "raw_kern_id"
 CONF_RAW_PTE_GLYPH_ID = "raw_pte_glyph_id"
 
@@ -507,6 +508,7 @@ FONT_SCHEMA = cv.Schema(
             cv.one_of(*glyphsets.defined_glyphsets())
         ),
         cv.Optional(CONF_IGNORE_MISSING_GLYPHS, default=False): cv.boolean,
+        cv.Optional(CONF_KERNING, default=True): cv.boolean,
         cv.Optional(CONF_SIZE): cv.int_range(min=1),
         cv.Optional(CONF_BPP): cv.one_of(1, 2, 4, 8),
         cv.Optional(CONF_EXTRAS, default=[]): cv.ensure_list(
@@ -705,9 +707,12 @@ def pte_encode_bitmap(font, code_point):
     )
 
 
-def pte_build_kerns(font, codepoints):
+def pte_build_kerns(font, codepoints, kerning_enabled=True):
     kerns = []
-    if not hasattr(font, "get_kerning"):
+    if not kerning_enabled:
+        return kerns
+
+    if not getattr(font, "has_kerning", True) or not hasattr(font, "get_kerning"):
         return kerns
 
     for first in codepoints:
@@ -757,7 +762,9 @@ async def to_code_pte(config):
 
     glyphs = cg.static_const_array(config[CONF_RAW_PTE_GLYPH_ID], glyph_initializer)
 
-    kern_initializer = pte_build_kerns(base_font, codepoints)
+    kern_initializer = pte_build_kerns(
+        base_font, codepoints, kerning_enabled=config[CONF_KERNING]
+    )
     kerns = cg.nullptr
     if kern_initializer:
         kerns = cg.static_const_array(config[CONF_RAW_KERN_ID], kern_initializer)
