@@ -104,9 +104,10 @@ class LightColorValues {
         this->green_ = 1.0f;
         this->blue_ = 1.0f;
       } else {
-        this->red_ /= max_value;
-        this->green_ /= max_value;
-        this->blue_ /= max_value;
+        float inv = 1.0f / max_value;
+        this->red_ *= inv;
+        this->green_ *= inv;
+        this->blue_ *= inv;
       }
     }
   }

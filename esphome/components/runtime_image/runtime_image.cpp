@@ -248,6 +248,9 @@ void RuntimeImage::release_buffer_() {
     this->height_ = 0;
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
+#ifdef USE_LVGL
+    memset(&this->dsc_, 0, sizeof(this->dsc_));
+#endif
   }
 }
 
