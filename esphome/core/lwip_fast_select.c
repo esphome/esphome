@@ -158,11 +158,8 @@ _Static_assert(offsetof(struct lwip_sock, rcvevent) == ESPHOME_LWIP_SOCK_RCVEVEN
 static netconn_callback s_original_callback = NULL;
 
 #ifdef USE_OTA_PLATFORM_ESPHOME
-// This .c file can't include defines.h — macros.h → Arduino.h would break the C
-// compile. esphome/ota/__init__.py emits -DUSE_OTA_PLATFORM_ESPHOME via
-// cg.add_build_flag so both this TU and C++ call sites can see the same name.
 static struct netconn *s_ota_listener_conn = NULL;
-extern void esphome_wake_ota_component_any_context(void);  // defined in ota_esphome.cpp
+extern void esphome_wake_ota_component_any_context(void);
 
 void esphome_fast_select_set_ota_listener_sock(struct lwip_sock *sock) {
   s_ota_listener_conn = (sock != NULL) ? sock->conn : NULL;

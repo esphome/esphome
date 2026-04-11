@@ -31,16 +31,11 @@ static constexpr size_t OTA_BUFFER_SIZE = 1024;                  // buffer size 
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
 
-// File-scope pointer to the single ESPHomeOTAComponent instance. The final_validate in
-// __init__.py rejects multi-port configs, so only one exists. Set in setup() and used
-// by the extern "C" wake trampoline below, which is called from socket wake paths
-// (lwip_fast_select listener filter, raw-TCP accept_fn_).
+// Single-instance pointer — multi-port configs are rejected in final_validate.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static ESPHomeOTAComponent *global_esphome_ota_component = nullptr;
 
-// Trampoline called from C and C++ socket wake paths. Must be safe from any context
-// (LwIP TCP/IP task, user-level IRQ on RP2040). enable_loop_soon_any_context() uses
-// volatile flags only — no locks, no allocations.
+// Called from any context (LwIP TCP/IP task, RP2040 user-IRQ).
 extern "C" void esphome_wake_ota_component_any_context() {
   if (global_esphome_ota_component != nullptr) {
     global_esphome_ota_component->enable_loop_soon_any_context();
