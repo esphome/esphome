@@ -421,7 +421,9 @@ async def test_to_code_pte_passes_disabled_kerning_flag(mock_cg):
     config[CONF_RAW_PTE_GLYPH_ID] = MagicMock()
     config[CONF_RAW_KERN_ID] = MagicMock()
 
-    with patch("esphome.components.font.pte_build_kerns", return_value=[]) as mock_kerns:
+    with patch(
+        "esphome.components.font.pte_build_kerns", return_value=[]
+    ) as mock_kerns:
         await to_code(config)
 
     mock_kerns.assert_called_once()
