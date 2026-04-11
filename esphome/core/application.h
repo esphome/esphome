@@ -933,7 +933,14 @@ inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay
   // current value and clears zero bits, leaving the notification state untouched. Reading
   // before the loop (rather than after finding data) makes the answer TOCTOU-free: the
   // value we compare against is the value at the moment Take would have been called.
+  // LibreTiny's FreeRTOS port predates ulTaskNotifyValueClear (added in FreeRTOS 10.4.0),
+  // so we fall back to a pessimistic 0, which makes load_bearing an upper bound == found_data
+  // on that platform. Zero there is still a valid proof that the scan is unused.
+#ifdef USE_ESP32
   uint32_t fast_select_notify_value_before_scan = ulTaskNotifyValueClear(nullptr, 0);
+#else
+  uint32_t fast_select_notify_value_before_scan = 0;
+#endif
   fast_select_scan_total_.fetch_add(1, std::memory_order_relaxed);
   for (struct lwip_sock *sock : this->monitored_sockets_) {
     if (esphome_lwip_socket_has_data(sock)) {
