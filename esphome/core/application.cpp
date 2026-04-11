@@ -209,9 +209,10 @@ void HOT Application::feed_wdt(uint32_t time) {
       auto *sl = status_led::global_status_led;
       uint8_t sl_state = sl->get_component_state() & COMPONENT_STATE_MASK;
       if (sl_state == COMPONENT_STATE_LOOP_DONE) {
-        // status_led disabled its own loop when it went idle. Only re-dispatch if an error
-        // or warning bit has been set since. Safe to call loop() directly here: LOOP_DONE
-        // means setup has already run.
+        // status_led only transitions to LOOP_DONE from inside its own loop() (after the
+        // first idle-path dispatch), so its pin is already initialized by pre_setup() and
+        // its setup() has already run. Re-dispatch only if an error or warning bit has been
+        // set since; otherwise skip entirely.
         if ((this->app_state_ & STATUS_LED_MASK) == 0)
           return;
         sl->enable_loop();
