@@ -149,15 +149,34 @@ def test_icon__invalid():
 
 
 def test_icon__max_length():
-    """Test that icons exceeding 63 characters are rejected."""
-    # Exactly 63 chars should pass
-    max_icon = "mdi:" + "a" * 59  # 63 chars total
+    """Test that icons exceeding 63 bytes are rejected."""
+    # Exactly 63 bytes should pass
+    max_icon = "mdi:" + "a" * 59  # 63 bytes total
     assert config_validation.icon(max_icon) == max_icon
 
-    # 64 chars should fail
-    too_long = "mdi:" + "a" * 60  # 64 chars total
+    # 64 bytes should fail
+    too_long = "mdi:" + "a" * 60  # 64 bytes total
     with pytest.raises(Invalid, match="Icon string is too long"):
         config_validation.icon(too_long)
+
+
+def test_byte_length() -> None:
+    """Test ByteLength validator checks UTF-8 byte length, not char count."""
+    validator = config_validation.ByteLength(max=10)  # pylint: disable=no-member
+
+    # ASCII: 10 chars = 10 bytes, should pass
+    assert validator("a" * 10) == "a" * 10
+
+    # ASCII: 11 chars = 11 bytes, should fail
+    with pytest.raises(Invalid, match="too long.*11 bytes.*max 10"):
+        validator("a" * 11)
+
+    # Multibyte: 3 chars × 3 bytes = 9 bytes, should pass
+    assert validator("温度传") == "温度传"
+
+    # Multibyte: 4 chars × 3 bytes = 12 bytes, should fail
+    with pytest.raises(Invalid, match="too long.*12 bytes.*max 10"):
+        validator("温度传感")
 
 
 @pytest.mark.parametrize("value", ("True", "YES", "on", "enAblE", True))
@@ -567,12 +586,21 @@ def test_validate_entity_name__slash_replaced_with_warning(
 
 
 def test_validate_entity_name__max_length() -> None:
-    # 120 chars should pass
+    # 120 bytes should pass
     assert config_validation._validate_entity_name("x" * 120) == "x" * 120
 
-    # 121 chars should fail
-    with pytest.raises(Invalid, match="too long.*121 chars.*Maximum.*120"):
+    # 121 bytes should fail
+    with pytest.raises(Invalid, match="too long.*121 bytes.*Maximum.*120"):
         config_validation._validate_entity_name("x" * 121)
+
+
+def test_validate_entity_name__multibyte_byte_length() -> None:
+    # 40 chars of 3-byte UTF-8 = 120 bytes, should pass
+    assert config_validation._validate_entity_name("温" * 40) == "温" * 40
+
+    # 41 chars of 3-byte UTF-8 = 123 bytes, should fail (over 120 byte limit)
+    with pytest.raises(Invalid, match="too long.*123 bytes.*Maximum.*120"):
+        config_validation._validate_entity_name("温" * 41)
 
 
 def test_validate_entity_name__none_without_friendly_name() -> None:
@@ -588,3 +616,152 @@ def test_validate_entity_name__none_with_friendly_name() -> None:
     result = config_validation._validate_entity_name("None")
     assert result is None
     CORE.friendly_name = None  # Reset
+
+
+# --- percentage validators ---
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("0%", 0.0),
+        ("50%", 0.5),
+        ("100%", 1.0),
+        (0.0, 0.0),
+        (0.5, 0.5),
+        (1.0, 1.0),
+        ("0.0", 0.0),
+        ("0.5", 0.5),
+        ("1.0", 1.0),
+    ),
+)
+def test_percentage__valid(value: object, expected: float) -> None:
+    assert config_validation.percentage(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "150%",
+        "-10%",
+        "-0.1",
+        "1.1",
+        2,
+        -1,
+        "foo",
+        None,
+    ),
+)
+def test_percentage__invalid(value: object) -> None:
+    with pytest.raises(Invalid):
+        config_validation.percentage(value)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("0%", 0.0),
+        ("50%", 0.5),
+        ("100%", 1.0),
+        ("-50%", -0.5),
+        ("-100%", -1.0),
+        (0.0, 0.0),
+        (0.5, 0.5),
+        (-0.5, -0.5),
+        (1.0, 1.0),
+        (-1.0, -1.0),
+    ),
+)
+def test_possibly_negative_percentage__valid(value: object, expected: float) -> None:
+    assert config_validation.possibly_negative_percentage(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "150%",
+        "-150%",
+        2,
+        -2,
+        "foo",
+        None,
+    ),
+)
+def test_possibly_negative_percentage__invalid(value: object) -> None:
+    with pytest.raises(Invalid):
+        config_validation.possibly_negative_percentage(value)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("0%", 0.0),
+        ("50%", 0.5),
+        ("100%", 1.0),
+        ("150%", 1.5),
+        ("200%", 2.0),
+        (0.0, 0.0),
+        (0.5, 0.5),
+        (1.0, 1.0),
+    ),
+)
+def test_unbounded_percentage__valid(value: object, expected: float) -> None:
+    assert config_validation.unbounded_percentage(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "-10%",
+        "-0.5",
+        -1,
+        "foo",
+        None,
+    ),
+)
+def test_unbounded_percentage__invalid(value: object) -> None:
+    with pytest.raises(Invalid):
+        config_validation.unbounded_percentage(value)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("0%", 0.0),
+        ("50%", 0.5),
+        ("150%", 1.5),
+        ("-50%", -0.5),
+        ("-150%", -1.5),
+        ("200%", 2.0),
+        ("-200%", -2.0),
+        (0.0, 0.0),
+        (0.5, 0.5),
+        (-0.5, -0.5),
+        (1.0, 1.0),
+        (-1.0, -1.0),
+    ),
+)
+def test_unbounded_possibly_negative_percentage__valid(
+    value: object, expected: float
+) -> None:
+    assert config_validation.unbounded_possibly_negative_percentage(value) == expected
+
+
+@pytest.mark.parametrize("value", ("foo", None))
+def test_unbounded_possibly_negative_percentage__invalid(value: object) -> None:
+    with pytest.raises(Invalid):
+        config_validation.unbounded_possibly_negative_percentage(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    (50, -50, 2, -2),
+)
+def test_percentage_validators__raw_number_above_one_without_percent_sign(
+    value: object,
+) -> None:
+    """Raw numeric values outside [-1, 1] must use a percent sign."""
+    with pytest.raises(Invalid, match="percent sign"):
+        config_validation.unbounded_percentage(value)
+    with pytest.raises(Invalid, match="percent sign"):
+        config_validation.unbounded_possibly_negative_percentage(value)

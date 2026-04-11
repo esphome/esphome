@@ -5,7 +5,7 @@ from esphome.const import CONF_ID
 
 from .. import CONF_BATTERY, CONF_PYLONTECH_ID, PYLONTECH_COMPONENT_SCHEMA, pylontech_ns
 
-PylontechTextSensor = pylontech_ns.class_("PylontechTextSensor", cg.Component)
+PylontechTextSensor = pylontech_ns.class_("PylontechTextSensor")
 
 CONF_BASE_STATE = "base_state"
 CONF_VOLTAGE_STATE = "voltage_state"

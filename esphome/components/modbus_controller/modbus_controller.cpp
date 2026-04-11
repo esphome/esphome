@@ -376,7 +376,7 @@ size_t ModbusController::create_register_ranges_() {
   while (ix != this->sensorset_.end()) {
     SensorItem *curr = *ix;
 
-    ESP_LOGV(TAG, "Register: 0x%X %d %d %d offset=%u skip=%u addr=%p", curr->start_address, curr->register_count,
+    ESP_LOGV(TAG, "Register: 0x%X %d %d %zu offset=%u skip=%u addr=%p", curr->start_address, curr->register_count,
              curr->offset, curr->get_register_size(), curr->offset, curr->skip_updates, curr);
 
     if (r.register_count == 0) {
@@ -484,18 +484,18 @@ void ModbusController::dump_config() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
   for (auto &it : this->sensorset_) {
-    ESP_LOGCONFIG(TAG, " Sensor type=%zu start=0x%X offset=0x%X count=%d size=%d",
+    ESP_LOGCONFIG(TAG, " Sensor type=%u start=0x%X offset=0x%X count=%d size=%zu",
                   static_cast<uint8_t>(it->register_type), it->start_address, it->offset, it->register_count,
                   it->get_register_size());
   }
   ESP_LOGCONFIG(TAG, "ranges");
   for (auto &it : this->register_ranges_) {
-    ESP_LOGCONFIG(TAG, "  Range type=%zu start=0x%X count=%d skip_updates=%d", static_cast<uint8_t>(it.register_type),
+    ESP_LOGCONFIG(TAG, "  Range type=%u start=0x%X count=%d skip_updates=%d", static_cast<uint8_t>(it.register_type),
                   it.start_address, it.register_count, it.skip_updates);
   }
   ESP_LOGCONFIG(TAG, "server registers");
   for (auto &r : this->server_registers_) {
-    ESP_LOGCONFIG(TAG, "  Address=0x%02X value_type=%zu register_count=%u", r->address,
+    ESP_LOGCONFIG(TAG, "  Address=0x%02X value_type=%u register_count=%u", r->address,
                   static_cast<uint8_t>(r->value_type), r->register_count);
   }
 #endif
@@ -524,7 +524,7 @@ void ModbusController::on_write_register_response(ModbusRegisterType register_ty
 void ModbusController::dump_sensors_() {
   ESP_LOGV(TAG, "sensors");
   for (auto &it : this->sensorset_) {
-    ESP_LOGV(TAG, "  Sensor start=0x%X count=%d size=%d offset=%d", it->start_address, it->register_count,
+    ESP_LOGV(TAG, "  Sensor start=0x%X count=%d size=%zu offset=%d", it->start_address, it->register_count,
              it->get_register_size(), it->offset);
   }
 }

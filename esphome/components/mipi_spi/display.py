@@ -279,6 +279,10 @@ def _final_validate(config):
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
 
+    if config[CONF_BUS_MODE] == TYPE_SINGLE:
+        spi.final_validate_device_schema(DOMAIN, require_miso=False, require_mosi=True)(
+            config
+        )
     if not requires_buffer(config) and LVGL_DOMAIN not in global_config:
         # If no drawing methods are configured, and LVGL is not enabled, show a test card
         config[CONF_SHOW_TEST_CARD] = True
@@ -286,7 +290,7 @@ def _final_validate(config):
     if PSRAM_DOMAIN not in global_config and CONF_BUFFER_SIZE not in config:
         # If PSRAM is not enabled, choose a small buffer size by default
         if not requires_buffer(config):
-            return config  # No buffer needed, so no need to set a buffer size
+            return  # No need to pick a size
         color_depth = get_color_depth(config)
         frac = denominator(config)
         width, height, _offset_width, _offset_height = model.get_dimensions(config)
@@ -297,8 +301,6 @@ def _final_validate(config):
         config[CONF_BUFFER_SIZE] = 1.0 / next(
             x for x in range(2, 17) if fraction >= 1 / x
         )
-
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

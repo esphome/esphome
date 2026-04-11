@@ -93,6 +93,7 @@ class CC1101Component : public Component,
 
   // GDO pin for packet reception
   InternalGPIOPin *gdo0_pin_{nullptr};
+  static void IRAM_ATTR gpio_intr(CC1101Component *arg);
 
   // Packet handling
   void call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi);
