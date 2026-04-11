@@ -9,9 +9,7 @@
 #include "esphome/components/display/display.h"
 #endif
 #ifdef USE_FONT_PTE
-extern "C" {
 #include "pte.h"
-}
 #endif
 #ifdef USE_LVGL_FONT
 #include <lvgl.h>

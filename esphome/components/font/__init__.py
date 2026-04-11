@@ -53,8 +53,8 @@ BaseFont = font_ns.class_("BaseFont")
 Font = font_ns.class_("Font", BaseFont)
 PTEFont = font_ns.class_("PTEFont", BaseFont)
 Glyph = font_ns.class_("Glyph")
-PTEGlyph = cg.global_ns.struct("pte_glyph")
-PTEKern = cg.global_ns.struct("pte_kern")
+PTEGlyph = font_ns.struct("pte_glyph")
+PTEKern = font_ns.struct("pte_kern")
 
 CONF_BPP = "bpp"
 CONF_ENGINE = "engine"

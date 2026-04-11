@@ -28,12 +28,15 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#include <stdlib.h>
-#include <string.h>
 #include "pte.h"
 
+#include <cstdlib>
+#include <cstring>
+
+namespace esphome::font {
+
 static uint32_t extract_codepoint(const char *utf8_str, size_t *length) {
-  const uint8_t *current = (const uint8_t *) utf8_str;
+  const uint8_t *current = reinterpret_cast<const uint8_t *>(utf8_str);
   uint32_t code_point = 0;
   uint8_t c1 = *current++;
 
@@ -50,8 +53,8 @@ static uint32_t extract_codepoint(const char *utf8_str, size_t *length) {
       *length = 0;
       return 0;
     }
-    code_point = (uint32_t) (c1 & 0x1F) << 6;
-    code_point |= (uint32_t) (c2 & 0x3F);
+    code_point = static_cast<uint32_t>(c1 & 0x1F) << 6;
+    code_point |= static_cast<uint32_t>(c2 & 0x3F);
     if (code_point <= 0x7F) {
       *length = 0;
       return 0;
@@ -63,9 +66,9 @@ static uint32_t extract_codepoint(const char *utf8_str, size_t *length) {
       *length = 0;
       return 0;
     }
-    code_point = (uint32_t) (c1 & 0x0F) << 12;
-    code_point |= (uint32_t) (c2 & 0x3F) << 6;
-    code_point |= (uint32_t) (c3 & 0x3F);
+    code_point = static_cast<uint32_t>(c1 & 0x0F) << 12;
+    code_point |= static_cast<uint32_t>(c2 & 0x3F) << 6;
+    code_point |= static_cast<uint32_t>(c3 & 0x3F);
     if (code_point <= 0x7FF || (code_point >= 0xD800 && code_point <= 0xDFFF)) {
       *length = 0;
       return 0;
@@ -78,10 +81,10 @@ static uint32_t extract_codepoint(const char *utf8_str, size_t *length) {
       *length = 0;
       return 0;
     }
-    code_point = (uint32_t) (c1 & 0x07) << 18;
-    code_point |= (uint32_t) (c2 & 0x3F) << 12;
-    code_point |= (uint32_t) (c3 & 0x3F) << 6;
-    code_point |= (uint32_t) (c4 & 0x3F);
+    code_point = static_cast<uint32_t>(c1 & 0x07) << 18;
+    code_point |= static_cast<uint32_t>(c2 & 0x3F) << 12;
+    code_point |= static_cast<uint32_t>(c3 & 0x3F) << 6;
+    code_point |= static_cast<uint32_t>(c4 & 0x3F);
     if (code_point <= 0xFFFF || code_point > 0x10FFFF) {
       *length = 0;
       return 0;
@@ -91,7 +94,7 @@ static uint32_t extract_codepoint(const char *utf8_str, size_t *length) {
     return 0;
   }
 
-  *length = current - (const uint8_t *) utf8_str;
+  *length = current - reinterpret_cast<const uint8_t *>(utf8_str);
   return code_point;
 }
 
@@ -116,7 +119,7 @@ static const pte_glyph *findChar(uint32_t c, const pte_base_font *f) {
   }
   if (c > f->m_gylphs[h].code) {
     // We don't have the character
-    return NULL;
+    return nullptr;
   }
 
   while (h - l > 1) {
@@ -139,7 +142,7 @@ static const pte_glyph *findChar(uint32_t c, const pte_base_font *f) {
   }
 
   // Not found!
-  return NULL;
+  return nullptr;
 }
 
 static int searchKern(uint32_t c, const pte_base_font *f) {
@@ -208,7 +211,7 @@ static const pte_kern *findKern(int c1, int c2, const pte_base_font *f) {
     }
   }
 
-  return NULL;
+  return nullptr;
 }
 
 // Bitblt a horizontal line from a compressed source
@@ -224,7 +227,7 @@ static void blt_horz_cmprs_resize(const unsigned char **ptr, int *col, int *pixe
   int count = lines;
   int div = 0;
 
-  memset(line_acc, 0, sizeof(line_acc));
+  std::memset(line_acc, 0, sizeof(line_acc));
 
   // Accumulate a horizontal line of data
   while (count > 0) {
@@ -288,7 +291,7 @@ static void blt_horz_cmprs_resize(const unsigned char **ptr, int *col, int *pixe
 }
 
 // Draw text on the canvas
-int pte_drawText(pte_font *f, int x, int y, int r, const char *text, size_t size, int c) {
+int pte_drawText(pte_font_t *f, int x, int y, int r, const char *text, size_t size, int c) {
   uint32_t last_char = UINT32_MAX;
   size_t consumed = 0;
   const char *current_text = text;
@@ -323,7 +326,7 @@ int pte_drawText(pte_font *f, int x, int y, int r, const char *text, size_t size
 
   x = (x * f->m_rb) / f->m_ra;
   y = (y * f->m_rb) / f->m_ra;
-  while (*current_text != 0 && (size == (size_t) -1 || consumed < size)) {
+  while (*current_text != 0 && (size == static_cast<size_t>(-1) || consumed < size)) {
     size_t length = 0;
     uint32_t codepoint = extract_codepoint(current_text, &length);
     if (length == 0) {
@@ -333,8 +336,8 @@ int pte_drawText(pte_font *f, int x, int y, int r, const char *text, size_t size
     consumed += length;
 
     const pte_glyph *g = findChar(codepoint, bf);
-    if (g) {
       // Bitblt this character across
+    if (g != nullptr) {
       const pte_kern *k;
 
       int acc = 0;
@@ -348,13 +351,11 @@ int pte_drawText(pte_font *f, int x, int y, int r, const char *text, size_t size
       int sub_offset_x;
       int offset_y;
       int sub_offset_y;
-      int xoffset = g->xoffset;
-      int yoffset = g->yoffset;
       int sub_offset_dx;
       int sub_offset_dy;
 
       k = findKern(last_char, codepoint, bf);
-      if (k) {
+      if (k != nullptr) {
         x += k->amount * pixel_xinc;
         y += k->amount * pixel_yinc;
       }
@@ -469,13 +470,13 @@ int pte_drawText(pte_font *f, int x, int y, int r, const char *text, size_t size
 }
 
 // How big will the text be?
-void pte_measureText(pte_font *f, const char *text, size_t size, int *dx, int *dy) {
+void pte_measureText(pte_font_t *f, const char *text, size_t size, int *dx, int *dy) {
   uint32_t last_char = UINT32_MAX;
   size_t consumed = 0;
   const char *current_text = text;
   const pte_base_font *bf = f->m_font;
   *dx = 0;
-  while (*current_text != 0 && (size == (size_t) -1 || consumed < size)) {
+  while (*current_text != 0 && (size == static_cast<size_t>(-1) || consumed < size)) {
     size_t length = 0;
     uint32_t codepoint = extract_codepoint(current_text, &length);
     if (length == 0) {
@@ -485,10 +486,9 @@ void pte_measureText(pte_font *f, const char *text, size_t size, int *dx, int *d
     consumed += length;
 
     const pte_glyph *g = findChar(codepoint, bf);
-    if (g) {
-      const pte_kern *k;
-      k = findKern(last_char, codepoint, bf);
-      if (k) {
+    if (g != nullptr) {
+      const pte_kern *k = findKern(last_char, codepoint, bf);
+      if (k != nullptr) {
         *dx += g->xadvance + k->amount;
       } else {
         *dx += g->xadvance;
@@ -503,24 +503,26 @@ void pte_measureText(pte_font *f, const char *text, size_t size, int *dx, int *d
 }
 
 // Centre the text in a rectangle
-void pte_drawTextRect(pte_Placement o, pte_font *f, int x1, int y1, int x2, int y2, int r, const char *text,
+void pte_drawTextRect(pte_Placement o, pte_font_t *f, int x1, int y1, int x2, int y2, int r, const char *text,
                       size_t size, int c) {
-  int dx, dy;
-  int x = 0, y = 0;
+  int dx;
+  int dy;
+  int x = 0;
+  int y = 0;
   pte_measureText(f, text, size, &dx, &dy);
 
   switch (r) {
     case 270:
-    case 90:
-      // Swap x1, y1 and x2, y2
-      {
-        int t = x1;
-        x1 = y1;
-        y1 = t;
-        t = x2;
-        x2 = y2;
-        y2 = t;
-      }
+    case 90: {
+      int t = x1;
+      x1 = y1;
+      y1 = t;
+      t = x2;
+      x2 = y2;
+      y2 = t;
+      break;
+    }
+    default:
       break;
   }
 
@@ -534,6 +536,8 @@ void pte_drawTextRect(pte_Placement o, pte_font *f, int x1, int y1, int x2, int 
     case TEXT_RIGHT:
       x = x2 - dx - 1;
       break;
+    default:
+      break;
   }
 
   switch (o & 0xf0) {
@@ -546,20 +550,23 @@ void pte_drawTextRect(pte_Placement o, pte_font *f, int x1, int y1, int x2, int 
     case TEXT_BOTTOM:
       y = y2 - f->m_baseline;
       break;
+    default:
+      break;
   }
   y += f->m_baseline;
 
   pte_drawText(f, x, y, r, text, size, c);
 }
 
-void pte_drawTextRectWrapped(pte_Placement o, pte_font *f, int x1, int y1, int x2, int y2, int r, const char *text,
-                             size_t size, int c) {
+void pte_drawTextRectWrapped(pte_Placement o, pte_font_t *f, int x1, int y1, int x2, int y2, int r,
+                             const char *text, size_t size, int c) {
   int rect_width = x2 - x1;
   int line_height = f->m_line_height;
   const char *word_start = text;
   const char *line_start = text;
   const char *word_end = text;
-  int dx, dy;
+  int dx;
+  int dy;
 
   while (*word_start && y1 < (y2 - line_height)) {
     word_end = word_start;
@@ -603,13 +610,15 @@ void pte_drawTextRectWrapped(pte_Placement o, pte_font *f, int x1, int y1, int x
 }
 
 // Get a font
-pte_font pte_getFont(const pte_base_font *f, int size) {
-  pte_font r;
-  r.m_ra = size;
-  r.m_rb = f->m_size;
-  r.m_font = f;
-  r.m_line_height = (f->m_line_height * r.m_ra) / r.m_rb;
-  r.m_baseline = (f->m_baseline * r.m_ra) / r.m_rb;
+pte_font_t pte_getFont(const pte_base_font *f, int size) {
+  pte_font_t result;
+  result.m_ra = size;
+  result.m_rb = f->m_size;
+  result.m_font = f;
+  result.m_line_height = (f->m_line_height * result.m_ra) / result.m_rb;
+  result.m_baseline = (f->m_baseline * result.m_ra) / result.m_rb;
 
-  return r;
+  return result;
 }
+
+}  // namespace esphome::font
