@@ -24,6 +24,7 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 AUTO_LOAD = ["esp32_ble", "bytebuffer"]
@@ -42,6 +43,7 @@ CONF_FIRMWARE_VERSION = "firmware_version"
 CONF_INDICATE = "indicate"
 CONF_MANUFACTURER = "manufacturer"
 CONF_MANUFACTURER_DATA = "manufacturer_data"
+CONF_MAX_CLIENTS = "max_clients"
 CONF_ON_WRITE = "on_write"
 CONF_READ = "read"
 CONF_STRING = "string"
@@ -70,7 +72,6 @@ BLECharacteristic_ns = esp32_ble_server_ns.namespace("BLECharacteristic")
 BLEServer = esp32_ble_server_ns.class_(
     "BLEServer",
     cg.Component,
-    esp32_ble.GATTsEventHandler,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
 esp32_ble_server_automations_ns = esp32_ble_server_ns.namespace(
@@ -287,27 +288,49 @@ def create_device_information_service(config):
 
 
 def final_validate_config(config):
+    # Validate max_clients does not exceed esp32_ble max_connections
+    max_clients = config[CONF_MAX_CLIENTS]
+    if max_clients > 1:
+        full_config = fv.full_config.get()
+        ble_config = full_config.get("esp32_ble", {})
+        max_connections = ble_config.get(
+            "max_connections", esp32_ble.DEFAULT_MAX_CONNECTIONS
+        )
+        if max_clients > max_connections:
+            raise cv.Invalid(
+                f"'max_clients' ({max_clients}) cannot exceed esp32_ble "
+                f"'max_connections' ({max_connections}). "
+                f"Please set 'max_connections: {max_clients}' in the "
+                f"'esp32_ble' component."
+            )
+
     # Check if all characteristics that require notifications have the notify property set
     for char_id in CORE.data.get(DOMAIN, {}).get(KEY_NOTIFY_REQUIRED, set()):
         # Look for the characteristic in the configuration
-        char_config = [
+        matches = [
             char_conf
             for service_conf in config[CONF_SERVICES]
             for char_conf in service_conf[CONF_CHARACTERISTICS]
             if char_conf[CONF_ID] == char_id
-        ][0]
+        ]
+        if not matches:
+            continue
+        char_config = matches[0]
         if not char_config[CONF_NOTIFY]:
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has notify actions and the {CONF_NOTIFY} property is not set"
             )
     for char_id in CORE.data.get(DOMAIN, {}).get(KEY_SET_VALUE, set()):
         # Look for the characteristic in the configuration
-        char_config = [
+        matches = [
             char_conf
             for service_conf in config[CONF_SERVICES]
             for char_conf in service_conf[CONF_CHARACTERISTICS]
             if char_conf[CONF_ID] == char_id
-        ][0]
+        ]
+        if not matches:
+            continue
+        char_config = matches[0]
         if isinstance(char_config.get(CONF_VALUE, {}).get(CONF_DATA), cv.Lambda):
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has both a set_value action and a templated value"
@@ -428,6 +451,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MODEL): value_schema("string", templatable=False),
         cv.Optional(CONF_FIRMWARE_VERSION): value_schema("string", templatable=False),
         cv.Optional(CONF_MANUFACTURER_DATA): cv.Schema([cv.uint8_t]),
+        cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1, max=9),
         cv.Optional(CONF_SERVICES, default=[]): cv.ensure_list(SERVICE_SCHEMA),
         cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
@@ -527,7 +551,7 @@ async def to_code_characteristic(service_var, char_conf):
                 action_conf,
                 char_conf[CONF_CHAR_VALUE_ACTION_ID_],
                 cg.TemplateArguments(),
-                {},
+                [],
             )
             cg.add(value_action.play())
         else:
@@ -552,6 +576,7 @@ async def to_code(config):
     esp32_ble.register_ble_status_event_handler(parent, var)
     cg.add(var.set_parent(parent))
     cg.add(parent.advertising_set_appearance(config[CONF_APPEARANCE]))
+    cg.add(var.set_max_clients(config[CONF_MAX_CLIENTS]))
     if CONF_MANUFACTURER_DATA in config:
         cg.add(var.set_manufacturer_data(config[CONF_MANUFACTURER_DATA]))
     for service_config in config[CONF_SERVICES]:
@@ -602,6 +627,7 @@ async def to_code(config):
         ),
         validate_set_value_action,
     ),
+    synchronous=True,
 )
 async def ble_server_characteristic_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -621,6 +647,7 @@ async def ble_server_characteristic_set_value(config, action_id, template_arg, a
             cv.Required(CONF_VALUE): value_schema(),
         }
     ),
+    synchronous=True,
 )
 async def ble_server_descriptor_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -642,6 +669,7 @@ async def ble_server_descriptor_set_value(config, action_id, template_arg, args)
         ),
         validate_notify_action,
     ),
+    synchronous=True,
 )
 async def ble_server_characteristic_notify(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

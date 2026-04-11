@@ -1,6 +1,6 @@
 #include "micro_wake_word.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -119,17 +119,20 @@ void MicroWakeWord::setup() {
     }
   });
 
-#ifdef USE_OTA
-  ota::get_global_ota_callback()->add_on_state_callback(
-      [this](ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
-        if (state == ota::OTA_STARTED) {
-          this->suspend_task_();
-        } else if (state == ota::OTA_ERROR) {
-          this->resume_task_();
-        }
-      });
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
 }
+
+#ifdef USE_OTA_STATE_LISTENER
+void MicroWakeWord::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
+  if (state == ota::OTA_STARTED) {
+    this->suspend_task_();
+  } else if (state == ota::OTA_ERROR) {
+    this->resume_task_();
+  }
+}
+#endif
 
 void MicroWakeWord::inference_task(void *params) {
   MicroWakeWord *this_mww = (MicroWakeWord *) params;
@@ -322,7 +325,7 @@ void MicroWakeWord::loop() {
           ESP_LOGD(TAG, "Detected '%s' with sliding average probability is %.2f and max probability is %.2f",
                    detection_event.wake_word->c_str(), (detection_event.average_probability / uint8_to_float_divisor),
                    (detection_event.max_probability / uint8_to_float_divisor));
-          this->wake_word_detected_trigger_->trigger(*detection_event.wake_word);
+          this->wake_word_detected_trigger_.trigger(*detection_event.wake_word);
           if (this->stop_after_detection_) {
             this->stop();
           }
@@ -428,9 +431,7 @@ void MicroWakeWord::process_probabilities_() {
           xQueueSend(this->detection_queue_, &wake_word_state, portMAX_DELAY);
 
           // Wake main loop immediately to process wake word detection
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
           App.wake_loop_threadsafe();
-#endif
 
           model->reset_probabilities();
 #ifdef USE_MICRO_WAKE_WORD_VAD
@@ -470,4 +471,4 @@ bool MicroWakeWord::update_model_probabilities_(const int8_t audio_features[PREP
 }  // namespace micro_wake_word
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

@@ -1,9 +1,19 @@
-from esphome import automation
+from esphome import automation, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import spi
+from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_FREQUENCY, CONF_ID, CONF_WAIT_TIME
+from esphome.const import (
+    CONF_CHANNEL,
+    CONF_DATA,
+    CONF_FREQUENCY,
+    CONF_ID,
+    CONF_OUTPUT_POWER,
+    CONF_VALUE,
+    CONF_WAIT_TIME,
+)
+from esphome.core import ID
 
 CODEOWNERS = ["@lygris", "@gabest11"]
 DEPENDENCIES = ["spi"]
@@ -13,7 +23,6 @@ ns = cg.esphome_ns.namespace("cc1101")
 CC1101Component = ns.class_("CC1101Component", cg.Component, spi.SPIDevice)
 
 # Config keys
-CONF_OUTPUT_POWER = "output_power"
 CONF_RX_ATTENUATION = "rx_attenuation"
 CONF_DC_BLOCKING_FILTER = "dc_blocking_filter"
 CONF_IF_FREQUENCY = "if_frequency"
@@ -29,7 +38,6 @@ CONF_MANCHESTER = "manchester"
 CONF_NUM_PREAMBLE = "num_preamble"
 CONF_SYNC1 = "sync1"
 CONF_SYNC0 = "sync0"
-CONF_PKTLEN = "pktlen"
 CONF_MAGN_TARGET = "magn_target"
 CONF_MAX_LNA_GAIN = "max_lna_gain"
 CONF_MAX_DVGA_GAIN = "max_dvga_gain"
@@ -40,6 +48,12 @@ CONF_FILTER_LENGTH_FSK_MSK = "filter_length_fsk_msk"
 CONF_FILTER_LENGTH_ASK_OOK = "filter_length_ask_ook"
 CONF_FREEZE = "freeze"
 CONF_HYST_LEVEL = "hyst_level"
+
+# Packet mode config keys
+CONF_PACKET_MODE = "packet_mode"
+CONF_PACKET_LENGTH = "packet_length"
+CONF_WHITENING = "whitening"
+CONF_GDO0_PIN = "gdo0_pin"
 
 # Enums
 SyncMode = ns.enum("SyncMode", True)
@@ -147,45 +161,89 @@ HYST_LEVEL = {
     "High": HystLevel.HYST_LEVEL_HIGH,
 }
 
-# Config key -> Validator mapping
+# Optional settings to generate setter calls for
 CONFIG_MAP = {
-    CONF_OUTPUT_POWER: cv.float_range(min=-30.0, max=11.0),
-    CONF_RX_ATTENUATION: cv.enum(RX_ATTENUATION, upper=False),
-    CONF_DC_BLOCKING_FILTER: cv.boolean,
-    CONF_FREQUENCY: cv.All(cv.frequency, cv.float_range(min=300000000, max=928000000)),
-    CONF_IF_FREQUENCY: cv.All(cv.frequency, cv.float_range(min=25000, max=788000)),
-    CONF_FILTER_BANDWIDTH: cv.All(cv.frequency, cv.float_range(min=58000, max=812000)),
-    CONF_CHANNEL: cv.uint8_t,
-    CONF_CHANNEL_SPACING: cv.All(cv.frequency, cv.float_range(min=25000, max=405000)),
-    CONF_FSK_DEVIATION: cv.All(cv.frequency, cv.float_range(min=1500, max=381000)),
-    CONF_MSK_DEVIATION: cv.int_range(min=1, max=8),
-    CONF_SYMBOL_RATE: cv.float_range(min=600, max=500000),
-    CONF_SYNC_MODE: cv.enum(SYNC_MODE, upper=False),
-    CONF_CARRIER_SENSE_ABOVE_THRESHOLD: cv.boolean,
-    CONF_MODULATION_TYPE: cv.enum(MODULATION, upper=False),
-    CONF_MANCHESTER: cv.boolean,
-    CONF_NUM_PREAMBLE: cv.int_range(min=0, max=7),
-    CONF_SYNC1: cv.hex_uint8_t,
-    CONF_SYNC0: cv.hex_uint8_t,
-    CONF_PKTLEN: cv.uint8_t,
-    CONF_MAGN_TARGET: cv.enum(MAGN_TARGET, upper=False),
-    CONF_MAX_LNA_GAIN: cv.enum(MAX_LNA_GAIN, upper=False),
-    CONF_MAX_DVGA_GAIN: cv.enum(MAX_DVGA_GAIN, upper=False),
-    CONF_CARRIER_SENSE_ABS_THR: cv.int_range(min=-8, max=7),
-    CONF_CARRIER_SENSE_REL_THR: cv.enum(CARRIER_SENSE_REL_THR, upper=False),
-    CONF_LNA_PRIORITY: cv.boolean,
-    CONF_FILTER_LENGTH_FSK_MSK: cv.enum(FILTER_LENGTH_FSK_MSK, upper=False),
-    CONF_FILTER_LENGTH_ASK_OOK: cv.enum(FILTER_LENGTH_ASK_OOK, upper=False),
-    CONF_FREEZE: cv.enum(FREEZE, upper=False),
-    CONF_WAIT_TIME: cv.enum(WAIT_TIME, upper=False),
-    CONF_HYST_LEVEL: cv.enum(HYST_LEVEL, upper=False),
+    cv.Optional(CONF_OUTPUT_POWER, default=10): cv.float_range(min=-30.0, max=11.0),
+    cv.Optional(CONF_RX_ATTENUATION, default="0dB"): cv.enum(
+        RX_ATTENUATION, upper=False
+    ),
+    cv.Optional(CONF_DC_BLOCKING_FILTER, default=True): cv.boolean,
+    cv.Optional(CONF_FREQUENCY, default="433.92MHz"): cv.All(
+        cv.frequency, cv.float_range(min=300.0e6, max=928.0e6)
+    ),
+    cv.Optional(CONF_IF_FREQUENCY, default="153kHz"): cv.All(
+        cv.frequency, cv.float_range(min=25000, max=788000)
+    ),
+    cv.Optional(CONF_FILTER_BANDWIDTH, default="203kHz"): cv.All(
+        cv.frequency, cv.float_range(min=58000, max=812000)
+    ),
+    cv.Optional(CONF_CHANNEL, default=0): cv.uint8_t,
+    cv.Optional(CONF_CHANNEL_SPACING, default="200kHz"): cv.All(
+        cv.frequency, cv.float_range(min=25000, max=405000)
+    ),
+    cv.Optional(CONF_FSK_DEVIATION): cv.All(
+        cv.frequency, cv.float_range(min=1500, max=381000)
+    ),
+    cv.Optional(CONF_MSK_DEVIATION): cv.int_range(min=1, max=8),
+    cv.Optional(CONF_SYMBOL_RATE, default=5000): cv.float_range(min=600, max=500000),
+    cv.Optional(CONF_SYNC_MODE, default="16/16"): cv.enum(SYNC_MODE, upper=False),
+    cv.Optional(CONF_CARRIER_SENSE_ABOVE_THRESHOLD, default=False): cv.boolean,
+    cv.Optional(CONF_MODULATION_TYPE, default="ASK/OOK"): cv.enum(
+        MODULATION, upper=False
+    ),
+    cv.Optional(CONF_MANCHESTER, default=False): cv.boolean,
+    cv.Optional(CONF_NUM_PREAMBLE, default=2): cv.int_range(min=0, max=7),
+    cv.Optional(CONF_SYNC1, default=0xD3): cv.hex_uint8_t,
+    cv.Optional(CONF_SYNC0, default=0x91): cv.hex_uint8_t,
+    cv.Optional(CONF_MAGN_TARGET, default="42dB"): cv.enum(MAGN_TARGET, upper=False),
+    cv.Optional(CONF_MAX_LNA_GAIN, default="Default"): cv.enum(
+        MAX_LNA_GAIN, upper=False
+    ),
+    cv.Optional(CONF_MAX_DVGA_GAIN, default="-3"): cv.enum(MAX_DVGA_GAIN, upper=False),
+    cv.Optional(CONF_CARRIER_SENSE_ABS_THR): cv.int_range(min=-8, max=7),
+    cv.Optional(CONF_CARRIER_SENSE_REL_THR): cv.enum(
+        CARRIER_SENSE_REL_THR, upper=False
+    ),
+    cv.Optional(CONF_LNA_PRIORITY, default=False): cv.boolean,
+    cv.Optional(CONF_FILTER_LENGTH_FSK_MSK): cv.enum(
+        FILTER_LENGTH_FSK_MSK, upper=False
+    ),
+    cv.Optional(CONF_FILTER_LENGTH_ASK_OOK): cv.enum(
+        FILTER_LENGTH_ASK_OOK, upper=False
+    ),
+    cv.Optional(CONF_FREEZE): cv.enum(FREEZE, upper=False),
+    cv.Optional(CONF_WAIT_TIME, default="32"): cv.enum(WAIT_TIME, upper=False),
+    cv.Optional(CONF_HYST_LEVEL): cv.enum(HYST_LEVEL, upper=False),
+    cv.Optional(CONF_PACKET_MODE, default=False): cv.boolean,
+    cv.Optional(CONF_PACKET_LENGTH): cv.uint8_t,
+    cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
+    cv.Optional(CONF_WHITENING, default=False): cv.boolean,
 }
 
-CONFIG_SCHEMA = (
-    cv.Schema({cv.GenerateID(): cv.declare_id(CC1101Component)})
-    .extend({cv.Optional(key): validator for key, validator in CONFIG_MAP.items()})
+
+def _validate_packet_mode(config):
+    if config.get(CONF_PACKET_MODE, False):
+        if CONF_GDO0_PIN not in config:
+            raise cv.Invalid("gdo0_pin is required when packet_mode is enabled")
+        if CONF_PACKET_LENGTH not in config:
+            raise cv.Invalid("packet_length is required when packet_mode is enabled")
+        if config[CONF_PACKET_LENGTH] > 64:
+            raise cv.Invalid("packet_length must be <= 64 (FIFO size)")
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(CC1101Component),
+            cv.Optional(CONF_GDO0_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
+        }
+    )
+    .extend(CONFIG_MAP)
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(spi.spi_device_schema(cs_pin_required=True))
+    .extend(spi.spi_device_schema(cs_pin_required=True)),
+    _validate_packet_mode,
 )
 
 
@@ -194,9 +252,25 @@ async def to_code(config):
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
 
-    for key in CONFIG_MAP:
+    for opt in CONFIG_MAP:
+        key = opt.schema
         if key in config:
             cg.add(getattr(var, f"set_{key}")(config[key]))
+
+    if CONF_GDO0_PIN in config:
+        gdo0_pin = await cg.gpio_pin_expression(config[CONF_GDO0_PIN])
+        cg.add(var.set_gdo0_pin(gdo0_pin))
+    if CONF_ON_PACKET in config:
+        await automation.build_automation(
+            var.get_packet_trigger(),
+            [
+                (cg.std_vector.template(cg.uint8), "x"),
+                (cg.float_, "freq_offset"),
+                (cg.float_, "rssi"),
+                (cg.uint8, "lqi"),
+            ],
+            config[CONF_ON_PACKET],
+        )
 
 
 # Actions
@@ -204,17 +278,160 @@ BeginTxAction = ns.class_("BeginTxAction", automation.Action)
 BeginRxAction = ns.class_("BeginRxAction", automation.Action)
 ResetAction = ns.class_("ResetAction", automation.Action)
 SetIdleAction = ns.class_("SetIdleAction", automation.Action)
+SendPacketAction = ns.class_(
+    "SendPacketAction", automation.Action, cg.Parented.template(CC1101Component)
+)
 
 CC1101_ACTION_SCHEMA = cv.Schema(
     maybe_simple_id({cv.GenerateID(CONF_ID): cv.use_id(CC1101Component)})
 )
 
 
-@automation.register_action("cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.begin_rx", BeginRxAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.reset", ResetAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.set_idle", SetIdleAction, CC1101_ACTION_SCHEMA)
+@automation.register_action(
+    "cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "cc1101.begin_rx", BeginRxAction, CC1101_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "cc1101.reset", ResetAction, CC1101_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "cc1101.set_idle", SetIdleAction, CC1101_ACTION_SCHEMA, synchronous=True
+)
 async def cc1101_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
+
+
+def validate_raw_data(value):
+    if isinstance(value, str):
+        return value.encode("utf-8")
+    if isinstance(value, list):
+        return cv.Schema([cv.hex_uint8_t])(value)
+    raise cv.Invalid(
+        "data must either be a string wrapped in quotes or a list of bytes"
+    )
+
+
+SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(CC1101Component),
+        cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+    },
+    key=CONF_DATA,
+)
+
+
+@automation.register_action(
+    "cc1101.send_packet",
+    SendPacketAction,
+    SEND_PACKET_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def send_packet_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_DATA]
+    if isinstance(data, bytes):
+        data = list(data)
+    if cg.is_template(data):
+        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_data_template(templ))
+    else:
+        # Generate static array in flash to avoid RAM copy
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+        cg.add(var.set_data_static(arr, len(data)))
+    return var
+
+
+# Setter action definitions: (setter_name, validator, template_type, enum_map)
+_SETTER_ACTIONS = [
+    (
+        "set_frequency",
+        cv.All(cv.frequency, cv.float_range(min=300.0e6, max=928.0e6)),
+        float,
+        None,
+    ),
+    ("set_output_power", cv.float_range(min=-30.0, max=11.0), float, None),
+    ("set_modulation_type", cv.enum(MODULATION, upper=False), Modulation, MODULATION),
+    ("set_symbol_rate", cv.float_range(min=600, max=500000), float, None),
+    (
+        "set_rx_attenuation",
+        cv.enum(RX_ATTENUATION, upper=False),
+        RxAttenuation,
+        RX_ATTENUATION,
+    ),
+    ("set_dc_blocking_filter", cv.boolean, bool, None),
+    ("set_manchester", cv.boolean, bool, None),
+    (
+        "set_filter_bandwidth",
+        cv.All(cv.frequency, cv.float_range(min=58000, max=812000)),
+        float,
+        None,
+    ),
+    (
+        "set_fsk_deviation",
+        cv.All(cv.frequency, cv.float_range(min=1500, max=381000)),
+        float,
+        None,
+    ),
+    ("set_msk_deviation", cv.int_range(min=1, max=8), cg.uint8, None),
+    ("set_channel", cv.uint8_t, cg.uint8, None),
+    (
+        "set_channel_spacing",
+        cv.All(cv.frequency, cv.float_range(min=25000, max=405000)),
+        float,
+        None,
+    ),
+    (
+        "set_if_frequency",
+        cv.All(cv.frequency, cv.float_range(min=25000, max=788000)),
+        float,
+        None,
+    ),
+]
+
+
+def _register_setter_actions():
+    for setter_name, validator, templ_type, enum_map in _SETTER_ACTIONS:
+        class_name = (
+            "".join(word.capitalize() for word in setter_name.split("_")) + "Action"
+        )
+        action_cls = ns.class_(
+            class_name, automation.Action, cg.Parented.template(CC1101Component)
+        )
+        schema = cv.maybe_simple_value(
+            {
+                cv.GenerateID(): cv.use_id(CC1101Component),
+                cv.Required(CONF_VALUE): cv.templatable(validator),
+            },
+            key=CONF_VALUE,
+        )
+
+        async def _setter_action_to_code(
+            config,
+            action_id,
+            template_arg,
+            args,
+            _setter=setter_name,
+            _type=templ_type,
+            _map=enum_map,
+        ):
+            var = cg.new_Pvariable(action_id, template_arg)
+            await cg.register_parented(var, config[CONF_ID])
+            data = config[CONF_VALUE]
+            if _map and not cg.is_template(data):
+                data = _map[data]
+            templ_ = await cg.templatable(data, args, _type)
+            cg.add(getattr(var, _setter)(templ_))
+            return var
+
+        automation.register_action(
+            f"cc1101.{setter_name}", action_cls, schema, synchronous=True
+        )(_setter_action_to_code)
+
+
+_register_setter_actions()

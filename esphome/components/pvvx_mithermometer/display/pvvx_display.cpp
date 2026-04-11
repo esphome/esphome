@@ -1,4 +1,5 @@
 #include "pvvx_display.h"
+#include "esphome/components/esp32_ble/ble_uuid.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -8,14 +9,16 @@ namespace pvvx_mithermometer {
 static const char *const TAG = "display.pvvx_mithermometer";
 
 void PVVXDisplay::dump_config() {
+  char service_buf[esp32_ble::UUID_STR_LEN];
+  char char_buf[esp32_ble::UUID_STR_LEN];
   ESP_LOGCONFIG(TAG,
                 "PVVX MiThermometer display:\n"
                 "  MAC address           : %s\n"
                 "  Service UUID          : %s\n"
                 "  Characteristic UUID   : %s\n"
                 "  Auto clear            : %s",
-                this->parent_->address_str(), this->service_uuid_.to_string().c_str(),
-                this->char_uuid_.to_string().c_str(), YESNO(this->auto_clear_enabled_));
+                this->parent_->address_str(), this->service_uuid_.to_str(service_buf),
+                this->char_uuid_.to_str(char_buf), YESNO(this->auto_clear_enabled_));
 #ifdef USE_TIME
   ESP_LOGCONFIG(TAG, "  Set time on connection: %s", YESNO(this->time_ != nullptr));
 #endif

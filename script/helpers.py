@@ -156,22 +156,25 @@ def print_error_for_file(file: str | Path, body: str | None) -> None:
         print()
 
 
-def build_all_include() -> None:
-    # Build a cpp file that includes all header files in this repo.
-    # Otherwise header-only integrations would not be tested by clang-tidy
+def build_all_include(header_files: list[str] | None = None) -> None:
+    # Build a cpp file that includes header files for clang-tidy to check.
+    # If header_files is provided, only include those headers.
+    # Otherwise, include all header files in the esphome directory.
 
-    # Use git ls-files to find all .h files in the esphome directory
-    # This is much faster than walking the filesystem
-    cmd = ["git", "ls-files", "esphome/**/*.h"]
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    if header_files is None:
+        # Use git ls-files to find all .h files in the esphome directory
+        # This is much faster than walking the filesystem
+        cmd = ["git", "ls-files", "esphome/**/*.h"]
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
-    # Process git output - git already returns paths relative to repo root
-    headers = [
-        f'#include "{include_p}"'
-        for line in proc.stdout.strip().split("\n")
-        if (include_p := line.replace(os.path.sep, "/"))
-    ]
+        # Process git output - git already returns paths relative to repo root
+        header_files = [
+            line.replace(os.path.sep, "/")
+            for line in proc.stdout.strip().split("\n")
+            if line
+        ]
 
+    headers = [f'#include "{h}"' for h in header_files]
     headers.sort()
     headers.append("")
     content = "\n".join(headers)
@@ -621,7 +624,9 @@ def get_usable_cpu_count() -> int:
     )
 
 
-def get_all_dependencies(component_names: set[str]) -> set[str]:
+def get_all_dependencies(
+    component_names: set[str],
+) -> set[str]:
     """Get all dependencies for a set of components.
 
     Args:
@@ -637,7 +642,7 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
         PLATFORM_HOST,
     )
     from esphome.core import CORE
-    from esphome.loader import get_component
+    from esphome.loader import get_component, get_platform
 
     all_components: set[str] = set(component_names)
 
@@ -657,7 +662,11 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
         new_components: set[str] = set()
 
         for comp_name in all_components:
-            comp = get_component(comp_name)
+            if "." in comp_name:
+                domain, platform = comp_name.split(".", maxsplit=1)
+                comp = get_platform(domain, platform)
+            else:
+                comp = get_component(comp_name)
             if not comp:
                 continue
 
@@ -686,35 +695,141 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
     return all_components
 
 
+def _extract_components_from_yaml(config: dict) -> set[str]:
+    """Extract component names from a parsed YAML config.
+
+    Args:
+        config: Parsed YAML configuration dictionary
+
+    Returns:
+        Set of component names found in the config
+    """
+    components: set[str] = set()
+
+    # Add all top-level component keys (skip YAML anchor keys starting with '.')
+    components.update(k for k in config if isinstance(k, str) and not k.startswith("."))
+
+    # Add platform values from list entries (e.g., sensor -> platform: template adds "template")
+    for value in config.values():
+        if isinstance(value, list):
+            components.update(
+                item["platform"]
+                for item in value
+                if isinstance(item, dict) and "platform" in item
+            )
+
+    return components
+
+
 def get_components_from_integration_fixtures() -> set[str]:
     """Extract all components used in integration test fixtures.
 
     Returns:
         Set of component names used in integration test fixtures
     """
+    return {
+        comp
+        for components in get_components_per_integration_fixture().values()
+        for comp in components
+    }
+
+
+@cache
+def get_components_per_integration_fixture() -> dict[str, set[str]]:
+    """Extract components used in each integration test fixture.
+
+    Returns:
+        Dictionary mapping fixture name (stem) to set of component names
+    """
     from esphome import yaml_util
 
-    components: set[str] = set()
+    result: dict[str, set[str]] = {}
     fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
 
     for yaml_file in fixtures_dir.glob("*.yaml"):
-        config: dict[str, any] | None = yaml_util.load_yaml(yaml_file)
+        config: dict[str, Any] | None = yaml_util.load_yaml(yaml_file)
         if not config:
             continue
 
-        # Add all top-level component keys
-        components.update(config.keys())
+        result[yaml_file.stem] = _extract_components_from_yaml(config)
 
-        # Add platform components (e.g., output.template)
-        for value in config.values():
-            if not isinstance(value, list):
-                continue
+    return result
 
-            for item in value:
-                if isinstance(item, dict) and "platform" in item:
-                    components.add(item["platform"])
 
-    return components
+_TEST_FUNC_RE = re.compile(r"async def (test_\w+)")
+
+
+@cache
+def get_fixture_to_test_files() -> dict[str, frozenset[str]]:
+    """Map integration test fixture names to the test files that use them.
+
+    Returns:
+        Dictionary mapping fixture name to frozenset of test file paths
+        (relative to repo root)
+    """
+    integration_dir = Path(__file__).parent.parent / "tests" / "integration"
+    result: dict[str, set[str]] = {}
+
+    for test_file in integration_dir.glob("test_*.py"):
+        content = test_file.read_text(encoding="utf-8")
+        rel_path = test_file.relative_to(Path(__file__).parent.parent).as_posix()
+        for func in _TEST_FUNC_RE.findall(content):
+            base_name = func.replace("test_", "").partition("[")[0]
+            result.setdefault(base_name, set()).add(rel_path)
+
+    return {k: frozenset(v) for k, v in result.items()}
+
+
+@cache
+def _get_component_to_integration_test_files() -> dict[str, frozenset[str]]:
+    """Build index mapping each component to the test files that depend on it.
+
+    Resolves full dependency trees once per fixture, then inverts the mapping
+    so lookups are O(1) per component.
+
+    Returns:
+        Dictionary mapping component name to frozenset of test file paths
+    """
+    fixture_components = get_components_per_integration_fixture()
+    fixture_to_test_files = get_fixture_to_test_files()
+
+    result: dict[str, set[str]] = {}
+    for fixture_name, components in fixture_components.items():
+        test_files = fixture_to_test_files.get(fixture_name)
+        if not test_files:
+            continue
+        # Get full dependency tree for this fixture's components
+        all_deps = get_all_dependencies(components)
+        for dep in all_deps:
+            result.setdefault(dep, set()).update(test_files)
+
+    return {k: frozenset(v) for k, v in result.items()}
+
+
+def get_integration_test_files_for_components(
+    changed_components: set[str],
+) -> list[str]:
+    """Get integration test file paths that use any of the given components.
+
+    Uses a precomputed component → test files index for O(C) lookup
+    where C is the number of changed components.
+
+    Args:
+        changed_components: Set of component names that have changed
+
+    Returns:
+        Sorted list of test file paths relative to repo root
+        (e.g., ["tests/integration/test_api.py", ...])
+    """
+    component_to_tests = _get_component_to_integration_test_files()
+
+    return sorted(
+        {
+            test_file
+            for component in changed_components
+            for test_file in component_to_tests.get(component, ())
+        }
+    )
 
 
 def filter_component_and_test_files(file_path: str) -> bool:

@@ -104,11 +104,17 @@ void SX126x::write_register_(uint16_t reg, uint8_t *data, uint8_t size) {
   delayMicroseconds(SWITCHING_DELAY_US);
 }
 
+void IRAM_ATTR SX126x::gpio_intr(SX126x *arg) { arg->enable_loop_soon_any_context(); }
+
 void SX126x::setup() {
   // setup pins
   this->busy_pin_->setup();
   this->rst_pin_->setup();
   this->dio1_pin_->setup();
+  if (this->dio1_pin_->is_internal()) {
+    static_cast<InternalGPIOPin *>(this->dio1_pin_)
+        ->attach_interrupt(&SX126x::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
+  }
 
   // start spi
   this->spi_setup();
@@ -155,7 +161,8 @@ void SX126x::configure() {
   }
 
   // check silicon version to make sure hw is ok
-  this->read_register_(REG_VERSION_STRING, (uint8_t *) this->version_, 16);
+  this->read_register_(REG_VERSION_STRING, (uint8_t *) this->version_, sizeof(this->version_));
+  this->version_[sizeof(this->version_) - 1] = '\0';
   if (strncmp(this->version_, "SX126", 5) != 0 && strncmp(this->version_, "LLCC68", 6) != 0) {
     this->mark_failed();
     return;
@@ -343,10 +350,13 @@ void SX126x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
   for (auto &listener : this->listeners_) {
     listener->on_packet(packet, rssi, snr);
   }
-  this->packet_trigger_->trigger(packet, rssi, snr);
+  this->packet_trigger_.trigger(packet, rssi, snr);
 }
 
 void SX126x::loop() {
+  if (this->dio1_pin_->is_internal()) {
+    this->disable_loop();
+  }
   if (!this->dio1_pin_->digital_read()) {
     return;
   }
@@ -527,7 +537,9 @@ void SX126x::dump_config() {
                   this->spreading_factor_, cr, this->preamble_size_);
   }
   if (!this->sync_value_.empty()) {
-    ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s", format_hex(this->sync_value_).c_str());
+    char hex_buf[17];  // 8 bytes max = 16 hex chars + null
+    ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s",
+                  format_hex_to(hex_buf, this->sync_value_.data(), this->sync_value_.size()));
   }
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Configuring SX126x failed");

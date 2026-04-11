@@ -23,6 +23,7 @@ from esphome.const import (
 from esphome.core import CORE, config
 from esphome.core.config import (
     Area,
+    make_app_name_cpp,
     preload_core_config,
     valid_include,
     valid_project_name,
@@ -247,6 +248,24 @@ def test_area_id_hash_collision(
     )
 
 
+def test_area_singular_hash_collision(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that area hash collisions between singular area: and areas: list are detected."""
+    result = load_config_from_fixture(
+        yaml_file, "area_singular_hash_collision.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert (
+        "Area ID 'd6ka' with hash 3082558663 collides with existing area ID 'test_2258'"
+        in captured.out
+    )
+    # Error path should point to 'areas' (where the colliding entry is), not 'area'
+    assert "areas" in captured.out
+
+
 def test_device_duplicate_id(
     yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -453,11 +472,14 @@ def test_preload_core_config_no_platform(setup_core: Path) -> None:
     # Mock _is_target_platform to avoid expensive component loading
     with patch("esphome.core.config._is_target_platform") as mock_is_platform:
         # Return True for known platforms
-        mock_is_platform.side_effect = lambda name: name in [
-            "esp32",
-            "esp8266",
-            "rp2040",
-        ]
+        mock_is_platform.side_effect = lambda name: (
+            name
+            in [
+                "esp32",
+                "esp8266",
+                "rp2040",
+            ]
+        )
 
         with pytest.raises(cv.Invalid, match="Platform missing"):
             preload_core_config(config, result)
@@ -477,11 +499,14 @@ def test_preload_core_config_multiple_platforms(setup_core: Path) -> None:
     # Mock _is_target_platform to avoid expensive component loading
     with patch("esphome.core.config._is_target_platform") as mock_is_platform:
         # Return True for known platforms
-        mock_is_platform.side_effect = lambda name: name in [
-            "esp32",
-            "esp8266",
-            "rp2040",
-        ]
+        mock_is_platform.side_effect = lambda name: (
+            name
+            in [
+                "esp32",
+                "esp8266",
+                "rp2040",
+            ]
+        )
 
         with pytest.raises(cv.Invalid, match="Found multiple target platform blocks"):
             preload_core_config(config, result)
@@ -892,3 +917,150 @@ async def test_add_includes_overwrites_existing_files(
     mock_copy_file_if_changed.assert_called_once_with(
         include_file, CORE.build_path / "src" / "header.h"
     )
+
+
+def test_config_hash_returns_int() -> None:
+    """Test that config_hash returns an integer."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test"}}
+    assert isinstance(CORE.config_hash, int)
+
+
+def test_config_hash_is_cached() -> None:
+    """Test that config_hash is computed once and cached."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test"}}
+
+    # First access computes the hash
+    hash1 = CORE.config_hash
+
+    # Modify config (without resetting cache)
+    CORE.config = {"esphome": {"name": "different"}}
+
+    # Second access returns cached value
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
+def test_config_hash_reset_clears_cache() -> None:
+    """Test that reset() clears the cached config_hash."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test"}}
+    hash1 = CORE.config_hash
+
+    # Reset clears the cache
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "different"}}
+
+    hash2 = CORE.config_hash
+
+    # After reset, hash should be recomputed
+    assert hash1 != hash2
+
+
+def test_config_hash_deterministic_key_order() -> None:
+    """Test that config_hash is deterministic regardless of key insertion order."""
+    CORE.reset()
+    # Create two configs with same content but different key order
+    config1 = {"z_key": 1, "a_key": 2, "nested": {"z_nested": "z", "a_nested": "a"}}
+    config2 = {"a_key": 2, "z_key": 1, "nested": {"a_nested": "a", "z_nested": "z"}}
+
+    CORE.config = config1
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config = config2
+    hash2 = CORE.config_hash
+
+    # Hashes should be equal because keys are sorted during serialization
+    assert hash1 == hash2
+
+
+def test_config_hash_different_for_different_configs() -> None:
+    """Test that different configs produce different hashes."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test1"}}
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test2"}}
+    hash2 = CORE.config_hash
+
+    assert hash1 != hash2
+
+
+def test_make_app_name_cpp_no_mac_simple() -> None:
+    """Test simple name without MAC suffix returns string literal."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "my-device", "buf", "-", add_mac_suffix=False
+    )
+    assert cpp_expr == '"my-device"'
+    assert global_decl is None
+    assert byte_len == 9
+
+
+def test_make_app_name_cpp_no_mac_empty() -> None:
+    """Test empty name without MAC suffix."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "", "buf", "-", add_mac_suffix=False
+    )
+    assert cpp_expr == '""'
+    assert global_decl is None
+    assert byte_len == 0
+
+
+def test_make_app_name_cpp_mac_suffix() -> None:
+    """Test name with MAC suffix emits static buffer."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "my-device", "esphome_app_name_buf", "-", add_mac_suffix=True
+    )
+    assert cpp_expr == "esphome_app_name_buf"
+    assert global_decl is not None
+    assert "static char esphome_app_name_buf[]" in global_decl
+    assert "my-device-XXXXXX" in global_decl
+    assert byte_len == len("my-device-XXXXXX")
+
+
+def test_make_app_name_cpp_mac_suffix_empty() -> None:
+    """Test empty name with MAC suffix emits empty static buffer."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "", "esphome_app_name_buf", "-", add_mac_suffix=True
+    )
+    assert cpp_expr == "esphome_app_name_buf"
+    assert global_decl is not None
+    assert "static char esphome_app_name_buf[]" in global_decl
+    assert byte_len == 0
+
+
+def test_make_app_name_cpp_mac_suffix_space_sep() -> None:
+    """Test friendly name uses space separator for MAC suffix."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "My Device", "esphome_app_friendly_name_buf", " ", add_mac_suffix=True
+    )
+    assert cpp_expr == "esphome_app_friendly_name_buf"
+    assert global_decl is not None
+    assert "My Device XXXXXX" in global_decl
+    assert byte_len == len("My Device XXXXXX")
+
+
+def test_make_app_name_cpp_non_ascii_utf8_length() -> None:
+    """Test non-ASCII characters use UTF-8 byte length."""
+    _, global_decl, byte_len = make_app_name_cpp(
+        "café", "buf", "-", add_mac_suffix=False
+    )
+    assert byte_len == len("café".encode())  # 5 bytes, not 4 chars
+    assert global_decl is None
+
+
+def test_make_app_name_cpp_non_ascii_mac_suffix_utf8_length() -> None:
+    """Test non-ASCII with MAC suffix uses UTF-8 byte length."""
+    _, _, byte_len = make_app_name_cpp("café", "buf", "-", add_mac_suffix=True)
+    assert byte_len == len("café-XXXXXX".encode())
+
+
+def test_make_app_name_cpp_special_chars_escaped() -> None:
+    """Test special characters are properly escaped in C++ string."""
+    cpp_expr, _, _ = make_app_name_cpp('my "device"', "buf", "-", add_mac_suffix=False)
+    # cpp_string_escape uses octal escapes for quotes
+    assert '"' not in cpp_expr[1:-1]  # no unescaped quotes inside the outer quotes
