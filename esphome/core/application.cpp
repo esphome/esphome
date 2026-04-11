@@ -450,6 +450,18 @@ void Application::enable_pending_loops_() {
 }
 
 #ifdef USE_LWIP_FAST_SELECT
+std::atomic<uint32_t> Application::fast_select_scan_total_{0};
+std::atomic<uint32_t> Application::fast_select_scan_found_data_{0};
+std::atomic<uint32_t> Application::fast_select_scan_load_bearing_{0};
+
+void Application::log_fast_select_scan_stats_() {
+  uint32_t total = fast_select_scan_total_.load(std::memory_order_relaxed);
+  uint32_t found = fast_select_scan_found_data_.load(std::memory_order_relaxed);
+  uint32_t load_bearing = fast_select_scan_load_bearing_.load(std::memory_order_relaxed);
+  ESP_LOGD(TAG, "fast_select scan: total=%" PRIu32 " found_data=%" PRIu32 " load_bearing=%" PRIu32, total, found,
+           load_bearing);
+}
+
 bool Application::register_socket(struct lwip_sock *sock) {
   // It modifies monitored_sockets_ without locking — must only be called from the main loop.
   if (sock == nullptr)

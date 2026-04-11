@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <ctime>
 #include <limits>
 #include <span>
@@ -655,6 +656,14 @@ class Application {
   FixedVector<Component *> looping_components_{};
 #ifdef USE_LWIP_FAST_SELECT
   std::vector<struct lwip_sock *> monitored_sockets_;  // Cached lwip_sock pointers for direct rcvevent read
+  // Stats to verify whether the pre-sleep socket scan in yield_with_select_() is ever load-bearing.
+  // If fast_select_scan_load_bearing_ stays 0 under real workloads, the scan can be removed.
+  // These are static because yield_with_select_() is inlined at every call site.
+  static std::atomic<uint32_t> fast_select_scan_total_;
+  static std::atomic<uint32_t> fast_select_scan_found_data_;
+  static std::atomic<uint32_t> fast_select_scan_load_bearing_;
+  uint32_t fast_select_scan_stats_last_log_{0};
+  void log_fast_select_scan_stats_();
 #elif defined(USE_HOST)
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
 #endif
@@ -889,6 +898,14 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   this->yield_with_select_(delay_time);
   this->last_loop_ = last_op_end_time;
 
+#ifdef USE_LWIP_FAST_SELECT
+  // Periodic fast-select scan stats (debug). Remove once the scan is proven unneeded.
+  if (last_op_end_time - this->fast_select_scan_stats_last_log_ >= 30000) {
+    this->fast_select_scan_stats_last_log_ = last_op_end_time;
+    this->log_fast_select_scan_stats_();
+  }
+#endif
+
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
   }
@@ -909,8 +926,22 @@ inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay
   // If a socket still has unread data (rcvevent > 0) but the task notification was already
   // consumed, ulTaskNotifyTake would block until timeout — adding up to delay_ms latency.
   // This scan preserves select() semantics: return immediately when any fd is ready.
+  //
+  // Debug stats: peek the task notification value BEFORE scanning. This answers the
+  // counterfactual "if the scan did not exist and we called ulTaskNotifyTake right now,
+  // would it stall?". ulTaskNotifyValueClear(nullptr, 0) is a pure read — it returns the
+  // current value and clears zero bits, leaving the notification state untouched. Reading
+  // before the loop (rather than after finding data) makes the answer TOCTOU-free: the
+  // value we compare against is the value at the moment Take would have been called.
+  uint32_t fast_select_notify_value_before_scan = ulTaskNotifyValueClear(nullptr, 0);
+  fast_select_scan_total_.fetch_add(1, std::memory_order_relaxed);
   for (struct lwip_sock *sock : this->monitored_sockets_) {
     if (esphome_lwip_socket_has_data(sock)) {
+      fast_select_scan_found_data_.fetch_add(1, std::memory_order_relaxed);
+      if (fast_select_notify_value_before_scan == 0) {
+        // Scan was load-bearing: no notification pending, so Take would have stalled.
+        fast_select_scan_load_bearing_.fetch_add(1, std::memory_order_relaxed);
+      }
       yield();
       return;
     }
