@@ -1037,7 +1037,7 @@ def test_get_all_dependencies_platform_component() -> None:
 
     with (
         patch("esphome.loader.get_component") as mock_get_component,
-        patch("helpers.get_platform") as mock_get_platform,
+        patch("esphome.loader.get_platform") as mock_get_platform,
     ):
         mock_get_platform.return_value = platform_comp
         mock_get_component.return_value = None
@@ -1061,7 +1061,7 @@ def test_get_all_dependencies_platform_component_with_dependencies() -> None:
 
     with (
         patch("esphome.loader.get_component") as mock_get_component,
-        patch("helpers.get_platform") as mock_get_platform,
+        patch("esphome.loader.get_platform") as mock_get_platform,
     ):
         mock_get_platform.return_value = platform_comp
         mock_get_component.side_effect = lambda name: (

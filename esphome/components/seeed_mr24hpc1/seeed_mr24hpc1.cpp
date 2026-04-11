@@ -62,8 +62,6 @@ void MR24HPC1Component::dump_config() {
 
 // Initialisation functions
 void MR24HPC1Component::setup() {
-  this->check_uart_settings(115200);
-
 #ifdef USE_NUMBER
   if (this->custom_mode_number_ != nullptr) {
     this->custom_mode_number_->publish_state(0);  // Zero out the custom mode

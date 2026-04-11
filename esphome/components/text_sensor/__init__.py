@@ -116,7 +116,9 @@ async def substitute_filter_to_code(config, filter_id):
         )
         for conf in config
     ]
-    return cg.new_Pvariable(filter_id, substitutions)
+    return cg.new_Pvariable(
+        filter_id, cg.TemplateArguments(len(substitutions)), substitutions
+    )
 
 
 @FILTER_REGISTRY.register("map", MapFilter, cv.ensure_list(validate_mapping))
@@ -129,7 +131,7 @@ async def map_filter_to_code(config, filter_id):
         )
         for conf in config
     ]
-    return cg.new_Pvariable(filter_id, mappings)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(mappings)), mappings)
 
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
@@ -182,16 +184,19 @@ async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_VALUE, "add_on_state_callback", [(cg.std_string, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_RAW_VALUE, "add_on_raw_state_callback", [(cg.std_string, "x")]
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_text_sensor_automations(var, config):
-    for conf_key, callback in (
-        (CONF_ON_VALUE, "add_on_state_callback"),
-        (CONF_ON_RAW_VALUE, "add_on_raw_state_callback"),
-    ):
-        for conf in config.get(conf_key, []):
-            await automation.build_callback_automation(
-                var, callback, [(cg.std_string, "x")], conf
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @setup_entity("text_sensor")

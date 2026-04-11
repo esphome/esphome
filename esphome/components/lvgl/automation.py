@@ -2,9 +2,11 @@ from collections.abc import Callable
 from typing import Any
 
 from esphome import automation
+from esphome.automation import StatelessLambdaAction
 import esphome.codegen as cg
+from esphome.components.display import validate_rotation
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_TIMEOUT
+from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_ROTATION, CONF_TIMEOUT
 from esphome.core import Lambda
 from esphome.cpp_generator import TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
@@ -23,6 +25,7 @@ from .defines import (
     PARTS,
     StaticCastExpression,
     add_warning,
+    get_options,
 )
 from .lv_validation import lv_bool, lv_milliseconds
 from .lvcode import (
@@ -136,7 +139,7 @@ async def update_to_code(config, action_id, template_arg, args):
             widget.type.w_type.value_property is not None
             and widget.type.w_type.value_property in config
         ):
-            lv.event_send(widget.obj, UPDATE_EVENT, nullptr)
+            lv_obj.send_event(widget.obj, UPDATE_EVENT, nullptr)
 
     widgets = await get_widgets(config[CONF_ID])
     return await action_to_code(
@@ -189,6 +192,32 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
     )
     await cg.register_parented(var, lvgl)
     return var
+
+
+def _validate_rotation(value):
+    # Note that we need rotation
+    get_options()[CONF_ROTATION] = True
+    return validate_rotation(value)
+
+
+@automation.register_action(
+    "lvgl.display.set_rotation",
+    StatelessLambdaAction,
+    cv.maybe_simple_value(
+        LVGL_SCHEMA.extend(
+            {
+                cv.Required(CONF_ROTATION): _validate_rotation,
+            }
+        ),
+        key=CONF_ROTATION,
+    ),
+    synchronous=True,
+)
+async def lvgl_set_rotation(config, action_id, template_arg, args):
+    lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
+    async with LambdaContext(args, where=action_id) as context:
+        lv_add(lv_comp.set_rotation(config[CONF_ROTATION]))
+    return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
 
 @automation.register_action(
@@ -455,6 +484,6 @@ async def obj_refresh_to_code(config, action_id, template_arg, args):
                 widget.type.w_type.value_property is not None
                 and widget.type.w_type.value_property in config
             ):
-                lv.event_send(widget.obj, UPDATE_EVENT, nullptr)
+                lv_obj.send_event(widget.obj, UPDATE_EVENT, nullptr)
 
     return await action_to_code(widget, do_refresh, action_id, template_arg, args)

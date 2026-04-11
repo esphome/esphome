@@ -20,10 +20,6 @@ enum { ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET = 8 };
 extern "C" {
 #endif
 
-/// Initialize fast select — must be called from the main loop task during setup().
-/// Saves the current task handle for xTaskNotifyGive() wake notifications.
-void esphome_lwip_fast_select_init(void);
-
 /// Look up a LwIP socket struct from a file descriptor.
 /// Returns NULL if fd is invalid or the socket/netconn is not initialized.
 /// Use this at registration time to cache the pointer for esphome_lwip_socket_has_data().
@@ -57,28 +53,12 @@ static inline bool esphome_lwip_socket_has_data(struct lwip_sock *sock) {
 /// The sock pointer must have been obtained from esphome_lwip_get_sock().
 void esphome_lwip_hook_socket(struct lwip_sock *sock);
 
-/// Wake the main loop task from another FreeRTOS task — costs <1 us.
-/// NOT ISR-safe — must only be called from task context.
-void esphome_lwip_wake_main_loop(void);
-
-/// Wake the main loop task from an ISR — costs <1 us.
-/// ISR-safe variant using vTaskNotifyGiveFromISR().
-/// @param px_higher_priority_task_woken Set to pdTRUE if a context switch is needed.
-void esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task_woken);
-
 /// Set or clear TCP_NODELAY on a socket's tcp_pcb directly.
 /// Must be called with the TCPIP core lock held (LwIPLock in C++).
 /// This bypasses lwip_setsockopt() overhead (socket lookups, switch cascade,
 /// hooks, refcounting) — just a direct pcb->flags bit set/clear.
 /// Returns true if successful, false if sock/conn/pcb is NULL or the socket is not TCP.
 bool esphome_lwip_set_nodelay(struct lwip_sock *sock, bool enable);
-
-/// Wake the main loop task from any context (ISR, thread, or main loop).
-/// ESP32-only: uses xPortInIsrContext() to detect ISR context.
-/// LibreTiny lacks IRAM_ATTR support needed for ISR-safe paths.
-#ifdef USE_ESP32
-void esphome_lwip_wake_main_loop_any_context(void);
-#endif
 
 #ifdef __cplusplus
 }

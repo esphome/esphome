@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INPUT,
     CONF_INTERRUPT,
+    CONF_INTERRUPT_PIN,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
@@ -32,6 +33,7 @@ MCP23XXX_INTERRUPT_MODES = {
 MCP23XXX_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_OPEN_DRAIN_INTERRUPT, default=False): cv.boolean,
+        cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -43,6 +45,8 @@ async def register_mcp23xxx(config, num_pins):
     await cg.register_component(var, config)
     CORE.data.setdefault(CONF_MCP23XXX, {})[id.id] = num_pins
     cg.add(var.set_open_drain_ints(config[CONF_OPEN_DRAIN_INTERRUPT]))
+    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
+        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
     return var
 
 
