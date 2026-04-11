@@ -104,14 +104,20 @@ void ESPHomeOTAComponent::loop() {
   //
   // Note: No need to check server_ for null — setup() marks the component failed
   // if server_ creation fails.
-  // DEBUG: trace every loop tick while we investigate a wake/accept race.
+  // DEBUG: self-disable removed. Log every tick with wake counter + ready state so
+  // we can tell (a) whether the lwip listener wake hook ever fires and (b) whether
+  // server_->ready() ever flips to true when a client tries to connect.
   const uint32_t wake_count = App.ota_wake_count_debug();
   const bool ready = this->server_->ready();
-  ESP_LOGD(TAG, "loop tick: client=%p ready=%d wakes=%u", (void *) this->client_.get(), ready, wake_count);
+  static uint32_t last_wake_count = 0;
+  static bool last_ready = false;
+  if (wake_count != last_wake_count || ready != last_ready || this->client_ != nullptr) {
+    ESP_LOGD(TAG, "loop tick: client=%p ready=%d wakes=%u", (void *) this->client_.get(), ready, wake_count);
+    last_wake_count = wake_count;
+    last_ready = ready;
+  }
   if (this->client_ == nullptr && !ready) {
-    ESP_LOGD(TAG, "loop tick: idle, disabling");
-    this->disable_loop();
-    return;
+    return;  // stay in LOOP state so we can poll every tick for diagnosis
   }
   this->handle_handshake_();
 }
