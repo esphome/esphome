@@ -53,12 +53,10 @@ static inline bool esphome_lwip_socket_has_data(struct lwip_sock *sock) {
 /// The sock pointer must have been obtained from esphome_lwip_get_sock().
 void esphome_lwip_hook_socket(struct lwip_sock *sock);
 
-/// Filter the inline OTA wake hook in the fast-select callback so it only fires for
-/// RCVPLUS events on this specific listener's netconn. Without this, every monitored
-/// socket's RCVPLUS (API client data, web server, mDNS, etc.) would mark OTA
-/// pending-enable and force its loop to run a wake-up tick only to re-disable itself.
-/// Captured at OTA setup(); stays pointing at the listener for the device's lifetime.
-/// Pass NULL to clear the filter (wake fires on every RCVPLUS, pre-filter behavior).
+/// Set the listener netconn that the fast-select callback filters OTA wakes against.
+/// After this is called, the OTA wake hook only fires for RCVPLUS events whose `conn`
+/// matches this listener. Passing NULL disables OTA wakes (no event matches a NULL
+/// listener) — correct behavior before install and after teardown.
 void esphome_fast_select_set_ota_listener_sock(struct lwip_sock *sock);
 
 /// Set or clear TCP_NODELAY on a socket's tcp_pcb directly.
