@@ -84,13 +84,6 @@ class LwIPSocketImpl {
 
   int get_fd() const { return this->fd_; }
 
-#ifdef USE_LWIP_FAST_SELECT
-  // See BSDSocketImpl::get_cached_sock() — same purpose, same semantics.
-  struct lwip_sock *get_cached_sock() const {
-    return this->cached_sock_;
-  }
-#endif
-
  protected:
   int fd_{-1};
 #ifdef USE_LWIP_FAST_SELECT

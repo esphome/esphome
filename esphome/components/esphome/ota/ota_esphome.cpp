@@ -78,7 +78,9 @@ void ESPHomeOTAComponent::setup() {
   // every RCVPLUS across all monitored sockets (API client data, mDNS, etc.) would
   // pay the inline hook's two volatile stores + memw barriers to mark OTA
   // pending-enable, even though OTA would just re-disable itself on the next tick.
-  esphome_fast_select_set_ota_listener_sock(this->server_->get_cached_sock());
+  // Uses the existing public esphome_lwip_get_sock() lookup instead of adding a
+  // dedicated accessor on Socket — the lookup happens once at setup, not per event.
+  esphome_fast_select_set_ota_listener_sock(esphome_lwip_get_sock(this->server_->get_fd()));
 #endif
 }
 
