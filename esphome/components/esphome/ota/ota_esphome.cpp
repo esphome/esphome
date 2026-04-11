@@ -87,13 +87,20 @@ void ESPHomeOTAComponent::dump_config() {
 }
 
 void ESPHomeOTAComponent::loop() {
-  // loop() is disabled while idle (see setup() / cleanup_connection_()). Socket-wake
-  // paths (LwIP fast select, raw TCP accept, host select) call
-  // App.wake_ota_component_any_context() to re-enable this loop when a monitored
-  // socket signals activity. False wakes (e.g. an API-socket event) land here with
-  // no pending work — in that case we disable the loop again and go back to sleep.
-  // Note: No need to check server_ for null as the component is marked failed in
-  // setup() if server_ creation fails.
+  // loop() starts disabled while idle (setup() calls disable_loop()). Socket-wake
+  // paths (LwIP fast select, raw TCP accept, host select) mark us pending-enable
+  // via App.wake_ota_component_any_context() when a monitored socket signals
+  // activity; enable_pending_loops_() then re-activates us. False wakes (e.g. an
+  // API-socket event on an unrelated monitored socket) land here with no pending
+  // work, and this early-return disables the loop again.
+  //
+  // cleanup_connection_() deliberately does NOT call disable_loop() — letting
+  // loop() run one more iteration after a session ends guarantees we re-read
+  // server_->ready() and either accept a client queued during the session or
+  // disable cleanly here.
+  //
+  // Note: No need to check server_ for null — setup() marks the component failed
+  // if server_ creation fails.
   if (this->client_ == nullptr && !this->server_->ready()) {
     this->disable_loop();
     return;
