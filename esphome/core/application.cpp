@@ -449,6 +449,14 @@ void Application::enable_pending_loops_() {
   }
 }
 
+#if defined(USE_OTA) && defined(USE_LWIP_FAST_SELECT)
+// Extern-C trampoline for the lwip fast-select callback to reach the C++ wake method.
+// Invoked only when the listener filter in lwip_fast_select.c matches — i.e. only on
+// actual incoming connections to the OTA listen socket — so the function-call overhead
+// here is paid at most once per real OTA attempt, not on every monitored-socket event.
+extern "C" void esphome_wake_ota_component_any_context() { App.wake_ota_component_any_context(); }
+#endif
+
 #ifdef USE_LWIP_FAST_SELECT
 bool Application::register_socket(struct lwip_sock *sock) {
   // It modifies monitored_sockets_ without locking — must only be called from the main loop.
@@ -554,6 +562,16 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     // ret > 0: socket(s) have data ready - normal and expected
     // ret == 0: timeout occurred - normal and expected
     if (ret >= 0) [[likely]] {
+#ifdef USE_OTA
+      // Dead code today — host does not currently support the esphome OTA platform,
+      // so ota_wake_component_ is always null and this is a no-op. Kept so the wake
+      // path works out of the box if host ever gains OTA support. Host has no listener
+      // filter (that lives in lwip_fast_select.c, ESP32/LibreTiny only), so any
+      // ret > 0 fires this — harmless when the pointer is null.
+      if (ret > 0) {
+        this->wake_ota_component_any_context();
+      }
+#endif
       // Yield if zero timeout since select(0) only polls without yielding
       if (delay_ms == 0) [[unlikely]] {
         yield();

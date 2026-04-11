@@ -9,7 +9,7 @@
 #include <WiFi.h>
 #include <pico/cyw43_arch.h>  // For cyw43_arch_lwip_begin/end (LwIPLock)
 #elif defined(USE_ETHERNET)
-#include <lwip_wrap.h>  // For LWIPMutex — LwIPLock delegates to it (see below)
+#include <lwip_wrap.h>  // For LWIPMutex — LwIPLock mirrors its semantics (see below)
 #include "esphome/components/ethernet/ethernet_component.h"
 #endif
 #include <hardware/structs/rosc.h>

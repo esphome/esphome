@@ -157,6 +157,29 @@ _Static_assert(offsetof(struct lwip_sock, rcvevent) == ESPHOME_LWIP_SOCK_RCVEVEN
 // Saved original event_callback pointer — written once in first hook_socket(), read from TCP/IP task.
 static netconn_callback s_original_callback = NULL;
 
+#ifdef ESPHOME_USE_OTA
+// OTA listener netconn, captured via esphome_fast_select_set_ota_listener_sock() at OTA
+// setup(). The wake hook only fires when the callback's `conn` argument matches this
+// pointer — i.e. only for RCVPLUS events on the OTA listen socket (new accepts). Avoids
+// paying the wake-hook function call on every API client data packet, mDNS query, etc.
+static struct netconn *s_ota_listener_conn = NULL;
+
+// Extern-C trampoline defined in application.cpp — calls App.wake_ota_component_any_context()
+// to mark the OTA component pending loop-enable. Out-of-line (not inlined) because with the
+// listener filter above, this only fires on actual OTA connection attempts — the function-call
+// cost is paid at most once per real wake, not on every monitored-socket RCVPLUS.
+// ESPHOME_USE_OTA (not USE_OTA) because USE_OTA only lives in defines.h, and this .c file
+// cannot include defines.h — macros.h → Arduino.h would break the C compile under Arduino
+// builds. ota/__init__.py emits -DESPHOME_USE_OTA as a build flag so this file can see it.
+extern void esphome_wake_ota_component_any_context(void);
+
+void esphome_fast_select_set_ota_listener_sock(struct lwip_sock *sock) {
+  s_ota_listener_conn = (sock != NULL) ? sock->conn : NULL;
+}
+#else
+void esphome_fast_select_set_ota_listener_sock(struct lwip_sock *sock) { (void) sock; }
+#endif
+
 // Wrapper callback: calls original event_callback + notifies main loop task.
 // Called from LwIP's TCP/IP thread when socket events occur (task context, not ISR).
 static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len) {
@@ -171,6 +194,18 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
   // (rcvevent++ with a NULL pbuf or error in recvmbox), so error conditions
   // already wake the main loop through the RCVPLUS path.
   if (evt == NETCONN_EVT_RCVPLUS) {
+#ifdef ESPHOME_USE_OTA
+    // Filter: only mark OTA pending-enable when the event is for OTA's listen socket.
+    // Without this, every RCVPLUS (API client data, mDNS, etc.) would pay the inline
+    // wake hook's two volatile stores + memw barriers. The setter that installs
+    // s_ota_listener_conn is called from OTA setup(); until then the pointer is NULL
+    // and the filter skips the wake work entirely, which is the correct idle behavior.
+    // MUST happen before xTaskNotifyGive below — the flags have to be visible before
+    // the main task wakes, or the main loop could run a full iteration and miss them.
+    if (conn == s_ota_listener_conn) {
+      esphome_wake_ota_component_any_context();
+    }
+#endif
     TaskHandle_t task = esphome_main_task_handle;
     if (task != NULL) {
       xTaskNotifyGive(task);
