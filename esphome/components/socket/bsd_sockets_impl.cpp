@@ -14,9 +14,13 @@ BSDSocketImpl::BSDSocketImpl(int fd, bool monitor_loop) {
   if (!monitor_loop || this->fd_ < 0)
     return;
 #ifdef USE_LWIP_FAST_SELECT
-  // Cache lwip_sock pointer and register for monitoring (hooks callback internally)
+  // Cache lwip_sock pointer (used by ready() for direct rcvevent reads) and hook the
+  // netconn event callback so the main loop is notified via FreeRTOS task notifications.
   this->cached_sock_ = esphome_lwip_get_sock(this->fd_);
-  this->loop_monitored_ = App.register_socket(this->cached_sock_);
+  if (this->cached_sock_ != nullptr) {
+    esphome_lwip_hook_socket(this->cached_sock_);
+    this->loop_monitored_ = true;
+  }
 #else
   this->loop_monitored_ = App.register_socket_fd(this->fd_);
 #endif
@@ -30,12 +34,10 @@ BSDSocketImpl::~BSDSocketImpl() {
 
 int BSDSocketImpl::close() {
   if (!this->closed_) {
-    // Unregister before closing to avoid dangling pointer in monitored set
 #ifdef USE_LWIP_FAST_SELECT
-    if (this->loop_monitored_) {
-      App.unregister_socket(this->cached_sock_);
-      this->cached_sock_ = nullptr;
-    }
+    // All LwIP sockets share the same static event_callback, so there is no per-socket
+    // unhook needed — just drop the cached pointer before the socket is destroyed.
+    this->cached_sock_ = nullptr;
 #else
     if (this->loop_monitored_) {
       App.unregister_socket_fd(this->fd_);
