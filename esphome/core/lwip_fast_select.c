@@ -124,9 +124,6 @@
 
 #include "esphome/core/lwip_fast_select.h"
 #include "esphome/core/main_task.h"
-#ifdef ESPHOME_USE_OTA
-#include "esphome/core/wake.h"  // inline esphome_wake_ota_component_any_context() lives here
-#endif
 
 #include <stddef.h>
 
@@ -164,15 +161,17 @@ static netconn_callback s_original_callback = NULL;
 // OTA listener netconn, captured via esphome_fast_select_set_ota_listener_sock() at OTA
 // setup(). The wake hook only fires when the callback's `conn` argument matches this
 // pointer — i.e. only for RCVPLUS events on the OTA listen socket (new accepts). Avoids
-// paying the inline wake hook's cost (two volatile stores + memw barriers) on every API
-// client data packet, mDNS query, etc.
+// paying the wake-hook function call on every API client data packet, mDNS query, etc.
 static struct netconn *s_ota_listener_conn = NULL;
-// Inline wake hook defined in esphome/core/wake.h. ESPHOME_USE_OTA (not USE_OTA) because
-// USE_OTA only lives in defines.h, and this .c file cannot include defines.h — macros.h →
-// Arduino.h would break the C compile under Arduino builds. ota/__init__.py emits
-// -DESPHOME_USE_OTA as a build flag so this file can see it without a name collision with
-// the defines.h USE_OTA entry.
-#include "esphome/core/wake.h"
+
+// Extern-C trampoline defined in application.cpp — calls App.wake_ota_component_any_context()
+// to mark the OTA component pending loop-enable. Out-of-line (not inlined) because with the
+// listener filter above, this only fires on actual OTA connection attempts — the function-call
+// cost is paid at most once per real wake, not on every monitored-socket RCVPLUS.
+// ESPHOME_USE_OTA (not USE_OTA) because USE_OTA only lives in defines.h, and this .c file
+// cannot include defines.h — macros.h → Arduino.h would break the C compile under Arduino
+// builds. ota/__init__.py emits -DESPHOME_USE_OTA as a build flag so this file can see it.
+extern void esphome_wake_ota_component_any_context(void);
 
 void esphome_fast_select_set_ota_listener_sock(struct lwip_sock *sock) {
   s_ota_listener_conn = (sock != NULL) ? sock->conn : NULL;

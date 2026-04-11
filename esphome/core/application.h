@@ -561,13 +561,22 @@ class Application {
 
 #ifdef USE_OTA
   /// Register the OTA component so socket-wake paths can enable its loop when a new
-  /// connection arrives on the listening socket. Captures the addresses of the component's
-  /// pending_enable_loop_ flag and Application's has_pending_enable_loop_requests_ flag
-  /// into extern-C globals consumed by the inline wake hook in wake.h. Defined out-of-line
-  /// in application.cpp so application.h doesn't need to pull in wake.h. OTA calls this
-  /// once from setup(); the component itself then self-disables its loop on its first
-  /// idle tick.
-  void set_ota_wake_component(Component *component);
+  /// connection arrives on the listening socket. OTA calls this once from setup();
+  /// the component self-disables its loop on its first idle tick and is re-enabled
+  /// via wake_ota_component_any_context() when the fast-select filter in
+  /// lwip_fast_select.c matches an incoming connection on the OTA listener.
+  void set_ota_wake_component(Component *component) { this->ota_wake_component_ = component; }
+  /// Mark the registered OTA component pending loop-enable. Called from the LwIP
+  /// TCP/IP task (fast-select callback), raw-TCP accept callback, and host select
+  /// return path — all task / user-IRQ context, not a real ISR. Does NOT wake the
+  /// main task itself: every caller already does so separately. Application is a
+  /// friend of Component, so we set pending_enable_loop_ directly.
+  void wake_ota_component_any_context() {
+    if (this->ota_wake_component_ != nullptr) {
+      this->ota_wake_component_->pending_enable_loop_ = true;
+      this->has_pending_enable_loop_requests_ = true;
+    }
+  }
 #endif
 
  protected:
@@ -645,6 +654,9 @@ class Application {
 
   // Pointer-sized members first
   Component *current_component_{nullptr};
+#ifdef USE_OTA
+  Component *ota_wake_component_{nullptr};  // Set by ESPHomeOTAComponent to receive socket-wake notifications
+#endif
 
   // std::vector (3 pointers each: begin, end, capacity)
   // Partitioned vector design for looping components
