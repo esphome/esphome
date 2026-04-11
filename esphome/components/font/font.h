@@ -60,6 +60,9 @@ class BaseFont
 
 class Font : public BaseFont {
  public:
+#ifdef USE_LVGL_FONT
+  using BaseFont::get_lv_font;
+#endif
   /** Construct the font with the given glyphs.
    *
    * @param data A list of glyphs, must be sorted lexicographically.
@@ -120,6 +123,9 @@ class Font : public BaseFont {
 #ifdef USE_FONT_PTE
 class PTEFont : public BaseFont {
  public:
+#ifdef USE_LVGL_FONT
+  using BaseFont::get_lv_font;
+#endif
   PTEFont(int sample_size, const uint8_t *data, const PteGlyph *glyphs, int glyph_count, const PteKern *kerns,
           int kern_count, int line_height, int baseline, int default_render_size = 20);
 
