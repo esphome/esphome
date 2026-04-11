@@ -96,7 +96,9 @@ class PingStatus:
 
             # Ping all entries with valid addresses
             for ping_group in chunked(entries_with_addresses.items(), GROUP_SIZE):
-                entry_addresses = cast(tuple[DashboardEntry, list[str]], ping_group)
+                entry_addresses = cast(
+                    list[tuple[DashboardEntry, list[str]]], ping_group
+                )
 
                 results = await asyncio.gather(
                     *(
@@ -106,7 +108,7 @@ class PingStatus:
                     return_exceptions=True,
                 )
 
-                for entry_addresses, result in zip(entry_addresses, results):
+                for entry_address_pair, result in zip(entry_addresses, results):
                     if isinstance(result, Exception):
                         ping_result = False
                     elif isinstance(result, BaseException):
@@ -114,7 +116,7 @@ class PingStatus:
                     else:
                         host: Host = result
                         ping_result = host.is_alive
-                    entry: DashboardEntry = entry_addresses[0]
+                    entry: DashboardEntry = entry_address_pair[0]
                     # If we can reach it via ping, we always set it
                     # online, however if we can't reach it via ping
                     # we only set it to offline if the state is unknown
