@@ -2,9 +2,7 @@
 #include "esphome/core/build_info_data.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
-#ifdef USE_OTA
-#include "esphome/core/ota_wake_hook.h"
-#endif
+#include "esphome/core/wake.h"
 #include <cstring>
 
 #ifdef USE_ESP8266
@@ -452,16 +450,19 @@ void Application::enable_pending_loops_() {
   }
 }
 
-#ifdef USE_OTA
-// Storage for the inline OTA wake hook (see esphome/core/ota_wake_hook.h). Set in
-// Application::set_ota_wake_component() and read from the lwip fast-select callback on
-// every NETCONN_EVT_RCVPLUS. Kept as raw C globals so the .c file can inline the wake
-// body (two volatile stores) without a function-call round trip into application.cpp.
+// Storage for the inline OTA wake hook (see esphome/core/wake.h). Set in
+// Application::set_ota_wake_component() and read from the lwip fast-select callback
+// on every NETCONN_EVT_RCVPLUS. Kept as raw C globals so the .c file can inline the
+// wake body (two volatile stores) without a function-call round trip. Defined
+// unconditionally so wake.h's inline compiles the same whether or not OTA is in the
+// build — when OTA is absent nothing ever calls set_ota_wake_component() and the
+// pointers stay nullptr, collapsing the inline to a single null check.
 extern "C" {
 volatile bool *esphome_ota_pending_enable_loop_ptr = nullptr;
 volatile bool *esphome_ota_has_pending_requests_ptr = nullptr;
 }
 
+#ifdef USE_OTA
 void Application::set_ota_wake_component(Component *component) {
   // Application is a friend of Component — can take the address of its protected
   // pending_enable_loop_ field. The C-side inline hook writes through that pointer when

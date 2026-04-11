@@ -561,12 +561,12 @@ class Application {
 
 #ifdef USE_OTA
   /// Register the OTA component so socket-wake paths can enable its loop when a new
-  /// connection arrives on the listening socket. Captures the address of the component's
-  /// pending_enable_loop_ flag and the Application has_pending_enable_loop_requests_ flag
-  /// into extern C globals consumed by the inline wake hook in ota_wake_hook.h. Defined
-  /// out-of-line in application.cpp so application.h doesn't need to pull in the hook
-  /// header. OTA calls this once from setup(); the component itself then self-disables
-  /// its loop on its first idle tick.
+  /// connection arrives on the listening socket. Captures the addresses of the component's
+  /// pending_enable_loop_ flag and Application's has_pending_enable_loop_requests_ flag
+  /// into extern-C globals consumed by the inline wake hook in wake.h. Defined out-of-line
+  /// in application.cpp so application.h doesn't need to pull in wake.h. OTA calls this
+  /// once from setup(); the component itself then self-disables its loop on its first
+  /// idle tick.
   void set_ota_wake_component(Component *component);
 #endif
 
