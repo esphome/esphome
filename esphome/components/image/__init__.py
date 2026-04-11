@@ -190,6 +190,51 @@ class ImageBinary(ImageEncoder):
             self.index += 1
 
 
+class Image4Gray(ImageEncoder):
+    allow_config = {CONF_ALPHA_CHANNEL, CONF_CHROMA_KEY, CONF_INVERT_ALPHA, CONF_OPAQUE}
+
+    def convert(self, image, path):
+        if is_alpha_only(image):
+            if self.transparency != CONF_ALPHA_CHANNEL:
+                _LOGGER.warning(
+                    "Grayscale image %s is alpha only, but transparency is set to %s",
+                    path,
+                    self.transparency,
+                )
+                self.transparency = CONF_ALPHA_CHANNEL
+            image = image.split()[-1]
+        if self.dither != "NONE":
+            # Create a palette image with the 4 grayscale values we want to dither to
+            palette = Image.new("P", (1, 4))
+            palette.putpalette(
+                [0, 0, 0, 85, 85, 85, 170, 170, 170, 255, 255, 255] + [0, 0, 0] * 252
+            )
+            image = image.convert("RGB").quantize(palette=palette, dither=self.dither)
+
+        return image.convert("LA")
+
+    def encode(self, pixel):
+        b, a = pixel
+        if self.transparency == CONF_CHROMA_KEY:
+            if b == 1:
+                b = 0
+            if a != 0xFF:
+                b = 1
+        if self.invert_alpha:
+            b ^= 0xFF
+        if self.transparency == CONF_ALPHA_CHANNEL and a != 0xFF:
+            b = a
+
+        # Quantize to 2-bit grayscale (0-3)
+        b = (b >> 6) & 0x03
+
+        # Pack four 2-bit values into a single byte
+        shift = (3 - (self.index % 4)) * 2
+        self.data[self.index // 4] |= b << shift
+
+        self.index += 1
+
+
 class ImageGrayscale(ImageEncoder):
     allow_config = {CONF_ALPHA_CHANNEL, CONF_CHROMA_KEY, CONF_INVERT_ALPHA, CONF_OPAQUE}
 
@@ -327,6 +372,7 @@ class ReplaceWith:
 
 IMAGE_TYPE = {
     "BINARY": ImageBinary,
+    "4GRAY": Image4Gray,
     "GRAYSCALE": ImageGrayscale,
     "RGB565": ImageRGB565,
     "RGB": ImageRGB,
