@@ -118,19 +118,23 @@ void ESPHomeOTAComponent::loop() {
   const uint32_t wake_count = App.ota_wake_count_debug();
 #ifdef USE_LWIP_FAST_SELECT
   const uint32_t total_rcvplus = esphome_fast_select_rcvplus_total_debug;
+  const uint32_t shim_count = esphome_ota_shim_call_count_debug;
 #else
   const uint32_t total_rcvplus = 0;
+  const uint32_t shim_count = 0;
 #endif
   const bool ready = this->server_->ready();
   static uint32_t last_wake_count = 0;
   static uint32_t last_total_rcvplus = 0;
+  static uint32_t last_shim_count = 0;
   static bool last_ready = false;
-  if (wake_count != last_wake_count || total_rcvplus != last_total_rcvplus || ready != last_ready ||
-      this->client_ != nullptr) {
-    ESP_LOGD(TAG, "loop tick: client=%p ready=%d wakes=%u total_rcvplus=%u", (void *) this->client_.get(), ready,
-             wake_count, total_rcvplus);
+  if (wake_count != last_wake_count || total_rcvplus != last_total_rcvplus || shim_count != last_shim_count ||
+      ready != last_ready || this->client_ != nullptr) {
+    ESP_LOGD(TAG, "loop tick: client=%p ready=%d wakes=%u shim=%u total_rcvplus=%u", (void *) this->client_.get(),
+             ready, wake_count, shim_count, total_rcvplus);
     last_wake_count = wake_count;
     last_total_rcvplus = total_rcvplus;
+    last_shim_count = shim_count;
     last_ready = ready;
   }
   if (this->client_ == nullptr && !ready) {
