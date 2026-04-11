@@ -20,6 +20,7 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_PULSES,
     UNIT_PULSES_PER_MINUTE,
+    Framework,
 )
 
 pulse_counter_ulp_ns = cg.esphome_ns.namespace("pulse_counter_ulp")
@@ -97,6 +98,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("60s")),
     cv.only_on_esp32,
+    cv.only_with_framework(Framework.ESP_IDF),
 )
 
 
