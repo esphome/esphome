@@ -25,10 +25,14 @@ void StatusLED::dump_config() {
 }
 void StatusLED::loop() {
   const uint32_t app_state = App.get_app_state();
+  // Use millis() rather than App.get_loop_component_start_time() because this loop is also
+  // dispatched from Application::feed_wdt() during long blocking operations, where the cached
+  // per-component timestamp doesn't advance and would freeze the blink pattern.
+  const uint32_t now = millis();
   if ((app_state & STATUS_LED_ERROR) != 0u) {
-    this->pin_->digital_write(App.get_loop_component_start_time() % ERROR_PERIOD_MS < ERROR_ON_MS);
+    this->pin_->digital_write(now % ERROR_PERIOD_MS < ERROR_ON_MS);
   } else if ((app_state & STATUS_LED_WARNING) != 0u) {
-    this->pin_->digital_write(App.get_loop_component_start_time() % WARNING_PERIOD_MS < WARNING_ON_MS);
+    this->pin_->digital_write(now % WARNING_PERIOD_MS < WARNING_ON_MS);
   } else {
     this->pin_->digital_write(false);
     this->disable_loop();
