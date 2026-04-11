@@ -290,11 +290,13 @@ class Application {
 
   Scheduler scheduler;
 
-  /// Register/unregister a socket to be monitored for read events.
-  /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop.
 #ifdef USE_HOST
-  /// Fallback select() path: monitors file descriptors.
+  /// Register/unregister a socket file descriptor with the host select() fallback loop.
+  /// USE_LWIP_FAST_SELECT builds do not use this API — sockets hook the lwIP netconn
+  /// event_callback directly (see socket.h fast_select_hook_fd) and rely on FreeRTOS
+  /// task notifications for wake-up.
   /// NOTE: File descriptors >= FD_SETSIZE (typically 10 on ESP) will be rejected with an error.
+  /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop.
   /// @return true if registration was successful, false if fd exceeds limits
   bool register_socket_fd(int fd);
   void unregister_socket_fd(int fd);
