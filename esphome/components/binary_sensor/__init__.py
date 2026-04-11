@@ -332,7 +332,9 @@ def parse_multi_click_timing_str(value):
     try:
         state = cv.boolean(parts[0])
     except cv.Invalid:
-        raise cv.Invalid(f"First word must either be ON or OFF, not {parts[0]}") from None
+        raise cv.Invalid(
+            f"First word must either be ON or OFF, not {parts[0]}"
+        ) from None
 
     if parts[1] != "for":
         raise cv.Invalid(f"Second word must be 'for', got {parts[1]}")
@@ -349,7 +351,9 @@ def parse_multi_click_timing_str(value):
         try:
             length = cv.positive_time_period_milliseconds(parts[4])
         except cv.Invalid as err:
-            raise cv.Invalid(f"Multi Click Grammar Parsing length failed: {err}") from err
+            raise cv.Invalid(
+                f"Multi Click Grammar Parsing length failed: {err}"
+            ) from err
         return {CONF_STATE: state, key: str(length)}
 
     if parts[3] != "to":
@@ -358,12 +362,16 @@ def parse_multi_click_timing_str(value):
     try:
         min_length = cv.positive_time_period_milliseconds(parts[2])
     except cv.Invalid as err:
-        raise cv.Invalid(f"Multi Click Grammar Parsing minimum length failed: {err}") from err
+        raise cv.Invalid(
+            f"Multi Click Grammar Parsing minimum length failed: {err}"
+        ) from err
 
     try:
         max_length = cv.positive_time_period_milliseconds(parts[4])
     except cv.Invalid as err:
-        raise cv.Invalid(f"Multi Click Grammar Parsing minimum length failed: {err}") from err
+        raise cv.Invalid(
+            f"Multi Click Grammar Parsing minimum length failed: {err}"
+        ) from err
 
     return {
         CONF_STATE: state,

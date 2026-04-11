@@ -544,7 +544,9 @@ def int_(value):
     try:
         return int(value, base)
     except ValueError:
-        raise Invalid(f"Expected integer, but cannot parse {value} as an integer") from None
+        raise Invalid(
+            f"Expected integer, but cannot parse {value} as an integer"
+        ) from None
 
 
 def int_range(min=None, max=None, min_included=True, max_included=True):
@@ -1075,7 +1077,9 @@ def mac_address(value):
         try:
             parts_int.append(int(part, 16))
         except ValueError:
-            raise Invalid("MAC Address parts must be hexadecimal values from 00 to FF") from None
+            raise Invalid(
+                "MAC Address parts must be hexadecimal values from 00 to FF"
+            ) from None
 
     return core.MACAddress(*parts_int)
 

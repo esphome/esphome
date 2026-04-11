@@ -35,7 +35,9 @@ def validate_acceleration(value):
     try:
         value = float(value)
     except ValueError:
-        raise cv.Invalid(f"Expected acceleration as floating point number, got {value}") from None
+        raise cv.Invalid(
+            f"Expected acceleration as floating point number, got {value}"
+        ) from None
 
     if value <= 0:
         raise cv.Invalid("Acceleration must be larger than 0 steps/s^2!")
@@ -54,7 +56,9 @@ def validate_speed(value):
     try:
         value = float(value)
     except ValueError:
-        raise cv.Invalid(f"Expected speed as floating point number, got {value}") from None
+        raise cv.Invalid(
+            f"Expected speed as floating point number, got {value}"
+        ) from None
 
     if value <= 0:
         raise cv.Invalid("Speed must be larger than 0 steps/s!")
