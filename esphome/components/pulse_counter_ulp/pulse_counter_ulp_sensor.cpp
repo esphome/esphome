@@ -1,6 +1,7 @@
 #include "pulse_counter_ulp_sensor.h"
 #include "driver/rtc_io.h"
-#include "esp32/ulp.h"
+#include "ulp_common.h"
+#include "ulp_fsm_common.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "soc/rtc_periph.h"
