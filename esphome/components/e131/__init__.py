@@ -29,7 +29,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(E131Component),
         cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(*METHODS, upper=True),
     }
-)
+).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config):
