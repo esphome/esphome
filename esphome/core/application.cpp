@@ -563,8 +563,10 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     // ret == 0: timeout occurred - normal and expected
     if (ret >= 0) [[likely]] {
 #ifdef USE_OTA
-      // A socket is ready; re-enable the OTA component loop if it disabled itself while idle.
-      // The wake is a no-op if OTA didn't register or is already active.
+      // Dead code today — host does not currently support the esphome OTA platform,
+      // so ota_wake_component_ is never set and this call is a no-op. Kept so the
+      // wake path works out of the box if host ever gains OTA support. Harmless
+      // cost: a single nullptr check per select() return.
       if (ret > 0) {
         this->wake_ota_component_any_context();
       }
