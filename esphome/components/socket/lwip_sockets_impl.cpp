@@ -14,7 +14,7 @@ LwIPSocketImpl::LwIPSocketImpl(int fd, bool monitor_loop) {
   if (!monitor_loop || this->fd_ < 0)
     return;
 #ifdef USE_LWIP_FAST_SELECT
-  this->cached_sock_ = fast_select_hook_fd(this->fd_);
+  this->cached_sock_ = hook_fd_for_fast_select(this->fd_);
 #else
   this->loop_monitored_ = App.register_socket_fd(this->fd_);
 #endif
