@@ -53,7 +53,7 @@ def _cidr_network(value):
     try:
         ipaddress.ip_network(value, strict=False)
     except ValueError as err:
-        raise cv.Invalid(f"Invalid network in CIDR notation: {err}")
+        raise cv.Invalid(f"Invalid network in CIDR notation: {err}") from err
     return value
 
 

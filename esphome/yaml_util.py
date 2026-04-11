@@ -338,10 +338,9 @@ class ESPHomeLoaderMixin:
                 try:
                     hash(key)
                 except TypeError:
-                    # pylint: disable=raise-missing-from
                     raise yaml.constructor.ConstructorError(
                         f'Invalid key "{key}" (not hashable)', key_node.start_mark
-                    )
+                    ) from None
 
                 key = make_data_base(str(key))
                 key.from_node(key_node)
