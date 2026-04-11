@@ -661,7 +661,16 @@ class Application {
   // These are static because yield_with_select_() is inlined at every call site.
   static std::atomic<uint32_t> fast_select_scan_total_;
   static std::atomic<uint32_t> fast_select_scan_found_data_;
+  // Umbrella counter: pre-scan notify peek was 0 and scan found data.
+  // Broken down into three buckets based on the post-scan spin-poll result:
+  //   _race_  — notify arrived in < 10µs   (callback-ordering race, scan is noise)
+  //   _micro_ — notify arrived in 10..100µs (still noise at loop_interval scale)
+  //   _stall_ — notify did not arrive within 100µs (the only case that could be a real stall)
+  // If _stall_ stays 0, the scan is provably irrelevant under this workload.
   static std::atomic<uint32_t> fast_select_scan_load_bearing_;
+  static std::atomic<uint32_t> fast_select_scan_load_bearing_race_;
+  static std::atomic<uint32_t> fast_select_scan_load_bearing_micro_;
+  static std::atomic<uint32_t> fast_select_scan_load_bearing_stall_;
   uint32_t fast_select_scan_stats_last_log_{0};
   void log_fast_select_scan_stats_();
   // Non-inline, called only on the rare load-bearing event so the hot path stays unchanged.

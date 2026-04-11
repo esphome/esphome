@@ -453,17 +453,62 @@ void Application::enable_pending_loops_() {
 std::atomic<uint32_t> Application::fast_select_scan_total_{0};
 std::atomic<uint32_t> Application::fast_select_scan_found_data_{0};
 std::atomic<uint32_t> Application::fast_select_scan_load_bearing_{0};
+std::atomic<uint32_t> Application::fast_select_scan_load_bearing_race_{0};
+std::atomic<uint32_t> Application::fast_select_scan_load_bearing_micro_{0};
+std::atomic<uint32_t> Application::fast_select_scan_load_bearing_stall_{0};
 
 void Application::log_fast_select_scan_stats_() {
   uint32_t total = fast_select_scan_total_.load(std::memory_order_relaxed);
   uint32_t found = fast_select_scan_found_data_.load(std::memory_order_relaxed);
   uint32_t load_bearing = fast_select_scan_load_bearing_.load(std::memory_order_relaxed);
-  ESP_LOGD(TAG, "fast_select scan: total=%" PRIu32 " found_data=%" PRIu32 " load_bearing=%" PRIu32, total, found,
-           load_bearing);
+  uint32_t lb_race = fast_select_scan_load_bearing_race_.load(std::memory_order_relaxed);
+  uint32_t lb_micro = fast_select_scan_load_bearing_micro_.load(std::memory_order_relaxed);
+  uint32_t lb_stall = fast_select_scan_load_bearing_stall_.load(std::memory_order_relaxed);
+  ESP_LOGD(TAG,
+           "fast_select scan: total=%" PRIu32 " found_data=%" PRIu32 " load_bearing=%" PRIu32 " (race<10us=%" PRIu32
+           " micro<100us=%" PRIu32 " stall>100us=%" PRIu32 ")",
+           total, found, load_bearing, lb_race, lb_micro, lb_stall);
 }
 
 void Application::note_fast_select_load_bearing_(struct lwip_sock *sock, uint32_t delay_ms) {
   uint32_t load_bearing = fast_select_scan_load_bearing_.fetch_add(1, std::memory_order_relaxed) + 1;
+
+  // Spin-poll the task notification value for a short bounded window to measure how long
+  // the counterfactual ulTaskNotifyTake would actually have blocked. This distinguishes
+  // three cases:
+  //   race  (<10µs)   — notification arrived within ~10µs of scan start: callback-ordering
+  //                     race between the lwip event_callback writing rcvevent and calling
+  //                     xTaskNotifyGive a few instructions later. Scan is noise.
+  //   micro (<100µs)  — notification arrived within 100µs: still noise at loop_interval scale.
+  //   stall (≥100µs)  — notification did not arrive within our polling window. This is the
+  //                     only case where the scan could be rescuing a real latency spike.
+  // Cap the spin at 100µs so that if we're wrong and this IS a real stall, we only add
+  // 100µs of extra work to that one unlucky loop iteration.
+  uint32_t t_start = micros();
+  uint32_t gap_us = UINT32_MAX;
+  while (true) {
+    if (ulTaskNotifyValueClear(nullptr, 0) != 0) {
+      gap_us = micros() - t_start;
+      break;
+    }
+    uint32_t elapsed = micros() - t_start;
+    if (elapsed >= 100) {
+      break;
+    }
+  }
+
+  const char *bucket;
+  if (gap_us == UINT32_MAX) {
+    fast_select_scan_load_bearing_stall_.fetch_add(1, std::memory_order_relaxed);
+    bucket = "STALL";
+  } else if (gap_us < 10) {
+    fast_select_scan_load_bearing_race_.fetch_add(1, std::memory_order_relaxed);
+    bucket = "race";
+  } else {
+    fast_select_scan_load_bearing_micro_.fetch_add(1, std::memory_order_relaxed);
+    bucket = "micro";
+  }
+
   // Find the socket's index in monitored_sockets_ for easier correlation with registration order.
   int index = -1;
   for (size_t i = 0; i < this->monitored_sockets_.size(); i++) {
@@ -483,11 +528,19 @@ void Application::note_fast_select_load_bearing_(struct lwip_sock *sock, uint32_
     if (esphome_lwip_socket_has_data(s))
       sockets_with_data++;
   }
-  ESP_LOGW(TAG,
-           "fast_select LOAD-BEARING hit #%" PRIu32 ": sock=%p idx=%d/%u rcvevent=%d delay_ms=%" PRIu32
-           " sockets_with_data=%u",
-           load_bearing, sock, index, static_cast<unsigned>(this->monitored_sockets_.size()), rcvevent, delay_ms,
-           static_cast<unsigned>(sockets_with_data));
+  if (gap_us == UINT32_MAX) {
+    ESP_LOGW(TAG,
+             "fast_select LOAD-BEARING #%" PRIu32 " [%s]: sock=%p idx=%d/%u rcvevent=%d delay_ms=%" PRIu32
+             " sockets_with_data=%u gap_us=>100",
+             load_bearing, bucket, sock, index, static_cast<unsigned>(this->monitored_sockets_.size()), rcvevent,
+             delay_ms, static_cast<unsigned>(sockets_with_data));
+  } else {
+    ESP_LOGW(TAG,
+             "fast_select LOAD-BEARING #%" PRIu32 " [%s]: sock=%p idx=%d/%u rcvevent=%d delay_ms=%" PRIu32
+             " sockets_with_data=%u gap_us=%" PRIu32,
+             load_bearing, bucket, sock, index, static_cast<unsigned>(this->monitored_sockets_.size()), rcvevent,
+             delay_ms, static_cast<unsigned>(sockets_with_data), gap_us);
+  }
 }
 
 bool Application::register_socket(struct lwip_sock *sock) {
