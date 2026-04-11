@@ -15,33 +15,28 @@ LwIPSocketImpl::LwIPSocketImpl(int fd, bool monitor_loop) {
     return;
 #ifdef USE_LWIP_FAST_SELECT
   this->cached_sock_ = fast_select_hook_fd(this->fd_);
-  this->loop_monitored_ = this->cached_sock_ != nullptr;
 #else
   this->loop_monitored_ = App.register_socket_fd(this->fd_);
 #endif
 }
 
-LwIPSocketImpl::~LwIPSocketImpl() {
-  if (!this->closed_) {
-    this->close();
-  }
-}
+LwIPSocketImpl::~LwIPSocketImpl() { this->close(); }
 
 int LwIPSocketImpl::close() {
-  if (!this->closed_) {
-#ifndef USE_LWIP_FAST_SELECT
-    // All LwIP sockets share the same static event_callback, so on the fast-select path
-    // there is no per-socket unhook needed. cached_sock_ is not cleared because closed_
-    // makes the socket a corpse — no ready() or other member access is valid afterwards.
-    if (this->loop_monitored_) {
-      App.unregister_socket_fd(this->fd_);
-    }
-#endif
-    int ret = lwip_close(this->fd_);
-    this->closed_ = true;
-    return ret;
+  if (this->fd_ < 0) {
+    // Already closed, or never opened.
+    return 0;
   }
-  return 0;
+#ifndef USE_LWIP_FAST_SELECT
+  // On the fast-select path there is no per-socket unhook needed — all LwIP sockets
+  // share the same static event_callback.
+  if (this->loop_monitored_) {
+    App.unregister_socket_fd(this->fd_);
+  }
+#endif
+  int ret = lwip_close(this->fd_);
+  this->fd_ = -1;  // Sentinel for "closed" — prevents double-close and makes use-after-close visible.
+  return ret;
 }
 
 int LwIPSocketImpl::setblocking(bool blocking) {

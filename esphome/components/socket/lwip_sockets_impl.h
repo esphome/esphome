@@ -85,12 +85,17 @@ class LwIPSocketImpl {
   int get_fd() const { return this->fd_; }
 
  protected:
+  // fd_ < 0 means "not open" — used both pre-open (initial state) and post-close. This
+  // replaces a separate closed_ flag: close() sets fd_ = -1 after lwip_close(), and the
+  // destructor / double-close path just check fd_ < 0.
   int fd_{-1};
 #ifdef USE_LWIP_FAST_SELECT
+  // Non-null iff this socket is being monitored for read events. Replaces loop_monitored_
+  // on the fast-select path: the pointer itself carries the "monitored" bit.
   struct lwip_sock *cached_sock_{nullptr};  // Cached for direct rcvevent read in ready()
-#endif
-  bool closed_{false};
+#else
   bool loop_monitored_{false};
+#endif
 };
 
 }  // namespace esphome::socket

@@ -42,8 +42,11 @@ using ListenSocket = LWIPRawListenImpl;
 
 #ifdef USE_LWIP_FAST_SELECT
 /// Shared ready() helper using cached lwip_sock pointer for direct rcvevent read.
-inline bool socket_ready(struct lwip_sock *cached_sock, bool loop_monitored) {
-  return !loop_monitored || (cached_sock != nullptr && esphome_lwip_socket_has_data(cached_sock));
+/// cached_sock == nullptr means the socket is not monitored (monitor_loop was false, fd
+/// was invalid, or esphome_lwip_get_sock() failed) — in that case return true so the
+/// caller attempts the read and handles blocking itself.
+inline bool socket_ready(struct lwip_sock *cached_sock) {
+  return cached_sock == nullptr || esphome_lwip_socket_has_data(cached_sock);
 }
 
 /// Resolve an fd to its lwip_sock and hook the netconn event callback so the main loop
@@ -80,7 +83,7 @@ bool socket_ready_fd(int fd, bool loop_monitored);
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 inline bool Socket::ready() const {
 #ifdef USE_LWIP_FAST_SELECT
-  return socket_ready(this->cached_sock_, this->loop_monitored_);
+  return socket_ready(this->cached_sock_);
 #else
   return socket_ready_fd(this->fd_, this->loop_monitored_);
 #endif
