@@ -66,11 +66,9 @@ void ESPHomeOTAComponent::setup() {
     return;
   }
 
-  // Disable loop() while idle. Socket wake paths (LwIP fast select, raw TCP accept
-  // callback, host select) call App.wake_ota_component_any_context() which re-enables
-  // this component's loop when an incoming connection arrives.
+  // Register for socket wake notifications. loop() disables itself on its first
+  // idle tick — no need to disable_loop() here explicitly.
   App.set_ota_wake_component(this);
-  this->disable_loop();
 }
 
 void ESPHomeOTAComponent::dump_config() {
@@ -87,17 +85,21 @@ void ESPHomeOTAComponent::dump_config() {
 }
 
 void ESPHomeOTAComponent::loop() {
-  // loop() starts disabled while idle (setup() calls disable_loop()). Socket-wake
-  // paths (LwIP fast select, raw TCP accept, host select) mark us pending-enable
-  // via App.wake_ota_component_any_context() when a monitored socket signals
-  // activity; enable_pending_loops_() then re-activates us. False wakes (e.g. an
-  // API-socket event on an unrelated monitored socket) land here with no pending
-  // work, and this early-return disables the loop again.
+  // Self-disabling idle loop. On the first tick after setup() (and after every
+  // session cleanup and after every false wake), if there's no client and the
+  // listener has nothing queued, we disable ourselves and go back to sleep.
+  // Socket-wake paths (LwIP fast select, raw TCP accept, host select) mark us
+  // pending-enable via App.wake_ota_component_any_context() when a monitored
+  // socket signals activity, and enable_pending_loops_() reactivates us.
+  //
+  // False wakes from unrelated monitored sockets are expected — the event
+  // callbacks fire on every RCVPLUS across all monitored sockets, not just
+  // OTA's listener — and they land here with no pending work.
   //
   // cleanup_connection_() deliberately does NOT call disable_loop() — letting
   // loop() run one more iteration after a session ends guarantees we re-read
-  // server_->ready() and either accept a client queued during the session or
-  // disable cleanly here.
+  // server_->ready() and either accept a client that queued during the session
+  // or disable cleanly here.
   //
   // Note: No need to check server_ for null — setup() marks the component failed
   // if server_ creation fails.
