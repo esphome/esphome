@@ -49,7 +49,11 @@ class BaseFont
 #endif
 {
  public:
+#ifdef USE_DISPLAY
+  ~BaseFont() override = default;
+#else
   virtual ~BaseFont() = default;
+#endif
 #ifdef USE_LVGL_FONT
   const lv_font_t *get_lv_font() const { return this->get_lv_font(0); }
   virtual const lv_font_t *get_lv_font(int size) const = 0;

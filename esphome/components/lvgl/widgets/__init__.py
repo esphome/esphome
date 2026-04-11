@@ -577,7 +577,7 @@ async def set_obj_properties(w: Widget, config):
                 size = props.get("text_size", 0)
                 validator = ALL_STYLES["text_font"]
                 if isinstance(validator, LValidator):
-                    value = await validator.process(value, size=size)
+                    value = await validator.process(value, font_size=size)
                 w.set_style("text_font", value, lv_state)
             for prop, value in {
                 k: v for k, v in props.items() if k in ALL_STYLES

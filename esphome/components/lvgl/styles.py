@@ -21,7 +21,7 @@ async def style_set(svar, style):
         size = style.get("text_size", 0)
         validator = ALL_STYLES["text_font"]
         if isinstance(validator, LValidator):
-            value = await validator.process(value, size=size)
+            value = await validator.process(value, font_size=size)
         lv.call("style_set_text_font", svar, value)
 
     for prop, validator in ALL_STYLES.items():
