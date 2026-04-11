@@ -45,7 +45,7 @@ inline constexpr pte_Placement TEXT_TOP = 0x10;
 inline constexpr pte_Placement TEXT_BOTTOM = 0x20;
 inline constexpr pte_Placement TEXT_CENTER = 0;
 
-struct pte_glyph {
+struct PteGlyph {
   uint32_t code;
   int width;
   int height;
@@ -55,14 +55,14 @@ struct pte_glyph {
   int ptr;
 };
 
-struct pte_kern {
+struct PteKern {
   uint32_t first;
   uint32_t second;
 
   int amount;
 };
 
-struct pte_base_font {
+struct PteBaseFont {
   // The size of the font
   int m_size;
 
@@ -71,20 +71,20 @@ struct pte_base_font {
 
   // The glyph data
   int m_number_glyphs;
-  const pte_glyph *m_gylphs;
+  const PteGlyph *m_gylphs;
 
   // The kerning data
   int m_number_kerns;
-  const pte_kern *m_kerns;
+  const PteKern *m_kerns;
 
   // Placement
   int m_line_height;
   int m_baseline;
 };
 
-struct pte_font_t {
+struct PteFontT {
   // The base font
-  const pte_base_font *m_font;
+  const PteBaseFont *m_font;
 
   // Resizing data
   int m_ra;
@@ -101,55 +101,55 @@ struct pte_font_t {
 
 // Draw text at x,y (in pixels).
 // Parameters:
-//      font        - the font to use, create using the pte_getFont() function
+//      font        - the font to use, create using the pte_get_font() function
 //      x           - x position to start drawing the text
 //      y           - y position of the font's baseline
 //      r           - the rotation (0, 90, 180 and 270)
 //      text        - the text to render
 //      size        - the number of characters in "text" or -1 to read until the nul character
-//      c           - the colour to draw the text, this is passed directly to the hw_blendPixel function
+//      c           - the colour to draw the text, this is passed directly to the hw_blend_pixel function
 //
-int pte_drawText(pte_font_t *font, int x, int y, int r, const char *text, size_t size, int c);
+int pte_draw_text(PteFontT *font, int x, int y, int r, const char *text, size_t size, int c);
 
 // Draw text using a rectangle for positioning.  Note: the text is *not* clipped to the rectangle
 // Parameters:
 //      o               - the placement within the rectangle to draw the text, see pte_Placement
-//      font            - the font to use, create using the pte_getFont() function
+//      font            - the font to use, create using the pte_get_font() function
 //      x1, y1, x2, y2  - the rectangle
 //      r               - the rotation (0, 90, 180 and 270)
 //      text            - the text to render
 //      size            - the number of characters in "text" or -1 to read until the nul character
-//      c               - the colour to draw the text, this is passed directly to the hw_blendPixel function
+//      c               - the colour to draw the text, this is passed directly to the hw_blend_pixel function
 //
-void pte_drawTextRect(pte_Placement o, pte_font_t *f, int x1, int y1, int x2, int y2, int r, const char *text,
-                      size_t size, int c);
+void pte_draw_text_rect(pte_Placement o, PteFontT *f, int x1, int y1, int x2, int y2, int r, const char *text,
+                        size_t size, int c);
 
 // Draw text using a rectangle for positioning.  The text is wrapped to fit within the rectangle.
 //      o               - the placement within the rectangle to draw the text, see pte_Placement
-//      font            - the font to use, create using the pte_getFont() function
+//      font            - the font to use, create using the pte_get_font() function
 //      x1, y1, x2, y2  - the rectangle
 //      r               - the rotation (0, 90, 180 and 270)
 //      text            - the text to render
 //      size            - the number of characters in "text" or -1 to read until the nul character
-//      c               - the colour to draw the text, this is passed directly to the hw_blendPixel function
+//      c               - the colour to draw the text, this is passed directly to the hw_blend_pixel function
 //
-void pte_drawTextRectWrapped(pte_Placement o, pte_font_t *f, int x1, int y1, int x2, int y2, int r, const char *text,
-                             size_t size, int c);
+void pte_draw_text_rect_wrapped(pte_Placement o, PteFontT *f, int x1, int y1, int x2, int y2, int r,
+                                const char *text, size_t size, int c);
 
 // Determine the bounding rectangle for a string in pixels
 // Parameters:
-//      font        - the font to use, create using the pte_getFont() function
+//      font        - the font to use, create using the pte_get_font() function
 //      text        - the text to measure
 //      size        - the number of characters in "text" or -1 to read until the nul character
 //      dx          - the width of the string in pixels
 //      dy          - the height of the string in pixels
 //
-void pte_measureText(pte_font_t *f, const char *text, size_t size, int *dx, int *dy);
+void pte_measure_text(PteFontT *f, const char *text, size_t size, int *dx, int *dy);
 
 // Get a font
-pte_font_t pte_getFont(const pte_base_font *f, int size);
+PteFontT pte_get_font(const PteBaseFont *f, int size);
 
 // Interface to the hardware
-void hw_blendPixel(int x, int y, int a, int col);
+void hw_blend_pixel(int x, int y, int a, int col);
 
 }  // namespace esphome::font

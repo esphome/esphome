@@ -25,7 +25,7 @@ namespace esphome {
 namespace font {
 
 #ifdef USE_FONT_PTE
-void hw_blendPixel(int x, int y, int a, int col) {
+void hw_blend_pixel(int x, int y, int a, int col) {
   (void) col;
 
   if (g_pte_measure_bounds) {
@@ -359,7 +359,7 @@ const Glyph *Font::find_glyph(uint32_t codepoint) const {
 }
 
 #ifdef USE_FONT_PTE
-PTEFont::PTEFont(int sample_size, const uint8_t *data, const pte_glyph *glyphs, int glyph_count, const pte_kern *kerns,
+PTEFont::PTEFont(int sample_size, const uint8_t *data, const PteGlyph *glyphs, int glyph_count, const PteKern *kerns,
                  int kern_count, int line_height, int baseline, int default_render_size)
     : default_render_size_(default_render_size) {
   this->base_font_.m_size = sample_size;
@@ -381,7 +381,7 @@ int PTEFont::scale_box_(int value, int size) const {
   return (value * size + this->base_font_.m_size - 1) / this->base_font_.m_size;
 }
 
-const pte_glyph *PTEFont::find_glyph_(uint32_t codepoint) const {
+const PteGlyph *PTEFont::find_glyph_(uint32_t codepoint) const {
   int lo = 0;
   int hi = this->base_font_.m_number_glyphs - 1;
   while (lo <= hi) {
@@ -399,7 +399,7 @@ const pte_glyph *PTEFont::find_glyph_(uint32_t codepoint) const {
   return nullptr;
 }
 
-const pte_kern *PTEFont::find_kern_(uint32_t first, uint32_t second) const {
+const PteKern *PTEFont::find_kern_(uint32_t first, uint32_t second) const {
   if (this->base_font_.m_kerns == nullptr || this->base_font_.m_number_kerns == 0) {
     return nullptr;
   }
@@ -447,7 +447,7 @@ const lv_font_t *PTEFont::get_lv_font(int size) const {
   auto adapter = std::make_unique<LVGLFontAdapter>();
   adapter->owner = this;
   adapter->size = size;
-  const auto scaled = pte_getFont(&this->base_font_, size);
+  const auto scaled = pte_get_font(&this->base_font_, size);
   adapter->lv_font.dsc = adapter.get();
   adapter->lv_font.line_height = scaled.m_line_height;
   adapter->lv_font.base_line = scaled.m_line_height - scaled.m_baseline;
@@ -461,7 +461,7 @@ const lv_font_t *PTEFont::get_lv_font(int size) const {
   return result;
 }
 
-const pte_glyph *PTEFont::get_lv_glyph_data_(const LVGLFontAdapter *adapter, uint32_t unicode_letter) const {
+const PteGlyph *PTEFont::get_lv_glyph_data_(const LVGLFontAdapter *adapter, uint32_t unicode_letter) const {
   if (unicode_letter == adapter->last_letter && adapter->last_letter != 0) {
     return adapter->last_data;
   }
@@ -504,7 +504,7 @@ size_t PTEFont::encode_utf8_(uint32_t codepoint, char *buffer) {
   return 4;
 }
 
-bool PTEFont::measure_lv_glyph_bounds_(const LVGLFontAdapter *adapter, const pte_glyph *glyph, int *ofs_x, int *ofs_y,
+bool PTEFont::measure_lv_glyph_bounds_(const LVGLFontAdapter *adapter, const PteGlyph *glyph, int *ofs_x, int *ofs_y,
                                        int *box_w, int *box_h) const {
   if (adapter->last_metrics_letter == glyph->code) {
     *ofs_x = adapter->last_metrics_ofs_x;
@@ -516,7 +516,7 @@ bool PTEFont::measure_lv_glyph_bounds_(const LVGLFontAdapter *adapter, const pte
 
   char utf8[5];
   const size_t length = encode_utf8_(glyph->code, utf8);
-  auto scaled = pte_getFont(&this->base_font_, adapter->size);
+  auto scaled = pte_get_font(&this->base_font_, adapter->size);
 
   const int neg_xoffset = glyph->xoffset < 0 ? -glyph->xoffset : 0;
   const int origin_x = this->scale_box_(neg_xoffset + 2, adapter->size) + 4;
@@ -533,7 +533,7 @@ bool PTEFont::measure_lv_glyph_bounds_(const LVGLFontAdapter *adapter, const pte
   g_pte_max_y = -1;
   g_pte_bitmap_width = canvas_w;
   g_pte_bitmap_height = canvas_h;
-  pte_drawText(&scaled, origin_x, origin_y, 0, utf8, length, 0);
+  pte_draw_text(&scaled, origin_x, origin_y, 0, utf8, length, 0);
   g_pte_measure_bounds = false;
   g_pte_bitmap_width = 0;
   g_pte_bitmap_height = 0;
@@ -567,7 +567,7 @@ bool PTEFont::measure_lv_glyph_bounds_(const LVGLFontAdapter *adapter, const pte
   return true;
 }
 
-void PTEFont::render_lv_glyph_bitmap_(const LVGLFontAdapter *adapter, const pte_glyph *glyph, lv_draw_buf_t *draw_buf) {
+void PTEFont::render_lv_glyph_bitmap_(const LVGLFontAdapter *adapter, const PteGlyph *glyph, lv_draw_buf_t *draw_buf) {
   int ofs_x;
   int top_rel_baseline;
   int box_w;
@@ -582,13 +582,13 @@ void PTEFont::render_lv_glyph_bitmap_(const LVGLFontAdapter *adapter, const pte_
 
   char utf8[5];
   const size_t length = encode_utf8_(glyph->code, utf8);
-  auto scaled = pte_getFont(&adapter->owner->base_font_, adapter->size);
+  auto scaled = pte_get_font(&adapter->owner->base_font_, adapter->size);
 
   g_pte_bitmap = bitmap;
   g_pte_bitmap_width = box_w;
   g_pte_bitmap_height = box_h;
   g_pte_bitmap_stride = stride;
-  pte_drawText(&scaled, -ofs_x, -top_rel_baseline, 0, utf8, length, 0);
+  pte_draw_text(&scaled, -ofs_x, -top_rel_baseline, 0, utf8, length, 0);
   g_pte_bitmap = nullptr;
   g_pte_bitmap_width = 0;
   g_pte_bitmap_height = 0;
@@ -659,8 +659,8 @@ void PTEFont::print(int x_start, int y_start, display::Display *display, Color c
   g_pte_color = color;
   g_pte_background = background;
 
-  auto scaled = pte_getFont(&this->base_font_, size);
-  pte_drawText(&scaled, x_start, y_start + scaled.m_baseline, 0, text, static_cast<size_t>(-1), 0);
+  auto scaled = pte_get_font(&this->base_font_, size);
+  pte_draw_text(&scaled, x_start, y_start + scaled.m_baseline, 0, text, static_cast<size_t>(-1), 0);
 
   g_pte_display = saved_display;
   g_pte_color = saved_color;
@@ -676,7 +676,7 @@ void PTEFont::measure(const char *str, int *width, int *x_offset, int *baseline,
     size = this->default_render_size_;
   }
 
-  const auto scaled = pte_getFont(&this->base_font_, size);
+  const auto scaled = pte_get_font(&this->base_font_, size);
   *baseline = scaled.m_baseline;
   *height = scaled.m_line_height;
 

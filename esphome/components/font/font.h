@@ -113,7 +113,7 @@ class Font : public BaseFont {
 #ifdef USE_FONT_PTE
 class PTEFont : public BaseFont {
  public:
-  PTEFont(int sample_size, const uint8_t *data, const pte_glyph *glyphs, int glyph_count, const pte_kern *kerns,
+  PTEFont(int sample_size, const uint8_t *data, const PteGlyph *glyphs, int glyph_count, const PteKern *kerns,
           int kern_count, int line_height, int baseline, int default_render_size = 20);
 
 #ifdef USE_DISPLAY
@@ -133,8 +133,8 @@ class PTEFont : public BaseFont {
  protected:
   int scale_(int value, int size) const;
   int scale_box_(int value, int size) const;
-  const pte_glyph *find_glyph_(uint32_t codepoint) const;
-  const pte_kern *find_kern_(uint32_t first, uint32_t second) const;
+  const PteGlyph *find_glyph_(uint32_t codepoint) const;
+  const PteKern *find_kern_(uint32_t first, uint32_t second) const;
 
 #ifdef USE_LVGL_FONT
   struct LVGLFontAdapter {
@@ -142,7 +142,7 @@ class PTEFont : public BaseFont {
     const PTEFont *owner{nullptr};
     int size{0};
     mutable uint32_t last_letter{0};
-    mutable const pte_glyph *last_data{nullptr};
+    mutable const PteGlyph *last_data{nullptr};
     mutable uint32_t last_metrics_letter{0};
     mutable int last_metrics_ofs_x{0};
     mutable int last_metrics_ofs_y{0};
@@ -153,16 +153,16 @@ class PTEFont : public BaseFont {
   static const void *get_lv_glyph_bitmap_(lv_font_glyph_dsc_t *dsc, lv_draw_buf_t *draw_buf);
   static bool get_lv_glyph_dsc_cb_(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter,
                                    uint32_t next);
-  const pte_glyph *get_lv_glyph_data_(const LVGLFontAdapter *adapter, uint32_t unicode_letter) const;
-  bool measure_lv_glyph_bounds_(const LVGLFontAdapter *adapter, const pte_glyph *glyph, int *ofs_x, int *ofs_y,
+  const PteGlyph *get_lv_glyph_data_(const LVGLFontAdapter *adapter, uint32_t unicode_letter) const;
+  bool measure_lv_glyph_bounds_(const LVGLFontAdapter *adapter, const PteGlyph *glyph, int *ofs_x, int *ofs_y,
                                 int *box_w, int *box_h) const;
   static size_t encode_utf8_(uint32_t codepoint, char *buffer);
-  static void render_lv_glyph_bitmap_(const LVGLFontAdapter *adapter, const pte_glyph *glyph, lv_draw_buf_t *draw_buf);
+  static void render_lv_glyph_bitmap_(const LVGLFontAdapter *adapter, const PteGlyph *glyph, lv_draw_buf_t *draw_buf);
 
   mutable std::vector<std::unique_ptr<LVGLFontAdapter>> lv_fonts_{};
 #endif
 
-  pte_base_font base_font_{};
+  PteBaseFont base_font_{};
   int default_render_size_{20};
 #ifdef USE_DISPLAY
   struct SizedFontCacheEntry {

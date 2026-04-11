@@ -99,7 +99,7 @@ static uint32_t extract_codepoint(const char *utf8_str, size_t *length) {
 }
 
 // Find a character in a font
-static const pte_glyph *findChar(uint32_t c, const pte_base_font *f) {
+static const PteGlyph *find_char(uint32_t c, const PteBaseFont *f) {
   // Do a binary search to find the character
   int l = 0;
   int h = f->m_number_glyphs - 1;
@@ -145,7 +145,7 @@ static const pte_glyph *findChar(uint32_t c, const pte_base_font *f) {
   return nullptr;
 }
 
-static int searchKern(uint32_t c, const pte_base_font *f) {
+static int search_kern(uint32_t c, const PteBaseFont *f) {
   // Do a binary search to find the character
   int l = 0;
   int h = f->m_number_kerns - 1;
@@ -195,9 +195,9 @@ static int searchKern(uint32_t c, const pte_base_font *f) {
   return -1;
 }
 
-static const pte_kern *findKern(int c1, int c2, const pte_base_font *f) {
+static const PteKern *find_kern(int c1, int c2, const PteBaseFont *f) {
   // Find the first kern of this type in the array
-  int mid_p = searchKern(c1, f);
+  int mid_p = search_kern(c1, f);
 
   // Now scan up/down to see if we have the pair
   int d;
@@ -265,7 +265,7 @@ static void blt_horz_cmprs_resize(const unsigned char **ptr, int *col, int *pixe
       if (count <= 1) {
         // Yes, so output a pixel
         if (line_acc[p] > 0) {
-          hw_blendPixel(dst_x, dst_y, (line_acc[p] << 8) / div, plot_col);
+          hw_blend_pixel(dst_x, dst_y, (line_acc[p] << 8) / div, plot_col);
         }
 
         dst_x += pixel_xinc;
@@ -291,11 +291,11 @@ static void blt_horz_cmprs_resize(const unsigned char **ptr, int *col, int *pixe
 }
 
 // Draw text on the canvas
-int pte_drawText(pte_font_t *f, int x, int y, int r, const char *text, size_t size, int c) {
+int pte_draw_text(PteFontT *f, int x, int y, int r, const char *text, size_t size, int c) {
   uint32_t last_char = UINT32_MAX;
   size_t consumed = 0;
   const char *current_text = text;
-  const pte_base_font *bf = f->m_font;
+  const PteBaseFont *bf = f->m_font;
 
   int pixel_xinc = 1;
   int pixel_yinc = 0;
@@ -335,10 +335,10 @@ int pte_drawText(pte_font_t *f, int x, int y, int r, const char *text, size_t si
     current_text += length;
     consumed += length;
 
-    const pte_glyph *g = findChar(codepoint, bf);
+    const PteGlyph *g = find_char(codepoint, bf);
     // Bitblt this character across
     if (g != nullptr) {
-      const pte_kern *k;
+      const PteKern *k;
 
       int acc = 0;
       int col = 1;
@@ -354,7 +354,7 @@ int pte_drawText(pte_font_t *f, int x, int y, int r, const char *text, size_t si
       int sub_offset_dx;
       int sub_offset_dy;
 
-      k = findKern(last_char, codepoint, bf);
+      k = find_kern(last_char, codepoint, bf);
       if (k != nullptr) {
         x += k->amount * pixel_xinc;
         y += k->amount * pixel_yinc;
@@ -470,11 +470,11 @@ int pte_drawText(pte_font_t *f, int x, int y, int r, const char *text, size_t si
 }
 
 // How big will the text be?
-void pte_measureText(pte_font_t *f, const char *text, size_t size, int *dx, int *dy) {
+void pte_measure_text(PteFontT *f, const char *text, size_t size, int *dx, int *dy) {
   uint32_t last_char = UINT32_MAX;
   size_t consumed = 0;
   const char *current_text = text;
-  const pte_base_font *bf = f->m_font;
+  const PteBaseFont *bf = f->m_font;
   *dx = 0;
   while (*current_text != 0 && (size == static_cast<size_t>(-1) || consumed < size)) {
     size_t length = 0;
@@ -485,9 +485,9 @@ void pte_measureText(pte_font_t *f, const char *text, size_t size, int *dx, int 
     current_text += length;
     consumed += length;
 
-    const pte_glyph *g = findChar(codepoint, bf);
+    const PteGlyph *g = find_char(codepoint, bf);
     if (g != nullptr) {
-      const pte_kern *k = findKern(last_char, codepoint, bf);
+      const PteKern *k = find_kern(last_char, codepoint, bf);
       if (k != nullptr) {
         *dx += g->xadvance + k->amount;
       } else {
@@ -503,13 +503,13 @@ void pte_measureText(pte_font_t *f, const char *text, size_t size, int *dx, int 
 }
 
 // Centre the text in a rectangle
-void pte_drawTextRect(pte_Placement o, pte_font_t *f, int x1, int y1, int x2, int y2, int r, const char *text,
-                      size_t size, int c) {
+void pte_draw_text_rect(pte_Placement o, PteFontT *f, int x1, int y1, int x2, int y2, int r, const char *text,
+                        size_t size, int c) {
   int dx;
   int dy;
   int x = 0;
   int y = 0;
-  pte_measureText(f, text, size, &dx, &dy);
+  pte_measure_text(f, text, size, &dx, &dy);
 
   switch (r) {
     case 270:
@@ -555,11 +555,11 @@ void pte_drawTextRect(pte_Placement o, pte_font_t *f, int x1, int y1, int x2, in
   }
   y += f->m_baseline;
 
-  pte_drawText(f, x, y, r, text, size, c);
+  pte_draw_text(f, x, y, r, text, size, c);
 }
 
-void pte_drawTextRectWrapped(pte_Placement o, pte_font_t *f, int x1, int y1, int x2, int y2, int r, const char *text,
-                             size_t size, int c) {
+void pte_draw_text_rect_wrapped(pte_Placement o, PteFontT *f, int x1, int y1, int x2, int y2, int r,
+                                const char *text, size_t size, int c) {
   int rect_width = x2 - x1;
   int line_height = f->m_line_height;
   const char *word_start = text;
@@ -576,14 +576,14 @@ void pte_drawTextRectWrapped(pte_Placement o, pte_font_t *f, int x1, int y1, int
     size_t prev_length = word_start - line_start;
     size_t line_length = word_end - line_start;
 
-    pte_measureText(f, line_start, line_length, &dx, &dy);
+    pte_measure_text(f, line_start, line_length, &dx, &dy);
     if (dx > rect_width) {
       if (line_start == word_start) {
         // Single word is too long to fit in the line, force break
         word_start = word_end;
       } else {
         // Draw the current line and start a new one
-        pte_drawTextRect(o, f, x1, y1, x2, y2, r, line_start, prev_length, c);
+        pte_draw_text_rect(o, f, x1, y1, x2, y2, r, line_start, prev_length, c);
         y1 += line_height;
         line_start = word_start;
         continue;
@@ -596,7 +596,7 @@ void pte_drawTextRectWrapped(pte_Placement o, pte_font_t *f, int x1, int y1, int
     }
 
     if (*word_start == '\n') {
-      pte_drawTextRect(o, f, x1, y1, x2, y2, r, line_start, line_length, c);
+      pte_draw_text_rect(o, f, x1, y1, x2, y2, r, line_start, line_length, c);
       y1 += line_height;
       word_start++;
       line_start = word_start;
@@ -605,13 +605,13 @@ void pte_drawTextRectWrapped(pte_Placement o, pte_font_t *f, int x1, int y1, int
 
   if (y1 < (y2 - line_height) && line_start < word_start) {
     size_t line_length = word_end - line_start;
-    pte_drawTextRect(o, f, x1, y1, x2, y2, r, line_start, line_length, c);
+    pte_draw_text_rect(o, f, x1, y1, x2, y2, r, line_start, line_length, c);
   }
 }
 
 // Get a font
-pte_font_t pte_getFont(const pte_base_font *f, int size) {
-  pte_font_t result;
+PteFontT pte_get_font(const PteBaseFont *f, int size) {
+  PteFontT result;
   result.m_ra = size;
   result.m_rb = f->m_size;
   result.m_font = f;
