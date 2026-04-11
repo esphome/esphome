@@ -133,8 +133,8 @@ void pte_draw_text_rect(pte_Placement o, PteFontT *f, int x1, int y1, int x2, in
 //      size            - the number of characters in "text" or -1 to read until the nul character
 //      c               - the colour to draw the text, this is passed directly to the hw_blend_pixel function
 //
-void pte_draw_text_rect_wrapped(pte_Placement o, PteFontT *f, int x1, int y1, int x2, int y2, int r,
-                                const char *text, size_t size, int c);
+void pte_draw_text_rect_wrapped(pte_Placement o, PteFontT *f, int x1, int y1, int x2, int y2, int r, const char *text,
+                                size_t size, int c);
 
 // Determine the bounding rectangle for a string in pixels
 // Parameters:

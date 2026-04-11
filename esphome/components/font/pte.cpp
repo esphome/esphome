@@ -558,8 +558,8 @@ void pte_draw_text_rect(pte_Placement o, PteFontT *f, int x1, int y1, int x2, in
   pte_draw_text(f, x, y, r, text, size, c);
 }
 
-void pte_draw_text_rect_wrapped(pte_Placement o, PteFontT *f, int x1, int y1, int x2, int y2, int r,
-                                const char *text, size_t size, int c) {
+void pte_draw_text_rect_wrapped(pte_Placement o, PteFontT *f, int x1, int y1, int x2, int y2, int r, const char *text,
+                                size_t size, int c) {
   int rect_width = x2 - x1;
   int line_height = f->m_line_height;
   const char *word_start = text;
