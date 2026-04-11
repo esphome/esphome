@@ -27,24 +27,25 @@ namespace esphome::socket {
 // Type aliases — only one implementation is active per build.
 // Socket is the concrete type for connected sockets.
 // ListenSocket is the concrete type for listening/server sockets.
-// UDPSocket is the concrete type for UDP sockets.
+// UDPSocket is the concrete type for UDP sockets (send + receive).
+// UDPSendSocket is the concrete type for send-only UDP sockets.
 // On BSD and LWIP_SOCKETS, all aliases resolve to the same type.
 // On LWIP_TCP, they are different types (no virtual dispatch between them).
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 using Socket = BSDSocketImpl;
 using ListenSocket = BSDSocketImpl;
+using UDPSendSocket = BSDSocketImpl;
 using UDPSocket = BSDSocketImpl;
-using UDPRecvSocket = BSDSocketImpl;
 #elif defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 using Socket = LwIPSocketImpl;
 using ListenSocket = LwIPSocketImpl;
+using UDPSendSocket = LwIPSocketImpl;
 using UDPSocket = LwIPSocketImpl;
-using UDPRecvSocket = LwIPSocketImpl;
 #elif defined(USE_SOCKET_IMPL_LWIP_TCP)
 using Socket = LWIPRawImpl;
 using ListenSocket = LWIPRawListenImpl;
+using UDPSendSocket = LWIPRawUDPSendImpl;
 using UDPSocket = LWIPRawUDPImpl;
-using UDPRecvSocket = LWIPRawUDPRecvImpl;
 #endif
 
 #ifdef USE_LWIP_FAST_SELECT
@@ -98,13 +99,30 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
 
 /// Create a send-only UDP socket of the given domain and protocol.
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
+std::unique_ptr<UDPSendSocket> socket_udp_send(int domain, int protocol);
+#else
+inline std::unique_ptr<UDPSendSocket> socket_udp_send(int domain, int protocol) {
+  return esphome::socket::socket(domain, SOCK_DGRAM, protocol);
+}
+#endif
+/// Create a send-only UDP socket in the newest available IP domain.
+inline std::unique_ptr<UDPSendSocket> socket_ip_udp_send(int protocol) {
+#if USE_NETWORK_IPV6
+  return socket_udp_send(AF_INET6, protocol);
+#else
+  return socket_udp_send(AF_INET, protocol);
+#endif
+}
+
+/// Create a UDP socket (send + receive) of the given domain and protocol.
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
 std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol);
 #else
 inline std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
   return esphome::socket::socket(domain, SOCK_DGRAM, protocol);
 }
 #endif
-/// Create a send-only UDP socket in the newest available IP domain.
+/// Create a UDP socket (send + receive) in the newest available IP domain.
 inline std::unique_ptr<UDPSocket> socket_ip_udp(int protocol) {
 #if USE_NETWORK_IPV6
   return socket_udp(AF_INET6, protocol);
@@ -113,38 +131,21 @@ inline std::unique_ptr<UDPSocket> socket_ip_udp(int protocol) {
 #endif
 }
 
-/// Create a UDP socket with receive support of the given domain and protocol.
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-std::unique_ptr<UDPRecvSocket> socket_udp_recv(int domain, int protocol);
-#else
-inline std::unique_ptr<UDPRecvSocket> socket_udp_recv(int domain, int protocol) {
-  return esphome::socket::socket(domain, SOCK_DGRAM, protocol);
-}
-#endif
-/// Create a UDP socket with receive support in the newest available IP domain.
-inline std::unique_ptr<UDPRecvSocket> socket_ip_udp_recv(int protocol) {
-#if USE_NETWORK_IPV6
-  return socket_udp_recv(AF_INET6, protocol);
-#else
-  return socket_udp_recv(AF_INET, protocol);
-#endif
-}
-
-/// Create a UDP recv socket and monitor it for data in the main loop.
-/// On LWIP_TCP platforms, wake is built into the recv callback so this just delegates to socket_udp_recv().
+/// Create a UDP socket and monitor it for data in the main loop.
+/// On LWIP_TCP platforms, wake is built into the recv callback so this just delegates to socket_udp().
 /// On BSD/LWIP_SOCKETS platforms, this registers the socket with the Application's select() loop.
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
-std::unique_ptr<UDPRecvSocket> socket_udp_recv_loop_monitored(int domain, int protocol);
+std::unique_ptr<UDPSocket> socket_udp_loop_monitored(int domain, int protocol);
 #else
-inline std::unique_ptr<UDPRecvSocket> socket_udp_recv_loop_monitored(int domain, int protocol) {
+inline std::unique_ptr<UDPSocket> socket_udp_loop_monitored(int domain, int protocol) {
   return socket_loop_monitored(domain, SOCK_DGRAM, protocol);
 }
 #endif
-inline std::unique_ptr<UDPRecvSocket> socket_ip_udp_recv_loop_monitored(int protocol) {
+inline std::unique_ptr<UDPSocket> socket_ip_udp_loop_monitored(int protocol) {
 #if USE_NETWORK_IPV6
-  return socket_udp_recv_loop_monitored(AF_INET6, protocol);
+  return socket_udp_loop_monitored(AF_INET6, protocol);
 #else
-  return socket_udp_recv_loop_monitored(AF_INET, protocol);
+  return socket_udp_loop_monitored(AF_INET, protocol);
 #endif
 }
 

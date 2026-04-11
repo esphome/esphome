@@ -16,13 +16,13 @@ namespace esphome::socket {
 
 /// Send-only UDP socket implementation for LWIP raw API.
 /// Non-virtual, concrete type. Uses lwip/udp.h raw API.
-/// No receive capability — use LWIPRawUDPRecvImpl for sockets that need to receive.
-class LWIPRawUDPImpl {
+/// No receive capability — use LWIPRawUDPImpl for sockets that need to receive.
+class LWIPRawUDPSendImpl {
  public:
-  LWIPRawUDPImpl(sa_family_t family);
-  ~LWIPRawUDPImpl();
-  LWIPRawUDPImpl(const LWIPRawUDPImpl &) = delete;
-  LWIPRawUDPImpl &operator=(const LWIPRawUDPImpl &) = delete;
+  LWIPRawUDPSendImpl(sa_family_t family);
+  ~LWIPRawUDPSendImpl();
+  LWIPRawUDPSendImpl(const LWIPRawUDPSendImpl &) = delete;
+  LWIPRawUDPSendImpl &operator=(const LWIPRawUDPSendImpl &) = delete;
 
   int bind(const struct sockaddr *name, socklen_t addrlen);
   int close();
@@ -54,17 +54,17 @@ class LWIPRawUDPImpl {
 };
 
 /// UDP socket with receive support for LWIP raw API.
-/// Extends LWIPRawUDPImpl with a fixed-size ring buffer for incoming packets.
+/// Extends LWIPRawUDPSendImpl with a fixed-size ring buffer for incoming packets.
 /// The recv callback is registered on bind().
 ///
 /// Note: close() and bind() intentionally hide the base class methods to add
 /// recv callback registration/cleanup. This is safe because these classes are
 /// never used polymorphically (no virtual dispatch) — callers always use the
-/// concrete LWIPRawUDPRecvImpl type via the UDPRecvSocket alias.
-class LWIPRawUDPRecvImpl : public LWIPRawUDPImpl {
+/// concrete LWIPRawUDPImpl type via the UDPSocket alias.
+class LWIPRawUDPImpl : public LWIPRawUDPSendImpl {
  public:
-  using LWIPRawUDPImpl::LWIPRawUDPImpl;
-  ~LWIPRawUDPRecvImpl();
+  using LWIPRawUDPSendImpl::LWIPRawUDPSendImpl;
+  ~LWIPRawUDPImpl();
 
   /// Close the socket, flushing any queued rx packets first.
   int close();

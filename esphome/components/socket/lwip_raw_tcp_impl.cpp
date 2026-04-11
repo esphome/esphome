@@ -796,7 +796,7 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
 
 std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) {
   if (type != SOCK_STREAM) {
-    ESP_LOGE(TAG, "Use socket_udp_recv() for UDP sockets on this platform");
+    ESP_LOGE(TAG, "Use socket_udp() for UDP sockets on this platform");
     errno = EPROTOTYPE;
     return nullptr;
   }

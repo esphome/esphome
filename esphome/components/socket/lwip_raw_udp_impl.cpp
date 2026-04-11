@@ -24,9 +24,9 @@ namespace esphome::socket {
 
 static const char *const TAG = "socket.lwip_udp";
 
-// ---- LWIPRawUDPImpl (send-only) methods ----
+// ---- LWIPRawUDPSendImpl (send-only) methods ----
 
-LWIPRawUDPImpl::LWIPRawUDPImpl(sa_family_t family) : family_(family) {
+LWIPRawUDPSendImpl::LWIPRawUDPSendImpl(sa_family_t family) : family_(family) {
   LWIP_LOCK();
 #if LWIP_IPV6
   this->pcb_ = udp_new_ip_type(family == AF_INET6 ? IPADDR_TYPE_ANY : IPADDR_TYPE_V4);
@@ -35,9 +35,9 @@ LWIPRawUDPImpl::LWIPRawUDPImpl(sa_family_t family) : family_(family) {
 #endif
 }
 
-LWIPRawUDPImpl::~LWIPRawUDPImpl() {
+LWIPRawUDPSendImpl::~LWIPRawUDPSendImpl() {
   // Early return avoids acquiring the lwip lock when pcb_ is already null
-  // (e.g., after LWIPRawUDPRecvImpl::close() already cleaned up).
+  // (e.g., after LWIPRawUDPImpl::close() already cleaned up).
   if (this->pcb_ == nullptr)
     return;
   LWIP_LOCK();
@@ -45,7 +45,7 @@ LWIPRawUDPImpl::~LWIPRawUDPImpl() {
   this->pcb_ = nullptr;
 }
 
-int LWIPRawUDPImpl::bind_internal_locked_(const struct sockaddr *name, socklen_t addrlen) {
+int LWIPRawUDPSendImpl::bind_internal_locked_(const struct sockaddr *name, socklen_t addrlen) {
   // Caller must hold LWIP_LOCK
   if (this->pcb_ == nullptr) {
     errno = EBADF;
@@ -72,17 +72,17 @@ int LWIPRawUDPImpl::bind_internal_locked_(const struct sockaddr *name, socklen_t
   return lwip_bind_err(udp_bind(this->pcb_, &ip, port));
 }
 
-int LWIPRawUDPImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
+int LWIPRawUDPSendImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
   LWIP_LOCK();
   return this->bind_internal_locked_(name, addrlen);
 }
 
-int LWIPRawUDPImpl::close() {
+int LWIPRawUDPSendImpl::close() {
   LWIP_LOCK();
   return this->close_internal_locked_();
 }
 
-int LWIPRawUDPImpl::close_internal_locked_() {
+int LWIPRawUDPSendImpl::close_internal_locked_() {
   // Caller must hold LWIP_LOCK
   if (this->pcb_ == nullptr) {
     errno = EBADF;
@@ -93,13 +93,13 @@ int LWIPRawUDPImpl::close_internal_locked_() {
   return 0;
 }
 
-int LWIPRawUDPImpl::ip2sockaddr_(const ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {
+int LWIPRawUDPSendImpl::ip2sockaddr_(const ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {
   // UDP recv callback provides port in host byte order
   return lwip_ip_to_sockaddr(this->family_, ip, port, name, addrlen);
 }
 
-ssize_t LWIPRawUDPImpl::sendto(const void *buf, size_t len, int flags, const struct sockaddr *dest_addr,
-                               socklen_t addrlen) {
+ssize_t LWIPRawUDPSendImpl::sendto(const void *buf, size_t len, int flags, const struct sockaddr *dest_addr,
+                                   socklen_t addrlen) {
   (void) flags;  // Flags (MSG_DONTWAIT, etc.) are ignored; raw lwip is always non-blocking
   LWIP_LOCK();
   if (this->pcb_ == nullptr) {
@@ -142,7 +142,7 @@ ssize_t LWIPRawUDPImpl::sendto(const void *buf, size_t len, int flags, const str
   return (ssize_t) len;
 }
 
-int LWIPRawUDPImpl::setsockopt(int level, int optname, const void *optval, socklen_t optlen) {
+int LWIPRawUDPSendImpl::setsockopt(int level, int optname, const void *optval, socklen_t optlen) {
   LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
@@ -204,7 +204,7 @@ int LWIPRawUDPImpl::setsockopt(int level, int optname, const void *optval, sockl
   return -1;
 }
 
-int LWIPRawUDPImpl::getsockopt(int level, int optname, void *optval, socklen_t *optlen) {
+int LWIPRawUDPSendImpl::getsockopt(int level, int optname, void *optval, socklen_t *optlen) {
   LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
@@ -223,7 +223,7 @@ int LWIPRawUDPImpl::getsockopt(int level, int optname, void *optval, socklen_t *
   return -1;
 }
 
-int LWIPRawUDPImpl::setblocking(bool blocking) {
+int LWIPRawUDPSendImpl::setblocking(bool blocking) {
   if (blocking) {
     // blocking operation not supported on raw lwip
     errno = EINVAL;
@@ -232,15 +232,15 @@ int LWIPRawUDPImpl::setblocking(bool blocking) {
   return 0;
 }
 
-// ---- LWIPRawUDPRecvImpl methods ----
+// ---- LWIPRawUDPImpl methods ----
 
-LWIPRawUDPRecvImpl::~LWIPRawUDPRecvImpl() {
+LWIPRawUDPImpl::~LWIPRawUDPImpl() {
   // Flush rx queue and unregister callback before base destructor removes pcb
   if (this->pcb_ != nullptr)
     this->close();
 }
 
-int LWIPRawUDPRecvImpl::close() {
+int LWIPRawUDPImpl::close() {
   LWIP_LOCK();
   // Unregister recv callback before removing pcb
   if (this->pcb_ != nullptr) {
@@ -260,19 +260,19 @@ int LWIPRawUDPRecvImpl::close() {
   return this->close_internal_locked_();
 }
 
-int LWIPRawUDPRecvImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
+int LWIPRawUDPImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
   LWIP_LOCK();
   int ret = this->bind_internal_locked_(name, addrlen);
   if (ret != 0)
     return ret;
   // Register recv callback now that we're bound and ready to receive
-  udp_recv(this->pcb_, LWIPRawUDPRecvImpl::s_recv_fn, this);
+  udp_recv(this->pcb_, LWIPRawUDPImpl::s_recv_fn, this);
   return 0;
 }
 
-ssize_t LWIPRawUDPRecvImpl::read(void *buf, size_t len) { return this->recvfrom(buf, len, nullptr, nullptr); }
+ssize_t LWIPRawUDPImpl::read(void *buf, size_t len) { return this->recvfrom(buf, len, nullptr, nullptr); }
 
-ssize_t LWIPRawUDPRecvImpl::recvfrom(void *buf, size_t len, struct sockaddr *src_addr, socklen_t *addrlen) {
+ssize_t LWIPRawUDPImpl::recvfrom(void *buf, size_t len, struct sockaddr *src_addr, socklen_t *addrlen) {
   if (buf == nullptr && len > 0) {
     errno = EINVAL;
     return -1;
@@ -313,15 +313,15 @@ ssize_t LWIPRawUDPRecvImpl::recvfrom(void *buf, size_t len, struct sockaddr *src
   return (ssize_t) copy_len;
 }
 
-void LWIPRawUDPRecvImpl::s_recv_fn(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
-  auto *self = reinterpret_cast<LWIPRawUDPRecvImpl *>(arg);
+void LWIPRawUDPImpl::s_recv_fn(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
+  auto *self = reinterpret_cast<LWIPRawUDPImpl *>(arg);
   self->recv_fn_(p, addr, port);
 }
 
 // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
 // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
 // No LWIP_LOCK() needed — lwip core already holds the async_context lock.
-void LWIPRawUDPRecvImpl::recv_fn_(struct pbuf *p, const ip_addr_t *addr, u16_t port) {
+void LWIPRawUDPImpl::recv_fn_(struct pbuf *p, const ip_addr_t *addr, u16_t port) {
   if (p == nullptr)
     return;
 
@@ -347,6 +347,16 @@ void LWIPRawUDPRecvImpl::recv_fn_(struct pbuf *p, const ip_addr_t *addr, u16_t p
 
 // ---- UDP Factory functions ----
 
+std::unique_ptr<UDPSendSocket> socket_udp_send(int domain, int protocol) {
+  (void) protocol;  // Raw lwip UDP ignores protocol; kept for API compatibility
+  auto sock = make_unique<LWIPRawUDPSendImpl>((sa_family_t) domain);
+  if (!sock->is_valid()) {
+    errno = ENOMEM;
+    return nullptr;
+  }
+  return sock;
+}
+
 std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
   (void) protocol;  // Raw lwip UDP ignores protocol; kept for API compatibility
   auto sock = make_unique<LWIPRawUDPImpl>((sa_family_t) domain);
@@ -357,19 +367,9 @@ std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
   return sock;
 }
 
-std::unique_ptr<UDPRecvSocket> socket_udp_recv(int domain, int protocol) {
-  (void) protocol;  // Raw lwip UDP ignores protocol; kept for API compatibility
-  auto sock = make_unique<LWIPRawUDPRecvImpl>((sa_family_t) domain);
-  if (!sock->is_valid()) {
-    errno = ENOMEM;
-    return nullptr;
-  }
-  return sock;
-}
-
-std::unique_ptr<UDPRecvSocket> socket_udp_recv_loop_monitored(int domain, int protocol) {
-  // LWIPRawUDPRecvImpl has wake built into the recv callback, so no extra monitoring needed
-  return socket_udp_recv(domain, protocol);
+std::unique_ptr<UDPSocket> socket_udp_loop_monitored(int domain, int protocol) {
+  // LWIPRawUDPImpl has wake built into the recv callback, so no extra monitoring needed
+  return socket_udp(domain, protocol);
 }
 
 #undef LWIP_LOCK
