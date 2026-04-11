@@ -211,11 +211,15 @@ void SnapClientComponent::control(const media_player::MediaPlayerCall &call) {
     ESP_LOGW(TAG, "Player is off. Ignoring control command.");
     return;
   }
-  if (call.get_volume().has_value()) {
-    this->set_volume_(call.get_volume().value(), true);
+
+  auto vol = call.get_volume();
+  if (vol.has_value()) {
+    this->set_volume_(vol.value(), true);
   }
-  if (call.get_command().has_value()) {
-    switch (call.get_command().value()) {
+
+  auto cmd = call.get_command();
+  if (cmd.has_value()) {
+    switch (cmd.value()) {
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
         this->set_mute_(true);
         break;
@@ -227,7 +231,7 @@ void SnapClientComponent::control(const media_player::MediaPlayerCall &call) {
       default:
         break;
     }
-    switch (call.get_command().value()) {
+    switch (cmd.value()) {
       case media_player::MEDIA_PLAYER_COMMAND_PLAY:
         if (this->lock_())
           pause_player(false);
