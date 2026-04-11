@@ -336,7 +336,7 @@ int pte_drawText(pte_font_t *f, int x, int y, int r, const char *text, size_t si
     consumed += length;
 
     const pte_glyph *g = findChar(codepoint, bf);
-      // Bitblt this character across
+    // Bitblt this character across
     if (g != nullptr) {
       const pte_kern *k;
 
@@ -558,8 +558,8 @@ void pte_drawTextRect(pte_Placement o, pte_font_t *f, int x1, int y1, int x2, in
   pte_drawText(f, x, y, r, text, size, c);
 }
 
-void pte_drawTextRectWrapped(pte_Placement o, pte_font_t *f, int x1, int y1, int x2, int y2, int r,
-                             const char *text, size_t size, int c) {
+void pte_drawTextRectWrapped(pte_Placement o, pte_font_t *f, int x1, int y1, int x2, int y2, int r, const char *text,
+                             size_t size, int c) {
   int rect_width = x2 - x1;
   int line_height = f->m_line_height;
   const char *word_start = text;
