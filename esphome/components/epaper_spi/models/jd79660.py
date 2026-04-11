@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components.mipi import flatten_sequence
 import esphome.config_validation as cv
-from esphome.const import CONF_BUSY_PIN, CONF_RESET_PIN
+from esphome.const import CONF_BUSY_PIN, CONF_INIT_SEQUENCE, CONF_RESET_PIN
 from esphome.core import ID
 
 from ..display import CONF_INIT_SEQUENCE_ID
@@ -16,6 +16,11 @@ class JD79660(EpaperModel):
     def option(self, name, fallback=cv.UNDEFINED) -> cv.Optional | cv.Required:
         # Validate required pins, as C++ code will assume existence
         if name in (CONF_RESET_PIN, CONF_BUSY_PIN):
+            return cv.Required(name)
+        # Driver requires init seq, also for instantiating abstract base jd79660!
+        if (
+            name == CONF_INIT_SEQUENCE and self.initsequence is None
+        ):  # No sequence passed below?
             return cv.Required(name)
 
         # Delegate to parent
@@ -39,6 +44,8 @@ class JD79660(EpaperModel):
         return (*fast_update,)
 
 
+# Abstract JD79660 chipset baseclass. EPD boards derive from this below.
+# Users should normally only use board entries below.
 jd79660 = JD79660(
     "jd79660",
     # Specified refresh times are ~20s (full) or ~15s (fast) due to BWRY.
