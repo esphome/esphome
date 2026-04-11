@@ -19,11 +19,14 @@
 #include "esphome/components/qr_code/qr_code.h"
 #endif
 
+namespace esphome {
+
 #ifdef USE_GRAPHICAL_DISPLAY_MENU
-#include "esphome/components/graphical_display_menu/graphical_display_menu.h"
+namespace graphical_display_menu {
+class GraphicalDisplayMenu;
+}  // namespace graphical_display_menu
 #endif
 
-namespace esphome {
 namespace display {
 
 /** TextAlign is used to tell the display class how to position a piece of text. By default

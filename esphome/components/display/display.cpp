@@ -2,6 +2,9 @@
 #include <utility>
 #include <numbers>
 #include "display_color_utils.h"
+#ifdef USE_GRAPHICAL_DISPLAY_MENU
+#include "esphome/components/graphical_display_menu/graphical_display_menu.h"
+#endif
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
