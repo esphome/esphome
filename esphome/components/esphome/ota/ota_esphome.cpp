@@ -15,6 +15,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#ifdef USE_LWIP_FAST_SELECT
+#include "esphome/core/lwip_fast_select.h"
+#endif
 
 #include <cerrno>
 #include <cstdio>
@@ -69,6 +72,14 @@ void ESPHomeOTAComponent::setup() {
   // Register for socket wake notifications. loop() disables itself on its first
   // idle tick — no need to disable_loop() here explicitly.
   App.set_ota_wake_component(this);
+#ifdef USE_LWIP_FAST_SELECT
+  // Install the listener filter so the fast-select RCVPLUS wake hook only fires for
+  // events on this listener's netconn (i.e. new incoming connections). Without this,
+  // every RCVPLUS across all monitored sockets (API client data, mDNS, etc.) would
+  // pay the inline hook's two volatile stores + memw barriers to mark OTA
+  // pending-enable, even though OTA would just re-disable itself on the next tick.
+  esphome_fast_select_set_ota_listener_sock(this->server_->get_cached_sock());
+#endif
 }
 
 void ESPHomeOTAComponent::dump_config() {

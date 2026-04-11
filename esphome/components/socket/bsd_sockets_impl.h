@@ -118,6 +118,15 @@ class BSDSocketImpl {
 
   int get_fd() const { return this->fd_; }
 
+#ifdef USE_LWIP_FAST_SELECT
+  // Cached lwip_sock pointer captured at construction. Used by OTA to register its
+  // listener netconn with the fast-select wake hook filter so the hook only fires on
+  // OTA-relevant events. Returns nullptr for non-monitored sockets.
+  struct lwip_sock *get_cached_sock() const {
+    return this->cached_sock_;
+  }
+#endif
+
  protected:
   int fd_{-1};
 #ifdef USE_LWIP_FAST_SELECT
