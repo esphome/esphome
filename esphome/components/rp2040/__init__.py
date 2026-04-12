@@ -226,6 +226,7 @@ async def to_code(config):
     # Wrap Arduino's millis() so all callers use our fast accumulator instead of
     # the expensive time_us_64() + micros_to_millis() 64-bit conversion path.
     cg.add_build_flag("-Wl,--wrap=millis")
+    cg.add_define("USE_FAST_MILLIS_ACCUMULATOR")
 
     cg.add_platformio_option("board_build.core", "earlephilhower")
     # In testing mode, use all flash for sketch to allow linking grouped component tests.
