@@ -37,6 +37,12 @@ uint32_t IRAM_ATTR HOT millis() {
   return micros_to_millis(static_cast<uint64_t>(esp_timer_get_time()));
 #endif
 }
+// millis_64() stays on esp_timer — a different clock from xTaskGetTickCount(). This is
+// safe because the two are never cross-compared: millis() values are only used for
+// millis()-vs-millis() deltas (feed_wdt, warn_blocking, component start time), while
+// millis_64() is used by the Scheduler and uptime sensors. On ESP32 (USE_NATIVE_64BIT_TIME),
+// Scheduler::millis_64_from_(now) discards the 32-bit now and calls millis_64() directly,
+// so the Scheduler is internally consistent on the esp_timer clock.
 uint64_t HOT millis_64() { return micros_to_millis<uint64_t>(static_cast<uint64_t>(esp_timer_get_time())); }
 void HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
 uint32_t IRAM_ATTR HOT micros() { return (uint32_t) esp_timer_get_time(); }
