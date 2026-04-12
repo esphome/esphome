@@ -27,7 +27,7 @@ void HOT yield() { ::yield(); }
 //
 // Also installed as __wrap_millis (via -Wl,--wrap=millis) so Arduino library
 // code calling ::millis() directly gets the fast version.
-static uint32_t HOT millis_accumulator_() {
+static uint32_t HOT millis_accumulator() {
   static uint32_t s_cache = 0;
   static uint32_t s_remainder = 0;
   static uint32_t s_last_us = 0;
@@ -41,7 +41,7 @@ static uint32_t HOT millis_accumulator_() {
   }
   return s_cache;
 }
-uint32_t HOT millis() { return millis_accumulator_(); }
+uint32_t HOT millis() { return millis_accumulator(); }
 // millis_64() keeps the full 64-bit timer for precision — called once per loop by Scheduler.
 uint64_t millis_64() { return micros_to_millis<uint64_t>(time_us_64()); }
 void HOT delay(uint32_t ms) { ::delay(ms); }
