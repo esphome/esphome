@@ -27,21 +27,22 @@ void HOT yield() { ::yield(); }
 //
 // Also installed as __wrap_millis (via -Wl,--wrap=millis) so Arduino library
 // code calling ::millis() directly gets the fast version.
-static uint32_t HOT millis_accumulator() {
-  static uint32_t s_cache = 0;
-  static uint32_t s_remainder = 0;
-  static uint32_t s_last_us = 0;
+uint32_t HOT millis() {
+  static struct {
+    uint32_t cache;
+    uint32_t remainder;
+    uint32_t last_us;
+  } state = {0, 0, 0};
   uint32_t now_us = ::micros();
-  uint32_t delta = now_us - s_last_us;
-  s_last_us = now_us;
-  s_remainder += delta;
-  while (s_remainder >= 1000) {
-    s_cache++;
-    s_remainder -= 1000;
+  uint32_t delta = now_us - state.last_us;
+  state.last_us = now_us;
+  state.remainder += delta;
+  while (state.remainder >= 1000) {
+    state.cache++;
+    state.remainder -= 1000;
   }
-  return s_cache;
+  return state.cache;
 }
-uint32_t HOT millis() { return millis_accumulator(); }
 // millis_64() keeps the full 64-bit timer for precision — called once per loop by Scheduler.
 uint64_t millis_64() { return micros_to_millis<uint64_t>(time_us_64()); }
 void HOT delay(uint32_t ms) { ::delay(ms); }
@@ -72,6 +73,7 @@ uint32_t arch_get_cpu_freq_hz() { return RP2040::f_cpu(); }
 
 // Linker wrap: redirect all ::millis() calls (Arduino libs) to our accumulator.
 // Requires -Wl,--wrap=millis in build flags (added by __init__.py).
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" uint32_t __wrap_millis() { return esphome::millis(); }
 
 #endif  // USE_RP2040
