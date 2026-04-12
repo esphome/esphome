@@ -151,8 +151,9 @@ async def send_action_to_code(config, action_id, template_args, args):
     parent = await cg.get_variable(config[CONF_PARENT])
     var = cg.new_Pvariable(action_id, template_args, parent)
 
-    source_template_ = await cg.templatable(config.get(CONF_SOURCE), args, cg.uint8)
-    if source_template_ is not None:
+    source = config.get(CONF_SOURCE)
+    if source is not None:
+        source_template_ = await cg.templatable(source, args, cg.uint8)
         cg.add(var.set_source(source_template_))
 
     destination_template_ = await cg.templatable(
