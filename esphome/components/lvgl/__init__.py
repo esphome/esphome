@@ -39,7 +39,6 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
-    PLATFORM_ESP32,
 )
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
