@@ -28,23 +28,10 @@
 
 #endif
 
-// On ESP32 with 1 kHz FreeRTOS tick rate, millis() is just xTaskGetTickCount() —
-// a single volatile read of a DRAM global. Inlining it here eliminates the
-// function call entirely at every call site. No IRAM needed (no flash code
-// executed), no 64-bit math, no HAL call.
-#if defined(USE_ESP32) && CONFIG_FREERTOS_HZ == 1000
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#endif
-
 namespace esphome {
 
 void yield();
-#if defined(USE_ESP32) && CONFIG_FREERTOS_HZ == 1000
-inline uint32_t millis() { return xTaskGetTickCount(); }
-#else
 uint32_t millis();
-#endif
 uint64_t millis_64();
 uint32_t micros();
 void delay(uint32_t ms);
