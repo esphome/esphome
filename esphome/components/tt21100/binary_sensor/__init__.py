@@ -16,11 +16,15 @@ TT21100Button = tt21100_ns.class_(
     cg.Parented.template(TT21100Touchscreen),
 )
 
-CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(TT21100Button).extend(
-    {
-        cv.GenerateID(CONF_TT21100_ID): cv.use_id(TT21100Touchscreen),
-        cv.Required(CONF_INDEX): cv.int_range(min=0, max=3),
-    }
+CONFIG_SCHEMA = (
+    binary_sensor.binary_sensor_schema(TT21100Button)
+    .extend(
+        {
+            cv.GenerateID(CONF_TT21100_ID): cv.use_id(TT21100Touchscreen),
+            cv.Required(CONF_INDEX): cv.int_range(min=0, max=3),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 

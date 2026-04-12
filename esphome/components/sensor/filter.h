@@ -311,26 +311,26 @@ class StatelessLambdaFilter : public Filter {
 /// A simple filter that adds `offset` to each value it receives.
 class OffsetFilter : public Filter {
  public:
-  explicit OffsetFilter(TemplatableValue<float> offset);
+  explicit OffsetFilter(TemplatableFn<float> offset);
 
   optional<float> new_value(float value) override;
 
  protected:
-  TemplatableValue<float> offset_;
+  TemplatableFn<float> offset_;
 };
 
 /// A simple filter that multiplies to each value it receives by `multiplier`.
 class MultiplyFilter : public Filter {
  public:
-  explicit MultiplyFilter(TemplatableValue<float> multiplier);
+  explicit MultiplyFilter(TemplatableFn<float> multiplier);
   optional<float> new_value(float value) override;
 
  protected:
-  TemplatableValue<float> multiplier_;
+  TemplatableFn<float> multiplier_;
 };
 
 /// Non-template helper for value matching (implementation in filter.cpp)
-bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableValue<float> *values, size_t count);
+bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableFn<float> *values, size_t count);
 
 /** Base class for filters that compare sensor values against a fixed list of configured values.
  *
@@ -342,7 +342,7 @@ bool value_list_matches_any(Sensor *parent, float sensor_value, const Templatabl
  */
 template<size_t N> class ValueListFilter : public Filter {
  protected:
-  explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values) {
+  explicit ValueListFilter(std::initializer_list<TemplatableFn<float>> values) {
     init_array_from(this->values_, values);
   }
 
@@ -351,13 +351,13 @@ template<size_t N> class ValueListFilter : public Filter {
     return value_list_matches_any(this->parent_, sensor_value, this->values_.data(), N);
   }
 
-  std::array<TemplatableValue<float>, N> values_{};
+  std::array<TemplatableFn<float>, N> values_{};
 };
 
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.
 template<size_t N> class FilterOutValueFilter : public ValueListFilter<N> {
  public:
-  explicit FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out)
+  explicit FilterOutValueFilter(std::initializer_list<TemplatableFn<float>> values_to_filter_out)
       : ValueListFilter<N>(values_to_filter_out) {}
 
   optional<float> new_value(float value) override {
@@ -379,14 +379,14 @@ class ThrottleFilter : public Filter {
 };
 
 /// Non-template helper for ThrottleWithPriorityFilter (implementation in filter.cpp)
-optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableValue<float> *values,
+optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableFn<float> *values,
                                                  size_t count, uint32_t &last_input, uint32_t min_time_between_inputs);
 
 /// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
 template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> {
  public:
   explicit ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
-                                      std::initializer_list<TemplatableValue<float>> prioritized_values)
+                                      std::initializer_list<TemplatableFn<float>> prioritized_values)
       : ValueListFilter<N>(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
   optional<float> new_value(float value) override {
@@ -430,15 +430,15 @@ class TimeoutFilterLast : public TimeoutFilterBase {
 // Timeout filter with configured value - evaluates TemplatableValue after timeout
 class TimeoutFilterConfigured : public TimeoutFilterBase {
  public:
-  explicit TimeoutFilterConfigured(uint32_t time_period, const TemplatableValue<float> &new_value)
+  explicit TimeoutFilterConfigured(uint32_t time_period, const TemplatableFn<float> &new_value)
       : TimeoutFilterBase(time_period), value_(new_value) {}
 
   optional<float> new_value(float value) override;
 
  protected:
   float get_output_value() override { return this->value_.value(); }
-  TemplatableValue<float> value_;  // 16 bytes (configured output value, can be lambda)
-  // Total: 8 (base) + 16 = 24 bytes + vtable ptr + Component overhead
+  TemplatableFn<float> value_;  // 4 bytes (configured output value, can be lambda)
+  // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
 };
 
 class DebounceFilter : public Filter, public Component {

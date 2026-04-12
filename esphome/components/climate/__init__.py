@@ -488,16 +488,16 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(mode, args, ClimateMode)
         cg.add(var.set_mode(template_))
     if (target_temp := config.get(CONF_TARGET_TEMPERATURE)) is not None:
-        template_ = await cg.templatable(target_temp, args, float)
+        template_ = await cg.templatable(target_temp, args, cg.float_)
         cg.add(var.set_target_temperature(template_))
     if (target_temp_low := config.get(CONF_TARGET_TEMPERATURE_LOW)) is not None:
-        template_ = await cg.templatable(target_temp_low, args, float)
+        template_ = await cg.templatable(target_temp_low, args, cg.float_)
         cg.add(var.set_target_temperature_low(template_))
     if (target_temp_high := config.get(CONF_TARGET_TEMPERATURE_HIGH)) is not None:
-        template_ = await cg.templatable(target_temp_high, args, float)
+        template_ = await cg.templatable(target_temp_high, args, cg.float_)
         cg.add(var.set_target_temperature_high(template_))
     if (target_humidity := config.get(CONF_TARGET_HUMIDITY)) is not None:
-        template_ = await cg.templatable(target_humidity, args, float)
+        template_ = await cg.templatable(target_humidity, args, cg.float_)
         cg.add(var.set_target_humidity(template_))
     if (fan_mode := config.get(CONF_FAN_MODE)) is not None:
         template_ = await cg.templatable(fan_mode, args, ClimateFanMode)
