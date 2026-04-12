@@ -1,5 +1,2 @@
 esp32_ble:
   io_capability: keyboard_only
-  use_psram: true
-
-psram:
