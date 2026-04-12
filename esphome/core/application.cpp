@@ -196,34 +196,39 @@ void Application::process_dump_config_() {
   this->dump_config_at_++;
 }
 
-void HOT Application::feed_wdt_slow_(uint32_t time) {
-  // Use provided time if available, otherwise get current time
-  uint32_t now = time ? time : millis();
-  // The inline wrapper already performs this check when time != 0;
-  // repeat it here for the time == 0 entry and as a safety net.
+void Application::feed_wdt() {
+  // Cold entry: callers without a millis() timestamp in hand. Fetches the
+  // time and takes the same rate-limit path as feed_wdt_with_time().
+  uint32_t now = millis();
   if (now - this->last_wdt_feed_ > WDT_FEED_INTERVAL_MS) {
-    arch_feed_wdt();
-    this->last_wdt_feed_ = now;
-#ifdef USE_STATUS_LED
-    if (status_led::global_status_led != nullptr) {
-      auto *sl = status_led::global_status_led;
-      uint8_t sl_state = sl->get_component_state() & COMPONENT_STATE_MASK;
-      if (sl_state == COMPONENT_STATE_LOOP_DONE) {
-        // status_led only transitions to LOOP_DONE from inside its own loop() (after the
-        // first idle-path dispatch), so its pin is already initialized by pre_setup() and
-        // its setup() has already run. Re-dispatch only if an error or warning bit has been
-        // set since; otherwise skip entirely.
-        if ((this->app_state_ & STATUS_LED_MASK) == 0)
-          return;
-        sl->enable_loop();
-      } else if (sl_state != COMPONENT_STATE_LOOP) {
-        // CONSTRUCTION/SETUP/FAILED: not our job — App::setup() drives the lifecycle.
-        return;
-      }
-      sl->loop();
-    }
-#endif
+    this->feed_wdt_slow_(now);
   }
+}
+
+void HOT Application::feed_wdt_slow_(uint32_t time) {
+  // Callers (both feed_wdt() and feed_wdt_with_time()) have already
+  // confirmed the 3 ms rate limit was exceeded.
+  arch_feed_wdt();
+  this->last_wdt_feed_ = time;
+#ifdef USE_STATUS_LED
+  if (status_led::global_status_led != nullptr) {
+    auto *sl = status_led::global_status_led;
+    uint8_t sl_state = sl->get_component_state() & COMPONENT_STATE_MASK;
+    if (sl_state == COMPONENT_STATE_LOOP_DONE) {
+      // status_led only transitions to LOOP_DONE from inside its own loop() (after the
+      // first idle-path dispatch), so its pin is already initialized by pre_setup() and
+      // its setup() has already run. Re-dispatch only if an error or warning bit has been
+      // set since; otherwise skip entirely.
+      if ((this->app_state_ & STATUS_LED_MASK) == 0)
+        return;
+      sl->enable_loop();
+    } else if (sl_state != COMPONENT_STATE_LOOP) {
+      // CONSTRUCTION/SETUP/FAILED: not our job — App::setup() drives the lifecycle.
+      return;
+    }
+    sl->loop();
+  }
+#endif
 }
 void Application::reboot() {
   ESP_LOGI(TAG, "Forcing a reboot");
@@ -313,7 +318,7 @@ void Application::teardown_components(uint32_t timeout_ms) {
 
   while (pending_count > 0 && (now - start_time) < timeout_ms) {
     // Feed watchdog during teardown to prevent triggering
-    this->feed_wdt(now);
+    this->feed_wdt_with_time(now);
 
     // Process components and compact the array, keeping only those still pending
     size_t still_pending = 0;

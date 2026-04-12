@@ -234,15 +234,16 @@ class Application {
   /// watchdog timeout (seconds) has orders of magnitude of safety margin.
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 3;
 
-  /// Feed the task watchdog. Hot-path inline rate-limit check: callers that
-  /// already have a timestamp in hand pay only a load + sub + branch on the
-  /// common (no-op) path. The actual arch feed + status LED update live in
-  /// feed_wdt_slow_ to keep this small enough to inline freely.
-  ///
-  /// Pass time==0 to request millis() be read for you (low-frequency callers
-  /// only — always takes the slow path).
-  void ESPHOME_ALWAYS_INLINE feed_wdt(uint32_t time = 0) {
-    if (time == 0 || static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) {
+  /// Feed the task watchdog. Cold entry — callers without a millis()
+  /// timestamp in hand. Out of line to keep call sites tiny.
+  void feed_wdt();
+
+  /// Feed the task watchdog, hot entry. Callers that already have a
+  /// millis() timestamp pay only a load + sub + branch on the common
+  /// (no-op) path. The actual arch feed + status LED update live in
+  /// feed_wdt_slow_.
+  void ESPHOME_ALWAYS_INLINE feed_wdt_with_time(uint32_t time) {
+    if (static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) [[unlikely]] {
       this->feed_wdt_slow_(time);
     }
   }
@@ -575,7 +576,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
     }
     new_app_state |= component->get_component_state();
     this->app_state_ |= new_app_state;
-    this->feed_wdt(last_op_end_time);
+    this->feed_wdt_with_time(last_op_end_time);
   }
 
   this->after_loop_tasks_();
