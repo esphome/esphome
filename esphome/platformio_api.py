@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import time
 from typing import Any
 
@@ -184,9 +185,14 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     if log_filter:
         for handler in logging.getLogger().handlers:
             handler.addFilter(log_filter)
+    # Save sys.path — platform build scripts (e.g. pioarduino penv_setup.py)
+    # may strip entries to isolate their own virtualenv, which removes
+    # ESPHome's venv site-packages and breaks later imports.
+    saved_path = sys.path.copy()
     try:
         return run_external_command(platformio.__main__.main, *cmd, **kwargs)
     finally:
+        sys.path[:] = saved_path
         if log_filter:
             for handler in logging.getLogger().handlers:
                 handler.removeFilter(log_filter)
