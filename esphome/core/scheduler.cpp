@@ -744,7 +744,7 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   // queue paths go through here). A run of back-to-back callbacks cannot
   // starve the wdt. The inline fast path is a load + sub + branch — nearly
   // free when the 3 ms rate limit hasn't elapsed.
-  App.feed_wdt(end);
+  App.feed_wdt_with_time(end);
   return end;
 }
 
