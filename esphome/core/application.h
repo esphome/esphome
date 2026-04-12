@@ -229,7 +229,23 @@ class Application {
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
-  void feed_wdt(uint32_t time = 0);
+  /// Minimum interval between real arch_feed_wdt() calls. Chosen to keep the
+  /// rate of HAL pokes low while still being small enough that any plausible
+  /// watchdog timeout (seconds) has orders of magnitude of safety margin.
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 3;
+
+  /// Feed the task watchdog. Hot-path inline rate-limit check: callers that
+  /// already have a timestamp in hand pay only a load + sub + branch on the
+  /// common (no-op) path. The actual arch feed + status LED update live in
+  /// feed_wdt_slow_ to keep this small enough to inline freely.
+  ///
+  /// Pass time==0 to request millis() be read for you (low-frequency callers
+  /// only — always takes the slow path).
+  void ESPHOME_ALWAYS_INLINE feed_wdt(uint32_t time = 0) {
+    if (time == 0 || static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) {
+      this->feed_wdt_slow_(time);
+    }
+  }
 
   void reboot();
 
@@ -370,7 +386,10 @@ class Application {
   /// Caller must ensure dump_config_at_ < components_.size().
   void __attribute__((noinline)) process_dump_config_();
 
-  void feed_wdt_arch_();
+  /// Slow path for feed_wdt(): actually calls arch_feed_wdt(), updates
+  /// last_wdt_feed_, and re-dispatches the status LED. Out of line so the
+  /// inline wrapper stays tiny.
+  void feed_wdt_slow_(uint32_t time);
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
 #ifdef USE_HOST
@@ -422,6 +441,7 @@ class Application {
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
+  uint32_t last_wdt_feed_{0};  // millis() of most recent arch_feed_wdt(); rate-limits feed_wdt() hot path
 
 #ifdef USE_HOST
   int max_fd_{-1};  // Highest file descriptor number for select()
@@ -506,11 +526,12 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
   this->drain_wake_notifications_();
 #endif
 
-  // Process scheduled tasks
+  // Process scheduled tasks. Scheduler::call now feeds the watchdog itself
+  // after each scheduled item that actually runs, so we no longer need an
+  // unconditional feed here — when Scheduler::call has no work to do, the
+  // only elapsed time is a sleep wake + a few instructions, and when it does
+  // have work, it fed the wdt as it went.
   this->scheduler.call(loop_start_time);
-
-  // Feed the watchdog timer
-  this->feed_wdt(loop_start_time);
 
   // Process any pending enable_loop requests from ISRs
   // This must be done before marking in_loop_ = true to avoid race conditions
