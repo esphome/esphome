@@ -130,6 +130,7 @@ extern "C" void resetPins() {  // NOLINT
 
 // Linker wrap: redirect all ::millis() calls (Arduino libs, ISRs) to our accumulator.
 // Requires -Wl,--wrap=millis in build flags (added by __init__.py).
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" uint32_t IRAM_ATTR __wrap_millis() { return esphome::millis(); }
 
 #endif  // USE_ESP8266
