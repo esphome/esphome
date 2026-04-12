@@ -318,7 +318,6 @@ async def to_code(config):
     # handlers) use our fast accumulator instead of the expensive 4x 64-bit multiply
     # implementation in the Arduino ESP8266 core.
     cg.add_build_flag("-Wl,--wrap=millis")
-    cg.add_define("USE_FAST_MILLIS_ACCUMULATOR")
 
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
