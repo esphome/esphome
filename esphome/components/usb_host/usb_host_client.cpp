@@ -200,10 +200,8 @@ static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *
   // Re-enable component loop to process the queued event
   client->enable_loop_soon_any_context();
 
-  // Wake main loop immediately to process USB event instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Wake main loop immediately to process USB event
   App.wake_loop_threadsafe();
-#endif
 }
 void USBClient::setup() {
   usb_host_client_config_t config{.is_synchronous = false,
