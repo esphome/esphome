@@ -398,10 +398,9 @@ class Application {
   /// Pass time==0 to request millis() be read for you (low-frequency callers
   /// only — always takes the slow path).
   void ESPHOME_ALWAYS_INLINE feed_wdt(uint32_t time = 0) {
-    if (time != 0 && static_cast<uint32_t>(time - this->last_wdt_feed_) <= WDT_FEED_INTERVAL_MS) {
-      return;
+    if (time == 0 || static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) {
+      this->feed_wdt_slow_(time);
     }
-    this->feed_wdt_slow_(time);
   }
 
   void reboot();
