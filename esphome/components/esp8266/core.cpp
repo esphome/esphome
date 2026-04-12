@@ -27,7 +27,7 @@ void HOT yield() { ::yield(); }
 // Unsigned subtraction (now - last) handles one wrap correctly. ESPHome calls
 // millis() thousands of times per second (1+N per loop iteration at 60+ Hz), so
 // missing a full 71-minute wrap period is not a realistic concern. At boot,
-// s_last_us starts at 0 and system_get_time() counts from 0, so the first call's
+// state.last_us starts at 0 and system_get_time() counts from 0, so the first call's
 // delta equals the real elapsed time — no special initialization needed.
 //
 // This function is also installed as __wrap_millis (via -Wl,--wrap=millis) so
