@@ -868,7 +868,7 @@ async def keeloq_action(var, config, args):
     cg.add(var.set_encrypted(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
-    template_ = await cg.templatable(config[CONF_LEVEL], args, bool)
+    template_ = await cg.templatable(config[CONF_LEVEL], args, cg.bool_)
     cg.add(var.set_vlow(template_))
 
 
@@ -1580,7 +1580,7 @@ async def rc_switch_type_a_action(var, config, args):
     cg.add(
         var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.std_string))
     )
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
@@ -1605,7 +1605,7 @@ async def rc_switch_type_b_action(var, config, args):
     cg.add(var.set_protocol(proto))
     cg.add(var.set_address(await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)))
     cg.add(var.set_channel(await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
@@ -1638,7 +1638,7 @@ async def rc_switch_type_c_action(var, config, args):
     )
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.uint8)))
     cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
@@ -1663,7 +1663,7 @@ async def rc_switch_type_d_action(var, config, args):
     cg.add(var.set_protocol(proto))
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
     cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_trigger("rc_switch", RCSwitchTrigger, RCSwitchData)
