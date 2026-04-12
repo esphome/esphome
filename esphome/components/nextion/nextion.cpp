@@ -390,8 +390,7 @@ void Nextion::process_pending_in_queue_() {
       break;  // Unexpected send failure, stop
     }
     item->pending_command.clear();
-    ESP_LOGVV(TAG, "Pending cmd sent: %s",
-              item->component->get_variable_name().c_str());
+    ESP_LOGVV(TAG, "Pending cmd sent: %s", item->component->get_variable_name().c_str());
   }
 }
 #endif  // USE_NEXTION_COMMAND_SPACING
