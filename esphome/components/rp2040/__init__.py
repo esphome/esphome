@@ -223,6 +223,10 @@ async def to_code(config):
         for symbol in ("vprintf", "printf", "fprintf"):
             cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
+    # Wrap Arduino's millis() so all callers use our fast accumulator instead of
+    # the expensive time_us_64() + micros_to_millis() 64-bit conversion path.
+    cg.add_build_flag("-Wl,--wrap=millis")
+
     cg.add_platformio_option("board_build.core", "earlephilhower")
     # In testing mode, use all flash for sketch to allow linking grouped component tests.
     # Real RP2040 hardware uses 1MB filesystem + 1MB sketch, but CI tests may combine
