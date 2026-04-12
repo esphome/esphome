@@ -95,9 +95,8 @@ async def test_status_flags(
             await tracker.await_change(future, "status_led_writes")
             return int(tracker.sensor_states["status_led_writes"][-1])
 
-        # ---- Baseline: everything clean, record the LED write count ----
+        # ---- Baseline: everything clean ----
         await call_and_expect_bits("clear_warning_a", warning=0.0, error=0.0)
-        baseline_led_count = await snapshot_led_writes()
 
         # ================================================================
         # Part 1 — STATUS_LED_WARNING propagation to App.app_state_
@@ -175,5 +174,29 @@ async def test_status_flags(
         )
         await call_and_expect_bits("clear_error_a", warning=0.0, error=0.0)
 
-        # Sanity: baseline snapshot used earlier isn't stale, counter is monotonic
-        assert count_after_error >= baseline_led_count
+        # ---- Set → clear → re-set round-trip ----
+        # After clearing, status_led_light stops writing (steady state).
+        # Re-setting the flag must make it resume. This guards against a
+        # future idle optimization (e.g. #15642) where status_led disables
+        # its own loop when idle: if the re-enable path were broken, the
+        # second set would not produce writes.
+        await asyncio.sleep(0.3)
+        count_after_idle = await snapshot_led_writes()
+        # Counter should NOT have grown much since the clear (at most +1
+        # for the restore-state call on the clear transition).
+        assert count_after_idle - count_after_error <= 5, (
+            "status_led_light kept writing after warning/error was cleared: "
+            f"count grew from {count_after_error} to {count_after_idle}. "
+            "Expected it to stop writing once all status bits were clear."
+        )
+        # Re-set warning — writes must resume.
+        await call_and_expect_bits("set_warning_a", warning=1.0, error=0.0)
+        await asyncio.sleep(0.3)
+        count_after_reset = await snapshot_led_writes()
+        assert count_after_reset > count_after_idle + 5, (
+            "status_led_light did not resume writing after re-setting "
+            f"STATUS_LED_WARNING: count went from {count_after_idle} to "
+            f"{count_after_reset}. If an idle optimization disabled the "
+            "loop, the re-enable path may be broken."
+        )
+        await call_and_expect_bits("clear_warning_a", warning=0.0, error=0.0)
