@@ -262,7 +262,7 @@ class Application {
    */
   void teardown_components(uint32_t timeout_ms);
 
-  /// Return the public app state bits (STATUS_LED_* and lifecycle).
+  /// Return the public app state status bits (STATUS_LED_* only).
   /// Internal bookkeeping bits like APP_STATE_SETUP_COMPLETE are masked
   /// out so external readers (status_led components, etc.) never see them.
   uint8_t get_app_state() const { return this->app_state_ & ~APP_STATE_SETUP_COMPLETE; }

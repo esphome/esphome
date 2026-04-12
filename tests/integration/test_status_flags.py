@@ -22,10 +22,9 @@ import pytest
 from .state_utils import InitialStateHelper, SensorTracker, build_key_to_entity_mapping
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
-# Time to let the main loop run so status_led_light writes to its output.
-# feed_wdt re-dispatches every ~3 ms; 300 ms gives ~100 opportunities and
-# is long enough that even a slow host-mode main loop produces measurable
-# write-count changes.
+# Time to let the host-mode main loop run so status_led_light.loop() can
+# execute enough iterations to produce measurable write-count changes on
+# the fake template output. 300 ms is well above the minimum needed.
 STATUS_LED_SETTLE_S = 0.3
 
 
