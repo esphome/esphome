@@ -18,7 +18,7 @@ from typing import Any
 _LOGGER = logging.getLogger(__name__)
 
 
-def _patch_structhash() -> None:
+def patch_structhash() -> None:
     """Avoid full rebuilds when files are added or removed.
 
     PlatformIO clears the build dir whenever its structure hash changes.
@@ -47,7 +47,7 @@ def _patch_structhash() -> None:
     cli.clean_build_dir = patched_clean_build_dir
 
 
-def _patch_file_downloader() -> None:
+def patch_file_downloader() -> None:
     """Retry PlatformIO package downloads with exponential backoff.
 
     PlatformIO's ``FileDownloader`` uses an ``HTTPSession`` without built-in
@@ -102,8 +102,8 @@ def _patch_file_downloader() -> None:
 
 
 def main() -> int:
-    _patch_structhash()
-    _patch_file_downloader()
+    patch_structhash()
+    patch_file_downloader()
 
     import platformio.__main__
 
