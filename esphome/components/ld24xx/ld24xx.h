@@ -11,7 +11,7 @@
 
 #define SUB_SENSOR_WITH_DEDUP(name, dedup_type) \
  protected: \
-  ld24xx::LazySensorWithDedup<dedup_type> name##_sensor_{}; \
+  ld24xx::SensorWithDedup<dedup_type> name##_sensor_{}; \
 \
  public: \
   void set_##name##_sensor(sensor::Sensor *sensor) { this->name##_sensor_.set_sensor(sensor); }
@@ -69,9 +69,8 @@ inline void format_version_str(const uint8_t *version, std::span<char, 20> buffe
 
 #ifdef USE_SENSOR
 /// Sensor with deduplication — sensor may be null, null check is internal.
-/// Analogous to LazyCallbackManager: does nothing when no sensor is set,
-/// avoids heap allocation by storing everything inline.
-template<typename T> class LazySensorWithDedup {
+/// Stored inline, no heap allocation. Does nothing when no sensor is set.
+template<typename T> class SensorWithDedup {
  public:
   void set_sensor(sensor::Sensor *sens) { this->sens_ = sens; }
 
