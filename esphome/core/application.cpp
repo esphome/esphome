@@ -116,7 +116,7 @@ void Application::setup() {
   // clear path always works and needs no reconciliation. Finally, set
   // APP_STATE_SETUP_COMPLETE so subsequent warning clears go through
   // the normal walk-and-clear path.
-  if (!this->any_component_has_status_flag_(STATUS_LED_WARNING))
+  if (!this->any_component_has_status_flag(STATUS_LED_WARNING))
     this->app_state_ &= ~STATUS_LED_WARNING;
   this->app_state_ |= APP_STATE_SETUP_COMPLETE;
 
@@ -224,7 +224,7 @@ void HOT Application::feed_wdt(uint32_t time) {
 #endif
   }
 }
-bool Application::any_component_has_status_flag_(uint8_t flag) const {
+bool Application::any_component_has_status_flag(uint8_t flag) const {
   // Walk all components (not just looping ones) so non-looping components'
   // status bits are respected. Only called from the slow-path clear helpers
   // (status_clear_warning_slow_path_ / status_clear_error_slow_path_) on an

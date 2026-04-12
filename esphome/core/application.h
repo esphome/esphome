@@ -418,7 +418,7 @@ class Application {
   /// has the given flag set. Used by Component::status_clear_*_slow_path_()
   /// to decide whether to clear the corresponding bit on this->app_state_
   /// (which is the app-wide "any component has this status" indicator).
-  bool any_component_has_status_flag_(uint8_t flag) const;
+  bool any_component_has_status_flag(uint8_t flag) const;
 
 // Helper macro for entity getter method declarations
 #ifdef USE_DEVICES
