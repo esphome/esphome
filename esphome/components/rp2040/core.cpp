@@ -26,7 +26,8 @@ void HOT yield() { ::yield(); }
 // s_last_us and ::micros() start at 0, so no special initialization needed.
 //
 // Also installed as __wrap_millis (via -Wl,--wrap=millis) so Arduino library
-// code calling ::millis() directly gets the fast version.
+// code calling ::millis() directly gets the fast version. No interrupt guard
+// needed — no ESPHome ISR calls millis() on RP2040.
 uint32_t HOT millis() {
   static struct {
     uint32_t cache;
@@ -37,9 +38,18 @@ uint32_t HOT millis() {
   uint32_t delta = now_us - state.last_us;
   state.last_us = now_us;
   state.remainder += delta;
-  while (state.remainder >= 1000) {
-    state.cache++;
-    state.remainder -= 1000;
+  if (state.remainder >= 10000) {
+    // Rare path: large gap (>10 ms — boot, long block). Constant-time
+    // multiply-by-reciprocal via /1000.
+    uint32_t ms = state.remainder / 1000;
+    state.cache += ms;
+    state.remainder -= ms * 1000;
+  } else {
+    // Common path: small gap. Loop runs at most 10 times.
+    while (state.remainder >= 1000) {
+      state.cache++;
+      state.remainder -= 1000;
+    }
   }
   return state.cache;
 }
