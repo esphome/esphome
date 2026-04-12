@@ -83,7 +83,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IDLE_TIME_BEFORE_SLEEP, default=3): cv.int_range(
                 min=2, max=4294967295
             ),
-            cv.Optional(CONF_POWER_DOWN_PERIPHERALS): cv.boolean,
+            cv.Optional(CONF_POWER_DOWN_PERIPHERALS, default=True): cv.boolean,
             cv.Optional(CONF_POWER_DOWN_FLASH): cv.boolean,
             cv.Optional(CONF_ESPHOME_LOCKS): cv.boolean,
             cv.Optional(CONF_PROFILING): cv.boolean,
