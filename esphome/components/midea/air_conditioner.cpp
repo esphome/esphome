@@ -24,6 +24,25 @@ template<typename T> void update_property(T &property, const T &value, bool &fla
 }
 
 void AirConditioner::on_status_change() {
+  // Add frost protection custom preset once when autoconf completes
+  if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK &&
+      this->base_.getCapabilities().supportFrostProtectionPreset() && !this->frost_protection_set_) {
+    // Read existing presets (set by codegen), append frost protection, write back
+    const auto &existing = this->get_traits().get_supported_custom_presets();
+    bool found = false;
+    for (const char *p : existing) {
+      if (strcmp(p, Constants::FREEZE_PROTECTION) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      std::vector<const char *> merged(existing.begin(), existing.end());
+      merged.push_back(Constants::FREEZE_PROTECTION);
+      this->set_supported_custom_presets(merged);
+    }
+    this->frost_protection_set_ = true;
+  }
   bool need_publish = false;
   update_property(this->target_temperature, this->base_.getTargetTemp(), need_publish);
   update_property(this->current_temperature, this->base_.getIndoorTemp(), need_publish);
@@ -91,17 +110,15 @@ ClimateTraits AirConditioner::traits() {
   traits.set_supported_modes(this->supported_modes_);
   traits.set_supported_swing_modes(this->supported_swing_modes_);
   traits.set_supported_presets(this->supported_presets_);
-  if (!this->supported_custom_presets_.empty())
-    traits.set_supported_custom_presets(this->supported_custom_presets_);
-  if (!this->supported_custom_fan_modes_.empty())
-    traits.set_supported_custom_fan_modes(this->supported_custom_fan_modes_);
+  // Custom fan modes and presets are stored on Climate base class and wired via get_traits()
   /* + MINIMAL SET OF CAPABILITIES */
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_AUTO);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_LOW);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_MEDIUM);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_HIGH);
-  if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK)
+  if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK) {
     Converters::to_climate_traits(traits, this->base_.getCapabilities());
+  }
   if (!traits.get_supported_modes().empty())
     traits.add_supported_mode(ClimateMode::CLIMATE_MODE_OFF);
   if (!traits.get_supported_swing_modes().empty())

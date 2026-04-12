@@ -1801,33 +1801,77 @@ template<typename... Ts> struct Callback<void(Ts...)> {
   }
 };
 
+/// Grow a CallbackManager's backing array to exactly size+1. Defined in helpers.cpp.
+void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity, size_t elem_size);
+
 template<typename... X> class CallbackManager;
 
 /** Helper class to allow having multiple subscribers to a callback.
  *
+ * Uses a trivial-copyable-specialized container instead of std::vector to avoid
+ * template bloat (_M_realloc_insert, exception-safe copies). Since Callback is
+ * trivially copyable (just {fn_ptr, ctx_ptr}), reallocation is a plain memcpy.
+ * Uses uint16_t for size/capacity (8 bytes on 32-bit vs 12 for std::vector).
+ * Grows to exact size on each add — callbacks are registered during setup()
+ * and most instances have only 1-2 callbacks, so slack capacity is wasteful.
+ *
  * @tparam Ts The arguments for the callbacks, wrapped in void().
  */
 template<typename... Ts> class CallbackManager<void(Ts...)> {
+  using CbType = Callback<void(Ts...)>;
+  static_assert(std::is_trivially_copyable_v<CbType>, "Callback must be trivially copyable");
+
  public:
+  CallbackManager() = default;
+  ~CallbackManager() { ::operator delete(this->data_); }
+
+  // Non-copyable (would alias data_), movable (for std::map support)
+  CallbackManager(const CallbackManager &) = delete;
+  CallbackManager &operator=(const CallbackManager &) = delete;
+  CallbackManager(CallbackManager &&other) noexcept
+      : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
+    other.data_ = nullptr;
+    other.size_ = 0;
+    other.capacity_ = 0;
+  }
+  CallbackManager &operator=(CallbackManager &&other) noexcept {
+    std::swap(this->data_, other.data_);
+    std::swap(this->size_, other.size_);
+    std::swap(this->capacity_, other.capacity_);
+    return *this;
+  }
+
   /// Add any callable. Small trivially-copyable callables (like [this] lambdas)
   /// are stored inline without heap allocation or std::function.
-  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
-
-  /// Call all callbacks in this manager. No null check on invoke.
-  void call(Ts... args) {
-    for (auto &cb : this->callbacks_)
-      cb.call(args...);
-  }
-  size_t size() const { return this->callbacks_.size(); }
+  template<typename F> void add(F &&callback) { this->add_(CbType::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager.
-  void operator()(Ts... args) { call(args...); }
+  inline void ESPHOME_ALWAYS_INLINE call(Ts... args) {
+    if (this->size_ != 0) {
+      for (auto *it = this->data_, *end = it + this->size_; it != end; ++it) {
+        it->call(args...);
+      }
+    }
+  }
+  uint16_t size() const { return this->size_; }
+
+  /// Call all callbacks in this manager.
+  void operator()(Ts... args) { this->call(args...); }
 
  protected:
   template<typename...> friend class LazyCallbackManager;
   /// Non-template core to avoid code duplication per lambda type.
-  void add_(Callback<void(Ts...)> cb) { this->callbacks_.push_back(cb); }
-  std::vector<Callback<void(Ts...)>> callbacks_;
+  /// Inline fast path; cold growth path is in helpers.cpp via callback_manager_grow().
+  void add_(CbType cb) {
+    if (this->size_ == this->capacity_) {
+      this->data_ =
+          static_cast<CbType *>(callback_manager_grow(this->data_, this->size_, this->capacity_, sizeof(CbType)));
+    }
+    this->data_[this->size_++] = cb;
+  }
+  CbType *data_{nullptr};
+  uint16_t size_{0};
+  uint16_t capacity_{0};
 };
 
 /** CallbackManager backed by StaticVector for compile-time-known callback counts.
@@ -1871,7 +1915,7 @@ template<typename... X> class LazyCallbackManager;
  * from API and web_server components).
  *
  * Memory overhead comparison (32-bit systems):
- * - CallbackManager: 12 bytes (empty std::vector)
+ * - CallbackManager: 8 bytes (pointer + uint16 size + uint16 capacity)
  * - LazyCallbackManager: 4 bytes (nullptr pointer)
  *
  * Uses plain pointer instead of unique_ptr to avoid template instantiation overhead.

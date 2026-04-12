@@ -55,16 +55,22 @@ using GroupJoinAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYE
 template<typename... Ts>
 using ClearPlaylistAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST, Ts...>;
 
-template<typename... Ts> class PlayMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
+template<MediaPlayerCommand Command, typename... Ts>
+class MediaPlayerMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(std::string, media_url)
   TEMPLATABLE_VALUE(bool, announcement)
   void play(const Ts &...x) override {
-    this->parent_->make_call()
-        .set_media_url(this->media_url_.value(x...))
-        .set_announcement(this->announcement_.value(x...))
-        .perform();
+    auto call = this->parent_->make_call();
+    if constexpr (Command != MediaPlayerCommand::MEDIA_PLAYER_COMMAND_PLAY)
+      call.set_command(Command);
+    call.set_media_url(this->media_url_.value(x...)).set_announcement(this->announcement_.value(x...)).perform();
   }
 };
+
+template<typename... Ts>
+using PlayMediaAction = MediaPlayerMediaAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_PLAY, Ts...>;
+template<typename... Ts>
+using EnqueueMediaAction = MediaPlayerMediaAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_ENQUEUE, Ts...>;
 
 template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(float, volume)
