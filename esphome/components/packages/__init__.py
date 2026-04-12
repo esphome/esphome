@@ -321,12 +321,15 @@ def _walk_packages(
         return config
     packages = config[CONF_PACKAGES]
 
-    if not isinstance(packages, (dict, list)):
-        raise cv.Invalid(
-            f"Packages must be a key to value mapping or list, got {type(packages)} instead"
-        )
-
     with cv.prepend_path(CONF_PACKAGES):
+        if isinstance(packages, yaml_util.IncludeFile):
+            # If the packages key is an IncludeFile, resolve it first before processing.
+            packages, _ = resolve_include(packages, [], context, strict_undefined=False)
+        if not isinstance(packages, (dict, list)):
+            raise cv.Invalid(
+                f"Packages must be a key to value mapping or list, got {type(packages)} instead"
+            )
+
         if not isinstance(packages, dict):
             _walk_package_list(packages, callback, context)
         elif (result := _walk_package_dict(packages, callback, context)) is not None:

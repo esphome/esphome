@@ -1106,6 +1106,51 @@ def test_packages_invalid_type_raises() -> None:
         do_packages_pass(config)
 
 
+@patch("esphome.components.packages.resolve_include")
+def test_packages_include_file_resolves_to_list(mock_resolve_include) -> None:
+    """When packages: is an IncludeFile that resolves to a list, it is processed correctly."""
+    include_file = MagicMock(spec=IncludeFile)
+    package_content = {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
+    mock_resolve_include.return_value = ([package_content], None)
+
+    config = {CONF_PACKAGES: include_file}
+    result = do_packages_pass(config)
+    result = merge_packages(result)
+
+    assert result == {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
+
+
+@patch("esphome.components.packages.resolve_include")
+def test_packages_include_file_resolves_to_dict(mock_resolve_include) -> None:
+    """When packages: is an IncludeFile that resolves to a dict, it is processed correctly."""
+    include_file = MagicMock(spec=IncludeFile)
+    package_content = {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
+    mock_resolve_include.return_value = ({"network": package_content}, None)
+
+    config = {CONF_PACKAGES: include_file}
+    result = do_packages_pass(config)
+    result = merge_packages(result)
+
+    assert result == {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
+
+
+@patch("esphome.components.packages.resolve_include")
+def test_packages_include_file_resolves_to_invalid_type_raises(
+    mock_resolve_include,
+) -> None:
+    """When packages: is an IncludeFile that resolves to an invalid type, cv.Invalid is raised."""
+    include_file = MagicMock(spec=IncludeFile)
+    mock_resolve_include.return_value = ("not_a_dict_or_list", None)
+
+    config = {CONF_PACKAGES: include_file}
+    with pytest.raises(
+        cv.Invalid, match="Packages must be a key to value mapping or list"
+    ) as exc_info:
+        do_packages_pass(config)
+
+    assert exc_info.value.path == [CONF_PACKAGES]
+
+
 @pytest.mark.parametrize(
     "invalid_package",
     [
