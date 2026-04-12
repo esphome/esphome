@@ -414,12 +414,6 @@ class Application {
   /// (bit 6) to avoid costing additional RAM.
   bool is_setup_complete() const { return (this->app_state_ & APP_STATE_SETUP_COMPLETE) != 0; }
 
-  /// Walk all registered components looking for any whose component_state_
-  /// has the given flag set. Used by Component::status_clear_*_slow_path_()
-  /// to decide whether to clear the corresponding bit on this->app_state_
-  /// (which is the app-wide "any component has this status" indicator).
-  bool any_component_has_status_flag(uint8_t flag) const;
-
 // Helper macro for entity getter method declarations
 #ifdef USE_DEVICES
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
@@ -593,6 +587,12 @@ class Application {
 #ifdef USE_HOST
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
 #endif
+
+  /// Walk all registered components looking for any whose component_state_
+  /// has the given flag set. Used by Component::status_clear_*_slow_path_()
+  /// (which is a friend) to decide whether to clear the corresponding bit on
+  /// this->app_state_ (the app-wide "any component has this status" indicator).
+  bool any_component_has_status_flag_(uint8_t flag) const;
 
   /// Register a component, detecting loop() override at compile time.
   /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.

@@ -417,7 +417,7 @@ void Component::status_clear_warning_slow_path_() {
   // by a transient component clear — Application::setup() reconciles
   // the warning bit once at the end before setting APP_STATE_SETUP_COMPLETE.
   // The set path is unchanged (set_status_flag_ still writes directly).
-  if (App.is_setup_complete() && !App.any_component_has_status_flag(STATUS_LED_WARNING))
+  if (App.is_setup_complete() && !App.any_component_has_status_flag_(STATUS_LED_WARNING))
     App.app_state_ &= ~STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s cleared Warning flag", LOG_STR_ARG(this->get_component_log_str()));
 }
@@ -426,7 +426,7 @@ void Component::status_clear_error_slow_path_() {
   // STATUS_LED_ERROR is never artificially forced — it only ever lands
   // in app_state_ via a real set_status_flag_ call. So the walk-and-clear
   // path is always safe, including during setup.
-  if (!App.any_component_has_status_flag(STATUS_LED_ERROR))
+  if (!App.any_component_has_status_flag_(STATUS_LED_ERROR))
     App.app_state_ &= ~STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s cleared Error flag", LOG_STR_ARG(this->get_component_log_str()));
 }
