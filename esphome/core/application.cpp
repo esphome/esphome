@@ -199,10 +199,9 @@ void Application::process_dump_config_() {
 void HOT Application::feed_wdt_slow_(uint32_t time) {
   // Use provided time if available, otherwise get current time
   uint32_t now = time ? time : millis();
-  // Compare in milliseconds (3ms threshold). The inline wrapper already
-  // performs this check when time != 0; repeat it here for the time == 0
-  // entry and as a safety net.
-  if (now - this->last_wdt_feed_ > 3) {
+  // The inline wrapper already performs this check when time != 0;
+  // repeat it here for the time == 0 entry and as a safety net.
+  if (now - this->last_wdt_feed_ > WDT_FEED_INTERVAL_MS) {
     arch_feed_wdt();
     this->last_wdt_feed_ = now;
 #ifdef USE_STATUS_LED
