@@ -81,8 +81,8 @@ uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 // os_timer and calls esp_suspend() to suspend the continuation once for the
 // full duration. Our loop polls millis() + optimistic_yield(1000) which still
 // calls esp_schedule()/esp_suspend_within_cont() via yield(), so SDK tasks
-// and WiFi run correctly. Less power-efficient for long delays, but ESPHome
-// uses delay() only during setup and OTA — never on the hot path.
+// and WiFi run correctly. Less power-efficient for long delays but
+// functionally equivalent.
 void HOT delay(uint32_t ms) {
   if (ms == 0) {
     optimistic_yield(1000);
