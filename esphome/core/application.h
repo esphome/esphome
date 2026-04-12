@@ -829,11 +829,12 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
   this->drain_wake_notifications_();
 #endif
 
-  // Process scheduled tasks
+  // Process scheduled tasks. Scheduler::call now feeds the watchdog itself
+  // after each scheduled item that actually runs, so we no longer need an
+  // unconditional feed here — when Scheduler::call has no work to do, the
+  // only elapsed time is a sleep wake + a few instructions, and when it does
+  // have work, it fed the wdt as it went.
   this->scheduler.call(loop_start_time);
-
-  // Feed the watchdog timer
-  this->feed_wdt(loop_start_time);
 
   // Process any pending enable_loop requests from ISRs
   // This must be done before marking in_loop_ = true to avoid race conditions
