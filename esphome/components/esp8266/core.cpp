@@ -75,8 +75,14 @@ uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 // Avoid calling ::delay() which pulls in __delay from core_esp8266_wiring.cpp.
 // __delay has an intra-object call to the original millis() that --wrap=millis
 // can't intercept, preventing the linker from garbage-collecting the expensive
-// original millis body (~80 bytes IRAM). This yield loop achieves the same
-// behavior: feeds the watchdog, processes SDK tasks, keeps WiFi alive.
+// original millis body (~80 bytes IRAM).
+//
+// Semantic difference from Arduino's delay(): Arduino sets up a one-shot
+// os_timer and calls esp_suspend() to suspend the continuation once for the
+// full duration. Our loop polls millis() + optimistic_yield(1000) which still
+// calls esp_schedule()/esp_suspend_within_cont() via yield(), so SDK tasks
+// and WiFi run correctly. Less power-efficient for long delays, but ESPHome
+// uses delay() only during setup and OTA — never on the hot path.
 void HOT delay(uint32_t ms) {
   if (ms == 0) {
     optimistic_yield(1000);
