@@ -1,0 +1,8 @@
+sensor:
+  - platform: hte501
+    i2c_id: i2c_bus
+    address: 0x40
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity

@@ -1,0 +1,50 @@
+esphome:
+  name: host-noise-test
+host:
+api:
+  encryption:
+    key: N4Yle5YirwZhPiHHsdZLdOA73ndj/84veVaLhTvxCuU=
+logger:
+
+# Test sensors to verify batching works with noise encryption
+sensor:
+  - platform: template
+    name: "Noise Test Sensor 1"
+    lambda: return 1.0;
+    update_interval: 2s
+  - platform: template
+    name: "Noise Test Sensor 2"
+    lambda: return 2.0;
+    update_interval: 2s
+  - platform: template
+    name: "Noise Test Sensor 3"
+    lambda: return 3.0;
+    update_interval: 2s
+  - platform: template
+    name: "Noise Test Sensor 4"
+    lambda: return 4.0;
+    update_interval: 2s
+  - platform: template
+    name: "Noise Test Sensor 5"
+    lambda: return 5.0;
+    update_interval: 2s
+  - platform: template
+    name: "Noise Test Sensor 6"
+    lambda: return 6.0;
+    update_interval: 2s
+  - platform: template
+    name: "Noise Test Sensor 7"
+    lambda: return 7.0;
+    update_interval: 2s
+  - platform: template
+    name: "Noise Test Sensor 8"
+    lambda: return 8.0;
+    update_interval: 2s
+  - platform: template
+    name: "Noise Test Sensor 9"
+    lambda: return 9.0;
+    update_interval: 2s
+  - platform: template
+    name: "Noise Test Sensor 10"
+    lambda: return 10.0;
+    update_interval: 2s

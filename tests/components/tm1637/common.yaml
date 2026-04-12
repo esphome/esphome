@@ -1,0 +1,9 @@
+display:
+  - platform: tm1637
+    clk_pin: ${clk_pin}
+    dio_pin: ${dio_pin}
+    intensity: 3
+    lambda: |-
+      it.print("1234");
+      static const uint8_t buf[] = {0x3f, 0x06, 0x5b, 0x4f | 0x80};
+      it.set_buffer(buf, sizeof(buf));

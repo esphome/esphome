@@ -7,9 +7,9 @@
 namespace esphome {
 namespace waveshare_epaper {
 
-class WaveshareEPaper : public display::DisplayBuffer,
-                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                              spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
+class WaveshareEPaperBase : public display::DisplayBuffer,
+                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                  spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
@@ -27,16 +27,9 @@ class WaveshareEPaper : public display::DisplayBuffer,
 
   void update() override;
 
-  void setup() override {
-    this->setup_pins_();
-    this->initialize();
-  }
+  void setup() override;
 
   void on_safe_shutdown() override;
-
-  display::DisplayType get_display_type() override;
-
-  void fill(Color color) override;
 
  protected:
   bool wait_until_idle_();
@@ -54,13 +47,8 @@ class WaveshareEPaper : public display::DisplayBuffer,
 
   virtual int get_width_controller() { return this->get_width_internal(); };
 
-  uint32_t get_buffer_length_();
+  virtual uint32_t get_buffer_length_() = 0;  // NOLINT(readability-identifier-naming)
   uint32_t reset_duration_{200};
-
-  // Return the list of colors supported by the device
-  virtual std::vector<Color> get_supported_colors() { return {display::COLOR_ON}; }
-
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
   void start_command_();
   void end_command_();
@@ -73,9 +61,46 @@ class WaveshareEPaper : public display::DisplayBuffer,
   virtual uint32_t idle_timeout_() { return 1000u; }  // NOLINT(readability-identifier-naming)
 };
 
-class WaveshareEPaperBWR : public WaveshareEPaper {
+class WaveshareEPaper : public WaveshareEPaperBase {
  public:
-  std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
+  void fill(Color color) override;
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
+
+ protected:
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  uint32_t get_buffer_length_() override;
+};
+
+class WaveshareEPaperBWR : public WaveshareEPaperBase {
+ public:
+  void fill(Color color) override;
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
+ protected:
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  uint32_t get_buffer_length_() override;
+};
+
+class WaveshareEPaper7C : public WaveshareEPaperBase {
+ public:
+  uint8_t color_to_hex(Color color);
+  void fill(Color color) override;
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
+ protected:
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  uint32_t get_buffer_length_() override;
+  void setup() override;
+
+  void init_internal_7c_(uint32_t buffer_length);
+  void send_buffers_();
+  void reset_();
+
+  static const int NUM_BUFFERS = 10;
+  uint8_t *buffers_[NUM_BUFFERS];
 };
 
 enum WaveshareEPaperTypeAModel {
@@ -152,10 +177,29 @@ enum WaveshareEPaperTypeBModel {
   WAVESHARE_EPAPER_2_7_IN_B_V2,
   WAVESHARE_EPAPER_4_2_IN,
   WAVESHARE_EPAPER_4_2_IN_B_V2,
+  WAVESHARE_EPAPER_7_3_IN_F,
   WAVESHARE_EPAPER_7_5_IN,
   WAVESHARE_EPAPER_7_5_INV2,
   WAVESHARE_EPAPER_7_5_IN_B_V2,
   WAVESHARE_EPAPER_13_3_IN_K,
+};
+
+class WaveshareEPaper1P54InBV2 : public WaveshareEPaperBWR {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    this->command(0x10);
+    this->data(0x01);
+  }
+
+ protected:
+  int get_width_internal() override;
+  int get_height_internal() override;
 };
 
 class WaveshareEPaper2P7In : public WaveshareEPaper {
@@ -228,10 +272,40 @@ class GDEW029T5 : public WaveshareEPaper {
 
   void dump_config() override;
 
+  void deep_sleep() override;
+  void set_full_update_every(uint32_t full_update_every);
+
+ protected:
+  void init_display_();
+  void init_full_();
+  void init_partial_();
+  void write_lut_(const uint8_t *lut, uint8_t size);
+  void power_off_();
+  void power_on_();
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+ private:
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
+  bool deep_sleep_between_updates_{false};
+  bool power_is_on_{false};
+  bool is_deep_sleep_{false};
+  uint8_t *old_buffer_{nullptr};
+};
+
+class GDEY029T94 : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
   void deep_sleep() override {
-    // COMMAND DEEP SLEEP
-    this->command(0x07);
-    this->data(0xA5);  // check byte
+    this->command(0x10);  // Enter deep sleep
+    this->data(0x01);
   }
 
  protected:
@@ -390,6 +464,63 @@ class WaveshareEPaper2P9InDKE : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
+class WaveshareEPaper2P9InD : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
+class GDEY042T81 : public WaveshareEPaper {
+ public:
+  GDEY042T81();
+
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND POWER OFF
+    this->command(0x22);
+    this->data(0x83);
+    this->command(0x20);
+    // COMMAND DEEP SLEEP
+    this->command(0x10);
+    this->data(0x01);
+  }
+
+  void set_full_update_every(uint32_t full_update_every);
+
+ protected:
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
+
+  int get_width_internal() override;
+  int get_height_internal() override;
+  uint32_t idle_timeout_() override;
+
+ private:
+  void reset_();
+  void update_full_();
+  void update_part_();
+  void init_display_();
+};
+
 class WaveshareEPaper4P2In : public WaveshareEPaper {
  public:
   void initialize() override;
@@ -434,6 +565,34 @@ class WaveshareEPaper4P2In : public WaveshareEPaper {
 };
 
 class WaveshareEPaper4P2InBV2 : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND VCOM AND DATA INTERVAL SETTING
+    this->command(0x50);
+    this->data(0xF7);  // border floating
+
+    // COMMAND POWER OFF
+    this->command(0x02);
+    this->wait_until_idle_();
+
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check code
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
+class WaveshareEPaper4P2InBV2BWR : public WaveshareEPaperBWR {
  public:
   void initialize() override;
 
@@ -527,6 +686,85 @@ class WaveshareEPaper5P8InV2 : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
+class GDEY0583T81 : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override;
+
+  void set_full_update_every(uint32_t full_update_every);
+
+ protected:
+  int get_width_internal() override;
+  int get_height_internal() override;
+  uint32_t idle_timeout_() override;
+
+ private:
+  void power_on_();
+  void power_off_();
+  void reset_();
+  void update_full_();
+  void update_part_();
+  void init_full_();
+  void init_partial_();
+  void init_display_();
+
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
+  bool power_is_on_{false};
+  bool is_deep_sleep_{false};
+  uint8_t *old_buffer_{nullptr};
+};
+
+class WaveshareEPaper5P65InF : public WaveshareEPaper7C {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  uint32_t idle_timeout_() override;
+
+  void deep_sleep() override { ; }
+
+  enum WaitForState { BUSY = true, IDLE = false };
+  bool wait_until_(WaitForState state);
+
+  bool deep_sleep_between_updates_{true};
+};
+
+class WaveshareEPaper7P3InF : public WaveshareEPaper7C {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  uint32_t idle_timeout_() override;
+
+  void deep_sleep() override { ; }
+
+  bool wait_until_idle_();
+
+  bool deep_sleep_between_updates_{true};
+};
+
 class WaveshareEPaper7P5In : public WaveshareEPaper {
  public:
   void initialize() override;
@@ -574,6 +812,44 @@ class WaveshareEPaper7P5InBV2 : public WaveshareEPaper {
 };
 
 class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
+ public:
+  bool wait_until_idle_();
+
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    this->command(0x02);  // Power off
+    this->wait_until_idle_();
+    this->command(0x07);  // Deep sleep
+    this->data(0xA5);
+  }
+
+  void clear_screen();
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  void reset_() {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+      this->reset_pin_->digital_write(false);
+      delay(5);
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+    }
+  };
+
+  void init_display_();
+};
+
+class WaveshareEPaper7P5InBV3BWR : public WaveshareEPaperBWR {
  public:
   bool wait_until_idle_();
 
@@ -680,6 +956,43 @@ class WaveshareEPaper7P5InV2alt : public WaveshareEPaper7P5InV2 {
   };
 };
 
+class WaveshareEPaper7P5InV2P : public WaveshareEPaper {
+ public:
+  bool wait_until_idle_();
+
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND POWER OFF
+    this->command(0x02);
+    this->wait_until_idle_();
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check byte
+  }
+
+  void set_full_update_every(uint32_t full_update_every);
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  uint32_t idle_timeout_() override;
+
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
+
+ private:
+  void reset_();
+
+  void turn_on_display_();
+};
+
 class WaveshareEPaper7P5InHDB : public WaveshareEPaper {
  public:
   void initialize() override;
@@ -747,6 +1060,7 @@ class WaveshareEPaper2P13InV3 : public WaveshareEPaper {
   void initialize() override;
 
  protected:
+  int get_width_controller() override;
   int get_width_internal() override;
   int get_height_internal() override;
   uint32_t idle_timeout_() override;
@@ -788,7 +1102,7 @@ class WaveshareEPaper13P3InK : public WaveshareEPaper {
 // Generic Waveshare e-paper component that
 // avoids using any blocking wait to be able to support
 // big screens that are slow to update
-class WaveshareEPaperPolled : public WaveshareEPaper {
+class WaveshareEPaperPolled : public WaveshareEPaperBWR {
   // Will request a display refresh
   void update() override;
 
@@ -852,8 +1166,6 @@ class WaveshareEPaper7In5BV2 : public WaveshareEPaperPolled {
   void display() override;
   void power_off() override;
   void deep_sleep() override;
-
-  std::vector<Color> get_supported_colors() override { return {display::COLOR_ON, Color(255, 0, 0, 0)}; }
 
  protected:
   int get_width_internal() override { return 800; }

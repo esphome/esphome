@@ -21,14 +21,14 @@ void HYT271Component::update() {
 
   if (this->write(&raw_data[0], 0) != i2c::ERROR_OK) {
     this->status_set_warning();
-    ESP_LOGE(TAG, "Communication with HYT271 failed! => Ask new values");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   this->set_timeout("wait_convert", 50, [this]() {
     uint8_t raw_data[4];
     if (this->read(raw_data, 4) != i2c::ERROR_OK) {
       this->status_set_warning();
-      ESP_LOGE(TAG, "Communication with HYT271 failed! => Read values");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       return;
     }
     uint16_t raw_temperature = ((raw_data[2] << 8) | raw_data[3]) >> 2;
@@ -46,7 +46,5 @@ void HYT271Component::update() {
     this->status_clear_warning();
   });
 }
-float HYT271Component::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace hyt271
 }  // namespace esphome

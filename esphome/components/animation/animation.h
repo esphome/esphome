@@ -8,7 +8,8 @@ namespace animation {
 
 class Animation : public image::Image {
  public:
-  Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, image::ImageType type);
+  Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, image::ImageType type,
+            image::Transparency transparent);
 
   uint32_t get_animation_frame_count() const;
   int get_current_frame() const;
@@ -38,7 +39,7 @@ class Animation : public image::Image {
 template<typename... Ts> class AnimationNextFrameAction : public Action<Ts...> {
  public:
   AnimationNextFrameAction(Animation *parent) : parent_(parent) {}
-  void play(Ts... x) override { this->parent_->next_frame(); }
+  void play(const Ts &...x) override { this->parent_->next_frame(); }
 
  protected:
   Animation *parent_;
@@ -47,7 +48,7 @@ template<typename... Ts> class AnimationNextFrameAction : public Action<Ts...> {
 template<typename... Ts> class AnimationPrevFrameAction : public Action<Ts...> {
  public:
   AnimationPrevFrameAction(Animation *parent) : parent_(parent) {}
-  void play(Ts... x) override { this->parent_->prev_frame(); }
+  void play(const Ts &...x) override { this->parent_->prev_frame(); }
 
  protected:
   Animation *parent_;
@@ -57,7 +58,7 @@ template<typename... Ts> class AnimationSetFrameAction : public Action<Ts...> {
  public:
   AnimationSetFrameAction(Animation *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(uint16_t, frame)
-  void play(Ts... x) override { this->parent_->set_frame(this->frame_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->set_frame(this->frame_.value(x...)); }
 
  protected:
   Animation *parent_;

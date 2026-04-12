@@ -19,7 +19,6 @@ class RC522 : public PollingComponent {
   void dump_config() override;
 
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; };
 
   void loop() override;
 

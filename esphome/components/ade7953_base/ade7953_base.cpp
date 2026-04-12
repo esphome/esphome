@@ -8,6 +8,9 @@ namespace ade7953_base {
 
 static const char *const TAG = "ade7953";
 
+constexpr uint16_t CONFIG_DEFAULT = 0x8004u;
+constexpr uint16_t CONFIG_LOCK_BIT = 0x8000u;
+
 static const float ADE_POWER_FACTOR = 154.0f;
 static const float ADE_WATTSEC_POWER_FACTOR = ADE_POWER_FACTOR * ADE_POWER_FACTOR / 3600;
 
@@ -18,14 +21,20 @@ void ADE7953::setup() {
 
   // The chip might take up to 100ms to initialise
   this->set_timeout(100, [this]() {
-    // this->ade_write_8(0x0010, 0x04);
+    // Lock communication interface (SPI or I2C)
+    uint16_t config_v = CONFIG_DEFAULT;
+    this->ade_read_16(CONFIG_16, &config_v);
+    config_v &= static_cast<uint16_t>(~CONFIG_LOCK_BIT);  // Clear the lock bit
+    this->ade_write_16(CONFIG_16, config_v);
+    // Configure optimum settings according to datasheet
     this->ade_write_8(0x00FE, 0xAD);
     this->ade_write_16(0x0120, 0x0030);
     // Set gains
     this->ade_write_8(PGA_V_8, pga_v_);
     this->ade_write_8(PGA_IA_8, pga_ia_);
     this->ade_write_8(PGA_IB_8, pga_ib_);
-    this->ade_write_32(AVGAIN_32, vgain_);
+    this->ade_write_32(AVGAIN_32, avgain_);
+    this->ade_write_32(BVGAIN_32, bvgain_);
     this->ade_write_32(AIGAIN_32, aigain_);
     this->ade_write_32(BIGAIN_32, bigain_);
     this->ade_write_32(AWGAIN_32, awgain_);
@@ -34,7 +43,8 @@ void ADE7953::setup() {
     this->ade_read_8(PGA_V_8, &pga_v_);
     this->ade_read_8(PGA_IA_8, &pga_ia_);
     this->ade_read_8(PGA_IB_8, &pga_ib_);
-    this->ade_read_32(AVGAIN_32, &vgain_);
+    this->ade_read_32(AVGAIN_32, &avgain_);
+    this->ade_read_32(BVGAIN_32, &bvgain_);
     this->ade_read_32(AIGAIN_32, &aigain_);
     this->ade_read_32(BIGAIN_32, &bigain_);
     this->ade_read_32(AWGAIN_32, &awgain_);
@@ -58,15 +68,19 @@ void ADE7953::dump_config() {
   LOG_SENSOR("  ", "Active Power B Sensor", this->active_power_b_sensor_);
   LOG_SENSOR("  ", "Rective Power A Sensor", this->reactive_power_a_sensor_);
   LOG_SENSOR("  ", "Reactive Power B Sensor", this->reactive_power_b_sensor_);
-  ESP_LOGCONFIG(TAG, "  USE_ACC_ENERGY_REGS: %d", this->use_acc_energy_regs_);
-  ESP_LOGCONFIG(TAG, "  PGA_V_8: 0x%X", pga_v_);
-  ESP_LOGCONFIG(TAG, "  PGA_IA_8: 0x%X", pga_ia_);
-  ESP_LOGCONFIG(TAG, "  PGA_IB_8: 0x%X", pga_ib_);
-  ESP_LOGCONFIG(TAG, "  VGAIN_32: 0x%08jX", (uintmax_t) vgain_);
-  ESP_LOGCONFIG(TAG, "  AIGAIN_32: 0x%08jX", (uintmax_t) aigain_);
-  ESP_LOGCONFIG(TAG, "  BIGAIN_32: 0x%08jX", (uintmax_t) bigain_);
-  ESP_LOGCONFIG(TAG, "  AWGAIN_32: 0x%08jX", (uintmax_t) awgain_);
-  ESP_LOGCONFIG(TAG, "  BWGAIN_32: 0x%08jX", (uintmax_t) bwgain_);
+  ESP_LOGCONFIG(TAG,
+                "  USE_ACC_ENERGY_REGS: %d\n"
+                "  PGA_V_8: 0x%X\n"
+                "  PGA_IA_8: 0x%X\n"
+                "  PGA_IB_8: 0x%X\n"
+                "  AVGAIN_32: 0x%08jX\n"
+                "  BVGAIN_32: 0x%08jX\n"
+                "  AIGAIN_32: 0x%08jX\n"
+                "  BIGAIN_32: 0x%08jX\n"
+                "  AWGAIN_32: 0x%08jX\n"
+                "  BWGAIN_32: 0x%08jX",
+                this->use_acc_energy_regs_, pga_v_, pga_ia_, pga_ib_, (uintmax_t) avgain_, (uintmax_t) bvgain_,
+                (uintmax_t) aigain_, (uintmax_t) bigain_, (uintmax_t) awgain_, (uintmax_t) bwgain_);
 }
 
 #define ADE_PUBLISH_(name, val, factor) \

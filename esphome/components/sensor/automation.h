@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 class SensorStateTrigger : public Trigger<float> {
  public:
@@ -26,7 +25,7 @@ template<typename... Ts> class SensorPublishAction : public Action<Ts...> {
   SensorPublishAction(Sensor *sensor) : sensor_(sensor) {}
   TEMPLATABLE_VALUE(float, state)
 
-  void play(Ts... x) override { this->sensor_->publish_state(this->state_.value(x...)); }
+  void play(const Ts &...x) override { this->sensor_->publish_state(this->state_.value(x...)); }
 
  protected:
   Sensor *sensor_;
@@ -40,7 +39,7 @@ class ValueRangeTrigger : public Trigger<float>, public Component {
   template<typename V> void set_max(V max) { this->max_ = max; }
 
   void setup() override {
-    this->rtc_ = global_preferences->make_preference<bool>(this->parent_->get_object_id_hash());
+    this->rtc_ = this->parent_->make_entity_preference<bool>();
     bool initial_state;
     if (this->rtc_.load(&initial_state)) {
       this->previous_in_range_ = initial_state;
@@ -80,8 +79,8 @@ class ValueRangeTrigger : public Trigger<float>, public Component {
   Sensor *parent_;
   ESPPreferenceObject rtc_;
   bool previous_in_range_{false};
-  TemplatableValue<float, float> min_{NAN};
-  TemplatableValue<float, float> max_{NAN};
+  TemplatableFn<float, float> min_{[](float) -> float { return NAN; }};
+  TemplatableFn<float, float> max_{[](float) -> float { return NAN; }};
 };
 
 template<typename... Ts> class SensorInRangeCondition : public Condition<Ts...> {
@@ -90,7 +89,7 @@ template<typename... Ts> class SensorInRangeCondition : public Condition<Ts...> 
 
   void set_min(float min) { this->min_ = min; }
   void set_max(float max) { this->max_ = max; }
-  bool check(Ts... x) override {
+  bool check(const Ts &...x) override {
     const float state = this->parent_->state;
     if (std::isnan(this->min_)) {
       return state <= this->max_;
@@ -107,5 +106,4 @@ template<typename... Ts> class SensorInRangeCondition : public Condition<Ts...> 
   float max_{NAN};
 };
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor

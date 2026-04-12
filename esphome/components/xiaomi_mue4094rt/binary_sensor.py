@@ -1,12 +1,8 @@
+from esphome import core
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor, esp32_ble_tracker
-from esphome.const import (
-    CONF_MAC_ADDRESS,
-    CONF_TIMEOUT,
-    DEVICE_CLASS_MOTION,
-)
-
+import esphome.config_validation as cv
+from esphome.const import CONF_MAC_ADDRESS, CONF_TIMEOUT, DEVICE_CLASS_MOTION
 
 DEPENDENCIES = ["esp32_ble_tracker"]
 AUTO_LOAD = ["xiaomi_ble"]
@@ -26,9 +22,10 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-            cv.Optional(
-                CONF_TIMEOUT, default="5s"
-            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_TIMEOUT, default="5s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=core.TimePeriod(milliseconds=65535)),
+            ),
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)

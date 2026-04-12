@@ -6,6 +6,7 @@ import collections
 import fnmatch
 import functools
 import os.path
+from pathlib import Path
 import re
 import sys
 import time
@@ -58,17 +59,31 @@ file_types = (
 )
 cpp_include = ("*.h", "*.c", "*.cpp", "*.tcc")
 py_include = ("*.py",)
-ignore_types = (".ico", ".png", ".woff", ".woff2", "", ".ttf", ".otf")
+ignore_types = (
+    ".ico",
+    ".png",
+    ".woff",
+    ".woff2",
+    "",
+    ".ttf",
+    ".otf",
+    ".pcf",
+    ".apng",
+    ".gif",
+    ".webp",
+    ".bin",
+    ".wav",
+)
 
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []
 LINT_POST_CHECKS = []
-EXECUTABLE_BIT = {}
+EXECUTABLE_BIT: dict[str, int] = {}
 
-errors = collections.defaultdict(list)
+errors: collections.defaultdict[Path, list] = collections.defaultdict(list)
 
 
-def add_errors(fname, errs):
+def add_errors(fname: Path, errs: list[tuple[int, int, str] | None]) -> None:
     if not isinstance(errs, list):
         errs = [errs]
     for err in errs:
@@ -185,7 +200,7 @@ def lint_content_find_check(find, only_first=False, **kwargs):
                 find_ = find(fname, content)
             errs = []
             for line, col in find_all(content, find_):
-                err = func(fname)
+                err = func(fname, line, col, content)
                 errs.append((line + 1, col + 1, err))
                 if only_first:
                     break
@@ -229,10 +244,13 @@ def lint_ext_check(fname):
         "docker/ha-addon-rootfs/**",
         "docker/*.py",
         "script/*",
+        "CLAUDE.md",
+        "GEMINI.md",
+        ".github/copilot-instructions.md",
     ]
 )
-def lint_executable_bit(fname):
-    ex = EXECUTABLE_BIT[fname]
+def lint_executable_bit(fname: Path) -> str | None:
+    ex = EXECUTABLE_BIT[str(fname)]
     if ex != 100644:
         return (
             f"File has invalid executable bit {ex}. If running from a windows machine please "
@@ -249,16 +267,16 @@ def lint_executable_bit(fname):
         "esphome/dashboard/static/ext-searchbox.js",
     ],
 )
-def lint_tabs(fname):
+def lint_tabs(fname, line, col, content):
     return "File contains tab character. Please convert tabs to spaces."
 
 
 @lint_content_find_check("\r", only_first=True)
-def lint_newline(fname):
+def lint_newline(fname, line, col, content):
     return "File contains Windows newline. Please set your editor to Unix newline mode."
 
 
-@lint_content_check(exclude=["*.svg"])
+@lint_content_check(exclude=["*.svg", ".clang-tidy.hash"])
 def lint_end_newline(fname, content):
     if content and not content.endswith("\n"):
         return "File does not end with a newline, please add an empty line at the end of the file."
@@ -280,10 +298,11 @@ def highlight(s):
         "esphome/core/log.h",
         "esphome/components/socket/headers.h",
         "esphome/core/defines.h",
+        "esphome/components/http_request/httplib.h",
     ],
 )
 def lint_no_defines(fname, match):
-    s = highlight(f"static const uint8_t {match.group(1)} = {match.group(2)};")
+    s = highlight(f"static constexpr uint8_t {match.group(1)} = {match.group(2)};")
     return (
         "#define macros for integer constants are not allowed, please use "
         f"{s} style instead (replace uint8_t with the appropriate "
@@ -305,7 +324,12 @@ def lint_no_long_delays(fname, match):
     )
 
 
-@lint_content_check(include=["esphome/const.py"])
+@lint_content_check(
+    include=[
+        "esphome/const.py",
+        "esphome/components/const/__init__.py",
+    ]
+)
 def lint_const_ordered(fname, content):
     """Lint that value in const.py are ordered.
 
@@ -471,6 +495,22 @@ def lint_no_byte_datatype(fname, match):
     )
 
 
+@lint_re_check(
+    r"(?:std\s*::\s*string_view|#include\s*<string_view>)" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_std_string_view(fname, match):
+    return (
+        f"{highlight('std::string_view')} is not allowed in ESPHome. "
+        f"It pulls in significant STL template machinery that bloats flash on "
+        f"resource-constrained embedded targets, does not work well with ArduinoJson, "
+        f"and duplicates functionality already provided by {highlight('StringRef')}.\n"
+        f"Please use {highlight('StringRef')} from {highlight('esphome/core/string_ref.h')} "
+        f"for non-owning string references, or {highlight('const char *')} for simple cases.\n"
+        f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
+    )
+
+
 @lint_post_check
 def lint_constants_usage():
     errs = []
@@ -479,19 +519,43 @@ def lint_constants_usage():
             continue
         errs.append(
             f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
-            f"constant to const.py (Uses: {', '.join(uses)})"
+            f"constant to esphome/components/const/__init__.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
+            "See https://developers.esphome.io/contributing/code/#python"
         )
     return errs
 
 
-def relative_cpp_search_text(fname, content):
-    parts = fname.split("/")
+# Maximum allowed CONF_ constants in esphome/const.py.
+# This file is frozen — new constants go in esphome/components/const/__init__.py.
+# Decrease this number when constants are moved out of const.py.
+CONST_PY_MAX_CONF = 1011
+
+
+@lint_content_check(include=["esphome/const.py"])
+def lint_const_py_frozen(fname, content):
+    """Block new CONF_ constants from being added to esphome/const.py.
+
+    New constants should go in esphome/components/const/__init__.py instead.
+    """
+    count = sum(1 for line in content.splitlines() if line.startswith("CONF_"))
+    if count > CONST_PY_MAX_CONF:
+        return (
+            "esphome/const.py is frozen. "
+            "Add new constants to esphome/components/const/__init__.py instead."
+        )
+    if count < CONST_PY_MAX_CONF:
+        return f"CONST_PY_MAX_CONF in ci-custom.py should be updated to {count}."
+    return None
+
+
+def relative_cpp_search_text(fname: Path, content) -> str:
+    parts = fname.parts
     integration = parts[2]
     return f'#include "esphome/components/{integration}'
 
 
 @lint_content_find_check(relative_cpp_search_text, include=["esphome/components/*.cpp"])
-def lint_relative_cpp_import(fname):
+def lint_relative_cpp_import(fname, line, col, content):
     return (
         "Component contains absolute import - Components must always use "
         "relative imports.\n"
@@ -502,10 +566,24 @@ def lint_relative_cpp_import(fname):
     )
 
 
-def relative_py_search_text(fname, content):
-    parts = fname.split("/")
+def relative_py_search_text(fname: Path, content: str) -> str:
+    parts = fname.parts
     integration = parts[2]
     return f"esphome.components.{integration}"
+
+
+def convert_path_to_relative(abspath, current):
+    """Convert an absolute path to a relative import path."""
+    if abspath == current:
+        return "."
+    absparts = abspath.split(".")
+    curparts = current.split(".")
+    uplen = len(curparts)
+    while absparts and curparts and absparts[0] == curparts[0]:
+        absparts.pop(0)
+        curparts.pop(0)
+        uplen -= 1
+    return "." * uplen + ".".join(absparts)
 
 
 @lint_content_find_check(
@@ -514,16 +592,23 @@ def relative_py_search_text(fname, content):
     exclude=[
         "esphome/components/libretiny/generate_components.py",
         "esphome/components/web_server/__init__.py",
+        # const.py has absolute import in docstring example for external components
+        "esphome/components/esp8266/const.py",
     ],
 )
-def lint_relative_py_import(fname):
+def lint_relative_py_import(fname: Path, line, col, content):
+    import_line = content.splitlines()[line]
+    abspath = import_line[col:].split(" ")[0]
+    current = str(fname).removesuffix(".py").replace(os.path.sep, ".")
+    replacement = convert_path_to_relative(abspath, current)
+    newline = import_line.replace(abspath, replacement)
     return (
         "Component contains absolute import - Components must always use "
         "relative imports within the integration.\n"
         "Change:\n"
-        '  from esphome.components.abc import abc_ns"\n'
+        f"    {import_line}\n"
         "to:\n"
-        "  from . import abc_ns\n\n"
+        f"    {newline}\n"
     )
 
 
@@ -535,33 +620,55 @@ def lint_relative_py_import(fname):
     ],
     exclude=[
         "esphome/components/socket/headers.h",
+        "esphome/components/async_tcp/async_tcp.h",
         "esphome/components/esp32/core.cpp",
         "esphome/components/esp8266/core.cpp",
         "esphome/components/rp2040/core.cpp",
         "esphome/components/libretiny/core.cpp",
         "esphome/components/host/core.cpp",
+        "esphome/components/zephyr/core.cpp",
+        "esphome/components/esp32/helpers.cpp",
+        "esphome/components/esp8266/helpers.cpp",
+        "esphome/components/rp2040/helpers.cpp",
+        "esphome/components/libretiny/helpers.cpp",
+        "esphome/components/host/helpers.cpp",
+        "esphome/components/zephyr/helpers.cpp",
+        "esphome/components/http_request/httplib.h",
     ],
 )
-def lint_namespace(fname, content):
-    expected_name = re.match(
-        r"^esphome/components/([^/]+)/.*", fname.replace(os.path.sep, "/")
-    ).group(1)
-    search = f"namespace {expected_name}"
-    if search in content:
+def lint_namespace(fname: Path, content: str) -> str | None:
+    expected_name = fname.parts[2]
+    # Check for both old style and C++17 nested namespace syntax
+    search_old = f"namespace {expected_name}"
+    search_new = f"namespace esphome::{expected_name}"
+    if search_old in content or search_new in content:
         return None
     return (
         "Invalid namespace found in C++ file. All integration C++ files should put all "
         "functions in a separate namespace that matches the integration's name. "
-        f"Please make sure the file contains {highlight(search)}"
+        f"Please make sure the file contains {highlight(search_old)} or {highlight(search_new)}"
     )
 
 
 @lint_content_find_check('"esphome.h"', include=cpp_include, exclude=["tests/custom.h"])
-def lint_esphome_h(fname):
+def lint_esphome_h(fname, line, col, content):
     return (
         "File contains reference to 'esphome.h' - This file is "
         "auto-generated and should only be used for *custom* "
         "components. Please replace with references to the direct files."
+    )
+
+
+@lint_content_find_check(
+    "CORE.using_esp_idf",
+    include=py_include,
+    exclude=["esphome/core/__init__.py", "script/ci-custom.py"],
+)
+def lint_using_esp_idf_deprecated(fname, line, col, content):
+    return (
+        f"{highlight('CORE.using_esp_idf')} is deprecated and will change behavior in 2026.6. "
+        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
+        f"Please use {highlight('CORE.is_esp32')} and/or {highlight('CORE.using_arduino')} instead."
     )
 
 
@@ -612,6 +719,249 @@ def lint_trailing_whitespace(fname, match):
     return "Trailing whitespace detected"
 
 
+# Heap-allocating helpers that cause fragmentation on long-running embedded devices.
+# These return std::string and should be replaced with stack-based alternatives.
+HEAP_ALLOCATING_HELPERS = {
+    "format_bin": "format_bin_to() with a stack buffer",
+    "format_hex": "format_hex_to() with a stack buffer",
+    "format_hex_pretty": "format_hex_pretty_to() with a stack buffer",
+    "format_mac_address_pretty": "format_mac_addr_upper() with a stack buffer",
+    "get_mac_address": "get_mac_address_into_buffer() with a stack buffer",
+    "get_mac_address_pretty": "get_mac_address_pretty_into_buffer() with a stack buffer",
+    "str_sanitize": "str_sanitize_to() with a stack buffer",
+    "str_truncate": "removal (function is unused)",
+    "str_upper_case": "removal (function is unused)",
+    "str_snake_case": "removal (function is unused)",
+    "str_sprintf": "snprintf() with a stack buffer",
+    "str_snprintf": "snprintf() with a stack buffer",
+}
+
+
+@lint_re_check(
+    # Use negative lookahead to exclude _to/_into_buffer variants
+    # format_hex(?!_) ensures we don't match format_hex_to, format_hex_pretty_to, etc.
+    # get_mac_address(?!_) ensures we don't match get_mac_address_into_buffer, etc.
+    # CPP_RE_EOL captures rest of line so NOLINT comments are detected
+    r"[^\w]("
+    r"format_bin(?!_)|"
+    r"format_hex(?!_)|"
+    r"format_hex_pretty(?!_)|"
+    r"format_mac_address_pretty|"
+    r"get_mac_address_pretty(?!_)|"
+    r"get_mac_address(?!_)|"
+    r"str_sanitize(?!_)|"
+    r"str_truncate|"
+    r"str_upper_case|"
+    r"str_snake_case|"
+    r"str_sprintf|"
+    r"str_snprintf"
+    r")\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+    exclude=[
+        # The definitions themselves
+        "esphome/core/helpers.h",
+        "esphome/core/helpers.cpp",
+    ],
+)
+def lint_no_heap_allocating_helpers(fname, match):
+    func = match.group(1)
+    replacement = HEAP_ALLOCATING_HELPERS.get(func, "a stack-based alternative")
+    return (
+        f"{highlight(func + '()')} allocates heap memory. On long-running embedded devices, "
+        f"repeated heap allocations fragment memory over time. Even infrequent allocations "
+        f"become time bombs - the heap eventually cannot satisfy requests even with free "
+        f"memory available.\n"
+        f"Please use {replacement} instead.\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    # Match sprintf/vsprintf but not snprintf/vsnprintf
+    # [^\w] ensures we don't match the safe variants
+    r"[^\w](v?sprintf)\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_sprintf(fname, match):
+    func = match.group(1)
+    safe_func = func.replace("sprintf", "snprintf")
+    return (
+        f"{highlight(func + '()')} is not allowed in ESPHome. It has no buffer size limit "
+        f"and can cause buffer overflows.\n"
+        f"Please use one of these alternatives:\n"
+        f"  - {highlight(safe_func + '(buf, sizeof(buf), fmt, ...)')} for general formatting\n"
+        f"  - {highlight('buf_append_printf(buf, sizeof(buf), pos, fmt, ...)')} for "
+        f"offset-based formatting (also stores format strings in flash on ESP8266)\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    # Match std::to_string() or unqualified to_string() calls
+    # The esphome namespace has "using std::to_string;" so unqualified calls resolve to std::to_string
+    # Use negative lookbehind for unqualified calls to avoid matching:
+    #   - Function definitions: "const char *to_string(" or "std::string to_string("
+    #   - Method definitions: "Class::to_string("
+    #   - Method calls: ".to_string(" or "->to_string("
+    #   - Other identifiers: "_to_string("
+    # Also explicitly match std::to_string since : is in the lookbehind
+    r"(?:(?<![*&.\w>:])to_string|std\s*::\s*to_string)\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+    exclude=[
+        # Vendored library
+        "esphome/components/http_request/httplib.h",
+        # Deprecated helpers that return std::string
+        "esphome/core/helpers.cpp",
+        # The using declaration itself
+        "esphome/core/helpers.h",
+        # Test fixtures - not production embedded code
+        "tests/integration/fixtures/*",
+    ],
+)
+def lint_no_std_to_string(fname, match):
+    return (
+        f"{highlight('std::to_string()')} (including unqualified {highlight('to_string()')}) "
+        f"allocates heap memory. On long-running embedded devices, repeated heap allocations "
+        f"fragment memory over time.\n"
+        f"Please use {highlight('snprintf()')} with a stack buffer instead.\n"
+        f"\n"
+        f"Buffer sizes and format specifiers (sizes include sign and null terminator):\n"
+        f"  uint8_t:          4 chars   - %u (or PRIu8)\n"
+        f"  int8_t:           5 chars   - %d (or PRId8)\n"
+        f"  uint16_t:         6 chars   - %u (or PRIu16)\n"
+        f"  int16_t:          7 chars   - %d (or PRId16)\n"
+        f"  uint32_t:         11 chars  - %" + "PRIu32\n"
+        "  int32_t:          12 chars  - %" + "PRId32\n"
+        "  uint64_t:         21 chars  - %" + "PRIu64\n"
+        "  int64_t:          21 chars  - %" + "PRId64\n"
+        f"  float/double:     24 chars  - %.8g (15 digits + sign + decimal + e+XXX)\n"
+        f"                    317 chars - %f (for DBL_MAX: 309 int digits + decimal + 6 frac + sign)\n"
+        f"\n"
+        f"For sensor values, use value_accuracy_to_buf() from helpers.h.\n"
+        f'Example: char buf[11]; snprintf(buf, sizeof(buf), "%" PRIu32, value);\n'
+        f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
+    )
+
+
+@lint_re_check(
+    # Match scanf family functions: scanf, sscanf, fscanf, vscanf, vsscanf, vfscanf
+    # Also match std:: prefixed versions
+    # [^\w] ensures we match function calls, not substrings
+    r"[^\w]((?:std::)?v?[fs]?scanf)\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_scanf(fname, match):
+    func = match.group(1)
+    return (
+        f"{highlight(func + '()')} is not allowed in new ESPHome code. The scanf family "
+        f"pulls in ~7KB flash on ESP8266 and ~9KB on ESP32, and ESPHome doesn't otherwise "
+        f"need this code.\n"
+        f"Please use alternatives:\n"
+        f"  - {highlight('parse_number<T>(str)')} for parsing integers/floats from strings\n"
+        f"  - {highlight('strtol()/strtof()')} for C-style number parsing with error checking\n"
+        f"  - {highlight('parse_hex()')} for hex string parsing\n"
+        f"  - Manual parsing for simple fixed formats\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+# Base entity platforms - these are linked into most builds and should not
+# pull in powf/__ieee754_powf (~2.3KB flash).
+BASE_ENTITY_PLATFORMS = [
+    "alarm_control_panel",
+    "binary_sensor",
+    "button",
+    "climate",
+    "cover",
+    "datetime",
+    "event",
+    "fan",
+    "light",
+    "lock",
+    "media_player",
+    "number",
+    "select",
+    "sensor",
+    "switch",
+    "text",
+    "text_sensor",
+    "update",
+    "valve",
+    "water_heater",
+]
+
+# Directories protected from powf: core + all base entity platforms
+POWF_PROTECTED_DIRS = ["esphome/core"] + [
+    f"esphome/components/{p}" for p in BASE_ENTITY_PLATFORMS
+]
+
+
+@lint_re_check(
+    r"[^\w]powf\s*\(" + CPP_RE_EOL,
+    include=[
+        f"{d}/*.{ext}" for d in POWF_PROTECTED_DIRS for ext in ["h", "cpp", "tcc"]
+    ],
+)
+def lint_no_powf_in_core(fname, match):
+    return (
+        f"{highlight('powf()')} pulls in __ieee754_powf (~2.3KB flash) and is not allowed in "
+        f"core or base entity platform code. These files are linked into every build.\n"
+        f"Please use alternatives:\n"
+        f"  - {highlight('pow10_int(exp)')} for integer powers of 10 (from helpers.h)\n"
+        f"  - Precomputed lookup tables for gamma/non-integer exponents\n"
+        f"(If powf is strictly necessary, add `// NOLINT` to the line)"
+    )
+
+
+@lint_re_check(
+    r"[^\w]std\s*::\s*bind\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_std_bind(fname, match):
+    return (
+        f"{highlight('std::bind()')} is not allowed in new ESPHome code. "
+        f"Lambdas are clearer, produce smaller binaries, and are more likely to fit within "
+        f"the {highlight('std::function')} small-buffer optimization (avoiding heap allocation).\n"
+        f"Please use a lambda instead.\n"
+        f"  Before: {highlight('std::bind(&Class::method, this, std::placeholders::_1)')}\n"
+        f"  After:  {highlight('[this](auto arg) { this->method(arg); }')}\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+LOG_MULTILINE_RE = re.compile(r"ESP_LOG\w+\s*\(.*?;", re.DOTALL)
+LOG_BAD_CONTINUATION_RE = re.compile(r'\\n(?:[^ \\"\r\n\t]|"\s*\n\s*"[^ \\])')
+LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
+
+
+@lint_content_check(include=cpp_include)
+def lint_log_multiline_continuation(fname, content):
+    errs = []
+    for log_match in LOG_MULTILINE_RE.finditer(content):
+        log_text = log_match.group(0)
+        for bad_match in LOG_BAD_CONTINUATION_RE.finditer(log_text):
+            # %s may expand to a whitespace prefix at runtime, skip those
+            if LOG_PERCENT_S_CONTINUATION_RE.match(log_text, bad_match.start()):
+                continue
+            # Calculate line number from position in full content
+            abs_pos = log_match.start() + bad_match.start()
+            lineno = content.count("\n", 0, abs_pos) + 1
+            col = abs_pos - content.rfind("\n", 0, abs_pos)
+            errs.append(
+                (
+                    lineno,
+                    col,
+                    "Multi-line log message has a continuation line that does "
+                    "not start with a space. The log viewer uses leading "
+                    "whitespace to detect continuation lines and re-add the "
+                    f"log tag prefix (e.g. {highlight('[C][component:042]:')}).\n"
+                    "Either start the continuation with a space/indent, or "
+                    "split into separate ESP_LOG* calls.",
+                )
+            )
+    return errs
+
+
 @lint_content_find_check(
     "ESP_LOG",
     include=["*.h", "*.tcc"],
@@ -636,6 +986,7 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/nextion/nextion_base.h",
         "esphome/components/select/select.h",
         "esphome/components/sensor/sensor.h",
+        "esphome/components/spi/spi.h",
         "esphome/components/stepper/stepper.h",
         "esphome/components/switch/switch.h",
         "esphome/components/text/text.h",
@@ -643,14 +994,59 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/valve/valve.h",
         "esphome/core/component.h",
         "esphome/core/gpio.h",
+        "esphome/core/log_const_en.h",
         "esphome/core/log.h",
         "tests/custom.h",
     ],
 )
-def lint_log_in_header(fname):
+def lint_log_in_header(fname, line, col, content):
     return (
         "Found reference to ESP_LOG in header file. Using ESP_LOG* in header files "
         "is currently not possible - please move the definition to a source file (.cpp)"
+    )
+
+
+PACKAGE_BUS_RE = re.compile(
+    r"^\s+(\w+):\s*!include\s+\S*test_build_components/common/(\w+)/",
+    re.MULTILINE,
+)
+
+
+@lint_content_check(include=["tests/components/*/test.*.yaml"])
+def lint_test_package_key_matches_bus(fname, content):
+    """Ensure package keys match the common bus directory name.
+
+    For example, a package using uart_115200 includes must use
+    'uart_115200' as the key, not 'uart'.
+    """
+    errs: list[tuple[int, int, str]] = []
+    for match in PACKAGE_BUS_RE.finditer(content):
+        pkg_key = match.group(1)
+        bus_dir = match.group(2)
+        if pkg_key != bus_dir:
+            lineno = content.count("\n", 0, match.start()) + 1
+            errs.append(
+                (
+                    lineno,
+                    1,
+                    f"Package key {highlight(pkg_key)} does not match bus directory "
+                    f"{highlight(bus_dir)}. The package key must match the directory "
+                    f"name under tests/test_build_components/common/. "
+                    f"Change {highlight(pkg_key)} to {highlight(bus_dir)}.",
+                )
+            )
+    return errs
+
+
+@lint_content_find_check(
+    "FINAL_VALIDATE_SCHEMA",
+    include=["esphome/core/*.py"],
+    exclude=["esphome/core/entity_helpers.py"],
+)
+def lint_final_validate_in_core(fname, line, col, content):
+    return (
+        "FINAL_VALIDATE_SCHEMA in esphome/core/ is not picked up by the component loader. "
+        "Use CoreFinalValidateStep in esphome/config.py instead."
     )
 
 
@@ -669,8 +1065,7 @@ def main():
     )
     args = parser.parse_args()
 
-    global EXECUTABLE_BIT
-    EXECUTABLE_BIT = git_ls_files()
+    EXECUTABLE_BIT.update(git_ls_files())
     files = list(EXECUTABLE_BIT.keys())
     # Match against re
     file_name_re = re.compile("|".join(args.files))
@@ -682,9 +1077,9 @@ def main():
     files.sort()
 
     for fname in files:
-        _, ext = os.path.splitext(fname)
+        fname = Path(fname)
         run_checks(LINT_FILE_CHECKS, fname, fname)
-        if ext in ignore_types:
+        if fname.suffix in ignore_types:
             continue
         try:
             with codecs.open(fname, "r", encoding="utf-8") as f_handle:
@@ -697,7 +1092,7 @@ def main():
             continue
         run_checks(LINT_CONTENT_CHECKS, fname, fname, content)
 
-    run_checks(LINT_POST_CHECKS, "POST")
+    run_checks(LINT_POST_CHECKS, Path("POST"))
 
     for f, errs in sorted(errors.items()):
         bold = functools.partial(styled, colorama.Style.BRIGHT)

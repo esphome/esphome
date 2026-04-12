@@ -2,9 +2,13 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/time/real_time_clock.h"
+#include <array>
 
 namespace esphome {
 namespace sntp {
+
+// Server count is calculated at compile time by Python codegen
+// SNTP_SERVER_COUNT will always be defined
 
 /// The SNTP component allows you to configure local timekeeping via Simple Network Time Protocol.
 ///
@@ -14,24 +18,28 @@ namespace sntp {
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 class SNTPComponent : public time::RealTimeClock {
  public:
+  SNTPComponent(const std::array<const char *, SNTP_SERVER_COUNT> &servers) : servers_(servers) {}
+
   void setup() override;
   void dump_config() override;
-  /// Change the servers used by SNTP for timekeeping
-  void set_servers(const std::string &server_1, const std::string &server_2, const std::string &server_3) {
-    this->server_1_ = server_1;
-    this->server_2_ = server_2;
-    this->server_3_ = server_3;
-  }
   float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
 
   void update() override;
   void loop() override;
 
+  void time_synced();
+
  protected:
-  std::string server_1_;
-  std::string server_2_;
-  std::string server_3_;
+  // Store const char pointers to string literals
+  // ESP8266: strings in rodata (RAM), but avoids std::string overhead (~24 bytes each)
+  // Other platforms: strings in flash
+  std::array<const char *, SNTP_SERVER_COUNT> servers_;
   bool has_time_{false};
+
+#if defined(USE_ESP32)
+ private:
+  static SNTPComponent *instance;
+#endif
 };
 
 }  // namespace sntp

@@ -1,0 +1,85 @@
+import os
+import re
+
+# pylint: disable=E0602
+Import("env")  # noqa
+
+# Memory sizes for testing mode (large enough to accommodate grouped tests)
+TESTING_IRAM_SIZE = 0x200000  # 2MB
+TESTING_DRAM_SIZE = 0x200000  # 2MB
+
+
+def patch_segment(content, segment_name, new_size):
+    """Patch a memory segment's length in linker script content.
+
+    Handles both single-line and multi-line segment definitions, e.g.:
+      iram0_0_seg (RX) : org = 0x40080000, len = 0x20000 + 0x0
+    or split across lines:
+      dram0_0_seg (RW) : org = 0x3FFB0000 + 0xdb5c,
+                                       len = 0x2c200 - 0xdb5c
+
+    Args:
+        content: Full linker script content as string
+        segment_name: Name of the segment (e.g., 'iram0_0_seg')
+        new_size: New size as integer
+
+    Returns:
+        Tuple of (new_content, was_patched)
+    """
+    # Match segment name through to "len = <value>" allowing newlines between org and len
+    pattern = rf'({re.escape(segment_name)}\s*\([^)]*\)\s*:\s*org\s*=\s*.+?,\s*len\s*=\s*)(\S+[^\n]*)'
+    if match := re.search(pattern, content, re.DOTALL):
+        replacement = f"{match.group(1)}{new_size:#x}"
+        new_content = content[:match.start()] + replacement + content[match.end():]
+        if new_content != content:
+            return new_content, True
+    return content, False
+
+
+def patch_idf_linker_script(source, target, env):
+    """Patch ESP-IDF linker script to increase IRAM and DRAM size for testing mode."""
+    # Check if we're in testing mode by looking for the define
+    build_flags = env.get("BUILD_FLAGS", [])
+    testing_mode = any("-DESPHOME_TESTING_MODE" in flag for flag in build_flags)
+
+    if not testing_mode:
+        return
+
+    # For ESP-IDF, the linker scripts are generated in the build directory
+    build_dir = env.subst("$BUILD_DIR")
+
+    # The memory.ld file is directly in the build directory
+    memory_ld = os.path.join(build_dir, "memory.ld")
+
+    if not os.path.exists(memory_ld):
+        print(f"ESPHome: Warning - could not find linker script at {memory_ld}")
+        return
+
+    try:
+        with open(memory_ld, "r") as f:
+            content = f.read()
+    except OSError as e:
+        print(f"ESPHome: Error reading linker script: {e}")
+        return
+
+    patches = []
+
+    content, patched = patch_segment(content, 'iram0_0_seg', TESTING_IRAM_SIZE)
+    if patched:
+        patches.append(f"IRAM={TESTING_IRAM_SIZE:#x}")
+
+    content, patched = patch_segment(content, 'dram0_0_seg', TESTING_DRAM_SIZE)
+    if patched:
+        patches.append(f"DRAM={TESTING_DRAM_SIZE:#x}")
+
+    if patches:
+        with open(memory_ld, "w") as f:
+            f.write(content)
+        print(f"ESPHome: Patched {', '.join(patches)} in {memory_ld} for testing mode")
+    else:
+        print(f"ESPHome: Warning - could not patch memory segments in {memory_ld}")
+
+
+# Hook into the build process before linking
+# For ESP-IDF, we need to run this after the linker scripts are generated
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", patch_idf_linker_script)

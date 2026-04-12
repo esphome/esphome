@@ -1,5 +1,4 @@
 #pragma once
-
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -8,7 +7,13 @@
 #include <utility>
 #include <vector>
 
-#ifdef USE_ARDUINO
+#ifdef USE_ESP32
+
+#include "driver/spi_master.h"
+
+using SPIInterface = spi_host_device_t;
+
+#elif defined(USE_ARDUINO)
 
 #include <SPI.h>
 
@@ -18,21 +23,18 @@ using SPIInterface = SPIClassRP2040 *;
 using SPIInterface = SPIClass *;
 #endif
 
-#endif
+#elif defined(USE_HOST) || defined(CLANG_TIDY)
 
-#ifdef USE_ESP_IDF
+using SPIInterface = void *;  // Stub for platforms without SPI (e.g., host, Zephyr)
 
-#include "driver/spi_master.h"
-
-using SPIInterface = spi_host_device_t;
-
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32 / USE_ARDUINO
 
 /**
  * Implementation of SPI Controller mode.
  */
-namespace esphome {
-namespace spi {
+namespace esphome::spi {
+
+#define LOG_SPI_DEVICE(this) ESP_LOGCONFIG(TAG, "  CS Pin: %d", esphome::spi::Utility::get_pin_no(this->cs_));
 
 /// The bit-order for SPI devices. This defines how the data read from and written to the device is interpreted.
 enum SPIBitOrder {
@@ -114,11 +116,17 @@ class NullPin : public GPIOPin {
 
   void pin_mode(gpio::Flags flags) override {}
 
+  gpio::Flags get_flags() const override { return gpio::Flags::FLAG_NONE; }
+
   bool digital_read() override { return false; }
 
   void digital_write(bool value) override {}
 
-  std::string dump_summary() const override { return std::string(); }
+  size_t dump_summary(char *buffer, size_t len) const override {
+    if (len > 0)
+      buffer[0] = '\0';
+    return 0;
+  }
 
  protected:
   static GPIOPin *const NULL_PIN;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -162,6 +170,8 @@ class Utility {
     }
   }
 };
+
+class SPIDelegateDummy;
 
 // represents a device attached to an SPI bus, with a defined clock rate, mode and bit order. On Arduino this is
 // a thin wrapper over SPIClass.
@@ -248,6 +258,21 @@ class SPIDelegate {
   uint32_t data_rate_{1000000};
   SPIMode mode_{MODE0};
   GPIOPin *cs_pin_{NullPin::NULL_PIN};
+  static SPIDelegate *const NULL_DELEGATE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+};
+
+/**
+ * A dummy SPIDelegate that complains if it's used.
+ */
+
+class SPIDelegateDummy : public SPIDelegate {
+ public:
+  SPIDelegateDummy() = default;
+
+  uint8_t transfer(uint8_t data) override { return 0; }
+  void end_transaction() override{};
+
+  void begin_transaction() override;
 };
 
 /**
@@ -294,7 +319,8 @@ class SPIBus {
 
   SPIBus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) : clk_pin_(clk), sdo_pin_(sdo), sdi_pin_(sdi) {}
 
-  virtual SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin) {
+  virtual SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                                    bool release_device, bool write_only) {
     return new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
   }
 
@@ -311,7 +337,7 @@ class SPIClient;
 class SPIComponent : public Component {
  public:
   SPIDelegate *register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
-                               GPIOPin *cs_pin);
+                               GPIOPin *cs_pin, bool release_device, bool write_only);
   void unregister_device(SPIClient *device);
 
   void set_clk(GPIOPin *clk) { this->clk_pin_ = clk; }
@@ -332,6 +358,12 @@ class SPIComponent : public Component {
 
   void setup() override;
   void dump_config() override;
+  size_t get_bus_width() const {
+    if (this->data_pins_.empty()) {
+      return 1;
+    }
+    return this->data_pins_.size();
+  }
 
  protected:
   GPIOPin *clk_pin_{nullptr};
@@ -350,6 +382,7 @@ class SPIComponent : public Component {
 };
 
 using QuadSPIComponent = SPIComponent;
+using OctalSPIComponent = SPIComponent;
 /**
  * Base class for SPIDevice, un-templated.
  */
@@ -360,15 +393,18 @@ class SPIClient {
 
   virtual void spi_setup() {
     esph_log_d("spi_device", "mode %u, data_rate %ukHz", (unsigned) this->mode_, (unsigned) (this->data_rate_ / 1000));
-    this->delegate_ = this->parent_->register_device(this, this->mode_, this->bit_order_, this->data_rate_, this->cs_);
+    this->delegate_ = this->parent_->register_device(this, this->mode_, this->bit_order_, this->data_rate_, this->cs_,
+                                                     this->release_device_, this->write_only_);
   }
 
   virtual void spi_teardown() {
     this->parent_->unregister_device(this);
-    this->delegate_ = nullptr;
+    this->delegate_ = SPIDelegate::NULL_DELEGATE;
   }
 
   bool spi_is_ready() { return this->delegate_->is_ready(); }
+  void set_release_device(bool release) { this->release_device_ = release; }
+  void set_write_only(bool write_only) { this->write_only_ = write_only; }
 
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
@@ -376,7 +412,9 @@ class SPIClient {
   uint32_t data_rate_{1000000};
   SPIComponent *parent_{nullptr};
   GPIOPin *cs_{nullptr};
-  SPIDelegate *delegate_{nullptr};
+  bool release_device_{false};
+  bool write_only_{false};
+  SPIDelegate *delegate_{SPIDelegate::NULL_DELEGATE};
 };
 
 /**
@@ -473,5 +511,4 @@ class SPIDevice : public SPIClient {
   template<size_t N> void transfer_array(std::array<uint8_t, N> &data) { this->transfer_array(data.data(), N); }
 };
 
-}  // namespace spi
-}  // namespace esphome
+}  // namespace esphome::spi

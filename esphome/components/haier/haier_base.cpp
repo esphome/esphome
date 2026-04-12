@@ -52,8 +52,6 @@ bool check_timeout(std::chrono::steady_clock::time_point now, std::chrono::stead
 HaierClimateBase::HaierClimateBase()
     : haier_protocol_(*this),
       protocol_phase_(ProtocolPhases::SENDING_INIT_1),
-      display_status_(true),
-      health_mode_(false),
       force_send_control_(false),
       forced_request_status_(false),
       reset_protocol_request_(false),
@@ -67,7 +65,7 @@ HaierClimateBase::HaierClimateBase()
       {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH});
   this->traits_.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
                                            climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL});
-  this->traits_.set_supports_current_temperature(true);
+  this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
 }
 
 HaierClimateBase::~HaierClimateBase() {}
@@ -127,21 +125,34 @@ haier_protocol::HaierMessage HaierClimateBase::get_wifi_signal_message_() {
 }
 #endif
 
-bool HaierClimateBase::get_display_state() const { return this->display_status_; }
-
-void HaierClimateBase::set_display_state(bool state) {
-  if (this->display_status_ != state) {
-    this->display_status_ = state;
-    this->force_send_control_ = true;
+void HaierClimateBase::save_settings() {
+  HaierBaseSettings settings{this->get_health_mode(), this->get_display_state()};
+  if (!this->base_rtc_.save(&settings)) {
+    ESP_LOGW(TAG, "Failed to save settings");
   }
 }
 
-bool HaierClimateBase::get_health_mode() const { return this->health_mode_; }
+bool HaierClimateBase::get_display_state() const {
+  return (this->display_status_ == SwitchState::ON) || (this->display_status_ == SwitchState::PENDING_ON);
+}
+
+void HaierClimateBase::set_display_state(bool state) {
+  if (state != this->get_display_state()) {
+    this->display_status_ = state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
+    this->force_send_control_ = true;
+    this->save_settings();
+  }
+}
+
+bool HaierClimateBase::get_health_mode() const {
+  return (this->health_mode_ == SwitchState::ON) || (this->health_mode_ == SwitchState::PENDING_ON);
+}
 
 void HaierClimateBase::set_health_mode(bool state) {
-  if (this->health_mode_ != state) {
-    this->health_mode_ = state;
+  if (state != this->get_health_mode()) {
+    this->health_mode_ = state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
     this->force_send_control_ = true;
+    this->save_settings();
   }
 }
 
@@ -160,7 +171,7 @@ void HaierClimateBase::toggle_power() {
       PendingAction({ActionRequest::TOGGLE_POWER, esphome::optional<haier_protocol::HaierMessage>()});
 }
 
-void HaierClimateBase::set_supported_swing_modes(const std::set<climate::ClimateSwingMode> &modes) {
+void HaierClimateBase::set_supported_swing_modes(climate::ClimateSwingModeMask modes) {
   this->traits_.set_supported_swing_modes(modes);
   if (!modes.empty())
     this->traits_.add_supported_swing_mode(climate::CLIMATE_SWING_OFF);
@@ -168,13 +179,13 @@ void HaierClimateBase::set_supported_swing_modes(const std::set<climate::Climate
 
 void HaierClimateBase::set_answer_timeout(uint32_t timeout) { this->haier_protocol_.set_answer_timeout(timeout); }
 
-void HaierClimateBase::set_supported_modes(const std::set<climate::ClimateMode> &modes) {
+void HaierClimateBase::set_supported_modes(climate::ClimateModeMask modes) {
   this->traits_.set_supported_modes(modes);
   this->traits_.add_supported_mode(climate::CLIMATE_MODE_OFF);        // Always available
   this->traits_.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);  // Always available
 }
 
-void HaierClimateBase::set_supported_presets(const std::set<climate::ClimatePreset> &presets) {
+void HaierClimateBase::set_supported_presets(climate::ClimatePresetMask presets) {
   this->traits_.set_supported_presets(presets);
   if (!presets.empty())
     this->traits_.add_supported_preset(climate::CLIMATE_PRESET_NONE);
@@ -184,10 +195,6 @@ void HaierClimateBase::set_send_wifi(bool send_wifi) { this->send_wifi_signal_ =
 
 void HaierClimateBase::send_custom_command(const haier_protocol::HaierMessage &message) {
   this->action_request_ = PendingAction({ActionRequest::SEND_CUSTOM_COMMAND, message});
-}
-
-void HaierClimateBase::add_status_message_callback(std::function<void(const char *, size_t)> &&callback) {
-  this->status_message_callback_.add(std::move(callback));
 }
 
 haier_protocol::HandlerError HaierClimateBase::answer_preprocess_(
@@ -231,12 +238,11 @@ haier_protocol::HandlerError HaierClimateBase::timeout_default_handler_(haier_pr
 }
 
 void HaierClimateBase::setup() {
-  ESP_LOGI(TAG, "Haier initialization...");
   // Set timestamp here to give AC time to boot
   this->last_request_timestamp_ = std::chrono::steady_clock::now();
   this->set_phase(ProtocolPhases::SENDING_INIT_1);
   this->haier_protocol_.set_default_timeout_handler(
-      std::bind(&esphome::haier::HaierClimateBase::timeout_default_handler_, this, std::placeholders::_1));
+      [this](haier_protocol::FrameType type) { return this->timeout_default_handler_(type); });
   this->set_handlers();
   this->initialization();
 }
@@ -275,7 +281,7 @@ void HaierClimateBase::loop() {
     if (this->action_request_.has_value() && this->prepare_pending_action()) {
       this->set_phase(ProtocolPhases::SENDING_ACTION_COMMAND);
     } else if (this->next_hvac_settings_.valid || this->force_send_control_) {
-      ESP_LOGV(TAG, "Control packet is pending...");
+      ESP_LOGV(TAG, "Control packet is pending");
       this->set_phase(ProtocolPhases::SENDING_CONTROL);
       if (this->next_hvac_settings_.valid) {
         this->current_hvac_settings_ = this->next_hvac_settings_;
@@ -287,6 +293,14 @@ void HaierClimateBase::loop() {
   }
   this->process_phase(now);
   this->haier_protocol_.loop();
+#ifdef USE_SWITCH
+  if ((this->display_switch_ != nullptr) && (this->display_switch_->state != this->get_display_state())) {
+    this->display_switch_->publish_state(this->get_display_state());
+  }
+  if ((this->health_mode_switch_ != nullptr) && (this->health_mode_switch_->state != this->get_health_mode())) {
+    this->health_mode_switch_->publish_state(this->get_health_mode());
+  }
+#endif  // USE_SWITCH
 }
 
 void HaierClimateBase::process_protocol_reset() {
@@ -323,11 +337,31 @@ bool HaierClimateBase::prepare_pending_action() {
         this->action_request_.reset();
         return false;
     }
-  } else
+  } else {
     return false;
+  }
 }
 
 ClimateTraits HaierClimateBase::traits() { return traits_; }
+
+void HaierClimateBase::initialization() {
+  constexpr uint32_t restore_settings_version = 0xA77D21EF;
+  this->base_rtc_ = this->make_entity_preference<HaierBaseSettings>(restore_settings_version);
+  HaierBaseSettings recovered;
+  if (!this->base_rtc_.load(&recovered)) {
+    recovered = {false, true};
+  }
+  this->display_status_ = recovered.display_state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
+  this->health_mode_ = recovered.health_mode ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
+#ifdef USE_SWITCH
+  if (this->display_switch_ != nullptr) {
+    this->display_switch_->publish_state(this->get_display_state());
+  }
+  if (this->health_mode_switch_ != nullptr) {
+    this->health_mode_switch_->publish_state(this->get_health_mode());
+  }
+#endif
+}
 
 void HaierClimateBase::control(const ClimateCall &call) {
   ESP_LOGD("Control", "Control call");
@@ -352,6 +386,22 @@ void HaierClimateBase::control(const ClimateCall &call) {
     this->next_hvac_settings_.valid = true;
   }
 }
+
+#ifdef USE_SWITCH
+void HaierClimateBase::set_display_switch(switch_::Switch *sw) {
+  this->display_switch_ = sw;
+  if ((this->display_switch_ != nullptr) && (this->valid_connection())) {
+    this->display_switch_->publish_state(this->get_display_state());
+  }
+}
+
+void HaierClimateBase::set_health_mode_switch(switch_::Switch *sw) {
+  this->health_mode_switch_ = sw;
+  if ((this->health_mode_switch_ != nullptr) && (this->valid_connection())) {
+    this->health_mode_switch_->publish_state(this->get_health_mode());
+  }
+}
+#endif
 
 void HaierClimateBase::HvacSettings::reset() {
   this->valid = false;

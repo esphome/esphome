@@ -1,8 +1,8 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#ifdef USE_MD5
 #include "esphome/components/md5/md5.h"
-
 #include <string>
 
 namespace esphome {
@@ -30,7 +30,7 @@ class HmacMD5 {
   void get_bytes(uint8_t *output);
 
   /// Retrieve the HMAC-MD5 digest as hex characters.
-  /// The output must be able to hold 32 bytes or more.
+  /// The output must be able to hold 33 bytes or more (32 hex chars + null terminator).
   void get_hex(char *output);
 
   /// Compare the digest against a provided byte-encoded digest (16 bytes).
@@ -46,3 +46,4 @@ class HmacMD5 {
 
 }  // namespace hmac_md5
 }  // namespace esphome
+#endif

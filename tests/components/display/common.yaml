@@ -1,9 +1,3 @@
-spi:
-  - id: spi_main_lcd
-    clk_pin: 16
-    mosi_pin: 17
-    miso_pin: 15
-
 display:
   - platform: ili9xxx
     id: main_lcd
@@ -11,6 +5,8 @@ display:
     cs_pin: 12
     dc_pin: 13
     reset_pin: 21
+    invert_colors: false
+    data_rate: 20MHz
     lambda: |-
       // Draw an analog clock in the center of the screen
       int centerX = it.get_width() / 2;
@@ -33,3 +29,7 @@ display:
 
         it.line_at_angle(centerX, centerY, minuteAngle, radius - 5, radius);
       }
+
+      // Nice ring around and some gauge
+      it.filled_ring(centerX, centerY, radius+5, radius+8);
+      it.filled_gauge(centerX, centerY, radius/2, radius/2-5, 66);

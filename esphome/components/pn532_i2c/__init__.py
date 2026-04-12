@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, pn532
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 AUTO_LOAD = ["pn532"]

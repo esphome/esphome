@@ -1,45 +1,49 @@
 #ifdef USE_ESP32
 #include "logger.h"
 
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
+#include "esphome/components/esp32/crash_handler.h"
 #include <esp_log.h>
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO || USE_ESP_IDF
 
-#ifdef USE_ESP_IDF
 #include <driver/uart.h>
 
 #ifdef USE_LOGGER_USB_SERIAL_JTAG
 #include <driver/usb_serial_jtag.h>
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0)
 #include <esp_vfs_dev.h>
 #include <esp_vfs_usb_serial_jtag.h>
+#else
+#include <driver/usb_serial_jtag_vfs.h>
+#endif
 #endif
 
-#include "freertos/FreeRTOS.h"
 #include "esp_idf_version.h"
+#include "freertos/FreeRTOS.h"
 
+#include <fcntl.h>
 #include <cstdint>
 #include <cstdio>
-#include <fcntl.h>
-
-#endif  // USE_ESP_IDF
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace logger {
+namespace esphome::logger {
 
 static const char *const TAG = "logger";
-
-#ifdef USE_ESP_IDF
 
 #ifdef USE_LOGGER_USB_SERIAL_JTAG
 static void init_usb_serial_jtag_() {
   setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
 
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0)
   // Minicom, screen, idf_monitor send CR when ENTER key is pressed
   esp_vfs_dev_usb_serial_jtag_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
   // Move the caret to the beginning of the next line on '\n'
   esp_vfs_dev_usb_serial_jtag_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+#else
+  // Minicom, screen, idf_monitor send CR when ENTER key is pressed
+  usb_serial_jtag_vfs_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
+  // Move the caret to the beginning of the next line on '\n'
+  usb_serial_jtag_vfs_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+#endif
 
   // Enable non-blocking mode on stdin and stdout
   fcntl(fileno(stdout), F_SETFL, 0);
@@ -57,7 +61,11 @@ static void init_usb_serial_jtag_() {
   }
 
   // Tell vfs to use usb-serial-jtag driver
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0)
   esp_vfs_usb_serial_jtag_use_driver();
+#else
+  usb_serial_jtag_vfs_use_driver();
+#endif
 }
 #endif
 
@@ -68,68 +76,30 @@ void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
   uart_config.parity = UART_PARITY_DISABLE;
   uart_config.stop_bits = UART_STOP_BITS_1;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
   uart_config.source_clk = UART_SCLK_DEFAULT;
-#endif
   uart_param_config(uart_num, &uart_config);
-  const int uart_buffer_size = tx_buffer_size;
-  // Install UART driver using an event queue here
-  uart_driver_install(uart_num, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
+  // The logger only writes to UART, never reads, so use the minimum RX buffer.
+  // ESP-IDF requires rx_buffer_size > UART_HW_FIFO_LEN (128 bytes).
+  const int min_rx_buffer_size = UART_HW_FIFO_LEN(uart_num) + 1;
+  uart_driver_install(uart_num, min_rx_buffer_size, tx_buffer_size, 0, nullptr, 0);
 }
-
-#endif  // USE_ESP_IDF
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
-#ifdef USE_ARDUINO
-    switch (this->uart_) {
-      case UART_SELECTION_UART0:
-#if ARDUINO_USB_CDC_ON_BOOT
-        this->hw_serial_ = &Serial0;
-        Serial0.begin(this->baud_rate_);
-#else
-        this->hw_serial_ = &Serial;
-        Serial.begin(this->baud_rate_);
-#endif
-        break;
-      case UART_SELECTION_UART1:
-        this->hw_serial_ = &Serial1;
-        Serial1.begin(this->baud_rate_);
-        break;
-#ifdef USE_ESP32_VARIANT_ESP32
-      case UART_SELECTION_UART2:
-        this->hw_serial_ = &Serial2;
-        Serial2.begin(this->baud_rate_);
-        break;
-#endif
-
-#ifdef USE_LOGGER_USB_CDC
-      case UART_SELECTION_USB_CDC:
-        this->hw_serial_ = &Serial;
-#if ARDUINO_USB_CDC_ON_BOOT
-        Serial.setTxTimeoutMs(0);  // workaround for 2.0.9 crash when there's no data connection
-#endif
-        Serial.begin(this->baud_rate_);
-        break;
-#endif
-    }
-#endif  // USE_ARDUINO
-
-#ifdef USE_ESP_IDF
     this->uart_num_ = UART_NUM_0;
     switch (this->uart_) {
       case UART_SELECTION_UART0:
         this->uart_num_ = UART_NUM_0;
-        init_uart(this->uart_num_, baud_rate_, tx_buffer_size_);
+        init_uart(this->uart_num_, baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
         break;
       case UART_SELECTION_UART1:
         this->uart_num_ = UART_NUM_1;
-        init_uart(this->uart_num_, baud_rate_, tx_buffer_size_);
+        init_uart(this->uart_num_, baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
         break;
 #ifdef USE_ESP32_VARIANT_ESP32
       case UART_SELECTION_UART2:
         this->uart_num_ = UART_NUM_2;
-        init_uart(this->uart_num_, baud_rate_, tx_buffer_size_);
+        init_uart(this->uart_num_, baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
         break;
 #endif
 #ifdef USE_LOGGER_USB_CDC
@@ -142,58 +112,39 @@ void Logger::pre_setup() {
         break;
 #endif
     }
-#endif  // USE_ESP_IDF
   }
 
   global_logger = this;
-#if defined(USE_ESP_IDF) || defined(USE_ESP32_FRAMEWORK_ARDUINO)
   esp_log_set_vprintf(esp_idf_log_vprintf_);
-  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
-    esp_log_level_set("*", ESP_LOG_VERBOSE);
-  }
-#endif  // USE_ESP_IDF || USE_ESP32_FRAMEWORK_ARDUINO
 
   ESP_LOGI(TAG, "Log initialized");
+#ifdef USE_ESP32_CRASH_HANDLER
+  esp32::crash_handler_log();
+#endif
 }
 
-#ifdef USE_ESP_IDF
-void HOT Logger::write_msg_(const char *msg) {
-  if (
-#if defined(USE_ESP32_VARIANT_ESP32S2)
-      this->uart_ == UART_SELECTION_USB_CDC
-#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
-      this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
-#elif defined(USE_ESP32_VARIANT_ESP32S3)
-      this->uart_ == UART_SELECTION_USB_CDC || this->uart_ == UART_SELECTION_USB_SERIAL_JTAG
-#else
-      /* DISABLES CODE */ (false)  // NOLINT
-#endif
-  ) {
-    puts(msg);
-  } else {
-    uart_write_bytes(this->uart_num_, msg, strlen(msg));
-    uart_write_bytes(this->uart_num_, "\n", 1);
-  }
-}
-#else
-void HOT Logger::write_msg_(const char *msg) { this->hw_serial_->println(msg); }
-#endif
-
-const char *const UART_SELECTIONS[] = {
-    "UART0",           "UART1",
+const LogString *Logger::get_uart_selection_() {
+  switch (this->uart_) {
+    case UART_SELECTION_UART0:
+      return LOG_STR("UART0");
+    case UART_SELECTION_UART1:
+      return LOG_STR("UART1");
 #ifdef USE_ESP32_VARIANT_ESP32
-    "UART2",
+    case UART_SELECTION_UART2:
+      return LOG_STR("UART2");
 #endif
 #ifdef USE_LOGGER_USB_CDC
-    "USB_CDC",
+    case UART_SELECTION_USB_CDC:
+      return LOG_STR("USB_CDC");
 #endif
 #ifdef USE_LOGGER_USB_SERIAL_JTAG
-    "USB_SERIAL_JTAG",
+    case UART_SELECTION_USB_SERIAL_JTAG:
+      return LOG_STR("USB_SERIAL_JTAG");
 #endif
-};
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
 
-const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }
-
-}  // namespace logger
-}  // namespace esphome
+}  // namespace esphome::logger
 #endif

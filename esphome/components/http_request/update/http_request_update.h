@@ -7,10 +7,14 @@
 #include "esphome/components/http_request/ota/ota_http_request.h"
 #include "esphome/components/update/update_entity.h"
 
+#ifdef USE_ESP32
+#include <freertos/FreeRTOS.h>
+#endif
+
 namespace esphome {
 namespace http_request {
 
-class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
+class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
  public:
   void setup() override;
   void update() override;
@@ -25,10 +29,18 @@ class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
+  void on_ota_state(ota::OTAState state, float progress, uint8_t error) override;
+
  protected:
   HttpRequestComponent *request_parent_;
   OtaHttpRequestComponent *ota_parent_;
   std::string source_url_;
+
+  static void update_task(void *params);
+#ifdef USE_ESP32
+  TaskHandle_t update_task_handle_{nullptr};
+#endif
+  uint8_t initial_check_remaining_{0};
 };
 
 }  // namespace http_request

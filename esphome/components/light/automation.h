@@ -4,8 +4,7 @@
 #include "light_state.h"
 #include "addressable_light.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 enum class LimitMode { CLAMP, DO_NOTHING };
 
@@ -15,7 +14,7 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(uint32_t, transition_length)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->state_->toggle();
     call.set_transition_length(this->transition_length_.optional_value(x...));
     call.perform();
@@ -42,24 +41,38 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, color_temperature)
   TEMPLATABLE_VALUE(float, cold_white)
   TEMPLATABLE_VALUE(float, warm_white)
-  TEMPLATABLE_VALUE(std::string, effect)
+  TEMPLATABLE_VALUE(uint32_t, effect)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
-    call.set_color_mode(this->color_mode_.optional_value(x...));
-    call.set_state(this->state_.optional_value(x...));
-    call.set_brightness(this->brightness_.optional_value(x...));
-    call.set_color_brightness(this->color_brightness_.optional_value(x...));
-    call.set_red(this->red_.optional_value(x...));
-    call.set_green(this->green_.optional_value(x...));
-    call.set_blue(this->blue_.optional_value(x...));
-    call.set_white(this->white_.optional_value(x...));
-    call.set_color_temperature(this->color_temperature_.optional_value(x...));
-    call.set_cold_white(this->cold_white_.optional_value(x...));
-    call.set_warm_white(this->warm_white_.optional_value(x...));
-    call.set_effect(this->effect_.optional_value(x...));
-    call.set_flash_length(this->flash_length_.optional_value(x...));
-    call.set_transition_length(this->transition_length_.optional_value(x...));
+    if (this->color_mode_.has_value())
+      call.set_color_mode(this->color_mode_.value(x...));
+    if (this->state_.has_value())
+      call.set_state(this->state_.value(x...));
+    if (this->transition_length_.has_value())
+      call.set_transition_length(this->transition_length_.value(x...));
+    if (this->flash_length_.has_value())
+      call.set_flash_length(this->flash_length_.value(x...));
+    if (this->brightness_.has_value())
+      call.set_brightness(this->brightness_.value(x...));
+    if (this->color_brightness_.has_value())
+      call.set_color_brightness(this->color_brightness_.value(x...));
+    if (this->red_.has_value())
+      call.set_red(this->red_.value(x...));
+    if (this->green_.has_value())
+      call.set_green(this->green_.value(x...));
+    if (this->blue_.has_value())
+      call.set_blue(this->blue_.value(x...));
+    if (this->white_.has_value())
+      call.set_white(this->white_.value(x...));
+    if (this->color_temperature_.has_value())
+      call.set_color_temperature(this->color_temperature_.value(x...));
+    if (this->cold_white_.has_value())
+      call.set_cold_white(this->cold_white_.value(x...));
+    if (this->warm_white_.has_value())
+      call.set_warm_white(this->warm_white_.value(x...));
+    if (this->effect_.has_value())
+      call.set_effect(this->effect_.value(x...));
     call.perform();
   }
 
@@ -74,7 +87,7 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, relative_brightness)
   TEMPLATABLE_VALUE(uint32_t, transition_length)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
     float rel = this->relative_brightness_.value(x...);
     float cur;
@@ -107,7 +120,7 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
 template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {
  public:
   explicit LightIsOnCondition(LightState *state) : state_(state) {}
-  bool check(Ts... x) override { return this->state_->current_values.is_on(); }
+  bool check(const Ts &...x) override { return this->state_->current_values.is_on(); }
 
  protected:
   LightState *state_;
@@ -115,52 +128,60 @@ template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {
 template<typename... Ts> class LightIsOffCondition : public Condition<Ts...> {
  public:
   explicit LightIsOffCondition(LightState *state) : state_(state) {}
-  bool check(Ts... x) override { return !this->state_->current_values.is_on(); }
+  bool check(const Ts &...x) override { return !this->state_->current_values.is_on(); }
 
  protected:
   LightState *state_;
 };
 
-class LightTurnOnTrigger : public Trigger<> {
+class LightTurnOnTrigger : public Trigger<>, public LightRemoteValuesListener {
  public:
-  LightTurnOnTrigger(LightState *a_light) {
-    a_light->add_new_remote_values_callback([this, a_light]() {
-      // using the remote value because of transitions we need to trigger as early as possible
-      auto is_on = a_light->remote_values.is_on();
-      // only trigger when going from off to on
-      auto should_trigger = is_on && !this->last_on_;
-      // Set new state immediately so that trigger() doesn't devolve
-      // into infinite loop
-      this->last_on_ = is_on;
-      if (should_trigger) {
-        this->trigger();
-      }
-    });
+  explicit LightTurnOnTrigger(LightState *a_light) : light_(a_light) {
+    a_light->add_remote_values_listener(this);
     this->last_on_ = a_light->current_values.is_on();
   }
 
+  void on_light_remote_values_update() override {
+    // using the remote value because of transitions we need to trigger as early as possible
+    auto is_on = this->light_->remote_values.is_on();
+    // only trigger when going from off to on
+    auto should_trigger = is_on && !this->last_on_;
+    // Set new state immediately so that trigger() doesn't devolve
+    // into infinite loop
+    this->last_on_ = is_on;
+    if (should_trigger) {
+      this->trigger();
+    }
+  }
+
  protected:
+  LightState *light_;
   bool last_on_;
 };
 
-class LightTurnOffTrigger : public Trigger<> {
+class LightTurnOffTrigger : public Trigger<>, public LightTargetStateReachedListener {
  public:
-  LightTurnOffTrigger(LightState *a_light) {
-    a_light->add_new_target_state_reached_callback([this, a_light]() {
-      auto is_on = a_light->current_values.is_on();
-      // only trigger when going from on to off
-      if (!is_on) {
-        this->trigger();
-      }
-    });
+  explicit LightTurnOffTrigger(LightState *a_light) : light_(a_light) {
+    a_light->add_target_state_reached_listener(this);
   }
+
+  void on_light_target_state_reached() override {
+    auto is_on = this->light_->current_values.is_on();
+    // only trigger when going from on to off
+    if (!is_on) {
+      this->trigger();
+    }
+  }
+
+ protected:
+  LightState *light_;
 };
 
-class LightStateTrigger : public Trigger<> {
+class LightStateTrigger : public Trigger<>, public LightRemoteValuesListener {
  public:
-  LightStateTrigger(LightState *a_light) {
-    a_light->add_new_remote_values_callback([this]() { this->trigger(); });
-  }
+  explicit LightStateTrigger(LightState *a_light) { a_light->add_remote_values_listener(this); }
+
+  void on_light_remote_values_update() override { this->trigger(); }
 };
 
 // This is slightly ugly, but we can't log in headers, and can't make this a static method on AddressableSet
@@ -179,7 +200,7 @@ template<typename... Ts> class AddressableSet : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, blue)
   TEMPLATABLE_VALUE(float, white)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto *out = (AddressableLight *) this->parent_->get_output();
     int32_t range_from = interpret_index(this->range_from_.value_or(x..., 0), out->size());
     if (range_from < 0 || range_from >= out->size())
@@ -216,5 +237,4 @@ template<typename... Ts> class AddressableSet : public Action<Ts...> {
   }
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

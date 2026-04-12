@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import spi, ssd1351_base
+import esphome.config_validation as cv
 from esphome.const import CONF_DC_PIN, CONF_ID, CONF_LAMBDA, CONF_PAGES
 
 CODEOWNERS = ["@kbx81"]
@@ -24,11 +24,15 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
 
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "ssd1351_spi", require_miso=False, require_mosi=True
+)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await ssd1351_base.setup_ssd1351(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))

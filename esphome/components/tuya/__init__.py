@@ -1,10 +1,8 @@
-from esphome.components import time
-from esphome import automation
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components import time, uart
 import esphome.config_validation as cv
-from esphome.components import uart
-from esphome.const import CONF_ID, CONF_TIME_ID, CONF_TRIGGER_ID, CONF_SENSOR_DATAPOINT
+from esphome.const import CONF_ID, CONF_SENSOR_DATAPOINT, CONF_TIME_ID, CONF_TRIGGER_ID
 
 DEPENDENCIES = ["uart"]
 
@@ -15,6 +13,7 @@ CONF_DATAPOINT_TYPE = "datapoint_type"
 CONF_STATUS_PIN = "status_pin"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
+TuyaDatapointType = tuya_ns.enum("TuyaDatapointType", is_class=True)
 Tuya = tuya_ns.class_("Tuya", cg.Component, uart.UARTDevice)
 
 DPTYPE_ANY = "any"

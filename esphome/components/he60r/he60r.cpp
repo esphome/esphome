@@ -40,8 +40,10 @@ CoverTraits HE60rCover::get_traits() {
 void HE60rCover::dump_config() {
   LOG_COVER("", "HE60R Cover", this);
   this->check_uart_settings(1200, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
-  ESP_LOGCONFIG(TAG, "  Open Duration: %.1fs", this->open_duration_ / 1e3f);
-  ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
+  ESP_LOGCONFIG(TAG,
+                "  Open Duration: %.1fs\n"
+                "  Close Duration: %.1fs",
+                this->open_duration_ / 1e3f, this->close_duration_ / 1e3f);
   auto restore = this->restore_state_();
   if (restore.has_value())
     ESP_LOGCONFIG(TAG, "  Saved position %d%%", (int) (restore->position * 100.f));
@@ -169,9 +171,12 @@ void HE60rCover::control(const CoverCall &call) {
     } else {
       this->toggles_needed_++;
     }
-  } else if (call.get_position().has_value()) {
+  } else {
+    auto pos_opt = call.get_position();
+    if (!pos_opt.has_value())
+      return;
     // go to position action
-    auto pos = *call.get_position();
+    auto pos = *pos_opt;
     // are we at the target?
     if (pos == this->position) {
       this->start_direction_(COVER_OPERATION_IDLE);
@@ -234,7 +239,7 @@ void HE60rCover::recompute_position_() {
     return;
 
   const uint32_t now = millis();
-  if (now > this->last_recompute_time_) {
+  if (now != this->last_recompute_time_) {
     auto diff = (unsigned) (now - last_recompute_time_);
     float delta;
     switch (this->current_operation) {

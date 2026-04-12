@@ -1,8 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import power_supply
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
@@ -12,7 +12,6 @@ from esphome.const import (
     CONF_POWER_SUPPLY,
 )
 from esphome.core import CORE
-
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -44,6 +43,8 @@ FloatOutputPtr = FloatOutput.operator("ptr")
 TurnOffAction = output_ns.class_("TurnOffAction", automation.Action)
 TurnOnAction = output_ns.class_("TurnOnAction", automation.Action)
 SetLevelAction = output_ns.class_("SetLevelAction", automation.Action)
+SetMinPowerAction = output_ns.class_("SetMinPowerAction", automation.Action)
+SetMaxPowerAction = output_ns.class_("SetMaxPowerAction", automation.Action)
 
 
 async def setup_output_platform_(obj, config):
@@ -73,14 +74,16 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("output.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA)
+@automation.register_action(
+    "output.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
+)
 async def output_turn_on_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
-    "output.turn_off", TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA
+    "output.turn_off", TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
 )
 async def output_turn_off_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -96,12 +99,51 @@ async def output_turn_off_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_LEVEL): cv.templatable(cv.percentage),
         }
     ),
+    synchronous=True,
 )
 async def output_set_level_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_LEVEL], args, float)
+    template_ = await cg.templatable(config[CONF_LEVEL], args, cg.float_)
     cg.add(var.set_level(template_))
+    return var
+
+
+@automation.register_action(
+    "output.set_min_power",
+    SetMinPowerAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(FloatOutput),
+            cv.Required(CONF_MIN_POWER): cv.templatable(cv.percentage),
+        }
+    ),
+    synchronous=True,
+)
+async def output_set_min_power_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_MIN_POWER], args, cg.float_)
+    cg.add(var.set_min_power(template_))
+    return var
+
+
+@automation.register_action(
+    "output.set_max_power",
+    SetMaxPowerAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(FloatOutput),
+            cv.Required(CONF_MAX_POWER): cv.templatable(cv.percentage),
+        }
+    ),
+    synchronous=True,
+)
+async def output_set_max_power_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_MAX_POWER], args, cg.float_)
+    cg.add(var.set_max_power(template_))
     return var
 
 

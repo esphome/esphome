@@ -1,49 +1,63 @@
 from __future__ import annotations
 
 import gzip
+
 import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome.components import web_server_base
+from esphome.components.logger import request_log_listener
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTH,
+    CONF_COMPRESSION,
     CONF_CSS_INCLUDE,
     CONF_CSS_URL,
+    CONF_ENABLE_PRIVATE_NETWORK_ACCESS,
     CONF_ID,
+    CONF_INCLUDE_INTERNAL,
     CONF_JS_INCLUDE,
     CONF_JS_URL,
-    CONF_ENABLE_PRIVATE_NETWORK_ACCESS,
-    CONF_PORT,
-    CONF_AUTH,
-    CONF_USERNAME,
-    CONF_PASSWORD,
-    CONF_INCLUDE_INTERNAL,
-    CONF_OTA,
-    CONF_LOG,
-    CONF_VERSION,
     CONF_LOCAL,
+    CONF_LOG,
+    CONF_NAME,
+    CONF_OTA,
+    CONF_PASSWORD,
+    CONF_PORT,
+    CONF_USERNAME,
+    CONF_VERSION,
+    CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
-    CONF_WEB_SERVER_SORTING_WEIGHT,
+    PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_BK72XX,
+    PLATFORM_LN882X,
+    PLATFORM_RP2040,
     PLATFORM_RTL87XX,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["json", "web_server_base"]
+
+CONF_SORTING_GROUP_ID = "sorting_group_id"
+CONF_SORTING_GROUPS = "sorting_groups"
+CONF_SORTING_WEIGHT = "sorting_weight"
+
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
+sorting_groups = {}
 
-def default_url(config):
+
+def default_url(config: ConfigType) -> ConfigType:
     config = config.copy()
     if config[CONF_VERSION] == 1:
         if CONF_CSS_URL not in config:
-            config[CONF_CSS_URL] = "https://esphome.io/_static/webserver-v1.min.css"
+            config[CONF_CSS_URL] = "https://oi.esphome.io/v1/webserver-v1.min.css"
         if CONF_JS_URL not in config:
-            config[CONF_JS_URL] = "https://esphome.io/_static/webserver-v1.min.js"
+            config[CONF_JS_URL] = "https://oi.esphome.io/v1/webserver-v1.min.js"
     if config[CONF_VERSION] == 2:
         if CONF_CSS_URL not in config:
             config[CONF_CSS_URL] = ""
@@ -57,54 +71,108 @@ def default_url(config):
     return config
 
 
-def validate_local(config):
+def validate_local(config: ConfigType) -> ConfigType:
     if CONF_LOCAL in config and config[CONF_VERSION] == 1:
         raise cv.Invalid("'local' is not supported in version 1")
     return config
 
 
-def validate_ota(config):
-    if CORE.using_esp_idf and config[CONF_OTA]:
-        raise cv.Invalid("Enabling 'ota' is not supported for IDF framework yet")
+def validate_ota(config: ConfigType) -> ConfigType:
+    # The OTA option only accepts False to explicitly disable OTA for web_server
+    # IMPORTANT: Setting ota: false ONLY affects the web_server component
+    # The captive_portal component will still be able to perform OTA updates
+    if CONF_OTA in config and config[CONF_OTA] is not False:
+        raise cv.Invalid(
+            f"The '{CONF_OTA}' option in 'web_server' only accepts 'false' to disable OTA. "
+            f"To enable OTA, please use the new OTA platform structure instead:\n\n"
+            f"ota:\n"
+            f"  - platform: web_server\n\n"
+            f"See https://esphome.io/components/ota for more information."
+        )
     return config
 
 
-def _validate_no_sorting_weight(
-    webserver_version: int, config: dict, path: list[str] | None = None
+def validate_sorting_groups(config: ConfigType) -> ConfigType:
+    if CONF_SORTING_GROUPS in config and config[CONF_VERSION] != 3:
+        raise cv.Invalid(
+            f"'{CONF_SORTING_GROUPS}' is only supported in 'web_server' version 3"
+        )
+    return config
+
+
+def _validate_no_sorting_component(
+    sorting_component: str,
+    webserver_version: int,
+    config: ConfigType,
+    path: list[str] | None = None,
 ) -> None:
     if path is None:
         path = []
-    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
+    if CONF_WEB_SERVER in config and sorting_component in config[CONF_WEB_SERVER]:
         raise cv.FinalExternalInvalid(
-            f"Sorting weight on entities is not supported in web_server version {webserver_version}",
-            path=path + [CONF_WEB_SERVER_SORTING_WEIGHT],
+            f"{sorting_component} on entities is not supported in web_server version {webserver_version}",
+            path=path + [sorting_component],
         )
     for p, value in config.items():
         if isinstance(value, dict):
-            _validate_no_sorting_weight(webserver_version, value, path + [p])
+            _validate_no_sorting_component(
+                sorting_component, webserver_version, value, path + [p]
+            )
         elif isinstance(value, list):
             for i, item in enumerate(value):
                 if isinstance(item, dict):
-                    _validate_no_sorting_weight(webserver_version, item, path + [p, i])
+                    _validate_no_sorting_component(
+                        sorting_component, webserver_version, item, path + [p, i]
+                    )
 
 
-def _final_validate_sorting_weight(config):
+def _final_validate_sorting(config: ConfigType) -> ConfigType:
     if (webserver_version := config.get(CONF_VERSION)) != 3:
-        _validate_no_sorting_weight(webserver_version, fv.full_config.get())
-
+        _validate_no_sorting_component(
+            CONF_SORTING_WEIGHT, webserver_version, fv.full_config.get()
+        )
+        _validate_no_sorting_component(
+            CONF_SORTING_GROUP_ID, webserver_version, fv.full_config.get()
+        )
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate_sorting_weight
+FINAL_VALIDATE_SCHEMA = _final_validate_sorting
 
+
+def _consume_web_server_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for web_server component."""
+    from esphome.components import socket
+
+    # Web server needs typically 5 concurrent client connections
+    # (browser opens connections for page resources, SSE event stream, and POST
+    # requests for entity control which may linger before closing)
+    # The listening socket is registered by web_server_base (shared with captive_portal)
+    socket.consume_sockets(5, "web_server")(config)
+    return config
+
+
+sorting_group = {
+    cv.Required(CONF_ID): cv.declare_id(cg.int_),
+    cv.Required(CONF_NAME): cv.string,
+    cv.Optional(CONF_SORTING_WEIGHT): cv.float_,
+}
 
 WEBSERVER_SORTING_SCHEMA = cv.Schema(
     {
-        cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
-        cv.Optional(CONF_WEB_SERVER_SORTING_WEIGHT): cv.All(
-            cv.requires_component("web_server"),
-            cv.float_,
-        ),
+        cv.Optional(CONF_WEB_SERVER): cv.Schema(
+            {
+                cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(WebServer),
+                cv.Optional(CONF_SORTING_WEIGHT): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.float_,
+                ),
+                cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.use_id(cg.int_),
+                ),
+            }
+        )
     }
 )
 
@@ -134,34 +202,53 @@ CONFIG_SCHEMA = cv.All(
                 web_server_base.WebServerBase
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
-            cv.SplitDefault(
-                CONF_OTA,
-                esp8266=True,
-                esp32_arduino=True,
-                esp32_idf=False,
-                bk72xx=True,
-                rtl87xx=True,
-            ): cv.boolean,
+            cv.Optional(CONF_OTA): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
+            cv.Optional(CONF_COMPRESSION, default="gzip"): cv.one_of("gzip", "br"),
+            cv.Optional(CONF_SORTING_GROUPS): cv.ensure_list(sorting_group),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_BK72XX,
+            PLATFORM_LN882X,
+            PLATFORM_RP2040,
+            PLATFORM_RTL87XX,
+        ]
+    ),
     default_url,
     validate_local,
+    validate_sorting_groups,
     validate_ota,
+    _consume_web_server_sockets,
 )
 
 
-def add_entity_to_sorting_list(web_server, entity, config):
-    sorting_weight = 50
-    if CONF_WEB_SERVER_SORTING_WEIGHT in config:
-        sorting_weight = config[CONF_WEB_SERVER_SORTING_WEIGHT]
+def add_sorting_groups(web_server_var, config):
+    for group in config:
+        sorting_groups[group[CONF_ID]] = group[CONF_NAME]
+        group_sorting_weight = group.get(CONF_SORTING_WEIGHT, 50)
+        cg.add(
+            web_server_var.add_sorting_group(
+                hash(group[CONF_ID]), group[CONF_NAME], group_sorting_weight
+            )
+        )
 
+
+async def add_entity_config(entity, config):
+    web_server = await cg.get_variable(config[CONF_WEB_SERVER_ID])
+    sorting_weight = config.get(CONF_SORTING_WEIGHT, 50)
+    sorting_group_hash = hash(config.get(CONF_SORTING_GROUP_ID))
+
+    cg.add_define("USE_WEBSERVER_SORTING")
     cg.add(
-        web_server.add_entity_to_sorting_list(
+        web_server.add_entity_config(
             entity,
             sorting_weight,
+            sorting_group_hash,
         )
     )
 
@@ -193,22 +280,22 @@ def add_resource_as_progmem(
         content_encoded = gzip.compress(content_encoded)
     content_encoded_size = len(content_encoded)
     bytes_as_int = ", ".join(str(x) for x in content_encoded)
-    uint8_t = f"const uint8_t ESPHOME_WEBSERVER_{resource_name}[{content_encoded_size}] PROGMEM = {{{bytes_as_int}}}"
-    size_t = (
-        f"const size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {content_encoded_size}"
-    )
+    uint8_t = f"constexpr uint8_t ESPHOME_WEBSERVER_{resource_name}[{content_encoded_size}] PROGMEM = {{{bytes_as_int}}}"
+    size_t = f"constexpr size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {content_encoded_size}"
     cg.add_global(cg.RawExpression(uint8_t))
     cg.add_global(cg.RawExpression(size_t))
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 
     var = cg.new_Pvariable(config[CONF_ID], paren)
     await cg.register_component(var, config)
 
-    cg.add_define("USE_WEBSERVER")
+    # Track controller registration for StaticVector sizing
+    CORE.register_controller()
+
     version = config[CONF_VERSION]
 
     cg.add(paren.set_port(config[CONF_PORT]))
@@ -221,11 +308,19 @@ async def to_code(config):
     else:
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
-    cg.add(var.set_allow_ota(config[CONF_OTA]))
+    # OTA is now handled by the web_server OTA platform
+    # The CONF_OTA option is kept to allow explicitly disabling OTA for web_server
+    # IMPORTANT: This ONLY affects the web_server component, NOT captive_portal
+    # Captive portal will still be able to perform OTA updates even when this is set
+    if config.get(CONF_OTA) is False:
+        cg.add_define("USE_WEBSERVER_OTA_DISABLED")
     cg.add(var.set_expose_log(config[CONF_LOG]))
+    if config[CONF_LOG]:
+        request_log_listener()  # Request a log listener slot for web server log streaming
     if config[CONF_ENABLE_PRIVATE_NETWORK_ACCESS]:
         cg.add_define("USE_WEBSERVER_PRIVATE_NETWORK_ACCESS")
     if CONF_AUTH in config:
+        cg.add_define("USE_WEBSERVER_AUTH")
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
     if CONF_CSS_INCLUDE in config:
@@ -241,3 +336,21 @@ async def to_code(config):
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
+    if config[CONF_COMPRESSION] == "gzip":
+        cg.add_define("USE_WEBSERVER_GZIP")
+
+    if (sorting_group_config := config.get(CONF_SORTING_GROUPS)) is not None:
+        cg.add_define("USE_WEBSERVER_SORTING")
+        add_sorting_groups(var, sorting_group_config)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    """Filter out web_server_v1.cpp when version is not 1."""
+    files_to_filter: list[str] = []
+
+    # web_server_v1.cpp is only needed when version is 1
+    config = CORE.config.get("web_server", {})
+    if config.get(CONF_VERSION, 2) != 1:
+        files_to_filter.append("web_server_v1.cpp")
+
+    return files_to_filter

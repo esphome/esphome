@@ -1,0 +1,17 @@
+esphome:
+  on_boot:
+    then:
+      - pzemdc.reset_energy: pzemdc1
+
+sensor:
+  - platform: pzemdc
+    modbus_id: modbus_bus
+    id: pzemdc1
+    voltage:
+      name: PZEMDC Voltage
+    current:
+      name: PZEMDC Current
+    power:
+      name: PZEMDC Power
+    energy:
+      name: PZEMDC Energy

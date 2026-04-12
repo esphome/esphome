@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-from esphome.const import CONF_ID
-import esphome.config_validation as cv
 from esphome.components import time as time_
+import esphome.config_validation as cv
+from esphome.const import CONF_ID
 
 CODEOWNERS = ["@clydebarrow"]
 

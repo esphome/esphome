@@ -1,0 +1,32 @@
+mcp4461:
+  - id: mcp4461_digipot_01
+    i2c_id: i2c_bus
+
+output:
+  - platform: mcp4461
+    id: digipot_wiper_1
+    mcp4461_id: mcp4461_digipot_01
+    channel: A
+
+  - platform: mcp4461
+    id: digipot_wiper_2
+    mcp4461_id: mcp4461_digipot_01
+    channel: B
+
+  - platform: mcp4461
+    id: digipot_wiper_3
+    mcp4461_id: mcp4461_digipot_01
+    channel: C
+
+  - platform: mcp4461
+    id: digipot_wiper_4
+    mcp4461_id: mcp4461_digipot_01
+    channel: D
+
+  - platform: mcp4461
+    id: digipot_wiper_5
+    mcp4461_id: mcp4461_digipot_01
+    channel: A
+    terminal_a: false
+    terminal_b: false
+    terminal_w: false

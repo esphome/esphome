@@ -1,14 +1,10 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.components import ota, update
+import esphome.config_validation as cv
+from esphome.const import CONF_SOURCE
 
-from esphome.components import update
-from esphome.const import (
-    CONF_SOURCE,
-)
-
-from .. import http_request_ns, CONF_HTTP_REQUEST_ID, HttpRequestComponent
+from .. import CONF_HTTP_REQUEST_ID, HttpRequestComponent, http_request_ns
 from ..ota import OtaHttpRequestComponent
-
 
 AUTO_LOAD = ["json"]
 CODEOWNERS = ["@jesserockz"]
@@ -20,14 +16,17 @@ HttpRequestUpdate = http_request_ns.class_(
 
 CONF_OTA_ID = "ota_id"
 
-CONFIG_SCHEMA = update.UPDATE_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(HttpRequestUpdate),
-        cv.GenerateID(CONF_OTA_ID): cv.use_id(OtaHttpRequestComponent),
-        cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
-        cv.Required(CONF_SOURCE): cv.url,
-    }
-).extend(cv.polling_component_schema("6h"))
+CONFIG_SCHEMA = (
+    update.update_schema(HttpRequestUpdate)
+    .extend(
+        {
+            cv.GenerateID(CONF_OTA_ID): cv.use_id(OtaHttpRequestComponent),
+            cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
+            cv.Required(CONF_SOURCE): cv.url,
+        }
+    )
+    .extend(cv.polling_component_schema("6h"))
+)
 
 
 async def to_code(config):
@@ -39,6 +38,6 @@ async def to_code(config):
 
     cg.add(var.set_source_url(config[CONF_SOURCE]))
 
-    cg.add_define("USE_OTA_STATE_CALLBACK")
+    ota.request_ota_state_listeners()
 
     await cg.register_component(var, config)

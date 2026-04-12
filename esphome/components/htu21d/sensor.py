@@ -1,21 +1,21 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components import i2c, sensor
 from esphome import automation
+import esphome.codegen as cg
+from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_HEATER,
     CONF_HUMIDITY,
     CONF_ID,
+    CONF_LEVEL,
     CONF_MODEL,
+    CONF_STATUS,
     CONF_TEMPERATURE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    UNIT_PERCENT,
-    CONF_HEATER,
     UNIT_EMPTY,
-    CONF_LEVEL,
-    CONF_STATUS,
+    UNIT_PERCENT,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -93,11 +93,12 @@ async def to_code(config):
         },
         key=CONF_LEVEL,
     ),
+    synchronous=True,
 )
 async def set_heater_level_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    level_ = await cg.templatable(config[CONF_LEVEL], args, int)
+    level_ = await cg.templatable(config[CONF_LEVEL], args, cg.uint8)
     cg.add(var.set_level(level_))
     return var
 
@@ -112,10 +113,11 @@ async def set_heater_level_to_code(config, action_id, template_arg, args):
         },
         key=CONF_STATUS,
     ),
+    synchronous=True,
 )
 async def set_heater_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    status_ = await cg.templatable(config[CONF_LEVEL], args, bool)
+    status_ = await cg.templatable(config[CONF_STATUS], args, cg.bool_)
     cg.add(var.set_status(status_))
     return var

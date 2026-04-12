@@ -7,7 +7,7 @@ namespace esphome {
 namespace ili9xxx {
 
 // clang-format off
-static const uint8_t PROGMEM INITCMD_M5STACK[] = {
+static constexpr uint8_t PROGMEM INITCMD_M5STACK[] = {
   0xEF, 3, 0x03, 0x80, 0x02,
   0xCF, 3, 0x00, 0xC1, 0x30,
   0xED, 4, 0x64, 0x03, 0x12, 0x81,
@@ -37,7 +37,7 @@ static const uint8_t PROGMEM INITCMD_M5STACK[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_M5CORE[] = {
+static constexpr uint8_t PROGMEM INITCMD_M5CORE[] = {
   ILI9XXX_SETEXTC, 3, 0xFF,0x93,0x42,   // Turn on the external command
   ILI9XXX_PWCTR1 , 2, 0x12, 0x12,
   ILI9XXX_PWCTR2 , 1, 0x03,
@@ -56,7 +56,7 @@ static const uint8_t PROGMEM INITCMD_M5CORE[] = {
 
 
 
-static const uint8_t PROGMEM INITCMD_ILI9341[] = {
+static constexpr uint8_t PROGMEM INITCMD_ILI9341[] = {
   0xEF, 3, 0x03, 0x80, 0x02,
   0xCF, 3, 0x00, 0xC1, 0x30,
   0xED, 4, 0x64, 0x03, 0x12, 0x81,
@@ -86,7 +86,7 @@ static const uint8_t PROGMEM INITCMD_ILI9341[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_ILI9481[] = {
+static constexpr uint8_t PROGMEM INITCMD_ILI9481[] = {
   ILI9XXX_SLPOUT ,  0x80,    // Exit sleep mode
   ILI9XXX_PWSET  , 3, 0x07, 0x41, 0x1D,
   ILI9XXX_VMCTR  , 3, 0x00, 0x1C, 0x1F,
@@ -101,12 +101,11 @@ static const uint8_t PROGMEM INITCMD_ILI9481[] = {
   ILI9XXX_MADCTL  , 1, MADCTL_MV | MADCTL_BGR,       // Memory Access Control
   ILI9XXX_CSCON , 1, 0x01,
   ILI9XXX_PIXFMT, 1, 0x55,  // 16 bit mode
-  ILI9XXX_INVON, 0,
   ILI9XXX_DISPON, 0x80,     // Set display on
   0x00 // end
 };
 
-static const uint8_t PROGMEM INITCMD_ILI9481_18[] = {
+static constexpr uint8_t PROGMEM INITCMD_ILI9481_18[] = {
     ILI9XXX_SLPOUT ,  0x80,    // Exit sleep mode
     ILI9XXX_PWSET  , 3, 0x07, 0x41, 0x1D,
     ILI9XXX_VMCTR  , 3, 0x00, 0x1C, 0x1F,
@@ -121,12 +120,11 @@ static const uint8_t PROGMEM INITCMD_ILI9481_18[] = {
     ILI9XXX_MADCTL  , 1, MADCTL_MX| MADCTL_BGR,       // Memory Access Control
     ILI9XXX_CSCON , 1, 0x01,
     ILI9XXX_PIXFMT, 1, 0x66,  // 18 bit mode
-    ILI9XXX_INVON, 0,
     ILI9XXX_DISPON, 0x80,     // Set display on
     0x00 // end
 };
 
-static const uint8_t PROGMEM INITCMD_ILI9486[] = {
+static constexpr uint8_t PROGMEM INITCMD_ILI9486[] = {
   ILI9XXX_SLPOUT, 0x80,
   ILI9XXX_PIXFMT, 1, 0x55,
   ILI9XXX_PWCTR3, 1, 0x44,
@@ -175,7 +173,7 @@ static const uint8_t INITCMD_WAVESHARE_RES_3_5[] = {
     0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_ILI9488_A[] = {
+static constexpr uint8_t PROGMEM INITCMD_ILI9488_A[] = {
   ILI9XXX_GMCTRP1,15, 0x00, 0x03, 0x09, 0x08, 0x16, 0x0A, 0x3F, 0x78, 0x4C, 0x09, 0x0A, 0x08, 0x16, 0x1A, 0x0F,
   ILI9XXX_GMCTRN1,15, 0x00, 0x16, 0x19, 0x03, 0x0F, 0x05, 0x32, 0x45, 0x46, 0x04, 0x0E, 0x0D, 0x35, 0x37, 0x0F,
 
@@ -204,12 +202,11 @@ static const uint8_t PROGMEM INITCMD_ILI9488_A[] = {
 
 
   ILI9XXX_SLPOUT,  0x80,    // Exit sleep mode
-  //ILI9XXX_INVON  , 0,
   ILI9XXX_DISPON,  0x80,    // Set display on
   0x00 // end
 };
 
-static const uint8_t PROGMEM INITCMD_ST7796[] = {
+static constexpr uint8_t PROGMEM INITCMD_ST7796[] = {
   // This ST7796S initilization routine was copied from https://github.com/prenticedavid/Adafruit_ST7796S_kbv/blob/master/Adafruit_ST7796S_kbv.cpp
   ILI9XXX_SWRESET, 0x80,         // Soft reset, then delay 150 ms
   ILI9XXX_CSCON, 1, 0xC3,              // ?? Unlock Manufacturer
@@ -229,7 +226,7 @@ static const uint8_t PROGMEM INITCMD_ST7796[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_S3BOX[] = {
+static constexpr uint8_t PROGMEM INITCMD_S3BOX[] = {
   0xEF, 3, 0x03, 0x80, 0x02,
   0xCF, 3, 0x00, 0xC1, 0x30,
   0xED, 4, 0x64, 0x03, 0x12, 0x81,
@@ -259,7 +256,7 @@ static const uint8_t PROGMEM INITCMD_S3BOX[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_S3BOXLITE[] = {
+static constexpr uint8_t PROGMEM INITCMD_S3BOXLITE[] = {
   0xEF, 3, 0x03, 0x80, 0x02,
   0xCF, 3, 0x00, 0xC1, 0x30,
   0xED, 4, 0x64, 0x03, 0x12, 0x81,
@@ -289,7 +286,7 @@ static const uint8_t PROGMEM INITCMD_S3BOXLITE[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_ST7789V[] = {
+static constexpr uint8_t PROGMEM INITCMD_ST7789V[] = {
   ILI9XXX_SLPOUT  , 0x80,                // Exit Sleep
   ILI9XXX_DISPON  , 0x80,                // Display on
   ILI9XXX_MADCTL  , 1, 0x08,             // Memory Access Control, BGR
@@ -316,7 +313,7 @@ static const uint8_t PROGMEM INITCMD_ST7789V[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_GC9A01A[] = {
+static constexpr uint8_t PROGMEM INITCMD_GC9A01A[] = {
   0xEF, 0,
   0xEB, 1, 0x14, // ?
   0xFE, 0,
@@ -370,7 +367,66 @@ static const uint8_t PROGMEM INITCMD_GC9A01A[] = {
   0x00                  // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_ST7735[] = {
+static constexpr uint8_t PROGMEM INITCMD_GC9D01N[] = {
+  // Enable Inter_command
+  0xFE, 0,          // Inter Register Enable 1 (FEh)
+  0xEF, 0,          // Inter Register Enable 2 (EFh)
+  // Inter_command is now enabled
+  0x80, 1, 0xFF,
+  0x81, 1, 0xFF,
+  0x82, 1, 0xFF,
+  0x83, 1, 0xFF,
+  0x84, 1, 0xFF,
+  0x85, 1, 0xFF,
+  0x86, 1, 0xFF,
+  0x87, 1, 0xFF,
+  0x88, 1, 0xFF,
+  0x89, 1, 0xFF,
+  0x8A, 1, 0xFF,
+  0x8B, 1, 0xFF,
+  0x8C, 1, 0xFF,
+  0x8D, 1, 0xFF,
+  0x8E, 1, 0xFF,
+  0x8F, 1, 0xFF,
+  0x3A, 1, 0x05,    // COLMOD: Pixel Format Set (3Ah) MCU interface, 16 bits / pixel
+  0xEC, 1, 0x01,    // Inversion (ECh) DINV=1+2H1V column for Dual Gate (BFh=0)
+                    // According to datasheet Inversion (ECh) value 0x01 isn't valid, but Lilygo uses it everywhere
+  0x74, 7, 0x02, 0x0E, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x98, 1, 0x3e,
+  0x99, 1, 0x3e,
+  0xB5, 2, 0x0D, 0x0D,    // Blanking Porch Control (B5h) VFP=14 VBP=14 HBP=Off
+  0x60, 4, 0x38, 0x0F, 0x79, 0x67,
+  0x61, 4, 0x38, 0x11, 0x79, 0x67,
+  0x64, 6, 0x38, 0x17, 0x71, 0x5F, 0x79, 0x67,
+  0x65, 6, 0x38, 0x13, 0x71, 0x5B, 0x79, 0x67,
+  0x6A, 2, 0x00, 0x00,
+  0x6C, 7, 0x22, 0x02, 0x22, 0x02, 0x22, 0x22, 0x50,
+  0x6E, 32, 0x03, 0x03, 0x01, 0x01, 0x00, 0x00, 0x0F, 0x0F,
+            0x0D, 0x0D, 0x0B, 0x0B, 0x09, 0x09, 0x00, 0x00,
+            0x00, 0x00, 0x0A, 0x0A, 0x0C, 0x0C, 0x0E, 0x0E,
+            0x10, 0x10, 0x00, 0x00, 0x02, 0x02, 0x04, 0x04,
+  0xBF, 1, 0x01,    // Dual-Single gate select (BFh) 01h = dual gate mode
+  0xF9, 1, 0x40,
+  0x9B, 5, 0x3B, 0x93, 0x33, 0x7F, 0x00,
+  0x7E, 1, 0x30,
+  0x70, 6, 0x0D, 0x02, 0x08, 0x0D, 0x02, 0x08,
+  0x71, 3, 0x0D, 0x02, 0x08,
+  0x91, 2, 0x0E, 0x09,
+  // Set VREG1A, VREG1B, VREG2A, VREG2B voltage
+  // According to datasheet set either 0xC3/0xC4 or 0xC9 only, but Lilygo sets both of them
+  0xC3, 5, 0x19, 0xC4, 0x19, 0xC9, 0x3C,
+  0xF0, 6, 0x53, 0x15, 0x0A, 0x04, 0x00, 0x3E,    // SET_GAMMA1 (F0h)
+  0xF1, 6, 0x56, 0xA8, 0x7F, 0x33, 0x34, 0x5F,    // SET_GAMMA2 (F1h)
+  0xF2, 6, 0x53, 0x15, 0x0A, 0x04, 0x00, 0x3A,    // SET_GAMMA3 (F2h)
+  0xF3, 6, 0x52, 0xA4, 0x7F, 0x33, 0x34, 0xDF,    // SET_GAMMA4 (F3h)
+  ILI9XXX_SLPOUT, 0,      // Sleep Out Mode (11h)
+  ILI9XXX_DELAY(10),
+  ILI9XXX_DISPON, 0,      // Display ON (29h)
+  ILI9XXX_DELAY(20),
+  0x00                    // End of list
+};
+
+static constexpr uint8_t PROGMEM INITCMD_ST7735[] = {
     ILI9XXX_SWRESET, 0,         // Soft reset, then delay 10ms
     ILI9XXX_DELAY(10),
     ILI9XXX_SLPOUT  , 0,                // Exit Sleep, delay

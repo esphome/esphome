@@ -1,9 +1,10 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import text_sensor
 from esphome.components.text_sensor import TextSensorPublishAction
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE
+
 from .. import template_ns
 
 TemplateTextSensor = template_ns.class_(
@@ -42,6 +43,7 @@ async def to_code(config):
             cv.Required(CONF_STATE): cv.templatable(cv.string_strict),
         }
     ),
+    synchronous=True,
 )
 async def text_sensor_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

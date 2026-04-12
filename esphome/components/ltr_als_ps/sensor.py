@@ -1,20 +1,20 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTUAL_GAIN,
+    CONF_ACTUAL_INTEGRATION_TIME,
     CONF_AMBIENT_LIGHT,
     CONF_AUTO_MODE,
+    CONF_FULL_SPECTRUM_COUNTS,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
     CONF_ID,
     CONF_INTEGRATION_TIME,
     CONF_NAME,
     CONF_REPEAT,
-    CONF_TRIGGER_ID,
     CONF_TYPE,
-    DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
     ICON_BRIGHTNESS_6,
@@ -27,8 +27,6 @@ from esphome.const import (
 CODEOWNERS = ["@latonita"]
 DEPENDENCIES = ["i2c"]
 
-CONF_ACTUAL_INTEGRATION_TIME = "actual_integration_time"
-CONF_FULL_SPECTRUM_COUNTS = "full_spectrum_counts"
 CONF_INFRARED_COUNTS = "infrared_counts"
 CONF_ON_PS_HIGH_THRESHOLD = "on_ps_high_threshold"
 CONF_ON_PS_LOW_THRESHOLD = "on_ps_low_threshold"
@@ -94,11 +92,6 @@ PS_GAINS = {
     "64X": PsGain.PS_GAIN_64,
 }
 
-LTRPsHighTrigger = ltr_als_ps_ns.class_(
-    "LTRPsHighTrigger", automation.Trigger.template()
-)
-LTRPsLowTrigger = ltr_als_ps_ns.class_("LTRPsLowTrigger", automation.Trigger.template())
-
 
 def validate_integration_time(value):
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
@@ -144,16 +137,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PS_LOW_THRESHOLD, default=0): cv.int_range(
                 min=0, max=65535
             ),
-            cv.Optional(CONF_ON_PS_HIGH_THRESHOLD): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LTRPsHighTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_PS_LOW_THRESHOLD): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LTRPsLowTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_PS_HIGH_THRESHOLD): automation.validate_automation({}),
+            cv.Optional(CONF_ON_PS_LOW_THRESHOLD): automation.validate_automation({}),
             cv.Optional(CONF_AMBIENT_LIGHT): cv.maybe_simple_value(
                 sensor.sensor_schema(
                     unit_of_measurement=UNIT_LUX,
@@ -169,7 +154,6 @@ CONFIG_SCHEMA = cv.All(
                     unit_of_measurement=UNIT_COUNTS,
                     icon=ICON_BRIGHTNESS_5,
                     accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
                     state_class=STATE_CLASS_MEASUREMENT,
                 ),
                 key=CONF_NAME,
@@ -179,7 +163,6 @@ CONFIG_SCHEMA = cv.All(
                     unit_of_measurement=UNIT_COUNTS,
                     icon=ICON_BRIGHTNESS_7,
                     accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
                     state_class=STATE_CLASS_MEASUREMENT,
                 ),
                 key=CONF_NAME,
@@ -189,7 +172,6 @@ CONFIG_SCHEMA = cv.All(
                     unit_of_measurement=UNIT_COUNTS,
                     icon=ICON_PROXIMITY,
                     accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_DISTANCE,
                     state_class=STATE_CLASS_MEASUREMENT,
                 ),
                 key=CONF_NAME,
@@ -198,7 +180,6 @@ CONFIG_SCHEMA = cv.All(
                 sensor.sensor_schema(
                     icon=ICON_GAIN,
                     accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
                     state_class=STATE_CLASS_MEASUREMENT,
                 ),
                 key=CONF_NAME,
@@ -217,6 +198,16 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x29)),
     validate_time_and_repeat_rate,
+)
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_PS_HIGH_THRESHOLD, "add_on_ps_high_trigger_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PS_LOW_THRESHOLD, "add_on_ps_low_trigger_callback"
+    ),
 )
 
 
@@ -249,13 +240,7 @@ async def to_code(config):
         sens = await sensor.new_sensor(prox_cnt_config)
         cg.add(var.set_proximity_counts_sensor(sens))
 
-    for prox_high_tr in config.get(CONF_ON_PS_HIGH_THRESHOLD, []):
-        trigger = cg.new_Pvariable(prox_high_tr[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], prox_high_tr)
-
-    for prox_low_tr in config.get(CONF_ON_PS_LOW_THRESHOLD, []):
-        trigger = cg.new_Pvariable(prox_low_tr[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], prox_low_tr)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     cg.add(var.set_ltr_type(config[CONF_TYPE]))
 

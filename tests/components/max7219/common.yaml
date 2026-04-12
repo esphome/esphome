@@ -1,0 +1,6 @@
+display:
+  - platform: max7219
+    cs_pin: ${cs_pin}
+    num_chips: 1
+    lambda: |-
+      it.print("01234567");

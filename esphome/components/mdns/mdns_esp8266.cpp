@@ -4,46 +4,52 @@
 #include <ESP8266mDNS.h>
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
-void MDNSComponent::setup() {
-  this->compile_records_();
+static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
+  MDNS.begin(App.get_name().c_str());
 
-  MDNS.begin(this->hostname_.c_str());
-
-  for (const auto &service : this->services_) {
+  for (const auto &service : services) {
     // Strip the leading underscore from the proto and service_type. While it is
     // part of the wire protocol to have an underscore, and for example ESP-IDF
     // expects the underscore to be there, the ESP8266 implementation always adds
     // the underscore itself.
-    auto *proto = service.proto.c_str();
-    while (*proto == '_') {
+    auto *proto = MDNS_STR_ARG(service.proto);
+    while (progmem_read_byte((const uint8_t *) proto) == '_') {
       proto++;
     }
-    auto *service_type = service.service_type.c_str();
-    while (*service_type == '_') {
+    auto *service_type = MDNS_STR_ARG(service.service_type);
+    while (progmem_read_byte((const uint8_t *) service_type) == '_') {
       service_type++;
     }
-    MDNS.addService(service_type, proto, service.port);
+    uint16_t port = service.port.value();
+    MDNS.addService(FPSTR(service_type), FPSTR(proto), port);
     for (const auto &record : service.txt_records) {
-      MDNS.addServiceTxt(service_type, proto, record.key.c_str(), record.value.c_str());
+      MDNS.addServiceTxt(FPSTR(service_type), FPSTR(proto), FPSTR(MDNS_STR_ARG(record.key)),
+                         FPSTR(MDNS_STR_ARG(record.value)));
     }
   }
 }
 
-void MDNSComponent::loop() { MDNS.update(); }
+void MDNSComponent::setup() {
+  this->setup_buffers_and_register_(register_esp8266);
+  // Schedule MDNS.update() via set_interval() instead of overriding loop().
+  // This removes the component from the per-iteration loop list entirely,
+  // eliminating virtual dispatch overhead on every main loop cycle.
+  // See MDNS_UPDATE_INTERVAL_MS comment in mdns_component.h for safety analysis.
+  this->set_interval(MDNS_UPDATE_INTERVAL_MS, []() { MDNS.update(); });
+}
 
 void MDNSComponent::on_shutdown() {
   MDNS.close();
   delay(10);
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif

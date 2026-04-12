@@ -8,8 +8,7 @@
 #include "esphome/core/log.h"
 #include "uart_component.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 class LibreTinyUARTComponent : public UARTComponent, public Component {
  public:
@@ -22,8 +21,8 @@ class LibreTinyUARTComponent : public UARTComponent, public Component {
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
 
-  int available() override;
-  void flush() override;
+  size_t available() override;
+  UARTFlushResult flush() override;
 
   uint16_t get_config();
 
@@ -37,7 +36,5 @@ class LibreTinyUARTComponent : public UARTComponent, public Component {
   int8_t hardware_idx_{-1};
 };
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_LIBRETINY

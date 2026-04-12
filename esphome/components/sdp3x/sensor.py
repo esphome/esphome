@@ -1,8 +1,8 @@
 import esphome.codegen as cg
+from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
-from esphome.components import sensirion_common
 from esphome.const import (
+    CONF_MEASUREMENT_MODE,
     DEVICE_CLASS_PRESSURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_HECTOPASCAL,
@@ -14,7 +14,10 @@ CODEOWNERS = ["@Azimath"]
 
 sdp3x_ns = cg.esphome_ns.namespace("sdp3x")
 SDP3XComponent = sdp3x_ns.class_(
-    "SDP3XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
+    "SDP3XComponent",
+    sensor.Sensor,
+    cg.PollingComponent,
+    sensirion_common.SensirionI2CDevice,
 )
 
 
@@ -23,7 +26,7 @@ MEASUREMENT_MODE = {
     "mass_flow": MeasurementMode.MASS_FLOW_AVG,
     "differential_pressure": MeasurementMode.DP_AVG,
 }
-CONF_MEASUREMENT_MODE = "measurement_mode"
+
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(

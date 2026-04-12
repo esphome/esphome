@@ -1,5 +1,3 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.automation import (
     Action,
     Condition,
@@ -7,17 +5,19 @@ from esphome.automation import (
     register_action,
     register_condition,
 )
+import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_SENSOR,
-    CONF_RESTORE,
     CONF_LAMBDA,
-    UNIT_SECOND,
-    STATE_CLASS_TOTAL,
-    STATE_CLASS_TOTAL_INCREASING,
+    CONF_RESTORE,
+    CONF_SENSOR,
     DEVICE_CLASS_DURATION,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    STATE_CLASS_TOTAL,
+    STATE_CLASS_TOTAL_INCREASING,
+    UNIT_SECOND,
 )
 
 CONF_LAST_TIME = "last_time"
@@ -90,21 +90,27 @@ DUTY_TIME_ID_SCHEMA = maybe_simple_id(
 )
 
 
-@register_action("sensor.duty_time.start", StartAction, DUTY_TIME_ID_SCHEMA)
+@register_action(
+    "sensor.duty_time.start", StartAction, DUTY_TIME_ID_SCHEMA, synchronous=True
+)
 async def sensor_runtime_start_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
 
 
-@register_action("sensor.duty_time.stop", StopAction, DUTY_TIME_ID_SCHEMA)
+@register_action(
+    "sensor.duty_time.stop", StopAction, DUTY_TIME_ID_SCHEMA, synchronous=True
+)
 async def sensor_runtime_stop_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
 
 
-@register_action("sensor.duty_time.reset", ResetAction, DUTY_TIME_ID_SCHEMA)
+@register_action(
+    "sensor.duty_time.reset", ResetAction, DUTY_TIME_ID_SCHEMA, synchronous=True
+)
 async def sensor_runtime_reset_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])

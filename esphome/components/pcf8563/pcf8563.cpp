@@ -10,7 +10,6 @@ namespace pcf8563 {
 static const char *const TAG = "PCF8563";
 
 void PCF8563Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up PCF8563...");
   if (!this->read_rtc_()) {
     this->mark_failed();
   }
@@ -22,12 +21,10 @@ void PCF8563Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCF8563:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with PCF8563 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
+  RealTimeClock::dump_config();
 }
-
-float PCF8563Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void PCF8563Component::read_time() {
   if (!this->read_rtc_()) {
@@ -43,11 +40,8 @@ void PCF8563Component::read_time() {
       .hour = uint8_t(pcf8563_.reg.hour + 10u * pcf8563_.reg.hour_10),
       .day_of_week = uint8_t(pcf8563_.reg.weekday),
       .day_of_month = uint8_t(pcf8563_.reg.day + 10u * pcf8563_.reg.day_10),
-      .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
       .month = uint8_t(pcf8563_.reg.month + 10u * pcf8563_.reg.month_10),
       .year = uint16_t(pcf8563_.reg.year + 10u * pcf8563_.reg.year_10 + 2000),
-      .is_dst = false,  // not used
-      .timestamp = 0,   // overwritten by recalc_timestamp_utc(false)
   };
   rtc_time.recalc_timestamp_utc(false);
   if (!rtc_time.is_valid()) {

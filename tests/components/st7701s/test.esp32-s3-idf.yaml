@@ -1,1 +1,13 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
+substitutions:
+  mosi_pin: GPIO48
+  cs_pin: GPIO44
+  de_pin: GPIO18
+  reset_pin: GPIO47
+  hsync_pin: GPIO16
+  vsync_pin: GPIO17
+  pclk_pin: GPIO21
+
 <<: !include common.yaml

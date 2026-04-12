@@ -10,7 +10,6 @@ from .defines import (
     CONF_TOUCHSCREENS,
 )
 from .helpers import lvgl_components_required
-from .lvcode import lv
 from .schemas import PRESS_TIME
 from .types import LVTouchListener
 
@@ -33,13 +32,11 @@ def touchscreen_schema(config):
     return [TOUCHSCREENS_CONFIG(config)]
 
 
-async def touchscreens_to_code(var, config):
+async def touchscreens_to_code(lv_component, config):
     for tconf in config[CONF_TOUCHSCREENS]:
         lvgl_components_required.add(CONF_TOUCHSCREEN)
         touchscreen = await cg.get_variable(tconf[CONF_TOUCHSCREEN_ID])
         lpt = tconf[CONF_LONG_PRESS_TIME].total_milliseconds
         lprt = tconf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
-        listener = cg.new_Pvariable(tconf[CONF_ID], lpt, lprt)
-        await cg.register_parented(listener, var)
-        lv.indev_drv_register(listener.get_drv())
+        listener = cg.new_Pvariable(tconf[CONF_ID], lpt, lprt, lv_component)
         cg.add(touchscreen.register_listener(listener))

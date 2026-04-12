@@ -1,4 +1,6 @@
 #include "growatt_solar.h"
+#include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -18,13 +20,13 @@ void GrowattSolar::loop() {
 
 void GrowattSolar::update() {
   // If our last send has had no reply yet, and it wasn't that long ago, do nothing.
-  uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_send_ < this->get_update_interval() / 2) {
     return;
   }
 
   // The bus might be slow, or there might be other devices, or other components might be talking to our device.
-  if (this->waiting_for_response()) {
+  if (!this->ready_for_immediate_send()) {
     this->waiting_to_update_ = true;
     return;
   }
@@ -133,8 +135,10 @@ void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
 }
 
 void GrowattSolar::dump_config() {
-  ESP_LOGCONFIG(TAG, "GROWATT Solar:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG,
+                "GROWATT Solar:\n"
+                "  Address: 0x%02X",
+                this->address_);
 }
 
 }  // namespace growatt_solar

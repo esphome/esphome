@@ -1,11 +1,11 @@
 {
   "problemMatcher": [
     {
-      "owner": "black",
+      "owner": "ruff",
       "severity": "error",
       "pattern": [
         {
-          "regexp": "^(.*): (Please format this file with the black formatter)",
+          "regexp": "^(.*): (Please format this file with the ruff formatter)",
           "file": 1,
           "message": 2
         }

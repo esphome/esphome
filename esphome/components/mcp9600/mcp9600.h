@@ -24,8 +24,6 @@ class MCP9600Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   void update() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
   void set_hot_junction(sensor::Sensor *hot_junction) { this->hot_junction_sensor_ = hot_junction; }
   void set_cold_junction(sensor::Sensor *cold_junction) { this->cold_junction_sensor_ = cold_junction; }
   void set_thermocouple_type(MCP9600ThermocoupleType thermocouple_type) {

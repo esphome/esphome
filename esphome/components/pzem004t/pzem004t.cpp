@@ -1,5 +1,6 @@
 #include "pzem004t.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include <cinttypes>
 
 namespace esphome {
@@ -16,7 +17,7 @@ void PZEM004T::setup() {
 }
 
 void PZEM004T::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_read_ > 500 && this->available() < 7) {
     while (this->available())
       this->read();
@@ -25,7 +26,10 @@ void PZEM004T::loop() {
 
   // PZEM004T packet size is 7 byte
   while (this->available() >= 7) {
-    auto resp = *this->read_array<7>();
+    auto resp_opt = this->read_array<7>();
+    if (!resp_opt.has_value())
+      break;
+    auto resp = *resp_opt;
     // packet format:
     // 0: packet type
     // 1-5: data

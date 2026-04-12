@@ -11,20 +11,19 @@
 
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
-#include "esphome/components/microphone/microphone.h"
-#ifdef USE_SPEAKER
-#include "esphome/components/speaker/speaker.h"
-#endif
+#include "esphome/components/microphone/microphone_source.h"
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
+#ifdef USE_MICRO_WAKE_WORD
+#include "esphome/components/micro_wake_word/micro_wake_word.h"
+#endif
+#ifdef USE_SPEAKER
+#include "esphome/components/speaker/speaker.h"
+#endif
 #include "esphome/components/socket/socket.h"
 
-#ifdef USE_ESP_ADF
-#include <esp_vad.h>
-#endif
-
-#include <unordered_map>
+#include <span>
 #include <vector>
 
 namespace esphome {
@@ -40,6 +39,8 @@ enum VoiceAssistantFeature : uint32_t {
   FEATURE_SPEAKER = 1 << 1,
   FEATURE_API_AUDIO = 1 << 2,
   FEATURE_TIMERS = 1 << 3,
+  FEATURE_ANNOUNCE = 1 << 4,
+  FEATURE_START_CONVERSATION = 1 << 5,
 };
 
 enum class State {
@@ -70,23 +71,59 @@ struct Timer {
   uint32_t seconds_left;
   bool is_active;
 
-  std::string to_string() const {
-    return str_sprintf("Timer(id=%s, name=%s, total_seconds=%" PRIu32 ", seconds_left=%" PRIu32 ", is_active=%s)",
-                       this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left,
-                       YESNO(this->is_active));
+  /// Buffer size for to_str() - sufficient for typical timer names
+  static constexpr size_t TO_STR_BUFFER_SIZE = 128;
+  /// Format to buffer, returns pointer to buffer (may truncate long names)
+  const char *to_str(std::span<char, TO_STR_BUFFER_SIZE> buffer) const {
+    snprintf(buffer.data(), buffer.size(),
+             "Timer(id=%s, name=%s, total_seconds=%" PRIu32 ", seconds_left=%" PRIu32 ", is_active=%s)",
+             this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left, YESNO(this->is_active));
+    return buffer.data();
+  }
+  // Remove before 2026.8.0
+  ESPDEPRECATED("Use to_str() instead. Removed in 2026.8.0", "2026.2.0")
+  std::string to_string() const {  // NOLINT
+    char buffer[TO_STR_BUFFER_SIZE];
+    return this->to_str(buffer);
   }
 };
 
+struct WakeWord {
+  std::string id;
+  std::string wake_word;
+  std::vector<std::string> trained_languages;
+};
+
+struct Configuration {
+  std::vector<WakeWord> available_wake_words;
+  std::vector<std::string> active_wake_words;
+  uint32_t max_active_wake_words;
+};
+
+#ifdef USE_MEDIA_PLAYER
+enum class MediaPlayerResponseState {
+  IDLE,
+  URL_SENT,
+  PLAYING,
+  FINISHED,
+};
+#endif
+
 class VoiceAssistant : public Component {
  public:
-  void setup() override;
+  VoiceAssistant();
+
   void loop() override;
+  void setup() override;
   float get_setup_priority() const override;
   void start_streaming();
   void start_streaming(struct sockaddr_storage *addr, uint16_t port);
   void failed_to_start();
 
-  void set_microphone(microphone::Microphone *mic) { this->mic_ = mic; }
+  void set_microphone_source(microphone::MicrophoneSource *mic_source) { this->mic_source_ = mic_source; }
+#ifdef USE_MICRO_WAKE_WORD
+  void set_micro_wake_word(micro_wake_word::MicroWakeWord *mww) { this->micro_wake_word_ = mww; }
+#endif
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) {
     this->speaker_ = speaker;
@@ -123,6 +160,13 @@ class VoiceAssistant : public Component {
       flags |= VoiceAssistantFeature::FEATURE_TIMERS;
     }
 
+#ifdef USE_MEDIA_PLAYER
+    if (this->media_player_ != nullptr) {
+      flags |= VoiceAssistantFeature::FEATURE_ANNOUNCE;
+      flags |= VoiceAssistantFeature::FEATURE_START_CONVERSATION;
+    }
+#endif
+
     return flags;
   }
 
@@ -132,107 +176,111 @@ class VoiceAssistant : public Component {
   void on_event(const api::VoiceAssistantEventResponse &msg);
   void on_audio(const api::VoiceAssistantAudio &msg);
   void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
+  void on_announce(const api::VoiceAssistantAnnounceRequest &msg);
+  void on_set_configuration(const std::vector<std::string> &active_wake_words);
+  const Configuration &get_configuration();
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
   bool is_continuous() const { return this->continuous_; }
 
   void set_use_wake_word(bool use_wake_word) { this->use_wake_word_ = use_wake_word; }
-#ifdef USE_ESP_ADF
-  void set_vad_threshold(uint8_t vad_threshold) { this->vad_threshold_ = vad_threshold; }
-#endif
 
   void set_noise_suppression_level(uint8_t noise_suppression_level) {
     this->noise_suppression_level_ = noise_suppression_level;
   }
   void set_auto_gain(uint8_t auto_gain) { this->auto_gain_ = auto_gain; }
   void set_volume_multiplier(float volume_multiplier) { this->volume_multiplier_ = volume_multiplier; }
+  void set_conversation_timeout(uint32_t conversation_timeout) { this->conversation_timeout_ = conversation_timeout; }
+  void reset_conversation_id();
 
-  Trigger<> *get_intent_end_trigger() const { return this->intent_end_trigger_; }
-  Trigger<> *get_intent_start_trigger() const { return this->intent_start_trigger_; }
-  Trigger<> *get_listening_trigger() const { return this->listening_trigger_; }
-  Trigger<> *get_end_trigger() const { return this->end_trigger_; }
-  Trigger<> *get_start_trigger() const { return this->start_trigger_; }
-  Trigger<> *get_stt_vad_end_trigger() const { return this->stt_vad_end_trigger_; }
-  Trigger<> *get_stt_vad_start_trigger() const { return this->stt_vad_start_trigger_; }
+  Trigger<> *get_intent_end_trigger() { return &this->intent_end_trigger_; }
+  Trigger<> *get_intent_start_trigger() { return &this->intent_start_trigger_; }
+  Trigger<std::string> *get_intent_progress_trigger() { return &this->intent_progress_trigger_; }
+  Trigger<> *get_listening_trigger() { return &this->listening_trigger_; }
+  Trigger<> *get_end_trigger() { return &this->end_trigger_; }
+  Trigger<> *get_start_trigger() { return &this->start_trigger_; }
+  Trigger<> *get_stt_vad_end_trigger() { return &this->stt_vad_end_trigger_; }
+  Trigger<> *get_stt_vad_start_trigger() { return &this->stt_vad_start_trigger_; }
 #ifdef USE_SPEAKER
-  Trigger<> *get_tts_stream_start_trigger() const { return this->tts_stream_start_trigger_; }
-  Trigger<> *get_tts_stream_end_trigger() const { return this->tts_stream_end_trigger_; }
+  Trigger<> *get_tts_stream_start_trigger() { return &this->tts_stream_start_trigger_; }
+  Trigger<> *get_tts_stream_end_trigger() { return &this->tts_stream_end_trigger_; }
 #endif
-  Trigger<> *get_wake_word_detected_trigger() const { return this->wake_word_detected_trigger_; }
-  Trigger<std::string> *get_stt_end_trigger() const { return this->stt_end_trigger_; }
-  Trigger<std::string> *get_tts_end_trigger() const { return this->tts_end_trigger_; }
-  Trigger<std::string> *get_tts_start_trigger() const { return this->tts_start_trigger_; }
-  Trigger<std::string, std::string> *get_error_trigger() const { return this->error_trigger_; }
-  Trigger<> *get_idle_trigger() const { return this->idle_trigger_; }
+  Trigger<> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
+  Trigger<std::string> *get_stt_end_trigger() { return &this->stt_end_trigger_; }
+  Trigger<std::string> *get_tts_end_trigger() { return &this->tts_end_trigger_; }
+  Trigger<std::string> *get_tts_start_trigger() { return &this->tts_start_trigger_; }
+  Trigger<std::string, std::string> *get_error_trigger() { return &this->error_trigger_; }
+  Trigger<> *get_idle_trigger() { return &this->idle_trigger_; }
 
-  Trigger<> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
-  Trigger<> *get_client_disconnected_trigger() const { return this->client_disconnected_trigger_; }
+  Trigger<> *get_client_connected_trigger() { return &this->client_connected_trigger_; }
+  Trigger<> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
 
   void client_subscription(api::APIConnection *client, bool subscribe);
   api::APIConnection *get_api_connection() const { return this->api_client_; }
 
   void set_wake_word(const std::string &wake_word) { this->wake_word_ = wake_word; }
 
-  Trigger<Timer> *get_timer_started_trigger() const { return this->timer_started_trigger_; }
-  Trigger<Timer> *get_timer_updated_trigger() const { return this->timer_updated_trigger_; }
-  Trigger<Timer> *get_timer_cancelled_trigger() const { return this->timer_cancelled_trigger_; }
-  Trigger<Timer> *get_timer_finished_trigger() const { return this->timer_finished_trigger_; }
-  Trigger<std::vector<Timer>> *get_timer_tick_trigger() const { return this->timer_tick_trigger_; }
+  Trigger<Timer> *get_timer_started_trigger() { return &this->timer_started_trigger_; }
+  Trigger<Timer> *get_timer_updated_trigger() { return &this->timer_updated_trigger_; }
+  Trigger<Timer> *get_timer_cancelled_trigger() { return &this->timer_cancelled_trigger_; }
+  Trigger<Timer> *get_timer_finished_trigger() { return &this->timer_finished_trigger_; }
+  Trigger<const std::vector<Timer> &> *get_timer_tick_trigger() { return &this->timer_tick_trigger_; }
   void set_has_timers(bool has_timers) { this->has_timers_ = has_timers; }
-  const std::unordered_map<std::string, Timer> &get_timers() const { return this->timers_; }
+  const std::vector<Timer> &get_timers() const { return this->timers_; }
 
  protected:
   bool allocate_buffers_();
   void clear_buffers_();
   void deallocate_buffers_();
 
-  int read_microphone_();
   void set_state_(State state);
   void set_state_(State state, State desired_state);
   void signal_stop_();
+  void start_playback_timeout_();
 
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
 
-  Trigger<> *intent_end_trigger_ = new Trigger<>();
-  Trigger<> *intent_start_trigger_ = new Trigger<>();
-  Trigger<> *listening_trigger_ = new Trigger<>();
-  Trigger<> *end_trigger_ = new Trigger<>();
-  Trigger<> *start_trigger_ = new Trigger<>();
-  Trigger<> *stt_vad_start_trigger_ = new Trigger<>();
-  Trigger<> *stt_vad_end_trigger_ = new Trigger<>();
+  Trigger<> intent_end_trigger_;
+  Trigger<> intent_start_trigger_;
+  Trigger<> listening_trigger_;
+  Trigger<> end_trigger_;
+  Trigger<> start_trigger_;
+  Trigger<> stt_vad_start_trigger_;
+  Trigger<> stt_vad_end_trigger_;
 #ifdef USE_SPEAKER
-  Trigger<> *tts_stream_start_trigger_ = new Trigger<>();
-  Trigger<> *tts_stream_end_trigger_ = new Trigger<>();
+  Trigger<> tts_stream_start_trigger_;
+  Trigger<> tts_stream_end_trigger_;
 #endif
-  Trigger<> *wake_word_detected_trigger_ = new Trigger<>();
-  Trigger<std::string> *stt_end_trigger_ = new Trigger<std::string>();
-  Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
-  Trigger<std::string> *tts_start_trigger_ = new Trigger<std::string>();
-  Trigger<std::string, std::string> *error_trigger_ = new Trigger<std::string, std::string>();
-  Trigger<> *idle_trigger_ = new Trigger<>();
+  Trigger<std::string> intent_progress_trigger_;
+  Trigger<> wake_word_detected_trigger_;
+  Trigger<std::string> stt_end_trigger_;
+  Trigger<std::string> tts_end_trigger_;
+  Trigger<std::string> tts_start_trigger_;
+  Trigger<std::string, std::string> error_trigger_;
+  Trigger<> idle_trigger_;
 
-  Trigger<> *client_connected_trigger_ = new Trigger<>();
-  Trigger<> *client_disconnected_trigger_ = new Trigger<>();
+  Trigger<> client_connected_trigger_;
+  Trigger<> client_disconnected_trigger_;
 
   api::APIConnection *api_client_{nullptr};
 
-  std::unordered_map<std::string, Timer> timers_;
+  std::vector<Timer> timers_;
   void timer_tick_();
-  Trigger<Timer> *timer_started_trigger_ = new Trigger<Timer>();
-  Trigger<Timer> *timer_finished_trigger_ = new Trigger<Timer>();
-  Trigger<Timer> *timer_updated_trigger_ = new Trigger<Timer>();
-  Trigger<Timer> *timer_cancelled_trigger_ = new Trigger<Timer>();
-  Trigger<std::vector<Timer>> *timer_tick_trigger_ = new Trigger<std::vector<Timer>>();
+  Trigger<Timer> timer_started_trigger_;
+  Trigger<Timer> timer_finished_trigger_;
+  Trigger<Timer> timer_updated_trigger_;
+  Trigger<Timer> timer_cancelled_trigger_;
+  Trigger<const std::vector<Timer> &> timer_tick_trigger_;
   bool has_timers_{false};
   bool timer_tick_running_{false};
 
-  microphone::Microphone *mic_{nullptr};
+  microphone::MicrophoneSource *mic_source_{nullptr};
 #ifdef USE_SPEAKER
   void write_speaker_();
   speaker::Speaker *speaker_{nullptr};
-  uint8_t *speaker_buffer_;
+  uint8_t *speaker_buffer_{nullptr};
   size_t speaker_buffer_index_{0};
   size_t speaker_buffer_size_{0};
   size_t speaker_bytes_received_{0};
@@ -241,6 +289,10 @@ class VoiceAssistant : public Component {
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
+  std::string tts_response_url_{""};
+  bool started_streaming_tts_{false};
+
+  MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
 #endif
 
   bool local_output_{false};
@@ -249,25 +301,20 @@ class VoiceAssistant : public Component {
 
   std::string wake_word_{""};
 
-  HighFrequencyLoopRequester high_freq_;
-
-#ifdef USE_ESP_ADF
-  vad_handle_t vad_instance_;
-  uint8_t vad_threshold_{5};
-  uint8_t vad_counter_{0};
-#endif
-  std::unique_ptr<RingBuffer> ring_buffer_;
+  std::shared_ptr<RingBuffer> ring_buffer_;
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
   uint8_t auto_gain_;
   float volume_multiplier_;
+  uint32_t conversation_timeout_;
 
-  uint8_t *send_buffer_;
-  int16_t *input_buffer_;
+  uint8_t *send_buffer_{nullptr};
 
   bool continuous_{false};
   bool silence_detection_;
+
+  bool continue_conversation_{false};
 
   State state_{State::IDLE};
   State desired_state_{State::IDLE};
@@ -275,13 +322,19 @@ class VoiceAssistant : public Component {
   AudioMode audio_mode_{AUDIO_MODE_UDP};
   bool udp_socket_running_{false};
   bool start_udp_socket_();
+
+  Configuration config_{};
+
+#ifdef USE_MICRO_WAKE_WORD
+  micro_wake_word::MicroWakeWord *micro_wake_word_{nullptr};
+#endif
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {
   TEMPLATABLE_VALUE(std::string, wake_word);
 
  public:
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->set_wake_word(this->wake_word_.value(x...));
     this->parent_->request_start(false, this->silence_detection_);
   }
@@ -294,22 +347,22 @@ template<typename... Ts> class StartAction : public Action<Ts...>, public Parent
 
 template<typename... Ts> class StartContinuousAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
-  void play(Ts... x) override { this->parent_->request_start(true, true); }
+  void play(const Ts &...x) override { this->parent_->request_start(true, true); }
 };
 
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
-  void play(Ts... x) override { this->parent_->request_stop(); }
+  void play(const Ts &...x) override { this->parent_->request_stop(); }
 };
 
 template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
+  bool check(const Ts &...x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
 };
 
 template<typename... Ts> class ConnectedCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
  public:
-  bool check(Ts... x) override { return this->parent_->get_api_connection() != nullptr; }
+  bool check(const Ts &...x) override { return this->parent_->get_api_connection() != nullptr; }
 };
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

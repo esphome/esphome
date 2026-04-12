@@ -1,0 +1,4 @@
+sensor:
+  - platform: pm1006
+    pm_2_5:
+      name: Particulate Matter 2.5µm Concentration

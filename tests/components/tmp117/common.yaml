@@ -1,0 +1,5 @@
+sensor:
+  - platform: tmp117
+    i2c_id: i2c_bus
+    name: TMP117 Temperature
+    update_interval: 5s

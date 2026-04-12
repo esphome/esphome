@@ -34,7 +34,6 @@ void AM2320Component::update() {
   this->status_clear_warning();
 }
 void AM2320Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AM2320...");
   uint8_t data[8];
   data[0] = 0;
   data[1] = 4;
@@ -47,12 +46,11 @@ void AM2320Component::dump_config() {
   ESP_LOGD(TAG, "AM2320:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with AM2320 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
-float AM2320Component::get_setup_priority() const { return setup_priority::DATA; }
 
 bool AM2320Component::read_bytes_(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion) {
   if (!this->write_bytes(a_register, data, 2)) {

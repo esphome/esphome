@@ -2,44 +2,29 @@ import logging
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components import runtime_image
+from esphome.components.const import CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
-from esphome.components.image import (
-    CONF_USE_TRANSPARENCY,
-    IMAGE_TYPE,
-    Image_,
-    validate_cross_dependencies,
-)
+from esphome.components.image import CONF_TRANSPARENCY, add_metadata
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BUFFER_SIZE,
-    CONF_FORMAT,
-    CONF_ID,
-    CONF_ON_ERROR,
-    CONF_RESIZE,
-    CONF_TRIGGER_ID,
-    CONF_TYPE,
-    CONF_URL,
-)
+from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_ON_ERROR, CONF_TYPE, CONF_URL
+from esphome.core import Lambda
 
-AUTO_LOAD = ["image"]
+AUTO_LOAD = ["image", "runtime_image"]
 DEPENDENCIES = ["display", "http_request"]
-CODEOWNERS = ["@guillempages"]
+CODEOWNERS = ["@guillempages", "@clydebarrow"]
 MULTI_CONF = True
 
 CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
-CONF_PLACEHOLDER = "placeholder"
+CONF_UPDATE = "update"
 
 _LOGGER = logging.getLogger(__name__)
 
 online_image_ns = cg.esphome_ns.namespace("online_image")
 
-ImageFormat = online_image_ns.enum("ImageFormat")
-
-FORMAT_PNG = "PNG"
-
-IMAGE_FORMAT = {FORMAT_PNG: ImageFormat.PNG}  # Add new supported formats here
-
-OnlineImage = online_image_ns.class_("OnlineImage", cg.PollingComponent, Image_)
+OnlineImage = online_image_ns.class_(
+    "OnlineImage", cg.PollingComponent, runtime_image.RuntimeImage
+)
 
 # Actions
 SetUrlAction = online_image_ns.class_(
@@ -49,56 +34,37 @@ ReleaseImageAction = online_image_ns.class_(
     "OnlineImageReleaseAction", automation.Action, cg.Parented.template(OnlineImage)
 )
 
-# Triggers
-DownloadFinishedTrigger = online_image_ns.class_(
-    "DownloadFinishedTrigger", automation.Trigger.template()
-)
-DownloadErrorTrigger = online_image_ns.class_(
-    "DownloadErrorTrigger", automation.Trigger.template()
-)
 
-ONLINE_IMAGE_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.declare_id(OnlineImage),
-        cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
-        #
-        # Common image options
-        #
-        cv.Optional(CONF_RESIZE): cv.dimensions,
-        cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(IMAGE_TYPE, upper=True),
-        # Not setting default here on purpose; the default depends on the image type,
-        # and thus will be set in the "validate_cross_dependencies" validator.
-        cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
-        #
-        # Online Image specific options
-        #
-        cv.Required(CONF_URL): cv.url,
-        cv.Required(CONF_FORMAT): cv.enum(IMAGE_FORMAT, upper=True),
-        cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
-        cv.Optional(CONF_BUFFER_SIZE, default=2048): cv.int_range(256, 65536),
-        cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DownloadFinishedTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_ERROR): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DownloadErrorTrigger),
-            }
-        ),
-    }
-).extend(cv.polling_component_schema("never"))
+ONLINE_IMAGE_SCHEMA = (
+    runtime_image.runtime_image_schema(OnlineImage)
+    .extend(
+        {
+            # Online Image specific options
+            cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
+            cv.Required(CONF_URL): cv.url,
+            cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 65536),
+            cv.Optional(CONF_REQUEST_HEADERS): cv.All(
+                cv.Schema({cv.string: cv.templatable(cv.string)})
+            ),
+            cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation({}),
+        }
+    )
+    .extend(cv.polling_component_schema("never"))
+)
 
 CONFIG_SCHEMA = cv.Schema(
     cv.All(
         ONLINE_IMAGE_SCHEMA,
-        validate_cross_dependencies,
         cv.require_framework_version(
             # esp8266 not supported yet; if enabled in the future, minimum version of 2.7.0 is needed
             # esp8266_arduino=cv.Version(2, 7, 0),
             esp32_arduino=cv.Version(0, 0, 0),
             esp_idf=cv.Version(4, 0, 0),
+            rp2040_arduino=cv.Version(0, 0, 0),
+            host=cv.Version(0, 0, 0),
         ),
+        runtime_image.validate_runtime_image_settings,
     )
 )
 
@@ -106,6 +72,7 @@ SET_URL_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(OnlineImage),
         cv.Required(CONF_URL): cv.templatable(cv.url),
+        cv.Optional(CONF_UPDATE, default=True): cv.templatable(bool),
     }
 )
 
@@ -116,52 +83,68 @@ RELEASE_IMAGE_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action("online_image.set_url", SetUrlAction, SET_URL_SCHEMA)
 @automation.register_action(
-    "online_image.release", ReleaseImageAction, RELEASE_IMAGE_SCHEMA
+    "online_image.set_url", SetUrlAction, SET_URL_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "online_image.release",
+    ReleaseImageAction,
+    RELEASE_IMAGE_SCHEMA,
+    synchronous=True,
 )
 async def online_image_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
     if CONF_URL in config:
-        template_ = await cg.templatable(config[CONF_URL], args, cg.const_char_ptr)
+        template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
         cg.add(var.set_url(template_))
+    if CONF_UPDATE in config:
+        template_ = await cg.templatable(config[CONF_UPDATE], args, cg.bool_)
+        cg.add(var.set_update(template_))
     return var
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_DOWNLOAD_FINISHED, "add_on_finished_callback", [(bool, "cached")]
+    ),
+    automation.CallbackAutomation(CONF_ON_ERROR, "add_on_error_callback"),
+)
+
+
 async def to_code(config):
-    format = config[CONF_FORMAT]
-    if format in [FORMAT_PNG]:
-        cg.add_define("USE_ONLINE_IMAGE_PNG_SUPPORT")
-        cg.add_library("pngle", "1.0.2")
+    # Use the enhanced helper function to get all runtime image parameters
+    settings = await runtime_image.process_runtime_image_config(config)
+    add_metadata(
+        config[CONF_ID],
+        settings.width,
+        settings.height,
+        config[CONF_TYPE],
+        config[CONF_TRANSPARENCY],
+    )
 
     url = config[CONF_URL]
-    width, height = config.get(CONF_RESIZE, (0, 0))
-    transparent = config[CONF_USE_TRANSPARENCY]
-
     var = cg.new_Pvariable(
         config[CONF_ID],
         url,
-        width,
-        height,
-        format,
-        config[CONF_TYPE],
+        settings.width,
+        settings.height,
+        settings.format_enum,
+        settings.image_type_enum,
+        settings.transparent,
+        settings.placeholder or cg.nullptr,
         config[CONF_BUFFER_SIZE],
+        settings.byte_order_big_endian,
     )
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_HTTP_REQUEST_ID])
 
-    cg.add(var.set_transparency(transparent))
+    for key, value in config.get(CONF_REQUEST_HEADERS, {}).items():
+        if isinstance(value, Lambda):
+            template_ = await cg.templatable(value, [], cg.std_string)
+            cg.add(var.add_request_header(key, template_))
+        else:
+            cg.add(var.add_request_header(key, value))
 
-    if placeholder_id := config.get(CONF_PLACEHOLDER):
-        placeholder = await cg.get_variable(placeholder_id)
-        cg.add(var.set_placeholder(placeholder))
-
-    for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_ERROR, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

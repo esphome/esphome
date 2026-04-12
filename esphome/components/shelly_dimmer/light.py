@@ -1,32 +1,33 @@
-from pathlib import Path
 import hashlib
+from pathlib import Path
 import re
+
 import requests
 
-
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import light, sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_OUTPUT_ID,
-    CONF_GAMMA_CORRECT,
-    CONF_POWER,
-    CONF_VOLTAGE,
     CONF_CURRENT,
-    CONF_VERSION,
-    CONF_URL,
+    CONF_GAMMA_CORRECT,
+    CONF_MAX_BRIGHTNESS,
+    CONF_MIN_BRIGHTNESS,
+    CONF_OUTPUT_ID,
+    CONF_POWER,
     CONF_UPDATE_INTERVAL,
-    UNIT_VOLT,
-    UNIT_AMPERE,
-    UNIT_WATT,
+    CONF_URL,
+    CONF_VERSION,
+    CONF_VOLTAGE,
+    DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
-    DEVICE_CLASS_CURRENT,
-    CONF_MIN_BRIGHTNESS,
-    CONF_MAX_BRIGHTNESS,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_AMPERE,
+    UNIT_VOLT,
+    UNIT_WATT,
 )
-from esphome.core import HexInt, CORE
+from esphome.core import CORE, HexInt
 
 DOMAIN = "shelly_dimmer"
 AUTO_LOAD = ["sensor"]
@@ -66,7 +67,7 @@ KNOWN_FIRMWARE = {
 
 
 def parse_firmware_version(value):
-    match = re.match(r"(\d+).(\d+)", value)
+    match = re.fullmatch(r"(\d+)\.(\d+)", value)
     if match is None:
         raise ValueError(f"Not a valid version number {value}")
     major = int(match[1])
@@ -128,7 +129,7 @@ def validate_firmware(value):
 
 def validate_sha256(value):
     value = cv.string(value)
-    if not value.isalnum() or not len(value) == 64:
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", value):
         raise ValueError(f"Not a valid SHA256 hex string: {value}")
     return value
 
@@ -163,16 +164,19 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_WATT,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_AMPERE,
                 device_class=DEVICE_CLASS_CURRENT,
                 accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             # Change the default gamma_correct setting.
             cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
@@ -183,7 +187,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     fw_hex = get_firmware(config[CONF_FIRMWARE])
     fw_major, fw_minor = parse_firmware_version(config[CONF_FIRMWARE][CONF_VERSION])
 
@@ -193,17 +197,17 @@ def to_code(config):
     cg.add_define("USE_SHD_FIRMWARE_MINOR_VERSION", fw_minor)
 
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     config.pop(
         CONF_UPDATE_INTERVAL
     )  # drop UPDATE_INTERVAL as it does not apply to the light component
 
-    yield light.register_light(var, config)
-    yield uart.register_uart_device(var, config)
+    await light.register_light(var, config)
+    await uart.register_uart_device(var, config)
 
-    nrst_pin = yield cg.gpio_pin_expression(config[CONF_NRST_PIN])
+    nrst_pin = await cg.gpio_pin_expression(config[CONF_NRST_PIN])
     cg.add(var.set_nrst_pin(nrst_pin))
-    boot0_pin = yield cg.gpio_pin_expression(config[CONF_BOOT0_PIN])
+    boot0_pin = await cg.gpio_pin_expression(config[CONF_BOOT0_PIN])
     cg.add(var.set_boot0_pin(boot0_pin))
 
     cg.add(var.set_leading_edge(config[CONF_LEADING_EDGE]))
@@ -217,5 +221,5 @@ def to_code(config):
             continue
 
         conf = config[key]
-        sens = yield sensor.new_sensor(conf)
+        sens = await sensor.new_sensor(conf)
         cg.add(getattr(var, f"set_{key}_sensor")(sens))
