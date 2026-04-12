@@ -9,6 +9,7 @@ import gzip
 import json
 import os
 from pathlib import Path
+import socket
 import sys
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -852,6 +853,50 @@ def test_start_web_server_with_address_port(
     app.listen.assert_called_once_with(6052, "127.0.0.1")
 
     # Verify trash was moved to archive
+    assert not trash_dir.exists()
+    assert archive_dir.exists()
+    assert (archive_dir / "old.yaml").exists()
+
+
+def test_start_web_server_with_network_interface_address_port(
+    tmp_path: Path,
+    mock_trash_storage_path: MagicMock,
+    mock_archive_storage_path: MagicMock,
+) -> None:
+    """Test start_web_server with a network interface name as address and port."""
+    app = Mock()
+    trash_dir = mock_trash_storage_path.return_value
+    archive_dir = mock_archive_storage_path.return_value
+
+    # Create trash dir to test migration
+    trash_dir.mkdir()
+    (trash_dir / "old.yaml").write_text("old")
+
+    mock_addr_ipv4 = Mock()
+    mock_addr_ipv4.family = socket.AF_INET
+    mock_addr_ipv4.address = "192.168.1.100"
+
+    mock_addr_ipv6 = Mock()
+    mock_addr_ipv6.family = socket.AF_INET6
+    mock_addr_ipv6.address = "fe80::1"
+
+    with (
+        patch(
+            "esphome.dashboard.web_server.psutil.net_if_addrs",
+            return_value={"eth0": [mock_addr_ipv4, mock_addr_ipv6]},
+        ),
+        patch(
+            "esphome.dashboard.web_server.socket.if_nametoindex",
+            return_value=2,
+        ) as mock_if_nametoindex,
+    ):
+        web_server.start_web_server(app, None, "eth0", 6052, str(tmp_path / "config"))
+
+    assert app.listen.call_count == 2
+    app.listen.assert_any_call(6052, "192.168.1.100")
+    app.listen.assert_any_call(6052, "fe80::1%2")
+    mock_if_nametoindex.assert_called_once_with("eth0")
+
     assert not trash_dir.exists()
     assert archive_dir.exists()
     assert (archive_dir / "old.yaml").exists()
