@@ -4849,7 +4849,7 @@ void WaveshareEPaperPolled::set_state_(State state) {
   }
 }
 
-void WaveshareEPaper7In5BV2::dump_config() {
+void WaveshareEPaper7P5InBV2BWR::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5in V3 Black/Red");
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
@@ -4858,7 +4858,7 @@ void WaveshareEPaper7In5BV2::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-void WaveshareEPaper7In5BV2::power_on() {
+void WaveshareEPaper7P5InBV2BWR::power_on() {
   // COMMAND POWER SETTING
   this->command(0x01);
   this->data(0x07);
@@ -4869,7 +4869,7 @@ void WaveshareEPaper7In5BV2::power_on() {
   this->command(0x04);
 }
 
-void WaveshareEPaper7In5BV2::configure() {
+void WaveshareEPaper7P5InBV2BWR::configure() {
   // COMMAND PANEL SETTING
   this->command(0x00);
   this->data(0x0F);  // KW-3f KWR-2F BWROTP 0f BWOTP 1f
@@ -4897,7 +4897,7 @@ void WaveshareEPaper7In5BV2::configure() {
   this->data(0x00);
 }
 
-void HOT WaveshareEPaper7In5BV2::display() {
+void HOT WaveshareEPaper7P5InBV2BWR::display() {
   uint32_t buf_len = this->get_buffer_length_();
   // COMMAND DATA START TRANSMISSION BLACK
   this->command(0x10);
@@ -4915,11 +4915,11 @@ void HOT WaveshareEPaper7In5BV2::display() {
   this->command(0x12);
 }
 
-void WaveshareEPaper7In5BV2::power_off() {
+void WaveshareEPaper7P5InBV2BWR::power_off() {
   this->command(0x02);  // POWER OFF
 }
 
-void WaveshareEPaper7In5BV2::deep_sleep() {
+void WaveshareEPaper7P5InBV2BWR::deep_sleep() {
   this->command(0x07);  // SLEEP
   this->data(0xA5);
 }

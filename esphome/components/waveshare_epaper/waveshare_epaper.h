@@ -1157,7 +1157,7 @@ class WaveshareEPaperPolled : public WaveshareEPaperBWR {
 
 // 7.5 inches screen supporting black and red color with
 // a v3 label on the back. Called EDP_7in5b_V2 in WaveShare examples.
-class WaveshareEPaper7In5BV2 : public WaveshareEPaperPolled {
+class WaveshareEPaper7P5InBV2BWR : public WaveshareEPaperPolled {
  public:
   void dump_config() override;
 

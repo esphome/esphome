@@ -603,8 +603,8 @@ display:
       it.rectangle(0, 0, it.get_width(), it.get_height());
 
   - platform: waveshare_epaper
-    id: epd_7_50bv2_rb
-    model: 7.50in-bv2-rb
+    id: epd_7_50bv2_bwr
+    model: 7.50in-bv2-bwr
     cs_pin:
       allow_other_uses: true
       number: ${cs_pin}
