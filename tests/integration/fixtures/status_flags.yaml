@@ -52,7 +52,7 @@ api:
         - component.update: app_warning_bit
         - component.update: app_error_bit
 
-    # Snapshot of the status_led's written pin state for observation.
+    # Snapshot of the status_led_light's output state for observation.
     - action: snapshot_led
       then:
         - component.update: status_led_writes
