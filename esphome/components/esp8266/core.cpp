@@ -16,9 +16,86 @@ extern "C" {
 namespace esphome {
 
 void HOT yield() { ::yield(); }
-uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
-uint64_t millis_64() { return Millis64Impl::compute(::millis()); }
-void HOT delay(uint32_t ms) { ::delay(ms); }
+// Arduino ESP8266's millis() uses 4× 64-bit multiplies with magic constants to
+// convert system_get_time() → ms while tracking overflow (~3.3 μs per call on
+// the LX106 which has no hardware multiply-high instruction). We replace it with
+// a simple accumulator that tracks a running millis counter from μs deltas using
+// pure 32-bit ops on the common path (subtract, add, compare-and-subtract).
+// Large gaps (>10 ms) fall back to a constant-time /1000 conversion.
+//
+// Overflow safety: system_get_time() is a uint32_t that wraps every ~71.6 minutes.
+// Unsigned subtraction (now - last) handles one wrap correctly. ESPHome calls
+// millis() thousands of times per second (1+N per loop iteration at 60+ Hz), so
+// missing a full 71-minute wrap period is not a realistic concern. At boot,
+// state.last_us starts at 0 and system_get_time() counts from 0, so the first call's
+// delta equals the real elapsed time — no special initialization needed.
+//
+// This function is also installed as __wrap_millis (via -Wl,--wrap=millis) so
+// that Arduino library code and ISR handlers (e.g. Wiegand, ZyAura) calling
+// ::millis() directly also get the fast version. Interrupts are briefly disabled
+// to protect the static state from concurrent ISR access. The critical section
+// is bounded: the common path (delta < 10 ms) runs at most 10 subtract-and-
+// compare iterations (~100 ns). Large gaps (WiFi scan, boot) fall back to a
+// constant-time multiply-by-reciprocal (~2.5 μs, rare).
+// Threshold above which we use constant-time /1000 instead of the while loop.
+// 10 ms means the while loop runs at most 10 iterations (~100 ns) on the
+// common path, well within the WiFi stack's ~10 μs interrupt latency budget.
+static constexpr uint32_t MILLIS_RARE_PATH_THRESHOLD_US = 10000;
+static constexpr uint32_t US_PER_MS = 1000;
+
+uint32_t IRAM_ATTR HOT millis() {
+  // Struct packs the three statics so the compiler loads one base address
+  // instead of three separate literal pool entries (saves ~8 bytes IRAM).
+  static struct {
+    uint32_t cache;
+    uint32_t remainder;
+    uint32_t last_us;
+  } state = {0, 0, 0};
+  uint32_t ps = xt_rsil(15);
+  uint32_t now_us = system_get_time();
+  uint32_t delta = now_us - state.last_us;
+  state.last_us = now_us;
+  state.remainder += delta;
+  if (state.remainder >= MILLIS_RARE_PATH_THRESHOLD_US) {
+    // Rare path: large gap (WiFi scan, boot, long block). Constant-time
+    // conversion keeps the critical section bounded.
+    uint32_t ms = state.remainder / US_PER_MS;
+    state.cache += ms;
+    state.remainder -= ms * US_PER_MS;
+  } else {
+    // Common path: small gap. Loop runs at most
+    // MILLIS_RARE_PATH_THRESHOLD_US / US_PER_MS iterations.
+    while (state.remainder >= US_PER_MS) {
+      state.cache++;
+      state.remainder -= US_PER_MS;
+    }
+  }
+  uint32_t result = state.cache;
+  xt_wsr_ps(ps);
+  return result;
+}
+uint64_t millis_64() { return Millis64Impl::compute(millis()); }
+// Avoid calling ::delay() which pulls in __delay from core_esp8266_wiring.cpp.
+// __delay has an intra-object call to the original millis() that --wrap=millis
+// can't intercept, preventing the linker from garbage-collecting the expensive
+// original millis body (~80 bytes IRAM).
+//
+// Semantic difference from Arduino's delay(): Arduino sets up a one-shot
+// os_timer and calls esp_suspend() to suspend the continuation once for the
+// full duration. Our loop polls millis() + optimistic_yield(1000) which still
+// calls esp_schedule()/esp_suspend_within_cont() via yield(), so SDK tasks
+// and WiFi run correctly. Less power-efficient for long delays but
+// functionally equivalent.
+void HOT delay(uint32_t ms) {
+  if (ms == 0) {
+    optimistic_yield(1000);
+    return;
+  }
+  uint32_t start = millis();
+  while (millis() - start < ms) {
+    optimistic_yield(1000);
+  }
+}
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
@@ -77,5 +154,13 @@ extern "C" void resetPins() {  // NOLINT
 }
 
 }  // namespace esphome
+
+// Linker wrap: redirect all ::millis() calls (Arduino libs, ISRs) to our accumulator.
+// Requires -Wl,--wrap=millis in build flags (added by __init__.py).
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" uint32_t IRAM_ATTR __wrap_millis() { return esphome::millis(); }
+// Note: Arduino's init() registers a 60-second overflow timer for micros64().
+// We leave it running — wrapping init() as a no-op would break micros64()'s
+// overflow tracking, and the timer's cost is negligible (~3 μs per 60 s).
 
 #endif  // USE_ESP8266
