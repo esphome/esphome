@@ -89,6 +89,11 @@ inline constexpr uint8_t STATUS_LED_WARNING = 0x08;
 inline constexpr uint8_t STATUS_LED_ERROR = 0x10;
 // Component loop override flag uses bit 5 (set at registration time)
 inline constexpr uint8_t COMPONENT_HAS_LOOP = 0x20;
+// Bit 6 on Application::app_state_ (ONLY) — set at the end of
+// Application::setup(). Component::status_clear_*_slow_path_() uses this to
+// decide whether to propagate clears to App.app_state_. Never set on a
+// Component's component_state_.
+inline constexpr uint8_t APP_STATE_SETUP_COMPLETE = 0x40;
 // Remove before 2026.8.0
 enum class RetryResult { DONE, RETRY };
 
