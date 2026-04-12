@@ -60,9 +60,13 @@ uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 // original millis body (~80 bytes IRAM). This yield loop achieves the same
 // behavior: feeds the watchdog, processes SDK tasks, keeps WiFi alive.
 void HOT delay(uint32_t ms) {
+  if (ms == 0) {
+    optimistic_yield(1000);
+    return;
+  }
   uint32_t start = millis();
   while (millis() - start < ms) {
-    yield();
+    optimistic_yield(1000);
   }
 }
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
