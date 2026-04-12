@@ -152,6 +152,10 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
         this->dsc_.header.cf = LV_COLOR_FORMAT_A1;
         break;
 
+      case IMAGE_TYPE_4GRAY:
+        this->dsc_.header.cf = LV_COLOR_FORMAT_I2;
+        break;
+
       case IMAGE_TYPE_GRAYSCALE:
         this->dsc_.header.cf = LV_COLOR_FORMAT_A8;
         break;
