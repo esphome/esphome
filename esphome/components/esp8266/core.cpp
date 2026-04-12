@@ -54,7 +54,17 @@ static uint32_t IRAM_ATTR HOT millis_accumulator() {
 }
 uint32_t IRAM_ATTR HOT millis() { return millis_accumulator(); }
 uint64_t millis_64() { return Millis64Impl::compute(millis()); }
-void HOT delay(uint32_t ms) { ::delay(ms); }
+// Avoid calling ::delay() which pulls in __delay from core_esp8266_wiring.cpp.
+// __delay has an intra-object call to the original millis() that --wrap=millis
+// can't intercept, preventing the linker from garbage-collecting the expensive
+// original millis body (~80 bytes IRAM). This yield loop achieves the same
+// behavior: feeds the watchdog, processes SDK tasks, keeps WiFi alive.
+void HOT delay(uint32_t ms) {
+  uint32_t start = millis();
+  while (millis() - start < ms) {
+    yield();
+  }
+}
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
