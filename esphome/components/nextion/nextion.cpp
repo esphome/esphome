@@ -361,7 +361,8 @@ void Nextion::loop() {
 
 #ifdef USE_NEXTION_COMMAND_SPACING
 void Nextion::process_pending_in_queue_() {
-  if (this->nextion_queue_.empty() || !this->command_pacer_.can_send()) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->nextion_queue_.empty() || !this->command_pacer_.can_send(now)) {
     return;
   }
 
