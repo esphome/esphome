@@ -53,6 +53,19 @@ bool socket_ready_fd(int fd, bool loop_monitored);
 
 // Inline ready() — defined here because it depends on socket_ready/socket_ready_fd
 // declared above, while the impl headers are included before those declarations.
+//
+// Contract (applies to ALL socket implementations — each platform implements
+// ready() differently, but this contract holds regardless of the mechanism):
+// ready() checks if the socket has buffered data ready to read. When it returns
+// true, the caller MUST read until it would block (EAGAIN/EWOULDBLOCK), or until
+// read() returns 0 to indicate EOF / connection closed, or track that it stopped
+// early and retry without calling ready(). The next call to ready() will only
+// report new data correctly if all callers fulfill this contract. Failing to
+// drain the socket may cause ready() to return false while data remains readable.
+//
+// In practice each socket is owned by a single component, so this contract is
+// straightforward to fulfill — but the owning component must be aware of it,
+// especially if it limits how many messages it processes per loop iteration.
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 inline bool Socket::ready() const {
 #ifdef USE_LWIP_FAST_SELECT

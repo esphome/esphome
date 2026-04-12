@@ -45,6 +45,18 @@ def is_remote_package(package_config: dict) -> bool:
     return CONF_URL in package_config
 
 
+def is_package_definition(value: object) -> bool:
+    """Returns True if the value looks like a package definition rather than a config fragment.
+
+    Package definitions are IncludeFile objects, git URL shorthand strings, or
+    remote package dicts (containing a ``url:`` key).  Config fragments are
+    plain dicts that represent component configuration.
+    """
+    return isinstance(value, (yaml_util.IncludeFile, str)) or (
+        isinstance(value, dict) and is_remote_package(value)
+    )
+
+
 def valid_package_contents(package_config: dict) -> dict:
     """Validate that a package looks like a plausible ESPHome config fragment.
 
@@ -318,11 +330,11 @@ def _walk_packages(
         if not isinstance(packages, dict):
             _walk_package_list(packages, callback, context)
         elif (result := _walk_package_dict(packages, callback, context)) is not None:
-            if not validate_deprecated:
+            if not validate_deprecated or any(
+                is_package_definition(v) for v in packages.values()
+            ):
                 raise result
             # Fallback: treat the dict as a single deprecated package.
-            # Note: this catches *any* cv.Invalid from the callback, which may
-            # mask real validation errors in named package dicts.
             # This block can be removed once the single-package
             # deprecation period (2026.7.0) is over.
             config[CONF_PACKAGES] = [packages]
@@ -461,6 +473,9 @@ class _PackageProcessor:
         self, package_config: dict | str, context_vars: ContextVars | None
     ) -> dict:
         """Resolve a single package and recurse into any nested packages."""
+        from_remote = isinstance(package_config, dict) and is_remote_package(
+            package_config
+        )
         package_config = self.resolve_package(package_config, context_vars)
         self.collect_substitutions(package_config)
 
@@ -470,7 +485,18 @@ class _PackageProcessor:
         # Push context from !include vars on the package root and on the packages key
         context_vars = push_context(package_config, context_vars)
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
-        return _walk_packages(package_config, self.process_package, context_vars)
+        # Disable the deprecated single-package fallback for remote
+        # packages.  _process_remote_package returns dicts with
+        # already-resolved values that is_package_definition cannot
+        # distinguish from config fragments, so the fallback would
+        # always fire and mask real errors with wrong paths
+        # (packages->0 instead of packages-><name>).
+        return _walk_packages(
+            package_config,
+            self.process_package,
+            context_vars,
+            validate_deprecated=not from_remote,
+        )
 
 
 def do_packages_pass(
