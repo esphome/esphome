@@ -369,7 +369,11 @@ void Nextion::process_pending_in_queue_() {
   size_t commands_sent = 0;
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
 
-  while (!this->nextion_queue_.empty()) {
+  for (auto *item : this->nextion_queue_) {
+    if (item == nullptr || item->pending_command.empty()) {
+      continue;  // Already sent, waiting for ACK — skip, don't stop
+    }
+
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
     if (++commands_sent > this->max_commands_per_loop_) {
       ESP_LOGV(TAG, "Pending cmds: loop limit reached, deferring");
@@ -379,20 +383,15 @@ void Nextion::process_pending_in_queue_() {
 
     const uint32_t now = App.get_loop_component_start_time();
     if (!this->command_pacer_.can_send(now)) {
-      break;
+      break;  // Spacing not elapsed, stop for this loop iteration
     }
 
-    auto *front_item = this->nextion_queue_.front();
-    if (!front_item || front_item->pending_command.empty()) {
-      break;
+    if (!this->send_command_(item->pending_command)) {
+      break;  // Unexpected send failure, stop
     }
-
-    if (!this->send_command_(front_item->pending_command)) {
-      break;
-    }
-    front_item->pending_command.clear();
+    item->pending_command.clear();
     ESP_LOGVV(TAG, "Pending cmd sent: %s",
-              front_item->component->get_variable_name().c_str());
+              item->component->get_variable_name().c_str());
   }
 }
 #endif  // USE_NEXTION_COMMAND_SPACING
