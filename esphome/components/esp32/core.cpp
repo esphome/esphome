@@ -23,19 +23,13 @@ extern "C" __attribute__((weak)) void initArduino() {}
 namespace esphome {
 
 void HOT yield() { vPortYield(); }
-uint32_t IRAM_ATTR HOT millis() {
-  // ESPHome sets CONFIG_FREERTOS_HZ=1000 (see esp32/__init__.py), so one tick = one millisecond
-  // and xTaskGetTickCount() returns ms directly. This is a single volatile memory read (~20ns)
-  // vs esp_timer_get_time() + micros_to_millis() which does a hardware timer read + 64-bit
-  // multiply-shift conversion (~686ns measured). millis() is called 1+N times per main loop
-  // iteration (once at top + once per component for warn_blocking), so this saves ~3.4μs/loop
-  // on a 5-component device. micros() still uses esp_timer_get_time() for μs precision.
-#if CONFIG_FREERTOS_HZ == 1000
-  return xTaskGetTickCount();
-#else
-  return micros_to_millis(static_cast<uint64_t>(esp_timer_get_time()));
+// millis() is inlined in hal.h when CONFIG_FREERTOS_HZ == 1000 (just xTaskGetTickCount()).
+// Fallback for non-standard tick rates. No IRAM_ATTR — the original IRAM placement was
+// inherited from ESP8266 where Arduino's millis() is called from ISR handlers (Wiegand,
+// ZyAura). ESPHome doesn't call millis() from ISR on ESP32.
+#if CONFIG_FREERTOS_HZ != 1000
+uint32_t HOT millis() { return micros_to_millis(static_cast<uint64_t>(esp_timer_get_time())); }
 #endif
-}
 uint64_t HOT millis_64() { return micros_to_millis<uint64_t>(static_cast<uint64_t>(esp_timer_get_time())); }
 void HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
 uint32_t IRAM_ATTR HOT micros() { return (uint32_t) esp_timer_get_time(); }
