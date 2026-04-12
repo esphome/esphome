@@ -354,8 +354,12 @@ void Nextion::loop() {
   }
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  // Try to send any pending commands if spacing allows
   this->process_pending_in_queue_();
+#ifdef USE_NEXTION_WAVEFORM
+  if (!this->waveform_queue_.empty()) {
+    this->check_pending_waveform_();
+  }
+#endif  // USE_NEXTION_WAVEFORM
 #endif  // USE_NEXTION_COMMAND_SPACING
 }
 
@@ -1273,9 +1277,22 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
 
   std::string command = "get " + component->get_variable_name_to_send();
 
+#ifdef USE_NEXTION_COMMAND_SPACING
+  // Always enqueue first so the response handler is present when the command
+  // is eventually sent. Store the command for retry if spacing blocked it;
+  // process_pending_in_queue_() will transmit it when the pacer allows.
+  nextion_queue->pending_command = command;
+  this->nextion_queue_.push_back(nextion_queue);
+  if (this->send_command_(command)) {
+    nextion_queue->pending_command.clear();
+  }
+#else   // USE_NEXTION_COMMAND_SPACING
   if (this->send_command_(command)) {
     this->nextion_queue_.push_back(nextion_queue);
+  } else {
+    delete nextion_queue;  // NOLINT(cppcoreguidelines-owning-memory)
   }
+#endif  // USE_NEXTION_COMMAND_SPACING
 }
 
 #ifdef USE_NEXTION_WAVEFORM
@@ -1319,10 +1336,10 @@ void Nextion::check_pending_waveform_() {
   char command[24];  // "addt " + uint8 + "," + uint8 + "," + uint8 + null = max 17 chars
   buf_append_printf(command, sizeof(command), 0, "addt %u,%u,%zu", component->get_component_id(),
                     component->get_wave_channel_id(), buffer_to_send);
-  if (!this->send_command_(command)) {
-    delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-    this->waveform_queue_.pop();
-  }
+  // If spacing or setup state blocks the send, leave the entry at the front
+  // of waveform_queue_ for retry on the next loop iteration via
+  // check_pending_waveform_(). Only pop on a successful send.
+  this->send_command_(command);
 }
 #endif  // USE_NEXTION_WAVEFORM
 
