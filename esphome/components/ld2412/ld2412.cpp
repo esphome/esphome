@@ -402,7 +402,7 @@ void LD2412Component::handle_periodic_data_() {
   SAFE_PUBLISH_SENSOR(this->still_target_distance_sensor_,
                       encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]))
   SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY])
-  if (this->detection_distance_sensor_ != nullptr) {
+  if (this->detection_distance_sensor_.has_sensor()) {
     int new_detect_distance = 0;
     if (target_state != 0x00 && (target_state & MOVE_BITMASK)) {
       new_detect_distance =
@@ -410,7 +410,7 @@ void LD2412Component::handle_periodic_data_() {
     } else if (target_state != 0x00) {
       new_detect_distance = encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]);
     }
-    this->detection_distance_sensor_->publish_state_if_not_dup(new_detect_distance);
+    this->detection_distance_sensor_.publish_state_if_not_dup(new_detect_distance);
   }
   if (engineering_mode) {
     // Engineering mode needs at least LIGHT_SENSOR + 1 bytes
@@ -846,12 +846,11 @@ void LD2412Component::set_light_out_control() {
 }
 
 #ifdef USE_SENSOR
-// These could leak memory, but they are only set once prior to 'setup()' and should never be used again.
 void LD2412Component::set_gate_move_sensor(uint8_t gate, sensor::Sensor *s) {
-  this->gate_move_sensors_[gate] = new SensorWithDedup<uint8_t>(s);
+  this->gate_move_sensors_[gate].set_sensor(s);
 }
 void LD2412Component::set_gate_still_sensor(uint8_t gate, sensor::Sensor *s) {
-  this->gate_still_sensors_[gate] = new SensorWithDedup<uint8_t>(s);
+  this->gate_still_sensors_[gate].set_sensor(s);
 }
 #endif
 
