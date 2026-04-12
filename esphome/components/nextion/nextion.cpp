@@ -36,8 +36,9 @@ bool Nextion::send_command_(const std::string &command) {
   }
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  if (!this->connection_state_.ignore_is_setup_ && !this->command_pacer_.can_send()) {
-    ESP_LOGN(TAG, "Command spacing: delaying command '%s'", command.c_str());
+  const uint32_t now = App.get_loop_component_start_time();
+  if (!this->connection_state_.ignore_is_setup_ && !this->command_pacer_.can_send(now)) {
+    ESP_LOGN(TAG, "Command spacing: delaying '%s'", command.c_str());
     return false;
   }
 #endif  // USE_NEXTION_COMMAND_SPACING
@@ -47,6 +48,16 @@ bool Nextion::send_command_(const std::string &command) {
   this->write_str(command.c_str());
   const uint8_t to_send[3] = {0xFF, 0xFF, 0xFF};
   this->write_array(to_send, sizeof(to_send));
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  // Mark sent immediately after writing to UART. The pacer enforces inter-command
+  // spacing from the transmit side. Marking on ACK (0x01) would leave last_command_time_
+  // at zero indefinitely, making can_send() always return true and spacing a no-op.
+  // ignore_is_setup_ commands (setup/init sequence) bypass spacing intentionally.
+  if (!this->connection_state_.ignore_is_setup_) {
+    this->command_pacer_.mark_sent(now);
+  }
+#endif  // USE_NEXTION_COMMAND_SPACING
 
   return true;
 }
@@ -253,11 +264,8 @@ bool Nextion::send_command(const char *command) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || this->is_sleeping())
     return false;
 
-  if (this->send_command_(command)) {
-    this->add_no_result_to_queue_("command");
-    return true;
-  }
-  return false;
+  this->add_no_result_to_queue_with_command_("command", command);
+  return true;
 }
 
 bool Nextion::send_command_printf(const char *format, ...) {
@@ -274,11 +282,8 @@ bool Nextion::send_command_printf(const char *format, ...) {
     return false;
   }
 
-  if (this->send_command_(buffer)) {
-    this->add_no_result_to_queue_("command_printf");
-    return true;
-  }
-  return false;
+  this->add_no_result_to_queue_with_command_("command_printf", buffer);
+  return true;
 }
 
 #ifdef NEXTION_PROTOCOL_LOG
@@ -470,10 +475,6 @@ void Nextion::process_nextion_commands_() {
             this->setup_callback_.call();
           }
         }
-#ifdef USE_NEXTION_COMMAND_SPACING
-        this->command_pacer_.mark_sent();  // Here is where we should mark the command as sent
-        ESP_LOGN(TAG, "Command spacing: marked command sent");
-#endif
         break;
       case 0x02:  // invalid Component ID or name was used
         ESP_LOGW(TAG, "Invalid component ID/name");
@@ -1079,10 +1080,18 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
 }
 
 /**
- * @brief
+ * @brief Send a command and enqueue it for response tracking.
  *
- * @param variable_name Variable name for the queue
- * @param command
+ * Callers are responsible for checking is_sleeping() before calling this
+ * method. The sleep guard is deliberately absent here because some callers
+ * (e.g. add_no_result_to_queue_with_ignore_sleep_printf_()) are explicitly
+ * sleep-safe and must bypass it.
+ *
+ * If USE_NEXTION_COMMAND_SPACING is enabled and the pacer is not ready,
+ * the command is saved in the queue entry for retry rather than dropped.
+ *
+ * @param variable_name Name of the variable or component associated with the command.
+ * @param command       The raw command string to send.
  */
 void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_name, const std::string &command) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || command.empty())
