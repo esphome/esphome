@@ -49,6 +49,20 @@ image:
     type: grayscale
     transparency: opaque
 
+  - id: fourGray_alpha_image
+    file: ../../pnglogo.png
+    type: 4GRAY
+    transparency: alpha_channel
+    resize: 50x50
+  - id: fourGray_ck_image
+    file: ../../pnglogo.png
+    type: 4GRAY
+    transparency: chroma_key
+  - id: fourGray_image
+    file: ../../pnglogo.png
+    type: 4GRAY
+    transparency: opaque
+
   - id: web_svg_image
     file: https://media.esphome.io/logo/logo.svg
     resize: 256x48
