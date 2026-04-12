@@ -16,8 +16,44 @@ extern "C" {
 namespace esphome {
 
 void HOT yield() { ::yield(); }
-uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
-uint64_t millis_64() { return Millis64Impl::compute(::millis()); }
+// Arduino ESP8266's millis() uses 4× 64-bit multiplies with magic constants to
+// convert system_get_time() → ms while tracking overflow (~3.3 μs per call on
+// the LX106 which has no hardware multiply-high instruction). We replace it with
+// a simple accumulator that tracks a running millis counter from μs deltas using
+// pure 32-bit ops (subtract, add, compare-and-subtract). No __umulsidi3 software
+// multiply calls.
+//
+// Overflow safety: system_get_time() is a uint32_t that wraps every ~71.6 minutes.
+// Unsigned subtraction (now - last) handles one wrap correctly. ESPHome calls
+// millis() thousands of times per second (1+N per loop iteration at 60+ Hz), so
+// missing a full 71-minute wrap period is not a realistic concern. At boot,
+// s_last_us starts at 0 and system_get_time() counts from 0, so the first call's
+// delta equals the real elapsed time — no special initialization needed.
+//
+// This function is also installed as __wrap_millis (via -Wl,--wrap=millis) so
+// that Arduino library code and ISR handlers (e.g. Wiegand, ZyAura) calling
+// ::millis() directly also get the fast version. Interrupts are briefly disabled
+// (~10 instructions, ~125 ns at 80 MHz) to protect the static state from
+// concurrent ISR access.
+static uint32_t IRAM_ATTR HOT millis_accumulator_() {
+  static uint32_t s_cache = 0;
+  static uint32_t s_remainder = 0;
+  static uint32_t s_last_us = 0;
+  uint32_t ps = xt_rsil(15);
+  uint32_t now_us = system_get_time();
+  uint32_t delta = now_us - s_last_us;
+  s_last_us = now_us;
+  s_remainder += delta;
+  while (s_remainder >= 1000) {
+    s_cache++;
+    s_remainder -= 1000;
+  }
+  uint32_t result = s_cache;
+  xt_wsr_ps(ps);
+  return result;
+}
+uint32_t IRAM_ATTR HOT millis() { return millis_accumulator_(); }
+uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 void HOT delay(uint32_t ms) { ::delay(ms); }
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
@@ -77,5 +113,9 @@ extern "C" void resetPins() {  // NOLINT
 }
 
 }  // namespace esphome
+
+// Linker wrap: redirect all ::millis() calls (Arduino libs, ISRs) to our accumulator.
+// Requires -Wl,--wrap=millis in build flags (added by __init__.py).
+extern "C" uint32_t IRAM_ATTR __wrap_millis() { return esphome::millis(); }
 
 #endif  // USE_ESP8266
