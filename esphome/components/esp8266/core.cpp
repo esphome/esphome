@@ -35,24 +35,27 @@ void HOT yield() { ::yield(); }
 // ::millis() directly also get the fast version. Interrupts are briefly disabled
 // (~10 instructions, ~125 ns at 80 MHz) to protect the static state from
 // concurrent ISR access.
-static uint32_t IRAM_ATTR HOT millis_accumulator() {
-  static uint32_t s_cache = 0;
-  static uint32_t s_remainder = 0;
-  static uint32_t s_last_us = 0;
+uint32_t IRAM_ATTR HOT millis() {
+  // Struct packs the three statics so the compiler loads one base address
+  // instead of three separate literal pool entries (saves ~8 bytes IRAM).
+  static struct {
+    uint32_t cache;
+    uint32_t remainder;
+    uint32_t last_us;
+  } state = {0, 0, 0};
   uint32_t ps = xt_rsil(15);
   uint32_t now_us = system_get_time();
-  uint32_t delta = now_us - s_last_us;
-  s_last_us = now_us;
-  s_remainder += delta;
-  while (s_remainder >= 1000) {
-    s_cache++;
-    s_remainder -= 1000;
+  uint32_t delta = now_us - state.last_us;
+  state.last_us = now_us;
+  state.remainder += delta;
+  while (state.remainder >= 1000) {
+    state.cache++;
+    state.remainder -= 1000;
   }
-  uint32_t result = s_cache;
+  uint32_t result = state.cache;
   xt_wsr_ps(ps);
   return result;
 }
-uint32_t IRAM_ATTR HOT millis() { return millis_accumulator(); }
 uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 // Avoid calling ::delay() which pulls in __delay from core_esp8266_wiring.cpp.
 // __delay has an intra-object call to the original millis() that --wrap=millis
