@@ -26,32 +26,36 @@ void HOT yield() { ::yield(); }
 // s_last_us and ::micros() start at 0, so no special initialization needed.
 //
 // Also installed as __wrap_millis (via -Wl,--wrap=millis) so Arduino library
-// code calling ::millis() directly gets the fast version. No interrupt guard
-// needed — no ESPHome ISR calls millis() on RP2040.
+// code calling ::millis() directly gets the fast version. Interrupts are
+// briefly disabled to protect the static state — Wiegand and ZyAura call
+// millis() from ISR handlers on all platforms including RP2040.
+static constexpr uint32_t MILLIS_RARE_PATH_THRESHOLD_US = 10000;
+static constexpr uint32_t US_PER_MS = 1000;
+
 uint32_t HOT millis() {
   static struct {
     uint32_t cache;
     uint32_t remainder;
     uint32_t last_us;
   } state = {0, 0, 0};
+  uint32_t ps = save_and_disable_interrupts();
   uint32_t now_us = ::micros();
   uint32_t delta = now_us - state.last_us;
   state.last_us = now_us;
   state.remainder += delta;
-  if (state.remainder >= 10000) {
-    // Rare path: large gap (>10 ms — boot, long block). Constant-time
-    // multiply-by-reciprocal via /1000.
-    uint32_t ms = state.remainder / 1000;
+  if (state.remainder >= MILLIS_RARE_PATH_THRESHOLD_US) {
+    uint32_t ms = state.remainder / US_PER_MS;
     state.cache += ms;
-    state.remainder -= ms * 1000;
+    state.remainder -= ms * US_PER_MS;
   } else {
-    // Common path: small gap. Loop runs at most 10 times.
-    while (state.remainder >= 1000) {
+    while (state.remainder >= US_PER_MS) {
       state.cache++;
-      state.remainder -= 1000;
+      state.remainder -= US_PER_MS;
     }
   }
-  return state.cache;
+  uint32_t result = state.cache;
+  restore_interrupts(ps);
+  return result;
 }
 // millis_64() keeps the full 64-bit timer for precision — called once per loop by Scheduler.
 uint64_t millis_64() { return micros_to_millis<uint64_t>(time_us_64()); }
