@@ -896,3 +896,56 @@ def test_patch_file_downloader_idempotent() -> None:
 
         # Should only be called once, not 3 times from stacked wrappers
         assert call_count == 1
+
+
+def _filter_through_redirect(line: str) -> str:
+    """Write a line through RedirectText with FILTER_PLATFORMIO_LINES and return what passes."""
+    import io
+
+    from esphome.util import RedirectText
+
+    captured = io.StringIO()
+    redirect = RedirectText(
+        captured, filter_lines=platformio_api.FILTER_PLATFORMIO_LINES
+    )
+    redirect.write(line + "\n")
+    return captured.getvalue()
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        "Verbose mode can be enabled via `-v, --verbose` option",
+        "Found 5 compatible libraries",
+        "Found 123 compatible libraries",
+        "Building in release mode",
+        "Building in debug mode",
+        "Merged 2 ELF section",
+        "esptool.py v4.7.0",
+        "esptool v4.8.1",
+        "PLATFORM: espressif32 @ 6.4.0",
+        "Using cache: /path/to/cache",
+        "Package configuration completed successfully",
+        "Scanning dependencies...",
+        "Installing dependencies",
+        "Library Manager: Already installed, built-in library",
+        "Memory Usage -> https://bit.ly/pio-memory-usage",
+    ],
+)
+def test_filter_platformio_lines_blocks_noisy_messages(msg: str) -> None:
+    """Test that noisy platformio output lines are filtered out by RedirectText."""
+    assert _filter_through_redirect(msg) == ""
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        "Compiling .pio/build/test/src/main.cpp.o",
+        "Linking .pio/build/test/firmware.elf",
+        "Error: something went wrong",
+        "warning: unused variable",
+    ],
+)
+def test_filter_platformio_lines_allows_other_messages(msg: str) -> None:
+    """Test that non-noisy platformio output lines pass through RedirectText."""
+    assert _filter_through_redirect(msg) == msg + "\n"
