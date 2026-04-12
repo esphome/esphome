@@ -83,7 +83,18 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IDLE_TIME_BEFORE_SLEEP, default=3): cv.int_range(
                 min=2, max=4294967295
             ),
-            cv.Optional(CONF_POWER_DOWN_PERIPHERALS, default=True): cv.boolean,
+            # c5,c6,c61,h2,h21,h4,p4
+            cv.SplitDefault(
+                CONF_POWER_DOWN_PERIPHERALS,
+                esp32_c5=True,
+                esp32_c6=True,
+                esp32_c61=True,
+                esp32_h2=True,
+                # esp32_h21=True,
+                # esp32_h4=True,
+                esp32_p4=True,
+                esp32=False,  # esp32, s2, s3, c3, c2 — no TOP_PD
+            ): cv.boolean,
             cv.Optional(CONF_POWER_DOWN_FLASH): cv.boolean,
             cv.Optional(CONF_ESPHOME_LOCKS): cv.boolean,
             cv.Optional(CONF_PROFILING): cv.boolean,
