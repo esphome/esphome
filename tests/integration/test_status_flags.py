@@ -22,6 +22,12 @@ import pytest
 from .state_utils import InitialStateHelper, SensorTracker, build_key_to_entity_mapping
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
+# Time to let the main loop run so status_led_light writes to its output.
+# feed_wdt re-dispatches every ~3 ms; 300 ms gives ~100 opportunities and
+# is long enough that even a slow host-mode main loop produces measurable
+# write-count changes.
+STATUS_LED_SETTLE_S = 0.3
+
 
 @pytest.mark.asyncio
 async def test_status_flags(
@@ -153,7 +159,7 @@ async def test_status_flags(
         await call_and_expect_bits("set_warning_a", warning=1.0, error=0.0)
         # Let status_led_light's loop run long enough to toggle the pin
         # several times (it reads get_app_state() every main loop iteration).
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(STATUS_LED_SETTLE_S)
         count_after_warning = await snapshot_led_writes()
         assert count_after_warning > count_before_warning, (
             "status_led_light did not respond to STATUS_LED_WARNING being set: "
@@ -166,7 +172,7 @@ async def test_status_flags(
         # Same check for ERROR
         count_before_error = await snapshot_led_writes()
         await call_and_expect_bits("set_error_a", warning=0.0, error=1.0)
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(STATUS_LED_SETTLE_S)
         count_after_error = await snapshot_led_writes()
         assert count_after_error > count_before_error, (
             "status_led_light did not respond to STATUS_LED_ERROR being set: "
@@ -180,18 +186,20 @@ async def test_status_flags(
         # future idle optimization (e.g. #15642) where status_led disables
         # its own loop when idle: if the re-enable path were broken, the
         # second set would not produce writes.
-        await asyncio.sleep(0.3)
+        #
+        # Snapshot AFTER the clear to avoid counting writes that were still
+        # in-flight from the error-set phase.
+        count_after_clear = await snapshot_led_writes()
+        await asyncio.sleep(STATUS_LED_SETTLE_S)
         count_after_idle = await snapshot_led_writes()
-        # Counter should NOT have grown much since the clear (at most +1
-        # for the restore-state call on the clear transition).
-        assert count_after_idle - count_after_error <= 5, (
+        assert count_after_idle - count_after_clear <= 5, (
             "status_led_light kept writing after warning/error was cleared: "
-            f"count grew from {count_after_error} to {count_after_idle}. "
+            f"count grew from {count_after_clear} to {count_after_idle}. "
             "Expected it to stop writing once all status bits were clear."
         )
         # Re-set warning — writes must resume.
         await call_and_expect_bits("set_warning_a", warning=1.0, error=0.0)
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(STATUS_LED_SETTLE_S)
         count_after_reset = await snapshot_led_writes()
         assert count_after_reset > count_after_idle + 5, (
             "status_led_light did not resume writing after re-setting "
