@@ -365,19 +365,34 @@ void Nextion::loop() {
 
 #ifdef USE_NEXTION_COMMAND_SPACING
 void Nextion::process_pending_in_queue_() {
-  const uint32_t now = App.get_loop_component_start_time();
-  if (this->nextion_queue_.empty() || !this->command_pacer_.can_send(now)) {
-    return;
-  }
+#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
+  size_t commands_sent = 0;
+#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
 
-  // Check if first item in queue has a pending command
-  auto *front_item = this->nextion_queue_.front();
-  if (front_item && !front_item->pending_command.empty()) {
-    if (this->send_command_(front_item->pending_command)) {
-      // Command sent successfully, clear the pending command
-      front_item->pending_command.clear();
-      ESP_LOGVV(TAG, "Pending command sent: %s", front_item->component->get_variable_name().c_str());
+  while (!this->nextion_queue_.empty()) {
+#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
+    if (++commands_sent > this->max_commands_per_loop_) {
+      ESP_LOGV(TAG, "Pending cmds: loop limit reached, deferring");
+      break;
     }
+#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
+
+    const uint32_t now = App.get_loop_component_start_time();
+    if (!this->command_pacer_.can_send(now)) {
+      break;
+    }
+
+    auto *front_item = this->nextion_queue_.front();
+    if (!front_item || front_item->pending_command.empty()) {
+      break;
+    }
+
+    if (!this->send_command_(front_item->pending_command)) {
+      break;
+    }
+    front_item->pending_command.clear();
+    ESP_LOGVV(TAG, "Pending cmd sent: %s",
+              front_item->component->get_variable_name().c_str());
   }
 }
 #endif  // USE_NEXTION_COMMAND_SPACING
