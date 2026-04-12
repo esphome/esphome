@@ -20,8 +20,8 @@ void HOT yield() { ::yield(); }
 // convert system_get_time() → ms while tracking overflow (~3.3 μs per call on
 // the LX106 which has no hardware multiply-high instruction). We replace it with
 // a simple accumulator that tracks a running millis counter from μs deltas using
-// pure 32-bit ops (subtract, add, compare-and-subtract). No __umulsidi3 software
-// multiply calls.
+// pure 32-bit ops on the common path (subtract, add, compare-and-subtract).
+// Large gaps (>10 ms) fall back to a constant-time /1000 conversion.
 //
 // Overflow safety: system_get_time() is a uint32_t that wraps every ~71.6 minutes.
 // Unsigned subtraction (now - last) handles one wrap correctly. ESPHome calls
@@ -37,6 +37,12 @@ void HOT yield() { ::yield(); }
 // is bounded: the common path (delta < 10 ms) runs at most 10 subtract-and-
 // compare iterations (~100 ns). Large gaps (WiFi scan, boot) fall back to a
 // constant-time multiply-by-reciprocal (~2.5 μs, rare).
+// Threshold above which we use constant-time /1000 instead of the while loop.
+// 10 ms means the while loop runs at most 10 iterations (~100 ns) on the
+// common path, well within the WiFi stack's ~10 μs interrupt latency budget.
+static constexpr uint32_t MILLIS_RARE_PATH_THRESHOLD_US = 10000;
+static constexpr uint32_t US_PER_MS = 1000;
+
 uint32_t IRAM_ATTR HOT millis() {
   // Struct packs the three statics so the compiler loads one base address
   // instead of three separate literal pool entries (saves ~8 bytes IRAM).
@@ -50,21 +56,18 @@ uint32_t IRAM_ATTR HOT millis() {
   uint32_t delta = now_us - state.last_us;
   state.last_us = now_us;
   state.remainder += delta;
-  if (state.remainder >= 10000) {
-    // Rare path: large gap (>10 ms — WiFi scan, boot, long block).
-    // Use constant-time multiply-by-reciprocal (compiled to __umulsidi3,
-    // ~2.5 μs) to keep the critical section bounded. Only fires when the
-    // caller was already blocked for >10 ms, so the extra latency is
-    // negligible relative to the block that caused it.
-    uint32_t ms = state.remainder / 1000;
+  if (state.remainder >= MILLIS_RARE_PATH_THRESHOLD_US) {
+    // Rare path: large gap (WiFi scan, boot, long block). Constant-time
+    // conversion keeps the critical section bounded.
+    uint32_t ms = state.remainder / US_PER_MS;
     state.cache += ms;
-    state.remainder -= ms * 1000;
+    state.remainder -= ms * US_PER_MS;
   } else {
-    // Common path: small gap (<10 ms). Loop runs at most 10 times
-    // (~100 ns), well within the WiFi stack's ~10 μs interrupt budget.
-    while (state.remainder >= 1000) {
+    // Common path: small gap. Loop runs at most
+    // MILLIS_RARE_PATH_THRESHOLD_US / US_PER_MS iterations.
+    while (state.remainder >= US_PER_MS) {
       state.cache++;
-      state.remainder -= 1000;
+      state.remainder -= US_PER_MS;
     }
   }
   uint32_t result = state.cache;
