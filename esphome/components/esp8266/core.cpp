@@ -33,8 +33,10 @@ void HOT yield() { ::yield(); }
 // This function is also installed as __wrap_millis (via -Wl,--wrap=millis) so
 // that Arduino library code and ISR handlers (e.g. Wiegand, ZyAura) calling
 // ::millis() directly also get the fast version. Interrupts are briefly disabled
-// (~10 instructions, ~125 ns at 80 MHz) to protect the static state from
-// concurrent ISR access.
+// to protect the static state from concurrent ISR access. The critical section
+// is bounded: the common path (delta < 10 ms) runs at most 10 subtract-and-
+// compare iterations (~100 ns). Large gaps (WiFi scan, boot) fall back to a
+// constant-time multiply-by-reciprocal (~2.5 μs, rare).
 uint32_t IRAM_ATTR HOT millis() {
   // Struct packs the three statics so the compiler loads one base address
   // instead of three separate literal pool entries (saves ~8 bytes IRAM).
@@ -48,9 +50,22 @@ uint32_t IRAM_ATTR HOT millis() {
   uint32_t delta = now_us - state.last_us;
   state.last_us = now_us;
   state.remainder += delta;
-  while (state.remainder >= 1000) {
-    state.cache++;
-    state.remainder -= 1000;
+  if (state.remainder >= 10000) {
+    // Rare path: large gap (>10 ms — WiFi scan, boot, long block).
+    // Use constant-time multiply-by-reciprocal (compiled to __umulsidi3,
+    // ~2.5 μs) to keep the critical section bounded. Only fires when the
+    // caller was already blocked for >10 ms, so the extra latency is
+    // negligible relative to the block that caused it.
+    uint32_t ms = state.remainder / 1000;
+    state.cache += ms;
+    state.remainder -= ms * 1000;
+  } else {
+    // Common path: small gap (<10 ms). Loop runs at most 10 times
+    // (~100 ns), well within the WiFi stack's ~10 μs interrupt budget.
+    while (state.remainder >= 1000) {
+      state.cache++;
+      state.remainder -= 1000;
+    }
   }
   uint32_t result = state.cache;
   xt_wsr_ps(ps);
