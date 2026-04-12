@@ -222,7 +222,7 @@ async def to_code(config):
     if data.micro_decoder_support:
         add_idf_component(name="esphome/micro-decoder", ref="0.1.1")
 
-        # All codecs are enbled by default in micro-decoder, so disable the ones that aren't requested to save flash
+        # All codecs are enabled by default in micro-decoder, so disable the ones that aren't requested to save flash
         if not data.flac_support:
             add_idf_sdkconfig_option("CONFIG_MICRO_DECODER_CODEC_FLAC", False)
         if not data.mp3_support:
