@@ -132,5 +132,8 @@ extern "C" void resetPins() {  // NOLINT
 // Requires -Wl,--wrap=millis in build flags (added by __init__.py).
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" uint32_t IRAM_ATTR __wrap_millis() { return esphome::millis(); }
+// Note: Arduino's init() registers a 60-second overflow timer for micros64().
+// We leave it running — wrapping init() as a no-op would break micros64()'s
+// overflow tracking, and the timer's cost is negligible (~3 μs per 60 s).
 
 #endif  // USE_ESP8266
