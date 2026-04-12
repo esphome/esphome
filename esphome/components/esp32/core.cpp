@@ -23,7 +23,20 @@ extern "C" __attribute__((weak)) void initArduino() {}
 namespace esphome {
 
 void HOT yield() { vPortYield(); }
-uint32_t IRAM_ATTR HOT millis() { return micros_to_millis(static_cast<uint64_t>(esp_timer_get_time())); }
+// Use xTaskGetTickCount() when tick rate is 1 kHz (ESPHome's default via sdkconfig),
+// falling back to esp_timer for non-standard rates. IRAM_ATTR is required because
+// Wiegand and ZyAura call millis() from IRAM_ATTR ISR handlers on ESP32.
+// xTaskGetTickCountFromISR() is used in ISR context to satisfy the FreeRTOS API contract.
+uint32_t IRAM_ATTR HOT millis() {
+#if CONFIG_FREERTOS_HZ == 1000
+  if (xPortInIsrContext()) [[unlikely]] {
+    return xTaskGetTickCountFromISR();
+  }
+  return xTaskGetTickCount();
+#else
+  return micros_to_millis(static_cast<uint64_t>(esp_timer_get_time()));
+#endif
+}
 uint64_t HOT millis_64() { return micros_to_millis<uint64_t>(static_cast<uint64_t>(esp_timer_get_time())); }
 void HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
 uint32_t IRAM_ATTR HOT micros() { return (uint32_t) esp_timer_get_time(); }
