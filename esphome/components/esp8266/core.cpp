@@ -35,7 +35,7 @@ void HOT yield() { ::yield(); }
 // ::millis() directly also get the fast version. Interrupts are briefly disabled
 // (~10 instructions, ~125 ns at 80 MHz) to protect the static state from
 // concurrent ISR access.
-static uint32_t IRAM_ATTR HOT millis_accumulator_() {
+static uint32_t IRAM_ATTR HOT millis_accumulator() {
   static uint32_t s_cache = 0;
   static uint32_t s_remainder = 0;
   static uint32_t s_last_us = 0;
@@ -52,7 +52,7 @@ static uint32_t IRAM_ATTR HOT millis_accumulator_() {
   xt_wsr_ps(ps);
   return result;
 }
-uint32_t IRAM_ATTR HOT millis() { return millis_accumulator_(); }
+uint32_t IRAM_ATTR HOT millis() { return millis_accumulator(); }
 uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 void HOT delay(uint32_t ms) { ::delay(ms); }
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
