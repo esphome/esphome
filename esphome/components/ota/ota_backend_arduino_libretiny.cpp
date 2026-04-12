@@ -7,8 +7,7 @@
 
 #include <Update.h>
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 static const char *const TAG = "ota.arduino_libretiny";
 
@@ -66,7 +65,5 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::end() {
 
 void ArduinoLibreTinyOTABackend::abort() { Update.abort(); }
 
-}  // namespace ota
-}  // namespace esphome
-
+}  // namespace esphome::ota
 #endif  // USE_LIBRETINY

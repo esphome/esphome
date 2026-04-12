@@ -433,16 +433,16 @@ void WeikaiChannel::write_array(const uint8_t *buffer, size_t length) {
   this->reg(0).write_fifo(const_cast<uint8_t *>(buffer), length);
 }
 
-uart::FlushResult WeikaiChannel::flush() {
+uart::UARTFlushResult WeikaiChannel::flush() {
   uint32_t const start_time = millis();
   while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
     if (millis() - start_time > 200) {
       ESP_LOGW(TAG, "WARNING flush timeout - still %d bytes not sent after 200 ms", this->tx_in_fifo_());
-      return uart::FlushResult::TIMEOUT;
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
     }
     yield();  // reschedule our thread to avoid blocking
   }
-  return uart::FlushResult::SUCCESS;
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 size_t WeikaiChannel::xfer_fifo_to_buffer_() {

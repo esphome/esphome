@@ -104,7 +104,7 @@ async def output_turn_off_to_code(config, action_id, template_arg, args):
 async def output_set_level_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_LEVEL], args, float)
+    template_ = await cg.templatable(config[CONF_LEVEL], args, cg.float_)
     cg.add(var.set_level(template_))
     return var
 
@@ -123,7 +123,7 @@ async def output_set_level_to_code(config, action_id, template_arg, args):
 async def output_set_min_power_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_MIN_POWER], args, float)
+    template_ = await cg.templatable(config[CONF_MIN_POWER], args, cg.float_)
     cg.add(var.set_min_power(template_))
     return var
 
@@ -142,7 +142,7 @@ async def output_set_min_power_to_code(config, action_id, template_arg, args):
 async def output_set_max_power_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_MAX_POWER], args, float)
+    template_ = await cg.templatable(config[CONF_MAX_POWER], args, cg.float_)
     cg.add(var.set_max_power(template_))
     return var
 

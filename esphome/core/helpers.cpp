@@ -22,6 +22,19 @@ namespace esphome {
 
 static const char *const TAG = "helpers";
 
+__attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity,
+                                                            size_t elem_size) {
+  ESPHOME_DEBUG_ASSERT(size < UINT16_MAX);
+  uint16_t new_cap = size + 1;
+  auto *new_data = ::operator new(new_cap *elem_size);
+  if (data) {
+    __builtin_memcpy(new_data, data, size * elem_size);
+    ::operator delete(data);
+  }
+  capacity = new_cap;
+  return new_data;
+}
+
 static const uint16_t CRC16_A001_LE_LUT_L[] = {0x0000, 0xc0c1, 0xc181, 0x0140, 0xc301, 0x03c0, 0x0280, 0xc241,
                                                0xc601, 0x06c0, 0x0780, 0xc741, 0x0500, 0xc5c1, 0xc481, 0x0440};
 static const uint16_t CRC16_A001_LE_LUT_H[] = {0x0000, 0xcc01, 0xd801, 0x1400, 0xf001, 0x3c00, 0x2800, 0xe401,
@@ -155,6 +168,32 @@ uint32_t fnv1_hash(const char *str) {
   }
   return hash;
 }
+
+// SplitMix32 — a fast, non-cryptographic PRNG from the SplitMix family
+// (Steele et al., 2014). Uses a Weyl sequence with golden-ratio increment
+// and the MurmurHash3 32-bit finalizer as output mixing function.
+// Reference: https://doi.org/10.1145/2714064.2660195
+// Test results: https://lemire.me/blog/2017/08/22/testing-non-cryptographic-random-number-generators-my-results/
+// Seeded lazily from the platform's secure RNG via random_bytes().
+// ESP8266 uses os_random() instead (defined in esp8266/helpers.cpp).
+#ifndef USE_ESP8266
+static uint32_t splitmix32_state;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+uint32_t random_uint32() {
+  // State of 0 means unseeded. The state will wrap back to 0 after 2^32 calls,
+  // triggering one extra random_bytes() call — an acceptable trade-off vs. adding
+  // a separate bool flag (4 bytes BSS + branch on every call).
+  if (splitmix32_state == 0) {
+    random_bytes(reinterpret_cast<uint8_t *>(&splitmix32_state), sizeof(splitmix32_state));
+    splitmix32_state |= 1;  // ensure non-zero seed
+  }
+  splitmix32_state += 0x9e3779b9u;
+  uint32_t z = splitmix32_state;
+  z = (z ^ (z >> 16)) * 0x85ebca6bu;
+  z = (z ^ (z >> 13)) * 0xc2b2ae35u;
+  return z ^ (z >> 16);
+}
+#endif
 
 float random_float() { return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX); }
 
@@ -837,7 +876,16 @@ bool mac_address_is_valid(const uint8_t *mac) {
       is_all_ones = false;
     }
   }
-  return !(is_all_zeros || is_all_ones);
+  if (is_all_zeros || is_all_ones) {
+    return false;
+  }
+  // Reject multicast MACs (bit 0 of first byte set) - device MACs must be unicast.
+  // This catches garbage data from corrupted eFuse custom MAC areas, which often
+  // has random values that would otherwise pass the all-zeros/all-ones check.
+  if (mac[0] & 0x01) {
+    return false;
+  }
+  return true;
 }
 
 void IRAM_ATTR HOT delay_microseconds_safe(uint32_t us) {
