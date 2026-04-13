@@ -397,11 +397,11 @@ void LD2412Component::handle_periodic_data_() {
   */
 #ifdef USE_SENSOR
   SAFE_PUBLISH_SENSOR(this->moving_target_distance_sensor_,
-                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]))
-  SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY])
+                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]));
+  SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY]);
   SAFE_PUBLISH_SENSOR(this->still_target_distance_sensor_,
-                      encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]))
-  SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY])
+                      encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]));
+  SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY]);
   if (this->detection_distance_sensor_.has_sensor()) {
     int new_detect_distance = 0;
     if (target_state != 0x00 && (target_state & MOVE_BITMASK)) {
@@ -423,27 +423,27 @@ void LD2412Component::handle_periodic_data_() {
         Moving energy: 20~28th bytes
       */
       for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-        SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i])
+        SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i]);
       }
       /*
         Still energy: 29~37th bytes
       */
       for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-        SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i])
+        SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i]);
       }
       /*
         Light sensor value
       */
-      SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR])
+      SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR]);
     }
   } else {
     for (auto &gate_move_sensor : this->gate_move_sensors_) {
-      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_move_sensor)
+      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_move_sensor);
     }
     for (auto &gate_still_sensor : this->gate_still_sensors_) {
-      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_still_sensor)
+      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_still_sensor);
     }
-    SAFE_PUBLISH_SENSOR_UNKNOWN(this->light_sensor_)
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->light_sensor_);
   }
 #endif
   // the radar module won't tell us when it's done, so we just have to keep polling...

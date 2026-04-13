@@ -22,15 +22,9 @@
     LOG_SENSOR(tag, name, (sensor).get_sensor()); \
   }
 
-#define SAFE_PUBLISH_SENSOR(sensor, value) \
-  if (true) { \
-    (sensor).publish_state_if_not_dup(value); \
-  }
+#define SAFE_PUBLISH_SENSOR(sensor, value) (sensor).publish_state_if_not_dup(value)
 
-#define SAFE_PUBLISH_SENSOR_UNKNOWN(sensor) \
-  if (true) { \
-    (sensor).publish_state_unknown(); \
-  }
+#define SAFE_PUBLISH_SENSOR_UNKNOWN(sensor) (sensor).publish_state_unknown()
 
 #define highbyte(val) (uint8_t)((val) >> 8)
 #define lowbyte(val) (uint8_t)((val) &0xff)
@@ -75,7 +69,10 @@ inline void format_version_str(const uint8_t *version, std::span<char, 20> buffe
 /// Stored inline, no heap allocation. Does nothing when no sensor is set.
 template<typename T> class SensorWithDedup {
  public:
-  void set_sensor(sensor::Sensor *sens) { this->sens_ = sens; }
+  void set_sensor(sensor::Sensor *sens) {
+    this->sens_ = sens;
+    this->dedup_ = {};
+  }
 
   void publish_state_if_not_dup(T state) {
     if (this->sens_ != nullptr && this->dedup_.next(state)) {
