@@ -1,0 +1,5 @@
+audio_dac:
+  - platform: pcm5122
+    id: pcm5122_dac
+    i2c_id: i2c_bus
+    address: 0x18
