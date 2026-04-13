@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_PHASE_ANGLE,
     CONF_PIN,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["esp32"]
 
@@ -43,7 +44,7 @@ LEDCOutput = ledc_ns.class_("LEDCOutput", output.FloatOutput, cg.Component)
 SetFrequencyAction = ledc_ns.class_("SetFrequencyAction", automation.Action)
 
 
-def _require_ledc_iram_validator(config):
+def _require_ledc_iram_validator(config: ConfigType) -> ConfigType:
     """Register LEDC IRAM requirement during config validation."""
     require_ledc_iram()
     return config
