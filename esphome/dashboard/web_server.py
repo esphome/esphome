@@ -739,9 +739,7 @@ class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHand
 
     def _on_archive_changed(self, event: Event) -> None:
         """Handle entry archived/unarchived event."""
-        self._safe_send_message(
-            {"event": event.event_type, "data": event.data}
-        )
+        self._safe_send_message({"event": event.event_type, "data": event.data})
 
     def _safe_send_message(self, message: dict[str, Any]) -> None:
         """Send a message to the WebSocket client, ignoring closed errors."""
@@ -1010,7 +1008,7 @@ class DeviceTagsHandler(BaseHandler):
             self.write(json.dumps({"error": "configuration required"}))
             return
         # Clean tags: strip whitespace, lowercase, remove empties
-        tags = sorted(set(t.strip().lower() for t in tags if t.strip()))
+        tags = sorted({t.strip().lower() for t in tags if t.strip()})
         if tags:
             DASHBOARD.device_tags[configuration] = tags
         else:
