@@ -174,13 +174,10 @@ bool BQ25186Component::update_mask_id_register_() {
 }
 
 bool BQ25186Component::apply_configuration_() {
-  if (!this->update_vbat_ctrl_register_() || !this->update_ichg_ctrl_register_() ||
-      !this->update_chargectrl0_register_() || !this->update_chargectrl1_register_() ||
-      !this->update_ic_ctrl_register_() || !this->update_tmr_ilim_register_() || !this->update_ship_rst_register_() ||
-      !this->update_sys_reg_register_() || !this->update_ts_control_register_() || !this->update_mask_id_register_()) {
-    return false;
-  }
-  return true;
+  return (this->update_vbat_ctrl_register_() && this->update_ichg_ctrl_register_() &&
+          this->update_chargectrl0_register_() && this->update_chargectrl1_register_() &&
+          this->update_ic_ctrl_register_() && this->update_tmr_ilim_register_() && this->update_ship_rst_register_() &&
+          this->update_sys_reg_register_() && this->update_ts_control_register_() && this->update_mask_id_register_());
 }
 
 bool BQ25186Component::write_pg_gpo_level(bool level) {
