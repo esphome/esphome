@@ -11,7 +11,6 @@ bq25186:
   battery_regulation_voltage: 4200
   input_current_limit: 500ma
   system_regulation: 4.5v
-  pg_mode: gpo
   charge_enabled: true
   flash_charging_mode: true
 

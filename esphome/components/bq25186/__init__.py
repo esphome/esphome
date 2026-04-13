@@ -37,7 +37,6 @@ CONF_WAKE1_TIMER = "wake1_timer"
 CONF_WAKE2_TIMER = "wake2_timer"
 CONF_ENABLE_PUSH_BUTTON = "enable_push_button"
 CONF_SYSTEM_REGULATION = "system_regulation"
-CONF_PG_GPO_LEVEL = "pg_gpo_level"
 CONF_SYS_MODE = "sys_mode"
 CONF_WATCHDOG_15S_ENABLE = "watchdog_15s_enable"
 CONF_DISABLE_VDPPM = "disable_vdppm"
@@ -196,19 +195,11 @@ TS_VRCG_OPTIONS = {
     "-200mv": 1,
 }
 
-PG_MODE_OPTIONS = {
-    "power_good": 0,
-    "gpo": 1,
-}
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BQ25186Component),
             cv.Optional(CONF_CONFIGURE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_PG_MODE, default="power_good"): cv.enum(
-                PG_MODE_OPTIONS, lower=True
-            ),
             cv.Optional(CONF_BATTERY_REGULATION_VOLTAGE, default=4200): cv.int_range(
                 min=3500, max=4650
             ),
@@ -311,7 +302,10 @@ async def to_code(config):
     vbat_ctrl = cg.StructInitializer(
         BQ25186VBatCtrlConfig,
         ("battery_regulation_voltage_mv", config[CONF_BATTERY_REGULATION_VOLTAGE]),
-        ("pg_mode", config[CONF_PG_MODE]),
+        (
+            "pg_mode",
+            config.get(CONF_PG_MODE, 0),
+        ),  # Default to 0 (power_good) if not set, since the switch will change it to 1 (gpo) if used
     )
 
     ichg_ctrl = cg.StructInitializer(
