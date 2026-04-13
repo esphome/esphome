@@ -77,7 +77,8 @@ uint32_t arch_get_cpu_freq_hz() { return 1000000000U; }
 
 void setup();
 void loop();
-int main() {
+int __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+main() {
   // Install signal handlers for graceful shutdown (flushes preferences to disk)
   std::signal(SIGINT, signal_handler);
   std::signal(SIGTERM, signal_handler);

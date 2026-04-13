@@ -84,7 +84,8 @@ static StaticTask_t loop_task_tcb;        // NOLINT(cppcoreguidelines-avoid-non-
 static StackType_t
     loop_task_stack[ESPHOME_LOOP_TASK_STACK_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void __attribute__((optimize("O2"))) loop_task(void *pv_params) {
+void __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+loop_task(void *pv_params) {
   setup();
   while (true) {
     App.loop();

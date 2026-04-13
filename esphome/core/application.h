@@ -569,7 +569,10 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
   this->in_loop_ = true;
 }
 
-inline void ESPHOME_ALWAYS_INLINE Application::loop() {
+// NOLINTNEXTLINE(clang-diagnostic-unknown-attributes)
+inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::loop() {
+  uint8_t new_app_state = 0;
+
   // Get the initial loop time at the start
   uint32_t last_op_end_time = millis();
 

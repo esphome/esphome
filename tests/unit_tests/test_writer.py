@@ -783,7 +783,8 @@ def test_write_cpp_creates_new_file(
     assert CPP_AUTO_GENERATE_END in written_content
     assert test_code in written_content
     assert "void setup()" in written_content
-    assert "void loop()" in written_content
+    assert 'optimize("O2")' in written_content
+    assert "loop()" in written_content
     assert "App.setup();" in written_content
     assert "App.loop();" in written_content
 
