@@ -101,6 +101,13 @@ def validate_tolerance(value):
     )
 
 
+def _require_rmt_iram(config):
+    """Register RMT receive IRAM requirement during config validation."""
+    if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
+        esp32.require_rmt_recv_iram()
+    return config
+
+
 MULTI_CONF = True
 CONFIG_SCHEMA = remote_base.validate_triggers(
     cv.Schema(
@@ -193,6 +200,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
         )
     )
     .add_extra(validate_config)
+    .add_extra(_require_rmt_iram)
 )
 
 
@@ -201,7 +209,6 @@ async def to_code(config):
     if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
         # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
         esp32.include_builtin_idf_component("esp_driver_rmt")
-        esp32.require_rmt_recv_iram()
 
         var = cg.new_Pvariable(config[CONF_ID], pin)
         cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
