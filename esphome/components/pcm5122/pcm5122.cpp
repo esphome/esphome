@@ -4,6 +4,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cmath>
+
 namespace esphome {
 namespace pcm5122 {
 
@@ -83,7 +85,7 @@ bool PCM5122::write_volume_() {
   const uint8_t dvol_min_volume = 0x99;  // -52.5 dB at minimum
 
   const uint8_t volume_byte =
-      dvol_max_volume + static_cast<uint8_t>((1.0f - this->volume_) * (dvol_min_volume - dvol_max_volume) + 0.5f);
+      dvol_max_volume + static_cast<uint8_t>(lroundf((1.0f - this->volume_) * (dvol_min_volume - dvol_max_volume)));
 
   ESP_LOGD(TAG, "Setting volume to 0x%.2x", volume_byte);
 
