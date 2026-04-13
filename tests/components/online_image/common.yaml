@@ -26,14 +26,14 @@ online_image:
     type: BINARY
     transparency: chroma_key
     format: png
-  - id: online_4Gray_transparent_image
+  - id: online_grayscale4_transparent_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
-    type: 4GRAY
+    type: GRAYSCALE4
     transparency: chroma_key
     format: png
-  - id: online_4Gray_image
+  - id: online_grayscale4_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png
-    type: 4GRAY
+    type: GRAYSCALE4
     format: png
   - id: online_rgba_image
     url: http://www.libpng.org/pub/png/img_png/pnglogo-blk-tiny.png

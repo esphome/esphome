@@ -47,14 +47,14 @@ image:
     - id: grayscale_image
       file: ../../pnglogo.png
       transparency: opaque
-  4gray:
-    - id: fourGray_alpha_image
+  grayscale4:
+    - id: grayscale4_alpha_image
       file: ../../pnglogo.png
       transparency: alpha_channel
       resize: 50x50
-    - id: fourGray_ck_image
+    - id: grayscale4_ck_image
       file: ../../pnglogo.png
       transparency: chroma_key
-    - id: fourGray_image
+    - id: grayscale4_image
       file: ../../pnglogo.png
       transparency: opaque

@@ -51,16 +51,16 @@ image:
 
   - id: fourGray_alpha_image
     file: ../../pnglogo.png
-    type: 4GRAY
+    type: GRAYSCALE4
     transparency: alpha_channel
     resize: 50x50
   - id: fourGray_ck_image
     file: ../../pnglogo.png
-    type: 4GRAY
+    type: GRAYSCALE4
     transparency: chroma_key
   - id: fourGray_image
     file: ../../pnglogo.png
-    type: 4GRAY
+    type: GRAYSCALE4
     transparency: opaque
 
   - id: web_svg_image
