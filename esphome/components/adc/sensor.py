@@ -28,6 +28,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 from . import (
     ATTENUATION_MODES,
@@ -69,7 +70,7 @@ def validate_config(config):
     return config
 
 
-def _require_adc_iram(config):
+def _require_adc_iram(config: ConfigType) -> ConfigType:
     """Register ADC oneshot IRAM requirement during config validation."""
     if CORE.is_esp32:
         require_adc_oneshot_iram()
