@@ -37,6 +37,11 @@ void MCP23X08Base::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (this->interrupt_pin_ != nullptr && (flags & gpio::FLAG_INPUT)) {
     this->pin_interrupt_mode(pin, mcp23xxx_base::MCP23XXX_CHANGE);
   }
+  // Enable polling loop for input pins (not needed for interrupt-driven mode
+  // where the ISR handles re-enabling loop)
+  if (this->interrupt_pin_ == nullptr && (flags & gpio::FLAG_INPUT)) {
+    this->enable_loop();
+  }
 }
 
 void MCP23X08Base::pin_interrupt_mode(uint8_t pin, mcp23xxx_base::MCP23XXXInterruptMode interrupt_mode) {
