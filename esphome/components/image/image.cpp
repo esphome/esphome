@@ -38,6 +38,15 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       }
       break;
     }
+    case IMAGE_TYPE_GRAYSCALE4:
+      for (int img_x = img_x0; img_x < w; img_x++) {
+        for (int img_y = img_y0; img_y < h; img_y++) {
+          const uint8_t gray = get_grayscale4_pixel_(img_x, img_y);
+          Color color = Color(gray, gray, gray, 0xFF);
+          display->draw_pixel_at(x + img_x, y + img_y, color);
+        }
+      }
+      break;
     case IMAGE_TYPE_GRAYSCALE:
       for (int img_x = img_x0; img_x < w; img_x++) {
         for (int img_y = img_y0; img_y < h; img_y++) {
@@ -52,34 +61,6 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
               break;
             case TRANSPARENCY_ALPHA_CHANNEL: {
               auto on = (float) gray / 255.0f;
-              auto off = 1.0f - on;
-              // blend color_on and color_off
-              color = Color(color_on.r * on + color_off.r * off, color_on.g * on + color_off.g * off,
-                            color_on.b * on + color_off.b * off, 0xFF);
-              break;
-            }
-            default:
-              break;
-          }
-          display->draw_pixel_at(x + img_x, y + img_y, color);
-        }
-      }
-      break;
-    case IMAGE_TYPE_4GRAY:
-      for (int img_x = img_x0; img_x < w; img_x++) {
-        for (int img_y = img_y0; img_y < h; img_y++) {
-          const uint32_t pos = (img_x + img_y * this->width_) / 4;
-          const uint8_t byte = progmem_read_byte(this->data_start_ + pos);
-          const uint8_t gray = (byte >> ((3 - (img_x % 4)) * 2)) & 0x03;
-          Color color = Color(gray * 85, gray * 85, gray * 85, 0xFF);
-          switch (this->transparency_) {
-            case TRANSPARENCY_CHROMA_KEY:
-              if (gray == 1) {
-                continue;  // skip drawing
-              }
-              break;
-            case TRANSPARENCY_ALPHA_CHANNEL: {
-              auto on = (float) gray / 3.0f;
               auto off = 1.0f - on;
               // blend color_on and color_off
               color = Color(color_on.r * on + color_off.r * off, color_on.g * on + color_off.g * off,
@@ -124,8 +105,8 @@ Color Image::get_pixel(int x, int y, const Color color_on, const Color color_off
       if (this->get_binary_pixel_(x, y))
         return color_on;
       return color_off;
-    case IMAGE_TYPE_4GRAY:
-      g = this->get_4gray_pixel_(x, y) * 85;  // scale 2-bit gray to 8-bit
+    case IMAGE_TYPE_GRAYSCALE4:
+      g = this->get_grayscale4_pixel_(x, y);
       return Color(g, g, g);
     case IMAGE_TYPE_GRAYSCALE:
       return this->get_grayscale_pixel_(x, y);
@@ -152,7 +133,7 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
         this->dsc_.header.cf = LV_COLOR_FORMAT_A1;
         break;
 
-      case IMAGE_TYPE_4GRAY:
+      case IMAGE_TYPE_GRAYSCALE4:
         this->dsc_.header.cf = LV_COLOR_FORMAT_I2;
         break;
 
@@ -204,10 +185,11 @@ bool Image::get_binary_pixel_(int x, int y) const {
   const uint32_t pos = x + y * width_8;
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
-uint8_t Image::get_4gray_pixel_(int x, int y) const {
+uint8_t Image::get_grayscale4_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) / 4;
   const uint8_t byte = progmem_read_byte(this->data_start_ + pos);
-  return (byte >> ((3 - (x % 4)) * 2)) & 0x03;
+  // 2-bit grayscale stored in 2 bits, shift to upper bits of byte and scale to 0-255
+  return ((byte >> ((3 - (x & 0x03)) << 1)) & 0x03) << 6;
 }
 Color Image::get_rgb_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) * this->bpp_ / 8;
@@ -276,7 +258,7 @@ Image::Image(const uint8_t *data_start, int width, int height, ImageType type, T
     case IMAGE_TYPE_GRAYSCALE:
       this->bpp_ = 8;
       break;
-    case IMAGE_TYPE_4GRAY:
+    case IMAGE_TYPE_GRAYSCALE4:
       this->bpp_ = 2;
       break;
     case IMAGE_TYPE_RGB565:

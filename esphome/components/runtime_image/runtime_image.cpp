@@ -88,22 +88,11 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       }
       break;
     }
-    case image::IMAGE_TYPE_4GRAY: {
+    case image::IMAGE_TYPE_GRAYSCALE4: {
       uint32_t pos = this->get_position_(x, y);
-      auto gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b) >> 6;
-      if (this->transparency_ == image::TRANSPARENCY_CHROMA_KEY) {
-        if (gray == 1) {
-          gray = 0;
-        }
-        if (color.w < 0x80) {
-          gray = 1;
-        }
-      } else if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
-        if (color.w != 0xFF)
-          gray = color.w >> 6;
-      }
+      auto gray = color.r >> 6;  // we can use any channel since they all match
       uint8_t &byte = this->buffer_[pos];
-      uint8_t shift = (3 - (x % 4)) * 2;
+      uint8_t shift = (3 - (x & 0x03)) << 1;
       byte = (byte & ~(0x03 << shift)) | ((gray & 0x03) << shift);
       this->buffer_[pos] = byte;
       break;
