@@ -18,9 +18,9 @@ class BME68xBSEC2I2CComponent : public bme68x_bsec2::BME68xBSEC2Component, publi
 
   uint32_t get_hash() override;
 
-  static int8_t read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr);
-  static int8_t write_bytes_wrapper(uint8_t a_register, const uint8_t *data, uint32_t len, void *intfPtr);
-  static void delay_us(uint32_t period, void *intfPtr);
+  static int8_t read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intf_ptr);
+  static int8_t write_bytes_wrapper(uint8_t a_register, const uint8_t *data, uint32_t len, void *intf_ptr);
+  static void delay_us(uint32_t period, void *intf_ptr);
 };
 
 }  // namespace bme68x_bsec2_i2c

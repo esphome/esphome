@@ -37,18 +37,18 @@ uint32_t BME68xBSEC2I2CComponent::get_hash() {
   return fnv1_hash(buf);
 }
 
-int8_t BME68xBSEC2I2CComponent::read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr) {
+int8_t BME68xBSEC2I2CComponent::read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intf_ptr) {
   ESP_LOGVV(TAG, "read_bytes_wrapper: reg = %u", a_register);
-  return static_cast<BME68xBSEC2I2CComponent *>(intfPtr)->read_bytes(a_register, data, len) ? 0 : -1;
+  return static_cast<BME68xBSEC2I2CComponent *>(intf_ptr)->read_bytes(a_register, data, len) ? 0 : -1;
 }
 
 int8_t BME68xBSEC2I2CComponent::write_bytes_wrapper(uint8_t a_register, const uint8_t *data, uint32_t len,
-                                                    void *intfPtr) {
+                                                    void *intf_ptr) {
   ESP_LOGVV(TAG, "write_bytes_wrapper: reg = %u", a_register);
-  return static_cast<BME68xBSEC2I2CComponent *>(intfPtr)->write_bytes(a_register, data, len) ? 0 : -1;
+  return static_cast<BME68xBSEC2I2CComponent *>(intf_ptr)->write_bytes(a_register, data, len) ? 0 : -1;
 }
 
-void BME68xBSEC2I2CComponent::delay_us(uint32_t period, void *intfPtr) {
+void BME68xBSEC2I2CComponent::delay_us(uint32_t period, void *intf_ptr) {
   ESP_LOGVV(TAG, "Delaying for %" PRIu32 "us", period);
   delayMicroseconds(period);
 }

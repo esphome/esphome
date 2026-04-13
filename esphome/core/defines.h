@@ -420,9 +420,10 @@
 #define ZIGBEE_ENDPOINTS_COUNT 8
 #endif
 
+#define USE_BSEC2
+
 // Disabled feature flags
 // #define USE_BSEC   // Requires a library with proprietary license
-// #define USE_BSEC2  // Requires a library with proprietary license
 
 #define USE_DASHBOARD_IMPORT
 

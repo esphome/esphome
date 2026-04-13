@@ -1,6 +1,12 @@
 dependencies:
   bblanchon/arduinojson:
     version: "7.4.2"
+  boschsensortec/Bosch-BME68x-Library:
+    version: v1.3.40408
+    git: https://github.com/esphome-libs/Bosch-BME68x-Library
+  boschsensortec/Bosch-BSEC2-Library:
+    version: 1.10.2610
+    git: https://github.com/esphome-libs/Bosch-BSEC2-Library
   esphome/esp-audio-libs:
     version: 2.0.4
   esphome/micro-flac:

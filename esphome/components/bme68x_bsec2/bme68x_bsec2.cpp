@@ -8,10 +8,11 @@
 
 namespace esphome::bme68x_bsec2 {
 
-#define BME68X_BSEC2_ALGORITHM_OUTPUT_LOG(a) (a == ALGORITHM_OUTPUT_CLASSIFICATION ? "Classification" : "Regression")
-#define BME68X_BSEC2_OPERATING_AGE_LOG(o) (o == OPERATING_AGE_4D ? "4 days" : "28 days")
-#define BME68X_BSEC2_SAMPLE_RATE_LOG(r) (r == SAMPLE_RATE_DEFAULT ? "Default" : (r == SAMPLE_RATE_ULP ? "ULP" : "LP"))
-#define BME68X_BSEC2_VOLTAGE_LOG(v) (v == VOLTAGE_3_3V ? "3.3V" : "1.8V")
+#define BME68X_BSEC2_ALGORITHM_OUTPUT_LOG(a) ((a) == ALGORITHM_OUTPUT_CLASSIFICATION ? "Classification" : "Regression")
+#define BME68X_BSEC2_OPERATING_AGE_LOG(o) ((o) == OPERATING_AGE_4D ? "4 days" : "28 days")
+#define BME68X_BSEC2_SAMPLE_RATE_LOG(r) \
+  ((r) == SAMPLE_RATE_DEFAULT ? "Default" : ((r) == SAMPLE_RATE_ULP ? "ULP" : "LP"))
+#define BME68X_BSEC2_VOLTAGE_LOG(v) ((v) == VOLTAGE_3_3V ? "3.3V" : "1.8V")
 
 static const char *const TAG = "bme68x_bsec2.sensor";
 
@@ -129,7 +130,7 @@ void BME68xBSEC2Component::loop() {
   }
   // Process a single action from the queue. These are primarily sensor state publishes
   // that in totality take too long to send in a single call.
-  if (this->queue_.size()) {
+  if (!this->queue_.empty()) {
     auto action = std::move(this->queue_.front());
     this->queue_.pop();
     action();
@@ -302,8 +303,8 @@ void BME68xBSEC2Component::read_(int64_t trigger_time_ns) {
   }
 
   struct bme68x_data data[3];
-  uint8_t nFields = 0;
-  this->bme68x_status_ = bme68x_get_data(this->op_mode_, &data[0], &nFields, &this->bme68x_);
+  uint8_t n_fields = 0;
+  this->bme68x_status_ = bme68x_get_data(this->op_mode_, &data[0], &n_fields, &this->bme68x_);
 
   if (is_no_new_data_warning(this->bme68x_status_)) {
     ESP_LOGV(TAG, "BME68X did not provide new data");
@@ -313,12 +314,12 @@ void BME68xBSEC2Component::read_(int64_t trigger_time_ns) {
     ESP_LOGW(TAG, "Fetching data failed (BME68X error code %d)", this->bme68x_status_);
     return;
   }
-  if (nFields < 1) {
+  if (n_fields < 1) {
     ESP_LOGV(TAG, "BME68X did not provide new fields");
     return;
   }
 
-  for (uint8_t i = 0; i < nFields; i++) {
+  for (uint8_t i = 0; i < n_fields; i++) {
     bsec_input_t inputs[BSEC_MAX_PHYSICAL_SENSOR];  // Temperature, Pressure, Humidity & Gas Resistance
     uint8_t num_inputs = 0;
 
