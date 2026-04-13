@@ -72,6 +72,11 @@ class OTARequestHandler : public AsyncWebHandler {
 
  private:
   ota::OTABackendPtr ota_backend_{nullptr};
+  // Tracks the request that owns the current ota_backend_ session so we can
+  // detect when a new (retry) request arrives while a previous session is
+  // still open -- without re-triggering on the multiple index==0 callbacks
+  // web_server_idf makes for a single upload (Start + first data chunk).
+  AsyncWebServerRequest *ota_request_{nullptr};
 };
 
 void OTARequestHandler::report_ota_progress_(AsyncWebServerRequest *request) {
@@ -114,8 +119,8 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
                                      uint8_t *data, size_t len, bool final) {
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_OK;
 
-  if (index == 0) {
-    // A new multipart upload is starting. If a previous upload was interrupted
+  if (index == 0 && this->ota_request_ != request) {
+    // A new request is starting an upload. If a previous upload was interrupted
     // (e.g. TCP reset) the backend from that session may still be open; tear it
     // down so flash state doesn't get concatenated with the new image (which
     // can produce a technically-valid-sized but corrupted firmware that
@@ -125,6 +130,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
       this->ota_backend_->abort();
       this->ota_backend_.reset();
     }
+    this->ota_request_ = request;
 
     // Initialize OTA on first call
     this->ota_init_(filename.c_str());
@@ -160,6 +166,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
     if (error_code != ota::OTA_RESPONSE_OK) {
       ESP_LOGE(TAG, "OTA begin failed: %d", error_code);
       this->ota_backend_.reset();
+      this->ota_request_ = nullptr;
 #ifdef USE_OTA_STATE_LISTENER
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
@@ -178,6 +185,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
       ESP_LOGE(TAG, "OTA write failed: %d", error_code);
       this->ota_backend_->abort();
       this->ota_backend_.reset();
+      this->ota_request_ = nullptr;
 #ifdef USE_OTA_STATE_LISTENER
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
@@ -210,6 +218,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
 #endif
     }
     this->ota_backend_.reset();
+    this->ota_request_ = nullptr;
   }
 }
 
