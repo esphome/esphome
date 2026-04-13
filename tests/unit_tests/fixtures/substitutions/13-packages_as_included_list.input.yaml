@@ -1,0 +1,4 @@
+packages: !include 13-packages_list.yaml
+
+wifi:
+  ssid: main_ssid

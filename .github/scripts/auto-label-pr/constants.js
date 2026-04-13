@@ -4,6 +4,7 @@ module.exports = {
   CODEOWNERS_MARKER: '<!-- codeowners-request -->',
   TOO_BIG_MARKER: '<!-- too-big-request -->',
   DEPRECATED_COMPONENT_MARKER: '<!-- deprecated-component-request -->',
+  ORG_FORK_MARKER: '<!-- maintainer-access-warning -->',
 
   MANAGED_LABELS: [
     'new-component',

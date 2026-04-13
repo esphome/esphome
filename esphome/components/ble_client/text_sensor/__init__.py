@@ -88,7 +88,7 @@ async def to_code(config):
         )
         cg.add(var.set_char_uuid128(uuid128))
 
-    if descriptor_uuid := config:
+    if descriptor_uuid := config.get(CONF_DESCRIPTOR_UUID):
         if len(descriptor_uuid) == len(esp32_ble_tracker.bt_uuid16_format):
             cg.add(var.set_descr_uuid16(esp32_ble_tracker.as_hex(descriptor_uuid)))
         elif len(descriptor_uuid) == len(esp32_ble_tracker.bt_uuid32_format):
