@@ -64,6 +64,10 @@ class OTARequestHandler : public AsyncWebHandler {
   void report_ota_progress_(AsyncWebServerRequest *request);
   void schedule_ota_reboot_();
   void ota_init_(const char *filename);
+  void ota_end_session_() {
+    this->ota_backend_.reset();
+    this->ota_request_ = nullptr;
+  }
 
   uint32_t last_ota_progress_{0};
   uint32_t ota_read_length_{0};
@@ -128,7 +132,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
     if (this->ota_backend_) {
       ESP_LOGW(TAG, "New OTA upload received while previous session was still open; aborting previous session");
       this->ota_backend_->abort();
-      this->ota_backend_.reset();
+      this->ota_end_session_();
     }
     this->ota_request_ = request;
 
@@ -165,8 +169,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
     error_code = this->ota_backend_->begin(0);
     if (error_code != ota::OTA_RESPONSE_OK) {
       ESP_LOGE(TAG, "OTA begin failed: %d", error_code);
-      this->ota_backend_.reset();
-      this->ota_request_ = nullptr;
+      this->ota_end_session_();
 #ifdef USE_OTA_STATE_LISTENER
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
@@ -184,8 +187,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
     if (error_code != ota::OTA_RESPONSE_OK) {
       ESP_LOGE(TAG, "OTA write failed: %d", error_code);
       this->ota_backend_->abort();
-      this->ota_backend_.reset();
-      this->ota_request_ = nullptr;
+      this->ota_end_session_();
 #ifdef USE_OTA_STATE_LISTENER
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
@@ -217,8 +219,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
     }
-    this->ota_backend_.reset();
-    this->ota_request_ = nullptr;
+    this->ota_end_session_();
   }
 }
 
