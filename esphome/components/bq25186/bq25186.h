@@ -2,7 +2,9 @@
 
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/switch/switch.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include <functional>
 #include <vector>
 
 namespace esphome::bq25186 {
@@ -121,7 +123,11 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   void update() override;
-  void set_config(const BQ25186Config &config);
+  void set_setup_config(const BQ25186Config &config);
+
+  // This will only take effect once, on the first call, because after
+  // that the setup configuration is considered applied and cleared to save RAM.
+  void apply_setup_config();
 
   void add_listener(BQ25186Listener *listener) { this->listeners_.push_back(listener); }
 
@@ -131,28 +137,42 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   bool trigger_shutdown_mode();
   bool trigger_ship_mode();
   bool trigger_hardware_reset();
+  void set_configure_on_boot(bool configure_on_boot) { this->configure_on_boot_ = configure_on_boot; }
 
  protected:
+  using SetupConfigCallback = std::function<bool(void)>;
+
+  bool apply_configuration_(const BQ25186Config &config);
   bool read_all_registers_();
   bool write_register_(uint8_t reg, uint8_t value);
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
-  bool apply_configuration_();
-  bool update_vbat_ctrl_register_();
-  bool update_ichg_ctrl_register_();
-  bool update_chargectrl0_register_();
-  bool update_chargectrl1_register_();
-  bool update_ic_ctrl_register_();
-  bool update_tmr_ilim_register_();
-  bool update_ship_rst_register_();
-  bool update_sys_reg_register_();
-  bool update_ts_control_register_();
-  bool update_mask_id_register_();
+  bool update_vbat_ctrl_register_(const BQ25186VBatCtrlConfig &config);
+  bool update_ichg_ctrl_register_(const BQ25186IchgCtrlConfig &config);
+  bool update_chargectrl0_register_(const BQ25186ChargeCtrl0Config &config);
+  bool update_chargectrl1_register_(const BQ25186ChargeCtrl1Config &config);
+  bool update_ic_ctrl_register_(const BQ25186IcCtrlConfig &config);
+  bool update_tmr_ilim_register_(const BQ25186TmrIlimConfig &config);
+  bool update_ship_rst_register_(const BQ25186ShipRstConfig &config);
+  bool update_sys_reg_register_(const BQ25186SysRegConfig &config);
+  bool update_ts_control_register_(const BQ25186TsControlConfig &config);
+  bool update_mask_id_register_(const BQ25186MaskIdConfig &config);
 
   BQ25186Data data_{};
   std::vector<BQ25186Listener *> listeners_;
 
-  BQ25186Config config_{};
+  SetupConfigCallback setup_config_callback_{};
+  bool configure_on_boot_{true};
   switch_::Switch *pg_gpo_switch_{nullptr};
+  // TODO: Check pg_gpo_level
+};
+
+template<typename... Ts> class BQ25186ConfigureAction : public Action<Ts...> {
+ public:
+  explicit BQ25186ConfigureAction(BQ25186Component *parent) : parent_(parent) {}
+  void play(const Ts &...) override { this->parent_->apply_setup_config(); }
+
+ protected:
+  BQ25186Component *parent_;
 };
 
 }  // namespace esphome::bq25186

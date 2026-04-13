@@ -1,3 +1,4 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
@@ -8,6 +9,7 @@ DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 
 CONF_BQ25186_ID = "bq25186_id"
+CONF_CONFIGURE_ON_BOOT = "configure_on_boot"
 CONF_BATTERY_REGULATION_VOLTAGE = "battery_regulation_voltage"
 CONF_FAST_CHARGE_CURRENT = "fast_charge_current"
 CONF_CHARGE_ENABLED = "charge_enabled"
@@ -67,6 +69,7 @@ BQ25186SysRegConfig = bq25186_ns.struct("BQ25186SysRegConfig")
 BQ25186TsControlConfig = bq25186_ns.struct("BQ25186TsControlConfig")
 BQ25186MaskIdConfig = bq25186_ns.struct("BQ25186MaskIdConfig")
 BQ25186Config = bq25186_ns.struct("BQ25186Config")
+BQ25186ConfigureAction = bq25186_ns.class_("BQ25186ConfigureAction", automation.Action)
 
 TERMINATION_PERCENT_OPTIONS = {
     "disabled": 0,
@@ -202,6 +205,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BQ25186Component),
+            cv.Optional(CONF_CONFIGURE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_PG_MODE, default="power_good"): cv.enum(
                 PG_MODE_OPTIONS, lower=True
             ),
@@ -294,7 +298,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MASK_PG_INTERRUPT, default=False): cv.boolean,
         }
     )
-    .extend(cv.polling_component_schema("5s"))
+    .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x6A))
 )
 
@@ -400,4 +404,20 @@ async def to_code(config):
         ("ts_control", ts_control),
         ("mask_id", mask_id),
     )
-    cg.add(var.set_config(component_config))
+    cg.add(var.set_setup_config(component_config))
+    cg.add(var.set_configure_on_boot(config[CONF_CONFIGURE_ON_BOOT]))
+
+
+@automation.register_action(
+    "bq25186.configure",
+    BQ25186ConfigureAction,
+    automation.maybe_simple_id(
+        {
+            cv.GenerateID(): cv.use_id(BQ25186Component),
+        }
+    ),
+    synchronous=True,
+)
+async def bq25186_configure_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
