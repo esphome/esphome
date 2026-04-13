@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import output
+from esphome.components.esp32 import require_ledc_iram
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
@@ -57,6 +58,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 async def to_code(config):
+    require_ledc_iram()
     gpio = await cg.gpio_pin_expression(config[CONF_PIN])
     var = cg.new_Pvariable(config[CONF_ID], gpio)
     await cg.register_component(var, config)
