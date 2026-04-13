@@ -213,30 +213,27 @@ void MitsubishiCN105Climate::apply_values_() {
 }
 
 void MitsubishiCN105Climate::set_supported_swing_mode(climate::ClimateSwingMode mode) {
+  this->supported_swing_modes_.clear();
   switch (mode) {
-    case climate::CLIMATE_SWING_OFF:
-      this->supported_swing_modes_ = {};
-      break;
-
     case climate::CLIMATE_SWING_VERTICAL:
-      this->supported_swing_modes_ = {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL};
+      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_OFF);
+      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_VERTICAL);
       break;
 
     case climate::CLIMATE_SWING_HORIZONTAL:
-      this->supported_swing_modes_ = {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL};
+      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_OFF);
+      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_HORIZONTAL);
       break;
 
     case climate::CLIMATE_SWING_BOTH:
-      this->supported_swing_modes_ = {
-          climate::CLIMATE_SWING_OFF,
-          climate::CLIMATE_SWING_VERTICAL,
-          climate::CLIMATE_SWING_HORIZONTAL,
-          climate::CLIMATE_SWING_BOTH,
-      };
+      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_OFF);
+      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_VERTICAL);
+      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_HORIZONTAL);
+      this->supported_swing_modes_.insert(climate::CLIMATE_SWING_BOTH);
       break;
 
+    case climate::CLIMATE_SWING_OFF:
     default:
-      this->supported_swing_modes_ = {};
       break;
   }
 }
