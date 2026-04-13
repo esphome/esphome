@@ -352,12 +352,6 @@ async def to_code(configs):
         cg.add(lv_component.set_def_group(default_group))
         cg.add(lv_expr.group_set_default(default_group))
 
-        # Build the default group for this lvgl instance. This CONF_DEFAULT_GROUP is not
-        # intended to be used in configurations
-        default_group = cg.Pvariable(config[CONF_DEFAULT_GROUP], lv_expr.group_create())
-        cg.add(lv_component.set_def_group(default_group))
-        cg.add(lv_expr.group_set_default(default_group))
-
         lv_scr_act = get_screen_active(lv_component)
         async with LvContext():
             cg.add(lv_component.set_big_endian(config[CONF_BYTE_ORDER] == "big_endian"))
@@ -369,9 +363,10 @@ async def to_code(configs):
             await styles_to_code(config)
             await set_obj_properties(lv_scr_act, config)
             await add_widgets(lv_scr_act, config)
+            # layers_to_code may change the lvgl default group, be careful adding widgets after this call
+            await layers_to_code(lv_component, config)
             # add_pages will change the lvgl default group, be careful adding widgets after this call
             await add_pages(lv_component, config)
-            await layers_to_code(lv_component, config)
             await lvgl_update(lv_component, config)
             # msgboxes_to_code will change the lvgl default group, be careful adding widgets after this call
             await msgboxes_to_code(lv_component, config, default_group)
@@ -560,8 +555,18 @@ LVGL_SCHEMA = cv.All(
                 },
                 cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
                 cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
-                cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
-                cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
+                cv.Optional(df.CONF_TOP_LAYER): container_schema(
+                    obj_spec,
+                    extras={
+                        cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t)
+                    },
+                ),
+                cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(
+                    obj_spec,
+                    extras={
+                        cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t)
+                    },
+                ),
                 cv.Optional(
                     df.CONF_TRANSPARENCY_KEY, default=0x000400
                 ): lvalid.lv_color,

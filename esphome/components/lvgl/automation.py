@@ -6,7 +6,14 @@ from esphome.automation import StatelessLambdaAction
 import esphome.codegen as cg
 from esphome.components.display import validate_rotation
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_ROTATION, CONF_TIMEOUT
+from esphome.const import (
+    CONF_ACTION,
+    CONF_GROUP,
+    CONF_ID,
+    CONF_PAGES,
+    CONF_ROTATION,
+    CONF_TIMEOUT,
+)
 from esphome.core import Lambda
 from esphome.cpp_generator import TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
@@ -14,6 +21,7 @@ from esphome.cpp_types import nullptr
 from .defines import (
     CONF_BG_OPA,
     CONF_BOTTOM_LAYER,
+    CONF_DEFAULT_GROUP,
     CONF_EDITING,
     CONF_FREEZE,
     CONF_LVGL_ID,
@@ -78,12 +86,30 @@ refreshed_widgets = set()
 
 async def layers_to_code(lv_component, config):
     if top_conf := config.get(CONF_TOP_LAYER):
+        if config.get(CONF_PAGES, ()):
+            # Build the default group for the top layer. This CONF_DEFAULT_GROUP is not
+            # intended to be used in configurations
+            default_group = cg.Pvariable(
+                top_conf[CONF_DEFAULT_GROUP], lv_expr.group_create()
+            )
+            cg.add(lv_component.set_top_group(default_group))
+            cg.add(lv_expr.group_set_default(default_group))
+
         top_layer = lv_expr.display_get_layer_top(lv_component.get_disp())
         with LocalVariable("top_layer", lv_obj_t, top_layer) as top_layer_obj:
             top_w = Widget(top_layer_obj, layer_spec, top_conf)
             await set_obj_properties(top_w, top_conf)
             await add_widgets(top_w, top_conf)
     if bottom_conf := config.get(CONF_BOTTOM_LAYER):
+        if config.get(CONF_PAGES, ()):
+            # Build the default group for the bottom layer. This CONF_DEFAULT_GROUP is not
+            # intended to be used in configurations
+            default_group = cg.Pvariable(
+                bottom_conf[CONF_DEFAULT_GROUP], lv_expr.group_create()
+            )
+            cg.add(lv_component.set_bottom_group(default_group))
+            cg.add(lv_expr.group_set_default(default_group))
+
         bottom_layer = lv_expr.display_get_layer_bottom(lv_component.get_disp())
         with LocalVariable("bottom_layer", lv_obj_t, bottom_layer) as bottom_layer_obj:
             bottom_w = Widget(bottom_layer_obj, layer_spec, bottom_conf)
@@ -364,11 +390,9 @@ async def obj_show_to_code(config, action_id, template_arg, args):
             lv_obj.move_foreground(widget.obj)
         # If this widget is actually a msgbox we have to move encoder/keypad input groups to the msgbox specific group
         if str(widget.var) in lvgl_msgboxes:
-            lv_add(
-                lvgl_msgboxes[str(widget.var)]["lvgl"].set_indev_group(
-                    lvgl_msgboxes[str(widget.var)]["msgbox_group"]
-                )
-            )
+            group = lvgl_msgboxes[str(widget.var)]["msgbox_group"]
+            lv_add(lvgl_msgboxes[str(widget.var)]["lvgl"].set_indev_group(group))
+            lv.group_focus_obj(lv.group_get_obj_by_index(group, 0))
 
     widgets = [widget.outer or widget for widget in await get_widgets(config)]
     return await action_to_code(widgets, do_show, action_id, template_arg, args)

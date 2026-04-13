@@ -133,6 +133,8 @@ class LvPageType : public Parented<LvglComponent> {
   size_t index{};
   bool skip;
   lv_group_t *def_group;
+  lv_group_t *top_group;
+  lv_group_t *bottom_group;
 };
 
 using event_callback_t = void(lv_event_t *);
@@ -211,6 +213,8 @@ class LvglComponent : public PollingComponent {
 
   void add_input(lv_indev_t *input);
   void set_def_group(lv_group_t *group);
+  void set_top_group(lv_group_t *group);
+  void set_bottom_group(lv_group_t *group);
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time);
   void set_indev_group(lv_group_t *group);
@@ -288,7 +292,11 @@ class LvglComponent : public PollingComponent {
 
   std::vector<lv_indev_t *> inputs_{};
   lv_group_t *def_group_;
-  std::vector<lv_obj_t *> top_level_objs_{};
+  lv_group_t *top_group_;
+  lv_group_t *bottom_group_;
+  std::vector<lv_obj_t *> def_objs_{};
+  std::vector<lv_obj_t *> top_layer_objs_{};
+  std::vector<lv_obj_t *> bottom_layer_objs_{};
 };
 
 class IdleTrigger : public Trigger<> {

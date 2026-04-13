@@ -16,7 +16,7 @@ from .defines import (
 from .helpers import lvgl_components_required, requires_component
 from .lvcode import lv, lv_add, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
-from .types import lv_group_t, lv_indev_t, lv_indev_type_t, lv_key_t
+from .types import lv_group_t, lv_indev_type_t, lv_key_t
 from .widgets import get_widgets
 
 ENCODERS_CONFIG = cv.ensure_list(
@@ -59,16 +59,13 @@ async def encoders_to_code(var, config, default_group):
                 lv_add(listener.set_sensor(sensor_config))
         b_sensor = await cg.get_variable(enc_conf[CONF_ENTER_BUTTON])
         cg.add(listener.add_button(b_sensor, lv_key_t.LV_KEY_ENTER))
-        indev = lv_Pvariable(lv_indev_t, enc_conf[CONF_ID].id + "_indev")
-        lv_assign(indev, lv_expr.indev_drv_register(listener.get_drv()))
         if group := enc_conf.get(CONF_GROUP):
             group = lv_Pvariable(lv_group_t, group)
             lv_assign(group, lv_expr.group_create())
-            lv.indev_set_group(indev, group)
         else:
             group = default_group
-            lv.indev_set_group(indev, group)
-            lv_add(var.add_input(indev))
+            cg.add(var.add_input(listener.get_drv()))
+        lv.indev_set_group(listener.get_drv(), group)
 
 
 async def initial_focus_to_code(config):

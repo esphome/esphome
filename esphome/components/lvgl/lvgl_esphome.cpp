@@ -6,6 +6,7 @@
 
 #include "core/lv_global.h"
 #include "core/lv_obj_class_private.h"
+#include "core/lv_group_private.h"
 
 #include <numeric>
 
@@ -216,6 +217,8 @@ void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_ev
 
 void LvglComponent::add_input(lv_indev_t *input) { this->inputs_.push_back(input); }
 void LvglComponent::set_def_group(lv_group_t *group) { this->def_group_ = group; }
+void LvglComponent::set_top_group(lv_group_t *group) { this->top_group_ = group; }
+void LvglComponent::set_bottom_group(lv_group_t *group) { this->bottom_group_ = group; }
 void LvglComponent::add_page(LvPageType *page) {
   this->pages_.push_back(page);
   page->set_parent(this);
@@ -233,12 +236,19 @@ void LvglComponent::show_page(size_t index, lv_screen_load_anim_t anim, uint32_t
     lv_screen_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
   }
 
-  // Add all top level objects to this page's group
-  for (lv_obj_t *obj : this->top_level_objs_) {
+  // Add all default group objects from this lvgl instance to this page's group
+  for (lv_obj_t *obj : this->def_objs_) {
+    lv_group_add_obj(this->pages_[this->current_page_]->def_group, obj);
+  }
+  // Add all top and bottom layer objects from this lvgl instance to this page's group
+  for (lv_obj_t *obj : this->top_layer_objs_) {
+    lv_group_add_obj(this->pages_[this->current_page_]->def_group, obj);
+  }
+  for (lv_obj_t *obj : this->bottom_layer_objs_) {
     lv_group_add_obj(this->pages_[this->current_page_]->def_group, obj);
   }
 
-  // Set all inputs that didn't have a group definition to this page's group
+  // Set all inputs from this lvgl instance that didn't have a group definition to this page's group
   for (lv_indev_t *indev : this->inputs_) {
     lv_indev_set_group(indev, this->pages_[this->current_page_]->def_group);
   }
@@ -251,14 +261,10 @@ void LvglComponent::set_indev_group(lv_group_t *group) {
 }
 
 void LvglComponent::restore_indev_group(lv_group_t *group) {
-  lv_obj_t *active_page = lv_scr_act();
-  for (LvPageType *page : this->pages_) {
-    if (page->obj == active_page) {
-      this->set_indev_group(page->def_group);
-      return;
-    }
-  }
-  this->set_indev_group(group);
+  if (this->pages_.empty())
+    this->set_indev_group(group);
+  else
+    this->set_indev_group(this->pages_[this->current_page_]->def_group);
 }
 
 void LvglComponent::show_next_page(lv_screen_load_anim_t anim, uint32_t time) {
@@ -817,9 +823,20 @@ void LvglComponent::setup() {
   });
 #endif
 
-  for (lv_obj_t **obj = static_cast<lv_obj_t **>(_lv_ll_get_head(&this->def_group_->obj_ll)); obj != NULL;
-       obj = static_cast<lv_obj_t **>(_lv_ll_get_next(&this->def_group_->obj_ll, obj))) {
-    this->top_level_objs_.push_back(*obj);
+  for (uint index = 0; index < lv_group_get_obj_count(this->def_group_); index++) {
+    this->def_objs_.push_back(lv_group_get_obj_by_index(this->def_group_, index));
+  }
+
+  if (this->top_group_ != nullptr) {
+    for (uint index = 0; index < lv_group_get_obj_count(this->top_group_); index++) {
+      this->top_layer_objs_.push_back(lv_group_get_obj_by_index(this->top_group_, index));
+    }
+  }
+
+  if (this->bottom_group_ != nullptr) {
+    for (uint index = 0; index < lv_group_get_obj_count(this->bottom_group_); index++) {
+      this->bottom_layer_objs_.push_back(lv_group_get_obj_by_index(this->bottom_group_, index));
+    }
   }
 
   this->show_page(0, LV_SCREEN_LOAD_ANIM_NONE, 0);
