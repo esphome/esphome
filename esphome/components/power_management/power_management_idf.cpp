@@ -85,13 +85,9 @@ void PowerManagement::setup() {
 
 void PowerManagement::loop() {
 #if CONFIG_PM_LIGHT_SLEEP_CALLBACKS
-#if CONFIG_OPENTHREAD_MTD
-  if (openthread::global_openthread_component->is_sed() && this->ready_to_sleep_()) {
-#else
   if (this->ready_to_sleep_()) {
-#endif
     this->is_delay_aborted = false;
-    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(60000));
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(this->task_notify_take_timeout_ms_));
     if (this->is_delay_aborted) {
       esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
       switch (wakeup_reason) {
