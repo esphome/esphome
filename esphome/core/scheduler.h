@@ -290,7 +290,7 @@ class Scheduler {
   // because scheduling only compares millis_64 against millis_64 — never against millis().
   // On other platforms (ESP8266), extends now to 64-bit using rollover tracking, so both
   // millis() and scheduling use the same clock.
-  uint64_t millis_64_from_(uint32_t now) {
+  uint64_t ESPHOME_ALWAYS_INLINE millis_64_from_(uint32_t now) {
 #ifdef USE_NATIVE_64BIT_TIME
     (void) now;
     return millis_64();
