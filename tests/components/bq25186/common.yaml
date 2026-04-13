@@ -1,6 +1,6 @@
 bq25186:
   id: charger
-  charge_current: 150
+  fast_charge_current: 150
   battery_regulation_voltage: 4200
   input_current_limit: 500ma
   system_regulation: 4.5v

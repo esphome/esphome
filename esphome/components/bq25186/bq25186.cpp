@@ -33,7 +33,7 @@ bool BQ25186Component::update_register_(uint8_t reg, uint8_t mask, uint8_t value
   return this->write_register_(reg, reg_value);
 }
 
-uint8_t BQ25186Component::encode_vbatreg_(uint16_t millivolts) {
+uint8_t BQ25186Component::encode_battery_regulation_voltage_(uint16_t millivolts) {
   if (millivolts < 3500)
     millivolts = 3500;
   if (millivolts > 4650)
@@ -41,7 +41,7 @@ uint8_t BQ25186Component::encode_vbatreg_(uint16_t millivolts) {
   return static_cast<uint8_t>((millivolts - 3500) / 10);
 }
 
-uint8_t BQ25186Component::encode_ichg_(uint16_t milliamps) {
+uint8_t BQ25186Component::encode_fast_charge_current_(uint16_t milliamps) {
   if (milliamps < 5)
     milliamps = 5;
   if (milliamps > 1000)
@@ -61,13 +61,15 @@ uint8_t BQ25186Component::encode_ichg_(uint16_t milliamps) {
 }
 
 bool BQ25186Component::apply_configuration_() {
-  if (!this->update_register_(BQ25186_REG_VBAT_CTRL, 0xFF,
-                              (this->pg_mode_ << 7) | this->encode_vbatreg_(this->battery_regulation_voltage_mv_))) {
+  if (!this->update_register_(
+          BQ25186_REG_VBAT_CTRL, 0xFF,
+          (this->pg_mode_ << 7) | this->encode_battery_regulation_voltage_(this->battery_regulation_voltage_mv_))) {
     return false;
   }
 
-  if (!this->update_register_(BQ25186_REG_ICHG_CTRL, 0xFF,
-                              ((this->charge_enabled_ ? 0 : 1) << 7) | this->encode_ichg_(this->charge_current_ma_))) {
+  if (!this->update_register_(
+          BQ25186_REG_ICHG_CTRL, 0xFF,
+          ((this->charge_enabled_ ? 0 : 1) << 7) | this->encode_fast_charge_current_(this->charge_current_ma_))) {
     return false;
   }
 

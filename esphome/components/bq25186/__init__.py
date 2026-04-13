@@ -9,7 +9,7 @@ MULTI_CONF = True
 
 CONF_BQ25186_ID = "bq25186_id"
 CONF_BATTERY_REGULATION_VOLTAGE = "battery_regulation_voltage"
-CONF_CHARGE_CURRENT = "charge_current"
+CONF_FAST_CHARGE_CURRENT = "fast_charge_current"
 CONF_CHARGE_ENABLED = "charge_enabled"
 CONF_FLASH_CHARGING_MODE = "flash_charging_mode"
 CONF_PRECHARGE_IS_ITERM = "precharge_is_iterm"
@@ -198,7 +198,9 @@ CONFIG_SCHEMA = (
                 min=3500, max=4650
             ),
             cv.Optional(CONF_CHARGE_ENABLED, default=True): cv.boolean,
-            cv.Optional(CONF_CHARGE_CURRENT, default=10): cv.int_range(min=5, max=1000),
+            cv.Optional(CONF_FAST_CHARGE_CURRENT, default=10): cv.int_range(
+                min=5, max=1000
+            ),
             cv.Optional(CONF_FLASH_CHARGING_MODE, default=False): cv.boolean,
             cv.Optional(CONF_PRECHARGE_IS_ITERM, default=False): cv.boolean,
             cv.Optional(CONF_TERMINATION_PERCENT, default="10%"): cv.enum(
@@ -292,7 +294,7 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_battery_regulation_voltage(config[CONF_BATTERY_REGULATION_VOLTAGE]))
-    cg.add(var.set_charge_current(config[CONF_CHARGE_CURRENT]))
+    cg.add(var.set_fast_charge_current(config[CONF_FAST_CHARGE_CURRENT]))
     cg.add(var.set_charge_enabled(config[CONF_CHARGE_ENABLED]))
     cg.add(var.set_flash_charging_mode(config[CONF_FLASH_CHARGING_MODE]))
     cg.add(var.set_precharge_is_iterm(config[CONF_PRECHARGE_IS_ITERM]))
