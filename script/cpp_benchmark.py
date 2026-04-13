@@ -27,7 +27,10 @@ STUBS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "stubs"
 
 PLATFORMIO_OPTIONS = {
     "build_flags": [
+        "-Os",  # match firmware optimization level (detects inlining regressions)
         "-g",  # debug symbols for profiling
+        "-ffunction-sections",  # required for dead-code stripping with -Os
+        "-fdata-sections",  # required for dead-code stripping with -Os
         "-DUSE_BENCHMARK",  # disable WarnIfComponentBlockingGuard in finish()
         f"-I{STUBS_DIR}",  # stub headers for ESP32-only components
     ],
