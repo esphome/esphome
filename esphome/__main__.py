@@ -630,9 +630,10 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         if rc != 0:
             return rc
 
-        # Create factory.bin and ota.bin
+        # Create factory.bin, ota.bin, and firmware.elf copy
         espidf_api.create_factory_bin()
         espidf_api.create_ota_bin()
+        espidf_api.create_elf_copy()
     else:
         from esphome import platformio_api
 

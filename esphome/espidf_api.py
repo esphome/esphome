@@ -300,6 +300,18 @@ def get_ota_firmware_path() -> Path:
     return build_dir / "firmware.ota.bin"
 
 
+def get_elf_path() -> Path:
+    """Get the path to the firmware ELF file.
+
+    idf.py writes ``<build>/<name>.elf`` directly; this returns the
+    ``<build>/firmware.elf`` copy created by ``create_elf_copy`` so
+    the dashboard's "download ELF" link can find it under the
+    PlatformIO-convention name.
+    """
+    build_dir = CORE.relative_build_path("build")
+    return build_dir / "firmware.elf"
+
+
 def create_factory_bin() -> bool:
     """Create factory.bin by merging bootloader, partition table, and app."""
     build_dir = CORE.relative_build_path("build")
@@ -375,4 +387,24 @@ def create_ota_bin() -> bool:
 
     shutil.copy(firmware_path, ota_path)
     _LOGGER.info("Created: %s", ota_path)
+    return True
+
+
+def create_elf_copy() -> bool:
+    """Copy the ELF binary to firmware.elf for dashboard compatibility.
+
+    idf.py writes the ELF at ``<build>/<name>.elf``; the dashboard's
+    "download ELF" link requests the literal filename ``firmware.elf``
+    (PlatformIO convention), so copy it to that name.
+    """
+    build_dir = CORE.relative_build_path("build")
+    src_elf = build_dir / f"{CORE.name}.elf"
+    dst_elf = get_elf_path()
+
+    if not src_elf.is_file():
+        _LOGGER.warning("ELF not found: %s", src_elf)
+        return False
+
+    shutil.copy(src_elf, dst_elf)
+    _LOGGER.info("Created: %s", dst_elf)
     return True
