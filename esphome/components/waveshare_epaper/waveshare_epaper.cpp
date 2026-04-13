@@ -183,6 +183,18 @@ void WaveshareEPaper::fill(Color color) {
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
+void WaveshareEPaper4Gray::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
+  // Quantize the green channel into 4 levels of gray
+  uint8_t fill = (~((color.green >> 6) * 0x55)) & 0xFF;
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
+    this->buffer_[i] = fill;
+}
 void WaveshareEPaper7C::setup() {
   this->init_internal_7c_(this->get_buffer_length_());
   this->setup_pins_();
@@ -328,6 +340,9 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color
 uint32_t WaveshareEPaper::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 8u;
 }  // just a black buffer
+uint32_t WaveshareEPaper4Gray::get_buffer_length_() {
+  return this->get_width_controller() * this->get_height_internal() / 4u;
+}  // grayscale buffer
 uint32_t WaveshareEPaperBWR::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 4u;
 }  // black and red buffer
@@ -358,6 +373,37 @@ void HOT WaveshareEPaperBWR::draw_absolute_pixel_internal(int x, int y, Color co
     this->buffer_[pos + buf_half_len] |= 0x80 >> subpos;
   } else {
     this->buffer_[pos + buf_half_len] &= ~(0x80 >> subpos);
+  }
+}
+void HOT WaveshareEPaper4Gray::draw_absolute_pixel_internal(int x, int y, Color color) {
+  if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
+    return;
+
+  const uint32_t buf_half_len = this->get_buffer_length_() / 2u;
+  const uint32_t pos = (x + y * this->get_width_internal()) / 8u;
+  const uint8_t subpos = x & 0x07;
+
+  switch (color.green / 64) {
+    case 0:
+      // black
+      this->buffer_[pos] &= ~(0x80 >> subpos);
+      this->buffer_[pos + buf_half_len] |= 0x80 >> subpos;
+      break;
+    case 1:
+      // dark gray
+      this->buffer_[pos] |= 0x80 >> subpos;
+      this->buffer_[pos + buf_half_len] |= 0x80 >> subpos;
+      break;
+    case 2:
+      // light gray
+      this->buffer_[pos] &= ~(0x80 >> subpos);
+      this->buffer_[pos + buf_half_len] &= ~(0x80 >> subpos);
+      break;
+    case 3:
+      // white
+      this->buffer_[pos] |= 0x80 >> subpos;
+      this->buffer_[pos + buf_half_len] &= ~(0x80 >> subpos);
+      break;
   }
 }
 void HOT WaveshareEPaper7C::draw_absolute_pixel_internal(int x, int y, Color color) {
@@ -4356,6 +4402,238 @@ void WaveshareEPaper7P5InV2P::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 void WaveshareEPaper7P5InV2P::set_full_update_every(uint32_t full_update_every) {
+  this->full_update_every_ = full_update_every;
+}
+
+/* 7.50inV2 with partial and fast refresh and 2 bit, 4 value grayscale*/
+bool WaveshareEPaper7P5InV2P4Gray::wait_until_idle_() {
+  if (this->busy_pin_ == nullptr) {
+    return true;
+  }
+
+  const uint32_t start = millis();
+  while (this->busy_pin_->digital_read()) {
+    this->command(0x71);
+    if (millis() - start > this->idle_timeout_()) {
+      ESP_LOGE(TAG, "Timeout while displaying image!");
+      return false;
+    }
+    App.feed_wdt();
+    delay(10);
+  }
+  return true;
+}
+
+void WaveshareEPaper7P5InV2P4Gray::reset_() {
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(true);
+    delay(20);
+    this->reset_pin_->digital_write(false);
+    delay(2);
+    this->reset_pin_->digital_write(true);
+    delay(20);
+  }
+}
+
+void WaveshareEPaper7P5InV2P4Gray::turn_on_display_() {
+  this->command(0x12);
+  delay(100);  // NOLINT
+  this->wait_until_idle_();
+}
+
+void WaveshareEPaper7P5InV2P4Gray::initialize() {
+  this->reset_();
+
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x07);
+  this->data(0x07);
+  this->data(0x3f);
+  this->data(0x3f);
+  this->data(0x03);
+
+  // COMMAND POWER DRIVER HAT UP
+  this->command(0x04);
+  delay(100);  // NOLINT
+  this->wait_until_idle_();
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0x3F);
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x03);
+  this->data(0x20);
+  this->data(0x01);
+  this->data(0xE0);
+
+  // COMMAND DUAL SPI MM_EN, DUSPI_EN
+  this->command(0x15);
+  this->data(0x00);
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x00);
+  this->data(0x07);
+
+  // COMMAND TCON SETTING
+  this->command(0x60);
+  this->data(0x22);
+
+  // VCOM DC Setting
+  this->command(0x82);
+  this->data(0x12);
+
+  uint8_t lut_vcom_7_i_n5_v2[] = {
+      0x00, 0x12, 0x04, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+
+  uint8_t lut_ww_7_i_n5_v2[] = {
+      0x80, 0x12, 0x04, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+
+  uint8_t lut_bw_7_i_n5_v2[] = {
+      0x90, 0x11, 0x05, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+
+  uint8_t lut_wb_7_i_n5_v2[] = {
+      0x60, 0x11, 0x05, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+
+  uint8_t lut_bb_7_i_n5_v2[] = {
+      0x40, 0x12, 0x04, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+
+  uint8_t lut_border_7_i_n5_v2[] = {
+      0xa0, 0x12, 0x04, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  };
+
+  uint8_t count;
+  this->command(0x20);  // VCOM
+  for (count = 0; count < 42; count++)
+    this->data(lut_vcom_7_i_n5_v2[count]);
+
+  this->command(0x21);  // LUTBW
+  for (count = 0; count < 42; count++)
+    this->data(lut_ww_7_i_n5_v2[count]);
+
+  this->command(0x22);  // LUTBW
+  for (count = 0; count < 42; count++)
+    this->data(lut_bw_7_i_n5_v2[count]);
+
+  this->command(0x23);  // LUTWB
+  for (count = 0; count < 42; count++)
+    this->data(lut_wb_7_i_n5_v2[count]);
+
+  this->command(0x24);  // LUTBB
+  for (count = 0; count < 42; count++)
+    this->data(lut_bb_7_i_n5_v2[count]);
+
+  this->command(0x25);  // LUT BORDER
+  for (count = 0; count < 42; count++)
+    this->data(lut_border_7_i_n5_v2[count]);
+
+  // COMMAND SET
+  this->command(0xE0);
+  this->data(0x00);
+
+  // COMMAND TSE
+  this->command(0x41);
+  this->data(0x00);
+
+  // COMMAND POWER DRIVER HAT DOWN
+  this->command(0x02);
+}
+
+void HOT WaveshareEPaper7P5InV2P4Gray::display() {
+  uint32_t buf_len = this->get_buffer_length_();
+
+  // COMMAND POWER ON
+  ESP_LOGI(TAG, "Power on the display and hat");
+
+  this->command(0x04);
+  delay(200);  // NOLINT
+  this->wait_until_idle_();
+
+  if (this->full_update_every_ == 1) {
+    this->command(0x13);
+    for (uint32_t i = 0; i < buf_len; i++) {
+      this->data(~(this->buffer_[i]));
+    }
+
+    this->turn_on_display_();
+
+    this->command(0x02);
+    this->wait_until_idle_();
+    return;
+  }
+
+  this->command(0x50);
+  this->data(0xA9);
+  this->data(0x07);
+
+  const uint32_t buf_half_len = this->get_buffer_length_() / 2u;
+  // Enable fast refresh
+  this->command(0xE5);
+  this->data(0x5A);
+
+  this->command(0x92);
+
+  // Write plane 0
+  this->command(0x13);
+  delay(2);
+  for (uint32_t i = 0; i < buf_half_len - 1; i++) {
+    this->data(this->buffer_[i]);
+  }
+
+  // Wite plane 1
+  this->command(0x10);
+  delay(2);
+  for (uint32_t i = buf_half_len; i < buf_len; i++) {
+    this->data(~(this->buffer_[i]));
+  }
+
+  delay(100);  // NOLINT
+  this->wait_until_idle_();
+
+  this->turn_on_display_();
+
+  ESP_LOGV(TAG, "Before command(0x02) (>> power off)");
+  this->command(0x02);
+  this->wait_until_idle_();
+  ESP_LOGV(TAG, "After command(0x02) (>> power off)");
+
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+}
+
+int WaveshareEPaper7P5InV2P4Gray::get_width_internal() { return 800; }
+int WaveshareEPaper7P5InV2P4Gray::get_height_internal() { return 480; }
+uint32_t WaveshareEPaper7P5InV2P4Gray::idle_timeout_() { return 10000; }
+void WaveshareEPaper7P5InV2P4Gray::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG,
+                "  Model: 7.50inv2p\n"
+                "  Full Update Every: %" PRIu32,
+                this->full_update_every_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+void WaveshareEPaper7P5InV2P4Gray::set_full_update_every(uint32_t full_update_every) {
   this->full_update_every_ = full_update_every;
 }
 
