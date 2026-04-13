@@ -105,6 +105,36 @@ def main() -> int:
     patch_structhash()
     patch_file_downloader()
 
+    # Wrap stdout/stderr with RedirectText before PlatformIO runs:
+    #
+    # 1. RedirectText.isatty() unconditionally returns True. Click, tqdm, and
+    #    PlatformIO's own progress-bar code check ``stream.isatty()`` to
+    #    decide whether to emit TTY-format output (``\r`` cursor moves, ANSI
+    #    colors, fancy progress bars). With the wrapper in place they always
+    #    emit TTY format, even when our real stdout is a pipe to the parent
+    #    process. Downstream consumers (local terminals and the Home
+    #    Assistant dashboard log viewer) render the TTY control sequences
+    #    correctly, so the user sees real progress bars.
+    #
+    # 2. FILTER_PLATFORMIO_LINES is applied inside RedirectText.write() in
+    #    this subprocess, so noisy PlatformIO output is dropped before it
+    #    ever leaves the runner. This replaces the parent-side filtering
+    #    that was lost when we switched from in-process to subprocess — the
+    #    parent's ``subprocess.run`` uses ``.fileno()`` on RedirectText and
+    #    bypasses its ``write()`` path entirely.
+    #
+    # Filtering is disabled when the user passed -v / --verbose to
+    # ``esphome compile``, preserving the previous in-process behavior where
+    # verbose mode let all PlatformIO output through unfiltered.
+    from esphome.platformio_api import FILTER_PLATFORMIO_LINES
+    from esphome.util import RedirectText
+
+    is_verbose = any(arg in ("-v", "--verbose") for arg in sys.argv[1:])
+    filter_lines = None if is_verbose else FILTER_PLATFORMIO_LINES
+
+    sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
+    sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
+
     import platformio.__main__
 
     return platformio.__main__.main() or 0

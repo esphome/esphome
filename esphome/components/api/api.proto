@@ -671,6 +671,7 @@ message SensorStateResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_SENSOR";
   option (no_delay) = true;
+  option (speed_optimized) = true;
 
   fixed32 key = 1 [(force) = true];
   float state = 2;
@@ -1638,6 +1639,7 @@ message BluetoothLERawAdvertisementsResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
   option (no_delay) = true;
+  option (speed_optimized) = true;
 
   repeated BluetoothLERawAdvertisement advertisements = 1 [(fixed_array_with_length_define) = "BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE"];
 }

@@ -745,7 +745,8 @@ uint32_t ListEntitiesSensorResponse::calculate_size() const {
 #endif
   return size;
 }
-uint8_t *SensorStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+__attribute__((optimize("O2"))) uint8_t *SensorStateResponse::encode(
+    ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
   ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 2, this->state);
@@ -755,7 +756,7 @@ uint8_t *SensorStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG
 #endif
   return pos;
 }
-uint32_t SensorStateResponse::calculate_size() const {
+__attribute__((optimize("O2"))) uint32_t SensorStateResponse::calculate_size() const {
   uint32_t size = 0;
   size += 5;
   size += ProtoSize::calc_float(1, this->state);
@@ -2324,7 +2325,8 @@ bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id,
   }
   return true;
 }
-uint8_t *BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+__attribute__((optimize("O2"))) uint8_t *BluetoothLERawAdvertisementsResponse::encode(
+    ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
     auto &sub_msg = this->advertisements[i];
@@ -2346,7 +2348,7 @@ uint8_t *BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer P
   }
   return pos;
 }
-uint32_t BluetoothLERawAdvertisementsResponse::calculate_size() const {
+__attribute__((optimize("O2"))) uint32_t BluetoothLERawAdvertisementsResponse::calculate_size() const {
   uint32_t size = 0;
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
     auto &sub_msg = this->advertisements[i];
