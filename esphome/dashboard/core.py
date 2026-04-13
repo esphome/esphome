@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from functools import partial
 import json
 import logging
+from pathlib import Path
 import threading
 from typing import Any
 
@@ -83,6 +84,7 @@ class ESPHomeDashboard:
         "dns_cache",
         "_background_tasks",
         "ignored_devices",
+        "device_tags",
         "_ping_status_task",
     )
 
@@ -100,6 +102,7 @@ class ESPHomeDashboard:
         self.dns_cache = DNSCache()
         self._background_tasks: set[asyncio.Task] = set()
         self.ignored_devices: set[str] = set()
+        self.device_tags: dict[str, list[str]] = {}
         self._ping_status_task: asyncio.Task | None = None
 
     async def async_setup(self) -> None:
@@ -108,6 +111,7 @@ class ESPHomeDashboard:
         self.ping_request = asyncio.Event()
         self.entries = DashboardEntries(self)
         await self.loop.run_in_executor(None, self.load_ignored_devices)
+        await self.loop.run_in_executor(None, self.load_device_tags)
 
     def load_ignored_devices(self) -> None:
         storage_path = ignored_devices_storage_path()
@@ -124,6 +128,30 @@ class ESPHomeDashboard:
             json.dump(
                 {"ignored_devices": sorted(self.ignored_devices)}, indent=2, fp=f_handle
             )
+
+    def _device_tags_path(self) -> Path:
+        """Return the path to the device tags storage file."""
+        from esphome.core import CORE
+
+        return CORE.data_dir / "device-tags.json"
+
+    def load_device_tags(self) -> None:
+        try:
+            storage_path = self._device_tags_path()
+            with storage_path.open("r", encoding="utf-8") as f_handle:
+                data = json.load(f_handle)
+                self.device_tags = data.get("tags", {})
+        except Exception:  # pylint: disable=broad-except
+            pass
+
+    def save_device_tags(self) -> None:
+        try:
+            storage_path = self._device_tags_path()
+            storage_path.parent.mkdir(parents=True, exist_ok=True)
+            with storage_path.open("w", encoding="utf-8") as f_handle:
+                json.dump({"tags": self.device_tags}, indent=2, fp=f_handle)
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Failed to save device tags")
 
     def _async_start_ping_status(self, ping_status: PingStatus) -> None:
         self._ping_status_task = asyncio.create_task(ping_status.async_run())

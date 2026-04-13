@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESPHome Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #111;
+      color: #e0e0e0;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    /* Topbar */
+    .topbar {
+      background: #0a0a0a;
+      border-bottom: 1px solid #222;
+      padding: 6px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar-logo { display: flex; align-items: center; text-decoration: none; flex-shrink: 0; }
+    .topbar-logo svg { height: 28px; width: auto; }
+    .topbar-version { font-size: 11px; color: #666; background: #1a1a1a; padding: 2px 8px; border-radius: 10px; }
+    .search-wrapper { flex: 1; max-width: 400px; position: relative; }
+    .search-input {
+      width: 100%; padding: 6px 10px 6px 30px; background: #1a1a1a; border: 1px solid #333;
+      border-radius: 4px; color: #e0e0e0; font-size: 13px; font-family: inherit; outline: none;
+    }
+    .search-input::placeholder { color: #555; }
+    .search-input:focus { border-color: #18BCF2; }
+    .search-icon { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: #555; font-size: 14px; pointer-events: none; }
+    .search-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #666; cursor: pointer; font-size: 14px; display: none; font-family: inherit; }
+    .search-clear.visible { display: block; }
+    .topbar-stats { display: flex; gap: 14px; font-size: 12px; color: #888; }
+    .topbar-stats strong { color: #e0e0e0; }
+    .topbar-links { display: flex; gap: 8px; margin-left: auto; }
+    .topbar-links a { color: #888; text-decoration: none; font-size: 12px; padding: 4px 8px; border-radius: 3px; }
+    .topbar-links a:hover { color: #e0e0e0; background: #1a1a1a; }
+
+    /* Tag bar */
+    .tagbar { background: #0e0e0e; border-bottom: 1px solid #222; padding: 6px 20px; display: none; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .tagbar.visible { display: flex; }
+    .tagbar-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
+    .tag-btn { padding: 3px 10px; border: 1px solid #333; border-radius: 12px; background: transparent; color: #aaa; font-size: 11px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+    .tag-btn:hover { border-color: #555; color: #e0e0e0; }
+    .tag-btn.active { background: #18BCF2; border-color: #18BCF2; color: #000; font-weight: 600; }
+    .tag-btn .tag-count { margin-left: 4px; opacity: 0.6; font-size: 10px; }
+
+    /* Table */
+    .table-wrap { padding: 0; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { position: sticky; top: 0; z-index: 50; }
+    th {
+      background: #0a0a0a; color: #888; font-weight: 600; font-size: 11px; text-transform: uppercase;
+      letter-spacing: 0.5px; padding: 7px 10px; text-align: left; border-bottom: 2px solid #222;
+      cursor: pointer; user-select: none; white-space: nowrap;
+    }
+    th:hover { color: #e0e0e0; }
+    th.sorted-asc::after { content: " \25B2"; font-size: 9px; color: #18BCF2; }
+    th.sorted-desc::after { content: " \25BC"; font-size: 9px; color: #18BCF2; }
+    th.no-sort { cursor: default; }
+    th.no-sort:hover { color: #888; }
+    td { padding: 5px 10px; border-bottom: 1px solid #1a1a1a; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    td.td-actions { overflow: visible; }
+    tr { transition: background 0.1s; cursor: pointer; }
+    tr:hover { background: #1a1a1a; }
+    tr.archived-row { opacity: 0.45; }
+    tr.archived-row:hover { opacity: 0.7; }
+
+    /* Status */
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: block; margin: 0 auto; }
+    .dot.online { background: #4caf50; box-shadow: 0 0 6px #4caf5088; }
+    .dot.offline { background: #555; }
+    .dot.unknown { background: #ff9800; box-shadow: 0 0 6px #ff980066; }
+
+    /* Cells */
+    .cell-name { color: #fff; font-weight: 500; }
+    .ip { font-family: "SF Mono","Fira Code",Menlo,Consolas,monospace; font-size: 12px; color: #6ea8fe; }
+    .plat { background: #1a1a2e; color: #6ea8fe; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; text-transform: uppercase; display: inline-block; }
+    .ver { font-size: 12px; color: #888; }
+    .ver-update { color: #ff9800; font-weight: 500; }
+    .cell-comment { color: #888; font-size: 12px; }
+    .cell-config { color: #555; font-size: 11px; font-family: "SF Mono","Fira Code",Menlo,Consolas,monospace; }
+    .muted { color: #333; }
+
+    /* Tags in cells */
+    .tag-pill { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 500; background: #1a2a3a; color: #6ea8fe; margin-right: 3px; }
+
+    /* Tooltips */
+    .tip { position: relative; }
+    .tip::after {
+      content: attr(data-tip);
+      position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+      background: #444; color: #fff; font-size: 11px; padding: 4px 8px; border-radius: 4px;
+      white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 400;
+    }
+    .tip:hover::after { opacity: 1; }
+
+    /* Actions */
+    .actions { display: flex; gap: 4px; align-items: center; }
+    .btn {
+      padding: 3px 8px; border: 1px solid #333; border-radius: 3px; background: transparent;
+      color: #888; font-size: 11px; cursor: pointer; text-decoration: none; white-space: nowrap; font-family: inherit;
+    }
+    .btn:hover { background: #1a1a1a; color: #e0e0e0; }
+    .btn-restore { border-color: #243; color: #66cc66; }
+    .btn-restore:hover { background: #152a15; color: #88ff88; }
+
+    /* Side Panel */
+    .panel-overlay {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4); z-index: 500;
+    }
+    .panel-overlay.open { display: block; }
+    .side-panel {
+      position: fixed; top: 0; right: -400px; width: 380px; height: 100%; background: #141414;
+      border-left: 1px solid #222; z-index: 501; transition: right 0.25s ease;
+      display: flex; flex-direction: column; overflow-y: auto;
+    }
+    .side-panel.open { right: 0; }
+    .sp-header {
+      padding: 16px 20px; border-bottom: 1px solid #222; display: flex; align-items: flex-start; gap: 12px;
+    }
+    .sp-close {
+      margin-left: auto; background: none; border: none; color: #666; font-size: 20px;
+      cursor: pointer; padding: 0 4px; line-height: 1; font-family: inherit;
+    }
+    .sp-close:hover { color: #fff; }
+    .sp-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+    .sp-dot.online { background: #4caf50; box-shadow: 0 0 6px #4caf5088; }
+    .sp-dot.offline { background: #555; }
+    .sp-dot.unknown { background: #ff9800; }
+    .sp-title { font-size: 16px; font-weight: 600; color: #fff; }
+    .sp-subtitle { font-size: 12px; color: #888; margin-top: 2px; }
+    .sp-info { padding: 16px 20px; border-bottom: 1px solid #222; }
+    .sp-info-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; }
+    .sp-info-label { color: #888; }
+    .sp-info-value { color: #e0e0e0; font-family: "SF Mono","Fira Code",Menlo,Consolas,monospace; font-size: 12px; }
+    .sp-tags { padding: 12px 20px; border-bottom: 1px solid #222; }
+    .sp-tags-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .sp-tags-list { display: flex; flex-wrap: wrap; gap: 4px; }
+    .sp-tag-pill { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 11px; background: #1a2a3a; color: #6ea8fe; }
+    .sp-tag-edit { background: none; border: 1px dashed #333; color: #666; cursor: pointer; font-family: inherit; font-size: 11px; padding: 2px 8px; border-radius: 8px; }
+    .sp-tag-edit:hover { border-color: #18BCF2; color: #18BCF2; }
+    .sp-actions { padding: 12px 20px; flex: 1; }
+    .sp-actions-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .sp-btn {
+      display: block; width: 100%; text-align: left; padding: 9px 14px; background: none; border: none;
+      color: #ccc; font-size: 13px; cursor: pointer; text-decoration: none; font-family: inherit;
+      border-radius: 4px; margin-bottom: 2px;
+    }
+    .sp-btn:hover { background: #1e1e1e; color: #fff; }
+    .sp-btn-danger { color: #cc6666; }
+    .sp-btn-danger:hover { background: #2a1515; color: #ff6666; }
+    .sp-sep { border-top: 1px solid #222; margin: 6px 0; }
+
+    /* Command popup modal */
+    .cmd-overlay {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6); z-index: 700; align-items: center; justify-content: center;
+    }
+    .cmd-overlay.open { display: flex; }
+    .cmd-box {
+      background: #141414; border: 1px solid #333; border-radius: 8px; width: 600px; max-width: 90vw;
+      max-height: 80vh; display: flex; flex-direction: column;
+    }
+    .cmd-header {
+      display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid #222;
+    }
+    .cmd-title { font-size: 14px; font-weight: 600; color: #fff; flex: 1; }
+    .cmd-close {
+      background: none; border: none; color: #666; font-size: 18px; cursor: pointer;
+      padding: 0 4px; line-height: 1; font-family: inherit;
+    }
+    .cmd-close:hover { color: #fff; }
+    .cmd-output {
+      flex: 1; overflow-y: auto; padding: 12px 16px; font-family: "SF Mono","Fira Code",Menlo,Consolas,monospace;
+      font-size: 11px; color: #aaa; white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+      min-height: 200px; max-height: 60vh; background: #0a0a0a;
+    }
+    .cmd-output .term-err { color: #ff6666; }
+    .cmd-output .term-ok { color: #4caf50; }
+
+    /* Tag edit popover */
+    .tag-edit-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 600; align-items: center; justify-content: center; }
+    .tag-edit-overlay.open { display: flex; }
+    .tag-edit-box { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 16px; min-width: 360px; max-width: 480px; }
+    .tag-edit-box h3 { font-size: 14px; color: #fff; margin-bottom: 12px; font-weight: 600; }
+    .tag-cloud { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; margin-bottom: 10px; }
+    .tag-cloud-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; background: #1a2a3a; color: #6ea8fe; }
+    .tag-cloud-x { background: none; border: none; color: #6ea8fe; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; opacity: 0.6; font-family: inherit; }
+    .tag-cloud-x:hover { opacity: 1; color: #ff6666; }
+    .tag-cloud-empty { color: #555; font-size: 12px; padding: 4px 0; }
+    .tag-pool { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+    .tag-pool-label { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; width: 100%; margin-bottom: 2px; }
+    .tag-pool-btn {
+      padding: 3px 8px; border: 1px dashed #333; border-radius: 10px; background: none;
+      color: #666; font-size: 11px; cursor: pointer; font-family: inherit;
+    }
+    .tag-pool-btn:hover { border-color: #18BCF2; color: #18BCF2; }
+    .tag-pool-btn.applied { border-style: solid; border-color: #1a2a3a; color: #444; cursor: default; opacity: 0.4; }
+    .tag-add-row { display: flex; gap: 6px; }
+    .tag-edit-input { flex: 1; padding: 7px 10px; background: #111; border: 1px solid #333; border-radius: 4px; color: #e0e0e0; font-size: 13px; font-family: inherit; outline: none; }
+    .tag-edit-input:focus { border-color: #18BCF2; }
+    .btn-add-tag { background: #18BCF2; border-color: #18BCF2; color: #000; font-weight: 600; padding: 6px 14px; border: none; border-radius: 3px; cursor: pointer; font-family: inherit; }
+    .btn-add-tag:hover { background: #13a5d6; }
+    .tag-edit-actions { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
+    .tag-edit-actions .btn { padding: 6px 14px; }
+
+    /* Archived divider */
+    .archived-divider { cursor: pointer; user-select: none; }
+    .archived-divider td { padding: 8px 10px; background: #0a0a0a; color: #666; font-size: 12px; font-weight: 600; border-bottom: 1px solid #222; }
+    .archived-divider:hover td { background: #151515; }
+    .arch-badge { background: #333; color: #888; padding: 1px 7px; border-radius: 8px; font-size: 10px; margin-left: 8px; }
+    .chevron { display: inline-block; transition: transform 0.2s; margin-right: 6px; font-size: 10px; }
+    .chevron.open { transform: rotate(90deg); }
+
+    .empty-msg { text-align: center; padding: 40px; color: #555; }
+    .empty-msg a { color: #18BCF2; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="./" class="topbar-logo">
+    <svg viewBox="0 0 1194 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <g clip-path="url(#c0)">
+        <path d="M240 219C240 227.24 233.24 234 225 234H15C6.76 234 0 227.24 0 219V129C0 120.76 4.78 109.22 10.6 103.4L109.4 4.62C115.24-1.22 124.78-1.22 130.62 4.62L229.4 103.4C235.24 109.24 240 120.76 240 129V219Z" fill="#18BCF2"/>
+        <path d="M160 78.66H80C76.68 78.66 74 81.34 74 84.66V234H86V90.66H154V102.66H104C100.68 102.66 98 105.34 98 108.66V132.66C98 135.98 100.68 138.66 104 138.66H154V150.66H104C100.68 150.66 98 153.34 98 156.66V180.66C98 183.98 100.68 186.66 104 186.66H154V198.66H104C100.68 198.66 98 201.34 98 204.66C98 207.98 100.68 210.66 104 210.66H160C163.32 210.66 166 207.98 166 204.66V180.66C166 177.34 163.32 174.66 160 174.66H110V162.66H160C163.32 162.66 166 159.98 166 156.66V132.66C166 129.34 163.32 126.66 160 126.66H110V114.66H160C163.32 114.66 166 111.98 166 108.66V84.66C166 81.34 163.32 78.66 160 78.66Z" fill="#F2F4F9"/>
+        <path d="M423 167.61V190.11H336V49.95H423V72.63H359.82V108.91H416.26V130.01H359.82V167.61H423Z" fill="#F2F4F9"/>
+        <path d="M491.08 47.41C503.9 47.41 514.54 50.53 523.04 56.79C531.54 63.03 536.76 71.39 538.7 81.83L516.3 87.93C515.04 81.93 512.12 77.31 507.54 74.05C502.94 70.81 497.28 69.17 490.52 69.17C483.26 69.17 477.52 70.91 473.28 74.37C469.02 77.83 466.9 82.45 466.9 88.19C466.9 97.25 472.52 103.13 483.78 105.81L506.66 111.53C518.48 114.59 527.32 119.45 533.2 126.11C539.08 132.77 542.02 140.97 542.02 150.71C542.02 163.21 537.48 173.31 528.42 181.03C519.36 188.75 507.24 192.61 492.04 192.61C478.36 192.61 466.78 189.39 457.36 182.95C448.04 176.27 442.54 167.45 440.86 156.51L463.26 150.69C464.08 156.87 467.16 161.73 472.5 165.23C477.84 168.73 484.64 170.47 492.9 170.47C501.16 170.47 507.08 168.79 511.6 165.45C516.14 162.11 518.4 157.57 518.4 151.81C518.4 142.81 512.78 136.87 501.52 133.99L478.64 128.45C466.88 125.77 458.06 120.99 452.16 114.15C446.26 107.31 443.3 98.95 443.3 89.07C443.3 76.69 447.7 66.65 456.48 58.93C465.26 51.21 476.8 47.35 491.12 47.35L491.08 47.41Z" fill="#F2F4F9"/>
+        <path d="M666.1 95.61C666.1 109.37 661.92 120.49 653.58 128.99C645.24 137.49 634 141.75 619.88 141.75H588.38V190.13H564.56V49.95H620.06C634.3 49.95 645.54 54.07 653.76 62.27C661.98 70.49 666.08 81.59 666.08 95.59L666.1 95.61ZM641.16 95.05C641.16 87.99 638.96 82.25 634.56 77.85C630.16 73.45 623.92 71.25 615.86 71.25H588.4V120.85H615.5C623.74 120.85 630.1 118.51 634.54 113.81C638.98 109.13 641.2 102.87 641.2 95.05H641.16Z" fill="#F2F4F9"/>
+        <path d="M687.38 49.95H711.2V108.55L772.98 108.73V49.95H796.98V190.11H772.98V129.83L711.2 129.65V190.11H687.38V49.95Z" fill="#F2F4F9"/>
+        <path d="M868.6 92.79C883.1 92.79 894.92 97.45 904.04 106.75C913.16 116.07 917.72 128.03 917.72 142.65C917.72 157.27 913.16 169.15 904.04 178.47C894.92 187.79 883.1 192.43 868.6 192.43C854.1 192.43 842.1 187.77 832.98 178.47C823.86 169.15 819.3 157.23 819.3 142.65C819.3 128.07 823.86 115.97 832.98 106.69C842.1 97.41 853.98 92.77 868.6 92.77V92.79ZM868.6 172.01C876.34 172.01 882.64 169.27 887.5 163.81C892.34 158.35 894.76 151.23 894.76 142.49C894.76 133.75 892.34 126.67 887.5 121.25C882.66 115.85 876.36 113.15 868.6 113.15C860.84 113.15 854.26 115.85 849.38 121.25C844.5 126.65 842.06 133.73 842.06 142.49C842.06 151.25 844.5 158.35 849.38 163.81C854.26 169.27 860.66 172.01 868.6 172.01Z" fill="#F2F4F9"/>
+        <path d="M1081.6 129.83V190.11H1059.56V133.29C1059.56 126.73 1057.88 121.61 1054.5 117.91C1051.12 114.23 1046.54 112.37 1040.72 112.37C1034.54 112.37 1029.6 114.39 1025.9 118.41C1022.22 122.45 1020.36 128.09 1020.36 135.33V190.09H998.04V133.27C998.04 126.71 996.4 121.59 993.12 117.89C989.84 114.21 985.3 112.35 979.48 112.35C973.3 112.35 968.32 114.37 964.58 118.39C960.84 122.41 958.96 128.07 958.96 135.31V190.07H936.28V95.39H957.38L958.14 104.49C963.64 96.43 972.6 92.39 985.04 92.39C992.28 92.39 998.58 93.89 1003.88 96.89C1009.2 99.89 1013.22 104.27 1015.98 110.01C1018.3 104.51 1022.12 100.19 1027.46 97.07C1032.8 93.95 1039.16 92.39 1046.54 92.39C1057.28 92.39 1065.82 95.71 1072.14 102.33C1078.46 108.95 1081.6 118.11 1081.6 129.79V129.83Z" fill="#F2F4F9"/>
+        <path d="M1193.54 151.11H1120.98C1121.74 158.23 1124.42 163.67 1129.04 167.43C1133.66 171.19 1139.54 173.05 1146.66 173.05C1158.22 173.05 1166.32 168.23 1170.94 158.61L1189.88 166.11C1186.32 174.43 1180.7 180.93 1173.06 185.61C1165.4 190.29 1156.6 192.65 1146.66 192.65C1132.66 192.65 1121.3 188.07 1112.58 178.91C1103.86 169.75 1099.5 157.73 1099.5 142.87C1099.5 128.01 1103.9 115.91 1112.68 106.59C1121.46 97.27 1132.94 92.63 1147.14 92.63C1161.34 92.63 1172.3 97.23 1180.8 106.41C1189.3 115.59 1193.56 127.69 1193.56 142.69V151.13L1193.54 151.11ZM1121.36 135.17H1170.48C1170.04 127.49 1167.72 121.63 1163.5 117.59C1159.28 113.55 1153.6 111.55 1146.48 111.55C1139.36 11.55 1133.66 113.59 1129.24 117.69C1124.8 121.79 1122.18 127.61 1121.36 135.17Z" fill="#F2F4F9"/>
+      </g>
+      <defs><clipPath id="c0"><rect width="1193.56" height="240" fill="white"/></clipPath></defs>
+    </svg>
+  </a>
+  <span class="topbar-version">v{% raw version %}</span>
+  <div class="search-wrapper">
+    <span class="search-icon">&#x1F50D;</span>
+    <input type="text" class="search-input" id="searchInput" placeholder="Filter devices..." autocomplete="off">
+    <button class="search-clear" id="searchClear">&times;</button>
+  </div>
+  <div class="topbar-stats" id="statsBar"></div>
+  <div class="topbar-links">
+    <a href="{% raw relative_url %}classic">Classic</a>
+    <a href="{% raw docs_link %}" target="_blank" rel="noopener">Docs</a>
+  </div>
+</div>
+
+<div class="tagbar" id="tagbar"></div>
+
+<div class="table-wrap">
+  <table>
+    <thead id="thead">
+      <tr>
+        <th data-sort="status">Status</th>
+        <th data-sort="name">Name</th>
+        <th data-sort="ip">IP Address</th>
+        <th data-sort="platform">Platform</th>
+        <th data-sort="version">ESPHome Version</th>
+        <th data-sort="comment">Comment</th>
+        <th data-sort="tags">Tags</th>
+        <th data-sort="config">Config File</th>
+      </tr>
+    </thead>
+    <tbody id="tb"></tbody>
+  </table>
+  <div class="empty-msg" id="emptyMsg" style="display:none;">No devices configured. <a href="{% raw relative_url %}classic">Open Classic Dashboard</a> to get started.</div>
+  <div class="empty-msg" id="noResults" style="display:none;">No devices match your filter.</div>
+  <div class="empty-msg" id="loadingMsg">Loading devices...</div>
+</div>
+
+<!-- Side Panel -->
+<div class="panel-overlay" id="panelOverlay"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="sp-header">
+    <div class="sp-dot" id="spDot"></div>
+    <div>
+      <div class="sp-title" id="spTitle"></div>
+      <div class="sp-subtitle" id="spSubtitle"></div>
+    </div>
+    <button class="sp-close" onclick="D.closePanel()">&times;</button>
+  </div>
+  <div class="sp-info" id="spInfo"></div>
+  <div class="sp-tags" id="spTags"></div>
+  <div class="sp-actions">
+    <div class="sp-actions-label">Actions</div>
+    <div id="spActions"></div>
+  </div>
+</div>
+
+<!-- Tag Edit Modal -->
+<div class="tag-edit-overlay" id="tagOverlay">
+  <div class="tag-edit-box">
+    <h3 id="tagEditTitle">Edit Tags</h3>
+    <div class="tag-cloud" id="tagCloud"></div>
+    <div class="tag-pool" id="tagPool"></div>
+    <div class="tag-add-row">
+      <input type="text" class="tag-edit-input" id="tagEditInput" placeholder="Type a new tag and press Enter..." autocomplete="off">
+      <button class="btn-add-tag" onclick="D.addTagFromInput()">Add</button>
+    </div>
+    <div class="tag-edit-actions">
+      <button class="btn" onclick="D.closeTagEdit()">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var REL="{% raw relative_url %}";
+
+  var devices=[],archived=[],ping={};
+  var search="",activeTags=[],archOpen=false,sCol="name",sDir="asc",editingConfig=null,panelConfig=null;
+
+  var $search=document.getElementById("searchInput"),$clear=document.getElementById("searchClear"),
+      $tb=document.getElementById("tb"),$stats=document.getElementById("statsBar"),
+      $load=document.getElementById("loadingMsg"),$empty=document.getElementById("emptyMsg"),
+      $noRes=document.getElementById("noResults"),$tagbar=document.getElementById("tagbar"),
+      $tagOverlay=document.getElementById("tagOverlay"),$tagInput=document.getElementById("tagEditInput"),
+      $tagTitle=document.getElementById("tagEditTitle"),
+      $panelOverlay=document.getElementById("panelOverlay"),$sidePanel=document.getElementById("sidePanel");
+
+  function esc(s){if(!s)return"";var d=document.createElement("div");d.textContent=s;return d.innerHTML}
+  function stOf(f){var s=ping[f];return s===true?"online":s===false?"offline":"unknown"}
+  function stLbl(f){var s=ping[f];return s===true?"Online":s===false?"Offline":"Unknown"}
+  function stOrd(f){var s=ping[f];return s===true?0:(s===null||s===undefined)?1:2}
+
+  function getAllTags(){
+    var m={};
+    devices.concat(archived).forEach(function(d){(d.tags||[]).forEach(function(t){m[t]=(m[t]||0)+1})});
+    return Object.keys(m).sort().map(function(t){return{name:t,count:m[t]}});
+  }
+
+  function matchDevice(d){
+    if(search){
+      var t=search.toLowerCase();
+      if((d.name||"").toLowerCase().indexOf(t)<0&&(d.friendly_name||"").toLowerCase().indexOf(t)<0&&
+        (d.comment||"").toLowerCase().indexOf(t)<0&&(d.address||"").toLowerCase().indexOf(t)<0&&
+        (d.configuration||"").toLowerCase().indexOf(t)<0)return false;
+    }
+    if(activeTags.length>0){
+      var dt=d.tags||[];
+      var hasTag=false;
+      for(var i=0;i<activeTags.length;i++){if(dt.indexOf(activeTags[i])>=0){hasTag=true;break}}
+      if(!hasTag)return false;
+    }
+    return true;
+  }
+
+  function cmp(a,b){
+    var va,vb;
+    if(sCol==="name"){va=(a.friendly_name||a.name||"").toLowerCase();vb=(b.friendly_name||b.name||"").toLowerCase()}
+    else if(sCol==="ip"){
+      va=a.address||"";vb=b.address||"";
+      var pa=va.split(".").map(Number),pb=vb.split(".").map(Number);
+      for(var i=0;i<4;i++){var na=pa[i]||0,nb=pb[i]||0;if(na!==nb)return sDir==="asc"?na-nb:nb-na}
+      return 0;
+    }
+    else if(sCol==="platform"){va=(a.target_platform||"").toLowerCase();vb=(b.target_platform||"").toLowerCase()}
+    else if(sCol==="version"){va=a.deployed_version||"";vb=b.deployed_version||""}
+    else if(sCol==="comment"){va=(a.comment||"").toLowerCase();vb=(b.comment||"").toLowerCase()}
+    else if(sCol==="config"){va=(a.configuration||"").toLowerCase();vb=(b.configuration||"").toLowerCase()}
+    else if(sCol==="tags"){va=(a.tags||[]).join(",");vb=(b.tags||[]).join(",")}
+    else if(sCol==="status"){
+      va=stOrd(a.configuration);vb=stOrd(b.configuration);
+      if(va!==vb)return sDir==="asc"?va-vb:vb-va;
+      va=(a.friendly_name||a.name||"").toLowerCase();vb=(b.friendly_name||b.name||"").toLowerCase();
+    }
+    if(va<vb)return sDir==="asc"?-1:1;
+    if(va>vb)return sDir==="asc"?1:-1;
+    return 0;
+  }
+
+  function row(d,isArch){
+    var st=isArch?"offline":stOf(d.configuration);
+    var sl=isArch?"Archived":stLbl(d.configuration);
+    var cls=isArch?' class="archived-row"':'';
+    var hasUpd=!isArch&&d.deployed_version&&d.current_version&&d.deployed_version!==d.current_version;
+    var tags=d.tags||[];
+    var c=esc(d.configuration);
+
+    var h='<tr'+cls+' onclick="D.openPanel(\''+c+'\')">';
+    h+='<td><span class="dot '+st+'"></span></td>';
+    h+='<td><span class="cell-name">'+esc(d.friendly_name||d.name)+"</span></td>";
+    h+="<td>"+(d.address?'<span class="ip">'+esc(d.address)+"</span>":'<span class="muted">-</span>')+"</td>";
+    h+="<td>"+(d.target_platform?'<span class="plat">'+esc(d.target_platform)+"</span>":'<span class="muted">-</span>')+"</td>";
+    h+="<td>";
+    if(d.deployed_version){
+      h+='<span class="ver">'+esc(d.deployed_version)+'</span>';
+      if(hasUpd)h+=' <span class="ver-update">(Update Available)</span>';
+    }else h+='<span class="muted">-</span>';
+    h+="</td>";
+    h+='<td><span class="cell-comment">'+esc(d.comment||"-")+"</span></td>";
+    h+='<td style="cursor:pointer" onclick="event.stopPropagation();D.openTagEdit(\''+c+'\')">';
+    for(var i=0;i<tags.length;i++)h+='<span class="tag-pill">'+esc(tags[i])+"</span>";
+    if(!tags.length)h+='<span class="muted">+ add</span>';
+    h+="</td>";
+    h+='<td><span class="cell-config">'+esc(d.configuration)+"</span></td>";
+    h+="</tr>";
+    return h;
+  }
+
+  function renderTagBar(){
+    var tags=getAllTags();
+    if(!tags.length){$tagbar.classList.remove("visible");return}
+    var html='<span class="tagbar-label">Tags</span>';
+    html+='<button class="tag-btn'+(activeTags.length===0?" active":"")+'" onclick="D.clearTags()">All</button>';
+    for(var i=0;i<tags.length;i++){
+      var isActive=activeTags.indexOf(tags[i].name)>=0;
+      html+='<button class="tag-btn'+(isActive?" active":"")+'" onclick="D.toggleTag(\''+esc(tags[i].name)+'\')">';
+      html+=esc(tags[i].name)+'<span class="tag-count">'+tags[i].count+'</span></button>';
+    }
+    $tagbar.innerHTML=html;
+    $tagbar.classList.add("visible");
+  }
+
+  function render(){
+    $load.style.display="none";
+    var f=devices.filter(matchDevice),fa=archived.filter(matchDevice);
+    f.sort(cmp);fa.sort(cmp);
+    renderTagBar();
+
+    var on=0;for(var i=0;i<devices.length;i++)if(ping[devices[i].configuration]===true)on++;
+    $stats.innerHTML="<strong>"+devices.length+"</strong>&nbsp;devices&nbsp;&nbsp;<strong>"+on+"</strong>&nbsp;online"+(archived.length?"&nbsp;&nbsp;<strong>"+archived.length+"</strong>&nbsp;archived":"");
+
+    if(!devices.length&&!archived.length){$empty.style.display="";$noRes.style.display="none";$tb.innerHTML="";return}
+    $empty.style.display="none";
+    if(!f.length&&!fa.length&&(search||activeTags.length)){$noRes.style.display="";$tb.innerHTML="";return}
+    $noRes.style.display="none";
+
+    var h="";
+    for(var j=0;j<f.length;j++)h+=row(f[j],false);
+    if(archived.length){
+      var cc=archOpen?"chevron open":"chevron";
+      h+='<tr class="archived-divider" onclick="D.toggleArchived()"><td colspan="8"><span class="'+cc+'">&#9654;</span>Archived<span class="arch-badge">'+archived.length+"</span></td></tr>";
+      if(archOpen)for(var k=0;k<fa.length;k++)h+=row(fa[k],true);
+    }
+    $tb.innerHTML=h;
+
+    var ths=document.querySelectorAll("th[data-sort]");
+    for(var t=0;t<ths.length;t++){
+      ths[t].className=ths[t].getAttribute("data-sort")===sCol?"sorted-"+sDir:"";
+    }
+
+    // Update side panel if open
+    if(panelConfig)D.openPanel(panelConfig);
+  }
+
+  // Sort
+  document.querySelector("thead").addEventListener("click",function(e){
+    var th=e.target.closest("th[data-sort]");if(!th)return;
+    var c=th.getAttribute("data-sort");
+    if(sCol===c)sDir=sDir==="asc"?"desc":"asc";else{sCol=c;sDir="asc"}
+    render();
+  });
+
+  // Search
+  $search.addEventListener("input",function(){search=this.value.trim();$clear.classList.toggle("visible",search.length>0);render()});
+  $clear.addEventListener("click",function(){$search.value="";search="";$clear.classList.remove("visible");$search.focus();render()});
+
+  // XSRF
+  function getXsrf(){var m=document.cookie.match(/(?:^|;\s*)_xsrf=([^;]*)/);return m?decodeURIComponent(m[1]):""}
+  function post(url,body){
+    var h={"Content-Type":"application/json"};var x=getXsrf();if(x)h["X-Xsrftoken"]=x;
+    return fetch(url,{method:"POST",credentials:"same-origin",headers:h,body:body?JSON.stringify(body):undefined});
+  }
+  function postForm(url){
+    var h={"Content-Type":"application/x-www-form-urlencoded"};var x=getXsrf();if(x)h["X-Xsrftoken"]=x;
+    return fetch(url,{method:"POST",credentials:"same-origin",headers:h});
+  }
+
+  var editingTags=[];
+
+  // Public API
+  window.D={
+    archive:function(c){if(!confirm("Archive "+c+"?"))return;D.closePanel();postForm(REL+"archive?configuration="+encodeURIComponent(c)).then(refresh)},
+    unarchive:function(c){postForm(REL+"unarchive?configuration="+encodeURIComponent(c)).then(refresh)},
+    toggleArchived:function(){archOpen=!archOpen;render()},
+    toggleTag:function(tag){var i=activeTags.indexOf(tag);if(i>=0)activeTags.splice(i,1);else activeTags.push(tag);render()},
+    clearTags:function(){activeTags=[];render()},
+
+    // Side Panel
+    openPanel:function(cfg){
+      panelConfig=cfg;
+      var d=devices.find(function(x){return x.configuration===cfg})||archived.find(function(x){return x.configuration===cfg});
+      if(!d)return;
+      var st=stOf(d.configuration),sl=stLbl(d.configuration);
+      var cu=encodeURIComponent(d.configuration);
+      var hasUpd=d.deployed_version&&d.current_version&&d.deployed_version!==d.current_version;
+      var tags=d.tags||[];
+
+      document.getElementById("spDot").className="sp-dot "+st;
+      document.getElementById("spTitle").textContent=d.friendly_name||d.name;
+      document.getElementById("spSubtitle").textContent=d.name+(d.friendly_name&&d.friendly_name!==d.name?" ("+d.name+")":"");
+
+      // Info rows
+      var info="";
+      info+='<div class="sp-info-row"><span class="sp-info-label">Status</span><span class="sp-info-value">'+sl+'</span></div>';
+      if(d.address)info+='<div class="sp-info-row"><span class="sp-info-label">IP Address</span><span class="sp-info-value">'+esc(d.address)+'</span></div>';
+      if(d.target_platform)info+='<div class="sp-info-row"><span class="sp-info-label">Platform</span><span class="sp-info-value">'+esc(d.target_platform)+'</span></div>';
+      if(d.deployed_version){
+        info+='<div class="sp-info-row"><span class="sp-info-label">ESPHome Version</span><span class="sp-info-value">'+esc(d.deployed_version)+'</span></div>';
+        if(hasUpd)info+='<div class="sp-info-row"><span class="sp-info-label"></span><span style="color:#ff9800;font-size:11px;font-family:inherit">(Update Available: '+esc(d.current_version)+')</span></div>';
+      }
+      if(d.comment)info+='<div class="sp-info-row"><span class="sp-info-label">Comment</span><span class="sp-info-value" style="font-family:inherit">'+esc(d.comment)+'</span></div>';
+      info+='<div class="sp-info-row"><span class="sp-info-label">Config</span><span class="sp-info-value">'+esc(d.configuration)+'</span></div>';
+      document.getElementById("spInfo").innerHTML=info;
+
+      // Tags
+      var th='<div class="sp-tags-label">Tags</div><div class="sp-tags-list">';
+      for(var i=0;i<tags.length;i++)th+='<span class="sp-tag-pill">'+esc(tags[i])+'</span>';
+      th+='<button class="sp-tag-edit" onclick="D.openTagEdit(\''+esc(cfg)+'\')">+ edit</button>';
+      th+='</div>';
+      document.getElementById("spTags").innerHTML=th;
+
+      // Actions
+      var c=esc(cfg),cu=encodeURIComponent(cfg);
+      var a="";
+      if(hasUpd)a+='<button class="sp-btn" onclick="D.runCmd(\'run\',\''+c+'\')">Update to '+esc(d.current_version)+'</button>';
+      a+='<button class="sp-btn" onclick="D.runCmd(\'upload\',\''+c+'\')">Install (Upload OTA)</button>';
+      a+='<button class="sp-btn" onclick="D.runCmd(\'run\',\''+c+'\')">Install (Compile + Upload)</button>';
+      a+='<button class="sp-btn" onclick="D.openYaml(\''+cu+'\')">Edit</button>';
+      a+='<button class="sp-btn" onclick="D.runCmd(\'validate\',\''+c+'\')">Validate</button>';
+      a+='<button class="sp-btn" onclick="D.runCmd(\'compile\',\''+c+'\')">Compile</button>';
+      a+='<button class="sp-btn" onclick="D.runCmd(\'logs\',\''+c+'\')">Logs</button>';
+      if(d.web_port&&d.address)a+='<a class="sp-btn" href="http://'+esc(d.address)+':'+d.web_port+'" target="_blank" rel="noopener">Visit Device</a>';
+      a+='<div class="sp-sep"></div>';
+      a+='<button class="sp-btn" onclick="D.showApiKey(\''+cu+'\')">Show API Key</button>';
+      a+='<button class="sp-btn" onclick="D.runCmd(\'clean\',\''+c+'\')">Clean Build</button>';
+      a+='<button class="sp-btn" onclick="D.runCmd(\'clean-mqtt\',\''+c+'\')">Clean MQTT</button>';
+      a+='<div class="sp-sep"></div>';
+      a+='<button class="sp-btn sp-btn-danger" onclick="D.archive(\''+c+'\')">Archive</button>';
+      document.getElementById("spActions").innerHTML=a;
+
+      $panelOverlay.classList.add("open");
+      $sidePanel.classList.add("open");
+    },
+    closePanel:function(){
+      $panelOverlay.classList.remove("open");
+      $sidePanel.classList.remove("open");
+      panelConfig=null;
+    },
+
+    // ANSI color parser - handles both real ESC byte and literal \033
+    _ansi:function(s){
+      // Normalize: replace literal \033 with real ESC char
+      s=s.replace(/\\033/g,"\x1b");
+      var r="",cls="",i=0;
+      while(i<s.length){
+        if(s.charCodeAt(i)===27&&s[i+1]==="["){
+          var j=i+2;while(j<s.length&&s[j]!=="m")j++;
+          var codes=s.substring(i+2,j).split(";");
+          if(cls)r+="</span>";cls="";
+          var classes=[];
+          for(var k=0;k<codes.length;k++){
+            var c=parseInt(codes[k]);
+            if(c===0)classes=[];
+            else if(c===1)classes.push("bold");
+            else if(c>=30&&c<=37)classes.push("c"+c);
+            else if(c>=90&&c<=97)classes.push("c"+c);
+          }
+          if(classes.length){cls=classes.join(" ");r+='<span class="'+cls+'">';}
+          i=j+1;
+        }else{
+          var ch=s[i];
+          if(ch==="<")r+="&lt;";else if(ch===">")r+="&gt;";else if(ch==="&")r+="&amp;";else r+=ch;
+          i++;
+        }
+      }
+      if(cls)r+="</span>";
+      return r;
+    },
+
+    // Commands - open in popup window
+    runCmd:function(cmd,cfg){
+      var endpointMap={logs:"logs",upload:"upload",run:"run",compile:"compile",validate:"validate",clean:"clean","clean-mqtt":"clean-mqtt"};
+      var endpoint=endpointMap[cmd];if(!endpoint)return;
+      var needsPort=cmd==="logs"||cmd==="upload"||cmd==="run";
+      var title=cmd.charAt(0).toUpperCase()+cmd.slice(1)+" "+cfg;
+      var cfgEnc=encodeURIComponent(cfg);
+      var w=window.open("","_blank");
+      if(!w)return;
+      w.document.write('<!DOCTYPE html><html><head><title>'+title+'</title><style>');
+      w.document.write('*{margin:0;padding:0;box-sizing:border-box}');
+      w.document.write('body{background:#111;color:#ccc;font-family:"SF Mono","Fira Code",Menlo,Consolas,monospace;font-size:13px;display:flex;flex-direction:column;height:100vh}');
+      w.document.write('.header{background:#0a0a0a;padding:12px 16px;font-size:15px;font-weight:600;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;border-bottom:1px solid #222}');
+      w.document.write('.output{flex:1;overflow-y:auto;padding:8px 16px;white-space:pre-wrap;word-break:break-all;line-height:1.7}');
+      w.document.write('.toolbar{background:#0a0a0a;border-top:1px solid #222;padding:10px 16px;display:flex;justify-content:flex-end;gap:12px}');
+      w.document.write('.toolbar button,.toolbar a{background:none;border:none;color:#bb86fc;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;font-family:-apple-system,sans-serif;letter-spacing:0.5px;padding:4px 8px}');
+      w.document.write('.toolbar button:hover,.toolbar a:hover{color:#fff}');
+      w.document.write('.c0{color:#ccc}.c1{color:#ff5555}.c2{color:#4caf50}.c3{color:#ffff55}.c4{color:#5555ff}.c5{color:#e040fb}.c6{color:#40e0d0}.c7{color:#fff}');
+      w.document.write('.c30{color:#555}.c31{color:#ff5555}.c32{color:#4caf50}.c33{color:#ffff55}.c34{color:#5555ff}.c35{color:#e040fb}.c36{color:#40e0d0}.c37{color:#fff}');
+      w.document.write('.c90{color:#888}.c91{color:#ff8888}.c92{color:#88ff88}.c93{color:#ffff88}.c94{color:#8888ff}.c95{color:#ff88ff}.c96{color:#88ffff}.c97{color:#fff}');
+      w.document.write('.bold{font-weight:700}.ok{color:#4caf50}.err{color:#ff5555}');
+      w.document.write('</style></head><body>');
+      w.document.write('<div class="header">'+title+'</div>');
+      w.document.write('<div class="output" id="out">Connecting...</div>');
+      w.document.write('<div class="toolbar">');
+      w.document.write('<button onclick="downloadLogs()">DOWNLOAD LOGS</button>');
+      w.document.write('<button onclick="window.opener.D.openYaml(\''+cfgEnc+'\')">EDIT</button>');
+      w.document.write('<button onclick="window.close()">CLOSE</button>');
+      w.document.write('</div>');
+      w.document.write('<script>');
+      w.document.write('var rawLog="";');
+      w.document.write('function downloadLogs(){');
+      w.document.write('  var b=new Blob([rawLog],{type:"text/plain"});');
+      w.document.write('  var a=document.createElement("a");a.href=URL.createObjectURL(b);');
+      w.document.write('  a.download="'+cfg.replace(".yaml","")+'-logs.txt";a.click();');
+      w.document.write('}');
+      w.document.write('<\/script></body></html>');
+      w.document.close();
+      var $out=w.document.getElementById("out");
+      var proto=location.protocol==="https:"?"wss:":"ws:";
+      var ws=new WebSocket(proto+"//"+location.host+REL+endpoint);
+      ws.onopen=function(){
+        var msg={type:"spawn",configuration:cfg};
+        if(needsPort)msg.port="OTA";
+        ws.send(JSON.stringify(msg));
+        $out.innerHTML="";
+        w.rawLog="";
+      };
+      ws.onmessage=function(ev){
+        var m;try{m=JSON.parse(ev.data)}catch(e){return}
+        if(m.event==="line"){
+          var raw=(m.data||"");
+          if(raw.indexOf("\n")<0)raw+="\n";
+          w.rawLog+=raw;
+          var parsed=D._ansi(raw);
+          $out.insertAdjacentHTML("beforeend",parsed);
+          $out.scrollTop=$out.scrollHeight;
+        }else if(m.event==="exit"){
+          var el=w.document.createElement("div");
+          el.className=m.code===0?"ok":"err";
+          el.textContent=m.code===0?"\nDone (success)":"\nExited with code "+m.code;
+          $out.appendChild(el);
+          $out.scrollTop=$out.scrollHeight;
+        }
+      };
+      ws.onerror=function(){$out.innerHTML+='<span class="err">WebSocket error</span>\n'};
+      w.addEventListener("beforeunload",function(){ws.close()});
+    },
+    openYaml:function(cfgEncoded){
+      var cfg=decodeURIComponent(cfgEncoded);
+      var w=window.open("","_blank","width=900,height=700,menubar=no,toolbar=no");
+      if(!w)return;
+      w.document.write('<!DOCTYPE html><html><head><title>Edit: '+cfg+'</title>');
+      w.document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.min.js"><\/script>');
+      w.document.write('<style>');
+      w.document.write('*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0a0a;display:flex;flex-direction:column;height:100vh;overflow:hidden}');
+      w.document.write('.toolbar{background:#141414;padding:8px 14px;display:flex;gap:10px;border-bottom:1px solid #222;align-items:center}');
+      w.document.write('.toolbar .filename{font-size:13px;font-weight:600;color:#fff;flex:1;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}');
+      w.document.write('.toolbar .status{font-size:11px;color:#888;font-family:-apple-system,sans-serif}');
+      w.document.write('.toolbar button{padding:6px 18px;border-radius:4px;border:none;cursor:pointer;font-size:12px;font-family:-apple-system,sans-serif;font-weight:600}');
+      w.document.write('.btn-save{background:#18BCF2;color:#000}.btn-save:hover{background:#13a5d6}');
+      w.document.write('#editor{flex:1;width:100%}');
+      w.document.write('</style></head><body>');
+      w.document.write('<div class="toolbar"><span class="filename">'+cfg+'</span><span class="status" id="status"></span>');
+      w.document.write('<button class="btn-save" onclick="saveFile()">Save</button></div>');
+      w.document.write('<div id="editor"></div>');
+      w.document.write('<script>');
+      w.document.write('var editor=ace.edit("editor");');
+      w.document.write('editor.setTheme("ace/theme/tomorrow_night");');
+      w.document.write('editor.session.setMode("ace/mode/yaml");');
+      w.document.write('editor.setOptions({fontSize:"13px",showPrintMargin:false,tabSize:2,useSoftTabs:true,wrap:true});');
+      w.document.write('var dirty=false;editor.on("change",function(){dirty=true;document.getElementById("status").textContent="(unsaved)"});');
+      w.document.write('fetch("'+REL+'edit?configuration='+cfgEncoded+'",{credentials:"same-origin"}).then(function(r){return r.text()}).then(function(t){editor.setValue(t,-1);dirty=false;document.getElementById("status").textContent=""});');
+      w.document.write('function saveFile(){var body=editor.getValue();document.getElementById("status").textContent="Saving...";');
+      w.document.write('fetch("'+REL+'edit?configuration='+cfgEncoded+'",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/yaml"},body:body})');
+      w.document.write('.then(function(r){if(r.ok){dirty=false;document.getElementById("status").textContent="Saved"}else{document.getElementById("status").textContent="Error: "+r.status}})');
+      w.document.write('.catch(function(){document.getElementById("status").textContent="Save failed"})}');
+      w.document.write('document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&e.key==="s"){e.preventDefault();saveFile()}});');
+      w.document.write('window.addEventListener("beforeunload",function(e){if(dirty){e.preventDefault();e.returnValue=""}});');
+      w.document.write('<\/script></body></html>');
+      w.document.close();
+    },
+    showApiKey:function(cfgEncoded){
+      fetch(REL+"info?configuration="+cfgEncoded,{credentials:"same-origin"})
+        .then(function(r){return r.json()})
+        .then(function(data){
+          var key=data.api_key||data.noise_psk||"No API key found";
+          var w=window.open("","_blank","width=500,height=200,menubar=no,toolbar=no");
+          if(!w)return;
+          w.document.write('<!DOCTYPE html><html><head><title>API Key</title><style>body{background:#0a0a0a;color:#e0e0e0;font-family:"SF Mono",Menlo,monospace;font-size:14px;padding:20px;display:flex;align-items:center;justify-content:center;min-height:100vh}div{text-align:center}p{color:#888;font-size:12px;margin-bottom:10px;font-family:sans-serif}.key{user-select:all;cursor:text;padding:12px;background:#1a1a1a;border-radius:6px;border:1px solid #333}</style></head><body><div><p>API Key</p><div class="key">'+key+'</div></div></body></html>');
+          w.document.close();
+        })
+        .catch(function(){alert("Failed to load device info")});
+    },
+
+    // Tag editing
+    openTagEdit:function(cfg){
+      editingConfig=cfg;
+      var d=devices.find(function(x){return x.configuration===cfg});
+      $tagTitle.textContent="Tags: "+(d?d.friendly_name||d.name:cfg);
+      editingTags=(d&&d.tags)?d.tags.slice():[];
+      D.renderTagCloud();
+      $tagOverlay.classList.add("open");
+      setTimeout(function(){$tagInput.focus()},50);
+    },
+    closeTagEdit:function(){$tagOverlay.classList.remove("open");editingConfig=null;editingTags=[]},
+    renderTagCloud:function(){
+      var $cloud=document.getElementById("tagCloud");
+      var $pool=document.getElementById("tagPool");
+      // Current tags on this device
+      if(!editingTags.length){$cloud.innerHTML='<span class="tag-cloud-empty">No tags yet</span>'}
+      else{
+        var h="";
+        for(var i=0;i<editingTags.length;i++){
+          h+='<span class="tag-cloud-pill">'+esc(editingTags[i]);
+          h+='<button class="tag-cloud-x" onclick="D.removeEditTag('+i+')">&times;</button></span>';
+        }
+        $cloud.innerHTML=h;
+      }
+      // Pool of all existing tags from other devices
+      var allTags=getAllTags();
+      var poolTags=allTags.filter(function(t){return editingTags.indexOf(t.name)<0});
+      if(allTags.length>0){
+        var ph='<span class="tag-pool-label">Existing tags (click to add)</span>';
+        for(var j=0;j<allTags.length;j++){
+          var already=editingTags.indexOf(allTags[j].name)>=0;
+          if(already){
+            ph+='<span class="tag-pool-btn applied">'+esc(allTags[j].name)+'</span>';
+          }else{
+            ph+='<button class="tag-pool-btn" onclick="D.addPoolTag(\''+esc(allTags[j].name)+'\')">'+esc(allTags[j].name)+'</button>';
+          }
+        }
+        $pool.innerHTML=ph;
+        $pool.style.display="";
+      }else{
+        $pool.innerHTML="";
+        $pool.style.display="none";
+      }
+    },
+    addPoolTag:function(tag){
+      if(editingTags.indexOf(tag)<0)editingTags.push(tag);
+      D.renderTagCloud();
+      D.saveTags();
+    },
+    removeEditTag:function(idx){editingTags.splice(idx,1);D.renderTagCloud();D.saveTags()},
+    addTagFromInput:function(){
+      var val=$tagInput.value.trim().toLowerCase();if(!val)return;
+      var newTags=val.split(",").map(function(t){return t.trim()}).filter(Boolean);
+      for(var i=0;i<newTags.length;i++){if(editingTags.indexOf(newTags[i])<0)editingTags.push(newTags[i])}
+      $tagInput.value="";D.renderTagCloud();D.saveTags();
+    },
+    saveTags:function(){
+      if(!editingConfig)return;
+      post(REL+"device-tags",{configuration:editingConfig,tags:editingTags}).then(function(r){return r.json()}).then(function(){
+        var d=devices.find(function(x){return x.configuration===editingConfig});
+        if(d)d.tags=editingTags.slice();
+        render();
+      });
+    }
+  };
+
+  // Keyboard
+  document.getElementById("tagEditInput").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();D.addTagFromInput()}if(e.key==="Escape")D.closeTagEdit()});
+  $tagOverlay.addEventListener("click",function(e){if(e.target===$tagOverlay)D.closeTagEdit()});
+  $panelOverlay.addEventListener("click",function(){D.closePanel()});
+  document.addEventListener("keydown",function(e){if(e.key==="Escape"){if(panelConfig)D.closePanel();if(editingConfig)D.closeTagEdit()}});
+
+  function refresh(){fetch(REL+"devices",{credentials:"same-origin"}).then(function(r){return r.json()}).then(function(d){devices=d.configured||[];archived=d.archived||[];render()})}
+
+  // WebSocket
+  function connectWS(){
+    var ws=new WebSocket((location.protocol==="https:"?"wss:":"ws:")+"//"+location.host+REL+"events");
+    ws.onmessage=function(ev){
+      var m;try{m=JSON.parse(ev.data)}catch(e){return}
+      if(m.event==="initial_state"){devices=(m.data.devices&&m.data.devices.configured)||[];archived=(m.data.devices&&m.data.devices.archived)||[];ping=m.data.ping||{};render()}
+      else if(m.event==="entry_state_changed"){ping[m.data.filename]=m.data.state;render()}
+      else if(m.event==="entry_added"){var d=m.data.device;if(d&&!devices.find(function(x){return x.configuration===d.configuration}))devices.push(d);render()}
+      else if(m.event==="entry_removed"){var e2=m.data.device;if(e2)devices=devices.filter(function(x){return x.configuration!==e2.configuration});render()}
+      else if(m.event==="entry_updated"){var u=m.data.device;if(u){var idx=devices.findIndex(function(x){return x.configuration===u.configuration});if(idx>=0)devices[idx]=u;else devices.push(u)}render()}
+      else if(m.event==="entry_archived"||m.event==="entry_unarchived")refresh();
+    };
+    ws.onclose=function(){setTimeout(connectWS,3000)};
+    setInterval(function(){if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({event:"ping"}))},25000);
+  }
+
+  render();
+  connectWS();
+})();
+</script>
+</body>
+</html>

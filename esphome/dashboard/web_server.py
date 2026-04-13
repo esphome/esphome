@@ -684,6 +684,14 @@ class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHand
                 DashboardEvent.IMPORTABLE_DEVICE_REMOVED,
                 self._on_importable_removed,
             ),
+            async_add_listener(
+                DashboardEvent.ENTRY_ARCHIVED,
+                self._on_archive_changed,
+            ),
+            async_add_listener(
+                DashboardEvent.ENTRY_UNARCHIVED,
+                self._on_archive_changed,
+            ),
         ]
 
     def _on_entry_state_changed(self, event: Event) -> None:
@@ -727,6 +735,12 @@ class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHand
         """Handle importable device removed event."""
         self._safe_send_message(
             {"event": DashboardEvent.IMPORTABLE_DEVICE_REMOVED, "data": event.data}
+        )
+
+    def _on_archive_changed(self, event: Event) -> None:
+        """Handle entry archived/unarchived event."""
+        self._safe_send_message(
+            {"event": event.event_type, "data": event.data}
         )
 
     def _safe_send_message(self, message: dict[str, Any]) -> None:
@@ -971,6 +985,42 @@ class IgnoreDeviceRequestHandler(BaseHandler):
         self.finish()
 
 
+class DeviceTagsHandler(BaseHandler):
+    def check_xsrf_cookie(self) -> None:
+        """Skip XSRF for JSON API calls with proper auth."""
+        pass
+
+    @authenticated
+    async def get(self) -> None:
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps({"tags": DASHBOARD.device_tags}))
+
+    @authenticated
+    async def post(self) -> None:
+        try:
+            data = json.loads(self.request.body)
+        except (json.JSONDecodeError, TypeError):
+            self.set_status(400)
+            self.write(json.dumps({"error": "invalid JSON"}))
+            return
+        configuration = data.get("configuration")
+        tags = data.get("tags", [])
+        if not configuration:
+            self.set_status(400)
+            self.write(json.dumps({"error": "configuration required"}))
+            return
+        # Clean tags: strip whitespace, lowercase, remove empties
+        tags = sorted(set(t.strip().lower() for t in tags if t.strip()))
+        if tags:
+            DASHBOARD.device_tags[configuration] = tags
+        else:
+            DASHBOARD.device_tags.pop(configuration, None)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, DASHBOARD.save_device_tags)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps({"tags": DASHBOARD.device_tags}))
+
+
 class DownloadListRequestHandler(BaseHandler):
     @authenticated
     @bind_config
@@ -1136,11 +1186,34 @@ class ListDevicesHandler(BaseHandler):
 
 
 class MainRequestHandler(BaseHandler):
+    def get_template_path(self) -> str:
+        """Serve the enhanced dashboard template from the local templates dir."""
+        return str(Path(__file__).parent / "templates")
+
     @authenticated
     def get(self) -> None:
         begin = bool(self.get_argument("begin", False))
         if settings.using_password:
             # Simply accessing the xsrf_token sets the cookie for us
+            self.xsrf_token  # pylint: disable=pointless-statement
+        else:
+            self.clear_cookie("_xsrf")
+
+        self.render(
+            "index.template.html",
+            begin=begin,
+            **template_args(),
+            login_enabled=settings.using_password,
+        )
+
+
+class ClassicDashboardHandler(BaseHandler):
+    """Serves the original external esphome-dashboard frontend."""
+
+    @authenticated
+    def get(self) -> None:
+        begin = bool(self.get_argument("begin", False))
+        if settings.using_password:
             self.xsrf_token  # pylint: disable=pointless-statement
         else:
             self.clear_cookie("_xsrf")
@@ -1331,6 +1404,11 @@ class ArchiveRequestHandler(BaseHandler):
             # Delete build folder (if exists)
             shutil.rmtree(storage_json.build_path, ignore_errors=True)
 
+        DASHBOARD.bus.async_fire(
+            DashboardEvent.ENTRY_ARCHIVED,
+            {"configuration": configuration},
+        )
+
 
 class UnArchiveRequestHandler(BaseHandler):
     @authenticated
@@ -1339,6 +1417,11 @@ class UnArchiveRequestHandler(BaseHandler):
         config_file = settings.rel_path(configuration)
         archive_path = archive_storage_path()
         shutil.move(archive_path / configuration, config_file)
+
+        DASHBOARD.bus.async_fire(
+            DashboardEvent.ENTRY_UNARCHIVED,
+            {"configuration": configuration},
+        )
 
 
 class LoginHandler(BaseHandler):
@@ -1562,6 +1645,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
     return tornado.web.Application(
         [
             (f"{rel}", MainRequestHandler),
+            (f"{rel}classic", ClassicDashboardHandler),
             (f"{rel}login", LoginHandler),
             (f"{rel}logout", LogoutHandler),
             (f"{rel}logs", EsphomeLogsHandler),
@@ -1597,6 +1681,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}boards/([a-z0-9]+)", BoardsRequestHandler),
             (f"{rel}version", EsphomeVersionHandler),
             (f"{rel}ignore-device", IgnoreDeviceRequestHandler),
+            (f"{rel}device-tags", DeviceTagsHandler),
         ],
         **app_settings,
     )
