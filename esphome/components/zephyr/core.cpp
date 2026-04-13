@@ -95,7 +95,7 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
 void setup();
 void loop();
 
-int main() {
+int __attribute__((optimize("O2"))) main() {
   setup();
   while (true) {
     loop();
