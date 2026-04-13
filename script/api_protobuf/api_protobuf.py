@@ -2683,7 +2683,11 @@ def build_message_type(
     # When set, __attribute__((optimize("O2"))) is added to the definitions
     # so GCC inlines the small ProtoEncode helpers even under -Os.
     is_speed_optimized = get_opt(desc, pb.speed_optimized, False)
-    speed_attr = '__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)\n' if is_speed_optimized else ""
+    speed_attr = (
+        '__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)\n'
+        if is_speed_optimized
+        else ""
+    )
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode and not is_inline_only:
