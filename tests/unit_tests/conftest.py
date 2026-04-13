@@ -84,9 +84,9 @@ def mock_decode_pc() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
-def mock_run_external_command() -> Generator[Mock, None, None]:
-    """Mock run_external_command for platformio_api."""
-    with patch("esphome.platformio_api.run_external_command") as mock:
+def mock_run_external_process() -> Generator[Mock, None, None]:
+    """Mock run_external_process for platformio_api."""
+    with patch("esphome.platformio_api.run_external_process") as mock:
         yield mock
 
 

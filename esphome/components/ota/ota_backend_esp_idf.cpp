@@ -3,6 +3,7 @@
 
 #include "esphome/components/md5/md5.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/log.h"
 
 #include <esp_ota_ops.h>
 #include <esp_task_wdt.h>
@@ -17,6 +18,9 @@ static constexpr uint32_t OTA_POLL_PERIOD_MS = 1000;
 
 namespace esphome {
 namespace ota {
+namespace esphome::ota {
+
+static const char *const TAG = "ota.idf";
 
 std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
@@ -130,7 +134,12 @@ OTAResponseTypes IDFOTABackend::end() {
     }
   }
   if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+#ifdef USE_OTA_SIGNED_VERIFICATION
+    ESP_LOGE(TAG, "OTA validation failed (err=0x%X) - possible signature verification failure", err);
+    return OTA_RESPONSE_ERROR_SIGNATURE_INVALID;
+#else
     return OTA_RESPONSE_ERROR_UPDATE_END;
+#endif
   }
   if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
@@ -155,6 +164,5 @@ void IDFOTABackend::abort() {
 #endif
 }
 
-}  // namespace ota
-}  // namespace esphome
+}  // namespace esphome::ota
 #endif  // USE_ESP32

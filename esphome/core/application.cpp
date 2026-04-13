@@ -28,22 +28,8 @@
 #include "esphome/components/socket/socket.h"
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
 #include <cerrno>
-
-#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
-// LWIP sockets implementation
-#include <lwip/sockets.h>
-#elif defined(USE_SOCKET_IMPL_BSD_SOCKETS)
-// BSD sockets implementation
-#ifdef USE_ESP32
-// ESP32 "BSD sockets" are actually LWIP under the hood
-#include <lwip/sockets.h>
-#else
-// True BSD sockets (e.g., host platform)
-#include <sys/select.h>
-#endif
-#endif
 #endif
 
 namespace esphome {
@@ -128,13 +114,11 @@ void Application::setup() {
   clear_setup_priority_overrides();
 #endif
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
-  // Initialize fast select: saves main loop task handle for xTaskNotifyGive wake.
-  // The fast path (rcvevent reads + ulTaskNotifyTake) is used unconditionally
-  // when USE_LWIP_FAST_SELECT is enabled (ESP32 and LibreTiny).
-  esphome_lwip_fast_select_init();
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Save main loop task handle for wake_loop_*() / fast select FreeRTOS notifications.
+  esphome_main_task_handle = xTaskGetCurrentTaskHandle();
 #endif
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
   // Set up wake socket for waking main loop from tasks (platforms without fast select only)
   this->setup_wake_loop_threadsafe_();
 #endif
@@ -490,23 +474,17 @@ void Application::unregister_socket(struct lwip_sock *sock) {
     return;
   }
 }
-#elif defined(USE_SOCKET_SELECT_SUPPORT)
+#elif defined(USE_HOST)
 bool Application::register_socket_fd(int fd) {
   // WARNING: This function is NOT thread-safe and must only be called from the main loop
   // It modifies socket_fds_ and related variables without locking
   if (fd < 0)
     return false;
 
-#ifndef USE_ESP32
-  // Only check on non-ESP32 platforms
-  // On ESP32 (both Arduino and ESP-IDF), CONFIG_LWIP_MAX_SOCKETS is always <= FD_SETSIZE by design
-  // (LWIP_SOCKET_OFFSET = FD_SETSIZE - CONFIG_LWIP_MAX_SOCKETS per lwipopts.h)
-  // Other platforms may not have this guarantee
   if (fd >= FD_SETSIZE) {
     ESP_LOGE(TAG, "fd %d exceeds FD_SETSIZE %d", fd, FD_SETSIZE);
     return false;
   }
-#endif
 
   this->socket_fds_.push_back(fd);
   this->socket_fds_changed_ = true;
@@ -547,7 +525,7 @@ void Application::unregister_socket_fd(int fd) {
 #endif
 
 // Only the select() fallback path remains in the .cpp — all other paths are inlined in application.h
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
 void Application::yield_with_select_(uint32_t delay_ms) {
   // Fallback select() path (host platform and any future platforms without fast select).
   if (!this->socket_fds_.empty()) [[likely]] {
@@ -570,11 +548,7 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     tv.tv_usec = (delay_ms - tv.tv_sec * 1000) * 1000;
 
     // Call select with timeout
-#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
-    int ret = lwip_select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
-#else
     int ret = ::select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
-#endif
 
     // Process select() result:
     // ret > 0: socket(s) have data ready - normal and expected
@@ -597,7 +571,7 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   // No sockets registered or select() failed - use regular delay
   delay(delay_ms);
 }
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#endif  // USE_HOST
 
 // App storage — asm label shares the linker symbol with "extern Application App".
 // char[] is trivially destructible, so no __cxa_atexit or destructor chain is emitted.
@@ -618,18 +592,13 @@ alignas(Application) char app_storage[sizeof(Application)] asm(
 #undef ESPHOME_STRINGIFY_
 #undef ESPHOME_STRINGIFY_IMPL_
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-
-#ifdef USE_LWIP_FAST_SELECT
-void Application::wake_loop_threadsafe() {
-  // Direct FreeRTOS task notification — <1 us, task context only (NOT ISR-safe)
-  esphome_lwip_wake_main_loop();
-}
-#else   // !USE_LWIP_FAST_SELECT
+// Host platform wake_loop_threadsafe() and setup — needs wake_socket_fd_
+// ESP32/LibreTiny/ESP8266/RP2040 implementations are in wake.cpp
+#ifdef USE_HOST
 
 void Application::setup_wake_loop_threadsafe_() {
   // Create UDP socket for wake notifications
-  this->wake_socket_fd_ = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  this->wake_socket_fd_ = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (this->wake_socket_fd_ < 0) {
     ESP_LOGW(TAG, "Wake socket create failed: %d", errno);
     return;
@@ -638,12 +607,12 @@ void Application::setup_wake_loop_threadsafe_() {
   // Bind to loopback with auto-assigned port
   struct sockaddr_in addr = {};
   addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = lwip_htonl(INADDR_LOOPBACK);
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   addr.sin_port = 0;  // Auto-assign port
 
-  if (lwip_bind(this->wake_socket_fd_, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+  if (::bind(this->wake_socket_fd_, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
     ESP_LOGW(TAG, "Wake socket bind failed: %d", errno);
-    lwip_close(this->wake_socket_fd_);
+    ::close(this->wake_socket_fd_);
     this->wake_socket_fd_ = -1;
     return;
   }
@@ -652,50 +621,36 @@ void Application::setup_wake_loop_threadsafe_() {
   // Connecting a UDP socket allows using send() instead of sendto() for better performance
   struct sockaddr_in wake_addr;
   socklen_t len = sizeof(wake_addr);
-  if (lwip_getsockname(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, &len) < 0) {
+  if (::getsockname(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, &len) < 0) {
     ESP_LOGW(TAG, "Wake socket address failed: %d", errno);
-    lwip_close(this->wake_socket_fd_);
+    ::close(this->wake_socket_fd_);
     this->wake_socket_fd_ = -1;
     return;
   }
 
   // Connect to self (loopback) - allows using send() instead of sendto()
   // After connect(), no need to store wake_addr - the socket remembers it
-  if (lwip_connect(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, sizeof(wake_addr)) < 0) {
+  if (::connect(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, sizeof(wake_addr)) < 0) {
     ESP_LOGW(TAG, "Wake socket connect failed: %d", errno);
-    lwip_close(this->wake_socket_fd_);
+    ::close(this->wake_socket_fd_);
     this->wake_socket_fd_ = -1;
     return;
   }
 
   // Set non-blocking mode
-  int flags = lwip_fcntl(this->wake_socket_fd_, F_GETFL, 0);
-  lwip_fcntl(this->wake_socket_fd_, F_SETFL, flags | O_NONBLOCK);
+  int flags = ::fcntl(this->wake_socket_fd_, F_GETFL, 0);
+  ::fcntl(this->wake_socket_fd_, F_SETFL, flags | O_NONBLOCK);
 
   // Register with application's select() loop
   if (!this->register_socket_fd(this->wake_socket_fd_)) {
     ESP_LOGW(TAG, "Wake socket register failed");
-    lwip_close(this->wake_socket_fd_);
+    ::close(this->wake_socket_fd_);
     this->wake_socket_fd_ = -1;
     return;
   }
 }
 
-void Application::wake_loop_threadsafe() {
-  // Called from FreeRTOS task context when events need immediate processing
-  // Wakes up lwip_select() in main loop by writing to connected loopback socket
-  if (this->wake_socket_fd_ >= 0) {
-    const char dummy = 1;
-    // Non-blocking send - if it fails (unlikely), select() will wake on timeout anyway
-    // No error checking needed: we control both ends of this loopback socket.
-    // This is safe to call from FreeRTOS tasks - send() is thread-safe in lwip
-    // Socket is already connected to loopback address, so send() is faster than sendto()
-    lwip_send(this->wake_socket_fd_, &dummy, 1, 0);
-  }
-}
-#endif  // USE_LWIP_FAST_SELECT
-
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#endif  // USE_HOST
 
 void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
   ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());

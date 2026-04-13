@@ -138,7 +138,7 @@ class Scheduler {
   // (single-threaded). This is safe because the main loop is the only thread
   // that reads to_add_ without holding lock_; other threads may read it only
   // while holding the mutex (e.g. cancel_item_locked_).
-  inline void HOT process_to_add() {
+  inline void ESPHOME_ALWAYS_INLINE HOT process_to_add() {
     if (this->to_add_empty_())
       return;
     this->process_to_add_slow_path_();
@@ -302,7 +302,7 @@ class Scheduler {
   // loop thread structurally modifies items_ (push/pop/erase). Other threads may
   // iterate items_ and mark items removed under lock_, but never change the
   // vector's size or data pointer.
-  inline bool HOT cleanup_() {
+  inline bool ESPHOME_ALWAYS_INLINE HOT cleanup_() {
     if (this->to_remove_empty_())
       return !this->items_.empty();
     return this->cleanup_slow_path_();
@@ -407,7 +407,7 @@ class Scheduler {
   // Process defer queue for FIFO execution of deferred items.
   // IMPORTANT: This method should only be called from the main thread (loop task).
   // Inlined: the fast path (nothing deferred) is just an atomic load check.
-  inline void HOT process_defer_queue_(uint32_t &now) {
+  inline void ESPHOME_ALWAYS_INLINE HOT process_defer_queue_(uint32_t &now) {
     // Fast path: nothing to process, avoid lock entirely.
     // Worst case is a one-loop-iteration delay before newly deferred items are processed.
     if (this->defer_empty_())
@@ -495,22 +495,22 @@ class Scheduler {
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   // Returns the number of items marked for removal.
   // IMPORTANT: Must be called with scheduler lock held
-  __attribute__((noinline)) size_t mark_matching_items_removed_locked_(std::vector<SchedulerItem *> &container,
-                                                                       Component *component, NameType name_type,
-                                                                       const char *static_name, uint32_t hash_or_id,
-                                                                       SchedulerItem::Type type, bool match_retry,
-                                                                       bool find_first = false) {
-    size_t count = 0;
-    for (auto *item : container) {
-      if (this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type, match_retry)) {
-        this->set_item_removed_(item, true);
-        if (find_first)
-          return 1;
-        count++;
-      }
-    }
-    return count;
+  // Inlined: the fast path (empty container) avoids calling the out-of-line scan.
+  inline size_t HOT mark_matching_items_removed_locked_(std::vector<SchedulerItem *> &container, Component *component,
+                                                        NameType name_type, const char *static_name,
+                                                        uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry,
+                                                        bool find_first = false) {
+    if (container.empty())
+      return 0;
+    return this->mark_matching_items_removed_slow_locked_(container, component, name_type, static_name, hash_or_id,
+                                                          type, match_retry, find_first);
   }
+
+  // Out-of-line slow path for mark_matching_items_removed_locked_ when container is non-empty.
+  // IMPORTANT: Must be called with scheduler lock held
+  __attribute__((noinline)) size_t mark_matching_items_removed_slow_locked_(
+      std::vector<SchedulerItem *> &container, Component *component, NameType name_type, const char *static_name,
+      uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry, bool find_first);
 
   Mutex lock_;
   std::vector<SchedulerItem *> items_;

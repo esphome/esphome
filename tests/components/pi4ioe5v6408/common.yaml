@@ -1,7 +1,11 @@
 pi4ioe5v6408:
-  i2c_id: i2c_bus
-  id: pi4ioe1
-  address: 0x44
+  - i2c_id: i2c_bus
+    id: pi4ioe1
+    address: 0x44
+  - i2c_id: i2c_bus
+    id: pi4ioe1_int
+    address: 0x45
+    interrupt_pin: ${interrupt_pin}
 
 switch:
   - platform: gpio
@@ -15,4 +19,9 @@ binary_sensor:
     id: sensor1
     pin:
       pi4ioe5v6408: pi4ioe1
+      number: 1
+  - platform: gpio
+    id: sensor1_int
+    pin:
+      pi4ioe5v6408: pi4ioe1_int
       number: 1
