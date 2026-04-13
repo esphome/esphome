@@ -21,6 +21,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, TimePeriod
+from esphome.types import ConfigType
 
 CONF_FILTER_SYMBOLS = "filter_symbols"
 CONF_RECEIVE_SYMBOLS = "receive_symbols"
@@ -101,7 +102,7 @@ def validate_tolerance(value):
     )
 
 
-def _require_rmt_iram(config):
+def _require_rmt_iram(config: ConfigType) -> ConfigType:
     """Register RMT receive IRAM requirement during config validation."""
     if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
         esp32.require_rmt_recv_iram()
