@@ -84,8 +84,8 @@ bool BQ25186Component::update_vbat_ctrl_register_() {
     millivolts = 4650;
 
   const uint8_t regulation_code = static_cast<uint8_t>((millivolts - 3500) / 10);
-  const uint8_t reg_value = (this->config_.vbat_ctrl.pg_mode << 7) | regulation_code;
-  return this->update_register_(BQ25186_REG_VBAT_CTRL, 0xFF, reg_value);
+  const uint8_t value = (this->config_.vbat_ctrl.pg_mode << 7) | regulation_code;
+  return this->update_register_(BQ25186_REG_VBAT_CTRL, 0xFF, value);
 }
 
 bool BQ25186Component::update_ichg_ctrl_register_() {
