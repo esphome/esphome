@@ -138,7 +138,7 @@ class Scheduler {
   // (single-threaded). This is safe because the main loop is the only thread
   // that reads to_add_ without holding lock_; other threads may read it only
   // while holding the mutex (e.g. cancel_item_locked_).
-  inline void HOT process_to_add() {
+  inline void ESPHOME_ALWAYS_INLINE HOT process_to_add() {
     if (this->to_add_empty_())
       return;
     this->process_to_add_slow_path_();
