@@ -17,14 +17,46 @@ bq25186:
 binary_sensor:
   - platform: bq25186
     bq25186_id: charger
-    vin_power_good:
-      name: VIN Power Good
-    charging_active:
-      name: Charging Active
+    ts:
+      name: TS Open
+    charging:
+      name: Charging
     charge_done:
       name: Charge Done
-    vin_ovp_active:
+    ilim:
+      name: ILIM Active
+    vdppm:
+      name: VDPPM Active
+    vindpm:
+      name: VINDPM Active
+    thermreg:
+      name: Thermal Regulation Active
+    power_good:
+      name: VIN Power Good
+    vin_ovp:
       name: VIN OVP Active
+    battery_uvlo:
+      name: Battery UVLO Active
+    safety_timer_fault:
+      name: Safety Timer Fault
+    wake1_flag:
+      name: Wake 1 Flag
+    wake2_flag:
+      name: Wake 2 Flag
+    ts_fault:
+      name: TS Fault
+    ilim_fault:
+      name: ILIM Fault
+    vdppm_fault:
+      name: VDPPM Fault
+    vindpm_fault:
+      name: VINDPM Fault
+    thermreg_active:
+      name: Thermal Regulation Flag
+    vin_ovp_fault:
+      name: VIN OVP Fault
+    battery_uvlo_fault:
+      name: Battery UVLO Fault
     battery_ocp_fault:
       name: Battery OCP Fault
 
