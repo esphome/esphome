@@ -1,9 +1,0 @@
-# Compile libsodium with -O2 for speed instead of the default -Os.
-# libsodium provides the crypto primitives (Curve25519, ChaCha20, Poly1305)
-# used by the Noise protocol and benefits significantly from speed optimization.
-# GCC uses the last -O flag, so appending -O2 overrides the global -Os.
-Import("env")
-
-for lb in env.GetLibBuilders():
-    if lb.name == "libsodium":
-        lb.env.Append(CCFLAGS=["-O2"])
