@@ -64,10 +64,6 @@ class OTARequestHandler : public AsyncWebHandler {
   void report_ota_progress_(AsyncWebServerRequest *request);
   void schedule_ota_reboot_();
   void ota_init_(const char *filename);
-  void ota_end_session_() {
-    this->ota_backend_.reset();
-    this->ota_request_ = nullptr;
-  }
 
   uint32_t last_ota_progress_{0};
   uint32_t ota_read_length_{0};
@@ -76,11 +72,6 @@ class OTARequestHandler : public AsyncWebHandler {
 
  private:
   ota::OTABackendPtr ota_backend_{nullptr};
-  // Tracks the request that owns the current ota_backend_ session so we can
-  // detect when a new (retry) request arrives while a previous session is
-  // still open -- without re-triggering on the multiple index==0 callbacks
-  // web_server_idf makes for a single upload (Start + first data chunk).
-  AsyncWebServerRequest *ota_request_{nullptr};
 };
 
 void OTARequestHandler::report_ota_progress_(AsyncWebServerRequest *request) {
@@ -123,18 +114,20 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
                                      uint8_t *data, size_t len, bool final) {
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_OK;
 
-  if (index == 0 && this->ota_request_ != request) {
-    // A new request is starting an upload. If a previous upload was interrupted
-    // (e.g. TCP reset) the backend from that session may still be open; tear it
-    // down so flash state doesn't get concatenated with the new image (which
-    // can produce a technically-valid-sized but corrupted firmware that
-    // bricks the device once it reboots).
+  // First byte of a new upload: index==0 with actual data. (web_server_idf
+  // fires a separate start-marker call with data==nullptr/len==0 before the
+  // first real chunk; gate on len>0 so we only trigger once per upload.)
+  if (index == 0 && len > 0) {
+    // If a previous upload was interrupted (e.g. client closed the tab, TCP
+    // reset) the backend from that session may still be open. Tear it down
+    // so flash state doesn't get concatenated with the new image (which can
+    // produce a technically-valid-sized but corrupted firmware that bricks
+    // the device once it reboots).
     if (this->ota_backend_) {
       ESP_LOGW(TAG, "New OTA upload received while previous session was still open; aborting previous session");
       this->ota_backend_->abort();
-      this->ota_end_session_();
+      this->ota_backend_.reset();
     }
-    this->ota_request_ = request;
 
     // Initialize OTA on first call
     this->ota_init_(filename.c_str());
@@ -169,7 +162,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
     error_code = this->ota_backend_->begin(0);
     if (error_code != ota::OTA_RESPONSE_OK) {
       ESP_LOGE(TAG, "OTA begin failed: %d", error_code);
-      this->ota_end_session_();
+      this->ota_backend_.reset();
 #ifdef USE_OTA_STATE_LISTENER
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
@@ -187,7 +180,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
     if (error_code != ota::OTA_RESPONSE_OK) {
       ESP_LOGE(TAG, "OTA write failed: %d", error_code);
       this->ota_backend_->abort();
-      this->ota_end_session_();
+      this->ota_backend_.reset();
 #ifdef USE_OTA_STATE_LISTENER
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
@@ -219,7 +212,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
       this->parent_->notify_state_deferred_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
 #endif
     }
-    this->ota_end_session_();
+    this->ota_backend_.reset();
   }
 }
 
