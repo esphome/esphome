@@ -277,10 +277,11 @@ void LvglComponent::set_indev_group(lv_group_t *group) {
 }
 
 void LvglComponent::restore_indev_group(lv_group_t *group) {
-  if (this->pages_.empty())
+  if (this->pages_.empty()) {
     this->set_indev_group(group);
-  else
+  } else {
     this->set_indev_group(this->pages_[this->current_page_]->def_group);
+  }
 }
 
 void LvglComponent::show_next_page(lv_screen_load_anim_t anim, uint32_t time) {
