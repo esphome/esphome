@@ -2,7 +2,11 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
-from esphome.components.esp32 import get_esp32_variant, include_builtin_idf_component
+from esphome.components.esp32 import (
+    get_esp32_variant,
+    include_builtin_idf_component,
+    require_adc_oneshot_iram,
+)
 from esphome.components.nrf52.const import AIN_TO_GPIO, EXTRA_ADC
 from esphome.components.zephyr import (
     zephyr_add_overlay,
@@ -120,6 +124,7 @@ async def to_code(config):
     if CORE.is_esp32:
         # Re-enable ESP-IDF's ADC driver (excluded by default to save compile time)
         include_builtin_idf_component("esp_adc")
+        require_adc_oneshot_iram()
 
         if attenuation := config.get(CONF_ATTENUATION):
             if attenuation == "auto":
