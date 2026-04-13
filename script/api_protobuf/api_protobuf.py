@@ -2682,8 +2682,7 @@ def build_message_type(
     # Check if this message wants speed-optimized encode/calculate_size.
     # When set, __attribute__((optimize("O2"))) is added to the definitions
     # so GCC inlines the small ProtoEncode helpers even under -Os.
-    speed_opt = getattr(pb, "speed_optimized", None)
-    is_speed_optimized = speed_opt is not None and get_opt(desc, speed_opt, False)
+    is_speed_optimized = get_opt(desc, pb.speed_optimized, False)
     speed_attr = '__attribute__((optimize("O2"))) ' if is_speed_optimized else ""
 
     # Only generate encode method if this message needs encoding and has fields
