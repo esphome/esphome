@@ -1,18 +1,3 @@
 # Example config.yaml
 watchdog:
   timeout: 5sec
-
-switch:
-  - platform: template
-    name: "Extend watchdog timeout"
-    optimistic: true
-    restore_mode: ALWAYS_OFF
-    turn_on_action:
-      then:
-        - logger.log: "Set Watchdog Timeout to 25 seconds"
-        - watchdog.set_timeout: 25sec
-    turn_off_action:
-      then:
-        - logger.log: "Set Watchdog Timeout to 5 seconds"
-        - watchdog.set_timeout:
-            timeout: 5sec
