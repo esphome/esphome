@@ -1,8 +1,11 @@
 #include "nextion.h"
+
 #include <cinttypes>
+
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/core/util.h"
 
 namespace esphome::nextion {
@@ -706,7 +709,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad switch data (0x90)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -714,6 +717,10 @@ void Nextion::process_nextion_commands_() {
         ++index;
 
         ESP_LOGN(TAG, "Switch %s: %s", ONOFF(to_process[index] != 0), variable_name.c_str());
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+        this->custom_switch_callback_.call(StringRef(variable_name), to_process[index] != 0);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
 
         for (auto *switchtype : this->switchtype_) {
           switchtype->process_bool(variable_name, to_process[index] != 0);
@@ -732,7 +739,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) != 4) {
           ESP_LOGE(TAG, "Bad sensor data (0x91)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -743,6 +750,10 @@ void Nextion::process_nextion_commands_() {
             encode_uint32(to_process[index + 4], to_process[index + 3], to_process[index + 2], to_process[index + 1]));
 
         ESP_LOGN(TAG, "Sensor: %s=%d", variable_name.c_str(), value);
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+        this->custom_sensor_callback_.call(StringRef(variable_name), value);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
 
         for (auto *sensor : this->sensortype_) {
           sensor->process_sensor(variable_name, value);
@@ -765,7 +776,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad text data (0x92)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -781,6 +792,11 @@ void Nextion::process_nextion_commands_() {
         // nq->variable_name = variable_name;
         // nq->state = text_value;
         // this->textsensorq_.push_back(nq);
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+        this->custom_text_sensor_callback_.call(StringRef(variable_name), StringRef(text_value));
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+
         for (auto *textsensortype : this->textsensortype_) {
           textsensortype->process_text(variable_name, text_value);
         }
@@ -798,8 +814,8 @@ void Nextion::process_nextion_commands_() {
         // Get variable name
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
-          ESP_LOGE(TAG, "Bad binary data (0x92)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGE(TAG, "Bad binary data (0x93)");
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -807,6 +823,10 @@ void Nextion::process_nextion_commands_() {
         ++index;
 
         ESP_LOGN(TAG, "Binary sensor: %s=%s", variable_name.c_str(), ONOFF(to_process[index] != 0));
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+        this->custom_binary_sensor_callback_.call(StringRef(variable_name), to_process[index] != 0);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
 
         for (auto *binarysensortype : this->binarysensortype_) {
           binarysensortype->process_bool(&variable_name[0], to_process[index] != 0);
