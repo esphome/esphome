@@ -21,9 +21,6 @@ WaveshareEPaperBase = waveshare_epaper_ns.class_(
     "WaveshareEPaperBase", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
 )
 WaveshareEPaper = waveshare_epaper_ns.class_("WaveshareEPaper", WaveshareEPaperBase)
-WaveshareEPaper4Gray = waveshare_epaper_ns.class_(
-    "WaveshareEPaper4Gray", WaveshareEPaperBase
-)
 WaveshareEPaperBWR = waveshare_epaper_ns.class_(
     "WaveshareEPaperBWR", WaveshareEPaperBase
 )
@@ -107,9 +104,6 @@ WaveshareEPaper7P5InV2 = waveshare_epaper_ns.class_(
 WaveshareEPaper7P5InV2alt = waveshare_epaper_ns.class_(
     "WaveshareEPaper7P5InV2alt", WaveshareEPaper
 )
-WaveshareEPaper7P5InV2P4Gray = waveshare_epaper_ns.class_(
-    "WaveshareEPaper7P5InV2P4Gray", WaveshareEPaper4Gray
-)
 WaveshareEPaper7P5InV2P = waveshare_epaper_ns.class_(
     "WaveshareEPaper7P5InV2P", WaveshareEPaper
 )
@@ -173,7 +167,6 @@ MODELS = {
     "7.50inv2": ("b", WaveshareEPaper7P5InV2),
     "7.50inv2alt": ("b", WaveshareEPaper7P5InV2alt),
     "7.50inv2p": ("c", WaveshareEPaper7P5InV2P),
-    "7.50inv2p4gray": ("c", WaveshareEPaper7P5InV2P4Gray),
     "7.50in-hd-b": ("b", WaveshareEPaper7P5InHDB),
     "2.13in-ttgo-dke": ("c", WaveshareEPaper2P13InDKE),
     "2.13inv3": ("c", WaveshareEPaper2P13InV3),
