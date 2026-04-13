@@ -126,6 +126,10 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
     if (this->ota_backend_) {
       ESP_LOGW(TAG, "New OTA upload received while previous session was still open; aborting previous session");
       this->ota_backend_->abort();
+#ifdef USE_OTA_STATE_LISTENER
+      // Notify listeners that the previous session was aborted before the new one starts.
+      this->parent_->notify_state_deferred_(ota::OTA_ABORT, 0.0f, 0);
+#endif
       this->ota_backend_.reset();
     }
 
