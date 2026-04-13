@@ -41,6 +41,7 @@ class OpenThreadComponent : public Component {
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 #if CONFIG_OPENTHREAD_MTD
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
+  void set_light_sleep(bool light_sleep) { this->light_sleep_ = light_sleep; }
 #endif
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
 
@@ -52,6 +53,7 @@ class OpenThreadComponent : public Component {
   std::function<void()> factory_reset_external_callback_;
 #if CONFIG_OPENTHREAD_MTD
   uint32_t poll_period_{0};
+  bool light_sleep_{false};
 #endif
   std::optional<int8_t> output_power_{};
   std::atomic<bool> lock_initialized_{false};
@@ -84,6 +86,7 @@ class OpenThreadSrpComponent : public Component {
   esphome::mdns::MDNSComponent *mdns_{nullptr};
   std::vector<std::unique_ptr<uint8_t[]>> memory_pool_;
   void *pool_alloc_(size_t size);
+  bool srp_removing_{false};
 };
 
 class InstanceLock {

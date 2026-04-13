@@ -1,0 +1,18 @@
+logger:
+  hardware_uart: UART0
+  baud_rate: 0
+
+network:
+  enable_ipv6: true
+
+openthread:
+  device_type: MTD
+  channel: 15
+  network_name: OpenThread-test
+  network_key: 0xdfd34f0f05cad978ec4e32b0413038ff
+  pan_id: 0x8f28
+  ext_pan_id: 0xd63e8e3e495ebbc3
+  pskc: 0xc23a76e98f1a6483639b1ac1271e2e27
+  poll_period: 30s
+  light_sleep: true
+  output_power: 8dBm

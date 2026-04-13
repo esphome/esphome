@@ -29,6 +29,7 @@ from .const import (
     CONF_DEVICE_TYPE,
     CONF_EXT_PAN_ID,
     CONF_FORCE_DATASET,
+    CONF_LIGHT_SLEEP,
     CONF_MDNS_ID,
     CONF_MESH_LOCAL_PREFIX,
     CONF_NETWORK_KEY,
@@ -133,6 +134,17 @@ def set_sdkconfig_options(config):
     # TODO: Add support for synchronized sleepy end devices (SSED)
     add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
 
+    if config.get(CONF_LIGHT_SLEEP) and get_esp32_variant() in (
+        VARIANT_ESP32C5,
+        VARIANT_ESP32C6,
+        VARIANT_ESP32H2,
+    ):
+        # These variants have a USB Serial JTAG peripheral that holds the BBPLL clock,
+        # preventing light sleep entry when a USB cable is connected.
+        # SOC_USB_SERIAL_JTAG_SUPPORT_LIGHT_SLEEP is not yet implemented (IDF-6395),
+        # so disable the peripheral entirely to allow light sleep.
+        add_idf_sdkconfig_option("CONFIG_USJ_ENABLE_USB_SERIAL_JTAG", False)
+
 
 openthread_ns = cg.esphome_ns.namespace("openthread")
 OpenThreadComponent = openthread_ns.class_("OpenThreadComponent", cg.Component)
@@ -165,6 +177,11 @@ def _validate(config: ConfigType) -> ConfigType:
             f"{CONF_POLL_PERIOD} can only be used with {CONF_DEVICE_TYPE}: MTD"
         )
 
+    if config.get(CONF_LIGHT_SLEEP) and not poll_period:
+        raise cv.Invalid(
+            f"{CONF_LIGHT_SLEEP} requires {CONF_POLL_PERIOD} to be set (SED mode)"
+        )
+
     return config
 
 
@@ -188,6 +205,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TLV): cv.string_strict,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_LIGHT_SLEEP): cv.boolean,
             cv.Optional(CONF_OUTPUT_POWER): cv.All(
                 cv.decibel,
                 _validate_txpower,
@@ -237,6 +255,11 @@ async def to_code(config):
     await cg.register_component(ot, config)
     if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
         cg.add(ot.set_poll_period(poll_period))
+    if config.get(CONF_LIGHT_SLEEP):
+        add_idf_sdkconfig_option("CONFIG_PM_ENABLE", True)
+        add_idf_sdkconfig_option("CONFIG_FREERTOS_USE_TICKLESS_IDLE", True)
+        add_idf_sdkconfig_option("CONFIG_IEEE802154_SLEEP_ENABLE", True)
+        cg.add(ot.set_light_sleep(True))
 
     srp = cg.new_Pvariable(config[CONF_SRP_ID])
     mdns_component = await cg.get_variable(config[CONF_MDNS_ID])

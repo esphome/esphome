@@ -6,6 +6,7 @@
 
 #include <openthread/cli.h>
 #include <openthread/instance.h>
+#include <openthread/ip6.h>
 #include <openthread/logging.h>
 #include <openthread/netdata.h>
 #include <openthread/tasklet.h>
@@ -36,6 +37,7 @@ void OpenThreadComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Device is configured as Sleepy End Device (SED)");
     uint32_t duration = this->poll_period_ / 1000;
     ESP_LOGCONFIG(TAG, "  Poll Period: %" PRIu32 "s", duration);
+    ESP_LOGCONFIG(TAG, "  Light Sleep: %s", TRUEFALSE(this->light_sleep_));
   } else {
     ESP_LOGCONFIG(TAG, "  Device is configured as Minimal End Device (MED)");
   }
@@ -52,7 +54,15 @@ void OpenThreadComponent::on_state_changed_(otChangedFlags flags, void *context)
     // so we can safely call otThreadGetDeviceRole directly.
     otInstance *instance = self->get_openthread_instance_();
     otDeviceRole role = otThreadGetDeviceRole(instance);
+    bool was_connected = self->connected_;
     self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
+    if (self->connected_ && !was_connected) {
+      char addr_str[OT_IP6_ADDRESS_STRING_SIZE];
+      for (const otNetifAddress *addr = otIp6GetUnicastAddresses(instance); addr; addr = addr->mNext) {
+        otIp6AddressToString(&addr->mAddress, addr_str, sizeof(addr_str));
+        ESP_LOGI(TAG, "  IPv6: %s", addr_str);
+      }
+    }
   }
 }
 
@@ -92,14 +102,33 @@ void OpenThreadComponent::defer_factory_reset_external_callback() {
 void OpenThreadSrpComponent::srp_callback(otError err, const otSrpClientHostInfo *host_info,
                                           const otSrpClientService *services,
                                           const otSrpClientService *removed_services, void *context) {
-  if (err != 0) {
-    ESP_LOGW(TAG, "SRP client reported an error: %s", otThreadErrorToString(err));
-    for (const otSrpClientHostInfo *host = host_info; host; host = nullptr) {
-      ESP_LOGW(TAG, "  Host: %s", host->mName);
+  auto *self = static_cast<OpenThreadSrpComponent *>(context);
+  if (err == OT_ERROR_NONE) {
+    self->srp_removing_ = false;
+    return;
+  }
+  if (err == OT_ERROR_DUPLICATED) {
+    if (self->srp_removing_) {
+      // The server also rejected our removal attempt — key mismatch, nothing we can do until the
+      // server's SRP lease expires (typically ~2 hours). Stop retrying to avoid a tight loop.
+      ESP_LOGW(TAG, "SRP stale entry removal rejected by server — waiting for lease to expire");
+      self->srp_removing_ = false;
+    } else {
+      // The SRP server has a registration for this host with a different key (e.g. NVS was erased
+      // during re-flash). Attempt to remove the stale entry so we can re-register cleanly.
+      ESP_LOGW(TAG, "SRP registration conflict — removing stale server entry to re-register");
+      self->srp_removing_ = true;
+      InstanceLock lock = InstanceLock::acquire();
+      otSrpClientRemoveHostAndServices(lock.get_instance(), false, true);
     }
-    for (const otSrpClientService *service = services; service; service = service->mNext) {
-      ESP_LOGW(TAG, "  Service: %s", service->mName);
-    }
+    return;
+  }
+  ESP_LOGW(TAG, "SRP client reported an error: %s", otThreadErrorToString(err));
+  for (const otSrpClientHostInfo *host = host_info; host; host = nullptr) {
+    ESP_LOGW(TAG, "  Host: %s", host->mName);
+  }
+  for (const otSrpClientService *service = services; service; service = service->mNext) {
+    ESP_LOGW(TAG, "  Service: %s", service->mName);
   }
 }
 
@@ -126,7 +155,7 @@ void OpenThreadSrpComponent::setup() {
   InstanceLock lock = InstanceLock::acquire();
   otInstance *instance = lock.get_instance();
 
-  otSrpClientSetCallback(instance, OpenThreadSrpComponent::srp_callback, nullptr);
+  otSrpClientSetCallback(instance, OpenThreadSrpComponent::srp_callback, this);
 
   // set the host name
   uint16_t size;

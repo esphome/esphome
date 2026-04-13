@@ -13,6 +13,7 @@
 #include "esphome/core/log.h"
 
 #include "esp_err.h"
+#include "esp_pm.h"
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_netif_types.h"
@@ -137,6 +138,19 @@ void OpenThreadComponent::ot_main() {
   ESP_LOGD(TAG, "Link Mode Device Type: %s, Network Data: %s, RX On When Idle: %s",
            TRUEFALSE(link_mode_config.mDeviceType), TRUEFALSE(link_mode_config.mNetworkData),
            TRUEFALSE(link_mode_config.mRxOnWhenIdle));
+#endif
+
+#if CONFIG_OPENTHREAD_MTD
+  if (this->light_sleep_) {
+    esp_pm_config_t pm_config = {
+        .max_freq_mhz = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ,
+        .min_freq_mhz = CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ,
+        .light_sleep_enable = true,
+    };
+    if (esp_pm_configure(&pm_config) != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to configure light sleep");
+    }
+  }
 #endif
 
   if (this->output_power_.has_value()) {
