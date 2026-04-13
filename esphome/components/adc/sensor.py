@@ -69,6 +69,13 @@ def validate_config(config):
     return config
 
 
+def _require_adc_iram(config):
+    """Register ADC oneshot IRAM requirement during config validation."""
+    if CORE.is_esp32:
+        require_adc_oneshot_iram()
+    return config
+
+
 ADCSensor = adc_ns.class_(
     "ADCSensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
 )
@@ -99,6 +106,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("60s")),
     validate_config,
+    _require_adc_iram,
 )
 
 CONF_ADC_CHANNEL_ID = "adc_channel_id"
@@ -124,7 +132,6 @@ async def to_code(config):
     if CORE.is_esp32:
         # Re-enable ESP-IDF's ADC driver (excluded by default to save compile time)
         include_builtin_idf_component("esp_adc")
-        require_adc_oneshot_iram()
 
         if attenuation := config.get(CONF_ATTENUATION):
             if attenuation == "auto":
