@@ -92,7 +92,7 @@ def build_archived_device_list(
         archive_path = archive_storage_path()
         if not archive_path.is_dir():
             return []
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         return []
 
     archived: list[ArchivedDeviceDict] = []
@@ -136,7 +136,7 @@ def build_device_list_response(
     configured_names = {entry.name for entry in entries}
     try:
         tags = dashboard.device_tags
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         tags = {}
     configured = []
     for entry in entries:
@@ -145,7 +145,7 @@ def build_device_list_response(
         configured.append(d)
     try:
         archived = build_archived_device_list(tags)
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         _LOGGER.exception("Failed to build archived device list")
         archived = []
     return DeviceListResponse(

@@ -986,7 +986,6 @@ class IgnoreDeviceRequestHandler(BaseHandler):
 class DeviceTagsHandler(BaseHandler):
     def check_xsrf_cookie(self) -> None:
         """Skip XSRF for JSON API calls with proper auth."""
-        pass
 
     @authenticated
     async def get(self) -> None:
