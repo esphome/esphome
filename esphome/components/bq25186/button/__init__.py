@@ -34,7 +34,7 @@ CONFIG_SCHEMA = cv.Schema(
             BQ25186SoftwareResetButton,
             device_class=DEVICE_CLASS_RESTART,
             entity_category=ENTITY_CATEGORY_CONFIG,
-            icon=ICON_RESTART_ALERT,
+            icon=ICON_RESTART,
         ),
         cv.Optional(CONF_SHUTDOWN): button.button_schema(
             BQ25186ShutdownButton,
@@ -50,7 +50,7 @@ CONFIG_SCHEMA = cv.Schema(
             BQ25186HardwareResetButton,
             device_class=DEVICE_CLASS_RESTART,
             entity_category=ENTITY_CATEGORY_CONFIG,
-            icon=ICON_RESTART,
+            icon=ICON_RESTART_ALERT,
         ),
     }
 )
