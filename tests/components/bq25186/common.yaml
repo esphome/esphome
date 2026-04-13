@@ -1,0 +1,49 @@
+bq25186:
+  id: charger
+  charge_current: 150
+  battery_regulation_voltage: 4200
+  input_current_limit: 500ma
+  system_regulation: 4.5v
+  pg_mode: gpo
+  charge_enabled: true
+  flash_charging_mode: true
+
+binary_sensor:
+  - platform: bq25186
+    bq25186_id: charger
+    vin_power_good:
+      name: VIN Power Good
+    charging_active:
+      name: Charging Active
+    charge_done:
+      name: Charge Done
+    vin_ovp_active:
+      name: VIN OVP Active
+    battery_ocp_fault:
+      name: Battery OCP Fault
+
+text_sensor:
+  - platform: bq25186
+    bq25186_id: charger
+    charge_status:
+      name: Charge Status
+    ts_status:
+      name: TS Status
+
+switch:
+  - platform: bq25186
+    bq25186_id: charger
+    pg_gpo:
+      name: PG GPO Switch
+
+button:
+  - platform: bq25186
+    bq25186_id: charger
+    software_reset:
+      name: Software Reset
+    shutdown:
+      name: Shutdown
+    ship_mode:
+      name: Ship Mode
+    hardware_reset:
+      name: Hardware Reset
