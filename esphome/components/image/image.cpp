@@ -11,7 +11,6 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
   int img_y0 = 0;
   int w = width_;
   int h = height_;
-  ESP_LOGI("image", "Drawing image at (%d, %d) with size (%d x %d)", x, y, w, h);
 
   auto clipping = display->get_clipping();
   if (clipping.is_set()) {
