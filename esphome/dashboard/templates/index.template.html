@@ -165,32 +165,64 @@
     .sp-btn-danger:hover { background: #2a1515; color: #ff6666; }
     .sp-sep { border-top: 1px solid #222; margin: 6px 0; }
 
-    /* Command popup modal */
+    /* Command modal (in-page, like classic dashboard) */
     .cmd-overlay {
       display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.6); z-index: 700; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.5); z-index: 700; align-items: center; justify-content: center;
     }
     .cmd-overlay.open { display: flex; }
-    .cmd-box {
-      background: #141414; border: 1px solid #333; border-radius: 8px; width: 600px; max-width: 90vw;
-      max-height: 80vh; display: flex; flex-direction: column;
+    .cmd-modal {
+      background: #141414; border: 1px solid #333; border-radius: 8px;
+      width: 90vw; max-width: 1100px; height: 80vh; display: flex; flex-direction: column;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6);
     }
-    .cmd-header {
-      display: flex; align-items: center; padding: 12px 16px; border-bottom: 1px solid #222;
+    .cmd-modal-header {
+      display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid #222;
     }
-    .cmd-title { font-size: 14px; font-weight: 600; color: #fff; flex: 1; }
-    .cmd-close {
-      background: none; border: none; color: #666; font-size: 18px; cursor: pointer;
-      padding: 0 4px; line-height: 1; font-family: inherit;
+    .cmd-modal-title {
+      font-size: 15px; font-weight: 600; color: #fff; flex: 1;
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    .cmd-close:hover { color: #fff; }
-    .cmd-output {
-      flex: 1; overflow-y: auto; padding: 12px 16px; font-family: "SF Mono","Fira Code",Menlo,Consolas,monospace;
-      font-size: 11px; color: #aaa; white-space: pre-wrap; word-break: break-all; line-height: 1.5;
-      min-height: 200px; max-height: 60vh; background: #0a0a0a;
+    .cmd-modal-close {
+      background: none; border: none; color: #666; font-size: 22px; cursor: pointer;
+      padding: 0 6px; line-height: 1; font-family: inherit;
     }
-    .cmd-output .term-err { color: #ff6666; }
-    .cmd-output .term-ok { color: #4caf50; }
+    .cmd-modal-close:hover { color: #fff; }
+    .cmd-modal-body {
+      flex: 1; overflow: auto; background: #0a0a0a;
+      font-family: "SF Mono","Fira Code",Menlo,Consolas,monospace;
+      font-size: 13px; color: #ccc; line-height: 1.6;
+      padding: 12px 16px; white-space: pre-wrap; word-break: break-all;
+      display: flex; flex-direction: column;
+    }
+    .cmd-modal-body.editor-mode {
+      padding: 0; white-space: normal; word-break: normal;
+    }
+    .cmd-modal-body .ace-host { flex: 1; width: 100%; height: 100%; min-height: 400px; }
+    .cmd-modal-footer {
+      display: flex; justify-content: flex-end; gap: 14px;
+      padding: 10px 18px; border-top: 1px solid #222; background: #0f0f0f;
+    }
+    .cmd-modal-footer button, .cmd-modal-footer a {
+      background: none; border: none; color: #bb86fc; font-size: 13px; font-weight: 600;
+      cursor: pointer; text-decoration: none; letter-spacing: 0.5px;
+      padding: 6px 10px; font-family: "Inter", -apple-system, sans-serif;
+    }
+    .cmd-modal-footer button:hover, .cmd-modal-footer a:hover { color: #fff; }
+    .cmd-modal-footer .status { flex: 1; color: #888; font-weight: normal; font-size: 12px; letter-spacing: 0; }
+
+    /* ANSI colors (standard + bright) */
+    .cmd-modal-body .bold { font-weight: 700; }
+    .cmd-modal-body .c30 { color: #555; } .cmd-modal-body .c31 { color: #ff5555; }
+    .cmd-modal-body .c32 { color: #4caf50; } .cmd-modal-body .c33 { color: #ffff55; }
+    .cmd-modal-body .c34 { color: #5555ff; } .cmd-modal-body .c35 { color: #e040fb; }
+    .cmd-modal-body .c36 { color: #40e0d0; } .cmd-modal-body .c37 { color: #fff; }
+    .cmd-modal-body .c90 { color: #888; } .cmd-modal-body .c91 { color: #ff8888; }
+    .cmd-modal-body .c92 { color: #88ff88; } .cmd-modal-body .c93 { color: #ffff88; }
+    .cmd-modal-body .c94 { color: #8888ff; } .cmd-modal-body .c95 { color: #ff88ff; }
+    .cmd-modal-body .c96 { color: #88ffff; } .cmd-modal-body .c97 { color: #fff; }
+    .cmd-modal-body .ok { color: #4caf50; }
+    .cmd-modal-body .err { color: #ff5555; }
 
     /* Tag edit popover */
     .tag-edit-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 600; align-items: center; justify-content: center; }
@@ -305,6 +337,18 @@
 </div>
 
 <!-- Tag Edit Modal -->
+<!-- Command/Editor Modal -->
+<div class="cmd-overlay" id="cmdOverlay">
+  <div class="cmd-modal">
+    <div class="cmd-modal-header">
+      <span class="cmd-modal-title" id="cmdModalTitle"></span>
+      <button class="cmd-modal-close" onclick="D.closeCmdModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="cmd-modal-body" id="cmdModalBody"></div>
+    <div class="cmd-modal-footer" id="cmdModalFooter"></div>
+  </div>
+</div>
+
 <div class="tag-edit-overlay" id="tagOverlay">
   <div class="tag-edit-box">
     <h3 id="tagEditTitle">Edit Tags</h3>
@@ -588,118 +632,172 @@
     },
 
     // Commands - open in popup window
+    // Modal state
+    _cmdWs:null,
+    _aceEditor:null,
+    _rawLog:"",
+    _editorDirty:false,
+
+    _openModal:function(title){
+      document.getElementById("cmdModalTitle").textContent=title;
+      document.getElementById("cmdOverlay").classList.add("open");
+      document.getElementById("cmdModalBody").classList.remove("editor-mode");
+    },
+
+    closeCmdModal:function(){
+      if(D._editorDirty){
+        if(!confirm("You have unsaved changes. Close anyway?"))return;
+      }
+      document.getElementById("cmdOverlay").classList.remove("open");
+      if(D._cmdWs){try{D._cmdWs.close()}catch(e){}D._cmdWs=null}
+      if(D._aceEditor){try{D._aceEditor.destroy()}catch(e){}D._aceEditor=null}
+      document.getElementById("cmdModalBody").innerHTML="";
+      document.getElementById("cmdModalFooter").innerHTML="";
+      D._rawLog="";
+      D._editorDirty=false;
+    },
+
     runCmd:function(cmd,cfg){
       var endpointMap={logs:"logs",upload:"upload",run:"run",compile:"compile",validate:"validate",clean:"clean","clean-mqtt":"clean-mqtt"};
       var endpoint=endpointMap[cmd];if(!endpoint)return;
       var needsPort=cmd==="logs"||cmd==="upload"||cmd==="run";
       var title=cmd.charAt(0).toUpperCase()+cmd.slice(1)+" "+cfg;
       var cfgEnc=encodeURIComponent(cfg);
-      var w=window.open("","_blank");
-      if(!w)return;
-      w.document.write('<!DOCTYPE html><html><head><title>'+title+'</title><style>');
-      w.document.write('*{margin:0;padding:0;box-sizing:border-box}');
-      w.document.write('body{background:#111;color:#ccc;font-family:"SF Mono","Fira Code",Menlo,Consolas,monospace;font-size:13px;display:flex;flex-direction:column;height:100vh}');
-      w.document.write('.header{background:#0a0a0a;padding:12px 16px;font-size:15px;font-weight:600;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;border-bottom:1px solid #222}');
-      w.document.write('.output{flex:1;overflow-y:auto;padding:8px 16px;white-space:pre-wrap;word-break:break-all;line-height:1.7}');
-      w.document.write('.toolbar{background:#0a0a0a;border-top:1px solid #222;padding:10px 16px;display:flex;justify-content:flex-end;gap:12px}');
-      w.document.write('.toolbar button,.toolbar a{background:none;border:none;color:#bb86fc;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;font-family:-apple-system,sans-serif;letter-spacing:0.5px;padding:4px 8px}');
-      w.document.write('.toolbar button:hover,.toolbar a:hover{color:#fff}');
-      w.document.write('.c0{color:#ccc}.c1{color:#ff5555}.c2{color:#4caf50}.c3{color:#ffff55}.c4{color:#5555ff}.c5{color:#e040fb}.c6{color:#40e0d0}.c7{color:#fff}');
-      w.document.write('.c30{color:#555}.c31{color:#ff5555}.c32{color:#4caf50}.c33{color:#ffff55}.c34{color:#5555ff}.c35{color:#e040fb}.c36{color:#40e0d0}.c37{color:#fff}');
-      w.document.write('.c90{color:#888}.c91{color:#ff8888}.c92{color:#88ff88}.c93{color:#ffff88}.c94{color:#8888ff}.c95{color:#ff88ff}.c96{color:#88ffff}.c97{color:#fff}');
-      w.document.write('.bold{font-weight:700}.ok{color:#4caf50}.err{color:#ff5555}');
-      w.document.write('</style></head><body>');
-      w.document.write('<div class="header">'+title+'</div>');
-      w.document.write('<div class="output" id="out">Connecting...</div>');
-      w.document.write('<div class="toolbar">');
-      w.document.write('<button onclick="downloadLogs()">DOWNLOAD LOGS</button>');
-      w.document.write('<button onclick="window.opener.D.openYaml(\''+cfgEnc+'\')">EDIT</button>');
-      w.document.write('<button onclick="window.close()">CLOSE</button>');
-      w.document.write('</div>');
-      w.document.write('<script>');
-      w.document.write('var rawLog="";');
-      w.document.write('function downloadLogs(){');
-      w.document.write('  var b=new Blob([rawLog],{type:"text/plain"});');
-      w.document.write('  var a=document.createElement("a");a.href=URL.createObjectURL(b);');
-      w.document.write('  a.download="'+cfg.replace(".yaml","")+'-logs.txt";a.click();');
-      w.document.write('}');
-      w.document.write('<\/script></body></html>');
-      w.document.close();
-      var $out=w.document.getElementById("out");
+
+      // Open modal
+      D.closeCmdModal();
+      D._openModal(title);
+
+      var $body=document.getElementById("cmdModalBody");
+      $body.innerHTML='<div id="cmdOut">Connecting...</div>';
+      var $out=document.getElementById("cmdOut");
+
+      // Footer buttons
+      var $footer=document.getElementById("cmdModalFooter");
+      $footer.innerHTML='<button onclick="D.downloadLogs(\''+cfg.replace(/\.yaml$/,'')+'\')">DOWNLOAD LOGS</button>'+
+        '<button onclick="D.openYaml(\''+cfgEnc+'\')">EDIT</button>'+
+        '<button onclick="D.closeCmdModal()">CLOSE</button>';
+
+      // WebSocket
       var proto=location.protocol==="https:"?"wss:":"ws:";
       var ws=new WebSocket(proto+"//"+location.host+REL+endpoint);
+      D._cmdWs=ws;
+      D._rawLog="";
       ws.onopen=function(){
         var msg={type:"spawn",configuration:cfg};
         if(needsPort)msg.port="OTA";
         ws.send(JSON.stringify(msg));
         $out.innerHTML="";
-        w.rawLog="";
       };
       ws.onmessage=function(ev){
         var m;try{m=JSON.parse(ev.data)}catch(e){return}
         if(m.event==="line"){
           var raw=(m.data||"");
           if(raw.indexOf("\n")<0)raw+="\n";
-          w.rawLog+=raw;
-          var parsed=D._ansi(raw);
-          $out.insertAdjacentHTML("beforeend",parsed);
-          $out.scrollTop=$out.scrollHeight;
+          D._rawLog+=raw;
+          $out.insertAdjacentHTML("beforeend",D._ansi(raw));
+          $body.scrollTop=$body.scrollHeight;
         }else if(m.event==="exit"){
-          var el=w.document.createElement("div");
+          var el=document.createElement("div");
           el.className=m.code===0?"ok":"err";
           el.textContent=m.code===0?"\nDone (success)":"\nExited with code "+m.code;
           $out.appendChild(el);
-          $out.scrollTop=$out.scrollHeight;
+          $body.scrollTop=$body.scrollHeight;
         }
       };
-      ws.onerror=function(){$out.innerHTML+='<span class="err">WebSocket error</span>\n'};
-      w.addEventListener("beforeunload",function(){ws.close()});
+      ws.onerror=function(){$out.insertAdjacentHTML("beforeend",'<span class="err">WebSocket error</span>\n')};
     },
+
+    downloadLogs:function(basename){
+      var b=new Blob([D._rawLog],{type:"text/plain"});
+      var a=document.createElement("a");
+      a.href=URL.createObjectURL(b);
+      a.download=basename+"-logs.txt";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    },
+
+    _loadAce:function(){
+      if(window.ace)return Promise.resolve();
+      if(D._acePromise)return D._acePromise;
+      D._acePromise=new Promise(function(resolve,reject){
+        var s=document.createElement("script");
+        s.src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.min.js";
+        s.onload=resolve;
+        s.onerror=reject;
+        document.head.appendChild(s);
+      });
+      return D._acePromise;
+    },
+
     openYaml:function(cfgEncoded){
       var cfg=decodeURIComponent(cfgEncoded);
-      var w=window.open("","_blank","width=900,height=700,menubar=no,toolbar=no");
-      if(!w)return;
-      w.document.write('<!DOCTYPE html><html><head><title>Edit: '+cfg+'</title>');
-      w.document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.min.js"><\/script>');
-      w.document.write('<style>');
-      w.document.write('*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0a0a;display:flex;flex-direction:column;height:100vh;overflow:hidden}');
-      w.document.write('.toolbar{background:#141414;padding:8px 14px;display:flex;gap:10px;border-bottom:1px solid #222;align-items:center}');
-      w.document.write('.toolbar .filename{font-size:13px;font-weight:600;color:#fff;flex:1;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}');
-      w.document.write('.toolbar .status{font-size:11px;color:#888;font-family:-apple-system,sans-serif}');
-      w.document.write('.toolbar button{padding:6px 18px;border-radius:4px;border:none;cursor:pointer;font-size:12px;font-family:-apple-system,sans-serif;font-weight:600}');
-      w.document.write('.btn-save{background:#18BCF2;color:#000}.btn-save:hover{background:#13a5d6}');
-      w.document.write('#editor{flex:1;width:100%}');
-      w.document.write('</style></head><body>');
-      w.document.write('<div class="toolbar"><span class="filename">'+cfg+'</span><span class="status" id="status"></span>');
-      w.document.write('<button class="btn-save" onclick="saveFile()">Save</button></div>');
-      w.document.write('<div id="editor"></div>');
-      w.document.write('<script>');
-      w.document.write('var editor=ace.edit("editor");');
-      w.document.write('editor.setTheme("ace/theme/tomorrow_night");');
-      w.document.write('editor.session.setMode("ace/mode/yaml");');
-      w.document.write('editor.setOptions({fontSize:"13px",showPrintMargin:false,tabSize:2,useSoftTabs:true,wrap:true});');
-      w.document.write('var dirty=false;editor.on("change",function(){dirty=true;document.getElementById("status").textContent="(unsaved)"});');
-      w.document.write('fetch("'+REL+'edit?configuration='+cfgEncoded+'",{credentials:"same-origin"}).then(function(r){return r.text()}).then(function(t){editor.setValue(t,-1);dirty=false;document.getElementById("status").textContent=""});');
-      w.document.write('function saveFile(){var body=editor.getValue();document.getElementById("status").textContent="Saving...";');
-      w.document.write('fetch("'+REL+'edit?configuration='+cfgEncoded+'",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/yaml"},body:body})');
-      w.document.write('.then(function(r){if(r.ok){dirty=false;document.getElementById("status").textContent="Saved"}else{document.getElementById("status").textContent="Error: "+r.status}})');
-      w.document.write('.catch(function(){document.getElementById("status").textContent="Save failed"})}');
-      w.document.write('document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&e.key==="s"){e.preventDefault();saveFile()}});');
-      w.document.write('window.addEventListener("beforeunload",function(e){if(dirty){e.preventDefault();e.returnValue=""}});');
-      w.document.write('<\/script></body></html>');
-      w.document.close();
+      D.closeCmdModal();
+      D._openModal("Edit "+cfg);
+
+      var $body=document.getElementById("cmdModalBody");
+      $body.classList.add("editor-mode");
+      $body.innerHTML='<div class="ace-host" id="aceHost"></div>';
+
+      var $footer=document.getElementById("cmdModalFooter");
+      $footer.innerHTML='<span class="status" id="editorStatus">Loading...</span>'+
+        '<button onclick="D.saveYaml(\''+cfgEncoded+'\')">SAVE</button>'+
+        '<button onclick="D.closeCmdModal()">CLOSE</button>';
+
+      D._loadAce().then(function(){
+        var editor=window.ace.edit("aceHost");
+        editor.setTheme("ace/theme/tomorrow_night");
+        editor.session.setMode("ace/mode/yaml");
+        editor.setOptions({fontSize:"13px",showPrintMargin:false,tabSize:2,useSoftTabs:true,wrap:true});
+        D._aceEditor=editor;
+        editor.on("change",function(){
+          D._editorDirty=true;
+          document.getElementById("editorStatus").textContent="(unsaved)";
+        });
+        fetch(REL+"edit?configuration="+cfgEncoded,{credentials:"same-origin"})
+          .then(function(r){return r.text()})
+          .then(function(t){
+            editor.setValue(t,-1);
+            D._editorDirty=false;
+            document.getElementById("editorStatus").textContent="";
+          })
+          .catch(function(){document.getElementById("editorStatus").textContent="Failed to load"});
+      }).catch(function(){
+        $body.innerHTML='<div class="err" style="padding:20px">Failed to load Ace editor</div>';
+      });
     },
+
+    saveYaml:function(cfgEncoded){
+      if(!D._aceEditor)return;
+      var body=D._aceEditor.getValue();
+      var $status=document.getElementById("editorStatus");
+      $status.textContent="Saving...";
+      var h={"Content-Type":"application/yaml"};
+      var x=getXsrf();if(x)h["X-Xsrftoken"]=x;
+      fetch(REL+"edit?configuration="+cfgEncoded,{method:"POST",credentials:"same-origin",headers:h,body:body})
+        .then(function(r){
+          if(r.ok){D._editorDirty=false;$status.textContent="Saved"}
+          else{$status.textContent="Error: "+r.status}
+        })
+        .catch(function(){$status.textContent="Save failed"});
+    },
+
     showApiKey:function(cfgEncoded){
+      D.closeCmdModal();
+      D._openModal("API Key");
+      var $body=document.getElementById("cmdModalBody");
+      $body.innerHTML='<div style="padding:20px;color:#888">Loading...</div>';
+      var $footer=document.getElementById("cmdModalFooter");
+      $footer.innerHTML='<button onclick="D.closeCmdModal()">CLOSE</button>';
+
       fetch(REL+"info?configuration="+cfgEncoded,{credentials:"same-origin"})
         .then(function(r){return r.json()})
         .then(function(data){
           var key=data.api_key||data.noise_psk||"No API key found";
-          var w=window.open("","_blank","width=500,height=200,menubar=no,toolbar=no");
-          if(!w)return;
-          w.document.write('<!DOCTYPE html><html><head><title>API Key</title><style>body{background:#0a0a0a;color:#e0e0e0;font-family:"SF Mono",Menlo,monospace;font-size:14px;padding:20px;display:flex;align-items:center;justify-content:center;min-height:100vh}div{text-align:center}p{color:#888;font-size:12px;margin-bottom:10px;font-family:sans-serif}.key{user-select:all;cursor:text;padding:12px;background:#1a1a1a;border-radius:6px;border:1px solid #333}</style></head><body><div><p>API Key</p><div class="key">'+key+'</div></div></body></html>');
-          w.document.close();
+          $body.innerHTML='<div style="padding:24px"><div style="color:#888;font-size:12px;margin-bottom:8px;font-family:Inter,sans-serif">API Key</div><div style="user-select:all;padding:12px;background:#1a1a1a;border-radius:6px;border:1px solid #333;font-size:14px;color:#e0e0e0">'+esc(key)+'</div></div>';
         })
-        .catch(function(){alert("Failed to load device info")});
+        .catch(function(){$body.innerHTML='<div style="padding:20px;color:#ff6666">Failed to load device info</div>'});
     },
 
     // Tag editing
@@ -772,7 +870,25 @@
   document.getElementById("tagEditInput").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();D.addTagFromInput()}if(e.key==="Escape")D.closeTagEdit()});
   $tagOverlay.addEventListener("click",function(e){if(e.target===$tagOverlay)D.closeTagEdit()});
   $panelOverlay.addEventListener("click",function(){D.closePanel()});
-  document.addEventListener("keydown",function(e){if(e.key==="Escape"){if(panelConfig)D.closePanel();if(editingConfig)D.closeTagEdit()}});
+  document.addEventListener("keydown",function(e){
+    if(e.key==="Escape"){
+      var cmdOpen=document.getElementById("cmdOverlay").classList.contains("open");
+      if(cmdOpen){D.closeCmdModal();return}
+      if(panelConfig)D.closePanel();
+      if(editingConfig)D.closeTagEdit();
+    }
+    // Ctrl+S / Cmd+S saves when editor modal is open
+    if((e.ctrlKey||e.metaKey)&&e.key==="s"&&D._aceEditor){
+      e.preventDefault();
+      // saveYaml needs cfgEncoded - grab from the SAVE button
+      var btn=document.querySelector("#cmdModalFooter button[onclick*=saveYaml]");
+      if(btn){var m=btn.getAttribute("onclick").match(/saveYaml\('([^']+)'\)/);if(m)D.saveYaml(m[1])}
+    }
+  });
+  // Click backdrop of command modal to close
+  document.getElementById("cmdOverlay").addEventListener("click",function(e){
+    if(e.target===this)D.closeCmdModal();
+  });
 
   function refresh(){fetch(REL+"devices",{credentials:"same-origin"}).then(function(r){return r.json()}).then(function(d){devices=d.configured||[];archived=d.archived||[];render()})}
 
