@@ -931,7 +931,7 @@ uint32_t
 SubscribeLogsResponse::calculate_size() const {
   uint32_t size = 0;
   size += 2;
-  size += ProtoSize::calc_length(1, this->message_len_);
+  size += ProtoSize::calc_length_force(1, this->message_len_);
   return size;
 }
 #ifdef USE_API_NOISE
