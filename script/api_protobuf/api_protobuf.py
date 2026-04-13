@@ -1028,7 +1028,8 @@ class BytesType(TypeInfo):
         )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size += ProtoSize::calc_length({self.calculate_field_id_size()}, this->{self.field_name}_len_);"
+        calc_fn = "calc_length_force" if force else "calc_length"
+        return f"size += ProtoSize::{calc_fn}({self.calculate_field_id_size()}, this->{self.field_name}_len_);"
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical bytes
@@ -1109,7 +1110,8 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
         )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size += ProtoSize::calc_length({self.calculate_field_id_size()}, this->{self.field_name}_len);"
+        calc_fn = "calc_length_force" if force else "calc_length"
+        return f"size += ProtoSize::{calc_fn}({self.calculate_field_id_size()}, this->{self.field_name}_len);"
 
 
 class PointerToStringBufferType(PointerToBufferTypeBase):
