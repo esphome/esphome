@@ -502,6 +502,7 @@ esphome/components/sx127x/* @swoboda1337
 esphome/components/sy6970/* @linkedupbits
 esphome/components/syslog/* @clydebarrow
 esphome/components/t6615/* @tylermenezes
+esphome/components/tas2780/* @remcom
 esphome/components/tc74/* @sethgirvan
 esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tca9555/* @mobrembski
