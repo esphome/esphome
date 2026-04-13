@@ -778,9 +778,10 @@ message SubscribeLogsResponse {
   option (source) = SOURCE_SERVER;
   option (log) = false;
   option (no_delay) = false;
+  option (speed_optimized) = true;
 
-  LogLevel level = 1;
-  bytes message = 3;
+  LogLevel level = 1 [(force) = true];
+  bytes message = 3 [(force) = true];
 }
 
 // ==================== NOISE ENCRYPTION ====================
