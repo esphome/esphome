@@ -49,7 +49,8 @@ static const size_t REBOOT_MAX_LEN = 24;
 void DebugComponent::on_shutdown() {
   auto *component = App.get_current_component();
   char buffer[REBOOT_MAX_LEN]{};
-  auto pref = global_preferences->make_preference(REBOOT_MAX_LEN, fnv1_hash(REBOOT_KEY + App.get_name()));
+  auto pref = global_preferences->make_preference(REBOOT_MAX_LEN,
+                                                  fnv1_hash_extend(fnv1_hash(REBOOT_KEY), App.get_name().c_str()));
   if (component != nullptr) {
     strncpy(buffer, LOG_STR_ARG(component->get_component_log_str()), REBOOT_MAX_LEN - 1);
     buffer[REBOOT_MAX_LEN - 1] = '\0';
@@ -66,7 +67,8 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
   unsigned reason = esp_reset_reason();
   if (reason < sizeof(RESET_REASONS) / sizeof(RESET_REASONS[0])) {
     if (reason == ESP_RST_SW) {
-      auto pref = global_preferences->make_preference(REBOOT_MAX_LEN, fnv1_hash(REBOOT_KEY + App.get_name()));
+      auto pref = global_preferences->make_preference(REBOOT_MAX_LEN,
+                                                      fnv1_hash_extend(fnv1_hash(REBOOT_KEY), App.get_name().c_str()));
       char reboot_source[REBOOT_MAX_LEN]{};
       if (pref.load(&reboot_source)) {
         reboot_source[REBOOT_MAX_LEN - 1] = '\0';

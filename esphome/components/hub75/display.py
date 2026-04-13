@@ -128,6 +128,7 @@ SCAN_WIRINGS = {
     "STANDARD_TWO_SCAN": Hub75ScanWiring.STANDARD_TWO_SCAN,
     "SCAN_1_4_16PX_HIGH": Hub75ScanWiring.SCAN_1_4_16PX_HIGH,
     "SCAN_1_8_32PX_HIGH": Hub75ScanWiring.SCAN_1_8_32PX_HIGH,
+    "SCAN_1_8_32PX_FULL": Hub75ScanWiring.SCAN_1_8_32PX_FULL,
     "SCAN_1_8_40PX_HIGH": Hub75ScanWiring.SCAN_1_8_40PX_HIGH,
     "SCAN_1_8_64PX_HIGH": Hub75ScanWiring.SCAN_1_8_64PX_HIGH,
 }
@@ -587,7 +588,7 @@ def _build_config_struct(
 async def to_code(config: ConfigType) -> None:
     add_idf_component(
         name="esphome/esp-hub75",
-        ref="0.3.2",
+        ref="0.3.5",
     )
 
     # Set compile-time configuration via build flags (so external library sees them)

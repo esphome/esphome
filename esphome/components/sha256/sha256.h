@@ -48,7 +48,7 @@ namespace esphome::sha256 {
 ///   hasher.init();
 ///   hasher.add(data, len);
 ///   hasher.calculate();
-class SHA256 : public esphome::HashBase {
+class SHA256 final : public esphome::HashBase {
  public:
   SHA256() = default;
   ~SHA256() override;

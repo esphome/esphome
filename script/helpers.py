@@ -15,8 +15,6 @@ from typing import Any
 
 import colorama
 
-from esphome.loader import get_platform
-
 root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
 basepath = os.path.join(root_path, "esphome")
 temp_folder = os.path.join(root_path, ".temp")
@@ -627,14 +625,12 @@ def get_usable_cpu_count() -> int:
 
 
 def get_all_dependencies(
-    component_names: set[str], cpp_testing: bool = False
+    component_names: set[str],
 ) -> set[str]:
     """Get all dependencies for a set of components.
 
     Args:
         component_names: Set of component names to get dependencies for
-        cpp_testing: If True, set CORE.cpp_testing so AUTO_LOAD callables that
-                     conditionally include testing-only dependencies work correctly
 
     Returns:
         Set of all components including dependencies and auto-loaded components
@@ -646,13 +642,12 @@ def get_all_dependencies(
         PLATFORM_HOST,
     )
     from esphome.core import CORE
-    from esphome.loader import get_component
+    from esphome.loader import get_component, get_platform
 
     all_components: set[str] = set(component_names)
 
     # Reset CORE to ensure clean state
     CORE.reset()
-    CORE.cpp_testing = cpp_testing
 
     # Set up fake config path for component loading
     root = Path(__file__).parent.parent

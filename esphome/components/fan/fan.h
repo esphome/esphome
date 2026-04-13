@@ -122,11 +122,21 @@ class Fan : public EntityBase {
   FanCall make_call();
 
   /// Register a callback that will be called each time the state changes.
-  void add_on_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   void publish_state();
 
   virtual FanTraits get_traits() = 0;
+
+  /// Set the supported preset modes (stored on Fan, referenced by FanTraits via pointer).
+  void set_supported_preset_modes(std::initializer_list<const char *> preset_modes) {
+    this->ensure_preset_modes_().assign(preset_modes.begin(), preset_modes.end());
+  }
+  void set_supported_preset_modes(const std::vector<const char *> &preset_modes) {
+    this->ensure_preset_modes_() = preset_modes;
+  }
 
   /// Set the restore mode of this fan.
   void set_restore_mode(FanRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
@@ -165,11 +175,27 @@ class Fan : public EntityBase {
   const char *find_preset_mode_(const char *preset_mode);
   const char *find_preset_mode_(const char *preset_mode, size_t len);
 
+  /// Wire the Fan-owned preset modes pointer into the given traits object.
+  void wire_preset_modes_(FanTraits &traits) {
+    if (this->supported_preset_modes_) {
+      traits.set_supported_preset_modes_(this->supported_preset_modes_);
+    }
+  }
+
   LazyCallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;
   FanRestoreMode restore_mode_;
 
  private:
+  /// Lazy-allocate preset modes vector (never freed — entity lives forever).
+  std::vector<const char *> &ensure_preset_modes_() {
+    if (!this->supported_preset_modes_) {
+      this->supported_preset_modes_ = new std::vector<const char *>();  // NOLINT
+    }
+    return *this->supported_preset_modes_;
+  }
+
+  std::vector<const char *> *supported_preset_modes_{nullptr};
   const char *preset_mode_{nullptr};
 };
 

@@ -1037,7 +1037,7 @@ def test_get_all_dependencies_platform_component() -> None:
 
     with (
         patch("esphome.loader.get_component") as mock_get_component,
-        patch("helpers.get_platform") as mock_get_platform,
+        patch("esphome.loader.get_platform") as mock_get_platform,
     ):
         mock_get_platform.return_value = platform_comp
         mock_get_component.return_value = None
@@ -1061,7 +1061,7 @@ def test_get_all_dependencies_platform_component_with_dependencies() -> None:
 
     with (
         patch("esphome.loader.get_component") as mock_get_component,
-        patch("helpers.get_platform") as mock_get_platform,
+        patch("esphome.loader.get_platform") as mock_get_platform,
     ):
         mock_get_platform.return_value = platform_comp
         mock_get_component.side_effect = lambda name: (
@@ -1071,28 +1071,6 @@ def test_get_all_dependencies_platform_component_with_dependencies() -> None:
         result = helpers.get_all_dependencies({"sensor.bthome"})
 
         assert result == {"sensor.bthome", "sensor"}
-
-
-def test_get_all_dependencies_cpp_testing_flag() -> None:
-    """cpp_testing=True propagates to CORE.cpp_testing during resolution."""
-    from esphome.core import CORE
-
-    with (
-        patch("esphome.loader.get_component") as mock_get_component,
-        patch("esphome.loader.get_platform"),
-    ):
-        observed: list[bool] = []
-
-        def capturing_get_component(name: str):
-            observed.append(CORE.cpp_testing)
-
-        mock_get_component.side_effect = capturing_get_component
-
-        helpers.get_all_dependencies({"some_comp"}, cpp_testing=True)
-
-    assert observed and all(observed), (
-        "CORE.cpp_testing should be True during resolution"
-    )
 
 
 def test_get_components_from_integration_fixtures() -> None:

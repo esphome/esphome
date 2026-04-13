@@ -6,6 +6,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_ESP32
+#include "esphome/core/lock_free_queue.h"
+#endif
 #include "esphome/core/string_ref.h"
 
 #include <span>
@@ -263,8 +266,8 @@ class WiFiAP {
 #ifdef USE_WIFI_WPA2_EAP
   const optional<EAPAuth> &get_eap() const;
 #endif  // USE_WIFI_WPA2_EAP
-  uint8_t get_channel() const;
-  bool has_channel() const;
+  uint8_t get_channel() const { return this->channel_; }
+  bool has_channel() const { return this->channel_ != 0; }
   int8_t get_priority() const { return priority_; }
 #ifdef USE_WIFI_MANUAL_IP
   const optional<ManualIP> &get_manual_ip() const;
@@ -399,7 +402,7 @@ class WiFiPowerSaveListener {
 };
 
 /// This component is responsible for managing the ESP WiFi interface.
-class WiFiComponent : public Component {
+class WiFiComponent final : public Component {
  public:
   /// Construct a WiFiComponent.
   WiFiComponent();
@@ -463,16 +466,12 @@ class WiFiComponent : public Component {
   void restart_adapter();
   /// WIFI setup_priority.
   float get_setup_priority() const override;
-#ifdef USE_LOOP_PRIORITY
-  float get_loop_priority() const override;
-#endif
-
   /// Reconnect WiFi if required.
   void loop() override;
 
-  bool has_sta() const;
-  bool has_ap() const;
-  bool is_ap_active() const;
+  bool has_sta() const { return !this->sta_.empty(); }
+  bool has_ap() const { return this->has_ap_; }
+  bool is_ap_active() const { return this->ap_started_; }
 
 #ifdef USE_WIFI_11KV_SUPPORT
   void set_btm(bool btm);
@@ -481,8 +480,8 @@ class WiFiComponent : public Component {
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
-  const char *get_use_address() const;
-  void set_use_address(const char *use_address);
+  const char *get_use_address() const { return this->use_address_; }
+  void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
@@ -674,8 +673,11 @@ class WiFiComponent : public Component {
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
   WiFiSTAConnectStatus wifi_sta_connect_status_() const;
-  bool is_connected_() const;
-  void update_connected_state_();
+  bool is_connected_() const {
+    return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
+           this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
+  }
+  void update_connected_state_() { this->connected_ = this->is_connected_(); }
   bool wifi_scan_start_(bool passive);
 
 #ifdef USE_WIFI_AP
@@ -728,6 +730,7 @@ class WiFiComponent : public Component {
 
 #ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
+  friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 
 #ifdef USE_RP2040
@@ -774,11 +777,17 @@ class WiFiComponent : public Component {
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
 #endif
 
+  static constexpr uint8_t FIRST_5GHZ_CHANNEL = 36;
+
   // Post-connect roaming constants
   static constexpr uint32_t ROAMING_CHECK_INTERVAL = 5 * 60 * 1000;  // 5 minutes
   static constexpr int8_t ROAMING_MIN_IMPROVEMENT = 10;              // dB
   static constexpr int8_t ROAMING_GOOD_RSSI = -49;                   // Skip scan if signal is excellent
   static constexpr uint8_t ROAMING_MAX_ATTEMPTS = 3;
+  // Grace period after roaming scan completes. If WiFi disconnects within this
+  // window (e.g., ESP8266 Beacon Timeout caused by going off-channel during scan),
+  // the disconnect is treated as roaming-related and the attempts counter is preserved.
+  static constexpr uint32_t ROAMING_SCAN_GRACE_PERIOD = 30 * 1000;  // 30 seconds
 
   // 4-byte members
   float output_power_{NAN};
@@ -786,6 +795,7 @@ class WiFiComponent : public Component {
   uint32_t last_connected_{0};
   uint32_t reboot_timeout_{};
   uint32_t roaming_last_check_{0};
+  uint32_t roaming_scan_end_{0};  // Timestamp when last roaming scan completed
 #ifdef USE_WIFI_AP
   uint32_t ap_timeout_{};
 #endif
@@ -808,8 +818,15 @@ class WiFiComponent : public Component {
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
   bool error_from_callback_{false};
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // Platform-specific STA state enum, defined in platform cpp file.
+  // On ESP8266, written from SDK system context (wifi_event_callback) —
+  // uint8_t writes are atomic on Xtensa LX106 so no synchronization is needed.
+  uint8_t sta_state_{0};
+#endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
+  bssid_t roaming_target_bssid_{};  // BSSID of the AP we're trying to roam to
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
 #endif
@@ -856,6 +873,13 @@ class WiFiComponent : public Component {
   bool post_connect_roaming_{true};  // Enabled by default
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   bool is_high_performance_mode_{false};
+#endif
+
+#ifdef USE_ESP32
+  // Lock-free SPSC queue for WiFi events from ESP-IDF event handler.
+  // 17 slots = 16 usable (ring buffer reserves one slot). WiFi events are rare.
+  // Placed at end of class to avoid padding between smaller fields.
+  LockFreeQueue<IDFWiFiEvent, 17> event_queue_;
 #endif
 
  private:
