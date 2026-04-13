@@ -236,21 +236,37 @@ void LvglComponent::show_page(size_t index, lv_screen_load_anim_t anim, uint32_t
     lv_screen_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
   }
 
+  lv_obj_t *focused_obj = nullptr;
+  if (!this->inputs_.empty()) {
+    focused_obj = lv_group_get_focused(lv_indev_get_group(this->inputs_[0]));
+  }
+
+  lv_group_t *def_group = this->pages_[this->current_page_]->def_group;
+
   // Add all default group objects from this lvgl instance to this page's group
   for (lv_obj_t *obj : this->def_objs_) {
-    lv_group_add_obj(this->pages_[this->current_page_]->def_group, obj);
+    lv_group_add_obj(def_group, obj);
   }
   // Add all top and bottom layer objects from this lvgl instance to this page's group
+  bool found = false;
   for (lv_obj_t *obj : this->top_layer_objs_) {
-    lv_group_add_obj(this->pages_[this->current_page_]->def_group, obj);
+    lv_group_add_obj(def_group, obj);
+    if (obj == focused_obj)
+      found = true;
   }
   for (lv_obj_t *obj : this->bottom_layer_objs_) {
-    lv_group_add_obj(this->pages_[this->current_page_]->def_group, obj);
+    lv_group_add_obj(def_group, obj);
+    if (obj == focused_obj)
+      found = true;
   }
+
+  // This preserves focus if the object was in one of the persistent layers
+  if (found)
+    lv_group_focus_obj(focused_obj);
 
   // Set all inputs from this lvgl instance that didn't have a group definition to this page's group
   for (lv_indev_t *indev : this->inputs_) {
-    lv_indev_set_group(indev, this->pages_[this->current_page_]->def_group);
+    lv_indev_set_group(indev, def_group);
   }
 }
 
