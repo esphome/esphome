@@ -27,116 +27,57 @@ CONF_TS_OPEN = "ts_open"
 CONF_TS_FAULT = "ts_fault"
 CONF_BATTERY_OCP_FAULT = "battery_ocp_fault"
 
-BQ25186StatusBinarySensor = bq25186_ns.class_(
-    "BQ25186StatusBinarySensor", binary_sensor.BinarySensor
+_BINARY_SENSOR_SPECS = (
+    (CONF_VIN_POWER_GOOD, "BQ25186VinPowerGoodBinarySensor", DEVICE_CLASS_CONNECTIVITY),
+    (CONF_CHARGING_ACTIVE, "BQ25186ChargingActiveBinarySensor", DEVICE_CLASS_POWER),
+    (CONF_CHARGE_DONE, "BQ25186ChargeDoneBinarySensor", DEVICE_CLASS_POWER),
+    (CONF_ILIM_ACTIVE, "BQ25186IlimActiveBinarySensor", DEVICE_CLASS_PROBLEM),
+    (CONF_VINDPM_ACTIVE, "BQ25186VindpmActiveBinarySensor", DEVICE_CLASS_PROBLEM),
+    (CONF_VDPPM_ACTIVE, "BQ25186VdppmActiveBinarySensor", DEVICE_CLASS_PROBLEM),
+    (CONF_THERMREG_ACTIVE, "BQ25186ThermregActiveBinarySensor", DEVICE_CLASS_PROBLEM),
+    (CONF_VIN_OVP_ACTIVE, "BQ25186VinOvpActiveBinarySensor", DEVICE_CLASS_PROBLEM),
+    (
+        CONF_BATTERY_UVLO_ACTIVE,
+        "BQ25186BatteryUvloActiveBinarySensor",
+        DEVICE_CLASS_PROBLEM,
+    ),
+    (
+        CONF_SAFETY_TIMER_FAULT,
+        "BQ25186SafetyTimerFaultBinarySensor",
+        DEVICE_CLASS_PROBLEM,
+    ),
+    (CONF_WAKE1_FLAG, "BQ25186Wake1FlagBinarySensor", None),
+    (CONF_WAKE2_FLAG, "BQ25186Wake2FlagBinarySensor", None),
+    (CONF_TS_OPEN, "BQ25186TsOpenBinarySensor", DEVICE_CLASS_PROBLEM),
+    (CONF_TS_FAULT, "BQ25186TsFaultBinarySensor", DEVICE_CLASS_PROBLEM),
+    (
+        CONF_BATTERY_OCP_FAULT,
+        "BQ25186BatteryOcpFaultBinarySensor",
+        DEVICE_CLASS_PROBLEM,
+    ),
 )
-BQ25186ChargingActiveBinarySensor = bq25186_ns.class_(
-    "BQ25186ChargingActiveBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186ChargeDoneBinarySensor = bq25186_ns.class_(
-    "BQ25186ChargeDoneBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186VinPowerGoodBinarySensor = bq25186_ns.class_(
-    "BQ25186VinPowerGoodBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186IlimActiveBinarySensor = bq25186_ns.class_(
-    "BQ25186IlimActiveBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186VindpmActiveBinarySensor = bq25186_ns.class_(
-    "BQ25186VindpmActiveBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186VdppmActiveBinarySensor = bq25186_ns.class_(
-    "BQ25186VdppmActiveBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186ThermregActiveBinarySensor = bq25186_ns.class_(
-    "BQ25186ThermregActiveBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186VinOvpActiveBinarySensor = bq25186_ns.class_(
-    "BQ25186VinOvpActiveBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186BatteryUvloActiveBinarySensor = bq25186_ns.class_(
-    "BQ25186BatteryUvloActiveBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186SafetyTimerFaultBinarySensor = bq25186_ns.class_(
-    "BQ25186SafetyTimerFaultBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186Wake1FlagBinarySensor = bq25186_ns.class_(
-    "BQ25186Wake1FlagBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186Wake2FlagBinarySensor = bq25186_ns.class_(
-    "BQ25186Wake2FlagBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186TsOpenBinarySensor = bq25186_ns.class_(
-    "BQ25186TsOpenBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186TsFaultBinarySensor = bq25186_ns.class_(
-    "BQ25186TsFaultBinarySensor", binary_sensor.BinarySensor
-)
-BQ25186BatteryOcpFaultBinarySensor = bq25186_ns.class_(
-    "BQ25186BatteryOcpFaultBinarySensor", binary_sensor.BinarySensor
-)
+
+_BINARY_SENSOR_TYPES = {
+    conf_key: bq25186_ns.class_(class_name, binary_sensor.BinarySensor)
+    for conf_key, class_name, _ in _BINARY_SENSOR_SPECS
+}
+
+
+def _binary_sensor_schema(sensor_type, device_class):
+    if device_class is None:
+        return binary_sensor.binary_sensor_schema(sensor_type)
+    return binary_sensor.binary_sensor_schema(sensor_type, device_class=device_class)
+
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_BQ25186_ID): cv.use_id(BQ25186Component),
-        cv.Optional(CONF_VIN_POWER_GOOD): binary_sensor.binary_sensor_schema(
-            BQ25186VinPowerGoodBinarySensor,
-            device_class=DEVICE_CLASS_CONNECTIVITY,
-        ),
-        cv.Optional(CONF_CHARGING_ACTIVE): binary_sensor.binary_sensor_schema(
-            BQ25186ChargingActiveBinarySensor,
-            device_class=DEVICE_CLASS_POWER,
-        ),
-        cv.Optional(CONF_CHARGE_DONE): binary_sensor.binary_sensor_schema(
-            BQ25186ChargeDoneBinarySensor,
-            device_class=DEVICE_CLASS_POWER,
-        ),
-        cv.Optional(CONF_ILIM_ACTIVE): binary_sensor.binary_sensor_schema(
-            BQ25186IlimActiveBinarySensor,
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_VINDPM_ACTIVE): binary_sensor.binary_sensor_schema(
-            BQ25186VindpmActiveBinarySensor,
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_VDPPM_ACTIVE): binary_sensor.binary_sensor_schema(
-            BQ25186VdppmActiveBinarySensor,
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_THERMREG_ACTIVE): binary_sensor.binary_sensor_schema(
-            BQ25186ThermregActiveBinarySensor,
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_VIN_OVP_ACTIVE): binary_sensor.binary_sensor_schema(
-            BQ25186VinOvpActiveBinarySensor,
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_BATTERY_UVLO_ACTIVE): binary_sensor.binary_sensor_schema(
-            BQ25186BatteryUvloActiveBinarySensor,
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_SAFETY_TIMER_FAULT): binary_sensor.binary_sensor_schema(
-            BQ25186SafetyTimerFaultBinarySensor,
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_WAKE1_FLAG): binary_sensor.binary_sensor_schema(
-            BQ25186Wake1FlagBinarySensor
-        ),
-        cv.Optional(CONF_WAKE2_FLAG): binary_sensor.binary_sensor_schema(
-            BQ25186Wake2FlagBinarySensor
-        ),
-        cv.Optional(CONF_TS_OPEN): binary_sensor.binary_sensor_schema(
-            BQ25186TsOpenBinarySensor,
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_TS_FAULT): binary_sensor.binary_sensor_schema(
-            BQ25186TsFaultBinarySensor,
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
-        cv.Optional(CONF_BATTERY_OCP_FAULT): binary_sensor.binary_sensor_schema(
-            BQ25186BatteryOcpFaultBinarySensor,
-            device_class=DEVICE_CLASS_PROBLEM,
-        ),
+        **{
+            cv.Optional(conf_key): _binary_sensor_schema(
+                _BINARY_SENSOR_TYPES[conf_key], device_class
+            )
+            for conf_key, _, device_class in _BINARY_SENSOR_SPECS
+        },
     }
 )
 
@@ -144,51 +85,7 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_BQ25186_ID])
 
-    if conf := config.get(CONF_VIN_POWER_GOOD):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-
-    if conf := config.get(CONF_CHARGING_ACTIVE):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-
-    if conf := config.get(CONF_CHARGE_DONE):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-
-    if conf := config.get(CONF_ILIM_ACTIVE):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-    if conf := config.get(CONF_VINDPM_ACTIVE):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-    if conf := config.get(CONF_VDPPM_ACTIVE):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-    if conf := config.get(CONF_THERMREG_ACTIVE):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-    if conf := config.get(CONF_VIN_OVP_ACTIVE):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-    if conf := config.get(CONF_BATTERY_UVLO_ACTIVE):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-    if conf := config.get(CONF_SAFETY_TIMER_FAULT):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-    if conf := config.get(CONF_WAKE1_FLAG):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-    if conf := config.get(CONF_WAKE2_FLAG):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-    if conf := config.get(CONF_TS_OPEN):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-    if conf := config.get(CONF_TS_FAULT):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
-    if conf := config.get(CONF_BATTERY_OCP_FAULT):
-        sens = await binary_sensor.new_binary_sensor(conf)
-        cg.add(parent.add_listener(sens))
+    for conf_key, _, _ in _BINARY_SENSOR_SPECS:
+        if conf := config.get(conf_key):
+            sens = await binary_sensor.new_binary_sensor(conf)
+            cg.add(parent.add_listener(sens))

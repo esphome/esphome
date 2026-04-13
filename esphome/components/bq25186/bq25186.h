@@ -107,8 +107,8 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
   bool apply_configuration_();
 
-  static uint8_t encode_battery_regulation_voltage_(uint16_t millivolts);
-  static uint8_t encode_fast_charge_current_(uint16_t milliamps);
+  static uint8_t encode_battery_regulation_voltage(uint16_t millivolts);
+  static uint8_t encode_fast_charge_current(uint16_t milliamps);
 
   BQ25186Data data_{};
   std::vector<BQ25186Listener *> listeners_;
