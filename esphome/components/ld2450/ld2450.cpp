@@ -565,6 +565,7 @@ void LD2450Component::handle_periodic_data_() {
   SAFE_PUBLISH_SENSOR(this->still_target_count_sensor_, still_target_count);
   // Moving Target Count
   SAFE_PUBLISH_SENSOR(this->moving_target_count_sensor_, moving_target_count);
+
 #endif
 
 #ifdef USE_BINARY_SENSOR
