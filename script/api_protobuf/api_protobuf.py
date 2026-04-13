@@ -2679,6 +2679,13 @@ def build_message_type(
         and get_opt(desc, inline_opt, False)
     )
 
+    # Check if this message wants speed-optimized encode/calculate_size.
+    # When set, __attribute__((optimize("O2"))) is added to the definitions
+    # so GCC inlines the small ProtoEncode helpers even under -Os.
+    speed_opt = getattr(pb, "speed_optimized", None)
+    is_speed_optimized = speed_opt is not None and get_opt(desc, speed_opt, False)
+    speed_attr = '__attribute__((optimize("O2"))) ' if is_speed_optimized else ""
+
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode and not is_inline_only:
         # Add PROTO_ENCODE_DEBUG_ARG after pos in all proto_* calls
@@ -2688,7 +2695,7 @@ def build_message_type(
             )
             for line in encode
         ]
-        o = f"uint8_t *{desc.name}::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {{\n"
+        o = f"{speed_attr}uint8_t *{desc.name}::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {{\n"
         o += "  uint8_t *__restrict__ pos = buffer.get_pos();\n"
         o += indent("\n".join(encode_debug)) + "\n"
         o += "  return pos;\n"
@@ -2702,7 +2709,7 @@ def build_message_type(
 
     # Add calculate_size method only if this message needs encoding and has fields
     if needs_encode and size_calc and not is_inline_only:
-        o = f"uint32_t {desc.name}::calculate_size() const {{\n"
+        o = f"{speed_attr}uint32_t {desc.name}::calculate_size() const {{\n"
         o += "  uint32_t size = 0;\n"
         o += indent("\n".join(size_calc)) + "\n"
         o += "  return size;\n"
