@@ -165,6 +165,47 @@
     .sp-btn-danger:hover { background: #2a1515; color: #ff6666; }
     .sp-sep { border-top: 1px solid #222; margin: 6px 0; }
 
+    /* Generic dialog (prompt/confirm) */
+    .dlg-overlay {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); z-index: 800; align-items: center; justify-content: center;
+    }
+    .dlg-overlay.open { display: flex; }
+    .dlg-box {
+      background: #141414; border: 1px solid #333; border-radius: 8px;
+      width: 440px; max-width: 90vw; box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .dlg-title {
+      font-size: 15px; font-weight: 600; color: #fff; padding: 16px 20px;
+      border-bottom: 1px solid #222;
+    }
+    .dlg-body {
+      padding: 18px 20px; color: #c8c8d4; font-size: 13px; line-height: 1.55;
+      white-space: pre-wrap;
+    }
+    .dlg-body .hl { color: #18BCF2; font-weight: 600; }
+    .dlg-body .warn { color: #ff9800; font-size: 12px; margin-top: 10px; }
+    .dlg-input {
+      width: 100%; padding: 8px 10px; background: #0a0a0a; border: 1px solid #333;
+      border-radius: 4px; color: #e0e0e0; font-size: 13px; font-family: inherit; outline: none;
+      margin-top: 10px;
+    }
+    .dlg-input:focus { border-color: #18BCF2; }
+    .dlg-footer {
+      display: flex; justify-content: flex-end; gap: 8px;
+      padding: 12px 20px; border-top: 1px solid #222;
+    }
+    .dlg-btn {
+      padding: 7px 18px; border-radius: 4px; border: 1px solid #333; background: transparent;
+      color: #ccc; font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit;
+    }
+    .dlg-btn:hover { background: #1a1a1a; color: #fff; }
+    .dlg-btn-primary { background: #18BCF2; border-color: #18BCF2; color: #000; font-weight: 600; }
+    .dlg-btn-primary:hover { background: #13a5d6; color: #000; }
+    .dlg-btn-danger { background: #c62828; border-color: #c62828; color: #fff; font-weight: 600; }
+    .dlg-btn-danger:hover { background: #8e0000; }
+
     /* Command modal (in-page, like classic dashboard) */
     .cmd-overlay {
       display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -337,6 +378,15 @@
 </div>
 
 <!-- Tag Edit Modal -->
+<!-- Generic Dialog (prompt/confirm) -->
+<div class="dlg-overlay" id="dlgOverlay">
+  <div class="dlg-box">
+    <div class="dlg-title" id="dlgTitle"></div>
+    <div class="dlg-body" id="dlgBody"></div>
+    <div class="dlg-footer" id="dlgFooter"></div>
+  </div>
+</div>
+
 <!-- Command/Editor Modal -->
 <div class="cmd-overlay" id="cmdOverlay">
   <div class="cmd-modal">
@@ -579,6 +629,7 @@
       if(hasUpd)a+='<button class="sp-btn" onclick="D.runCmd(\'run\',\''+c+'\')">Update to '+esc(d.current_version)+'</button>';
       a+='<button class="sp-btn" onclick="D.runCmd(\'upload\',\''+c+'\')">Install (Upload OTA)</button>';
       a+='<button class="sp-btn" onclick="D.runCmd(\'run\',\''+c+'\')">Install (Compile + Upload)</button>';
+      a+='<button class="sp-btn" onclick="D.installToAddress(\''+c+'\')">Install to Specific Address...</button>';
       a+='<button class="sp-btn" onclick="D.openYaml(\''+cu+'\')">Edit</button>';
       a+='<button class="sp-btn" onclick="D.runCmd(\'validate\',\''+c+'\')">Validate</button>';
       a+='<button class="sp-btn" onclick="D.runCmd(\'compile\',\''+c+'\')">Compile</button>';
@@ -657,11 +708,12 @@
       D._editorDirty=false;
     },
 
-    runCmd:function(cmd,cfg){
+    runCmd:function(cmd,cfg,customPort){
       var endpointMap={logs:"logs",upload:"upload",run:"run",compile:"compile",validate:"validate",clean:"clean","clean-mqtt":"clean-mqtt"};
       var endpoint=endpointMap[cmd];if(!endpoint)return;
       var needsPort=cmd==="logs"||cmd==="upload"||cmd==="run";
-      var title=cmd.charAt(0).toUpperCase()+cmd.slice(1)+" "+cfg;
+      var port=customPort||"OTA";
+      var title=cmd.charAt(0).toUpperCase()+cmd.slice(1)+" "+cfg+(customPort?" -> "+customPort:"");
       var cfgEnc=encodeURIComponent(cfg);
 
       // Open modal
@@ -685,7 +737,7 @@
       D._rawLog="";
       ws.onopen=function(){
         var msg={type:"spawn",configuration:cfg};
-        if(needsPort)msg.port="OTA";
+        if(needsPort)msg.port=port;
         ws.send(JSON.stringify(msg));
         $out.innerHTML="";
       };
@@ -706,6 +758,90 @@
         }
       };
       ws.onerror=function(){$out.insertAdjacentHTML("beforeend",'<span class="err">WebSocket error</span>\n')};
+    },
+
+    // Generic dialog helpers
+    _dlgResolver:null,
+    _closeDlg:function(result){
+      document.getElementById("dlgOverlay").classList.remove("open");
+      var r=D._dlgResolver;D._dlgResolver=null;
+      if(r)r(result);
+    },
+    dlgPrompt:function(title,message,defaultValue){
+      return new Promise(function(resolve){
+        D._dlgResolver=resolve;
+        document.getElementById("dlgTitle").textContent=title;
+        var bodyHtml=message?'<div>'+esc(message)+'</div>':'';
+        bodyHtml+='<input type="text" class="dlg-input" id="dlgInput" value="'+esc(defaultValue||"")+'" autocomplete="off">';
+        document.getElementById("dlgBody").innerHTML=bodyHtml;
+        document.getElementById("dlgFooter").innerHTML=
+          '<button class="dlg-btn" onclick="D._closeDlg(null)">Cancel</button>'+
+          '<button class="dlg-btn dlg-btn-primary" onclick="D._submitPrompt()">OK</button>';
+        document.getElementById("dlgOverlay").classList.add("open");
+        setTimeout(function(){
+          var $i=document.getElementById("dlgInput");
+          $i.focus();$i.select();
+          $i.addEventListener("keydown",function(e){
+            if(e.key==="Enter"){e.preventDefault();D._submitPrompt()}
+            if(e.key==="Escape"){e.preventDefault();D._closeDlg(null)}
+          });
+        },30);
+      });
+    },
+    _submitPrompt:function(){
+      var v=document.getElementById("dlgInput").value;
+      D._closeDlg(v);
+    },
+    dlgConfirm:function(title,htmlMessage,opts){
+      opts=opts||{};
+      return new Promise(function(resolve){
+        D._dlgResolver=resolve;
+        document.getElementById("dlgTitle").textContent=title;
+        document.getElementById("dlgBody").innerHTML=htmlMessage;
+        var okLabel=opts.okLabel||"OK";
+        var okClass=opts.danger?"dlg-btn dlg-btn-danger":"dlg-btn dlg-btn-primary";
+        document.getElementById("dlgFooter").innerHTML=
+          '<button class="dlg-btn" onclick="D._closeDlg(false)">Cancel</button>'+
+          '<button class="'+okClass+'" onclick="D._closeDlg(true)" id="dlgOkBtn">'+esc(okLabel)+'</button>';
+        document.getElementById("dlgOverlay").classList.add("open");
+        setTimeout(function(){document.getElementById("dlgOkBtn").focus()},30);
+      });
+    },
+    dlgAlert:function(title,htmlMessage){
+      return new Promise(function(resolve){
+        D._dlgResolver=resolve;
+        document.getElementById("dlgTitle").textContent=title;
+        document.getElementById("dlgBody").innerHTML=htmlMessage;
+        document.getElementById("dlgFooter").innerHTML=
+          '<button class="dlg-btn dlg-btn-primary" onclick="D._closeDlg(true)" id="dlgOkBtn">OK</button>';
+        document.getElementById("dlgOverlay").classList.add("open");
+        setTimeout(function(){document.getElementById("dlgOkBtn").focus()},30);
+      });
+    },
+
+    installToAddress:function(cfg){
+      var dev=devices.find(function(x){return x.configuration===cfg});
+      var defaultAddr=(dev&&dev.address)?dev.address:"";
+      var name=(dev&&(dev.friendly_name||dev.name))||cfg;
+
+      D.dlgPrompt("Install to Specific Address","Enter the IP address or hostname to upload \""+name+"\" to:",defaultAddr).then(function(addr){
+        if(!addr)return;
+        addr=addr.trim();
+        if(!addr)return;
+        if(!/^[a-zA-Z0-9.\-_:]+$/.test(addr)){
+          D.dlgAlert("Invalid Address",'<div>"'+esc(addr)+'" is not a valid IP address or hostname.</div>');
+          return;
+        }
+        var warnHtml="";
+        if(dev&&dev.address&&dev.address!==addr){
+          warnHtml='<div class="warn">NOTE: This differs from the device\'s known address ('+esc(dev.address)+').</div>';
+        }
+        var msg='<div>Upload firmware for <span class="hl">'+esc(name)+'</span> to <span class="hl">'+esc(addr)+'</span>?</div>'+
+          '<div style="margin-top:8px">This will compile and flash the firmware to that address.</div>'+warnHtml;
+        D.dlgConfirm("Confirm Upload",msg,{okLabel:"Upload"}).then(function(ok){
+          if(ok)D.runCmd("run",cfg,addr);
+        });
+      });
     },
 
     downloadLogs:function(basename){
@@ -872,6 +1008,8 @@
   $panelOverlay.addEventListener("click",function(){D.closePanel()});
   document.addEventListener("keydown",function(e){
     if(e.key==="Escape"){
+      var dlgOpen=document.getElementById("dlgOverlay").classList.contains("open");
+      if(dlgOpen){D._closeDlg(null);return}
       var cmdOpen=document.getElementById("cmdOverlay").classList.contains("open");
       if(cmdOpen){D.closeCmdModal();return}
       if(panelConfig)D.closePanel();
@@ -888,6 +1026,10 @@
   // Click backdrop of command modal to close
   document.getElementById("cmdOverlay").addEventListener("click",function(e){
     if(e.target===this)D.closeCmdModal();
+  });
+  // Dialog backdrop click = cancel
+  document.getElementById("dlgOverlay").addEventListener("click",function(e){
+    if(e.target===this)D._closeDlg(null);
   });
 
   function refresh(){fetch(REL+"devices",{credentials:"same-origin"}).then(function(r){return r.json()}).then(function(d){devices=d.configured||[];archived=d.archived||[];render()})}
