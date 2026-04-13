@@ -47,7 +47,7 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: venv
           # yamllint disable-line rule:line-length
@@ -159,7 +159,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Save Python virtual environment cache
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: venv
           key: ${{ runner.os }}-${{ steps.restore-python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
@@ -198,7 +198,7 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Restore components graph cache
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: .temp/components_graph.json
           key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
@@ -231,7 +231,7 @@ jobs:
           echo "benchmarks=$(echo "$output" | jq -r '.benchmarks')" >> $GITHUB_OUTPUT
       - name: Save components graph cache
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: .temp/components_graph.json
           key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
@@ -253,7 +253,7 @@ jobs:
           python-version: "3.13"
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: venv
           key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
@@ -339,7 +339,7 @@ jobs:
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@d872884a306dd4853acf0f584f4b706cf0cc72a2 # v4
+        uses: CodSpeedHQ/action@db35df748deb45fdef0960669f57d627c1956c30 # v4
         with:
           run: ${{ steps.build.outputs.binary }}
           mode: simulation
@@ -387,14 +387,14 @@ jobs:
 
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
@@ -466,14 +466,14 @@ jobs:
 
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
           key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
           key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
@@ -555,14 +555,14 @@ jobs:
 
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
           key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
           key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
@@ -723,7 +723,7 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
       - uses: esphome/pre-commit-action@43cd1109c09c544d97196f7730ee5b2e0cc6d81e # v3.0.1 fork with pinned actions/cache
         env:
-          SKIP: pylint,clang-tidy-hash
+          SKIP: pylint,clang-tidy-hash,ci-custom
       - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
         if: always()
 
@@ -817,7 +817,7 @@ jobs:
       - name: Restore cached memory analysis
         id: cache-memory-analysis
         if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true'
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: memory-analysis-target.json
           key: ${{ steps.cache-key.outputs.cache-key }}
@@ -841,7 +841,7 @@ jobs:
 
       - name: Cache platformio
         if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
@@ -868,7 +868,8 @@ jobs:
           python script/test_build_components.py \
             -e compile \
             -c "$component_list" \
-            -t "$platform" 2>&1 | \
+            -t "$platform" \
+            --base-only 2>&1 | \
             tee /dev/stderr | \
             python script/ci_memory_impact_extract.py \
               --output-env \
@@ -882,7 +883,7 @@ jobs:
 
       - name: Save memory analysis to cache
         if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
-        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: memory-analysis-target.json
           key: ${{ steps.cache-key.outputs.cache-key }}
@@ -903,7 +904,7 @@ jobs:
           fi
 
       - name: Upload memory analysis JSON
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: memory-analysis-target
           path: memory-analysis-target.json
@@ -929,7 +930,7 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Cache platformio
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
@@ -954,7 +955,8 @@ jobs:
           python script/test_build_components.py \
             -e compile \
             -c "$component_list" \
-            -t "$platform" 2>&1 | \
+            -t "$platform" \
+            --base-only 2>&1 | \
             tee /dev/stderr | \
             python script/ci_memory_impact_extract.py \
               --output-env \
@@ -967,7 +969,7 @@ jobs:
             --platform "$platform"
 
       - name: Upload memory analysis JSON
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: memory-analysis-pr
           path: memory-analysis-pr.json

@@ -1,12 +1,14 @@
 #include "nextion.h"
+
 #include <cinttypes>
+
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
 static const char *const TAG = "nextion";
 
@@ -143,9 +145,20 @@ void Nextion::reset_(bool reset_nextion) {
 
   while (this->available()) {  // Clear receive buffer
     this->read_byte(&d);
-  };
+  }
+  for (auto *entry : this->nextion_queue_) {
+    if (entry->component != nullptr && entry->component->get_queue_type() == NextionQueueType::NO_RESULT) {
+      delete entry->component;  // NOLINT(cppcoreguidelines-owning-memory)
+    }
+    delete entry;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
   this->nextion_queue_.clear();
+#ifdef USE_NEXTION_WAVEFORM
+  for (auto *entry : this->waveform_queue_) {
+    delete entry;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
   this->waveform_queue_.clear();
+#endif  // USE_NEXTION_WAVEFORM
 }
 
 void Nextion::dump_config() {
@@ -488,20 +501,21 @@ void Nextion::process_nextion_commands_() {
         ESP_LOGW(TAG, "Invalid baud rate");
         break;
       case 0x12:  // invalid Waveform ID or Channel # was used
+#ifdef USE_NEXTION_WAVEFORM
         if (this->waveform_queue_.empty()) {
           ESP_LOGW(TAG, "Waveform ID/ch used but no sensor queued");
         } else {
           auto &nb = this->waveform_queue_.front();
           NextionComponentBase *component = nb->component;
-
           ESP_LOGW(TAG, "Invalid waveform ID %d/ch %d", component->get_component_id(),
                    component->get_wave_channel_id());
-
           ESP_LOGN(TAG, "Remove waveform ID %d/ch %d", component->get_component_id(), component->get_wave_channel_id());
-
           delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-          this->waveform_queue_.pop_front();
+          this->waveform_queue_.pop();
         }
+#else   // USE_NEXTION_WAVEFORM
+        ESP_LOGW(TAG, "Waveform ID/ch error but waveform not enabled");
+#endif  // USE_NEXTION_WAVEFORM
         break;
       case 0x1A:  // variable name invalid
         ESP_LOGW(TAG, "Invalid variable name");
@@ -695,7 +709,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad switch data (0x90)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -703,6 +717,10 @@ void Nextion::process_nextion_commands_() {
         ++index;
 
         ESP_LOGN(TAG, "Switch %s: %s", ONOFF(to_process[index] != 0), variable_name.c_str());
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+        this->custom_switch_callback_.call(StringRef(variable_name), to_process[index] != 0);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
 
         for (auto *switchtype : this->switchtype_) {
           switchtype->process_bool(variable_name, to_process[index] != 0);
@@ -721,7 +739,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) != 4) {
           ESP_LOGE(TAG, "Bad sensor data (0x91)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -732,6 +750,10 @@ void Nextion::process_nextion_commands_() {
             encode_uint32(to_process[index + 4], to_process[index + 3], to_process[index + 2], to_process[index + 1]));
 
         ESP_LOGN(TAG, "Sensor: %s=%d", variable_name.c_str(), value);
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+        this->custom_sensor_callback_.call(StringRef(variable_name), value);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
 
         for (auto *sensor : this->sensortype_) {
           sensor->process_sensor(variable_name, value);
@@ -754,7 +776,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad text data (0x92)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -770,6 +792,11 @@ void Nextion::process_nextion_commands_() {
         // nq->variable_name = variable_name;
         // nq->state = text_value;
         // this->textsensorq_.push_back(nq);
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+        this->custom_text_sensor_callback_.call(StringRef(variable_name), StringRef(text_value));
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+
         for (auto *textsensortype : this->textsensortype_) {
           textsensortype->process_text(variable_name, text_value);
         }
@@ -787,8 +814,8 @@ void Nextion::process_nextion_commands_() {
         // Get variable name
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
-          ESP_LOGE(TAG, "Bad binary data (0x92)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGE(TAG, "Bad binary data (0x93)");
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -797,6 +824,10 @@ void Nextion::process_nextion_commands_() {
 
         ESP_LOGN(TAG, "Binary sensor: %s=%s", variable_name.c_str(), ONOFF(to_process[index] != 0));
 
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+        this->custom_binary_sensor_callback_.call(StringRef(variable_name), to_process[index] != 0);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+
         for (auto *binarysensortype : this->binarysensortype_) {
           binarysensortype->process_bool(&variable_name[0], to_process[index] != 0);
         }
@@ -804,29 +835,30 @@ void Nextion::process_nextion_commands_() {
       }
       case 0xFD: {  // data transparent transmit finished
         ESP_LOGVV(TAG, "Data transmit done");
+#ifdef USE_NEXTION_WAVEFORM
         this->check_pending_waveform_();
+#endif  // USE_NEXTION_WAVEFORM
         break;
       }
       case 0xFE: {  // data transparent transmit ready
         ESP_LOGVV(TAG, "Ready for transmit");
+#ifdef USE_NEXTION_WAVEFORM
         if (this->waveform_queue_.empty()) {
           ESP_LOGE(TAG, "No waveforms queued");
           break;
         }
-
         auto &nb = this->waveform_queue_.front();
         auto *component = nb->component;
-        size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
-                                                                        : 255;  // ADDT command can only send 255
-
+        size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size() : 255;
         this->write_array(component->get_wave_buffer().data(), static_cast<int>(buffer_to_send));
-
         ESP_LOGN(TAG, "Send waveform: component id %d, waveform id %d, size %zu", component->get_component_id(),
                  component->get_wave_channel_id(), buffer_to_send);
-
         component->clear_wave_buffer(buffer_to_send);
         delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-        this->waveform_queue_.pop_front();
+        this->waveform_queue_.pop();
+#else   // USE_NEXTION_WAVEFORM
+        ESP_LOGW(TAG, "Waveform transmit ready but waveform not enabled");
+#endif  // USE_NEXTION_WAVEFORM
         break;
       }
       default:
@@ -926,8 +958,13 @@ void Nextion::all_components_send_state_(bool force_update) {
       binarysensortype->send_state_to_nextion();
   }
   for (auto *sensortype : this->sensortype_) {
-    if ((force_update || sensortype->get_needs_to_send_update()) && sensortype->get_wave_channel_id() == 0)
+#ifdef USE_NEXTION_WAVEFORM
+    if ((force_update || sensortype->get_needs_to_send_update()) && sensortype->get_wave_channel_id() == UINT8_MAX) {
+#else   // USE_NEXTION_WAVEFORM
+    if (force_update || sensortype->get_needs_to_send_update()) {
+#endif  // USE_NEXTION_WAVEFORM
       sensortype->send_state_to_nextion();
+    }
   }
   for (auto *switchtype : this->switchtype_) {
     if (force_update || switchtype->get_needs_to_send_update())
@@ -1231,13 +1268,11 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   }
 }
 
+#ifdef USE_NEXTION_WAVEFORM
 /**
- * @brief Add addt command to the queue
+ * @brief Add addt command to the waveform queue.
  *
- * @param component_id The waveform component id
- * @param wave_chan_id The waveform channel to send it to
- * @param buffer_to_send The buffer size
- * @param buffer_size The buffer data
+ * @param component Pointer to the Nextion component with waveform data to send.
  */
 void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || this->is_sleeping())
@@ -1254,7 +1289,11 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
   nextion_queue->component = component;
   nextion_queue->queue_time = App.get_loop_component_start_time();
 
-  this->waveform_queue_.push_back(nextion_queue);
+  if (!this->waveform_queue_.push(nextion_queue)) {
+    ESP_LOGW(TAG, "Waveform queue full, drop");
+    delete nextion_queue;  // NOLINT(cppcoreguidelines-owning-memory)
+    return;
+  }
   if (this->waveform_queue_.size() == 1)
     this->check_pending_waveform_();
 }
@@ -1265,21 +1304,20 @@ void Nextion::check_pending_waveform_() {
 
   auto *nb = this->waveform_queue_.front();
   auto *component = nb->component;
-  size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
-                                                                  : 255;  // ADDT command can only send 255
+  size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size() : 255;
 
   char command[24];  // "addt " + uint8 + "," + uint8 + "," + uint8 + null = max 17 chars
   buf_append_printf(command, sizeof(command), 0, "addt %u,%u,%zu", component->get_component_id(),
                     component->get_wave_channel_id(), buffer_to_send);
   if (!this->send_command_(command)) {
     delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-    this->waveform_queue_.pop_front();
+    this->waveform_queue_.pop();
   }
 }
+#endif  // USE_NEXTION_WAVEFORM
 
 void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
 
 bool Nextion::is_updating() { return this->connection_state_.is_updating_; }
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion
