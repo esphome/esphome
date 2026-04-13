@@ -1,5 +1,6 @@
 import base64
 import logging
+import pathlib
 
 from esphome import automation
 from esphome.automation import Condition
@@ -458,11 +459,26 @@ async def to_code(config: ConfigType) -> None:
         # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
         cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
         cg.add_build_flag("-DHAVE_INLINE_ASM=1")
+        # Compile crypto libraries with -O2 for speed instead of -Os.
+        # Crypto is CPU-bound and benefits significantly from speed optimization.
+        # GCC uses the last -O flag, so appending -O2 overrides the global -Os.
+        _write_crypto_optimize_script()
     else:
         cg.add_define("USE_API_PLAINTEXT")
 
     cg.add_define("USE_API")
     cg.add_global(api_ns.using)
+
+
+_CRYPTO_OPTIMIZE_SCRIPT = "crypto_optimize.py"
+
+
+def _write_crypto_optimize_script() -> None:
+    from esphome.helpers import copy_file_if_changed
+
+    script_src = pathlib.Path(__file__).parent / f"{_CRYPTO_OPTIMIZE_SCRIPT}.script"
+    copy_file_if_changed(script_src, CORE.relative_build_path(_CRYPTO_OPTIMIZE_SCRIPT))
+    cg.add_platformio_option("extra_scripts", [f"post:{_CRYPTO_OPTIMIZE_SCRIPT}"])
 
 
 KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string_strict)})

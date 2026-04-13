@@ -1,0 +1,9 @@
+# Compile crypto libraries with -O2 for speed instead of the default -Os.
+# Crypto is CPU-bound and benefits significantly from speed optimization.
+# GCC uses the last -O flag, so appending -O2 overrides the global -Os
+# for these libraries only.
+Import("env")
+
+for lb in env.GetLibBuilders():
+    if lb.name in ("noise-c", "libsodium"):
+        lb.env.Append(CCFLAGS=["-O2"])
