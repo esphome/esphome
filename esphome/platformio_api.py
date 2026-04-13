@@ -5,102 +5,13 @@ import os
 from pathlib import Path
 import re
 import subprocess
-import time
-from typing import Any
+import sys
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
-from esphome.util import run_external_command, run_external_process
+from esphome.util import run_external_process
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def patch_structhash():
-    # Patch platformio's structhash to not recompile the entire project when files are
-    # removed/added. This might have unintended consequences, but this improves compile
-    # times greatly when adding/removing components and a simple clean build solves
-    # all issues
-    from platformio.run import cli, helpers
-
-    def patched_clean_build_dir(build_dir, *args):
-        from platformio import fs
-        from platformio.project.helpers import get_project_dir
-
-        platformio_ini = Path(get_project_dir()) / "platformio.ini"
-
-        build_dir = Path(build_dir)
-
-        # if project's config is modified
-        if (
-            build_dir.is_dir()
-            and platformio_ini.stat().st_mtime > build_dir.stat().st_mtime
-        ):
-            fs.rmtree(build_dir)
-
-        if not build_dir.is_dir():
-            build_dir.mkdir(parents=True)
-
-    helpers.clean_build_dir = patched_clean_build_dir
-    cli.clean_build_dir = patched_clean_build_dir
-
-
-def patch_file_downloader():
-    """Patch PlatformIO's FileDownloader to retry on PackageException errors.
-
-    PlatformIO's FileDownloader uses HTTPSession which lacks built-in retry
-    for 502/503 errors. We add retries with exponential backoff and close the
-    session between attempts to force a fresh TCP connection, which may route
-    to a different CDN edge node.
-    """
-    from platformio.package.download import FileDownloader
-    from platformio.package.exception import PackageException
-
-    if getattr(FileDownloader.__init__, "_esphome_patched", False):
-        return
-
-    original_init = FileDownloader.__init__
-
-    def patched_init(self, *args: Any, **kwargs: Any) -> None:
-        max_retries = 5
-
-        for attempt in range(max_retries):
-            try:
-                original_init(self, *args, **kwargs)
-                return
-            except PackageException as e:
-                if attempt < max_retries - 1:
-                    # Exponential backoff: 2, 4, 8, 16 seconds
-                    delay = 2 ** (attempt + 1)
-                    _LOGGER.warning(
-                        "Package download failed: %s. "
-                        "Retrying in %d seconds... (attempt %d/%d)",
-                        str(e),
-                        delay,
-                        attempt + 1,
-                        max_retries,
-                    )
-                    # Close the response and session to free resources
-                    # and force a new TCP connection on retry, which may
-                    # route to a different CDN edge node
-                    # pylint: disable=protected-access,broad-except
-                    try:
-                        if (
-                            hasattr(self, "_http_response")
-                            and self._http_response is not None
-                        ):
-                            self._http_response.close()
-                        if hasattr(self, "_http_session"):
-                            self._http_session.close()
-                    except Exception:
-                        pass
-                    # pylint: enable=protected-access,broad-except
-                    time.sleep(delay)
-                else:
-                    # Final attempt - re-raise
-                    raise
-
-    patched_init._esphome_patched = True  # type: ignore[attr-defined]  # pylint: disable=protected-access
-    FileDownloader.__init__ = patched_init
 
 
 IGNORE_LIB_WARNINGS = f"(?:{'|'.join(['Hash', 'Update'])})"
@@ -142,20 +53,6 @@ FILTER_PLATFORMIO_LINES = [
 ]
 
 
-class PlatformioLogFilter(logging.Filter):
-    """Filter to suppress noisy platformio log messages."""
-
-    _PATTERN = re.compile(
-        r"|".join(r"(?:" + pattern + r")" for pattern in FILTER_PLATFORMIO_LINES)
-    )
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        # Only filter messages from platformio-related loggers
-        if "platformio" not in record.name.lower():
-            return True
-        return self._PATTERN.match(record.getMessage()) is None
-
-
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
@@ -166,30 +63,9 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
     os.environ.setdefault("UV_HTTP_RETRIES", "10")
-    cmd = ["platformio"] + list(args)
+    cmd = [sys.executable, "-m", "esphome.platformio_runner"] + list(args)
 
-    if not CORE.verbose:
-        kwargs["filter_lines"] = FILTER_PLATFORMIO_LINES
-
-    if os.environ.get("ESPHOME_USE_SUBPROCESS") is not None:
-        return run_external_process(*cmd, **kwargs)
-
-    import platformio.__main__
-
-    patch_structhash()
-    patch_file_downloader()
-
-    # Add log filter to suppress noisy platformio messages
-    log_filter = PlatformioLogFilter() if not CORE.verbose else None
-    if log_filter:
-        for handler in logging.getLogger().handlers:
-            handler.addFilter(log_filter)
-    try:
-        return run_external_command(platformio.__main__.main, *cmd, **kwargs)
-    finally:
-        if log_filter:
-            for handler in logging.getLogger().handlers:
-                handler.removeFilter(log_filter)
+    return run_external_process(*cmd, **kwargs)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
