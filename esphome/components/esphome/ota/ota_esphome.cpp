@@ -262,7 +262,7 @@ void ESPHomeOTAComponent::handle_data_() {
   ///   BSD sockets (ESP32):     setblocking(true) makes read/write block
   ///   lwip sockets (LT):      setblocking(true) makes read/write block
   ///   Raw TCP (8266, RP2040):  setblocking is no-op; SO_RCVTIMEO uses
-  ///                            socket_delay()/socket_wake() in read();
+  ///                            wakeable_delay() in read();
   ///                            write() always returns immediately
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
   bool update_started = false;

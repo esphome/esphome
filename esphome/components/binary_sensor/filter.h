@@ -36,7 +36,7 @@ class TimeoutFilter : public Filter, public Component {
   template<typename T> void set_timeout_value(T timeout) { this->timeout_delay_ = timeout; }
 
  protected:
-  TemplatableValue<uint32_t> timeout_delay_{};
+  TemplatableFn<uint32_t> timeout_delay_{};
 };
 
 class DelayedOnOffFilter final : public Filter, public Component {
@@ -49,8 +49,8 @@ class DelayedOnOffFilter final : public Filter, public Component {
   template<typename T> void set_off_delay(T delay) { this->off_delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> on_delay_{};
-  TemplatableValue<uint32_t> off_delay_{};
+  TemplatableFn<uint32_t> on_delay_{};
+  TemplatableFn<uint32_t> off_delay_{};
 };
 
 class DelayedOnFilter : public Filter, public Component {
@@ -62,7 +62,7 @@ class DelayedOnFilter : public Filter, public Component {
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> delay_{};
+  TemplatableFn<uint32_t> delay_{};
 };
 
 class DelayedOffFilter : public Filter, public Component {
@@ -74,7 +74,7 @@ class DelayedOffFilter : public Filter, public Component {
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> delay_{};
+  TemplatableFn<uint32_t> delay_{};
 };
 
 class InvertFilter : public Filter {
@@ -155,7 +155,7 @@ class SettleFilter : public Filter, public Component {
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> delay_{};
+  TemplatableFn<uint32_t> delay_{};
   bool steady_{true};
 };
 

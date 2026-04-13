@@ -263,7 +263,9 @@ POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(OpenThreadComponent),
-            cv.Required(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+            cv.Required(CONF_POLL_PERIOD): cv.templatable(
+                cv.positive_time_period_milliseconds
+            ),
         }
     ),
 )
@@ -278,5 +280,6 @@ POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
 async def openthread_poll_period_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_poll_period(config[CONF_POLL_PERIOD]))
+    template_ = await cg.templatable(config[CONF_POLL_PERIOD], args, cg.uint32)
+    cg.add(var.set_poll_period(template_))
     return var
