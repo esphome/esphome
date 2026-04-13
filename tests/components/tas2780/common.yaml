@@ -1,17 +1,17 @@
-tas2780:
-  platform: audio_dac
-  id: tas2780_amp
-  address: 0x38
-  i2c_id: i2c_bus
-  amp_level: 8
-  power_mode: 2
-  vol_range_min: 0.3
-  vol_range_max: 1.0
-  channel: 0
-  pvdd_sensor:
-    name: "TAS2780 PVDD Voltage"
-  temperature:
-    name: "TAS2780 Temperature"
+audio_dac:
+  - platform: tas2780
+    id: tas2780_amp
+    address: 0x38
+    i2c_id: i2c_bus
+    amp_level: 8
+    power_mode: 2
+    vol_range_min: 0.3
+    vol_range_max: 1.0
+    channel: 0
+    pvdd_sensor:
+      name: "TAS2780 PVDD Voltage"
+    temperature:
+      name: "TAS2780 Temperature"
 
 esphome:
   on_boot:

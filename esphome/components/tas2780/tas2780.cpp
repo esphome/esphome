@@ -18,11 +18,11 @@ static const uint8_t TAS2780_PAGE_SELECT = 0x00;  // Page Select
 /* PAGE 0*/
 static const uint8_t TAS2780_SW_RESET = 0x01;   // Software Reset
 static const uint8_t TAS2780_MODE_CTRL = 0x02;  // Device operational mode
-static const uint8_t TAS2780_MODE_CTRL_BOP_SRC__PVDD_UVLO = 0x80;
+static const uint8_t TAS2780_MODE_CTRL_BOP_SRC_PVDD_UVLO = 0x80;
 static const uint8_t TAS2780_MODE_CTRL_MODE_MASK = 0x07;
-static const uint8_t TAS2780_MODE_CTRL_MODE__ACTIVE = 0x00;
-static const uint8_t TAS2780_MODE_CTRL_MODE__ACTIVE_MUTED = 0x01;
-static const uint8_t TAS2780_MODE_CTRL_MODE__SFTW_SHTDWN = 0x02;
+static const uint8_t TAS2780_MODE_CTRL_MODE_ACTIVE = 0x00;
+static const uint8_t TAS2780_MODE_CTRL_MODE_ACTIVE_MUTED = 0x01;
+static const uint8_t TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN = 0x02;
 
 static const uint8_t TAS2780_CHNL_0 = 0x03;  // Y Bridge and Channel settings
 static const uint8_t TAS2780_CHNL_0_CDS_MODE_SHIFT = 6;
@@ -41,16 +41,16 @@ static const uint8_t TAS2780_TDM_CFG1 = 0x09;   // TDM Configuration 1
 static const uint8_t TAS2780_TDM_CFG2 = 0x0A;  // TDM Configuration 2
 static const uint8_t TAS2780_TDM_CFG2_RX_SCFG_SHIFT = 4;
 static const uint8_t TAS2780_TDM_CFG2_RX_SCFG_MASK = (3 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
-static const uint8_t TAS2780_TDM_CFG2_RX_SCFG__STEREO_DWN_MIX = (3 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
-static const uint8_t TAS2780_TDM_CFG2_RX_SCFG__MONO_LEFT = (1 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
-static const uint8_t TAS2780_TDM_CFG2_RX_SCFG__MONO_RIGHT = (2 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
+static const uint8_t TAS2780_TDM_CFG2_RX_SCFG_STEREO_DWN_MIX = (3 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
+static const uint8_t TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT = (1 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
+static const uint8_t TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT = (2 << TAS2780_TDM_CFG2_RX_SCFG_SHIFT);
 static const uint8_t TAS2780_TDM_CFG2_RX_WLEN_SHIFT = 2;
 static const uint8_t TAS2780_TDM_CFG2_RX_WLEN_MASK = (3 << TAS2780_TDM_CFG2_RX_WLEN_SHIFT);
-static const uint8_t TAS2780_TDM_CFG2_RX_WLEN__16BIT = (0 << TAS2780_TDM_CFG2_RX_WLEN_SHIFT);
-static const uint8_t TAS2780_TDM_CFG2_RX_WLEN__24BIT = (2 << TAS2780_TDM_CFG2_RX_WLEN_SHIFT);
-static const uint8_t TAS2780_TDM_CFG2_RX_WLEN__32BIT = (3 << TAS2780_TDM_CFG2_RX_WLEN_SHIFT);
+static const uint8_t TAS2780_TDM_CFG2_RX_WLEN_16BIT = (0 << TAS2780_TDM_CFG2_RX_WLEN_SHIFT);
+static const uint8_t TAS2780_TDM_CFG2_RX_WLEN_24BIT = (2 << TAS2780_TDM_CFG2_RX_WLEN_SHIFT);
+static const uint8_t TAS2780_TDM_CFG2_RX_WLEN_32BIT = (3 << TAS2780_TDM_CFG2_RX_WLEN_SHIFT);
 static const uint8_t TAS2780_TDM_CFG2_RX_SLEN_MASK = (3 << 0);
-static const uint8_t TAS2780_TDM_CFG2_RX_SLEN__32BIT = 2;
+static const uint8_t TAS2780_TDM_CFG2_RX_SLEN_32BIT = 2;
 
 static const uint8_t TAS2780_LIM_MAX_ATTN = 0x0B;  // Limiter
 static const uint8_t TAS2780_TDM_CFG3 = 0x0C;      // TDM Configuration 3
@@ -255,20 +255,20 @@ static const uint8_t POWER_MODES[4][2] = {
 static uint8_t get_channel_select_reg_val(ChannelSelect channel) {
   switch (channel) {
     case MONO_DWN_MIX:
-      return TAS2780_TDM_CFG2_RX_SCFG__STEREO_DWN_MIX;
+      return TAS2780_TDM_CFG2_RX_SCFG_STEREO_DWN_MIX;
     case LEFT_CHANNEL:
-      return TAS2780_TDM_CFG2_RX_SCFG__MONO_LEFT;
+      return TAS2780_TDM_CFG2_RX_SCFG_MONO_LEFT;
     case RIGHT_CHANNEL:
-      return TAS2780_TDM_CFG2_RX_SCFG__MONO_RIGHT;
+      return TAS2780_TDM_CFG2_RX_SCFG_MONO_RIGHT;
   }
-  return TAS2780_TDM_CFG2_RX_SCFG__STEREO_DWN_MIX;
+  return TAS2780_TDM_CFG2_RX_SCFG_STEREO_DWN_MIX;
 }
 
 void TAS2780::setup() {
   this->init_();
   // set to software shutdown
   this->reg(TAS2780_MODE_CTRL) =
-      (TAS2780_MODE_CTRL_BOP_SRC__PVDD_UVLO & ~TAS2780_MODE_CTRL_MODE_MASK) | TAS2780_MODE_CTRL_MODE__SFTW_SHTDWN;
+      (TAS2780_MODE_CTRL_BOP_SRC_PVDD_UVLO & ~TAS2780_MODE_CTRL_MODE_MASK) | TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN;
 }
 
 void TAS2780::init_() {
@@ -347,14 +347,14 @@ void TAS2780::activate(uint8_t power_mode) {
   }
   // activate
   this->reg(TAS2780_MODE_CTRL) =
-      (TAS2780_MODE_CTRL_BOP_SRC__PVDD_UVLO & ~TAS2780_MODE_CTRL_MODE_MASK) | TAS2780_MODE_CTRL_MODE__ACTIVE;
+      (TAS2780_MODE_CTRL_BOP_SRC_PVDD_UVLO & ~TAS2780_MODE_CTRL_MODE_MASK) | TAS2780_MODE_CTRL_MODE_ACTIVE;
 }
 
 void TAS2780::deactivate() {
   ESP_LOGD(TAG, "Deactivating TAS2780");
   // set to software shutdown
   this->reg(TAS2780_MODE_CTRL) =
-      (TAS2780_MODE_CTRL_BOP_SRC__PVDD_UVLO & ~TAS2780_MODE_CTRL_MODE_MASK) | TAS2780_MODE_CTRL_MODE__SFTW_SHTDWN;
+      (TAS2780_MODE_CTRL_BOP_SRC_PVDD_UVLO & ~TAS2780_MODE_CTRL_MODE_MASK) | TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN;
 }
 
 void TAS2780::reset() {
@@ -548,8 +548,8 @@ void TAS2780::update_register() {
   ESP_LOGD(TAG, "Update amp to level idx: %d", this->amp_level_);
 
   // CHANNEL_SELECT
-  this->reg(TAS2780_TDM_CFG2) = (get_channel_select_reg_val(this->selected_channel_) | TAS2780_TDM_CFG2_RX_WLEN__32BIT |
-                                 TAS2780_TDM_CFG2_RX_SLEN__32BIT);
+  this->reg(TAS2780_TDM_CFG2) = (get_channel_select_reg_val(this->selected_channel_) | TAS2780_TDM_CFG2_RX_WLEN_32BIT |
+                                 TAS2780_TDM_CFG2_RX_SLEN_32BIT);
 }
 
 #ifdef USE_SENSOR
