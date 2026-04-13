@@ -96,7 +96,7 @@ UFIRE_ISE_CALIBRATE_PROBE_SCHEMA = cv.Schema(
 async def ufire_ise_calibrate_probe_low_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_SOLUTION], args, float)
+    template_ = await cg.templatable(config[CONF_SOLUTION], args, cg.float_)
     cg.add(var.set_solution(template_))
     return var
 
@@ -110,7 +110,7 @@ async def ufire_ise_calibrate_probe_low_to_code(config, action_id, template_arg,
 async def ufire_ise_calibrate_probe_high_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_SOLUTION], args, float)
+    template_ = await cg.templatable(config[CONF_SOLUTION], args, cg.float_)
     cg.add(var.set_solution(template_))
     return var
 
