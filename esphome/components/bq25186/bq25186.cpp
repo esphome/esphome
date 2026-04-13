@@ -107,8 +107,8 @@ bool BQ25186Component::update_ichg_ctrl_register_() {
       current_code = 127;
   }
 
-  const uint8_t reg_value = ((this->config_.ichg_ctrl.charge_enabled ? 0 : 1) << 7) | current_code;
-  return this->update_register_(BQ25186_REG_ICHG_CTRL, 0xFF, reg_value);
+  const uint8_t value = ((this->config_.ichg_ctrl.charge_enabled ? 0 : 1) << 7) | current_code;
+  return this->update_register_(BQ25186_REG_ICHG_CTRL, 0xFF, value);
 }
 
 bool BQ25186Component::update_chargectrl0_register_() {
@@ -152,10 +152,10 @@ bool BQ25186Component::update_ship_rst_register_() {
 
 bool BQ25186Component::update_sys_reg_register_() {
   const auto &sys_reg_cfg = this->config_.sys_reg;
-  const uint8_t sys_reg = (sys_reg_cfg.system_regulation << 5) | (sys_reg_cfg.pg_gpo_level << 4) |
-                          (sys_reg_cfg.sys_mode << 2) | (sys_reg_cfg.watchdog_15s_enable << 1) |
-                          sys_reg_cfg.disable_vdppm;
-  return this->update_register_(BQ25186_REG_SYS_REG, 0xFF, sys_reg);
+  const uint8_t value = (sys_reg_cfg.system_regulation << 5) | (sys_reg_cfg.pg_gpo_level << 4) |
+                        (sys_reg_cfg.sys_mode << 2) | (sys_reg_cfg.watchdog_15s_enable << 1) |
+                        sys_reg_cfg.disable_vdppm;
+  return this->update_register_(BQ25186_REG_SYS_REG, 0xFF, value);
 }
 
 bool BQ25186Component::update_ts_control_register_() {
