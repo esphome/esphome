@@ -268,15 +268,36 @@ def run_compile(config, verbose: bool) -> int:
 
 
 def get_firmware_path() -> Path:
-    """Get the path to the compiled firmware binary."""
+    """Get the path to the compiled firmware binary.
+
+    This is the file idf.py writes directly (named after the project),
+    not the copy used for OTA/factory downloads below.
+    """
     build_dir = CORE.relative_build_path("build")
     return build_dir / f"{CORE.name}.bin"
 
 
 def get_factory_firmware_path() -> Path:
-    """Get the path to the factory firmware (with bootloader)."""
+    """Get the path to the factory firmware (with bootloader).
+
+    Uses the PlatformIO ``firmware.factory.bin`` naming convention so
+    the dashboard's download handler — which requests files by name
+    relative to ``firmware_bin_path.parent`` — finds it. Without this,
+    the native IDF path produced ``<name>.factory.bin`` and the
+    dashboard returned 500 trying to locate ``firmware.factory.bin``.
+    """
     build_dir = CORE.relative_build_path("build")
-    return build_dir / f"{CORE.name}.factory.bin"
+    return build_dir / "firmware.factory.bin"
+
+
+def get_ota_firmware_path() -> Path:
+    """Get the path to the OTA firmware binary.
+
+    Uses the PlatformIO ``firmware.ota.bin`` naming convention for the
+    same dashboard-compatibility reason as ``get_factory_firmware_path``.
+    """
+    build_dir = CORE.relative_build_path("build")
+    return build_dir / "firmware.ota.bin"
 
 
 def create_factory_bin() -> bool:
@@ -344,9 +365,9 @@ def create_factory_bin() -> bool:
 
 
 def create_ota_bin() -> bool:
-    """Copy the firmware to .ota.bin for ESPHome OTA compatibility."""
+    """Copy the firmware to firmware.ota.bin for ESPHome OTA compatibility."""
     firmware_path = get_firmware_path()
-    ota_path = firmware_path.with_suffix(".ota.bin")
+    ota_path = get_ota_firmware_path()
 
     if not firmware_path.is_file():
         _LOGGER.warning("Firmware not found: %s", firmware_path)
