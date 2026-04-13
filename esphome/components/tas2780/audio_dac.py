@@ -18,6 +18,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@remcom"]
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensor"]
 
 tas2780_ns = cg.esphome_ns.namespace("tas2780")
 TAS2780 = tas2780_ns.class_("TAS2780", AudioDac, cg.Component, i2c.I2CDevice)
