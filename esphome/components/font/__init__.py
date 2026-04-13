@@ -238,7 +238,7 @@ def validate_font_config(config):
     return config
 
 
-FONT_EXTENSIONS = (".ttf", ".woff", ".otf", "bdf", ".pcf")
+FONT_EXTENSIONS = (".ttf", ".woff", ".otf", ".bdf", ".pcf")
 
 
 def validate_truetype_file(value):

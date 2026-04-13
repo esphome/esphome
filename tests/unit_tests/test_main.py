@@ -24,6 +24,7 @@ from esphome.__main__ import (
     _make_crystal_freq_callback,
     choose_upload_log_host,
     command_analyze_memory,
+    command_bundle,
     command_clean_all,
     command_rename,
     command_update_all,
@@ -47,6 +48,7 @@ from esphome.__main__ import (
     upload_using_picotool,
     upload_using_platformio,
 )
+from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
@@ -1101,6 +1103,8 @@ class MockArgs:
     name: str | None = None
     dashboard: bool = False
     reset: bool = False
+    list_only: bool = False
+    output: str | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -3763,6 +3767,198 @@ esp32:
         clean_output.split("SUMMARY")[1] if "SUMMARY" in clean_output else ""
     )
     assert "secrets.yaml" not in summary_section
+
+
+# --- command_bundle tests ---
+
+
+def test_command_bundle_list_only(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+) -> None:
+    """Test command_bundle with --list-only prints files and returns 0."""
+    mock_files = [
+        BundleFile(path="device.yaml", source=tmp_path / "device.yaml"),
+        BundleFile(path="secrets.yaml", source=tmp_path / "secrets.yaml"),
+        BundleFile(path="common/base.yaml", source=tmp_path / "common" / "base.yaml"),
+    ]
+
+    args = MockArgs(list_only=True)
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.discover_files.return_value = mock_files
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    captured = capsys.readouterr()
+    # Files should be printed in sorted order
+    assert "common/base.yaml" in captured.out
+    assert "device.yaml" in captured.out
+    assert "secrets.yaml" in captured.out
+
+
+def test_command_bundle_list_only_empty(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+) -> None:
+    """Test command_bundle --list-only with no files discovered."""
+    args = MockArgs(list_only=True)
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.discover_files.return_value = []
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+
+
+def test_command_bundle_creates_archive(tmp_path: Path) -> None:
+    """Test command_bundle creates archive at default output path."""
+    CORE.config_path = tmp_path / "mydevice.yaml"
+
+    mock_result = BundleResult(
+        data=b"fake-tar-gz-data",
+        manifest={"manifest_version": 1},
+        files=[BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml")],
+    )
+
+    args = MockArgs()
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    output_path = tmp_path / f"mydevice{BUNDLE_EXTENSION}"
+    assert output_path.exists()
+    assert output_path.read_bytes() == b"fake-tar-gz-data"
+
+
+def test_command_bundle_custom_output(tmp_path: Path) -> None:
+    """Test command_bundle with -o custom output path."""
+    custom_output = tmp_path / "output" / "custom.esphomebundle.tar.gz"
+    mock_result = BundleResult(
+        data=b"custom-output-data",
+        manifest={"manifest_version": 1},
+        files=[BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml")],
+    )
+
+    args = MockArgs(output=str(custom_output))
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    assert custom_output.exists()
+    assert custom_output.read_bytes() == b"custom-output-data"
+
+
+def test_command_bundle_creates_parent_dirs(tmp_path: Path) -> None:
+    """Test command_bundle creates parent directories for output path."""
+    nested_output = tmp_path / "deep" / "nested" / "dir" / "out.tar.gz"
+    mock_result = BundleResult(
+        data=b"data",
+        manifest={"manifest_version": 1},
+        files=[BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml")],
+    )
+
+    args = MockArgs(output=str(nested_output))
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    assert nested_output.exists()
+
+
+def test_command_bundle_logs_info(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_bundle logs bundle creation info."""
+    CORE.config_path = tmp_path / "mydevice.yaml"
+
+    mock_result = BundleResult(
+        data=b"x" * 2048,
+        manifest={"manifest_version": 1},
+        files=[
+            BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml"),
+            BundleFile(path="secrets.yaml", source=tmp_path / "secrets.yaml"),
+        ],
+    )
+
+    args = MockArgs()
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with (
+        patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator),
+        caplog.at_level(logging.INFO),
+    ):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    assert "Bundle created" in caplog.text
+    assert "2 files" in caplog.text
+    assert "2.0 KB" in caplog.text
+
+
+def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
+    """Test run_esphome detects .esphomebundle.tar.gz and extracts it."""
+    bundle_path = tmp_path / f"device{BUNDLE_EXTENSION}"
+    bundle_path.write_bytes(b"fake-bundle")
+
+    extracted_yaml = tmp_path / "extracted" / "device.yaml"
+
+    with (
+        patch("esphome.bundle.is_bundle_path", return_value=True) as mock_is_bundle,
+        patch(
+            "esphome.bundle.prepare_bundle_for_compile",
+            return_value=extracted_yaml,
+        ) as mock_prepare,
+        patch("esphome.__main__.read_config", return_value=None),
+    ):
+        result = run_esphome(["esphome", "compile", str(bundle_path)])
+
+    mock_is_bundle.assert_called_once()
+    mock_prepare.assert_called_once_with(bundle_path)
+    # read_config returns None → exit code 2
+    assert result == 2
+
+
+def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
+    """Test run_esphome does not extract for regular .yaml files."""
+    yaml_file = tmp_path / "device.yaml"
+    yaml_file.write_text("esphome:\n  name: test\n")
+
+    with (
+        patch("esphome.bundle.is_bundle_path", return_value=False) as mock_is_bundle,
+        patch("esphome.bundle.prepare_bundle_for_compile") as mock_prepare,
+        patch("esphome.__main__.read_config", return_value=None),
+    ):
+        result = run_esphome(["esphome", "compile", str(yaml_file)])
+
+    mock_is_bundle.assert_called_once()
+    mock_prepare.assert_not_called()
+    assert result == 2
 
 
 def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
