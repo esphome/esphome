@@ -26,11 +26,7 @@ CORE_BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "core"
 STUBS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "stubs"
 
 PLATFORMIO_OPTIONS = {
-    "build_unflags": [
-        "-Os",  # remove default size-opt
-    ],
     "build_flags": [
-        "-O2",  # optimize for speed (CodSpeed recommends RelWithDebInfo)
         "-g",  # debug symbols for profiling
         "-DUSE_BENCHMARK",  # disable WarnIfComponentBlockingGuard in finish()
         f"-I{STUBS_DIR}",  # stub headers for ESP32-only components
