@@ -186,7 +186,7 @@ bool Image::get_binary_pixel_(int x, int y) const {
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
 uint8_t Image::get_grayscale4_pixel_(int x, int y) const {
-  const uint32_t pos = (x + y * this->width_) / 4;
+  const uint32_t pos = (x + y * this->width_) >> 2;
   const uint8_t byte = progmem_read_byte(this->data_start_ + pos);
   // 2-bit grayscale stored in 2 bits, shift to upper bits of byte and scale to 0-255
   return ((byte >> ((3 - (x & 0x03)) << 1)) & 0x03) << 6;
