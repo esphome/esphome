@@ -55,7 +55,7 @@ def get_project_cmakelists() -> str:
     idf_target = variant.lower().replace("-", "")
 
     # Extract compile definitions from build flags (-DXXX -> XXX)
-    compile_defs = [flag for flag in CORE.build_flags if flag.startswith("-D")]
+    compile_defs = [flag for flag in sorted(CORE.build_flags) if flag.startswith("-D")]
     extra_compile_options = "\n".join(
         f'idf_build_set_property(COMPILE_OPTIONS "{compile_def}" APPEND)'
         for compile_def in compile_defs
