@@ -56,6 +56,17 @@ BQ25186Component = bq25186_ns.class_(
     "BQ25186Component", cg.PollingComponent, i2c.I2CDevice
 )
 BQ25186Listener = bq25186_ns.class_("BQ25186Listener")
+BQ25186VBatCtrlConfig = bq25186_ns.struct("BQ25186VBatCtrlConfig")
+BQ25186IchgCtrlConfig = bq25186_ns.struct("BQ25186IchgCtrlConfig")
+BQ25186ChargeCtrl0Config = bq25186_ns.struct("BQ25186ChargeCtrl0Config")
+BQ25186ChargeCtrl1Config = bq25186_ns.struct("BQ25186ChargeCtrl1Config")
+BQ25186IcCtrlConfig = bq25186_ns.struct("BQ25186IcCtrlConfig")
+BQ25186TmrIlimConfig = bq25186_ns.struct("BQ25186TmrIlimConfig")
+BQ25186ShipRstConfig = bq25186_ns.struct("BQ25186ShipRstConfig")
+BQ25186SysRegConfig = bq25186_ns.struct("BQ25186SysRegConfig")
+BQ25186TsControlConfig = bq25186_ns.struct("BQ25186TsControlConfig")
+BQ25186MaskIdConfig = bq25186_ns.struct("BQ25186MaskIdConfig")
+BQ25186Config = bq25186_ns.struct("BQ25186Config")
 
 TERMINATION_PERCENT_OPTIONS = {
     "disabled": 0,
@@ -293,67 +304,100 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_battery_regulation_voltage(config[CONF_BATTERY_REGULATION_VOLTAGE]))
-    cg.add(var.set_fast_charge_current(config[CONF_FAST_CHARGE_CURRENT]))
-    cg.add(var.set_charge_enabled(config[CONF_CHARGE_ENABLED]))
-    cg.add(var.set_flash_charging_mode(config[CONF_FLASH_CHARGING_MODE]))
-    cg.add(var.set_precharge_is_iterm(config[CONF_PRECHARGE_IS_ITERM]))
-    cg.add(var.set_termination_percent(config[CONF_TERMINATION_PERCENT]))
-    cg.add(var.set_vindpm_mode(config[CONF_VINDPM_MODE]))
-    cg.add(var.set_thermal_regulation(config[CONF_THERMAL_REGULATION]))
-    cg.add(var.set_battery_ocp_limit(config[CONF_BATTERY_OCP_LIMIT]))
-    cg.add(var.set_battery_uvlo(config[CONF_BATTERY_UVLO]))
-    cg.add(
-        var.set_interrupt_masks(
-            config[CONF_MASK_CHARGE_STATUS_INTERRUPT],
-            config[CONF_MASK_ILIM_INTERRUPT],
-            config[CONF_MASK_VINDPM_INTERRUPT],
-        )
+    vbat_ctrl = cg.StructInitializer(
+        BQ25186VBatCtrlConfig,
+        ("battery_regulation_voltage_mv", config[CONF_BATTERY_REGULATION_VOLTAGE]),
+        ("pg_mode", config[CONF_PG_MODE]),
     )
 
-    cg.add(var.set_ts_auto_function(config[CONF_TS_AUTO_FUNCTION]))
-    cg.add(var.set_vlowv_select(1 if config[CONF_VLOWV] == "2.8v" else 0))
-    cg.add(
-        var.set_recharge_threshold(
-            1 if config[CONF_RECHARGE_THRESHOLD] == "200mv" else 0
-        )
-    )
-    cg.add(var.set_double_timer_during_dpm(config[CONF_DOUBLE_TIMER_DURING_DPM]))
-    cg.add(var.set_safety_timer(config[CONF_SAFETY_TIMER]))
-    cg.add(var.set_watchdog(config[CONF_WATCHDOG]))
-
-    cg.add(var.set_long_press_duration(config[CONF_LONG_PRESS_DURATION]))
-    cg.add(var.set_hw_reset_requires_vin(config[CONF_HW_RESET_REQUIRES_VIN]))
-    cg.add(var.set_autowake(config[CONF_AUTOWAKE]))
-    cg.add(var.set_input_current_limit(config[CONF_INPUT_CURRENT_LIMIT]))
-
-    cg.add(
-        var.set_push_button_settings(
-            config[CONF_PUSH_BUTTON_LONG_PRESS_ACTION],
-            1 if config[CONF_WAKE1_TIMER] == "1s" else 0,
-            1 if config[CONF_WAKE2_TIMER] == "3s" else 0,
-            config[CONF_ENABLE_PUSH_BUTTON],
-        )
+    ichg_ctrl = cg.StructInitializer(
+        BQ25186IchgCtrlConfig,
+        ("charge_current_ma", config[CONF_FAST_CHARGE_CURRENT]),
+        ("charge_enabled", config[CONF_CHARGE_ENABLED]),
     )
 
-    cg.add(var.set_system_regulation(config[CONF_SYSTEM_REGULATION]))
-    cg.add(var.set_sys_mode(config[CONF_SYS_MODE]))
-    cg.add(var.set_watchdog_15s_enable(config[CONF_WATCHDOG_15S_ENABLE]))
-    cg.add(var.set_disable_vdppm(config[CONF_DISABLE_VDPPM]))
-
-    cg.add(var.set_ts_hot(config[CONF_TS_HOT]))
-    cg.add(var.set_ts_cold(config[CONF_TS_COLD]))
-    cg.add(var.set_ts_warm_disable(config[CONF_TS_WARM_DISABLE]))
-    cg.add(var.set_ts_cool_disable(config[CONF_TS_COOL_DISABLE]))
-    cg.add(var.set_ts_ichg(config[CONF_TS_ICHG]))
-    cg.add(var.set_ts_vrcg(config[CONF_TS_VRCG]))
-
-    cg.add(
-        var.set_global_interrupt_masks(
-            config[CONF_MASK_TS_INTERRUPT],
-            config[CONF_MASK_TREG_INTERRUPT],
-            config[CONF_MASK_BAT_INTERRUPT],
-            config[CONF_MASK_PG_INTERRUPT],
-        )
+    chargectrl0 = cg.StructInitializer(
+        BQ25186ChargeCtrl0Config,
+        ("flash_charging_mode", config[CONF_FLASH_CHARGING_MODE]),
+        ("precharge_is_iterm", config[CONF_PRECHARGE_IS_ITERM]),
+        ("termination_percent", config[CONF_TERMINATION_PERCENT]),
+        ("vindpm_mode", config[CONF_VINDPM_MODE]),
+        ("thermal_regulation", config[CONF_THERMAL_REGULATION]),
     )
-    cg.add(var.set_pg_mode(config[CONF_PG_MODE]))
+
+    chargectrl1 = cg.StructInitializer(
+        BQ25186ChargeCtrl1Config,
+        ("battery_ocp_limit", config[CONF_BATTERY_OCP_LIMIT]),
+        ("battery_uvlo", config[CONF_BATTERY_UVLO]),
+        ("mask_charge_status_interrupt", config[CONF_MASK_CHARGE_STATUS_INTERRUPT]),
+        ("mask_ilim_interrupt", config[CONF_MASK_ILIM_INTERRUPT]),
+        ("mask_vindpm_interrupt", config[CONF_MASK_VINDPM_INTERRUPT]),
+    )
+
+    ic_ctrl = cg.StructInitializer(
+        BQ25186IcCtrlConfig,
+        ("ts_auto_function", config[CONF_TS_AUTO_FUNCTION]),
+        ("vlowv_select", 1 if config[CONF_VLOWV] == "2.8v" else 0),
+        ("recharge_threshold", 1 if config[CONF_RECHARGE_THRESHOLD] == "200mv" else 0),
+        ("double_timer_during_dpm", config[CONF_DOUBLE_TIMER_DURING_DPM]),
+        ("safety_timer", config[CONF_SAFETY_TIMER]),
+        ("watchdog", config[CONF_WATCHDOG]),
+    )
+
+    tmr_ilim = cg.StructInitializer(
+        BQ25186TmrIlimConfig,
+        ("long_press_duration", config[CONF_LONG_PRESS_DURATION]),
+        ("hw_reset_requires_vin", config[CONF_HW_RESET_REQUIRES_VIN]),
+        ("autowake", config[CONF_AUTOWAKE]),
+        ("input_current_limit", config[CONF_INPUT_CURRENT_LIMIT]),
+    )
+
+    ship_rst = cg.StructInitializer(
+        BQ25186ShipRstConfig,
+        ("push_button_long_press_action", config[CONF_PUSH_BUTTON_LONG_PRESS_ACTION]),
+        ("wake1_timer", 1 if config[CONF_WAKE1_TIMER] == "1s" else 0),
+        ("wake2_timer", 1 if config[CONF_WAKE2_TIMER] == "3s" else 0),
+        ("enable_push_button", config[CONF_ENABLE_PUSH_BUTTON]),
+    )
+
+    sys_reg = cg.StructInitializer(
+        BQ25186SysRegConfig,
+        ("system_regulation", config[CONF_SYSTEM_REGULATION]),
+        ("pg_gpo_level", False),
+        ("sys_mode", config[CONF_SYS_MODE]),
+        ("watchdog_15s_enable", config[CONF_WATCHDOG_15S_ENABLE]),
+        ("disable_vdppm", config[CONF_DISABLE_VDPPM]),
+    )
+
+    ts_control = cg.StructInitializer(
+        BQ25186TsControlConfig,
+        ("ts_hot", config[CONF_TS_HOT]),
+        ("ts_cold", config[CONF_TS_COLD]),
+        ("ts_warm_disable", config[CONF_TS_WARM_DISABLE]),
+        ("ts_cool_disable", config[CONF_TS_COOL_DISABLE]),
+        ("ts_ichg", config[CONF_TS_ICHG]),
+        ("ts_vrcg", config[CONF_TS_VRCG]),
+    )
+
+    mask_id = cg.StructInitializer(
+        BQ25186MaskIdConfig,
+        ("mask_ts_interrupt", config[CONF_MASK_TS_INTERRUPT]),
+        ("mask_treg_interrupt", config[CONF_MASK_TREG_INTERRUPT]),
+        ("mask_bat_interrupt", config[CONF_MASK_BAT_INTERRUPT]),
+        ("mask_pg_interrupt", config[CONF_MASK_PG_INTERRUPT]),
+    )
+
+    component_config = cg.StructInitializer(
+        BQ25186Config,
+        ("vbat_ctrl", vbat_ctrl),
+        ("ichg_ctrl", ichg_ctrl),
+        ("chargectrl0", chargectrl0),
+        ("chargectrl1", chargectrl1),
+        ("ic_ctrl", ic_ctrl),
+        ("tmr_ilim", tmr_ilim),
+        ("ship_rst", ship_rst),
+        ("sys_reg", sys_reg),
+        ("ts_control", ts_control),
+        ("mask_id", mask_id),
+    )
+    cg.add(var.set_config(component_config))

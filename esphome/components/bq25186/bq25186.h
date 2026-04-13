@@ -25,6 +25,92 @@ struct BQ25186Data {
   uint8_t registers[13];
 };
 
+struct BQ25186VBatCtrlConfig {
+  uint16_t battery_regulation_voltage_mv{4200};
+  uint8_t pg_mode{0};
+};
+
+struct BQ25186IchgCtrlConfig {
+  uint16_t charge_current_ma{10};
+  bool charge_enabled{true};
+};
+
+struct BQ25186ChargeCtrl0Config {
+  bool flash_charging_mode{false};
+  bool precharge_is_iterm{false};
+  uint8_t termination_percent{2};
+  uint8_t vindpm_mode{1};
+  uint8_t thermal_regulation{0};
+};
+
+struct BQ25186ChargeCtrl1Config {
+  uint8_t battery_ocp_limit{1};
+  uint8_t battery_uvlo{0};
+  bool mask_charge_status_interrupt{true};
+  bool mask_ilim_interrupt{true};
+  bool mask_vindpm_interrupt{false};
+};
+
+struct BQ25186IcCtrlConfig {
+  bool ts_auto_function{true};
+  uint8_t vlowv_select{0};
+  uint8_t recharge_threshold{0};
+  bool double_timer_during_dpm{false};
+  uint8_t safety_timer{1};
+  uint8_t watchdog{0};
+};
+
+struct BQ25186TmrIlimConfig {
+  uint8_t long_press_duration{1};
+  bool hw_reset_requires_vin{false};
+  uint8_t autowake{1};
+  uint8_t input_current_limit{5};
+};
+
+struct BQ25186ShipRstConfig {
+  uint8_t push_button_long_press_action{2};
+  uint8_t wake1_timer{0};
+  uint8_t wake2_timer{0};
+  bool enable_push_button{true};
+};
+
+struct BQ25186SysRegConfig {
+  uint8_t system_regulation{2};
+  bool pg_gpo_level{false};  // true -> pull to low, false -> high impedance
+  uint8_t sys_mode{0};
+  bool watchdog_15s_enable{false};
+  bool disable_vdppm{false};
+};
+
+struct BQ25186TsControlConfig {
+  uint8_t ts_hot{0};
+  uint8_t ts_cold{0};
+  bool ts_warm_disable{false};
+  bool ts_cool_disable{false};
+  uint8_t ts_ichg{0};
+  uint8_t ts_vrcg{0};
+};
+
+struct BQ25186MaskIdConfig {
+  bool mask_ts_interrupt{false};
+  bool mask_treg_interrupt{true};
+  bool mask_bat_interrupt{false};
+  bool mask_pg_interrupt{false};
+};
+
+struct BQ25186Config {
+  BQ25186VBatCtrlConfig vbat_ctrl{};
+  BQ25186IchgCtrlConfig ichg_ctrl{};
+  BQ25186ChargeCtrl0Config chargectrl0{};
+  BQ25186ChargeCtrl1Config chargectrl1{};
+  BQ25186IcCtrlConfig ic_ctrl{};
+  BQ25186TmrIlimConfig tmr_ilim{};
+  BQ25186ShipRstConfig ship_rst{};
+  BQ25186SysRegConfig sys_reg{};
+  BQ25186TsControlConfig ts_control{};
+  BQ25186MaskIdConfig mask_id{};
+};
+
 class BQ25186Listener {
  public:
   virtual void on_data(const BQ25186Data &data) = 0;
@@ -35,65 +121,10 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   void update() override;
+  void set_config(const BQ25186Config &config);
 
   void add_listener(BQ25186Listener *listener) { this->listeners_.push_back(listener); }
 
-  void set_battery_regulation_voltage(uint16_t millivolts) { this->battery_regulation_voltage_mv_ = millivolts; }
-  void set_charge_current(uint16_t milliamps) { this->charge_current_ma_ = milliamps; }
-  void set_charge_enabled(bool enabled) { this->charge_enabled_ = enabled; }
-  void set_flash_charging_mode(bool enabled) { this->flash_charging_mode_ = enabled; }
-  void set_precharge_is_iterm(bool enabled) { this->precharge_is_iterm_ = enabled; }
-  void set_termination_percent(uint8_t value) { this->termination_percent_ = value & 0x03; }
-  void set_vindpm_mode(uint8_t value) { this->vindpm_mode_ = value & 0x03; }
-  void set_thermal_regulation(uint8_t value) { this->thermal_regulation_ = value & 0x03; }
-  void set_battery_ocp_limit(uint8_t value) { this->battery_ocp_limit_ = value & 0x03; }
-  void set_battery_uvlo(uint8_t value) { this->battery_uvlo_ = value & 0x07; }
-
-  void set_interrupt_masks(bool charge_status, bool ilim, bool vindpm) {
-    this->mask_charge_status_interrupt_ = charge_status;
-    this->mask_ilim_interrupt_ = ilim;
-    this->mask_vindpm_interrupt_ = vindpm;
-  }
-
-  void set_ts_auto_function(bool enabled) { this->ts_auto_function_ = enabled; }
-  void set_vlowv_select(uint8_t value) { this->vlowv_select_ = value & 0x01; }
-  void set_recharge_threshold(uint8_t value) { this->recharge_threshold_ = value & 0x01; }
-  void set_double_timer_during_dpm(bool enabled) { this->double_timer_during_dpm_ = enabled; }
-  void set_safety_timer(uint8_t value) { this->safety_timer_ = value & 0x03; }
-  void set_watchdog(uint8_t value) { this->watchdog_ = value & 0x03; }
-
-  void set_long_press_duration(uint8_t value) { this->long_press_duration_ = value & 0x03; }
-  void set_hw_reset_requires_vin(bool enabled) { this->hw_reset_requires_vin_ = enabled; }
-  void set_autowake(uint8_t value) { this->autowake_ = value & 0x03; }
-  void set_input_current_limit(uint8_t value) { this->input_current_limit_ = value & 0x07; }
-
-  void set_push_button_settings(uint8_t long_press_action, uint8_t wake1, uint8_t wake2, bool enable_push) {
-    this->push_button_long_press_action_ = long_press_action & 0x03;
-    this->wake1_timer_ = wake1 & 0x01;
-    this->wake2_timer_ = wake2 & 0x01;
-    this->enable_push_button_ = enable_push;
-  }
-
-  void set_system_regulation(uint8_t value) { this->system_regulation_ = value & 0x07; }
-  void set_sys_mode(uint8_t value) { this->sys_mode_ = value & 0x03; }
-  void set_watchdog_15s_enable(bool enabled) { this->watchdog_15s_enable_ = enabled; }
-  void set_disable_vdppm(bool disabled) { this->disable_vdppm_ = disabled; }
-
-  void set_ts_hot(uint8_t value) { this->ts_hot_ = value & 0x03; }
-  void set_ts_cold(uint8_t value) { this->ts_cold_ = value & 0x03; }
-  void set_ts_warm_disable(bool disabled) { this->ts_warm_disable_ = disabled; }
-  void set_ts_cool_disable(bool disabled) { this->ts_cool_disable_ = disabled; }
-  void set_ts_ichg(uint8_t value) { this->ts_ichg_ = value & 0x01; }
-  void set_ts_vrcg(uint8_t value) { this->ts_vrcg_ = value & 0x01; }
-
-  void set_global_interrupt_masks(bool ts, bool treg, bool bat, bool pg) {
-    this->mask_ts_interrupt_ = ts;
-    this->mask_treg_interrupt_ = treg;
-    this->mask_bat_interrupt_ = bat;
-    this->mask_pg_interrupt_ = pg;
-  }
-
-  void set_pg_mode(uint8_t value) { this->pg_mode_ = value & 0x01; }
   void set_pg_gpo_switch(switch_::Switch *pg_gpo_switch) { this->pg_gpo_switch_ = pg_gpo_switch; }
   bool write_pg_gpo_level(bool level);
   bool trigger_software_reset();
@@ -106,62 +137,21 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   bool write_register_(uint8_t reg, uint8_t value);
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
   bool apply_configuration_();
-
-  static uint8_t encode_battery_regulation_voltage(uint16_t millivolts);
-  static uint8_t encode_fast_charge_current(uint16_t milliamps);
+  bool update_vbat_ctrl_register_();
+  bool update_ichg_ctrl_register_();
+  bool update_chargectrl0_register_();
+  bool update_chargectrl1_register_();
+  bool update_ic_ctrl_register_();
+  bool update_tmr_ilim_register_();
+  bool update_ship_rst_register_();
+  bool update_sys_reg_register_();
+  bool update_ts_control_register_();
+  bool update_mask_id_register_();
 
   BQ25186Data data_{};
   std::vector<BQ25186Listener *> listeners_;
 
-  uint16_t battery_regulation_voltage_mv_{4200};
-  uint16_t charge_current_ma_{10};
-  bool charge_enabled_{true};
-  bool flash_charging_mode_{false};
-  bool precharge_is_iterm_{false};
-  uint8_t termination_percent_{2};
-  uint8_t vindpm_mode_{1};
-  uint8_t thermal_regulation_{0};
-  uint8_t battery_ocp_limit_{1};
-  uint8_t battery_uvlo_{0};
-  bool mask_charge_status_interrupt_{true};
-  bool mask_ilim_interrupt_{true};
-  bool mask_vindpm_interrupt_{false};
-
-  bool ts_auto_function_{true};
-  uint8_t vlowv_select_{0};
-  uint8_t recharge_threshold_{0};
-  bool double_timer_during_dpm_{false};
-  uint8_t safety_timer_{1};
-  uint8_t watchdog_{0};
-
-  uint8_t long_press_duration_{1};
-  bool hw_reset_requires_vin_{false};
-  uint8_t autowake_{1};
-  uint8_t input_current_limit_{5};
-
-  uint8_t push_button_long_press_action_{2};
-  uint8_t wake1_timer_{0};
-  uint8_t wake2_timer_{0};
-  bool enable_push_button_{true};
-
-  uint8_t system_regulation_{2};
-  bool pg_gpo_level_{false};  // true -> pull to low, false -> high impedance
-  uint8_t sys_mode_{0};
-  bool watchdog_15s_enable_{false};
-  bool disable_vdppm_{false};
-
-  uint8_t ts_hot_{0};
-  uint8_t ts_cold_{0};
-  bool ts_warm_disable_{false};
-  bool ts_cool_disable_{false};
-  uint8_t ts_ichg_{0};
-  uint8_t ts_vrcg_{0};
-
-  bool mask_ts_interrupt_{false};
-  bool mask_treg_interrupt_{true};
-  bool mask_bat_interrupt_{false};
-  bool mask_pg_interrupt_{false};
-  uint8_t pg_mode_{0};
+  BQ25186Config config_{};
   switch_::Switch *pg_gpo_switch_{nullptr};
 };
 

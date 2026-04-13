@@ -7,6 +7,49 @@ namespace esphome::bq25186 {
 
 static const char *const TAG = "bq25186";
 
+void BQ25186Component::set_config(const BQ25186Config &config) {
+  this->config_ = config;
+
+  if (this->config_.vbat_ctrl.battery_regulation_voltage_mv < 3500)
+    this->config_.vbat_ctrl.battery_regulation_voltage_mv = 3500;
+  if (this->config_.vbat_ctrl.battery_regulation_voltage_mv > 4650)
+    this->config_.vbat_ctrl.battery_regulation_voltage_mv = 4650;
+  this->config_.vbat_ctrl.pg_mode &= 0x01;
+
+  if (this->config_.ichg_ctrl.charge_current_ma < 5)
+    this->config_.ichg_ctrl.charge_current_ma = 5;
+  if (this->config_.ichg_ctrl.charge_current_ma > 1000)
+    this->config_.ichg_ctrl.charge_current_ma = 1000;
+
+  this->config_.chargectrl0.termination_percent &= 0x03;
+  this->config_.chargectrl0.vindpm_mode &= 0x03;
+  this->config_.chargectrl0.thermal_regulation &= 0x03;
+
+  this->config_.chargectrl1.battery_ocp_limit &= 0x03;
+  this->config_.chargectrl1.battery_uvlo &= 0x07;
+
+  this->config_.ic_ctrl.vlowv_select &= 0x01;
+  this->config_.ic_ctrl.recharge_threshold &= 0x01;
+  this->config_.ic_ctrl.safety_timer &= 0x03;
+  this->config_.ic_ctrl.watchdog &= 0x03;
+
+  this->config_.tmr_ilim.long_press_duration &= 0x03;
+  this->config_.tmr_ilim.autowake &= 0x03;
+  this->config_.tmr_ilim.input_current_limit &= 0x07;
+
+  this->config_.ship_rst.push_button_long_press_action &= 0x03;
+  this->config_.ship_rst.wake1_timer &= 0x01;
+  this->config_.ship_rst.wake2_timer &= 0x01;
+
+  this->config_.sys_reg.system_regulation &= 0x07;
+  this->config_.sys_reg.sys_mode &= 0x03;
+
+  this->config_.ts_control.ts_hot &= 0x03;
+  this->config_.ts_control.ts_cold &= 0x03;
+  this->config_.ts_control.ts_ichg &= 0x01;
+  this->config_.ts_control.ts_vrcg &= 0x01;
+}
+
 bool BQ25186Component::read_all_registers_() {
   if (!this->read_bytes(BQ25186_REG_STAT0, this->data_.registers, 13)) {
     ESP_LOGW(TAG, "Failed to read register bank 0x00-0x0C");
@@ -33,101 +76,115 @@ bool BQ25186Component::update_register_(uint8_t reg, uint8_t mask, uint8_t value
   return this->write_register_(reg, reg_value);
 }
 
-uint8_t BQ25186Component::encode_battery_regulation_voltage(uint16_t millivolts) {
+bool BQ25186Component::update_vbat_ctrl_register_() {
+  uint16_t millivolts = this->config_.vbat_ctrl.battery_regulation_voltage_mv;
   if (millivolts < 3500)
     millivolts = 3500;
   if (millivolts > 4650)
     millivolts = 4650;
-  return static_cast<uint8_t>((millivolts - 3500) / 10);
+
+  const uint8_t regulation_code = static_cast<uint8_t>((millivolts - 3500) / 10);
+  const uint8_t reg_value = (this->config_.vbat_ctrl.pg_mode << 7) | regulation_code;
+  return this->update_register_(BQ25186_REG_VBAT_CTRL, 0xFF, reg_value);
 }
 
-uint8_t BQ25186Component::encode_fast_charge_current(uint16_t milliamps) {
+bool BQ25186Component::update_ichg_ctrl_register_() {
+  uint16_t milliamps = this->config_.ichg_ctrl.charge_current_ma;
   if (milliamps < 5)
     milliamps = 5;
   if (milliamps > 1000)
     milliamps = 1000;
 
+  uint8_t current_code;
   if (milliamps <= 35) {
-    return static_cast<uint8_t>(milliamps - 5);
+    current_code = static_cast<uint8_t>(milliamps - 5);
+  } else {
+    uint16_t rounded = (milliamps / 10) * 10;
+    if (rounded < 40)
+      rounded = 40;
+    current_code = static_cast<uint8_t>(((rounded - 40) / 10) + 31);
+    if (current_code > 127)
+      current_code = 127;
   }
 
-  uint16_t rounded = (milliamps / 10) * 10;
-  if (rounded < 40)
-    rounded = 40;
-  uint8_t code = static_cast<uint8_t>(((rounded - 40) / 10) + 31);
-  if (code > 127)
-    code = 127;
-  return code;
+  const uint8_t reg_value = ((this->config_.ichg_ctrl.charge_enabled ? 0 : 1) << 7) | current_code;
+  return this->update_register_(BQ25186_REG_ICHG_CTRL, 0xFF, reg_value);
+}
+
+bool BQ25186Component::update_chargectrl0_register_() {
+  const auto &chargectrl0_cfg = this->config_.chargectrl0;
+
+  const uint8_t chargectrl0 = (chargectrl0_cfg.flash_charging_mode << 7) | (chargectrl0_cfg.precharge_is_iterm << 6) |
+                              (chargectrl0_cfg.termination_percent << 4) | (chargectrl0_cfg.vindpm_mode << 2) |
+                              chargectrl0_cfg.thermal_regulation;
+  return this->update_register_(BQ25186_REG_CHARGECTRL0, 0xFF, chargectrl0);
+}
+
+bool BQ25186Component::update_chargectrl1_register_() {
+  const auto &chargectrl1_cfg = this->config_.chargectrl1;
+  const uint8_t chargectrl1 = (chargectrl1_cfg.battery_ocp_limit << 6) | (chargectrl1_cfg.battery_uvlo << 3) |
+                              (chargectrl1_cfg.mask_charge_status_interrupt << 2) |
+                              (chargectrl1_cfg.mask_ilim_interrupt << 1) | chargectrl1_cfg.mask_vindpm_interrupt;
+  return this->update_register_(BQ25186_REG_CHARGECTRL1, 0xFF, chargectrl1);
+}
+
+bool BQ25186Component::update_ic_ctrl_register_() {
+  const auto &ic_ctrl_cfg = this->config_.ic_ctrl;
+  const uint8_t ic_ctrl = (ic_ctrl_cfg.ts_auto_function << 7) | (ic_ctrl_cfg.vlowv_select << 6) |
+                          (ic_ctrl_cfg.recharge_threshold << 5) | (ic_ctrl_cfg.double_timer_during_dpm << 4) |
+                          (ic_ctrl_cfg.safety_timer << 2) | ic_ctrl_cfg.watchdog;
+  return this->update_register_(BQ25186_REG_IC_CTRL, 0xFF, ic_ctrl);
+}
+
+bool BQ25186Component::update_tmr_ilim_register_() {
+  const auto &tmr_ilim_cfg = this->config_.tmr_ilim;
+  const uint8_t tmr_ilim = (tmr_ilim_cfg.long_press_duration << 6) | (tmr_ilim_cfg.hw_reset_requires_vin << 5) |
+                           (tmr_ilim_cfg.autowake << 3) | tmr_ilim_cfg.input_current_limit;
+  return this->update_register_(BQ25186_REG_TMR_ILIM, 0xFF, tmr_ilim);
+}
+
+bool BQ25186Component::update_ship_rst_register_() {
+  const auto &ship_rst_cfg = this->config_.ship_rst;
+  const uint8_t ship_rst = (ship_rst_cfg.push_button_long_press_action << 3) | (ship_rst_cfg.wake1_timer << 2) |
+                           (ship_rst_cfg.wake2_timer << 1) | ship_rst_cfg.enable_push_button;
+  return this->update_register_(BQ25186_REG_SHIP_RST, 0x1F, ship_rst);
+}
+
+bool BQ25186Component::update_sys_reg_register_() {
+  const auto &sys_reg_cfg = this->config_.sys_reg;
+  const uint8_t sys_reg = (sys_reg_cfg.system_regulation << 5) | (sys_reg_cfg.pg_gpo_level << 4) |
+                          (sys_reg_cfg.sys_mode << 2) | (sys_reg_cfg.watchdog_15s_enable << 1) |
+                          sys_reg_cfg.disable_vdppm;
+  return this->update_register_(BQ25186_REG_SYS_REG, 0xFF, sys_reg);
+}
+
+bool BQ25186Component::update_ts_control_register_() {
+  const auto &ts_control_cfg = this->config_.ts_control;
+  const uint8_t ts_control = (ts_control_cfg.ts_hot << 6) | (ts_control_cfg.ts_cold << 4) |
+                             (ts_control_cfg.ts_warm_disable << 3) | (ts_control_cfg.ts_cool_disable << 2) |
+                             (ts_control_cfg.ts_ichg << 1) | ts_control_cfg.ts_vrcg;
+  return this->update_register_(BQ25186_REG_TS_CONTROL, 0xFF, ts_control);
+}
+
+bool BQ25186Component::update_mask_id_register_() {
+  const auto &mask_id_cfg = this->config_.mask_id;
+  const uint8_t mask_id = (mask_id_cfg.mask_ts_interrupt << 7) | (mask_id_cfg.mask_treg_interrupt << 6) |
+                          (mask_id_cfg.mask_bat_interrupt << 5) | (mask_id_cfg.mask_pg_interrupt << 4);
+  return this->update_register_(BQ25186_REG_MASK_ID, 0xF0, mask_id);
 }
 
 bool BQ25186Component::apply_configuration_() {
-  if (!this->update_register_(
-          BQ25186_REG_VBAT_CTRL, 0xFF,
-          (this->pg_mode_ << 7) | this->encode_battery_regulation_voltage(this->battery_regulation_voltage_mv_))) {
+  if (!this->update_vbat_ctrl_register_() || !this->update_ichg_ctrl_register_() ||
+      !this->update_chargectrl0_register_() || !this->update_chargectrl1_register_() ||
+      !this->update_ic_ctrl_register_() || !this->update_tmr_ilim_register_() || !this->update_ship_rst_register_() ||
+      !this->update_sys_reg_register_() || !this->update_ts_control_register_() || !this->update_mask_id_register_()) {
     return false;
   }
-
-  if (!this->update_register_(
-          BQ25186_REG_ICHG_CTRL, 0xFF,
-          ((this->charge_enabled_ ? 0 : 1) << 7) | this->encode_fast_charge_current(this->charge_current_ma_))) {
-    return false;
-  }
-
-  const uint8_t chargectrl0 = (this->flash_charging_mode_ << 7) | (this->precharge_is_iterm_ << 6) |
-                              (this->termination_percent_ << 4) | (this->vindpm_mode_ << 2) | this->thermal_regulation_;
-  if (!this->update_register_(BQ25186_REG_CHARGECTRL0, 0xFF, chargectrl0)) {
-    return false;
-  }
-
-  const uint8_t chargectrl1 = (this->battery_ocp_limit_ << 6) | (this->battery_uvlo_ << 3) |
-                              (this->mask_charge_status_interrupt_ << 2) | (this->mask_ilim_interrupt_ << 1) |
-                              this->mask_vindpm_interrupt_;
-  if (!this->update_register_(BQ25186_REG_CHARGECTRL1, 0xFF, chargectrl1)) {
-    return false;
-  }
-
-  const uint8_t ic_ctrl = (this->ts_auto_function_ << 7) | (this->vlowv_select_ << 6) |
-                          (this->recharge_threshold_ << 5) | (this->double_timer_during_dpm_ << 4) |
-                          (this->safety_timer_ << 2) | this->watchdog_;
-  if (!this->update_register_(BQ25186_REG_IC_CTRL, 0xFF, ic_ctrl)) {
-    return false;
-  }
-
-  const uint8_t tmr_ilim = (this->long_press_duration_ << 6) | (this->hw_reset_requires_vin_ << 5) |
-                           (this->autowake_ << 3) | this->input_current_limit_;
-  if (!this->update_register_(BQ25186_REG_TMR_ILIM, 0xFF, tmr_ilim)) {
-    return false;
-  }
-
-  const uint8_t ship_rst = (this->push_button_long_press_action_ << 3) | (this->wake1_timer_ << 2) |
-                           (this->wake2_timer_ << 1) | this->enable_push_button_;
-  if (!this->update_register_(BQ25186_REG_SHIP_RST, 0x1F, ship_rst)) {
-    return false;
-  }
-
-  const uint8_t sys_reg = (this->system_regulation_ << 5) | (this->pg_gpo_level_ << 4) | (this->sys_mode_ << 2) |
-                          (this->watchdog_15s_enable_ << 1) | this->disable_vdppm_;
-  if (!this->update_register_(BQ25186_REG_SYS_REG, 0xFF, sys_reg)) {
-    return false;
-  }
-
-  const uint8_t ts_control = (this->ts_hot_ << 6) | (this->ts_cold_ << 4) | (this->ts_warm_disable_ << 3) |
-                             (this->ts_cool_disable_ << 2) | (this->ts_ichg_ << 1) | this->ts_vrcg_;
-  if (!this->update_register_(BQ25186_REG_TS_CONTROL, 0xFF, ts_control)) {
-    return false;
-  }
-
-  const uint8_t mask_id = (this->mask_ts_interrupt_ << 7) | (this->mask_treg_interrupt_ << 6) |
-                          (this->mask_bat_interrupt_ << 5) | (this->mask_pg_interrupt_ << 4);
-  if (!this->update_register_(BQ25186_REG_MASK_ID, 0xF0, mask_id)) {
-    return false;
-  }
-
   return true;
 }
 
 bool BQ25186Component::write_pg_gpo_level(bool level) {
-  if (this->pg_mode_ == 0) {
+  if (this->config_.vbat_ctrl.pg_mode == 0) {
     ESP_LOGW(TAG, "Ignoring PG/GPO switch write because pg_mode is set to power_good");
     return false;
   }
@@ -137,7 +194,7 @@ bool BQ25186Component::write_pg_gpo_level(bool level) {
     return false;
   }
 
-  this->pg_gpo_level_ = level;
+  this->config_.sys_reg.pg_gpo_level = level;
   return true;
 }
 
@@ -182,8 +239,9 @@ void BQ25186Component::dump_config() {
                 "  Input Current Limit Code: %u\n"
                 "  SYS Mode: %u\n"
                 "  System Regulation: %u",
-                this->battery_regulation_voltage_mv_, this->charge_current_ma_, ONOFF(this->charge_enabled_),
-                this->input_current_limit_, this->sys_mode_, this->system_regulation_);
+                this->config_.vbat_ctrl.battery_regulation_voltage_mv, this->config_.ichg_ctrl.charge_current_ma,
+                ONOFF(this->config_.ichg_ctrl.charge_enabled), this->config_.tmr_ilim.input_current_limit,
+                this->config_.sys_reg.sys_mode, this->config_.sys_reg.system_regulation);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   if (this->is_failed()) {
@@ -203,7 +261,7 @@ void BQ25186Component::update() {
 
   this->status_clear_warning();
 
-  if (this->pg_gpo_switch_ != nullptr && this->pg_mode_ == 1) {
+  if (this->pg_gpo_switch_ != nullptr && this->config_.vbat_ctrl.pg_mode == 1) {
     const bool pg_gpo_level = (this->data_.registers[BQ25186_REG_SYS_REG] & 0x10) != 0;
     this->pg_gpo_switch_->publish_state(pg_gpo_level);
   }
