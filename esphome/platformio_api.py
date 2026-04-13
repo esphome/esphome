@@ -65,9 +65,6 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ.setdefault("UV_HTTP_RETRIES", "10")
     cmd = [sys.executable, "-m", "esphome.platformio_runner"] + list(args)
 
-    if not CORE.verbose:
-        kwargs["filter_lines"] = FILTER_PLATFORMIO_LINES
-
     return run_external_process(*cmd, **kwargs)
 
 

@@ -122,11 +122,18 @@ def main() -> int:
     #    that was lost when we switched from in-process to subprocess — the
     #    parent's ``subprocess.run`` uses ``.fileno()`` on RedirectText and
     #    bypasses its ``write()`` path entirely.
+    #
+    # Filtering is disabled when the user passed -v / --verbose to
+    # ``esphome compile``, preserving the previous in-process behavior where
+    # verbose mode let all PlatformIO output through unfiltered.
     from esphome.platformio_api import FILTER_PLATFORMIO_LINES
     from esphome.util import RedirectText
 
-    sys.stdout = RedirectText(sys.stdout, filter_lines=FILTER_PLATFORMIO_LINES)
-    sys.stderr = RedirectText(sys.stderr, filter_lines=FILTER_PLATFORMIO_LINES)
+    is_verbose = any(arg in ("-v", "--verbose") for arg in sys.argv[1:])
+    filter_lines = None if is_verbose else FILTER_PLATFORMIO_LINES
+
+    sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
+    sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
     import platformio.__main__
 
