@@ -1,12 +1,12 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
-from esphome import automation
-from esphome.components.audio_dac import AudioDac, audio_dac_ns
 from esphome.const import (
+    CONF_CHANNEL,
     CONF_ID,
     CONF_MODE,
-    CONF_CHANNEL,
     CONF_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
@@ -49,8 +49,12 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(TAS2780),
             cv.Optional(CONF_AMP_LEVEL, default=8): cv.int_range(min=0, max=20),
             cv.Optional(CONF_POWER_MODE, default=2): cv.int_range(min=0, max=3),
-            cv.Optional(CONF_VOL_RANGE_MIN, default=0.3): cv.float_range(min=0.0, max=1.0),
-            cv.Optional(CONF_VOL_RANGE_MAX, default=1.0): cv.float_range(min=0.0, max=1.0),
+            cv.Optional(CONF_VOL_RANGE_MIN, default=0.3): cv.float_range(
+                min=0.0, max=1.0
+            ),
+            cv.Optional(CONF_VOL_RANGE_MAX, default=1.0): cv.float_range(
+                min=0.0, max=1.0
+            ),
             cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=2),
             cv.Optional(CONF_PVDD_SENSOR): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
@@ -81,21 +85,27 @@ TAS2780_ACTIVATE_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action("tas2780.deactivate", DeactivateAction, TAS2780_BASE_ACTION_SCHEMA, synchronous=True)
+@automation.register_action(
+    "tas2780.deactivate", DeactivateAction, TAS2780_BASE_ACTION_SCHEMA, synchronous=True
+)
 async def tas2780_deactivate_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
 
 
-@automation.register_action("tas2780.reset", ResetAction, TAS2780_BASE_ACTION_SCHEMA, synchronous=True)
+@automation.register_action(
+    "tas2780.reset", ResetAction, TAS2780_BASE_ACTION_SCHEMA, synchronous=True
+)
 async def tas2780_reset_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
 
 
-@automation.register_action("tas2780.activate", ActivateAction, TAS2780_ACTIVATE_ACTION_SCHEMA, synchronous=True)
+@automation.register_action(
+    "tas2780.activate", ActivateAction, TAS2780_ACTIVATE_ACTION_SCHEMA, synchronous=True
+)
 async def tas2780_activate_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
@@ -108,15 +118,24 @@ async def tas2780_activate_to_code(config, action_id, template_arg, args):
 TAS2780_UPDATE_CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(TAS2780),
-        cv.Optional(CONF_VOL_RANGE_MIN): cv.templatable(cv.float_range(min=0.0, max=1.0)),
-        cv.Optional(CONF_VOL_RANGE_MAX): cv.templatable(cv.float_range(min=0.0, max=1.0)),
+        cv.Optional(CONF_VOL_RANGE_MIN): cv.templatable(
+            cv.float_range(min=0.0, max=1.0)
+        ),
+        cv.Optional(CONF_VOL_RANGE_MAX): cv.templatable(
+            cv.float_range(min=0.0, max=1.0)
+        ),
         cv.Optional(CONF_AMP_LEVEL): cv.templatable(cv.int_range(min=0, max=20)),
         cv.Optional(CONF_CHANNEL): cv.templatable(cv.int_range(min=0, max=2)),
     }
 )
 
 
-@automation.register_action("tas2780.update_config", UpdateConfigAction, TAS2780_UPDATE_CONFIG_SCHEMA, synchronous=True)
+@automation.register_action(
+    "tas2780.update_config",
+    UpdateConfigAction,
+    TAS2780_UPDATE_CONFIG_SCHEMA,
+    synchronous=True,
+)
 async def tas2780_update_config_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
