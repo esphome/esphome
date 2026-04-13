@@ -302,7 +302,7 @@ class Scheduler {
   // loop thread structurally modifies items_ (push/pop/erase). Other threads may
   // iterate items_ and mark items removed under lock_, but never change the
   // vector's size or data pointer.
-  inline bool HOT cleanup_() {
+  inline bool ESPHOME_ALWAYS_INLINE HOT cleanup_() {
     if (this->to_remove_empty_())
       return !this->items_.empty();
     return this->cleanup_slow_path_();
