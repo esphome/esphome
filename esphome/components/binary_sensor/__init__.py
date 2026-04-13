@@ -531,16 +531,31 @@ def binary_sensor_schema(
     return _BINARY_SENSOR_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_PRESS,
+        "add_on_state_callback",
+        forwarder=automation.TriggerOnTrueForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_RELEASE,
+        "add_on_state_callback",
+        forwarder=automation.TriggerOnFalseForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", [(bool, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STATE_CHANGE,
+        "add_full_state_callback",
+        [(cg.optional.template(bool), "x_previous"), (cg.optional.template(bool), "x")],
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_binary_sensor_automations(var, config):
-    for conf_key, forwarder in (
-        (CONF_ON_PRESS, automation.TriggerOnTrueForwarder),
-        (CONF_ON_RELEASE, automation.TriggerOnFalseForwarder),
-    ):
-        for conf in config.get(conf_key, []):
-            await automation.build_callback_automation(
-                var, "add_on_state_callback", [], conf, forwarder=forwarder
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     for conf in config.get(CONF_ON_CLICK, []):
         trigger = cg.new_Pvariable(
@@ -571,22 +586,6 @@ async def _build_binary_sensor_automations(var, config):
             cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_STATE, []):
-        await automation.build_callback_automation(
-            var, "add_on_state_callback", [(bool, "x")], conf
-        )
-
-    for conf in config.get(CONF_ON_STATE_CHANGE, []):
-        await automation.build_callback_automation(
-            var,
-            "add_full_state_callback",
-            [
-                (cg.optional.template(bool), "x_previous"),
-                (cg.optional.template(bool), "x"),
-            ],
-            conf,
-        )
 
 
 @setup_entity("binary_sensor")
