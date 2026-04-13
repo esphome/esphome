@@ -50,8 +50,8 @@ class TAS2780 : public audio_dac::AudioDac, public PollingComponent, public i2c:
 #endif
 
  protected:
-  void init();
-  void set_power_mode_(const uint8_t power_mode);
+  void init_();
+  void set_power_mode_(uint8_t power_mode);
   bool write_mute_();
   bool write_volume_();
   void log_error_states_();

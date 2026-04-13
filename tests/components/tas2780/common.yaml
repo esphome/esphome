@@ -13,17 +13,18 @@ tas2780:
   temperature:
     name: "TAS2780 Temperature"
 
-on_boot:
-  - tas2780.activate:
-      id: tas2780_amp
-      mode: 2
-  - tas2780.update_config:
-      id: tas2780_amp
-      amp_level: 10
-      vol_range_min: 0.2
-      vol_range_max: 0.9
-      channel: 1
-  - tas2780.deactivate:
-      id: tas2780_amp
-  - tas2780.reset:
-      id: tas2780_amp
+esphome:
+  on_boot:
+    - tas2780.activate:
+        id: tas2780_amp
+        mode: 2
+    - tas2780.update_config:
+        id: tas2780_amp
+        amp_level: 10
+        vol_range_min: 0.2
+        vol_range_max: 0.9
+        channel: 1
+    - tas2780.deactivate:
+        id: tas2780_amp
+    - tas2780.reset:
+        id: tas2780_amp

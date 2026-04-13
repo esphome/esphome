@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_CHANNEL,
     CONF_ID,
     CONF_MODE,
+    CONF_POWER_MODE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
@@ -40,7 +41,6 @@ DeactivateAction = tas2780_ns.class_(
 CONF_VOL_RANGE_MIN = "vol_range_min"
 CONF_VOL_RANGE_MAX = "vol_range_max"
 CONF_AMP_LEVEL = "amp_level"
-CONF_POWER_MODE = "power_mode"
 CONF_PVDD_SENSOR = "pvdd_sensor"
 
 CONFIG_SCHEMA = (

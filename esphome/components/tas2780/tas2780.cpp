@@ -265,13 +265,13 @@ static uint8_t get_channel_select_reg_val(ChannelSelect channel) {
 }
 
 void TAS2780::setup() {
-  this->init();
+  this->init_();
   // set to software shutdown
   this->reg(TAS2780_MODE_CTRL) =
       (TAS2780_MODE_CTRL_BOP_SRC__PVDD_UVLO & ~TAS2780_MODE_CTRL_MODE_MASK) | TAS2780_MODE_CTRL_MODE__SFTW_SHTDWN;
 }
 
-void TAS2780::init() {
+void TAS2780::init_() {
   // select page 0
   this->reg(TAS2780_PAGE_SELECT) = 0x00;
 
@@ -342,7 +342,7 @@ void TAS2780::activate(uint8_t power_mode) {
   this->reg(TAS2780_INT_CLK_CFG) = 0x19 | (1 << 2);
   if (power_mode != this->power_mode_) {
     this->power_mode_ = power_mode;
-    this->init();
+    this->init_();
     this->write_mute_();
   }
   // activate
@@ -358,11 +358,11 @@ void TAS2780::deactivate() {
 }
 
 void TAS2780::reset() {
-  this->init();
+  this->init_();
   this->activate(this->power_mode_);
 }
 
-void TAS2780::set_power_mode_(const uint8_t power_mode) {
+void TAS2780::set_power_mode_(uint8_t power_mode) {
   // PWR_MODE0: PVDD is the only supply used to deliver output power. VBAT external
   // PWR_MODE1: VBAT1S is used to deliver output power based on level and headroom configured.
   //            When audio signal crosses a programmed threshold Class-D output is switched over PVDD
