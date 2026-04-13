@@ -917,7 +917,8 @@ bool SubscribeLogsRequest::decode_varint(uint32_t field_id, proto_varint_value_t
   return true;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint8_t *SubscribeLogsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+uint8_t *
+SubscribeLogsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->level), true);
   ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 26);
@@ -926,10 +927,11 @@ uint8_t *SubscribeLogsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEB
   return pos;
 }
 __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
-uint32_t SubscribeLogsResponse::calculate_size() const {
+uint32_t
+SubscribeLogsResponse::calculate_size() const {
   uint32_t size = 0;
   size += 2;
-  size += ProtoSize::calc_length(1, this->message_len_);
+  size += ProtoSize::calc_length_force(1, this->message_len_);
   return size;
 }
 #ifdef USE_API_NOISE
