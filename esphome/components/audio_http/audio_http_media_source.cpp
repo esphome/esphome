@@ -115,7 +115,7 @@ void AudioHTTPMediaSource::on_stream_info(const micro_decoder::AudioStreamInfo &
 }
 
 // microDecoder invokes on_state_change() from inside decoder_->loop(), so this runs on the main
-// loop thread and its safe to call set_state_() directly.
+// loop thread and it's safe to call set_state_() directly.
 void AudioHTTPMediaSource::on_state_change(micro_decoder::DecoderState state) {
   switch (state) {
     case micro_decoder::DecoderState::IDLE:
