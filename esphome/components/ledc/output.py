@@ -57,8 +57,16 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+def _require_ledc_iram(config):
+    """Register LEDC IRAM requirement during config validation."""
     require_ledc_iram()
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _require_ledc_iram
+
+
+async def to_code(config):
     gpio = await cg.gpio_pin_expression(config[CONF_PIN])
     var = cg.new_Pvariable(config[CONF_ID], gpio)
     await cg.register_component(var, config)
