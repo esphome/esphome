@@ -205,6 +205,25 @@ async def add_modbus_base_properties(
         cg.add(var.set_template(template_))
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_COMMAND_SENT,
+        "add_on_command_sent_callback",
+        [(cg.int_, "function_code"), (cg.int_, "address")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ONLINE,
+        "add_on_online_callback",
+        [(cg.int_, "function_code"), (cg.int_, "address")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_OFFLINE,
+        "add_on_offline_callback",
+        [(cg.int_, "function_code"), (cg.int_, "address")],
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_allow_duplicate_commands(config[CONF_ALLOW_DUPLICATE_COMMANDS]))
@@ -257,27 +276,7 @@ async def to_code(config):
                 )
             cg.add(var.add_server_register(server_register_var))
     await register_modbus_device(var, config)
-    for conf in config.get(CONF_ON_COMMAND_SENT, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_command_sent_callback",
-            [(cg.int_, "function_code"), (cg.int_, "address")],
-            conf,
-        )
-    for conf in config.get(CONF_ON_ONLINE, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_online_callback",
-            [(cg.int_, "function_code"), (cg.int_, "address")],
-            conf,
-        )
-    for conf in config.get(CONF_ON_OFFLINE, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_offline_callback",
-            [(cg.int_, "function_code"), (cg.int_, "address")],
-            conf,
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 async def register_modbus_device(var, config):

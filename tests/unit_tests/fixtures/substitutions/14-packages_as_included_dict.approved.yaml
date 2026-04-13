@@ -1,0 +1,3 @@
+wifi:
+  password: pkg_password
+  ssid: main_ssid

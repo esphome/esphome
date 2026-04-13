@@ -45,20 +45,34 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
 
   void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
-    call.set_color_mode(this->color_mode_.optional_value(x...));
-    call.set_state(this->state_.optional_value(x...));
-    call.set_brightness(this->brightness_.optional_value(x...));
-    call.set_color_brightness(this->color_brightness_.optional_value(x...));
-    call.set_red(this->red_.optional_value(x...));
-    call.set_green(this->green_.optional_value(x...));
-    call.set_blue(this->blue_.optional_value(x...));
-    call.set_white(this->white_.optional_value(x...));
-    call.set_color_temperature(this->color_temperature_.optional_value(x...));
-    call.set_cold_white(this->cold_white_.optional_value(x...));
-    call.set_warm_white(this->warm_white_.optional_value(x...));
-    call.set_effect(this->effect_.optional_value(x...));
-    call.set_flash_length(this->flash_length_.optional_value(x...));
-    call.set_transition_length(this->transition_length_.optional_value(x...));
+    if (this->color_mode_.has_value())
+      call.set_color_mode(this->color_mode_.value(x...));
+    if (this->state_.has_value())
+      call.set_state(this->state_.value(x...));
+    if (this->transition_length_.has_value())
+      call.set_transition_length(this->transition_length_.value(x...));
+    if (this->flash_length_.has_value())
+      call.set_flash_length(this->flash_length_.value(x...));
+    if (this->brightness_.has_value())
+      call.set_brightness(this->brightness_.value(x...));
+    if (this->color_brightness_.has_value())
+      call.set_color_brightness(this->color_brightness_.value(x...));
+    if (this->red_.has_value())
+      call.set_red(this->red_.value(x...));
+    if (this->green_.has_value())
+      call.set_green(this->green_.value(x...));
+    if (this->blue_.has_value())
+      call.set_blue(this->blue_.value(x...));
+    if (this->white_.has_value())
+      call.set_white(this->white_.value(x...));
+    if (this->color_temperature_.has_value())
+      call.set_color_temperature(this->color_temperature_.value(x...));
+    if (this->cold_white_.has_value())
+      call.set_cold_white(this->cold_white_.value(x...));
+    if (this->warm_white_.has_value())
+      call.set_warm_white(this->warm_white_.value(x...));
+    if (this->effect_.has_value())
+      call.set_effect(this->effect_.value(x...));
     call.perform();
   }
 

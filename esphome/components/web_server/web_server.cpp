@@ -2207,7 +2207,11 @@ json::SerializationBuffer<> WebServer::update_json_(update::UpdateEntity *obj, J
   if (start_config == DETAIL_ALL) {
     root[ESPHOME_F("current_version")] = obj->update_info.current_version;
     root[ESPHOME_F("title")] = obj->update_info.title;
-    root[ESPHOME_F("summary")] = obj->update_info.summary;
+    // Truncate long changelogs — full text available via release_url
+    constexpr size_t max_summary_len = 256;
+    root[ESPHOME_F("summary")] = obj->update_info.summary.size() <= max_summary_len
+                                     ? obj->update_info.summary
+                                     : obj->update_info.summary.substr(0, max_summary_len);
     root[ESPHOME_F("release_url")] = obj->update_info.release_url;
     this->add_sorting_info_(root, obj);
   }

@@ -1,0 +1,25 @@
+button:
+  - platform: template
+    name: Send command test
+    on_press:
+      - emontx.send_command:
+          id: test_emontx
+          command: "v"
+
+emontx:
+  id: test_emontx
+  on_json:
+    - then:
+        - logger.log: "Got JSON"
+  on_data:
+    - then:
+        - logger.log:
+            format: "Got data: %s"
+            args: [data.c_str()]
+
+sensor:
+  - platform: emontx
+    name: Power
+    tag_name: P1
+    emontx_id: test_emontx
+    unit_of_measurement: W

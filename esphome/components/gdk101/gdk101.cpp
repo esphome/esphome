@@ -6,9 +6,15 @@ namespace esphome {
 namespace gdk101 {
 
 static const char *const TAG = "gdk101";
-static const uint8_t NUMBER_OF_READ_RETRIES = 5;
+static constexpr uint8_t NUMBER_OF_READ_RETRIES = 5;
+static constexpr uint8_t NUMBER_OF_RESET_RETRIES = 30;
+static constexpr uint32_t RESET_INTERVAL_ID = 0;
+static constexpr uint32_t RESET_INTERVAL_MS = 1000;
 
 void GDK101Component::update() {
+  if (!this->reset_complete_)
+    return;
+
   uint8_t data[2];
   if (!this->read_dose_1m_(data)) {
     this->status_set_warning(LOG_STR("Failed to read dose 1m"));
@@ -33,26 +39,45 @@ void GDK101Component::update() {
 }
 
 void GDK101Component::setup() {
-  uint8_t data[2];
-  // first, reset the sensor
-  if (!this->reset_sensor_(data)) {
-    this->status_set_error(LOG_STR("Reset failed!"));
-    this->mark_failed();
-    return;
+  if (!this->try_reset_()) {
+    // Sensor MCU boots slowly after power cycle — retry on a short interval
+    this->reset_retries_remaining_ = NUMBER_OF_RESET_RETRIES;
+    this->set_interval(RESET_INTERVAL_ID, RESET_INTERVAL_MS, [this]() {
+      if (this->try_reset_()) {
+        if (this->reset_complete_) {
+          this->update();
+        }
+        return;
+      }
+      if (--this->reset_retries_remaining_ == 0) {
+        this->cancel_interval(RESET_INTERVAL_ID);
+        this->mark_failed(LOG_STR("Reset failed after retries"));
+      }
+    });
   }
-  // sensor should acknowledge success of the reset procedure
+}
+
+/// Attempt to reset the sensor and read firmware version. Returns true on success or hard failure.
+bool GDK101Component::try_reset_() {
+  uint8_t data[2] = {0};
+  if (!this->reset_sensor_(data)) {
+    this->status_set_warning(LOG_STR("Sensor not answering reset, will retry"));
+    return false;
+  }
   if (data[0] != 1) {
-    this->status_set_error(LOG_STR("Reset not acknowledged!"));
-    this->mark_failed();
-    return;
+    this->status_set_warning(LOG_STR("Reset not acknowledged, will retry"));
+    return false;
   }
   delay(10);
-  // read firmware version
   if (!this->read_fw_version_(data)) {
-    this->status_set_error(LOG_STR("Failed to read firmware version"));
-    this->mark_failed();
-    return;
+    this->cancel_interval(RESET_INTERVAL_ID);
+    this->mark_failed(LOG_STR("Failed to read firmware version"));
+    return true;
   }
+  this->reset_complete_ = true;
+  this->status_clear_warning();
+  this->cancel_interval(RESET_INTERVAL_ID);
+  return true;
 }
 
 void GDK101Component::dump_config() {
@@ -92,12 +117,7 @@ bool GDK101Component::reset_sensor_(uint8_t *data) {
   // After sending reset command it looks that sensor start performing reset and is unresponsible during read
   // after a while we can send another reset command and read "0x01" as confirmation
   // Documentation not going in to such details unfortunately
-  if (!this->read_bytes_with_retry_(GDK101_REG_RESET, data, 2)) {
-    ESP_LOGE(TAG, "Updating GDK101 failed!");
-    return false;
-  }
-
-  return true;
+  return this->read_bytes_with_retry_(GDK101_REG_RESET, data, 2);
 }
 
 bool GDK101Component::read_dose_1m_(uint8_t *data) {
