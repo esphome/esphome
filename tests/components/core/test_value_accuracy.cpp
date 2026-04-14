@@ -3,10 +3,11 @@
 #include <cstdio>
 #include <cstring>
 #include <span>
+#include <string>
 
 #include "esphome/core/helpers.h"
 
-namespace esphome::testing {
+namespace esphome::core::testing {
 
 // Helper to call value_accuracy_to_buf and return as string
 static std::string va_to_string(float value, int8_t accuracy_decimals) {
@@ -148,4 +149,4 @@ TEST(ValueAccuracyToBuf, ReturnsCorrectLength) {
   EXPECT_EQ(strlen(buf), len);
 }
 
-}  // namespace esphome::testing
+}  // namespace esphome::core::testing

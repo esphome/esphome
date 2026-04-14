@@ -1296,7 +1296,10 @@ inline char *int8_to_str(char *buf, int8_t val) {
 }
 
 /// Append a separator char and a string to a buffer, respecting remaining space.
-/// Returns pointer past last char written (null terminator is written).
+/// Returns pointer past last char written. On success (remaining >= 2) a null
+/// terminator is written after the copied string. If remaining < 2 nothing is
+/// written (not even a terminator) and `buf` is returned unchanged — callers
+/// needing a terminated buffer in that case must ensure one is already present.
 inline char *buf_append_sep_str(char *buf, size_t remaining, char separator, const char *str, size_t str_len) {
   if (remaining < 2) {
     return buf;
