@@ -1,4 +1,3 @@
-from dataclasses import dataclass, field
 import hashlib
 
 from esphome import automation, codegen as cg, config_validation as cv
@@ -9,11 +8,10 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VALUE,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
-DOMAIN = "globals"
 globals_ns = cg.esphome_ns.namespace("globals")
 GlobalsComponent = globals_ns.class_("GlobalsComponent", cg.Component)
 RestoringGlobalsComponent = globals_ns.class_(
@@ -62,25 +60,11 @@ MULTI_CONF = True
 CONFIG_SCHEMA = _globals_schema
 
 
-@dataclass
-class GlobalsData:
-    # Map of global id -> user-declared C++ type string (e.g. 'float') so the
-    # globals.set action can emit lambdas with the matching return type.
-    types: dict = field(default_factory=dict)
-
-
-def _get_data() -> GlobalsData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = GlobalsData()
-    return CORE.data[DOMAIN]
-
-
 # Run with low priority so that namespaces are registered first
 @coroutine_with_priority(CoroPriority.LATE)
 async def to_code(config):
     type_ = cg.RawExpression(config[CONF_TYPE])
     restore = config[CONF_RESTORE_VALUE]
-    _get_data().types[config[CONF_ID]] = config[CONF_TYPE]
 
     # Special casing the strings to their own class with a different save/restore mechanism
     if str(type_) == "std::string" and restore:
@@ -124,11 +108,11 @@ async def globals_set_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
     template_arg = cg.TemplateArguments(full_id.type, *template_arg)
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    # Use the global's declared C++ type as the lambda return type so
+    # Use the global's value_type alias as the lambda return type so
     # TemplatableFn stores a direct function pointer instead of going through
     # the deprecated converting trampoline when the value expression deduces
     # to a different type (e.g. int literal assigned to a float global).
-    value_type = cg.RawExpression(_get_data().types[config[CONF_ID]])
+    value_type = cg.RawExpression(f"{full_id.type}::value_type")
     templ = await cg.templatable(
         config[CONF_VALUE], args, value_type, to_exp=cg.RawExpression
     )
