@@ -559,7 +559,7 @@ static size_t value_accuracy_to_buf_fast(char *buf, float value, int8_t accuracy
   p = uint32_to_str_unchecked(p, scaled / mult);
   if (accuracy_decimals > 0) {
     *p++ = '.';
-    p = frac_to_str_(p, scaled % mult, mult / 10);
+    p = frac_to_str_unchecked(p, scaled % mult, mult / 10);
   }
   *p = '\0';
   return static_cast<size_t>(p - buf);

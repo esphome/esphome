@@ -124,11 +124,11 @@ TEST(SmallPow10, One) { EXPECT_EQ(small_pow10(1), 10u); }
 TEST(SmallPow10, Two) { EXPECT_EQ(small_pow10(2), 100u); }
 TEST(SmallPow10, Three) { EXPECT_EQ(small_pow10(3), 1000u); }
 
-// --- frac_to_str_() ---
+// --- frac_to_str_unchecked() ---
 
 TEST(FracToStr, OneDigit) {
   char buf[8];
-  char *end = frac_to_str_(buf, 5, 1);
+  char *end = frac_to_str_unchecked(buf, 5, 1);
   *end = '\0';
   EXPECT_STREQ(buf, "5");
   EXPECT_EQ(end - buf, 1);
@@ -136,14 +136,14 @@ TEST(FracToStr, OneDigit) {
 
 TEST(FracToStr, TwoDigits) {
   char buf[8];
-  char *end = frac_to_str_(buf, 46, 10);
+  char *end = frac_to_str_unchecked(buf, 46, 10);
   *end = '\0';
   EXPECT_STREQ(buf, "46");
 }
 
 TEST(FracToStr, ThreeDigits) {
   char buf[8];
-  char *end = frac_to_str_(buf, 456, 100);
+  char *end = frac_to_str_unchecked(buf, 456, 100);
   *end = '\0';
   EXPECT_STREQ(buf, "456");
   EXPECT_EQ(end - buf, 3);
@@ -151,22 +151,22 @@ TEST(FracToStr, ThreeDigits) {
 
 TEST(FracToStr, LeadingZeros) {
   char buf[8];
-  char *end = frac_to_str_(buf, 1, 100);
+  char *end = frac_to_str_unchecked(buf, 1, 100);
   *end = '\0';
   EXPECT_STREQ(buf, "001");
 
-  end = frac_to_str_(buf, 5, 10);
+  end = frac_to_str_unchecked(buf, 5, 10);
   *end = '\0';
   EXPECT_STREQ(buf, "05");
 }
 
 TEST(FracToStr, AllZeros) {
   char buf[8];
-  char *end = frac_to_str_(buf, 0, 100);
+  char *end = frac_to_str_unchecked(buf, 0, 100);
   *end = '\0';
   EXPECT_STREQ(buf, "000");
 
-  end = frac_to_str_(buf, 0, 1);
+  end = frac_to_str_unchecked(buf, 0, 1);
   *end = '\0';
   EXPECT_STREQ(buf, "0");
 }
@@ -174,7 +174,7 @@ TEST(FracToStr, AllZeros) {
 TEST(FracToStr, ZeroDivisor) {
   char buf[8];
   buf[0] = 'X';
-  char *end = frac_to_str_(buf, 0, 0);
+  char *end = frac_to_str_unchecked(buf, 0, 0);
   EXPECT_EQ(end, buf);  // writes nothing
 }
 

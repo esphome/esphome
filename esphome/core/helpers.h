@@ -1331,7 +1331,7 @@ inline size_t uint32_to_str(std::span<char, UINT32_MAX_STR_SIZE> buf, uint32_t v
 /// Write fractional digits with leading zeros to buffer (internal, no size check).
 /// frac is the fractional value, divisor is the highest place value (e.g. 100 for 3 digits).
 /// Returns pointer past last char written.
-inline char *frac_to_str_(char *buf, uint32_t frac, uint32_t divisor) {
+inline char *frac_to_str_unchecked(char *buf, uint32_t frac, uint32_t divisor) {
   while (divisor > 0) {
     *buf++ = '0' + static_cast<char>(frac / divisor);
     frac %= divisor;
