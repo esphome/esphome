@@ -20,9 +20,10 @@ from __future__ import annotations
 
 import asyncio
 
-from aioesphomeapi import SensorState
+from aioesphomeapi import LightInfo, SensorInfo, SensorState
 import pytest
 
+from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -35,8 +36,8 @@ async def test_addressable_light_transition(
     """With gamma 2.8, the stored raw byte must rise visibly well before the end."""
     async with run_compiled(yaml_config), api_client_connected() as client:
         entities, _ = await client.list_entities_services()
-        light = next(e for e in entities if e.object_id == "test_strip")
-        sensor = next(e for e in entities if e.object_id == "led0_red_raw")
+        light = require_entity(entities, "test_strip", LightInfo)
+        sensor = require_entity(entities, "led0_red_raw", SensorInfo)
 
         # Track the raw-byte sensor. It polls every 10ms in the fixture, and
         # ESPHome sensors publish on every change, so we collect a time series.
@@ -55,10 +56,11 @@ async def test_addressable_light_transition(
             origin = command_time if command_time is not None else now
             samples.append((now - origin, state.state))
 
-        client.subscribe_states(on_state)
-
-        # Give the first poll a chance to land so we have a baseline of 0.
-        await asyncio.sleep(0.1)
+        # InitialStateHelper swallows the first state ESPHome sends per entity
+        # on subscribe, so on_state only sees real post-subscribe updates.
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+        await initial_state_helper.wait_for_initial_states()
 
         # Start transition: off -> full white over 1 second. This is the
         # scenario from the bug report, compressed in time.
