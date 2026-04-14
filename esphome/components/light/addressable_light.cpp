@@ -63,20 +63,14 @@ void AddressableLightTransformer::start() {
   // strip), interpolate math-only against a single start color. Avoiding the per-step read-back
   // through the 8-bit stored byte prevents gamma round-trip quantization from stalling the fade
   // at low values (e.g. gamma 2.8 pre-gamma values <27 round to stored 0, freezing progress).
-  this->uniform_start_ = false;
+  this->uniform_start_color_.reset();
   if (this->light_.size() > 0) {
     Color first = this->light_[0].get();
-    bool uniform = true;
     for (int32_t i = 1; i < this->light_.size(); i++) {
-      if (this->light_[i].get() != first) {
-        uniform = false;
-        break;
-      }
+      if (this->light_[i].get() != first)
+        return;
     }
-    if (uniform) {
-      this->uniform_start_ = true;
-      this->start_color_ = first;
-    }
+    this->uniform_start_color_ = first;
   }
 }
 
@@ -117,16 +111,17 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   // non-linear when applying small deltas.
 
   if (smoothed_progress > this->last_transition_progress_ && this->last_transition_progress_ < 1.f) {
-    if (this->uniform_start_) {
+    if (this->uniform_start_color_.has_value()) {
       // All LEDs started at the same color: compute the interpolated value once and write it to
       // every LED. No read-back, so each LED's stored byte advances through every gamma threshold
       // as smoothed_progress crosses it, instead of stalling at 0 for low pre-gamma values.
       // lerp(start, target, progress) via existing helper: target - (target-start)*(1-progress).
+      const Color &start = *this->uniform_start_color_;
       int32_t remaining = int32_t(256.f * (1.f - smoothed_progress));
-      uint8_t r = subtract_scaled_difference(this->target_color_.red, this->start_color_.red, remaining);
-      uint8_t g = subtract_scaled_difference(this->target_color_.green, this->start_color_.green, remaining);
-      uint8_t b = subtract_scaled_difference(this->target_color_.blue, this->start_color_.blue, remaining);
-      uint8_t w = subtract_scaled_difference(this->target_color_.white, this->start_color_.white, remaining);
+      uint8_t r = subtract_scaled_difference(this->target_color_.red, start.red, remaining);
+      uint8_t g = subtract_scaled_difference(this->target_color_.green, start.green, remaining);
+      uint8_t b = subtract_scaled_difference(this->target_color_.blue, start.blue, remaining);
+      uint8_t w = subtract_scaled_difference(this->target_color_.white, start.white, remaining);
       for (auto led : this->light_) {
         led.set_rgbw(r, g, b, w);
       }

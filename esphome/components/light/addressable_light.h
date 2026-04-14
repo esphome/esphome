@@ -115,8 +115,7 @@ class AddressableLightTransformer : public LightTransformer {
   AddressableLight &light_;
   float last_transition_progress_{0.0f};
   Color target_color_{};
-  Color start_color_{};
-  bool uniform_start_{false};
+  optional<Color> uniform_start_color_{};
 };
 
 }  // namespace esphome::light
