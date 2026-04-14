@@ -916,16 +916,22 @@ bool SubscribeLogsRequest::decode_varint(uint32_t field_id, proto_varint_value_t
   }
   return true;
 }
-uint8_t *SubscribeLogsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint8_t *
+SubscribeLogsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->level));
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 3, this->message_ptr_, this->message_len_);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->level), true);
+  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 26);
+  ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, this->message_len_);
+  ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, this->message_ptr_, this->message_len_);
   return pos;
 }
-uint32_t SubscribeLogsResponse::calculate_size() const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint32_t
+SubscribeLogsResponse::calculate_size() const {
   uint32_t size = 0;
-  size += this->level ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->message_len_);
+  size += 2;
+  size += ProtoSize::calc_length_force(1, this->message_len_);
   return size;
 }
 #ifdef USE_API_NOISE

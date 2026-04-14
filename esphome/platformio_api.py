@@ -14,45 +14,6 @@ from esphome.util import run_external_process
 _LOGGER = logging.getLogger(__name__)
 
 
-IGNORE_LIB_WARNINGS = f"(?:{'|'.join(['Hash', 'Update'])})"
-FILTER_PLATFORMIO_LINES = [
-    r"Verbose mode can be enabled via `-v, --verbose` option.*",
-    r"CONFIGURATION: https://docs.platformio.org/.*",
-    r"DEBUG: Current.*",
-    r"LDF Modes:.*",
-    r"LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf.*",
-    f"Looking for {IGNORE_LIB_WARNINGS} library in registry",
-    f"Warning! Library `.*'{IGNORE_LIB_WARNINGS}.*` has not been found in PlatformIO Registry.",
-    f"You can ignore this message, if `.*{IGNORE_LIB_WARNINGS}.*` is a built-in library.*",
-    r"Scanning dependencies...",
-    r"Found \d+ compatible libraries",
-    r"Memory Usage -> https://bit.ly/pio-memory-usage",
-    r"Found: https://platformio.org/lib/show/.*",
-    r"Using cache: .*",
-    r"Installing dependencies",
-    r"Library Manager: Already installed, built-in library",
-    r"Building in .* mode",
-    r"Advanced Memory Usage is available via .*",
-    r"Merged .* ELF section",
-    r"esptool.py v.*",
-    r"esptool v.*",
-    r"Checking size .*",
-    r"Retrieving maximum program size .*",
-    r"PLATFORM: .*",
-    r"PACKAGES:.*",
-    r" - framework-arduinoespressif.* \(.*\)",
-    r" - tool-esptool.* \(.*\)",
-    r" - toolchain-.* \(.*\)",
-    r"Creating BIN file .*",
-    r"Warning! Could not find file \".*.crt\"",
-    r"Warning! Arduino framework as an ESP-IDF component doesn't handle the `variant` field! The default `esp32` variant will be used.",
-    r"Warning: DEPRECATED: 'esptool.py' is deprecated. Please use 'esptool' instead. The '.py' suffix will be removed in a future major release.",
-    r"Warning: esp-idf-size exited with code 2",
-    r"esp_idf_size: error: unrecognized arguments: --ng",
-    r"Package configuration completed successfully",
-]
-
-
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
