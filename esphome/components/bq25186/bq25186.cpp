@@ -231,7 +231,6 @@ void BQ25186Component::setup() {
 
 void BQ25186Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BQ25186:");
-  ESP_LOGCONFIG(TAG, "  configure_on_boot: %s", this->setup_config_callback_ ? "yes" : "no");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with BQ25186 failed");
