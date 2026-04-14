@@ -95,9 +95,6 @@ display:
     busy_pin:
       allow_other_uses: true
       number: GPIO4
-    enable_pin:
-      allow_other_uses: true
-      number: GPIO11
     sleep_when_done: false
     lambda: |-
       it.filled_rectangle(0, 0, 128, 128, Color::BLACK);
@@ -116,9 +113,6 @@ display:
     busy_pin:
       allow_other_uses: true
       number: GPIO4
-    enable_pin:
-      allow_other_uses: true
-      number: GPIO43
     lambda: |-
       it.circle(128, 128, 64, Color::BLACK);
 
