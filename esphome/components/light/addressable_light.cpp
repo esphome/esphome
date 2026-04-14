@@ -58,6 +58,26 @@ void AddressableLightTransformer::start() {
   // our transition will handle brightness, disable brightness in correction.
   this->light_.correction_.set_local_brightness(255);
   this->target_color_ *= to_uint8_scale(end_values.get_brightness() * end_values.get_state());
+
+  // When every LED starts at the same color (the common case: plain turn_on/turn_off on a uniform
+  // strip), interpolate math-only against a single start color. Avoiding the per-step read-back
+  // through the 8-bit stored byte prevents gamma round-trip quantization from stalling the fade
+  // at low values (e.g. gamma 2.8 pre-gamma values <27 round to stored 0, freezing progress).
+  this->uniform_start_ = false;
+  if (this->light_.size() > 0) {
+    Color first = this->light_[0].get();
+    bool uniform = true;
+    for (int32_t i = 1; i < this->light_.size(); i++) {
+      if (this->light_[i].get() != first) {
+        uniform = false;
+        break;
+      }
+    }
+    if (uniform) {
+      this->uniform_start_ = true;
+      this->start_color_ = first;
+    }
+  }
 }
 
 inline constexpr uint8_t subtract_scaled_difference(uint8_t a, uint8_t b, int32_t scale) {
@@ -97,12 +117,28 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   // non-linear when applying small deltas.
 
   if (smoothed_progress > this->last_transition_progress_ && this->last_transition_progress_ < 1.f) {
-    int32_t scale = int32_t(256.f * std::max((1.f - smoothed_progress) / (1.f - this->last_transition_progress_), 0.f));
-    for (auto led : this->light_) {
-      led.set_rgbw(subtract_scaled_difference(this->target_color_.red, led.get_red(), scale),
-                   subtract_scaled_difference(this->target_color_.green, led.get_green(), scale),
-                   subtract_scaled_difference(this->target_color_.blue, led.get_blue(), scale),
-                   subtract_scaled_difference(this->target_color_.white, led.get_white(), scale));
+    if (this->uniform_start_) {
+      // All LEDs started at the same color: compute the interpolated value once and write it to
+      // every LED. No read-back, so each LED's stored byte advances through every gamma threshold
+      // as smoothed_progress crosses it, instead of stalling at 0 for low pre-gamma values.
+      // lerp(start, target, progress) via existing helper: target - (target-start)*(1-progress).
+      int32_t remaining = int32_t(256.f * (1.f - smoothed_progress));
+      uint8_t r = subtract_scaled_difference(this->target_color_.red, this->start_color_.red, remaining);
+      uint8_t g = subtract_scaled_difference(this->target_color_.green, this->start_color_.green, remaining);
+      uint8_t b = subtract_scaled_difference(this->target_color_.blue, this->start_color_.blue, remaining);
+      uint8_t w = subtract_scaled_difference(this->target_color_.white, this->start_color_.white, remaining);
+      for (auto led : this->light_) {
+        led.set_rgbw(r, g, b, w);
+      }
+    } else {
+      int32_t scale =
+          int32_t(256.f * std::max((1.f - smoothed_progress) / (1.f - this->last_transition_progress_), 0.f));
+      for (auto led : this->light_) {
+        led.set_rgbw(subtract_scaled_difference(this->target_color_.red, led.get_red(), scale),
+                     subtract_scaled_difference(this->target_color_.green, led.get_green(), scale),
+                     subtract_scaled_difference(this->target_color_.blue, led.get_blue(), scale),
+                     subtract_scaled_difference(this->target_color_.white, led.get_white(), scale));
+      }
     }
     this->last_transition_progress_ = smoothed_progress;
     this->light_.schedule_show();
