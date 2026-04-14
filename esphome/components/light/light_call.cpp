@@ -13,7 +13,7 @@ static const char *const TAG = "light";
 
 // Cold-path logger; caller handles the clamp so the in-range hot path avoids
 // the spill/reload around the call.
-static void log_value_out_of_range_(const char *name, float value, const LogString *param_name, float min, float max) {
+static void log_value_out_of_range(const char *name, float value, const LogString *param_name, float min, float max) {
   ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_ARG(param_name), value, min, max);
 }
 
@@ -298,7 +298,7 @@ LightColorValues LightCall::validate_() {
     active &= active - 1;  // clear lowest set bit
     float &value = this->unit_fields_[bit];
     if (float_out_of_unit_range(value)) {
-      log_value_out_of_range_(name, value, ValidateFieldNames::get_log_str(bit, 0), 0.0f, 1.0f);
+      log_value_out_of_range(name, value, ValidateFieldNames::get_log_str(bit, 0), 0.0f, 1.0f);
       value = clamp_unit_float(value);
     }
     v.unit_fields_[bit] = value;
@@ -309,8 +309,8 @@ LightColorValues LightCall::validate_() {
     const float ct_min = traits.get_min_mireds();
     const float ct_max = traits.get_max_mireds();
     if (this->color_temperature_ < ct_min || this->color_temperature_ > ct_max) {
-      log_value_out_of_range_(name, this->color_temperature_, ValidateFieldNames::get_log_str(VALIDATE_CT_INDEX, 0),
-                              ct_min, ct_max);
+      log_value_out_of_range(name, this->color_temperature_, ValidateFieldNames::get_log_str(VALIDATE_CT_INDEX, 0),
+                             ct_min, ct_max);
       this->color_temperature_ = clamp(this->color_temperature_, ct_min, ct_max);
     }
     v.color_temperature_ = this->color_temperature_;
