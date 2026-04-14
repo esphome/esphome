@@ -41,20 +41,16 @@ async def test_addressable_light_transition(
 
         # Track the raw-byte sensor. It polls every 10ms in the fixture, and
         # ESPHome sensors publish on every change, so we collect a time series.
-        # Samples are stored as (seconds_since_command_issue, value). Times
-        # before the command was issued are negative.
+        # Samples are stored as absolute (loop_time, value); we rebase to the
+        # command-issue time after the run so pre-command samples are strictly
+        # negative and reliably excluded.
         loop = asyncio.get_running_loop()
         samples: list[tuple[float, float]] = []
-        command_time: float | None = None
 
         def on_state(state: object) -> None:
             if not isinstance(state, SensorState) or state.key != sensor.key:
                 return
-            now = loop.time()
-            # If the command hasn't been issued yet, use 0 as the origin;
-            # those samples get negative times and are excluded below.
-            origin = command_time if command_time is not None else now
-            samples.append((now - origin, state.state))
+            samples.append((loop.time(), state.state))
 
         # InitialStateHelper swallows the first state ESPHome sends per entity
         # on subscribe, so on_state only sees real post-subscribe updates.
@@ -77,33 +73,42 @@ async def test_addressable_light_transition(
         # Let the full transition run, plus margin for the final sample.
         await asyncio.sleep(transition_s + 0.2)
 
-        # Only look at samples that arrived after the command was issued.
-        post_command = [(t, v) for (t, v) in samples if t >= 0]
+        # Rebase to command-issue time. Pre-command samples have t < 0 and are
+        # excluded; everything else is in seconds since the command was issued.
+        post_command = [
+            (t - command_time, v) for (t, v) in samples if t >= command_time
+        ]
         assert post_command, "no sensor samples received after command was issued"
 
         # Assertion 1: the transition is not stalled. With the bug, the raw
         # byte stays at 0 until ~90% of the transition duration. With the fix,
         # it becomes nonzero in the first ~30% (for gamma 2.8, pre-gamma 76
         # clears the gamma threshold at progress ~0.30). Require the first
-        # nonzero sample to land well before 70% of the transition duration,
-        # measured from the command-issue time.
+        # nonzero sample to land well before 50% of the transition duration,
+        # measured from the command-issue time. The 50% bound (rather than
+        # 70%) leaves headroom for assertion 2's mid-window check.
         first_nonzero = next(((t, v) for (t, v) in post_command if v > 0), None)
         assert first_nonzero is not None, (
             "raw byte never rose above 0 during the transition — the fade stalled"
         )
-        assert first_nonzero[0] < transition_s * 0.7, (
+        assert first_nonzero[0] < transition_s * 0.5, (
             f"raw byte only rose above 0 at t={first_nonzero[0]:.3f}s "
-            f"(>{transition_s * 0.7:.3f}s after command) — transition is stalling"
+            f"(>{transition_s * 0.5:.3f}s after command) — transition is stalling"
         )
 
-        # Assertion 2: by 70% of the transition duration after the command,
-        # the raw byte should have reached a substantial fraction of its final
-        # value. This catches "barely moves then jumps at the end" regressions
-        # that pass assertion 1 but still stall most of the range.
-        late_samples = [v for (t, v) in post_command if t >= transition_s * 0.7]
-        assert late_samples, "no samples captured late in transition"
-        assert max(late_samples) >= 100, (
-            f"raw byte peaked at only {max(late_samples)} at/after 70% of "
+        # Assertion 2: by mid-late transition, the raw byte should have reached
+        # a substantial fraction of its final value. Bound the window to
+        # [50%, 90%] of the transition so the post-transition settled value
+        # (which always reaches 255) can't satisfy this assertion — that would
+        # let "stays at 0 then jumps at 99%" regressions slip through.
+        mid_window = [
+            v
+            for (t, v) in post_command
+            if transition_s * 0.5 <= t <= transition_s * 0.9
+        ]
+        assert mid_window, "no samples captured in mid-transition window"
+        assert max(mid_window) >= 100, (
+            f"raw byte peaked at only {max(mid_window)} between 50%–90% of "
             "transition (expected >= 100 for white target at gamma 2.8)"
         )
 
