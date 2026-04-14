@@ -1263,13 +1263,13 @@ constexpr uint8_t parse_hex_char(char c) {
 }
 
 /// Convert a nibble (0-15) to hex char with specified base ('a' for lowercase, 'A' for uppercase)
-inline char format_hex_char(uint8_t v, char base) { return v >= 10 ? base + (v - 10) : '0' + v; }
+ESPHOME_ALWAYS_INLINE inline char format_hex_char(uint8_t v, char base) { return v >= 10 ? base + (v - 10) : '0' + v; }
 
 /// Convert a nibble (0-15) to lowercase hex char
-inline char format_hex_char(uint8_t v) { return format_hex_char(v, 'a'); }
+ESPHOME_ALWAYS_INLINE inline char format_hex_char(uint8_t v) { return format_hex_char(v, 'a'); }
 
 /// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
-inline char format_hex_pretty_char(uint8_t v) { return format_hex_char(v, 'A'); }
+ESPHOME_ALWAYS_INLINE inline char format_hex_pretty_char(uint8_t v) { return format_hex_char(v, 'A'); }
 
 /// Write int8 value to buffer without modulo operations.
 /// Buffer must have at least 4 bytes free. Returns pointer past last char written.
@@ -1318,24 +1318,12 @@ static constexpr size_t UINT32_MAX_STR_SIZE = 11;
 
 /// Write unsigned 32-bit integer to buffer (internal, no size check).
 /// Buffer must have at least 10 bytes free. Returns pointer past last char written.
-inline char *uint32_to_str_(char *buf, uint32_t val) {
-  if (val == 0) {
-    *buf++ = '0';
-    return buf;
-  }
-  char *start = buf;
-  while (val > 0) {
-    *buf++ = '0' + (val % 10);
-    val /= 10;
-  }
-  std::reverse(start, buf);
-  return buf;
-}
+char *uint32_to_str_unchecked(char *buf, uint32_t val);
 
 /// Write unsigned 32-bit integer to buffer with compile-time size check.
 /// Null-terminates the output. Returns number of chars written (excluding null).
 inline size_t uint32_to_str(std::span<char, UINT32_MAX_STR_SIZE> buf, uint32_t val) {
-  char *end = uint32_to_str_(buf.data(), val);
+  char *end = uint32_to_str_unchecked(buf.data(), val);
   *end = '\0';
   return static_cast<size_t>(end - buf.data());
 }

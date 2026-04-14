@@ -85,8 +85,12 @@ void Application::setup() {
     if (component->can_proceed())
       continue;
 
+    // Force the status LED to blink WARNING while we wait for a slow
+    // component to come up. Cleared after setup() finishes if no real
+    // component has warning set.
+    this->app_state_ |= STATUS_LED_WARNING;
+
     do {
-      uint8_t new_app_state = STATUS_LED_WARNING;
       uint32_t now = millis();
 
       // Process pending loop enables to handle GPIO interrupts during setup
@@ -96,16 +100,25 @@ void Application::setup() {
         // Update loop_component_start_time_ right before calling each component
         this->loop_component_start_time_ = millis();
         this->components_[j]->call();
-        new_app_state |= this->components_[j]->get_component_state();
-        this->app_state_ |= new_app_state;
         this->feed_wdt();
       }
 
       this->after_loop_tasks_();
-      this->app_state_ = new_app_state;
       yield();
     } while (!component->can_proceed() && !component->is_failed());
   }
+
+  // Setup is complete. Reconcile STATUS_LED_WARNING: the slow-setup path
+  // above may have forced it on, and any status_clear_warning() calls
+  // from components during setup were intentional no-ops (gated by
+  // APP_STATE_SETUP_COMPLETE). Walk components once here to pick up the
+  // real state. STATUS_LED_ERROR is never artificially forced, so its
+  // clear path always works and needs no reconciliation. Finally, set
+  // APP_STATE_SETUP_COMPLETE so subsequent warning clears go through
+  // the normal walk-and-clear path.
+  if (!this->any_component_has_status_flag_(STATUS_LED_WARNING))
+    this->app_state_ &= ~STATUS_LED_WARNING;
+  this->app_state_ |= APP_STATE_SETUP_COMPLETE;
 
   ESP_LOGI(TAG, "setup() finished successfully!");
 
@@ -211,6 +224,19 @@ void HOT Application::feed_wdt(uint32_t time) {
 #endif
   }
 }
+bool Application::any_component_has_status_flag_(uint8_t flag) const {
+  // Walk all components (not just looping ones) so non-looping components'
+  // status bits are respected. Only called from the slow-path clear helpers
+  // (status_clear_warning_slow_path_ / status_clear_error_slow_path_) on an
+  // actual set→clear transition, so walking O(N) here is paid once per
+  // transition — not once per loop iteration.
+  for (auto *component : this->components_) {
+    if ((component->get_component_state() & flag) != 0)
+      return true;
+  }
+  return false;
+}
+
 void Application::reboot() {
   ESP_LOGI(TAG, "Forcing a reboot");
   for (auto &component : std::ranges::reverse_view(this->components_)) {

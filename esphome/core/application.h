@@ -401,7 +401,18 @@ class Application {
    */
   void teardown_components(uint32_t timeout_ms);
 
-  uint8_t get_app_state() const { return this->app_state_; }
+  /// Return the public app state status bits (STATUS_LED_* only).
+  /// Internal bookkeeping bits like APP_STATE_SETUP_COMPLETE are masked
+  /// out so external readers (status_led components, etc.) never see them.
+  uint8_t get_app_state() const { return this->app_state_ & ~APP_STATE_SETUP_COMPLETE; }
+
+  /// True once Application::setup() has finished walking all components
+  /// and finalized the initial status flags. Before this point, the
+  /// slow-setup busy-wait may be forcing STATUS_LED_WARNING on, and
+  /// status_clear_* intentionally skips its walk-and-clear step so the
+  /// forced bit doesn't get wiped. Stored as a free bit on app_state_
+  /// (bit 6) to avoid costing additional RAM.
+  bool is_setup_complete() const { return (this->app_state_ & APP_STATE_SETUP_COMPLETE) != 0; }
 
 // Helper macro for entity getter method declarations
 #ifdef USE_DEVICES
@@ -576,6 +587,12 @@ class Application {
 #ifdef USE_HOST
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
 #endif
+
+  /// Walk all registered components looking for any whose component_state_
+  /// has the given flag set. Used by Component::status_clear_*_slow_path_()
+  /// (which is a friend) to decide whether to clear the corresponding bit on
+  /// this->app_state_ (the app-wide "any component has this status" indicator).
+  bool any_component_has_status_flag_(uint8_t flag) const;
 
   /// Register a component, detecting loop() override at compile time.
   /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.
@@ -838,8 +855,6 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
-  uint8_t new_app_state = 0;
-
   // Get the initial loop time at the start
   uint32_t last_op_end_time = millis();
 
@@ -859,13 +874,10 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
       // Use the finish method to get the current time as the end time
       last_op_end_time = guard.finish();
     }
-    new_app_state |= component->get_component_state();
-    this->app_state_ |= new_app_state;
     this->feed_wdt(last_op_end_time);
   }
 
   this->after_loop_tasks_();
-  this->app_state_ = new_app_state;
 
 #ifdef USE_RUNTIME_STATS
   // Process any pending runtime stats printing after all components have run

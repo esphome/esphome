@@ -3,7 +3,119 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome::testing {
+namespace esphome::core::testing {
+
+// --- format_hex_to() ---
+
+TEST(FormatHexTo, Basic) {
+  const uint8_t data[] = {0xAB, 0xCD, 0xEF};
+  char buffer[7];  // 3 * 2 + 1
+  format_hex_to(buffer, data, 3);
+  EXPECT_STREQ(buffer, "abcdef");
+}
+
+TEST(FormatHexTo, SingleByte) {
+  const uint8_t data[] = {0x0F};
+  char buffer[3];
+  format_hex_to(buffer, data, 1);
+  EXPECT_STREQ(buffer, "0f");
+}
+
+TEST(FormatHexTo, ZeroLength) {
+  char buffer[4] = "xxx";
+  format_hex_to(buffer, static_cast<size_t>(sizeof(buffer)), static_cast<const uint8_t *>(nullptr), 0);
+  EXPECT_STREQ(buffer, "");
+}
+
+TEST(FormatHexTo, ZeroBufferSize) {
+  char buffer[4] = "xxx";
+  const uint8_t data[] = {0xAB};
+  format_hex_to(buffer, static_cast<size_t>(0), data, 1);
+  // Should not crash, buffer unchanged
+  EXPECT_EQ(buffer[0], 'x');
+}
+
+TEST(FormatHexTo, BufferTooSmall) {
+  const uint8_t data[] = {0xAB, 0xCD, 0xEF};
+  char buffer[5];  // only room for 2 bytes
+  format_hex_to(buffer, data, 3);
+  EXPECT_STREQ(buffer, "abcd");
+}
+
+TEST(FormatHexTo, MacAddress) {
+  const uint8_t mac[] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+  char buffer[13];
+  format_hex_to(buffer, mac, 6);
+  EXPECT_STREQ(buffer, "aabbccddeeff");
+}
+
+// --- format_hex_pretty_to() ---
+
+TEST(FormatHexPrettyTo, BasicColon) {
+  const uint8_t data[] = {0xAB, 0xCD, 0xEF};
+  char buffer[9];  // 3 * 3
+  format_hex_pretty_to(buffer, data, 3);
+  EXPECT_STREQ(buffer, "AB:CD:EF");
+}
+
+TEST(FormatHexPrettyTo, SingleByte) {
+  const uint8_t data[] = {0x0F};
+  char buffer[3];
+  format_hex_pretty_to(buffer, data, 1);
+  EXPECT_STREQ(buffer, "0F");
+}
+
+TEST(FormatHexPrettyTo, ZeroLength) {
+  char buffer[4] = "xxx";
+  format_hex_pretty_to(buffer, static_cast<size_t>(sizeof(buffer)), static_cast<const uint8_t *>(nullptr), 0);
+  EXPECT_STREQ(buffer, "");
+}
+
+TEST(FormatHexPrettyTo, ZeroBufferSize) {
+  char buffer[4] = "xxx";
+  const uint8_t data[] = {0xAB};
+  format_hex_pretty_to(buffer, static_cast<size_t>(0), data, 1);
+  EXPECT_EQ(buffer[0], 'x');
+}
+
+TEST(FormatHexPrettyTo, CustomSeparator) {
+  const uint8_t data[] = {0xAA, 0xBB, 0xCC};
+  char buffer[9];
+  format_hex_pretty_to(buffer, data, 3, '-');
+  EXPECT_STREQ(buffer, "AA-BB-CC");
+}
+
+// --- format_mac_addr_upper() ---
+
+TEST(FormatMacAddrUpper, Basic) {
+  const uint8_t mac[] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+  char buffer[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  format_mac_addr_upper(mac, buffer);
+  EXPECT_STREQ(buffer, "AA:BB:CC:DD:EE:FF");
+}
+
+TEST(FormatMacAddrUpper, AllZeros) {
+  const uint8_t mac[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  char buffer[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  format_mac_addr_upper(mac, buffer);
+  EXPECT_STREQ(buffer, "00:00:00:00:00:00");
+}
+
+// --- format_hex_char() ---
+
+TEST(FormatHexChar, LowercaseDigits) {
+  EXPECT_EQ(format_hex_char(0), '0');
+  EXPECT_EQ(format_hex_char(9), '9');
+  EXPECT_EQ(format_hex_char(10), 'a');
+  EXPECT_EQ(format_hex_char(15), 'f');
+}
+
+TEST(FormatHexChar, UppercaseDigits) {
+  EXPECT_EQ(format_hex_pretty_char(0), '0');
+  EXPECT_EQ(format_hex_pretty_char(9), '9');
+  EXPECT_EQ(format_hex_pretty_char(10), 'A');
+  EXPECT_EQ(format_hex_pretty_char(15), 'F');
+}
 
 // --- small_pow10() ---
 
@@ -11,68 +123,6 @@ TEST(SmallPow10, Zero) { EXPECT_EQ(small_pow10(0), 1u); }
 TEST(SmallPow10, One) { EXPECT_EQ(small_pow10(1), 10u); }
 TEST(SmallPow10, Two) { EXPECT_EQ(small_pow10(2), 100u); }
 TEST(SmallPow10, Three) { EXPECT_EQ(small_pow10(3), 1000u); }
-
-// --- uint32_to_str() ---
-
-TEST(Uint32ToStr, Zero) {
-  char buf[12];
-  char *end = uint32_to_str_(buf, 0);
-  *end = '\0';
-  EXPECT_STREQ(buf, "0");
-  EXPECT_EQ(end - buf, 1);
-}
-
-TEST(Uint32ToStr, SingleDigit) {
-  char buf[12];
-  char *end = uint32_to_str_(buf, 7);
-  *end = '\0';
-  EXPECT_STREQ(buf, "7");
-}
-
-TEST(Uint32ToStr, MultiDigit) {
-  char buf[12];
-  char *end = uint32_to_str_(buf, 12345);
-  *end = '\0';
-  EXPECT_STREQ(buf, "12345");
-  EXPECT_EQ(end - buf, 5);
-}
-
-TEST(Uint32ToStr, Large) {
-  char buf[12];
-  char *end = uint32_to_str_(buf, 4294967295u);
-  *end = '\0';
-  EXPECT_STREQ(buf, "4294967295");
-  EXPECT_EQ(end - buf, 10);
-}
-
-TEST(Uint32ToStr, PowersOfTen) {
-  char buf[12];
-  char *end;
-
-  end = uint32_to_str_(buf, 10);
-  *end = '\0';
-  EXPECT_STREQ(buf, "10");
-
-  end = uint32_to_str_(buf, 100);
-  *end = '\0';
-  EXPECT_STREQ(buf, "100");
-
-  end = uint32_to_str_(buf, 1000);
-  *end = '\0';
-  EXPECT_STREQ(buf, "1000");
-}
-
-// --- uint32_to_str() (public, template with size check) ---
-
-TEST(Uint32ToStr, PublicApi) {
-  char buf[UINT32_MAX_STR_SIZE];
-  EXPECT_EQ(uint32_to_str(buf, 0), 1u);
-  EXPECT_STREQ(buf, "0");
-  EXPECT_EQ(uint32_to_str(buf, 12345), 5u);
-  EXPECT_STREQ(buf, "12345");
-  EXPECT_EQ(uint32_to_str(buf, 4294967295u), 10u);
-  EXPECT_STREQ(buf, "4294967295");
-}
 
 // --- frac_to_str_() ---
 
@@ -163,4 +213,4 @@ TEST(BufAppendSepStr, Truncation) {
   EXPECT_EQ(end - buf, 7);
 }
 
-}  // namespace esphome::testing
+}  // namespace esphome::core::testing
