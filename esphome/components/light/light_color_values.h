@@ -10,24 +10,15 @@ namespace esphome::light {
 
 inline static uint8_t to_uint8_scale(float x) { return static_cast<uint8_t>(roundf(x * 255.0f)); }
 
-// IEEE 754 bit pattern of 1.0f. Floats in [0.0f, 1.0f] have unsigned bit
-// pattern <= this value; negatives have the sign bit set (→ huge unsigned),
-// values > 1.0f have a larger exponent, and NaN/Infinity also exceed this.
-// Verify the platform actually provides IEEE 754 single-precision floats so
-// the bit-pattern tricks below are well-defined.
+// Bit pattern of 1.0f. Values in [0.0f, 1.0f] have bits <= this; out-of-range
+// values (including negatives, whose sign bit makes their uint32 huge) exceed
+// it. Lets a single unsigned compare replace two soft-float calls on ESP8266.
 static constexpr uint32_t ONE_F_BITS = 0x3F800000u;
-// sizeof check + is_iec559 together pin the format to IEEE 754 single-precision,
-// which fixes the bit pattern of 1.0f as 0x3F800000. A direct bit-cast check
-// would be cleaner but __builtin_bit_cast is not available on the older xtensa
-// toolchain used for ESP8266.
-static_assert(sizeof(float) == sizeof(uint32_t), "float must be 32-bit for bit-pattern range checks");
-static_assert(std::numeric_limits<float>::is_iec559, "IEEE 754 single-precision float required");
+static_assert(sizeof(float) == sizeof(uint32_t), "float must be 32-bit");
+static_assert(std::numeric_limits<float>::is_iec559, "IEEE 754 float required");
 
-// Returns true iff `x` is outside [0.0f, 1.0f] via a single unsigned compare on
-// its IEEE 754 bit pattern. Uses a union type-pun (GCC/Clang extension) because
-// memcpy/bit_cast don't optimize to a no-op on xtensa-gcc (same reasoning as
-// api/proto.h's float_to_raw). Replaces two soft-float __ltsf2/__gtsf2 calls
-// with one `bltu` on ESP8266 and is free on FPU targets.
+// Union type-pun (GCC/Clang extension): memcpy/bit_cast don't fold to a no-op
+// on xtensa-gcc. Same reasoning as api/proto.h's float_to_raw().
 inline bool float_out_of_unit_range(float x) {
   union {
     float f;
@@ -37,10 +28,8 @@ inline bool float_out_of_unit_range(float x) {
   return pun.u > ONE_F_BITS;
 }
 
-// Clamps `x` to [0.0f, 1.0f] with no floating-point compares. In-range values
-// return via a single branch; out-of-range pick 0.0f for negatives (sign bit
-// set) and 1.0f otherwise (> 1.0f, NaN, Infinity). Cheaper than std::clamp on
-// ESP8266, which expands to two soft-float calls per invocation.
+// Clamps to [0.0f, 1.0f] without float compares. Negatives (sign bit set)
+// fold to 0.0f; everything else out of range (>1, NaN, Inf) folds to 1.0f.
 inline float clamp_unit_float(float x) {
   union {
     float f;
@@ -331,12 +320,8 @@ class LightColorValues {
   friend class LightCall;
 
  protected:
-  // The eight [0.0, 1.0]-clamped float fields are declared in the same order
-  // as their flag bits (0-7) in LightCall::FieldFlags and the matching fields
-  // in LightCall. LightCall::validate_() exploits this layout to iterate and
-  // copy them via bit-position arithmetic with a constant delta of 12 bytes
-  // between matching LightCall and LightColorValues members. color_temperature_
-  // has a different range and is placed after the clamp block.
+  // brightness_..warm_white_ match LightCall::FieldFlags bits 0-7 in order.
+  // LightCall::validate_() relies on this layout via static_asserts.
   float state_;  ///< ON / OFF, float for transition
   float brightness_;
   float color_brightness_;

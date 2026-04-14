@@ -195,12 +195,9 @@ class LightCall {
   /// Some color modes also can be set using non-native parameters, transform those calls.
   void transform_parameters_(const LightTraits &traits);
 
-  // Bitfield flags - each flag indicates whether a corresponding value has been set.
-  //
-  // Bits 0-7 are the eight float fields that share the [0.0, 1.0] clamp range,
-  // in member declaration order. The validate_() clamp loop relies on this
-  // layout to index into LightCall/LightColorValues via bit-position arithmetic
-  // without a per-field offset table. Do not reorder without updating the
+  // Each flag indicates whether the corresponding value has been set. Bits 0-7
+  // are the [0.0, 1.0] clamp fields; validate_() iterates them via bit-position
+  // arithmetic and asserts the layout — don't reorder without matching the
   // static_asserts in light_call.cpp.
   enum FieldFlags : uint16_t {
     FLAG_HAS_BRIGHTNESS = 1 << 0,
@@ -246,13 +243,7 @@ class LightCall {
   LightState *parent_;
 
   // Light state values - use flags_ to check if a value has been set.
-  // Group 4-byte aligned members first.
-  //
-  // The eight [0.0, 1.0]-clamped float fields (brightness_ ... warm_white_)
-  // are declared in the same order as their flag bits (0-7) and the matching
-  // fields in LightColorValues. validate_() exploits this to iterate them via
-  // bit-position arithmetic. color_temperature_ has a custom range and lives
-  // outside that block.
+  // brightness_..warm_white_ match FieldFlags bits 0-7 in order (see validate_).
   uint32_t transition_length_;
   uint32_t flash_length_;
   uint32_t effect_;
