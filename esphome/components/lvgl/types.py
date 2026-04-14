@@ -1,7 +1,7 @@
 from esphome import automation, codegen as cg
 from esphome.const import CONF_TEXT, CONF_VALUE
 from esphome.cpp_generator import MockObj
-from esphome.cpp_types import esphome_ns
+from esphome.cpp_types import Component, esphome_ns
 
 from .defines import lvgl_ns
 
@@ -51,7 +51,7 @@ IdleTrigger = lvgl_ns.class_("IdleTrigger", automation.Trigger.template())
 ObjUpdateAction = lvgl_ns.class_("ObjUpdateAction", automation.Action)
 LvglCondition = lvgl_ns.class_("LvglCondition", automation.Condition)
 LvglAction = lvgl_ns.class_("LvglAction", automation.Action)
-lv_lambda_t = lvgl_ns.class_("LvLambdaType")
+lv_lambda_t = lvgl_ns.class_("LvLambdaComponent", Component)
 LvCompound = lvgl_ns.class_("LvCompound")
 lv_font_t = cg.global_ns.class_("lv_font_t")
 lv_style_t = cg.global_ns.struct("lv_style_t")
@@ -59,7 +59,6 @@ lv_style_t = cg.global_ns.struct("lv_style_t")
 lv_pseudo_button_t = lvgl_ns.class_("LvPseudoButton")
 lv_obj_base_t = cg.global_ns.class_("lv_obj_t", lv_pseudo_button_t)
 lv_obj_t_ptr = lv_obj_base_t.operator("ptr")
-lv_disp_t = cg.global_ns.struct("lv_disp_t")
 lv_color_t = cg.global_ns.struct("lv_color_t")
 lv_opa_t = cg.global_ns.struct("lv_opa_t")
 lv_group_t = cg.global_ns.struct("lv_group_t")
@@ -67,9 +66,10 @@ LVTouchListener = lvgl_ns.class_("LVTouchListener")
 LVEncoderListener = lvgl_ns.class_("LVEncoderListener")
 lv_obj_t = LvType("lv_obj_t")
 lv_page_t = LvType("LvPageType", parents=(LvCompound,))
-lv_img_t = LvType("lv_img_t")
+lv_image_t = LvType("lv_image_t")
 lv_gradient_t = LvType("lv_grad_dsc_t")
 lv_event_t = LvType("lv_event_t")
+RotationType = lvgl_ns.enum("RotationType")
 
 LV_EVENT = MockObj(base="LV_EVENT_", op="")
 LV_STATE = MockObj(base="LV_STATE_", op="")

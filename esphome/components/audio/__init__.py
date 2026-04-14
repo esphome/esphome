@@ -204,14 +204,15 @@ async def to_code(config):
 
     add_idf_component(
         name="esphome/esp-audio-libs",
-        ref="2.0.3",
+        ref="2.0.4",
     )
 
     data = _get_data()
     if data.flac_support:
         cg.add_define("USE_AUDIO_FLAC_SUPPORT")
+        add_idf_component(name="esphome/micro-flac", ref="0.1.1")
     if data.mp3_support:
         cg.add_define("USE_AUDIO_MP3_SUPPORT")
     if data.opus_support:
         cg.add_define("USE_AUDIO_OPUS_SUPPORT")
-        add_idf_component(name="esphome/micro-opus", ref="0.3.5")
+        add_idf_component(name="esphome/micro-opus", ref="0.3.6")

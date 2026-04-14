@@ -26,6 +26,10 @@
 #include <utility>
 #include <vector>
 
+#ifdef USE_ESP32_VARIANT_ESP32P4
+#include "driver/ppa.h"
+#endif
+
 #ifdef USE_FONT
 #include "esphome/components/font/font.h"
 #endif  // USE_LVGL_FONT
@@ -52,7 +56,7 @@ extern std::string lv_event_code_name_for(lv_event_t *event);
 
 lv_obj_t *lv_container_create(lv_obj_t *parent);
 #ifdef USE_LVGL_SCALE
-void lv_scale_draw_event_cb(lv_event_t *e, uint16_t range_start, uint16_t range_end, lv_color_t color_start,
+void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_end, lv_color_t color_start,
                             lv_color_t color_end, int width, bool local);
 #endif
 #if LV_COLOR_DEPTH == 16
@@ -71,14 +75,16 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
   lv_style_set_text_font(style, font->get_lv_font());
 }
 #endif
-#ifdef USE_IMAGE
+#if defined(USE_LVGL_IMAGE) && defined(USE_IMAGE)
 // Shortcut / overload, so that the source of an image can easily be updated
 // from within a lambda.
-inline void lv_image_set_src(lv_obj_t *obj, esphome::image::Image *image) {
-  lv_image_set_src(obj, image->get_lv_image_dsc());
+inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) { lv_image_set_src(obj, image->get_lv_image_dsc()); }
+
+inline void lv_obj_set_style_bitmap_mask_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
+  lv_obj_set_style_bitmap_mask_src(obj, image->get_lv_image_dsc(), selector);
 }
 
-inline void lv_obj_set_style_bg_image_src(lv_obj_t *obj, esphome::image::Image *image, lv_style_selector_t selector) {
+inline void lv_obj_set_style_bg_image_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
   lv_obj_set_style_bg_image_src(obj, image->get_lv_image_dsc(), selector);
 }
 #endif  // USE_LVGL_IMAGE
@@ -128,10 +134,19 @@ class LvPageType : public Parented<LvglComponent> {
   bool skip;
 };
 
-using LvLambdaType = std::function<void(lv_obj_t *)>;
-using set_value_lambda_t = std::function<void(float)>;
 using event_callback_t = void(lv_event_t *);
-using text_lambda_t = std::function<const char *()>;
+
+class LvLambdaComponent : public Component {
+ public:
+  LvLambdaComponent(void (*callback)()) : callback_(callback) {}
+
+  void setup() override { this->callback_(); }
+  // execute after the LvglComponent is setup
+  float get_setup_priority() const override { return setup_priority::PROCESSOR - 5; }
+
+ protected:
+  void (*callback_)();
+};
 
 template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
  public:
@@ -145,13 +160,18 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
 #ifdef USE_LVGL_ANIMIMG
 void lv_animimg_stop(lv_obj_t *obj);
 #endif  // USE_LVGL_ANIMIMG
+enum RotationType : uint8_t {
+  ROTATION_UNUSED,
+  ROTATION_SOFTWARE,
+  ROTATION_HARDWARE,
+};
 
 class LvglComponent : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 
  public:
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
-                bool resume_on_input, bool update_when_display_idle);
+                bool resume_on_input, bool update_when_display_idle, RotationType rotation_type);
   static void static_flush_cb(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
@@ -163,7 +183,7 @@ class LvglComponent : public PollingComponent {
   static void render_end_cb(lv_event_t *event);
   static void render_start_cb(lv_event_t *event);
   void dump_config() override;
-  lv_disp_t *get_disp() { return this->disp_; }
+  lv_display_t *get_disp() { return this->disp_; }
   lv_obj_t *get_screen_active() { return lv_display_get_screen_active(this->disp_); }
   // Pause or resume the display.
   // @param paused If true, pause the display. If false, resume the display.
@@ -189,9 +209,9 @@ class LvglComponent : public PollingComponent {
                            lv_event_code_t event3);
 
   void add_page(LvPageType *page);
-  void show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time);
-  void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
-  void show_prev_page(lv_scr_load_anim_t anim, uint32_t time);
+  void show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time);
+  void show_next_page(lv_screen_load_anim_t anim, uint32_t time);
+  void show_prev_page(lv_screen_load_anim_t anim, uint32_t time);
   void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
   void set_big_endian(bool big_endian) { this->big_endian_ = big_endian; }
   size_t get_current_page() const;
@@ -205,13 +225,19 @@ class LvglComponent : public PollingComponent {
   // rounding factor to align bounds of update area when drawing
   size_t draw_rounding{2};
 
-  display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
   void set_pause_trigger(Trigger<> *trigger) { this->pause_callback_ = trigger; }
   void set_resume_trigger(Trigger<> *trigger) { this->resume_callback_ = trigger; }
   void set_draw_start_trigger(Trigger<> *trigger) { this->draw_start_callback_ = trigger; }
   void set_draw_end_trigger(Trigger<> *trigger) { this->draw_end_callback_ = trigger; }
+  void set_rotation(display::DisplayRotation rotation);
+  display::DisplayRotation get_rotation() const { return this->rotation_; }
+  void rotate_coordinates(int32_t &x, int32_t &y) const;
+
+  uint16_t get_width() const { return lv_display_get_horizontal_resolution(this->disp_); }
+  uint16_t get_height() const { return lv_display_get_vertical_resolution(this->disp_); }
 
  protected:
+  void set_resolution_() const;
   void draw_end_();
   // Not checking for non-null callback since the
   // LVGL callback that calls it is not set in that case
@@ -219,6 +245,10 @@ class LvglComponent : public PollingComponent {
 
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_data *ptr);
+#ifdef USE_ESP32_VARIANT_ESP32P4
+  bool ppa_rotate_(const lv_color_data *src, lv_color_data *dst, uint16_t width, uint16_t height,
+                   uint32_t height_rounded);
+#endif
   void flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p);
 
   std::vector<display::Display *> displays_{};
@@ -245,14 +275,19 @@ class LvglComponent : public PollingComponent {
   Trigger<> *draw_start_callback_{};
   Trigger<> *draw_end_callback_{};
   void *rotate_buf_{};
+  display::DisplayRotation rotation_{display::DISPLAY_ROTATION_0_DEGREES};
+  RotationType rotation_type_;
+#ifdef USE_ESP32_VARIANT_ESP32P4
+  ppa_client_handle_t ppa_client_{};
+#endif
 };
 
 class IdleTrigger : public Trigger<> {
  public:
-  explicit IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeout);
+  explicit IdleTrigger(LvglComponent *parent, TemplatableFn<uint32_t> timeout);
 
  protected:
-  TemplatableValue<uint32_t> timeout_;
+  TemplatableFn<uint32_t> timeout_;
   bool is_idle_{};
 };
 

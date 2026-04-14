@@ -37,8 +37,9 @@ void LightState::setup() {
 
   auto call = this->make_call();
   LightStateRTCState recovered{};
-  if (this->initial_state_.has_value()) {
-    recovered = *this->initial_state_;
+  if (this->initial_state_callback_) {
+    this->initial_state_callback_(recovered);
+    this->initial_state_callback_ = nullptr;  // One-shot — no longer needed
   }
   switch (this->restore_mode_) {
     case LIGHT_RESTORE_DEFAULT_OFF:
@@ -195,7 +196,7 @@ void LightState::set_flash_transition_length(uint32_t flash_transition_length) {
 uint32_t LightState::get_flash_transition_length() const { return this->flash_transition_length_; }
 void LightState::set_gamma_correct(float gamma_correct) { this->gamma_correct_ = gamma_correct; }
 void LightState::set_restore_mode(LightRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
-void LightState::set_initial_state(const LightStateRTCState &initial_state) { this->initial_state_ = initial_state; }
+void LightState::set_initial_state(void (*callback)(LightStateRTCState &)) { this->initial_state_callback_ = callback; }
 bool LightState::supports_effects() { return !this->effects_.empty(); }
 const FixedVector<LightEffect *> &LightState::get_effects() const { return this->effects_; }
 void LightState::add_effects(const std::initializer_list<LightEffect *> &effects) {
