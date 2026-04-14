@@ -5,6 +5,15 @@
 namespace esphome {
 namespace epaper_spi {
 
+struct IT8951DevInfo {
+  uint16_t panel_width{0};
+  uint16_t panel_height{0};
+  uint16_t img_buf_addr_l{0};
+  uint16_t img_buf_addr_h{0};
+  uint16_t fw_version[8]{};
+  uint16_t lut_version[8]{};
+};
+
 // --- IT8951 Command defines ---
 
 // Packet types
@@ -50,6 +59,9 @@ static constexpr uint8_t IT8951_LDIMG_B_ENDIAN = 1;
 
 // Default VCOM value (mV)
 static constexpr uint16_t IT8951_DEFAULT_VCOM = 2300;
+
+// SPI probe frequency for IT8951 for configuration only.
+static constexpr uint32_t IT8951_SPI_PROBE_FREQUENCY = 1'000'000;
 
 /*-----------------------------------------------------------------------
  Refresh mode description

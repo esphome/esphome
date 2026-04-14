@@ -82,6 +82,22 @@ display:
     busy_pin: 43
     dc_pin: 42
 
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: seeed-reterminal-e1003
+    vcom: 1400
+    sleep_when_done: false
+    lambda: |-
+      it.filled_rectangle(0, 0, 128, 128, Color::BLACK);
+
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: seeed-ee03
+    vcom: 1400
+    sleep_when_done: false
+    lambda: |-
+      it.circle(128, 128, 64, Color::BLACK);
+
   # WeAct 2.13" 3-color e-paper (122x250, SSD1680)
   - platform: epaper_spi
     spi_id: spi_bus

@@ -55,6 +55,7 @@ Transform = epaper_spi_ns.enum("Transform")
 
 CONF_UPDATE_MODE = "update_mode"
 CONF_VCOM = "vcom"
+CONF_FORCE_1BPP = "force_1bpp"
 
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
@@ -141,10 +142,20 @@ def model_schema(config):
             **(
                 {
                     cv.Optional(
-                        CONF_VCOM, default=model.get_default(CONF_VCOM, 2300)
+                        CONF_VCOM, default=model.get_default(CONF_VCOM, None)
                     ): cv.int_range(0, 5000)
                 }
                 if model.get_default(CONF_VCOM, None) is not None
+                else {}
+            ),
+            **(
+                {
+                    cv.Optional(
+                        CONF_FORCE_1BPP,
+                        default=model.get_default(CONF_FORCE_1BPP, False),
+                    ): cv.boolean
+                }
+                if model.get_default(CONF_FORCE_1BPP, None) is not None
                 else {}
             ),
         }
@@ -171,7 +182,7 @@ CONFIG_SCHEMA = customise_schema
 
 
 def _final_validate(config):
-    # Models without a DC pin (e.g. IT8951E) use full-duplex SPI and need MISO
+    # Models without a DC pin (e.g. IT8951) use full-duplex SPI and need MISO
     model = MODELS[config[CONF_MODEL]]
     needs_miso = model.get_default(CONF_DC_PIN, None) is False
     spi.final_validate_device_schema(
@@ -220,7 +231,7 @@ async def to_code(config):
 
     await display.register_display(var, config)
 
-    # Models without DC pin (e.g. IT8951E) read from SPI, so must not be write-only
+    # Models without DC pin (e.g. IT8951) read from SPI, so must not be write-only
     write_only = model.get_default(CONF_DC_PIN, None) is not False
     await spi.register_spi_device(var, config, write_only=write_only)
 
@@ -250,6 +261,8 @@ async def to_code(config):
         cg.add(var.set_update_mode(config[CONF_UPDATE_MODE]))
     if CONF_VCOM in config:
         cg.add(var.set_vcom(config[CONF_VCOM]))
+    if CONF_FORCE_1BPP in config:
+        cg.add(var.set_force_1bpp(config[CONF_FORCE_1BPP]))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False
     else:
