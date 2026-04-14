@@ -10,22 +10,17 @@ namespace esphome::light {
 
 static const char *const TAG = "light";
 
-// Helper functions to reduce code size for logging.
-//
-// `param_name_progmem` is a pointer to a flash-resident `const LogString *`
-// slot (e.g. into the FIELD_NAMES table below). We only dereference it via
-// `progmem_read_ptr` on the cold path that actually emits the log message,
-// so the hot path (value in range) performs no flash reads at all. On
-// non-ESP8266 platforms `progmem_read_ptr` is a plain `*addr` inline, so
-// there is no cost there either.
-static void clamp_and_log_if_invalid(const char *name, float &value, const LogString *const *param_name_progmem,
-                                     float min = 0.0f, float max = 1.0f) {
-  if (value < min || value > max) {
-    const auto *param_name = reinterpret_cast<const LogString *>(
-        progmem_read_ptr(reinterpret_cast<const char *const *>(param_name_progmem)));
-    ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_ARG(param_name), value, min, max);
-    value = clamp(value, min, max);
-  }
+// Cold-path helper: called only when the caller has already determined the
+// value is out of range. Keeping the range check at the caller avoids the
+// call-site spill/reload and prologue on the hot path (in-range). The
+// `param_name_progmem` argument points into the FIELD_NAMES table in flash;
+// `progmem_read_ptr` is a plain `*addr` inline on non-ESP8266 platforms.
+static void log_out_of_range_and_clamp_(const char *name, float &value, const LogString *const *param_name_progmem,
+                                        float min, float max) {
+  const auto *param_name =
+      reinterpret_cast<const LogString *>(progmem_read_ptr(reinterpret_cast<const char *const *>(param_name_progmem)));
+  ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_ARG(param_name), value, min, max);
+  value = clamp(value, min, max);
 }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
@@ -296,14 +291,31 @@ LightColorValues LightCall::validate_() {
   // offset is exactly 12 bytes lower (enforced by the static_asserts below).
   // Iterating via bit-position arithmetic lets us collapse eight inlined
   // clamp/copy blocks into a single loop.
-  static_assert(FLAG_HAS_BRIGHTNESS == 1u << 0, "clamp loop assumes bit 0");
-  static_assert(FLAG_HAS_WARM_WHITE == 1u << 7, "clamp loop assumes bit 7");
-  static_assert(offsetof(LightCall, warm_white_) - offsetof(LightCall, brightness_) == 7 * sizeof(float),
-                "LightCall clamp fields must be contiguous");
-  static_assert(offsetof(LightColorValues, warm_white_) - offsetof(LightColorValues, brightness_) == 7 * sizeof(float),
-                "LightColorValues clamp fields must be contiguous");
-  static_assert(offsetof(LightCall, brightness_) - offsetof(LightColorValues, brightness_) == 12,
-                "LightCall and LightColorValues clamp fields must have constant byte-offset delta");
+  constexpr size_t SRC_BASE = offsetof(LightCall, brightness_);
+  constexpr size_t SRC_TO_DST_DELTA = SRC_BASE - offsetof(LightColorValues, brightness_);
+
+  // Per-field layout assertions: each clamp field must sit at its bit-indexed
+  // slot in both LightCall and LightColorValues, with the same byte-offset
+  // delta. A reorder of any single field (in either struct) trips the assert
+  // pointing at that field, so failures name the exact member at fault.
+  // The one case these cannot catch is a synchronized reorder in both structs
+  // plus FIELD_NAMES — that would compile silently, but requires deliberate
+  // three-place changes by the refactorer.
+#define ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(bit, flag_suffix, member) \
+  static_assert(FLAG_HAS_##flag_suffix == 1u << (bit), "FLAG_HAS_" #flag_suffix " bit position"); \
+  static_assert(offsetof(LightCall, member) == SRC_BASE + (bit) * sizeof(float), \
+                "LightCall::" #member " must be at bit-indexed slot"); \
+  static_assert(offsetof(LightColorValues, member) == SRC_BASE + (bit) * sizeof(float) - SRC_TO_DST_DELTA, \
+                "LightColorValues::" #member " must match LightCall delta")
+  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(0, BRIGHTNESS, brightness_);
+  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(1, COLOR_BRIGHTNESS, color_brightness_);
+  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(2, RED, red_);
+  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(3, GREEN, green_);
+  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(4, BLUE, blue_);
+  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(5, WHITE, white_);
+  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(6, COLD_WHITE, cold_white_);
+  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(7, WARM_WHITE, warm_white_);
+#undef ESPHOME_LIGHT_ASSERT_CLAMP_FIELD
 
   static const LogString *const FIELD_NAMES[8] PROGMEM = {
       LOG_STR("Brightness"),        // FLAG_HAS_BRIGHTNESS       (bit 0)
@@ -315,29 +327,35 @@ LightColorValues LightCall::validate_() {
       LOG_STR("Cold white"),        // FLAG_HAS_COLD_WHITE       (bit 6)
       LOG_STR("Warm white"),        // FLAG_HAS_WARM_WHITE       (bit 7)
   };
-  constexpr size_t SRC_BASE = offsetof(LightCall, brightness_);
-  constexpr size_t SRC_TO_DST_DELTA = SRC_BASE - offsetof(LightColorValues, brightness_);
 
-  uint8_t active = this->flags_ & CLAMP_FLAGS_MASK;
-  if (active != 0) {
-    auto *self = reinterpret_cast<uint8_t *>(this);
-    auto *out = reinterpret_cast<uint8_t *>(&v);
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      if (!(active & (1u << bit)))
-        continue;
-      const size_t src_off = SRC_BASE + bit * sizeof(float);
-      float &f = *reinterpret_cast<float *>(self + src_off);
-      clamp_and_log_if_invalid(name, f, &FIELD_NAMES[bit]);
-      *reinterpret_cast<float *>(out + src_off - SRC_TO_DST_DELTA) = f;
-    }
+  // The static_asserts above guarantee the eight clampable floats are laid
+  // out consecutively starting at brightness_ in both structs, so we can
+  // treat `&brightness_` as the base of an 8-element float array and index
+  // by bit position directly. Iterate only the set bits via __builtin_ctz +
+  // clear-lowest-bit: HA can drive high-frequency automations through
+  // perform(), so the hot path runs in O(popcount) instead of always
+  // scanning all eight slots. The range check is inlined here (cold path
+  // is the out-of-line helper) so an in-range value skips the call entirely.
+  float *const src_fields = &this->brightness_;
+  float *const dst_fields = &v.brightness_;
+  unsigned active = this->flags_ & CLAMP_FLAGS_MASK;
+  while (active != 0) {
+    unsigned bit = __builtin_ctz(active);
+    active &= active - 1;  // clear lowest set bit
+    float &value = src_fields[bit];
+    if (value < 0.0f || value > 1.0f)
+      log_out_of_range_and_clamp_(name, value, &FIELD_NAMES[bit], 0.0f, 1.0f);
+    dst_fields[bit] = value;
   }
 
   // color_temperature uses a dynamic range from the light's traits and is
   // handled separately.
   if (this->has_color_temperature()) {
     static const LogString *const CT_NAME PROGMEM = LOG_STR("Color temperature");
-    clamp_and_log_if_invalid(name, this->color_temperature_, &CT_NAME, traits.get_min_mireds(),
-                             traits.get_max_mireds());
+    const float ct_min = traits.get_min_mireds();
+    const float ct_max = traits.get_max_mireds();
+    if (this->color_temperature_ < ct_min || this->color_temperature_ > ct_max)
+      log_out_of_range_and_clamp_(name, this->color_temperature_, &CT_NAME, ct_min, ct_max);
     v.color_temperature_ = this->color_temperature_;
   }
 
