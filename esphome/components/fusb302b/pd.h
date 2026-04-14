@@ -6,9 +6,11 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome {
+#ifdef USE_TEXT_SENSOR
 namespace text_sensor {
 class TextSensor;
 }  // namespace text_sensor
+#endif
 namespace fusb302b {
 
 static constexpr uint8_t PD_MAX_NUM_DATA_OBJECTS = 7;
@@ -160,10 +162,14 @@ class PowerDelivery {
   void set_ams(bool ams);
   bool check_ams();
 
+#ifdef USE_TEXT_SENSOR
   void set_contract_sensor(text_sensor::TextSensor *sensor) { this->contract_sensor_ = sensor; }
+#endif
 
  protected:
+#ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *contract_sensor_{nullptr};
+#endif
   uint32_t active_ams_timer_{0};
   bool active_ams_{false};
 

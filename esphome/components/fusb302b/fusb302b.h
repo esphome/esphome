@@ -8,7 +8,9 @@
 
 #ifdef USE_ESP_IDF
 
+#ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 namespace esphome {
 namespace fusb302b {
@@ -59,10 +61,12 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
   void publish() override {
     this->defer([this]() {
       this->state_callback_.call();
+#ifdef USE_TEXT_SENSOR
       if (this->contract_sensor_ != nullptr) {
         std::string val = (this->state_ == PD_STATE_DISCONNECTED) ? "Detached" : this->contract_;
         this->contract_sensor_->publish_state(val);
       }
+#endif
     });
   }
   bool init_fusb_settings_();
