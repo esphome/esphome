@@ -781,7 +781,9 @@ message SubscribeLogsResponse {
   option (speed_optimized) = true;
 
   LogLevel level = 1 [(force) = true];
-  bytes message = 3 [(force) = true];
+  // Bounded by logger tx_buffer_size (capped at 16383 in logger config) so the
+  // length varint is always 1-2 bytes; enables the short/inline encode path.
+  bytes message = 3 [(force) = true, (max_data_length) = 16383];
 }
 
 // ==================== NOISE ENCRYPTION ====================

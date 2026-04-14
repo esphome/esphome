@@ -823,6 +823,14 @@ class ProtoSize {
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_length_force(uint32_t field_id_size, size_t len) {
     return field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len);
   }
+  /// Length calc for fields bounded by max_data_length < 16384 (varint is 1-2 bytes).
+  /// Uses varint_short which inlines both cases, avoiding the 3+ byte slow path.
+  static constexpr uint32_t calc_length_short(uint32_t field_id_size, size_t len) {
+    return len ? field_id_size + varint_short(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len) : 0;
+  }
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_length_force_short(uint32_t field_id_size, size_t len) {
+    return field_id_size + varint_short(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len);
+  }
   static constexpr uint32_t calc_sint64(uint32_t field_id_size, int64_t value) {
     return value ? field_id_size + varint(encode_zigzag64(value)) : 0;
   }

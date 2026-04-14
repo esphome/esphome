@@ -231,7 +231,11 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(Logger),
             cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.All(
-                cv.validate_bytes, cv.int_range(min=160, max=65535)
+                # Upper bound of 16383 keeps the SubscribeLogsResponse message
+                # length varint within 2 bytes (see api.proto max_data_length),
+                # enabling a fully-inlined encode path for log messages.
+                cv.validate_bytes,
+                cv.int_range(min=160, max=16383),
             ),
             cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
             cv.SplitDefault(

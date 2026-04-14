@@ -292,12 +292,18 @@ class TypeInfo(ABC):
         tag = self.calculate_tag()
         if tag >= 128:
             return None
-        # When max_len < 128, length varint is always 1 byte
-        len_encode = (
-            f"ProtoEncode::write_raw_byte(pos, static_cast<uint8_t>({len_expr}));"
-            if max_len is not None and max_len < 128
-            else f"ProtoEncode::encode_varint_raw(pos, {len_expr});"
-        )
+        # Choose length-varint writer based on max_len bound:
+        #   < 128    → always 1 byte, direct write
+        #   < 16384  → 1 or 2 bytes, fully-inlined short path
+        #   otherwise → generic varint encoder
+        if max_len is not None and max_len < 128:
+            len_encode = (
+                f"ProtoEncode::write_raw_byte(pos, static_cast<uint8_t>({len_expr}));"
+            )
+        elif max_len is not None and max_len < 16384:
+            len_encode = f"ProtoEncode::encode_varint_raw_short(pos, {len_expr});"
+        else:
+            len_encode = f"ProtoEncode::encode_varint_raw(pos, {len_expr});"
         return (
             f"ProtoEncode::write_raw_byte(pos, {tag});\n"
             f"{len_encode}\n"
@@ -970,7 +976,9 @@ class BytesType(TypeInfo):
     @property
     def encode_content(self) -> str:
         if result := self._encode_bytes_with_precomputed_tag(
-            f"this->{self.field_name}_ptr_", f"this->{self.field_name}_len_"
+            f"this->{self.field_name}_ptr_",
+            f"this->{self.field_name}_len_",
+            max_len=self.max_data_length,
         ):
             return result
         if self.force:
@@ -1028,8 +1036,17 @@ class BytesType(TypeInfo):
         )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
+        max_len = self.max_data_length
+        length_field = f"this->{self.field_name}_len_"
+        if max_len is not None and max_len < 128:
+            return self._get_single_byte_varint_size(
+                length_field, force, extra_expr=length_field
+            )
+        if max_len is not None and max_len < 16384:
+            calc_fn = "calc_length_force_short" if force else "calc_length_short"
+            return f"size += ProtoSize::{calc_fn}({self.calculate_field_id_size()}, {length_field});"
         calc_fn = "calc_length_force" if force else "calc_length"
-        return f"size += ProtoSize::{calc_fn}({self.calculate_field_id_size()}, this->{self.field_name}_len_);"
+        return f"size += ProtoSize::{calc_fn}({self.calculate_field_id_size()}, {length_field});"
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical bytes
