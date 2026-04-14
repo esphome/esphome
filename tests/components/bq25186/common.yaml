@@ -42,28 +42,28 @@ binary_sensor:
       name: VIN OVP Active
     battery_uvlo:
       name: Battery UVLO Active
-    safety_timer_fault:
-      name: Safety Timer Fault
+    safety_timer_flag:
+      name: Safety Timer Flag
     wake1_flag:
       name: Wake 1 Flag
     wake2_flag:
       name: Wake 2 Flag
-    ts_fault:
-      name: TS Fault
-    ilim_fault:
-      name: ILIM Fault
-    vdppm_fault:
-      name: VDPPM Fault
-    vindpm_fault:
-      name: VINDPM Fault
-    thermreg_active:
+    ts_flag:
+      name: TS Flag
+    ilim_flag:
+      name: ILIM Flag
+    vdppm_flag:
+      name: VDPPM Flag
+    vindpm_flag:
+      name: VINDPM Flag
+    thermreg_flag:
       name: Thermal Regulation Flag
-    vin_ovp_fault:
-      name: VIN OVP Fault
-    battery_uvlo_fault:
-      name: Battery UVLO Fault
-    battery_ocp_fault:
-      name: Battery OCP Fault
+    vin_ovp_flag:
+      name: VIN OVP Flag
+    battery_uvlo_flag:
+      name: Battery UVLO Flag
+    battery_ocp_flag:
+      name: Battery OCP Flag
 
 text_sensor:
   - platform: bq25186

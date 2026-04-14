@@ -30,7 +30,7 @@ CONF_TS_FLAG = "ts_flag"
 CONF_ILIM_FLAG = "ilim_flag"
 CONF_VDPPM_FLAG = "vdppm_flag"
 CONF_VINDPM_FLAG = "vindpm_flag"
-CONF_THERMREG_ACTIVE = "thermreg_active"
+CONF_THERMREG_FLAG = "thermreg_flag"
 CONF_VIN_OVP_FLAG = "vin_ovp_flag"
 CONF_BATTERY_UVLO_FLAG = "battery_uvlo_flag"
 CONF_BATTERY_OCP_FLAG = "battery_ocp_flag"
@@ -56,9 +56,9 @@ _BINARY_SENSOR_SPECS = (
     (CONF_ILIM_FLAG, "BQ25186IlimFlagBinarySensor", None),
     (CONF_VDPPM_FLAG, "BQ25186VdppmFlagBinarySensor", None),
     (CONF_VINDPM_FLAG, "BQ25186VindpmFlagBinarySensor", None),
-    (CONF_THERMREG_ACTIVE, "BQ25186ThermregActiveBinarySensor", None),
+    (CONF_THERMREG_FLAG, "BQ25186ThermregFlagBinarySensor", None),
     (CONF_VIN_OVP_FLAG, "BQ25186VinOvpFlagBinarySensor", None),
-    (CONF_BATTERY_UVLO_FLAG, "BQ25186BatteryUvloActiveFlagBinarySensor", None),
+    (CONF_BATTERY_UVLO_FLAG, "BQ25186BatteryUvloFlagBinarySensor", None),
     (CONF_BATTERY_OCP_FLAG, "BQ25186BatteryOcpFlagBinarySensor", None),
 )
 

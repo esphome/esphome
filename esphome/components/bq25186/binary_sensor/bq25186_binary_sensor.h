@@ -41,8 +41,8 @@ using BQ25186TsFlagBinarySensor = StatusBinarySensor<BQ25186_REG_FLAG0, 7, 0x01,
 using BQ25186IlimFlagBinarySensor = StatusBinarySensor<BQ25186_REG_FLAG0, 6, 0x01, 0x01>;
 using BQ25186VdppmFlagBinarySensor = StatusBinarySensor<BQ25186_REG_FLAG0, 5, 0x01, 0x01>;
 using BQ25186VindpmFlagBinarySensor = StatusBinarySensor<BQ25186_REG_FLAG0, 4, 0x01, 0x01>;
-using BQ25186ThermregActiveBinarySensor = StatusBinarySensor<BQ25186_REG_FLAG0, 3, 0x01, 0x01>;
+using BQ25186ThermregFlagBinarySensor = StatusBinarySensor<BQ25186_REG_FLAG0, 3, 0x01, 0x01>;
 using BQ25186VinOvpFlagBinarySensor = StatusBinarySensor<BQ25186_REG_FLAG0, 2, 0x01, 0x01>;
-using BQ25186BatteryUvloActiveFlagBinarySensor = StatusBinarySensor<BQ25186_REG_FLAG0, 1, 0x01, 0x01>;
+using BQ25186BatteryUvloFlagBinarySensor = StatusBinarySensor<BQ25186_REG_FLAG0, 1, 0x01, 0x01>;
 using BQ25186BatteryOcpFlagBinarySensor = StatusBinarySensor<BQ25186_REG_FLAG0, 0, 0x01, 0x01>;
 }  // namespace esphome::bq25186
