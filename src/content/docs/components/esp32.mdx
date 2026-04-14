@@ -585,6 +585,10 @@ The following options disable debug features that are rarely needed in productio
   These functions are used internally by ESP-IDF for analog peripherals (ADC, DAC, temperature sensor calibration). Moving
   them to flash saves IRAM. This is safe for ESPHome because no ESPHome IRAM interrupt service routines call ADC or other
   analog functions. Defaults to `true` (regi2c functions in flash to save IRAM).
+- **adc_oneshot_in_iram** (*Optional*, boolean): Place ADC oneshot control functions in IRAM. When flash cache is
+  disabled during background flash operations (NVS writes by WiFi, BLE, Zigbee, Thread, power management, etc.),
+  ADC reads will crash if these functions are in flash. The ADC component automatically enables this when used.
+  Defaults to `false` (automatically enabled by the ADC component).
 
 These defaults are chosen to reduce flash and IRAM usage for typical ESPHome devices. Adjust them only if you have specific
 debugging or performance requirements that justify changing them.
@@ -628,6 +632,7 @@ esp32:
       # Filesystem and peripheral options
       disable_fatfs: true  # Saves code size (auto-enabled by SD card components)
       disable_regi2c_in_iram: true  # Saves IRAM
+      adc_oneshot_in_iram: false  # Auto-enabled by ADC component
 
       # ESP32 (original) only options
       # sram1_as_iram: true  # +40 KB IRAM (requires bootloader from ESP-IDF >= 5.1)
