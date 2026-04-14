@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <numeric>
 #include "mitsubishi_cn105.h"
 
