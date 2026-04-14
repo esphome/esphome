@@ -11,8 +11,8 @@ namespace esphome::epaper_spi {
 static const char *const TAG = "epaper_spi.it8951";
 
 // Maximum row buffer sizes for supported panel widths
-static constexpr size_t IT8951_MAX_4BPP_ROW_BYTES = 2048/2;
-static constexpr size_t IT8951_MAX_1BPP_ROW_BYTES = 2048/8;
+static constexpr size_t IT8951_MAX_4BPP_ROW_BYTES = 2048 / 2;
+static constexpr size_t IT8951_MAX_1BPP_ROW_BYTES = 2048 / 8;
 
 // Short timeout for non-blocking LUTAFSR polling — limits blocking on HRDY race
 static constexpr uint32_t POLL_BUSY_TIMEOUT = 50;  // ms
@@ -158,8 +158,8 @@ void EPaperIT8951::update_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, 
   this->write_args_(IT8951_I80_CMD_DPY_BUF_AREA, args, 7);
 }
 
-void EPaperIT8951::update_area_1bpp_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, UpdateModeE mode,
-                                     uint8_t bg_gray, uint8_t fg_gray) {
+void EPaperIT8951::update_area_1bpp_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, UpdateModeE mode, uint8_t bg_gray,
+                                     uint8_t fg_gray) {
   // Enable 1bpp mode: set bit 2 in UP1SR high word
   this->write_command_(IT8951_TCON_REG_RD);
   this->write_word_(IT8951_UP1SR + 2);
@@ -264,14 +264,14 @@ void EPaperIT8951::setup() {
   bool dev_info_valid = false;
   for (int attempt = 0; attempt < 3; attempt++) {
     this->get_dev_info_();
-    if (this->dev_info_.panel_width > 0 && this->dev_info_.panel_width <= 2048 &&
-        this->dev_info_.panel_height > 0 && this->dev_info_.panel_height <= 2048 &&
-        this->dev_info_.panel_width != 0xFFFF && this->dev_info_.panel_height != 0xFFFF) {
+    if (this->dev_info_.panel_width > 0 && this->dev_info_.panel_width <= 2048 && this->dev_info_.panel_height > 0 &&
+        this->dev_info_.panel_height <= 2048 && this->dev_info_.panel_width != 0xFFFF &&
+        this->dev_info_.panel_height != 0xFFFF) {
       dev_info_valid = true;
       break;
     }
-    ESP_LOGW(TAG, "DevInfo attempt %d returned invalid data (W=%u H=%u), retrying...",
-             attempt + 1, this->dev_info_.panel_width, this->dev_info_.panel_height);
+    ESP_LOGW(TAG, "DevInfo attempt %d returned invalid data (W=%u H=%u), retrying...", attempt + 1,
+             this->dev_info_.panel_width, this->dev_info_.panel_height);
     delay(100);  // NOLINT - give the controller more time
   }
 
@@ -282,8 +282,8 @@ void EPaperIT8951::setup() {
     this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(this->height_);
     this->us_img_buf_addr_l_ = this->dev_info_.img_buf_addr_l;
     this->us_img_buf_addr_h_ = this->dev_info_.img_buf_addr_h;
-    ESP_LOGI(TAG, "Using DevInfo: %ux%u, ImgBuf 0x%04X%04X",
-             this->width_, this->height_, this->us_img_buf_addr_h_, this->us_img_buf_addr_l_);
+    ESP_LOGI(TAG, "Using DevInfo: %ux%u, ImgBuf 0x%04X%04X", this->width_, this->height_, this->us_img_buf_addr_h_,
+             this->us_img_buf_addr_l_);
   } else {
     // Image buffer address is device-specific and only obtainable via DevInfo.
     // Without it we cannot safely write to the IT8951's memory.
@@ -323,8 +323,8 @@ void EPaperIT8951::loop() {
     if (this->busy_pin_ == nullptr || this->busy_pin_->digital_read()) {
       this->waiting_for_idle_ = false;
     } else if (now - this->busy_wait_start_ > BUSY_TIMEOUT_MS) {
-      ESP_LOGW(TAG, "Busy pin stuck LOW for %ums in state %d, recovering",
-               now - this->busy_wait_start_, static_cast<int>(this->state_));
+      ESP_LOGW(TAG, "Busy pin stuck LOW for %ums in state %d, recovering", now - this->busy_wait_start_,
+               static_cast<int>(this->state_));
       this->recover_();
       return;
     } else {
@@ -443,8 +443,8 @@ bool EPaperIT8951::prepare_transfer_(UpdateModeE &mode) {
   this->y_low_ = this->height_;
   this->y_high_ = 0;
 
-  ESP_LOGD(TAG, "Transfer: %dx%d @ %d,%d mode=%d (%s)", width, height, x, y,
-           static_cast<int>(mode), this->use_1bpp_ ? "1bpp" : "4bpp");
+  ESP_LOGD(TAG, "Transfer: %dx%d @ %d,%d mode=%d (%s)", width, height, x, y, static_cast<int>(mode),
+           this->use_1bpp_ ? "1bpp" : "4bpp");
   return true;
 }
 
@@ -665,13 +665,12 @@ void EPaperIT8951::process_state_() {
       }
       if (this->is_display_busy_()) {
         if (millis() - this->busy_wait_start_ > BUSY_TIMEOUT_MS) {
-          ESP_LOGW(TAG, "LUT busy timeout after %ums, recovering",
-                   millis() - this->busy_wait_start_);
+          ESP_LOGW(TAG, "LUT busy timeout after %ums, recovering", millis() - this->busy_wait_start_);
           this->recover_();
           return;
         }
         this->waiting_for_idle_ = true;  // Re-arm HRDY gate before retrying
-        return;  // LUT still busy, retry next loop
+        return;                          // LUT still busy, retry next loop
       }
       if (this->use_1bpp_) {
         this->update_area_1bpp_(this->pending_x_, this->pending_y_, this->pending_w_, this->pending_h_,
@@ -696,8 +695,7 @@ void EPaperIT8951::process_state_() {
       if (this->pending_1bpp_restore_) {
         if (this->is_display_busy_()) {
           if (millis() - this->busy_wait_start_ > BUSY_TIMEOUT_MS) {
-            ESP_LOGW(TAG, "LUT busy timeout in POWER_OFF after %ums, recovering",
-                     millis() - this->busy_wait_start_);
+            ESP_LOGW(TAG, "LUT busy timeout in POWER_OFF after %ums, recovering", millis() - this->busy_wait_start_);
             this->pending_1bpp_restore_ = false;
             this->recover_();
             return;
