@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+
 #include "esphome/components/light/addressable_light.h"
 #include "esphome/core/component.h"
 

@@ -40,18 +40,20 @@ async def test_addressable_light_transition(
 
         # Track the raw-byte sensor. It polls every 10ms in the fixture, and
         # ESPHome sensors publish on every change, so we collect a time series.
-        loop = asyncio.get_event_loop()
+        # Samples are stored as (seconds_since_command_issue, value). Times
+        # before the command was issued are negative.
+        loop = asyncio.get_running_loop()
         samples: list[tuple[float, float]] = []
-        start_time: float | None = None
+        command_time: float | None = None
 
         def on_state(state: object) -> None:
-            nonlocal start_time
             if not isinstance(state, SensorState) or state.key != sensor.key:
                 return
             now = loop.time()
-            if start_time is None:
-                start_time = now
-            samples.append((now - start_time, state.state))
+            # If the command hasn't been issued yet, use 0 as the origin;
+            # those samples get negative times and are excluded below.
+            origin = command_time if command_time is not None else now
+            samples.append((now - origin, state.state))
 
         client.subscribe_states(on_state)
 
@@ -61,6 +63,7 @@ async def test_addressable_light_transition(
         # Start transition: off -> full white over 1 second. This is the
         # scenario from the bug report, compressed in time.
         transition_s = 1.0
+        command_time = loop.time()
         client.light_command(
             key=light.key,
             state=True,
@@ -72,48 +75,38 @@ async def test_addressable_light_transition(
         # Let the full transition run, plus margin for the final sample.
         await asyncio.sleep(transition_s + 0.2)
 
-        # Partition samples by transition progress. We reset the time origin
-        # at the moment the first post-command sample arrives, since there is
-        # some latency between issuing the command and the sensor observing
-        # the transition begin.
-        assert samples, "no sensor samples received"
-
-        # Find first sample where the transition started producing nonzero
-        # output (or fall back to the first sample).
-        first_nonzero_idx = next((i for i, (_, v) in enumerate(samples) if v > 0), None)
-        assert first_nonzero_idx is not None, (
-            "raw byte never rose above 0 during the transition — the fade stalled"
-        )
-
-        t0 = samples[first_nonzero_idx][0]
-        # Collect samples from the first nonzero point onward, re-based to t=0.
-        rel = [(t - t0, v) for (t, v) in samples[first_nonzero_idx:]]
+        # Only look at samples that arrived after the command was issued.
+        post_command = [(t, v) for (t, v) in samples if t >= 0]
+        assert post_command, "no sensor samples received after command was issued"
 
         # Assertion 1: the transition is not stalled. With the bug, the raw
         # byte stays at 0 until ~90% of the transition duration. With the fix,
         # it becomes nonzero in the first ~30% (for gamma 2.8, pre-gamma 76
-        # clears the gamma threshold at progress ~0.30). We assert that the
-        # first nonzero sample arrives well before 70% of the transition,
-        # giving generous slack for scheduling jitter.
-        first_nonzero_time = samples[first_nonzero_idx][0] - samples[0][0]
-        assert first_nonzero_time < transition_s * 0.7, (
-            f"raw byte only rose above 0 at t={first_nonzero_time:.3f}s "
-            f"(>{transition_s * 0.7:.3f}s) — transition is stalling"
+        # clears the gamma threshold at progress ~0.30). Require the first
+        # nonzero sample to land well before 70% of the transition duration,
+        # measured from the command-issue time.
+        first_nonzero = next(((t, v) for (t, v) in post_command if v > 0), None)
+        assert first_nonzero is not None, (
+            "raw byte never rose above 0 during the transition — the fade stalled"
+        )
+        assert first_nonzero[0] < transition_s * 0.7, (
+            f"raw byte only rose above 0 at t={first_nonzero[0]:.3f}s "
+            f"(>{transition_s * 0.7:.3f}s after command) — transition is stalling"
         )
 
-        # Assertion 2: by the time the transition has had 70% of its duration
-        # to run from its first visible step, the raw byte should be at least
-        # ~half of its final value. This catches "barely moves then jumps at
-        # the end" regressions.
-        late_samples = [v for (t, v) in rel if t >= transition_s * 0.7]
+        # Assertion 2: by 70% of the transition duration after the command,
+        # the raw byte should have reached a substantial fraction of its final
+        # value. This catches "barely moves then jumps at the end" regressions
+        # that pass assertion 1 but still stall most of the range.
+        late_samples = [v for (t, v) in post_command if t >= transition_s * 0.7]
         assert late_samples, "no samples captured late in transition"
         assert max(late_samples) >= 100, (
-            f"raw byte peaked at only {max(late_samples)} late in transition "
-            "(expected >= 100 for white target at gamma 2.8)"
+            f"raw byte peaked at only {max(late_samples)} at/after 70% of "
+            "transition (expected >= 100 for white target at gamma 2.8)"
         )
 
         # Assertion 3: final value reaches target. Gamma 2.8 of 255 is 255.
-        final_samples = [v for (_, v) in samples[-5:]]
+        final_samples = [v for (_, v) in post_command[-5:]]
         assert max(final_samples) >= 250, (
             f"final raw byte was {max(final_samples)}, expected >= 250"
         )
