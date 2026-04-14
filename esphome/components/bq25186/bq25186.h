@@ -1,11 +1,14 @@
 #pragma once
 
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/switch/switch.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include <functional>
 #include <vector>
+
+#ifdef USE_BQ25186_PG_GPO_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome::bq25186 {
 
@@ -130,8 +133,11 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
 
   void add_listener(BQ25186Listener *listener) { this->listeners_.push_back(listener); }
 
+#ifdef USE_BQ25186_PG_GPO_SWITCH
   void set_pg_gpo_switch(switch_::Switch *pg_gpo_switch) { this->pg_gpo_switch_ = pg_gpo_switch; }
   bool write_pg_gpo_level(bool level);
+#endif
+
   bool trigger_software_reset();
   bool trigger_shutdown_mode();
   bool trigger_ship_mode();
@@ -158,7 +164,9 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   std::vector<BQ25186Listener *> listeners_;
 
   SetupConfigCallback setup_config_callback_{};
+#ifdef USE_BQ25186_PG_GPO_SWITCH
   switch_::Switch *pg_gpo_switch_{nullptr};
+#endif
 };
 
 }  // namespace esphome::bq25186

@@ -165,11 +165,15 @@ bool BQ25186Component::update_mask_id_register_(const BQ25186MaskIdConfig &confi
 }
 
 bool BQ25186Component::apply_config(const BQ25186Config &config) {
+#ifdef USE_BQ25186_PG_GPO_SWITCH
   // Force pg_mode to 1 (gpo) if the switch is being used
   BQ25186Config effective_config = config;
   if (this->pg_gpo_switch_ != nullptr) {
     effective_config.vbat_ctrl.pg_mode = 1;
   }
+#else
+  const BQ25186Config &effective_config = config;
+#endif
 
   return (this->update_vbat_ctrl_register_(effective_config.vbat_ctrl) &&
           this->update_ichg_ctrl_register_(effective_config.ichg_ctrl) &&
@@ -183,6 +187,7 @@ bool BQ25186Component::apply_config(const BQ25186Config &config) {
           this->update_mask_id_register_(effective_config.mask_id));
 }
 
+#ifdef USE_BQ25186_PG_GPO_SWITCH
 bool BQ25186Component::write_pg_gpo_level(bool level) {
   uint8_t vbat_ctrl;
   if (!this->read_byte(BQ25186_REG_VBAT_CTRL, &vbat_ctrl)) {
@@ -202,6 +207,7 @@ bool BQ25186Component::write_pg_gpo_level(bool level) {
 
   return true;
 }
+#endif
 
 bool BQ25186Component::trigger_software_reset() { return this->update_register_(BQ25186_REG_SHIP_RST, 0x80, 0x80); }
 
@@ -236,6 +242,7 @@ void BQ25186Component::setup() {
     this->setup_config_callback_ = nullptr;
   }
 
+#ifdef USE_BQ25186_PG_GPO_SWITCH
   // Initialize the PG/GPO switch state based on the current register values
   if (this->pg_gpo_switch_ != nullptr) {
     if (!this->update_register_(BQ25186_REG_VBAT_CTRL, 0x80, 0x80)) {
@@ -254,6 +261,7 @@ void BQ25186Component::setup() {
     }
     this->pg_gpo_switch_->publish_state((this->data_.registers[BQ25186_REG_SYS_REG] & 0x10) != 0);
   }
+#endif
   ESP_LOGV(TAG, "BQ25186 initialized");
 }
 
