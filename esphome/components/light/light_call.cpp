@@ -1,5 +1,4 @@
 #include <cinttypes>
-#include <type_traits>
 
 #include "light_call.h"
 #include "light_state.h"
@@ -281,10 +280,7 @@ LightColorValues LightCall::validate_() {
   if (this->has_state())
     v.set_state(this->state_);
 
-  // FieldFlags bits 0-7 must match unit_fields_ array indices; the union in
-  // both structs guarantees brightness_..warm_white_ alias unit_fields_[0..7].
-  static_assert(std::is_standard_layout_v<LightCall>, "LightCall must be standard-layout");
-  static_assert(std::is_standard_layout_v<LightColorValues>, "LightColorValues must be standard-layout");
+  // FieldFlags bits 0-7 must match unit_fields_ array indices.
   static_assert(FLAG_HAS_BRIGHTNESS == 1u << 0 && FLAG_HAS_COLOR_BRIGHTNESS == 1u << 1 && FLAG_HAS_RED == 1u << 2 &&
                     FLAG_HAS_GREEN == 1u << 3 && FLAG_HAS_BLUE == 1u << 4 && FLAG_HAS_WHITE == 1u << 5 &&
                     FLAG_HAS_COLD_WHITE == 1u << 6 && FLAG_HAS_WARM_WHITE == 1u << 7,
