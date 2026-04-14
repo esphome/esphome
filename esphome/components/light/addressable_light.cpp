@@ -65,12 +65,21 @@ void AddressableLightTransformer::start() {
   // at low values (e.g. gamma 2.8 pre-gamma values <27 round to stored 0, freezing progress).
   this->uniform_start_color_.reset();
   if (this->light_.size() > 0) {
-    Color first = this->light_[0].get();
+    // Compare raw (post-gamma) bytes across LEDs for uniformity. This avoids N calls to the
+    // gamma-uncorrecting get_red/green/blue/white accessors, which would otherwise discourage
+    // the compiler from inlining them inside the apply() fallback path.
+    auto first = this->light_[0];
+    uint8_t r_raw = first.get_red_raw();
+    uint8_t g_raw = first.get_green_raw();
+    uint8_t b_raw = first.get_blue_raw();
+    uint8_t w_raw = first.get_white_raw();
     for (int32_t i = 1; i < this->light_.size(); i++) {
-      if (this->light_[i].get() != first)
+      auto view = this->light_[i];
+      if (view.get_red_raw() != r_raw || view.get_green_raw() != g_raw || view.get_blue_raw() != b_raw ||
+          view.get_white_raw() != w_raw)
         return;
     }
-    this->uniform_start_color_ = first;
+    this->uniform_start_color_ = first.get();
   }
 }
 
