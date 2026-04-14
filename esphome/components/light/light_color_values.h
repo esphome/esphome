@@ -3,10 +3,54 @@
 #include "esphome/core/helpers.h"
 #include "color_mode.h"
 #include <cmath>
+#include <cstdint>
+#include <limits>
 
 namespace esphome::light {
 
 inline static uint8_t to_uint8_scale(float x) { return static_cast<uint8_t>(roundf(x * 255.0f)); }
+
+// IEEE 754 bit pattern of 1.0f. Floats in [0.0f, 1.0f] have unsigned bit
+// pattern <= this value; negatives have the sign bit set (→ huge unsigned),
+// values > 1.0f have a larger exponent, and NaN/Infinity also exceed this.
+// Verify the platform actually provides IEEE 754 single-precision floats so
+// the bit-pattern tricks below are well-defined.
+static constexpr uint32_t ONE_F_BITS = 0x3F800000u;
+// sizeof check + is_iec559 together pin the format to IEEE 754 single-precision,
+// which fixes the bit pattern of 1.0f as 0x3F800000. A direct bit-cast check
+// would be cleaner but __builtin_bit_cast is not available on the older xtensa
+// toolchain used for ESP8266.
+static_assert(sizeof(float) == sizeof(uint32_t), "float must be 32-bit for bit-pattern range checks");
+static_assert(std::numeric_limits<float>::is_iec559, "IEEE 754 single-precision float required");
+
+// Returns true iff `x` is outside [0.0f, 1.0f] via a single unsigned compare on
+// its IEEE 754 bit pattern. Uses a union type-pun (GCC/Clang extension) because
+// memcpy/bit_cast don't optimize to a no-op on xtensa-gcc (same reasoning as
+// api/proto.h's float_to_raw). Replaces two soft-float __ltsf2/__gtsf2 calls
+// with one `bltu` on ESP8266 and is free on FPU targets.
+inline bool float_out_of_unit_range(float x) {
+  union {
+    float f;
+    uint32_t u;
+  } pun;
+  pun.f = x;
+  return pun.u > ONE_F_BITS;
+}
+
+// Clamps `x` to [0.0f, 1.0f] with no floating-point compares. In-range values
+// return via a single branch; out-of-range pick 0.0f for negatives (sign bit
+// set) and 1.0f otherwise (> 1.0f, NaN, Infinity). Cheaper than std::clamp on
+// ESP8266, which expands to two soft-float calls per invocation.
+inline float clamp_unit_float(float x) {
+  union {
+    float f;
+    uint32_t u;
+  } pun;
+  pun.f = x;
+  if (pun.u <= ONE_F_BITS)
+    return x;
+  return (pun.u & 0x80000000u) ? 0.0f : 1.0f;
+}
 
 /** This class represents the color state for a light object.
  *
@@ -220,39 +264,39 @@ class LightColorValues {
   /// Get the binary true/false state of these light color values.
   bool is_on() const { return this->get_state() != 0.0f; }
   /// Set the state of these light color values. In range from 0.0 (off) to 1.0 (on)
-  void set_state(float state) { this->state_ = clamp(state, 0.0f, 1.0f); }
+  void set_state(float state) { this->state_ = clamp_unit_float(state); }
   /// Set the state of these light color values as a binary true/false.
   void set_state(bool state) { this->state_ = state ? 1.0f : 0.0f; }
 
   /// Get the brightness property of these light color values. In range 0.0 to 1.0
   float get_brightness() const { return this->brightness_; }
   /// Set the brightness property of these light color values. In range 0.0 to 1.0
-  void set_brightness(float brightness) { this->brightness_ = clamp(brightness, 0.0f, 1.0f); }
+  void set_brightness(float brightness) { this->brightness_ = clamp_unit_float(brightness); }
 
   /// Get the color brightness property of these light color values. In range 0.0 to 1.0
   float get_color_brightness() const { return this->color_brightness_; }
   /// Set the color brightness property of these light color values. In range 0.0 to 1.0
-  void set_color_brightness(float brightness) { this->color_brightness_ = clamp(brightness, 0.0f, 1.0f); }
+  void set_color_brightness(float brightness) { this->color_brightness_ = clamp_unit_float(brightness); }
 
   /// Get the red property of these light color values. In range 0.0 to 1.0
   float get_red() const { return this->red_; }
   /// Set the red property of these light color values. In range 0.0 to 1.0
-  void set_red(float red) { this->red_ = clamp(red, 0.0f, 1.0f); }
+  void set_red(float red) { this->red_ = clamp_unit_float(red); }
 
   /// Get the green property of these light color values. In range 0.0 to 1.0
   float get_green() const { return this->green_; }
   /// Set the green property of these light color values. In range 0.0 to 1.0
-  void set_green(float green) { this->green_ = clamp(green, 0.0f, 1.0f); }
+  void set_green(float green) { this->green_ = clamp_unit_float(green); }
 
   /// Get the blue property of these light color values. In range 0.0 to 1.0
   float get_blue() const { return this->blue_; }
   /// Set the blue property of these light color values. In range 0.0 to 1.0
-  void set_blue(float blue) { this->blue_ = clamp(blue, 0.0f, 1.0f); }
+  void set_blue(float blue) { this->blue_ = clamp_unit_float(blue); }
 
   /// Get the white property of these light color values. In range 0.0 to 1.0
   float get_white() const { return white_; }
   /// Set the white property of these light color values. In range 0.0 to 1.0
-  void set_white(float white) { this->white_ = clamp(white, 0.0f, 1.0f); }
+  void set_white(float white) { this->white_ = clamp_unit_float(white); }
 
   /// Get the color temperature property of these light color values in mired.
   float get_color_temperature() const { return this->color_temperature_; }
@@ -277,12 +321,12 @@ class LightColorValues {
   /// Get the cold white property of these light color values. In range 0.0 to 1.0.
   float get_cold_white() const { return this->cold_white_; }
   /// Set the cold white property of these light color values. In range 0.0 to 1.0.
-  void set_cold_white(float cold_white) { this->cold_white_ = clamp(cold_white, 0.0f, 1.0f); }
+  void set_cold_white(float cold_white) { this->cold_white_ = clamp_unit_float(cold_white); }
 
   /// Get the warm white property of these light color values. In range 0.0 to 1.0.
   float get_warm_white() const { return this->warm_white_; }
   /// Set the warm white property of these light color values. In range 0.0 to 1.0.
-  void set_warm_white(float warm_white) { this->warm_white_ = clamp(warm_white, 0.0f, 1.0f); }
+  void set_warm_white(float warm_white) { this->warm_white_ = clamp_unit_float(warm_white); }
 
   friend class LightCall;
 

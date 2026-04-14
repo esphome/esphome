@@ -1,4 +1,5 @@
 #include <cinttypes>
+#include <type_traits>
 
 #include "light_call.h"
 #include "light_state.h"
@@ -10,17 +11,19 @@ namespace esphome::light {
 
 static const char *const TAG = "light";
 
-// Cold-path helper: called only when the caller has already determined the
-// value is out of range. Keeping the range check at the caller avoids the
-// call-site spill/reload and prologue on the hot path (in-range). The
-// `param_name_progmem` argument points into the FIELD_NAMES table in flash;
-// `progmem_read_ptr` is a plain `*addr` inline on non-ESP8266 platforms.
-static void log_out_of_range_and_clamp_(const char *name, float &value, const LogString *const *param_name_progmem,
-                                        float min, float max) {
+// Cold-path logger: called only after the caller has determined `value` is
+// out of range. Does not clamp — the caller handles that with the strategy
+// appropriate to its range (bit-pattern clamp_unit_float for [0,1] on the
+// hot path, std::clamp for arbitrary ranges like color_temperature). Keeping
+// the range check at the caller avoids the call-site spill/reload and
+// prologue when the value is in range. The `param_name_progmem` argument
+// points into the FIELD_NAMES table in flash; `progmem_read_ptr` is a plain
+// `*addr` inline on non-ESP8266 platforms.
+static void log_value_out_of_range_(const char *name, float value, const LogString *const *param_name_progmem,
+                                    float min, float max) {
   const auto *param_name =
       reinterpret_cast<const LogString *>(progmem_read_ptr(reinterpret_cast<const char *const *>(param_name_progmem)));
   ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_ARG(param_name), value, min, max);
-  value = clamp(value, min, max);
 }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
@@ -291,6 +294,15 @@ LightColorValues LightCall::validate_() {
   // offset is exactly 12 bytes lower (enforced by the static_asserts below).
   // Iterating via bit-position arithmetic lets us collapse eight inlined
   // clamp/copy blocks into a single loop.
+  // offsetof is only well-defined on standard-layout types (C++17 relaxed it
+  // slightly, but GCC still warns on non-standard-layout). Verify here rather
+  // than relying on diagnostics: a future change that adds a virtual base, a
+  // non-public data member mixed with public ones, or a derived-class data
+  // member would break the layout contract below.
+  static_assert(std::is_standard_layout_v<LightCall>, "LightCall must be standard-layout for offsetof arithmetic");
+  static_assert(std::is_standard_layout_v<LightColorValues>,
+                "LightColorValues must be standard-layout for offsetof arithmetic");
+
   constexpr size_t SRC_BASE = offsetof(LightCall, brightness_);
   constexpr size_t SRC_TO_DST_DELTA = SRC_BASE - offsetof(LightColorValues, brightness_);
 
@@ -335,15 +347,6 @@ LightColorValues LightCall::validate_() {
   // clear-lowest-bit: HA can drive high-frequency automations through
   // perform(), so the hot path runs in O(popcount) instead of always
   // scanning all eight slots.
-  //
-  // The range check is done on the IEEE 754 bit pattern as an unsigned int,
-  // not on the float itself. Values in [0.0f, 1.0f] have bits in
-  // [0x00000000, 0x3F800000]; anything greater (as unsigned) is out of range:
-  // values > 1.0f have a larger bit pattern, and negative values have the
-  // sign bit (0x80000000) set which makes their unsigned interpretation
-  // enormous. One unsigned compare replaces two soft-float __ltsf2/__gtsf2
-  // calls on ESP8266 and is essentially free on targets with an FPU too.
-  constexpr uint32_t ONE_F_BITS = 0x3F800000u;  // bit pattern of 1.0f
   float *const src_fields = &this->brightness_;
   float *const dst_fields = &v.brightness_;
   unsigned active = this->flags_ & CLAMP_FLAGS_MASK;
@@ -351,26 +354,24 @@ LightColorValues LightCall::validate_() {
     unsigned bit = __builtin_ctz(active);
     active &= active - 1;  // clear lowest set bit
     float &value = src_fields[bit];
-    // Union type-pun (GCC/Clang extension): bit_cast/memcpy don't optimize to
-    // a no-op on xtensa-gcc, same reasoning as api/proto.h float_to_raw().
-    union {
-      float f;
-      uint32_t u;
-    } pun;
-    pun.f = value;
-    if (pun.u > ONE_F_BITS)
-      log_out_of_range_and_clamp_(name, value, &FIELD_NAMES[bit], 0.0f, 1.0f);
+    if (float_out_of_unit_range(value)) {
+      log_value_out_of_range_(name, value, &FIELD_NAMES[bit], 0.0f, 1.0f);
+      value = clamp_unit_float(value);
+    }
     dst_fields[bit] = value;
   }
 
   // color_temperature uses a dynamic range from the light's traits and is
-  // handled separately.
+  // handled separately. No bit-pattern shortcut here because the range is
+  // runtime-variable.
   if (this->has_color_temperature()) {
     static const LogString *const CT_NAME PROGMEM = LOG_STR("Color temperature");
     const float ct_min = traits.get_min_mireds();
     const float ct_max = traits.get_max_mireds();
-    if (this->color_temperature_ < ct_min || this->color_temperature_ > ct_max)
-      log_out_of_range_and_clamp_(name, this->color_temperature_, &CT_NAME, ct_min, ct_max);
+    if (this->color_temperature_ < ct_min || this->color_temperature_ > ct_max) {
+      log_value_out_of_range_(name, this->color_temperature_, &CT_NAME, ct_min, ct_max);
+      this->color_temperature_ = clamp(this->color_temperature_, ct_min, ct_max);
+    }
     v.color_temperature_ = this->color_temperature_;
   }
 
