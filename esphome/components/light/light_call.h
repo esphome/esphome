@@ -222,7 +222,7 @@ class LightCall {
   inline bool get_save_() { return (this->flags_ & FLAG_SAVE) != 0; }
 
   // Helper to set flag - defaults to true for common case
-  void set_flag_(FieldFlags flag, bool value = true) {
+  void set_flag_(FieldFlags flag, bool value = true) ESPHOME_ALWAYS_INLINE {
     if (value) {
       this->flags_ |= flag;
     } else {
@@ -231,7 +231,7 @@ class LightCall {
   }
 
   // Helper to clear flag - reduces code size for common case
-  void clear_flag_(FieldFlags flag) { this->flags_ &= ~flag; }
+  void clear_flag_(FieldFlags flag) ESPHOME_ALWAYS_INLINE { this->flags_ &= ~flag; }
 
   // Helper to log unsupported feature and clear flag - reduces code duplication
   void log_and_clear_unsupported_(FieldFlags flag, const LogString *feature, bool use_color_mode_log);
