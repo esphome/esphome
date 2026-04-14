@@ -129,7 +129,6 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
 
   void add_listener(BQ25186Listener *listener) { this->listeners_.push_back(listener); }
 
-  void set_pg_gpo_switch(switch_::Switch *pg_gpo_switch) { this->pg_gpo_switch_ = pg_gpo_switch; }
   bool write_pg_gpo_level(bool level);
   bool trigger_software_reset();
   bool trigger_shutdown_mode();

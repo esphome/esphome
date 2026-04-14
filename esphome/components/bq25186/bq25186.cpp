@@ -165,22 +165,12 @@ bool BQ25186Component::update_mask_id_register_(const BQ25186MaskIdConfig &confi
 }
 
 bool BQ25186Component::apply_config(const BQ25186Config &config) {
-  // Force pg_mode to 1 (gpo) if the switch is being used
-  BQ25186Config effective_config = config;
-  if (this->pg_gpo_switch_ != nullptr) {
-    effective_config.vbat_ctrl.pg_mode = 1;
-  }
-
-  return (this->update_vbat_ctrl_register_(effective_config.vbat_ctrl) &&
-          this->update_ichg_ctrl_register_(effective_config.ichg_ctrl) &&
-          this->update_chargectrl0_register_(effective_config.chargectrl0) &&
-          this->update_chargectrl1_register_(effective_config.chargectrl1) &&
-          this->update_ic_ctrl_register_(effective_config.ic_ctrl) &&
-          this->update_tmr_ilim_register_(effective_config.tmr_ilim) &&
-          this->update_ship_rst_register_(effective_config.ship_rst) &&
-          this->update_sys_reg_register_(effective_config.sys_reg) &&
-          this->update_ts_control_register_(effective_config.ts_control) &&
-          this->update_mask_id_register_(effective_config.mask_id));
+  return (this->update_vbat_ctrl_register_(config.vbat_ctrl) && this->update_ichg_ctrl_register_(config.ichg_ctrl) &&
+          this->update_chargectrl0_register_(config.chargectrl0) &&
+          this->update_chargectrl1_register_(config.chargectrl1) && this->update_ic_ctrl_register_(config.ic_ctrl) &&
+          this->update_tmr_ilim_register_(config.tmr_ilim) && this->update_ship_rst_register_(config.ship_rst) &&
+          this->update_sys_reg_register_(config.sys_reg) && this->update_ts_control_register_(config.ts_control) &&
+          this->update_mask_id_register_(config.mask_id));
 }
 
 bool BQ25186Component::write_pg_gpo_level(bool level) {
@@ -236,24 +226,6 @@ void BQ25186Component::setup() {
     this->setup_config_callback_ = nullptr;
   }
 
-  // Initialize the PG/GPO switch state based on the current register values
-  if (this->pg_gpo_switch_ != nullptr) {
-    if (!this->update_register_(BQ25186_REG_VBAT_CTRL, 0x80, 0x80)) {
-      ESP_LOGE(TAG, "Failed to force PG/GPO pin into GPO mode");
-      this->mark_failed();
-      return;
-    }
-    if (!this->read_all_registers_()) {
-      ESP_LOGE(TAG, "Failed to read BQ25186 registers after setup");
-      this->mark_failed();
-      return;
-    }
-    if ((this->data_.registers[BQ25186_REG_VBAT_CTRL] & 0x80) == 0) {
-      ESP_LOGW(TAG, "PG/GPO switch will be disabled because pg_mode is set to power_good");
-      return;
-    }
-    this->pg_gpo_switch_->publish_state((this->data_.registers[BQ25186_REG_SYS_REG] & 0x10) != 0);
-  }
   ESP_LOGV(TAG, "BQ25186 initialized");
 }
 
