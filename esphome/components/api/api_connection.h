@@ -3,16 +3,36 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 #include "api_frame_helper.h"
+#ifdef USE_API_NOISE
+#include "api_frame_helper_noise.h"
+#endif
+#ifdef USE_API_PLAINTEXT
+#include "api_frame_helper_plaintext.h"
+#endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
+#ifdef USE_ESP32_CRASH_HANDLER
+#include "esphome/components/esp32/crash_handler.h"
+#endif
+#ifdef USE_RP2040_CRASH_HANDLER
+#include "esphome/components/rp2040/crash_handler.h"
+#endif
+#ifdef USE_ESP8266_CRASH_HANDLER
+#include "esphome/components/esp8266/crash_handler.h"
+#endif
 #include "esphome/core/entity_base.h"
 #include "esphome/core/string_ref.h"
 
 #include <functional>
+#include <limits>
 #include <vector>
+
+namespace esphome {
+class ComponentIterator;
+}  // namespace esphome
 
 namespace esphome::api {
 
@@ -27,182 +47,222 @@ static constexpr size_t MAX_INITIAL_PER_BATCH = 34;         // For clients >= AP
 static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_PER_BATCH,
               "MAX_MESSAGES_PER_BATCH must be >= MAX_INITIAL_PER_BATCH");
 
-class APIConnection final : public APIServerConnection {
+#ifdef USE_BENCHMARK
+class APIConnection;
+void bench_enable_immediate_send(APIConnection *conn);
+void bench_clear_batch(APIConnection *conn);
+void bench_process_batch(APIConnection *conn);
+#endif
+
+class APIConnection final : public APIServerConnectionBase {
  public:
   friend class APIServer;
   friend class ListEntitiesIterator;
+#ifdef USE_BENCHMARK
+  friend void bench_enable_immediate_send(APIConnection *conn);
+  friend void bench_clear_batch(APIConnection *conn);
+  friend void bench_process_batch(APIConnection *conn);
+#endif
   APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
-  virtual ~APIConnection();
+  ~APIConnection();
 
   void start();
   void loop();
 
+ protected:
+  // read_message_ is defined here (instead of in APIServerConnectionBase) so the
+  // compiler can devirtualize and inline on_* handler calls within this final class.
+  void read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data);
+
+  // Auth helpers defined here (not in ProtoService) so the compiler can
+  // devirtualize is_connection_setup()/on_no_setup_connection() calls
+  // within this final class.
+  inline bool check_connection_setup_() {
+    if (!this->is_connection_setup()) {
+      this->on_no_setup_connection();
+      return false;
+    }
+    return true;
+  }
+  inline bool check_authenticated_() { return this->check_connection_setup_(); }
+
+ public:
   bool send_list_info_done() {
-    return this->schedule_message_(nullptr, &APIConnection::try_send_list_info_done,
-                                   ListEntitiesDoneResponse::MESSAGE_TYPE, ListEntitiesDoneResponse::ESTIMATED_SIZE);
+    return this->schedule_message_(nullptr, ListEntitiesDoneResponse::MESSAGE_TYPE,
+                                   ListEntitiesDoneResponse::ESTIMATED_SIZE);
   }
 #ifdef USE_BINARY_SENSOR
   bool send_binary_sensor_state(binary_sensor::BinarySensor *binary_sensor);
 #endif
 #ifdef USE_COVER
   bool send_cover_state(cover::Cover *cover);
-  void cover_command(const CoverCommandRequest &msg) override;
+  void on_cover_command_request(const CoverCommandRequest &msg);
 #endif
 #ifdef USE_FAN
   bool send_fan_state(fan::Fan *fan);
-  void fan_command(const FanCommandRequest &msg) override;
+  void on_fan_command_request(const FanCommandRequest &msg);
 #endif
 #ifdef USE_LIGHT
   bool send_light_state(light::LightState *light);
-  void light_command(const LightCommandRequest &msg) override;
+  void on_light_command_request(const LightCommandRequest &msg);
 #endif
 #ifdef USE_SENSOR
   bool send_sensor_state(sensor::Sensor *sensor);
 #endif
 #ifdef USE_SWITCH
   bool send_switch_state(switch_::Switch *a_switch);
-  void switch_command(const SwitchCommandRequest &msg) override;
+  void on_switch_command_request(const SwitchCommandRequest &msg);
 #endif
 #ifdef USE_TEXT_SENSOR
   bool send_text_sensor_state(text_sensor::TextSensor *text_sensor);
 #endif
 #ifdef USE_CAMERA
   void set_camera_state(std::shared_ptr<camera::CameraImage> image);
-  void camera_image(const CameraImageRequest &msg) override;
+  void on_camera_image_request(const CameraImageRequest &msg);
 #endif
 #ifdef USE_CLIMATE
   bool send_climate_state(climate::Climate *climate);
-  void climate_command(const ClimateCommandRequest &msg) override;
+  void on_climate_command_request(const ClimateCommandRequest &msg);
 #endif
 #ifdef USE_NUMBER
   bool send_number_state(number::Number *number);
-  void number_command(const NumberCommandRequest &msg) override;
+  void on_number_command_request(const NumberCommandRequest &msg);
 #endif
 #ifdef USE_DATETIME_DATE
   bool send_date_state(datetime::DateEntity *date);
-  void date_command(const DateCommandRequest &msg) override;
+  void on_date_command_request(const DateCommandRequest &msg);
 #endif
 #ifdef USE_DATETIME_TIME
   bool send_time_state(datetime::TimeEntity *time);
-  void time_command(const TimeCommandRequest &msg) override;
+  void on_time_command_request(const TimeCommandRequest &msg);
 #endif
 #ifdef USE_DATETIME_DATETIME
   bool send_datetime_state(datetime::DateTimeEntity *datetime);
-  void datetime_command(const DateTimeCommandRequest &msg) override;
+  void on_date_time_command_request(const DateTimeCommandRequest &msg);
 #endif
 #ifdef USE_TEXT
   bool send_text_state(text::Text *text);
-  void text_command(const TextCommandRequest &msg) override;
+  void on_text_command_request(const TextCommandRequest &msg);
 #endif
 #ifdef USE_SELECT
   bool send_select_state(select::Select *select);
-  void select_command(const SelectCommandRequest &msg) override;
+  void on_select_command_request(const SelectCommandRequest &msg);
 #endif
 #ifdef USE_BUTTON
-  void button_command(const ButtonCommandRequest &msg) override;
+  void on_button_command_request(const ButtonCommandRequest &msg);
 #endif
 #ifdef USE_LOCK
   bool send_lock_state(lock::Lock *a_lock);
-  void lock_command(const LockCommandRequest &msg) override;
+  void on_lock_command_request(const LockCommandRequest &msg);
 #endif
 #ifdef USE_VALVE
   bool send_valve_state(valve::Valve *valve);
-  void valve_command(const ValveCommandRequest &msg) override;
+  void on_valve_command_request(const ValveCommandRequest &msg);
 #endif
 #ifdef USE_MEDIA_PLAYER
   bool send_media_player_state(media_player::MediaPlayer *media_player);
-  void media_player_command(const MediaPlayerCommandRequest &msg) override;
+  void on_media_player_command_request(const MediaPlayerCommandRequest &msg);
 #endif
   bool try_send_log_message(int level, const char *tag, const char *line, size_t message_len);
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void send_homeassistant_action(const HomeassistantActionRequest &call) {
     if (!this->flags_.service_call_subscription)
       return;
-    this->send_message(call, HomeassistantActionRequest::MESSAGE_TYPE);
+    this->send_message(call);
   }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
-  void on_homeassistant_action_response(const HomeassistantActionResponse &msg) override;
+  void on_homeassistant_action_response(const HomeassistantActionResponse &msg);
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #endif  // USE_API_HOMEASSISTANT_SERVICES
 #ifdef USE_BLUETOOTH_PROXY
-  void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
-  void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
+  void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg);
+  void on_unsubscribe_bluetooth_le_advertisements_request();
 
-  void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
-  void bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) override;
-  void bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) override;
-  void bluetooth_gatt_read_descriptor(const BluetoothGATTReadDescriptorRequest &msg) override;
-  void bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) override;
-  void bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) override;
-  void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) override;
-  bool send_subscribe_bluetooth_connections_free_response(const SubscribeBluetoothConnectionsFreeRequest &msg) override;
-  void bluetooth_scanner_set_mode(const BluetoothScannerSetModeRequest &msg) override;
+  void on_bluetooth_device_request(const BluetoothDeviceRequest &msg);
+  void on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &msg);
+  void on_bluetooth_gatt_write_request(const BluetoothGATTWriteRequest &msg);
+  void on_bluetooth_gatt_read_descriptor_request(const BluetoothGATTReadDescriptorRequest &msg);
+  void on_bluetooth_gatt_write_descriptor_request(const BluetoothGATTWriteDescriptorRequest &msg);
+  void on_bluetooth_gatt_get_services_request(const BluetoothGATTGetServicesRequest &msg);
+  void on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &msg);
+  void on_subscribe_bluetooth_connections_free_request();
+  void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg);
+  void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg);
 
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   void send_time_request() {
     GetTimeRequest req;
-    this->send_message(req, GetTimeRequest::MESSAGE_TYPE);
+    this->send_message(req);
   }
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-  void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override;
-  void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
-  void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
-  void on_voice_assistant_audio(const VoiceAssistantAudio &msg) override;
-  void on_voice_assistant_timer_event_response(const VoiceAssistantTimerEventResponse &msg) override;
-  void on_voice_assistant_announce_request(const VoiceAssistantAnnounceRequest &msg) override;
-  bool send_voice_assistant_get_configuration_response(const VoiceAssistantConfigurationRequest &msg) override;
-  void voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg) override;
+  void on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg);
+  void on_voice_assistant_response(const VoiceAssistantResponse &msg);
+  void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg);
+  void on_voice_assistant_audio(const VoiceAssistantAudio &msg);
+  void on_voice_assistant_timer_event_response(const VoiceAssistantTimerEventResponse &msg);
+  void on_voice_assistant_announce_request(const VoiceAssistantAnnounceRequest &msg);
+  void on_voice_assistant_configuration_request(const VoiceAssistantConfigurationRequest &msg);
+  void on_voice_assistant_set_configuration(const VoiceAssistantSetConfiguration &msg);
 #endif
 
 #ifdef USE_ZWAVE_PROXY
-  void zwave_proxy_frame(const ZWaveProxyFrame &msg) override;
-  void zwave_proxy_request(const ZWaveProxyRequest &msg) override;
+  void on_z_wave_proxy_frame(const ZWaveProxyFrame &msg);
+  void on_z_wave_proxy_request(const ZWaveProxyRequest &msg);
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
   bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
-  void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;
+  void on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg);
 #endif
 
 #ifdef USE_WATER_HEATER
   bool send_water_heater_state(water_heater::WaterHeater *water_heater);
-  void on_water_heater_command_request(const WaterHeaterCommandRequest &msg) override;
+  void on_water_heater_command_request(const WaterHeaterCommandRequest &msg);
 #endif
 
 #ifdef USE_IR_RF
-  void infrared_rf_transmit_raw_timings(const InfraredRFTransmitRawTimingsRequest &msg) override;
+  void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg);
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
 #endif
 
+#ifdef USE_SERIAL_PROXY
+  void on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg);
+  void on_serial_proxy_write_request(const SerialProxyWriteRequest &msg);
+  void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg);
+  void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg);
+  void on_serial_proxy_request(const SerialProxyRequest &msg);
+  void send_serial_proxy_data(const SerialProxyDataReceived &msg);
+#endif
+
 #ifdef USE_EVENT
-  void send_event(event::Event *event, StringRef event_type);
+  void send_event(event::Event *event);
 #endif
 
 #ifdef USE_UPDATE
   bool send_update_state(update::UpdateEntity *update);
-  void update_command(const UpdateCommandRequest &msg) override;
+  void on_update_command_request(const UpdateCommandRequest &msg);
 #endif
 
-  void on_disconnect_response(const DisconnectResponse &value) override;
-  void on_ping_response(const PingResponse &value) override {
+  void on_disconnect_response();
+  void on_ping_response() {
     // we initiated ping
     this->flags_.sent_ping = false;
   }
 #ifdef USE_API_HOMEASSISTANT_STATES
-  void on_home_assistant_state_response(const HomeAssistantStateResponse &msg) override;
+  void on_home_assistant_state_response(const HomeAssistantStateResponse &msg);
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
-  void on_get_time_response(const GetTimeResponse &value) override;
+  void on_get_time_response(const GetTimeResponse &value);
 #endif
-  bool send_hello_response(const HelloRequest &msg) override;
-  bool send_disconnect_response(const DisconnectRequest &msg) override;
-  bool send_ping_response(const PingRequest &msg) override;
-  bool send_device_info_response(const DeviceInfoRequest &msg) override;
-  void list_entities(const ListEntitiesRequest &msg) override { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
-  void subscribe_states(const SubscribeStatesRequest &msg) override {
+  void on_hello_request(const HelloRequest &msg);
+  void on_disconnect_request();
+  void on_ping_request();
+  void on_device_info_request();
+  void on_list_entities_request() { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
+  void on_subscribe_states_request() {
     this->flags_.state_subscription = true;
     // Start initial state iterator only if no iterator is active
     // If list_entities is running, we'll start initial_state when it completes
@@ -210,21 +270,29 @@ class APIConnection final : public APIServerConnection {
       this->begin_iterator_(ActiveIterator::INITIAL_STATE);
     }
   }
-  void subscribe_logs(const SubscribeLogsRequest &msg) override {
+  void on_subscribe_logs_request(const SubscribeLogsRequest &msg) {
     this->flags_.log_subscription = msg.level;
     if (msg.dump_config)
       App.schedule_dump_config();
+#ifdef USE_ESP32_CRASH_HANDLER
+    esp32::crash_handler_log();
+    esp32::crash_handler_clear();
+#endif
+#ifdef USE_RP2040_CRASH_HANDLER
+    rp2040::crash_handler_log();
+#endif
+#ifdef USE_ESP8266_CRASH_HANDLER
+    esp8266::crash_handler_log();
+#endif
   }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) override {
-    this->flags_.service_call_subscription = true;
-  }
+  void on_subscribe_homeassistant_services_request() { this->flags_.service_call_subscription = true; }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-  void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) override;
+  void on_subscribe_home_assistant_states_request();
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
-  void execute_service(const ExecuteServiceRequest &msg) override;
+  void on_execute_service_request(const ExecuteServiceRequest &msg);
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
   void send_execute_service_response(uint32_t call_id, bool success, StringRef error_message);
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
@@ -234,16 +302,17 @@ class APIConnection final : public APIServerConnection {
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 #ifdef USE_API_NOISE
-  bool send_noise_encryption_set_key_response(const NoiseEncryptionSetKeyRequest &msg) override;
+  void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg);
 #endif
 
-  bool is_authenticated() override {
+  bool is_authenticated() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;
   }
-  bool is_connection_setup() override {
+  bool is_connection_setup() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
            this->is_authenticated();
   }
+  bool is_marked_for_removal() const { return this->flags_.remove; }
   uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
 
   // Get client API version for feature detection
@@ -252,40 +321,74 @@ class APIConnection final : public APIServerConnection {
            (this->client_api_version_major_ == major && this->client_api_version_minor_ >= minor);
   }
 
-  void on_fatal_error() override;
-  void on_no_setup_connection() override;
-  ProtoWriteBuffer create_buffer(uint32_t reserve_size) override {
-    // FIXME: ensure no recursive writes can happen
+  void on_fatal_error();
+  void on_no_setup_connection();
 
-    // Get header padding size - used for both reserve and insert
-    uint8_t header_padding = this->helper_->frame_header_padding();
-    // Get shared buffer from parent server
-    std::vector<uint8_t> &shared_buf = this->parent_->get_shared_buffer_ref();
-    this->prepare_first_message_buffer(shared_buf, header_padding,
-                                       reserve_size + header_padding + this->helper_->frame_footer_size());
-    return {&shared_buf};
+  // Function pointer type for type-erased message encoding
+  using MessageEncodeFn = uint8_t *(*) (const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM);
+  // Function pointer type for type-erased size calculation
+  using CalculateSizeFn = uint32_t (*)(const void *);
+
+  template<typename T> bool send_message(const T &msg) {
+    if constexpr (T::ESTIMATED_SIZE == 0) {
+      return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop, &msg);
+    } else {
+      return this->send_message_(msg.calculate_size(), T::MESSAGE_TYPE, &proto_encode_msg<T>, &msg);
+    }
   }
 
-  void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t header_padding, size_t total_size) {
+  void prepare_first_message_buffer(APIBuffer &shared_buf, size_t header_padding, size_t total_size) {
     shared_buf.clear();
     // Reserve space for header padding + message + footer
     // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
     // - Footer: space for MAC (16 bytes for Noise, 0 for Plaintext)
-    shared_buf.reserve(total_size);
-    // Resize to add header padding so message encoding starts at the correct position
-    shared_buf.resize(header_padding);
+    // Reserve full size but only set initial size to header padding
+    // so message encoding starts at the correct position
+    shared_buf.reserve_and_resize(total_size, header_padding);
   }
 
-  bool try_to_clear_buffer(bool log_out_of_space);
-  bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
+  // Convenience overload - computes frame overhead internally
+  void prepare_first_message_buffer(APIBuffer &shared_buf, size_t payload_size) {
+    const uint8_t header_padding = this->helper_->frame_header_padding();
+    const uint8_t footer_size = this->helper_->frame_footer_size();
+    this->prepare_first_message_buffer(shared_buf, header_padding, payload_size + header_padding + footer_size);
+  }
+
+  bool try_to_clear_buffer(bool log_out_of_space) {
+    if (this->flags_.remove)
+      return false;
+    if (this->helper_->can_write_without_blocking())
+      return true;
+    return this->try_to_clear_buffer_slow_(log_out_of_space);
+  }
+  bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type);
 
   const char *get_name() const { return this->helper_->get_client_name(); }
-  /// Get peer name (IP address) - cached at connection init time
-  const char *get_peername() const { return this->helper_->get_client_peername(); }
+  /// Get peer name (IP address) into caller-provided buffer, returns buf for convenience
+  const char *get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {
+    return this->helper_->get_peername_to(buf);
+  }
 
  protected:
+  bool try_to_clear_buffer_slow_(bool log_out_of_space);
+
   // Helper function to handle authentication completion
   void complete_authentication_();
+
+  // Pattern B helpers: send response and return success/failure
+  bool send_hello_response_(const HelloRequest &msg);
+  bool send_disconnect_response_();
+  bool send_ping_response_();
+  bool send_device_info_response_();
+#ifdef USE_API_NOISE
+  bool send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_subscribe_bluetooth_connections_free_response_();
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  bool send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg);
+#endif
 
 #ifdef USE_CAMERA
   void try_send_camera_image_();
@@ -295,50 +398,112 @@ class APIConnection final : public APIServerConnection {
   void process_state_subscriptions_();
 #endif
 
-  // Non-template helper to encode any ProtoMessage
-  static uint16_t encode_message_to_buffer(ProtoMessage &msg, uint8_t message_type, APIConnection *conn,
-                                           uint32_t remaining_size, bool is_single);
-
-  // Helper to fill entity state base and encode message
-  static uint16_t fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg, uint8_t message_type,
-                                               APIConnection *conn, uint32_t remaining_size, bool is_single) {
-    msg.key = entity->get_object_id_hash();
-#ifdef USE_DEVICES
-    msg.device_id = entity->get_device_id();
-#endif
-    return encode_message_to_buffer(msg, message_type, conn, remaining_size, is_single);
+  // Size thunk — converts void* back to concrete type for direct calculate_size() call
+  template<typename T> static uint32_t calc_size(const void *msg) {
+    return static_cast<const T *>(msg)->calculate_size();
   }
 
-  // Helper to fill entity info base and encode message
-  static uint16_t fill_and_encode_entity_info(EntityBase *entity, InfoResponseProtoMessage &msg, uint8_t message_type,
-                                              APIConnection *conn, uint32_t remaining_size, bool is_single) {
-    // Set common fields that are shared by all entity types
-    msg.key = entity->get_object_id_hash();
+  // Shared no-op encode thunk for empty messages (ESTIMATED_SIZE == 0)
+  static uint8_t *encode_msg_noop(const void *, ProtoWriteBuffer &buf PROTO_ENCODE_DEBUG_PARAM) {
+    return buf.get_pos();
+  }
 
-    // API 1.14+ clients compute object_id client-side from the entity name
-    // For older clients, we must send object_id for backward compatibility
-    // See: https://github.com/esphome/backlog/issues/76
-    // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
-    // Buffer must remain in scope until encode_message_to_buffer is called
-    char object_id_buf[OBJECT_ID_MAX_LEN];
-    if (!conn->client_supports_api_version(1, 14)) {
-      msg.object_id = entity->get_object_id_to(object_id_buf);
+  // Non-template buffer management for send_message
+  bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
+
+  // Core batch encoding logic. Computes header size, checks fit, resizes buffer, encodes.
+  // ALWAYS_INLINE so the compiler can devirtualize encode_fn at hot call sites.
+  static inline uint16_t ESPHOME_ALWAYS_INLINE encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn,
+                                                                const void *msg, APIConnection *conn,
+                                                                uint32_t remaining_size) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+    if (conn->flags_.log_only_mode) {
+      auto *proto_msg = static_cast<const ProtoMessage *>(msg);
+      DumpBuffer dump_buf;
+      conn->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
+      return 1;
+    }
+#endif
+    const uint8_t footer_size = conn->helper_->frame_footer_size();
+
+    // First message uses max padding (already in buffer), subsequent use exact header size
+    size_t to_add;
+    if (conn->flags_.batch_first_message) {
+      conn->flags_.batch_first_message = false;
+      conn->batch_header_size_ = conn->helper_->frame_header_padding();
+      to_add = calculated_size;
+    } else {
+      conn->batch_header_size_ = conn->helper_->frame_header_size(calculated_size, conn->batch_message_type_);
+      to_add = calculated_size + conn->batch_header_size_ + footer_size;
     }
 
-    if (entity->has_own_name()) {
-      msg.name = entity->get_name();
-    }
+    // Check if it fits (using actual header size, not max padding)
+    uint16_t total_calculated_size = calculated_size + conn->batch_header_size_ + footer_size;
+    if (total_calculated_size > remaining_size)
+      return 0;
 
-    // Set common EntityBase properties
-#ifdef USE_ENTITY_ICON
-    msg.icon = entity->get_icon_ref();
-#endif
-    msg.disabled_by_default = entity->is_disabled_by_default();
-    msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
-#ifdef USE_DEVICES
-    msg.device_id = entity->get_device_id();
-#endif
-    return encode_message_to_buffer(msg, message_type, conn, remaining_size, is_single);
+    auto &shared_buf = conn->parent_->get_shared_buffer_ref();
+    shared_buf.resize(shared_buf.size() + to_add);
+    ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
+    encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+
+    return total_calculated_size;
+  }
+
+  // Noinline version of encode_to_buffer for cold paths (entity info, zero-payload messages).
+  // All cold callers share this single copy instead of each getting an ALWAYS_INLINE expansion.
+  static uint16_t encode_to_buffer_slow(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
+                                        APIConnection *conn, uint32_t remaining_size);
+
+  // Thin template wrapper — uses noinline encode_to_buffer_slow since
+  // encode_message_to_buffer callers are cold paths (zero-payload control messages).
+  // Hot paths (state/info) go through fill_and_encode_entity_state/info instead.
+  // batch_message_type_ is already set by dispatch_message_ before reaching here.
+  template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
+    if constexpr (T::ESTIMATED_SIZE == 0) {
+      return encode_to_buffer_slow(0, &encode_msg_noop, &msg, conn, remaining_size);
+    } else {
+      return encode_to_buffer_slow(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
+    }
+  }
+
+  // Non-template core — fills state fields and encodes
+  static uint16_t fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg,
+                                               CalculateSizeFn size_fn, MessageEncodeFn encode_fn, APIConnection *conn,
+                                               uint32_t remaining_size);
+
+  // Thin template wrapper
+  template<typename T>
+  static uint16_t fill_and_encode_entity_state(EntityBase *entity, T &msg, APIConnection *conn,
+                                               uint32_t remaining_size) {
+    return fill_and_encode_entity_state(entity, msg, &calc_size<T>, &proto_encode_msg<T>, conn, remaining_size);
+  }
+
+  // Non-template core — fills info fields, allocates buffers, and encodes
+  static uint16_t fill_and_encode_entity_info(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                              CalculateSizeFn size_fn, MessageEncodeFn encode_fn, APIConnection *conn,
+                                              uint32_t remaining_size);
+
+  // Thin template wrapper
+  template<typename T>
+  static uint16_t fill_and_encode_entity_info(EntityBase *entity, T &msg, APIConnection *conn,
+                                              uint32_t remaining_size) {
+    return fill_and_encode_entity_info(entity, msg, &calc_size<T>, &proto_encode_msg<T>, conn, remaining_size);
+  }
+
+  // Non-template core — fills device_class, then delegates to fill_and_encode_entity_info
+  static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                                                StringRef &device_class_field, CalculateSizeFn size_fn,
+                                                                MessageEncodeFn encode_fn, APIConnection *conn,
+                                                                uint32_t remaining_size);
+
+  // Thin template wrapper
+  template<typename T>
+  static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, T &msg,
+                                                                StringRef &device_class_field, APIConnection *conn,
+                                                                uint32_t remaining_size) {
+    return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &calc_size<T>,
+                                                         &proto_encode_msg<T>, conn, remaining_size);
   }
 
 #ifdef USE_VOICE_ASSISTANT
@@ -353,162 +518,132 @@ class APIConnection final : public APIServerConnection {
     return this->client_supports_api_version(1, 14) ? MAX_INITIAL_PER_BATCH : MAX_INITIAL_PER_BATCH_LEGACY;
   }
 
-  // Helper method to process multiple entities from an iterator in a batch
-  template<typename Iterator> void process_iterator_batch_(Iterator &iterator) {
-    size_t initial_size = this->deferred_batch_.size();
-    size_t max_batch = this->get_max_batch_size_();
-    while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
-      iterator.advance();
-    }
+  // Send keepalive ping or disconnect unresponsive client.
+  // Cold path — extracted from loop() to reduce instruction cache pressure.
+  void __attribute__((noinline)) check_keepalive_(uint32_t now);
 
-    // If the batch is full, process it immediately
-    // Note: iterator.advance() already calls schedule_batch_() via schedule_message_()
-    if (this->deferred_batch_.size() >= max_batch) {
-      this->process_batch_();
-    }
-  }
+  // Process active iterator (list_entities/initial_state) during connection setup.
+  // Extracted from loop() — only runs during initial handshake, NONE in steady state.
+  void __attribute__((noinline)) process_active_iterator_();
+
+  // Helper method to process multiple entities from an iterator in a batch.
+  // Takes ComponentIterator base class reference to avoid duplicate template instantiations.
+  void process_iterator_batch_(ComponentIterator &iterator);
 
 #ifdef USE_BINARY_SENSOR
-  static uint16_t try_send_binary_sensor_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                               bool is_single);
-  static uint16_t try_send_binary_sensor_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                              bool is_single);
+  static uint16_t try_send_binary_sensor_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_binary_sensor_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_COVER
-  static uint16_t try_send_cover_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                       bool is_single);
-  static uint16_t try_send_cover_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
+  static uint16_t try_send_cover_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_cover_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_FAN
-  static uint16_t try_send_fan_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
-  static uint16_t try_send_fan_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
+  static uint16_t try_send_fan_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_fan_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_LIGHT
-  static uint16_t try_send_light_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                       bool is_single);
-  static uint16_t try_send_light_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
+  static uint16_t try_send_light_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_light_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_SENSOR
-  static uint16_t try_send_sensor_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                        bool is_single);
-  static uint16_t try_send_sensor_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                       bool is_single);
+  static uint16_t try_send_sensor_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_sensor_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_SWITCH
-  static uint16_t try_send_switch_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                        bool is_single);
-  static uint16_t try_send_switch_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                       bool is_single);
+  static uint16_t try_send_switch_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_switch_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_TEXT_SENSOR
-  static uint16_t try_send_text_sensor_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                             bool is_single);
-  static uint16_t try_send_text_sensor_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                            bool is_single);
+  static uint16_t try_send_text_sensor_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_text_sensor_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_CLIMATE
-  static uint16_t try_send_climate_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                         bool is_single);
-  static uint16_t try_send_climate_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                        bool is_single);
+  static uint16_t try_send_climate_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_climate_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_NUMBER
-  static uint16_t try_send_number_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                        bool is_single);
-  static uint16_t try_send_number_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                       bool is_single);
+  static uint16_t try_send_number_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_number_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_DATETIME_DATE
-  static uint16_t try_send_date_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
-  static uint16_t try_send_date_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
+  static uint16_t try_send_date_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_date_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_DATETIME_TIME
-  static uint16_t try_send_time_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
-  static uint16_t try_send_time_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
+  static uint16_t try_send_time_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_time_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_DATETIME_DATETIME
-  static uint16_t try_send_datetime_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                          bool is_single);
-  static uint16_t try_send_datetime_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                         bool is_single);
+  static uint16_t try_send_datetime_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_datetime_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_TEXT
-  static uint16_t try_send_text_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
-  static uint16_t try_send_text_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
+  static uint16_t try_send_text_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_text_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_SELECT
-  static uint16_t try_send_select_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                        bool is_single);
-  static uint16_t try_send_select_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                       bool is_single);
+  static uint16_t try_send_select_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_select_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_BUTTON
-  static uint16_t try_send_button_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                       bool is_single);
+  static uint16_t try_send_button_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_LOCK
-  static uint16_t try_send_lock_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
-  static uint16_t try_send_lock_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
+  static uint16_t try_send_lock_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_lock_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_VALVE
-  static uint16_t try_send_valve_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                       bool is_single);
-  static uint16_t try_send_valve_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
+  static uint16_t try_send_valve_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_valve_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_MEDIA_PLAYER
-  static uint16_t try_send_media_player_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                              bool is_single);
-  static uint16_t try_send_media_player_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                             bool is_single);
+  static uint16_t try_send_media_player_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_media_player_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-  static uint16_t try_send_alarm_control_panel_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                                     bool is_single);
-  static uint16_t try_send_alarm_control_panel_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                                    bool is_single);
+  static uint16_t try_send_alarm_control_panel_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_alarm_control_panel_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_WATER_HEATER
-  static uint16_t try_send_water_heater_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                              bool is_single);
-  static uint16_t try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                             bool is_single);
+  static uint16_t try_send_water_heater_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_water_heater_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_INFRARED
-  static uint16_t try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                         bool is_single);
+  static uint16_t try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_EVENT
   static uint16_t try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
-                                          uint32_t remaining_size, bool is_single);
-  static uint16_t try_send_event_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single);
+                                          uint32_t remaining_size);
+  static uint16_t try_send_event_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_UPDATE
-  static uint16_t try_send_update_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                        bool is_single);
-  static uint16_t try_send_update_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                       bool is_single);
+  static uint16_t try_send_update_state(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+  static uint16_t try_send_update_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_CAMERA
-  static uint16_t try_send_camera_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                       bool is_single);
+  static uint16_t try_send_camera_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 
   // Method for ListEntitiesDone batching
-  static uint16_t try_send_list_info_done(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                          bool is_single);
+  static uint16_t try_send_list_info_done(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 
   // Method for DisconnectRequest batching
-  static uint16_t try_send_disconnect_request(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                              bool is_single);
+  static uint16_t try_send_disconnect_request(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 
   // Batch message method for ping requests
-  static uint16_t try_send_ping_request(EntityBase *entity, APIConnection *conn, uint32_t remaining_size,
-                                        bool is_single);
+  static uint16_t try_send_ping_request(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 
   // === Optimal member ordering for 32-bit systems ===
 
   // Group 1: Pointers (4 bytes each on 32-bit)
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
   std::unique_ptr<APIFrameHelper> helper_;
+#elif defined(USE_API_NOISE)
+  std::unique_ptr<APINoiseFrameHelper> helper_;
+#elif defined(USE_API_PLAINTEXT)
+  std::unique_ptr<APIPlaintextFrameHelper> helper_;
+#endif
   APIServer *parent_;
 
   // Group 2: Iterator union (saves ~16 bytes vs separate iterators)
@@ -527,6 +662,7 @@ class APIConnection final : public APIServerConnection {
   // Helper methods for iterator lifecycle management
   void destroy_active_iterator_();
   void begin_iterator_(ActiveIterator type);
+  void finalize_iterator_sync_();
 #ifdef USE_CAMERA
   std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif
@@ -538,35 +674,19 @@ class APIConnection final : public APIServerConnection {
 #endif
 
   // Function pointer type for message encoding
-  using MessageCreatorPtr = uint16_t (*)(EntityBase *, APIConnection *, uint32_t remaining_size, bool is_single);
-
-  class MessageCreator {
-   public:
-    MessageCreator(MessageCreatorPtr ptr) { data_.function_ptr = ptr; }
-    explicit MessageCreator(const char *str_value) { data_.const_char_ptr = str_value; }
-
-    // Call operator - uses message_type to determine union type
-    uint16_t operator()(EntityBase *entity, APIConnection *conn, uint32_t remaining_size, bool is_single,
-                        uint8_t message_type) const;
-
-   private:
-    union Data {
-      MessageCreatorPtr function_ptr;
-      const char *const_char_ptr;
-    } data_;  // 4 bytes on 32-bit, 8 bytes on 64-bit
-  };
+  using MessageCreatorPtr = uint16_t (*)(EntityBase *, APIConnection *, uint32_t remaining_size);
 
   // Generic batching mechanism for both state updates and entity info
   struct DeferredBatch {
-    struct BatchItem {
-      EntityBase *entity;      // Entity pointer
-      MessageCreator creator;  // Function that creates the message when needed
-      uint8_t message_type;    // Message type for overhead calculation (max 255)
-      uint8_t estimated_size;  // Estimated message size (max 255 bytes)
+    // Sentinel value for unused aux_data_index
+    static constexpr uint8_t AUX_DATA_UNUSED = std::numeric_limits<uint8_t>::max();
 
-      // Constructor for creating BatchItem
-      BatchItem(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size)
-          : entity(entity), creator(creator), message_type(message_type), estimated_size(estimated_size) {}
+    struct BatchItem {
+      EntityBase *entity;                       // 4 bytes - Entity pointer
+      uint8_t message_type;                     // 1 byte - Message type for protocol and dispatch
+      uint8_t estimated_size;                   // 1 byte - Estimated message size (max 255 bytes)
+      uint8_t aux_data_index{AUX_DATA_UNUSED};  // 1 byte - For events: index into entity's event_types
+      // 1 byte padding
     };
 
     std::vector<BatchItem> items;
@@ -575,10 +695,30 @@ class APIConnection final : public APIServerConnection {
     // No pre-allocation - log connections never use batching, and for
     // connections that do, buffers are released after initial sync anyway
 
-    // Add item to the batch
-    void add_item(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size);
+    // Add item to the batch (with deduplication)
+    void add_item(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+                  uint8_t aux_data_index = AUX_DATA_UNUSED) {
+      // Dedup: O(n) scan but optimized for RAM over performance
+      // Skip deduplication for events - they are edge-triggered, every occurrence matters
+#ifdef USE_EVENT
+      if (message_type != EventResponse::MESSAGE_TYPE)
+#endif
+      {
+        for (const auto &item : this->items) {
+          if (item.entity == entity && item.message_type == message_type)
+            return;  // Already queued
+        }
+      }
+      this->items.push_back({entity, message_type, estimated_size, aux_data_index});
+    }
     // Add item to the front of the batch (for high priority messages like ping)
-    void add_item_front(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size);
+    void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+      // Swap to front avoids expensive vector::insert which shifts all elements
+      this->items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
+      if (this->items.size() > 1) {
+        std::swap(this->items.front(), this->items.back());
+      }
+    }
 
     // Clear all items
     void clear() {
@@ -586,12 +726,13 @@ class APIConnection final : public APIServerConnection {
       batch_start_time = 0;
     }
 
-    // Remove processed items from the front
-    void remove_front(size_t count) { items.erase(items.begin(), items.begin() + count); }
+    // Remove processed items from the front — noinline to keep memmove out of warm callers
+    void remove_front(size_t count) __attribute__((noinline)) { items.erase(items.begin(), items.begin() + count); }
 
     bool empty() const { return items.empty(); }
     size_t size() const { return items.size(); }
     const BatchItem &operator[](size_t index) const { return items[index]; }
+
     // Release excess capacity - only releases if items already empty
     void release_buffer() {
       // Safe to call: batch is processed before release_buffer is called,
@@ -630,6 +771,7 @@ class APIConnection final : public APIServerConnection {
     uint8_t batch_scheduled : 1;
     uint8_t batch_first_message : 1;          // For batch buffer allocation
     uint8_t should_try_send_immediately : 1;  // True after initial states are sent
+    uint8_t may_have_remaining_data : 1;      // Read loop hit limit, retry without ready check
 #ifdef HAS_PROTO_MESSAGE_DUMP
     uint8_t log_only_mode : 1;
 #endif
@@ -638,11 +780,16 @@ class APIConnection final : public APIServerConnection {
   // 2-byte types immediately after flags_ (no padding between them)
   uint16_t client_api_version_major_{0};
   uint16_t client_api_version_minor_{0};
-  // 1-byte type to fill padding
+  // 1-byte types to fill remaining space before next 4-byte boundary
   ActiveIterator active_iterator_{ActiveIterator::NONE};
-  // Total: 2 (flags) + 2 + 2 + 1 = 7 bytes, then 1 byte padding to next 4-byte boundary
+  uint8_t batch_message_type_{0};  // Current message type during batch encoding
+  // Total: 2 (flags) + 2 + 2 + 1 + 1 = 8 bytes, aligned to 4-byte boundary
 
-  uint32_t get_batch_delay_ms_() const;
+  // Actual header size used by encode_to_buffer for the current message.
+  // Read by process_batch_multi_ to pass into MessageInfo.
+  uint8_t batch_header_size_{0};
+
+  uint32_t get_batch_delay_ms_() const { return this->parent_->get_batch_delay(); }
   // Message will use 8 more bytes than the minimum size, and typical
   // MTU is 1500. Sometimes users will see as low as 1460 MTU.
   // If its IPv6 the header is 40 bytes, and if its IPv4
@@ -658,22 +805,22 @@ class APIConnection final : public APIServerConnection {
 
   bool schedule_batch_();
   void process_batch_();
+  void process_batch_multi_(APIBuffer &shared_buf, size_t num_items, uint8_t header_padding, uint8_t footer_size)
+      __attribute__((noinline));
   void clear_batch_() {
     this->deferred_batch_.clear();
     this->flags_.batch_scheduled = false;
   }
 
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  // Helper to log a proto message from a MessageCreator object
-  void log_proto_message_(EntityBase *entity, const MessageCreator &creator, uint8_t message_type) {
-    this->flags_.log_only_mode = true;
-    creator(entity, this, MAX_BATCH_PACKET_SIZE, true, message_type);
-    this->flags_.log_only_mode = false;
-  }
+  // Dispatch message encoding based on message_type - replaces function pointer storage
+  // Switch assigns pointer, single call site for smaller code size
+  uint16_t dispatch_message_(const DeferredBatch::BatchItem &item, uint32_t remaining_size, bool batch_first);
 
+#ifdef HAS_PROTO_MESSAGE_DUMP
   void log_batch_item_(const DeferredBatch::BatchItem &item) {
-    // Use the helper to log the message
-    this->log_proto_message_(item.entity, item.creator, item.message_type);
+    this->flags_.log_only_mode = true;
+    this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE, true);
+    this->flags_.log_only_mode = false;
   }
 #endif
 
@@ -698,65 +845,19 @@ class APIConnection final : public APIServerConnection {
   // Helper method to send a message either immediately or via batching
   // Tries immediate send if should_send_immediately_() returns true and buffer has space
   // Falls back to batching if immediate send fails or isn't applicable
-  bool send_message_smart_(EntityBase *entity, MessageCreatorPtr creator, uint8_t message_type,
-                           uint8_t estimated_size) {
-    if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
-      // Now actually encode and send
-      if (creator(entity, this, MAX_BATCH_PACKET_SIZE, true) &&
-          this->send_buffer(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, message_type)) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-        // Log the message in verbose mode
-        this->log_proto_message_(entity, MessageCreator(creator), message_type);
-#endif
-        return true;
-      }
-
-      // If immediate send failed, fall through to batching
-    }
-
-    // Fall back to scheduled batching
-    return this->schedule_message_(entity, creator, message_type, estimated_size);
-  }
-
-  // Overload for MessageCreator (used by events which need to capture event_type)
-  bool send_message_smart_(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size) {
-    // Try to send immediately if message type should bypass batching and buffer has space
-    if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
-      // Now actually encode and send
-      if (creator(entity, this, MAX_BATCH_PACKET_SIZE, true, message_type) &&
-          this->send_buffer(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, message_type)) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-        // Log the message in verbose mode
-        this->log_proto_message_(entity, creator, message_type);
-#endif
-        return true;
-      }
-
-      // If immediate send failed, fall through to batching
-    }
-
-    // Fall back to scheduled batching
-    return this->schedule_message_(entity, creator, message_type, estimated_size);
-  }
+  bool send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+                           uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED);
 
   // Helper function to schedule a deferred message with known message type
-  bool schedule_message_(EntityBase *entity, MessageCreator creator, uint8_t message_type, uint8_t estimated_size) {
-    this->deferred_batch_.add_item(entity, creator, message_type, estimated_size);
+  bool schedule_message_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+                         uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED) {
+    this->deferred_batch_.add_item(entity, message_type, estimated_size, aux_data_index);
     return this->schedule_batch_();
-  }
-
-  // Overload for function pointers (for info messages and current state reads)
-  bool schedule_message_(EntityBase *entity, MessageCreatorPtr function_ptr, uint8_t message_type,
-                         uint8_t estimated_size) {
-    return schedule_message_(entity, MessageCreator(function_ptr), message_type, estimated_size);
   }
 
   // Helper function to schedule a high priority message at the front of the batch
-  bool schedule_message_front_(EntityBase *entity, MessageCreatorPtr function_ptr, uint8_t message_type,
-                               uint8_t estimated_size) {
-    this->deferred_batch_.add_item_front(entity, MessageCreator(function_ptr), message_type, estimated_size);
-    return this->schedule_batch_();
-  }
+  // Out-of-line: callers (on_shutdown, check_keepalive_) are cold paths
+  bool schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size);
 
   // Helper function to log client messages with name and peername
   void log_client_(int level, const LogString *message);

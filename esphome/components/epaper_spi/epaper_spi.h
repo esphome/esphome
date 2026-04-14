@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/component.h"
@@ -36,26 +36,39 @@ class EPaperBase : public Display,
                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                          spi::DATA_RATE_2MHZ> {
  public:
-  EPaperBase(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-             size_t init_sequence_length, DisplayType display_type = DISPLAY_TYPE_BINARY)
+  EPaperBase(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence = nullptr,
+             size_t init_sequence_length = 0, DisplayType display_type = DISPLAY_TYPE_BINARY)
       : name_(name),
         width_(width),
         height_(height),
         init_sequence_(init_sequence),
         init_sequence_length_(init_sequence_length),
-        display_type_(display_type) {}
+        display_type_(display_type) {
+    this->row_width_ = (this->width_ + 7) / 8;  // width of a row in bytes
+  }
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
   void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
-  void set_transform(uint8_t transform) { this->transform_ = transform; }
+  void set_transform(uint8_t transform) {
+    this->transform_ = transform;
+    this->update_effective_transform_();
+  }
+  void set_rotation(DisplayRotation rotation) override {
+    Display::set_rotation(rotation);
+    this->update_effective_transform_();
+  }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
   void dump_config() override;
 
   void command(uint8_t value);
-  void data(uint8_t value);
   void cmd_data(uint8_t command, const uint8_t *ptr, size_t length);
+
+  // variant with in-place initializer list
+  void cmd_data(uint8_t command, std::initializer_list<uint8_t> data) {
+    this->cmd_data(command, data.begin(), data.size());
+  }
 
   void update() override;
   void loop() override;
@@ -70,7 +83,7 @@ class EPaperBase : public Display,
   static uint8_t color_to_bit(Color color) {
     // It's always a shade of gray. Map to BLACK or WHITE.
     // We split the luminance at a suitable point
-    if ((static_cast<int>(color.r) + color.g + color.b) > 512) {
+    if ((color.r + color.g + color.b) >= 382) {
       return 1;
     }
     return 0;
@@ -97,21 +110,25 @@ class EPaperBase : public Display,
     this->fill(COLOR_ON);
   }
 
+  int get_width() override { return this->effective_transform_ & SWAP_XY ? this->height_ : this->width_; }
+  int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
+  void draw_pixel_at(int x, int y, Color color) override;
+
  protected:
   int get_height_internal() override { return this->height_; };
   int get_width_internal() override { return this->width_; };
-  int get_width() override { return this->transform_ & SWAP_XY ? this->height_ : this->width_; }
-  int get_height() override { return this->transform_ & SWAP_XY ? this->width_ : this->height_; }
-  void draw_pixel_at(int x, int y, Color color) override;
+  bool is_using_partial_update_() const { return this->full_update_every_ > 1; }
   void process_state_();
 
   const char *epaper_state_to_string_();
   bool is_idle_() const;
   void setup_pins_() const;
   virtual bool reset();
-  void initialise_();
+  virtual bool initialise(bool partial);
+  void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
   bool init_buffer_(size_t buffer_length);
+  void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
 
   /**
@@ -143,14 +160,12 @@ class EPaperBase : public Display,
 
   void set_state_(EPaperState state, uint16_t delay = 0);
 
-  void start_command_();
-  void end_command_();
   void start_data_();
-  void end_data_();
 
   // properties initialised in the constructor
   const char *name_;
   uint16_t width_;
+  uint16_t row_width_;  // width of a row in bytes
   uint16_t height_;
   const uint8_t *init_sequence_;
   size_t init_sequence_length_;
@@ -163,8 +178,10 @@ class EPaperBase : public Display,
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
   bool waiting_for_idle_{};
-  uint32_t delay_until_{};
+  uint32_t delay_until_{};  // timestamp until which to delay processing
+  uint16_t next_delay_{};   // milliseconds to delay before next state
   uint8_t transform_{};
+  uint8_t effective_transform_{};
   uint8_t update_count_{};
   // these values represent the bounds of the updated buffer. Note that x_high and y_high
   // point to the pixel past the last one updated, i.e. may range up to width/height.

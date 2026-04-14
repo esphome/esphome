@@ -8,7 +8,7 @@
 namespace esphome {
 namespace gpio {
 
-class GPIOSwitch : public switch_::Switch, public Component {
+class GPIOSwitch final : public switch_::Switch, public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; }
 
@@ -18,15 +18,19 @@ class GPIOSwitch : public switch_::Switch, public Component {
 
   void setup() override;
   void dump_config() override;
+#ifdef USE_GPIO_SWITCH_INTERLOCK
   void set_interlock(const std::initializer_list<Switch *> &interlock);
   void set_interlock_wait_time(uint32_t interlock_wait_time) { interlock_wait_time_ = interlock_wait_time; }
+#endif
 
  protected:
   void write_state(bool state) override;
 
   GPIOPin *pin_;
+#ifdef USE_GPIO_SWITCH_INTERLOCK
   FixedVector<Switch *> interlock_;
   uint32_t interlock_wait_time_{0};
+#endif
 };
 
 }  // namespace gpio

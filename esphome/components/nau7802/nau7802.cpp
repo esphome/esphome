@@ -83,8 +83,7 @@ void NAU7802Sensor::setup() {
 
   // turn on AFE
   pu_ctrl |= PU_CTRL_POWERUP_ANALOG;
-  auto f = std::bind(&NAU7802Sensor::complete_setup_, this);
-  this->set_timeout(600, f);
+  this->set_timeout(600, [this]() { this->complete_setup_(); });
 }
 
 void NAU7802Sensor::complete_setup_() {
@@ -295,8 +294,6 @@ void NAU7802Sensor::loop() {
     ESP_LOGI(TAG, "New Gain: %f", gcal_f);
   }
 }
-
-float NAU7802Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void NAU7802Sensor::update() {
   if (!this->is_data_ready_()) {

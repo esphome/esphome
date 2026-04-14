@@ -127,7 +127,7 @@ def validate_st7789v(config):
 
     if model_data[REQUIRE_PS] and CONF_POWER_SUPPLY not in config:
         raise cv.Invalid(
-            f'{CONF_POWER_SUPPLY} must be specified when {CONF_MODEL} is {config[CONF_MODEL]}"'
+            f"{CONF_POWER_SUPPLY} must be specified when {CONF_MODEL} is {config[CONF_MODEL]}"
         )
 
     if (
@@ -177,7 +177,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     cg.add(var.set_model_str(config[CONF_MODEL]))
 

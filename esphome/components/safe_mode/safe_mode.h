@@ -5,10 +5,17 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+#include <esp_ota_ops.h>
+#endif
+
 namespace esphome::safe_mode {
 
+/// RTC key for storing boot loop counter - used by safe_mode and preferences backends
+constexpr uint32_t RTC_KEY = 233825507UL;
+
 /// SafeModeComponent provides a safe way to recover from repeated boot failures
-class SafeModeComponent : public Component {
+class SafeModeComponent final : public Component {
  public:
   bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time, uint32_t boot_is_good_after);
 
@@ -24,9 +31,11 @@ class SafeModeComponent : public Component {
 
   void on_safe_shutdown() override;
 
+  void mark_successful();
+
 #ifdef USE_SAFE_MODE_CALLBACK
-  void add_on_safe_mode_callback(std::function<void()> &&callback) {
-    this->safe_mode_callback_.add(std::move(callback));
+  template<typename F> void add_on_safe_mode_callback(F &&callback) {
+    this->safe_mode_callback_.add(std::forward<F>(callback));
   }
 #endif
 
@@ -42,6 +51,9 @@ class SafeModeComponent : public Component {
   // Group 1-byte members together to minimize padding
   bool boot_successful_{false};  ///< set to true after boot is considered successful
   uint8_t safe_mode_num_attempts_{0};
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+  esp_ota_img_states_t ota_state_{ESP_OTA_IMG_UNDEFINED};
+#endif
   // Larger objects at the end
   ESPPreferenceObject rtc_;
 #ifdef USE_SAFE_MODE_CALLBACK

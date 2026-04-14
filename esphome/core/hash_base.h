@@ -44,7 +44,15 @@ class HashBase {
   virtual size_t get_size() const = 0;
 
  protected:
-  uint8_t digest_[32];  // Storage sized for max(MD5=16, SHA256=32) bytes
+// ESP32 variants with DMA-based hardware SHA (all except original ESP32) require 32-byte aligned buffers.
+// Original ESP32 uses a different hardware SHA implementation without DMA alignment requirements.
+// Other platforms (ESP8266, RP2040, LibreTiny) use software SHA and don't need alignment.
+// Storage sized for max(MD5=16, SHA256=32) bytes
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32)
+  alignas(32) uint8_t digest_[32];
+#else
+  uint8_t digest_[32];
+#endif
 };
 
 }  // namespace esphome
