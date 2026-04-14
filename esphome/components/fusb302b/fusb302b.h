@@ -6,6 +6,10 @@
 
 #include "pd.h"
 
+#ifdef USE_ESP_IDF
+
+#include "esphome/components/text_sensor/text_sensor.h"
+
 namespace esphome {
 namespace fusb302b {
 
@@ -76,3 +80,5 @@ class FUSB302B : public PowerDelivery, public Component, public i2c::I2CDevice {
 
 }  // namespace fusb302b
 }  // namespace esphome
+
+#endif  // USE_ESP_IDF

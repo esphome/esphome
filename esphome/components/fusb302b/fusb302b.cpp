@@ -1,5 +1,7 @@
 #include "fusb302b.h"
 
+#ifdef USE_ESP_IDF
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -47,7 +49,9 @@ void msg_reader_task(void *params) {
 
   while (true) {
     xTaskNotifyWait(0x00, 0xFFFFFFFF, &notification_value, portMAX_DELAY);
-    fusb302b->read_status(regs);
+    if (!fusb302b->read_status(regs)) {
+      continue;
+    }
     if (regs.interruptb & FUSB_INTERRUPTB_I_GCRCSENT) {
       event_info.event = PD_EVENT_RECEIVED_MSG;
       while (!(regs.status1 & FUSB_STATUS1_RX_EMPTY)) {
@@ -488,3 +492,5 @@ bool FUSB302B::send_message(const PDMsg &msg) {
 
 }  // namespace fusb302b
 }  // namespace esphome
+
+#endif  // USE_ESP_IDF

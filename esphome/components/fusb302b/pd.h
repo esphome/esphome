@@ -4,9 +4,11 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/text_sensor/text_sensor.h"
 
 namespace esphome {
+namespace text_sensor {
+class TextSensor;
+}  // namespace text_sensor
 namespace fusb302b {
 
 static constexpr uint8_t PD_MAX_NUM_DATA_OBJECTS = 7;
