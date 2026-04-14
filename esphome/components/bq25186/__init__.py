@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_WATCHDOG
-from esphome.core import CORE
+from esphome.core import CORE, Lambda
 
 CODEOWNERS = ["@Rapsssito"]
 DEPENDENCIES = ["i2c"]
@@ -69,9 +69,6 @@ BQ25186SysRegConfig = bq25186_ns.struct("BQ25186SysRegConfig")
 BQ25186TsControlConfig = bq25186_ns.struct("BQ25186TsControlConfig")
 BQ25186MaskIdConfig = bq25186_ns.struct("BQ25186MaskIdConfig")
 BQ25186Config = bq25186_ns.struct("BQ25186Config")
-BQ25186ApplyConfigurationAction = bq25186_ns.class_(
-    "BQ25186ApplyConfigurationAction", automation.Action
-)
 
 TERMINATION_PERCENT_OPTIONS = {"disabled": 0, "5%": 1, "10%": 2, "20%": 3}
 
@@ -371,13 +368,12 @@ async def to_code(config):
 
 @automation.register_action(
     "bq25186.apply_configuration",
-    BQ25186ApplyConfigurationAction,
+    automation.LambdaAction,
     CONFIGURE_ACTION_SCHEMA,
     synchronous=True,
 )
 async def bq25186_configure_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    parent = await cg.get_variable(config[CONF_ID])
 
     # Merge the action config with the component config, so that unspecified
     # options in the action will use the component's configuration
@@ -386,5 +382,8 @@ async def bq25186_configure_to_code(config, action_id, template_arg, args):
     merged_config = {**parent_config, **config}
 
     bq_configuration = build_bq25186_config(merged_config)
-    cg.add(var.set_configuration(bq_configuration))
-    return var
+    text = str(cg.statement(parent.apply_config(bq_configuration)))
+    lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
+    return automation.new_lambda_pvariable(
+        action_id, lambda_, automation.StatelessLambdaAction, template_arg
+    )

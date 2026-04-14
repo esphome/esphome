@@ -161,25 +161,4 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   switch_::Switch *pg_gpo_switch_{nullptr};
 };
 
-template<typename... Ts> class BQ25186ApplyConfigurationAction : public Action<Ts...> {
- public:
-  explicit BQ25186ApplyConfigurationAction(BQ25186Component *parent) : parent_(parent) {}
-  void set_configuration(const BQ25186Config &config) {
-    config_callback_ = [this, config]() { return this->parent_->apply_config(config); };
-  }
-  void play(const Ts &...) override {
-    if (this->config_callback_ == nullptr) {
-      // Already applied the configuration, or no configuration was set, so nothing to do
-      return;
-    }
-    this->config_callback_();
-    this->config_callback_ = nullptr;
-  }
-
- protected:
-  using ConfigCallback = std::function<bool(void)>;
-  BQ25186Component *parent_;
-  ConfigCallback config_callback_{};
-};
-
 }  // namespace esphome::bq25186
