@@ -1261,7 +1261,7 @@ def test_upload_using_esptool_skips_missing_extra_flash_images(
 
     config = {CONF_ESPHOME: {"platformio_options": {}}}
 
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
         result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
 
     assert result == 0
