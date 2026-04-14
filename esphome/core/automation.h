@@ -221,6 +221,12 @@ template<typename T, typename... X> class TemplatableValue {
   } storage_;
 };
 
+namespace detail {
+/// Shared body for the non-lambda arms of TemplatableValue<std::string>::value().
+/// Defined in automation.cpp so every `X...` instantiation links to one copy.
+std::string load_string_storage(uint8_t type, const char *storage);
+}  // namespace detail
+
 /// Specialization for std::string: supports VALUE, STATIC_STRING, FLASH_STRING,
 /// stateless lambdas, and stateful lambdas (std::function).
 template<typename... X> class TemplatableValue<std::string, X...> {
@@ -316,28 +322,13 @@ template<typename... X> class TemplatableValue<std::string, X...> {
   bool has_value() const { return this->type_ != NONE; }
 
   std::string value(X... x) const {
-    switch (this->type_) {
-      case STATELESS_LAMBDA:
-        return this->stateless_f_(x...);  // Direct function pointer call
-      case LAMBDA:
-        return (*this->f_)(x...);  // std::function call
-      case VALUE:
-        return *this->value_;
-      case STATIC_STRING:
-        return std::string(this->static_str_);
-#ifdef USE_ESP8266
-      case FLASH_STRING: {
-        // PROGMEM pointer — must use _P functions to access on ESP8266
-        size_t len = strlen_P(this->static_str_);
-        std::string result(len, '\0');
-        memcpy_P(result.data(), this->static_str_, len);
-        return result;
-      }
-#endif
-      case NONE:
-      default:
-        return {};
-    }
+    // Callable arms depend on X... so stay inline; everything else delegates to
+    // a non-template helper so the materialization body exists once in flash.
+    if (this->type_ == STATELESS_LAMBDA)
+      return this->stateless_f_(x...);
+    if (this->type_ == LAMBDA)
+      return (*this->f_)(x...);
+    return detail::load_string_storage(this->type_, this->static_str_);
   }
 
   optional<std::string> optional_value(X... x) const {
