@@ -12,12 +12,8 @@ namespace esphome::light {
 static const char *const TAG = "light";
 
 // Cold-path logger. Caller handles the clamp so the in-range hot path avoids
-// the call-site spill/reload. `param_name_progmem` is a pointer into FIELD_NAMES
-// in flash; the `progmem_read_ptr` is a no-op on non-ESP8266.
-static void log_value_out_of_range_(const char *name, float value, const LogString *const *param_name_progmem,
-                                    float min, float max) {
-  const auto *param_name =
-      reinterpret_cast<const LogString *>(progmem_read_ptr(reinterpret_cast<const char *const *>(param_name_progmem)));
+// the call-site spill/reload around the out-of-line call.
+static void log_value_out_of_range_(const char *name, float value, const LogString *param_name, float min, float max) {
   ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_ARG(param_name), value, min, max);
 }
 
@@ -58,6 +54,22 @@ static void log_invalid_parameter(const char *name, const LogString *message) {
 // Index 0 is Unknown (for ColorMode::UNKNOWN), also used as fallback for out-of-range
 PROGMEM_STRING_TABLE(ColorModeHumanStrings, "Unknown", "On/Off", "Brightness", "White", "Color temperature",
                      "Cold/warm white", "RGB", "RGBW", "RGB + color temperature", "RGB + cold/warm white");
+
+// Field names for validate_(). PROGMEM_STRING_TABLE uses constexpr init so no
+// per-static guard variables in RAM (a plain LOG_STR array of static locals
+// would need them because LOG_STR is a statement-expression on ESP8266).
+// Indices 0-7 match FieldFlags bits 0-7; index 8 is color_temperature.
+PROGMEM_STRING_TABLE(ValidateFieldNames,
+                     "Brightness",        // FLAG_HAS_BRIGHTNESS       (bit 0)
+                     "Color brightness",  // FLAG_HAS_COLOR_BRIGHTNESS (bit 1)
+                     "Red",               // FLAG_HAS_RED              (bit 2)
+                     "Green",             // FLAG_HAS_GREEN            (bit 3)
+                     "Blue",              // FLAG_HAS_BLUE             (bit 4)
+                     "White",             // FLAG_HAS_WHITE            (bit 5)
+                     "Cold white",        // FLAG_HAS_COLD_WHITE       (bit 6)
+                     "Warm white",        // FLAG_HAS_WARM_WHITE       (bit 7)
+                     "Color temperature");
+static constexpr uint8_t VALIDATE_CT_INDEX = 8;
 
 static const LogString *color_mode_to_human(ColorMode color_mode) {
   return ColorModeHumanStrings::get_log_str(ColorModeBitPolicy::to_bit(color_mode), 0);
@@ -306,17 +318,6 @@ LightColorValues LightCall::validate_() {
   ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(7, WARM_WHITE, warm_white_);
 #undef ESPHOME_LIGHT_ASSERT_CLAMP_FIELD
 
-  static const LogString *const FIELD_NAMES[8] PROGMEM = {
-      LOG_STR("Brightness"),        // FLAG_HAS_BRIGHTNESS       (bit 0)
-      LOG_STR("Color brightness"),  // FLAG_HAS_COLOR_BRIGHTNESS (bit 1)
-      LOG_STR("Red"),               // FLAG_HAS_RED              (bit 2)
-      LOG_STR("Green"),             // FLAG_HAS_GREEN            (bit 3)
-      LOG_STR("Blue"),              // FLAG_HAS_BLUE             (bit 4)
-      LOG_STR("White"),             // FLAG_HAS_WHITE            (bit 5)
-      LOG_STR("Cold white"),        // FLAG_HAS_COLD_WHITE       (bit 6)
-      LOG_STR("Warm white"),        // FLAG_HAS_WARM_WHITE       (bit 7)
-  };
-
   // Iterate only the set bits (ctz + clear-lowest) so the hot path is
   // O(popcount) — HA can drive perform() at high frequency.
   float *const src_fields = &this->brightness_;
@@ -327,7 +328,7 @@ LightColorValues LightCall::validate_() {
     active &= active - 1;  // clear lowest set bit
     float &value = src_fields[bit];
     if (float_out_of_unit_range(value)) {
-      log_value_out_of_range_(name, value, &FIELD_NAMES[bit], 0.0f, 1.0f);
+      log_value_out_of_range_(name, value, ValidateFieldNames::get_log_str(bit, 0), 0.0f, 1.0f);
       value = clamp_unit_float(value);
     }
     dst_fields[bit] = value;
@@ -335,11 +336,11 @@ LightColorValues LightCall::validate_() {
 
   // color_temperature has a runtime range from traits — no bit-pattern shortcut.
   if (this->has_color_temperature()) {
-    static const LogString *const CT_NAME PROGMEM = LOG_STR("Color temperature");
     const float ct_min = traits.get_min_mireds();
     const float ct_max = traits.get_max_mireds();
     if (this->color_temperature_ < ct_min || this->color_temperature_ > ct_max) {
-      log_value_out_of_range_(name, this->color_temperature_, &CT_NAME, ct_min, ct_max);
+      log_value_out_of_range_(name, this->color_temperature_, ValidateFieldNames::get_log_str(VALIDATE_CT_INDEX, 0),
+                              ct_min, ct_max);
       this->color_temperature_ = clamp(this->color_temperature_, ct_min, ct_max);
     }
     v.color_temperature_ = this->color_temperature_;
