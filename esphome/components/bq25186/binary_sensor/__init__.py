@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_BATTERY_CHARGING,
     DEVICE_CLASS_OPENING,
     DEVICE_CLASS_PLUG,
@@ -39,7 +38,7 @@ _BINARY_SENSOR_SPECS = (
     # STAT0
     (CONF_TS, "BQ25186TsOpenBinarySensor", DEVICE_CLASS_OPENING),
     (CONF_CHARGING, "BQ25186ChargingBinarySensor", DEVICE_CLASS_BATTERY_CHARGING),
-    (CONF_CHARGE_DONE, "BQ25186ChargeDoneBinarySensor", DEVICE_CLASS_BATTERY),
+    (CONF_CHARGE_DONE, "BQ25186ChargeDoneBinarySensor", None),
     (CONF_ILIM, "BQ25186IlimStatusBinarySensor", DEVICE_CLASS_RUNNING),
     (CONF_VDPPM, "BQ25186VdppmStatusBinarySensor", DEVICE_CLASS_RUNNING),
     (CONF_VINDPM, "BQ25186VindpmStatusBinarySensor", DEVICE_CLASS_RUNNING),
