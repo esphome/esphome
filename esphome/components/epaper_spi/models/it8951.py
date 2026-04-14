@@ -19,7 +19,6 @@ EpaperModel(
     data_rate=12_000_000,
 )
 
-# M5EPD-specific model with pre-filled dimensions
 EpaperModel(
     "M5EPD",
     class_name="EPaperIT8951",
@@ -46,7 +45,7 @@ EpaperModel(
     busy_pin=13,
     reset_pin=12,
     cs_pin=10,
-    enable_pin=[11, 21],
+    enable_pin=11,
     dc_pin=False,
     reversed=False,
     sleep_when_done=False,
@@ -64,7 +63,7 @@ EpaperModel(
     busy_pin=4,
     reset_pin=38,
     cs_pin=44,
-    enable_pin=[43],
+    enable_pin=43,
     dc_pin=False,
     reversed=False,
     sleep_when_done=False,
