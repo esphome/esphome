@@ -334,8 +334,16 @@ LightColorValues LightCall::validate_() {
   // by bit position directly. Iterate only the set bits via __builtin_ctz +
   // clear-lowest-bit: HA can drive high-frequency automations through
   // perform(), so the hot path runs in O(popcount) instead of always
-  // scanning all eight slots. The range check is inlined here (cold path
-  // is the out-of-line helper) so an in-range value skips the call entirely.
+  // scanning all eight slots.
+  //
+  // The range check is done on the IEEE 754 bit pattern as an unsigned int,
+  // not on the float itself. Values in [0.0f, 1.0f] have bits in
+  // [0x00000000, 0x3F800000]; anything greater (as unsigned) is out of range:
+  // values > 1.0f have a larger bit pattern, and negative values have the
+  // sign bit (0x80000000) set which makes their unsigned interpretation
+  // enormous. One unsigned compare replaces two soft-float __ltsf2/__gtsf2
+  // calls on ESP8266 and is essentially free on targets with an FPU too.
+  constexpr uint32_t ONE_F_BITS = 0x3F800000u;  // bit pattern of 1.0f
   float *const src_fields = &this->brightness_;
   float *const dst_fields = &v.brightness_;
   unsigned active = this->flags_ & CLAMP_FLAGS_MASK;
@@ -343,7 +351,14 @@ LightColorValues LightCall::validate_() {
     unsigned bit = __builtin_ctz(active);
     active &= active - 1;  // clear lowest set bit
     float &value = src_fields[bit];
-    if (value < 0.0f || value > 1.0f)
+    // Union type-pun (GCC/Clang extension): bit_cast/memcpy don't optimize to
+    // a no-op on xtensa-gcc, same reasoning as api/proto.h float_to_raw().
+    union {
+      float f;
+      uint32_t u;
+    } pun;
+    pun.f = value;
+    if (pun.u > ONE_F_BITS)
       log_out_of_range_and_clamp_(name, value, &FIELD_NAMES[bit], 0.0f, 1.0f);
     dst_fields[bit] = value;
   }
