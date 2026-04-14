@@ -14,18 +14,23 @@ inline static uint8_t to_uint8_scale(float x) { return static_cast<uint8_t>(roun
 // values (including negatives, whose sign bit makes their uint32 huge) exceed
 // it. Lets a single unsigned compare replace two soft-float calls on ESP8266.
 static constexpr uint32_t ONE_F_BITS = 0x3F800000u;
+// Bit pattern of -0.0f: sign bit set, magnitude zero. Treated as in range.
+static constexpr uint32_t NEG_ZERO_F_BITS = 0x80000000u;
 static_assert(sizeof(float) == sizeof(uint32_t), "float must be 32-bit");
 static_assert(std::numeric_limits<float>::is_iec559, "IEEE 754 float required");
 
 // Union type-pun (GCC/Clang extension): memcpy/bit_cast don't fold to a no-op
 // on xtensa-gcc. Same reasoning as api/proto.h's float_to_raw().
+// -0.0f (bit pattern 0x80000000) exceeds ONE_F_BITS as unsigned but is
+// numerically zero and clamps to 0.0f anyway — treat it as in range so we
+// don't log a spurious out-of-range warning.
 inline bool float_out_of_unit_range(float x) {
   union {
     float f;
     uint32_t u;
   } pun;
   pun.f = x;
-  return pun.u > ONE_F_BITS;
+  return pun.u > ONE_F_BITS && pun.u != NEG_ZERO_F_BITS;
 }
 
 // Clamps to [0.0f, 1.0f] without float compares. Negatives (sign bit set)
@@ -38,7 +43,7 @@ inline float clamp_unit_float(float x) {
   pun.f = x;
   if (pun.u <= ONE_F_BITS)
     return x;
-  return (pun.u & 0x80000000u) ? 0.0f : 1.0f;
+  return (pun.u & NEG_ZERO_F_BITS) ? 0.0f : 1.0f;  // sign bit → negative → clamp to 0
 }
 
 /** This class represents the color state for a light object.
