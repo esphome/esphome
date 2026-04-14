@@ -53,9 +53,7 @@ CONF_MASK_BAT_INTERRUPT = "mask_bat_interrupt"
 CONF_MASK_PG_INTERRUPT = "mask_pg_interrupt"
 
 bq25186_ns = cg.esphome_ns.namespace("bq25186")
-BQ25186Component = bq25186_ns.class_(
-    "BQ25186Component", cg.PollingComponent, i2c.I2CDevice
-)
+BQ25186Component = bq25186_ns.class_("BQ25186Component", cg.Component, i2c.I2CDevice)
 BQ25186Listener = bq25186_ns.class_("BQ25186Listener")
 BQ25186VBatCtrlConfig = bq25186_ns.struct("BQ25186VBatCtrlConfig")
 BQ25186IchgCtrlConfig = bq25186_ns.struct("BQ25186IchgCtrlConfig")
@@ -229,7 +227,6 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(BQ25186_CONFIG_SCHEMA)
-    .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x6A))
 )
 

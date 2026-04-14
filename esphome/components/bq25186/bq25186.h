@@ -112,22 +112,14 @@ struct BQ25186Config {
   BQ25186MaskIdConfig mask_id{};
 };
 
-class BQ25186Listener {
- public:
-  virtual void on_data(const BQ25186Data &data) = 0;
-};
-
-class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
+class BQ25186Component : public Component, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
-  void update() override;
   // This will only take effect once per boot, because after
   // that the setup configuration is considered applied and cleared to save RAM.
   void set_setup_config(const BQ25186Config &config);
   bool apply_config(const BQ25186Config &config);
-
-  void add_listener(BQ25186Listener *listener) { this->listeners_.push_back(listener); }
 
   bool write_pg_gpo_level(bool level);
   bool trigger_software_reset();
@@ -153,8 +145,6 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   bool update_mask_id_register_(const BQ25186MaskIdConfig &config);
 
   BQ25186Data data_{};
-  std::vector<BQ25186Listener *> listeners_;
-
   SetupConfigCallback setup_config_callback_{};
 };
 
