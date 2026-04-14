@@ -19,7 +19,7 @@ static_assert(sizeof(float) == sizeof(uint32_t), "float must be 32-bit");
 static_assert(std::numeric_limits<float>::is_iec559, "IEEE 754 float required");
 
 // Union pun — memcpy/bit_cast don't fold on xtensa-gcc (see api/proto.h).
-// -0.0f counts as in range (clamps to 0.0f anyway; don't log a false warning).
+// -0.0f is numerically zero so it's reported in range (no warning, no clamp).
 inline bool float_out_of_unit_range(float x) {
   union {
     float f;
@@ -29,7 +29,8 @@ inline bool float_out_of_unit_range(float x) {
   return pun.u > ONE_F_BITS && pun.u != NEG_ZERO_F_BITS;
 }
 
-// Clamps to [0.0f, 1.0f] without float compares. Negatives → 0; >1/NaN/Inf → 1.
+// Clamps to [0.0f, 1.0f] without float compares. Out of range: sign bit set
+// (negatives, -NaN, -Inf) → 0.0f; sign bit clear (>1, +NaN, +Inf) → 1.0f.
 inline float clamp_unit_float(float x) {
   union {
     float f;
