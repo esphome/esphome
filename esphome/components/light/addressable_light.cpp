@@ -66,11 +66,15 @@ void AddressableLightTransformer::start() {
   this->uniform_start_color_.reset();
   if (this->light_.size() > 0) {
     Color first = this->light_[0].get();
+    bool uniform = true;
     for (int32_t i = 1; i < this->light_.size(); i++) {
-      if (this->light_[i].get() != first)
-        return;
+      if (this->light_[i].get() != first) {
+        uniform = false;
+        break;
+      }
     }
-    this->uniform_start_color_ = first;
+    if (uniform)
+      this->uniform_start_color_ = first;
   }
 }
 
@@ -115,6 +119,11 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
       // All LEDs started at the same color: compute the interpolated value once and write it to
       // every LED. No read-back, so each LED's stored byte advances through every gamma threshold
       // as smoothed_progress crosses it, instead of stalling at 0 for low pre-gamma values.
+      //
+      // Trade-off: any mid-transition writes to individual LEDs (e.g. from a user lambda) will be
+      // overwritten on the next apply() here. The fallback path below would have respected them
+      // via its read-back. Concurrent per-LED mutation during a transition isn't a pattern we
+      // support, so this is acceptable.
       // lerp(start, target, progress) via existing helper: target - (target-start)*(1-progress).
       const Color &start = *this->uniform_start_color_;
       int32_t remaining = int32_t(256.f * (1.f - smoothed_progress));
