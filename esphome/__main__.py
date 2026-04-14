@@ -752,7 +752,7 @@ def upload_using_esptool(
             ),
         ]
         for image in idedata.extra_flash_images:
-            if not Path(image.path).is_file():
+            if not image.path.is_file():
                 _LOGGER.warning(
                     "Skipping missing flash image declared by platform: %s",
                     image.path,
