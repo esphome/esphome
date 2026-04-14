@@ -3,8 +3,9 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import runtime_image
+from esphome.components.image import CONF_TRANSPARENCY, add_metadata
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_RESIZE, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_RESIZE, CONF_TRIGGER_ID, CONF_TYPE
 from esphome.core import CORE
 
 from .. import CONF_SENDSPIN_ID, SendspinHub, sendspin_ns
@@ -118,6 +119,14 @@ async def to_code(config):
 
     # Use the helper function to get all runtime image parameters
     settings = await runtime_image.process_runtime_image_config(config)
+
+    add_metadata(
+        config[CONF_ID],
+        settings.width,
+        settings.height,
+        config[CONF_TYPE],
+        config[CONF_TRANSPARENCY],
+    )
 
     var = cg.new_Pvariable(
         config[CONF_ID],
