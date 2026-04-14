@@ -1095,7 +1095,35 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
 }
 #endif
 
-/// Safely append a string to buffer without format parsing, returning new position (capped at size).
+#ifdef USE_ESP8266
+/// Safely append a PROGMEM string to buffer, returning new position (capped at size).
+/// ESP8266 internal implementation — prefer the `buf_append_str` macro which wraps
+/// literals with `PSTR()` automatically so they stay in flash instead of eating RAM.
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param str PROGMEM-resident string to append (must not be null)
+/// @return New position after appending (capped at size on overflow)
+inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str) {
+  if (pos >= size) {
+    return size;
+  }
+  size_t remaining = size - pos - 1;  // reserve space for null terminator
+  size_t len = strlen_P(str);
+  if (len > remaining) {
+    len = remaining;
+  }
+  memcpy_P(buf + pos, str, len);
+  pos += len;
+  buf[pos] = '\0';
+  return pos;
+}
+/// Safely append a string to buffer, returning new position (capped at size).
+/// More efficient than buf_append_printf for plain string literals.
+/// On ESP8266 the literal is wrapped with PSTR() so it stays in flash.
+#define buf_append_str(buf, size, pos, str) buf_append_str_p(buf, size, pos, PSTR(str))
+#else
+/// Safely append a string to buffer, returning new position (capped at size).
 /// More efficient than buf_append_printf for plain string literals.
 /// @param buf Output buffer
 /// @param size Total buffer size
@@ -1116,6 +1144,7 @@ inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str
   buf[pos] = '\0';
   return pos;
 }
+#endif
 
 /// Concatenate a name with a separator and suffix using an efficient stack-based approach.
 /// This avoids multiple heap allocations during string construction.
