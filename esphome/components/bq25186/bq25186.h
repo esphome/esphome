@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/switch/switch.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include <functional>
@@ -158,7 +157,6 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   std::vector<BQ25186Listener *> listeners_;
 
   SetupConfigCallback setup_config_callback_{};
-  switch_::Switch *pg_gpo_switch_{nullptr};
 };
 
 }  // namespace esphome::bq25186
