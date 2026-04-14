@@ -123,11 +123,10 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   void update() override;
-  void set_setup_config(const BQ25186Config &config);
-
-  // This will only take effect once, on the first call, because after
+  // This will only take effect once per boot, because after
   // that the setup configuration is considered applied and cleared to save RAM.
-  void apply_setup_config();
+  void set_setup_config(const BQ25186Config &config);
+  bool apply_config(const BQ25186Config &config);
 
   void add_listener(BQ25186Listener *listener) { this->listeners_.push_back(listener); }
 
@@ -137,12 +136,10 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   bool trigger_shutdown_mode();
   bool trigger_ship_mode();
   bool trigger_hardware_reset();
-  void set_configure_on_boot(bool configure_on_boot) { this->configure_on_boot_ = configure_on_boot; }
 
  protected:
   using SetupConfigCallback = std::function<bool(void)>;
 
-  bool apply_configuration_(const BQ25186Config &config);
   bool read_all_registers_();
   bool write_register_(uint8_t reg, uint8_t value);
   bool update_register_(uint8_t reg, uint8_t mask, uint8_t value);
@@ -161,18 +158,28 @@ class BQ25186Component : public PollingComponent, public i2c::I2CDevice {
   std::vector<BQ25186Listener *> listeners_;
 
   SetupConfigCallback setup_config_callback_{};
-  bool configure_on_boot_{true};
   switch_::Switch *pg_gpo_switch_{nullptr};
-  // TODO: Check pg_gpo_level
 };
 
-template<typename... Ts> class BQ25186ConfigureAction : public Action<Ts...> {
+template<typename... Ts> class BQ25186ApplyConfigurationAction : public Action<Ts...> {
  public:
-  explicit BQ25186ConfigureAction(BQ25186Component *parent) : parent_(parent) {}
-  void play(const Ts &...) override { this->parent_->apply_setup_config(); }
+  explicit BQ25186ApplyConfigurationAction(BQ25186Component *parent) : parent_(parent) {}
+  void set_configuration(const BQ25186Config &config) {
+    config_callback_ = [this, config]() { return this->parent_->apply_config(config); };
+  }
+  void play(const Ts &...) override {
+    if (this->config_callback_ == nullptr) {
+      // Already applied the configuration, or no configuration was set, so nothing to do
+      return;
+    }
+    this->config_callback_();
+    this->config_callback_ = nullptr;
+  }
 
  protected:
+  using ConfigCallback = std::function<bool(void)>;
   BQ25186Component *parent_;
+  ConfigCallback config_callback_{};
 };
 
 }  // namespace esphome::bq25186

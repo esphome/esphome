@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_WATCHDOG
+from esphome.core import CORE
 
 CODEOWNERS = ["@Rapsssito"]
 DEPENDENCIES = ["i2c"]
@@ -68,7 +69,9 @@ BQ25186SysRegConfig = bq25186_ns.struct("BQ25186SysRegConfig")
 BQ25186TsControlConfig = bq25186_ns.struct("BQ25186TsControlConfig")
 BQ25186MaskIdConfig = bq25186_ns.struct("BQ25186MaskIdConfig")
 BQ25186Config = bq25186_ns.struct("BQ25186Config")
-BQ25186ConfigureAction = bq25186_ns.class_("BQ25186ConfigureAction", automation.Action)
+BQ25186ApplyConfigurationAction = bq25186_ns.class_(
+    "BQ25186ApplyConfigurationAction", automation.Action
+)
 
 TERMINATION_PERCENT_OPTIONS = {
     "disabled": 0,
@@ -195,117 +198,126 @@ TS_VRCG_OPTIONS = {
     "-200mv": 1,
 }
 
+BQ25186_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_BATTERY_REGULATION_VOLTAGE, default=4200): cv.int_range(
+            min=3500, max=4650
+        ),
+        cv.Optional(CONF_CHARGE_ENABLED, default=True): cv.boolean,
+        cv.Optional(CONF_FAST_CHARGE_CURRENT, default=10): cv.int_range(
+            min=5, max=1000
+        ),
+        cv.Optional(CONF_FLASH_CHARGING_MODE, default=False): cv.boolean,
+        cv.Optional(CONF_PRECHARGE_IS_ITERM, default=False): cv.boolean,
+        cv.Optional(CONF_TERMINATION_PERCENT, default="10%"): cv.enum(
+            TERMINATION_PERCENT_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_VINDPM_MODE, default="4.5v"): cv.enum(
+            VINDPM_MODE_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_THERMAL_REGULATION, default="100c"): cv.enum(
+            THERM_REGULATION_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_BATTERY_OCP_LIMIT, default="3000ma"): cv.enum(
+            BATTERY_OCP_LIMIT_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_BATTERY_UVLO, default="3.0v"): cv.enum(
+            BATTERY_UVLO_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_MASK_CHARGE_STATUS_INTERRUPT, default=True): cv.boolean,
+        cv.Optional(CONF_MASK_ILIM_INTERRUPT, default=True): cv.boolean,
+        cv.Optional(CONF_MASK_VINDPM_INTERRUPT, default=False): cv.boolean,
+        cv.Optional(CONF_TS_AUTO_FUNCTION, default=True): cv.boolean,
+        cv.Optional(CONF_VLOWV, default="3.0v"): cv.one_of("3.0v", "2.8v", lower=True),
+        cv.Optional(CONF_RECHARGE_THRESHOLD, default="100mv"): cv.one_of(
+            "100mv", "200mv", lower=True
+        ),
+        cv.Optional(CONF_DOUBLE_TIMER_DURING_DPM, default=False): cv.boolean,
+        cv.Optional(CONF_SAFETY_TIMER, default="6h"): cv.enum(
+            SAFETY_TIMER_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_WATCHDOG, default="160s_software_reset"): cv.enum(
+            WATCHDOG_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_LONG_PRESS_DURATION, default="10s"): cv.enum(
+            LONG_PRESS_DURATION_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_HW_RESET_REQUIRES_VIN, default=False): cv.boolean,
+        cv.Optional(CONF_AUTOWAKE, default="1s"): cv.enum(AUTOWAKE_OPTIONS, lower=True),
+        cv.Optional(CONF_INPUT_CURRENT_LIMIT, default="500ma"): cv.enum(
+            INPUT_CURRENT_LIMIT_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_PUSH_BUTTON_LONG_PRESS_ACTION, default="ship_mode"): cv.enum(
+            PUSH_BUTTON_LONG_PRESS_ACTION_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_WAKE1_TIMER, default="300ms"): cv.one_of(
+            "300ms", "1s", lower=True
+        ),
+        cv.Optional(CONF_WAKE2_TIMER, default="2s"): cv.one_of("2s", "3s", lower=True),
+        cv.Optional(CONF_ENABLE_PUSH_BUTTON, default=True): cv.boolean,
+        cv.Optional(CONF_SYSTEM_REGULATION, default="4.5v"): cv.enum(
+            SYSTEM_REGULATION_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_SYS_MODE, default="normal"): cv.enum(
+            SYS_MODE_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_WATCHDOG_15S_ENABLE, default=False): cv.boolean,
+        cv.Optional(CONF_DISABLE_VDPPM, default=False): cv.boolean,
+        cv.Optional(CONF_TS_HOT, default="60c"): cv.enum(TS_HOT_OPTIONS, lower=True),
+        cv.Optional(CONF_TS_COLD, default="0c"): cv.enum(TS_COLD_OPTIONS, lower=True),
+        cv.Optional(CONF_TS_WARM_DISABLE, default=False): cv.boolean,
+        cv.Optional(CONF_TS_COOL_DISABLE, default=False): cv.boolean,
+        cv.Optional(CONF_TS_ICHG, default="0.5x"): cv.enum(TS_ICHG_OPTIONS, lower=True),
+        cv.Optional(CONF_TS_VRCG, default="-100mv"): cv.enum(
+            TS_VRCG_OPTIONS, lower=True
+        ),
+        cv.Optional(CONF_MASK_TS_INTERRUPT, default=False): cv.boolean,
+        cv.Optional(CONF_MASK_TREG_INTERRUPT, default=True): cv.boolean,
+        cv.Optional(CONF_MASK_BAT_INTERRUPT, default=False): cv.boolean,
+        cv.Optional(CONF_MASK_PG_INTERRUPT, default=False): cv.boolean,
+    }
+)
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BQ25186Component),
             cv.Optional(CONF_CONFIGURE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_BATTERY_REGULATION_VOLTAGE, default=4200): cv.int_range(
-                min=3500, max=4650
-            ),
-            cv.Optional(CONF_CHARGE_ENABLED, default=True): cv.boolean,
-            cv.Optional(CONF_FAST_CHARGE_CURRENT, default=10): cv.int_range(
-                min=5, max=1000
-            ),
-            cv.Optional(CONF_FLASH_CHARGING_MODE, default=False): cv.boolean,
-            cv.Optional(CONF_PRECHARGE_IS_ITERM, default=False): cv.boolean,
-            cv.Optional(CONF_TERMINATION_PERCENT, default="10%"): cv.enum(
-                TERMINATION_PERCENT_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_VINDPM_MODE, default="4.5v"): cv.enum(
-                VINDPM_MODE_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_THERMAL_REGULATION, default="100c"): cv.enum(
-                THERM_REGULATION_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_BATTERY_OCP_LIMIT, default="3000ma"): cv.enum(
-                BATTERY_OCP_LIMIT_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_BATTERY_UVLO, default="3.0v"): cv.enum(
-                BATTERY_UVLO_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_MASK_CHARGE_STATUS_INTERRUPT, default=True): cv.boolean,
-            cv.Optional(CONF_MASK_ILIM_INTERRUPT, default=True): cv.boolean,
-            cv.Optional(CONF_MASK_VINDPM_INTERRUPT, default=False): cv.boolean,
-            cv.Optional(CONF_TS_AUTO_FUNCTION, default=True): cv.boolean,
-            cv.Optional(CONF_VLOWV, default="3.0v"): cv.one_of(
-                "3.0v", "2.8v", lower=True
-            ),
-            cv.Optional(CONF_RECHARGE_THRESHOLD, default="100mv"): cv.one_of(
-                "100mv", "200mv", lower=True
-            ),
-            cv.Optional(CONF_DOUBLE_TIMER_DURING_DPM, default=False): cv.boolean,
-            cv.Optional(CONF_SAFETY_TIMER, default="6h"): cv.enum(
-                SAFETY_TIMER_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_WATCHDOG, default="160s_software_reset"): cv.enum(
-                WATCHDOG_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_LONG_PRESS_DURATION, default="10s"): cv.enum(
-                LONG_PRESS_DURATION_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_HW_RESET_REQUIRES_VIN, default=False): cv.boolean,
-            cv.Optional(CONF_AUTOWAKE, default="1s"): cv.enum(
-                AUTOWAKE_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_INPUT_CURRENT_LIMIT, default="500ma"): cv.enum(
-                INPUT_CURRENT_LIMIT_OPTIONS, lower=True
-            ),
-            cv.Optional(
-                CONF_PUSH_BUTTON_LONG_PRESS_ACTION, default="ship_mode"
-            ): cv.enum(PUSH_BUTTON_LONG_PRESS_ACTION_OPTIONS, lower=True),
-            cv.Optional(CONF_WAKE1_TIMER, default="300ms"): cv.one_of(
-                "300ms", "1s", lower=True
-            ),
-            cv.Optional(CONF_WAKE2_TIMER, default="2s"): cv.one_of(
-                "2s", "3s", lower=True
-            ),
-            cv.Optional(CONF_ENABLE_PUSH_BUTTON, default=True): cv.boolean,
-            cv.Optional(CONF_SYSTEM_REGULATION, default="4.5v"): cv.enum(
-                SYSTEM_REGULATION_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_SYS_MODE, default="normal"): cv.enum(
-                SYS_MODE_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_WATCHDOG_15S_ENABLE, default=False): cv.boolean,
-            cv.Optional(CONF_DISABLE_VDPPM, default=False): cv.boolean,
-            cv.Optional(CONF_TS_HOT, default="60c"): cv.enum(
-                TS_HOT_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_TS_COLD, default="0c"): cv.enum(
-                TS_COLD_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_TS_WARM_DISABLE, default=False): cv.boolean,
-            cv.Optional(CONF_TS_COOL_DISABLE, default=False): cv.boolean,
-            cv.Optional(CONF_TS_ICHG, default="0.5x"): cv.enum(
-                TS_ICHG_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_TS_VRCG, default="-100mv"): cv.enum(
-                TS_VRCG_OPTIONS, lower=True
-            ),
-            cv.Optional(CONF_MASK_TS_INTERRUPT, default=False): cv.boolean,
-            cv.Optional(CONF_MASK_TREG_INTERRUPT, default=True): cv.boolean,
-            cv.Optional(CONF_MASK_BAT_INTERRUPT, default=False): cv.boolean,
-            cv.Optional(CONF_MASK_PG_INTERRUPT, default=False): cv.boolean,
         }
     )
+    .extend(BQ25186_CONFIG_SCHEMA)
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x6A))
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+def _schema_without_defaults(schema: cv.Schema) -> cv.Schema:
+    schema_no_defaults = {}
+    for key, validator in schema.schema.items():
+        if isinstance(key, cv.Optional):
+            schema_no_defaults[cv.Optional(key.schema)] = validator
+        else:
+            schema_no_defaults[key] = validator
+    return cv.Schema(schema_no_defaults)
 
+
+CONFIGURE_ACTION_OVERRIDES_SCHEMA = _schema_without_defaults(BQ25186_CONFIG_SCHEMA)
+
+CONFIGURE_ACTION_SCHEMA = automation.maybe_simple_id(
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(BQ25186Component),
+        }
+    ).extend(CONFIGURE_ACTION_OVERRIDES_SCHEMA)
+)
+
+
+def build_bq25186_config(config):
     vbat_ctrl = cg.StructInitializer(
         BQ25186VBatCtrlConfig,
         ("battery_regulation_voltage_mv", config[CONF_BATTERY_REGULATION_VOLTAGE]),
-        (
-            "pg_mode",
-            config.get(CONF_PG_MODE, 0),
-        ),  # Default to 0 (power_good) if not set, since the switch will change it to 1 (gpo) if used
+        # Default to 0 (power_good) if not set, since the switch will change it to 1 (gpo) if used
+        ("pg_mode", config.get(CONF_PG_MODE, 0)),
     )
 
     ichg_ctrl = cg.StructInitializer(
@@ -385,7 +397,7 @@ async def to_code(config):
         ("mask_pg_interrupt", config[CONF_MASK_PG_INTERRUPT]),
     )
 
-    component_config = cg.StructInitializer(
+    return cg.StructInitializer(
         BQ25186Config,
         ("vbat_ctrl", vbat_ctrl),
         ("ichg_ctrl", ichg_ctrl),
@@ -398,20 +410,34 @@ async def to_code(config):
         ("ts_control", ts_control),
         ("mask_id", mask_id),
     )
-    cg.add(var.set_setup_config(component_config))
-    cg.add(var.set_configure_on_boot(config[CONF_CONFIGURE_ON_BOOT]))
+
+
+async def to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
+
+    if config[CONF_CONFIGURE_ON_BOOT]:
+        component_config = build_bq25186_config(config)
+        cg.add(var.set_setup_config(component_config))
 
 
 @automation.register_action(
-    "bq25186.configure",
-    BQ25186ConfigureAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(BQ25186Component),
-        }
-    ),
+    "bq25186.apply_configuration",
+    BQ25186ApplyConfigurationAction,
+    CONFIGURE_ACTION_SCHEMA,
     synchronous=True,
 )
 async def bq25186_configure_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    # Merge the action config with the component config, so that unspecified
+    # options in the action will use the component's configuration
+    path = CORE.config.get_path_for_id(config[CONF_ID])[:-1]
+    parent_config = CORE.config.get_config_for_path(path)
+    merged_config = {**parent_config, **config}
+
+    bq_configuration = build_bq25186_config(merged_config)
+    cg.add(var.set_configuration(bq_configuration))
+    return var

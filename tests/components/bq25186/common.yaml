@@ -2,10 +2,16 @@ esphome:
   on_boot:
     priority: -100
     then:
-      - bq25186.configure: charger
+      # Just the defined configuration
+      - bq25186.apply_configuration: bq25186_charger
+      # Just the defined configuration with some overrides
+      - bq25186.apply_configuration:
+          id: bq25186_charger
+          battery_regulation_voltage: 4100
+          fast_charge_current: 200
 
 bq25186:
-  id: charger
+  id: bq25186_charger
   configure_on_boot: false
   fast_charge_current: 150
   battery_regulation_voltage: 4200
@@ -16,7 +22,7 @@ bq25186:
 
 binary_sensor:
   - platform: bq25186
-    bq25186_id: charger
+    bq25186_id: bq25186_charger
     ts:
       name: TS Open
     charging:
@@ -62,7 +68,7 @@ binary_sensor:
 
 text_sensor:
   - platform: bq25186
-    bq25186_id: charger
+    bq25186_id: bq25186_charger
     charge_status:
       name: Charge Status
     ts_status:
@@ -70,13 +76,12 @@ text_sensor:
 
 switch:
   - platform: bq25186
-    bq25186_id: charger
     pg_gpo:
       name: PG GPO Switch
 
 button:
   - platform: bq25186
-    bq25186_id: charger
+    bq25186_id: bq25186_charger
     software_reset:
       name: Software Reset
     shutdown:

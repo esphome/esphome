@@ -44,7 +44,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_BQ25186_ID): cv.use_id(BQ25186Component),
         cv.Required(CONF_PG_GPO): switch.switch_schema(
-            BQ25186PgGpoSwitch,
+            BQ25186PgGpoSwitch, default_restore_mode="DISABLED"
         ),
     }
 )

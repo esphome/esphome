@@ -50,7 +50,7 @@ void BQ25186Component::set_setup_config(const BQ25186Config &config) {
   sanitized.ts_control.ts_ichg &= 0x01;
   sanitized.ts_control.ts_vrcg &= 0x01;
 
-  this->setup_config_callback_ = [this, sanitized]() { return this->apply_configuration_(sanitized); };
+  this->setup_config_callback_ = [this, sanitized]() { return this->apply_config(sanitized); };
 }
 
 bool BQ25186Component::read_all_registers_() {
@@ -164,7 +164,7 @@ bool BQ25186Component::update_mask_id_register_(const BQ25186MaskIdConfig &confi
   return this->update_register_(BQ25186_REG_MASK_ID, 0xF0, mask_id);
 }
 
-bool BQ25186Component::apply_configuration_(const BQ25186Config &config) {
+bool BQ25186Component::apply_config(const BQ25186Config &config) {
   return (this->update_vbat_ctrl_register_(config.vbat_ctrl) && this->update_ichg_ctrl_register_(config.ichg_ctrl) &&
           this->update_chargectrl0_register_(config.chargectrl0) &&
           this->update_chargectrl1_register_(config.chargectrl1) && this->update_ic_ctrl_register_(config.ic_ctrl) &&
@@ -216,25 +216,30 @@ void BQ25186Component::setup() {
     ESP_LOGW(TAG, "Unexpected device id 0x%X (expected 0x1)", device_id);
   }
 
-  if (this->configure_on_boot_) {
-    ESP_LOGD(TAG, "Applying BQ25186 configuration on boot...");
-    this->apply_setup_config();
+  if (this->setup_config_callback_) {
+    ESP_LOGD(TAG, "Applying BQ25186 configuration on setup...");
+    if (!this->setup_config_callback_()) {
+      ESP_LOGE(TAG, "Failed to apply BQ25186 configuration");
+      this->mark_failed();
+      return;
+    }
+    this->setup_config_callback_ = nullptr;
   }
 
+  // Initialize the PG/GPO switch state based on the current register values
+  if (this->pg_gpo_switch_ != nullptr) {
+    if (!this->read_all_registers_()) {
+      ESP_LOGE(TAG, "Failed to read BQ25186 registers after setup");
+      this->mark_failed();
+      return;
+    }
+    if ((this->data_.registers[BQ25186_REG_VBAT_CTRL] & 0x80) == 0) {
+      ESP_LOGW(TAG, "PG/GPO switch will be disabled because pg_mode is set to power_good");
+      return;
+    }
+    this->pg_gpo_switch_->publish_state((this->data_.registers[BQ25186_REG_SYS_REG] & 0x10) != 0);
+  }
   ESP_LOGV(TAG, "BQ25186 initialized");
-}
-
-void BQ25186Component::apply_setup_config() {
-  if (!this->setup_config_callback_) {
-    ESP_LOGW(TAG, "No BQ25186 setup configuration to apply (already applied or not set)");
-    return;
-  }
-  if (!this->setup_config_callback_()) {
-    ESP_LOGE(TAG, "Failed to apply BQ25186 configuration");
-    this->mark_failed();
-    return;
-  }
-  this->setup_config_callback_ = nullptr;
 }
 
 void BQ25186Component::dump_config() {
@@ -257,11 +262,6 @@ void BQ25186Component::update() {
   }
 
   this->status_clear_warning();
-
-  if (this->pg_gpo_switch_ != nullptr && (this->data_.registers[BQ25186_REG_VBAT_CTRL] & 0x80) != 0) {
-    const bool pg_gpo_level = (this->data_.registers[BQ25186_REG_SYS_REG] & 0x10) != 0;
-    this->pg_gpo_switch_->publish_state(pg_gpo_level);
-  }
 
   for (auto *listener : this->listeners_) {
     listener->on_data(this->data_);
