@@ -1109,10 +1109,7 @@ inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str) {
     return size;
   }
   size_t remaining = size - pos - 1;  // reserve space for null terminator
-  size_t len = strlen_P(str);
-  if (len > remaining) {
-    len = remaining;
-  }
+  size_t len = strnlen_P(str, remaining);
   memcpy_P(buf + pos, str, len);
   pos += len;
   buf[pos] = '\0';
@@ -1135,10 +1132,7 @@ inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str
     return size;
   }
   size_t remaining = size - pos - 1;  // reserve space for null terminator
-  size_t len = strlen(str);
-  if (len > remaining) {
-    len = remaining;
-  }
+  size_t len = strnlen(str, remaining);
   memcpy(buf + pos, str, len);
   pos += len;
   buf[pos] = '\0';
