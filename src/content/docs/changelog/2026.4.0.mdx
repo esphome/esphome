@@ -23,7 +23,7 @@ import ImgTable from "@components/ImgTable.astro";
 ## Release Overview
 
 {/* RELEASE_OVERVIEW_START */}
-ESPHome 2026.4.0 delivers major performance and reliability improvements across all platforms. ESP32 devices default to maximum CPU frequency (33% faster API operations), unlock 40KB extra IRAM, signed OTA verification, and custom partition tables. ESP8266 gets a crash handler matching ESP32/RP2040, and a new client-side state logging architecture achieves up to 46x faster sensor publishing by moving log formatting off the device. Bluetooth Proxy advertisement forwarding (the constant hot path) dropped to just ~2% of main loop time on ESP32-C3. 31 PRs prepare the codebase for ESP-IDF 6.0, and CodSpeed benchmarking infrastructure now catches performance regressions before they ship. The substitution system has been redesigned for up to 18x faster config loading with dynamic `!include` paths, Ethernet expands with 5 new chip types across ESP32 and RP2040, and GPIO expanders gain interrupt-driven operation cutting idle I2C traffic by 99.7%. This release also adds LVGL v9.5.0, native Mitsubishi CN105 climate control, 4 new sensor components, and a `esphome bundle` CLI command to assist with remote compilation.
+ESPHome 2026.4.0 delivers major performance and reliability improvements across all platforms. ESP32 devices default to maximum CPU frequency (33% faster API operations), unlock 40KB extra IRAM, signed OTA verification, and custom partition tables. ESP8266 gets a crash handler matching ESP32/RP2040, and a new client-side state logging architecture achieves up to 46x faster sensor publishing by moving log formatting off the device. Bluetooth Proxy advertisement forwarding (the constant hot path) dropped to just ~1.8% of main loop time on ESP32-C3. 31 PRs prepare the codebase for ESP-IDF 6.0, and CodSpeed benchmarking infrastructure now catches performance regressions before they ship. The substitution system has been redesigned for up to 18x faster config loading with dynamic `!include` paths, Ethernet expands with 5 new chip types across ESP32 and RP2040, and GPIO expanders gain interrupt-driven operation cutting idle I2C traffic by 99.7%. This release also adds LVGL v9.5.0, native Mitsubishi CN105 climate control, 4 new sensor components, and a `esphome bundle` CLI command to assist with remote compilation.
 {/* RELEASE_OVERVIEW_END */}
 
 ## Upgrade Checklist
@@ -79,7 +79,11 @@ esp32:
 
 **Custom partition tables** ([#7682](https://github.com/esphome/esphome/pull/7682)): Components and YAML configs can now define custom data/app partitions that are appended to the flash layout. The partition table generation has been unified across Arduino and IDF, and NVS has been moved to the end of flash with increased size (20KB to 384KB on Arduino). See the [ESP32 documentation](/components/esp32#esp32-partitions) for details.
 
-**ESP-IDF 5.5.4 and Arduino 3.3.8** ([#15666](https://github.com/esphome/esphome/pull/15666)): Platform bumped to pioarduino 55.03.38 with ESP-IDF 5.5.4 and Arduino 3.3.8. PlatformIO is now run in a subprocess to isolate its virtualenv from ESPHome, preventing import errors after build.
+**ESP-IDF 5.5.4 and Arduino 3.3.8** ([#15666](https://github.com/esphome/esphome/pull/15666), [#15705](https://github.com/esphome/esphome/pull/15705)): Platform bumped to pioarduino 55.03.38-1 with ESP-IDF 5.5.4 and Arduino 3.3.8. PlatformIO is now run in a subprocess to isolate its virtualenv from ESPHome, preventing import errors after build.
+
+**ADC crash fix** ([#15717](https://github.com/esphome/esphome/pull/15717)): ADC oneshot control functions are now placed in IRAM for cache safety. Previously, ADC reads could crash when flash cache was disabled during background NVS writes by WiFi, BLE, Zigbee, Thread, or power management.
+
+**Web server OTA brick hazard fix** ([#15720](https://github.com/esphome/esphome/pull/15720)): Fixed a long-standing brick hazard in the captive portal and web server OTA flow where an interrupted upload followed by a retry could write concatenated firmware to flash, producing an invalid image that soft-bricked the device and required a serial flash to recover. The OTA backend now resets on each new upload.
 
 **mDNS crash fix** ([#15670](https://github.com/esphome/esphome/pull/15670)): Bumped espressif/mdns to 1.11.0, fixing heap corruption when processing sustained mDNS browse traffic that caused deterministic LoadProhibited crashes, and a null pointer exception in `mdns_parse_packet`.
 
@@ -215,7 +219,7 @@ This release introduces comprehensive C++ benchmarking infrastructure using [Cod
 - Scheduler interval and timeout operations
 - Plaintext and encrypted API frame writes
 
-**API layer optimizations** (the native API is the primary communication path between ESPHome devices and Home Assistant). The goal was to make Bluetooth Proxy lightweight enough that every ESP32-C3 can run it without worrying about performance impact, and this release delivers: combined with changes from 2026.3.0, the API and BLE proxy advertisement forwarding (the constant hot path) now consume only ~2% of main loop runtime on ESP32-C3, down from ~3.3% in 2026.3.0 and a fraction of what it was a year ago:
+**API layer optimizations** (the native API is the primary communication path between ESPHome devices and Home Assistant). The goal was to make Bluetooth Proxy lightweight enough that every ESP32-C3 can run it without worrying about performance impact, and this release delivers: combined with changes from 2026.3.0, the API and BLE proxy advertisement forwarding (the constant hot path) now consume only ~1.8% of main loop runtime on ESP32-C3, down from ~3.3% in 2026.3.0 and a fraction of what it was a year ago:
 
 - **Protobuf encoding**: 17-20% faster with register-optimized write path ([#15290](https://github.com/esphome/esphome/pull/15290))
 - **Precomputed tag bytes**: Varint and length-delimited field tags computed at compile time ([#15067](https://github.com/esphome/esphome/pull/15067))
@@ -236,6 +240,7 @@ This release introduces comprehensive C++ benchmarking infrastructure using [Cod
 - **Batch encoding**: Simplified encode_to_buffer to single resize call, inlined DeferredBatch::add_item ([#15355](https://github.com/esphome/esphome/pull/15355), [#15353](https://github.com/esphome/esphome/pull/15353))
 - **Enum auto-derivation**: Auto-derive max_value for enum fields in protobuf codegen ([#15469](https://github.com/esphome/esphome/pull/15469))
 - **Sub-message inlining**: New `(inline_encode)` proto option inlines small sub-messages directly into parent encoders, eliminating function pointer indirection. Applied to `BluetoothLERawAdvertisement` (encoded up to 12 times per BLE batch): **40-55% faster** BLE advertisement encoding ([#15599](https://github.com/esphome/esphome/pull/15599))
+- **`speed_optimized` hot paths**: New proto option emits `__attribute__((optimize("O2")))` on specific encode paths so they remain inlined even under firmware's default `-Os` flag. Applied to `SensorStateResponse`, `BluetoothLERawAdvertisementsResponse`, and `SubscribeLogsResponse`: BLE advertisement `calculate_size` is an additional **41% faster**, with similar gains for sensor state and log encoding ([#15691](https://github.com/esphome/esphome/pull/15691), [#15698](https://github.com/esphome/esphome/pull/15698))
 
 **Core framework optimizations:**
 
