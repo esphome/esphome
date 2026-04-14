@@ -73,33 +73,13 @@ BQ25186ApplyConfigurationAction = bq25186_ns.class_(
     "BQ25186ApplyConfigurationAction", automation.Action
 )
 
-TERMINATION_PERCENT_OPTIONS = {
-    "disabled": 0,
-    "5%": 1,
-    "10%": 2,
-    "20%": 3,
-}
+TERMINATION_PERCENT_OPTIONS = {"disabled": 0, "5%": 1, "10%": 2, "20%": 3}
 
-VINDPM_MODE_OPTIONS = {
-    "battery_tracking": 0,
-    "4.5v": 1,
-    "4.7v": 2,
-    "disabled": 3,
-}
+VINDPM_MODE_OPTIONS = {"battery_tracking": 0, "4.5v": 1, "4.7v": 2, "disabled": 3}
 
-THERM_REGULATION_OPTIONS = {
-    "100c": 0,
-    "80c": 1,
-    "60c": 2,
-    "disabled": 3,
-}
+THERM_REGULATION_OPTIONS = {"100c": 0, "80c": 1, "60c": 2, "disabled": 3}
 
-BATTERY_OCP_LIMIT_OPTIONS = {
-    "500ma": 0,
-    "1000ma": 1,
-    "1500ma": 2,
-    "3000ma": 3,
-}
+BATTERY_OCP_LIMIT_OPTIONS = {"500ma": 0, "1000ma": 1, "1500ma": 2, "3000ma": 3}
 
 BATTERY_UVLO_OPTIONS = {
     "3.0v": 0,
@@ -110,12 +90,7 @@ BATTERY_UVLO_OPTIONS = {
     "2.0v": 7,
 }
 
-SAFETY_TIMER_OPTIONS = {
-    "3h": 0,
-    "6h": 1,
-    "12h": 2,
-    "disabled": 3,
-}
+SAFETY_TIMER_OPTIONS = {"3h": 0, "6h": 1, "12h": 2, "disabled": 3}
 
 WATCHDOG_OPTIONS = {
     "160s_software_reset": 0,
@@ -124,19 +99,9 @@ WATCHDOG_OPTIONS = {
     "disabled": 3,
 }
 
-LONG_PRESS_DURATION_OPTIONS = {
-    "5s": 0,
-    "10s": 1,
-    "15s": 2,
-    "20s": 3,
-}
+LONG_PRESS_DURATION_OPTIONS = {"5s": 0, "10s": 1, "15s": 2, "20s": 3}
 
-AUTOWAKE_OPTIONS = {
-    "0.5s": 0,
-    "1s": 1,
-    "2s": 2,
-    "4s": 3,
-}
+AUTOWAKE_OPTIONS = {"0.5s": 0, "1s": 1, "2s": 2, "4s": 3}
 
 INPUT_CURRENT_LIMIT_OPTIONS = {
     "50ma": 0,
@@ -174,29 +139,9 @@ SYS_MODE_OPTIONS = {
     "pulldown_off": 3,
 }
 
-TS_HOT_OPTIONS = {
-    "60c": 0,
-    "65c": 1,
-    "50c": 2,
-    "45c": 3,
-}
+TS_HOT_OPTIONS = {"60c": 0, "65c": 1, "50c": 2, "45c": 3}
 
-TS_COLD_OPTIONS = {
-    "0c": 0,
-    "3c": 1,
-    "5c": 2,
-    "-3c": 3,
-}
-
-TS_ICHG_OPTIONS = {
-    "0.5x": 0,
-    "0.2x": 1,
-}
-
-TS_VRCG_OPTIONS = {
-    "-100mv": 0,
-    "-200mv": 1,
-}
+TS_COLD_OPTIONS = {"0c": 0, "3c": 1, "5c": 2, "-3c": 3}
 
 BQ25186_CONFIG_SCHEMA = cv.Schema(
     {
@@ -267,9 +212,11 @@ BQ25186_CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_TS_COLD, default="0c"): cv.enum(TS_COLD_OPTIONS, lower=True),
         cv.Optional(CONF_TS_WARM_DISABLE, default=False): cv.boolean,
         cv.Optional(CONF_TS_COOL_DISABLE, default=False): cv.boolean,
-        cv.Optional(CONF_TS_ICHG, default="0.5x"): cv.enum(TS_ICHG_OPTIONS, lower=True),
-        cv.Optional(CONF_TS_VRCG, default="-100mv"): cv.enum(
-            TS_VRCG_OPTIONS, lower=True
+        cv.Optional(CONF_TS_ICHG, default="0.5x"): cv.one_of(
+            "0.5x", "0.2x", lower=True
+        ),
+        cv.Optional(CONF_TS_VRCG, default="-100mv"): cv.one_of(
+            "-100mv", "-200mv", lower=True
         ),
         cv.Optional(CONF_MASK_TS_INTERRUPT, default=False): cv.boolean,
         cv.Optional(CONF_MASK_TREG_INTERRUPT, default=True): cv.boolean,
@@ -385,8 +332,8 @@ def build_bq25186_config(config):
         ("ts_cold", config[CONF_TS_COLD]),
         ("ts_warm_disable", config[CONF_TS_WARM_DISABLE]),
         ("ts_cool_disable", config[CONF_TS_COOL_DISABLE]),
-        ("ts_ichg", config[CONF_TS_ICHG]),
-        ("ts_vrcg", config[CONF_TS_VRCG]),
+        ("ts_ichg", 1 if config[CONF_TS_ICHG] == "0.2x" else 0),
+        ("ts_vrcg", 1 if config[CONF_TS_VRCG] == "-200mv" else 0),
     )
 
     mask_id = cg.StructInitializer(
