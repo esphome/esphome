@@ -52,9 +52,9 @@ class LightColorValues {
         green_(1.0f),
         blue_(1.0f),
         white_(1.0f),
-        color_temperature_{0.0f},
         cold_white_{1.0f},
         warm_white_{1.0f},
+        color_temperature_{0.0f},
         color_mode_(ColorMode::UNKNOWN) {}
 
   LightColorValues(ColorMode color_mode, float state, float brightness, float color_brightness, float red, float green,
@@ -287,6 +287,12 @@ class LightColorValues {
   friend class LightCall;
 
  protected:
+  // The eight [0.0, 1.0]-clamped float fields are declared in the same order
+  // as their flag bits (0-7) in LightCall::FieldFlags and the matching fields
+  // in LightCall. LightCall::validate_() exploits this layout to iterate and
+  // copy them via bit-position arithmetic with a constant delta of 12 bytes
+  // between matching LightCall and LightColorValues members. color_temperature_
+  // has a different range and is placed after the clamp block.
   float state_;  ///< ON / OFF, float for transition
   float brightness_;
   float color_brightness_;
@@ -294,9 +300,9 @@ class LightColorValues {
   float green_;
   float blue_;
   float white_;
-  float color_temperature_;  ///< Color Temperature in Mired
   float cold_white_;
   float warm_white_;
+  float color_temperature_;  ///< Color Temperature in Mired
   ColorMode color_mode_;
 };
 

@@ -10,10 +10,19 @@ namespace esphome::light {
 
 static const char *const TAG = "light";
 
-// Helper functions to reduce code size for logging
-static void clamp_and_log_if_invalid(const char *name, float &value, const LogString *param_name, float min = 0.0f,
-                                     float max = 1.0f) {
+// Helper functions to reduce code size for logging.
+//
+// `param_name_progmem` is a pointer to a flash-resident `const LogString *`
+// slot (e.g. into the FIELD_NAMES table below). We only dereference it via
+// `progmem_read_ptr` on the cold path that actually emits the log message,
+// so the hot path (value in range) performs no flash reads at all. On
+// non-ESP8266 platforms `progmem_read_ptr` is a plain `*addr` inline, so
+// there is no cost there either.
+static void clamp_and_log_if_invalid(const char *name, float &value, const LogString *const *param_name_progmem,
+                                     float min = 0.0f, float max = 1.0f) {
   if (value < min || value > max) {
+    const auto *param_name = reinterpret_cast<const LogString *>(
+        progmem_read_ptr(reinterpret_cast<const char *const *>(param_name_progmem)));
     ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_ARG(param_name), value, min, max);
     value = clamp(value, min, max);
   }
@@ -277,25 +286,60 @@ LightColorValues LightCall::validate_() {
   if (this->has_state())
     v.set_state(this->state_);
 
-    // clamp_and_log_if_invalid already clamps in-place, so assign directly
-    // to avoid redundant clamp code from the setter being inlined.
-#define VALIDATE_AND_APPLY(field, name_str, ...) \
-  if (this->has_##field()) { \
-    clamp_and_log_if_invalid(name, this->field##_, LOG_STR(name_str), ##__VA_ARGS__); \
-    v.field##_ = this->field##_; \
+  // Clamp the eight [0.0, 1.0] fields and copy them from `this` into `v`.
+  //
+  // LightCall and LightColorValues both declare the same eight float fields in
+  // the same order (brightness_, color_brightness_, red_, green_, blue_,
+  // white_, cold_white_, warm_white_), and their corresponding flag bits are
+  // also 0-7 in that order. Under that layout the LightCall offset for field i
+  // is `offsetof(LightCall, brightness_) + i * 4`, and the LightColorValues
+  // offset is exactly 12 bytes lower (enforced by the static_asserts below).
+  // Iterating via bit-position arithmetic lets us collapse eight inlined
+  // clamp/copy blocks into a single loop.
+  static_assert(FLAG_HAS_BRIGHTNESS == 1u << 0, "clamp loop assumes bit 0");
+  static_assert(FLAG_HAS_WARM_WHITE == 1u << 7, "clamp loop assumes bit 7");
+  static_assert(offsetof(LightCall, warm_white_) - offsetof(LightCall, brightness_) == 7 * sizeof(float),
+                "LightCall clamp fields must be contiguous");
+  static_assert(offsetof(LightColorValues, warm_white_) - offsetof(LightColorValues, brightness_) == 7 * sizeof(float),
+                "LightColorValues clamp fields must be contiguous");
+  static_assert(offsetof(LightCall, brightness_) - offsetof(LightColorValues, brightness_) == 12,
+                "LightCall and LightColorValues clamp fields must have constant byte-offset delta");
+
+  static const LogString *const FIELD_NAMES[8] PROGMEM = {
+      LOG_STR("Brightness"),        // FLAG_HAS_BRIGHTNESS       (bit 0)
+      LOG_STR("Color brightness"),  // FLAG_HAS_COLOR_BRIGHTNESS (bit 1)
+      LOG_STR("Red"),               // FLAG_HAS_RED              (bit 2)
+      LOG_STR("Green"),             // FLAG_HAS_GREEN            (bit 3)
+      LOG_STR("Blue"),              // FLAG_HAS_BLUE             (bit 4)
+      LOG_STR("White"),             // FLAG_HAS_WHITE            (bit 5)
+      LOG_STR("Cold white"),        // FLAG_HAS_COLD_WHITE       (bit 6)
+      LOG_STR("Warm white"),        // FLAG_HAS_WARM_WHITE       (bit 7)
+  };
+  constexpr size_t SRC_BASE = offsetof(LightCall, brightness_);
+  constexpr size_t SRC_TO_DST_DELTA = SRC_BASE - offsetof(LightColorValues, brightness_);
+
+  uint8_t active = this->flags_ & CLAMP_FLAGS_MASK;
+  if (active != 0) {
+    auto *self = reinterpret_cast<uint8_t *>(this);
+    auto *out = reinterpret_cast<uint8_t *>(&v);
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      if (!(active & (1u << bit)))
+        continue;
+      const size_t src_off = SRC_BASE + bit * sizeof(float);
+      float &f = *reinterpret_cast<float *>(self + src_off);
+      clamp_and_log_if_invalid(name, f, &FIELD_NAMES[bit]);
+      *reinterpret_cast<float *>(out + src_off - SRC_TO_DST_DELTA) = f;
+    }
   }
 
-  VALIDATE_AND_APPLY(brightness, "Brightness")
-  VALIDATE_AND_APPLY(color_brightness, "Color brightness")
-  VALIDATE_AND_APPLY(red, "Red")
-  VALIDATE_AND_APPLY(green, "Green")
-  VALIDATE_AND_APPLY(blue, "Blue")
-  VALIDATE_AND_APPLY(white, "White")
-  VALIDATE_AND_APPLY(cold_white, "Cold white")
-  VALIDATE_AND_APPLY(warm_white, "Warm white")
-  VALIDATE_AND_APPLY(color_temperature, "Color temperature", traits.get_min_mireds(), traits.get_max_mireds())
-
-#undef VALIDATE_AND_APPLY
+  // color_temperature uses a dynamic range from the light's traits and is
+  // handled separately.
+  if (this->has_color_temperature()) {
+    static const LogString *const CT_NAME PROGMEM = LOG_STR("Color temperature");
+    clamp_and_log_if_invalid(name, this->color_temperature_, &CT_NAME, traits.get_min_mireds(),
+                             traits.get_max_mireds());
+    v.color_temperature_ = this->color_temperature_;
+  }
 
   v.normalize_color();
 
