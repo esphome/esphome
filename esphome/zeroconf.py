@@ -235,7 +235,7 @@ def discover_mdns_devices(base_name: str, timeout: float = 5.0) -> list[str]:
 
     try:
         zc = Zeroconf()
-    except Exception as err:
+    except OSError as err:
         _LOGGER.warning("mDNS discovery failed to initialize: %s", err)
         return []
 
