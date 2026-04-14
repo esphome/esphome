@@ -195,10 +195,7 @@ class LightCall {
   /// Some color modes also can be set using non-native parameters, transform those calls.
   void transform_parameters_(const LightTraits &traits);
 
-  // Each flag indicates whether the corresponding value has been set. Bits 0-7
-  // are the [0.0, 1.0] clamp fields; validate_() iterates them via bit-position
-  // arithmetic and asserts the layout — don't reorder without matching the
-  // static_asserts in light_call.cpp.
+  // Bits 0-7 index unit_fields_[] in validate_(); don't reorder (asserts in light_call.cpp).
   enum FieldFlags : uint16_t {
     FLAG_HAS_BRIGHTNESS = 1 << 0,
     FLAG_HAS_COLOR_BRIGHTNESS = 1 << 1,
@@ -243,18 +240,10 @@ class LightCall {
   LightState *parent_;
 
   // Light state values - use flags_ to check if a value has been set.
-  // brightness_..warm_white_ match FieldFlags bits 0-7 in order (see validate_).
   uint32_t transition_length_;
   uint32_t flash_length_;
   uint32_t effect_;
-  float brightness_;
-  float color_brightness_;
-  float red_;
-  float green_;
-  float blue_;
-  float white_;
-  float cold_white_;
-  float warm_white_;
+  ESPHOME_LIGHT_UNIT_FIELDS_UNION();
   float color_temperature_;
 
   // Smaller members at the end for better packing

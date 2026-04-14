@@ -10,20 +10,16 @@ namespace esphome::light {
 
 inline static uint8_t to_uint8_scale(float x) { return static_cast<uint8_t>(roundf(x * 255.0f)); }
 
-// Bit pattern of 1.0f. Values in [0.0f, 1.0f] have bits <= this; out-of-range
-// values (including negatives, whose sign bit makes their uint32 huge) exceed
-// it. Lets a single unsigned compare replace two soft-float calls on ESP8266.
-static constexpr uint32_t ONE_F_BITS = 0x3F800000u;
-// Bit pattern of -0.0f: sign bit set, magnitude zero. Treated as in range.
-static constexpr uint32_t NEG_ZERO_F_BITS = 0x80000000u;
+// IEEE 754 bit patterns. Values in [0.0f, 1.0f] have bits <= ONE_F_BITS;
+// negatives have the sign bit set (→ huge unsigned). A single unsigned compare
+// replaces two soft-float __ltsf2/__gtsf2 calls on ESP8266.
+static constexpr uint32_t ONE_F_BITS = 0x3F800000u;       // 1.0f
+static constexpr uint32_t NEG_ZERO_F_BITS = 0x80000000u;  // -0.0f / sign-bit mask
 static_assert(sizeof(float) == sizeof(uint32_t), "float must be 32-bit");
 static_assert(std::numeric_limits<float>::is_iec559, "IEEE 754 float required");
 
-// Union type-pun (GCC/Clang extension): memcpy/bit_cast don't fold to a no-op
-// on xtensa-gcc. Same reasoning as api/proto.h's float_to_raw().
-// -0.0f (bit pattern 0x80000000) exceeds ONE_F_BITS as unsigned but is
-// numerically zero and clamps to 0.0f anyway — treat it as in range so we
-// don't log a spurious out-of-range warning.
+// Union pun — memcpy/bit_cast don't fold on xtensa-gcc (see api/proto.h).
+// -0.0f counts as in range (clamps to 0.0f anyway; don't log a false warning).
 inline bool float_out_of_unit_range(float x) {
   union {
     float f;
@@ -33,8 +29,7 @@ inline bool float_out_of_unit_range(float x) {
   return pun.u > ONE_F_BITS && pun.u != NEG_ZERO_F_BITS;
 }
 
-// Clamps to [0.0f, 1.0f] without float compares. Negatives (sign bit set)
-// fold to 0.0f; everything else out of range (>1, NaN, Inf) folds to 1.0f.
+// Clamps to [0.0f, 1.0f] without float compares. Negatives → 0; >1/NaN/Inf → 1.
 inline float clamp_unit_float(float x) {
   union {
     float f;
@@ -45,6 +40,23 @@ inline float clamp_unit_float(float x) {
     return x;
   return (pun.u & NEG_ZERO_F_BITS) ? 0.0f : 1.0f;  // sign bit → negative → clamp to 0
 }
+
+// Shared anonymous union: eight unit-range floats alias unit_fields_[8] so
+// LightCall::validate_() can iterate them as a real array. GCC/Clang ext.
+#define ESPHOME_LIGHT_UNIT_FIELDS_UNION() \
+  union { \
+    struct { \
+      float brightness_; \
+      float color_brightness_; \
+      float red_; \
+      float green_; \
+      float blue_; \
+      float white_; \
+      float cold_white_; \
+      float warm_white_; \
+    }; \
+    float unit_fields_[8]; \
+  }
 
 /** This class represents the color state for a light object.
  *
@@ -325,17 +337,8 @@ class LightColorValues {
   friend class LightCall;
 
  protected:
-  // brightness_..warm_white_ match LightCall::FieldFlags bits 0-7 in order.
-  // LightCall::validate_() relies on this layout via static_asserts.
   float state_;  ///< ON / OFF, float for transition
-  float brightness_;
-  float color_brightness_;
-  float red_;
-  float green_;
-  float blue_;
-  float white_;
-  float cold_white_;
-  float warm_white_;
+  ESPHOME_LIGHT_UNIT_FIELDS_UNION();
   float color_temperature_;  ///< Color Temperature in Mired
   ColorMode color_mode_;
 };

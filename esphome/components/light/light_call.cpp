@@ -11,8 +11,8 @@ namespace esphome::light {
 
 static const char *const TAG = "light";
 
-// Cold-path logger. Caller handles the clamp so the in-range hot path avoids
-// the call-site spill/reload around the out-of-line call.
+// Cold-path logger; caller handles the clamp so the in-range hot path avoids
+// the spill/reload around the call.
 static void log_value_out_of_range_(const char *name, float value, const LogString *param_name, float min, float max) {
   ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_ARG(param_name), value, min, max);
 }
@@ -55,20 +55,10 @@ static void log_invalid_parameter(const char *name, const LogString *message) {
 PROGMEM_STRING_TABLE(ColorModeHumanStrings, "Unknown", "On/Off", "Brightness", "White", "Color temperature",
                      "Cold/warm white", "RGB", "RGBW", "RGB + color temperature", "RGB + cold/warm white");
 
-// Field names for validate_(). PROGMEM_STRING_TABLE uses constexpr init so no
-// per-static guard variables in RAM (a plain LOG_STR array of static locals
-// would need them because LOG_STR is a statement-expression on ESP8266).
 // Indices 0-7 match FieldFlags bits 0-7; index 8 is color_temperature.
-PROGMEM_STRING_TABLE(ValidateFieldNames,
-                     "Brightness",        // FLAG_HAS_BRIGHTNESS       (bit 0)
-                     "Color brightness",  // FLAG_HAS_COLOR_BRIGHTNESS (bit 1)
-                     "Red",               // FLAG_HAS_RED              (bit 2)
-                     "Green",             // FLAG_HAS_GREEN            (bit 3)
-                     "Blue",              // FLAG_HAS_BLUE             (bit 4)
-                     "White",             // FLAG_HAS_WHITE            (bit 5)
-                     "Cold white",        // FLAG_HAS_COLD_WHITE       (bit 6)
-                     "Warm white",        // FLAG_HAS_WARM_WHITE       (bit 7)
-                     "Color temperature");
+// PROGMEM_STRING_TABLE is constexpr-init (no RAM guard variable).
+PROGMEM_STRING_TABLE(ValidateFieldNames, "Brightness", "Color brightness", "Red", "Green", "Blue", "White",
+                     "Cold white", "Warm white", "Color temperature");
 static constexpr uint8_t VALIDATE_CT_INDEX = 8;
 
 static const LogString *color_mode_to_human(ColorMode color_mode) {
@@ -291,50 +281,30 @@ LightColorValues LightCall::validate_() {
   if (this->has_state())
     v.set_state(this->state_);
 
-  // Clamp the eight [0.0, 1.0] fields and copy them from `this` into `v`.
-  // Both structs declare the same fields in the same order as FieldFlags bits
-  // 0-7, with a constant byte-offset delta. The asserts below pin that layout
-  // so the loop can index by bit position; any single-field reorder trips the
-  // assert naming the field at fault.
+  // FieldFlags bits 0-7 must match unit_fields_ array indices; the union in
+  // both structs guarantees brightness_..warm_white_ alias unit_fields_[0..7].
   static_assert(std::is_standard_layout_v<LightCall>, "LightCall must be standard-layout");
   static_assert(std::is_standard_layout_v<LightColorValues>, "LightColorValues must be standard-layout");
+  static_assert(FLAG_HAS_BRIGHTNESS == 1u << 0 && FLAG_HAS_COLOR_BRIGHTNESS == 1u << 1 && FLAG_HAS_RED == 1u << 2 &&
+                    FLAG_HAS_GREEN == 1u << 3 && FLAG_HAS_BLUE == 1u << 4 && FLAG_HAS_WHITE == 1u << 5 &&
+                    FLAG_HAS_COLD_WHITE == 1u << 6 && FLAG_HAS_WARM_WHITE == 1u << 7,
+                "FieldFlags bits 0-7 must match unit_fields_ indices");
 
-  constexpr size_t SRC_BASE = offsetof(LightCall, brightness_);
-  constexpr size_t SRC_TO_DST_DELTA = SRC_BASE - offsetof(LightColorValues, brightness_);
-
-#define ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(bit, flag_suffix, member) \
-  static_assert(FLAG_HAS_##flag_suffix == 1u << (bit), "FLAG_HAS_" #flag_suffix " bit position"); \
-  static_assert(offsetof(LightCall, member) == SRC_BASE + (bit) * sizeof(float), \
-                "LightCall::" #member " must be at bit-indexed slot"); \
-  static_assert(offsetof(LightColorValues, member) == SRC_BASE + (bit) * sizeof(float) - SRC_TO_DST_DELTA, \
-                "LightColorValues::" #member " must match LightCall delta")
-  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(0, BRIGHTNESS, brightness_);
-  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(1, COLOR_BRIGHTNESS, color_brightness_);
-  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(2, RED, red_);
-  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(3, GREEN, green_);
-  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(4, BLUE, blue_);
-  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(5, WHITE, white_);
-  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(6, COLD_WHITE, cold_white_);
-  ESPHOME_LIGHT_ASSERT_CLAMP_FIELD(7, WARM_WHITE, warm_white_);
-#undef ESPHOME_LIGHT_ASSERT_CLAMP_FIELD
-
-  // Iterate only the set bits (ctz + clear-lowest) so the hot path is
-  // O(popcount) — HA can drive perform() at high frequency.
-  float *const src_fields = &this->brightness_;
-  float *const dst_fields = &v.brightness_;
+  // Iterate set bits only (ctz + clear-lowest) — HA can drive perform()
+  // at high frequency so the hot path is O(popcount).
   unsigned active = this->flags_ & CLAMP_FLAGS_MASK;
   while (active != 0) {
     unsigned bit = __builtin_ctz(active);
     active &= active - 1;  // clear lowest set bit
-    float &value = src_fields[bit];
+    float &value = this->unit_fields_[bit];
     if (float_out_of_unit_range(value)) {
       log_value_out_of_range_(name, value, ValidateFieldNames::get_log_str(bit, 0), 0.0f, 1.0f);
       value = clamp_unit_float(value);
     }
-    dst_fields[bit] = value;
+    v.unit_fields_[bit] = value;
   }
 
-  // color_temperature has a runtime range from traits — no bit-pattern shortcut.
+  // color_temperature: runtime range from traits.
   if (this->has_color_temperature()) {
     const float ct_min = traits.get_min_mireds();
     const float ct_max = traits.get_max_mireds();
