@@ -18,7 +18,6 @@ bq25186:
   input_current_limit: 500ma
   system_regulation: 4.5v
   charge_enabled: true
-  flash_charging_mode: true
 
 binary_sensor:
   - platform: bq25186
