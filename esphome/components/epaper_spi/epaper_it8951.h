@@ -8,7 +8,7 @@ namespace esphome::epaper_spi {
 class EPaperIT8951 : public EPaperBase {
  public:
   EPaperIT8951(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-                size_t init_sequence_length)
+               size_t init_sequence_length)
       : EPaperBase(name, width, height, init_sequence, init_sequence_length,
                    display::DisplayType::DISPLAY_TYPE_GRAYSCALE) {
     // IT8951 uses 4 bits per pixel (2 pixels per byte)
@@ -55,8 +55,8 @@ class EPaperIT8951 : public EPaperBase {
   // Display area management
   void set_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void update_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, UpdateModeE mode);
-  void update_area_1bpp_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, UpdateModeE mode,
-                         uint8_t bg_gray, uint8_t fg_gray);
+  void update_area_1bpp_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, UpdateModeE mode, uint8_t bg_gray,
+                         uint8_t fg_gray);
   void restore_1bpp_mode_();
 
   // Busy/idle management (IT8951 busy pin polarity: HIGH = ready, LOW = busy)
