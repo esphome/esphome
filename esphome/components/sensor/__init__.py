@@ -3,12 +3,13 @@ import math
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
+from esphome.components import mqtt, web_server, zigbee
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
+    CONF_BASELINE,
     CONF_BELOW,
     CONF_CALIBRATION,
     CONF_DEVICE_CLASS,
@@ -38,7 +39,6 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_TO,
     CONF_TRIGGER_ID,
-    CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     CONF_WEB_SERVER,
@@ -106,8 +106,15 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
-from esphome.cpp_generator import MockObjClass
+from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+    setup_unit_of_measurement,
+)
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -224,7 +231,10 @@ _SENSOR_ENTITY_CATEGORIES = {
 }
 
 
+@schema_extractor("enum")
 def sensor_entity_category(value):
+    if value == SCHEMA_EXTRACT:
+        return _SENSOR_ENTITY_CATEGORIES
     return cv.enum(_SENSOR_ENTITY_CATEGORIES, lower=True)(value)
 
 
@@ -233,12 +243,6 @@ Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
 SensorPtr = Sensor.operator("ptr")
 
 # Triggers
-SensorStateTrigger = sensor_ns.class_(
-    "SensorStateTrigger", automation.Trigger.template(cg.float_)
-)
-SensorRawStateTrigger = sensor_ns.class_(
-    "SensorRawStateTrigger", automation.Trigger.template(cg.float_)
-)
 ValueRangeTrigger = sensor_ns.class_(
     "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
 )
@@ -287,7 +291,11 @@ ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
 
-validate_unit_of_measurement = cv.string_strict
+validate_unit_of_measurement = cv.All(
+    cv.string_strict,
+    # Keep in sync with max_data_length in api.proto
+    cv.ByteLength(max=UNIT_OF_MEASUREMENT_MAX_LENGTH),
+)
 validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
@@ -295,6 +303,7 @@ validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 _SENSOR_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
+    .extend(zigbee.SENSOR_SCHEMA)
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
@@ -310,18 +319,8 @@ _SENSOR_SCHEMA = (
                 cv.Any(None, cv.positive_time_period_milliseconds),
             ),
             cv.Optional(CONF_FILTERS): validate_filters,
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorStateTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        SensorRawStateTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
@@ -335,6 +334,7 @@ _SENSOR_SCHEMA = (
 )
 
 _SENSOR_SCHEMA.add_extra(entity_duplicate_validator("sensor"))
+_SENSOR_SCHEMA.add_extra(zigbee.validate_sensor)
 
 
 def sensor_schema(
@@ -371,13 +371,13 @@ def sensor_schema(
 
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.templatable(cv.float_))
 async def offset_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config, [], float)
+    template_ = await cg.templatable(config, [], cg.float_)
     return cg.new_Pvariable(filter_id, template_)
 
 
 @FILTER_REGISTRY.register("multiply", MultiplyFilter, cv.templatable(cv.float_))
 async def multiply_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config, [], float)
+    template_ = await cg.templatable(config, [], cg.float_)
     return cg.new_Pvariable(filter_id, template_)
 
 
@@ -389,17 +389,19 @@ async def multiply_filter_to_code(config, filter_id):
 async def filter_out_filter_to_code(config, filter_id):
     if not isinstance(config, list):
         config = [config]
-    template_ = [await cg.templatable(x, [], float) for x in config]
-    return cg.new_Pvariable(filter_id, template_)
+    template_ = [await cg.templatable(x, [], cg.float_) for x in config]
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(template_)), template_)
 
 
 QUANTILE_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
-            cv.Optional(CONF_QUANTILE, default=0.9): cv.zero_to_one_float,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_QUANTILE, default=0.9): cv.float_range(
+                min=0, min_included=False, max=1
+            ),
         }
     ),
     validate_send_first_at,
@@ -420,9 +422,9 @@ async def quantile_filter_to_code(config, filter_id):
 MEDIAN_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -442,9 +444,9 @@ async def median_filter_to_code(config, filter_id):
 MIN_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -476,9 +478,9 @@ async def min_filter_to_code(config, filter_id):
 MAX_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -502,9 +504,9 @@ async def max_filter_to_code(config, filter_id):
 SLIDING_AVERAGE_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=15): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=15): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=15): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -533,8 +535,8 @@ EXPONENTIAL_AVERAGE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_ALPHA, default=0.1): cv.positive_float,
-            cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_EVERY, default=15): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -572,44 +574,62 @@ async def lambda_filter_to_code(config, filter_id):
     return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
-DELTA_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_VALUE): cv.positive_float,
-        cv.Optional(CONF_TYPE, default="absolute"): cv.one_of(
-            "absolute", "percentage", lower=True
-        ),
-    }
+def validate_delta_value(value):
+    if isinstance(value, str) and value.endswith("%"):
+        # Check it's a well-formed percentage, but return the string as-is
+        try:
+            cv.positive_float(value[:-1])
+            return value
+        except cv.Invalid as exc:
+            raise cv.Invalid("Malformed delta % value") from exc
+    return cv.positive_float(value)
+
+
+# This ideally would be done with `cv.maybe_simple_value` but it doesn't seem to respect the default for min_value.
+DELTA_SCHEMA = cv.Any(
+    cv.All(
+        {
+            # Ideally this would be 'default=float("inf")' but it doesn't translate well to C++
+            cv.Optional(CONF_MAX_VALUE): validate_delta_value,
+            cv.Optional(CONF_MIN_VALUE, default="0.0"): validate_delta_value,
+            cv.Optional(CONF_BASELINE): cv.templatable(cv.float_),
+        },
+        cv.has_at_least_one_key(CONF_MAX_VALUE, CONF_MIN_VALUE),
+    ),
+    validate_delta_value,
 )
 
 
-def validate_delta(config):
-    try:
-        value = cv.positive_float(config)
-        return DELTA_SCHEMA({CONF_VALUE: value, CONF_TYPE: "absolute"})
-    except cv.Invalid:
-        pass
-    try:
-        value = cv.percentage(config)
-        return DELTA_SCHEMA({CONF_VALUE: value, CONF_TYPE: "percentage"})
-    except cv.Invalid:
-        pass
-    raise cv.Invalid("Delta filter requires a positive number or percentage value.")
+def _get_delta(value):
+    if isinstance(value, str):
+        assert value.endswith("%")
+        return 0.0, float(value[:-1]) / 100.0
+    return value, 0.0
 
 
-@FILTER_REGISTRY.register("delta", DeltaFilter, cv.Any(DELTA_SCHEMA, validate_delta))
+@FILTER_REGISTRY.register("delta", DeltaFilter, DELTA_SCHEMA)
 async def delta_filter_to_code(config, filter_id):
-    percentage = config[CONF_TYPE] == "percentage"
-    return cg.new_Pvariable(
-        filter_id,
-        config[CONF_VALUE],
-        percentage,
-    )
+    # The config could be just the min_value, or it could be a dict.
+    max = MockObj("std::numeric_limits<float>::infinity()"), 0
+    if isinstance(config, dict):
+        min = _get_delta(config[CONF_MIN_VALUE])
+        if CONF_MAX_VALUE in config:
+            max = _get_delta(config[CONF_MAX_VALUE])
+    else:
+        min = _get_delta(config)
+    var = cg.new_Pvariable(filter_id, *min, *max)
+    if isinstance(config, dict) and (baseline_lambda := config.get(CONF_BASELINE)):
+        baseline = await cg.process_lambda(
+            baseline_lambda, [(float, "x")], return_type=float
+        )
+        cg.add(var.set_baseline(baseline))
+    return var
 
 
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
 async def or_filter_to_code(config, filter_id):
     filters = await build_filters(config)
-    return cg.new_Pvariable(filter_id, filters)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(filters)), filters)
 
 
 @FILTER_REGISTRY.register(
@@ -638,8 +658,10 @@ THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
 async def throttle_with_priority_filter_to_code(config, filter_id):
     if not isinstance(config[CONF_VALUE], list):
         config[CONF_VALUE] = [config[CONF_VALUE]]
-    template_ = [await cg.templatable(x, [], float) for x in config[CONF_VALUE]]
-    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
+    template_ = [await cg.templatable(x, [], cg.float_) for x in config[CONF_VALUE]]
+    return cg.new_Pvariable(
+        filter_id, cg.TemplateArguments(len(template_)), config[CONF_TIMEOUT], template_
+    )
 
 
 HEARTBEAT_SCHEMA = cv.Schema(
@@ -691,7 +713,7 @@ async def timeout_filter_to_code(config, filter_id):
     else:
         # Use TimeoutFilterConfigured for configured value mode
         filter_id.type = TimeoutFilterConfigured
-        template_ = await cg.templatable(config[CONF_VALUE], [], float)
+        template_ = await cg.templatable(config[CONF_VALUE], [], cg.float_)
         var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
     await cg.register_component(var, {})
     return var
@@ -757,7 +779,9 @@ async def calibrate_linear_filter_to_code(config, filter_id):
         linear_functions = [[k, b, float("NaN")]]
     elif config[CONF_METHOD] == "exact":
         linear_functions = map_linear(x, y)
-    return cg.new_Pvariable(filter_id, linear_functions)
+    return cg.new_Pvariable(
+        filter_id, cg.TemplateArguments(len(linear_functions)), linear_functions
+    )
 
 
 CONF_DEGREE = "degree"
@@ -795,7 +819,7 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
     # Column vector
     b = [[v] for v in y]
     res = [v[0] for v in _lstsq(a, b)]
-    return cg.new_Pvariable(filter_id, res)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(res)), res)
 
 
 def validate_clamp(config):
@@ -868,40 +892,48 @@ async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
-async def setup_sensor_core_(var, config):
-    await setup_entity(var, config, "sensor")
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_VALUE, "add_on_state_callback", [(float, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_RAW_VALUE, "add_on_raw_state_callback", [(float, "x")]
+    ),
+)
 
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
+
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_sensor_automations(var, config):
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+    for conf in config.get(CONF_ON_VALUE_RANGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await cg.register_component(trigger, conf)
+        if (above := conf.get(CONF_ABOVE)) is not None:
+            template_ = await cg.templatable(above, [(float, "x")], cg.float_)
+            cg.add(trigger.set_min(template_))
+        if (below := conf.get(CONF_BELOW)) is not None:
+            template_ = await cg.templatable(below, [(float, "x")], cg.float_)
+            cg.add(trigger.set_max(template_))
+        await automation.build_automation(trigger, [(float, "x")], conf)
+
+
+@setup_entity("sensor")
+async def setup_sensor_core_(var, config):
+    setup_device_class(config)
+    setup_unit_of_measurement(config)
     if (state_class := config.get(CONF_STATE_CLASS)) is not None:
         cg.add(var.set_state_class(state_class))
-    if (unit_of_measurement := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
-        cg.add(var.set_unit_of_measurement(unit_of_measurement))
     if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
         cg.add(var.set_accuracy_decimals(accuracy_decimals))
     # Only set force_update if True (default is False)
     if config[CONF_FORCE_UPDATE]:
         cg.add(var.set_force_update(True))
     if config.get(CONF_FILTERS):  # must exist and not be empty
+        cg.add_define("USE_SENSOR_FILTER")
         filters = await build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))
 
-    for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
-    for conf in config.get(CONF_ON_RAW_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
-    for conf in config.get(CONF_ON_VALUE_RANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await cg.register_component(trigger, conf)
-        if (above := conf.get(CONF_ABOVE)) is not None:
-            template_ = await cg.templatable(above, [(float, "x")], float)
-            cg.add(trigger.set_min(template_))
-        if (below := conf.get(CONF_BELOW)) is not None:
-            template_ = await cg.templatable(below, [(float, "x")], float)
-            cg.add(trigger.set_max(template_))
-        await automation.build_automation(trigger, [(float, "x")], conf)
+    CORE.add_job(_build_sensor_automations, var, config)
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -917,6 +949,8 @@ async def setup_sensor_core_(var, config):
 
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
+
+    await zigbee.setup_sensor(var, config)
 
 
 async def register_sensor(var, config):

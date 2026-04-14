@@ -8,17 +8,20 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_INDEX,
+    CONF_LAMBDA,
     CONF_MODE,
     CONF_MQTT_ID,
     CONF_ON_VALUE,
     CONF_OPERATION,
     CONF_OPTION,
+    CONF_OPTIONS,
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObjClass, TemplateArguments
+from esphome.cpp_types import global_ns
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -30,13 +33,16 @@ SelectPtr = Select.operator("ptr")
 # Triggers
 SelectStateTrigger = select_ns.class_(
     "SelectStateTrigger",
-    automation.Trigger.template(cg.std_string, cg.size_t),
+    automation.Trigger.template(cg.StringRef, cg.size_t),
 )
 
 # Actions
 SelectSetAction = select_ns.class_("SelectSetAction", automation.Action)
 SelectSetIndexAction = select_ns.class_("SelectSetIndexAction", automation.Action)
 SelectOperationAction = select_ns.class_("SelectOperationAction", automation.Action)
+
+# Conditions
+SelectIsCondition = select_ns.class_("SelectIsCondition", automation.Condition)
 
 # Enums
 SelectOperation = select_ns.enum("SelectOperation")
@@ -86,15 +92,14 @@ def select_schema(
     return _SELECT_SCHEMA.extend(schema)
 
 
+@setup_entity("select")
 async def setup_select_core_(var, config, *, options: list[str]):
-    await setup_entity(var, config, "select")
-
     cg.add(var.traits.set_options(options))
 
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
-            trigger, [(cg.std_string, "x"), (cg.size_t, "i")], conf
+            trigger, [(cg.StringRef, "x"), (cg.size_t, "i")], conf
         )
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
@@ -139,6 +144,7 @@ OPERATION_BASE_SCHEMA = cv.Schema(
             cv.Required(CONF_OPTION): cv.templatable(cv.string_strict),
         }
     ),
+    synchronous=True,
 )
 async def select_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -156,6 +162,7 @@ async def select_set_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_INDEX): cv.templatable(cv.positive_int),
         }
     ),
+    synchronous=True,
 )
 async def select_set_index_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -163,6 +170,41 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
     template_ = await cg.templatable(config[CONF_INDEX], args, cg.size_t)
     cg.add(var.set_index(template_))
     return var
+
+
+@automation.register_condition(
+    "select.is",
+    SelectIsCondition,
+    OPERATION_BASE_SCHEMA.extend(
+        {
+            cv.Optional(CONF_OPTIONS): cv.All(
+                cv.ensure_list(cv.string_strict), cv.Length(min=1)
+            ),
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+        }
+    ).add_extra(cv.has_exactly_one_key(CONF_OPTIONS, CONF_LAMBDA)),
+)
+async def select_is_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    if options := config.get(CONF_OPTIONS):
+        # List of constant options
+        # Create a constexpr and pass that with a template length
+        arr_id = ID(
+            f"{condition_id}_data",
+            is_declaration=True,
+            type=global_ns.namespace("constexpr char * const"),
+        )
+        arg = cg.static_const_array(arr_id, cg.ArrayInitializer(*options))
+        template_arg = TemplateArguments(len(options), *template_arg)
+    else:
+        # Lambda
+        arg = await cg.process_lambda(
+            config[CONF_LAMBDA],
+            [(global_ns.namespace("StringRef &").operator("const"), "current")] + args,
+            return_type=cg.bool_,
+        )
+        template_arg = TemplateArguments(0, *template_arg)
+    return cg.new_Pvariable(condition_id, template_arg, paren, arg)
 
 
 @automation.register_action(
@@ -176,6 +218,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "select.next",
@@ -188,6 +231,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "select.previous",
@@ -202,6 +246,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "select.first",
@@ -213,6 +258,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "select.last",
@@ -224,6 +270,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 async def select_operation_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -232,10 +279,14 @@ async def select_operation_to_code(config, action_id, template_arg, args):
         op_ = await cg.templatable(operation, args, SelectOperation)
         cg.add(var.set_operation(op_))
         if (cycle := config.get(CONF_CYCLE)) is not None:
-            template_ = await cg.templatable(cycle, args, bool)
+            template_ = await cg.templatable(cycle, args, cg.bool_)
             cg.add(var.set_cycle(template_))
     if (mode := config.get(CONF_MODE)) is not None:
-        cg.add(var.set_operation(SELECT_OPERATION_OPTIONS[mode]))
+        template_ = await cg.templatable(
+            SELECT_OPERATION_OPTIONS[mode], args, SelectOperation
+        )
+        cg.add(var.set_operation(template_))
         if (cycle := config.get(CONF_CYCLE)) is not None:
-            cg.add(var.set_cycle(cycle))
+            template_ = await cg.templatable(cycle, args, cg.bool_)
+            cg.add(var.set_cycle(template_))
     return var

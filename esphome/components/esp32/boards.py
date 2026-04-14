@@ -20,7 +20,7 @@ STANDARD_BOARDS = {
     VARIANT_ESP32C6: "esp32-c6-devkitm-1",
     VARIANT_ESP32C61: "esp32-c61-devkitc1-n8r2",
     VARIANT_ESP32H2: "esp32-h2-devkitm-1",
-    VARIANT_ESP32P4: "esp32-p4-evboard",
+    VARIANT_ESP32P4: "esp32-p4_r3-evboard",
     VARIANT_ESP32S2: "esp32-s2-kaluga-1",
     VARIANT_ESP32S3: "esp32-s3-devkitc-1",
 }
@@ -172,6 +172,32 @@ ESP32_BOARD_PINS = {
         "PIN_NEOPIXEL": 33,
         "NEOPIXEL_POWER": 21,
         "I2C_POWER": 7,
+        "LED": 13,
+        "LED_BUILTIN": 13,
+    },
+    "adafruit_feather_esp32s3_reversetft": {
+        "BUTTON": 0,
+        "A0": 18,
+        "A1": 17,
+        "A2": 16,
+        "A3": 15,
+        "A4": 14,
+        "A5": 8,
+        "SCK": 36,
+        "MOSI": 35,
+        "MISO": 37,
+        "RX": 38,
+        "TX": 39,
+        "SCL": 4,
+        "SDA": 3,
+        "NEOPIXEL": 33,
+        "PIN_NEOPIXEL": 33,
+        "NEOPIXEL_POWER": 21,
+        "TFT_I2C_POWER": 7,
+        "TFT_CS": 42,
+        "TFT_DC": 40,
+        "TFT_RESET": 41,
+        "TFT_BACKLIGHT": 45,
         "LED": 13,
         "LED_BUILTIN": 13,
     },
@@ -1488,6 +1514,10 @@ BOARDS = {
         "name": "Arduino Nano ESP32",
         "variant": VARIANT_ESP32S3,
     },
+    "arduino_nesso_n1": {
+        "name": "Arduino Nesso-N1",
+        "variant": VARIANT_ESP32C6,
+    },
     "atd147_s3": {
         "name": "ArtronShop ATD1.47-S3",
         "variant": VARIANT_ESP32S3,
@@ -1656,6 +1686,14 @@ BOARDS = {
         "name": "Espressif ESP32-C6-DevKitM-1",
         "variant": VARIANT_ESP32C6,
     },
+    "esp32-c61-devkitc1": {
+        "name": "Espressif ESP32-C61-DevKitC-1 (4 MB Flash)",
+        "variant": VARIANT_ESP32C61,
+    },
+    "esp32-c61-devkitc1-n8r2": {
+        "name": "Espressif ESP32-C61-DevKitC-1 N8R2 (8 MB Flash Quad, 2 MB PSRAM Quad)",
+        "variant": VARIANT_ESP32C61,
+    },
     "esp32-devkitlipo": {
         "name": "OLIMEX ESP32-DevKit-LiPo",
         "variant": VARIANT_ESP32,
@@ -1673,11 +1711,21 @@ BOARDS = {
         "variant": VARIANT_ESP32H2,
     },
     "esp32-p4": {
-        "name": "Espressif ESP32-P4 generic",
+        "name": "Espressif ESP32-P4 ES (pre rev.300) generic",
         "variant": VARIANT_ESP32P4,
+        "engineering_sample": True,
     },
     "esp32-p4-evboard": {
-        "name": "Espressif ESP32-P4 Function EV Board",
+        "name": "Espressif ESP32-P4 Function EV Board (ES pre rev.300)",
+        "variant": VARIANT_ESP32P4,
+        "engineering_sample": True,
+    },
+    "esp32-p4_r3": {
+        "name": "Espressif ESP32-P4 rev.300 generic",
+        "variant": VARIANT_ESP32P4,
+    },
+    "esp32-p4_r3-evboard": {
+        "name": "Espressif ESP32-P4 Function EV Board v1.6 (rev.301)",
         "variant": VARIANT_ESP32P4,
     },
     "esp32-pico-devkitm-2": {
@@ -1912,6 +1960,10 @@ BOARDS = {
         "name": "Hornbill ESP32 Minima",
         "variant": VARIANT_ESP32,
     },
+    "huidu_hd_wf1": {
+        "name": "Huidu HD-WF1",
+        "variant": VARIANT_ESP32S2,
+    },
     "huidu_hd_wf2": {
         "name": "Huidu HD-WF2",
         "variant": VARIANT_ESP32S3,
@@ -1978,6 +2030,10 @@ BOARDS = {
     },
     "lilygo-t-display-s3": {
         "name": "LilyGo T-Display-S3",
+        "variant": VARIANT_ESP32S3,
+    },
+    "lilygo-t-energy-s3": {
+        "name": "LilyGo T-Energy-S3",
         "variant": VARIANT_ESP32S3,
     },
     "lilygo-t3-s3": {
@@ -2093,8 +2149,9 @@ BOARDS = {
         "variant": VARIANT_ESP32,
     },
     "m5stack-tab5-p4": {
-        "name": "M5STACK Tab5 esp32-p4 Board",
+        "name": "M5STACK Tab5 esp32-p4 Board (ES pre rev.300)",
         "variant": VARIANT_ESP32P4,
+        "engineering_sample": True,
     },
     "m5stack-timer-cam": {
         "name": "M5Stack Timer CAM",
@@ -2240,9 +2297,17 @@ BOARDS = {
         "name": "S.ODI Ultra v1",
         "variant": VARIANT_ESP32,
     },
+    "seeed_xiao_esp32_s3_plus": {
+        "name": "Seeed Studio XIAO ESP32S3 Plus",
+        "variant": VARIANT_ESP32S3,
+    },
     "seeed_xiao_esp32c3": {
         "name": "Seeed Studio XIAO ESP32C3",
         "variant": VARIANT_ESP32C3,
+    },
+    "seeed_xiao_esp32c5": {
+        "name": "Seeed Studio XIAO ESP32C5",
+        "variant": VARIANT_ESP32C5,
     },
     "seeed_xiao_esp32c6": {
         "name": "Seeed Studio XIAO ESP32C6",
@@ -2516,12 +2581,20 @@ BOARDS = {
         "name": "XinaBox CW02",
         "variant": VARIANT_ESP32,
     },
+    "yb_esp32s3_amp": {
+        "name": "YelloByte YB-ESP32-S3-AMP",
+        "variant": VARIANT_ESP32S3,
+    },
     "yb_esp32s3_amp_v2": {
         "name": "YelloByte YB-ESP32-S3-AMP (Rev.2)",
         "variant": VARIANT_ESP32S3,
     },
     "yb_esp32s3_amp_v3": {
         "name": "YelloByte YB-ESP32-S3-AMP (Rev.3)",
+        "variant": VARIANT_ESP32S3,
+    },
+    "yb_esp32s3_dac": {
+        "name": "YelloByte YB-ESP32-S3-DAC",
         "variant": VARIANT_ESP32S3,
     },
     "yb_esp32s3_drv": {

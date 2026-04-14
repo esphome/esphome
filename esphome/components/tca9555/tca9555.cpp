@@ -24,9 +24,18 @@ void TCA9555Component::setup() {
     this->mark_failed();
     return;
   }
+
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&TCA9555Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    this->set_invalidate_on_read_(false);
+  }
+  this->disable_loop();
 }
+void IRAM_ATTR TCA9555Component::gpio_intr(TCA9555Component *arg) { arg->enable_loop_soon_any_context(); }
 void TCA9555Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TCA9555:");
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -36,6 +45,9 @@ void TCA9555Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
     // Set mode mask bit
     this->mode_mask_ |= 1 << pin;
+    if (this->interrupt_pin_ == nullptr) {
+      this->enable_loop();
+    }
   } else if (flags == gpio::FLAG_OUTPUT) {
     // Clear mode mask bit
     this->mode_mask_ &= ~(1 << pin);
@@ -43,7 +55,12 @@ void TCA9555Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   // Write GPIO to enable input mode
   this->write_gpio_modes_();
 }
-void TCA9555Component::loop() { this->reset_pin_cache_(); }
+void TCA9555Component::loop() {
+  this->reset_pin_cache_();
+  if (this->interrupt_pin_ != nullptr) {
+    this->disable_loop();
+  }
+}
 
 bool TCA9555Component::read_gpio_outputs_() {
   if (this->is_failed())
@@ -138,7 +155,9 @@ void TCA9555GPIOPin::setup() { this->pin_mode(this->flags_); }
 void TCA9555GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool TCA9555GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void TCA9555GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-std::string TCA9555GPIOPin::dump_summary() const { return str_sprintf("%u via TCA9555", this->pin_); }
+size_t TCA9555GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return buf_append_printf(buffer, len, 0, "%u via TCA9555", this->pin_);
+}
 
 }  // namespace tca9555
 }  // namespace esphome

@@ -36,7 +36,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(lc709203f),
-            cv.Optional(CONF_SIZE, default="500"): cv.int_range(100, 3000),
+            cv.Optional(CONF_SIZE, default=500): cv.int_range(100, 3000),
             cv.Optional(CONF_VOLTAGE, default="3.7"): cv.enum(
                 BATTERY_VOLTAGE_OPTIONS, upper=True
             ),

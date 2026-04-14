@@ -1,6 +1,5 @@
 import esphome.codegen as cg
 from esphome.components import sensor, uart
-from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FORMALDEHYDE,
@@ -21,7 +20,6 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TYPE,
     CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_AQI,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
@@ -37,41 +35,133 @@ from esphome.const import (
 
 CODEOWNERS = ["@ximex"]
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["aqi"]
 
 pmsx003_ns = cg.esphome_ns.namespace("pmsx003")
 PMSX003Component = pmsx003_ns.class_("PMSX003Component", uart.UARTDevice, cg.Component)
 PMSX003Sensor = pmsx003_ns.class_("PMSX003Sensor", sensor.Sensor)
 
-UNIT_INDEX = "index"
-TYPE_PMSX003 = "PMSX003"
+TYPE_PMS1003 = "PMS1003"
+TYPE_PMS3003 = "PMS3003"
+TYPE_PMSX003 = "PMSX003"  # PMS5003, PMS6003, PMS7003, PMSA003 (NOT PMSA003I - see `pmsa003i` component)
+TYPE_PMS5003S = "PMS5003S"
 TYPE_PMS5003T = "PMS5003T"
 TYPE_PMS5003ST = "PMS5003ST"
-TYPE_PMS5003S = "PMS5003S"
+TYPE_PMS9003M = "PMS9003M"
 
-PMSX003Type = pmsx003_ns.enum("PMSX003Type")
+Type = pmsx003_ns.enum("Type", is_class=True)
 
 PMSX003_TYPES = {
-    TYPE_PMSX003: PMSX003Type.PMSX003_TYPE_X003,
-    TYPE_PMS5003T: PMSX003Type.PMSX003_TYPE_5003T,
-    TYPE_PMS5003ST: PMSX003Type.PMSX003_TYPE_5003ST,
-    TYPE_PMS5003S: PMSX003Type.PMSX003_TYPE_5003S,
+    TYPE_PMS1003: Type.PMS1003,
+    TYPE_PMS3003: Type.PMS3003,
+    TYPE_PMSX003: Type.PMSX003,
+    TYPE_PMS5003S: Type.PMS5003S,
+    TYPE_PMS5003T: Type.PMS5003T,
+    TYPE_PMS5003ST: Type.PMS5003ST,
+    TYPE_PMS9003M: Type.PMS9003M,
 }
 
 SENSORS_TO_TYPE = {
-    CONF_PM_1_0: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_2_5: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_10_0: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_1_0_STD: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_2_5_STD: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_10_0_STD: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_0_3UM: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_0_5UM: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_1_0UM: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_2_5UM: [TYPE_PMSX003, TYPE_PMS5003T, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_5_0UM: [TYPE_PMSX003, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_PM_10_0UM: [TYPE_PMSX003, TYPE_PMS5003ST, TYPE_PMS5003S],
-    CONF_FORMALDEHYDE: [TYPE_PMS5003ST, TYPE_PMS5003S],
+    CONF_PM_1_0_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_2_5_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_10_0_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_1_0: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_2_5: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_10_0: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_0_3UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_0_5UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_1_0UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_2_5UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_5_0UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_10_0UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_FORMALDEHYDE: [TYPE_PMS5003S, TYPE_PMS5003ST],
     CONF_TEMPERATURE: [TYPE_PMS5003T, TYPE_PMS5003ST],
     CONF_HUMIDITY: [TYPE_PMS5003T, TYPE_PMS5003ST],
 }
@@ -81,10 +171,6 @@ def validate_pmsx003_sensors(value):
     for key, types in SENSORS_TO_TYPE.items():
         if key in value and value[CONF_TYPE] not in types:
             raise cv.Invalid(f"{value[CONF_TYPE]} does not have {key} sensor!")
-    if CONF_AQI in value and CONF_PM_2_5 not in value:
-        raise cv.Invalid("AQI computation requires PM 2.5 sensor")
-    if CONF_AQI in value and CONF_PM_10_0 not in value:
-        raise cv.Invalid("AQI computation requires PM 10 sensor")
     return value
 
 
@@ -99,7 +185,7 @@ def validate_update_interval(value):
     return value
 
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PMSX003Component),
@@ -200,24 +286,12 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_AQI): sensor.sensor_schema(
-                unit_of_measurement=UNIT_INDEX,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_AQI,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(
-                {
-                    cv.Required(CONF_CALCULATION_TYPE): cv.enum(
-                        AQI_CALCULATION_TYPE, upper=True
-                    ),
-                }
-            ),
             cv.Optional(CONF_UPDATE_INTERVAL, default="0s"): validate_update_interval,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA),
+    validate_pmsx003_sensors,
 )
 
 
@@ -298,10 +372,5 @@ async def to_code(config):
     if CONF_HUMIDITY in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity_sensor(sens))
-
-    if CONF_AQI in config:
-        sens = await sensor.new_sensor(config[CONF_AQI])
-        cg.add(var.set_aqi_sensor(sens))
-        cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
 
     cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))

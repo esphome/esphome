@@ -10,9 +10,7 @@ namespace esphome::wifi_info {
 
 static const char *const TAG = "wifi_info";
 
-#ifdef USE_WIFI_LISTENERS
-
-static constexpr size_t MAX_STATE_LENGTH = 255;
+#ifdef USE_WIFI_IP_STATE_LISTENERS
 
 /********************
  * IPAddressWiFiInfo
@@ -24,12 +22,15 @@ void IPAddressWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "IP Address", this);
 
 void IPAddressWiFiInfo::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
                                     const network::IPAddress &dns2) {
-  this->publish_state(ips[0].str());
+  char buf[network::IP_ADDRESS_BUFFER_SIZE];
+  ips[0].str_to(buf);
+  this->publish_state(buf);
   uint8_t sensor = 0;
   for (const auto &ip : ips) {
     if (ip.is_set()) {
       if (this->ip_sensors_[sensor] != nullptr) {
-        this->ip_sensors_[sensor]->publish_state(ip.str());
+        ip.str_to(buf);
+        this->ip_sensors_[sensor]->publish_state(buf);
       }
       sensor++;
     }
@@ -55,6 +56,10 @@ void DNSAddressWifiInfo::on_ip_state(const network::IPAddresses &ips, const netw
   this->publish_state(buf);
 }
 
+#endif  // USE_WIFI_IP_STATE_LISTENERS
+
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+
 /**********************
  * ScanResultsWiFiInfo
  *********************/
@@ -77,14 +82,14 @@ static char *format_scan_entry(char *buf, const char *ssid, size_t ssid_len, int
 }
 
 void ScanResultsWiFiInfo::on_wifi_scan_results(const wifi::wifi_scan_vector_t<wifi::WiFiScanResult> &results) {
-  char buf[MAX_STATE_LENGTH + 1];
+  char buf[MAX_STATE_LEN + 1];
   char *ptr = buf;
-  const char *end = buf + MAX_STATE_LENGTH;
+  const char *end = buf + MAX_STATE_LEN;
 
   for (const auto &scan : results) {
     if (scan.get_is_hidden())
       continue;
-    const std::string &ssid = scan.get_ssid();
+    const auto &ssid = scan.get_ssid();
     // Max space: ssid + ": " (2) + "-128" (4) + "dB\n" (3) = ssid + 9
     if (ptr + ssid.size() + 9 > end)
       break;
@@ -95,6 +100,10 @@ void ScanResultsWiFiInfo::on_wifi_scan_results(const wifi::wifi_scan_vector_t<wi
   this->publish_state(buf);
 }
 
+#endif  // USE_WIFI_SCAN_RESULTS_LISTENERS
+
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+
 /***************
  * SSIDWiFiInfo
  **************/
@@ -104,7 +113,7 @@ void SSIDWiFiInfo::setup() { wifi::global_wifi_component->add_connect_state_list
 void SSIDWiFiInfo::dump_config() { LOG_TEXT_SENSOR("", "SSID", this); }
 
 void SSIDWiFiInfo::on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) {
-  this->publish_state(ssid.str());
+  this->publish_state(ssid.c_str(), ssid.size());
 }
 
 /****************
@@ -122,6 +131,10 @@ void BSSIDWiFiInfo::on_wifi_connect_state(StringRef ssid, std::span<const uint8_
   }
   this->publish_state(buf);
 }
+
+#endif  // USE_WIFI_CONNECT_STATE_LISTENERS
+
+#ifdef USE_WIFI_POWER_SAVE_LISTENERS
 
 /************************
  * PowerSaveModeWiFiInfo
@@ -179,7 +192,7 @@ void PowerSaveModeWiFiInfo::on_wifi_power_save(wifi::WiFiPowerSaveMode mode) {
   this->publish_state(mode_str);
 }
 
-#endif
+#endif  // USE_WIFI_POWER_SAVE_LISTENERS
 
 /*********************
  * MacAddressWifiInfo

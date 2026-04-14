@@ -5,6 +5,29 @@
 
 namespace esphome::web_server {
 
+// Write HTML-escaped text to stream (escapes ", &, <, >)
+static void write_html_escaped(AsyncResponseStream *stream, const char *text) {
+  for (const char *p = text; *p; ++p) {
+    switch (*p) {
+      case '"':
+        stream->print("&quot;");
+        break;
+      case '&':
+        stream->print("&amp;");
+        break;
+      case '<':
+        stream->print("&lt;");
+        break;
+      case '>':
+        stream->print("&gt;");
+        break;
+      default:
+        stream->write(*p);
+        break;
+    }
+  }
+}
+
 void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
                const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
   stream->print("<tr class=\"");
@@ -16,8 +39,27 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
   stream->print("-");
   char object_id_buf[OBJECT_ID_MAX_LEN];
   stream->print(obj->get_object_id_to(object_id_buf).c_str());
+  // Add data attributes for hierarchical URL support
+  stream->print("\" data-domain=\"");
+  stream->print(klass.c_str());
+  stream->print("\" data-name=\"");
+  write_html_escaped(stream, obj->get_name().c_str());
+#ifdef USE_DEVICES
+  Device *device = obj->get_device();
+  if (device != nullptr) {
+    stream->print("\" data-device=\"");
+    write_html_escaped(stream, device->get_name());
+  }
+#endif
   stream->print("\"><td>");
-  stream->print(obj->get_name().c_str());
+#ifdef USE_DEVICES
+  if (device != nullptr) {
+    stream->print("[");
+    write_html_escaped(stream, device->get_name());
+    stream->print("] ");
+  }
+#endif
+  write_html_escaped(stream, obj->get_name().c_str());
   stream->print("</td><td></td><td>");
   stream->print(action.c_str());
   if (action_func) {
@@ -32,8 +74,8 @@ void WebServer::set_css_url(const char *css_url) { this->css_url_ = css_url; }
 void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
-  AsyncResponseStream *stream = request->beginResponseStream("text/html");
-  const std::string &title = App.get_name();
+  AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("text/html"));
+  const auto &title = App.get_name();
   stream->print(ESPHOME_F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
                           "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
   stream->print(title.c_str());
@@ -160,7 +202,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         stream.print("<option></option>");
         for (auto const &option : select->traits.get_options()) {
           stream.print("<option>");
-          stream.print(option.c_str());
+          stream.print(option);
           stream.print("</option>");
         }
         stream.print("</select>");
@@ -187,6 +229,13 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   for (auto *obj : App.get_climates()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "climate", "");
+  }
+#endif
+
+#ifdef USE_WATER_HEATER
+  for (auto *obj : App.get_water_heaters()) {
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "water_heater", "");
   }
 #endif
 
