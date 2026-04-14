@@ -51,7 +51,6 @@ CONF_MASK_TS_INTERRUPT = "mask_ts_interrupt"
 CONF_MASK_TREG_INTERRUPT = "mask_treg_interrupt"
 CONF_MASK_BAT_INTERRUPT = "mask_bat_interrupt"
 CONF_MASK_PG_INTERRUPT = "mask_pg_interrupt"
-CONF_PG_MODE = "pg_mode"
 
 bq25186_ns = cg.esphome_ns.namespace("bq25186")
 BQ25186Component = bq25186_ns.class_(
@@ -260,8 +259,8 @@ def build_bq25186_config(config):
     vbat_ctrl = cg.StructInitializer(
         BQ25186VBatCtrlConfig,
         ("battery_regulation_voltage_mv", config[CONF_BATTERY_REGULATION_VOLTAGE]),
-        # Default to 0 (power_good) if not set, since the switch will change it to 1 (gpo) if used
-        ("pg_mode", config.get(CONF_PG_MODE, 0)),
+        # 0 (power_good) because it will be changed to 1 (gpo) in case it's being used
+        ("pg_mode", 0),
     )
 
     ichg_ctrl = cg.StructInitializer(
