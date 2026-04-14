@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include "esphome/core/finite_set_mask.h"
+#include "esphome/core/helpers.h"  // ESPHOME_ALWAYS_INLINE
 
 namespace esphome::light {
 
@@ -128,7 +129,7 @@ struct ColorModeBitPolicy {
   using mask_t = uint16_t;  // 10 bits requires uint16_t
   static constexpr int MAX_BITS = sizeof(COLOR_MODE_LOOKUP) / sizeof(COLOR_MODE_LOOKUP[0]);
 
-  static constexpr unsigned to_bit(ColorMode mode) {
+  static constexpr unsigned ESPHOME_ALWAYS_INLINE to_bit(ColorMode mode) {
     // Linear search through lookup table
     // Compiler optimizes this to efficient code since array is constexpr
     for (int i = 0; i < MAX_BITS; ++i) {
