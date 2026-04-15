@@ -878,7 +878,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // Get the initial loop time at the start
-  uint32_t last_op_end_time = millis();
+  uint32_t last_op_end_time = MillisInternal::get();
 
   this->before_loop_tasks_(last_op_end_time);
 
