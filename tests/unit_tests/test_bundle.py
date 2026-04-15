@@ -913,6 +913,41 @@ def test_discover_files_nested_include_unresolved_substitution(
     assert "test.yaml" in paths
 
 
+def test_discover_files_nested_include_load_failure(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A nested !include pointing at a missing file is logged and skipped."""
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\nwifi: !include missing.yaml\n"
+    )
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "test.yaml" in paths
+    assert any(
+        "failed to load !include" in r.message and "missing.yaml" in r.message
+        for r in caplog.records
+    )
+
+
+def test_force_load_handles_cyclic_containers() -> None:
+    """Cyclic dict/list references don't cause infinite recursion."""
+    from esphome.bundle import _force_load_include_files
+
+    cyclic_dict: dict[str, Any] = {}
+    cyclic_dict["self"] = cyclic_dict
+
+    cyclic_list: list[Any] = []
+    cyclic_list.append(cyclic_list)
+
+    # Should return without recursing forever
+    _force_load_include_files(cyclic_dict)
+    _force_load_include_files(cyclic_list)
+
+
 def test_discover_files_yaml_reload_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
