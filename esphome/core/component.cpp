@@ -507,7 +507,7 @@ void PollingComponent::stop_poller() {
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
 
 #ifdef USE_RUNTIME_STATS
-uint64_t ComponentRuntimeStats::global_recorded_us_ = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+uint64_t ComponentRuntimeStats::global_recorded_us = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 
 void __attribute__((noinline, cold))

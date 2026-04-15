@@ -121,7 +121,7 @@ struct ComponentRuntimeStats {
   // WarnIfComponentBlockingGuard (including guards constructed by the
   // scheduler at scheduler.cpp) so main-loop overhead accounting can
   // subtract scheduled-callback time from the before_loop_tasks_ wall time.
-  static uint64_t global_recorded_us_;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  static uint64_t global_recorded_us;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
   void record_time(uint32_t duration_us) {
     this->period_count++;
@@ -132,7 +132,7 @@ struct ComponentRuntimeStats {
     this->total_time_us += duration_us;
     if (duration_us > this->total_max_time_us)
       this->total_max_time_us = duration_us;
-    global_recorded_us_ += duration_us;
+    global_recorded_us += duration_us;
   }
   void reset_period() {
     this->period_count = 0;

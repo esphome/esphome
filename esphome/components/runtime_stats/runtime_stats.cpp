@@ -65,17 +65,22 @@ void RuntimeStatsCollector::log_stats_() {
   if (this->period_active_count_ > 0) {
     uint64_t active = this->period_active_time_us_;
     uint64_t overhead = active > period_component_sum_us ? active - period_component_sum_us : 0;
+    // Use double for µs→ms conversion so multi-day uptimes (where total
+    // microsecond counters exceed float's ~7-digit mantissa) keep resolution.
     ESP_LOGI(TAG,
              "  main_loop: iters=%" PRIu64 ", active_avg=%.3fms, active_max=%.2fms, active_total=%.1fms, "
              "overhead_total=%.1fms",
-             this->period_active_count_, active / (float) this->period_active_count_ / 1000.0f,
-             this->period_active_max_us_ / 1000.0f, active / 1000.0f, overhead / 1000.0f);
+             this->period_active_count_,
+             static_cast<double>(active) / static_cast<double>(this->period_active_count_) / 1000.0,
+             static_cast<double>(this->period_active_max_us_) / 1000.0, static_cast<double>(active) / 1000.0,
+             static_cast<double>(overhead) / 1000.0);
     uint64_t before = this->period_before_time_us_;
     uint64_t tail = this->period_tail_time_us_;
     uint64_t accounted = before + tail;
     uint64_t inter = overhead > accounted ? overhead - accounted : 0;
-    ESP_LOGI(TAG, "  main_loop_overhead_section: before=%.1fms, tail=%.1fms, inter_component=%.1fms", before / 1000.0f,
-             tail / 1000.0f, inter / 1000.0f);
+    ESP_LOGI(TAG, "  main_loop_overhead_section: before=%.1fms, tail=%.1fms, inter_component=%.1fms",
+             static_cast<double>(before) / 1000.0, static_cast<double>(tail) / 1000.0,
+             static_cast<double>(inter) / 1000.0);
   }
 
   // Log total stats since boot (only for active components - idle ones haven't changed)
@@ -100,14 +105,17 @@ void RuntimeStatsCollector::log_stats_() {
     ESP_LOGI(TAG,
              "  main_loop: iters=%" PRIu64 ", active_avg=%.3fms, active_max=%.2fms, active_total=%.1fms, "
              "overhead_total=%.1fms",
-             this->total_active_count_, active / (float) this->total_active_count_ / 1000.0f,
-             this->total_active_max_us_ / 1000.0f, active / 1000.0f, overhead / 1000.0f);
+             this->total_active_count_,
+             static_cast<double>(active) / static_cast<double>(this->total_active_count_) / 1000.0,
+             static_cast<double>(this->total_active_max_us_) / 1000.0, static_cast<double>(active) / 1000.0,
+             static_cast<double>(overhead) / 1000.0);
     uint64_t before = this->total_before_time_us_;
     uint64_t tail = this->total_tail_time_us_;
     uint64_t accounted = before + tail;
     uint64_t inter = overhead > accounted ? overhead - accounted : 0;
-    ESP_LOGI(TAG, "  main_loop_overhead_section: before=%.1fms, tail=%.1fms, inter_component=%.1fms", before / 1000.0f,
-             tail / 1000.0f, inter / 1000.0f);
+    ESP_LOGI(TAG, "  main_loop_overhead_section: before=%.1fms, tail=%.1fms, inter_component=%.1fms",
+             static_cast<double>(before) / 1000.0, static_cast<double>(tail) / 1000.0,
+             static_cast<double>(inter) / 1000.0);
   }
 
   // Reset period stats
