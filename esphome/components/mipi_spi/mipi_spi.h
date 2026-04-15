@@ -234,9 +234,9 @@ class MipiSpi : public display::Display,
   }
 
   void dump_config() override {
-    internal_dump_config(this->model_, this->get_width(), this->get_height(), OFFSET_WIDTH, OFFSET_HEIGHT, MADCTL,
-                         this->invert_colors_, DISPLAYPIXEL * 8, IS_BIG_ENDIAN, this->brightness_, this->cs_,
-                         this->reset_pin_, this->dc_pin_, this->mode_, this->data_rate_, BUS_TYPE,
+    internal_dump_config(this->model_, this->get_width(), this->get_height(), OFFSET_WIDTH, OFFSET_HEIGHT,
+                         (uint8_t) MADCTL, this->invert_colors_, DISPLAYPIXEL * 8, IS_BIG_ENDIAN, this->brightness_,
+                         this->cs_, this->reset_pin_, this->dc_pin_, this->mode_, this->data_rate_, BUS_TYPE,
                          HAS_HARDWARE_ROTATION);
   }
 
@@ -305,7 +305,7 @@ class MipiSpi : public display::Display,
       this->write_command_(BRIGHTNESS, this->brightness_.value());
 
     // calculate new madctl value from base value adjusted for rotation
-    uint8_t madctl = MADCTL;  // lower 8 bits only
+    uint8_t madctl = (uint8_t) MADCTL;  // lower 8 bits only
     constexpr bool use_flips = (MADCTL & MADCTL_FLIP_FLAG) != 0;
     constexpr uint8_t x_mask = use_flips ? MADCTL_XFLIP : MADCTL_MX;
     constexpr uint8_t y_mask = use_flips ? MADCTL_YFLIP : MADCTL_MY;

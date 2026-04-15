@@ -82,12 +82,16 @@ def event_schema(
     return _EVENT_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_EVENT, "add_on_event_callback", [(cg.StringRef, "event_type")]
+    ),
+)
+
+
 @setup_entity("event")
 async def setup_event_core_(var, config, *, event_types: list[str]):
-    for conf in config.get(CONF_ON_EVENT, []):
-        await automation.build_callback_automation(
-            var, "add_on_event_callback", [(cg.StringRef, "event_type")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     cg.add(var.set_event_types(event_types))
 
