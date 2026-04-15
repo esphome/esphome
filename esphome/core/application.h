@@ -385,7 +385,24 @@ class Application {
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
-  void feed_wdt(uint32_t time = 0);
+  /// Minimum interval between real arch_feed_wdt() calls. Chosen to keep the
+  /// rate of HAL pokes low while still being small enough that any plausible
+  /// watchdog timeout (seconds) has orders of magnitude of safety margin.
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 3;
+
+  /// Feed the task watchdog. Cold entry — callers without a millis()
+  /// timestamp in hand. Out of line to keep call sites tiny.
+  void feed_wdt();
+
+  /// Feed the task watchdog, hot entry. Callers that already have a
+  /// millis() timestamp pay only a load + sub + branch on the common
+  /// (no-op) path. The actual arch feed + status LED update live in
+  /// feed_wdt_slow_.
+  void ESPHOME_ALWAYS_INLINE feed_wdt_with_time(uint32_t time) {
+    if (static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) [[unlikely]] {
+      this->feed_wdt_slow_(time);
+    }
+  }
 
   void reboot();
 
@@ -401,7 +418,18 @@ class Application {
    */
   void teardown_components(uint32_t timeout_ms);
 
-  uint8_t get_app_state() const { return this->app_state_; }
+  /// Return the public app state status bits (STATUS_LED_* only).
+  /// Internal bookkeeping bits like APP_STATE_SETUP_COMPLETE are masked
+  /// out so external readers (status_led components, etc.) never see them.
+  uint8_t get_app_state() const { return this->app_state_ & ~APP_STATE_SETUP_COMPLETE; }
+
+  /// True once Application::setup() has finished walking all components
+  /// and finalized the initial status flags. Before this point, the
+  /// slow-setup busy-wait may be forcing STATUS_LED_WARNING on, and
+  /// status_clear_* intentionally skips its walk-and-clear step so the
+  /// forced bit doesn't get wiped. Stored as a free bit on app_state_
+  /// (bit 6) to avoid costing additional RAM.
+  bool is_setup_complete() const { return (this->app_state_ & APP_STATE_SETUP_COMPLETE) != 0; }
 
 // Helper macro for entity getter method declarations
 #ifdef USE_DEVICES
@@ -577,6 +605,12 @@ class Application {
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
 #endif
 
+  /// Walk all registered components looking for any whose component_state_
+  /// has the given flag set. Used by Component::status_clear_*_slow_path_()
+  /// (which is a friend) to decide whether to clear the corresponding bit on
+  /// this->app_state_ (the app-wide "any component has this status" indicator).
+  bool any_component_has_status_flag_(uint8_t flag) const;
+
   /// Register a component, detecting loop() override at compile time.
   /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.
   template<typename T> void register_component_(T *comp) {
@@ -615,7 +649,10 @@ class Application {
   /// Caller must ensure dump_config_at_ < components_.size().
   void __attribute__((noinline)) process_dump_config_();
 
-  void feed_wdt_arch_();
+  /// Slow path for feed_wdt(): actually calls arch_feed_wdt(), updates
+  /// last_wdt_feed_, and re-dispatches the status LED. Out of line so the
+  /// inline wrapper stays tiny.
+  void feed_wdt_slow_(uint32_t time);
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
 #ifdef USE_HOST
@@ -669,6 +706,7 @@ class Application {
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
+  uint32_t last_wdt_feed_{0};  // millis() of most recent arch_feed_wdt(); rate-limits feed_wdt() hot path
 
 #ifdef USE_HOST
   int max_fd_{-1};  // Highest file descriptor number for select()
@@ -813,11 +851,12 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
   this->drain_wake_notifications_();
 #endif
 
-  // Process scheduled tasks
+  // Process scheduled tasks. Scheduler::call now feeds the watchdog itself
+  // after each scheduled item that actually runs, so we no longer need an
+  // unconditional feed here — when Scheduler::call has no work to do, the
+  // only elapsed time is a sleep wake + a few instructions, and when it does
+  // have work, it fed the wdt as it went.
   this->scheduler.call(loop_start_time);
-
-  // Feed the watchdog timer
-  this->feed_wdt(loop_start_time);
 
   // Process any pending enable_loop requests from ISRs
   // This must be done before marking in_loop_ = true to avoid race conditions
@@ -838,8 +877,6 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
-  uint8_t new_app_state = 0;
-
   // Get the initial loop time at the start
   uint32_t last_op_end_time = millis();
 
@@ -859,13 +896,10 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
       // Use the finish method to get the current time as the end time
       last_op_end_time = guard.finish();
     }
-    new_app_state |= component->get_component_state();
-    this->app_state_ |= new_app_state;
-    this->feed_wdt(last_op_end_time);
+    this->feed_wdt_with_time(last_op_end_time);
   }
 
   this->after_loop_tasks_();
-  this->app_state_ = new_app_state;
 
 #ifdef USE_RUNTIME_STATS
   // Process any pending runtime stats printing after all components have run
