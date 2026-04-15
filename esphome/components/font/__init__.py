@@ -238,7 +238,7 @@ def validate_font_config(config):
     return config
 
 
-FONT_EXTENSIONS = (".ttf", ".woff", ".otf", "bdf", ".pcf")
+FONT_EXTENSIONS = (".ttf", ".woff", ".otf", ".bdf", ".pcf")
 
 
 def validate_truetype_file(value):
@@ -552,6 +552,7 @@ async def to_code(config):
     """
 
     # get the codepoints from glyphsets and flatten to a set of chrs.
+    cg.add_define("USE_FONT")
     point_set: set[str] = {
         chr(x)
         for x in flatten(

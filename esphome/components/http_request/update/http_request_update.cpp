@@ -74,6 +74,10 @@ void HttpRequestUpdate::update() {
   }
   this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
 #ifdef USE_ESP32
+  if (this->update_task_handle_ != nullptr) {
+    ESP_LOGW(TAG, "Update check already in progress");
+    return;
+  }
   xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
 #else
   this->update_task(this);
@@ -204,6 +208,9 @@ defer:
   // both success and error paths to avoid multiple std::function instantiations.
   // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on supported toolchains.
   this_update->defer([this_update, result]() {
+#ifdef USE_ESP32
+    this_update->update_task_handle_ = nullptr;
+#endif
     if (result->error_str != nullptr) {
       this_update->status_set_error(result->error_str);
       delete result;

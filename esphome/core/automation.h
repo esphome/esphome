@@ -34,70 +34,236 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };
 #endif
 // NOLINTEND(readability-identifier-naming)
 
+/// Function-pointer-only templatable storage (4 bytes on 32-bit).
+/// Used by the TEMPLATABLE_VALUE macro for codegen-managed fields.
+/// Codegen wraps constants in stateless lambdas so only a function pointer is needed.
+template<typename T, typename... X> class TemplatableFn {
+ public:
+  TemplatableFn() = default;
+  TemplatableFn(std::nullptr_t) = delete;
+
+  // Exact return type match — direct function pointer storage
+  template<typename F> TemplatableFn(F f) requires std::convertible_to<F, T (*)(X...)> : f_(f) {}
+
+  // Convertible return type (e.g., int -> uint8_t) — casting trampoline.
+  // Stateless lambdas are default-constructible in C++20, so F{} recreates the lambda inside
+  // the trampoline without capturing. This compiles to the same code as a direct call + cast.
+  // Deprecated: codegen should use the correct output type to avoid the trampoline.
+  template<typename F>
+      [[deprecated("Lambda return type does not match TemplatableFn<T> — use the correct type in "
+                   "codegen")]] TemplatableFn(F) requires(!std::convertible_to<F, T (*)(X...)>) &&
+      std::invocable<F, X...> &&std::convertible_to<std::invoke_result_t<F, X...>, T> &&std::is_empty_v<F>
+          &&std::default_initializable<F> : f_([](X... x) -> T { return static_cast<T>(F{}(x...)); }) {}
+
+  // Reject any callable that didn't match the above (stateful lambdas or inconvertible return types)
+  template<typename F>
+  TemplatableFn(F) requires std::invocable<F, X...> &&
+      (!std::convertible_to<F, T (*)(X...)>) &&(!std::is_empty_v<F> ||
+                                                !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
+                                                !std::default_initializable<F>) = delete;
+
+  bool has_value() const { return this->f_ != nullptr; }
+
+  T value(X... x) const { return this->f_ ? this->f_(x...) : T{}; }
+
+  optional<T> optional_value(X... x) const {
+    if (!this->f_)
+      return {};
+    return this->f_(x...);
+  }
+
+  T value_or(X... x, T default_value) const { return this->f_ ? this->f_(x...) : default_value; }
+
+ protected:
+  T (*f_)(X...){nullptr};
+};
+
+// Forward declaration for TemplatableValue (string specialization needs it)
+template<typename T, typename... X> class TemplatableValue;
+
+/// Selects TemplatableFn (4 bytes) for trivially copyable types, TemplatableValue (8 bytes) otherwise.
+/// Non-trivial types (std::string, std::vector<uint8_t>, etc.) need TemplatableValue for raw value
+/// storage, PROGMEM/FlashStringHelper support (strings), and proper copy/move/destruction.
+template<typename T, typename... X>
+using TemplatableStorage =
+    std::conditional_t<std::is_trivially_copyable_v<T>, TemplatableFn<T, X...>, TemplatableValue<T, X...>>;
+
 #define TEMPLATABLE_VALUE_(type, name) \
  protected: \
-  TemplatableValue<type, Ts...> name##_{}; \
+  TemplatableStorage<type, Ts...> name##_{}; \
 \
  public: \
   template<typename V> void set_##name(V name) { this->name##_ = name; }
 
 #define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
 
+/// Primary TemplatableValue: stores either a constant value or a function pointer.
+/// No std::function, no string-specific paths. 8 bytes on 32-bit.
+/// Accepts raw constants for backward compatibility with direct C++ usage.
 template<typename T, typename... X> class TemplatableValue {
-  // For std::string, store pointer to heap-allocated string to keep union pointer-sized.
-  // For other types, store value inline.
-  static constexpr bool USE_HEAP_STORAGE = std::same_as<T, std::string>;
+ public:
+  TemplatableValue() = default;
+  TemplatableValue(std::nullptr_t) = delete;
 
+  // Accept raw constants
+  template<typename V> TemplatableValue(V value) requires(!std::invocable<V, X...>) : tag_(VALUE) {
+    new (&this->storage_.value_) T(static_cast<T>(std::move(value)));
+  }
+
+  // Accept stateless lambdas (convertible to function pointer)
+  template<typename F> TemplatableValue(F f) requires std::convertible_to<F, T (*)(X...)> : tag_(FN) {
+    this->storage_.f_ = f;
+  }
+
+  // Convertible return type (e.g., int -> uint8_t) — casting trampoline
+  template<typename F>
+      [[deprecated("Lambda return type does not match TemplatableValue<T> — use the correct type in "
+                   "codegen")]] TemplatableValue(F) requires(!std::convertible_to<F, T (*)(X...)>) &&
+      std::invocable<F, X...> &&std::convertible_to<std::invoke_result_t<F, X...>, T> &&std::is_empty_v<F>
+          &&std::default_initializable<F> : tag_(FN) {
+    this->storage_.f_ = [](X... x) -> T { return static_cast<T>(F{}(x...)); };
+  }
+
+  // Reject any callable that didn't match the above
+  template<typename F>
+  TemplatableValue(F) requires std::invocable<F, X...> &&
+      (!std::convertible_to<F, T (*)(X...)>) &&(!std::is_empty_v<F> ||
+                                                !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
+                                                !std::default_initializable<F>) = delete;
+
+  TemplatableValue(const TemplatableValue &other) : tag_(other.tag_) {
+    if (this->tag_ == VALUE) {
+      new (&this->storage_.value_) T(other.storage_.value_);
+    } else if (this->tag_ == FN) {
+      this->storage_.f_ = other.storage_.f_;
+    }
+  }
+
+  TemplatableValue(TemplatableValue &&other) noexcept : tag_(other.tag_) {
+    if (this->tag_ == VALUE) {
+      new (&this->storage_.value_) T(std::move(other.storage_.value_));
+      other.destroy_();
+    } else if (this->tag_ == FN) {
+      this->storage_.f_ = other.storage_.f_;
+    }
+    other.tag_ = NONE;
+  }
+
+  TemplatableValue &operator=(const TemplatableValue &other) {
+    if (this != &other) {
+      this->destroy_();
+      this->tag_ = other.tag_;
+      if (this->tag_ == VALUE) {
+        new (&this->storage_.value_) T(other.storage_.value_);
+      } else if (this->tag_ == FN) {
+        this->storage_.f_ = other.storage_.f_;
+      }
+    }
+    return *this;
+  }
+
+  TemplatableValue &operator=(TemplatableValue &&other) noexcept {
+    if (this != &other) {
+      this->destroy_();
+      this->tag_ = other.tag_;
+      if (this->tag_ == VALUE) {
+        new (&this->storage_.value_) T(std::move(other.storage_.value_));
+        other.destroy_();
+      } else if (this->tag_ == FN) {
+        this->storage_.f_ = other.storage_.f_;
+      }
+      other.tag_ = NONE;
+    }
+    return *this;
+  }
+
+  ~TemplatableValue() { this->destroy_(); }
+
+  bool has_value() const { return this->tag_ != NONE; }
+
+  T value(X... x) const {
+    if (this->tag_ == FN)
+      return this->storage_.f_(x...);
+    if (this->tag_ == VALUE)
+      return this->storage_.value_;
+    return T{};
+  }
+
+  optional<T> optional_value(X... x) const {
+    if (this->tag_ == NONE)
+      return {};
+    return this->value(x...);
+  }
+
+  T value_or(X... x, T default_value) const {
+    if (this->tag_ == NONE)
+      return default_value;
+    return this->value(x...);
+  }
+
+ protected:
+  void destroy_() {
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+      if (this->tag_ == VALUE)
+        this->storage_.value_.~T();
+    }
+  }
+
+  enum Tag : uint8_t { NONE, VALUE, FN } tag_{NONE};
+  // Union with explicit ctor/dtor to support non-trivially-constructible/destructible T
+  // (e.g., std::vector<uint8_t>). Lifetime of value_ is managed externally via
+  // placement new and destroy_().
+  union Storage {
+    constexpr Storage() : f_(nullptr) {}
+    constexpr ~Storage() {}
+    T value_;
+    T (*f_)(X...);
+  } storage_;
+};
+
+/// Specialization for std::string: supports VALUE, STATIC_STRING, FLASH_STRING,
+/// stateless lambdas, and stateful lambdas (std::function).
+template<typename... X> class TemplatableValue<std::string, X...> {
  public:
   TemplatableValue() : type_(NONE) {}
 
-  // For const char* when T is std::string: store pointer directly, no heap allocation
-  // String remains in flash and is only converted to std::string when value() is called
-  TemplatableValue(const char *str) requires std::same_as<T, std::string> : type_(STATIC_STRING) {
-    this->static_str_ = str;
-  }
+  // For const char*: store pointer directly, no heap allocation.
+  // String remains in flash and is only converted to std::string when value() is called.
+  TemplatableValue(const char *str) : type_(STATIC_STRING) { this->static_str_ = str; }
 
 #ifdef USE_ESP8266
   // On ESP8266, __FlashStringHelper* is a distinct type from const char*.
   // ESPHOME_F(s) expands to F(s) which returns __FlashStringHelper* pointing to PROGMEM.
-  // Store as FLASH_STRING — value()/is_empty()/ref_or_copy_to() use _P functions
-  // to access the PROGMEM pointer safely.
-  TemplatableValue(const __FlashStringHelper *str) requires std::same_as<T, std::string> : type_(FLASH_STRING) {
+  // Store as FLASH_STRING — value()/is_empty()/ref_or_copy_to() use _P functions.
+  TemplatableValue(const __FlashStringHelper *str) : type_(FLASH_STRING) {
     this->static_str_ = reinterpret_cast<const char *>(str);
   }
 #endif
 
   template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
-    if constexpr (USE_HEAP_STORAGE) {
-      this->value_ = new T(std::move(value));
-    } else {
-      new (&this->value_) T(std::move(value));
-    }
+    this->value_ = new std::string(std::move(value));
   }
 
   // For stateless lambdas (convertible to function pointer): use function pointer
   template<typename F>
-  TemplatableValue(F f) requires std::invocable<F, X...> && std::convertible_to<F, T (*)(X...)>
+  TemplatableValue(F f) requires std::invocable<F, X...> && std::convertible_to<F, std::string (*)(X...)>
       : type_(STATELESS_LAMBDA) {
     this->stateless_f_ = f;  // Implicit conversion to function pointer
   }
 
   // For stateful lambdas (not convertible to function pointer): use std::function
   template<typename F>
-  TemplatableValue(F f) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) : type_(LAMBDA) {
-    this->f_ = new std::function<T(X...)>(std::move(f));
+  TemplatableValue(F f) requires std::invocable<F, X...> &&(!std::convertible_to<F, std::string (*)(X...)>)
+      : type_(LAMBDA) {
+    this->f_ = new std::function<std::string(X...)>(std::move(f));
   }
 
   // Copy constructor
   TemplatableValue(const TemplatableValue &other) : type_(other.type_) {
     if (this->type_ == VALUE) {
-      if constexpr (USE_HEAP_STORAGE) {
-        this->value_ = new T(*other.value_);
-      } else {
-        new (&this->value_) T(other.value_);
-      }
+      this->value_ = new std::string(*other.value_);
     } else if (this->type_ == LAMBDA) {
-      this->f_ = new std::function<T(X...)>(*other.f_);
+      this->f_ = new std::function<std::string(X...)>(*other.f_);
     } else if (this->type_ == STATELESS_LAMBDA) {
       this->stateless_f_ = other.stateless_f_;
     } else if (this->type_ == STATIC_STRING || this->type_ == FLASH_STRING) {
@@ -108,12 +274,8 @@ template<typename T, typename... X> class TemplatableValue {
   // Move constructor
   TemplatableValue(TemplatableValue &&other) noexcept : type_(other.type_) {
     if (this->type_ == VALUE) {
-      if constexpr (USE_HEAP_STORAGE) {
-        this->value_ = other.value_;
-        other.value_ = nullptr;
-      } else {
-        new (&this->value_) T(std::move(other.value_));
-      }
+      this->value_ = other.value_;
+      other.value_ = nullptr;
     } else if (this->type_ == LAMBDA) {
       this->f_ = other.f_;
       other.f_ = nullptr;
@@ -144,11 +306,7 @@ template<typename T, typename... X> class TemplatableValue {
 
   ~TemplatableValue() {
     if (this->type_ == VALUE) {
-      if constexpr (USE_HEAP_STORAGE) {
-        delete this->value_;
-      } else {
-        this->value_.~T();
-      }
+      delete this->value_;
     } else if (this->type_ == LAMBDA) {
       delete this->f_;
     }
@@ -157,53 +315,40 @@ template<typename T, typename... X> class TemplatableValue {
 
   bool has_value() const { return this->type_ != NONE; }
 
-  T value(X... x) const {
+  std::string value(X... x) const {
     switch (this->type_) {
       case STATELESS_LAMBDA:
         return this->stateless_f_(x...);  // Direct function pointer call
       case LAMBDA:
         return (*this->f_)(x...);  // std::function call
       case VALUE:
-        if constexpr (USE_HEAP_STORAGE) {
-          return *this->value_;
-        } else {
-          return this->value_;
-        }
+        return *this->value_;
       case STATIC_STRING:
-        // if constexpr required: code must compile for all T, but STATIC_STRING
-        // can only be set when T is std::string (enforced by constructor constraint)
-        if constexpr (std::same_as<T, std::string>) {
-          return std::string(this->static_str_);
-        }
-        __builtin_unreachable();
+        return std::string(this->static_str_);
 #ifdef USE_ESP8266
-      case FLASH_STRING:
+      case FLASH_STRING: {
         // PROGMEM pointer — must use _P functions to access on ESP8266
-        if constexpr (std::same_as<T, std::string>) {
-          size_t len = strlen_P(this->static_str_);
-          std::string result(len, '\0');
-          memcpy_P(result.data(), this->static_str_, len);
-          return result;
-        }
-        __builtin_unreachable();
+        size_t len = strlen_P(this->static_str_);
+        std::string result(len, '\0');
+        memcpy_P(result.data(), this->static_str_, len);
+        return result;
+      }
 #endif
       case NONE:
       default:
-        return T{};
+        return {};
     }
   }
 
-  optional<T> optional_value(X... x) {
-    if (!this->has_value()) {
+  optional<std::string> optional_value(X... x) const {
+    if (!this->has_value())
       return {};
-    }
     return this->value(x...);
   }
 
-  T value_or(X... x, T default_value) {
-    if (!this->has_value()) {
+  std::string value_or(X... x, std::string default_value) const {
+    if (!this->has_value())
       return default_value;
-    }
     return this->value(x...);
   }
 
@@ -216,10 +361,10 @@ template<typename T, typename... X> class TemplatableValue {
   /// The pointer is always directly readable — FLASH_STRING uses a separate type.
   const char *get_static_string() const { return this->static_str_; }
 
-  /// Check if the string value is empty without allocating (for std::string specialization).
+  /// Check if the string value is empty without allocating.
   /// For NONE, returns true. For STATIC_STRING/VALUE, checks without allocation.
   /// For LAMBDA/STATELESS_LAMBDA, must call value() which may allocate.
-  bool is_empty() const requires std::same_as<T, std::string> {
+  bool is_empty() const {
     switch (this->type_) {
       case NONE:
         return true;
@@ -245,7 +390,7 @@ template<typename T, typename... X> class TemplatableValue {
   /// @param lambda_buf Buffer used only for copy cases (must remain valid while StringRef is used).
   /// @param lambda_buf_size Size of the buffer.
   /// @return StringRef pointing to the string data.
-  StringRef ref_or_copy_to(char *lambda_buf, size_t lambda_buf_size) const requires std::same_as<T, std::string> {
+  StringRef ref_or_copy_to(char *lambda_buf, size_t lambda_buf_size) const {
     switch (this->type_) {
       case NONE:
         return StringRef();
@@ -278,22 +423,20 @@ template<typename T, typename... X> class TemplatableValue {
     }
   }
 
- protected : enum : uint8_t {
-   NONE,
-   VALUE,
-   LAMBDA,
-   STATELESS_LAMBDA,
-   STATIC_STRING,  // For const char* when T is std::string - avoids heap allocation
-   FLASH_STRING,   // PROGMEM pointer on ESP8266; never set on other platforms
- } type_;
-  // For std::string, use heap pointer to minimize union size (4 bytes vs 12+).
-  // For other types, store value inline as before.
-  using ValueStorage = std::conditional_t<USE_HEAP_STORAGE, T *, T>;
+ protected:
+  enum : uint8_t {
+    NONE,
+    VALUE,
+    LAMBDA,
+    STATELESS_LAMBDA,
+    STATIC_STRING,  // For const char* — avoids heap allocation
+    FLASH_STRING,   // PROGMEM pointer on ESP8266; never set on other platforms
+  } type_;
   union {
-    ValueStorage value_;  // T for inline storage, T* for heap storage
-    std::function<T(X...)> *f_;
-    T (*stateless_f_)(X...);
-    const char *static_str_;  // For STATIC_STRING and FLASH_STRING types
+    std::string *value_;                   // Heap-allocated string (VALUE)
+    std::function<std::string(X...)> *f_;  // Heap-allocated std::function (LAMBDA)
+    std::string (*stateless_f_)(X...);     // Function pointer (STATELESS_LAMBDA)
+    const char *static_str_;               // For STATIC_STRING and FLASH_STRING types
   };
 };
 
@@ -322,7 +465,9 @@ template<typename... Ts> class Automation;
 template<typename... Ts> class Trigger {
  public:
   /// Inform the parent automation that the event has triggered.
-  void trigger(const Ts &...x) {
+  // Force-inline: collapses the Trigger→Automation→ActionList forwarding
+  // chain into a single frame, reducing automation call stack depth.
+  inline void trigger(const Ts &...x) ESPHOME_ALWAYS_INLINE {
     if (this->automation_parent_ == nullptr)
       return;
     this->automation_parent_->trigger(x...);
@@ -417,42 +562,48 @@ template<typename... Ts> class Action {
 template<typename... Ts> class ActionList {
  public:
   void add_action(Action<Ts...> *action) {
-    if (this->actions_end_ == nullptr) {
-      this->actions_begin_ = action;
-    } else {
-      this->actions_end_->next_ = action;
-    }
-    this->actions_end_ = action;
+    // Walk to end of chain - action lists are short and only built during setup()
+    Action<Ts...> **tail = &this->actions_;
+    while (*tail != nullptr)
+      tail = &(*tail)->next_;
+    *tail = action;
   }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
+    // Find tail once, then append all actions in a single pass
+    Action<Ts...> **tail = &this->actions_;
+    while (*tail != nullptr)
+      tail = &(*tail)->next_;
     for (auto *action : actions) {
-      this->add_action(action);
+      *tail = action;
+      tail = &action->next_;
     }
   }
-  void play(const Ts &...x) {
-    if (this->actions_begin_ != nullptr)
-      this->actions_begin_->play_complex(x...);
+  // Force-inline: part of the Trigger→Automation→ActionList forwarding
+  // chain collapsed to reduce automation call stack depth.
+  inline void play(const Ts &...x) ESPHOME_ALWAYS_INLINE {
+    if (this->actions_ != nullptr)
+      this->actions_->play_complex(x...);
   }
   void play_tuple(const std::tuple<Ts...> &tuple) {
     this->play_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
   }
   void stop() {
-    if (this->actions_begin_ != nullptr)
-      this->actions_begin_->stop_complex();
+    if (this->actions_ != nullptr)
+      this->actions_->stop_complex();
   }
-  bool empty() const { return this->actions_begin_ == nullptr; }
+  bool empty() const { return this->actions_ == nullptr; }
 
   /// Check if any action in this action list is currently running.
   bool is_running() {
-    if (this->actions_begin_ == nullptr)
+    if (this->actions_ == nullptr)
       return false;
-    return this->actions_begin_->is_running();
+    return this->actions_->is_running();
   }
   /// Return the number of actions in this action list that are currently running.
   int num_running() {
-    if (this->actions_begin_ == nullptr)
+    if (this->actions_ == nullptr)
       return 0;
-    return this->actions_begin_->num_running_total();
+    return this->actions_->num_running_total();
   }
 
  protected:
@@ -460,20 +611,23 @@ template<typename... Ts> class ActionList {
     this->play(std::get<S>(tuple)...);
   }
 
-  Action<Ts...> *actions_begin_{nullptr};
-  Action<Ts...> *actions_end_{nullptr};
+  Action<Ts...> *actions_{nullptr};
 };
 
 template<typename... Ts> class Automation {
  public:
-  explicit Automation(Trigger<Ts...> *trigger) : trigger_(trigger) { this->trigger_->set_automation_parent(this); }
+  /// Default constructor for use with TriggerForwarder (no Trigger object needed).
+  Automation() = default;
+  explicit Automation(Trigger<Ts...> *trigger) { trigger->set_automation_parent(this); }
 
   void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
 
   void stop() { this->actions_.stop(); }
 
-  void trigger(const Ts &...x) { this->actions_.play(x...); }
+  // Force-inline: part of the Trigger→Automation→ActionList forwarding
+  // chain collapsed to reduce automation call stack depth.
+  inline void trigger(const Ts &...x) ESPHOME_ALWAYS_INLINE { this->actions_.play(x...); }
 
   bool is_running() { return this->actions_.is_running(); }
 
@@ -481,8 +635,44 @@ template<typename... Ts> class Automation {
   int num_running() { return this->actions_.num_running(); }
 
  protected:
-  Trigger<Ts...> *trigger_;
   ActionList<Ts...> actions_;
 };
+
+/// Callback forwarder that triggers an Automation directly.
+/// One operator() instantiation per Automation<Ts...> signature, shared across all call sites.
+/// Must stay pointer-sized to fit inline in Callback::ctx_ without heap allocation.
+template<typename... Ts> struct TriggerForwarder {
+  Automation<Ts...> *automation;
+  void operator()(const Ts &...args) const { this->automation->trigger(args...); }
+};
+
+/// Callback forwarder that triggers an Automation<> only when the bool arg is true.
+/// Must stay pointer-sized to fit inline in Callback::ctx_ without heap allocation.
+struct TriggerOnTrueForwarder {
+  Automation<> *automation;
+  void operator()(bool state) const {
+    if (state)
+      this->automation->trigger();
+  }
+};
+
+/// Callback forwarder that triggers an Automation<> only when the bool arg is false.
+/// Must stay pointer-sized to fit inline in Callback::ctx_ without heap allocation.
+struct TriggerOnFalseForwarder {
+  Automation<> *automation;
+  void operator()(bool state) const {
+    if (!state)
+      this->automation->trigger();
+  }
+};
+
+// Ensure forwarders fit in Callback::ctx_ (pointer-sized inline storage).
+// If these fail, the forwarder would heap-allocate in Callback::create().
+static_assert(sizeof(TriggerForwarder<>) <= sizeof(void *));
+static_assert(sizeof(TriggerOnTrueForwarder) <= sizeof(void *));
+static_assert(sizeof(TriggerOnFalseForwarder) <= sizeof(void *));
+static_assert(std::is_trivially_copyable_v<TriggerForwarder<>>);
+static_assert(std::is_trivially_copyable_v<TriggerOnTrueForwarder>);
+static_assert(std::is_trivially_copyable_v<TriggerOnFalseForwarder>);
 
 }  // namespace esphome

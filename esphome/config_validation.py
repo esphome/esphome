@@ -75,7 +75,6 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
-    VALID_SUBSTITUTIONS_CHARACTERS,
     Framework,
     __version__ as ESPHOME_VERSION,
 )
@@ -90,6 +89,7 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
+from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
 from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
@@ -103,11 +103,6 @@ from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
 _LOGGER = logging.getLogger(__name__)
-
-# pylint: disable=consider-using-f-string
-VARIABLE_PROG = re.compile(
-    f"\\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+|\\{{[{VALID_SUBSTITUTIONS_CHARACTERS}]*\\}})"
-)
 
 # pylint: disable=invalid-name
 
@@ -129,6 +124,26 @@ RequiredFieldInvalid = vol.RequiredFieldInvalid
 # this sentinel object can be placed in an 'Invalid' path to say
 # the rest of the error path is relative to the root config path
 ROOT_CONFIG_PATH = object()
+
+
+def ByteLength(*, max: int) -> Callable[[str], str]:
+    """Validate that the UTF-8 byte length of a string does not exceed max.
+
+    Use instead of Length() when the limit must apply to encoded bytes,
+    not characters (e.g. for protobuf length-varint constraints).
+    """
+
+    def validator(value: str) -> str:
+        byte_len = len(str(value).encode("utf-8"))
+        if byte_len > max:
+            raise Invalid(
+                f"String is too long ({byte_len} bytes, max {max}). "
+                f"Multibyte characters count as multiple bytes."
+            )
+        return value
+
+    return validator
+
 
 RESERVED_IDS = [
     # C++ keywords https://en.cppreference.com/w/cpp/keyword
@@ -244,6 +259,8 @@ RESERVED_IDS = [
     "open",
     "setup",
     "loop",
+    "spi0",
+    "spi1",
     "uart0",
     "uart1",
     "uart2",
@@ -409,17 +426,22 @@ def icon(value):
         raise Invalid(
             'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
         )
-    if len(value) > ICON_MAX_LENGTH:
+    byte_len = len(value.encode("utf-8"))
+    if byte_len > ICON_MAX_LENGTH:
         raise Invalid(
-            f"Icon string is too long ({len(value)} chars, max {ICON_MAX_LENGTH}). "
+            f"Icon string is too long ({byte_len} bytes, max {ICON_MAX_LENGTH}). "
             "Icons are stored in PROGMEM with a 64-byte buffer limit."
         )
     return value
 
 
+@schema_extractor("use_id")
 def sub_device_id(value: str | None) -> core.ID | None:
     # Lazy import to avoid circular imports
     from esphome.core.config import Device
+
+    if value == SCHEMA_EXTRACT:
+        return Device
 
     if not value:
         return None
@@ -492,6 +514,13 @@ def hex_int(value):
     purposes of the generated code.
     """
     return HexInt(int_(value))
+
+
+def int_to_hex_string(value: int | str) -> str:
+    """Convert an integer to a hex string (e.g. 64 -> '0x40'). Pass-through strings."""
+    if isinstance(value, int):
+        return f"0x{value:X}"
+    return value
 
 
 def int_(value):
@@ -1434,17 +1463,53 @@ hex_uint64_t = hex_int_range(min=0, max=18446744073709551615)
 i2c_address = hex_uint8_t
 
 
-def percentage(value):
+def percentage(value: object) -> float:
     """Validate that the value is a percentage.
 
-    The resulting value is an integer in the range 0.0 to 1.0.
+    The resulting value is a float in the range 0.0 to 1.0.
     """
-    value = possibly_negative_percentage(value)
+    value = _parse_percentage(value)
     return zero_to_one_float(value)
 
 
-def possibly_negative_percentage(value):
-    has_percent_sign = False
+def possibly_negative_percentage(value: object) -> float:
+    """Validate that the value is a possibly negative percentage.
+
+    The resulting value is a float in the range -1.0 to 1.0.
+    """
+    value = _parse_percentage(value)
+    return negative_one_to_one_float(value)
+
+
+def unbounded_percentage(value: object) -> float:
+    """Validate that the value is a percentage, allowing values above 100%.
+
+    The resulting value is a non-negative float with no upper bound.
+    For example, "150%" returns 1.5 and "50%" returns 0.5.
+    """
+    value = _parse_percentage(value)
+    if value < 0:
+        raise Invalid("Percentage must not be negative")
+    return value
+
+
+def unbounded_possibly_negative_percentage(value: object) -> float:
+    """Validate that the value is a possibly negative percentage without bounds.
+
+    The resulting value is an unbounded float.
+    For example, "200%" returns 2.0 and "-150%" returns -1.5.
+    """
+    return _parse_percentage(value)
+
+
+def _parse_percentage(value: object) -> float:
+    """Parse a percentage string or number into a float.
+
+    Handles both "50%" style strings and raw float values.
+    Values without a percent sign above 1.0 or below -1.0 are rejected
+    to prevent user mistakes (e.g. writing 50 instead of 50%).
+    """
+    has_percent_sign: bool = False
     if isinstance(value, str):
         try:
             if value.endswith("%"):
@@ -1456,21 +1521,16 @@ def possibly_negative_percentage(value):
             # pylint: disable=raise-missing-from
             raise Invalid("invalid number")
     try:
-        if value > 1:
-            msg = "Percentage must not be higher than 100%."
-            if not has_percent_sign:
-                msg += " Please put a percent sign after the number!"
-            raise Invalid(msg)
-        if value < -1:
-            msg = "Percentage must not be smaller than -100%."
-            if not has_percent_sign:
-                msg += " Please put a percent sign after the number!"
-            raise Invalid(msg)
+        if not has_percent_sign and (value > 1 or value < -1):
+            raise Invalid(
+                "Percentage value must use a percent sign for values "
+                "outside -1.0 to 1.0. Please put a percent sign after the number!"
+            )
     except TypeError:
         raise Invalid(  # pylint: disable=raise-missing-from
-            "Expected percentage or float between -1.0 and 1.0"
+            "Expected percentage or float"
         )
-    return negative_one_to_one_float(value)
+    return float(value)
 
 
 def percentage_int(value):
@@ -1654,7 +1714,7 @@ def dimensions(value):
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
         raise Invalid(
-            "Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed."
+            f"Invalid value '{value}' for dimensions. Only WIDTHxHEIGHT is allowed."
         )
     return dimensions([match.group(1), match.group(2)])
 
@@ -2054,11 +2114,12 @@ def _validate_entity_name(value):
             "Name cannot be None when esphome->friendly_name is not set!"
         )(value)
     if value is not None:
-        # Validate length for web server URL compatibility
-        if len(value) > NAME_MAX_LENGTH:
+        # Validate byte length for web server URL and proto encoding compatibility
+        byte_len = len(value.encode("utf-8"))
+        if byte_len > NAME_MAX_LENGTH:
             raise Invalid(
-                f"Name is too long ({len(value)} chars). "
-                f"Maximum length is {NAME_MAX_LENGTH} characters."
+                f"Name is too long ({byte_len} bytes). "
+                f"Maximum length is {NAME_MAX_LENGTH} bytes."
             )
         # Validate no '/' in name for web server URL compatibility
         value = _validate_no_slash(value)

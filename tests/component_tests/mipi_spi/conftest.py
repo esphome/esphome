@@ -1,6 +1,7 @@
 """Tests for mpip_spi configuration validation."""
 
 from collections.abc import Callable, Generator
+from unittest import mock
 
 import pytest
 
@@ -10,6 +11,16 @@ from esphome.components.esp32.gpio import validate_gpio_pin
 from esphome.const import CONF_INPUT, CONF_OUTPUT
 from esphome.core import CORE
 from esphome.pins import gpio_pin_schema
+
+
+@pytest.fixture(autouse=True)
+def mock_spi_final_validate():
+    """Mock spi.final_validate_device_schema since unit tests have no real SPI bus config."""
+    with mock.patch(
+        "esphome.components.spi.final_validate_device_schema",
+        return_value=lambda config: None,
+    ):
+        yield
 
 
 @pytest.fixture

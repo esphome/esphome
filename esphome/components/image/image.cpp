@@ -105,22 +105,22 @@ Color Image::get_pixel(int x, int y, const Color color_on, const Color color_off
   }
 }
 #ifdef USE_LVGL
-lv_img_dsc_t *Image::get_lv_img_dsc() {
+lv_image_dsc_t *Image::get_lv_image_dsc() {
   // lazily construct lvgl image_dsc.
   if (this->dsc_.data != this->data_start_) {
     this->dsc_.data = this->data_start_;
-    this->dsc_.header.always_zero = 0;
-    this->dsc_.header.reserved = 0;
+    this->dsc_.header.reserved_2 = 0;
+    this->dsc_.header.stride = this->get_width_stride();
     this->dsc_.header.w = this->width_;
     this->dsc_.header.h = this->height_;
     this->dsc_.data_size = this->get_width_stride() * this->get_height();
     switch (this->get_type()) {
       case IMAGE_TYPE_BINARY:
-        this->dsc_.header.cf = LV_IMG_CF_ALPHA_1BIT;
+        this->dsc_.header.cf = LV_COLOR_FORMAT_A1;
         break;
 
       case IMAGE_TYPE_GRAYSCALE:
-        this->dsc_.header.cf = LV_IMG_CF_ALPHA_8BIT;
+        this->dsc_.header.cf = LV_COLOR_FORMAT_A8;
         break;
 
       case IMAGE_TYPE_RGB:
@@ -138,7 +138,7 @@ lv_img_dsc_t *Image::get_lv_img_dsc() {
         }
 #else
         this->dsc_.header.cf =
-            this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? LV_IMG_CF_RGBA8888 : LV_IMG_CF_RGB888;
+            this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? LV_COLOR_FORMAT_ARGB8888 : LV_COLOR_FORMAT_RGB888;
 #endif
         break;
 
@@ -146,14 +146,10 @@ lv_img_dsc_t *Image::get_lv_img_dsc() {
 #if LV_COLOR_DEPTH == 16
         switch (this->transparency_) {
           case TRANSPARENCY_ALPHA_CHANNEL:
-            this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR_ALPHA;
-            break;
-          case TRANSPARENCY_CHROMA_KEY:
-            this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED;
+            this->dsc_.header.cf = LV_COLOR_FORMAT_RGB565A8;
             break;
           default:
-            this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR;
-            break;
+            this->dsc_.header.cf = LV_COLOR_FORMAT_RGB565;
         }
 #else
         this->dsc_.header.cf =
@@ -173,8 +169,8 @@ bool Image::get_binary_pixel_(int x, int y) const {
 }
 Color Image::get_rgb_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) * this->bpp_ / 8;
-  Color color = Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
-                      progmem_read_byte(this->data_start_ + pos + 2), 0xFF);
+  Color color = Color(progmem_read_byte(this->data_start_ + pos + 2), progmem_read_byte(this->data_start_ + pos + 1),
+                      progmem_read_byte(this->data_start_ + pos + 0), 0xFF);
 
   switch (this->transparency_) {
     case TRANSPARENCY_CHROMA_KEY:
@@ -200,7 +196,7 @@ Color Image::get_rgb565_pixel_(int x, int y) const {
   auto a = 0xFF;
   switch (this->transparency_) {
     case TRANSPARENCY_ALPHA_CHANNEL:
-      a = progmem_read_byte(pos + 2);
+      a = progmem_read_byte(this->data_start_ + this->width_ * this->height_ * 2 + (x + y * this->width_));
       break;
     case TRANSPARENCY_CHROMA_KEY:
       if (rgb565 == 0x0020)
@@ -239,7 +235,7 @@ Image::Image(const uint8_t *data_start, int width, int height, ImageType type, T
       this->bpp_ = 8;
       break;
     case IMAGE_TYPE_RGB565:
-      this->bpp_ = transparency == TRANSPARENCY_ALPHA_CHANNEL ? 24 : 16;
+      this->bpp_ = 16;
       break;
     case IMAGE_TYPE_RGB:
       this->bpp_ = this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? 32 : 24;

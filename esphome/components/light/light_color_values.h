@@ -104,9 +104,10 @@ class LightColorValues {
         this->green_ = 1.0f;
         this->blue_ = 1.0f;
       } else {
-        this->red_ /= max_value;
-        this->green_ /= max_value;
-        this->blue_ /= max_value;
+        float inv = 1.0f / max_value;
+        this->red_ *= inv;
+        this->green_ *= inv;
+        this->blue_ *= inv;
       }
     }
   }
@@ -154,6 +155,16 @@ class LightColorValues {
   }
 
   /// Convert these light color values to an CWWW representation with the given parameters.
+  ///
+  /// Note on gamma and constant_brightness: This method operates on the raw/internal channel
+  /// values stored in this object. For cold_white_ and warm_white_ specifically, these
+  /// may already be gamma-uncorrected when derived from a color_temperature value.
+  /// For constant_brightness=false, additional gamma for the output can be applied after
+  /// this method since gamma commutes with simple multiplication. For constant_brightness=true,
+  /// the caller (LightState::current_values_as_cwww) must apply gamma to the individual
+  /// channel values BEFORE the balancing formula, because the nonlinear max/sum ratio does
+  /// not commute with gamma. See LightState::current_values_as_cwww() for the correct
+  /// implementation.
   void as_cwww(float *cold_white, float *warm_white, bool constant_brightness = false) const {
     if (this->color_mode_ & ColorCapability::COLD_WARM_WHITE) {
       const float cw_level = this->cold_white_;

@@ -24,11 +24,22 @@ void MCP23016::setup() {
 
   // all pins input
   this->write_reg_(MCP23016_IODIR1, 0xFFFF);
+
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&MCP23016::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    this->set_invalidate_on_read_(false);
+  }
+  this->disable_loop();
 }
 
+void IRAM_ATTR MCP23016::gpio_intr(MCP23016 *arg) { arg->enable_loop_soon_any_context(); }
 void MCP23016::loop() {
   // Invalidate cache at the start of each loop
   this->reset_pin_cache_();
+  if (this->interrupt_pin_ != nullptr) {
+    this->disable_loop();
+  }
 }
 bool MCP23016::digital_read_hw(uint8_t pin) { return this->read_reg_(MCP23016_GP1, &this->input_mask_); }
 
@@ -37,6 +48,9 @@ void MCP23016::digital_write_hw(uint8_t pin, bool value) { this->update_reg_(pin
 void MCP23016::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
     this->update_reg_(pin, true, MCP23016_IODIR1);
+    if (this->interrupt_pin_ == nullptr) {
+      this->enable_loop();
+    }
   } else if (flags == gpio::FLAG_OUTPUT) {
     this->update_reg_(pin, false, MCP23016_IODIR1);
   }

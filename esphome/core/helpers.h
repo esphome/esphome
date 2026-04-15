@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <cstdarg>
 #include <cstdint>
@@ -497,6 +498,24 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   index_type capacity_{0};
 };
 
+/// Initialize a std::array from an initializer_list. Uses memcpy for trivially copyable types (optimal codegen),
+/// falls back to element-wise copy for non-trivially copyable types (e.g. TemplatableValue).
+/// N is always set by code generation — the caller is responsible for ensuring src.size() == N.
+/// The debug assert is a safety net for development, not a runtime check.
+template<typename T, size_t N> inline void init_array_from(std::array<T, N> &dest, std::initializer_list<T> src) {
+#ifdef ESPHOME_DEBUG
+  assert(src.size() == N);
+#endif
+  if constexpr (std::is_trivially_copyable_v<T>) {
+    __builtin_memcpy(dest.data(), src.begin(), N * sizeof(T));
+  } else {
+    size_t i = 0;
+    for (const auto &v : src) {
+      dest[i++] = v;
+    }
+  }
+}
+
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
 /// This avoids std::vector template overhead (_M_realloc_insert, _M_default_append)
 /// when size is known at initialization but not at compile time
@@ -842,10 +861,15 @@ template<typename ReturnT = uint32_t> inline constexpr ESPHOME_ALWAYS_INLINE Ret
 }
 
 /// Return a random 32-bit unsigned integer.
+/// Not thread-safe. Must only be called from the main loop.
+/// Not suitable for cryptographic use; use random_bytes() instead.
 uint32_t random_uint32();
 /// Return a random float between 0 and 1.
+/// Not thread-safe. Must only be called from the main loop.
+/// Not suitable for cryptographic use; use random_bytes() instead.
 float random_float();
-/// Generate \p len number of random bytes.
+/// Generate \p len random bytes using the platform's secure RNG (hardware RNG or OS CSPRNG).
+/// Thread-safe. Suitable for cryptographic use.
 bool random_bytes(uint8_t *data, size_t len);
 
 ///@}
@@ -1239,13 +1263,13 @@ constexpr uint8_t parse_hex_char(char c) {
 }
 
 /// Convert a nibble (0-15) to hex char with specified base ('a' for lowercase, 'A' for uppercase)
-inline char format_hex_char(uint8_t v, char base) { return v >= 10 ? base + (v - 10) : '0' + v; }
+ESPHOME_ALWAYS_INLINE inline char format_hex_char(uint8_t v, char base) { return v >= 10 ? base + (v - 10) : '0' + v; }
 
 /// Convert a nibble (0-15) to lowercase hex char
-inline char format_hex_char(uint8_t v) { return format_hex_char(v, 'a'); }
+ESPHOME_ALWAYS_INLINE inline char format_hex_char(uint8_t v) { return format_hex_char(v, 'a'); }
 
 /// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
-inline char format_hex_pretty_char(uint8_t v) { return format_hex_char(v, 'A'); }
+ESPHOME_ALWAYS_INLINE inline char format_hex_pretty_char(uint8_t v) { return format_hex_char(v, 'A'); }
 
 /// Write int8 value to buffer without modulo operations.
 /// Buffer must have at least 4 bytes free. Returns pointer past last char written.
@@ -1269,6 +1293,21 @@ inline char *int8_to_str(char *buf, int8_t val) {
   }
   *buf++ = '0' + v;
   return buf;
+}
+
+/// Minimum buffer size for uint32_to_str: 10 digits + null terminator.
+static constexpr size_t UINT32_MAX_STR_SIZE = 11;
+
+/// Write unsigned 32-bit integer to buffer (internal, no size check).
+/// Buffer must have at least 10 bytes free. Returns pointer past last char written.
+char *uint32_to_str_unchecked(char *buf, uint32_t val);
+
+/// Write unsigned 32-bit integer to buffer with compile-time size check.
+/// Null-terminates the output. Returns number of chars written (excluding null).
+inline size_t uint32_to_str(std::span<char, UINT32_MAX_STR_SIZE> buf, uint32_t val) {
+  char *end = uint32_to_str_unchecked(buf.data(), val);
+  *end = '\0';
+  return static_cast<size_t>(end - buf.data());
 }
 
 /// Format byte array as lowercase hex to buffer (base implementation).
@@ -1729,21 +1768,147 @@ constexpr float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.
 /// @name Utilities
 /// @{
 
+/// Lightweight type-erased callback (8 bytes on 32-bit) that avoids std::function overhead.
+/// No null check, no exceptions, no heap allocation for small trivially-copyable callables.
+///
+/// With C++20 if constexpr, automatically detects [this] lambdas (sizeof <= sizeof(void*),
+/// trivially copyable) and stores them inline. Larger callables are heap-allocated.
+template<typename... X> struct Callback;
+
+template<typename... Ts> struct Callback<void(Ts...)> {
+  // The inline storage path stores callable bytes in ctx_ via memcpy.
+  // sizeof equality with uintptr_t ensures void* can round-trip arbitrary bit patterns,
+  // which combined with flat address spaces on all ESPHome targets means no trap representations.
+  static_assert(sizeof(void *) == sizeof(std::uintptr_t), "void* must be the same size as uintptr_t");
+
+  void (*fn_)(void *, Ts...){nullptr};
+  void *ctx_{nullptr};
+
+  /// Invoke the callback. Only valid on Callbacks created via create(), never on default-constructed instances.
+  void call(Ts... args) const { this->fn_(this->ctx_, args...); }
+
+  /// Create from any callable. Small trivially-copyable callables (like [this] lambdas)
+  /// are stored inline in the ctx pointer without heap allocation.
+  template<typename F> static Callback create(F &&callable) {
+    using DecayF = std::decay_t<F>;
+    if constexpr (sizeof(DecayF) <= sizeof(void *) && std::is_trivially_copyable_v<DecayF>) {
+      // Small trivial callable (e.g. [this]() { this->method(); }) - store inline in ctx.
+      // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
+      // creates objects of implicit-lifetime types (trivially copyable qualifies).
+      Callback cb;  // fn and ctx are zero-initialized by default
+      // Decay callable to a local variable first. When F is a function reference
+      // (e.g. void(&)(int)), &callable would point at machine code, not a pointer variable.
+      DecayF decayed = std::forward<F>(callable);
+      __builtin_memcpy(&cb.ctx_, &decayed, sizeof(DecayF));
+      cb.fn_ = [](void *c, Ts... args) {
+        alignas(DecayF) char buf[sizeof(DecayF)];
+        __builtin_memcpy(buf, &c, sizeof(DecayF));
+        (*std::launder(reinterpret_cast<DecayF *>(buf)))(args...);
+      };
+      return cb;
+    } else {
+      // Large or non-trivial callable - heap allocate.
+      // Intentionally never freed: callbacks in ESPHome are registered during setup()
+      // and live for device lifetime. Same lifetime as the previous std::function approach.
+      auto *stored = new DecayF(std::forward<F>(callable));
+      return {[](void *c, Ts... args) { (*static_cast<DecayF *>(c))(args...); }, static_cast<void *>(stored)};
+    }
+  }
+};
+
+/// Grow a CallbackManager's backing array to exactly size+1. Defined in helpers.cpp.
+void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity, size_t elem_size);
+
 template<typename... X> class CallbackManager;
 
 /** Helper class to allow having multiple subscribers to a callback.
  *
+ * Uses a trivial-copyable-specialized container instead of std::vector to avoid
+ * template bloat (_M_realloc_insert, exception-safe copies). Since Callback is
+ * trivially copyable (just {fn_ptr, ctx_ptr}), reallocation is a plain memcpy.
+ * Uses uint16_t for size/capacity (8 bytes on 32-bit vs 12 for std::vector).
+ * Grows to exact size on each add — callbacks are registered during setup()
+ * and most instances have only 1-2 callbacks, so slack capacity is wasteful.
+ *
  * @tparam Ts The arguments for the callbacks, wrapped in void().
  */
 template<typename... Ts> class CallbackManager<void(Ts...)> {
+  using CbType = Callback<void(Ts...)>;
+  static_assert(std::is_trivially_copyable_v<CbType>, "Callback must be trivially copyable");
+
  public:
-  /// Add a callback to the list.
-  void add(std::function<void(Ts...)> &&callback) { this->callbacks_.push_back(std::move(callback)); }
+  CallbackManager() = default;
+  ~CallbackManager() { ::operator delete(this->data_); }
+
+  // Non-copyable (would alias data_), movable (for std::map support)
+  CallbackManager(const CallbackManager &) = delete;
+  CallbackManager &operator=(const CallbackManager &) = delete;
+  CallbackManager(CallbackManager &&other) noexcept
+      : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
+    other.data_ = nullptr;
+    other.size_ = 0;
+    other.capacity_ = 0;
+  }
+  CallbackManager &operator=(CallbackManager &&other) noexcept {
+    std::swap(this->data_, other.data_);
+    std::swap(this->size_, other.size_);
+    std::swap(this->capacity_, other.capacity_);
+    return *this;
+  }
+
+  /// Add any callable. Small trivially-copyable callables (like [this] lambdas)
+  /// are stored inline without heap allocation or std::function.
+  template<typename F> void add(F &&callback) { this->add_(CbType::create(std::forward<F>(callback))); }
+
+  /// Call all callbacks in this manager.
+  inline void ESPHOME_ALWAYS_INLINE call(Ts... args) {
+    if (this->size_ != 0) {
+      for (auto *it = this->data_, *end = it + this->size_; it != end; ++it) {
+        it->call(args...);
+      }
+    }
+  }
+  uint16_t size() const { return this->size_; }
+
+  /// Call all callbacks in this manager.
+  void operator()(Ts... args) { this->call(args...); }
+
+ protected:
+  template<typename...> friend class LazyCallbackManager;
+  /// Non-template core to avoid code duplication per lambda type.
+  /// Inline fast path; cold growth path is in helpers.cpp via callback_manager_grow().
+  void add_(CbType cb) {
+    if (this->size_ == this->capacity_) {
+      this->data_ =
+          static_cast<CbType *>(callback_manager_grow(this->data_, this->size_, this->capacity_, sizeof(CbType)));
+    }
+    this->data_[this->size_++] = cb;
+  }
+  CbType *data_{nullptr};
+  uint16_t size_{0};
+  uint16_t capacity_{0};
+};
+
+/** CallbackManager backed by StaticVector for compile-time-known callback counts.
+ *
+ * Drop-in replacement for CallbackManager that avoids std::vector template bloat
+ * (_M_realloc_insert, etc.) when the maximum number of callbacks is known at compile time.
+ *
+ * @tparam N Maximum number of callbacks (compile-time constant, typically from cg.add_define())
+ * @tparam Ts The arguments for the callbacks, wrapped in void().
+ */
+template<size_t N, typename... X> class StaticCallbackManager;
+
+template<size_t N, typename... Ts> class StaticCallbackManager<N, void(Ts...)> {
+ public:
+  /// Add any callable. Small trivially-copyable callables (like [this] lambdas)
+  /// are stored inline without heap allocation.
+  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager.
   void call(Ts... args) {
     for (auto &cb : this->callbacks_)
-      cb(args...);
+      cb.call(args...);
   }
   size_t size() const { return this->callbacks_.size(); }
 
@@ -1751,7 +1916,9 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   void operator()(Ts... args) { call(args...); }
 
  protected:
-  std::vector<std::function<void(Ts...)>> callbacks_;
+  /// Non-template core to avoid code duplication per lambda type.
+  void add_(Callback<void(Ts...)> cb) { this->callbacks_.push_back(cb); }
+  StaticVector<Callback<void(Ts...)>, N> callbacks_;
 };
 
 template<typename... X> class LazyCallbackManager;
@@ -1763,7 +1930,7 @@ template<typename... X> class LazyCallbackManager;
  * from API and web_server components).
  *
  * Memory overhead comparison (32-bit systems):
- * - CallbackManager: 12 bytes (empty std::vector)
+ * - CallbackManager: 8 bytes (pointer + uint16 size + uint16 capacity)
  * - LazyCallbackManager: 4 bytes (nullptr pointer)
  *
  * Uses plain pointer instead of unique_ptr to avoid template instantiation overhead.
@@ -1784,13 +1951,8 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   LazyCallbackManager(LazyCallbackManager &&) = delete;
   LazyCallbackManager &operator=(LazyCallbackManager &&) = delete;
 
-  /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
-  void add(std::function<void(Ts...)> &&callback) {
-    if (!this->callbacks_) {
-      this->callbacks_ = new CallbackManager<void(Ts...)>();
-    }
-    this->callbacks_->add(std::move(callback));
-  }
+  /// Add any callable. Allocates the underlying CallbackManager on first use.
+  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager. No-op if no callbacks registered.
   void call(Ts... args) {
@@ -1809,6 +1971,13 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   void operator()(Ts... args) { this->call(args...); }
 
  protected:
+  /// Non-template core to avoid code duplication per lambda type.
+  void add_(Callback<void(Ts...)> cb) {
+    if (!this->callbacks_) {
+      this->callbacks_ = new CallbackManager<void(Ts...)>();
+    }
+    this->callbacks_->add_(cb);
+  }
   CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
