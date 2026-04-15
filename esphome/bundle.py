@@ -258,41 +258,20 @@ class ConfigBundleCreator:
     def _discover_yaml_includes(self) -> None:
         """Discover YAML files loaded during config parsing.
 
-        Prefers the authoritative list captured during the real config load
-        (``CORE.data["_loaded_yaml_files"]``), which reflects substitution
-        choices — e.g. a conditional ``${p1 if sel == 1 else p2}`` only
-        actually loads one of the two referenced files.
+        Deliberately uses a fresh re-parse and force-loads every deferred
+        ``IncludeFile`` to include *all* potentially-reachable includes,
+        even branches not selected by the local substitutions. Bundles are
+        meant to be compiled on another system where command-line
+        substitution overrides may choose a different branch — e.g.
+        ``!include network/${eth_model}/config.yaml`` must ship every
+        candidate so the remote build can pick any one.
 
-        Falls back to a re-parse + force-load of deferred ``IncludeFile``
-        nodes when the real list is unavailable (e.g. programmatic callers
-        or tests that construct a ``ConfigBundleCreator`` directly).
+        Entries with unresolved substitution variables in the filename
+        path are skipped with a warning (they cannot be resolved without
+        the substitution pass).
 
         Secrets files are tracked separately so we can filter them to
         only include the keys this config actually references.
-        """
-        loaded_files = CORE.data.get("_loaded_yaml_files")
-        if loaded_files is None:
-            loaded_files = self._reparse_for_include_discovery()
-
-        config_resolved = self._config_path.resolve()
-        for fpath in loaded_files:
-            fpath = Path(fpath).resolve()
-            if fpath == config_resolved:
-                continue  # Already added as config
-            if fpath.name in const.SECRETS_FILES:
-                self._secrets_paths.add(fpath)
-            self._add_file(fpath)
-
-    def _reparse_for_include_discovery(self) -> list[Path]:
-        """Fallback include discovery by re-parsing YAML without substitutions.
-
-        This is used when no authoritative file list was captured during the
-        real config load. Nested ``!include`` returns a deferred
-        ``IncludeFile`` that is normally resolved during the substitution
-        pass, so we force-load every ``IncludeFile`` to make the tracker
-        fire for nested includes. Over-inclusion is possible here because
-        substitution-dependent branches cannot be resolved without running
-        the substitution pass.
         """
         with yaml_util.track_yaml_loads() as loaded_files:
             try:
@@ -304,7 +283,13 @@ class ConfigBundleCreator:
                 )
             else:
                 _force_load_include_files(data)
-        return loaded_files
+
+        for fpath in loaded_files:
+            if fpath == self._config_path.resolve():
+                continue  # Already added as config
+            if fpath.name in const.SECRETS_FILES:
+                self._secrets_paths.add(fpath)
+            self._add_file(fpath)
 
     def _discover_component_files(self) -> None:
         """Walk the validated config for file references.
