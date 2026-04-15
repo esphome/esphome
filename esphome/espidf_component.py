@@ -311,28 +311,6 @@ def _patch_component(component: IDFComponent, first_pass: bool):
         )
 
     #
-    # tonia/HeatpumpIR
-    #
-
-    # Patch only on the second step
-    if not first_pass and component.name in (
-        _owner_pkgname_to_name("tonia", "HeatpumpIR"),
-        _owner_pkgname_to_name("ToniA", "arduino-heatpumpir"),
-    ):
-        # Ensure that build/flags is a list
-        if "build" not in component.data:
-            component.data["build"] = {}
-        if "flags" not in component.data["build"]:
-            component.data["build"]["flags"] = []
-        component.data["build"]["flags"] = _ensure_list(
-            component.data["build"]["flags"]
-        )
-
-        # Remove disable errors
-        build_flags = component.data["build"]["flags"]
-        build_flags.append("-Wno-error=overloaded-virtual")
-
-    #
     # fastled/FastLED
     #
 
