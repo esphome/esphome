@@ -378,7 +378,8 @@ async def esp32_ble_tracker_start_scan_action_to_code(
 ):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_continuous(config[CONF_CONTINUOUS]))
+    template_ = await cg.templatable(config[CONF_CONTINUOUS], args, cg.bool_)
+    cg.add(var.set_continuous(template_))
     return var
 
 
