@@ -21,6 +21,7 @@ from esphome.bundle import (
     _add_bytes_to_tar,
     _default_target_dir,
     _find_used_secret_keys,
+    _force_load_include_files,
     extract_bundle,
     is_bundle_path,
     prepare_bundle_for_compile,
@@ -935,8 +936,6 @@ def test_discover_files_nested_include_load_failure(
 
 def test_force_load_handles_cyclic_containers() -> None:
     """Cyclic dict/list references don't cause infinite recursion."""
-    from esphome.bundle import _force_load_include_files
-
     cyclic_dict: dict[str, Any] = {}
     cyclic_dict["self"] = cyclic_dict
 
