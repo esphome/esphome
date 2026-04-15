@@ -3,7 +3,7 @@
 - obj:
     id: hello_world_card_
     pad_all: 12
-    bg_color: white
+    bg_opa: cover
     height: 100%
     width: 100%
     scrollable: false

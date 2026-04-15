@@ -4,6 +4,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include <vector>
 
 namespace esphome {
@@ -86,6 +87,7 @@ class SX127x : public Component,
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
+  static void IRAM_ATTR gpio_intr(SX127x *arg);
   void configure_fsk_ook_();
   void configure_lora_();
   void set_mode_(uint8_t modulation, uint8_t mode);

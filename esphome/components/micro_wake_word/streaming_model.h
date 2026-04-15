@@ -63,6 +63,10 @@ class StreamingModel {
   /// @brief Allocates tensor and variable arenas and sets up the model interpreter
   /// @return True if successful, false otherwise
   bool load_model_();
+  /// @brief Probes the actual required tensor arena size by trial allocation.
+  /// Tries the manifest size first, then 2x if that fails.
+  /// @return The required arena size rounded up to 16-byte alignment, or 0 on failure.
+  size_t probe_arena_size_();
   /// @brief Returns true if successfully registered the streaming model's TensorFlow operations
   bool register_streaming_ops_(tflite::MicroMutableOpResolver<20> &op_resolver);
 
@@ -70,6 +74,7 @@ class StreamingModel {
 
   bool loaded_{false};
   bool enabled_{true};
+  bool tensor_arena_size_probed_{false};
   bool unprocessed_probability_status_{false};
   uint8_t current_stride_step_{0};
   int16_t ignore_windows_{-MIN_SLICES_BEFORE_DETECTION};

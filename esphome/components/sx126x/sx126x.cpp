@@ -104,11 +104,17 @@ void SX126x::write_register_(uint16_t reg, uint8_t *data, uint8_t size) {
   delayMicroseconds(SWITCHING_DELAY_US);
 }
 
+void IRAM_ATTR SX126x::gpio_intr(SX126x *arg) { arg->enable_loop_soon_any_context(); }
+
 void SX126x::setup() {
   // setup pins
   this->busy_pin_->setup();
   this->rst_pin_->setup();
   this->dio1_pin_->setup();
+  if (this->dio1_pin_->is_internal()) {
+    static_cast<InternalGPIOPin *>(this->dio1_pin_)
+        ->attach_interrupt(&SX126x::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
+  }
 
   // start spi
   this->spi_setup();
@@ -348,6 +354,9 @@ void SX126x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
 }
 
 void SX126x::loop() {
+  if (this->dio1_pin_->is_internal()) {
+    this->disable_loop();
+  }
   if (!this->dio1_pin_->digital_read()) {
     return;
   }
