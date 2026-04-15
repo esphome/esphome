@@ -150,6 +150,21 @@ TEST(ValueAccuracyToBuf, ReturnsCorrectLength) {
   EXPECT_EQ(strlen(buf), len);
 }
 
+TEST(ValueAccuracyToBuf, NegativeZero) {
+  // Hand-rolled formatter must preserve snprintf's sign-of-zero behavior.
+  EXPECT_EQ(va_to_string(-0.0f, 2), va_reference(-0.0f, 2));
+  EXPECT_EQ(va_to_string(-0.0f, 0), va_reference(-0.0f, 0));
+  // Tiny negative that rounds to zero at this precision must still render as "-0.00".
+  EXPECT_EQ(va_to_string(-0.001f, 2), va_reference(-0.001f, 2));
+}
+
+TEST(ValueAccuracyToBuf, OverflowFallsBackToSnprintf) {
+  // |value| * 10^acc must exceed UINT32_MAX to exercise the snprintf fallback path.
+  EXPECT_EQ(va_to_string(1.0e7f, 3), va_reference(1.0e7f, 3));
+  EXPECT_EQ(va_to_string(-1.0e7f, 3), va_reference(-1.0e7f, 3));
+  EXPECT_EQ(va_to_string(5.0e9f, 0), va_reference(5.0e9f, 0));
+}
+
 // --- value_accuracy_with_uom_to_buf ---
 
 static std::string va_uom_to_string(float value, int8_t accuracy_decimals, const char *uom) {
