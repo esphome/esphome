@@ -53,11 +53,13 @@ class RuntimeStatsCollector {
   uint32_t log_interval_;
   uint32_t next_log_time_{0};
 
-  // Main loop active-time stats (wall time per iteration, excluding yield/sleep)
-  uint32_t period_active_count_{0};
+  // Main loop active-time stats (wall time per iteration, excluding yield/sleep).
+  // Counters are uint64_t — at sub-millisecond loop times a uint32_t can wrap in
+  // a few weeks of uptime, which is well within ESPHome device lifetimes.
+  uint64_t period_active_count_{0};
   uint64_t period_active_time_us_{0};
   uint32_t period_active_max_us_{0};
-  uint32_t total_active_count_{0};
+  uint64_t total_active_count_{0};
   uint64_t total_active_time_us_{0};
   uint32_t total_active_max_us_{0};
 };
