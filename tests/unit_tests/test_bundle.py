@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
+import shutil
 import tarfile
 from typing import Any
 
@@ -1056,6 +1057,40 @@ def test_discover_files_walk_tuple_values(tmp_path: Path) -> None:
 
     paths = [f.path for f in files]
     assert "a.pem" in paths
+
+
+# ---------------------------------------------------------------------------
+# ConfigBundleCreator - fixture-based end-to-end
+# ---------------------------------------------------------------------------
+
+
+def test_discover_files_fixture_config(fixture_path: Path, tmp_path: Path) -> None:
+    """Use the real ``fixtures/bundle/`` tree as an end-to-end reproducer.
+
+    The fixture config uses ``wifi: !include common/wifi.yaml`` — a plain
+    nested !include that is returned as a deferred ``IncludeFile`` and only
+    resolved during the substitution pass. Before this fix, bundle discovery
+    never ran substitutions, so ``common/wifi.yaml`` was silently missing
+    from the bundle.
+    """
+    # Copy the fixture tree into a tmp dir so the test doesn't rely on the
+    # source repo being writable and so we can set CORE.config_path freely.
+    src = fixture_path / "bundle"
+    dst = tmp_path / "bundle"
+    shutil.copytree(src, dst)
+
+    CORE.config_path = dst / "bundle_test.yaml"
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+    paths = {f.path for f in files}
+
+    # Root and top-level !secret-referenced files
+    assert "bundle_test.yaml" in paths
+    assert "secrets.yaml" in paths
+    # The nested !include — this is what regressed when IncludeFile became
+    # deferred (PR #12213).
+    assert "common/wifi.yaml" in paths
 
 
 # ---------------------------------------------------------------------------
