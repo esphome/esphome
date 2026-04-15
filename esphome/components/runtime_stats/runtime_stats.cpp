@@ -32,40 +32,74 @@ void RuntimeStatsCollector::log_stats_() {
            " Period stats (last %" PRIu32 "ms): %zu active components",
            this->log_interval_, count);
 
-  if (count == 0) {
-    return;
+  // Sum component period time so we can derive main-loop overhead
+  // (active loop time minus time attributable to component loop()s).
+  uint64_t period_component_sum_us = 0;
+  uint64_t total_component_sum_us = 0;
+  for (size_t i = 0; i < count; i++) {
+    period_component_sum_us += sorted[i]->runtime_stats_.period_time_us;
+    total_component_sum_us += sorted[i]->runtime_stats_.total_time_us;
   }
 
-  // Sort by period runtime (descending)
-  std::sort(sorted, sorted + count, compare_period_time);
+  if (count > 0) {
+    // Sort by period runtime (descending)
+    std::sort(sorted, sorted + count, compare_period_time);
 
-  // Log top components by period runtime
-  for (size_t i = 0; i < count; i++) {
-    const auto &stats = sorted[i]->runtime_stats_;
-    ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.3fms, max=%.2fms, total=%.1fms",
-             LOG_STR_ARG(sorted[i]->get_component_log_str()), stats.period_count,
-             stats.period_count > 0 ? stats.period_time_us / (float) stats.period_count / 1000.0f : 0.0f,
-             stats.period_max_time_us / 1000.0f, stats.period_time_us / 1000.0f);
+    // Log top components by period runtime
+    for (size_t i = 0; i < count; i++) {
+      const auto &stats = sorted[i]->runtime_stats_;
+      ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.3fms, max=%.2fms, total=%.1fms",
+               LOG_STR_ARG(sorted[i]->get_component_log_str()), stats.period_count,
+               stats.period_count > 0 ? stats.period_time_us / (float) stats.period_count / 1000.0f : 0.0f,
+               stats.period_max_time_us / 1000.0f, stats.period_time_us / 1000.0f);
+    }
+  }
+
+  // Main-loop overhead for the period: active wall time minus component time.
+  // active = sum of per-iteration loop time excluding yield/sleep.
+  if (this->period_active_count_ > 0) {
+    uint64_t active = this->period_active_time_us_;
+    uint64_t overhead = active > period_component_sum_us ? active - period_component_sum_us : 0;
+    ESP_LOGI(TAG,
+             "  main_loop: iters=%" PRIu32 ", active_avg=%.3fms, active_max=%.2fms, active_total=%.1fms, "
+             "overhead_total=%.1fms",
+             this->period_active_count_, active / (float) this->period_active_count_ / 1000.0f,
+             this->period_active_max_us_ / 1000.0f, active / 1000.0f, overhead / 1000.0f);
   }
 
   // Log total stats since boot (only for active components - idle ones haven't changed)
   ESP_LOGI(TAG, " Total stats (since boot): %zu active components", count);
 
-  // Re-sort by total runtime for all-time stats
-  std::sort(sorted, sorted + count, compare_total_time);
+  if (count > 0) {
+    // Re-sort by total runtime for all-time stats
+    std::sort(sorted, sorted + count, compare_total_time);
 
-  for (size_t i = 0; i < count; i++) {
-    const auto &stats = sorted[i]->runtime_stats_;
-    ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.3fms, max=%.2fms, total=%.1fms",
-             LOG_STR_ARG(sorted[i]->get_component_log_str()), stats.total_count,
-             stats.total_count > 0 ? stats.total_time_us / (float) stats.total_count / 1000.0f : 0.0f,
-             stats.total_max_time_us / 1000.0f, stats.total_time_us / 1000.0);
+    for (size_t i = 0; i < count; i++) {
+      const auto &stats = sorted[i]->runtime_stats_;
+      ESP_LOGI(TAG, "  %s: count=%" PRIu32 ", avg=%.3fms, max=%.2fms, total=%.1fms",
+               LOG_STR_ARG(sorted[i]->get_component_log_str()), stats.total_count,
+               stats.total_count > 0 ? stats.total_time_us / (float) stats.total_count / 1000.0f : 0.0f,
+               stats.total_max_time_us / 1000.0f, stats.total_time_us / 1000.0);
+    }
+  }
+
+  if (this->total_active_count_ > 0) {
+    uint64_t active = this->total_active_time_us_;
+    uint64_t overhead = active > total_component_sum_us ? active - total_component_sum_us : 0;
+    ESP_LOGI(TAG,
+             "  main_loop: iters=%" PRIu32 ", active_avg=%.3fms, active_max=%.2fms, active_total=%.1fms, "
+             "overhead_total=%.1fms",
+             this->total_active_count_, active / (float) this->total_active_count_ / 1000.0f,
+             this->total_active_max_us_ / 1000.0f, active / 1000.0f, overhead / 1000.0f);
   }
 
   // Reset period stats
   for (auto *component : components) {
     component->runtime_stats_.reset_period();
   }
+  this->period_active_count_ = 0;
+  this->period_active_time_us_ = 0;
+  this->period_active_max_us_ = 0;
 }
 
 bool RuntimeStatsCollector::compare_period_time(Component *a, Component *b) {
