@@ -26,7 +26,6 @@ class PowerManagement : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
   void setup() override;
-  void loop() override;
   void dump_config() override;
   void set_max_freq_mhz(uint32_t max_freq_mhz) { this->max_freq_mhz_ = max_freq_mhz; }
   void set_min_freq_mhz(uint32_t min_freq_mhz) { this->min_freq_mhz_ = min_freq_mhz; }
@@ -50,9 +49,6 @@ class PowerManagement : public Component {
   // match with PowerManagementLockType
   esp_pm_lock_type_t pm_lock_types_[PM_LOCK_ARRAY_SIZE] = {ESP_PM_CPU_FREQ_MAX, ESP_PM_APB_FREQ_MAX,
                                                            ESP_PM_NO_LIGHT_SLEEP};
-#endif
-#if CONFIG_PM_LIGHT_SLEEP_CALLBACKS
-  uint32_t task_notify_take_timeout_ms_{(uint32_t) (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000) - 100};
 #endif
 #endif
   uint32_t max_freq_mhz_{0};
