@@ -302,7 +302,7 @@ void DebugComponent::update_platform_() {
     this->psram_sensor_->publish_state(heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
   }
   if (this->iram_sensor_ != nullptr) {
-    this->iram_sensor_->publish_state(heap_caps_get_free_size(MALLOC_CAP_IRAM_8BIT));
+    this->iram_sensor_->publish_state(heap_caps_get_free_size(MALLOC_CAP_EXEC));
   }
 #endif
 }
