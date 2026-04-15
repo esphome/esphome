@@ -569,7 +569,6 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
   this->in_loop_ = true;
 }
 
-<<<<<<< HEAD
 // NOLINTNEXTLINE(clang-diagnostic-unknown-attributes)
 inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::loop() {
 #ifdef USE_RUNTIME_STATS
