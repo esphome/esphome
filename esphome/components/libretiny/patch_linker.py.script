@@ -1,0 +1,64 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+import os
+import re
+
+# BK72xx linker templates declare the SRAM region as "(rw!x)" — read/write but
+# not executable. That prevents the linker from emitting functions we mark
+# IRAM_ATTR (defined as section(".data") on BK72xx in esphome/core/hal.h) into
+# the .data output section, which is the only section the SDK startup code
+# copies from flash into SRAM before main() runs.
+#
+# LibreTiny's own Wi-Fi driver already runs code from SRAM at runtime, so the
+# BK72xx MMU permits execution from that region; the "!x" is a stale hint in
+# the linker template. Flipping it to "(rwx)" lets the linker place the
+# function body in .data, where it is copied alongside initialized globals and
+# becomes callable from an ISR even while flash is busy.
+#
+# LN882H already declares RAM0 as "(rwx)" and Realtek families use dedicated
+# .image2.ram.text / .sram.text output sections — nothing to patch there.
+
+
+def _is_bk72xx(defines):
+    prefix = "USE_LIBRETINY_VARIANT_"
+    bk = ("BK7231N", "BK7231T", "BK7231Q", "BK7251")
+    for token in defines:
+        if isinstance(token, tuple):
+            token = token[0]
+        if isinstance(token, str) and token.startswith(prefix):
+            return token[len(prefix):] in bk
+    return False
+
+
+_RW_NO_X = re.compile(r"(\bram\s*\()\s*rw\s*!\s*x(\s*\))")
+
+
+def _patch_directory(build_dir):
+    if not os.path.isdir(build_dir):
+        return
+    for name in os.listdir(build_dir):
+        if not name.endswith(".ld"):
+            continue
+        path = os.path.join(build_dir, name)
+        with open(path, "r", encoding="utf-8") as fh:
+            content = fh.read()
+        patched = _RW_NO_X.sub(r"\1rwx\2", content)
+        if patched != content:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(patched)
+            print(
+                "ESPHome: patched BK72xx linker script {} (rw!x -> rwx) so "
+                "IRAM_ATTR functions can be placed in .data".format(name)
+            )
+
+
+def _patch_ld_before_link(target, source, env):
+    _patch_directory(env.subst("$BUILD_DIR"))
+
+
+if _is_bk72xx(env.get("CPPDEFINES", [])):
+    # LibreTiny writes the processed .ld templates into $BUILD_DIR during its
+    # own builder setup, which may run after this script. Register the patch
+    # as a pre-link action so it executes once the linker scripts exist.
+    env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", _patch_ld_before_link)

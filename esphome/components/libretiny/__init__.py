@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -24,6 +25,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.core.config import BOARD_MAX_LENGTH
+from esphome.helpers import copy_file_if_changed
 from esphome.storage_json import StorageJSON
 
 from . import gpio  # noqa
@@ -465,6 +467,10 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
+    # Patch the linker script to add a ".sram.text" output section so IRAM_ATTR
+    # (defined in esphome/core/hal.h) places code in SRAM on BK72xx and LN882H.
+    # No-op on RTL8710B/RTL8720C whose stock linker scripts already provide it.
+    cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
     # decrease web server stack size (16k words -> 4k words)
@@ -549,3 +555,13 @@ async def component_to_code(config):
     _configure_lwip(config)
 
     await cg.register_component(var, config)
+
+
+# Called by writer.py
+def copy_files() -> None:
+    dir = Path(__file__).parent
+    patch_linker_file = dir / "patch_linker.py.script"
+    copy_file_if_changed(
+        patch_linker_file,
+        CORE.relative_build_path("patch_linker.py"),
+    )
