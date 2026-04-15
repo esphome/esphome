@@ -9,5 +9,3 @@ sensor:
       name: "Heap Fragmentation"
     min_free:
       name: "Heap Min Free"
-    iram:
-      name: "Free IRAM"
