@@ -117,37 +117,33 @@ void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {
   }
 
   if (const auto swing_mode = call.get_swing_mode()) {
+    auto vane = this->last_non_swing_vane_mode_;
+    auto wide = this->last_non_swing_wide_vane_mode_;
+
     switch (*swing_mode) {
       case climate::CLIMATE_SWING_BOTH:
-        this->hp_.set_vane_mode(MitsubishiCN105::VaneMode::SWING);
-        this->hp_.set_wide_vane_mode(MitsubishiCN105::WideVaneMode::SWING);
+        vane = MitsubishiCN105::VaneMode::SWING;
+        wide = MitsubishiCN105::WideVaneMode::SWING;
         break;
 
       case climate::CLIMATE_SWING_VERTICAL:
-        this->hp_.set_vane_mode(MitsubishiCN105::VaneMode::SWING);
-        if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_HORIZONTAL)) {
-          this->hp_.set_wide_vane_mode(this->last_non_swing_wide_vane_mode_);
-        }
+        vane = MitsubishiCN105::VaneMode::SWING;
         break;
 
       case climate::CLIMATE_SWING_HORIZONTAL:
-        this->hp_.set_wide_vane_mode(MitsubishiCN105::WideVaneMode::SWING);
-        if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_VERTICAL)) {
-          this->hp_.set_vane_mode(this->last_non_swing_vane_mode_);
-        }
+        wide = MitsubishiCN105::WideVaneMode::SWING;
         break;
 
       case climate::CLIMATE_SWING_OFF:
-        if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_VERTICAL)) {
-          this->hp_.set_vane_mode(this->last_non_swing_vane_mode_);
-        }
-        if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_HORIZONTAL)) {
-          this->hp_.set_wide_vane_mode(this->last_non_swing_wide_vane_mode_);
-        }
-        break;
-
       default:
         break;
+    }
+
+    if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_VERTICAL)) {
+      this->hp_.set_vane_mode(vane);
+    }
+    if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_HORIZONTAL)) {
+      this->hp_.set_wide_vane_mode(wide);
     }
   }
 
