@@ -552,6 +552,9 @@ For detailed migration guides and API documentation, see the [ESPHome Developers
 - [substitutions] `!include ${filename}`, Substitutions in include filename paths (package refactor part 5) [esphome#12213](https://github.com/esphome/esphome/pull/12213) by [@jpeletier](https://github.com/jpeletier) (new-feature)
 - [ethernet] Add W6100 and W6300 support for RP2040 [esphome#15543](https://github.com/esphome/esphome/pull/15543) by [@bdraco](https://github.com/bdraco) (new-feature)
 - [esp32_hosted] Add SPI transport and SDIO 1-bit bus width support [esphome#15551](https://github.com/esphome/esphome/pull/15551) by [@swoboda1337](https://github.com/swoboda1337) (new-feature)
+- [tca9555] Add interrupt pin support [esphome#15613](https://github.com/esphome/esphome/pull/15613) by [@bdraco](https://github.com/bdraco) (new-feature)
+- [pca6416a] Add interrupt pin support [esphome#15614](https://github.com/esphome/esphome/pull/15614) by [@bdraco](https://github.com/bdraco) (new-feature)
+- [mcp23016] Add interrupt pin support [esphome#15616](https://github.com/esphome/esphome/pull/15616) by [@bdraco](https://github.com/bdraco) (new-feature)
 
 ### New Components
 
@@ -584,44 +587,7 @@ For detailed migration guides and API documentation, see the [ESPHome Developers
 - [binary_sensor] Use std::array in MultiClickTrigger [esphome#15267](https://github.com/esphome/esphome/pull/15267) by [@bdraco](https://github.com/bdraco) (breaking-change)
 - [esp8266] Add crash handler for post-mortem diagnostics [esphome#15465](https://github.com/esphome/esphome/pull/15465) by [@bdraco](https://github.com/bdraco) (new-feature) (breaking-change)
 - [lvgl] Implement rotation directly [esphome#14955](https://github.com/esphome/esphome/pull/14955) by [@clydebarrow](https://github.com/clydebarrow) (new-feature) (breaking-change)
-
-### Beta Changes
-
-- [api] Fix ListEntitiesRequest not read due to LWIP rcvevent tracking [esphome#15589](https://github.com/esphome/esphome/pull/15589) by [@bdraco](https://github.com/bdraco)
-- Bump aioesphomeapi from 44.12.0 to 44.13.1 [esphome#15600](https://github.com/esphome/esphome/pull/15600) by [@dependabot[bot]](https://github.com/apps/dependabot)
-- [gdk101] Increase reset retries for slow-booting sensor MCU [esphome#15584](https://github.com/esphome/esphome/pull/15584) by [@bdraco](https://github.com/bdraco)
-- [sx127x][cc1101] Disable loop when packet mode is inactive [esphome#15606](https://github.com/esphome/esphome/pull/15606) by [@swoboda1337](https://github.com/swoboda1337)
-- [hbridge] Move light pin switching to loop [esphome#15615](https://github.com/esphome/esphome/pull/15615) by [@jesserockz](https://github.com/jesserockz)
-- [tca9555] Add interrupt pin support [esphome#15613](https://github.com/esphome/esphome/pull/15613) by [@bdraco](https://github.com/bdraco) (new-feature)
-- [pca6416a] Add interrupt pin support [esphome#15614](https://github.com/esphome/esphome/pull/15614) by [@bdraco](https://github.com/bdraco) (new-feature)
-- [mcp23016] Add interrupt pin support [esphome#15616](https://github.com/esphome/esphome/pull/15616) by [@bdraco](https://github.com/bdraco) (new-feature)
-- [api] Add (inline_encode) proto option for sub-message inlining [esphome#15599](https://github.com/esphome/esphome/pull/15599) by [@bdraco](https://github.com/bdraco)
-- [micro_wake_word] Pin esp-nn version [esphome#15628](https://github.com/esphome/esphome/pull/15628) by [@kahrendt](https://github.com/kahrendt)
-- [sx127x][cc1101][sx126x] Use GPIO interrupt to wake loop [esphome#15627](https://github.com/esphome/esphome/pull/15627) by [@swoboda1337](https://github.com/swoboda1337)
-- [rp2040] Fix W5500 Ethernet pbuf corruption by mirroring LWIPMutex semantics [esphome#15624](https://github.com/esphome/esphome/pull/15624) by [@bdraco](https://github.com/bdraco)
-- Bump aioesphomeapi from 44.13.1 to 44.13.2 [esphome#15637](https://github.com/esphome/esphome/pull/15637) by [@dependabot[bot]](https://github.com/apps/dependabot)
-- Bump aioesphomeapi from 44.13.2 to 44.13.3 [esphome#15641](https://github.com/esphome/esphome/pull/15641) by [@dependabot[bot]](https://github.com/apps/dependabot)
-- [mdns] Bump espressif/mdns to 1.11.0 [esphome#15670](https://github.com/esphome/esphome/pull/15670) by [@swoboda1337](https://github.com/swoboda1337)
-- [canbus] Fix canbus.send can_id compile error [esphome#15668](https://github.com/esphome/esphome/pull/15668) by [@swoboda1337](https://github.com/swoboda1337)
-- [esp32] Bump platform to 55.03.38, Arduino to 3.3.8, ESP-IDF to 5.5.4 [esphome#15666](https://github.com/esphome/esphome/pull/15666) by [@swoboda1337](https://github.com/swoboda1337)
 - [packages] Fix false deprecation warning and wrong error paths in nested packages [esphome#15605](https://github.com/esphome/esphome/pull/15605) by [@bdraco](https://github.com/bdraco) (breaking-change)
-- [lvgl] Fix use of rotation on host SDL [esphome#15611](https://github.com/esphome/esphome/pull/15611) by [@clydebarrow](https://github.com/clydebarrow)
-- [packages] fix support `packages: !include mypackages.yaml` [esphome#15677](https://github.com/esphome/esphome/pull/15677) by [@jpeletier](https://github.com/jpeletier)
-- [core] Fix PlatformIO progress bar rendering in subprocess mode [esphome#15681](https://github.com/esphome/esphome/pull/15681) by [@swoboda1337](https://github.com/swoboda1337)
-- Bump aioesphomeapi from 44.13.3 to 44.14.0 [esphome#15695](https://github.com/esphome/esphome/pull/15695) by [@dependabot[bot]](https://github.com/apps/dependabot)
-- [api] Add speed_optimized proto option for hot encode paths [esphome#15691](https://github.com/esphome/esphome/pull/15691) by [@bdraco](https://github.com/bdraco)
-- Bump aioesphomeapi from 44.14.0 to 44.15.0 [esphome#15699](https://github.com/esphome/esphome/pull/15699) by [@dependabot[bot]](https://github.com/apps/dependabot)
-- [esp32] Fix some compiler warnings & bugs [esphome#15610](https://github.com/esphome/esphome/pull/15610) by [@diorcety](https://github.com/diorcety)
-- [micro_wake_word] Bugfix: Use es-nn v1.1.2 (last known working version) [esphome#15703](https://github.com/esphome/esphome/pull/15703) by [@kahrendt](https://github.com/kahrendt)
-- [esp32] Update the recommended platform to 55.03.38-1 [esphome#15705](https://github.com/esphome/esphome/pull/15705) by [@swoboda1337](https://github.com/swoboda1337)
-- [api] Add speed_optimized to SubscribeLogsResponse [esphome#15698](https://github.com/esphome/esphome/pull/15698) by [@bdraco](https://github.com/bdraco)
-- [adc] Place ADC oneshot control functions in IRAM for cache safety [esphome#15717](https://github.com/esphome/esphome/pull/15717) by [@bdraco](https://github.com/bdraco)
-- [web_server] Reset OTA backend on new upload to avoid brick after interrupted OTA [esphome#15720](https://github.com/esphome/esphome/pull/15720) by [@bdraco](https://github.com/bdraco)
-- [esphome] Skip missing extra flash images in upload_using_esptool [esphome#15723](https://github.com/esphome/esphome/pull/15723) by [@bdraco](https://github.com/bdraco)
-- [globals] Fix TemplatableFn deprecation warning for globals.set [esphome#15733](https://github.com/esphome/esphome/pull/15733) by [@bdraco](https://github.com/bdraco)
-- [i2s_audio] Add PDM mics support for ESP32-P4 [esphome#15333](https://github.com/esphome/esphome/pull/15333) by [@fintros](https://github.com/fintros)
-- [light] Avoid addressable transition stall at low gamma-corrected values [esphome#15726](https://github.com/esphome/esphome/pull/15726) by [@bdraco](https://github.com/bdraco)
-- [nextion] Fix command spacing pacer never throttling sends [esphome#15664](https://github.com/esphome/esphome/pull/15664) by [@edwardtfn](https://github.com/edwardtfn)
 
 ### All changes
 
