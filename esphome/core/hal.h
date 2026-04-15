@@ -45,6 +45,13 @@
 #include <freertos/task.h>
 #endif
 
+#if defined(USE_LIBRETINY_VARIANT_BK7231N) || defined(USE_LIBRETINY_VARIANT_BK7231T) || \
+    defined(USE_LIBRETINY_VARIANT_BK7231Q) || defined(USE_LIBRETINY_VARIANT_BK7251)
+// Declared in the Beken FreeRTOS port (portmacro.h) and built in ARM mode so
+// it is callable from Thumb code via interworking.
+extern "C" uint32_t platform_is_in_interrupt_context(void);
+#endif
+
 namespace esphome {
 
 /// Returns true when executing inside an interrupt handler.
@@ -65,8 +72,7 @@ __attribute__((always_inline)) inline bool in_isr_context() {
     defined(USE_LIBRETINY_VARIANT_BK7231Q) || defined(USE_LIBRETINY_VARIANT_BK7251)
   // BK72xx is ARM968E-S (ARM9). The MRS CPSR instruction is ARM-only, and
   // user code here may be built in Thumb mode. Defer to the FreeRTOS port
-  // helper (compiled in ARM mode by the SDK) which reads CPSR internally.
-  extern "C" uint32_t platform_is_in_interrupt_context(void);
+  // helper declared above (compiled in ARM mode by the SDK).
   return platform_is_in_interrupt_context() != 0;
 #elif defined(USE_LIBRETINY)
   // Cortex-M (AmebaZ, AmebaZ2, LN882H). IPSR is the active exception number;
