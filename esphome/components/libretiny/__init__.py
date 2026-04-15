@@ -467,11 +467,14 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
-    # BK72xx linker templates mark the SRAM region as (rw!x), which blocks the
-    # linker from placing executable code in .data — the section IRAM_ATTR
-    # targets on BK72xx (see esphome/core/hal.h). This pre-link hook flips the
-    # flag to (rwx) once LibreTiny has written the processed .ld file(s) into
-    # the build dir. No-op on every other family.
+    # IRAM_ATTR on LibreTiny expands to section(".sram.text") (see
+    # esphome/core/hal.h). This pre-link hook rewrites the processed .ld files
+    # in the build dir so that section lands in RAM on each family:
+    #   - BK72xx: flip SRAM region (rw!x) -> (rwx) and inject
+    #     KEEP(*(.sram.text*)) into the .data output section.
+    #   - LN882H: inject KEEP(*(.sram.text*)) into .flash_copysection.
+    #   - RTL8710B: inject KEEP(*(.sram.text*)) into .image2.ram.text.
+    #   - RTL8720C: no-op (stock linker already consumes *(.sram.text*)).
     cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
