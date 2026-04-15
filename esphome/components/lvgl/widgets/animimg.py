@@ -83,6 +83,7 @@ animimg_spec = AnimimgType()
         },
         key=CONF_ID,
     ),
+    synchronous=True,
 )
 async def animimg_start(config, action_id, template_arg, args):
     widget = await get_widgets(config)
@@ -102,6 +103,7 @@ async def animimg_start(config, action_id, template_arg, args):
         },
         key=CONF_ID,
     ),
+    synchronous=True,
 )
 async def animimg_stop(config, action_id, template_arg, args):
     widget = await get_widgets(config)

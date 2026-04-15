@@ -1,5 +1,6 @@
 #include "user_services.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome::api {
 
@@ -11,6 +12,8 @@ template<> int32_t get_execute_arg_value<int32_t>(const ExecuteServiceArgument &
 }
 template<> float get_execute_arg_value<float>(const ExecuteServiceArgument &arg) { return arg.float_; }
 template<> std::string get_execute_arg_value<std::string>(const ExecuteServiceArgument &arg) { return arg.string_; }
+// Zero-copy StringRef version for YAML-generated services (string_ is null-terminated after decode)
+template<> StringRef get_execute_arg_value<StringRef>(const ExecuteServiceArgument &arg) { return arg.string_; }
 
 // Legacy std::vector versions for external components using custom_api_device.h - optimized with reserve
 template<> std::vector<bool> get_execute_arg_value<std::vector<bool>>(const ExecuteServiceArgument &arg) {
@@ -61,6 +64,8 @@ template<> enums::ServiceArgType to_service_arg_type<bool>() { return enums::SER
 template<> enums::ServiceArgType to_service_arg_type<int32_t>() { return enums::SERVICE_ARG_TYPE_INT; }
 template<> enums::ServiceArgType to_service_arg_type<float>() { return enums::SERVICE_ARG_TYPE_FLOAT; }
 template<> enums::ServiceArgType to_service_arg_type<std::string>() { return enums::SERVICE_ARG_TYPE_STRING; }
+// Zero-copy StringRef version for YAML-generated services
+template<> enums::ServiceArgType to_service_arg_type<StringRef>() { return enums::SERVICE_ARG_TYPE_STRING; }
 
 // Legacy std::vector versions for external components using custom_api_device.h
 template<> enums::ServiceArgType to_service_arg_type<std::vector<bool>>() { return enums::SERVICE_ARG_TYPE_BOOL_ARRAY; }

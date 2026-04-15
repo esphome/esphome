@@ -248,6 +248,12 @@ class TestLiterals:
             (cg.FloatLiteral(4.2), "4.2f"),
             (cg.FloatLiteral(1.23456789), "1.23456789f"),
             (cg.FloatLiteral(math.nan), "NAN"),
+            (cg.FlashStringLiteral("hello"), 'ESPHOME_F("hello")'),
+            (cg.FlashStringLiteral(""), 'ESPHOME_F("")'),
+            (
+                cg.FlashStringLiteral('quote"here'),
+                'ESPHOME_F("quote\\042here")',
+            ),
         ),
     )
     def test_str__simple(self, target: cg.Literal, expected: str):
@@ -325,7 +331,7 @@ class TestStatements:
             ),
             (
                 cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar"),
-                'static const uint16_t foo[] PROGMEM = "bar"',
+                'static constexpr uint16_t foo[] PROGMEM = "bar"',
             ),
         ),
     )
@@ -347,3 +353,361 @@ class TestMockObj:
         assert isinstance(actual, cg.MockObj)
         assert actual.base == "foo.eek"
         assert actual.op == "."
+
+
+class TestStatementFunction:
+    """Tests for the statement() function."""
+
+    def test_statement__expression_converted_to_statement(self):
+        """Test that expressions are converted to ExpressionStatement."""
+        expr = cg.RawExpression("foo()")
+        result = cg.statement(expr)
+
+        assert isinstance(result, cg.ExpressionStatement)
+        assert str(result) == "foo();"
+
+    def test_statement__statement_unchanged(self):
+        """Test that statements are returned unchanged."""
+        stmt = cg.RawStatement("foo()")
+        result = cg.statement(stmt)
+
+        assert result is stmt
+        assert str(result) == "foo()"
+
+    def test_statement__expression_statement_unchanged(self):
+        """Test that ExpressionStatement is returned unchanged."""
+        stmt = cg.ExpressionStatement(42)
+        result = cg.statement(stmt)
+
+        assert result is stmt
+        assert str(result) == "42;"
+
+    def test_statement__line_comment_unchanged(self):
+        """Test that LineComment is returned unchanged."""
+        stmt = cg.LineComment("This is a comment")
+        result = cg.statement(stmt)
+
+        assert result is stmt
+        assert str(result) == "// This is a comment"
+
+
+class TestLiteralFunction:
+    """Tests for the literal() function."""
+
+    def test_literal__creates_mockobj(self):
+        """Test that literal() creates a MockObj."""
+        result = cg.literal("MY_CONSTANT")
+
+        assert isinstance(result, cg.MockObj)
+        assert result.base == "MY_CONSTANT"
+        assert result.op == ""
+
+    def test_literal__string_representation(self):
+        """Test that literal names appear unquoted in generated code."""
+        result = cg.literal("nullptr")
+
+        assert str(result) == "nullptr"
+
+    def test_literal__can_be_used_in_expressions(self):
+        """Test that literals can be used as part of larger expressions."""
+        null_lit = cg.literal("nullptr")
+        expr = cg.CallExpression(cg.RawExpression("my_func"), null_lit)
+
+        assert str(expr) == "my_func(nullptr)"
+
+    def test_literal__common_cpp_literals(self):
+        """Test common C++ literal values."""
+        test_cases = [
+            ("nullptr", "nullptr"),
+            ("true", "true"),
+            ("false", "false"),
+            ("NULL", "NULL"),
+            ("NAN", "NAN"),
+        ]
+
+        for name, expected in test_cases:
+            result = cg.literal(name)
+            assert str(result) == expected
+
+
+class TestLambdaConstructor:
+    """Tests for the Lambda class constructor in core/__init__.py."""
+
+    def test_lambda__from_string(self):
+        """Test Lambda constructor with string argument."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return x + 1;")
+
+        assert lambda_obj.value == "return x + 1;"
+        assert str(lambda_obj) == "return x + 1;"
+
+    def test_lambda__from_expression(self):
+        """Test Lambda constructor with Expression argument."""
+        from esphome.core import Lambda
+
+        expr = cg.RawExpression("x + 1")
+        lambda_obj = Lambda(expr)
+
+        # Expression should be converted to statement (with semicolon)
+        assert lambda_obj.value == "x + 1;"
+
+    def test_lambda__from_lambda(self):
+        """Test Lambda constructor with another Lambda argument."""
+        from esphome.core import Lambda
+
+        original = Lambda("return x + 1;")
+        copy = Lambda(original)
+
+        assert copy.value == original.value
+        assert copy.value == "return x + 1;"
+
+    def test_lambda__parts_parsing(self):
+        """Test that Lambda correctly parses parts with id() references."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return id(my_sensor).state;")
+        parts = lambda_obj.parts
+
+        # Parts should be split by LAMBDA_PROG regex: text, id, op, text
+        assert len(parts) == 4
+        assert parts[0] == "return "
+        assert parts[1] == "my_sensor"
+        assert parts[2] == "."
+        assert parts[3] == "state;"
+
+    def test_lambda__requires_ids(self):
+        """Test that Lambda correctly extracts required IDs."""
+        from esphome.core import ID, Lambda
+
+        lambda_obj = Lambda("return id(sensor1).state + id(sensor2).value;")
+        ids = lambda_obj.requires_ids
+
+        assert len(ids) == 2
+        assert all(isinstance(id_obj, ID) for id_obj in ids)
+        assert ids[0].id == "sensor1"
+        assert ids[1].id == "sensor2"
+
+    def test_lambda__no_ids(self):
+        """Test Lambda with no id() references."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return 42;")
+        ids = lambda_obj.requires_ids
+
+        assert len(ids) == 0
+
+    def test_lambda__comment_removal(self):
+        """Test that comments are removed when parsing parts."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return id(sensor).state; // Get sensor state")
+        parts = lambda_obj.parts
+
+        # Comment should be replaced with space, not affect parsing
+        assert "my_sensor" not in str(parts)
+
+    def test_lambda__multiline_string(self):
+        """Test Lambda with multiline string."""
+        from esphome.core import Lambda
+
+        code = """if (id(sensor).state > 0) {
+  return true;
+}
+return false;"""
+        lambda_obj = Lambda(code)
+
+        assert lambda_obj.value == code
+        assert "sensor" in [id_obj.id for id_obj in lambda_obj.requires_ids]
+
+
+@pytest.mark.asyncio
+class TestProcessLambda:
+    """Tests for the process_lambda() async function."""
+
+    async def test_process_lambda__none_value(self):
+        """Test that None returns None."""
+        result = await cg.process_lambda(None, [])
+
+        assert result is None
+
+    async def test_process_lambda__with_expression(self):
+        """Test process_lambda with Expression argument."""
+
+        expr = cg.RawExpression("return x + 1")
+        result = await cg.process_lambda(expr, [(int, "x")])
+
+        assert isinstance(result, cg.LambdaExpression)
+        assert "x + 1" in str(result)
+
+    async def test_process_lambda__simple_lambda_no_ids(self):
+        """Test process_lambda with simple Lambda without id() references."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return x + 1;")
+        result = await cg.process_lambda(lambda_obj, [(int, "x")])
+
+        assert isinstance(result, cg.LambdaExpression)
+        # Should have parameter
+        lambda_str = str(result)
+        assert "int32_t x" in lambda_str
+        assert "return x + 1;" in lambda_str
+
+    async def test_process_lambda__with_return_type(self):
+        """Test process_lambda with return type specified."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return x > 0;")
+        result = await cg.process_lambda(lambda_obj, [(int, "x")], return_type=bool)
+
+        assert isinstance(result, cg.LambdaExpression)
+        lambda_str = str(result)
+        assert "-> bool" in lambda_str
+
+    async def test_process_lambda__with_capture(self):
+        """Test process_lambda with capture specified."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return captured + x;")
+        result = await cg.process_lambda(lambda_obj, [(int, "x")], capture="captured")
+
+        assert isinstance(result, cg.LambdaExpression)
+        lambda_str = str(result)
+        assert "[captured]" in lambda_str
+
+    async def test_process_lambda__empty_capture(self):
+        """Test process_lambda with empty capture (stateless lambda)."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return x + 1;")
+        result = await cg.process_lambda(lambda_obj, [(int, "x")], capture="")
+
+        assert isinstance(result, cg.LambdaExpression)
+        lambda_str = str(result)
+        assert "[]" in lambda_str
+
+    async def test_process_lambda__no_parameters(self):
+        """Test process_lambda with no parameters."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return 42;")
+        result = await cg.process_lambda(lambda_obj, [])
+
+        assert isinstance(result, cg.LambdaExpression)
+        lambda_str = str(result)
+        # Should have empty parameter list
+        assert "()" in lambda_str
+
+    async def test_process_lambda__multiple_parameters(self):
+        """Test process_lambda with multiple parameters."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return x + y + z;")
+        result = await cg.process_lambda(
+            lambda_obj, [(int, "x"), (float, "y"), (bool, "z")]
+        )
+
+        assert isinstance(result, cg.LambdaExpression)
+        lambda_str = str(result)
+        assert "int32_t x" in lambda_str
+        assert "float y" in lambda_str
+        assert "bool z" in lambda_str
+
+    async def test_process_lambda__parameter_validation(self):
+        """Test that malformed parameters raise assertion error."""
+        from esphome.core import Lambda
+
+        lambda_obj = Lambda("return x;")
+
+        # Test invalid parameter format (not list of tuples)
+        with pytest.raises(AssertionError):
+            await cg.process_lambda(lambda_obj, "invalid")
+
+        # Test invalid tuple format (not 2-element tuples)
+        with pytest.raises(AssertionError):
+            await cg.process_lambda(lambda_obj, [(int, "x", "extra")])
+
+        # Test invalid tuple format (single element)
+        with pytest.raises(AssertionError):
+            await cg.process_lambda(lambda_obj, [(int,)])
+
+
+@pytest.mark.asyncio
+async def test_templatable__string_with_std_string_returns_flash_literal() -> None:
+    """Static string with std::string output_type returns FlashStringLiteral."""
+    result = await cg.templatable("hello", [], ct.std_string)
+
+    assert isinstance(result, cg.FlashStringLiteral)
+    assert str(result) == 'ESPHOME_F("hello")'
+
+
+@pytest.mark.asyncio
+async def test_templatable__empty_string_with_std_string() -> None:
+    """Empty static string with std::string output_type returns FlashStringLiteral."""
+    result = await cg.templatable("", [], ct.std_string)
+
+    assert isinstance(result, cg.FlashStringLiteral)
+    assert str(result) == 'ESPHOME_F("")'
+
+
+@pytest.mark.asyncio
+async def test_templatable__string_with_none_output_type() -> None:
+    """Static string with output_type=None returns raw string (no wrapping)."""
+    result = await cg.templatable("hello", [], None)
+
+    assert isinstance(result, str)
+    assert result == "hello"
+
+
+@pytest.mark.asyncio
+async def test_templatable__int_with_std_string() -> None:
+    """Non-string value with std::string output_type returns raw value."""
+    result = await cg.templatable(42, [], ct.std_string)
+
+    assert result == 42
+
+
+@pytest.mark.asyncio
+async def test_templatable__string_with_non_string_output_type() -> None:
+    """Static string with non-std::string output_type returns stateless lambda."""
+    result = await cg.templatable("hello", [], ct.bool_)
+
+    assert isinstance(result, cg.LambdaExpression)
+    assert result.capture == ""
+
+
+@pytest.mark.asyncio
+async def test_templatable__with_to_exp_callable() -> None:
+    """When to_exp is provided, it is applied to non-template values."""
+    result = await cg.templatable(42, [], None, to_exp=lambda x: x * 2)
+
+    assert result == 84
+
+
+@pytest.mark.asyncio
+async def test_templatable__with_to_exp_callable_and_output_type() -> None:
+    """When to_exp is provided with non-string output_type, result is lambda-wrapped."""
+    result = await cg.templatable(42, [], ct.int_, to_exp=lambda x: x * 2)
+
+    assert isinstance(result, cg.LambdaExpression)
+    assert result.capture == ""
+
+
+@pytest.mark.asyncio
+async def test_templatable__with_to_exp_dict() -> None:
+    """When to_exp is a dict, value is looked up."""
+    mapping: dict[str, int] = {"on": 1, "off": 0}
+    result = await cg.templatable("on", [], None, to_exp=mapping)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_templatable__lambda_with_std_string() -> None:
+    """Lambda value returns LambdaExpression, not FlashStringLiteral."""
+    from esphome.core import Lambda
+
+    lambda_obj = Lambda('return "hello";')
+    result = await cg.templatable(lambda_obj, [], ct.std_string)
+
+    assert isinstance(result, cg.LambdaExpression)

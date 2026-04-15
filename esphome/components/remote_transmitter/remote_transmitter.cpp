@@ -2,10 +2,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#if defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2040) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
 
-namespace esphome {
-namespace remote_transmitter {
+namespace esphome::remote_transmitter {
 
 static const char *const TAG = "remote_transmitter";
 
@@ -83,7 +82,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   uint32_t on_time, off_time;
   this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);
   this->target_time_ = 0;
-  this->transmit_trigger_->trigger();
+  this->transmit_trigger_.trigger();
   for (uint32_t i = 0; i < send_times; i++) {
     InterruptLock lock;
     for (int32_t item : this->temp_.get_data()) {
@@ -102,10 +101,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     if (i + 1 < send_times)
       this->target_time_ += send_wait;
   }
-  this->complete_trigger_->trigger();
+  this->complete_trigger_.trigger();
 }
 
-}  // namespace remote_transmitter
-}  // namespace esphome
+}  // namespace esphome::remote_transmitter
 
 #endif

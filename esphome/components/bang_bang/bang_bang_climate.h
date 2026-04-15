@@ -30,9 +30,9 @@ class BangBangClimate : public climate::Climate, public Component {
   void set_normal_config(const BangBangClimateTargetTempConfig &normal_config);
   void set_away_config(const BangBangClimateTargetTempConfig &away_config);
 
-  Trigger<> *get_idle_trigger() const;
-  Trigger<> *get_cool_trigger() const;
-  Trigger<> *get_heat_trigger() const;
+  Trigger<> *get_idle_trigger();
+  Trigger<> *get_cool_trigger();
+  Trigger<> *get_heat_trigger();
 
  protected:
   /// Override control to change settings of the climate device.
@@ -57,17 +57,13 @@ class BangBangClimate : public climate::Climate, public Component {
    *
    * In idle mode, the controller is assumed to have both heating and cooling disabled.
    */
-  Trigger<> *idle_trigger_{nullptr};
+  Trigger<> idle_trigger_;
   /** The trigger to call when the controller should switch to cooling mode.
    */
-  Trigger<> *cool_trigger_{nullptr};
+  Trigger<> cool_trigger_;
   /** The trigger to call when the controller should switch to heating mode.
-   *
-   * A null value for this attribute means that the controller has no heating action
-   * For example window blinds, where only cooling (blinds closed) and not-cooling
-   * (blinds open) is possible.
    */
-  Trigger<> *heat_trigger_{nullptr};
+  Trigger<> heat_trigger_;
   /** A reference to the trigger that was previously active.
    *
    * This is so that the previous trigger can be stopped before enabling a new one.
