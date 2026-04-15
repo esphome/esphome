@@ -27,14 +27,33 @@ _LN_COPY = re.compile(r"(\.flash_copysection\s*:\s*\{\s*\n)")
 _RTL8710B_IMAGE2 = re.compile(r"(\.image2\.ram\.text\s*:\s*\{\s*\n)")
 
 
-def _detect(defines):
+def _detect(env):
     prefix = "USE_LIBRETINY_VARIANT_"
-    for token in defines:
-        if isinstance(token, tuple):
+    # CPPDEFINES may hold strings or (name, value) tuples; BUILD_FLAGS holds
+    # the raw "-DNAME" strings. PlatformIO populates both, but the exact order
+    # vs. extra_scripts varies, so check both to be robust.
+    for token in env.get("CPPDEFINES", []):
+        if isinstance(token, (list, tuple)):
             token = token[0]
         if isinstance(token, str) and token.startswith(prefix):
             return token[len(prefix):]
+    for flag in env.get("BUILD_FLAGS", []):
+        if isinstance(flag, str) and "-D" + prefix in flag:
+            name = flag.split("-D", 1)[1].split("=", 1)[0].strip()
+            if name.startswith(prefix):
+                return name[len(prefix):]
     return None
+
+
+KNOWN_VARIANTS = (
+    "BK7231N",
+    "BK7231T",
+    "BK7231Q",
+    "BK7251",
+    "LN882H",
+    "RTL8710B",
+    "RTL8720C",
+)
 
 
 def _patch_bk72xx(content):
@@ -68,8 +87,12 @@ def _patchers_for(variant):
 
 def _patch_build_dir(patchers, build_dir):
     if not os.path.isdir(build_dir):
-        return
-    for name in os.listdir(build_dir):
+        raise RuntimeError(
+            "ESPHome: LibreTiny build dir {} does not exist at link time; "
+            "IRAM_ATTR placement cannot be verified".format(build_dir)
+        )
+    patched_any = False
+    for name in sorted(os.listdir(build_dir)):
         if not name.endswith(".ld"):
             continue
         path = os.path.join(build_dir, name)
@@ -82,15 +105,35 @@ def _patch_build_dir(patchers, build_dir):
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(patched)
             print("ESPHome: patched linker script {} for IRAM_ATTR placement".format(name))
+            patched_any = True
+    if not patched_any:
+        raise RuntimeError(
+            "ESPHome: no linker script in {} was patched for IRAM_ATTR; refusing "
+            "to link because IRAM_ATTR functions would end up in flash instead of "
+            "SRAM and would crash on an ISR while flash is busy".format(build_dir)
+        )
 
 
 def _pre_link(target, source, env):
     _patch_build_dir(_patchers, env.subst("$BUILD_DIR"))
 
 
-_variant = _detect(env.get("CPPDEFINES", []))
-_patchers = _patchers_for(_variant) if _variant else ()
+_variant = _detect(env)
 
+if _variant is None:
+    raise RuntimeError(
+        "ESPHome: could not determine LibreTiny variant from build flags. "
+        "patch_linker.py needs USE_LIBRETINY_VARIANT_* to route IRAM_ATTR "
+        "into SRAM; without it, ISR handlers would silently end up in flash."
+    )
+if _variant not in KNOWN_VARIANTS:
+    raise RuntimeError(
+        "ESPHome: unknown LibreTiny variant {!r}; patch_linker.py does not "
+        "know how to route IRAM_ATTR into SRAM for this family. Update "
+        "patch_linker.py.script before shipping firmware.".format(_variant)
+    )
+
+_patchers = _patchers_for(_variant)
 if _patchers:
     # LibreTiny writes the processed .ld templates into $BUILD_DIR during its
     # own builder setup, which may run after this script. Register the patch
