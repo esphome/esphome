@@ -589,7 +589,7 @@ size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float 
 size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value,
                                       int8_t accuracy_decimals, StringRef unit_of_measurement) {
   size_t len = value_accuracy_to_buf(buf, value, accuracy_decimals);
-  if (unit_of_measurement.empty()) {
+  if (len == 0 || unit_of_measurement.empty()) {
     return len;
   }
   char *end = buf_append_sep_str(buf.data() + len, buf.size() - len, ' ', unit_of_measurement.c_str(),
