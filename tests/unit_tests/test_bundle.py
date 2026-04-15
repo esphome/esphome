@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import tarfile
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -932,6 +933,34 @@ def test_discover_files_nested_include_load_failure(
         "failed to load !include" in r.message and "missing.yaml" in r.message
         for r in caplog.records
     )
+
+
+def test_force_load_skips_duplicate_include_file() -> None:
+    """The same IncludeFile referenced twice is only loaded once."""
+
+    class _StubInclude:
+        """Mimics yaml_util.IncludeFile minimally for _force_load testing."""
+
+        def __init__(self) -> None:
+            self.file = Path("dup.yaml")
+            self.parent_file = Path("root.yaml")
+            self.load_calls = 0
+
+        def has_unresolved_expressions(self) -> bool:
+            return False
+
+        def load(self) -> dict[str, Any]:
+            self.load_calls += 1
+            return {}
+
+    stub = _StubInclude()
+    # Same instance appears twice — second visit must hit the _seen guard.
+    tree = {"a": stub, "b": [stub]}
+
+    with patch("esphome.bundle.yaml_util.IncludeFile", _StubInclude):
+        _force_load_include_files(tree)
+
+    assert stub.load_calls == 1
 
 
 def test_force_load_handles_cyclic_containers() -> None:
