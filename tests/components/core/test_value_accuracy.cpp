@@ -6,6 +6,7 @@
 #include <string>
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome::core::testing {
 
