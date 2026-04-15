@@ -886,7 +886,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // slice that the scheduler spends inside its own WarnIfComponentBlockingGuard
   // (scheduler.cpp) — that time is already counted in per-component stats,
   // so charging it again to "before" would double-count.
-  uint64_t loop_recorded_snap = ComponentRuntimeStats::global_recorded_us_;
+  uint64_t loop_recorded_snap = ComponentRuntimeStats::global_recorded_us;
 #endif
   // Get the initial loop time at the start
   uint32_t last_op_end_time = millis();
@@ -894,7 +894,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   this->before_loop_tasks_(last_op_end_time);
 #ifdef USE_RUNTIME_STATS
   uint32_t loop_before_end_us = micros();
-  uint64_t loop_before_scheduled_us = ComponentRuntimeStats::global_recorded_us_ - loop_recorded_snap;
+  uint64_t loop_before_scheduled_us = ComponentRuntimeStats::global_recorded_us - loop_recorded_snap;
 #endif
 
   for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
