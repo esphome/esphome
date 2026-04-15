@@ -202,10 +202,8 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
     // allocate() returned non-null, the queue cannot be full.
     instance->mqtt_event_queue_.push(event);
 
-    // Wake main loop immediately to process MQTT event instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+    // Wake main loop immediately to process MQTT event
     App.wake_loop_threadsafe();
-#endif
   }
 }
 

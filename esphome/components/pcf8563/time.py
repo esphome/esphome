@@ -21,7 +21,7 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(pcf8563Component),
     }
-).extend(i2c.i2c_device_schema(0xA3))
+).extend(i2c.i2c_device_schema(0x51))
 
 
 @automation.register_action(

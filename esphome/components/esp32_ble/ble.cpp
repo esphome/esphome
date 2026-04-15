@@ -399,8 +399,17 @@ void ESP32BLE::loop() {
     return;
   }
 
+#ifdef USE_ESP32_BLE_ADVERTISING
+  if (this->advertising_ != nullptr) {
+    this->advertising_->loop();
+  }
+#endif
+
   BLEEvent *ble_event = this->ble_events_.pop();
-  while (ble_event != nullptr) {
+  if (ble_event == nullptr)
+    return;
+
+  do {
     switch (ble_event->type_) {
 #if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
       case BLEEvent::GATTS: {
@@ -488,15 +497,11 @@ void ESP32BLE::loop() {
     }
     // Return the event to the pool
     this->ble_event_pool_.release(ble_event);
-    ble_event = this->ble_events_.pop();
-  }
-#ifdef USE_ESP32_BLE_ADVERTISING
-  if (this->advertising_ != nullptr) {
-    this->advertising_->loop();
-  }
-#endif
+  } while ((ble_event = this->ble_events_.pop()) != nullptr);
 
-  // Log dropped events periodically
+  // Log dropped events - only reachable when events were processed.
+  // Drops only occur when the queue is full, and only this loop drains it,
+  // so if pop() returned nullptr above we can skip this check (saves a memw).
   uint16_t dropped = this->ble_events_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u BLE events due to buffer overflow", dropped);
@@ -594,9 +599,7 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     GAP_SECURITY_EVENTS:
       enqueue_ble_event(event, param);
       // Wake up main loop to process security event immediately
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
       App.wake_loop_threadsafe();
-#endif
       return;
 
     // Ignore these GAP events as they are not relevant for our use case
@@ -617,9 +620,7 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
                                    esp_ble_gatts_cb_param_t *param) {
   enqueue_ble_event(event, gatts_if, param);
   // Wake up main loop to process GATT event immediately
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
-#endif
 }
 #endif
 
@@ -628,9 +629,7 @@ void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
                                    esp_ble_gattc_cb_param_t *param) {
   enqueue_ble_event(event, gattc_if, param);
   // Wake up main loop to process GATT event immediately
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
-#endif
 }
 #endif
 
