@@ -4,14 +4,6 @@ esp32:
     type: esp-idf
     log_level: DEBUG
 
-# Test: Factory reset callbacks into Openthread SRP
-button:
-  - platform: factory_reset
-    name: "Factory Reset Button"
-switch:
-  - platform: factory_reset
-    name: "Factory Reset Switch"
-
 network:
   enable_ipv6: true
 
@@ -24,7 +16,6 @@ openthread:
   ext_pan_id: 0xd63e8e3e495ebbc3
   pskc: 0xc23a76e98f1a6483639b1ac1271e2e27
   mesh_local_prefix: fd53:145f:ed22:ad81::/64
-  force_dataset: true
-  use_address: open-thread-test.local
-  poll_period: 20sec
-  output_power: 1dBm
+
+  # Test: Disable DNS64
+  enable_dns64: false

@@ -23,7 +23,7 @@ void FactoryResetSwitch::write_state(bool state) {
     ESP_LOGI(TAG, "Resetting");
     // Let MQTT settle a bit
     delay(100);  // NOLINT
-#ifdef USE_OPENTHREAD
+#ifdef USE_OPENTHREAD_SRP
     openthread::global_openthread_component->on_factory_reset(FactoryResetSwitch::factory_reset_callback);
 #else
     global_preferences->reset();
@@ -32,7 +32,7 @@ void FactoryResetSwitch::write_state(bool state) {
   }
 }
 
-#ifdef USE_OPENTHREAD
+#ifdef USE_OPENTHREAD_SRP
 void FactoryResetSwitch::factory_reset_callback() {
   global_preferences->reset();
   App.safe_reboot();

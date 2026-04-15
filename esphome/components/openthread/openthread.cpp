@@ -84,6 +84,7 @@ std::optional<otIp6Address> OpenThreadComponent::get_omr_address_(InstanceLock &
   return {};
 }
 
+#ifdef USE_OPENTHREAD_SRP
 void OpenThreadComponent::defer_factory_reset_external_callback() {
   ESP_LOGD(TAG, "Defer factory_reset_external_callback_");
   this->defer([this]() { this->factory_reset_external_callback_(); });
@@ -218,10 +219,13 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 }
 
 void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
+#endif  // USE_OPENTHREAD_SRP
 
 bool OpenThreadComponent::teardown() {
   if (!this->teardown_started_) {
     this->teardown_started_ = true;
+
+#ifdef USE_OPENTHREAD_SRP
     ESP_LOGD(TAG, "Clear Srp");
     auto lock = InstanceLock::try_acquire(100);
     if (!lock) {
@@ -231,6 +235,10 @@ bool OpenThreadComponent::teardown() {
     otInstance *instance = lock->get_instance();
     otSrpClientClearHostAndServices(instance);
     otSrpClientBuffersFreeAllServices(instance);
+    // Only OT API functions with instance (i.e. Srp) need lock
+    // So lock not needed anymore
+#endif  // USE_OPENTHREAD_SRP
+
     global_openthread_component = nullptr;
     ESP_LOGD(TAG, "Exit main loop ");
     int error = this->openthread_stop_();
@@ -242,6 +250,7 @@ bool OpenThreadComponent::teardown() {
   return this->teardown_complete_;
 }
 
+#ifdef USE_OPENTHREAD_SRP
 void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
   factory_reset_external_callback_ = callback;
   ESP_LOGD(TAG, "Start Removal SRP Host and Services");
@@ -256,6 +265,7 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
   }
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
 }
+#endif  // USE_OPENTHREAD_SRP
 
 }  // namespace esphome::openthread
 #endif

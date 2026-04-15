@@ -62,6 +62,8 @@ CONF_DEVICE_TYPES = [
     "FTD",
     "MTD",
 ]
+CONF_ENABLE_DNS64 = "enable_dns64"
+CONF_ENABLE_SRP = "enable_srp"
 
 
 def _validate_txpower(value):
@@ -126,8 +128,10 @@ def set_sdkconfig_options(config):
     if config.get(CONF_FORCE_DATASET):
         cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
 
-    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", True)
-    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)
+    enable_dns64 = config[CONF_ENABLE_DNS64]
+    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", enable_dns64)
+    enable_srp = config[CONF_ENABLE_SRP]
+    add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", enable_srp)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
     # TODO: Add support for synchronized sleepy end devices (SSED)
@@ -175,12 +179,20 @@ def _require_vfs_select(config):
     return config
 
 
+def _apply_mdns(config):
+    """Resembles "cv.GenerateID(CONF_MDNS_ID): cv.use_id(MDNSComponent)",
+    but only if SRP is enabled, to avoid MDNS dependency if SRP disabled."""
+    if config[CONF_ENABLE_SRP]:
+        config[CONF_MDNS_ID] = cv.use_id(MDNSComponent)(config.get(CONF_MDNS_ID))
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(OpenThreadComponent),
             cv.GenerateID(CONF_SRP_ID): cv.declare_id(OpenThreadSrpComponent),
-            cv.GenerateID(CONF_MDNS_ID): cv.use_id(MDNSComponent),
+            cv.Optional(CONF_MDNS_ID): cv.string_strict,
             cv.Optional(CONF_DEVICE_TYPE, default="FTD"): cv.one_of(
                 *CONF_DEVICE_TYPES, upper=True
             ),
@@ -192,11 +204,14 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
+            cv.Optional(CONF_ENABLE_DNS64, default=True): cv.boolean,
+            cv.Optional(CONF_ENABLE_SRP, default=True): cv.boolean,
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
     only_on_variant(supported=[VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32H2]),
     _validate,
+    _apply_mdns,
     _require_vfs_select,
 )
 
@@ -229,8 +244,14 @@ async def to_code(config):
 
     cg.add_define("USE_OPENTHREAD")
 
-    # OpenThread SRP needs access to mDNS services after setup
-    enable_mdns_storage()
+    enable_srp = config[CONF_ENABLE_SRP]
+
+    if enable_srp:
+        # OpenThread SRP needs access to mDNS services after setup
+        enable_mdns_storage()
+        # USE_OPENTHREAD_SRP implies USE_OPENTHREAD above.
+        # Code expecting both may only check this define for simplicity.
+        cg.add_define("USE_OPENTHREAD_SRP")
 
     ot = cg.new_Pvariable(config[CONF_ID])
     cg.add(ot.set_use_address(config[CONF_USE_ADDRESS]))
@@ -238,10 +259,11 @@ async def to_code(config):
     if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
         cg.add(ot.set_poll_period(poll_period))
 
-    srp = cg.new_Pvariable(config[CONF_SRP_ID])
-    mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
-    cg.add(srp.set_mdns(mdns_component))
-    await cg.register_component(srp, config)
+    if enable_srp:
+        srp = cg.new_Pvariable(config[CONF_SRP_ID])
+        mdns_component = await cg.get_variable(config[CONF_MDNS_ID])
+        cg.add(srp.set_mdns(mdns_component))
+        await cg.register_component(srp, config)
 
     if (output_power := config.get(CONF_OUTPUT_POWER)) is not None:
         cg.add(ot.set_output_power(output_power))

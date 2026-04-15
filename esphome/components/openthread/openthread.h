@@ -2,12 +2,16 @@
 #include "esphome/core/defines.h"
 #ifdef USE_OPENTHREAD
 
+#ifdef USE_OPENTHREAD_SRP
 #include "esphome/components/mdns/mdns_component.h"
+#endif
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/component.h"
 
+#ifdef USE_OPENTHREAD_SRP
 #include <openthread/srp_client.h>
 #include <openthread/srp_client_buffers.h>
+#endif
 #include <openthread/instance.h>
 #include <openthread/thread.h>
 
@@ -34,8 +38,10 @@ class OpenThreadComponent : public Component {
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
   void ot_main();
+#ifdef USE_OPENTHREAD_SRP
   void on_factory_reset(std::function<void()> callback);
   void defer_factory_reset_external_callback();
+#endif
 
   const char *get_use_address() const { return this->use_address_; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
@@ -49,7 +55,9 @@ class OpenThreadComponent : public Component {
   static void on_state_changed_(otChangedFlags flags, void *context);
   otInstance *get_openthread_instance_();
   int openthread_stop_();
+#ifdef USE_OPENTHREAD_SRP
   std::function<void()> factory_reset_external_callback_;
+#endif
 #if CONFIG_OPENTHREAD_MTD
   uint32_t poll_period_{0};
 #endif
@@ -67,6 +75,7 @@ class OpenThreadComponent : public Component {
 
 extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+#ifdef USE_OPENTHREAD_SRP
 class OpenThreadSrpComponent : public Component {
  public:
   void set_mdns(esphome::mdns::MDNSComponent *mdns);
@@ -85,6 +94,7 @@ class OpenThreadSrpComponent : public Component {
   std::vector<std::unique_ptr<uint8_t[]>> memory_pool_;
   void *pool_alloc_(size_t size);
 };
+#endif
 
 class InstanceLock {
  public:

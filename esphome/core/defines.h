@@ -318,6 +318,7 @@
 #define USE_MICRO_WAKE_WORD_VAD
 #if defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
 #define USE_OPENTHREAD
+#define USE_OPENTHREAD_SRP
 #endif
 #endif
 
