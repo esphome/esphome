@@ -15,6 +15,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#ifdef USE_LWIP_FAST_SELECT
+#include "esphome/core/lwip_fast_select.h"
+#endif
 
 #include <cerrno>
 #include <cstdio>
@@ -27,6 +30,17 @@ static constexpr uint16_t OTA_BLOCK_SIZE = 8192;
 static constexpr size_t OTA_BUFFER_SIZE = 1024;                  // buffer size for OTA data transfer
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_HANDSHAKE = 20000;  // milliseconds for initial handshake
 static constexpr uint32_t OTA_SOCKET_TIMEOUT_DATA = 90000;       // milliseconds for data transfer
+
+// Single-instance pointer — multi-port configs are rejected in final_validate.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static ESPHomeOTAComponent *global_esphome_ota_component = nullptr;
+
+// Called from any context (LwIP TCP/IP task, RP2040 user-IRQ).
+extern "C" void esphome_wake_ota_component_any_context() {
+  if (global_esphome_ota_component != nullptr) {
+    global_esphome_ota_component->enable_loop_soon_any_context();
+  }
+}
 
 void ESPHomeOTAComponent::setup() {
   this->server_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
@@ -65,6 +79,14 @@ void ESPHomeOTAComponent::setup() {
     this->server_failed_(LOG_STR("listen"));
     return;
   }
+
+  // loop() self-disables on its first idle tick; no explicit disable_loop() needed here.
+  global_esphome_ota_component = this;
+#ifdef USE_LWIP_FAST_SELECT
+  // Filter fast-select wakes to this listener only. If the sock lookup returns nullptr,
+  // no wakes fire and loop() falls back to the self-disable safety net.
+  esphome_fast_select_set_ota_listener_sock(esphome_lwip_get_sock(this->server_->get_fd()));
+#endif
 }
 
 void ESPHomeOTAComponent::dump_config() {
@@ -81,13 +103,15 @@ void ESPHomeOTAComponent::dump_config() {
 }
 
 void ESPHomeOTAComponent::loop() {
-  // Skip handle_handshake_() call if no client connected and no incoming connections
-  // This optimization reduces idle loop overhead when OTA is not active
-  // Note: No need to check server_ for null as the component is marked failed in setup()
-  // if server_ creation fails
-  if (this->client_ != nullptr || this->server_->ready()) {
-    this->handle_handshake_();
+  // Self-disabling idle loop. Runs when a wake path marks us pending-enable (fast-select
+  // listener filter, raw-TCP accept_fn_, or host select), finds no work, and goes back
+  // to sleep. cleanup_connection_() deliberately leaves the loop enabled for one more
+  // iteration so a connection queued mid-session is still caught here.
+  if (this->client_ == nullptr && !this->server_->ready()) {
+    this->disable_loop();
+    return;
   }
+  this->handle_handshake_();
 }
 
 static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
@@ -566,6 +590,9 @@ void ESPHomeOTAComponent::cleanup_connection_() {
 #ifdef USE_OTA_PASSWORD
   this->cleanup_auth_();
 #endif
+  // Intentionally no disable_loop() — letting loop() run one more iteration catches
+  // any connection that queued on the listener mid-session (otherwise the wake flag,
+  // set while we were in LOOP state, would be lost to enable_pending_loops_()).
 }
 
 void ESPHomeOTAComponent::yield_and_feed_watchdog_() {
