@@ -1103,7 +1103,8 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
 /// @param size Total buffer size
 /// @param pos Current position in buffer
 /// @param str PROGMEM-resident string to append (must not be null)
-/// @return New position after appending (capped at size on overflow)
+/// @return New position after appending; returns `size` if `pos >= size`, otherwise
+///         returns at most `size - 1` because one byte is reserved for the null terminator
 inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str) {
   if (pos >= size) {
     return size;
