@@ -35,8 +35,15 @@ esp32:
   `4MB`, `8MB`, `16MB` or `32MB`. Defaults to `4MB`. **Warning: specifying a size larger than that available
   on your board will cause the ESP32 to fail to boot.**
 
-- **cpu_frequency** (*Optional*, string): The CPU frequency to use. One of `40MHz`, `80MHz`, `160MHz`, `240MHz`,
-  `360MHz` or `400MHz`. Defaults to `160MHz`. Not all values are available for all chips.
+- **cpu_frequency** (*Optional*, string): The CPU frequency to use. Defaults to the maximum supported
+  frequency for the variant. The allowed values depend on the variant:
+
+  - ESP32, ESP32-S2, ESP32-S3, ESP32-C5: `80MHz`, `160MHz`, `240MHz`
+  - ESP32-C2: `80MHz`, `120MHz`
+  - ESP32-C3: `80MHz`, `160MHz`
+  - ESP32-C6, ESP32-C61: `80MHz`, `120MHz`, `160MHz`
+  - ESP32-H2: `16MHz`, `32MHz`, `48MHz`, `64MHz`, `96MHz`
+  - ESP32-P4: `40MHz`, `360MHz`, `400MHz` (engineering samples are limited to `360MHz`)
 
 - **partitions** (*Optional*, filename or list): A partition table CSV file or a list of custom partitions to add.
   See [Partitions](#esp32-partitions).
