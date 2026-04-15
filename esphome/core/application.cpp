@@ -209,21 +209,27 @@ void Application::process_dump_config_() {
   this->dump_config_at_++;
 }
 
-void HOT Application::feed_wdt(uint32_t time) {
-  static uint32_t last_feed = 0;
-  // Use provided time if available, otherwise get current time
-  uint32_t now = time ? time : millis();
-  // Compare in milliseconds (3ms threshold)
-  if (now - last_feed > 3) {
-    arch_feed_wdt();
-    last_feed = now;
-#ifdef USE_STATUS_LED
-    if (status_led::global_status_led != nullptr) {
-      status_led::global_status_led->call();
-    }
-#endif
+void Application::feed_wdt() {
+  // Cold entry: callers without a millis() timestamp in hand. Fetches the
+  // time and takes the same rate-limit path as feed_wdt_with_time().
+  uint32_t now = millis();
+  if (now - this->last_wdt_feed_ > WDT_FEED_INTERVAL_MS) {
+    this->feed_wdt_slow_(now);
   }
 }
+
+void HOT Application::feed_wdt_slow_(uint32_t time) {
+  // Callers (both feed_wdt() and feed_wdt_with_time()) have already
+  // confirmed the WDT_FEED_INTERVAL_MS rate limit was exceeded.
+  arch_feed_wdt();
+  this->last_wdt_feed_ = time;
+#ifdef USE_STATUS_LED
+  if (status_led::global_status_led != nullptr) {
+    status_led::global_status_led->call();
+  }
+#endif
+}
+
 bool Application::any_component_has_status_flag_(uint8_t flag) const {
   // Walk all components (not just looping ones) so non-looping components'
   // status bits are respected. Only called from the slow-path clear helpers
@@ -325,7 +331,7 @@ void Application::teardown_components(uint32_t timeout_ms) {
 
   while (pending_count > 0 && (now - start_time) < timeout_ms) {
     // Feed watchdog during teardown to prevent triggering
-    this->feed_wdt(now);
+    this->feed_wdt_with_time(now);
 
     // Process components and compact the array, keeping only those still pending
     size_t still_pending = 0;
