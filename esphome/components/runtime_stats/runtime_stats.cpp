@@ -70,6 +70,12 @@ void RuntimeStatsCollector::log_stats_() {
              "overhead_total=%.1fms",
              this->period_active_count_, active / (float) this->period_active_count_ / 1000.0f,
              this->period_active_max_us_ / 1000.0f, active / 1000.0f, overhead / 1000.0f);
+    uint64_t before = this->period_before_time_us_;
+    uint64_t tail = this->period_tail_time_us_;
+    uint64_t accounted = before + tail;
+    uint64_t inter = overhead > accounted ? overhead - accounted : 0;
+    ESP_LOGI(TAG, "  main_loop_overhead_section: before=%.1fms, tail=%.1fms, inter_component=%.1fms", before / 1000.0f,
+             tail / 1000.0f, inter / 1000.0f);
   }
 
   // Log total stats since boot (only for active components - idle ones haven't changed)
@@ -96,6 +102,12 @@ void RuntimeStatsCollector::log_stats_() {
              "overhead_total=%.1fms",
              this->total_active_count_, active / (float) this->total_active_count_ / 1000.0f,
              this->total_active_max_us_ / 1000.0f, active / 1000.0f, overhead / 1000.0f);
+    uint64_t before = this->total_before_time_us_;
+    uint64_t tail = this->total_tail_time_us_;
+    uint64_t accounted = before + tail;
+    uint64_t inter = overhead > accounted ? overhead - accounted : 0;
+    ESP_LOGI(TAG, "  main_loop_overhead_section: before=%.1fms, tail=%.1fms, inter_component=%.1fms", before / 1000.0f,
+             tail / 1000.0f, inter / 1000.0f);
   }
 
   // Reset period stats
@@ -105,6 +117,8 @@ void RuntimeStatsCollector::log_stats_() {
   this->period_active_count_ = 0;
   this->period_active_time_us_ = 0;
   this->period_active_max_us_ = 0;
+  this->period_before_time_us_ = 0;
+  this->period_tail_time_us_ = 0;
 }
 
 bool RuntimeStatsCollector::compare_period_time(Component *a, Component *b) {
