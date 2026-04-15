@@ -85,5 +85,5 @@ sensors:
     filters:
       - delta:
           max_value: 10
-          baseline: !lambda return id(baseline).state;
+          baseline: !lambda return id(baseline).get_state();
 ```

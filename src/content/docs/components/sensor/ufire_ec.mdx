@@ -63,7 +63,7 @@ on_...:
   - sensor.ufire_ec_board.calibrate_probe:
       id: ufire_ec_board
       solution: 0.146
-      temperature: !lambda "return id(temperature_liquit).state;"
+      temperature: !lambda "return id(temperature_liquit).get_state();"
 ```
 
 Configuration options:

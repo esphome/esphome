@@ -1,0 +1,39 @@
+---
+description: "Instructions for setting up number sensors with ESPHome."
+title: "Number Sensor"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+<span id="number-sensor"></span>
+
+The Number Sensor platform allows you to view the state of any number component as a
+read-only sensor.
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: number
+    name: "Volume level"
+    source_id: my_number
+
+number:
+  - platform: template
+    id: my_number
+    name: "Volume"
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+```
+
+## Configuration variables
+
+- **source_id** (**Required**, [ID](/guides/configuration-types#id)): The source number to observe.
+- All other options from [Sensor](/components/sensor#config-sensor).
+
+## See Also
+
+- [Sensor Component](/components/sensor/)
+- [Number Component](/components/number/)
+- <APIRef text="number_sensor.h" path="number/sensor/number_sensor.h" />

@@ -99,7 +99,7 @@ text_sensor:
   - platform: template
     name: "ENS160 Air Quality Rating"
     lambda: |-
-      switch ( (int) (id(ens160_air_quality_index).state) ) {
+      switch ( (int) (id(ens160_air_quality_index).get_state()) ) {
         case 1: return {"Excellent"};
         case 2: return {"Good"};
         case 3: return {"Moderate"};

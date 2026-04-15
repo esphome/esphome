@@ -91,8 +91,8 @@ ESPHome-specific components or components supporting ESPHome device provisioning
 
 <ImgTable items={[
   ["WiFi", "/components/wifi/", "network-wifi.svg", "dark-invert"],
-  ["ESP32 Ethernet", "/components/ethernet/", "ethernet.svg", "dark-invert"],
   ["ESP32 Hosted", "/components/esp32_hosted/", "network-wifi.svg", "dark-invert"],
+  ["Ethernet", "/components/ethernet/", "ethernet.svg", "dark-invert"],
   ["OpenThread", "/components/openthread/", "openthread.png"],
 ]} />
 
@@ -146,8 +146,8 @@ Install updates over-the-air (OTA).
 <ImgTable items={[
   ["OTA Core", "/components/ota/", "system-update.svg", "dark-invert"],
   ["OTA Updates", "/components/ota/esphome/", "system-update.svg", "dark-invert"],
-  ["OTA Updates via HTTP Request", "/components/ota/http_request/", "system-update.svg", "dark-invert"],
   ["OTA Updates for nRF52", "/components/ota/zephyr_mcumgr/", "system-update.svg", "dark-invert"],
+  ["OTA Updates via HTTP Request", "/components/ota/http_request/", "system-update.svg", "dark-invert"],
 ]} />
 
 ## Update Management
@@ -227,6 +227,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
   ["Template Sensor", "/components/sensor/template/", "description.svg", "dark-invert"],
   ["Home Assistant", "/components/sensor/homeassistant/", "home-assistant.svg", "dark-invert"],
   ["MQTT Subscribe", "/components/sensor/mqtt_subscribe/", "mqtt.png"],
+  ["Number Sensor", "/components/sensor/number/", "description.svg", "dark-invert"],
   ["Uptime Sensor", "/components/sensor/uptime/", "timer.svg", "dark-invert"],
   ["WiFi Signal Strength", "/components/sensor/wifi_signal/", "network-wifi.svg", "dark-invert"],
 ]} />
@@ -342,6 +343,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
   ["Daly BMS", "/components/sensor/daly_bms/", "daly_bms.jpg", "Voltage & Current & Power"],
   ["DLMS Meter", "/components/sensor/dlms_meter/", "dlms_meter.jpg", "Electrical counter"],
   ["DSMR", "/components/sensor/dsmr/", "dsmr.svg", "Electrical counter"],
+  ["EmonTx", "/components/sensor/emontx/", "emontx5.jpg", "Voltage & Current & Power & Energy & Temperature"],
   ["HLW8012", "/components/sensor/hlw8012/", "hlw8012.svg", "Voltage & Current & Power"],
   ["HLW8032", "/components/sensor/hlw8032/", "hlw8012.svg", "Voltage & Current & Power"],
   ["INA219", "/components/sensor/ina219/", "ina219.jpg", "Direct Current (DC)"],
@@ -392,6 +394,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
   ["ENS210", "/components/sensor/ens210/", "ens210.jpg", "Temperature & Humidity"],
   ["HDC1080", "/components/sensor/hdc1080/", "hdc1080.jpg", "Temperature & Humidity"],
   ["HDC2010", "/components/sensor/hdc2010/", "hdc2010.png", "Temperature & Humidity"],
+  ["HDC2080", "/components/sensor/hdc2080/", "hdc2080.png", "Temperature & Humidity"],
   ["HDC302x", "/components/sensor/hdc302x/", "hdc302x.svg", "Temperature & Humidity"],
   ["HHCCJCY10 (MiFlora Pink)", "/components/sensor/xiaomi_hhccjcy10/", "xiaomi_hhccjcy10.jpg", "Soil moisture & Temperature & Light"],
   ["Honeywell ABP", "/components/sensor/honeywellabp/", "honeywellabp.jpg", "Pressure & Temperature"],
@@ -426,6 +429,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
   ["SHT4X", "/components/sensor/sht4x/", "sht4x.jpg", "Temperature & Humidity"],
   ["SHTCx", "/components/sensor/shtcx/", "shtc3.jpg", "Temperature & Humidity"],
   ["SMT100", "/components/sensor/smt100/", "smt100.jpg", "Moisture & Temperature"],
+  ["SPA06", "/components/sensor/spa06/", "spa06.jpg", "Temperature & Pressure"],
   ["STS3X", "/components/sensor/sts3x/", "sts3x.jpg", "Temperature"],
   ["STTS22H", "/components/sensor/stts22h/", "stts22h.jpg", "Temperature"],
   ["TC74", "/components/sensor/tc74/", "tc74.jpg", "Temperature"],
@@ -693,6 +697,7 @@ Often known as "tag" or "card" readers within the community.
   ["Haier Climate", "/components/climate/haier/", "haier.svg"],
   ["IR Remote Climate", "/components/climate/climate_ir/", "air-conditioner-ir.svg", "dark-invert"],
   ["Midea", "/components/climate/midea/", "midea.svg"],
+  ["Mitsubishi CN105 Climate", "/components/climate/mitsubishi_cn105/", "mitsubishi_electric.png"],
   ["PID Controller", "/components/climate/pid/", "function.svg", "dark-invert"],
   ["Thermostat Controller", "/components/climate/thermostat/", "air-conditioner.svg", "dark-invert"],
   ["Tuya Climate", "/components/climate/tuya/", "tuya.png"],
@@ -1024,6 +1029,7 @@ Used for creating infrared (IR) remote control transmitters and/or receivers.
   ["MQTT Subscribe Text", "/components/text_sensor/mqtt_subscribe/", "mqtt.png"],
   ["Nextion Text Sensor", "/components/text_sensor/nextion/", "nextion.jpg"],
   ["OpenThread Info", "/components/text_sensor/openthread_info/", "openthread.png"],
+  ["Text component Text Sensor", "/components/text_sensor/text/", "description.svg", "dark-invert"],
   ["Tuya Text Sensor", "/components/text_sensor/tuya/", "tuya.png"],
   ["Version", "/components/text_sensor/version/", "new-box.svg", "dark-invert"],
   ["WiFi Info", "/components/text_sensor/wifi_info/", "network-wifi.svg", "dark-invert"],
@@ -1119,7 +1125,7 @@ ESPHome to cellular networks. **Does not encompass Wi-Fi.**
   ["Arduino Port Extender", "/cookbook/arduino_port_extender/", "arduino_logo.svg"],
   ["BME280 Environment extras", "/cookbook/bme280_environment/", "bme280.jpg"],
   ["EHMTX a matrix status/text display", "/cookbook/ehmtx/", "ehmtx.jpg"],
-  ["ESP32 Water Leak Detector", "/cookbook/leak-detector-m5stickC/", "leak-detector-m5stickC_main_index.jpg"],
+  ["ESP32 Water Leak Detector", "/cookbook/leak-detector-m5stickc/", "leak-detector-m5stickC_main_index.jpg"],
   ["Garage Door Template Cover", "/cookbook/garage-door/", "garage-variant.svg", "dark-invert"],
   ["Lambda Magic: Tips and Tricks", "/cookbook/lambda_magic/", "head-lightbulb-outline.svg", "dark-invert"],
   ["LVGL Recipes", "/cookbook/lvgl/", "lvgl.png"],

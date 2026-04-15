@@ -217,6 +217,28 @@ on_...:
 - **command** (**Required**, int, [templatable](/automations/templates)): The command to send, e.g. 0x01=num1, 0x0d=mute,..., see dumper output for more info.
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
 
+<span id="remote_transmitter-transmit_brennenstuhl"></span>
+
+### `remote_transmitter.transmit_brennenstuhl` Action
+
+This [action](/automations/actions#all-actions) sends a brennenstuhl protocol code to a remote transmitter.
+
+```yaml
+on_...:
+  - remote_transmitter.transmit_brennenstuhl:
+      code: 0xBD2E2C
+```
+
+#### Configuration variables
+
+- **code** (**Required**, int, [templatable](/automations/templates)): The 24-bit code to send.
+- All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
+
+> [!NOTE]
+> The brennenstuhl devices use rolling codes, i.e. each button of the remote generates 4 different codes in
+> a pseudo random manner. See [Rolling Codes](/guides/setting_up_rmt_devices#remote-setting-up-rolling-codes)
+> for details and a complete YAML example.
+
 <span id="remote_transmitter-transmit_byronsx"></span>
 
 ### `remote_transmitter.transmit_byronsx` Action

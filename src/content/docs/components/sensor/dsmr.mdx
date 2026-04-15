@@ -46,6 +46,9 @@ dsmr:
   # Optional. The id of the water meter. Default=2.
   water_mbus_id: 2
 
+  # Optional. The id of the thermal meter. Default=3.
+  thermal_mbus_id: 3
+
   # Optional. Specifies if the CRC check must be done. Default=true.
   # You must set it to false for older DSMR versions because they do not provide a CRC.
   crc_check: true
@@ -249,7 +252,7 @@ sensor:
     water_delivered:
       name: "Water Consumed. OBIS: 0-water_mbus_id:24.2.1"
     thermal_delivered:
-      name: "Thermal Energy Consumed. OBIS: 0-3:24.2.1"
+      name: "Thermal Energy Consumed. OBIS: 0-thermal_mbus_id:24.2.1"
     sub_delivered:
       name: "Submeter Volume. OBIS: 0-4:24.2.1"
     gas_device_type:
@@ -257,9 +260,9 @@ sensor:
     gas_valve_position:
       name: "Gas Valve Position. OBIS: 0-gas_mbus_id:24.4.0"
     thermal_device_type:
-      name: "Thermal Device Type. OBIS: 0-3:24.1.0"
+      name: "Thermal Device Type. OBIS: 0-thermal_mbus_id:24.1.0"
     thermal_valve_position:
-      name: "Thermal Valve Position. OBIS: 0-3:24.4.0"
+      name: "Thermal Valve Position. OBIS: 0-thermal_mbus_id:24.4.0"
     water_device_type:
       name: "Water Device Type. OBIS: 0-water_mbus_id:24.1.0"
     water_valve_position:
@@ -342,7 +345,7 @@ text_sensor:
     gas_equipment_id_be:
       name: "Gas Equipment ID Belgium. OBIS: 0-gas_mbus_id:96.1.1"
     thermal_equipment_id:
-      name: "Thermal Equipment ID. OBIS: 0-3:96.1.0"
+      name: "Thermal Equipment ID. OBIS: 0-thermal_mbus_id:96.1.0"
     water_equipment_id:
       name: "Water Equipment ID. OBIS: 0-water_mbus_id:96.1.0"
     sub_equipment_id:

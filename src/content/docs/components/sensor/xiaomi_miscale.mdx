@@ -56,9 +56,9 @@ sensor:
       on_value:
         then:
           - lambda: |-
-              if (id(weight_miscale).state >= 69 && id(weight_miscale).state <= 74.49) {
+              if (id(weight_miscale).get_state() >= 69 && id(weight_miscale).get_state() <= 74.49) {
                 return id(weight_user1).publish_state(x);}
-              else if (id(weight_miscale).state >= 74.50 && id(weight_miscale).state <= 83) {
+              else if (id(weight_miscale).get_state() >= 74.50 && id(weight_miscale).get_state() <= 83) {
                 return id(weight_user2).publish_state(x);}
 
     impedance:
@@ -67,9 +67,9 @@ sensor:
       on_value:
         then:
           - lambda: |-
-              if (id(weight_miscale).state >= 69 && id(weight_miscale).state <= 74.49) {
+              if (id(weight_miscale).get_state() >= 69 && id(weight_miscale).get_state() <= 74.49) {
                 return id(impedance_user1).publish_state(x);}
-              else if (id(weight_miscale).state >= 74.50 && id(weight_miscale).state <= 83) {
+              else if (id(weight_miscale).get_state() >= 74.50 && id(weight_miscale).get_state() <= 83) {
                 return id(impedance_user2).publish_state(x);}
 
   - platform: template

@@ -168,6 +168,53 @@ printh FF FF FF
 - `prints r0.val,0` The actual value to send. For a variable use the Nextion variable name `r0` with out `.val`
 - `printh FF FF FF` Nextion command ack
 
+<span id="nextion_custom_switch_automation"></span>
+
+## Reacting to Custom Switch Protocol Frames (Automation)
+
+In addition to updating a Nextion switch entity, the **Nextion Custom Switch Protocol (0x90)** can also trigger automations directly on the Nextion display component.
+
+This is useful when switch data from the Nextion is intended to be handled as an **event** rather than as persistent state, for example:
+
+- immediate reactions to user interaction
+- lightweight command or control messages
+- custom logic where no Home Assistant switch entity is required
+
+### Example
+
+```yaml
+display:
+  - platform: nextion
+    id: nextion1
+    uart_id: uart_nextion
+    on_custom_switch:
+      then:
+        - lambda: |-
+            // key: name sent by the Nextion (string)
+            // value: decoded boolean value
+            if (key == "r0") {
+              ESP_LOGI("nextion", "Switch r0 = %s", ONOFF(value));
+            }
+```
+
+### Parameters passed to the automation
+
+- **key** (`string`):  
+  The name sent by the Nextion using the custom switch protocol.  
+  This corresponds to the value sent in `prints "<name>",0`.
+
+- **value** (`bool`):  
+  The boolean value decoded from the protocol frame.  
+  Any value greater than `0` is interpreted as `true`.
+
+### Notes
+
+- The automation is triggered **when the custom protocol frame is received**, not when a switch entity updates.
+- Defining a `switch:` entry is **not required** to use this automation.
+- Existing Nextion switch entities and polling behavior are unchanged.
+- This automation reflects the same protocol described in [Nextion Custom Switch Protocol](#nextion_custom_switch_protocol).
+- This mechanism allows event-driven handling of Nextion switch data without the overhead of maintaining a switch entity when no persistent state is needed.
+
 ## See Also
 
 - [Nextion TFT LCD Display](/components/display/nextion/)

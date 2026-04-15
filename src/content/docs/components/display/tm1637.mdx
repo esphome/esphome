@@ -159,6 +159,30 @@ display:
         it.strftime("%H%M", id(homeassistant_time).now());
 ```
 
+### Raw segment buffer
+
+If you already have segment bitmasks, you can write raw bytes directly to the display buffer using `set_buffer`. This
+bypasses character conversion and is useful for custom glyphs or animations.
+
+```cpp
+void set_buffer(const uint8_t *data, uint8_t length);
+```
+
+- **data**: Pointer to an array of segment bytes, one byte per digit.
+- **length**: Number of bytes to write (should not exceed the number of digits).
+
+The TM1637 uses a single byte per digit where each bit maps to a segment (a–g). The decimal point is bit 7 (`0x80`).
+
+```yaml
+display:
+  - platform: tm1637
+    # ...
+    lambda: |-
+      // Raw segment values for "0123" with the dot on digit 3
+      static const uint8_t buf[] = {0x3f, 0x06, 0x5b, 0x4f | 0x80};
+      it.set_buffer(buf, sizeof(buf));
+```
+
 ## Connect multiple displays
 
 To connect multiple TM1636 displays you need as many control lines as you have displays. This is achived by sharing control-lines for clk and dio between displays.

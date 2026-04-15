@@ -165,7 +165,7 @@ In the above example, the value of the `text` property will be, literally, `This
 
 ## Substitute !include variables
 
-ESPHome's `!include` accepts a list of variables that can be substituted within the included file.
+ESPHome's `!include` accepts a list of variables that can be substituted within the included file. The filename itself may also contain substitution expressions, allowing you to dynamically select which file is loaded.
 
 ```yaml
 binary_sensor:
@@ -176,14 +176,13 @@ binary_sensor:
   - platform: gpio
     id: button2
     pin: GPIOXX
-    on_multi_click: !include
-      # multi-line syntax
+    on_multi_click: !include # multi-line syntax
       file: on-multi-click.yaml
       vars:
         id: 2
 ```
 
-`on-multi-click.yaml`  :
+`on-multi-click.yaml`:
 
 ```yaml
 - timing: !include click-single.yaml
@@ -197,6 +196,30 @@ binary_sensor:
         topic: ${device_name}/button${id}/status
         payload: double
 ```
+
+You can also use substitutions to construct the filename of the file to be included:
+
+```yaml
+substitutions:
+  platform: esp32
+
+binary_sensor:
+  - platform: gpio
+    id: button1
+    pin: GPIOXX
+    on_multi_click: !include { file: on-multi-click-${platform}.yaml, vars: { id: 1 } }
+  - platform: gpio
+    id: button2
+    pin: GPIOXX
+    on_multi_click: !include
+      file: on-multi-click-${platform}.yaml
+      vars:
+        id: 2
+```
+
+ESPHome expands the substitutions in the filename before loading the file, so `on-multi-click-${platform}.yaml`
+resolves to `on-multi-click-esp32.yaml` in the above example. Any substitution expression — including
+[Jinja expressions](/components/substitutions#jinja-expressions) — can be used.
 
 <span id="command-line-substitutions"></span>
 
@@ -249,12 +272,12 @@ esphome:
   # ...
 
 sensor:
-- platform: dht
-  # ...
-  temperature:
-    name: Temperature
-  humidity:
-    name: Humidity
+  - platform: dht
+    # ...
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity
 ```
 
 ```yaml
@@ -264,6 +287,9 @@ substitutions:
 
 <<: !include common.yaml
 ```
+
+> [!NOTE]
+> Using substitutions in the `!include` filename of a YAML insertion operator (`<<: !include`) is not supported.
 
 > [!TIP]
 > To hide these base files from the dashboard, you can

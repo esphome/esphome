@@ -90,7 +90,7 @@ binary_sensor:
   - platform: template
     id: co2_calibration
     lambda: |-
-      if (id(co2sensor).state < 400) {
+      if (id(co2sensor).get_state() < 400) {
         return true;
       } else {
         return false;

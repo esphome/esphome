@@ -206,7 +206,7 @@ unit_of_measurement: "°F"
 ## Sensor Automation
 
 You can access the most recent state of the sensor in [lambdas](/automations/templates#config-lambda) using
-`id(sensor_id).state` and the most recent raw state using `id(sensor_id).raw_state`.
+`id(sensor_id).get_state()` and the most recent raw state using `id(sensor_id).get_raw_state()`.
 
 <span id="sensor-on_value"></span>
 
@@ -328,20 +328,20 @@ advanced stuff (see the full API Reference for more info).
     id(my_sensor).publish_state(42.0);
 ```
 
-- `.state`  : Retrieve the current value of the sensor that has passed through all sensor filters.
+- `.get_state()`  : Retrieve the current value of the sensor that has passed through all sensor filters.
   Is `NAN` if no value has gotten through all filters yet.
 
 ```cpp
     // For example, create a custom log message when a value is received:
-    ESP_LOGI("main", "Value of my sensor: %f", id(my_sensor).state);
+    ESP_LOGI("main", "Value of my sensor: %f", id(my_sensor).get_state());
 ```
 
-- `raw_state`  : Retrieve the current value of the sensor that has not passed through any filters.
+- `.get_raw_state()`  : Retrieve the current value of the sensor that has not passed through any filters.
   Is `NAN` if no value has been pushed by the sensor itself yet.
 
 ```cpp
     // For example, create a custom log message when a value is received:
-    ESP_LOGI("main", "Raw Value of my sensor: %f", id(my_sensor).raw_state);
+    ESP_LOGI("main", "Raw Value of my sensor: %f", id(my_sensor).get_raw_state());
 ```
 
 ## See Also

@@ -27,6 +27,23 @@ JSON_ACTION = "action"
 
 DOCS_ROOT = Path(".") / "src" / "content" / "docs"
 
+
+# (registry_json_key, title_suffix_or_None)
+# None suffix = backtick title pattern: `name`
+COMPONENT_REGISTRIES = {
+    "light": [("effects", " Effect")],
+    "binary_sensor": [("filter", None)],
+    "text_sensor": [("filter", None)],
+    "sensor": [("filter", " Filter")],  # standalone files only
+}
+
+# Display names that don't derive cleanly to their registry key via title_to_registry_key()
+# key: (component, registry_json_key, display_name_after_stripping_suffix)
+REGISTRY_KEY_ODDITIES = {
+    ("light", "effects", "Automation Light"): "automation",
+    ("light", "effects", "E1.31"): "e131",
+}
+
 args = None
 
 
@@ -91,20 +108,21 @@ class Stats:
     core_platform_docs = 0
     platform_docs = 0
     props = 0
+    props_created = 0
+    props_skipped = 0
+    props_refined = 0
     enum_docs = 0
     action_docs = 0
     condition_docs = 0
-    missing_anchors: list = None
-
-    def __init__(self):
-        self.missing_anchors = []
+    registry_docs = 0
+    changed_optionality = 0
 
 
 stats = Stats()
 
-anchors = {}
 md_docs = {}
 json_docs = {}
+reverse_extends = {}  # id(parent_inner_schema) -> [child_inner_schema, ...]
 
 
 def unquote(s: str) -> str:
@@ -133,65 +151,15 @@ def open_file_lines(file):
         print(f"Error: File {file} not found")
 
 
-REGEX_INCLUDE = r"^{{<\sinclude\s\"([^\"]*)\"\s>}}"
-
-
-def mrkdwn_lines_includes(lines, md_file):
-    ret_lines = []
-    for index in range(0, len(lines)):
-        line = lines[index]
-        search = re.search(REGEX_INCLUDE, line, re.IGNORECASE)
-        if search:
-            include_path = md_file.parent / search.group(1)
-            if not include_path.exists():
-                print(f"{md_file}:{index + 1} cannot include {include_path}")
-                continue
-
-            include_lines = open_file_lines(include_path)
-            include_index = md_parse_frontmatter(None, include_lines)
-            ret_lines.extend(include_lines[include_index:])
-        else:
-            ret_lines.append(line)
-    return ret_lines
-
-
 def mrkdwn_lines(md_file):
     lines = md_docs.get(md_file, {}).get("lines")
     if lines:
         return lines
 
     if (lines := open_file_lines(md_file)) is not None:
-        lines = mrkdwn_lines_includes(lines, md_file)
         # cache into md_docs dict
         md_docs[md_file] = {"lines": lines}
         return lines
-
-
-def fill_anchors(md_files):
-    REGEX_SPAN_ANCHOR = r'<span\s+id="([^"]*)"'
-    REGEX_HEADING = r"^#{1,6}\s+(.*)"
-    for md_file in md_files:
-        lines = mrkdwn_lines(md_file)
-        for line in lines:
-            search = re.search(REGEX_SPAN_ANCHOR, line)
-            if search:
-                anchors[search.group(1)] = md_file
-            search = re.search(REGEX_HEADING, line)
-            if search:
-                slug = slugify(search.group(1))
-                if slug not in anchors:
-                    anchors[slug] = md_file
-
-
-def get_doc_title(md_file):
-    title = md_docs.get(md_file, {}).get("title")
-    if title:
-        return title
-
-    lines = mrkdwn_lines(md_file)
-    md_parse_frontmatter(md_file, lines)
-
-    return md_docs.get(md_file, {}).get("title")
 
 
 def md_get_paragraph(lines, index):
@@ -278,13 +246,6 @@ def md_get_next_config(lines, index):
         index += 1
 
 
-def json_exists(name):
-    json_file_name = os.path.join(args.schema_dir, name + ".json")
-    if os.path.exists(json_file_name):
-        return True
-    return False
-
-
 def json_get(name):
     if name == "core":
         name = "esphome"
@@ -293,8 +254,10 @@ def json_get(name):
     if json_doc:
         return json_doc
 
-    json_file_name = os.path.join(args.schema_dir, name + ".json")
+    json_file_name = os.path.join(args.read_schema_dir, name + ".json")
     if os.path.exists(json_file_name):
+        if args.debug_level > 12:
+            print(f"Loading {json_file_name}")
         with open(json_file_name, "r", encoding="utf-8-sig") as f:
             json_docs[name] = json_doc = json.loads(f.read())
             return json_doc
@@ -322,8 +285,11 @@ def process_component(md_file, lines, index, name):
     if name not in core["components"]:
         return index, False
     index, docs = md_get_paragraph(lines, index)
-    core["components"][name][JSON_DOCS] = make_doc_with_see_also(md_file, index, docs)
-    stats.core_docs += 1
+    if JSON_DOCS not in core["components"][name]:
+        core["components"][name][JSON_DOCS] = make_doc_with_see_also(
+            md_file, index, docs
+        )
+        stats.core_docs += 1
     return index, True
 
 
@@ -341,13 +307,16 @@ def process_platform_component(md_file, lines, index, platform, name):
         return index, False
 
 
+def is_platform(name):
+    return name in json_get("esphome")["core"]["platforms"]
+
+
 def get_platform_from_title(title, config_component=None):
-    esphome_json = json_get("esphome")
     title = title.lower().replace("`", "")
     if config_component and title.startswith(config_component.lower()):
         title = title[len(config_component) + 1 :]
     name = title.replace(" ", "_")
-    if name in esphome_json["core"]["platforms"]:
+    if is_platform(name):
         return name
     return None
 
@@ -385,73 +354,211 @@ def find_schema_prop(schema, prop_name):
     return None
 
 
+def resolve_extends_ref(ref):
+    """Resolve an extends reference string to its inner schema dict."""
+    parts = ref.split(".")
+    ref_json = json_get(parts[0])
+    if not ref_json:
+        return None
+    if len(parts) == 3:
+        schema_def = (
+            ref_json.get(f"{parts[0]}.{parts[1]}", {})
+            .get("schemas", {})
+            .get(parts[2], {})
+        )
+    else:
+        schema_def = ref_json.get(parts[0], {}).get("schemas", {}).get(parts[1], {})
+    if schema_def.get(JSON_CV_TYPE) == JSON_CV_TYPE_SCHEMA and "schema" in schema_def:
+        return schema_def["schema"]
+    return None
+
+
+def fill_reverse_extends():
+    """Build reverse_extends map by scanning all loaded JSON schemas."""
+    for name, json_doc in json_docs.items():
+        for top_key in json_doc:
+            schemas = json_doc.get(top_key, {}).get("schemas", {})
+            for schema_name, schema_def in schemas.items():
+                if (
+                    schema_def.get(JSON_CV_TYPE) == JSON_CV_TYPE_SCHEMA
+                    and "schema" in schema_def
+                ):
+                    inner = schema_def["schema"]
+                    for ext in inner.get(JSON_EXTENDS, []):
+                        parent = resolve_extends_ref(ext)
+                        if parent is not None:
+                            reverse_extends.setdefault(id(parent), []).append(inner)
+
+
+def find_schema_props_in_children(schema, prop_name):
+    """Find prop_name in schemas that extend the given schema (directly or transitively).
+    Returns a list of matched config dicts."""
+    results = []
+    queue = [schema]
+    visited = set()
+
+    while queue:
+        current = queue.pop(0)
+        cid = id(current)
+        if cid in visited:
+            continue
+        visited.add(cid)
+
+        for child in reverse_extends.get(cid, []):
+            cv = child.get(JSON_CONFIG_VARS, {})
+            if prop_name in cv:
+                results.append(cv[prop_name])
+            queue.append(child)
+
+    return results
+
+
 def convert_links(md_file, index, docs):
     if docs is None:
         return None
 
-    # Matches [name-group-1](#local-link-group-2)
-    REGEX_LOCAL_LINK = r"\[([^\]]*)\]\(#([^\)]*)\)"
+    REGEX_LINK = r"\[([^\]]*)\]\(([^\)]*)\)"
 
-    def replacer_local(match):
+    def replacer(match):
         title = match.group(1)
-        anchor = match.group(2)
-        if anchor not in anchors:
-            if anchor not in stats.missing_anchors:
-                stats.missing_anchors.append(anchor)
-            url = anchor
-        else:
-            anchor_file = anchors[anchor]
-            relative = anchor_file.relative_to(DOCS_ROOT)
+        url = match.group(2)
+
+        if url.startswith("http://") or url.startswith("https://"):
+            return match.group(0)  # external — leave as-is
+
+        if url.startswith("/"):
+            # Absolute site path — prepend deploy_url, no lookup needed
+            return f"[{title}]({args.deploy_url}{url})"
+
+        if url.startswith("#"):
+            # Same-page anchor — resolve to this file's absolute URL
+            anchor = url[1:]
+            relative = md_file.relative_to(DOCS_ROOT)
             url_path = "/" + "/".join(relative.parts[:-1])
-            if anchor_file.stem != "index":
-                url_path += f"/{anchor_file.stem}"
-            url = f"{args.deploy_url}{url_path}#{anchor}"
+            if md_file.stem != "index":
+                url_path += f"/{md_file.stem}"
+            return f"[{title}]({args.deploy_url}{url_path}#{anchor})"
 
-        return f"[{title}]({url})"
+        # Other relative links — leave as-is
+        return match.group(0)
 
-    return re.sub(REGEX_LOCAL_LINK, replacer_local, docs)
+    return re.sub(REGEX_LINK, replacer, docs)
 
 
 def is_templatable_type(type_part):
     return re.search(r"\[templatable\]", type_part) is not None
 
 
+def title_to_registry_key(name):
+    """Convert a display name to a registry key (lowercase, special chars → underscores)."""
+    return re.sub(r"[^a-zA-Z0-9]+", "_", name.lower()).strip("_")
+
+
+def find_registry_entry(title, config_component):
+    """Check if title matches a registry entry for config_component.
+    Returns (registry_json_key, entry_dict) or (None, None)."""
+    for registry_key, suffix in COMPONENT_REGISTRIES.get(config_component, []):
+        json_config = json_get(config_component)
+        if not json_config:
+            continue
+        registry = json_config.get(config_component, {}).get(registry_key, {})
+
+        if suffix is not None:
+            if not title.endswith(suffix):
+                continue
+            name = title[: -len(suffix)].strip()
+            key = REGISTRY_KEY_ODDITIES.get(
+                (config_component, registry_key, name)
+            ) or title_to_registry_key(name)
+            entry = registry.get(key)
+            if entry is not None:
+                return registry_key, entry
+        else:
+            # Backtick style: `name`
+            m = re.match(r"^`(.+)`$", title)
+            if m:
+                key = m.group(1)
+                entry = registry.get(key)
+                if entry is not None:
+                    return registry_key, entry
+
+    return None, None
+
+
 def set_schema_doc(md_file, index, schema, prop_name, prop_types, doc):
     matched_config = find_schema_prop(schema, prop_name)
-    if matched_config:
-        converted_doc = make_doc_with_see_also(md_file, index, doc)
 
-        if prop_types:
-            type_parts = [part.strip() for part in prop_types.split(",")]
-            optionality = type_parts[0].replace("*", "").lower()
-            config_optionality = matched_config.get(JSON_KEY, "")
-            if (
-                prop_name != "id"
-                and config_optionality != "GeneratedID"
-                and optionality != config_optionality.lower()
-                and args.debug_level > 3
-            ):
+    if not matched_config:
+        # Check if an entry from this schema has prop
+        children = find_schema_props_in_children(schema, prop_name)
+        if not children:
+            # This prop not found either up or down the prop tree
+            if args.debug_level > 8:
+                print(f"{md_file}:{index}: prop {prop_name} not matched in schema")
+
+            return None
+
+        # document here
+        matched_config = schema.setdefault(JSON_CONFIG_VARS, {}).setdefault(
+            prop_name, {}
+        )
+        stats.props_created += 1
+
+    converted_doc = make_doc_with_see_also(md_file, index, doc)
+    if prop_types:
+        type_parts = [part.strip() for part in prop_types.split(",")]
+        optionality = type_parts[0].replace("*", "")
+        config_optionality = matched_config.get(JSON_KEY, "")
+        if (
+            prop_name != "id"
+            and config_optionality != "GeneratedID"
+            and optionality.casefold() != config_optionality.casefold()
+        ):
+            # The SSOT will be docs, retrieving precise optionality by reflecting into esphome schema
+            # is not accurate
+            stats.changed_optionality += 1
+            matched_config[JSON_KEY] = optionality.capitalize()
+            if args.debug_level > 5:
                 print(
                     f"{md_file}:{index} {prop_name} Key {config_optionality} in ESPHome does not match {optionality} in docs"
                 )
 
-            templatable = any(is_templatable_type(p) for p in type_parts[1:])
-            config_templatable = matched_config.get(JSON_TEMPLATABLE, False)
-            if templatable != config_templatable and args.debug_level > 3:
-                print(
-                    f"{md_file}:{index} {prop_name} Templatable {config_templatable} in ESPHome does not match {templatable} in docs"
-                )
+        templatable = any(is_templatable_type(p) for p in type_parts[1:])
+        config_templatable = matched_config.get(JSON_TEMPLATABLE, False)
+        if templatable != config_templatable and args.debug_level > 5:
+            print(
+                f"{md_file}:{index} {prop_name} Templatable {config_templatable} in ESPHome does not match {templatable} in docs"
+            )
 
-            # Document with type information, unless the type just says templatable
-            if len(type_parts) > 1 and not is_templatable_type(type_parts[1]):
-                prop_type = convert_links(md_file, index, type_parts[1])
-                matched_config[JSON_DOCS] = f"**{prop_type}**: {converted_doc}"
-                stats.props += 1
-                return matched_config
+        # Document with type information, unless the type just says templatable
+        if len(type_parts) > 1 and not is_templatable_type(type_parts[1]):
+            prop_type = convert_links(md_file, index, type_parts[1])
+            converted_doc = f"**{prop_type}**: {converted_doc}"
 
-        matched_config[JSON_DOCS] = converted_doc
+    if JSON_DOCS in matched_config and matched_config[JSON_DOCS] == converted_doc:
+        # skip re documenting
 
+        stats.props_skipped += 1
+        return matched_config
+
+    is_extended_schema = matched_config != schema.get(JSON_CONFIG_VARS, {}).get(
+        prop_name
+    )
+
+    if JSON_DOCS in matched_config and is_extended_schema:
+        # override docs in extended schema here
+        new_docs_schema = schema.setdefault(JSON_CONFIG_VARS, {}).setdefault(
+            prop_name, {}
+        )
+        if JSON_KEY in matched_config:
+            new_docs_schema.setdefault(JSON_KEY, matched_config[JSON_KEY])
+        matched_config = new_docs_schema  # document in upper level
+        stats.props_refined += 1
+    else:
         stats.props += 1
+
+    matched_config[JSON_DOCS] = converted_doc
+
     return matched_config
 
 
@@ -476,6 +583,10 @@ def is_break_title(title):
         if get_platform_from_title(name):
             return True
         if name in ["action", "condition", "component"]:
+            return True
+        # Bare backtick heading (### `name`) — registry entry like a filter or effect.
+        # Nothing after the closing backtick, so it's not a property sub-heading.
+        if re.match(r"^#+\s+`[^`]+`\s*$", title):
             return True
     return False
 
@@ -551,6 +662,8 @@ def process_schema(
         search = re.search(REGEX_PROP, item_config, re.IGNORECASE)
         if search:
             prop_name = search.group(1)
+            if args.debug_level > 10:
+                print(f"{md_file}:{index}: prop {prop_name}")
 
             if typed_var and typed_var.get("typed_key") == prop_name:
                 typed_var["docs"] = search.group(3)
@@ -650,6 +763,24 @@ def oddities_doc_not_specific_component(folder, file):
         return file == "fastled"
 
 
+def md_skip_imports(md_file, lines, index):
+    # Skip import/export statements, committing position only after actual imports.
+    # Blank lines between imports are consumed but don't commit the position.
+    last_import_end = index
+    i = index
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if stripped.startswith("import ") or stripped.startswith("export "):
+            i += 1
+            last_import_end = i  # commit: we've passed an import line
+        elif not stripped:
+            i += 1  # tentatively skip blank lines
+        else:
+            break  # non-import content reached
+
+    return last_import_end
+
+
 def oddities_titles(folder, file, title):
     # this replaces some titles which should be named otherwise
     if folder == "light":
@@ -670,9 +801,273 @@ def oddities_titles(folder, file, title):
     return title
 
 
+def parse_file(md_full_path):
+    lines = mrkdwn_lines(md_full_path)
+    index = md_parse_frontmatter(md_full_path, lines)
+    index = md_skip_imports(md_full_path, lines, index)
+    see_also.reset_doc(md_full_path)
+    file_name = md_full_path.stem
+    file_folder = md_full_path.parent.name
+    # doc_type captures what kind of schema we're documenting in the current context.
+    # It is set from the file path, then updated as component/platform titles are processed.
+    #   "component"          - root component  (components/api.mdx)
+    #                          schema: api.json["api"]["schemas"]["CONFIG_SCHEMA"]
+    #   "platform_index"     - platform base   (sensor/index.mdx)
+    #                          schema: sensor.json["sensor"]["schemas"]["_SENSOR_SCHEMA"]
+    #   "platform_component" - platform entry  (sensor/dallas_temp.mdx)
+    #                          schema: dallas_temp.json["dallas_temp.sensor"]["schemas"]["CONFIG_SCHEMA"]
+    doc_type = None
+    doc_component = None  # component name — also the JSON file stem for schema lookup
+    # component docs:
+    # some components have .mdx files in folders, e.g. http_request
+    # so for the root component (in core) we need to use the one in root, and ignore the one in subfolder,
+    # that one will be used in e.g. sensors.json (platform)
+
+    if file_name == "index" and file_folder == "components":
+        return  # nothing here
+
+    if file_name in core["components"]:
+        # fill root component docs
+        index, success = process_component(md_full_path, lines, index, file_name)
+        if success:
+            doc_type = "component"
+            doc_component = file_name
+    elif file_folder != "content" and file_folder in core["platforms"]:
+        if file_name == "index":
+            # fill core platform docs, from index files in platforms folders
+            index, docs = md_get_paragraph(lines, index)
+            core["platforms"][file_folder][JSON_DOCS] = convert_links(
+                md_full_path, index, docs
+            )
+            stats.core_platform_docs += 1
+            doc_type = "platform_index"
+            doc_component = file_folder
+        else:
+            # this is a component inside a folder
+            if not oddities_doc_not_specific_component(file_folder, file_name):
+                index, success = process_platform_component(
+                    md_full_path, lines, index, file_folder, file_name
+                )
+                if success:
+                    doc_type = "platform_component"
+                    doc_component = file_name
+    elif file_folder == "automations":
+        doc_component = "core"
+    elif file_folder == "filter":
+        parent_platform = md_full_path.parent.parent.name
+        if parent_platform in core["platforms"]:
+            doc_component = parent_platform
+
+    doc_platform = file_folder if file_folder != "components" else None
+
+    pending_schema = None
+
+    while True:
+        index, title = md_get_next_title(md_full_path, lines, index)
+        if not title:
+            break
+        title_component = None
+
+        title = oddities_titles(file_folder, file_name, title)
+        if title == "Component/Hub":
+            # Some files like pn523, rc522, as3935 are in a platform folder even
+            # though they are full components and their platform components are
+            # documented with the platform titles
+            doc_platform = None
+
+        elif title.endswith(" Component"):
+            title_component = (
+                title.replace(" Component", "")
+                .replace("`", "")
+                .replace(".", "")
+                .lower()
+            )
+        elif title.endswith(DOC_OVER_SPI):
+            title_component = f"{file_name}_spi"
+        elif title.endswith(DOC_OVER_I2C):
+            title_component = f"{file_name}_i2c"
+        elif (
+            # Handle Platform titles, e.g. Sensor, Switch titles
+            file_name != "index"
+            and get_platform_from_title(title, doc_component or file_name) is not None
+        ):
+            title_component = file_name
+            doc_platform = get_platform_from_title(title, doc_component or file_name)
+
+        if (
+            title.endswith(" Action") or title.endswith(" Condition")
+        ) and title.startswith("`"):
+            config_type = title.split(" ")[-1].lower()  # action / condition
+            parts = title.split(" ")[0].replace("`", "").split(".")
+            if len(parts) == 1:
+                # action; the component should be actual component
+                if not doc_component:
+                    print(f"{md_full_path}:{index} {title} with no config component.")
+                    continue
+                action_json = json_get(doc_component)
+                if not action_json:
+                    print(
+                        f"{md_full_path}:{index} Found title {title} in {doc_component} cannot find config"
+                    )
+                else:
+                    pending_schema = (
+                        action_json.get(doc_component, {})
+                        .get(config_type, {})
+                        .get(parts[0])
+                    )
+            elif len(parts) == 2:
+                # component.action
+                pending_schema = (
+                    (json_get(parts[0]) or {})
+                    .get(parts[0], {})
+                    .get(config_type, {})
+                    .get(parts[1])
+                )
+            elif len(parts) == 3:
+                # platform.component.action or # component.[action.name]
+                if is_platform(parts[0]):
+                    pending_schema = (
+                        (json_get(parts[1]) or {})
+                        .get(f"{parts[1]}.{parts[0]}", {})
+                        .get(config_type, {})
+                        .get(parts[2])
+                    )
+                else:
+                    pending_schema = (
+                        (json_get(parts[0]) or {})
+                        .get(parts[0], {})
+                        .get(config_type, {})
+                        .get(".".join(parts[1:]))
+                    )
+
+            else:
+                print(f"{md_full_path}:{index} Found title {title} too many parts")
+
+            if pending_schema is not None:
+                index, docs = md_get_paragraph(lines, index)
+                pending_schema[JSON_DOCS] = convert_links(md_full_path, index, docs)
+                if config_type == "action":
+                    stats.action_docs += 1
+                elif config_type == "condition":
+                    stats.condition_docs += 1
+            else:
+                print(
+                    f"{md_full_path}:{index} Found title {title} in {doc_component} config not found"
+                )
+
+        registry_key, registry_entry = find_registry_entry(title, doc_component)
+        if registry_entry is None and doc_platform and doc_platform != doc_component:
+            registry_key, registry_entry = find_registry_entry(title, doc_platform)
+        if registry_entry is not None:
+            index, docs = md_get_paragraph(lines, index)
+            if docs:
+                registry_entry[JSON_DOCS] = convert_links(md_full_path, index, docs)
+            pending_schema = registry_entry
+            stats.registry_docs += 1
+
+        if title_component:
+            if doc_platform in core["platforms"]:
+                index, success = process_platform_component(
+                    md_full_path, lines, index, doc_platform, title_component
+                )
+                if success:
+                    doc_type = "platform_component"
+                    doc_component = title_component
+                elif title_component in core["components"]:
+                    index, success = process_component(
+                        md_full_path, lines, index, title_component
+                    )
+                    if success:
+                        doc_type = "component"
+                        doc_component = title_component
+                    else:
+                        print(
+                            f"{md_full_path}:{index} {doc_platform}/{file_name} {title} not processed."
+                        )
+                else:
+                    print(
+                        f"{md_full_path}:{index} {doc_platform}/{file_name} {title} not processed."
+                    )
+            elif title_component in core["components"]:
+                index, success = process_component(
+                    md_full_path, lines, index, title_component
+                )
+                if success:
+                    doc_type = "component"
+                    doc_component = title_component
+                else:
+                    print(
+                        f"{md_full_path}:{index} {doc_platform}/{file_name} {title} not processed."
+                    )
+            else:
+                print(
+                    f"{md_full_path}:{index} {doc_platform}/{file_name} {title} not processed."
+                )
+
+        if title == DOC_CONFIGURATION_VARIABLES:
+            if not doc_component:
+                print(
+                    f"{md_full_path}:{index} TODO {doc_platform}/{file_name} {title} not processed."
+                )
+                continue
+
+            if pending_schema:
+                schema = pending_schema
+            elif doc_type == "component":
+                schema = (
+                    (json_get(doc_component) or {})
+                    .get(doc_component, {})
+                    .get("schemas", {})
+                    .get("CONFIG_SCHEMA")
+                )
+                if not schema:
+                    print(
+                        f"{md_full_path}:{index} {doc_component} CONFIG_SCHEMA not found"
+                    )
+            elif doc_type == "platform_index":
+                all_schemas = (
+                    (json_get(doc_component) or {})
+                    .get(doc_component, {})
+                    .get("schemas", {})
+                )
+                schema = all_schemas.get(
+                    f"{doc_component.upper()}_SCHEMA"
+                ) or all_schemas.get(f"_{doc_component.upper()}_SCHEMA")
+            elif doc_type == "platform_component":
+                schema = (
+                    (json_get(doc_component) or {})
+                    .get(f"{doc_component}.{doc_platform}", {})
+                    .get("schemas", {})
+                    .get("CONFIG_SCHEMA")
+                )
+                if not schema:
+                    print(
+                        f"{md_full_path}:{index} {doc_component}.{doc_platform} schema not found"
+                    )
+            else:
+                schema = None
+            if schema:
+                try:
+                    index = process_config(md_full_path, lines, index + 1, schema)
+                except Exception as err:
+                    print(f"{md_full_path}:{index} {title} failed {repr(err)}")
+                    # if you put a breakpoint here get call-stack in the console by entering
+                    # import traceback
+                    # traceback.print_exc()
+                    break
+            pending_schema = None
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Add docs to ESPHome json schema")
-    parser.add_argument("schema_dir", help="Directory containing JSON files")
+    parser.add_argument(
+        "schema_dir", help="Directory to write filled JSON schema files"
+    )
+    parser.add_argument(
+        "--read-schema-dir",
+        help="Directory to read schema JSON files from (defaults to schema_dir)",
+        default=None,
+    )
     parser.add_argument("--single", help="Process a single json file", default=None)
     parser.add_argument(
         "--debug-level",
@@ -691,233 +1086,36 @@ if __name__ == "__main__":
         default="https://api-docs.esphome.io",
     )
     args = parser.parse_args()
+    if args.read_schema_dir is None:
+        args.read_schema_dir = args.schema_dir
 
     esphome_json = json_get("esphome")
     core = esphome_json["core"]
 
-    md_files = []
+    # Pre-load all schema JSON files and build reverse extends map
+    for json_file in Path(args.read_schema_dir).glob("*.json"):
+        json_get(json_file.stem)
+    fill_reverse_extends()
+
+    md_full_paths = []
     for root, _, files in os.walk(DOCS_ROOT / "components"):
-        for file in files:
+        for file in sorted(files):
             if file.endswith(".mdx"):
                 fullpath = Path(root, file)
-                md_files.append(fullpath)
-    md_files.append(DOCS_ROOT / "automations" / "actions.mdx")
-
-    fill_anchors(
-        md_files
-        + [
-            # config-lambda, config-templatable
-            DOCS_ROOT / "automations" / "templates.mdx",
-            # config-id, config-pin_schema
-            DOCS_ROOT / "guides" / "configuration-types.mdx",
-            # api-rest
-            DOCS_ROOT / "web-api" / "index.mdx",
-        ]
-    )
+                md_full_paths.append(fullpath)
+    md_full_paths.append(DOCS_ROOT / "automations" / "actions.mdx")
 
     if args.single:
-        md_files = [f for f in md_files if args.single in repr(f)]
+        md_full_paths = [f for f in md_full_paths if args.single in repr(f)]
 
-    for md_file in md_files:
-        lines = mrkdwn_lines(md_file)
-        index = md_parse_frontmatter(md_file, lines)
-        see_also.reset_doc(md_file)
-        file_name = md_file.stem
-        content_folder = md_file.parent.name
-        is_platform = False
-        is_component = False
-        config_component = None
-        json_config = None
-        # component docs:
-        # some components have .mdx files in folders, e.g. http_request
-        # so for the root component (in core) we need to use the one in root, and ignore the one in subfolder,
-        # that one will be used in e.g. sensors.json (platform)
+    # parse first index (platforms) so docs are filled in there first and not overriden later
+    for md_full_path in md_full_paths:
+        if md_full_path.stem == "index":
+            parse_file(md_full_path)
 
-        if file_name == "index" and content_folder == "components":
-            continue  # nothing here
-
-        if file_name in core["components"]:
-            # fill root component docs
-            index, is_component = process_component(md_file, lines, index, file_name)
-            if is_component:
-                config_component = file_name
-        elif content_folder != "content" and content_folder in core["platforms"]:
-            if file_name == "index":
-                # fill core platform docs, from index files in platforms folders
-                index, docs = md_get_paragraph(lines, index)
-                core["platforms"][content_folder][JSON_DOCS] = convert_links(
-                    md_file, index, docs
-                )
-                stats.core_platform_docs += 1
-                is_platform = True
-                config_component = content_folder
-            else:
-                # this is a component inside a folder
-                if not oddities_doc_not_specific_component(content_folder, file_name):
-                    index, is_platform = process_platform_component(
-                        md_file, lines, index, content_folder, file_name
-                    )
-                    if is_platform:
-                        config_component = file_name
-        elif content_folder == "automations":
-            config_component = "core"
-
-        platform_name = content_folder if content_folder != "components" else None
-        title_config_vars = None
-
-        while True:
-            index, title = md_get_next_title(md_file, lines, index)
-            if not title:
-                break
-            component_name = None
-
-            title = oddities_titles(content_folder, file_name, title)
-            if title == "Component/Hub":
-                # Some files like pn523, rc522, as3935 are in a platform folder even
-                # though they are full components and their platform components are
-                # documented with the platform titles
-                platform_name = None
-
-            elif title.endswith(" Component"):
-                component_name = (
-                    title.replace(" Component", "")
-                    .replace("`", "")
-                    .replace(".", "")
-                    .lower()
-                )
-            elif title.endswith(DOC_OVER_SPI):
-                component_name = f"{file_name}_spi"
-            elif title.endswith(DOC_OVER_I2C):
-                component_name = f"{file_name}_i2c"
-            elif (
-                # Handle Platform titles, e.g. Sensor, Switch titles
-                file_name != "index"
-                and get_platform_from_title(title, config_component or file_name)
-                is not None
-            ):
-                component_name = file_name
-                platform_name = get_platform_from_title(
-                    title, config_component or file_name
-                )
-
-            if (
-                title.endswith(" Action") or title.endswith(" Condition")
-            ) and title.startswith("`"):
-                config_type = title.split(" ")[-1].lower()  # action / condition
-                parts = title.split(" ")[0].replace("`", "").split(".")
-                if len(parts) == 1:
-                    # action; the component should be actual component
-                    if not config_component:
-                        print(f"{md_file}:{index} {title} with no config component.")
-                        continue
-                    if json_config != json_get(config_component):
-                        print(f"{md_file}:{index} {title} set needed for this.")
-                    json_config = json_get(config_component)
-                    if not json_config:
-                        print(
-                            f"{md_file}:{index} Found title {title} in {config_component} cannot find config"
-                        )
-                    else:
-                        title_config_vars = (
-                            json_config.get(config_component, {})
-                            .get(config_type, {})
-                            .get(parts[0])
-                        )
-                elif len(parts) == 2:
-                    # component.action
-                    title_config_vars = (
-                        (json_get(parts[0]) or {})
-                        .get(parts[0], {})
-                        .get(config_type, {})
-                        .get(parts[1])
-                    )
-                elif len(parts) == 3:
-                    # platform.component.action
-                    title_config_vars = (
-                        (json_get(parts[1]) or {})
-                        .get(f"{parts[1]}.{parts[0]}", {})
-                        .get(config_type, {})
-                        .get(parts[2])
-                    )
-
-                else:
-                    print(f"{md_file}:{index} Found title {title} too many parts")
-
-                if title_config_vars is not None:
-                    index, docs = md_get_paragraph(lines, index)
-                    title_config_vars[JSON_DOCS] = convert_links(md_file, index, docs)
-                    if config_type == "action":
-                        stats.action_docs += 1
-                    elif config_type == "condition":
-                        stats.condition_docs += 1
-                else:
-                    print(
-                        f"{md_file}:{index} Found title {title} in {config_component} config not found"
-                    )
-
-            if component_name:
-                is_platform = platform_name in core["platforms"]
-                is_component = False
-                if is_platform:
-                    index, is_platform = process_platform_component(
-                        md_file, lines, index, platform_name, component_name
-                    )
-
-                if not is_platform and component_name in core["components"]:
-                    index, is_component = process_component(
-                        md_file, lines, index, component_name
-                    )
-
-                if not is_platform and not is_component:
-                    print(
-                        f"{md_file}:{index} {platform_name}/{file_name} {title} not processed."
-                    )
-                else:
-                    config_component = component_name
-
-            if title == DOC_CONFIGURATION_VARIABLES:
-                if not config_component:
-                    print(
-                        f"{md_file}:{index} TODO {platform_name}/{file_name} {title} not processed."
-                    )
-                    continue
-
-                if title_config_vars:
-                    schema = title_config_vars
-                else:
-                    json_config = json_get(config_component)
-                    if not json_config:
-                        print(f"{md_file}:{index} {config_component} no json_config")
-                        schema = None
-                    elif is_component:
-                        schema = json_config[config_component]["schemas"][
-                            "CONFIG_SCHEMA"
-                        ]
-                    elif is_platform and config_component:
-                        if config_component == platform_name:
-                            schema = json_config[config_component]["schemas"].get(
-                                f"{platform_name.upper()}_SCHEMA"
-                            )
-                        elif platform_name:
-                            schema = json_config[f"{config_component}.{platform_name}"][
-                                "schemas"
-                            ].get("CONFIG_SCHEMA")
-                        else:
-                            print(
-                                f"{md_file}:{index} {config_component} unknown component type"
-                            )
-                    else:
-                        schema = None
-                if schema:
-                    try:
-                        index = process_config(md_file, lines, index + 1, schema)
-                    except Exception as err:
-                        print(f"{md_file}:{index} {title} failed {repr(err)}")
-                        # if you put a breakpoint here get call-stack in the console by entering
-                        # import traceback
-                        # traceback.print_exc()
-                        break
-                title_config_vars = None
+    for md_full_path in md_full_paths:
+        if md_full_path.stem != "index":
+            parse_file(md_full_path)
 
     json_save()
 
