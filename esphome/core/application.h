@@ -583,7 +583,7 @@ inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::l
   uint64_t loop_recorded_snap = ComponentRuntimeStats::global_recorded_us;
 #endif
   // Get the initial loop time at the start
-  uint32_t last_op_end_time = millis();
+  uint32_t last_op_end_time = MillisInternal::get();
 
   this->before_loop_tasks_(last_op_end_time);
 #ifdef USE_RUNTIME_STATS
