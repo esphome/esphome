@@ -32,6 +32,7 @@ DEPENDENCIES = ["debug"]
 
 CONF_MIN_FREE = "min_free"
 CONF_PSRAM = "psram"
+CONF_IRAM = "iram"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_DEBUG_ID): cv.use_id(DebugComponent),
@@ -98,6 +99,16 @@ CONFIG_SCHEMA = {
             state_class=STATE_CLASS_MEASUREMENT,
         ),
     ),
+    cv.Optional(CONF_IRAM): cv.All(
+        cv.only_on_esp32,
+        sensor.sensor_schema(
+            unit_of_measurement=UNIT_BYTES,
+            icon=ICON_COUNTER,
+            accuracy_decimals=0,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+    ),
     cv.Optional(CONF_CPU_FREQUENCY): cv.All(
         sensor.sensor_schema(
             unit_of_measurement=UNIT_HERTZ,
@@ -137,6 +148,10 @@ async def to_code(config):
     if psram_conf := config.get(CONF_PSRAM):
         sens = await sensor.new_sensor(psram_conf)
         cg.add(debug_component.set_psram_sensor(sens))
+
+    if iram_conf := config.get(CONF_IRAM):
+        sens = await sensor.new_sensor(iram_conf)
+        cg.add(debug_component.set_iram_sensor(sens))
 
     if cpu_freq_conf := config.get(CONF_CPU_FREQUENCY):
         sens = await sensor.new_sensor(cpu_freq_conf)
