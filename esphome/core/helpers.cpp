@@ -22,6 +22,19 @@ namespace esphome {
 
 static const char *const TAG = "helpers";
 
+__attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity,
+                                                            size_t elem_size) {
+  ESPHOME_DEBUG_ASSERT(size < UINT16_MAX);
+  uint16_t new_cap = size + 1;
+  auto *new_data = ::operator new(new_cap *elem_size);
+  if (data) {
+    __builtin_memcpy(new_data, data, size * elem_size);
+    ::operator delete(data);
+  }
+  capacity = new_cap;
+  return new_data;
+}
+
 static const uint16_t CRC16_A001_LE_LUT_L[] = {0x0000, 0xc0c1, 0xc181, 0x0140, 0xc301, 0x03c0, 0x0280, 0xc241,
                                                0xc601, 0x06c0, 0x0780, 0xc741, 0x0500, 0xc5c1, 0xc481, 0x0440};
 static const uint16_t CRC16_A001_LE_LUT_H[] = {0x0000, 0xcc01, 0xd801, 0x1400, 0xf001, 0x3c00, 0x2800, 0xe401,
@@ -155,6 +168,32 @@ uint32_t fnv1_hash(const char *str) {
   }
   return hash;
 }
+
+// SplitMix32 — a fast, non-cryptographic PRNG from the SplitMix family
+// (Steele et al., 2014). Uses a Weyl sequence with golden-ratio increment
+// and the MurmurHash3 32-bit finalizer as output mixing function.
+// Reference: https://doi.org/10.1145/2714064.2660195
+// Test results: https://lemire.me/blog/2017/08/22/testing-non-cryptographic-random-number-generators-my-results/
+// Seeded lazily from the platform's secure RNG via random_bytes().
+// ESP8266 uses os_random() instead (defined in esp8266/helpers.cpp).
+#ifndef USE_ESP8266
+static uint32_t splitmix32_state;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+uint32_t random_uint32() {
+  // State of 0 means unseeded. The state will wrap back to 0 after 2^32 calls,
+  // triggering one extra random_bytes() call — an acceptable trade-off vs. adding
+  // a separate bool flag (4 bytes BSS + branch on every call).
+  if (splitmix32_state == 0) {
+    random_bytes(reinterpret_cast<uint8_t *>(&splitmix32_state), sizeof(splitmix32_state));
+    splitmix32_state |= 1;  // ensure non-zero seed
+  }
+  splitmix32_state += 0x9e3779b9u;
+  uint32_t z = splitmix32_state;
+  z = (z ^ (z >> 16)) * 0x85ebca6bu;
+  z = (z ^ (z >> 13)) * 0xc2b2ae35u;
+  return z ^ (z >> 16);
+}
+#endif
 
 float random_float() { return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX); }
 
@@ -295,7 +334,7 @@ size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
   size_t chars = std::min(length, 2 * count);
   for (size_t i = 2 * count - chars; i < 2 * count; i++, str++) {
     uint8_t val = parse_hex_char(*str);
-    if (val > 15)
+    if (val == INVALID_HEX_CHAR)
       return 0;
     data[i >> 1] = (i & 1) ? data[i >> 1] | val : val << 4;
   }
@@ -308,17 +347,18 @@ std::string format_mac_address_pretty(const uint8_t *mac) {
   return std::string(buf);
 }
 
-// Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase
+// Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase.
+// When separator is set, it is written unconditionally after each byte and the last
+// one is overwritten with '\0', eliminating the per-byte `i < length - 1` check.
 static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator,
                                  char base) {
-  if (length == 0) {
-    buffer[0] = '\0';
+  if (length == 0 || buffer_size == 0) {
+    if (buffer_size > 0)
+      buffer[0] = '\0';
     return buffer;
   }
-  // With separator: total length is 3*length (2*length hex chars, (length-1) separators, 1 null terminator)
-  // Without separator: total length is 2*length + 1 (2*length hex chars, 1 null terminator)
   uint8_t stride = separator ? 3 : 2;
-  size_t max_bytes = separator ? (buffer_size / stride) : ((buffer_size - 1) / stride);
+  size_t max_bytes = separator ? (buffer_size / 3) : ((buffer_size - 1) / 2);
   if (max_bytes == 0) {
     buffer[0] = '\0';
     return buffer;
@@ -330,12 +370,28 @@ static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t
     size_t pos = i * stride;
     buffer[pos] = format_hex_char(data[i] >> 4, base);
     buffer[pos + 1] = format_hex_char(data[i] & 0x0F, base);
-    if (separator && i < length - 1) {
+    if (separator) {
       buffer[pos + 2] = separator;
     }
   }
+  // With separator: overwrite last separator with '\0'
+  // Without: write '\0' after last hex char
   buffer[length * stride - (separator ? 1 : 0)] = '\0';
   return buffer;
+}
+
+char *uint32_to_str_unchecked(char *buf, uint32_t val) {
+  if (val == 0) {
+    *buf++ = '0';
+    return buf;
+  }
+  char *start = buf;
+  while (val > 0) {
+    *buf++ = '0' + (val % 10);
+    val /= 10;
+  }
+  std::reverse(start, buf);
+  return buf;
 }
 
 char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
@@ -468,8 +524,15 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
 
 static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_decimals) {
   if (accuracy_decimals < 0) {
-    auto multiplier = powf(10.0f, accuracy_decimals);
-    value = roundf(value * multiplier) / multiplier;
+    float divisor;
+    if (accuracy_decimals == -1) {
+      divisor = 10.0f;
+    } else if (accuracy_decimals == -2) {
+      divisor = 100.0f;
+    } else {
+      divisor = pow10_int(-accuracy_decimals);
+    }
+    value = roundf(value / divisor) * divisor;
     accuracy_decimals = 0;
   }
 }
@@ -545,38 +608,36 @@ static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c ==
 
 std::string base64_encode(const std::vector<uint8_t> &buf) { return base64_encode(buf.data(), buf.size()); }
 
+// Encode 3 input bytes to 4 base64 characters, append 'count' to ret.
+static inline void base64_encode_triple(const char *char_array_3, int count, std::string &ret) {
+  char char_array_4[4];
+  char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+  char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+  char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+  char_array_4[3] = char_array_3[2] & 0x3f;
+
+  for (int j = 0; j < count; j++)
+    ret += BASE64_CHARS[static_cast<uint8_t>(char_array_4[j])];
+}
+
 std::string base64_encode(const uint8_t *buf, size_t buf_len) {
   std::string ret;
   int i = 0;
-  int j = 0;
   char char_array_3[3];
-  char char_array_4[4];
 
   while (buf_len--) {
     char_array_3[i++] = *(buf++);
     if (i == 3) {
-      char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-      char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-      char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
-      char_array_4[3] = char_array_3[2] & 0x3f;
-
-      for (i = 0; (i < 4); i++)
-        ret += BASE64_CHARS[static_cast<uint8_t>(char_array_4[i])];
+      base64_encode_triple(char_array_3, 4, ret);
       i = 0;
     }
   }
 
   if (i) {
-    for (j = i; j < 3; j++)
+    for (int j = i; j < 3; j++)
       char_array_3[j] = '\0';
 
-    char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-    char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-    char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
-    char_array_4[3] = char_array_3[2] & 0x3f;
-
-    for (j = 0; (j < i + 1); j++)
-      ret += BASE64_CHARS[static_cast<uint8_t>(char_array_4[j])];
+    base64_encode_triple(char_array_3, i + 1, ret);
 
     while ((i++ < 3))
       ret += '=';
@@ -589,13 +650,33 @@ size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf
   return base64_decode(reinterpret_cast<const uint8_t *>(encoded_string.data()), encoded_string.size(), buf, buf_len);
 }
 
+// Decode 4 base64 characters to up to 'count' output bytes, returns true if truncated.
+static inline bool base64_decode_quad(uint8_t *char_array_4, int count, uint8_t *buf, size_t buf_len, size_t &out) {
+  for (int i = 0; i < 4; i++)
+    char_array_4[i] = base64_find_char(char_array_4[i]);
+
+  uint8_t char_array_3[3];
+  char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+  char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+  char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+  bool truncated = false;
+  for (int j = 0; j < count; j++) {
+    if (out < buf_len) {
+      buf[out++] = char_array_3[j];
+    } else {
+      truncated = true;
+    }
+  }
+  return truncated;
+}
+
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len) {
   size_t in_len = encoded_len;
   int i = 0;
-  int j = 0;
   size_t in = 0;
   size_t out = 0;
-  uint8_t char_array_4[4], char_array_3[3];
+  uint8_t char_array_4[4];
   bool truncated = false;
 
   // SAFETY: The loop condition checks is_base64() before processing each character.
@@ -605,42 +686,16 @@ size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *b
     char_array_4[i++] = encoded_data[in];
     in++;
     if (i == 4) {
-      for (i = 0; i < 4; i++)
-        char_array_4[i] = base64_find_char(char_array_4[i]);
-
-      char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-      char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-      char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
-
-      for (i = 0; i < 3; i++) {
-        if (out < buf_len) {
-          buf[out++] = char_array_3[i];
-        } else {
-          truncated = true;
-        }
-      }
+      truncated |= base64_decode_quad(char_array_4, 3, buf, buf_len, out);
       i = 0;
     }
   }
 
   if (i) {
-    for (j = i; j < 4; j++)
+    for (int j = i; j < 4; j++)
       char_array_4[j] = 0;
 
-    for (j = 0; j < 4; j++)
-      char_array_4[j] = base64_find_char(char_array_4[j]);
-
-    char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-    char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-    char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
-
-    for (j = 0; j < i - 1; j++) {
-      if (out < buf_len) {
-        buf[out++] = char_array_3[j];
-      } else {
-        truncated = true;
-      }
-    }
+    truncated |= base64_decode_quad(char_array_4, i - 1, buf, buf_len, out);
   }
 
   if (truncated) {
@@ -707,7 +762,7 @@ float gamma_correct(float value, float gamma) {
   if (gamma <= 0.0f)
     return value;
 
-  return powf(value, gamma);
+  return powf(value, gamma);  // NOLINT - deprecated, removal 2026.9.0
 }
 float gamma_uncorrect(float value, float gamma) {
   if (value <= 0.0f)
@@ -715,7 +770,7 @@ float gamma_uncorrect(float value, float gamma) {
   if (gamma <= 0.0f)
     return value;
 
-  return powf(value, 1 / gamma);
+  return powf(value, 1 / gamma);  // NOLINT - deprecated, removal 2026.9.0
 }
 
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {
@@ -795,7 +850,6 @@ void HighFrequencyLoopRequester::stop() {
   num_requests--;
   this->started_ = false;
 }
-bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; }
 
 std::string get_mac_address() {
   uint8_t mac[6];
@@ -839,16 +893,25 @@ bool mac_address_is_valid(const uint8_t *mac) {
       is_all_ones = false;
     }
   }
-  return !(is_all_zeros || is_all_ones);
+  if (is_all_zeros || is_all_ones) {
+    return false;
+  }
+  // Reject multicast MACs (bit 0 of first byte set) - device MACs must be unicast.
+  // This catches garbage data from corrupted eFuse custom MAC areas, which often
+  // has random values that would otherwise pass the all-zeros/all-ones check.
+  if (mac[0] & 0x01) {
+    return false;
+  }
+  return true;
 }
 
 void IRAM_ATTR HOT delay_microseconds_safe(uint32_t us) {
   // avoids CPU locks that could trigger WDT or affect WiFi/BT stability
   uint32_t start = micros();
 
-  const uint32_t lag = 5000;  // microseconds, specifies the maximum time for a CPU busy-loop.
-                              // it must be larger than the worst-case duration of a delay(1) call (hardware tasks)
-                              // 5ms is conservative, it could be reduced when exact BT/WiFi stack delays are known
+  constexpr uint32_t lag = 5000;  // microseconds, specifies the maximum time for a CPU busy-loop.
+                                  // it must be larger than the worst-case duration of a delay(1) call (hardware tasks)
+                                  // 5ms is conservative, it could be reduced when exact BT/WiFi stack delays are known
   if (us > lag) {
     delay((us - lag) / 1000UL);  // note: in disabled-interrupt contexts delay() won't actually sleep
     while (micros() - start < us - lag)

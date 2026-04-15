@@ -8,7 +8,7 @@ from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_NAME
-from esphome.core import CORE
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 from .const_zephyr import (
@@ -84,8 +84,8 @@ def validate_number_of_ep(config: ConfigType) -> None:
         raise cv.Invalid("At least one zigbee device need to be included")
     count = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
     if count == 1:
-        raise cv.Invalid(
-            "Single endpoint is not supported https://github.com/Koenkk/zigbee2mqtt/issues/29888"
+        _LOGGER.warning(
+            "Single endpoint requires ZHA or at leatst Zigbee2MQTT 2.8.0. For older versions of Zigbee2MQTT use multiple endpoints"
         )
     if count > CONF_MAX_EP_NUMBER and not CORE.testing_mode:
         raise cv.Invalid(f"Maximum number of end points is {CONF_MAX_EP_NUMBER}")
@@ -96,6 +96,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ZIGBEE")
     if CORE.using_zephyr:
@@ -151,7 +152,7 @@ def consume_endpoint(config: ConfigType) -> ConfigType:
         return config
     if CONF_NAME in config and " " in config[CONF_NAME]:
         _LOGGER.warning(
-            "Spaces in '%s' work with ZHA but not Zigbee2MQTT. For Zigbee2MQTT use '%s'",
+            "Spaces in '%s' requires ZHA or at least Zigbee2MQTT 2.8.0. For older version of Zigbee2MQTT use '%s'",
             config[CONF_NAME],
             config[CONF_NAME].replace(" ", "_"),
         )
@@ -194,6 +195,7 @@ FactoryResetAction = zigbee_ns.class_(
     "zigbee.factory_reset",
     FactoryResetAction,
     ZIGBEE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def reset_zigbee_to_code(
     config: ConfigType,

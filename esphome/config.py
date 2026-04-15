@@ -12,7 +12,8 @@ from typing import Any
 import voluptuous as vol
 
 from esphome import core, loader, pins, yaml_util
-from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
+from esphome.components.substitutions import do_substitution_pass
+from esphome.config_helpers import Extend, Remove, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
@@ -957,6 +958,23 @@ class FinalValidateValidationStep(ConfigValidationStep):
         fv.full_config.reset(token)
 
 
+class CoreFinalValidateStep(ConfigValidationStep):
+    """Run final validation on core esphome config (area/device hash collisions)."""
+
+    # Same priority as component final validate steps
+    priority = -20.0
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            return
+
+        token = fv.full_config.set(result)
+        with result.catch_error([CONF_ESPHOME]):
+            if CONF_ESPHOME in result:
+                core_config.validate_ids_and_references(result[CONF_ESPHOME])
+        fv.full_config.reset(token)
+
+
 class PinUseValidationCheck(ConfigValidationStep):
     """Check for pin reuse"""
 
@@ -974,7 +992,7 @@ class PinUseValidationCheck(ConfigValidationStep):
 
 def validate_config(
     config: dict[str, Any],
-    command_line_substitutions: dict[str, Any],
+    command_line_substitutions: dict[str, Any] | None,
     skip_external_update: bool = False,
 ) -> Config:
     result = Config()
@@ -988,27 +1006,25 @@ def validate_config(
 
         result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
         try:
-            config = do_packages_pass(config, skip_update=skip_external_update)
+            config = do_packages_pass(
+                config,
+                command_line_substitutions=command_line_substitutions,
+                skip_update=skip_external_update,
+            )
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
             return result
 
-    CORE.raw_config = config
-
     # 1. Load substitutions
     if CONF_SUBSTITUTIONS in config or command_line_substitutions:
-        from esphome.components import substitutions
-
-        result[CONF_SUBSTITUTIONS] = merge_dicts_ordered(
-            config.get(CONF_SUBSTITUTIONS) or {}, command_line_substitutions
-        )
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
-        try:
-            substitutions.do_substitution_pass(config, command_line_substitutions)
-        except vol.Invalid as err:
-            result.add_error(err)
-            return result
+    try:
+        config = do_substitution_pass(config, command_line_substitutions)
+    except vol.Invalid as err:
+        CORE.raw_config = config
+        result.add_error(err)
+        return result
 
     # 1.1. Merge packages
     if CONF_PACKAGES in config:
@@ -1016,6 +1032,9 @@ def validate_config(
 
         config = merge_packages(config)
 
+    # Remove substitutions from config during validation to prevent
+    # re-substitution. Re-added to result at the end of this function.
+    substitutions = config.pop(CONF_SUBSTITUTIONS, None)
     CORE.raw_config = config
 
     # 1.2. Resolve !extend and !remove and check for REPLACEME
@@ -1083,11 +1102,16 @@ def validate_config(
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
     result.add_validation_step(IDPassValidationStep())
+    result.add_validation_step(CoreFinalValidateStep())
     result.add_validation_step(PinUseValidationCheck())
 
     result.add_validation_step(RemoveReferenceValidationStep())
 
     result.run_validation_steps()
+
+    if substitutions is not None:
+        result[CONF_SUBSTITUTIONS] = substitutions
+        result.move_to_end(CONF_SUBSTITUTIONS, last=False)
 
     return result
 

@@ -656,7 +656,7 @@ def test_clone_or_update_recover_broken_flag_prevents_infinite_loop(
     # Should raise on the second attempt when _recover_broken=False
     # This hits the "if not _recover_broken: raise" path
     with (
-        unittest.mock.patch("esphome.git.shutil.rmtree", side_effect=mock_rmtree),
+        unittest.mock.patch("esphome.git.rmtree", side_effect=mock_rmtree),
         pytest.raises(GitCommandError, match="fatal: unable to write new index file"),
     ):
         git.clone_or_update(
@@ -671,3 +671,114 @@ def test_clone_or_update_recover_broken_flag_prevents_infinite_loop(
     stash_calls = [c for c in call_list if "stash" in c[0][0]]
     # Should have exactly two stash calls
     assert len(stash_calls) == 2
+
+
+def test_clone_or_update_cleans_up_on_failed_ref_fetch(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Test that a failed ref fetch removes the incomplete clone directory.
+
+    When cloning with a specific ref, if `git clone` succeeds but the
+    subsequent `git fetch <ref>` fails, the clone directory should be
+    removed so the next attempt starts fresh instead of finding a stale
+    clone on the default branch.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "pull/123/head"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type == "clone":
+            # Simulate successful clone by creating the directory
+            repo_dir.mkdir(parents=True, exist_ok=True)
+            (repo_dir / ".git").mkdir(exist_ok=True)
+            return ""
+        if cmd_type == "fetch":
+            raise GitCommandError("fatal: couldn't find remote ref pull/123/head")
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    refresh = TimePeriodSeconds(days=1)
+
+    with pytest.raises(GitCommandError, match="couldn't find remote ref"):
+        git.clone_or_update(
+            url=url,
+            ref=ref,
+            refresh=refresh,
+            domain=domain,
+        )
+
+    # The incomplete clone directory should have been removed
+    assert not repo_dir.exists()
+
+    # Verify clone was attempted then fetch failed
+    call_list = mock_run_git_command.call_args_list
+    clone_calls = [c for c in call_list if "clone" in c[0][0]]
+    assert len(clone_calls) == 1
+    fetch_calls = [c for c in call_list if "fetch" in c[0][0]]
+    assert len(fetch_calls) == 1
+
+
+def test_clone_or_update_stale_clone_is_retried_after_cleanup(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Test that after cleanup, a subsequent call does a fresh clone.
+
+    This is the full scenario: first call fails at fetch (directory cleaned up),
+    second call sees no directory and clones fresh.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "pull/123/head"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    call_count = {"clone": 0, "fetch": 0}
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type == "clone":
+            call_count["clone"] += 1
+            repo_dir.mkdir(parents=True, exist_ok=True)
+            (repo_dir / ".git").mkdir(exist_ok=True)
+            return ""
+        if cmd_type == "fetch":
+            call_count["fetch"] += 1
+            if call_count["fetch"] == 1:
+                # First fetch fails
+                raise GitCommandError("fatal: couldn't find remote ref pull/123/head")
+            # Second fetch succeeds
+            return ""
+        if cmd_type == "reset":
+            return ""
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    refresh = TimePeriodSeconds(days=1)
+
+    # First call: clone succeeds, fetch fails, directory cleaned up
+    with pytest.raises(GitCommandError, match="couldn't find remote ref"):
+        git.clone_or_update(url=url, ref=ref, refresh=refresh, domain=domain)
+
+    assert not repo_dir.exists()
+
+    # Second call: fresh clone + fetch succeeds
+    result_dir, _ = git.clone_or_update(
+        url=url, ref=ref, refresh=refresh, domain=domain
+    )
+
+    assert result_dir == repo_dir
+    assert repo_dir.exists()
+    assert call_count["clone"] == 2
+    assert call_count["fetch"] == 2

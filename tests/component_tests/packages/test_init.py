@@ -69,7 +69,7 @@ def test_packages_skip_update_false(
     }
 
     # Call with skip_update=False (default)
-    do_packages_pass(config, skip_update=False)
+    do_packages_pass(config, command_line_substitutions={}, skip_update=False)
 
     # Verify clone_or_update was called with actual refresh value
     mock_clone_or_update.assert_called_once()
@@ -104,7 +104,7 @@ def test_packages_default_no_skip(
     }
 
     # Call without skip_update parameter
-    do_packages_pass(config)
+    do_packages_pass(config, command_line_substitutions={})
 
     # Verify clone_or_update was called with actual refresh value
     mock_clone_or_update.assert_called_once()

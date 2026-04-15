@@ -61,10 +61,6 @@ void Sml::loop() {
   }
 }
 
-void Sml::add_on_data_callback(std::function<void(std::vector<uint8_t>, bool)> &&callback) {
-  this->data_callbacks_.add(std::move(callback));
-}
-
 void Sml::process_sml_file_(const BytesView &sml_data) {
   SmlFile sml_file(sml_data);
   std::vector<ObisInfo> obis_info = sml_file.get_obis_info();

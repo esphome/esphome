@@ -8,6 +8,99 @@ import shutil  # noqa: E402
 from glob import glob  # noqa: E402
 
 
+def _parse_sdkconfig(sdkconfig_path):
+    """Parse sdkconfig file and return a dict of CONFIG_ options."""
+    options = {}
+    try:
+        for line in sdkconfig_path.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, _, value = line.partition("=")
+                # Strip surrounding quotes from string values
+                if value.startswith('"') and value.endswith('"'):
+                    value = value[1:-1]
+                options[key] = value
+    except FileNotFoundError:
+        pass
+    return options
+
+
+def sign_firmware(source, target, env):
+    """
+    Sign the firmware binary using espsecure.py if signed OTA verification is enabled.
+    Reads signing configuration from sdkconfig.
+    """
+    build_dir = pathlib.Path(env.subst("$BUILD_DIR"))
+    project_dir = pathlib.Path(env.subst("$PROJECT_DIR"))
+    pioenv = env.subst("$PIOENV")
+    sdkconfig = _parse_sdkconfig(project_dir / f"sdkconfig.{pioenv}")
+
+    if sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT") != "y":
+        return
+
+    if sdkconfig.get("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES") != "y":
+        print("Signed OTA verification enabled but build-time signing disabled.")
+        print("You must sign the firmware externally before flashing.")
+        return
+
+    signing_key = sdkconfig.get("CONFIG_SECURE_BOOT_SIGNING_KEY")
+    if not signing_key:
+        print("Error: CONFIG_SECURE_BOOT_SIGNING_KEY not set in sdkconfig")
+        env.Exit(1)
+        return
+
+    signing_key_path = pathlib.Path(signing_key)
+    if not signing_key_path.exists():
+        print(f"Error: Signing key not found: {signing_key_path}")
+        env.Exit(1)
+        return
+
+    # ESPHome only exposes RSA3072 and ECDSA256 (both Secure Boot V2 schemes),
+    # so the espsecure signature version is always 2.
+    sign_version = "2"
+
+    firmware_name = os.path.basename(env.subst("$PROGNAME")) + ".bin"
+    firmware_path = build_dir / firmware_name
+
+    if not firmware_path.exists():
+        print(f"Error: Firmware binary not found: {firmware_path}")
+        env.Exit(1)
+        return
+
+    python_exe = f'"{env.subst("$PYTHONEXE")}"'
+    unsigned_path = firmware_path.with_suffix(".unsigned.bin")
+
+    # Keep a copy of the unsigned binary
+    shutil.copyfile(str(firmware_path), str(unsigned_path))
+
+    cmd = [
+        python_exe,
+        "-m",
+        "espsecure",
+        "sign-data",
+        "--version",
+        sign_version,
+        "--keyfile",
+        str(signing_key_path),
+        "--output",
+        str(firmware_path),
+        str(unsigned_path),
+    ]
+
+    print(f"Signing firmware with key: {signing_key_path.name}")
+    result = env.Execute(
+        env.VerboseAction(" ".join(cmd), "Signing firmware with espsecure")
+    )
+
+    if result == 0:
+        print("Successfully signed firmware")
+    else:
+        print(f"Error: espsecure sign_data failed with code {result}")
+        # Restore unsigned binary on failure
+        shutil.copyfile(str(unsigned_path), str(firmware_path))
+        env.Exit(1)
+
+
 def merge_factory_bin(source, target, env):
     """
     Merges all flash sections into a single .factory.bin using esptool.
@@ -124,7 +217,8 @@ def esp32_copy_ota_bin(source, target, env):
     print(f"Copied firmware to {new_file_name}")
 
 
-# Run merge first, then ota copy second
+# Run signing first, then merge, then ota copy
+env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", sign_firmware)  # noqa: F821
 env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", merge_factory_bin)  # noqa: F821
 env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", esp32_copy_ota_bin)  # noqa: F821
 
