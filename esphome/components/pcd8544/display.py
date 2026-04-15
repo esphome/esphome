@@ -27,7 +27,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,  # CE
-            cv.Optional(CONF_CONTRAST, default=0x7F): cv.int_,
+            cv.Optional(CONF_CONTRAST, default=0x7F): cv.int_range(min=0, max=127),
         }
     )
     .extend(cv.polling_component_schema("1s"))

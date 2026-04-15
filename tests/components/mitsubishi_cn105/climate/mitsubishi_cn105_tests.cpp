@@ -60,8 +60,8 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   // Settings should still have initial values
   EXPECT_FALSE(ctx.sut.status().power_on);
   EXPECT_THAT(ctx.sut.status().target_temperature, ::testing::IsNan());
-  EXPECT_EQ(ctx.sut.status().mode, TestableMitsubishiCN105::Mode::UNKNOWN);
-  EXPECT_EQ(ctx.sut.status().fan_mode, TestableMitsubishiCN105::FanMode::UNKNOWN);
+  EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::UNKNOWN);
+  EXPECT_EQ(ctx.sut.status().fan_mode, MitsubishiCN105::FanMode::UNKNOWN);
 
   ctx.sut.set_current_time(300);
   ASSERT_FALSE(ctx.sut.update());
@@ -70,8 +70,8 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   // Check settings that we just read from received package
   EXPECT_FALSE(ctx.sut.status().power_on);
   EXPECT_EQ(ctx.sut.status().target_temperature, 24.0f);
-  EXPECT_EQ(ctx.sut.status().mode, TestableMitsubishiCN105::Mode::AUTO);
-  EXPECT_EQ(ctx.sut.status().fan_mode, TestableMitsubishiCN105::FanMode::AUTO);
+  EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::AUTO);
+  EXPECT_EQ(ctx.sut.status().fan_mode, MitsubishiCN105::FanMode::AUTO);
 
   // Now fetch room temperature (0x03)
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
@@ -269,9 +269,10 @@ TEST(MitsubishiCN105Tests, DecodeStatusSettingsPackageTempEncodedA) {
   ctx.sut.update();
 
   EXPECT_TRUE(ctx.sut.status().power_on);
+  EXPECT_FALSE(ctx.sut.use_temperature_encoding_b_);
   EXPECT_EQ(ctx.sut.status().target_temperature, 26.0f);
-  EXPECT_EQ(ctx.sut.status().mode, TestableMitsubishiCN105::Mode::COOL);
-  EXPECT_EQ(ctx.sut.status().fan_mode, TestableMitsubishiCN105::FanMode::QUIET);
+  EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::COOL);
+  EXPECT_EQ(ctx.sut.status().fan_mode, MitsubishiCN105::FanMode::QUIET);
 }
 
 TEST(MitsubishiCN105Tests, DecodeStatusSettingsPackageTempEncodedB) {
@@ -283,9 +284,10 @@ TEST(MitsubishiCN105Tests, DecodeStatusSettingsPackageTempEncodedB) {
   ctx.sut.update();
 
   EXPECT_FALSE(ctx.sut.status().power_on);
+  EXPECT_TRUE(ctx.sut.use_temperature_encoding_b_);
   EXPECT_EQ(ctx.sut.status().target_temperature, 18.5f);
-  EXPECT_EQ(ctx.sut.status().mode, TestableMitsubishiCN105::Mode::FAN_ONLY);
-  EXPECT_EQ(ctx.sut.status().fan_mode, TestableMitsubishiCN105::FanMode::SPEED_4);
+  EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::FAN_ONLY);
+  EXPECT_EQ(ctx.sut.status().fan_mode, MitsubishiCN105::FanMode::SPEED_4);
 }
 
 TEST(MitsubishiCN105Tests, DecodeStatusRoomTempPackageTempEncodedA) {
@@ -306,6 +308,89 @@ TEST(MitsubishiCN105Tests, DecodeStatusRoomTempPackageTempEncodedB) {
   ctx.sut.update();
 
   EXPECT_EQ(ctx.sut.status().room_temperature, 30.0f);
+}
+
+TEST(MitsubishiCN105Tests, ApplySettingsPowerOn) {
+  auto ctx = TestContext{};
+
+  ctx.sut.set_power(true);
+  ctx.sut.apply_settings();
+
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x01, 0x00, 0x01, 0x00, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B));
+}
+
+TEST(MitsubishiCN105Tests, ApplySettingsTemperatureEncodedA) {
+  auto ctx = TestContext{};
+
+  ctx.sut.set_target_temperature(23.0f);
+  ctx.sut.apply_settings();
+
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x04, 0x00, 0x00, 0x00, 0x08,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x71));
+}
+
+TEST(MitsubishiCN105Tests, ApplySettingsTemperatureEncodedB) {
+  auto ctx = TestContext{};
+
+  ctx.sut.use_temperature_encoding_b_ = true;
+  ctx.sut.set_target_temperature(26.0f);
+  ctx.sut.apply_settings();
+
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB4, 0x00, 0xC5));
+}
+
+TEST(MitsubishiCN105Tests, ApplyModeCool) {
+  auto ctx = TestContext{};
+
+  ctx.sut.set_mode(MitsubishiCN105::Mode::COOL);
+  ctx.sut.apply_settings();
+
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x02, 0x00, 0x00, 0x03, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78));
+}
+
+TEST(MitsubishiCN105Tests, ApplyFanModeSpeed1) {
+  auto ctx = TestContext{};
+
+  ctx.sut.set_fan_mode(MitsubishiCN105::FanMode::SPEED_1);
+  ctx.sut.apply_settings();
+
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x08, 0x00, 0x00, 0x00, 0x00,
+                                                  0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x73));
+}
+
+TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
+  auto ctx = TestContext{};
+
+  // Waiting for next scheduled status update
+  ctx.sut.state_ = TestableMitsubishiCN105::State::STATUS_UPDATED;
+  ctx.sut.set_state(TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_UPDATE);
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+
+  // Nothing to do in update (rx empty, no timeout)
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_TRUE(ctx.uart.tx.empty());
+
+  // Write new values
+  ctx.sut.use_temperature_encoding_b_ = true;
+  ctx.sut.set_power(false);
+  ctx.sut.set_target_temperature(25.0f);
+  ctx.sut.set_mode(MitsubishiCN105::Mode::HEAT);
+  ctx.sut.set_fan_mode(MitsubishiCN105::FanMode::AUTO);
+
+  // Waiting for next status update must be interrupted and new values send to AC
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x0F, 0x00, 0x00, 0x01, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB2, 0x00, 0xBB));
+
+  // Write ACK response
+  ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
 }
 
 }  // namespace esphome::mitsubishi_cn105::testing
