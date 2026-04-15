@@ -34,10 +34,9 @@ void HOT yield() { ::yield(); }
 // that Arduino library code and ISR handlers (e.g. Wiegand, ZyAura) calling
 // ::millis() directly also get the fast version. Interrupts are briefly disabled
 // to protect the static state from concurrent ISR access. The critical section
-// is bounded on *both* paths: the common path (delta < 10 ms) runs at most 10
-// subtract-and-compare iterations (~100 ns). The rare path drops out of the
-// critical section before doing the expensive /1000, so unrelated peripherals
-// and the WiFi MAC are not blocked while the divide runs.
+// is bounded: the common path (delta < 10 ms) runs at most 10 subtract-and-
+// compare iterations (~100 ns). Large gaps (WiFi scan, boot) fall back to a
+// constant-time multiply-by-reciprocal (~2.5 μs, rare).
 // Threshold above which we use constant-time /1000 instead of the while loop.
 // 10 ms means the while loop runs at most 10 iterations (~100 ns) on the
 // common path, well within the WiFi stack's ~10 μs interrupt latency budget.
@@ -57,35 +56,20 @@ uint32_t IRAM_ATTR HOT millis() {
   uint32_t delta = now_us - state.last_us;
   state.last_us = now_us;
   state.remainder += delta;
-  if (state.remainder < MILLIS_RARE_PATH_THRESHOLD_US) {
+  if (state.remainder >= MILLIS_RARE_PATH_THRESHOLD_US) {
+    // Rare path: large gap (WiFi scan, boot, long block). Constant-time
+    // conversion keeps the critical section bounded.
+    uint32_t ms = state.remainder / US_PER_MS;
+    state.cache += ms;
+    state.remainder -= ms * US_PER_MS;
+  } else {
     // Common path: small gap. Loop runs at most
     // MILLIS_RARE_PATH_THRESHOLD_US / US_PER_MS iterations.
     while (state.remainder >= US_PER_MS) {
       state.cache++;
       state.remainder -= US_PER_MS;
     }
-    uint32_t result = state.cache;
-    xt_wsr_ps(ps);
-    return result;
   }
-  // Rare path: large gap (WiFi scan, boot, long block). Take the accumulated
-  // μs out of the shared state, drop the critical section, then divide. This
-  // keeps interrupts unmasked during the ~2.5 μs __umulsidi3 — the rare path
-  // fires precisely when the system was already blocked, which is also when
-  // WiFi/peripheral ISRs most need to run on time.
-  //
-  // Concurrency on single-core ESP8266: only an ISR can preempt us. An ISR
-  // that calls millis() during the divide sees remainder=0 and a tiny delta,
-  // takes the common path, and returns the pre-commit cache. Monotonic — and
-  // any μs it adds to remainder are preserved by the `+=` on commit.
-  uint32_t pending_us = state.remainder;
-  state.remainder = 0;
-  xt_wsr_ps(ps);
-  uint32_t ms_to_add = pending_us / US_PER_MS;
-  uint32_t us_left = pending_us - ms_to_add * US_PER_MS;
-  ps = xt_rsil(15);
-  state.cache += ms_to_add;
-  state.remainder += us_left;
   uint32_t result = state.cache;
   xt_wsr_ps(ps);
   return result;
