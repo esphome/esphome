@@ -151,8 +151,8 @@ class ConfigBundleCreator:
 
     def __init__(self, config: dict[str, Any]) -> None:
         self._config = config
-        self._config_dir = CORE.config_dir
-        self._config_path = CORE.config_path
+        self._config_dir = Path(CORE.config_dir).resolve()
+        self._config_path = Path(CORE.config_path).resolve()
         self._files: list[BundleFile] = []
         self._seen_paths: set[Path] = set()
         self._secrets_paths: set[Path] = set()
@@ -267,12 +267,18 @@ class ConfigBundleCreator:
         """
         with yaml_util.track_yaml_loads() as loaded_files:
             try:
-                yaml_util.load_yaml(self._config_path)
+                data = yaml_util.load_yaml(self._config_path)
             except EsphomeError:
                 _LOGGER.debug(
                     "Bundle: re-loading YAML for include discovery failed, "
                     "proceeding with partial file list"
                 )
+            else:
+                # Nested !include produces a deferred IncludeFile that is
+                # normally resolved during the substitution pass. Force-load
+                # them here so the track_yaml_loads listener fires and the
+                # referenced files end up in the bundle.
+                _force_load_include_files(data)
 
         for fpath in loaded_files:
             if fpath == self._config_path.resolve():
@@ -606,6 +612,44 @@ def _add_bytes_to_tar(tar: tarfile.TarFile, name: str, data: bytes) -> None:
     info.gid = 0
     info.mode = 0o644
     tar.addfile(info, io.BytesIO(data))
+
+
+def _force_load_include_files(obj: Any, _seen: set[int] | None = None) -> None:
+    """Recursively resolve any ``IncludeFile`` instances in a YAML tree.
+
+    Nested ``!include`` returns a deferred ``IncludeFile`` that is only
+    resolved during the substitution pass. During bundle discovery we need
+    the referenced files to actually load so the ``track_yaml_loads``
+    listener fires for them.
+
+    ``IncludeFile`` instances with unresolved substitution variables in the
+    filename cannot be loaded — we skip and warn about those.
+    """
+    if _seen is None:
+        _seen = set()
+    if id(obj) in _seen:
+        return
+    _seen.add(id(obj))
+
+    if isinstance(obj, yaml_util.IncludeFile):
+        if obj.has_unresolved_expressions():
+            _LOGGER.warning(
+                "Bundle: cannot resolve !include with substitutions in path: %s",
+                obj.file,
+            )
+            return
+        try:
+            loaded = obj.load()
+        except EsphomeError as err:
+            _LOGGER.warning("Bundle: failed to load !include %s: %s", obj.file, err)
+            return
+        _force_load_include_files(loaded, _seen)
+    elif isinstance(obj, dict):
+        for value in obj.values():
+            _force_load_include_files(value, _seen)
+    elif isinstance(obj, (list, tuple)):
+        for item in obj:
+            _force_load_include_files(item, _seen)
 
 
 def _resolve_include_path(include_path: Any) -> Path | None:

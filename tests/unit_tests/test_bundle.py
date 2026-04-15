@@ -485,7 +485,7 @@ def test_read_bundle_manifest_minimal(tmp_path: Path) -> None:
 
     result = read_bundle_manifest(bundle_path)
     assert result.esphome_version == "unknown"
-    assert result.files == []
+    assert not result.files
     assert result.has_secrets is False
 
 
@@ -860,6 +860,56 @@ def test_discover_files_skips_missing_directory(tmp_path: Path) -> None:
 
     # Only the config file
     assert len(files) == 1
+
+
+def test_discover_files_nested_include(tmp_path: Path) -> None:
+    """Nested !include files (e.g. wifi: !include wifi.yaml) are bundled."""
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\nwifi: !include wifi.yaml\n"
+    )
+    (config_dir / "wifi.yaml").write_text('ssid: "a"\npassword: "b"\n')
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "test.yaml" in paths
+    assert "wifi.yaml" in paths
+
+
+def test_discover_files_deeply_nested_include(tmp_path: Path) -> None:
+    """Chains of !include (a includes b includes c) are fully resolved."""
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\nwifi: !include level1.yaml\n"
+    )
+    (config_dir / "level1.yaml").write_text("nested: !include level2.yaml\n")
+    (config_dir / "level2.yaml").write_text('value: "leaf"\n')
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "level1.yaml" in paths
+    assert "level2.yaml" in paths
+
+
+def test_discover_files_nested_include_unresolved_substitution(
+    tmp_path: Path,
+) -> None:
+    """!include with substitution vars in path cannot be resolved; skipped gracefully."""
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\nwifi: !include ${platform}.yaml\n"
+    )
+
+    creator = ConfigBundleCreator({})
+    # Should not raise
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "test.yaml" in paths
 
 
 def test_discover_files_yaml_reload_failure(
