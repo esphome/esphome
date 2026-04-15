@@ -273,6 +273,11 @@ class ConfigBundleCreator:
         Secrets files are tracked separately so we can filter them to
         only include the keys this config actually references.
         """
+        # NOTE: this must be a *fresh* parse. _force_load_include_files()
+        # relies on every IncludeFile being newly constructed (with an unset
+        # _content cache) so that .load() actually invokes the loader and the
+        # track_yaml_loads listener fires. Reusing an already-parsed tree
+        # would silently reintroduce the original bug.
         with yaml_util.track_yaml_loads() as loaded_files:
             try:
                 data = yaml_util.load_yaml(self._config_path)
