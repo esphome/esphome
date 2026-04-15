@@ -302,7 +302,11 @@ void DebugComponent::update_platform_() {
     this->psram_sensor_->publish_state(heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
   }
   if (this->iram_sensor_ != nullptr) {
-    this->iram_sensor_->publish_state(heap_caps_get_free_size(MALLOC_CAP_EXEC));
+    // IRAM-only free: 32-bit-accessible heap minus 8-bit-accessible heap.
+    // IRAM regions are registered as 32-bit-only; DRAM is both 8-bit and 32-bit.
+    size_t free_32bit = heap_caps_get_free_size(MALLOC_CAP_32BIT);
+    size_t free_8bit = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    this->iram_sensor_->publish_state(free_32bit > free_8bit ? free_32bit - free_8bit : 0);
   }
 #endif
 }
