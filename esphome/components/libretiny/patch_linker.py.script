@@ -6,9 +6,10 @@ import re
 
 # BK72xx linker templates declare the SRAM region as "(rw!x)" — read/write but
 # not executable. That prevents the linker from emitting functions we mark
-# IRAM_ATTR (defined as section(".data") on BK72xx in esphome/core/hal.h) into
-# the .data output section, which is the only section the SDK startup code
-# copies from flash into SRAM before main() runs.
+# IRAM_ATTR (defined as section(".data.iram_text") on BK72xx in
+# esphome/core/hal.h; folded into .data by the linker's "*(.data.*)" glob)
+# into the .data output section, which is the only section the SDK startup
+# code copies from flash into SRAM before main() runs.
 #
 # LibreTiny's own Wi-Fi driver already runs code from SRAM at runtime, so the
 # BK72xx MMU permits execution from that region; the "!x" is a stale hint in

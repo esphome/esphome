@@ -34,7 +34,13 @@ __attribute__((always_inline)) inline void wake_main_task_any_context() {
   if (in_isr_context()) {
     BaseType_t px_higher_priority_task_woken = pdFALSE;
     esphome_main_task_notify_from_isr(&px_higher_priority_task_woken);
+#ifdef portYIELD_FROM_ISR
     portYIELD_FROM_ISR(px_higher_priority_task_woken);
+#else
+    // ARM9 FreeRTOS port (BK72xx) does not define portYIELD_FROM_ISR; the IRQ
+    // exit sequence performs the context switch if one was requested.
+    (void) px_higher_priority_task_woken;
+#endif
   } else {
     esphome_main_task_notify();
   }

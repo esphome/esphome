@@ -28,15 +28,18 @@
 // varies per family, based on what each linker script already supports:
 // - RTL8710B (AmebaZ): ".image2.ram.text" output section exists.
 // - RTL8720C (AmebaZ2): "*(.sram.text*)" is already consumed.
-// - BK72xx / LN882H: stock linker script has no RAM text section, so we
-//   piggyback on ".data" — the SDK startup code copies .data from flash into
-//   SRAM before main() runs, so the function body ends up in executable RAM.
+// - BK72xx / LN882H: the stock linker script has no RAM text section, so we
+//   use ".data.iram_text" which the linker's "*(.data.*)" glob folds into
+//   the .data output section. The SDK startup code copies .data from flash
+//   into SRAM before main() runs, so the function body ends up in executable
+//   RAM. Using ".data.*" instead of plain ".data" keeps the assembler happy
+//   (no section-attribute collision) while still landing in the right place.
 #if defined(USE_LIBRETINY_VARIANT_RTL8710B)
 #define IRAM_ATTR __attribute__((noinline, section(".image2.ram.text")))
 #elif defined(USE_LIBRETINY_VARIANT_RTL8720C)
 #define IRAM_ATTR __attribute__((noinline, section(".sram.text")))
 #else
-#define IRAM_ATTR __attribute__((noinline, section(".data")))
+#define IRAM_ATTR __attribute__((noinline, section(".data.iram_text")))
 #endif
 #define PROGMEM
 
