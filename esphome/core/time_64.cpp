@@ -57,7 +57,7 @@ uint64_t Millis64Impl::compute(uint32_t now) {
 #endif
 
   // THREAD SAFETY NOTE:
-  // This function has two out-of-line implementations, based on the precompiler flags:
+  // This function has two out-of-line implementations, based on the preprocessor flags:
   // - ESPHOME_THREAD_MULTI_NO_ATOMICS - Runs on multi-threaded platforms without atomics (LibreTiny BK72xx)
   // - ESPHOME_THREAD_MULTI_ATOMICS - Runs on multi-threaded platforms with atomics (LibreTiny RTL87xx/LN882x, etc.)
   //

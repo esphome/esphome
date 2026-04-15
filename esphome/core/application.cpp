@@ -220,7 +220,7 @@ void Application::feed_wdt() {
 
 void HOT Application::feed_wdt_slow_(uint32_t time) {
   // Callers (both feed_wdt() and feed_wdt_with_time()) have already
-  // confirmed the 3 ms rate limit was exceeded.
+  // confirmed the WDT_FEED_INTERVAL_MS rate limit was exceeded.
   arch_feed_wdt();
   this->last_wdt_feed_ = time;
 #ifdef USE_STATUS_LED
@@ -243,6 +243,7 @@ void HOT Application::feed_wdt_slow_(uint32_t time) {
   }
 #endif
 }
+
 bool Application::any_component_has_status_flag_(uint8_t flag) const {
   // Walk all components (not just looping ones) so non-looping components'
   // status bits are respected. Only called from the slow-path clear helpers
