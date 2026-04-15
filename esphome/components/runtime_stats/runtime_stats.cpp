@@ -32,13 +32,18 @@ void RuntimeStatsCollector::log_stats_() {
            " Period stats (last %" PRIu32 "ms): %zu active components",
            this->log_interval_, count);
 
-  // Sum component period time so we can derive main-loop overhead
+  // Sum component time so we can derive main-loop overhead
   // (active loop time minus time attributable to component loop()s).
+  // Period sum iterates the active-in-period subset; total sum must iterate
+  // all components since total_active_time_us_ includes iterations where
+  // currently-idle components previously ran.
   uint64_t period_component_sum_us = 0;
-  uint64_t total_component_sum_us = 0;
   for (size_t i = 0; i < count; i++) {
     period_component_sum_us += sorted[i]->runtime_stats_.period_time_us;
-    total_component_sum_us += sorted[i]->runtime_stats_.total_time_us;
+  }
+  uint64_t total_component_sum_us = 0;
+  for (auto *component : components) {
+    total_component_sum_us += component->runtime_stats_.total_time_us;
   }
 
   if (count > 0) {
@@ -61,7 +66,7 @@ void RuntimeStatsCollector::log_stats_() {
     uint64_t active = this->period_active_time_us_;
     uint64_t overhead = active > period_component_sum_us ? active - period_component_sum_us : 0;
     ESP_LOGI(TAG,
-             "  main_loop: iters=%" PRIu32 ", active_avg=%.3fms, active_max=%.2fms, active_total=%.1fms, "
+             "  main_loop: iters=%" PRIu64 ", active_avg=%.3fms, active_max=%.2fms, active_total=%.1fms, "
              "overhead_total=%.1fms",
              this->period_active_count_, active / (float) this->period_active_count_ / 1000.0f,
              this->period_active_max_us_ / 1000.0f, active / 1000.0f, overhead / 1000.0f);
@@ -87,7 +92,7 @@ void RuntimeStatsCollector::log_stats_() {
     uint64_t active = this->total_active_time_us_;
     uint64_t overhead = active > total_component_sum_us ? active - total_component_sum_us : 0;
     ESP_LOGI(TAG,
-             "  main_loop: iters=%" PRIu32 ", active_avg=%.3fms, active_max=%.2fms, active_total=%.1fms, "
+             "  main_loop: iters=%" PRIu64 ", active_avg=%.3fms, active_max=%.2fms, active_total=%.1fms, "
              "overhead_total=%.1fms",
              this->total_active_count_, active / (float) this->total_active_count_ / 1000.0f,
              this->total_active_max_us_ / 1000.0f, active / 1000.0f, overhead / 1000.0f);
