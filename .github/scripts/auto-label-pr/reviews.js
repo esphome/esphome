@@ -2,7 +2,8 @@ const {
   BOT_COMMENT_MARKER,
   CODEOWNERS_MARKER,
   TOO_BIG_MARKER,
-  DEPRECATED_COMPONENT_MARKER
+  DEPRECATED_COMPONENT_MARKER,
+  ORG_FORK_MARKER
 } = require('./constants');
 
 // Generate review messages
@@ -136,6 +137,63 @@ async function handleReviews(github, context, finalLabels, originalLabelCount, d
   }
 }
 
+// Handle maintainer access warning comment
+async function handleMaintainerAccessComment(github, context, maintainerAccess) {
+  if (!maintainerAccess) {
+    return;
+  }
+
+  const { owner, repo } = context.repo;
+  const pr_number = context.issue.number;
+  const prAuthor = context.payload.pull_request.user.login;
+
+  // Check if we already posted the warning (iterate pages to exit early)
+  let existingComment;
+  for await (const { data: comments } of github.paginate.iterator(
+    github.rest.issues.listComments,
+    { owner, repo, issue_number: pr_number }
+  )) {
+    existingComment = comments.find(comment =>
+      comment.user.type === 'Bot' &&
+      comment.body && comment.body.includes(ORG_FORK_MARKER)
+    );
+    if (existingComment) {
+      break;
+    }
+  }
+
+  if (existingComment) {
+    console.log('Maintainer access warning comment already exists, skipping');
+    return;
+  }
+
+  let body;
+  if (maintainerAccess.isOrgFork) {
+    body = `${ORG_FORK_MARKER}\n### ⚠️ Organization Fork Detected\n\n` +
+      `Hey there @${prAuthor},\n` +
+      `It looks like this PR was submitted from a fork owned by the **${maintainerAccess.orgName}** organization. ` +
+      `GitHub does not allow maintainers to push changes to pull request branches when the fork is owned by an organization. ` +
+      `This means we won't be able to make small adjustments or fixups to your PR directly.\n\n` +
+      `To allow maintainer collaboration, please re-submit this PR from a personal fork instead.\n\n` +
+      `See: [Setting up the local repository](https://developers.esphome.io/contributing/development-environment/?h=org#set-up-the-local-repository) for more details.`;
+  } else {
+    body = `${ORG_FORK_MARKER}\n### ⚠️ Maintainer Access Disabled\n\n` +
+      `Hey there @${prAuthor},\n` +
+      `It looks like this PR does not have the "Allow edits from maintainers" option enabled. ` +
+      `This means we won't be able to make small adjustments or fixups to your PR directly.\n\n` +
+      `Please enable this option in the PR sidebar to allow maintainer collaboration.`;
+  }
+
+  await github.rest.issues.createComment({
+    owner,
+    repo,
+    issue_number: pr_number,
+    body
+  });
+  console.log('Created maintainer access warning comment');
+}
+
 module.exports = {
-  handleReviews
+  handleReviews,
+  handleMaintainerAccessComment
 };

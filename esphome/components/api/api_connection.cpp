@@ -52,11 +52,11 @@
 
 namespace esphome::api {
 
-// Read a maximum of 5 messages per loop iteration to prevent starving other components.
+// Maximum messages to read per loop iteration to prevent starving other components.
 // This is a balance between API responsiveness and allowing other components to run.
 // Since each message could contain multiple protobuf messages when using packet batching,
 // this limits the number of messages processed, not the number of TCP packets.
-static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 5;
+static constexpr uint8_t MAX_MESSAGES_PER_LOOP = 10;
 static constexpr uint8_t MAX_PING_RETRIES = 60;
 static constexpr uint16_t PING_RETRY_INTERVAL = 1000;
 static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
@@ -220,10 +220,17 @@ void APIConnection::loop() {
   }
 
   const uint32_t now = App.get_loop_component_start_time();
-  // Check if socket has data ready before attempting to read
-  if (this->helper_->is_socket_ready()) {
+  // Check if socket has data ready before attempting to read.
+  // Also try reading if we hit the message limit last time — LWIP's rcvevent
+  // (used by is_socket_ready) tracks pbuf dequeues, not bytes. When multiple
+  // messages share a TCP segment, the last message's data stays in LWIP's
+  // lastdata cache after rcvevent hits 0, making is_socket_ready() return false
+  // even though data remains.
+  if (this->helper_->is_socket_ready() || this->flags_.may_have_remaining_data) {
+    this->flags_.may_have_remaining_data = false;
     // Read up to MAX_MESSAGES_PER_LOOP messages per loop to improve throughput
-    for (uint8_t message_count = 0; message_count < MAX_MESSAGES_PER_LOOP; message_count++) {
+    uint8_t message_count = 0;
+    for (; message_count < MAX_MESSAGES_PER_LOOP; message_count++) {
       ReadPacketBuffer buffer;
       err = this->helper_->read_packet(&buffer);
       if (err == APIError::WOULD_BLOCK) {
@@ -244,6 +251,11 @@ void APIConnection::loop() {
         if (this->flags_.remove)
           return;
       }
+    }
+    // If we hit the limit, there may be more data remaining in LWIP's
+    // lastdata cache that rcvevent doesn't account for.
+    if (message_count == MAX_MESSAGES_PER_LOOP) {
+      this->flags_.may_have_remaining_data = true;
     }
   }
 
@@ -2086,6 +2098,13 @@ void APIConnection::process_batch_() {
     return;
   }
 
+  // Ensure TCP_NODELAY is on before draining overflow and writing batch data.
+  // Log messages enable Nagle (NODELAY off) to coalesce small packets.
+  // If Nagle is still on when we try to drain, LWIP holds data in the
+  // Nagle buffer, the TCP send buffer stays full, and the overflow
+  // buffer can never drain — blocking the batch write indefinitely.
+  this->helper_->set_nodelay_for_message(false);
+
   // Try to clear buffer first
   if (!this->try_to_clear_buffer(true)) {
     // Can't write now, we'll try again later
@@ -2192,13 +2211,6 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
     if (footer_size > 0) {
       shared_buf.resize(shared_buf.size() + footer_size);
     }
-
-    // Ensure TCP_NODELAY is on before writing batch data.
-    // Log messages enable Nagle (NODELAY off) to coalesce small packets.
-    // Without this, batch data written to the socket sits in LWIP's Nagle
-    // buffer — the remote won't ACK until it sends its own data (e.g. a
-    // ping), which can take 20+ seconds.
-    this->helper_->set_nodelay_for_message(false);
 
     // Send all collected messages
     APIError err = this->helper_->write_protobuf_messages(ProtoWriteBuffer{&shared_buf},

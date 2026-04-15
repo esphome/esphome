@@ -85,8 +85,12 @@ void Application::setup() {
     if (component->can_proceed())
       continue;
 
+    // Force the status LED to blink WARNING while we wait for a slow
+    // component to come up. Cleared after setup() finishes if no real
+    // component has warning set.
+    this->app_state_ |= STATUS_LED_WARNING;
+
     do {
-      uint8_t new_app_state = STATUS_LED_WARNING;
       uint32_t now = millis();
 
       // Process pending loop enables to handle GPIO interrupts during setup
@@ -96,16 +100,25 @@ void Application::setup() {
         // Update loop_component_start_time_ right before calling each component
         this->loop_component_start_time_ = millis();
         this->components_[j]->call();
-        new_app_state |= this->components_[j]->get_component_state();
-        this->app_state_ |= new_app_state;
         this->feed_wdt();
       }
 
       this->after_loop_tasks_();
-      this->app_state_ = new_app_state;
       yield();
     } while (!component->can_proceed() && !component->is_failed());
   }
+
+  // Setup is complete. Reconcile STATUS_LED_WARNING: the slow-setup path
+  // above may have forced it on, and any status_clear_warning() calls
+  // from components during setup were intentional no-ops (gated by
+  // APP_STATE_SETUP_COMPLETE). Walk components once here to pick up the
+  // real state. STATUS_LED_ERROR is never artificially forced, so its
+  // clear path always works and needs no reconciliation. Finally, set
+  // APP_STATE_SETUP_COMPLETE so subsequent warning clears go through
+  // the normal walk-and-clear path.
+  if (!this->any_component_has_status_flag_(STATUS_LED_WARNING))
+    this->app_state_ &= ~STATUS_LED_WARNING;
+  this->app_state_ |= APP_STATE_SETUP_COMPLETE;
 
   ESP_LOGI(TAG, "setup() finished successfully!");
 
@@ -196,21 +209,40 @@ void Application::process_dump_config_() {
   this->dump_config_at_++;
 }
 
-void HOT Application::feed_wdt(uint32_t time) {
-  static uint32_t last_feed = 0;
-  // Use provided time if available, otherwise get current time
-  uint32_t now = time ? time : millis();
-  // Compare in milliseconds (3ms threshold)
-  if (now - last_feed > 3) {
-    arch_feed_wdt();
-    last_feed = now;
-#ifdef USE_STATUS_LED
-    if (status_led::global_status_led != nullptr) {
-      status_led::global_status_led->call();
-    }
-#endif
+void Application::feed_wdt() {
+  // Cold entry: callers without a millis() timestamp in hand. Fetches the
+  // time and takes the same rate-limit path as feed_wdt_with_time().
+  uint32_t now = millis();
+  if (now - this->last_wdt_feed_ > WDT_FEED_INTERVAL_MS) {
+    this->feed_wdt_slow_(now);
   }
 }
+
+void HOT Application::feed_wdt_slow_(uint32_t time) {
+  // Callers (both feed_wdt() and feed_wdt_with_time()) have already
+  // confirmed the WDT_FEED_INTERVAL_MS rate limit was exceeded.
+  arch_feed_wdt();
+  this->last_wdt_feed_ = time;
+#ifdef USE_STATUS_LED
+  if (status_led::global_status_led != nullptr) {
+    status_led::global_status_led->call();
+  }
+#endif
+}
+
+bool Application::any_component_has_status_flag_(uint8_t flag) const {
+  // Walk all components (not just looping ones) so non-looping components'
+  // status bits are respected. Only called from the slow-path clear helpers
+  // (status_clear_warning_slow_path_ / status_clear_error_slow_path_) on an
+  // actual set→clear transition, so walking O(N) here is paid once per
+  // transition — not once per loop iteration.
+  for (auto *component : this->components_) {
+    if ((component->get_component_state() & flag) != 0)
+      return true;
+  }
+  return false;
+}
+
 void Application::reboot() {
   ESP_LOGI(TAG, "Forcing a reboot");
   for (auto &component : std::ranges::reverse_view(this->components_)) {
@@ -299,7 +331,7 @@ void Application::teardown_components(uint32_t timeout_ms) {
 
   while (pending_count > 0 && (now - start_time) < timeout_ms) {
     // Feed watchdog during teardown to prevent triggering
-    this->feed_wdt(now);
+    this->feed_wdt_with_time(now);
 
     // Process components and compact the array, keeping only those still pending
     size_t still_pending = 0;

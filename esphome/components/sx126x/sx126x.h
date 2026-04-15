@@ -3,6 +3,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "sx126x_reg.h"
 #include <utility>
 #include <vector>
@@ -100,6 +101,7 @@ class SX126x : public Component,
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
+  static void IRAM_ATTR gpio_intr(SX126x *arg);
   void configure_fsk_ook_();
   void configure_lora_();
   void set_packet_params_(uint8_t payload_length);

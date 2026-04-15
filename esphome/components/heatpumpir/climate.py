@@ -127,6 +127,6 @@ async def to_code(config):
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
     cg.add_build_flag("-Wno-error=overloaded-virtual")
 
-    cg.add_library("tonia/HeatpumpIR", "1.0.40")
+    cg.add_library("tonia/HeatpumpIR", "1.0.41")
     if CORE.is_libretiny or CORE.is_esp32:
         CORE.add_platformio_option("lib_ignore", ["IRremoteESP8266"])

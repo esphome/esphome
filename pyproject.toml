@@ -20,7 +20,6 @@ classifiers = [
     "Topic :: Home Automation",
 ]
 
-# Python 3.14 is not supported on Windows, see https://github.com/zephyrproject-rtos/windows-curses/issues/76
 requires-python = ">=3.11.0,<3.15"
 
 dynamic = ["dependencies", "optional-dependencies", "version"]

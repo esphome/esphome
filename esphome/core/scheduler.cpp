@@ -739,7 +739,13 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   App.set_current_component(item->component);
   WarnIfComponentBlockingGuard guard{item->component, now};
   item->callback();
-  return guard.finish();
+  uint32_t end = guard.finish();
+  // Feed the watchdog after each scheduled item (both main heap and defer
+  // queue paths go through here). A run of back-to-back callbacks cannot
+  // starve the wdt. The inline fast path is a load + sub + branch — nearly
+  // free when the 3 ms rate limit hasn't elapsed.
+  App.feed_wdt_with_time(end);
+  return end;
 }
 
 // Common implementation for cancel operations - handles locking

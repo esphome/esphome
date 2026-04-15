@@ -195,7 +195,10 @@ class APIFrameHelper {
   }
   // Get the frame footer size required by this protocol
   uint8_t frame_footer_size() const { return frame_footer_size_; }
-  // Check if socket has data ready to read
+  // Check if socket has buffered data ready to read.
+  // Contract: callers must read until it would block (EAGAIN/EWOULDBLOCK)
+  // or track that they stopped early and retry without this check.
+  // See Socket::ready() for details.
   bool is_socket_ready() const { return socket_ != nullptr && socket_->ready(); }
   // Release excess memory from internal buffers after initial sync
   void release_buffers() {

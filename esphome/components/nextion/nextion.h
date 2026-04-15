@@ -55,15 +55,20 @@ class NextionCommandPacer {
   uint8_t get_spacing() const { return spacing_ms_; }
 
   /**
-   * @brief Check if enough time has passed to send next command
-   * @return true if enough time has passed since last command
+   * @brief Check if enough time has passed to send the next command.
+   * @param now Current timestamp in milliseconds (use App.get_loop_component_start_time()
+   *            for consistency with the rest of the queue timing).
+   * @return true if the spacing interval has elapsed since the last command was sent.
    */
-  bool can_send() const { return (millis() - last_command_time_) >= spacing_ms_; }
+  bool can_send(uint32_t now) const { return (now - last_command_time_) >= spacing_ms_; }
 
   /**
-   * @brief Mark a command as sent, updating the timing
+   * @brief Record the transmit timestamp for the most recently sent command.
+   * @param now Current timestamp in milliseconds, as returned by
+   *            App.get_loop_component_start_time(). Must use the same clock
+   *            source as can_send() to avoid unsigned underflow.
    */
-  void mark_sent() { last_command_time_ = millis(); }
+  void mark_sent(uint32_t now) { last_command_time_ = now; }
 
  private:
   uint8_t spacing_ms_;

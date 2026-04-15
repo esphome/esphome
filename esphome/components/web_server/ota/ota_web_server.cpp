@@ -114,7 +114,25 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
                                      uint8_t *data, size_t len, bool final) {
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_OK;
 
-  if (index == 0 && !this->ota_backend_) {
+  // First byte of a new upload: index==0 with actual data. (web_server_idf
+  // fires a separate start-marker call with data==nullptr/len==0 before the
+  // first real chunk; gate on len>0 so we only trigger once per upload.)
+  if (index == 0 && len > 0) {
+    // If a previous upload was interrupted (e.g. client closed the tab, TCP
+    // reset) the backend from that session may still be open. Tear it down
+    // so flash state doesn't get concatenated with the new image (which can
+    // produce a technically-valid-sized but corrupted firmware that bricks
+    // the device once it reboots).
+    if (this->ota_backend_) {
+      ESP_LOGW(TAG, "New OTA upload received while previous session was still open; aborting previous session");
+      this->ota_backend_->abort();
+#ifdef USE_OTA_STATE_LISTENER
+      // Notify listeners that the previous session was aborted before the new one starts.
+      this->parent_->notify_state_deferred_(ota::OTA_ABORT, 0.0f, 0);
+#endif
+      this->ota_backend_.reset();
+    }
+
     // Initialize OTA on first call
     this->ota_init_(filename.c_str());
 

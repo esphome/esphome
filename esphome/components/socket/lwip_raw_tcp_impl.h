@@ -96,6 +96,8 @@ class LWIPRawImpl : public LWIPRawCommon {
     errno = ENOSYS;
     return -1;
   }
+  // Check if the socket has buffered data ready to read.
+  // See the ready() contract in socket.h — callers must drain or track remaining data.
   // Intentionally unlocked — this is a polling check called every loop iteration.
   // A stale read at worst delays processing by one loop tick; the actual I/O in
   // read() holds the lwip lock and re-checks properly. See esphome#10681.

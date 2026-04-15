@@ -1,0 +1,141 @@
+esphome:
+  name: status-flags-test
+
+host:
+api:
+  actions:
+    # Warning flag services for sensor_a
+    - action: set_warning_a
+      then:
+        - lambda: "id(sensor_a)->status_set_warning();"
+        - component.update: app_warning_bit
+        - component.update: app_error_bit
+    - action: clear_warning_a
+      then:
+        - lambda: "id(sensor_a)->status_clear_warning();"
+        - component.update: app_warning_bit
+        - component.update: app_error_bit
+
+    # Warning flag services for sensor_b
+    - action: set_warning_b
+      then:
+        - lambda: "id(sensor_b)->status_set_warning();"
+        - component.update: app_warning_bit
+        - component.update: app_error_bit
+    - action: clear_warning_b
+      then:
+        - lambda: "id(sensor_b)->status_clear_warning();"
+        - component.update: app_warning_bit
+        - component.update: app_error_bit
+
+    # Error flag services for sensor_a
+    - action: set_error_a
+      then:
+        - lambda: "id(sensor_a)->status_set_error();"
+        - component.update: app_warning_bit
+        - component.update: app_error_bit
+    - action: clear_error_a
+      then:
+        - lambda: "id(sensor_a)->status_clear_error();"
+        - component.update: app_warning_bit
+        - component.update: app_error_bit
+
+    # Error flag services for sensor_b
+    - action: set_error_b
+      then:
+        - lambda: "id(sensor_b)->status_set_error();"
+        - component.update: app_warning_bit
+        - component.update: app_error_bit
+    - action: clear_error_b
+      then:
+        - lambda: "id(sensor_b)->status_clear_error();"
+        - component.update: app_warning_bit
+        - component.update: app_error_bit
+
+    # Snapshot of the status_led_light's output state for observation.
+    - action: snapshot_led
+      then:
+        - component.update: status_led_writes
+        - component.update: status_led_last_state
+
+logger:
+
+# Tracks each write to the fake status_led output.
+globals:
+  - id: status_led_write_count
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: status_led_last_write
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+# Fake binary output — status_led_light writes to this instead of a pin.
+# Every write bumps a counter and records the last value, both of which
+# are exposed below so the test can verify status_led_light's loop is
+# actually reading App.get_app_state() and responding.
+output:
+  - platform: template
+    id: fake_status_led
+    type: binary
+    write_action:
+      - globals.set:
+          id: status_led_write_count
+          value: !lambda "return id(status_led_write_count) + 1;"
+      - globals.set:
+          id: status_led_last_write
+          value: !lambda "return state;"
+
+# Actual status_led_light component under test.
+light:
+  - platform: status_led
+    name: Status LED
+    id: status_led_light_id
+    output: fake_status_led
+
+sensor:
+  # Two components that the test will toggle warning/error flags on.
+  - platform: template
+    name: Sensor A
+    id: sensor_a
+    update_interval: 24h
+    lambda: return 1.0;
+  - platform: template
+    name: Sensor B
+    id: sensor_b
+    update_interval: 24h
+    lambda: return 2.0;
+
+  # Expose App.app_state_'s STATUS_LED_WARNING / STATUS_LED_ERROR bits
+  # as 0.0 / 1.0. force_update ensures every manual component.update
+  # publishes even if the value is unchanged.
+  - platform: template
+    name: App Warning Bit
+    id: app_warning_bit
+    update_interval: 24h
+    force_update: true
+    lambda: |-
+      return (App.get_app_state() & STATUS_LED_WARNING) != 0 ? 1.0 : 0.0;
+  - platform: template
+    name: App Error Bit
+    id: app_error_bit
+    update_interval: 24h
+    force_update: true
+    lambda: |-
+      return (App.get_app_state() & STATUS_LED_ERROR) != 0 ? 1.0 : 0.0;
+
+  # Observables for the fake status_led output.
+  - platform: template
+    name: Status LED Writes
+    id: status_led_writes
+    update_interval: 24h
+    force_update: true
+    lambda: return id(status_led_write_count);
+  - platform: template
+    name: Status LED Last State
+    id: status_led_last_state
+    update_interval: 24h
+    force_update: true
+    lambda: |-
+      return id(status_led_last_write) ? 1.0 : 0.0;

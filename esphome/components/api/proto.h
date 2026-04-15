@@ -352,6 +352,12 @@ class ProtoEncode {
     PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
     *pos++ = b;
   }
+  /// Reserve one byte for later backpatch (e.g., sub-message length).
+  /// Advances pos past the reserved byte without writing a value.
+  static inline void ESPHOME_ALWAYS_INLINE reserve_byte(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM) {
+    PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
+    pos++;
+  }
   /// Write raw bytes to the buffer (no tag, no length prefix).
   static inline void ESPHOME_ALWAYS_INLINE encode_raw(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
                                                       const void *data, size_t len) {
