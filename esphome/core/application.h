@@ -877,6 +877,11 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
+#ifdef USE_RUNTIME_STATS
+  // Capture the start of the active (non-sleeping) portion of this iteration.
+  // Used to derive main-loop overhead = active time − Σ(component time).
+  uint32_t loop_active_start_us = micros();
+#endif
   // Get the initial loop time at the start
   uint32_t last_op_end_time = millis();
 
@@ -905,6 +910,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // Process any pending runtime stats printing after all components have run
   // This ensures stats printing doesn't affect component timing measurements
   if (global_runtime_stats != nullptr) {
+    global_runtime_stats->record_loop_active(micros() - loop_active_start_us);
     global_runtime_stats->process_pending_stats(last_op_end_time);
   }
 #endif
