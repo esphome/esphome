@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_RATE,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_HOUR,
     UNIT_PERCENT,
@@ -27,7 +28,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=3,  # Actual Resolution: 78.125µV/cell
-                device_class=DEVICE_CLASS_BATTERY,
+                device_class=DEVICE_CLASS_VOLTAGE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
@@ -39,7 +40,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_RATE): sensor.sensor_schema(
                 unit_of_measurement=f"{UNIT_PERCENT}/{UNIT_HOUR}",
                 accuracy_decimals=1,  # Actual Resolution: 0.208%/hr
-                device_class=DEVICE_CLASS_BATTERY,
+                device_class=None,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
