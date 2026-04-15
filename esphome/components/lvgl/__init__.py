@@ -2,14 +2,14 @@ import importlib
 from pathlib import Path
 import pkgutil
 
-from esphome.automation import build_automation, validate_automation
+from esphome.automation import Trigger, build_automation, validate_automation
 import esphome.codegen as cg
 from esphome.components.const import (
     CONF_BYTE_ORDER,
     CONF_COLOR_DEPTH,
     CONF_DRAW_ROUNDING,
 )
-from esphome.components.display import Display
+from esphome.components.display import Display, get_display_metadata, validate_rotation
 from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     add_idf_component,
@@ -34,9 +34,9 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_LOG_LEVEL,
-    CONF_ON_BOOT,
     CONF_ON_IDLE,
     CONF_PAGES,
+    CONF_ROTATION,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
 )
@@ -48,6 +48,7 @@ from esphome.yaml_util import load_yaml
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
 from .automation import focused_widgets, layers_to_code, lvgl_update, refreshed_widgets
+from .defines import CONF_ALIGN_TO_LAMBDA_ID
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -57,7 +58,7 @@ from .encoders import (
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .keypads import KEYPADS_CONFIG, keypads_to_code
 from .lv_validation import lv_bool, lv_images_used
-from .lvcode import LvContext, LvglComponent, lvgl_static
+from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
@@ -69,8 +70,18 @@ from .schemas import (
 )
 from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
-from .trigger import add_on_boot_triggers, generate_triggers
-from .types import IdleTrigger, PlainTrigger, lv_font_t, lv_group_t, lv_style_t, lvgl_ns
+from .trigger import generate_align_tos, generate_triggers
+from .types import (
+    IdleTrigger,
+    PlainTrigger,
+    RotationType,
+    lv_font_t,
+    lv_group_t,
+    lv_lambda_t,
+    lv_obj_t_ptr,
+    lv_style_t,
+    lvgl_ns,
+)
 from .widgets import (
     LvScrActType,
     Widget,
@@ -183,6 +194,11 @@ def final_validation(config_list):
                 raise cv.Invalid(
                     "Using lambda: or pages: in display config is not compatible with LVGL"
                 )
+            # treating 0 as false is intended here.
+            if display.get(CONF_ROTATION):
+                raise cv.Invalid(
+                    "use of 'rotation' in the display config is not compatible with LVGL, please set rotation in the LVGL config instead"
+                )
             if display.get(CONF_AUTO_CLEAR_ENABLED) is True:
                 raise cv.Invalid(
                     "Using auto_clear_enabled: true in display config not compatible with LVGL"
@@ -226,6 +242,9 @@ async def to_code(configs):
     config_0 = configs[0]
     # Global configuration
     if CORE.is_esp32:
+        # Skip compiling lvgl examples
+        add_idf_sdkconfig_option("CONFIG_LV_BUILD_EXAMPLES", False)
+        add_idf_sdkconfig_option("CONFIG_LV_BUILD_DEMOS", False)
         if get_esp32_variant() == VARIANT_ESP32P4:
             add_idf_sdkconfig_option("CONFIG_LV_DRAW_BUF_ALIGN", 64)
             # disable use of PPA for fills until upstream bugs fixed
@@ -242,6 +261,7 @@ async def to_code(configs):
     df.add_define("LV_USE_STDLIB_SPRINTF", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_STRING", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
+    df.add_define("LV_DEF_REFR_PERIOD", "16")
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     # cg.add_define("LV_KCONFIG_PRESENT")
@@ -310,6 +330,21 @@ async def to_code(configs):
         displays = [
             await cg.get_variable(display) for display in config[df.CONF_DISPLAYS]
         ]
+        rotation_type = RotationType.ROTATION_UNUSED
+        # options will have CONF_ROTATION true if rotation is changed in an automation.
+        if CONF_ROTATION in config or df.get_options().get(CONF_ROTATION) is True:
+            if all(
+                get_display_metadata(str(disp)).has_hardware_rotation
+                for disp in displays
+            ):
+                rotation_type = RotationType.ROTATION_HARDWARE
+                df.LOGGER.info("LVGL will use hardware rotation via display driver")
+            else:
+                rotation_type = RotationType.ROTATION_SOFTWARE
+                if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32P4:
+                    df.LOGGER.info("LVGL will use software rotation (PPA accelerated)")
+                else:
+                    df.LOGGER.info("LVGL will use software rotation")
         lv_component = cg.new_Pvariable(
             config[CONF_ID],
             displays,
@@ -318,8 +353,11 @@ async def to_code(configs):
             config[CONF_DRAW_ROUNDING],
             config[df.CONF_RESUME_ON_INPUT],
             config[df.CONF_UPDATE_WHEN_DISPLAY_IDLE],
+            rotation_type,
         )
         await cg.register_component(lv_component, config)
+        if rotation := config.get(CONF_ROTATION):
+            cg.add(lv_component.set_rotation(rotation))
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
         lv_scr_act = get_screen_active(lv_component)
@@ -342,6 +380,7 @@ async def to_code(configs):
     Widget.widgets_completed = True
     async with LvContext():
         await generate_triggers()
+        await generate_align_tos(configs[0])
         for config in configs:
             lv_component = await cg.get_variable(config[CONF_ID])
             await generate_page_triggers(config)
@@ -362,12 +401,14 @@ async def to_code(configs):
                             f"set_{trigger_name.removeprefix('on_')}_trigger",
                         )(trigger_var)
                     )
-            await add_on_boot_triggers(config.get(CONF_ON_BOOT, ()))
 
     # This must be done after all widgets are created
     for comp in helpers.lvgl_components_required:
         cg.add_define(f"USE_LVGL_{comp.upper()}")
-    lv_image_formats = df.get_color_formats().copy()
+    for use in helpers.lv_uses:
+        df.add_define(f"LV_USE_{use.upper()}")
+        cg.add_define(f"USE_LVGL_{use.upper()}")
+
     if {
         "transform_rotation",
         "transform_scale",
@@ -375,22 +416,27 @@ async def to_code(configs):
         "transform_scale_y",
     } & styles_used:
         df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
-        lv_image_formats.add("ARGB8888")
-    lv_image_formats.add(
-        "RGB565"
-    )  # Currently always need RGB565 for the display buffer
-    for use in helpers.lv_uses:
-        df.add_define(f"LV_USE_{use.upper()}")
-        cg.add_define(f"USE_LVGL_{use.upper()}")
+
+    if configs[0].get(df.CONF_THEME, {}).get(df.CONF_DARK_MODE):
+        df.add_define("LV_THEME_DEFAULT_DARK", "1")
+
+    # Currently always need RGB565 for the display buffer, and ARGB8888 is used for layer blending
+    lv_image_formats = {"RGB565", "ARGB8888"}
+    if {
+        "drop_shadow_color",
+        "drop_shadow_offset_x",
+        "drop_shadow_offset_y",
+        "drop_shadow_opa",
+        "drop_shadow_quality",
+        "drop_shadow_radius",
+    } & styles_used:
+        lv_image_formats.add("A8")
 
     for image_id in lv_images_used:
         await cg.get_variable(image_id)
         metadata = get_image_metadata(image_id.id)
         image_type = IMAGE_TYPE[metadata.image_type]
         transparent = metadata.transparency != CONF_OPAQUE
-        if transparent:
-            # Internal draw layer will use ARGB8888
-            lv_image_formats.add("ARGB8888")
         if image_type == ImageBinary:
             lv_image_formats.add("I1")
         if image_type == ImageGrayscale:
@@ -403,10 +449,14 @@ async def to_code(configs):
         lv_image_formats.add("RGB888")
     for fmt in lv_image_formats:
         df.add_define(f"LV_DRAW_SW_SUPPORT_{fmt}", "1")
+
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
     write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
     cg.add_build_flag("-DLV_CONF_H=1")
-    cg.add_build_flag(f'-DLV_CONF_PATH=\\"{LV_CONF_FILENAME}\\"')
+    # handle windows paths in a way that doesn't break the generated C++
+    lv_conf_h_path = Path(lv_conf_h_file).as_posix()
+    cg.add_build_flag(f'-DLV_CONF_PATH=\\"{lv_conf_h_path}\\"')
+    cg.add_build_flag("-DLV_KCONFIG_IGNORE")
 
     for prop in df.get_remapped_uses():
         df.LOGGER.warning(
@@ -437,8 +487,11 @@ def add_hello_world(config):
 def _theme_schema(value):
     return cv.Schema(
         {
-            cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
-            for name, w in WIDGET_TYPES.items()
+            cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean,
+            **{
+                cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
+                for name, w in WIDGET_TYPES.items()
+            },
         }
     )(value)
 
@@ -451,7 +504,19 @@ LVGL_SCHEMA = cv.All(
         cv.polling_component_schema("1s")
         .extend(
             {
+                **{
+                    cv.Optional(event): validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                Trigger.template(lv_obj_t_ptr, lv_event_t_ptr)
+                            ),
+                        }
+                    )
+                    for event in df.LV_SCREEN_EVENT_TRIGGERS
+                    + df.LV_DISPLAY_EVENT_TRIGGERS
+                },
                 cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
+                cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
                 cv.GenerateID(df.CONF_DISPLAYS): display_schema,
                 cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
                 cv.Optional(
@@ -463,6 +528,7 @@ LVGL_SCHEMA = cv.All(
                 ): cv.boolean,
                 cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
                 cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
+                cv.Optional(CONF_ROTATION): validate_rotation,
                 cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                     *df.LV_LOG_LEVELS, upper=True
                 ),

@@ -1,4 +1,4 @@
-cryptography==46.0.5
+cryptography==46.0.7
 voluptuous==0.16.0
 PyYAML==6.0.3
 paho-mqtt==1.6.1
@@ -10,21 +10,21 @@ tzdata>=2021.1  # from time
 pyserial==3.5
 platformio==6.1.19
 esptool==5.2.0
-click==8.3.1
-esphome-dashboard==20260210.0
-aioesphomeapi==44.7.0
+click==8.3.2
+esphome-dashboard==20260408.1
+aioesphomeapi==44.15.0
 zeroconf==0.148.0
 puremagic==1.30
 ruamel.yaml==0.19.1 # dashboard_import
 ruamel.yaml.clib==0.2.15 # dashboard_import
 esphome-glyphsets==0.2.0
-pillow==12.1.1
-resvg-py==0.2.6
+pillow==12.2.0
+resvg-py==0.3.1
 freetype-py==2.5.1
 jinja2==3.1.6
 bleak==2.1.1
 smpclient==6.0.0
-requests==2.32.5
+requests==2.33.1
 
 # esp-idf >= 5.0 requires this
 pyparsing >= 3.0

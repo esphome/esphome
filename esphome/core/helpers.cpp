@@ -22,6 +22,19 @@ namespace esphome {
 
 static const char *const TAG = "helpers";
 
+__attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity,
+                                                            size_t elem_size) {
+  ESPHOME_DEBUG_ASSERT(size < UINT16_MAX);
+  uint16_t new_cap = size + 1;
+  auto *new_data = ::operator new(new_cap *elem_size);
+  if (data) {
+    __builtin_memcpy(new_data, data, size * elem_size);
+    ::operator delete(data);
+  }
+  capacity = new_cap;
+  return new_data;
+}
+
 static const uint16_t CRC16_A001_LE_LUT_L[] = {0x0000, 0xc0c1, 0xc181, 0x0140, 0xc301, 0x03c0, 0x0280, 0xc241,
                                                0xc601, 0x06c0, 0x0780, 0xc741, 0x0500, 0xc5c1, 0xc481, 0x0440};
 static const uint16_t CRC16_A001_LE_LUT_H[] = {0x0000, 0xcc01, 0xd801, 0x1400, 0xf001, 0x3c00, 0x2800, 0xe401,
@@ -334,17 +347,18 @@ std::string format_mac_address_pretty(const uint8_t *mac) {
   return std::string(buf);
 }
 
-// Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase
+// Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase.
+// When separator is set, it is written unconditionally after each byte and the last
+// one is overwritten with '\0', eliminating the per-byte `i < length - 1` check.
 static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator,
                                  char base) {
-  if (length == 0) {
-    buffer[0] = '\0';
+  if (length == 0 || buffer_size == 0) {
+    if (buffer_size > 0)
+      buffer[0] = '\0';
     return buffer;
   }
-  // With separator: total length is 3*length (2*length hex chars, (length-1) separators, 1 null terminator)
-  // Without separator: total length is 2*length + 1 (2*length hex chars, 1 null terminator)
   uint8_t stride = separator ? 3 : 2;
-  size_t max_bytes = separator ? (buffer_size / stride) : ((buffer_size - 1) / stride);
+  size_t max_bytes = separator ? (buffer_size / 3) : ((buffer_size - 1) / 2);
   if (max_bytes == 0) {
     buffer[0] = '\0';
     return buffer;
@@ -356,12 +370,28 @@ static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t
     size_t pos = i * stride;
     buffer[pos] = format_hex_char(data[i] >> 4, base);
     buffer[pos + 1] = format_hex_char(data[i] & 0x0F, base);
-    if (separator && i < length - 1) {
+    if (separator) {
       buffer[pos + 2] = separator;
     }
   }
+  // With separator: overwrite last separator with '\0'
+  // Without: write '\0' after last hex char
   buffer[length * stride - (separator ? 1 : 0)] = '\0';
   return buffer;
+}
+
+char *uint32_to_str_unchecked(char *buf, uint32_t val) {
+  if (val == 0) {
+    *buf++ = '0';
+    return buf;
+  }
+  char *start = buf;
+  while (val > 0) {
+    *buf++ = '0' + (val % 10);
+    val /= 10;
+  }
+  std::reverse(start, buf);
+  return buf;
 }
 
 char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
@@ -863,7 +893,16 @@ bool mac_address_is_valid(const uint8_t *mac) {
       is_all_ones = false;
     }
   }
-  return !(is_all_zeros || is_all_ones);
+  if (is_all_zeros || is_all_ones) {
+    return false;
+  }
+  // Reject multicast MACs (bit 0 of first byte set) - device MACs must be unicast.
+  // This catches garbage data from corrupted eFuse custom MAC areas, which often
+  // has random values that would otherwise pass the all-zeros/all-ones check.
+  if (mac[0] & 0x01) {
+    return false;
+  }
+  return true;
 }
 
 void IRAM_ATTR HOT delay_microseconds_safe(uint32_t us) {

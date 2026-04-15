@@ -266,8 +266,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_WAKEUP_PIN): validate_wakeup_pin,
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
                 cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
-                cv.enum(WAKEUP_PIN_MODES),
-                upper=True,
+                cv.enum(WAKEUP_PIN_MODES, upper=True),
             ),
             cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(
                 cv.only_on_esp32,

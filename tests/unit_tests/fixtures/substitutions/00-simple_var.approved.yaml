@@ -38,3 +38,20 @@ test_list:
   - '{ 79, 82 }'
   - a: 15 should be 15, overridden from command line
     b: 20 should stay as 20, not overridden
+  - aa:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+    bb:
+      - 7
+      - 8
+      - 9
+  - aa:
+      x: 1
+      y: 3
+      z: 4
+    bb:
+      w: 5

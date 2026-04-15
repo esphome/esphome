@@ -7,7 +7,6 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import socket
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 from esphome.components.esp32.const import VARIANT_ESP32C2
 import esphome.config_validation as cv
@@ -134,10 +133,38 @@ class HandlerCounts:
 _handler_counts = HandlerCounts()
 
 
+def _add_callback(
+    parent_var: cg.MockObj,
+    method: str,
+    handler_var: cg.MockObj,
+    params: str,
+    call_args: str,
+) -> None:
+    """Generate a lambda callback that forwards to a handler method.
+
+    Uses a braced scope with a local pointer variable so the generated C++
+    lambda captures only that pointer, avoiding GCC warnings about capturing
+    variables with static storage duration.
+    """
+    cg.add(
+        cg.RawStatement(
+            f"{{ auto *h = {handler_var}; "
+            f"{parent_var}->{method}("
+            f"[h]({params}) {{ h->{call_args}; }}); }}"
+        )
+    )
+
+
 def register_gap_event_handler(parent_var: cg.MockObj, handler_var: cg.MockObj) -> None:
     """Register a GAP event handler and track the count."""
     _handler_counts.gap_event += 1
-    cg.add(parent_var.register_gap_event_handler(handler_var))
+    _add_callback(
+        parent_var,
+        "add_gap_event_callback",
+        handler_var,
+        "esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param",
+        "gap_event_handler(event, param)",
+    )
 
 
 def register_gap_scan_event_handler(
@@ -145,7 +172,13 @@ def register_gap_scan_event_handler(
 ) -> None:
     """Register a GAP scan event handler and track the count."""
     _handler_counts.gap_scan_event += 1
-    cg.add(parent_var.register_gap_scan_event_handler(handler_var))
+    _add_callback(
+        parent_var,
+        "add_gap_scan_event_callback",
+        handler_var,
+        "const esphome::esp32_ble::BLEScanResult &scan_result",
+        "gap_scan_event_handler(scan_result)",
+    )
 
 
 def register_gattc_event_handler(
@@ -153,7 +186,13 @@ def register_gattc_event_handler(
 ) -> None:
     """Register a GATTc event handler and track the count."""
     _handler_counts.gattc_event += 1
-    cg.add(parent_var.register_gattc_event_handler(handler_var))
+    _add_callback(
+        parent_var,
+        "add_gattc_event_callback",
+        handler_var,
+        "esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param",
+        "gattc_event_handler(event, gattc_if, param)",
+    )
 
 
 def register_gatts_event_handler(
@@ -161,7 +200,13 @@ def register_gatts_event_handler(
 ) -> None:
     """Register a GATTs event handler and track the count."""
     _handler_counts.gatts_event += 1
-    cg.add(parent_var.register_gatts_event_handler(handler_var))
+    _add_callback(
+        parent_var,
+        "add_gatts_event_callback",
+        handler_var,
+        "esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param",
+        "gatts_event_handler(event, gatts_if, param)",
+    )
 
 
 def register_ble_status_event_handler(
@@ -169,7 +214,13 @@ def register_ble_status_event_handler(
 ) -> None:
     """Register a BLE status event handler and track the count."""
     _handler_counts.ble_status_event += 1
-    cg.add(parent_var.register_ble_status_event_handler(handler_var))
+    _add_callback(
+        parent_var,
+        "add_ble_status_event_callback",
+        handler_var,
+        "",
+        "ble_before_disabled_event_handler()",
+    )
 
 
 def register_bt_logger(*loggers: BTLoggers) -> None:
@@ -224,10 +275,6 @@ NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
-
-GAPEventHandler = esp32_ble_ns.class_("GAPEventHandler")
-GATTcEventHandler = esp32_ble_ns.class_("GATTcEventHandler")
-GATTsEventHandler = esp32_ble_ns.class_("GATTsEventHandler")
 
 BLEEnabledCondition = esp32_ble_ns.class_("BLEEnabledCondition", automation.Condition)
 BLEEnableAction = esp32_ble_ns.class_("BLEEnableAction", automation.Action)
@@ -326,14 +373,14 @@ def bt_uuid(value):
     value = in_value.upper()
 
     if len(value) == len(bt_uuid16_format):
-        pattern = re.compile("^[A-F|0-9]{4,}$")
+        pattern = re.compile("^[A-F0-9]{4,}$")
         if not pattern.match(value):
             raise cv.Invalid(
                 f"Invalid hexadecimal value for 16 bit UUID format: '{in_value}'"
             )
         return value
     if len(value) == len(bt_uuid32_format):
-        pattern = re.compile("^[A-F|0-9]{8,}$")
+        pattern = re.compile("^[A-F0-9]{8,}$")
         if not pattern.match(value):
             raise cv.Invalid(
                 f"Invalid hexadecimal value for 32 bit UUID format: '{in_value}'"
@@ -341,7 +388,7 @@ def bt_uuid(value):
         return value
     if len(value) == len(bt_uuid128_format):
         pattern = re.compile(
-            "^[A-F|0-9]{8,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{12,}$"
+            "^[A-F0-9]{8,}-[A-F0-9]{4,}-[A-F0-9]{4,}-[A-F0-9]{4,}-[A-F0-9]{12,}$"
         )
         if not pattern.match(value):
             raise cv.Invalid(
@@ -543,11 +590,6 @@ async def to_code(config):
     if (name := config.get(CONF_NAME)) is not None:
         cg.add(var.set_name(name))
     await cg.register_component(var, config)
-
-    # BLE uses the socket wake_loop_threadsafe() mechanism to wake the main loop from BLE tasks
-    # This enables low-latency (~12μs) BLE event processing instead of waiting for
-    # select() timeout (0-16ms). The wake socket is shared across all components.
-    socket.require_wake_loop_threadsafe()
 
     # Define max connections for use in C++ code (e.g., ble_server.h)
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)

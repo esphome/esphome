@@ -262,19 +262,6 @@ StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) co
   return StringRef(buffer.data(), decoded_len);
 }
 
-void AsyncWebServerRequest::send(AsyncWebServerResponse *response) {
-  httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
-}
-
-void AsyncWebServerRequest::send(int code, const char *content_type, const char *content) {
-  this->init_response_(nullptr, code, content_type);
-  if (content) {
-    httpd_resp_send(*this, content, HTTPD_RESP_USE_STRLEN);
-  } else {
-    httpd_resp_send(*this, nullptr, 0);
-  }
-}
-
 void AsyncWebServerRequest::redirect(const std::string &url) {
   httpd_resp_set_status(*this, "302 Found");
   httpd_resp_set_hdr(*this, "Location", url.c_str());
@@ -497,9 +484,12 @@ void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
     this->on_connect_(rsp);
   }
   this->sessions_.push_back(rsp);
+  // Wake up WebServer::loop() to drain deferred event queues for this client.
+  // Safe from httpd task context via the pending_enable_loop_ flag.
+  this->web_server_->enable_loop_soon_any_context();
 }
 
-void AsyncEventSource::loop() {
+bool AsyncEventSource::loop() {
   // Clean up dead sessions safely
   // This follows the ESP-IDF pattern where free_ctx marks resources as dead
   // and the main loop handles the actual cleanup to avoid race conditions
@@ -517,6 +507,7 @@ void AsyncEventSource::loop() {
       ++i;
     }
   }
+  return !this->sessions_.empty();
 }
 
 void AsyncEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
