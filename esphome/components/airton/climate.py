@@ -45,10 +45,16 @@ AIRTON_ACTION_SCHEMA = automation.maybe_simple_id(
 
 
 @automation.register_action(
-    "climate_ir.airton.display_on", DisplayOnAction, AIRTON_ACTION_SCHEMA
+    "climate_ir.airton.display_on",
+    DisplayOnAction,
+    AIRTON_ACTION_SCHEMA,
+    synchronous=False,
 )
 @automation.register_action(
-    "climate_ir.airton.display_off", DisplayOffAction, AIRTON_ACTION_SCHEMA
+    "climate_ir.airton.display_off",
+    DisplayOffAction,
+    AIRTON_ACTION_SCHEMA,
+    synchronous=False,
 )
 async def display_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -56,10 +62,13 @@ async def display_action_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "climate_ir.airton.sleep_on", SleepOnAction, AIRTON_ACTION_SCHEMA
+    "climate_ir.airton.sleep_on", SleepOnAction, AIRTON_ACTION_SCHEMA, synchronous=False
 )
 @automation.register_action(
-    "climate_ir.airton.sleep_off", SleepOffAction, AIRTON_ACTION_SCHEMA
+    "climate_ir.airton.sleep_off",
+    SleepOffAction,
+    AIRTON_ACTION_SCHEMA,
+    synchronous=False,
 )
 async def sleep_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

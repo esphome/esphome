@@ -172,7 +172,7 @@ uint8_t AirtonClimate::operation_mode_() {
 
 uint16_t AirtonClimate::fan_speed_() {
   uint16_t fan_speed;
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed = AIRTON_FAN_1;
       break;
@@ -330,7 +330,7 @@ bool AirtonClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Verify received packet checksum
   uint8_t checksum = this->checksum_(remote_state);
   if (remote_state[AIRTON_STATE_FRAME_SIZE - 1] != checksum) {
-    ESP_LOGV(TAG, "Checksum error:\ncalculated - %02X\nreceived - %02X", checksum,
+    ESP_LOGV(TAG, "Checksum error:\n calculated - %02X\n received - %02X", checksum,
              remote_state[AIRTON_STATE_FRAME_SIZE - 1]);
     return false;
   }

@@ -25,7 +25,7 @@ class VerticalDirection {
 
   VerticalDirection(Direction direction = Direction::VERTICAL_DIRECTION_OFF) : direction_(direction) {}
 
-  std::string to_string() const {
+  const char *to_string() const {
     switch (direction_) {
       case Direction::VERTICAL_DIRECTION_SWING:
         return "swing";

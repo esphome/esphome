@@ -9,6 +9,7 @@ remote_transmitter:
   id: irblaster
   pin: 2
   carrier_duty_percent: 50%
+  non_blocking: true
 
 remote_receiver:
   id: recvr
