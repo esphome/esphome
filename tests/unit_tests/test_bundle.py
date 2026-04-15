@@ -1093,6 +1093,35 @@ def test_discover_files_fixture_config(fixture_path: Path, tmp_path: Path) -> No
     assert "common/wifi.yaml" in paths
 
 
+def test_discover_files_uses_loaded_yaml_files(tmp_path: Path) -> None:
+    """When CORE.data has _loaded_yaml_files, it is used verbatim.
+
+    This is the authoritative list captured during the real config load
+    (with substitutions applied). It avoids re-parsing and over-including
+    files referenced only by substitution-dependent branches.
+    """
+    config_dir = _setup_config_dir(
+        tmp_path,
+        files={
+            "selected.yaml": "ssid: a\n",
+            "not_selected.yaml": "ssid: b\n",
+        },
+    )
+    CORE.data["_loaded_yaml_files"] = [
+        (config_dir / "test.yaml").resolve(),
+        (config_dir / "selected.yaml").resolve(),
+    ]
+    try:
+        creator = ConfigBundleCreator({})
+        paths = {f.path for f in creator.discover_files()}
+    finally:
+        del CORE.data["_loaded_yaml_files"]
+
+    assert "test.yaml" in paths
+    assert "selected.yaml" in paths
+    assert "not_selected.yaml" not in paths
+
+
 # ---------------------------------------------------------------------------
 # ConfigBundleCreator - create_bundle
 # ---------------------------------------------------------------------------

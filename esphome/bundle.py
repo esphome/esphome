@@ -258,12 +258,41 @@ class ConfigBundleCreator:
     def _discover_yaml_includes(self) -> None:
         """Discover YAML files loaded during config parsing.
 
-        We track files by wrapping _load_yaml_internal. The config has already
-        been loaded at this point (bundle is a POST_CONFIG_ACTION), so we
-        re-load just to discover the file list.
+        Prefers the authoritative list captured during the real config load
+        (``CORE.data["_loaded_yaml_files"]``), which reflects substitution
+        choices — e.g. a conditional ``${p1 if sel == 1 else p2}`` only
+        actually loads one of the two referenced files.
+
+        Falls back to a re-parse + force-load of deferred ``IncludeFile``
+        nodes when the real list is unavailable (e.g. programmatic callers
+        or tests that construct a ``ConfigBundleCreator`` directly).
 
         Secrets files are tracked separately so we can filter them to
         only include the keys this config actually references.
+        """
+        loaded_files = CORE.data.get("_loaded_yaml_files")
+        if loaded_files is None:
+            loaded_files = self._reparse_for_include_discovery()
+
+        config_resolved = self._config_path.resolve()
+        for fpath in loaded_files:
+            fpath = Path(fpath).resolve()
+            if fpath == config_resolved:
+                continue  # Already added as config
+            if fpath.name in const.SECRETS_FILES:
+                self._secrets_paths.add(fpath)
+            self._add_file(fpath)
+
+    def _reparse_for_include_discovery(self) -> list[Path]:
+        """Fallback include discovery by re-parsing YAML without substitutions.
+
+        This is used when no authoritative file list was captured during the
+        real config load. Nested ``!include`` returns a deferred
+        ``IncludeFile`` that is normally resolved during the substitution
+        pass, so we force-load every ``IncludeFile`` to make the tracker
+        fire for nested includes. Over-inclusion is possible here because
+        substitution-dependent branches cannot be resolved without running
+        the substitution pass.
         """
         with yaml_util.track_yaml_loads() as loaded_files:
             try:
@@ -274,18 +303,8 @@ class ConfigBundleCreator:
                     "proceeding with partial file list"
                 )
             else:
-                # Nested !include produces a deferred IncludeFile that is
-                # normally resolved during the substitution pass. Force-load
-                # them here so the track_yaml_loads listener fires and the
-                # referenced files end up in the bundle.
                 _force_load_include_files(data)
-
-        for fpath in loaded_files:
-            if fpath == self._config_path.resolve():
-                continue  # Already added as config
-            if fpath.name in const.SECRETS_FILES:
-                self._secrets_paths.add(fpath)
-            self._add_file(fpath)
+        return loaded_files
 
     def _discover_component_files(self) -> None:
         """Walk the validated config for file references.

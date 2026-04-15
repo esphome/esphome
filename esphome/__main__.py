@@ -1969,13 +1969,21 @@ def run_esphome(argv):
 
     # For logs command, skip updating external components
     skip_external = args.command == "logs"
-    config = read_config(
-        dict(args.substitution) if args.substitution else {},
-        skip_external_update=skip_external,
-    )
+    # Track YAML files loaded during real config processing (with substitutions
+    # applied) so downstream actions like ``command_bundle`` have an
+    # authoritative list of files the config actually depends on — including
+    # only the branches selected by substitutions.
+    from esphome.yaml_util import track_yaml_loads
+
+    with track_yaml_loads() as loaded_yaml_files:
+        config = read_config(
+            dict(args.substitution) if args.substitution else {},
+            skip_external_update=skip_external,
+        )
     if config is None:
         return 2
     CORE.config = config
+    CORE.data["_loaded_yaml_files"] = list(loaded_yaml_files)
 
     if args.command not in POST_CONFIG_ACTIONS:
         safe_print(f"Unknown command {args.command}")
