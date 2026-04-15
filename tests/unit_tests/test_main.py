@@ -1231,6 +1231,48 @@ def test_upload_using_esptool_path_conversion(
     assert partitions_path.endswith("partitions.bin")
 
 
+def test_upload_using_esptool_skips_missing_extra_flash_images(
+    tmp_path: Path,
+    mock_run_external_command_main: Mock,
+    mock_get_idedata: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A non-existent path in extra_flash_images must be filtered out with a
+    warning, and must not appear in the esptool command line. Only the valid
+    images are flashed. Regression test for
+    https://github.com/esphome/esphome/issues/15634.
+    """
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    missing_path = tmp_path / "variants" / "tasmota" / "tinyuf2.bin"
+
+    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = [
+        platformio_api.FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        platformio_api.FlashImage(path=missing_path, offset="0x2d0000"),
+    ]
+    mock_get_idedata.return_value = mock_idedata
+
+    (tmp_path / "firmware.bin").touch()
+    (tmp_path / "bootloader.bin").touch()
+    # Intentionally do NOT create missing_path
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    assert result == 0
+    assert "Skipping missing flash image" in caplog.text
+    assert str(missing_path) in caplog.text
+
+    cmd_list = list(mock_run_external_command_main.call_args[0][1:])
+    assert str(missing_path) not in cmd_list
+    assert "0x2d0000" not in cmd_list
+
+
 def test_upload_using_esptool_with_file_path(
     tmp_path: Path,
     mock_run_external_command_main: Mock,
