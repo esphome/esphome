@@ -392,7 +392,7 @@ async def addressable_lambda_effect_to_code(config, effect_id):
     "Rainbow",
     {
         cv.Optional(CONF_SPEED, default=10): cv.uint32_t,
-        cv.Optional(CONF_WIDTH, default=50): cv.uint32_t,
+        cv.Optional(CONF_WIDTH, default=50): cv.int_range(min=1, max=65535),
     },
 )
 async def addressable_rainbow_effect_to_code(config, effect_id):

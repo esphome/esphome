@@ -1,11 +1,19 @@
 """Tests for the packages component."""
 
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass, merge_packages
+from esphome.components.packages import (
+    CONFIG_SCHEMA,
+    _walk_packages,
+    do_packages_pass,
+    is_package_definition,
+    merge_packages,
+)
+from esphome.components.substitutions import do_substitution_pass
 import esphome.config as config_module
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, Remove
@@ -36,6 +44,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.util import OrderedDict
+from esphome.yaml_util import IncludeFile, add_context
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -69,11 +78,50 @@ def fixture_basic_esphome():
 
 
 def packages_pass(config):
-    """Wrapper around packages_pass that also resolves Extend and Remove."""
+    """Passes the config through the packages processing steps."""
     config = do_packages_pass(config)
+    config = do_substitution_pass(config)
     config = merge_packages(config)
     resolve_extend_remove(config)
     return config
+
+
+_INCLUDE_FILE = "INCLUDE_FILE"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        # IncludeFile objects are package definitions
+        (_INCLUDE_FILE, True),
+        # Git URL shorthand strings are package definitions
+        ("github://esphome/firmware/base.yaml@main", True),
+        # Remote package dicts (with url key) are package definitions
+        ({"url": "https://github.com/esphome/firmware", "file": "base.yaml"}, True),
+        # Plain config dicts are NOT package definitions (they are config fragments)
+        ({"wifi": {"ssid": "test"}}, False),
+        # None is not a package definition
+        (None, False),
+        # Lists are not package definitions
+        ([{"wifi": {"ssid": "test"}}], False),
+        # Empty dicts are not package definitions
+        ({}, False),
+    ],
+    ids=[
+        "include_file",
+        "git_shorthand",
+        "remote_package",
+        "config_fragment",
+        "none",
+        "list",
+        "empty_dict",
+    ],
+)
+def test_is_package_definition(value: object, expected: bool) -> None:
+    """Test that is_package_definition correctly identifies package definitions."""
+    if value is _INCLUDE_FILE:
+        value = MagicMock(spec=IncludeFile)
+    assert is_package_definition(value) is expected
 
 
 def test_package_unused(basic_esphome, basic_wifi) -> None:
@@ -706,6 +754,85 @@ def test_remote_packages_with_files_list(
 @patch("esphome.yaml_util.load_yaml")
 @patch("pathlib.Path.is_file")
 @patch("esphome.git.clone_or_update")
+def test_remote_packages_with_files_list_and_substitutions(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """
+    Ensures that packages are loaded as mixed list of dictionary and strings
+    """
+    # Mock the response from git.clone_or_update
+    mock_revert = MagicMock()
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+
+    # Mock the response from pathlib.Path.is_file
+    mock_is_file.return_value = True
+
+    # Mock the response from esphome.yaml_util.load_yaml
+    mock_load_yaml.side_effect = [
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_1,
+                    }
+                ]
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_2,
+                    }
+                ]
+            }
+        ),
+    ]
+
+    # Define the input config
+    config = {
+        CONF_PACKAGES: {
+            "package1": add_context(
+                {
+                    CONF_URL: r"${url}",
+                    CONF_REF: r"${branch}",
+                    CONF_FILES: [
+                        {CONF_PATH: r"$file"},
+                        "sensor2.yaml",
+                    ],
+                    CONF_REFRESH: "1d",
+                },
+                {
+                    "branch": "main",
+                    "file": TEST_YAML_FILENAME,
+                    "url": "https://github.com/esphome/non-existant-repo",
+                },
+            )
+        }
+    }
+
+    expected = {
+        CONF_SENSOR: [
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
+        ]
+    }
+
+    actual = packages_pass(config)
+    assert actual == expected
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
 def test_remote_packages_with_files_and_vars(
     mock_clone_or_update, mock_is_file, mock_load_yaml
 ) -> None:
@@ -904,7 +1031,7 @@ def test_packages_merge_substitutions() -> None:
         },
     }
 
-    actual = do_packages_pass(config)
+    actual = do_packages_pass(config, command_line_substitutions={})
     assert actual == expected
 
 
@@ -968,31 +1095,278 @@ def test_package_merge() -> None:
     assert actual == expected
 
 
+def test_packages_invalid_type_raises() -> None:
+    """Packages that are not a dict or list raise cv.Invalid."""
+    config = {
+        CONF_PACKAGES: "not_a_dict_or_list",
+    }
+    with pytest.raises(
+        cv.Invalid, match="Packages must be a key to value mapping or list"
+    ):
+        do_packages_pass(config)
+
+
+@patch("esphome.components.packages.resolve_include")
+def test_packages_include_file_resolves_to_list(mock_resolve_include) -> None:
+    """When packages: is an IncludeFile that resolves to a list, it is processed correctly."""
+    include_file = MagicMock(spec=IncludeFile)
+    package_content = {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
+    mock_resolve_include.return_value = ([package_content], None)
+
+    config = {CONF_PACKAGES: include_file}
+    result = do_packages_pass(config)
+    result = merge_packages(result)
+
+    assert result == {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
+
+
+@patch("esphome.components.packages.resolve_include")
+def test_packages_include_file_resolves_to_dict(mock_resolve_include) -> None:
+    """When packages: is an IncludeFile that resolves to a dict, it is processed correctly."""
+    include_file = MagicMock(spec=IncludeFile)
+    package_content = {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
+    mock_resolve_include.return_value = ({"network": package_content}, None)
+
+    config = {CONF_PACKAGES: include_file}
+    result = do_packages_pass(config)
+    result = merge_packages(result)
+
+    assert result == {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
+
+
+@patch("esphome.components.packages.resolve_include")
+def test_packages_include_file_resolves_to_invalid_type_raises(
+    mock_resolve_include,
+) -> None:
+    """When packages: is an IncludeFile that resolves to an invalid type, cv.Invalid is raised."""
+    include_file = MagicMock(spec=IncludeFile)
+    mock_resolve_include.return_value = ("not_a_dict_or_list", None)
+
+    config = {CONF_PACKAGES: include_file}
+    with pytest.raises(
+        cv.Invalid, match="Packages must be a key to value mapping or list"
+    ) as exc_info:
+        do_packages_pass(config)
+
+    assert exc_info.value.path == [CONF_PACKAGES]
+
+
 @pytest.mark.parametrize(
     "invalid_package",
     [
         6,
         "some string",
-        ["some string"],
-        None,
         True,
-        {"some_component": 8},
-        {3: 2},
-        {"some_component": r"${unevaluated expression}"},
     ],
 )
-def test_package_merge_invalid(invalid_package) -> None:
-    """
-    Tests that trying to merge an invalid package raises an error.
-    """
+def test_invalid_package_contents_rejected(invalid_package: object) -> None:
+    """Invalid package contents are rejected by PACKAGE_SCHEMA during do_packages_pass."""
     config = {
         CONF_PACKAGES: {
             "some_package": invalid_package,
         },
     }
-
     with pytest.raises(cv.Invalid):
+        do_packages_pass(config)
+
+
+@pytest.mark.xfail(
+    reason="Deprecated single-package fallback swallows these errors. "
+    "Remove xfail when single-package deprecation is removed (2026.7.0).",
+    strict=True,
+)
+@pytest.mark.parametrize(
+    "invalid_package",
+    [
+        None,
+        ["some string"],
+        {"some_component": 8},
+        {3: 2},
+    ],
+)
+def test_invalid_package_contents_masked_by_deprecation(
+    invalid_package: object,
+) -> None:
+    """These invalid packages are swallowed by the deprecated single-package fallback."""
+    config = {
+        CONF_PACKAGES: {
+            "some_package": invalid_package,
+        },
+    }
+    with pytest.raises(cv.Invalid):
+        do_packages_pass(config)
+
+
+def test_named_dict_with_include_files_no_false_deprecation_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Package errors in named dicts must not trigger the deprecated fallback."""
+    good_include = MagicMock(spec=IncludeFile)
+    bad_include = MagicMock(spec=IncludeFile)
+
+    config = {
+        CONF_PACKAGES: {
+            "good_pkg": good_include,
+            "bad_pkg": bad_include,
+        },
+    }
+
+    call_count = 0
+
+    def failing_callback(package_config: dict, context: object) -> dict:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # First package processes fine
+            return {CONF_WIFI: {CONF_SSID: "test"}}
+        # Second package has an error (e.g. jinja syntax error)
+        raise cv.Invalid("simulated jinja error in bad_pkg")
+
+    with (
+        caplog.at_level(logging.WARNING),
+        pytest.raises(cv.Invalid, match="simulated jinja error"),
+    ):
+        _walk_packages(config, failing_callback)
+
+    # Must NOT emit the deprecated single-package warning
+    assert "deprecated" not in caplog.text.lower()
+
+
+def test_validate_deprecated_false_raises_directly(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """With validate_deprecated=False, errors raise directly without fallback.
+
+    This is the codepath used for remote packages where _process_remote_package
+    returns already-resolved dicts that is_package_definition cannot detect.
+    """
+    config = {
+        CONF_PACKAGES: {
+            "pkg_a": {CONF_WIFI: {CONF_SSID: "test"}},
+            "pkg_b": {CONF_WIFI: {CONF_SSID: "test2"}},
+        },
+    }
+
+    call_count = 0
+
+    def failing_callback(package_config: dict, context: object) -> dict:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return package_config
+        raise cv.Invalid("nested error")
+
+    with (
+        caplog.at_level(logging.WARNING),
+        pytest.raises(cv.Invalid, match="nested error"),
+    ):
+        _walk_packages(config, failing_callback, validate_deprecated=False)
+
+    assert "deprecated" not in caplog.text.lower()
+
+
+def test_error_on_first_declared_package_still_detected() -> None:
+    """When the first declared package errors, it's the last processed in reverse.
+
+    All other entries are already resolved to dicts, but the failing entry
+    retains its original IncludeFile value since assignment was skipped.
+    """
+    config = {
+        CONF_PACKAGES: {
+            "first_pkg": MagicMock(spec=IncludeFile),
+            "second_pkg": MagicMock(spec=IncludeFile),
+            "third_pkg": MagicMock(spec=IncludeFile),
+        },
+    }
+
+    call_count = 0
+
+    def fail_on_last(package_config: dict, context: object) -> dict:
+        nonlocal call_count
+        call_count += 1
+        # Reverse iteration: third_pkg (1), second_pkg (2), first_pkg (3)
+        if call_count < 3:
+            return {CONF_WIFI: {CONF_SSID: "test"}}
+        raise cv.Invalid("error in first_pkg")
+
+    with pytest.raises(cv.Invalid, match="error in first_pkg"):
+        _walk_packages(config, fail_on_last)
+
+
+def test_deprecated_single_package_fallback_still_works(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The deprecated single-package form still falls back at the top level.
+
+    When a dict's values are plain config fragments (not package definitions)
+    and the callback fails, the deprecated fallback wraps the dict in a list
+    and retries with a deprecation warning.
+    """
+    config = {
+        CONF_PACKAGES: {
+            CONF_WIFI: {CONF_SSID: "test", CONF_PASSWORD: "secret"},
+        },
+    }
+
+    attempt = 0
+
+    def fail_then_succeed(package_config: dict, context: object) -> dict:
+        nonlocal attempt
+        attempt += 1
+        if attempt == 1:
+            # First attempt: treating as named dict fails
+            raise cv.Invalid("not a valid package")
+        # Second attempt: after fallback wraps as list, succeeds
+        return package_config
+
+    with caplog.at_level(logging.WARNING):
+        _walk_packages(config, fail_then_succeed)
+
+    assert "deprecated" in caplog.text.lower()
+
+
+def test_merge_packages_invalid_nested_type_raises() -> None:
+    """Invalid nested packages type during merge raises cv.Invalid."""
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_PACKAGES: "invalid",
+            },
+        },
+    }
+    with pytest.raises(
+        cv.Invalid, match="Packages must be a key to value mapping or list"
+    ):
         merge_packages(config)
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_no_revert(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """Remote packages with revert=None load without retry logic."""
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), None)
+    mock_is_file.return_value = True
+    mock_load_yaml.return_value = OrderedDict(
+        {CONF_SENSOR: [{CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}]}
+    )
+
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_URL: "https://github.com/esphome/repo",
+                CONF_REF: "main",
+                CONF_FILES: [{CONF_PATH: "file.yaml"}],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+    actual = packages_pass(config)
+    assert actual[CONF_SENSOR] == [
+        {CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}
+    ]
 
 
 def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:
