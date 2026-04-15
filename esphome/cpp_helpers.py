@@ -113,7 +113,8 @@ def _generate_source_table_code(
     entries = ", ".join(var_names)
     lines.append(f"static const char *const {table_var}[] PROGMEM = {{{entries}}};")
     lines.append(f"const LogString *{lookup_fn}(uint8_t index) {{")
-    lines.append(f'  if (index == 0 || index > {count}) return LOG_STR("<unknown>");')
+    cond = "index == 0" if count >= 255 else f"index == 0 || index > {count}"
+    lines.append(f'  if ({cond}) return LOG_STR("<unknown>");')
     lines.append("  return reinterpret_cast<const LogString *>(")
     lines.append(f"    progmem_read_ptr(&{table_var}[index - 1]));")
     lines.append("}")
