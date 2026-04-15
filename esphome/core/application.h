@@ -24,32 +24,21 @@
 #include "esphome/core/area.h"
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
 #ifdef USE_LWIP_FAST_SELECT
 #include "esphome/core/lwip_fast_select.h"
-#ifdef USE_ESP32
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#else
-#include <FreeRTOS.h>
-#include <task.h>
 #endif
-#else
+#ifdef USE_HOST
 #include <sys/select.h>
-#ifdef USE_WAKE_LOOP_THREADSAFE
-#include <lwip/sockets.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #endif
-#endif
-#endif  // USE_SOCKET_SELECT_SUPPORT
 #ifdef USE_RUNTIME_STATS
 #include "esphome/components/runtime_stats/runtime_stats.h"
 #endif
-#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-namespace esphome::socket {
-void socket_wake();              // NOLINT(readability-redundant-declaration)
-void socket_delay(uint32_t ms);  // NOLINT(readability-redundant-declaration)
-}  // namespace esphome::socket
-#endif
+#include "esphome/core/wake.h"
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -124,7 +113,7 @@ void socket_delay(uint32_t ms);  // NOLINT(readability-redundant-declaration)
 #endif
 
 namespace esphome::socket {
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
 /// Shared ready() helper for fd-based socket implementations.
 bool socket_ready_fd(int fd, bool loop_monitored);  // NOLINT(readability-redundant-declaration)
 #endif
@@ -396,7 +385,24 @@ class Application {
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
-  void feed_wdt(uint32_t time = 0);
+  /// Minimum interval between real arch_feed_wdt() calls. Chosen to keep the
+  /// rate of HAL pokes low while still being small enough that any plausible
+  /// watchdog timeout (seconds) has orders of magnitude of safety margin.
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 3;
+
+  /// Feed the task watchdog. Cold entry — callers without a millis()
+  /// timestamp in hand. Out of line to keep call sites tiny.
+  void feed_wdt();
+
+  /// Feed the task watchdog, hot entry. Callers that already have a
+  /// millis() timestamp pay only a load + sub + branch on the common
+  /// (no-op) path. The actual arch feed + status LED update live in
+  /// feed_wdt_slow_.
+  void ESPHOME_ALWAYS_INLINE feed_wdt_with_time(uint32_t time) {
+    if (static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) [[unlikely]] {
+      this->feed_wdt_slow_(time);
+    }
+  }
 
   void reboot();
 
@@ -412,7 +418,18 @@ class Application {
    */
   void teardown_components(uint32_t timeout_ms);
 
-  uint8_t get_app_state() const { return this->app_state_; }
+  /// Return the public app state status bits (STATUS_LED_* only).
+  /// Internal bookkeeping bits like APP_STATE_SETUP_COMPLETE are masked
+  /// out so external readers (status_led components, etc.) never see them.
+  uint8_t get_app_state() const { return this->app_state_ & ~APP_STATE_SETUP_COMPLETE; }
+
+  /// True once Application::setup() has finished walking all components
+  /// and finalized the initial status flags. Before this point, the
+  /// slow-setup busy-wait may be forcing STATUS_LED_WARNING on, and
+  /// status_clear_* intentionally skips its walk-and-clear step so the
+  /// forced bit doesn't get wiped. Stored as a free bit on app_state_
+  /// (bit 6) to avoid costing additional RAM.
+  bool is_setup_complete() const { return (this->app_state_ & APP_STATE_SETUP_COMPLETE) != 0; }
 
 // Helper macro for entity getter method declarations
 #ifdef USE_DEVICES
@@ -550,7 +567,7 @@ class Application {
   /// @return true if registration was successful, false if sock is null
   bool register_socket(struct lwip_sock *sock);
   void unregister_socket(struct lwip_sock *sock);
-#elif defined(USE_SOCKET_SELECT_SUPPORT)
+#elif defined(USE_HOST)
   /// Fallback select() path: monitors file descriptors.
   /// NOTE: File descriptors >= FD_SETSIZE (typically 10 on ESP) will be rejected with an error.
   /// @return true if registration was successful, false if fd exceeds limits
@@ -558,43 +575,21 @@ class Application {
   void unregister_socket_fd(int fd);
 #endif
 
-#ifdef USE_WAKE_LOOP_THREADSAFE
-  /// Wake the main event loop from another FreeRTOS task.
-  /// Thread-safe, but must only be called from task context (NOT ISR-safe).
-  /// On ESP32: uses xTaskNotifyGive (<1 us)
-  /// On other platforms: uses UDP loopback socket
-  void wake_loop_threadsafe();
-#endif
-
-#ifdef USE_LWIP_FAST_SELECT
-  /// Wake the main event loop from an ISR.
-  /// Uses vTaskNotifyGiveFromISR() — <1 us, ISR-safe.
-  /// Only available on platforms with fast select (ESP32, LibreTiny).
-  /// @param px_higher_priority_task_woken Set to pdTRUE if a context switch is needed.
-  static void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
-    esphome_lwip_wake_main_loop_from_isr(px_higher_priority_task_woken);
-  }
+  /// Wake the main event loop from another thread or callback.
+  /// @see esphome::wake_loop_threadsafe() in wake.h for platform details.
+  void wake_loop_threadsafe() { esphome::wake_loop_threadsafe(); }
 
 #ifdef USE_ESP32
-  /// Wake the main event loop from any context (ISR, thread, or main loop).
-  /// Detects the calling context and uses the appropriate FreeRTOS API.
-  static void IRAM_ATTR wake_loop_any_context() { esphome_lwip_wake_main_loop_any_context(); }
-#endif
+  /// Wake from ISR (ESP32 only).
+  static void IRAM_ATTR wake_loop_isrsafe(BaseType_t *px) { esphome::wake_loop_isrsafe(px); }
 #endif
 
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  /// Wake the main event loop from any context (ISR, thread, or main loop).
-  /// Sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
-  static void IRAM_ATTR wake_loop_any_context() { socket::socket_wake(); }
-#elif defined(USE_RP2040) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  /// Wake the main event loop from any context.
-  /// Sets the socket wake flag and calls __sev() to exit __wfe() early.
-  static void wake_loop_any_context() { socket::socket_wake(); }
-#endif
+  /// Wake from any context (ISR, thread, callback).
+  static void IRAM_ATTR wake_loop_any_context() { esphome::wake_loop_any_context(); }
 
  protected:
   friend Component;
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
   friend bool socket::socket_ready_fd(int fd, bool loop_monitored);
 #endif
 #ifdef USE_RUNTIME_STATS
@@ -602,10 +597,19 @@ class Application {
 #endif
   friend void ::setup();
   friend void ::original_setup();
+#ifdef USE_HOST
+  friend void wake_loop_threadsafe();  // Host platform accesses wake_socket_fd_
+#endif
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
 #endif
+
+  /// Walk all registered components looking for any whose component_state_
+  /// has the given flag set. Used by Component::status_clear_*_slow_path_()
+  /// (which is a friend) to decide whether to clear the corresponding bit on
+  /// this->app_state_ (the app-wide "any component has this status" indicator).
+  bool any_component_has_status_flag_(uint8_t flag) const;
 
   /// Register a component, detecting loop() override at compile time.
   /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.
@@ -645,17 +649,20 @@ class Application {
   /// Caller must ensure dump_config_at_ < components_.size().
   void __attribute__((noinline)) process_dump_config_();
 
-  void feed_wdt_arch_();
+  /// Slow path for feed_wdt(): actually calls arch_feed_wdt(), updates
+  /// last_wdt_feed_, and re-dispatches the status LED. Out of line so the
+  /// inline wrapper stays tiny.
+  void feed_wdt_slow_(uint32_t time);
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
   // select() fallback path is too complex to inline (host platform)
   void yield_with_select_(uint32_t delay_ms);
 #else
   inline void ESPHOME_ALWAYS_INLINE yield_with_select_(uint32_t delay_ms);
 #endif
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
   void setup_wake_loop_threadsafe_();       // Create wake notification socket
   inline void drain_wake_notifications_();  // Read pending wake notifications in main loop (hot path - inlined)
 #endif
@@ -685,13 +692,11 @@ class Application {
   FixedVector<Component *> looping_components_{};
 #ifdef USE_LWIP_FAST_SELECT
   std::vector<struct lwip_sock *> monitored_sockets_;  // Cached lwip_sock pointers for direct rcvevent read
-#elif defined(USE_SOCKET_SELECT_SUPPORT)
+#elif defined(USE_HOST)
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
 #endif
-#ifdef USE_SOCKET_SELECT_SUPPORT
-#if defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
   int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
-#endif
 #endif
 
   // StringRef members (8 bytes each: pointer + size)
@@ -701,8 +706,9 @@ class Application {
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
+  uint32_t last_wdt_feed_{0};  // millis() of most recent arch_feed_wdt(); rate-limits feed_wdt() hot path
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
   int max_fd_{-1};  // Highest file descriptor number for select()
 #endif
 
@@ -718,11 +724,11 @@ class Application {
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
 #endif
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
   // Variable-sized members (not needed with fast select — is_socket_ready_ reads rcvevent directly)
   fd_set read_fds_{};       // Working fd_set: populated by select()
   fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
@@ -815,7 +821,7 @@ class Application {
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
 // Inline implementations for hot-path functions
 // drain_wake_notifications_() is called on every loop iteration
 
@@ -832,24 +838,25 @@ inline void Application::drain_wake_notifications_() {
     // Multiple wake events may have triggered multiple writes, so drain until EWOULDBLOCK
     // We control both ends of this loopback socket (always write 1 byte per wake),
     // so no error checking needed - any errors indicate catastrophic system failure
-    while (lwip_recvfrom(this->wake_socket_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
+    while (::recvfrom(this->wake_socket_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
       // Just draining, no action needed - wake has already occurred
     }
   }
 }
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#endif  // USE_HOST
 
 inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_start_time) {
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
   // Drain wake notifications first to clear socket for next wake
   this->drain_wake_notifications_();
 #endif
 
-  // Process scheduled tasks
+  // Process scheduled tasks. Scheduler::call now feeds the watchdog itself
+  // after each scheduled item that actually runs, so we no longer need an
+  // unconditional feed here — when Scheduler::call has no work to do, the
+  // only elapsed time is a sleep wake + a few instructions, and when it does
+  // have work, it fed the wdt as it went.
   this->scheduler.call(loop_start_time);
-
-  // Feed the watchdog timer
-  this->feed_wdt(loop_start_time);
 
   // Process any pending enable_loop requests from ISRs
   // This must be done before marking in_loop_ = true to avoid race conditions
@@ -870,8 +877,6 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
-  uint8_t new_app_state = 0;
-
   // Get the initial loop time at the start
   uint32_t last_op_end_time = millis();
 
@@ -891,13 +896,10 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
       // Use the finish method to get the current time as the end time
       last_op_end_time = guard.finish();
     }
-    new_app_state |= component->get_component_state();
-    this->app_state_ |= new_app_state;
-    this->feed_wdt(last_op_end_time);
+    this->feed_wdt_with_time(last_op_end_time);
   }
 
   this->after_loop_tasks_();
-  this->app_state_ = new_app_state;
 
 #ifdef USE_RUNTIME_STATS
   // Process any pending runtime stats printing after all components have run
@@ -908,21 +910,17 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #endif
 
   // Use the last component's end time instead of calling millis() again
+  uint32_t delay_time = 0;
   auto elapsed = last_op_end_time - this->last_loop_;
-  if (elapsed >= this->loop_interval_ || HighFrequencyLoopRequester::is_high_frequency()) {
-    // Even if we overran the loop interval, we still need to select()
-    // to know if any sockets have data ready
-    this->yield_with_select_(0);
-  } else {
-    uint32_t delay_time = this->loop_interval_ - elapsed;
+  if (elapsed < this->loop_interval_ && !HighFrequencyLoopRequester::is_high_frequency()) {
+    delay_time = this->loop_interval_ - elapsed;
     uint32_t next_schedule = this->scheduler.next_schedule_in(last_op_end_time).value_or(delay_time);
     // next_schedule is max 0.5*delay_time
     // otherwise interval=0 schedules result in constant looping with almost no sleep
     next_schedule = std::max(next_schedule, delay_time / 2);
     delay_time = std::min(next_schedule, delay_time);
-
-    this->yield_with_select_(delay_time);
   }
+  this->yield_with_select_(delay_time);
   this->last_loop_ = last_op_end_time;
 
   if (this->dump_config_at_ < this->components_.size()) {
@@ -931,9 +929,9 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 }
 
 // Inline yield_with_select_ for all paths except the select() fallback
-#if !defined(USE_SOCKET_SELECT_SUPPORT) || defined(USE_LWIP_FAST_SELECT)
+#ifndef USE_HOST
 inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_LWIP_FAST_SELECT
   // Fast path (ESP32/LibreTiny): reads rcvevent directly from cached lwip_sock pointers.
   // Safe because this runs on the main loop which owns socket lifetime (create, read, close).
   if (delay_ms == 0) [[unlikely]] {
@@ -953,20 +951,10 @@ inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay
   }
 
   // Sleep with instant wake via FreeRTOS task notification.
-  // Woken by: callback wrapper (socket data arrives), wake_loop_threadsafe() (other tasks), or timeout.
-  // Without USE_WAKE_LOOP_THREADSAFE, only hooked socket callbacks wake the task —
-  // background tasks won't call wake, so this degrades to a pure timeout (same as old select path).
-  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
-#elif (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  // No select support but can wake on socket activity
-  // ESP8266: via esp_schedule()
-  // RP2040: via __sev()/__wfe() hardware sleep/wake
-  socket::socket_delay(delay_ms);
-#else
-  // No select support, use regular delay
-  delay(delay_ms);
+  // Woken by: callback wrapper (socket data), wake_loop_threadsafe() (background tasks), or timeout.
 #endif
+  esphome::internal::wakeable_delay(delay_ms);
 }
-#endif  // !defined(USE_SOCKET_SELECT_SUPPORT) || defined(USE_LWIP_FAST_SELECT)
+#endif  // !USE_HOST
 
 }  // namespace esphome

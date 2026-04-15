@@ -23,6 +23,7 @@ from esphome.const import (
     __version__,
 )
 from esphome.core import CORE
+from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.storage_json import StorageJSON
 
 from . import gpio  # noqa
@@ -266,7 +267,9 @@ CONFIG_SCHEMA = cv.All(_notify_old_style)
 BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LTComponent),
-        cv.Required(CONF_BOARD): cv.string_strict,
+        cv.Required(CONF_BOARD): cv.All(
+            cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
+        ),
         cv.Optional(CONF_FAMILY): cv.one_of(*FAMILIES, upper=True),
         cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
     },
