@@ -148,7 +148,7 @@ def _post_link(target, source, env):
             start = int(addr_str, 16)
         elif name == "__esphome_sram_text_end":
             end = int(addr_str, 16)
-        elif any(s in name for s in _FALLBACK_SUBSTRINGS):
+        elif "veneer" not in name and any(s in name for s in _FALLBACK_SUBSTRINGS):
             fallback.append(int(addr_str, 16))
     print("ESPHome: IRAM_ATTR placement summary ({}):".format(_variant))
     if start is not None and end is not None:
