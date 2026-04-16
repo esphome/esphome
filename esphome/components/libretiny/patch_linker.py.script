@@ -38,6 +38,25 @@ _BK_ITCM = re.compile(r"(\.itcm\.code\s*ALIGN\s*\(\s*\d+\s*\)\s*:\s*\{\s*\n)")
 _LN_COPY = re.compile(r"(\.flash_copysection\s*:\s*\{\s*\n)")
 _RTL8710B_IMAGE2 = re.compile(r"(\.image2\.ram\.text\s*:\s*\{\s*\n)")
 
+# On BK72xx the stock LibreTiny linker carves a 4.5 kB ".itcm" executable RAM
+# region; the SDK already fills most of it with its own ISR / flash / FreeRTOS
+# critical code, leaving <500 bytes for ESPHome IRAM_ATTR functions. Steal 4 kB
+# from the adjacent (rw!x) "tcm" data region and give it to itcm so our
+# .sram.text payload has room to grow. Physically tcm and itcm are contiguous
+# SRAM, so shifting the boundary is just a linker rewrite.
+_BK_TCM_LEN = re.compile(r"(\btcm\s*\(\s*rw!x\s*\)\s*:\s*ORIGIN\s*=\s*0x003F0000\s*,\s*LENGTH\s*=\s*)60k(\s*-\s*512\b)")
+_BK_ITCM_REGION = re.compile(
+    r"(\bitcm\s*\(\s*rwx\s*\)\s*:\s*ORIGIN\s*=\s*)0x003FEE00(\s*,\s*LENGTH\s*=\s*)4k(\s*\+\s*512\b)"
+)
+
+
+def _grow_bk72xx_itcm(content):
+    # Shrink tcm by 4 kB: 60k - 512 -> 56k - 512.
+    new_content = _BK_TCM_LEN.sub(r"\g<1>56k\g<2>", content)
+    # Shift itcm origin back 4 kB and grow length: 4k + 512 -> 8k + 512.
+    new_content = _BK_ITCM_REGION.sub(r"\g<1>0x003FDE00\g<2>8k\g<3>", new_content)
+    return new_content
+
 
 def _detect(env):
     prefix = "USE_LIBRETINY_VARIANT_"
@@ -80,10 +99,10 @@ def _inject_keep(host_section):
 # RTL8720C is absent: its stock linker already consumes *(.sram.text*), so
 # no .ld patch is needed; the summary falls back to reading symbol addresses.
 _PATCHERS_BY_VARIANT = {
-    "BK7231N": (_inject_keep(_BK_ITCM),),
-    "BK7231T": (_inject_keep(_BK_ITCM),),
-    "BK7231Q": (_inject_keep(_BK_ITCM),),
-    "BK7251": (_inject_keep(_BK_ITCM),),
+    "BK7231N": (_grow_bk72xx_itcm, _inject_keep(_BK_ITCM)),
+    "BK7231T": (_grow_bk72xx_itcm, _inject_keep(_BK_ITCM)),
+    "BK7231Q": (_grow_bk72xx_itcm, _inject_keep(_BK_ITCM)),
+    "BK7251": (_grow_bk72xx_itcm, _inject_keep(_BK_ITCM)),
     "LN882H": (_inject_keep(_LN_COPY),),
     "RTL8710B": (_inject_keep(_RTL8710B_IMAGE2),),
 }
