@@ -66,35 +66,33 @@ KNOWN_VARIANTS = (
 )
 
 
-def _patch_bk72xx(content):
-    new_content = _BK_RW_NO_X.sub(r"\1rwx\2", content)
-    if _MARKER not in new_content:
-        new_content = _BK_DATA.sub(r"\1" + _KEEP_LINE, new_content, count=1)
-    return new_content
+def _inject_keep(host_section):
+    """Return a patcher that injects _KEEP_LINE at the top of `host_section`."""
+    def patch(content):
+        if _MARKER in content:
+            return content
+        return host_section.sub(r"\1" + _KEEP_LINE, content, count=1)
+    return patch
 
 
-def _patch_ln882h(content):
-    if _MARKER in content:
-        return content
-    return _LN_COPY.sub(r"\1" + _KEEP_LINE, content, count=1)
+def _flip_bk72xx_rwx(content):
+    return _BK_RW_NO_X.sub(r"\1rwx\2", content)
 
 
-def _patch_rtl8710b(content):
-    if _MARKER in content:
-        return content
-    return _RTL8710B_IMAGE2.sub(r"\1" + _KEEP_LINE, content, count=1)
+# RTL8720C is absent: its stock linker already consumes *(.sram.text*), so
+# no .ld patch is needed; the summary falls back to reading symbol addresses.
+_PATCHERS_BY_VARIANT = {
+    "BK7231N": (_flip_bk72xx_rwx, _inject_keep(_BK_DATA)),
+    "BK7231T": (_flip_bk72xx_rwx, _inject_keep(_BK_DATA)),
+    "BK7231Q": (_flip_bk72xx_rwx, _inject_keep(_BK_DATA)),
+    "BK7251": (_flip_bk72xx_rwx, _inject_keep(_BK_DATA)),
+    "LN882H": (_inject_keep(_LN_COPY),),
+    "RTL8710B": (_inject_keep(_RTL8710B_IMAGE2),),
+}
 
 
 def _patchers_for(variant):
-    if variant in ("BK7231N", "BK7231T", "BK7231Q", "BK7251"):
-        return (_patch_bk72xx,)
-    if variant == "LN882H":
-        return (_patch_ln882h,)
-    if variant == "RTL8710B":
-        return (_patch_rtl8710b,)
-    # RTL8720C: stock linker already consumes *(.sram.text*), no .ld patch
-    # needed; summary falls back to reading symbol addresses.
-    return ()
+    return _PATCHERS_BY_VARIANT.get(variant, ())
 
 
 def _patch_build_dir(patchers, build_dir):
