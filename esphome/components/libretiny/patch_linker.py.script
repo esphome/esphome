@@ -5,19 +5,17 @@ import os
 import re
 import subprocess
 
-# ESPHome marks ISR code IRAM_ATTR, which on LibreTiny maps to a section
-# that each family's linker routes into RAM-executable memory so the function
-# is callable while flash is busy (see esphome/core/hal.h for the per-family
-# section names).
+# ESPHome marks ISR code IRAM_ATTR, which on LibreTiny maps to a per-family
+# section routed into RAM-executable memory (see esphome/core/hal.h).
 #
-# Most families need no linker patching:
+# This script is NOT loaded on BK72xx (IRAM_ATTR is a no-op there; the SDK
+# masks FIQ+IRQ around flash writes). On the remaining families:
 # - RTL8710B: hal.h uses section(".image2.ram.text"); stock linker consumes it.
 # - RTL8720C: hal.h uses section(".sram.text"); stock linker consumes it.
-# - BK72xx: IRAM_ATTR is a no-op (SDK masks FIQ+IRQ around flash writes).
+# - LN882H: stock linker has no glob for ".sram.text", so we inject
+#   KEEP(*(.sram.text*)) into ".flash_copysection" (> RAM0 AT> FLASH).
 #
-# LN882H is the only family that needs patching: its stock linker has no glob
-# that catches ".sram.text", so we inject KEEP(*(.sram.text*)) into the
-# ".flash_copysection" output (which is flash-to-RAM0 copied at startup).
+# All families also get a post-link summary showing where IRAM_ATTR landed.
 
 
 _MARKER = "/* esphome .sram.text */"
@@ -51,10 +49,6 @@ def _detect(env):
 
 
 KNOWN_VARIANTS = frozenset({
-    "BK7231N",
-    "BK7231T",
-    "BK7231Q",
-    "BK7251",
     "LN882H",
     "RTL8710B",
     "RTL8720C",
@@ -169,8 +163,5 @@ if _patchers := _patchers_for(_variant):
     # as a pre-link action so it executes once the linker scripts exist.
     env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", _pre_link)
 
-_BK72XX_VARIANTS = frozenset({"BK7231N", "BK7231T", "BK7231Q", "BK7251"})
-
-# Post-link summary for every family where IRAM_ATTR places code in RAM.
-if _variant not in _BK72XX_VARIANTS:
-    env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", _post_link)
+# Post-link summary for every family that reaches this script.
+env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", _post_link)

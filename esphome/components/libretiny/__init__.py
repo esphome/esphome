@@ -467,12 +467,11 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
-    # IRAM_ATTR routes ISR code into RAM-executable sections (see
-    # esphome/core/hal.h). Most families need no linker help; LN882H is the
-    # exception — its stock linker has no glob for ".sram.text", so this
-    # pre-link hook injects KEEP(*(.sram.text*)) into .flash_copysection.
-    # The script also prints a post-link summary on all non-BK72xx families.
-    cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
+    # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
+    # On other families, patch_linker.py routes .sram.text into the right
+    # RAM-executable output section and prints a post-link placement summary.
+    if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
+        cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
     # decrease web server stack size (16k words -> 4k words)
