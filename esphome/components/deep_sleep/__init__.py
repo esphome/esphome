@@ -38,21 +38,6 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.types import ConfigType
 
-DOMAIN = "deep_sleep"
-
-
-def is_wakeup_pin(pin_num: int) -> bool:
-    """Check if a pin number is configured as a deep_sleep wakeup pin."""
-    return pin_num in CORE.data.get(DOMAIN, set())
-
-
-def _register_wakeup_pin(pin_num: int) -> None:
-    """Register a pin number as a wakeup pin in CORE.data."""
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = set()
-    CORE.data[DOMAIN].add(pin_num)
-
-
 WAKEUP_PINS = {
     VARIANT_ESP32: [
         0,
@@ -182,13 +167,6 @@ def validate_config(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             "Your platform does not support providing multiple entries in wakeup_pin"
         )
-
-    # Register wakeup pins so other components can check them
-    for item in config.get(CONF_WAKEUP_PIN, []):
-        _register_wakeup_pin(item[CONF_PIN][CONF_NUMBER])
-    if CONF_ESP32_EXT1_WAKEUP in config:
-        for pin in config[CONF_ESP32_EXT1_WAKEUP][CONF_PINS]:
-            _register_wakeup_pin(pin[CONF_NUMBER])
 
     return config
 

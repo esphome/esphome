@@ -60,14 +60,13 @@ CONFIG_SCHEMA = (
 )
 
 
-def _pin_is_deep_sleep_wakeup(pin_num: int) -> bool:
-    """Check if pin is configured as a deep_sleep wakeup pin."""
-    if not CORE.config or "deep_sleep" not in CORE.config:
+def _pin_shared_only_with_deep_sleep(pin_num: int) -> bool:
+    """Check if pin is shared exclusively with deep_sleep (wakeup pin)."""
+    pin_key = (CORE.target_platform, CORE.target_platform, pin_num)
+    pin_users = pins.PIN_SCHEMA_REGISTRY.pins_used.get(pin_key, [])
+    if len(pin_users) != 2:
         return False
-
-    from esphome.components.deep_sleep import is_wakeup_pin
-
-    return is_wakeup_pin(pin_num)
+    return any(path and path[0] == "deep_sleep" for path, _, _ in pin_users)
 
 
 def _final_validate(config):
@@ -105,10 +104,7 @@ def _final_validate(config):
     # Exception: deep_sleep wakeup pins are compatible with interrupts when
     # the pin is only shared between this sensor and deep_sleep (count == 2).
     if config[CONF_PIN].get(CONF_ALLOW_OTHER_USES, False):
-        pin_use_count = pins.PIN_SCHEMA_REGISTRY.get_count(
-            CORE.target_platform, CORE.target_platform, pin_num
-        )
-        if not (_pin_is_deep_sleep_wakeup(pin_num) and pin_use_count == 2):
+        if not _pin_shared_only_with_deep_sleep(pin_num):
             _LOGGER.info(
                 "GPIO binary_sensor '%s': Disabling interrupts because pin %s is shared "
                 "with other components. The sensor will use polling mode for "
