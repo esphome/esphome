@@ -72,10 +72,11 @@ __attribute__((always_inline)) inline bool in_isr_context() {
 #if defined(USE_ESP32)
   return xPortInIsrContext() != 0;
 #elif defined(USE_ESP8266)
-  // Xtensa LX106 PS.INTLEVEL[3:0]. Non-zero indicates interrupt in progress.
-  uint32_t ps;
-  __asm__ volatile("rsr.ps %0" : "=r"(ps));
-  return (ps & 0xF) != 0;
+  // ESP8266 has no reliable single-register ISR detection: PS.INTLEVEL is
+  // non-zero both in a real ISR and when user code masks interrupts.  The
+  // ESP8266 wake path is context-agnostic (wake_loop_impl uses esp_schedule
+  // which is ISR-safe) so this helper is unused on this platform.
+  return false;
 #elif defined(USE_RP2040)
   uint32_t ipsr;
   __asm__ volatile("mrs %0, ipsr" : "=r"(ipsr));

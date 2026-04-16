@@ -131,19 +131,18 @@ def _pre_link(target, source, env):
     _patch_build_dir(_patchers, env.subst("$BUILD_DIR"))
 
 
-# Well-known ESPHome IRAM_ATTR symbols used as a fallback on RTL8720C, where
-# we cannot inject the __esphome_sram_text_start/end markers.
-_FALLBACK_IRAM_SYMBOLS = frozenset({
-    "_ZN7esphome21wake_loop_any_contextEv",
-    "_ZN7esphome17wake_loop_isrsafeEPl",
-    "_ZN7esphome9Component28enable_loop_soon_any_contextEv",
-})
+# Substrings matched against demangled symbol names as a fallback on
+# RTL8720C, where we cannot inject __esphome_sram_text_start/end markers.
+_FALLBACK_SUBSTRINGS = ("wake_loop_any_context", "wake_loop_isrsafe",
+                        "enable_loop_soon_any_context")
 
 
 def _collect_iram_symbols(nm, elf):
     """Return (start, end, fallback_addresses) for the IRAM_ATTR payload."""
     try:
-        out = subprocess.check_output([nm, "--defined-only", elf], text=True)
+        out = subprocess.check_output(
+            [nm, "--defined-only", "--demangle", elf], text=True
+        )
     except (OSError, subprocess.CalledProcessError):
         return None, None, []
     start = end = None
@@ -157,7 +156,7 @@ def _collect_iram_symbols(nm, elf):
             start = int(addr_str, 16)
         elif name == "__esphome_sram_text_end":
             end = int(addr_str, 16)
-        elif name in _FALLBACK_IRAM_SYMBOLS:
+        elif any(sub in name for sub in _FALLBACK_SUBSTRINGS):
             fallback.append(int(addr_str, 16))
     return start, end, fallback
 
