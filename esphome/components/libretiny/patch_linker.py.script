@@ -95,41 +95,29 @@ def _patchers_for(variant):
     return _PATCHERS_BY_VARIANT.get(variant, ())
 
 
-def _patch_build_dir(patchers, build_dir):
-    if not os.path.isdir(build_dir):
-        raise RuntimeError(
-            "ESPHome: LibreTiny build dir {} does not exist at link time; "
-            "IRAM_ATTR placement cannot be verified".format(build_dir)
-        )
-    patched_any = False
-    for name in sorted(os.listdir(build_dir)):
-        if not name.endswith(".ld"):
-            continue
+def _pre_link(target, source, env):
+    build_dir = env.subst("$BUILD_DIR")
+    ld_files = [f for f in os.listdir(build_dir) if f.endswith(".ld")]
+    patched = 0
+    for name in ld_files:
         path = os.path.join(build_dir, name)
         with open(path, "r", encoding="utf-8") as fh:
-            content = fh.read()
-        patched = content
-        for patch in patchers:
-            patched = patch(patched)
-        if patched != content:
+            original = fh.read()
+        content = original
+        for fn in _patchers:
+            content = fn(content)
+        if content != original:
             with open(path, "w", encoding="utf-8") as fh:
-                fh.write(patched)
-            print("ESPHome: patched linker script {} for IRAM_ATTR placement".format(name))
-            patched_any = True
-    if not patched_any:
+                fh.write(content)
+            print("ESPHome: patched {} for IRAM_ATTR placement".format(name))
+            patched += 1
+    if not patched:
         raise RuntimeError(
-            "ESPHome: no linker script in {} was patched for IRAM_ATTR; refusing "
-            "to link because IRAM_ATTR functions would end up in flash instead of "
-            "SRAM and would crash on an ISR while flash is busy. LibreTiny "
-            "probably reformatted the target .ld template; update the per-family "
+            "ESPHome: no .ld in {} was patched for IRAM_ATTR. Update the "
             "regex in patch_linker.py.script (_PATCHERS_BY_VARIANT).".format(
                 build_dir
             )
         )
-
-
-def _pre_link(target, source, env):
-    _patch_build_dir(_patchers, env.subst("$BUILD_DIR"))
 
 
 # Substrings matched against demangled symbol names as a fallback on
