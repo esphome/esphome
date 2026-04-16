@@ -20,11 +20,19 @@ import re
 
 
 _MARKER = "/* esphome .sram.text */"
-_KEEP_LINE = "    KEEP(*(.sram.text*)) " + _MARKER + "\n"
+_KEEP_LINE = (
+    "    PROVIDE(__esphome_sram_text_start = .); "
+    "KEEP(*(.sram.text*)) "
+    "PROVIDE(__esphome_sram_text_end = .); "
+    + _MARKER + "\n"
+)
 _BK_DATA = re.compile(r"(\.data\s*:\s*\{\s*\n)")
 _BK_RW_NO_X = re.compile(r"(\bram\s*\()\s*rw\s*!\s*x(\s*\))")
 _LN_COPY = re.compile(r"(\.flash_copysection\s*:\s*\{\s*\n)")
 _RTL8710B_IMAGE2 = re.compile(r"(\.image2\.ram\.text\s*:\s*\{\s*\n)")
+# RTL8720C loads its linker script directly from the framework package so we
+# cannot inject PROVIDE markers for it; the summary falls back to reading
+# addresses of known IRAM_ATTR symbols instead of measuring a bracketed span.
 
 
 def _detect(env):
@@ -82,6 +90,8 @@ def _patchers_for(variant):
         return (_patch_ln882h,)
     if variant == "RTL8710B":
         return (_patch_rtl8710b,)
+    # RTL8720C: stock linker already consumes *(.sram.text*), no .ld patch
+    # needed; summary falls back to reading symbol addresses.
     return ()
 
 
@@ -118,6 +128,49 @@ def _pre_link(target, source, env):
     _patch_build_dir(_patchers, env.subst("$BUILD_DIR"))
 
 
+def _post_link(target, source, env):
+    """Print where IRAM_ATTR ended up so users can confirm at a glance."""
+    nm = env.subst("$NM") or "arm-none-eabi-nm"
+    elf = env.subst("$BUILD_DIR/${PROGNAME}.elf")
+    if not os.path.isfile(elf):
+        return
+    try:
+        import subprocess
+        out = subprocess.check_output([nm, "--defined-only", elf], text=True)
+    except (OSError, subprocess.CalledProcessError):
+        return
+    start = end = None
+    sample = []
+    for line in out.splitlines():
+        parts = line.split(maxsplit=2)
+        if len(parts) != 3:
+            continue
+        addr, _kind, name = parts
+        if name == "__esphome_sram_text_start":
+            start = int(addr, 16)
+        elif name == "__esphome_sram_text_end":
+            end = int(addr, 16)
+        elif name in (
+            "_ZN7esphome21wake_loop_any_contextEv",
+            "_ZN7esphome17wake_loop_isrsafeEPl",
+            "_ZN7esphome9Component28enable_loop_soon_any_contextEv",
+        ):
+            sample.append((int(addr, 16), name))
+    header = "ESPHome: IRAM_ATTR placement summary ({}):".format(_variant)
+    if start is not None and end is not None:
+        print(header)
+        print("  .sram.text:  {} bytes at 0x{:08x} - 0x{:08x}".format(end - start, start, end))
+    elif sample:
+        print(header)
+        sample.sort()
+        lo = sample[0][0]
+        hi = sample[-1][0]
+        print("  IRAM symbols at 0x{:08x} - 0x{:08x} (approx {} bytes)".format(lo, hi, hi - lo))
+    else:
+        print(header)
+        print("  no IRAM_ATTR symbols found in the ELF")
+
+
 _variant = _detect(env)
 
 if _variant is None:
@@ -139,3 +192,6 @@ if _patchers:
     # own builder setup, which may run after this script. Register the patch
     # as a pre-link action so it executes once the linker scripts exist.
     env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", _pre_link)
+
+# Post-link summary runs for every LibreTiny family.
+env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", _post_link)
