@@ -26,7 +26,7 @@
 // IRAM_ATTR places a function in executable RAM so it is callable from an
 // ISR even while flash is busy (XIP stall, OTA, logger flash write).
 // patch_linker.py.script routes ".sram.text" into each family's RAM-
-// executable output section: .image2.ram.text on RTL8710B,
+// executable output section: .ram_image2.text on RTL8710B,
 // .flash_copysection on LN882H; RTL8720C's stock linker already consumes
 // *(.sram.text*) via its .ram.code_text output.
 //

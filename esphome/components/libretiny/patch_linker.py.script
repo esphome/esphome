@@ -13,8 +13,9 @@ import subprocess
 #
 # - LN882H: stock linker has ".flash_copysection" which is flash-to-RAM0
 #   copied at startup; inject "KEEP(*(.sram.text*))" there.
-# - RTL8710B (AmebaZ): stock linker has ".image2.ram.text" — inject
-#   "KEEP(*(.sram.text*))" into it.
+# - RTL8710B (AmebaZ): stock linker has ".ram_image2.text" output section
+#   (which already consumes *(.image2.ram.text*)) — inject
+#   "KEEP(*(.sram.text*))" into it as a second input glob.
 # - RTL8720C (AmebaZ2): stock linker already consumes "*(.sram.text*)",
 #   no-op. Loaded directly from the framework package so we cannot inject
 #   our __esphome_sram_text_start/end markers either; the post-link summary
@@ -119,7 +120,10 @@ def _patch_build_dir(patchers, build_dir):
         raise RuntimeError(
             "ESPHome: no linker script in {} was patched for IRAM_ATTR; refusing "
             "to link because IRAM_ATTR functions would end up in flash instead of "
-            "SRAM and would crash on an ISR while flash is busy".format(build_dir)
+            "SRAM and would crash on an ISR while flash is busy. LibreTiny probably "
+            "reformatted the target .ld template; update the per-family regex in "
+            "esphome/components/libretiny/patch_linker.py.script "
+            "(_LN_COPY, _RTL8710B_IMAGE2).".format(build_dir)
         )
 
 

@@ -471,7 +471,7 @@ async def component_to_code(config):
     # where the ISR-during-flash race is real (see esphome/core/hal.h). This
     # pre-link hook routes that section into each family's executable RAM:
     #   - LN882H: inject KEEP(*(.sram.text*)) into .flash_copysection.
-    #   - RTL8710B: inject KEEP(*(.sram.text*)) into .image2.ram.text.
+    #   - RTL8710B: inject KEEP(*(.sram.text*)) into .ram_image2.text.
     #   - RTL8720C: no-op (stock linker already consumes *(.sram.text*)).
     # BK72xx (all variants) is no-op: the Beken SDK wraps every flash write
     # in GLOBAL_INT_DISABLE() so no ISR can fire during a flash stall; the
@@ -565,8 +565,8 @@ async def component_to_code(config):
 
 # Called by writer.py
 def copy_files() -> None:
-    dir = Path(__file__).parent
-    patch_linker_file = dir / "patch_linker.py.script"
+    script_dir = Path(__file__).parent
+    patch_linker_file = script_dir / "patch_linker.py.script"
     copy_file_if_changed(
         patch_linker_file,
         CORE.relative_build_path("patch_linker.py"),
