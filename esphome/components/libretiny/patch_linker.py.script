@@ -36,7 +36,11 @@ _KEEP_LINE = (
     + _MARKER + "\n"
 )
 _LN_COPY = re.compile(r"(\.flash_copysection\s*:\s*\{\s*\n)")
-_RTL8710B_IMAGE2 = re.compile(r"(\.image2\.ram\.text\s*:\s*\{\s*\n)")
+# RTL8710B's output section is ".ram_image2.text"; its stock linker consumes
+# "*(.image2.ram.text*)" as an input glob inside that output, but we need to
+# add a second input glob "*(.sram.text*)" so the ESPHome-marked functions
+# land in the same RAM-resident output.
+_RTL8710B_IMAGE2 = re.compile(r"(\.ram_image2\.text\s*:\s*\{\s*\n)")
 
 
 def _detect(env):
