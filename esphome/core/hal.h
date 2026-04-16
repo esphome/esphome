@@ -25,10 +25,10 @@
 
 // IRAM_ATTR places a function in executable RAM so it is callable from an
 // ISR even while flash is busy (XIP stall, OTA, logger flash write).
-// patch_linker.py.script routes ".sram.text" into each family's RAM-
-// executable output section: .ram_image2.text on RTL8710B,
-// .flash_copysection on LN882H; RTL8720C's stock linker already consumes
-// *(.sram.text*) via its .ram.code_text output.
+// Each family uses a section its stock linker already routes to RAM:
+// RTL8710B → .image2.ram.text, RTL8720C → .sram.text. LN882H is the
+// exception: its stock linker has no matching glob, so patch_linker.py
+// injects KEEP(*(.sram.text*)) into .flash_copysection at pre-link.
 //
 // BK72xx (all variants) are left as a no-op: their SDK wraps flash
 // operations in GLOBAL_INT_DISABLE() which masks FIQ + IRQ at the CPU for
