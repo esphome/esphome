@@ -917,7 +917,9 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
     uint32_t next_schedule = this->scheduler.next_schedule_in(last_op_end_time).value_or(delay_time);
     // next_schedule is max of next_schedule and 0.5*default (16ms) delay_time
     // otherwise interval=0 schedules result in constant looping with almost no sleep
-    next_schedule = std::max(next_schedule, ((16 - elapsed) / 2));
+    if (elapsed < 16) {
+      next_schedule = std::max(next_schedule, ((16 - elapsed) / 2));
+    }
     delay_time = std::min(next_schedule, delay_time);
   }
   this->yield_with_select_(delay_time);
