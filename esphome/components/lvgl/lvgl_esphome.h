@@ -76,9 +76,10 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
 }
 #endif
 #if defined(USE_LVGL_IMAGE) && defined(USE_IMAGE)
-// Shortcut / overload, so that the source of an image can easily be updated
-// from within a lambda.
+#if LV_USE_IMAGE
+// Shortcut / overload, so that the source of an image widget can easily be updated from within a lambda.
 inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) { ::lv_image_set_src(obj, image->get_lv_image_dsc()); }
+#endif  // LV_USE_IMAGE
 
 inline void lv_obj_set_style_bitmap_mask_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
   ::lv_obj_set_style_bitmap_mask_src(obj, image->get_lv_image_dsc(), selector);
