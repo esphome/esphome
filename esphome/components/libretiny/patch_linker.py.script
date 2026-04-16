@@ -3,6 +3,7 @@ Import("env")  # noqa
 
 import os
 import re
+import subprocess
 
 # ESPHome marks ISR code IRAM_ATTR, which on LibreTiny expands to
 # section(".sram.text") (see esphome/core/hal.h). Each family's linker script
@@ -122,46 +123,50 @@ def _pre_link(target, source, env):
     _patch_build_dir(_patchers, env.subst("$BUILD_DIR"))
 
 
-def _post_link(target, source, env):
-    """Print where IRAM_ATTR ended up so users can confirm at a glance."""
-    nm = env.subst("$NM") or "arm-none-eabi-nm"
-    elf = env.subst("$BUILD_DIR/${PROGNAME}.elf")
-    if not os.path.isfile(elf):
-        return
+# Well-known ESPHome IRAM_ATTR symbols used as a fallback on RTL8720C, where
+# we cannot inject the __esphome_sram_text_start/end markers.
+_FALLBACK_IRAM_SYMBOLS = frozenset({
+    "_ZN7esphome21wake_loop_any_contextEv",
+    "_ZN7esphome17wake_loop_isrsafeEPl",
+    "_ZN7esphome9Component28enable_loop_soon_any_contextEv",
+})
+
+
+def _collect_iram_symbols(nm, elf):
+    """Return (start, end, fallback_addresses) for the IRAM_ATTR payload."""
     try:
-        import subprocess
         out = subprocess.check_output([nm, "--defined-only", elf], text=True)
     except (OSError, subprocess.CalledProcessError):
-        return
+        return None, None, []
     start = end = None
-    sample = []
+    fallback = []
     for line in out.splitlines():
         parts = line.split(maxsplit=2)
         if len(parts) != 3:
             continue
-        addr, _kind, name = parts
+        addr_str, _kind, name = parts
         if name == "__esphome_sram_text_start":
-            start = int(addr, 16)
+            start = int(addr_str, 16)
         elif name == "__esphome_sram_text_end":
-            end = int(addr, 16)
-        elif name in (
-            "_ZN7esphome21wake_loop_any_contextEv",
-            "_ZN7esphome17wake_loop_isrsafeEPl",
-            "_ZN7esphome9Component28enable_loop_soon_any_contextEv",
-        ):
-            sample.append((int(addr, 16), name))
-    header = "ESPHome: IRAM_ATTR placement summary ({}):".format(_variant)
+            end = int(addr_str, 16)
+        elif name in _FALLBACK_IRAM_SYMBOLS:
+            fallback.append(int(addr_str, 16))
+    return start, end, fallback
+
+
+def _post_link(target, source, env):
+    """Print where IRAM_ATTR ended up so users can confirm at a glance."""
+    elf = env.subst("$BUILD_DIR/${PROGNAME}.elf")
+    if not os.path.isfile(elf):
+        return
+    start, end, fallback = _collect_iram_symbols(env.subst("$NM"), elf)
+    print("ESPHome: IRAM_ATTR placement summary ({}):".format(_variant))
     if start is not None and end is not None:
-        print(header)
         print("  .sram.text:  {} bytes at 0x{:08x} - 0x{:08x}".format(end - start, start, end))
-    elif sample:
-        print(header)
-        sample.sort()
-        lo = sample[0][0]
-        hi = sample[-1][0]
+    elif fallback:
+        lo, hi = min(fallback), max(fallback)
         print("  IRAM symbols at 0x{:08x} - 0x{:08x} (approx {} bytes)".format(lo, hi, hi - lo))
     else:
-        print(header)
         print("  no IRAM_ATTR symbols found in the ELF")
 
 
