@@ -15,6 +15,9 @@ from typing import Any
 from esphome.core import EsphomeError
 from esphome.helpers import ProgressBar, resolve_ip_address
 
+OTA_TYPE_UPDATE_APP = 0x00
+OTA_TYPE_UPDATE_PARTITION_TABLE = 0x01
+
 RESPONSE_OK = 0x00
 RESPONSE_REQUEST_AUTH = 0x01
 RESPONSE_REQUEST_SHA256_AUTH = 0x02
@@ -27,6 +30,7 @@ RESPONSE_RECEIVE_OK = 0x44
 RESPONSE_UPDATE_END_OK = 0x45
 RESPONSE_SUPPORTS_COMPRESSION = 0x46
 RESPONSE_CHUNK_OK = 0x47
+RESPONSE_FEATURE_FLAGS = 0x48
 
 RESPONSE_ERROR_MAGIC = 0x80
 RESPONSE_ERROR_UPDATE_PREPARE = 0x81
@@ -49,9 +53,11 @@ OTA_VERSION_2_0 = 2
 
 MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 
-FEATURE_SUPPORTS_COMPRESSION = 0x01
-FEATURE_SUPPORTS_SHA256_AUTH = 0x02
-
+CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01
+CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02
+CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04
+SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
+SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 
 UPLOAD_BLOCK_SIZE = 8192
 UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
@@ -232,7 +238,11 @@ def send_check(
 
 
 def perform_ota(
-    sock: socket.socket, password: str | None, file_handle: io.IOBase, filename: Path
+    sock: socket.socket,
+    password: str | None,
+    file_handle: io.IOBase,
+    filename: Path,
+    ota_type: int,
 ) -> None:
     file_contents = file_handle.read()
     file_size = len(file_contents)
@@ -251,7 +261,11 @@ def perform_ota(
         )
 
     # Features - send both compression and SHA256 auth support
-    features_to_send = FEATURE_SUPPORTS_COMPRESSION | FEATURE_SUPPORTS_SHA256_AUTH
+    features_to_send = (
+        CLIENT_FEATURE_SUPPORTS_COMPRESSION
+        | CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
+        | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+    )
     send_check(sock, features_to_send, "features")
     features = receive_exactly(
         sock,
@@ -260,7 +274,26 @@ def perform_ota(
         None,  # Accept any response
     )[0]
 
-    if features == RESPONSE_SUPPORTS_COMPRESSION:
+    extended_proto = False
+    if features == RESPONSE_FEATURE_FLAGS:
+        extended_proto = True
+        features = receive_exactly(
+            sock,
+            1,
+            "feature flags",
+            None,  # Accept any response
+        )[0]
+    elif features == RESPONSE_SUPPORTS_COMPRESSION:
+        features = SERVER_FEATURE_SUPPORTS_COMPRESSION
+    else:
+        features = 0
+
+    if ota_type != 0 and not features & SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS:
+        raise OTAError(
+            f"Device only supports app updates"
+        )
+
+    if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
         upload_contents = gzip.compress(file_contents, compresslevel=9)
         _LOGGER.info("Compressed to %s bytes", len(upload_contents))
     else:
@@ -314,6 +347,9 @@ def perform_ota(
 
     # Timeout must match device-side OTA_SOCKET_TIMEOUT_DATA to prevent premature failures
     sock.settimeout(90.0)
+
+    if extended_proto:
+        send_check(sock, ota_type, "ota type")
 
     upload_size = len(upload_contents)
     upload_size_encoded = [
@@ -375,7 +411,11 @@ def perform_ota(
 
 
 def run_ota_impl_(
-    remote_host: str | list[str], remote_port: int, password: str | None, filename: Path
+    remote_host: str | list[str],
+    remote_port: int,
+    password: str | None,
+    filename: Path,
+    ota_type: int,
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -413,7 +453,7 @@ def run_ota_impl_(
         _LOGGER.info("Connected to %s", sa[0])
         with open(filename, "rb") as file_handle:
             try:
-                perform_ota(sock, password, file_handle, filename)
+                perform_ota(sock, password, file_handle, filename, ota_type)
             except OTAError as err:
                 _LOGGER.error(str(err))
                 return 1, None
@@ -428,10 +468,14 @@ def run_ota_impl_(
 
 
 def run_ota(
-    remote_host: str | list[str], remote_port: int, password: str | None, filename: Path
+    remote_host: str | list[str],
+    remote_port: int,
+    password: str | None,
+    filename: Path,
+    ota_type: int,
 ) -> tuple[int, str | None]:
     try:
-        return run_ota_impl_(remote_host, remote_port, password, filename)
+        return run_ota_impl_(remote_host, remote_port, password, filename, ota_type)
     except OTAError as err:
         _LOGGER.error(err)
         return 1, None
