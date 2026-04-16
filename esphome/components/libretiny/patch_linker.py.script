@@ -120,10 +120,11 @@ def _patch_build_dir(patchers, build_dir):
         raise RuntimeError(
             "ESPHome: no linker script in {} was patched for IRAM_ATTR; refusing "
             "to link because IRAM_ATTR functions would end up in flash instead of "
-            "SRAM and would crash on an ISR while flash is busy. LibreTiny probably "
-            "reformatted the target .ld template; update the per-family regex in "
-            "esphome/components/libretiny/patch_linker.py.script "
-            "(_LN_COPY, _RTL8710B_IMAGE2).".format(build_dir)
+            "SRAM and would crash on an ISR while flash is busy. LibreTiny "
+            "probably reformatted the target .ld template; update the per-family "
+            "regex in patch_linker.py.script (_PATCHERS_BY_VARIANT).".format(
+                build_dir
+            )
         )
 
 
