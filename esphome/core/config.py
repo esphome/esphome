@@ -236,11 +236,17 @@ ICON_MAX_LENGTH = 63
 # Max unit of measurement string length
 UNIT_OF_MEASUREMENT_MAX_LENGTH = 63
 
+# Max project name/version string length (must fit in single-byte varint for proto encoding)
+PROJECT_MAX_LENGTH = 127
+
+# Max board/model string length (must fit in single-byte varint for proto encoding)
+BOARD_MAX_LENGTH = 127
+
 AREA_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Area),
         cv.Required(CONF_NAME): cv.All(
-            cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+            cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
     }
 )
@@ -249,7 +255,7 @@ DEVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Device),
         cv.Required(CONF_NAME): cv.All(
-            cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+            cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
     }
@@ -266,7 +272,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NAME): cv.valid_name,
             # Keep max=120 in sync with OBJECT_ID_MAX_LEN in esphome/core/entity_base.h
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(
-                cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+                cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
             ),
             cv.Optional(CONF_AREA): validate_area_config,
             cv.Optional(CONF_COMMENT): cv.All(cv.string, cv.Length(max=255)),
@@ -306,9 +312,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
                     cv.Required(CONF_NAME): cv.All(
-                        cv.string_strict, valid_project_name
+                        cv.string_strict,
+                        valid_project_name,
+                        cv.ByteLength(max=PROJECT_MAX_LENGTH),
                     ),
-                    cv.Required(CONF_VERSION): cv.string_strict,
+                    cv.Required(CONF_VERSION): cv.All(
+                        cv.string_strict, cv.ByteLength(max=PROJECT_MAX_LENGTH)
+                    ),
                     cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(

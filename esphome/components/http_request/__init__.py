@@ -302,11 +302,13 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
 
     template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
     cg.add(var.set_url(template_))
-    cg.add(var.set_method(config[CONF_METHOD]))
+    template_ = await cg.templatable(config[CONF_METHOD], args, cg.const_char_ptr)
+    cg.add(var.set_method(template_))
 
     capture_response = config[CONF_CAPTURE_RESPONSE]
     if capture_response:
-        cg.add(var.set_capture_response(capture_response))
+        template_ = await cg.templatable(capture_response, args, cg.bool_)
+        cg.add(var.set_capture_response(template_))
         cg.add_define("USE_HTTP_REQUEST_RESPONSE")
 
     cg.add(var.set_max_response_buffer_size(config[CONF_MAX_RESPONSE_BUFFER_SIZE]))

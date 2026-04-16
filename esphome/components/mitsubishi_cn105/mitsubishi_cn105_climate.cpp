@@ -7,7 +7,7 @@ namespace esphome::mitsubishi_cn105 {
 static const char *const TAG = "mitsubishi_cn105.climate";
 
 static constexpr std::array MODE_MAP{
-    std::pair{MitsubishiCN105::Mode::AUTO, climate::CLIMATE_MODE_AUTO},
+    std::pair{MitsubishiCN105::Mode::AUTO, climate::CLIMATE_MODE_HEAT_COOL},
     std::pair{MitsubishiCN105::Mode::HEAT, climate::CLIMATE_MODE_HEAT},
     std::pair{MitsubishiCN105::Mode::DRY, climate::CLIMATE_MODE_DRY},
     std::pair{MitsubishiCN105::Mode::COOL, climate::CLIMATE_MODE_COOL},
@@ -76,23 +76,13 @@ void MitsubishiCN105Climate::loop() {
 climate::ClimateTraits MitsubishiCN105Climate::traits() {
   climate::ClimateTraits traits;
 
-  traits.set_supported_modes({
-      climate::CLIMATE_MODE_OFF,
-      climate::CLIMATE_MODE_COOL,
-      climate::CLIMATE_MODE_HEAT,
-      climate::CLIMATE_MODE_DRY,
-      climate::CLIMATE_MODE_FAN_ONLY,
-      climate::CLIMATE_MODE_AUTO,
-  });
+  for (const auto &p : MODE_MAP) {
+    traits.add_supported_mode(p.second);
+  }
 
-  traits.set_supported_fan_modes({
-      climate::CLIMATE_FAN_AUTO,
-      climate::CLIMATE_FAN_QUIET,
-      climate::CLIMATE_FAN_LOW,
-      climate::CLIMATE_FAN_MEDIUM,
-      climate::CLIMATE_FAN_MIDDLE,
-      climate::CLIMATE_FAN_HIGH,
-  });
+  for (const auto &p : FAN_MODE_MAP) {
+    traits.add_supported_fan_mode(p.second);
+  }
 
   traits.set_visual_min_temperature(16.0f);
   traits.set_visual_max_temperature(31.0f);
