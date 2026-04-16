@@ -56,7 +56,7 @@ def _detect(env):
     return None
 
 
-KNOWN_VARIANTS = (
+KNOWN_VARIANTS = frozenset({
     "BK7231N",
     "BK7231T",
     "BK7231Q",
@@ -64,7 +64,7 @@ KNOWN_VARIANTS = (
     "LN882H",
     "RTL8710B",
     "RTL8720C",
-)
+})
 
 
 def _inject_keep(host_section):
