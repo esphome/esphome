@@ -468,10 +468,11 @@ async def component_to_code(config):
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
     # IRAM_ATTR on LibreTiny expands to section(".sram.text") (see
-    # esphome/core/hal.h). This pre-link hook rewrites the processed .ld files
-    # in the build dir so that section lands in RAM on each family:
-    #   - BK72xx: flip SRAM region (rw!x) -> (rwx) and inject
-    #     KEEP(*(.sram.text*)) into the .data output section.
+    # esphome/core/hal.h). This pre-link hook rewrites the processed .ld
+    # files in the build dir so that section lands in an executable RAM
+    # output section on each family:
+    #   - BK72xx: inject KEEP(*(.sram.text*)) into .itcm.code (the only
+    #     rwx RAM region; main SRAM is rw!x on ARM968E-S).
     #   - LN882H: inject KEEP(*(.sram.text*)) into .flash_copysection.
     #   - RTL8710B: inject KEEP(*(.sram.text*)) into .image2.ram.text.
     #   - RTL8720C: no-op (stock linker already consumes *(.sram.text*)).

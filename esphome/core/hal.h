@@ -23,13 +23,13 @@
 
 #elif defined(USE_LIBRETINY)
 
-// IRAM_ATTR places a function in SRAM so it is callable from an ISR even
-// while flash is busy (XIP stall, OTA, logger flash write). All LibreTiny
-// families use ".sram.text". RTL8720C (AmebaZ2) already consumes that
-// section; RTL8710B (AmebaZ), BK72xx, and LN882H get it routed into their
-// RAM-resident output section via patch_linker.py.script. Using a custom
-// name avoids the assembler "setting incorrect section attributes" warning
-// that ".data.*" triggers when we place executable code there.
+// IRAM_ATTR places a function in executable RAM so it is callable from an
+// ISR even while flash is busy (XIP stall, OTA, logger flash write). All
+// LibreTiny families use ".sram.text"; patch_linker.py.script routes it
+// into each family's RAM-executable output section (.itcm.code on BK72xx,
+// .image2.ram.text on RTL8710B, .flash_copysection on LN882H). RTL8720C's
+// stock linker already consumes *(.sram.text*) via its .ram.code_text
+// output.
 #define IRAM_ATTR __attribute__((noinline, section(".sram.text")))
 #define PROGMEM
 

@@ -6,17 +6,23 @@ import re
 
 # ESPHome marks ISR code IRAM_ATTR, which on LibreTiny expands to
 # section(".sram.text") (see esphome/core/hal.h). Each family's linker script
-# needs that section routed into RAM-resident code so the function is callable
-# while flash is busy (XIP stall, OTA, logger flash write):
+# needs that section routed into RAM-resident *executable* memory so the
+# function is callable while flash is busy (XIP stall, OTA, logger flash
+# write):
 #
-# - RTL8720C (AmebaZ2): stock linker already consumes "*(.sram.text*)", no-op.
-# - RTL8710B (AmebaZ): stock linker has ".image2.ram.text" — inject
-#   "*(.sram.text*)" into it.
-# - BK72xx: stock linker has a (rw!x) SRAM region that blocks executable
-#   placement; flip to (rwx) and inject "KEEP(*(.sram.text*))" into the ".data"
-#   output (which is already flash-to-SRAM copied at startup by the SDK).
+# - BK72xx: ARM968E-S has tightly-coupled instruction RAM ("itcm", 4.5 kB,
+#   rwx) that the SDK uses for its own ISR / flash / FreeRTOS critical
+#   routines; main SRAM ("ram", 192 kB) is rw!x (bus does not allow
+#   instruction fetches). Inject "KEEP(*(.sram.text*))" into ".itcm.code"
+#   so our IRAM_ATTR functions share the only executable RAM region.
 # - LN882H: stock linker has ".flash_copysection" which is flash-to-RAM0
 #   copied at startup; inject "KEEP(*(.sram.text*))" there.
+# - RTL8710B (AmebaZ): stock linker has ".image2.ram.text" — inject
+#   "KEEP(*(.sram.text*))" into it.
+# - RTL8720C (AmebaZ2): stock linker already consumes "*(.sram.text*)",
+#   no-op. Loaded directly from the framework package so we cannot inject
+#   our __esphome_sram_text_start/end markers either; the post-link summary
+#   falls back to reading known IRAM_ATTR symbol addresses instead.
 
 
 _MARKER = "/* esphome .sram.text */"
@@ -28,13 +34,9 @@ _KEEP_LINE = (
     "__esphome_sram_text_end = .; "
     + _MARKER + "\n"
 )
-_BK_DATA = re.compile(r"(\.data\s*:\s*\{\s*\n)")
-_BK_RW_NO_X = re.compile(r"(\bram\s*\()\s*rw\s*!\s*x(\s*\))")
+_BK_ITCM = re.compile(r"(\.itcm\.code\s*ALIGN\s*\(\s*\d+\s*\)\s*:\s*\{\s*\n)")
 _LN_COPY = re.compile(r"(\.flash_copysection\s*:\s*\{\s*\n)")
 _RTL8710B_IMAGE2 = re.compile(r"(\.image2\.ram\.text\s*:\s*\{\s*\n)")
-# RTL8720C loads its linker script directly from the framework package so we
-# cannot inject PROVIDE markers for it; the summary falls back to reading
-# addresses of known IRAM_ATTR symbols instead of measuring a bracketed span.
 
 
 def _detect(env):
@@ -75,17 +77,13 @@ def _inject_keep(host_section):
     return patch
 
 
-def _flip_bk72xx_rwx(content):
-    return _BK_RW_NO_X.sub(r"\1rwx\2", content)
-
-
 # RTL8720C is absent: its stock linker already consumes *(.sram.text*), so
 # no .ld patch is needed; the summary falls back to reading symbol addresses.
 _PATCHERS_BY_VARIANT = {
-    "BK7231N": (_flip_bk72xx_rwx, _inject_keep(_BK_DATA)),
-    "BK7231T": (_flip_bk72xx_rwx, _inject_keep(_BK_DATA)),
-    "BK7231Q": (_flip_bk72xx_rwx, _inject_keep(_BK_DATA)),
-    "BK7251": (_flip_bk72xx_rwx, _inject_keep(_BK_DATA)),
+    "BK7231N": (_inject_keep(_BK_ITCM),),
+    "BK7231T": (_inject_keep(_BK_ITCM),),
+    "BK7231Q": (_inject_keep(_BK_ITCM),),
+    "BK7251": (_inject_keep(_BK_ITCM),),
     "LN882H": (_inject_keep(_LN_COPY),),
     "RTL8710B": (_inject_keep(_RTL8710B_IMAGE2),),
 }
