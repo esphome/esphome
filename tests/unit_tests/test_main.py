@@ -6,8 +6,10 @@ from collections.abc import Generator
 from dataclasses import dataclass
 import json
 import logging
+import os
 from pathlib import Path
 import re
+import sys
 import time
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
@@ -18,8 +20,11 @@ from pytest import CaptureFixture
 from esphome import platformio_api
 from esphome.__main__ import (
     Purpose,
+    _get_configured_xtal_freq,
+    _make_crystal_freq_callback,
     choose_upload_log_host,
     command_analyze_memory,
+    command_bundle,
     command_clean_all,
     command_rename,
     command_update_all,
@@ -40,7 +45,10 @@ from esphome.__main__ import (
     show_logs,
     upload_program,
     upload_using_esptool,
+    upload_using_picotool,
+    upload_using_platformio,
 )
+from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
@@ -70,6 +78,7 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.util import BootselResult
 
 
 def strip_ansi_codes(text: str) -> str:
@@ -161,6 +170,13 @@ def mock_run_miniterm() -> Generator[Mock]:
 
 
 @pytest.fixture
+def mock_wait_for_serial_port() -> Generator[Mock]:
+    """Mock _wait_for_serial_port for testing."""
+    with patch("esphome.__main__._wait_for_serial_port") as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_upload_using_esptool() -> Generator[Mock]:
     """Mock upload_using_esptool for testing."""
     with patch("esphome.__main__.upload_using_esptool") as mock:
@@ -171,6 +187,13 @@ def mock_upload_using_esptool() -> Generator[Mock]:
 def mock_upload_using_platformio() -> Generator[Mock]:
     """Mock upload_using_platformio for testing."""
     with patch("esphome.__main__.upload_using_platformio") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_upload_using_picotool() -> Generator[Mock]:
+    """Mock upload_using_picotool for testing."""
+    with patch("esphome.__main__.upload_using_picotool") as mock:
         yield mock
 
 
@@ -851,6 +874,221 @@ def test_choose_upload_log_host_no_address_with_ota_config() -> None:
         )
 
 
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_no_defaults_with_rp2040_bootsel(
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test interactive mode shows RP2040 BOOTSEL option via picotool."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(1)),
+    ):
+        result = choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        assert result == ["/dev/ttyUSB0"]  # mock_choose_prompt default
+        mock_choose_prompt.assert_called_once_with(
+            [("RP2040 BOOTSEL (via picotool)", "BOOTSEL")],
+            purpose=Purpose.UPLOADING,
+        )
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_no_device_shows_bootsel_help() -> None:
+    """Test BOOTSEL instructions shown when no RP2040 device found."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(0)),
+        pytest.raises(EsphomeError, match="BOOTSEL"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_bootsel_tip_with_ota(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test BOOTSEL tip shown when only OTA options exist for RP2040."""
+    setup_core(
+        platform=PLATFORM_RP2040,
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+    )
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(0)),
+        patch(
+            "esphome.__main__.choose_prompt",
+            return_value="192.168.1.100",
+        ),
+        caplog.at_level(logging.INFO, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        assert "BOOTSEL" in caplog.text
+
+
+def test_choose_upload_log_host_rp2040_bootsel_tip_with_serial_ports(
+    caplog: pytest.LogCaptureFixture,
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test BOOTSEL tip shown when serial ports exist but no BOOTSEL device."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    mock_ports = [MockSerialPort("/dev/ttyACM0", "RP2040 Serial")]
+    with (
+        patch("esphome.__main__.get_serial_ports", return_value=mock_ports),
+        patch(
+            "esphome.__main__._find_picotool",
+            return_value=Path("/usr/bin/picotool"),
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(0)),
+        caplog.at_level(logging.INFO, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        assert "BOOTSEL" in caplog.text
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_permission_error_no_options(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test permission warning shown when BOOTSEL device found but not accessible."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch(
+            "esphome.__main__.detect_rp2040_bootsel",
+            return_value=BootselResult(0, permission_error=True),
+        ),
+        patch("esphome.__main__.sys.platform", "linux"),
+        pytest.raises(EsphomeError, match="BOOTSEL"),
+        caplog.at_level(logging.WARNING, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert "USB permissions" in caplog.text
+    assert "udev" in caplog.text
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_permission_error_with_ota(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test permission warning shown with OTA fallback available."""
+    setup_core(
+        platform=PLATFORM_RP2040,
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+    )
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch(
+            "esphome.__main__.detect_rp2040_bootsel",
+            return_value=BootselResult(0, permission_error=True),
+        ),
+        patch(
+            "esphome.__main__.choose_prompt",
+            return_value="192.168.1.100",
+        ),
+        caplog.at_level(logging.WARNING, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert "USB permissions" in caplog.text
+
+
+def test_choose_upload_log_host_no_bootsel_for_non_rp2040(
+    mock_no_serial_ports: Mock,
+) -> None:
+    """Test that BOOTSEL detection is not run for non-RP2040 platforms."""
+    setup_core(
+        platform=PLATFORM_ESP32,
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+    )
+
+    with (
+        patch("esphome.__main__._find_picotool") as mock_find_picotool,
+        patch(
+            "esphome.__main__.choose_prompt",
+            return_value="192.168.1.100",
+        ),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        mock_find_picotool.assert_not_called()
+
+
+def test_choose_upload_log_host_rp2040_serial_and_bootsel(
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test both serial ports and BOOTSEL option shown for RP2040."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    mock_ports = [MockSerialPort("/dev/ttyACM0", "RP2040 Serial")]
+    with (
+        patch("esphome.__main__.get_serial_ports", return_value=mock_ports),
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(1)),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        mock_choose_prompt.assert_called_once_with(
+            [
+                ("/dev/ttyACM0 (RP2040 Serial)", "/dev/ttyACM0"),
+                ("RP2040 BOOTSEL (via picotool)", "BOOTSEL"),
+            ],
+            purpose=Purpose.UPLOADING,
+        )
+
+
 @dataclass
 class MockArgs:
     """Mock args for testing."""
@@ -865,6 +1103,8 @@ class MockArgs:
     name: str | None = None
     dashboard: bool = False
     reset: bool = False
+    list_only: bool = False
+    output: str | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -991,6 +1231,48 @@ def test_upload_using_esptool_path_conversion(
     assert partitions_path.endswith("partitions.bin")
 
 
+def test_upload_using_esptool_skips_missing_extra_flash_images(
+    tmp_path: Path,
+    mock_run_external_command_main: Mock,
+    mock_get_idedata: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A non-existent path in extra_flash_images must be filtered out with a
+    warning, and must not appear in the esptool command line. Only the valid
+    images are flashed. Regression test for
+    https://github.com/esphome/esphome/issues/15634.
+    """
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    missing_path = tmp_path / "variants" / "tasmota" / "tinyuf2.bin"
+
+    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = [
+        platformio_api.FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        platformio_api.FlashImage(path=missing_path, offset="0x2d0000"),
+    ]
+    mock_get_idedata.return_value = mock_idedata
+
+    (tmp_path / "firmware.bin").touch()
+    (tmp_path / "bootloader.bin").touch()
+    # Intentionally do NOT create missing_path
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    assert result == 0
+    assert "Skipping missing flash image" in caplog.text
+    assert str(missing_path) in caplog.text
+
+    cmd_list = list(mock_run_external_command_main.call_args[0][1:])
+    assert str(missing_path) not in cmd_list
+    assert "0x2d0000" not in cmd_list
+
+
 def test_upload_using_esptool_with_file_path(
     tmp_path: Path,
     mock_run_external_command_main: Mock,
@@ -1060,6 +1342,46 @@ def test_upload_program_serial_platformio_platforms(
     mock_upload_using_platformio.assert_called_once_with(config, device)
 
 
+def test_upload_using_platformio_creates_signed_bin_for_rp2040(
+    tmp_path: Path,
+) -> None:
+    """Test that upload_using_platformio creates firmware.bin.signed for RP2040."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_bin = build_dir / "firmware.bin"
+    firmware_bin.write_bytes(b"test firmware content")
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"elf")
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+
+    with (
+        patch("esphome.platformio_api.get_idedata", return_value=mock_idedata),
+        patch("esphome.platformio_api.run_platformio_cli_run", return_value=0),
+    ):
+        result = upload_using_platformio({}, "/dev/ttyACM0")
+
+    assert result == 0
+    signed_bin = build_dir / "firmware.bin.signed"
+    assert signed_bin.is_file()
+    assert signed_bin.read_bytes() == b"test firmware content"
+
+
+def test_upload_using_platformio_skips_signed_bin_for_non_rp2040(
+    tmp_path: Path,
+) -> None:
+    """Test that upload_using_platformio doesn't create signed bin for non-RP2040."""
+    setup_core(platform=PLATFORM_ESP32)
+
+    with patch("esphome.platformio_api.run_platformio_cli_run", return_value=0):
+        result = upload_using_platformio({}, "/dev/ttyUSB0")
+
+    assert result == 0
+
+
 def test_upload_program_serial_upload_failed(
     mock_upload_using_esptool: Mock,
     mock_get_port_type: Mock,
@@ -1080,6 +1402,158 @@ def test_upload_program_serial_upload_failed(
     assert host is None
     mock_check_permissions.assert_called_once_with("/dev/ttyUSB0")
     mock_upload_using_esptool.assert_called_once()
+
+
+def test_upload_program_bootsel(
+    mock_upload_using_picotool: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test upload_program with BOOTSEL for RP2040."""
+    setup_core(platform=PLATFORM_RP2040)
+    mock_get_port_type.return_value = "BOOTSEL"
+    mock_upload_using_picotool.return_value = 0
+
+    config = {}
+    args = MockArgs()
+    devices = ["BOOTSEL"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    # BOOTSEL device can't be used for logging, so host should be None
+    assert host is None
+    mock_upload_using_picotool.assert_called_once_with(config)
+
+
+def test_upload_program_bootsel_failed(
+    mock_upload_using_picotool: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test upload_program when BOOTSEL upload fails."""
+    setup_core(platform=PLATFORM_RP2040)
+    mock_get_port_type.return_value = "BOOTSEL"
+    mock_upload_using_picotool.return_value = 1
+
+    config = {}
+    args = MockArgs()
+    devices = ["BOOTSEL"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 1
+    assert host is None
+    mock_upload_using_picotool.assert_called_once_with(config)
+
+
+def test_upload_using_picotool_success(tmp_path: Path) -> None:
+    """Test upload_using_picotool succeeds."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"\x00" * 1024)
+
+    # Create picotool binary
+    packages_dir = tmp_path / "packages"
+    toolchain_bin = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_bin.mkdir(parents=True)
+    picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
+    picotool_dir.mkdir(parents=True)
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool = picotool_dir / binary_name
+    picotool.touch()
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+    mock_idedata.cc_path = str(toolchain_bin / "arm-none-eabi-gcc")
+
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stderr = b""
+
+    config = {}
+    with (
+        patch("esphome.platformio_api.get_idedata", return_value=mock_idedata),
+        patch("subprocess.run", return_value=mock_result),
+    ):
+        exit_code = upload_using_picotool(config)
+
+    assert exit_code == 0
+
+
+def test_upload_using_picotool_no_elf(tmp_path: Path) -> None:
+    """Test upload_using_picotool when ELF file is missing."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(build_dir / "firmware.elf")
+    mock_idedata.cc_path = "/fake/path/gcc"
+
+    config = {}
+    with patch("esphome.platformio_api.get_idedata", return_value=mock_idedata):
+        exit_code = upload_using_picotool(config)
+
+    assert exit_code == 1
+
+
+def test_upload_using_picotool_not_found(tmp_path: Path) -> None:
+    """Test upload_using_picotool when picotool binary not found."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"\x00" * 512)
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+    mock_idedata.cc_path = "/fake/path/gcc"
+
+    config = {}
+    with patch("esphome.platformio_api.get_idedata", return_value=mock_idedata):
+        exit_code = upload_using_picotool(config)
+
+    assert exit_code == 1
+
+
+def test_upload_using_picotool_permission_error(tmp_path: Path) -> None:
+    """Test upload_using_picotool shows helpful message on permission error."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"\x00" * 512)
+
+    packages_dir = tmp_path / "packages"
+    toolchain_bin = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_bin.mkdir(parents=True)
+    picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
+    picotool_dir.mkdir(parents=True)
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool = picotool_dir / binary_name
+    picotool.touch()
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+    mock_idedata.cc_path = str(toolchain_bin / "arm-none-eabi-gcc")
+
+    mock_result = MagicMock()
+    mock_result.returncode = 1
+    mock_result.stderr = b"LIBUSB_ERROR_ACCESS"
+
+    config = {}
+    with (
+        patch("esphome.platformio_api.get_idedata", return_value=mock_idedata),
+        patch("subprocess.run", return_value=mock_result),
+    ):
+        exit_code = upload_using_picotool(config)
+
+    assert exit_code == 1
 
 
 def test_upload_program_ota_success(
@@ -1285,6 +1759,7 @@ def test_show_logs_serial(
     mock_get_port_type: Mock,
     mock_check_permissions: Mock,
     mock_run_miniterm: Mock,
+    mock_wait_for_serial_port: Mock,
 ) -> None:
     """Test show_logs with serial port."""
     setup_core(config={"logger": {}}, platform=PLATFORM_ESP32)
@@ -1333,7 +1808,34 @@ def test_show_logs_api(
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100", "192.168.1.101"]
+        CORE.config, ["192.168.1.100", "192.168.1.101"], subscribe_states=True
+    )
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_show_logs_api_no_states(
+    mock_run_logs: Mock,
+) -> None:
+    """Test show_logs with --no-states flag."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MDNS: {CONF_DISABLED: False},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    args = MockArgs()
+    args.no_states = True
+    devices = ["192.168.1.100"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100"], subscribe_states=False
     )
 
 
@@ -1359,7 +1861,9 @@ def test_show_logs_api_with_fqdn_mdns_disabled(
 
     assert result == 0
     # Should use the FQDN directly, not try MQTT lookup
-    mock_run_logs.assert_called_once_with(CORE.config, ["device.example.com"])
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["device.example.com"], subscribe_states=True
+    )
 
 
 @patch("esphome.components.api.client.run_logs")
@@ -1387,7 +1891,9 @@ def test_show_logs_api_with_mqtt_fallback(
 
     assert result == 0
     mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
-    mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.200"])
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.200"], subscribe_states=True
+    )
 
 
 @patch("esphome.mqtt.show_logs")
@@ -1605,6 +2111,8 @@ def test_get_port_type() -> None:
     assert get_port_type("192.168.1.100") == "NETWORK"
     assert get_port_type("esphome-device.local") == "NETWORK"
     assert get_port_type("10.0.0.1") == "NETWORK"
+
+    assert get_port_type("BOOTSEL") == "BOOTSEL"
 
 
 def test_has_mqtt_ip_lookup() -> None:
@@ -2315,7 +2823,7 @@ def test_show_logs_api_static_ip_with_mqttip(
 
     # Verify run_logs was called with both IPs
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100", "192.168.2.50"]
+        CORE.config, ["192.168.1.100", "192.168.2.50"], subscribe_states=True
     )
 
 
@@ -2351,7 +2859,9 @@ def test_show_logs_api_multiple_mqttip_resolves_once(
     # Note: "MQTT" is a different magic string from "MQTTIP", but both trigger MQTT resolution
     # The _resolve_network_devices helper filters out both after first resolution
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.2.50", "192.168.2.51", "192.168.1.100"]
+        CORE.config,
+        ["192.168.2.50", "192.168.2.51", "192.168.1.100"],
+        subscribe_states=True,
     )
 
 
@@ -2431,7 +2941,9 @@ def test_show_logs_api_mqtt_timeout_fallback(
     mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
 
     # Verify run_logs was called with only the static IP (MQTT failed)
-    mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.100"])
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100"], subscribe_states=True
+    )
 
 
 def test_detect_external_components_no_external(
@@ -3297,3 +3809,316 @@ esp32:
         clean_output.split("SUMMARY")[1] if "SUMMARY" in clean_output else ""
     )
     assert "secrets.yaml" not in summary_section
+
+
+# --- command_bundle tests ---
+
+
+def test_command_bundle_list_only(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+) -> None:
+    """Test command_bundle with --list-only prints files and returns 0."""
+    mock_files = [
+        BundleFile(path="device.yaml", source=tmp_path / "device.yaml"),
+        BundleFile(path="secrets.yaml", source=tmp_path / "secrets.yaml"),
+        BundleFile(path="common/base.yaml", source=tmp_path / "common" / "base.yaml"),
+    ]
+
+    args = MockArgs(list_only=True)
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.discover_files.return_value = mock_files
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    captured = capsys.readouterr()
+    # Files should be printed in sorted order
+    assert "common/base.yaml" in captured.out
+    assert "device.yaml" in captured.out
+    assert "secrets.yaml" in captured.out
+
+
+def test_command_bundle_list_only_empty(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+) -> None:
+    """Test command_bundle --list-only with no files discovered."""
+    args = MockArgs(list_only=True)
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.discover_files.return_value = []
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+
+
+def test_command_bundle_creates_archive(tmp_path: Path) -> None:
+    """Test command_bundle creates archive at default output path."""
+    CORE.config_path = tmp_path / "mydevice.yaml"
+
+    mock_result = BundleResult(
+        data=b"fake-tar-gz-data",
+        manifest={"manifest_version": 1},
+        files=[BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml")],
+    )
+
+    args = MockArgs()
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    output_path = tmp_path / f"mydevice{BUNDLE_EXTENSION}"
+    assert output_path.exists()
+    assert output_path.read_bytes() == b"fake-tar-gz-data"
+
+
+def test_command_bundle_custom_output(tmp_path: Path) -> None:
+    """Test command_bundle with -o custom output path."""
+    custom_output = tmp_path / "output" / "custom.esphomebundle.tar.gz"
+    mock_result = BundleResult(
+        data=b"custom-output-data",
+        manifest={"manifest_version": 1},
+        files=[BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml")],
+    )
+
+    args = MockArgs(output=str(custom_output))
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    assert custom_output.exists()
+    assert custom_output.read_bytes() == b"custom-output-data"
+
+
+def test_command_bundle_creates_parent_dirs(tmp_path: Path) -> None:
+    """Test command_bundle creates parent directories for output path."""
+    nested_output = tmp_path / "deep" / "nested" / "dir" / "out.tar.gz"
+    mock_result = BundleResult(
+        data=b"data",
+        manifest={"manifest_version": 1},
+        files=[BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml")],
+    )
+
+    args = MockArgs(output=str(nested_output))
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    assert nested_output.exists()
+
+
+def test_command_bundle_logs_info(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_bundle logs bundle creation info."""
+    CORE.config_path = tmp_path / "mydevice.yaml"
+
+    mock_result = BundleResult(
+        data=b"x" * 2048,
+        manifest={"manifest_version": 1},
+        files=[
+            BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml"),
+            BundleFile(path="secrets.yaml", source=tmp_path / "secrets.yaml"),
+        ],
+    )
+
+    args = MockArgs()
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with (
+        patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator),
+        caplog.at_level(logging.INFO),
+    ):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    assert "Bundle created" in caplog.text
+    assert "2 files" in caplog.text
+    assert "2.0 KB" in caplog.text
+
+
+def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
+    """Test run_esphome detects .esphomebundle.tar.gz and extracts it."""
+    bundle_path = tmp_path / f"device{BUNDLE_EXTENSION}"
+    bundle_path.write_bytes(b"fake-bundle")
+
+    extracted_yaml = tmp_path / "extracted" / "device.yaml"
+
+    with (
+        patch("esphome.bundle.is_bundle_path", return_value=True) as mock_is_bundle,
+        patch(
+            "esphome.bundle.prepare_bundle_for_compile",
+            return_value=extracted_yaml,
+        ) as mock_prepare,
+        patch("esphome.__main__.read_config", return_value=None),
+    ):
+        result = run_esphome(["esphome", "compile", str(bundle_path)])
+
+    mock_is_bundle.assert_called_once()
+    mock_prepare.assert_called_once_with(bundle_path)
+    # read_config returns None → exit code 2
+    assert result == 2
+
+
+def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
+    """Test run_esphome does not extract for regular .yaml files."""
+    yaml_file = tmp_path / "device.yaml"
+    yaml_file.write_text("esphome:\n  name: test\n")
+
+    with (
+        patch("esphome.bundle.is_bundle_path", return_value=False) as mock_is_bundle,
+        patch("esphome.bundle.prepare_bundle_for_compile") as mock_prepare,
+        patch("esphome.__main__.read_config", return_value=None),
+    ):
+        result = run_esphome(["esphome", "compile", str(yaml_file)])
+
+    mock_is_bundle.assert_called_once()
+    mock_prepare.assert_not_called()
+    assert result == 2
+
+
+def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
+    """Test reading XTAL_FREQ from sdkconfig."""
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
+    sdkconfig.write_text(
+        "CONFIG_SOC_XTAL_SUPPORT_26M=y\nCONFIG_XTAL_FREQ=26\nCONFIG_XTAL_FREQ_26=y\n"
+    )
+    assert _get_configured_xtal_freq() == 26
+
+
+def test_get_configured_xtal_freq_default_40(tmp_path: Path) -> None:
+    """Test reading default 40MHz XTAL_FREQ from sdkconfig."""
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
+    sdkconfig.write_text("CONFIG_XTAL_FREQ=40\nCONFIG_XTAL_FREQ_40=y\n")
+    assert _get_configured_xtal_freq() == 40
+
+
+def test_get_configured_xtal_freq_missing_file(tmp_path: Path) -> None:
+    """Test that missing sdkconfig returns None."""
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    assert _get_configured_xtal_freq() is None
+
+
+def test_get_configured_xtal_freq_no_xtal_line(tmp_path: Path) -> None:
+    """Test that sdkconfig without XTAL_FREQ returns None."""
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
+    sdkconfig.write_text("CONFIG_OTHER=123\n")
+    assert _get_configured_xtal_freq() is None
+
+
+def test_crystal_freq_callback_mismatch() -> None:
+    """Test callback returns warning on crystal frequency mismatch."""
+    callback = _make_crystal_freq_callback(40)
+    result = callback("Crystal frequency:  26MHz")
+    assert result is not None
+    assert "26MHz" in result
+    assert "40MHz" in result
+    assert "CONFIG_XTAL_FREQ_26" in result
+
+
+def test_crystal_freq_callback_match() -> None:
+    """Test callback returns None when frequencies match."""
+    callback = _make_crystal_freq_callback(40)
+    result = callback("Crystal frequency:  40MHz")
+    assert result is None
+
+
+def test_crystal_freq_callback_no_crystal_line() -> None:
+    """Test callback returns None for unrelated lines."""
+    callback = _make_crystal_freq_callback(40)
+    assert callback("Chip type: ESP8684H") is None
+    assert callback("MAC: a0:b7:65:8b:16:d4") is None
+    assert callback("") is None
+
+
+def test_upload_using_esptool_passes_crystal_callback(
+    tmp_path: Path,
+    mock_run_external_command_main: Mock,
+    mock_get_idedata: Mock,
+) -> None:
+    """Test that upload_using_esptool passes crystal freq callback for ESP32."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    # Create sdkconfig with XTAL_FREQ
+    build_dir = Path(CORE.build_path)
+    build_dir.mkdir(parents=True, exist_ok=True)
+    sdkconfig = build_dir / "sdkconfig.test"
+    sdkconfig.write_text("CONFIG_XTAL_FREQ=40\n")
+
+    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = []
+    mock_get_idedata.return_value = mock_idedata
+    (tmp_path / "firmware.bin").touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    # Verify line_callbacks was passed with the crystal callback
+    call_kwargs = mock_run_external_command_main.call_args[1]
+    assert "line_callbacks" in call_kwargs
+    assert len(call_kwargs["line_callbacks"]) == 1
+
+
+def test_upload_using_esptool_subprocess_passes_crystal_callback(
+    mock_run_external_process: Mock,
+    mock_get_idedata: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test that crystal freq callback is passed via run_external_process."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    # Create sdkconfig with XTAL_FREQ
+    build_dir = Path(CORE.build_path)
+    build_dir.mkdir(parents=True, exist_ok=True)
+    sdkconfig = build_dir / "sdkconfig.test"
+    sdkconfig.write_text("CONFIG_XTAL_FREQ=40\n")
+
+    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = []
+    mock_get_idedata.return_value = mock_idedata
+    (tmp_path / "firmware.bin").touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    with patch.dict(os.environ, {"ESPHOME_USE_SUBPROCESS": "1"}):
+        upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    call_kwargs = mock_run_external_process.call_args[1]
+    assert "line_callbacks" in call_kwargs
+    assert len(call_kwargs["line_callbacks"]) == 1

@@ -7,6 +7,9 @@ namespace ade7953_spi {
 
 static const char *const TAG = "ade7953";
 
+// Datasheet requires at least 1.2µs after clearing CONFIG LOCK_BIT before raising CS
+constexpr uint8_t CONFIG_LOCK_SETTLE_US = 2;
+
 void AdE7953Spi::setup() {
   this->spi_setup();
   ade7953_base::ADE7953::setup();
@@ -32,6 +35,9 @@ bool AdE7953Spi::ade_write_16(uint16_t reg, uint16_t value) {
   this->write_byte16(reg);
   this->transfer_byte(0);
   this->write_byte16(value);
+  if (reg == ade7953_base::CONFIG_16) {
+    delayMicroseconds(CONFIG_LOCK_SETTLE_US);
+  }
   this->disable();
   return false;
 }

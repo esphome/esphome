@@ -197,11 +197,11 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CODING_RATE, default="CR_4_5"): cv.enum(CODING_RATE),
             cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
             cv.Optional(CONF_DEVIATION, default="5kHz"): cv.All(
-                cv.frequency, cv.float_range(min=0, max=100000)
+                cv.frequency, cv.int_range(min=0, max=100000)
             ),
             cv.Optional(CONF_DIO0_PIN): pins.internal_gpio_input_pin_schema,
             cv.Required(CONF_FREQUENCY): cv.All(
-                cv.frequency, cv.float_range(min=137.0e6, max=1020.0e6)
+                cv.frequency, cv.int_range(min=int(137e6), max=int(1020e6))
             ),
             cv.Required(CONF_MODULATION): cv.enum(MOD),
             cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
@@ -283,19 +283,34 @@ NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
 
 
 @automation.register_action(
-    "sx127x.run_image_cal", RunImageCalAction, NO_ARGS_ACTION_SCHEMA
+    "sx127x.run_image_cal",
+    RunImageCalAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sx127x.set_mode_tx", SetModeTxAction, NO_ARGS_ACTION_SCHEMA
+    "sx127x.set_mode_tx",
+    SetModeTxAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sx127x.set_mode_rx", SetModeRxAction, NO_ARGS_ACTION_SCHEMA
+    "sx127x.set_mode_rx",
+    SetModeRxAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sx127x.set_mode_sleep", SetModeSleepAction, NO_ARGS_ACTION_SCHEMA
+    "sx127x.set_mode_sleep",
+    SetModeSleepAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sx127x.set_mode_standby", SetModeStandbyAction, NO_ARGS_ACTION_SCHEMA
+    "sx127x.set_mode_standby",
+    SetModeStandbyAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def no_args_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -313,7 +328,10 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 
 
 @automation.register_action(
-    "sx127x.send_packet", SendPacketAction, SEND_PACKET_ACTION_SCHEMA
+    "sx127x.send_packet",
+    SendPacketAction,
+    SEND_PACKET_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def send_packet_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

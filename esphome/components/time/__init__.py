@@ -59,15 +59,20 @@ _DST_RULE_TYPE_MAP = {
 
 def _load_tzdata(iana_key: str) -> bytes | None:
     # From https://tzdata.readthedocs.io/en/latest/#examples
+    if not iana_key:
+        return None
     try:
         package_loc, resource = iana_key.rsplit("/", 1)
     except ValueError:
-        return None
-    package = "tzdata.zoneinfo." + package_loc.replace("/", ".")
+        # Handle top-level timezone entries like "UTC", "GMT"
+        package = "tzdata.zoneinfo"
+        resource = iana_key
+    else:
+        package = "tzdata.zoneinfo." + package_loc.replace("/", ".")
 
     try:
         return (resources.files(package) / resource).read_bytes()
-    except (FileNotFoundError, ModuleNotFoundError):
+    except (FileNotFoundError, ModuleNotFoundError, IsADirectoryError):
         return None
 
 
@@ -104,8 +109,7 @@ def _parse_cron_int(value, special_mapping, message):
     try:
         return int(value)
     except ValueError:
-        # pylint: disable=raise-missing-from
-        raise cv.Invalid(message.format(value))
+        raise cv.Invalid(message.format(value)) from None
 
 
 def _parse_cron_part(part, min_value, max_value, special_mapping):
@@ -118,8 +122,8 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
                 f"Can't have more than two '/' in one time expression, got {part}"
             )
         offset, repeat = data
-        offset_n = 0
-        if offset:
+        offset_n = min_value
+        if offset and offset not in ("*", "?"):
             offset_n = _parse_cron_int(
                 offset,
                 special_mapping,
@@ -129,10 +133,9 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         try:
             repeat_n = int(repeat)
         except ValueError:
-            # pylint: disable=raise-missing-from
             raise cv.Invalid(
                 f"Repeat for '/' time expression must be an integer, got {repeat}"
-            )
+            ) from None
         return set(range(offset_n, max_value + 1, repeat_n))
     if "-" in part:
         data = part.split("-")
@@ -279,13 +282,23 @@ def validate_tz(value: str) -> str:
     tzfile = _load_tzdata(value)
     if tzfile is not None:
         value = _extract_tz_string(tzfile)
+        is_iana = True
+    else:
+        is_iana = False
 
     # Validate that the POSIX TZ string is parseable (skip empty strings)
     if value:
         try:
             parse_posix_tz_python(value)
         except ValueError as e:
-            raise cv.Invalid(f"Invalid POSIX timezone string '{value}': {e}") from e
+            if is_iana:
+                raise cv.Invalid(f"Invalid POSIX timezone string '{value}': {e}") from e
+            raise cv.Invalid(
+                f"Invalid POSIX timezone string '{value}': {e}. "
+                f"If you meant to use an IANA timezone, check the list of valid "
+                f"timezones at "
+                f"https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+            ) from e
 
     return value
 

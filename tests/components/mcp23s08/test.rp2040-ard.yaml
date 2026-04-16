@@ -1,5 +1,6 @@
 substitutions:
   cs_pin: GPIO5
+  interrupt_pin: GPIO2
 
 packages:
   spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml

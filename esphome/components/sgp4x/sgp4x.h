@@ -127,8 +127,9 @@ class SGP4xComponent : public PollingComponent, public sensor::Sensor, public se
   uint16_t measure_time_;
   uint8_t samples_read_ = 0;
   uint8_t samples_to_stabilize_ = static_cast<int8_t>(GasIndexAlgorithm_INITIAL_BLACKOUT) * 2;
-
   bool store_baseline_;
+
+  optional<uint32_t> nox_conditioning_start_{};
   ESPPreferenceObject pref_;
   uint32_t seconds_since_last_store_;
   SGP4xBaselines voc_baselines_storage_;

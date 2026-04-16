@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #ifdef USE_SENSOR
@@ -145,7 +144,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
                       int32_t zone3_y1, int32_t zone3_x2, int32_t zone3_y2);
 
   /// Add a callback that will be called after each successfully processed periodic data frame.
-  void add_on_data_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_data_callback(F &&callback) { this->data_callback_.add(std::forward<F>(callback)); }
 
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
@@ -168,7 +167,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;
   uint32_t moving_presence_millis_ = 0;
-  uint16_t timeout_ = 5;
+  uint32_t timeout_ = 5;
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   uint8_t mac_address_[6] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
@@ -183,15 +182,15 @@ class LD2450Component : public Component, public uart::UARTDevice {
   ZoneOfNumbers zone_numbers_[MAX_ZONES];
 #endif
 #ifdef USE_SENSOR
-  std::array<SensorWithDedup<int16_t> *, MAX_TARGETS> move_x_sensors_{};
-  std::array<SensorWithDedup<int16_t> *, MAX_TARGETS> move_y_sensors_{};
-  std::array<SensorWithDedup<int16_t> *, MAX_TARGETS> move_speed_sensors_{};
-  std::array<SensorWithDedup<float> *, MAX_TARGETS> move_angle_sensors_{};
-  std::array<SensorWithDedup<uint16_t> *, MAX_TARGETS> move_distance_sensors_{};
-  std::array<SensorWithDedup<uint16_t> *, MAX_TARGETS> move_resolution_sensors_{};
-  std::array<SensorWithDedup<uint8_t> *, MAX_ZONES> zone_target_count_sensors_{};
-  std::array<SensorWithDedup<uint8_t> *, MAX_ZONES> zone_still_target_count_sensors_{};
-  std::array<SensorWithDedup<uint8_t> *, MAX_ZONES> zone_moving_target_count_sensors_{};
+  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_x_sensors_{};
+  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_y_sensors_{};
+  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_speed_sensors_{};
+  std::array<SensorWithDedup<float>, MAX_TARGETS> move_angle_sensors_{};
+  std::array<SensorWithDedup<uint16_t>, MAX_TARGETS> move_distance_sensors_{};
+  std::array<SensorWithDedup<uint16_t>, MAX_TARGETS> move_resolution_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_target_count_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_still_target_count_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_moving_target_count_sensors_{};
 #endif
 #ifdef USE_TEXT_SENSOR
   std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
@@ -199,13 +198,6 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #endif
 
   LazyCallbackManager<void()> data_callback_;
-};
-
-class LD2450DataTrigger : public Trigger<> {
- public:
-  explicit LD2450DataTrigger(LD2450Component *parent) {
-    parent->add_on_data_callback([this]() { this->trigger(); });
-  }
 };
 
 }  // namespace esphome::ld2450
