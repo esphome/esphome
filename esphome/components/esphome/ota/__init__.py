@@ -163,7 +163,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_OTA_PASSWORD")
     cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
 
-    if config[CONF_ALLOW_PARTITION_ACCESS]:
+    if config.get(CONF_ALLOW_PARTITION_ACCESS, False):
         cg.add_define("USE_OTA_PARTITIONS")
 
     # Build flag so lwip_fast_select.c (a .c file that can't include defines.h) sees it.

@@ -242,7 +242,7 @@ def perform_ota(
     password: str | None,
     file_handle: io.IOBase,
     filename: Path,
-    ota_type: int,
+    ota_type: int = OTA_TYPE_UPDATE_APP,
 ) -> None:
     file_contents = file_handle.read()
     file_size = len(file_contents)
@@ -413,7 +413,7 @@ def run_ota_impl_(
     remote_port: int,
     password: str | None,
     filename: Path,
-    ota_type: int,
+    ota_type: int = OTA_TYPE_UPDATE_APP,
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -470,7 +470,7 @@ def run_ota(
     remote_port: int,
     password: str | None,
     filename: Path,
-    ota_type: int,
+    ota_type: int = OTA_TYPE_UPDATE_APP,
 ) -> tuple[int, str | None]:
     try:
         return run_ota_impl_(remote_host, remote_port, password, filename, ota_type)
