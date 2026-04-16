@@ -467,15 +467,17 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
-    # IRAM_ATTR on LibreTiny expands to section(".sram.text") (see
-    # esphome/core/hal.h). This pre-link hook rewrites the processed .ld
-    # files in the build dir so that section lands in an executable RAM
-    # output section on each family:
-    #   - BK72xx: inject KEEP(*(.sram.text*)) into .itcm.code (the only
-    #     rwx RAM region; main SRAM is rw!x on ARM968E-S).
+    # IRAM_ATTR on LibreTiny expands to section(".sram.text") on families
+    # where executable RAM is available (see esphome/core/hal.h). This pre-
+    # link hook rewrites the processed .ld files in the build dir so that
+    # section lands in each family's executable RAM output section:
+    #   - BK7231N: grow .itcm from 4.5 kB to 8.5 kB (steal from .tcm) and
+    #     inject KEEP(*(.sram.text*)) into .itcm.code.
     #   - LN882H: inject KEEP(*(.sram.text*)) into .flash_copysection.
     #   - RTL8710B: inject KEEP(*(.sram.text*)) into .image2.ram.text.
     #   - RTL8720C: no-op (stock linker already consumes *(.sram.text*)).
+    # BK7231T/Q/7251 have no executable RAM region; their SDK disables IRQ
+    # + FIQ around flash writes, so IRAM_ATTR is left a no-op on them.
     cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))

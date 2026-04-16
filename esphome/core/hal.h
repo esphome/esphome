@@ -24,13 +24,22 @@
 #elif defined(USE_LIBRETINY)
 
 // IRAM_ATTR places a function in executable RAM so it is callable from an
-// ISR even while flash is busy (XIP stall, OTA, logger flash write). All
-// LibreTiny families use ".sram.text"; patch_linker.py.script routes it
-// into each family's RAM-executable output section (.itcm.code on BK72xx,
-// .image2.ram.text on RTL8710B, .flash_copysection on LN882H). RTL8720C's
-// stock linker already consumes *(.sram.text*) via its .ram.code_text
-// output.
+// ISR even while flash is busy (XIP stall, OTA, logger flash write).
+// patch_linker.py.script routes ".sram.text" into each family's RAM-
+// executable output section: .itcm.code on BK7231N, .image2.ram.text on
+// RTL8710B, .flash_copysection on LN882H, stock *(.sram.text*) glob on
+// RTL8720C.
+//
+// BK7231T/Q/7251 are left as a no-op: their SDK wraps flash operations in
+// GLOBAL_INT_DISABLE() which masks FIQ + IRQ for the duration of the
+// write, so no ISR fires while flash is stalled and the scenario
+// IRAM_ATTR guards against does not occur there.
+#if defined(USE_LIBRETINY_VARIANT_BK7231T) || defined(USE_LIBRETINY_VARIANT_BK7231Q) || \
+    defined(USE_LIBRETINY_VARIANT_BK7251)
+#define IRAM_ATTR
+#else
 #define IRAM_ATTR __attribute__((noinline, section(".sram.text")))
+#endif
 #define PROGMEM
 
 #else

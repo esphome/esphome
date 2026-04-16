@@ -52,9 +52,20 @@ _BK_ITCM_REGION = re.compile(
 
 def _grow_bk72xx_itcm(content):
     # Shrink tcm by 4 kB: 60k - 512 -> 56k - 512.
-    new_content = _BK_TCM_LEN.sub(r"\g<1>56k\g<2>", content)
+    new_content, tcm_count = _BK_TCM_LEN.subn(r"\g<1>56k\g<2>", content)
     # Shift itcm origin back 4 kB and grow length: 4k + 512 -> 8k + 512.
-    new_content = _BK_ITCM_REGION.sub(r"\g<1>0x003FDE00\g<2>8k\g<3>", new_content)
+    new_content, itcm_count = _BK_ITCM_REGION.subn(
+        r"\g<1>0x003FDE00\g<2>8k\g<3>", new_content
+    )
+    if tcm_count != 1 or itcm_count != 1:
+        raise RuntimeError(
+            "ESPHome: BK72xx linker script did not match the expected "
+            "tcm/itcm declarations (tcm matches: {}, itcm matches: {}); "
+            "refusing to link because IRAM_ATTR placement cannot be verified. "
+            "LibreTiny probably changed the bk7231*_bsp.template.ld layout, "
+            "update _BK_TCM_LEN / _BK_ITCM_REGION in patch_linker.py.script "
+            "before shipping firmware.".format(tcm_count, itcm_count)
+        )
     return new_content
 
 
@@ -96,13 +107,13 @@ def _inject_keep(host_section):
     return patch
 
 
-# RTL8720C is absent: its stock linker already consumes *(.sram.text*), so
-# no .ld patch is needed; the summary falls back to reading symbol addresses.
+# Variants not listed here intentionally have no .ld patcher:
+# - RTL8720C: stock linker already consumes *(.sram.text*).
+# - BK7231T / BK7231Q / BK7251: SDK wraps flash ops in GLOBAL_INT_DISABLE()
+#   (FIQ + IRQ masked), so no ISR fires during a flash stall and IRAM_ATTR
+#   is a no-op on those variants (see esphome/core/hal.h).
 _PATCHERS_BY_VARIANT = {
     "BK7231N": (_grow_bk72xx_itcm, _inject_keep(_BK_ITCM)),
-    "BK7231T": (_grow_bk72xx_itcm, _inject_keep(_BK_ITCM)),
-    "BK7231Q": (_grow_bk72xx_itcm, _inject_keep(_BK_ITCM)),
-    "BK7251": (_grow_bk72xx_itcm, _inject_keep(_BK_ITCM)),
     "LN882H": (_inject_keep(_LN_COPY),),
     "RTL8710B": (_inject_keep(_RTL8710B_IMAGE2),),
 }
