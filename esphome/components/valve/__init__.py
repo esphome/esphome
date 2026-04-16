@@ -180,25 +180,33 @@ VALVE_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("valve.open", OpenAction, VALVE_ACTION_SCHEMA)
+@automation.register_action(
+    "valve.open", OpenAction, VALVE_ACTION_SCHEMA, synchronous=True
+)
 async def valve_open_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("valve.close", CloseAction, VALVE_ACTION_SCHEMA)
+@automation.register_action(
+    "valve.close", CloseAction, VALVE_ACTION_SCHEMA, synchronous=True
+)
 async def valve_close_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("valve.stop", StopAction, VALVE_ACTION_SCHEMA)
+@automation.register_action(
+    "valve.stop", StopAction, VALVE_ACTION_SCHEMA, synchronous=True
+)
 async def valve_stop_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("valve.toggle", ToggleAction, VALVE_ACTION_SCHEMA)
+@automation.register_action(
+    "valve.toggle", ToggleAction, VALVE_ACTION_SCHEMA, synchronous=True
+)
 async def valve_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
@@ -214,18 +222,20 @@ VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action("valve.control", ControlAction, VALVE_CONTROL_ACTION_SCHEMA)
+@automation.register_action(
+    "valve.control", ControlAction, VALVE_CONTROL_ACTION_SCHEMA, synchronous=True
+)
 async def valve_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if stop_config := config.get(CONF_STOP):
-        template_ = await cg.templatable(stop_config, args, bool)
+        template_ = await cg.templatable(stop_config, args, cg.bool_)
         cg.add(var.set_stop(template_))
     if state_config := config.get(CONF_STATE):
-        template_ = await cg.templatable(state_config, args, float)
+        template_ = await cg.templatable(state_config, args, cg.float_)
         cg.add(var.set_position(template_))
     if (position_config := config.get(CONF_POSITION)) is not None:
-        template_ = await cg.templatable(position_config, args, float)
+        template_ = await cg.templatable(position_config, args, cg.float_)
         cg.add(var.set_position(template_))
     return var
 

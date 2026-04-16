@@ -279,13 +279,22 @@ HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend(
 
 
 @automation.register_action(
-    "http_request.get", HttpRequestSendAction, HTTP_REQUEST_GET_ACTION_SCHEMA
+    "http_request.get",
+    HttpRequestSendAction,
+    HTTP_REQUEST_GET_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "http_request.post", HttpRequestSendAction, HTTP_REQUEST_POST_ACTION_SCHEMA
+    "http_request.post",
+    HttpRequestSendAction,
+    HTTP_REQUEST_POST_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "http_request.send", HttpRequestSendAction, HTTP_REQUEST_SEND_ACTION_SCHEMA
+    "http_request.send",
+    HttpRequestSendAction,
+    HTTP_REQUEST_SEND_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def http_request_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -293,11 +302,13 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
 
     template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
     cg.add(var.set_url(template_))
-    cg.add(var.set_method(config[CONF_METHOD]))
+    template_ = await cg.templatable(config[CONF_METHOD], args, cg.const_char_ptr)
+    cg.add(var.set_method(template_))
 
     capture_response = config[CONF_CAPTURE_RESPONSE]
     if capture_response:
-        cg.add(var.set_capture_response(capture_response))
+        template_ = await cg.templatable(capture_response, args, cg.bool_)
+        cg.add(var.set_capture_response(template_))
         cg.add_define("USE_HTTP_REQUEST_RESPONSE")
 
     cg.add(var.set_max_response_buffer_size(config[CONF_MAX_RESPONSE_BUFFER_SIZE]))

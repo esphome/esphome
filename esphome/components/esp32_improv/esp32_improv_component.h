@@ -48,8 +48,8 @@ class ESP32ImprovComponent : public Component, public improv_base::ImprovBase {
   bool should_start() const { return this->should_start_; }
 
 #ifdef USE_ESP32_IMPROV_STATE_CALLBACK
-  void add_on_state_callback(std::function<void(improv::State, improv::Error)> &&callback) {
-    this->state_callback_.add(std::move(callback));
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
   }
 #endif
 #ifdef USE_BINARY_SENSOR

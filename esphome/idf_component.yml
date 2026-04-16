@@ -2,17 +2,23 @@ dependencies:
   bblanchon/arduinojson:
     version: "7.4.2"
   esphome/esp-audio-libs:
-    version: 2.0.3
+    version: 2.0.4
+  esphome/micro-decoder:
+    version: 0.1.1
+  esphome/micro-flac:
+    version: 0.1.1
   esphome/micro-opus:
-    version: 0.3.4
+    version: 0.3.6
+  espressif/esp-dsp:
+    version: "1.7.1"
   espressif/esp-tflite-micro:
     version: 1.3.3~1
   espressif/esp32-camera:
-    version: 2.1.1
+    version: 2.1.6
   espressif/mdns:
-    version: 1.10.0
+    version: 1.11.0
   espressif/esp_wifi_remote:
-    version: 1.3.2
+    version: 1.4.0
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/eppp_link:
@@ -20,7 +26,7 @@ dependencies:
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/esp_hosted:
-    version: 2.11.5
+    version: 2.12.1
     rules:
       - if: "target in [esp32h2, esp32p4]"
   zorxx/multipart-parser:
@@ -29,13 +35,51 @@ dependencies:
     version: "2.0.0"
     rules:
       - if: "target in [esp32, esp32p4]"
+  espressif/lan87xx:
+    version: "1.0.0"
+    rules:
+      - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
+  espressif/rtl8201:
+    version: "1.0.1"
+    rules:
+      - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
+  espressif/dp83848:
+    version: "1.0.0"
+    rules:
+      - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
+  espressif/ip101:
+    version: "1.0.0"
+    rules:
+      - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
+  espressif/ksz80xx:
+    version: "1.0.0"
+    rules:
+      - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
+  espressif/w5500:
+    version: "1.0.1"
+    rules:
+      - if: "idf_version >=6.0.0"
+  espressif/dm9051:
+    version: "1.0.0"
+    rules:
+      - if: "idf_version >=6.0.0"
   espressif/esp_tinyusb:
-    version: "1.7.6~1"
+    version: "2.1.1"
     rules:
       - if: "target in [esp32s2, esp32s3, esp32p4]"
   esphome/esp-hub75:
-    version: 0.3.2
+    version: 0.3.5
     rules:
       - if: "target in [esp32, esp32s2, esp32s3, esp32c6, esp32p4]"
+  espressif/mqtt:
+    version: "1.0.0"
+    rules:
+      - if: "idf_version >=6.0.0"
+  espressif/usb:
+    version: "1.3.0"
+    rules:
+      - if: "idf_version >=6.0.0 && target in [esp32s2, esp32s3, esp32p4]"
   esp32async/asynctcp:
     version: 3.4.91
+  lvgl/lvgl:
+    version: 9.5.0

@@ -7,6 +7,12 @@ from pathlib import Path
 from esphome import automation, external_files
 import esphome.codegen as cg
 from esphome.components import audio, esp32, media_player, network, ota, psram, speaker
+from esphome.components.const import (
+    CONF_VOLUME_INCREMENT,
+    CONF_VOLUME_INITIAL,
+    CONF_VOLUME_MAX,
+    CONF_VOLUME_MIN,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -55,10 +61,6 @@ CONF_ON_MUTE = "on_mute"
 CONF_ON_UNMUTE = "on_unmute"
 CONF_ON_VOLUME = "on_volume"
 CONF_STREAM = "stream"
-CONF_VOLUME_INCREMENT = "volume_increment"
-CONF_VOLUME_INITIAL = "volume_initial"
-CONF_VOLUME_MIN = "volume_min"
-CONF_VOLUME_MAX = "volume_max"
 
 
 speaker_ns = cg.esphome_ns.namespace("speaker")
@@ -171,7 +173,7 @@ def _read_audio_file_and_type(file_config):
         raise cv.Invalid(
             f"Unable to determine audio file type of '{path}'. "
             f"Try re-encoding the file into a supported format. Details: {e}"
-        )
+        ) from e
 
     media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
     if file_type in ("wav"):
@@ -505,6 +507,7 @@ async def to_code(config):
         },
         key=CONF_MEDIA_FILE,
     ),
+    synchronous=True,
 )
 async def play_on_device_media_media_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -513,7 +516,8 @@ async def play_on_device_media_media_action(config, action_id, template_arg, arg
     announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
     enqueue = await cg.templatable(config[CONF_ENQUEUE], args, cg.bool_)
 
-    cg.add(var.set_audio_file(media_file))
+    template_ = await cg.templatable(media_file, args, audio.AudioFile.operator("ptr"))
+    cg.add(var.set_audio_file(template_))
     cg.add(var.set_announcement(announcement))
     cg.add(var.set_enqueue(enqueue))
     return var

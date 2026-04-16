@@ -97,8 +97,6 @@ enum class LTWiFiSTAState : uint8_t {
   ERROR_FAILED,     // Connection failed (auth, timeout, etc.)
 };
 
-static LTWiFiSTAState s_sta_state = LTWiFiSTAState::IDLE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 // Count of ignored disconnect events during connection - too many indicates real failure
 static uint8_t s_ignored_disconnect_count = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 // Threshold for ignored disconnect events before treating as connection failure
@@ -223,7 +221,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   this->wifi_apply_hostname_();
 
   // Reset state machine and disconnect counter before connecting
-  s_sta_state = LTWiFiSTAState::CONNECTING;
+  this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTING);
   s_ignored_disconnect_count = 0;
 
   WiFiStatus status = WiFi.begin(ap.ssid_.c_str(), ap.password_.empty() ? NULL : ap.password_.c_str(),
@@ -459,7 +457,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
     }
     case ESPHOME_EVENT_ID_WIFI_STA_STOP: {
       ESP_LOGV(TAG, "STA stop");
-      s_sta_state = LTWiFiSTAState::IDLE;
+      this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::IDLE);
       break;
     }
     case ESPHOME_EVENT_ID_WIFI_STA_CONNECTED: {
@@ -479,7 +477,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       // For static IP configurations, GOT_IP event may not fire, so set connected state here
 #ifdef USE_WIFI_MANUAL_IP
       if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
-        s_sta_state = LTWiFiSTAState::CONNECTED;
+        this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTED);
 #ifdef USE_WIFI_IP_STATE_LISTENERS
         this->notify_ip_state_listeners_();
 #endif
@@ -501,12 +499,13 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       // Only ignore benign reasons - real failures like NO_AP_FOUND should still be processed.
       // However, if we get too many of these events (IGNORED_DISCONNECT_THRESHOLD), treat it
       // as a real connection failure to avoid waiting the full timeout for a failing connection.
-      if (it.ssid_len == 0 && s_sta_state == LTWiFiSTAState::CONNECTING && it.reason != WIFI_REASON_NO_AP_FOUND) {
+      if (it.ssid_len == 0 && this->sta_state_ == static_cast<uint8_t>(LTWiFiSTAState::CONNECTING) &&
+          it.reason != WIFI_REASON_NO_AP_FOUND) {
         s_ignored_disconnect_count++;
         if (s_ignored_disconnect_count >= IGNORED_DISCONNECT_THRESHOLD) {
           ESP_LOGW(TAG, "Too many disconnect events (%u) while connecting, treating as failure (reason=%s)",
                    s_ignored_disconnect_count, get_disconnect_reason_str(it.reason));
-          s_sta_state = LTWiFiSTAState::ERROR_FAILED;
+          this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::ERROR_FAILED);
           WiFi.disconnect();
           this->error_from_callback_ = true;
           // Don't break - fall through to notify listeners
@@ -520,13 +519,13 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       if (it.reason == WIFI_REASON_NO_AP_FOUND) {
         ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
                  (const char *) it.ssid);
-        s_sta_state = LTWiFiSTAState::ERROR_NOT_FOUND;
+        this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::ERROR_NOT_FOUND);
       } else {
         char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(it.bssid, bssid_s);
         ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
                  (const char *) it.ssid, bssid_s, get_disconnect_reason_str(it.reason));
-        s_sta_state = LTWiFiSTAState::ERROR_FAILED;
+        this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::ERROR_FAILED);
       }
 
       uint8_t reason = it.reason;
@@ -551,7 +550,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
         ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
         WiFi.disconnect();
         this->error_from_callback_ = true;
-        s_sta_state = LTWiFiSTAState::ERROR_FAILED;
+        this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::ERROR_FAILED);
       }
       break;
     }
@@ -559,7 +558,7 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
       char ip_buf[network::IP_ADDRESS_BUFFER_SIZE], gw_buf[network::IP_ADDRESS_BUFFER_SIZE];
       ESP_LOGV(TAG, "static_ip=%s gateway=%s", network::IPAddress(WiFi.localIP()).str_to(ip_buf),
                network::IPAddress(WiFi.gatewayIP()).str_to(gw_buf));
-      s_sta_state = LTWiFiSTAState::CONNECTED;
+      this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::CONNECTED);
 #ifdef USE_WIFI_IP_STATE_LISTENERS
       this->notify_ip_state_listeners_();
 #endif
@@ -629,15 +628,15 @@ void WiFiComponent::wifi_pre_setup_() {
     return;
   }
 
-  auto f = std::bind(&WiFiComponent::wifi_event_callback_, this, std::placeholders::_1, std::placeholders::_2);
-  WiFi.onEvent(f);
+  WiFi.onEvent(
+      [this](arduino_event_id_t event, arduino_event_info_t info) { this->wifi_event_callback_(event, info); });
   // Make sure WiFi is in clean state before anything starts
   this->wifi_mode_(false, false);
 }
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   // Use state machine instead of querying WiFi.status() directly
   // State is updated in main loop from queued events, ensuring thread safety
-  switch (s_sta_state) {
+  switch (static_cast<LTWiFiSTAState>(this->sta_state_)) {
     case LTWiFiSTAState::CONNECTED:
       return WiFiSTAConnectStatus::CONNECTED;
     case LTWiFiSTAState::ERROR_NOT_FOUND:
@@ -758,7 +757,7 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; 
 bool WiFiComponent::wifi_disconnect_() {
   // Reset state first so disconnect events aren't ignored
   // and wifi_sta_connect_status_() returns IDLE instead of CONNECTING
-  s_sta_state = LTWiFiSTAState::IDLE;
+  this->sta_state_ = static_cast<uint8_t>(LTWiFiSTAState::IDLE);
   return WiFi.disconnect();
 }
 

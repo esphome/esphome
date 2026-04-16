@@ -159,19 +159,17 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
     }
     uint16_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
     memcpy(chunk->data, data, chunk_len);
-    chunk->length = chunk_len;
-    if (!this->output_queue_.push(chunk)) {
-      this->output_pool_.release(chunk);
-      ESP_LOGE(TAG, "Output queue full - lost %zu bytes", len);
-      break;
-    }
+    chunk->length = static_cast<uint8_t>(chunk_len);
+    // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+    // allocate() returned non-null, the queue cannot be full.
+    this->output_queue_.push(chunk);
     data += chunk_len;
     len -= chunk_len;
   }
   this->parent_->start_output(this);
 }
 
-uart::FlushResult USBUartChannel::flush() {
+uart::UARTFlushResult USBUartChannel::flush() {
   // Spin until the output queue is drained and the last USB transfer completes.
   // Safe to call from the main loop only.
   // The flush_timeout_ms_ timeout guards against a device that stops responding mid-flush;
@@ -183,8 +181,8 @@ uart::FlushResult USBUartChannel::flush() {
     yield();
   }
   if (!this->output_queue_.empty() || this->output_started_.load())
-    return uart::FlushResult::TIMEOUT;
-  return uart::FlushResult::SUCCESS;
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 bool USBUartChannel::peek_byte(uint8_t *data) {
@@ -320,16 +318,15 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       chunk->channel = channel;
 
       // Push to lock-free queue for main loop processing
-      // Push always succeeds because pool size == queue size
+      // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+      // allocate() returned non-null, the queue cannot be full.
       this->usb_data_queue_.push(chunk);
 
       // Re-enable component loop to process the queued data
       this->enable_loop_soon_any_context();
 
-      // Wake main loop immediately to process USB data instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+      // Wake main loop immediately to process USB data
       App.wake_loop_threadsafe();
-#endif
     }
 
     // On success, restart input immediately from USB task for performance
@@ -416,7 +413,7 @@ void USBUartTypeCdcAcm::on_connected() {
   for (auto *channel : this->channels_) {
     if (i == cdc_devs.size()) {
       ESP_LOGE(TAG, "No configuration found for channel %d", channel->index_);
-      this->status_set_warning("No configuration found for channel");
+      this->status_set_warning(LOG_STR("No configuration found for channel"));
       break;
     }
     channel->cdc_dev_ = cdc_devs[i++];

@@ -217,7 +217,7 @@ void ESP32TouchComponent::setup() {
   for (uint32_t i = 0; i < ONESHOT_SCAN_COUNT; i++) {
     err = touch_sensor_trigger_oneshot_scanning(this->sens_handle_, ONESHOT_SCAN_TIMEOUT_MS);
     if (err != ESP_OK) {
-      ESP_LOGW(TAG, "Oneshot scan %d failed: %s", i, esp_err_to_name(err));
+      ESP_LOGW(TAG, "Oneshot scan %" PRIu32 " failed: %s", i, esp_err_to_name(err));
     }
   }
 
@@ -360,11 +360,16 @@ void ESP32TouchComponent::loop() {
   }
 
   // Publish initial OFF state for sensors that haven't received events yet
+  bool all_initial_published = true;
   for (auto *child : this->children_) {
     this->publish_initial_state_if_needed_(child, now);
+    if (!child->initial_state_published_) {
+      all_initial_published = false;
+    }
   }
 
-  if (!this->setup_mode_) {
+  // Only disable loop once all initial states are published
+  if (!this->setup_mode_ && all_initial_published) {
     this->disable_loop();
   }
 }

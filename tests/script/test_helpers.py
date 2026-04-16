@@ -36,6 +36,7 @@ def clear_helpers_cache() -> None:
     """Clear cached functions before each test."""
     helpers._get_github_event_data.cache_clear()
     helpers._get_changed_files_github_actions.cache_clear()
+    helpers.get_components_per_integration_fixture.cache_clear()
 
 
 @pytest.mark.parametrize(
@@ -1036,7 +1037,7 @@ def test_get_all_dependencies_platform_component() -> None:
 
     with (
         patch("esphome.loader.get_component") as mock_get_component,
-        patch("helpers.get_platform") as mock_get_platform,
+        patch("esphome.loader.get_platform") as mock_get_platform,
     ):
         mock_get_platform.return_value = platform_comp
         mock_get_component.return_value = None
@@ -1060,7 +1061,7 @@ def test_get_all_dependencies_platform_component_with_dependencies() -> None:
 
     with (
         patch("esphome.loader.get_component") as mock_get_component,
-        patch("helpers.get_platform") as mock_get_platform,
+        patch("esphome.loader.get_platform") as mock_get_platform,
     ):
         mock_get_platform.return_value = platform_comp
         mock_get_component.side_effect = lambda name: (
@@ -1070,28 +1071,6 @@ def test_get_all_dependencies_platform_component_with_dependencies() -> None:
         result = helpers.get_all_dependencies({"sensor.bthome"})
 
         assert result == {"sensor.bthome", "sensor"}
-
-
-def test_get_all_dependencies_cpp_testing_flag() -> None:
-    """cpp_testing=True propagates to CORE.cpp_testing during resolution."""
-    from esphome.core import CORE
-
-    with (
-        patch("esphome.loader.get_component") as mock_get_component,
-        patch("esphome.loader.get_platform"),
-    ):
-        observed: list[bool] = []
-
-        def capturing_get_component(name: str):
-            observed.append(CORE.cpp_testing)
-
-        mock_get_component.side_effect = capturing_get_component
-
-        helpers.get_all_dependencies({"some_comp"}, cpp_testing=True)
-
-    assert observed and all(observed), (
-        "CORE.cpp_testing should be True during resolution"
-    )
 
 
 def test_get_components_from_integration_fixtures() -> None:
@@ -1111,7 +1090,7 @@ def test_get_components_from_integration_fixtures() -> None:
         "gpio",
     }
 
-    mock_yaml_file = Mock()
+    mock_yaml_file = Mock(stem="test_fixture")
 
     with (
         patch("pathlib.Path.glob") as mock_glob,
@@ -1133,7 +1112,7 @@ def test_get_components_from_integration_fixtures_skips_yaml_anchors() -> None:
         ".binary_filters": {"filters": [{"settle": "50ms"}]},
     }
 
-    mock_yaml_file = Mock()
+    mock_yaml_file = Mock(stem="test_fixture")
 
     with (
         patch("pathlib.Path.glob") as mock_glob,
@@ -1146,6 +1125,31 @@ def test_get_components_from_integration_fixtures_skips_yaml_anchors() -> None:
         assert ".sensor_filters" not in components
         assert ".binary_filters" not in components
         assert components == {"sensor", "esphome", "template"}
+
+
+def test_get_integration_test_files_for_components_real_fixtures() -> None:
+    """Test that component changes map to the correct real integration test files.
+
+    This test uses real fixtures to verify the mapping stays correct
+    as new tests are added.
+    """
+    # modbus should include at least the modbus test
+    modbus_tests = helpers.get_integration_test_files_for_components({"modbus"})
+    assert "tests/integration/test_uart_mock_modbus.py" in modbus_tests
+
+    # ld2410 should include at least the ld2410 test
+    ld2410_tests = helpers.get_integration_test_files_for_components({"ld2410"})
+    assert "tests/integration/test_uart_mock_ld2410.py" in ld2410_tests
+
+    # syslog should include at least the syslog test
+    syslog_tests = helpers.get_integration_test_files_for_components({"syslog"})
+    assert "tests/integration/test_syslog.py" in syslog_tests
+
+    # A component not used by any fixture should return nothing
+    fake_tests = helpers.get_integration_test_files_for_components(
+        {"nonexistent_component_xyz"}
+    )
+    assert fake_tests == []
 
 
 @pytest.mark.parametrize(
