@@ -37,6 +37,14 @@ CODEOWNERS = ["@martgras", "@mebner86", "@mikelawrence", "@tuct"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
+CONF_PM_NC_0_5 = "pm_nc_0_5"
+CONF_PM_NC_1_0 = "pm_nc_1_0"
+CONF_PM_NC_2_5 = "pm_nc_2_5"
+CONF_PM_NC_4_0 = "pm_nc_4_0"
+CONF_PM_NC_10_0 = "pm_nc_10_0"
+
+ICON_BLUR = "mdi:blur"
+
 sen6x_ns = cg.esphome_ns.namespace("sen6x")
 SEN6XComponent = sen6x_ns.class_(
     "SEN6XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
@@ -48,6 +56,36 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(SEN6XComponent),
             cv.Optional(CONF_TYPE): cv.one_of(
                 "SEN62", "SEN63C", "SEN65", "SEN66", "SEN68", "SEN69C", upper=True
+            ),
+            cv.Optional(CONF_PM_NC_0_5): sensor.sensor_schema(
+                unit_of_measurement="particles/cm³",
+                icon=ICON_BLUR,
+                accuracy_decimals=1,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_NC_1_0): sensor.sensor_schema(
+                unit_of_measurement="particles/cm³",
+                icon=ICON_BLUR,
+                accuracy_decimals=1,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_NC_2_5): sensor.sensor_schema(
+                unit_of_measurement="particles/cm³",
+                icon=ICON_BLUR,
+                accuracy_decimals=1,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_NC_4_0): sensor.sensor_schema(
+                unit_of_measurement="particles/cm³",
+                icon=ICON_BLUR,
+                accuracy_decimals=1,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_NC_10_0): sensor.sensor_schema(
+                unit_of_measurement="particles/cm³",
+                icon=ICON_BLUR,
+                accuracy_decimals=1,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
@@ -126,6 +164,11 @@ SENSOR_MAP = {
     CONF_PM_2_5: "set_pm_2_5_sensor",
     CONF_PM_4_0: "set_pm_4_0_sensor",
     CONF_PM_10_0: "set_pm_10_0_sensor",
+    CONF_PM_NC_0_5: "set_pm_nc_0_5_sensor",
+    CONF_PM_NC_1_0: "set_pm_nc_1_0_sensor",
+    CONF_PM_NC_2_5: "set_pm_nc_2_5_sensor",
+    CONF_PM_NC_4_0: "set_pm_nc_4_0_sensor",
+    CONF_PM_NC_10_0: "set_pm_nc_10_0_sensor",
     CONF_TEMPERATURE: "set_temperature_sensor",
     CONF_HUMIDITY: "set_humidity_sensor",
     CONF_VOC: "set_voc_sensor",
@@ -133,7 +176,6 @@ SENSOR_MAP = {
     CONF_CO2: "set_co2_sensor",
     CONF_FORMALDEHYDE: "set_hcho_sensor",
 }
-
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -147,3 +189,4 @@ async def to_code(config):
         if cfg := config.get(key):
             sens = await sensor.new_sensor(cfg)
             cg.add(getattr(var, func_name)(sens))
+
