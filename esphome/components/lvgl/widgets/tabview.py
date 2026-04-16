@@ -2,6 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BUTTON,
     CONF_ID,
     CONF_INDEX,
     CONF_ITEMS,
@@ -26,7 +27,7 @@ from ..schemas import container_schema, part_schema
 from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
 from . import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
 from .button import button_spec
-from .buttonmatrix import buttonmatrix_spec
+from .buttonmatrix import CONF_BUTTONMATRIX, buttonmatrix_spec
 from .obj import obj_spec
 
 CONF_TABVIEW = "tabview"
@@ -73,7 +74,7 @@ class TabviewType(WidgetType):
         )
 
     def get_uses(self):
-        return "btnmatrix", TYPE_FLEX
+        return CONF_BUTTONMATRIX, TYPE_FLEX, CONF_BUTTON
 
     async def to_code(self, w: Widget, config: dict):
         await w.set_property(

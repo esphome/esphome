@@ -198,6 +198,13 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
             '      - "-g"       # Add debug symbols',
         )
 
+    # Replace external component path placeholder if present
+    if "EXTERNAL_COMPONENT_PATH" in content:
+        external_components_path = str(
+            Path(__file__).parent / "fixtures" / "external_components"
+        )
+        content = content.replace("EXTERNAL_COMPONENT_PATH", external_components_path)
+
     return content
 
 
