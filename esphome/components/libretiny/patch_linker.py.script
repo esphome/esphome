@@ -20,10 +20,12 @@ import re
 
 
 _MARKER = "/* esphome .sram.text */"
+# Strong assignments (not PROVIDE) so the symbols are always emitted in the
+# ELF; PROVIDE symbols with no references can be garbage-collected.
 _KEEP_LINE = (
-    "    PROVIDE(__esphome_sram_text_start = .); "
+    "    __esphome_sram_text_start = .; "
     "KEEP(*(.sram.text*)) "
-    "PROVIDE(__esphome_sram_text_end = .); "
+    "__esphome_sram_text_end = .; "
     + _MARKER + "\n"
 )
 _BK_DATA = re.compile(r"(\.data\s*:\s*\{\s*\n)")
