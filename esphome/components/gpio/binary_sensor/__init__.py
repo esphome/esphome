@@ -70,35 +70,26 @@ def _pin_is_deep_sleep_wakeup(pin_num: int) -> bool:
     return is_wakeup_pin(pin_num)
 
 
-async def to_code(config):
-    var = await binary_sensor.new_binary_sensor(config)
-    await cg.register_component(var, config)
-
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
-
-    # Check for ESP8266 GPIO16 interrupt limitation
-    # GPIO16 on ESP8266 is a special pin that doesn't support interrupts through
-    # the Arduino attachInterrupt() function. This is the only known GPIO pin
-    # across all supported platforms that has this limitation, so we handle it
-    # here instead of in the platform-specific code.
+def _final_validate(config):
     use_interrupt = config[CONF_USE_INTERRUPT]
+    if not use_interrupt:
+        return config
+
     pin_num = config[CONF_PIN][CONF_NUMBER]
 
     # Expander pins (e.g. PCF8574, MCP23017) don't support direct interrupt
     # attachment — only internal/native GPIO pins do.
-    is_internal = (
-        pins.PIN_SCHEMA_REGISTRY.get_key(config[CONF_PIN]) == CORE.target_platform
-    )
-    if use_interrupt and not is_internal:
+    if pins.PIN_SCHEMA_REGISTRY.get_key(config[CONF_PIN]) != CORE.target_platform:
         _LOGGER.info(
             "GPIO binary_sensor '%s': Pin is not an internal GPIO, "
             "falling back to polling mode.",
             config.get(CONF_NAME, config[CONF_ID]),
         )
-        use_interrupt = False
+        config[CONF_USE_INTERRUPT] = False
+        return config
 
-    if use_interrupt and CORE.is_esp8266 and pin_num == 16:
+    # GPIO16 on ESP8266 doesn't support interrupts through attachInterrupt().
+    if CORE.is_esp8266 and pin_num == 16:
         _LOGGER.warning(
             "GPIO binary_sensor '%s': GPIO16 on ESP8266 doesn't support interrupts. "
             "Falling back to polling mode (same as in ESPHome <2025.7). "
@@ -106,24 +97,26 @@ async def to_code(config):
             "performance with interrupts.",
             config.get(CONF_NAME, config[CONF_ID]),
         )
-        use_interrupt = False
+        config[CONF_USE_INTERRUPT] = False
+        return config
 
-    # Check if pin is shared with other components (allow_other_uses)
     # When a pin is shared, interrupts can interfere with other components
     # (e.g., duty_cycle sensor) that need to monitor the pin's state changes.
-    # Exception: deep_sleep wakeup pins are compatible with interrupts.
-    if use_interrupt and config[CONF_PIN].get(CONF_ALLOW_OTHER_USES, False):
+    # Exception: deep_sleep wakeup pins are compatible with interrupts when
+    # the pin is only shared between this sensor and deep_sleep (count == 2).
+    if config[CONF_PIN].get(CONF_ALLOW_OTHER_USES, False):
         pin_use_count = pins.PIN_SCHEMA_REGISTRY.get_count(
             CORE.target_platform, CORE.target_platform, pin_num
         )
         if not (_pin_is_deep_sleep_wakeup(pin_num) and pin_use_count == 2):
             _LOGGER.info(
-                "GPIO binary_sensor '%s': Disabling interrupts because pin %s is shared with other components. "
-                "The sensor will use polling mode for compatibility with other pin uses.",
+                "GPIO binary_sensor '%s': Disabling interrupts because pin %s is shared "
+                "with other components. The sensor will use polling mode for "
+                "compatibility with other pin uses.",
                 config.get(CONF_NAME, config[CONF_ID]),
                 pin_num,
             )
-            use_interrupt = False
+            config[CONF_USE_INTERRUPT] = False
         else:
             _LOGGER.debug(
                 "GPIO binary_sensor '%s': Pin %s is shared with deep_sleep, "
@@ -131,8 +124,21 @@ async def to_code(config):
                 config.get(CONF_NAME, config[CONF_ID]),
                 pin_num,
             )
-    if use_interrupt:
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config):
+    var = await binary_sensor.new_binary_sensor(config)
+    await cg.register_component(var, config)
+
+    pin = await cg.gpio_pin_expression(config[CONF_PIN])
+    cg.add(var.set_pin(pin))
+
+    if config[CONF_USE_INTERRUPT]:
         cg.add(var.set_interrupt_type(config[CONF_INTERRUPT_TYPE]))
     else:
-        # Only generate call when disabling interrupts (default is true)
-        cg.add(var.set_use_interrupt(use_interrupt))
+        cg.add(var.set_use_interrupt(False))
