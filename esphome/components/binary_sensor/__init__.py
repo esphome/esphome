@@ -370,7 +370,7 @@ def parse_multi_click_timing_str(value):
         max_length = cv.positive_time_period_milliseconds(parts[4])
     except cv.Invalid as err:
         raise cv.Invalid(
-            f"Multi Click Grammar Parsing minimum length failed: {err}"
+            f"Multi Click Grammar Parsing maximum length failed: {err}"
         ) from err
 
     return {
