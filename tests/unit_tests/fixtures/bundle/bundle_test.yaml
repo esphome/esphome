@@ -1,0 +1,60 @@
+esphome:
+  name: bundle-test
+  includes:
+    - includes/custom_sensor.h
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  <<: !include common/base.yaml
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+web_server:
+  port: 80
+  css_include: assets/web/custom.css
+  js_include: assets/web/custom.js
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+font:
+  - id: test_font
+    file: assets/fonts/test_font.ttf
+    size: 16
+
+image:
+  - id: test_image
+    file: assets/images/logo.png
+    type: BINARY
+    resize: 16x16
+
+animation:
+  - id: test_animation
+    file: assets/images/animation.gif
+    type: BINARY
+    resize: 16x16
+
+display:
+  - platform: ssd1306_i2c
+    model: SSD1306_128X64
+    address: 0x3C
+    lambda: |-
+      it.image(0, 0, id(test_image));
+
+external_components:
+  - source:
+      type: local
+      path: local_components

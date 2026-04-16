@@ -7,7 +7,8 @@ namespace esphome::online_image {
 static const char *const TAG = "online_image.download_buffer";
 
 DownloadBuffer::DownloadBuffer(size_t size) : size_(size) {
-  this->buffer_ = this->allocator_.allocate(size);
+  RAMAllocator<uint8_t> allocator;
+  this->buffer_ = allocator.allocate(size);
   this->reset();
   if (!this->buffer_) {
     ESP_LOGE(TAG, "Initial allocation of download buffer failed!");
@@ -38,15 +39,16 @@ size_t DownloadBuffer::resize(size_t size) {
     // Avoid useless reallocations; if the buffer is big enough, don't reallocate.
     return this->size_;
   }
-  this->allocator_.deallocate(this->buffer_, this->size_);
-  this->buffer_ = this->allocator_.allocate(size);
+  RAMAllocator<uint8_t> allocator;
+  allocator.deallocate(this->buffer_, this->size_);
+  this->buffer_ = allocator.allocate(size);
   this->reset();
   if (this->buffer_) {
     this->size_ = size;
     return size;
   } else {
     ESP_LOGE(TAG, "allocation of %zu bytes failed. Biggest block in heap: %zu Bytes", size,
-             this->allocator_.get_max_free_block_size());
+             allocator.get_max_free_block_size());
     this->size_ = 0;
     return 0;
   }

@@ -1,6 +1,6 @@
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.components import socket, wifi
+from esphome.components import wifi
 from esphome.components.udp import CONF_ON_RECEIVE
 import esphome.config_validation as cv
 from esphome.const import (
@@ -17,7 +17,7 @@ from esphome.core import HexInt
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
-AUTO_LOAD = ["socket"]
+
 
 byte_vector = cg.std_vector.template(cg.uint8)
 peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)
@@ -124,14 +124,11 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    # ESP-NOW uses wake_loop_threadsafe() to wake the main loop from ESP-NOW callbacks
-    # This enables low-latency event processing instead of waiting for select() timeout
-    socket.require_wake_loop_threadsafe()
-
     cg.add_define("USE_ESPNOW")
     if wifi_channel := config.get(CONF_CHANNEL):
         cg.add(var.set_wifi_channel(wifi_channel))
 
+    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_auto_add_peer(config[CONF_AUTO_ADD_PEER]))
 
     for peer in config.get(CONF_PEERS, []):
@@ -161,15 +158,15 @@ def validate_peer(value):
 
 def _validate_raw_data(value):
     if isinstance(value, str):
-        if len(value) >= MAX_ESPNOW_PACKET_SIZE:
+        if len(value) > MAX_ESPNOW_PACKET_SIZE:
             raise cv.Invalid(
-                f"'{CONF_DATA}' must be less than {MAX_ESPNOW_PACKET_SIZE} characters long, got {len(value)}"
+                f"'{CONF_DATA}' must be at most {MAX_ESPNOW_PACKET_SIZE} characters long, got {len(value)}"
             )
         return value
     if isinstance(value, list):
         if len(value) > MAX_ESPNOW_PACKET_SIZE:
             raise cv.Invalid(
-                f"'{CONF_DATA}' must be less than {MAX_ESPNOW_PACKET_SIZE} bytes long, got {len(value)}"
+                f"'{CONF_DATA}' must be at most {MAX_ESPNOW_PACKET_SIZE} bytes long, got {len(value)}"
             )
         return cv.Schema([cv.hex_uint8_t])(value)
     raise cv.Invalid(
@@ -220,6 +217,7 @@ SEND_SCHEMA.add_extra(_validate_send_action)
     "espnow.send",
     SendAction,
     SEND_SCHEMA,
+    synchronous=False,
 )
 @automation.register_action(
     "espnow.broadcast",
@@ -232,6 +230,7 @@ SEND_SCHEMA.add_extra(_validate_send_action)
         ),
         key=CONF_DATA,
     ),
+    synchronous=False,
 )
 async def send_action(
     config: ConfigType,
@@ -246,7 +245,7 @@ async def send_action(
 
     data = config.get(CONF_DATA, [])
     if isinstance(data, str):
-        data = [cg.RawExpression(f"'{c}'") for c in data]
+        data = list(data.encode())
     templ = await cg.templatable(data, args, byte_vector, byte_vector)
     cg.add(var.set_data(templ))
 
@@ -271,6 +270,7 @@ async def send_action(
         PEER_SCHEMA,
         key=CONF_ADDRESS,
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "espnow.peer.delete",
@@ -279,6 +279,7 @@ async def send_action(
         PEER_SCHEMA,
         key=CONF_ADDRESS,
     ),
+    synchronous=True,
 )
 async def peer_action(
     config: ConfigType,
@@ -303,6 +304,7 @@ async def peer_action(
         },
         key=CONF_CHANNEL,
     ),
+    synchronous=True,
 )
 async def channel_action(
     config: ConfigType,
