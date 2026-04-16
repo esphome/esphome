@@ -44,6 +44,7 @@ from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
+from esphome.writer import clean_build
 from esphome.yaml_util import load_yaml
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
@@ -187,7 +188,6 @@ def final_validation(config_list):
     for config in config_list:
         if (pages := config.get(CONF_PAGES)) and all(p[df.CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
-        uses_rotation = CONF_ROTATION in config
         for display_id in config[df.CONF_DISPLAYS]:
             path = global_config.get_path_for_id(display_id)[:-1]
             display = global_config.get_config_for_path(path)
@@ -196,9 +196,9 @@ def final_validation(config_list):
                     "Using lambda: or pages: in display config is not compatible with LVGL"
                 )
             # treating 0 as false is intended here.
-            if uses_rotation and display.get(CONF_ROTATION):
-                df.LOGGER.warning(
-                    "use of 'rotation' in both LVGL and the display config is not recommended"
+            if display.get(CONF_ROTATION):
+                raise cv.Invalid(
+                    "use of 'rotation' in the display config is not compatible with LVGL, please set rotation in the LVGL config instead"
                 )
             if display.get(CONF_AUTO_CLEAR_ENABLED) is True:
                 raise cv.Invalid(
@@ -262,6 +262,7 @@ async def to_code(configs):
     df.add_define("LV_USE_STDLIB_SPRINTF", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_STRING", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
+    df.add_define("LV_DEF_REFR_PERIOD", "16")
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     # cg.add_define("LV_KCONFIG_PRESENT")
@@ -341,7 +342,10 @@ async def to_code(configs):
                 df.LOGGER.info("LVGL will use hardware rotation via display driver")
             else:
                 rotation_type = RotationType.ROTATION_SOFTWARE
-                df.LOGGER.info("LVGL will use software rotation")
+                if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32P4:
+                    df.LOGGER.info("LVGL will use software rotation (PPA accelerated)")
+                else:
+                    df.LOGGER.info("LVGL will use software rotation")
         lv_component = cg.new_Pvariable(
             config[CONF_ID],
             displays,
@@ -448,7 +452,8 @@ async def to_code(configs):
         df.add_define(f"LV_DRAW_SW_SUPPORT_{fmt}", "1")
 
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
-    write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
+    if write_file_if_changed(lv_conf_h_file, generate_lv_conf_h()):
+        clean_build(clear_pio_cache=False)
     cg.add_build_flag("-DLV_CONF_H=1")
     # handle windows paths in a way that doesn't break the generated C++
     lv_conf_h_path = Path(lv_conf_h_file).as_posix()

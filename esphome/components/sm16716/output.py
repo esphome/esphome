@@ -14,7 +14,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.GenerateID(CONF_SM16716_ID): cv.use_id(SM16716),
         cv.Required(CONF_ID): cv.declare_id(Channel),
-        cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=65535),
+        cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=254),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

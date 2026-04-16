@@ -193,9 +193,10 @@ def _register_string(
 
 def register_device_class(value: str) -> int:
     """Register a device_class string and return its 1-based index."""
-    if value and len(value) > DEVICE_CLASS_MAX_LENGTH:
+    byte_len = len(value.encode("utf-8")) if value else 0
+    if byte_len > DEVICE_CLASS_MAX_LENGTH:
         raise ValueError(
-            f"Device class string too long ({len(value)} chars, max {DEVICE_CLASS_MAX_LENGTH}): '{value}'"
+            f"Device class string too long ({byte_len} bytes, max {DEVICE_CLASS_MAX_LENGTH}): '{value}'"
         )
     return _register_string(
         value, _get_pool().device_classes, _MAX_DEVICE_CLASSES, "device_class"
@@ -204,9 +205,10 @@ def register_device_class(value: str) -> int:
 
 def register_unit_of_measurement(value: str) -> int:
     """Register a unit_of_measurement string and return its 1-based index."""
-    if value and len(value) > UNIT_OF_MEASUREMENT_MAX_LENGTH:
+    byte_len = len(value.encode("utf-8")) if value else 0
+    if byte_len > UNIT_OF_MEASUREMENT_MAX_LENGTH:
         raise ValueError(
-            f"Unit of measurement string too long ({len(value)} chars, "
+            f"Unit of measurement string too long ({byte_len} bytes, "
             f"max {UNIT_OF_MEASUREMENT_MAX_LENGTH}): '{value}'"
         )
     return _register_string(value, _get_pool().units, _MAX_UNITS, "unit_of_measurement")
@@ -214,9 +216,10 @@ def register_unit_of_measurement(value: str) -> int:
 
 def register_icon(value: str) -> int:
     """Register an icon string and return its 1-based index."""
-    if value and len(value) > ICON_MAX_LENGTH:
+    byte_len = len(value.encode("utf-8")) if value else 0
+    if byte_len > ICON_MAX_LENGTH:
         raise ValueError(
-            f"Icon string too long ({len(value)} chars, max {ICON_MAX_LENGTH}): '{value}'"
+            f"Icon string too long ({byte_len} bytes, max {ICON_MAX_LENGTH}): '{value}'"
         )
     return _register_string(value, _get_pool().icons, _MAX_ICONS, "icon")
 
