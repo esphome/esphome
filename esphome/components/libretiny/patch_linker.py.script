@@ -10,11 +10,6 @@ import re
 # function is callable while flash is busy (XIP stall, OTA, logger flash
 # write):
 #
-# - BK72xx: ARM968E-S has tightly-coupled instruction RAM ("itcm", 4.5 kB,
-#   rwx) that the SDK uses for its own ISR / flash / FreeRTOS critical
-#   routines; main SRAM ("ram", 192 kB) is rw!x (bus does not allow
-#   instruction fetches). Inject "KEEP(*(.sram.text*))" into ".itcm.code"
-#   so our IRAM_ATTR functions share the only executable RAM region.
 # - LN882H: stock linker has ".flash_copysection" which is flash-to-RAM0
 #   copied at startup; inject "KEEP(*(.sram.text*))" there.
 # - RTL8710B (AmebaZ): stock linker has ".image2.ram.text" — inject
@@ -23,6 +18,11 @@ import re
 #   no-op. Loaded directly from the framework package so we cannot inject
 #   our __esphome_sram_text_start/end markers either; the post-link summary
 #   falls back to reading known IRAM_ATTR symbol addresses instead.
+#
+# BK72xx (all variants) have no .ld patcher: the Beken SDK wraps every flash
+# operation in GLOBAL_INT_DISABLE() which masks FIQ + IRQ at the CPU, so no
+# ISR can fire during a flash stall and the race IRAM_ATTR guards against
+# cannot occur. IRAM_ATTR is a no-op on BK72xx (see esphome/core/hal.h).
 
 
 _MARKER = "/* esphome .sram.text */"
@@ -34,39 +34,8 @@ _KEEP_LINE = (
     "__esphome_sram_text_end = .; "
     + _MARKER + "\n"
 )
-_BK_ITCM = re.compile(r"(\.itcm\.code\s*ALIGN\s*\(\s*\d+\s*\)\s*:\s*\{\s*\n)")
 _LN_COPY = re.compile(r"(\.flash_copysection\s*:\s*\{\s*\n)")
 _RTL8710B_IMAGE2 = re.compile(r"(\.image2\.ram\.text\s*:\s*\{\s*\n)")
-
-# On BK72xx the stock LibreTiny linker carves a 4.5 kB ".itcm" executable RAM
-# region; the SDK already fills most of it with its own ISR / flash / FreeRTOS
-# critical code, leaving <500 bytes for ESPHome IRAM_ATTR functions. Steal 4 kB
-# from the adjacent (rw!x) "tcm" data region and give it to itcm so our
-# .sram.text payload has room to grow. Physically tcm and itcm are contiguous
-# SRAM, so shifting the boundary is just a linker rewrite.
-_BK_TCM_LEN = re.compile(r"(\btcm\s*\(\s*rw!x\s*\)\s*:\s*ORIGIN\s*=\s*0x003F0000\s*,\s*LENGTH\s*=\s*)60k(\s*-\s*512\b)")
-_BK_ITCM_REGION = re.compile(
-    r"(\bitcm\s*\(\s*rwx\s*\)\s*:\s*ORIGIN\s*=\s*)0x003FEE00(\s*,\s*LENGTH\s*=\s*)4k(\s*\+\s*512\b)"
-)
-
-
-def _grow_bk72xx_itcm(content):
-    # Shrink tcm by 4 kB: 60k - 512 -> 56k - 512.
-    new_content, tcm_count = _BK_TCM_LEN.subn(r"\g<1>56k\g<2>", content)
-    # Shift itcm origin back 4 kB and grow length: 4k + 512 -> 8k + 512.
-    new_content, itcm_count = _BK_ITCM_REGION.subn(
-        r"\g<1>0x003FDE00\g<2>8k\g<3>", new_content
-    )
-    if tcm_count != 1 or itcm_count != 1:
-        raise RuntimeError(
-            "ESPHome: BK72xx linker script did not match the expected "
-            "tcm/itcm declarations (tcm matches: {}, itcm matches: {}); "
-            "refusing to link because IRAM_ATTR placement cannot be verified. "
-            "LibreTiny probably changed the bk7231*_bsp.template.ld layout, "
-            "update _BK_TCM_LEN / _BK_ITCM_REGION in patch_linker.py.script "
-            "before shipping firmware.".format(tcm_count, itcm_count)
-        )
-    return new_content
 
 
 def _detect(env):
@@ -109,11 +78,8 @@ def _inject_keep(host_section):
 
 # Variants not listed here intentionally have no .ld patcher:
 # - RTL8720C: stock linker already consumes *(.sram.text*).
-# - BK7231T / BK7231Q / BK7251: SDK wraps flash ops in GLOBAL_INT_DISABLE()
-#   (FIQ + IRQ masked), so no ISR fires during a flash stall and IRAM_ATTR
-#   is a no-op on those variants (see esphome/core/hal.h).
+# - BK72xx (all): SDK masks FIQ+IRQ around flash writes, IRAM_ATTR is no-op.
 _PATCHERS_BY_VARIANT = {
-    "BK7231N": (_grow_bk72xx_itcm, _inject_keep(_BK_ITCM)),
     "LN882H": (_inject_keep(_LN_COPY),),
     "RTL8710B": (_inject_keep(_RTL8710B_IMAGE2),),
 }
@@ -221,5 +187,7 @@ if _patchers:
     # as a pre-link action so it executes once the linker scripts exist.
     env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", _pre_link)
 
-# Post-link summary runs for every LibreTiny family.
-env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", _post_link)
+# Post-link summary runs for every LibreTiny family (except BK72xx where
+# IRAM_ATTR is a no-op and no symbols are relocated to RAM).
+if _patchers or _variant == "RTL8720C":
+    env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", _post_link)
