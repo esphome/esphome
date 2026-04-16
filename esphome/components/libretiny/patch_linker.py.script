@@ -120,9 +120,10 @@ def _post_link(target, source, env):
     elf = env.subst("$BUILD_DIR/${PROGNAME}.elf")
     if not os.path.isfile(elf):
         return
+    nm = env.subst("$NM") or env.subst("${TOOLCHAIN_PREFIX}nm")
     try:
         out = subprocess.check_output(
-            [env.subst("$NM"), "--defined-only", "--demangle", elf], text=True
+            [nm, "--defined-only", "--demangle", elf], text=True
         )
     except (OSError, subprocess.CalledProcessError):
         return
@@ -168,7 +169,8 @@ if _patchers := _patchers_for(_variant):
     # as a pre-link action so it executes once the linker scripts exist.
     env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", _pre_link)
 
-# Post-link summary runs for every LibreTiny family (except BK72xx where
-# IRAM_ATTR is a no-op and no symbols are relocated to RAM).
-if _patchers or _variant == "RTL8720C":
+_BK72XX_VARIANTS = frozenset({"BK7231N", "BK7231T", "BK7231Q", "BK7251"})
+
+# Post-link summary for every family where IRAM_ATTR places code in RAM.
+if _variant not in _BK72XX_VARIANTS:
     env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", _post_link)
