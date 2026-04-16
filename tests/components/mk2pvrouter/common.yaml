@@ -10,7 +10,7 @@ sensor:
   # Test single-letter tags (exact matches)
   - platform: mk2pvrouter
     name: Power
-    tag_name: P
+    tag: P
     mk2pvrouter_id: test_mk2pvrouter
     # Override default unit to test customization
     unit_of_measurement: Wh
@@ -18,71 +18,71 @@ sensor:
   # Test pattern-matched power sensors (P + digit)
   - platform: mk2pvrouter
     name: Power Phase 1
-    tag_name: P1
+    tag: P1
     mk2pvrouter_id: test_mk2pvrouter
     # Should auto-apply POWER_CONFIG defaults
 
   - platform: mk2pvrouter
     name: Power Phase 2
-    tag_name: P2
+    tag: P2
     mk2pvrouter_id: test_mk2pvrouter
 
   # Test voltage sensors (V + digit)
   - platform: mk2pvrouter
     name: Voltage Phase 1
-    tag_name: V1
+    tag: V1
     mk2pvrouter_id: test_mk2pvrouter
     # Should auto-apply VOLTAGE_CONFIG (V, device_class, 2 decimals)
 
   # Test energy sensor (exact match)
   - platform: mk2pvrouter
     name: Energy
-    tag_name: E
+    tag: E
     mk2pvrouter_id: test_mk2pvrouter
     # Should auto-apply ENERGY_CONFIG
 
   # Test temperature sensors (T + digit)
   - platform: mk2pvrouter
     name: Temperature 1
-    tag_name: T1
+    tag: T1
     mk2pvrouter_id: test_mk2pvrouter
     # Should auto-apply TEMPERATURE_CONFIG (°C, 2 decimals)
 
   # Test diversion rate (D + digit)
   - platform: mk2pvrouter
     name: Diversion Rate 1
-    tag_name: D1
+    tag: D1
     mk2pvrouter_id: test_mk2pvrouter
     # Should auto-apply DIVERSION_RATE_CONFIG (%, measurement)
 
   # Test relay state as sensor (R + digit)
   - platform: mk2pvrouter
     name: Relay 1 State
-    tag_name: R1
+    tag: R1
     mk2pvrouter_id: test_mk2pvrouter
     # Should auto-apply RELAY_STATE_CONFIG (switch device_class)
 
   # Test relay state with multiple digits
   - platform: mk2pvrouter
     name: Relay 10 State
-    tag_name: R10
+    tag: R10
     mk2pvrouter_id: test_mk2pvrouter
 
 binary_sensor:
   # Test relay as binary sensor
   - platform: mk2pvrouter
     name: Relay 2 Binary
-    tag_name: R2
+    tag: R2
     mk2pvrouter_id: test_mk2pvrouter
 
 text_sensor:
   - platform: mk2pvrouter
     name: S per MC
-    tag_name: S_MC
+    tag: S_MC
     mk2pvrouter_id: test_mk2pvrouter
 
   # Test another text tag
   - platform: mk2pvrouter
     name: Status
-    tag_name: STATUS
+    tag: STATUS
     mk2pvrouter_id: test_mk2pvrouter

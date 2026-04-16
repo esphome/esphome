@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_PLATFORM
+from esphome.const import CONF_ID, CONF_PLATFORM, CONF_TAG
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -15,14 +15,13 @@ mk2pvrouter_ns = cg.esphome_ns.namespace("mk2pvrouter")
 Mk2PVRouter = mk2pvrouter_ns.class_("Mk2PVRouter", cg.Component, uart.UARTDevice)
 
 CONF_MK2PVROUTER_ID = "mk2pvrouter_id"
-CONF_TAG_NAME = "tag_name"
 
 DOMAIN = "mk2pvrouter"
 
 MK2PVROUTER_LISTENER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MK2PVROUTER_ID): cv.use_id(Mk2PVRouter),
-        cv.Required(CONF_TAG_NAME): cv.All(cv.string, lambda x: x.upper()),
+        cv.Required(CONF_TAG): cv.All(cv.string, lambda x: x.upper()),
     }
 )
 

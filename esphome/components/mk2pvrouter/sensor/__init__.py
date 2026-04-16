@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MULTIPLY,
     CONF_STATE_CLASS,
+    CONF_TAG,
     CONF_UNIT_OF_MEASUREMENT,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
@@ -26,12 +27,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import (
-    CONF_MK2PVROUTER_ID,
-    CONF_TAG_NAME,
-    MK2PVROUTER_LISTENER_SCHEMA,
-    mk2pvrouter_ns,
-)
+from .. import CONF_MK2PVROUTER_ID, MK2PVROUTER_LISTENER_SCHEMA, mk2pvrouter_ns
 
 Mk2PVRouterSensor = mk2pvrouter_ns.class_(
     "Mk2PVRouterSensor", sensor.Sensor, cg.Component
@@ -117,7 +113,7 @@ BASE_SCHEMA = sensor.sensor_schema(
 
 def apply_tag_defaults(config: ConfigType) -> ConfigType:
     """Apply defaults based on tag pattern or exact match."""
-    tag = config[CONF_TAG_NAME]
+    tag = config[CONF_TAG]
     tag_upper = tag.upper()
 
     defaults = None
@@ -161,7 +157,7 @@ CONFIG_SCHEMA = cv.All(BASE_SCHEMA, apply_tag_defaults)
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_TAG_NAME])
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_TAG])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
     mk2pvrouter = await cg.get_variable(config[CONF_MK2PVROUTER_ID])
