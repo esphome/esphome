@@ -62,6 +62,8 @@ void transmit_raw_timings(remote_base::RemoteTransmitterBase *transmitter, uint3
 
 // ========== IrRfProxy (Infrared platform) ==========
 
+#ifdef USE_IR_RF
+
 void IrRfProxy::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "IR/RF Proxy '%s'\n"
@@ -81,6 +83,8 @@ void IrRfProxy::control(const infrared::InfraredCall &call) {
   uint32_t carrier = call.get_carrier_frequency().value_or(0);
   transmit_raw_timings(this->transmitter_, carrier, call);
 }
+
+#endif  // USE_IR_RF
 
 // ========== RfProxy (Radio Frequency platform) ==========
 
