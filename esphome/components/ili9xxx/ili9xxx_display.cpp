@@ -215,9 +215,6 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
 }
 
 void ILI9XXXDisplay::update() {
-  if (this->is_failed()) {
-    return;
-  }
   if (this->prossing_update_) {
     this->need_update_ = true;
     return;
@@ -228,7 +225,9 @@ void ILI9XXXDisplay::update() {
     this->do_update_();
   } while (this->need_update_);
   this->prossing_update_ = false;
-  this->display_();
+  if (this->buffer_ != nullptr) {
+    this->display_();
+  }
 }
 
 void ILI9XXXDisplay::display_() {
