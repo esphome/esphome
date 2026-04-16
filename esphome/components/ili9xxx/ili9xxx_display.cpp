@@ -225,7 +225,7 @@ void ILI9XXXDisplay::update() {
     this->do_update_();
   } while (this->need_update_);
   this->prossing_update_ = false;
-  if (this->buffer_ != nullptr) {
+  if (!this->is_failed()) {
     this->display_();
   }
 }
