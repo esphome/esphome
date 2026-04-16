@@ -6,11 +6,9 @@ from esphome.const import (
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_10_0,
-    CONF_PMC_0_3,
     CONF_PMC_0_5,
     CONF_PMC_1_0,
     CONF_PMC_2_5,
-    CONF_PMC_5_0,
     CONF_PMC_10_0,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
@@ -32,6 +30,8 @@ PMSA003IComponent = pmsa003i_ns.class_(
 
 CONF_STANDARD_UNITS = "standard_units"
 UNIT_COUNTS_PER_100ML = "#/0.1L"
+CONF_PMC_0_3 = "pmc_0_3"
+CONF_PMC_5_0 = "pmc_5_0"
 
 CONFIG_SCHEMA = (
     cv.Schema(

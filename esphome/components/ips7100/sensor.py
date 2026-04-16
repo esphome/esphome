@@ -3,19 +3,12 @@ from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_PM_0_1,
-    CONF_PM_0_3,
-    CONF_PM_0_5,
     CONF_PM_1_0,
     CONF_PM_2_5,
-    CONF_PM_5_0,
     CONF_PM_10_0,
-    CONF_PMC_0_1,
-    CONF_PMC_0_3,
     CONF_PMC_0_5,
     CONF_PMC_1_0,
     CONF_PMC_2_5,
-    CONF_PMC_5_0,
     CONF_PMC_10_0,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
@@ -25,6 +18,14 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
+
+CONF_PM_0_1 = "pm_0_1"
+CONF_PM_0_3 = "pm_0_3"
+CONF_PM_0_5 = "pm_0_5"
+CONF_PM_5_0 = "pm_5_0"
+CONF_PMC_0_1 = "pmc_0_1"
+CONF_PMC_0_3 = "pmc_0_3"
+CONF_PMC_5_0 = "pmc_5_0"
 
 CODEOWNERS = ["@piitaya"]
 DEPENDENCIES = ["i2c"]
