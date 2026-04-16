@@ -138,7 +138,7 @@ class Scheduler {
   // (single-threaded). This is safe because the main loop is the only thread
   // that reads to_add_ without holding lock_; other threads may read it only
   // while holding the mutex (e.g. cancel_item_locked_).
-  inline void HOT process_to_add() {
+  inline void ESPHOME_ALWAYS_INLINE HOT process_to_add() {
     if (this->to_add_empty_())
       return;
     this->process_to_add_slow_path_();
@@ -286,7 +286,7 @@ class Scheduler {
   // Extend a 32-bit millis() value to 64-bit. Use when the caller already has a fresh now.
   // On platforms with native 64-bit time, ignores now and uses millis_64() directly.
   // On other platforms, extends now to 64-bit using rollover tracking.
-  uint64_t millis_64_from_(uint32_t now) {
+  uint64_t ESPHOME_ALWAYS_INLINE millis_64_from_(uint32_t now) {
 #ifdef USE_NATIVE_64BIT_TIME
     (void) now;
     return millis_64();
@@ -302,7 +302,7 @@ class Scheduler {
   // loop thread structurally modifies items_ (push/pop/erase). Other threads may
   // iterate items_ and mark items removed under lock_, but never change the
   // vector's size or data pointer.
-  inline bool HOT cleanup_() {
+  inline bool ESPHOME_ALWAYS_INLINE HOT cleanup_() {
     if (this->to_remove_empty_())
       return !this->items_.empty();
     return this->cleanup_slow_path_();
@@ -407,7 +407,7 @@ class Scheduler {
   // Process defer queue for FIFO execution of deferred items.
   // IMPORTANT: This method should only be called from the main thread (loop task).
   // Inlined: the fast path (nothing deferred) is just an atomic load check.
-  inline void HOT process_defer_queue_(uint32_t &now) {
+  inline void ESPHOME_ALWAYS_INLINE HOT process_defer_queue_(uint32_t &now) {
     // Fast path: nothing to process, avoid lock entirely.
     // Worst case is a one-loop-iteration delay before newly deferred items are processed.
     if (this->defer_empty_())

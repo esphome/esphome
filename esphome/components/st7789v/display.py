@@ -45,8 +45,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 240,
             CONF_WIDTH: 135,
-            CONF_OFFSET_HEIGHT: 52,
-            CONF_OFFSET_WIDTH: 40,
+            CONF_OFFSET_HEIGHT: 40,
+            CONF_OFFSET_WIDTH: 52,
             CONF_CS_PIN: "GPIO5",
             CONF_DC_PIN: "GPIO16",
             CONF_RESET_PIN: "GPIO23",
@@ -68,8 +68,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 280,
             CONF_WIDTH: 240,
-            CONF_OFFSET_HEIGHT: 0,
-            CONF_OFFSET_WIDTH: 20,
+            CONF_OFFSET_HEIGHT: 20,
+            CONF_OFFSET_WIDTH: 0,
         }
     ),
     "ADAFRUIT_S2_TFT_FEATHER_240X135": model_spec(
@@ -77,8 +77,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 240,
             CONF_WIDTH: 135,
-            CONF_OFFSET_HEIGHT: 52,
-            CONF_OFFSET_WIDTH: 40,
+            CONF_OFFSET_HEIGHT: 40,
+            CONF_OFFSET_WIDTH: 52,
             CONF_CS_PIN: "GPIO7",
             CONF_DC_PIN: "GPIO39",
             CONF_RESET_PIN: "GPIO40",
@@ -89,8 +89,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 320,
             CONF_WIDTH: 170,
-            CONF_OFFSET_HEIGHT: 35,
-            CONF_OFFSET_WIDTH: 0,
+            CONF_OFFSET_HEIGHT: 0,
+            CONF_OFFSET_WIDTH: 35,
             CONF_ROTATION: 270,
             CONF_CS_PIN: "GPIO10",
             CONF_DC_PIN: "GPIO13",
@@ -102,8 +102,8 @@ MODELS = {
         presets={
             CONF_HEIGHT: 320,
             CONF_WIDTH: 172,
-            CONF_OFFSET_HEIGHT: 34,
-            CONF_OFFSET_WIDTH: 0,
+            CONF_OFFSET_HEIGHT: 0,
+            CONF_OFFSET_WIDTH: 34,
             CONF_ROTATION: 90,
             CONF_CS_PIN: "GPIO21",
             CONF_DC_PIN: "GPIO22",

@@ -39,78 +39,7 @@
 #include "esphome/components/runtime_stats/runtime_stats.h"
 #endif
 #include "esphome/core/wake.h"
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
-#ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
-#endif
-#ifdef USE_SWITCH
-#include "esphome/components/switch/switch.h"
-#endif
-#ifdef USE_BUTTON
-#include "esphome/components/button/button.h"
-#endif
-#ifdef USE_TEXT_SENSOR
-#include "esphome/components/text_sensor/text_sensor.h"
-#endif
-#ifdef USE_FAN
-#include "esphome/components/fan/fan.h"
-#endif
-#ifdef USE_CLIMATE
-#include "esphome/components/climate/climate.h"
-#endif
-#ifdef USE_LIGHT
-#include "esphome/components/light/light_state.h"
-#endif
-#ifdef USE_COVER
-#include "esphome/components/cover/cover.h"
-#endif
-#ifdef USE_NUMBER
-#include "esphome/components/number/number.h"
-#endif
-#ifdef USE_DATETIME_DATE
-#include "esphome/components/datetime/date_entity.h"
-#endif
-#ifdef USE_DATETIME_TIME
-#include "esphome/components/datetime/time_entity.h"
-#endif
-#ifdef USE_DATETIME_DATETIME
-#include "esphome/components/datetime/datetime_entity.h"
-#endif
-#ifdef USE_TEXT
-#include "esphome/components/text/text.h"
-#endif
-#ifdef USE_SELECT
-#include "esphome/components/select/select.h"
-#endif
-#ifdef USE_LOCK
-#include "esphome/components/lock/lock.h"
-#endif
-#ifdef USE_VALVE
-#include "esphome/components/valve/valve.h"
-#endif
-#ifdef USE_MEDIA_PLAYER
-#include "esphome/components/media_player/media_player.h"
-#endif
-#ifdef USE_ALARM_CONTROL_PANEL
-#include "esphome/components/alarm_control_panel/alarm_control_panel.h"
-#endif
-#ifdef USE_WATER_HEATER
-#include "esphome/components/water_heater/water_heater.h"
-#endif
-#ifdef USE_INFRARED
-#include "esphome/components/infrared/infrared.h"
-#endif
-#ifdef USE_SERIAL_PROXY
-#include "esphome/components/serial_proxy/serial_proxy.h"
-#endif
-#ifdef USE_EVENT
-#include "esphome/components/event/event.h"
-#endif
-#ifdef USE_UPDATE
-#include "esphome/components/update/update_entity.h"
-#endif
+#include "esphome/core/entity_includes.h"
 
 namespace esphome::socket {
 #ifdef USE_HOST
@@ -190,107 +119,22 @@ class Application {
   void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
 
-#ifdef USE_BINARY_SENSOR
-  void register_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
-    this->binary_sensors_.push_back(binary_sensor);
-  }
-#endif
-
-#ifdef USE_SENSOR
-  void register_sensor(sensor::Sensor *sensor) { this->sensors_.push_back(sensor); }
-#endif
-
-#ifdef USE_SWITCH
-  void register_switch(switch_::Switch *a_switch) { this->switches_.push_back(a_switch); }
-#endif
-
-#ifdef USE_BUTTON
-  void register_button(button::Button *button) { this->buttons_.push_back(button); }
-#endif
-
-#ifdef USE_TEXT_SENSOR
-  void register_text_sensor(text_sensor::TextSensor *sensor) { this->text_sensors_.push_back(sensor); }
-#endif
-
-#ifdef USE_FAN
-  void register_fan(fan::Fan *state) { this->fans_.push_back(state); }
-#endif
-
-#ifdef USE_COVER
-  void register_cover(cover::Cover *cover) { this->covers_.push_back(cover); }
-#endif
-
-#ifdef USE_CLIMATE
-  void register_climate(climate::Climate *climate) { this->climates_.push_back(climate); }
-#endif
-
-#ifdef USE_LIGHT
-  void register_light(light::LightState *light) { this->lights_.push_back(light); }
-#endif
-
-#ifdef USE_NUMBER
-  void register_number(number::Number *number) { this->numbers_.push_back(number); }
-#endif
-
-#ifdef USE_DATETIME_DATE
-  void register_date(datetime::DateEntity *date) { this->dates_.push_back(date); }
-#endif
-
-#ifdef USE_DATETIME_TIME
-  void register_time(datetime::TimeEntity *time) { this->times_.push_back(time); }
-#endif
-
-#ifdef USE_DATETIME_DATETIME
-  void register_datetime(datetime::DateTimeEntity *datetime) { this->datetimes_.push_back(datetime); }
-#endif
-
-#ifdef USE_TEXT
-  void register_text(text::Text *text) { this->texts_.push_back(text); }
-#endif
-
-#ifdef USE_SELECT
-  void register_select(select::Select *select) { this->selects_.push_back(select); }
-#endif
-
-#ifdef USE_LOCK
-  void register_lock(lock::Lock *a_lock) { this->locks_.push_back(a_lock); }
-#endif
-
-#ifdef USE_VALVE
-  void register_valve(valve::Valve *valve) { this->valves_.push_back(valve); }
-#endif
-
-#ifdef USE_MEDIA_PLAYER
-  void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
-#endif
-
-#ifdef USE_ALARM_CONTROL_PANEL
-  void register_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
-    this->alarm_control_panels_.push_back(a_alarm_control_panel);
-  }
-#endif
-
-#ifdef USE_WATER_HEATER
-  void register_water_heater(water_heater::WaterHeater *water_heater) { this->water_heaters_.push_back(water_heater); }
-#endif
-
-#ifdef USE_INFRARED
-  void register_infrared(infrared::Infrared *infrared) { this->infrareds_.push_back(infrared); }
-#endif
+// Entity register methods (generated from entity_types.h)
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) \
+  void register_##singular(type *obj) { this->plural##_.push_back(obj); }
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.h"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+  // NOLINTEND(bugprone-macro-parentheses)
 
 #ifdef USE_SERIAL_PROXY
   void register_serial_proxy(serial_proxy::SerialProxy *proxy) {
     proxy->set_instance_index(this->serial_proxies_.size());
     this->serial_proxies_.push_back(proxy);
   }
-#endif
-
-#ifdef USE_EVENT
-  void register_event(event::Event *event) { this->events_.push_back(event); }
-#endif
-
-#ifdef USE_UPDATE
-  void register_update(update::UpdateEntity *update) { this->updates_.push_back(update); }
 #endif
 
   /// Reserve space for components to avoid memory fragmentation
@@ -385,7 +229,24 @@ class Application {
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
-  void feed_wdt(uint32_t time = 0);
+  /// Minimum interval between real arch_feed_wdt() calls. Chosen to keep the
+  /// rate of HAL pokes low while still being small enough that any plausible
+  /// watchdog timeout (seconds) has orders of magnitude of safety margin.
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 3;
+
+  /// Feed the task watchdog. Cold entry — callers without a millis()
+  /// timestamp in hand. Out of line to keep call sites tiny.
+  void feed_wdt();
+
+  /// Feed the task watchdog, hot entry. Callers that already have a
+  /// millis() timestamp pay only a load + sub + branch on the common
+  /// (no-op) path. The actual arch feed + status LED update live in
+  /// feed_wdt_slow_.
+  void ESPHOME_ALWAYS_INLINE feed_wdt_with_time(uint32_t time) {
+    if (static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) [[unlikely]] {
+      this->feed_wdt_slow_(time);
+    }
+  }
 
   void reboot();
 
@@ -401,7 +262,18 @@ class Application {
    */
   void teardown_components(uint32_t timeout_ms);
 
-  uint8_t get_app_state() const { return this->app_state_; }
+  /// Return the public app state status bits (STATUS_LED_* only).
+  /// Internal bookkeeping bits like APP_STATE_SETUP_COMPLETE are masked
+  /// out so external readers (status_led components, etc.) never see them.
+  uint8_t get_app_state() const { return this->app_state_ & ~APP_STATE_SETUP_COMPLETE; }
+
+  /// True once Application::setup() has finished walking all components
+  /// and finalized the initial status flags. Before this point, the
+  /// slow-setup busy-wait may be forcing STATUS_LED_WARNING on, and
+  /// status_clear_* intentionally skips its walk-and-clear step so the
+  /// forced bit doesn't get wiped. Stored as a free bit on app_state_
+  /// (bit 6) to avoid costing additional RAM.
+  bool is_setup_complete() const { return (this->app_state_ & APP_STATE_SETUP_COMPLETE) != 0; }
 
 // Helper macro for entity getter method declarations
 #ifdef USE_DEVICES
@@ -428,106 +300,20 @@ class Application {
 #ifdef USE_AREAS
   const auto &get_areas() { return this->areas_; }
 #endif
-#ifdef USE_BINARY_SENSOR
-  auto &get_binary_sensors() const { return this->binary_sensors_; }
-  GET_ENTITY_METHOD(binary_sensor::BinarySensor, binary_sensor, binary_sensors)
-#endif
-#ifdef USE_SWITCH
-  auto &get_switches() const { return this->switches_; }
-  GET_ENTITY_METHOD(switch_::Switch, switch, switches)
-#endif
-#ifdef USE_BUTTON
-  auto &get_buttons() const { return this->buttons_; }
-  GET_ENTITY_METHOD(button::Button, button, buttons)
-#endif
-#ifdef USE_SENSOR
-  auto &get_sensors() const { return this->sensors_; }
-  GET_ENTITY_METHOD(sensor::Sensor, sensor, sensors)
-#endif
-#ifdef USE_TEXT_SENSOR
-  auto &get_text_sensors() const { return this->text_sensors_; }
-  GET_ENTITY_METHOD(text_sensor::TextSensor, text_sensor, text_sensors)
-#endif
-#ifdef USE_FAN
-  auto &get_fans() const { return this->fans_; }
-  GET_ENTITY_METHOD(fan::Fan, fan, fans)
-#endif
-#ifdef USE_COVER
-  auto &get_covers() const { return this->covers_; }
-  GET_ENTITY_METHOD(cover::Cover, cover, covers)
-#endif
-#ifdef USE_LIGHT
-  auto &get_lights() const { return this->lights_; }
-  GET_ENTITY_METHOD(light::LightState, light, lights)
-#endif
-#ifdef USE_CLIMATE
-  auto &get_climates() const { return this->climates_; }
-  GET_ENTITY_METHOD(climate::Climate, climate, climates)
-#endif
-#ifdef USE_NUMBER
-  auto &get_numbers() const { return this->numbers_; }
-  GET_ENTITY_METHOD(number::Number, number, numbers)
-#endif
-#ifdef USE_DATETIME_DATE
-  auto &get_dates() const { return this->dates_; }
-  GET_ENTITY_METHOD(datetime::DateEntity, date, dates)
-#endif
-#ifdef USE_DATETIME_TIME
-  auto &get_times() const { return this->times_; }
-  GET_ENTITY_METHOD(datetime::TimeEntity, time, times)
-#endif
-#ifdef USE_DATETIME_DATETIME
-  auto &get_datetimes() const { return this->datetimes_; }
-  GET_ENTITY_METHOD(datetime::DateTimeEntity, datetime, datetimes)
-#endif
-#ifdef USE_TEXT
-  auto &get_texts() const { return this->texts_; }
-  GET_ENTITY_METHOD(text::Text, text, texts)
-#endif
-#ifdef USE_SELECT
-  auto &get_selects() const { return this->selects_; }
-  GET_ENTITY_METHOD(select::Select, select, selects)
-#endif
-#ifdef USE_LOCK
-  auto &get_locks() const { return this->locks_; }
-  GET_ENTITY_METHOD(lock::Lock, lock, locks)
-#endif
-#ifdef USE_VALVE
-  auto &get_valves() const { return this->valves_; }
-  GET_ENTITY_METHOD(valve::Valve, valve, valves)
-#endif
-#ifdef USE_MEDIA_PLAYER
-  auto &get_media_players() const { return this->media_players_; }
-  GET_ENTITY_METHOD(media_player::MediaPlayer, media_player, media_players)
-#endif
-
-#ifdef USE_ALARM_CONTROL_PANEL
-  auto &get_alarm_control_panels() const { return this->alarm_control_panels_; }
-  GET_ENTITY_METHOD(alarm_control_panel::AlarmControlPanel, alarm_control_panel, alarm_control_panels)
-#endif
-
-#ifdef USE_WATER_HEATER
-  auto &get_water_heaters() const { return this->water_heaters_; }
-  GET_ENTITY_METHOD(water_heater::WaterHeater, water_heater, water_heaters)
-#endif
-
-#ifdef USE_INFRARED
-  auto &get_infrareds() const { return this->infrareds_; }
-  GET_ENTITY_METHOD(infrared::Infrared, infrared, infrareds)
-#endif
+// Entity getter methods (generated from entity_types.h)
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) \
+  auto &get_##plural() const { return this->plural##_; } \
+  GET_ENTITY_METHOD(type, singular, plural)
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.h"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+  // NOLINTEND(bugprone-macro-parentheses)
 
 #ifdef USE_SERIAL_PROXY
   auto &get_serial_proxies() const { return this->serial_proxies_; }
-#endif
-
-#ifdef USE_EVENT
-  auto &get_events() const { return this->events_; }
-  GET_ENTITY_METHOD(event::Event, event, events)
-#endif
-
-#ifdef USE_UPDATE
-  auto &get_updates() const { return this->updates_; }
-  GET_ENTITY_METHOD(update::UpdateEntity, update, updates)
 #endif
 
   Scheduler scheduler;
@@ -577,6 +363,12 @@ class Application {
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
 #endif
 
+  /// Walk all registered components looking for any whose component_state_
+  /// has the given flag set. Used by Component::status_clear_*_slow_path_()
+  /// (which is a friend) to decide whether to clear the corresponding bit on
+  /// this->app_state_ (the app-wide "any component has this status" indicator).
+  bool any_component_has_status_flag_(uint8_t flag) const;
+
   /// Register a component, detecting loop() override at compile time.
   /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.
   template<typename T> void register_component_(T *comp) {
@@ -615,7 +407,10 @@ class Application {
   /// Caller must ensure dump_config_at_ < components_.size().
   void __attribute__((noinline)) process_dump_config_();
 
-  void feed_wdt_arch_();
+  /// Slow path for feed_wdt(): actually calls arch_feed_wdt(), updates
+  /// last_wdt_feed_, and re-dispatches the status LED. Out of line so the
+  /// inline wrapper stays tiny.
+  void feed_wdt_slow_(uint32_t time);
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
 #ifdef USE_HOST
@@ -669,6 +464,7 @@ class Application {
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
+  uint32_t last_wdt_feed_{0};  // millis() of most recent arch_feed_wdt(); rate-limits feed_wdt() hot path
 
 #ifdef USE_HOST
   int max_fd_{-1};  // Highest file descriptor number for select()
@@ -705,78 +501,18 @@ class Application {
 #ifdef USE_AREAS
   StaticVector<Area *, ESPHOME_AREA_COUNT> areas_{};
 #endif
-#ifdef USE_BINARY_SENSOR
-  StaticVector<binary_sensor::BinarySensor *, ESPHOME_ENTITY_BINARY_SENSOR_COUNT> binary_sensors_{};
-#endif
-#ifdef USE_SWITCH
-  StaticVector<switch_::Switch *, ESPHOME_ENTITY_SWITCH_COUNT> switches_{};
-#endif
-#ifdef USE_BUTTON
-  StaticVector<button::Button *, ESPHOME_ENTITY_BUTTON_COUNT> buttons_{};
-#endif
-#ifdef USE_EVENT
-  StaticVector<event::Event *, ESPHOME_ENTITY_EVENT_COUNT> events_{};
-#endif
-#ifdef USE_SENSOR
-  StaticVector<sensor::Sensor *, ESPHOME_ENTITY_SENSOR_COUNT> sensors_{};
-#endif
-#ifdef USE_TEXT_SENSOR
-  StaticVector<text_sensor::TextSensor *, ESPHOME_ENTITY_TEXT_SENSOR_COUNT> text_sensors_{};
-#endif
-#ifdef USE_FAN
-  StaticVector<fan::Fan *, ESPHOME_ENTITY_FAN_COUNT> fans_{};
-#endif
-#ifdef USE_COVER
-  StaticVector<cover::Cover *, ESPHOME_ENTITY_COVER_COUNT> covers_{};
-#endif
-#ifdef USE_CLIMATE
-  StaticVector<climate::Climate *, ESPHOME_ENTITY_CLIMATE_COUNT> climates_{};
-#endif
-#ifdef USE_LIGHT
-  StaticVector<light::LightState *, ESPHOME_ENTITY_LIGHT_COUNT> lights_{};
-#endif
-#ifdef USE_NUMBER
-  StaticVector<number::Number *, ESPHOME_ENTITY_NUMBER_COUNT> numbers_{};
-#endif
-#ifdef USE_DATETIME_DATE
-  StaticVector<datetime::DateEntity *, ESPHOME_ENTITY_DATE_COUNT> dates_{};
-#endif
-#ifdef USE_DATETIME_TIME
-  StaticVector<datetime::TimeEntity *, ESPHOME_ENTITY_TIME_COUNT> times_{};
-#endif
-#ifdef USE_DATETIME_DATETIME
-  StaticVector<datetime::DateTimeEntity *, ESPHOME_ENTITY_DATETIME_COUNT> datetimes_{};
-#endif
-#ifdef USE_SELECT
-  StaticVector<select::Select *, ESPHOME_ENTITY_SELECT_COUNT> selects_{};
-#endif
-#ifdef USE_TEXT
-  StaticVector<text::Text *, ESPHOME_ENTITY_TEXT_COUNT> texts_{};
-#endif
-#ifdef USE_LOCK
-  StaticVector<lock::Lock *, ESPHOME_ENTITY_LOCK_COUNT> locks_{};
-#endif
-#ifdef USE_VALVE
-  StaticVector<valve::Valve *, ESPHOME_ENTITY_VALVE_COUNT> valves_{};
-#endif
-#ifdef USE_MEDIA_PLAYER
-  StaticVector<media_player::MediaPlayer *, ESPHOME_ENTITY_MEDIA_PLAYER_COUNT> media_players_{};
-#endif
-#ifdef USE_ALARM_CONTROL_PANEL
-  StaticVector<alarm_control_panel::AlarmControlPanel *, ESPHOME_ENTITY_ALARM_CONTROL_PANEL_COUNT>
-      alarm_control_panels_{};
-#endif
-#ifdef USE_WATER_HEATER
-  StaticVector<water_heater::WaterHeater *, ESPHOME_ENTITY_WATER_HEATER_COUNT> water_heaters_{};
-#endif
-#ifdef USE_INFRARED
-  StaticVector<infrared::Infrared *, ESPHOME_ENTITY_INFRARED_COUNT> infrareds_{};
-#endif
+// Entity StaticVector fields (generated from entity_types.h)
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) StaticVector<type *, count> plural##_{};
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.h"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+  // NOLINTEND(bugprone-macro-parentheses)
+
 #ifdef USE_SERIAL_PROXY
   StaticVector<serial_proxy::SerialProxy *, SERIAL_PROXY_COUNT> serial_proxies_{};
-#endif
-#ifdef USE_UPDATE
-  StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};
 #endif
 };
 
@@ -813,11 +549,12 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
   this->drain_wake_notifications_();
 #endif
 
-  // Process scheduled tasks
+  // Process scheduled tasks. Scheduler::call now feeds the watchdog itself
+  // after each scheduled item that actually runs, so we no longer need an
+  // unconditional feed here — when Scheduler::call has no work to do, the
+  // only elapsed time is a sleep wake + a few instructions, and when it does
+  // have work, it fed the wdt as it went.
   this->scheduler.call(loop_start_time);
-
-  // Feed the watchdog timer
-  this->feed_wdt(loop_start_time);
 
   // Process any pending enable_loop requests from ISRs
   // This must be done before marking in_loop_ = true to avoid race conditions
@@ -838,8 +575,6 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
-  uint8_t new_app_state = 0;
-
   // Get the initial loop time at the start
   uint32_t last_op_end_time = millis();
 
@@ -859,13 +594,10 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
       // Use the finish method to get the current time as the end time
       last_op_end_time = guard.finish();
     }
-    new_app_state |= component->get_component_state();
-    this->app_state_ |= new_app_state;
-    this->feed_wdt(last_op_end_time);
+    this->feed_wdt_with_time(last_op_end_time);
   }
 
   this->after_loop_tasks_();
-  this->app_state_ = new_app_state;
 
 #ifdef USE_RUNTIME_STATS
   // Process any pending runtime stats printing after all components have run

@@ -128,7 +128,7 @@ DIGITAL_WRITE_ACTION_SCHEMA = cv.maybe_simple_value(
 async def digital_write_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_TRANSMITTER_ID])
-    template_ = await cg.templatable(config[CONF_VALUE], args, bool)
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.bool_)
     cg.add(var.set_value(template_))
     return var
 

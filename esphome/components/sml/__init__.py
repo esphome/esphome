@@ -31,23 +31,26 @@ CONFIG_SCHEMA = (
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_DATA,
+        "add_on_data_callback",
+        [
+            (
+                cg.std_vector.template(cg.uint8).operator("ref").operator("const"),
+                "bytes",
+            ),
+            (cg.bool_, "valid"),
+        ],
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    for conf in config.get(CONF_ON_DATA, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_data_callback",
-            [
-                (
-                    cg.std_vector.template(cg.uint8).operator("ref").operator("const"),
-                    "bytes",
-                ),
-                (cg.bool_, "valid"),
-            ],
-            conf,
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 def obis_code(value):
