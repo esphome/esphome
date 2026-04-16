@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_PMC_0_3, CONF_PMC_5_0
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -24,8 +25,6 @@ CONF_PM_0_3 = "pm_0_3"
 CONF_PM_0_5 = "pm_0_5"
 CONF_PM_5_0 = "pm_5_0"
 CONF_PMC_0_1 = "pmc_0_1"
-CONF_PMC_0_3 = "pmc_0_3"
-CONF_PMC_5_0 = "pmc_5_0"
 
 CODEOWNERS = ["@piitaya"]
 DEPENDENCIES = ["i2c"]
