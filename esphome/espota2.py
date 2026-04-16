@@ -289,9 +289,7 @@ def perform_ota(
         features = 0
 
     if ota_type != 0 and not features & SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS:
-        raise OTAError(
-            f"Device only supports app updates"
-        )
+        raise OTAError("Device only supports app updates")
 
     if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
         upload_contents = gzip.compress(file_contents, compresslevel=9)

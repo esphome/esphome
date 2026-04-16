@@ -10,7 +10,7 @@
 namespace esphome::ota {
 
 #ifdef USE_OTA_PARTITIONS
-static constexpr size_t OTA_BUFFER_SIZE = ESP_PARTITION_TABLE_MAX_LEN; // 0xC00
+static constexpr size_t OTA_BUFFER_SIZE = ESP_PARTITION_TABLE_MAX_LEN;  // 0xC00
 #endif
 
 class IDFOTABackend final {

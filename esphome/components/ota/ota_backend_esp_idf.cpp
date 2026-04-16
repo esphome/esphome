@@ -72,7 +72,8 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
   }
 #ifdef USE_OTA_PARTITIONS
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
-    if (image_size > ESP_PARTITION_TABLE_SIZE || image_size > ESP_PARTITION_TABLE_MAX_LEN || image_size > OTA_BUFFER_SIZE) {
+    if (image_size > ESP_PARTITION_TABLE_SIZE || image_size > ESP_PARTITION_TABLE_MAX_LEN ||
+        image_size > OTA_BUFFER_SIZE) {
       return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
     }
     memset(this->buf_, 0xFF, sizeof this->buf_);
@@ -136,12 +137,12 @@ OTAResponseTypes IDFOTABackend::end() {
       }
     }
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
-  #ifdef USE_OTA_SIGNED_VERIFICATION
+#ifdef USE_OTA_SIGNED_VERIFICATION
       ESP_LOGE(TAG, "OTA validation failed (err=0x%X) - possible signature verification failure", err);
       return OTA_RESPONSE_ERROR_SIGNATURE_INVALID;
-  #else
+#else
       return OTA_RESPONSE_ERROR_UPDATE_END;
-  #endif
+#endif
     }
     if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
       return OTA_RESPONSE_ERROR_WRITING_FLASH;
@@ -183,8 +184,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   const esp_partition_t *running_app_part = esp_ota_get_running_partition();
   size_t running_app_size = running_app_part->size;
   const esp_partition_pos_t running_app_pos = {
-    .offset = running_app_part->address,
-    .size = running_app_part->size,
+      .offset = running_app_part->address,
+      .size = running_app_part->size,
   };
   esp_image_metadata_t image_metadata;
   image_metadata.start_addr = running_app_part->address;
@@ -194,7 +195,9 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   }
 
   // Get partition table partition
-  err = esp_partition_register_external(nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE, "PrimaryPrtTable", ESP_PARTITION_TYPE_PARTITION_TABLE, ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY, &this->partition_table_part_);
+  err = esp_partition_register_external(nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE,
+                                        "PrimaryPrtTable", ESP_PARTITION_TYPE_PARTITION_TABLE,
+                                        ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY, &this->partition_table_part_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_register_external failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_UNKNOWN;
@@ -202,7 +205,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   // Verify existing partition table
   const esp_partition_info_t *existing_partition_table = NULL;
   esp_partition_mmap_handle_t partition_table_map;
-  err = esp_partition_mmap(this->partition_table_part_, 0, ESP_PARTITION_TABLE_MAX_LEN, ESP_PARTITION_MMAP_DATA, (const void**)&existing_partition_table, &partition_table_map);
+  err = esp_partition_mmap(this->partition_table_part_, 0, ESP_PARTITION_TABLE_MAX_LEN, ESP_PARTITION_MMAP_DATA,
+                           (const void **) &existing_partition_table, &partition_table_map);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_mmap failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_UNKNOWN;
@@ -215,7 +219,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   }
 
   // Verify new partition table
-  const esp_partition_info_t *new_partition_table = (const esp_partition_info_t *)this->buf_;
+  const esp_partition_info_t *new_partition_table = (const esp_partition_info_t *) this->buf_;
   // esp_partition_table_verify expects ESP_PARTITION_TABLE_MAX_LEN bytes of data
   err = esp_partition_table_verify(new_partition_table, true, &num_partitions);
   if (err != ESP_OK) {
@@ -237,14 +241,16 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
       if (part->pos.size >= running_app_size) {
         if (part->pos.offset == running_app_part->address) {
           app_index = i;
-        } else if (part->pos.offset >= running_app_part->address + running_app_size || running_app_part->address >= part->pos.offset + part->pos.size) {
+        } else if (part->pos.offset >= running_app_part->address + running_app_size ||
+                   running_app_part->address >= part->pos.offset + part->pos.size) {
           // No overlap with running app
           app_index_with_copy = i;
         }
       }
     } else if (part->type == ESP_PARTITION_TYPE_DATA && part->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA) {
       otadata_index = i;
-      otadata_no_overlap = part->pos.offset >= running_app_part->address + running_app_size || running_app_part->address >= part->pos.offset + part->pos.size;
+      otadata_no_overlap = part->pos.offset >= running_app_part->address + running_app_size ||
+                           running_app_part->address >= part->pos.offset + part->pos.size;
     }
   }
   if (app_index == -1 && app_index_with_copy == -1) {

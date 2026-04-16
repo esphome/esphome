@@ -209,7 +209,8 @@ void ESPHomeOTAComponent::handle_handshake_() {
       if (this->extended_proto_) {
         this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
         this->handshake_buf_[1] = 0;
-        if ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression()) {
+        if ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 &&
+            this->backend_->supports_compression()) {
           this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_COMPRESSION;
         }
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;
