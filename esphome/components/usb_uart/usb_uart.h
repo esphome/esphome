@@ -264,7 +264,6 @@ class USBUartTypeCH934X : public USBUartComponent {
  public:
   USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
 
-  void loop() override;
   void start_input(USBUartChannel *channel);
   void start_output(USBUartChannel *channel);
 
@@ -285,19 +284,31 @@ class USBUartTypeCH934X : public USBUartComponent {
   void handle_rx_data_(const uint8_t *data, size_t len);
   void start_command_reader_();
   void handle_command_data_(const uint8_t *data, size_t len);
-  void handle_tx_multiplexing_();
-  void send_next_channel_data_(USBUartChannel *channel);
 
   Ch934xEps uart_host_dev_{};
   CH934xChipType chiptype_{CHIP_CH934X_UNKNOWN};
   uint8_t chipversion_{0};
   uint8_t num_ports_{0};
   uint8_t port_offset_{0};
-  size_t tx_current_channel_index_{0};
   bool bpackload_{false};
   std::atomic<bool> rx_running_{false};
   std::atomic<bool> cmd_running_{false};
-  std::atomic<bool> tx_in_progress_{false};
+};
+
+class CH934XChannel : public USBUartChannel {
+  friend class USBUartTypeCH934X;
+
+ public:
+  // TX header is 3 bytes: [port, len_lo, len_hi] — max data per packet is reduced accordingly
+  static constexpr size_t TX_HEADER_SIZE = 3;
+  static constexpr size_t TX_MAX_DATA = UsbOutputChunk::MAX_CHUNK_SIZE - TX_HEADER_SIZE;
+
+  CH934XChannel(uint8_t index, uint16_t buffer_size) : USBUartChannel(index, buffer_size) {}
+  void write_array(const uint8_t *data, size_t len) override;
+  uart::UARTFlushResult flush() override;
+
+ protected:
+  USBUartChannel *tx_shared_channel_{nullptr};
 };
 
 }  // namespace esphome::usb_uart

@@ -187,6 +187,12 @@ void USBUartTypeCH934X::configure_channels_after_detection_() {
     }
   }
 
+  // Point every channel's shared TX queue to channel 0
+  for (auto *channel : this->channels_) {
+    auto *ch934x_channel = static_cast<CH934XChannel *>(channel);
+    ch934x_channel->tx_shared_channel_ = this->channels_[0];
+  }
+
   this->start_rx_reader_();
   this->start_command_reader_();
 }
@@ -515,108 +521,61 @@ void USBUartTypeCH934X::handle_command_data_(const uint8_t *data, size_t len) {
   ESP_LOGV(TAG, "CMD data received: %d bytes", len);
 }
 
-void USBUartTypeCH934X::handle_tx_multiplexing_() {
-  if (this->tx_in_progress_.load())
-    return;
-
-  size_t channels_checked = 0;
-  while (channels_checked < this->channels_.size()) {
-    auto *channel = this->channels_[this->tx_current_channel_index_];
-    this->tx_current_channel_index_ = (this->tx_current_channel_index_ + 1) % this->channels_.size();
-    channels_checked++;
-
-    if (!channel->initialised_.load() || channel->output_queue_.empty())
-      continue;
-
-    this->send_next_channel_data_(channel);
-    return;
-  }
-}
-
-void USBUartTypeCH934X::send_next_channel_data_(USBUartChannel *channel) {
-  if (!channel->initialised_.load())
-    return;
-
-  UsbOutputChunk *chunk = channel->output_queue_.pop();
-  if (chunk == nullptr)
-    return;
-
-  const auto *ep = this->uart_host_dev_.out_ep;
-  const size_t data_len = chunk->length;
-  const size_t pkt_len = TX_HEADER_SIZE + data_len;
-
-  // Heap allocation required: buffer must outlive this stack frame (freed in USB-task callback)
-  auto *tx_buf = new uint8_t[pkt_len];
-  tx_buf[0] = this->port_offset_ + channel->index_;
-  tx_buf[1] = data_len & 0xFF;
-  tx_buf[2] = (data_len >> 8) & 0xFF;
-  memcpy(tx_buf + TX_HEADER_SIZE, chunk->data, data_len);
-
-#ifdef USE_UART_DEBUGGER
-  if (channel->debug_) {
-    constexpr size_t BATCH = 16;
-    char buf[4 + format_hex_pretty_size(BATCH)];
-    for (size_t off = 0; off < data_len; off += BATCH) {
-      size_t n = std::min(data_len - off, BATCH);
-      memcpy(buf, ">>> ", 4);
-      format_hex_pretty_to(buf + 4, sizeof(buf) - 4, chunk->data + off, n, ',');
-      ESP_LOGD(TAG, "%s", buf);
-    }
-  }
-#endif
-
-  auto callback = [this, channel, chunk, tx_buf, data_len](const usb_host::TransferStatus &status) {
-    channel->output_pool_.release(chunk);
-    delete[] tx_buf;
-    this->tx_in_progress_.store(false);
-
-    if (!status.success) {
-      ESP_LOGE(TAG, "TX transfer failed for channel %d, status=%s", channel->index_,
-               esp_err_to_name(status.error_code));
-      return;
-    }
-
-    ESP_LOGV(TAG, "TX complete: channel %d, %zu bytes", channel->index_, data_len);
-    this->handle_tx_multiplexing_();
-  };
-
-  this->tx_in_progress_.store(true);
-  this->transfer_out(ep->bEndpointAddress, callback, tx_buf, pkt_len);
-}
-
 void USBUartTypeCH934X::start_input(USBUartChannel * /*channel*/) {}
 
-void USBUartTypeCH934X::loop() {
-  USBClient::loop();
+void CH934XChannel::write_array(const uint8_t *data, size_t len) {
+  if (!this->initialised_.load() || this->tx_shared_channel_ == nullptr)
+    return;
 
-  UsbDataChunk *chunk;
-  while ((chunk = this->usb_data_queue_.pop()) != nullptr) {
-    auto *channel = chunk->channel;
+  auto *shared = this->tx_shared_channel_;
 
 #ifdef USE_UART_DEBUGGER
-    if (channel->debug_) {
-      constexpr size_t BATCH = 16;
-      char buf[4 + format_hex_pretty_size(BATCH)];
-      for (size_t off = 0; off < chunk->length; off += BATCH) {
-        size_t n = std::min((size_t) chunk->length - off, BATCH);
-        memcpy(buf, "<<< ", 4);
-        format_hex_pretty_to(buf + 4, sizeof(buf) - 4, chunk->data + off, n, ',');
-        ESP_LOGD(TAG, "%s", buf);
-      }
+  if (this->debug_) {
+    constexpr size_t BATCH = 16;
+    char buf[4 + format_hex_pretty_size(BATCH)];
+    for (size_t off = 0; off < len; off += BATCH) {
+      size_t n = std::min(len - off, BATCH);
+      memcpy(buf, ">>> ", 4);
+      format_hex_pretty_to(buf + 4, sizeof(buf) - 4, data + off, n, ',');
+      ESP_LOGD(TAG, "%s%s", this->debug_prefix_.c_str(), buf);
     }
+  }
 #endif
 
-    channel->input_buffer_.push(chunk->data, chunk->length);
-    if (channel->rx_callback_)
-      channel->rx_callback_();
-    this->chunk_pool_.release(chunk);
+  while (len > 0) {
+    UsbOutputChunk *chunk = shared->output_pool_.allocate();
+    if (chunk == nullptr) {
+      ESP_LOGE(TAG, "Output pool full - lost %zu bytes", len);
+      break;
+    }
+    size_t data_len = std::min(len, TX_MAX_DATA);
+    // Pre-build the TX header into the chunk: [port, len_lo, len_hi, data...]
+    chunk->data[0] = static_cast<uint8_t>(static_cast<USBUartTypeCH934X *>(this->parent_)->port_offset_ + this->index_);
+    chunk->data[1] = data_len & 0xFF;
+    chunk->data[2] = (data_len >> 8) & 0xFF;
+    memcpy(chunk->data + TX_HEADER_SIZE, data, data_len);
+    chunk->length = static_cast<uint8_t>(TX_HEADER_SIZE + data_len);
+    shared->output_queue_.push(chunk);
+    data += data_len;
+    len -= data_len;
   }
+  this->parent_->start_output(shared);
+}
 
-  uint16_t dropped = this->usb_data_queue_.get_and_reset_dropped_count();
-  if (dropped > 0)
-    ESP_LOGW(TAG, "Dropped %u USB data chunks due to buffer overflow", dropped);
-
-  this->handle_tx_multiplexing_();
+uart::UARTFlushResult CH934XChannel::flush() {
+  // Poll the shared channel-0 queue and its output_started flag, not our own.
+  auto *shared = this->tx_shared_channel_;
+  if (shared == nullptr)
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+  uint32_t start = millis();
+  while ((!shared->output_queue_.empty() || shared->output_started_.load()) &&
+         millis() - start < this->flush_timeout_ms_) {
+    this->parent_->start_output(shared);
+    yield();
+  }
+  if (!shared->output_queue_.empty() || shared->output_started_.load())
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 static void fix_mps(const usb_ep_desc_t *ep) {
@@ -665,16 +624,19 @@ void USBUartTypeCH934X::on_connected() {
 void USBUartTypeCH934X::on_disconnected() {
   this->rx_running_.store(false);
   this->cmd_running_.store(false);
-  this->tx_in_progress_.store(false);
 
   for (auto *channel : this->channels_) {
     channel->initialised_.store(false);
     channel->input_started_.store(false);
-    channel->output_started_.store(false);
     channel->input_buffer_.clear();
+  }
+  // Shared TX queue lives on channel 0 — drain it on disconnect
+  if (!this->channels_.empty()) {
+    auto *shared = this->channels_[0];
+    shared->output_started_.store(false);
     UsbOutputChunk *c;
-    while ((c = channel->output_queue_.pop()) != nullptr)
-      channel->output_pool_.release(c);
+    while ((c = shared->output_queue_.pop()) != nullptr)
+      shared->output_pool_.release(c);
   }
 
   if (this->uart_host_dev_.in_ep != nullptr) {
@@ -698,7 +660,13 @@ void USBUartTypeCH934X::on_disconnected() {
   USBClient::on_disconnected();
 }
 
-void USBUartTypeCH934X::start_output(USBUartChannel * /*channel*/) { this->handle_tx_multiplexing_(); }
+void USBUartTypeCH934X::start_output(USBUartChannel *channel) {
+  // All TX goes through the shared queue on channel 0 via uart_host_dev_.out_ep.
+  // Temporarily point channel's cdc_dev_.out_ep to the shared data endpoint so the
+  // base class start_output() can use it without modification.
+  channel->cdc_dev_.out_ep = this->uart_host_dev_.out_ep;
+  USBUartComponent::start_output(channel);
+}
 
 }  // namespace esphome::usb_uart
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32P4

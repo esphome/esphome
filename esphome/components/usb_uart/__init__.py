@@ -20,6 +20,7 @@ CODEOWNERS = ["@clydebarrow"]
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
+CH934XChannel = usb_uart_ns.class_("CH934XChannel", USBUartChannel)
 
 UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
@@ -50,6 +51,7 @@ class Type:
     def __init__(self, name, vid, pid, cls, max_channels=1, baud_rate_required=True):
         self.name = name
         cls = cls or name
+        self.cls_name = cls
         self.vid = vid
         self.pid = pid
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
@@ -80,13 +82,15 @@ def channel_schema(type_: "Type", baud_rate_required):
     def validate_channel_count(value):
         return cv.Length(max=type_.get_max_channels())(value)
 
+    channel_cls = CH934XChannel if type_.cls_name == "CH934X" else USBUartChannel
+
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.GenerateID(): cv.declare_id(USBUartChannel),
+                            cv.GenerateID(): cv.declare_id(channel_cls),
                             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),
