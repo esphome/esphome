@@ -17,6 +17,7 @@ class USBUartTypeCdcAcm;
 class USBUartTypeCH934X;
 class USBUartComponent;
 class USBUartChannel;
+class CH934XChannel;
 
 static const char *const TAG = "usb_uart";
 
@@ -149,6 +150,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCP210X;
   friend class USBUartTypeCH34X;
   friend class USBUartTypeCH934X;
+  friend class CH934XChannel;
 
  public:
   // Number of output chunk slots per channel, derived from buffer_size config.
