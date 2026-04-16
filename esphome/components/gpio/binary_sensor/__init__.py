@@ -85,7 +85,20 @@ async def to_code(config):
     use_interrupt = config[CONF_USE_INTERRUPT]
     pin_num = config[CONF_PIN][CONF_NUMBER]
 
-    if use_interrupt and CORE.is_esp8266 and config[CONF_PIN][CONF_NUMBER] == 16:
+    # Expander pins (e.g. PCF8574, MCP23017) don't support direct interrupt
+    # attachment — only internal/native GPIO pins do.
+    is_internal = (
+        pins.PIN_SCHEMA_REGISTRY.get_key(config[CONF_PIN]) == CORE.target_platform
+    )
+    if use_interrupt and not is_internal:
+        _LOGGER.info(
+            "GPIO binary_sensor '%s': Pin is not an internal GPIO, "
+            "falling back to polling mode.",
+            config.get(CONF_NAME, config[CONF_ID]),
+        )
+        use_interrupt = False
+
+    if use_interrupt and CORE.is_esp8266 and pin_num == 16:
         _LOGGER.warning(
             "GPIO binary_sensor '%s': GPIO16 on ESP8266 doesn't support interrupts. "
             "Falling back to polling mode (same as in ESPHome <2025.7). "
@@ -100,7 +113,10 @@ async def to_code(config):
     # (e.g., duty_cycle sensor) that need to monitor the pin's state changes.
     # Exception: deep_sleep wakeup pins are compatible with interrupts.
     if use_interrupt and config[CONF_PIN].get(CONF_ALLOW_OTHER_USES, False):
-        if not _pin_is_deep_sleep_wakeup(pin_num):
+        pin_use_count = pins.PIN_SCHEMA_REGISTRY.get_count(
+            CORE.target_platform, CORE.target_platform, pin_num
+        )
+        if not (_pin_is_deep_sleep_wakeup(pin_num) and pin_use_count == 2):
             _LOGGER.info(
                 "GPIO binary_sensor '%s': Disabling interrupts because pin %s is shared with other components. "
                 "The sensor will use polling mode for compatibility with other pin uses.",
