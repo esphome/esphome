@@ -15,8 +15,6 @@ from typing import Any
 
 import colorama
 
-from esphome.loader import get_platform
-
 root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
 basepath = os.path.join(root_path, "esphome")
 temp_folder = os.path.join(root_path, ".temp")
@@ -176,7 +174,12 @@ def build_all_include(header_files: list[str] | None = None) -> None:
             if line
         ]
 
-    headers = [f'#include "{h}"' for h in header_files]
+    from esphome.writer import ENTITY_TYPES_H_TARGET
+
+    # X-macro files are included multiple times with different macro definitions
+    # and must not be included bare in the all-include header
+    exclude = {ENTITY_TYPES_H_TARGET}
+    headers = [f'#include "{h}"' for h in header_files if h not in exclude]
     headers.sort()
     headers.append("")
     content = "\n".join(headers)
@@ -644,7 +647,7 @@ def get_all_dependencies(
         PLATFORM_HOST,
     )
     from esphome.core import CORE
-    from esphome.loader import get_component
+    from esphome.loader import get_component, get_platform
 
     all_components: set[str] = set(component_names)
 

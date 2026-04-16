@@ -129,6 +129,6 @@ async def tileview_select(config, action_id, template_arg, args):
             lv.tileview_set_tile_by_index(
                 widgets[0].obj, column, row, literal(config[CONF_ANIMATED])
             )
-        lv.event_send(w.obj, LV_EVENT.VALUE_CHANGED, cg.nullptr)
+        lv_obj.send_event(w.obj, LV_EVENT.VALUE_CHANGED, cg.nullptr)
 
     return await action_to_code(widgets, do_select, action_id, template_arg, args)
