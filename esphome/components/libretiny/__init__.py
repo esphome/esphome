@@ -467,15 +467,11 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
-    # IRAM_ATTR on LibreTiny expands to section(".sram.text") on families
-    # where the ISR-during-flash race is real (see esphome/core/hal.h). This
-    # pre-link hook routes that section into each family's executable RAM:
-    #   - LN882H: inject KEEP(*(.sram.text*)) into .flash_copysection.
-    #   - RTL8710B: inject KEEP(*(.sram.text*)) into .ram_image2.text.
-    #   - RTL8720C: no-op (stock linker already consumes *(.sram.text*)).
-    # BK72xx (all variants) is no-op: the Beken SDK wraps every flash write
-    # in GLOBAL_INT_DISABLE() so no ISR can fire during a flash stall; the
-    # race IRAM_ATTR guards against cannot occur.
+    # IRAM_ATTR routes ISR code into RAM-executable sections (see
+    # esphome/core/hal.h). Most families need no linker help; LN882H is the
+    # exception — its stock linker has no glob for ".sram.text", so this
+    # pre-link hook injects KEEP(*(.sram.text*)) into .flash_copysection.
+    # The script also prints a post-link summary on all non-BK72xx families.
     cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))

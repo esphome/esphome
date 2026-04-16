@@ -5,26 +5,19 @@ import os
 import re
 import subprocess
 
-# ESPHome marks ISR code IRAM_ATTR, which on LibreTiny expands to
-# section(".sram.text") (see esphome/core/hal.h). Each family's linker script
-# needs that section routed into RAM-resident *executable* memory so the
-# function is callable while flash is busy (XIP stall, OTA, logger flash
-# write):
+# ESPHome marks ISR code IRAM_ATTR, which on LibreTiny maps to a section
+# that each family's linker routes into RAM-executable memory so the function
+# is callable while flash is busy (see esphome/core/hal.h for the per-family
+# section names).
 #
-# - LN882H: stock linker has ".flash_copysection" which is flash-to-RAM0
-#   copied at startup; inject "KEEP(*(.sram.text*))" there.
-# - RTL8710B (AmebaZ): stock linker has ".ram_image2.text" output section
-#   (which already consumes *(.image2.ram.text*)) — inject
-#   "KEEP(*(.sram.text*))" into it as a second input glob.
-# - RTL8720C (AmebaZ2): stock linker already consumes "*(.sram.text*)",
-#   no-op. Loaded directly from the framework package so we cannot inject
-#   our __esphome_sram_text_start/end markers either; the post-link summary
-#   falls back to reading known IRAM_ATTR symbol addresses instead.
+# Most families need no linker patching:
+# - RTL8710B: hal.h uses section(".image2.ram.text"); stock linker consumes it.
+# - RTL8720C: hal.h uses section(".sram.text"); stock linker consumes it.
+# - BK72xx: IRAM_ATTR is a no-op (SDK masks FIQ+IRQ around flash writes).
 #
-# BK72xx (all variants) have no .ld patcher: the Beken SDK wraps every flash
-# operation in GLOBAL_INT_DISABLE() which masks FIQ + IRQ at the CPU, so no
-# ISR can fire during a flash stall and the race IRAM_ATTR guards against
-# cannot occur. IRAM_ATTR is a no-op on BK72xx (see esphome/core/hal.h).
+# LN882H is the only family that needs patching: its stock linker has no glob
+# that catches ".sram.text", so we inject KEEP(*(.sram.text*)) into the
+# ".flash_copysection" output (which is flash-to-RAM0 copied at startup).
 
 
 _MARKER = "/* esphome .sram.text */"
@@ -37,11 +30,6 @@ _KEEP_LINE = (
     + _MARKER + "\n"
 )
 _LN_COPY = re.compile(r"(\.flash_copysection\s*:\s*\{\s*\n)")
-# RTL8710B's output section is ".ram_image2.text"; its stock linker consumes
-# "*(.image2.ram.text*)" as an input glob inside that output, but we need to
-# add a second input glob "*(.sram.text*)" so the ESPHome-marked functions
-# land in the same RAM-resident output.
-_RTL8710B_IMAGE2 = re.compile(r"(\.ram_image2\.text\s*:\s*\{\s*\n)")
 
 
 def _detect(env):
@@ -83,11 +71,12 @@ def _inject_keep(host_section):
 
 
 # Variants not listed here intentionally have no .ld patcher:
+# - RTL8710B: hal.h uses section(".image2.ram.text") which the stock linker
+#   already routes into .ram_image2.text (> BD_RAM).
 # - RTL8720C: stock linker already consumes *(.sram.text*).
 # - BK72xx (all): SDK masks FIQ+IRQ around flash writes, IRAM_ATTR is no-op.
 _PATCHERS_BY_VARIANT = {
     "LN882H": (_inject_keep(_LN_COPY),),
-    "RTL8710B": (_inject_keep(_RTL8710B_IMAGE2),),
 }
 
 

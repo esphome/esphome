@@ -39,7 +39,13 @@
 // layer.
 #if defined(USE_BK72XX)
 #define IRAM_ATTR
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
+// Stock linker consumes *(.image2.ram.text*) into .ram_image2.text (> BD_RAM).
+#define IRAM_ATTR __attribute__((noinline, section(".image2.ram.text")))
 #else
+// RTL8720C: stock linker consumes *(.sram.text*) into .ram.code_text.
+// LN882H: patch_linker.py.script injects *(.sram.text*) into
+// .flash_copysection (> RAM0 AT> FLASH).
 #define IRAM_ATTR __attribute__((noinline, section(".sram.text")))
 #endif
 #define PROGMEM
