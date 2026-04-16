@@ -274,8 +274,8 @@ def test_perform_ota_successful_md5_auth(
     assert mock_socket.sendall.call_args_list[1] == call(
         bytes(
             [
-                espota2.FEATURE_SUPPORTS_COMPRESSION
-                | espota2.FEATURE_SUPPORTS_SHA256_AUTH
+                espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
+                | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
             ]
         )
     )
@@ -644,8 +644,8 @@ def test_perform_ota_successful_sha256_auth(
     assert mock_socket.sendall.call_args_list[1] == call(
         bytes(
             [
-                espota2.FEATURE_SUPPORTS_COMPRESSION
-                | espota2.FEATURE_SUPPORTS_SHA256_AUTH
+                espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
+                | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
             ]
         )
     )
@@ -699,8 +699,8 @@ def test_perform_ota_sha256_fallback_to_md5(
     assert mock_socket.sendall.call_args_list[1] == call(
         bytes(
             [
-                espota2.FEATURE_SUPPORTS_COMPRESSION
-                | espota2.FEATURE_SUPPORTS_SHA256_AUTH
+                espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
+                | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
             ]
         )
     )
