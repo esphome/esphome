@@ -86,6 +86,9 @@ def _pre_link(target, source, env):
         path = os.path.join(build_dir, name)
         with open(path, "r", encoding="utf-8") as fh:
             original = fh.read()
+        if _MARKER in original:
+            patched += 1
+            continue
         content = original
         for fn in _patchers:
             content = fn(content)
