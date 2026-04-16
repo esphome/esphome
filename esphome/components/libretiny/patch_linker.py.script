@@ -120,20 +120,23 @@ def _pre_link(target, source, env):
         )
 
 
-# Substrings matched against demangled symbol names as a fallback on
-# RTL8720C, where we cannot inject __esphome_sram_text_start/end markers.
+# Substrings matched against demangled names as a fallback on RTL8720C,
+# where we cannot inject __esphome_sram_text_start/end markers.
 _FALLBACK_SUBSTRINGS = ("wake_loop_any_context", "wake_loop_isrsafe",
                         "enable_loop_soon_any_context")
 
 
-def _collect_iram_symbols(nm, elf):
-    """Return (start, end, fallback_addresses) for the IRAM_ATTR payload."""
+def _post_link(target, source, env):
+    """Print where IRAM_ATTR ended up so users can confirm at a glance."""
+    elf = env.subst("$BUILD_DIR/${PROGNAME}.elf")
+    if not os.path.isfile(elf):
+        return
     try:
         out = subprocess.check_output(
-            [nm, "--defined-only", "--demangle", elf], text=True
+            [env.subst("$NM"), "--defined-only", "--demangle", elf], text=True
         )
     except (OSError, subprocess.CalledProcessError):
-        return None, None, []
+        return
     start = end = None
     fallback = []
     for line in out.splitlines():
@@ -145,17 +148,8 @@ def _collect_iram_symbols(nm, elf):
             start = int(addr_str, 16)
         elif name == "__esphome_sram_text_end":
             end = int(addr_str, 16)
-        elif any(sub in name for sub in _FALLBACK_SUBSTRINGS):
+        elif any(s in name for s in _FALLBACK_SUBSTRINGS):
             fallback.append(int(addr_str, 16))
-    return start, end, fallback
-
-
-def _post_link(target, source, env):
-    """Print where IRAM_ATTR ended up so users can confirm at a glance."""
-    elf = env.subst("$BUILD_DIR/${PROGNAME}.elf")
-    if not os.path.isfile(elf):
-        return
-    start, end, fallback = _collect_iram_symbols(env.subst("$NM"), elf)
     print("ESPHome: IRAM_ATTR placement summary ({}):".format(_variant))
     if start is not None and end is not None:
         print("  .sram.text:  {} bytes at 0x{:08x} - 0x{:08x}".format(end - start, start, end))
@@ -163,7 +157,7 @@ def _post_link(target, source, env):
         lo, hi = min(fallback), max(fallback)
         print("  IRAM symbols at 0x{:08x} - 0x{:08x} (approx {} bytes)".format(lo, hi, hi - lo))
     else:
-        print("  no IRAM_ATTR symbols found in the ELF")
+        print("  no IRAM_ATTR symbols found")
 
 
 if (_variant := _detect(env)) is None:
