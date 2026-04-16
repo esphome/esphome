@@ -114,11 +114,7 @@ def _post_link(target, source, env):
     elf = env.subst("$BUILD_DIR/${PROGNAME}.elf")
     if not os.path.isfile(elf):
         return
-    # $NM may be unset; derive from $CC (e.g. arm-none-eabi-gcc -> arm-none-eabi-nm).
     nm = env.subst("$NM")
-    if not nm:
-        cc = env.subst("$CC")
-        nm = cc.replace("-gcc", "-nm") if cc.endswith("-gcc") else "nm"
     try:
         out = subprocess.check_output(
             [nm, "--defined-only", "--demangle", elf], text=True
