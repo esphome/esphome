@@ -178,9 +178,7 @@ def _post_link(target, source, env):
         print("  no IRAM_ATTR symbols found in the ELF")
 
 
-_variant = _detect(env)
-
-if _variant is None:
+if (_variant := _detect(env)) is None:
     raise RuntimeError(
         "ESPHome: could not determine LibreTiny variant from build flags. "
         "patch_linker.py needs USE_LIBRETINY_VARIANT_* to route IRAM_ATTR "
@@ -193,8 +191,7 @@ if _variant not in KNOWN_VARIANTS:
         "patch_linker.py.script before shipping firmware.".format(_variant)
     )
 
-_patchers = _patchers_for(_variant)
-if _patchers:
+if _patchers := _patchers_for(_variant):
     # LibreTiny writes the processed .ld templates into $BUILD_DIR during its
     # own builder setup, which may run after this script. Register the patch
     # as a pre-link action so it executes once the linker scripts exist.
