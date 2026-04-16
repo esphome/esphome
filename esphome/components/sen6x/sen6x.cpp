@@ -7,7 +7,7 @@ namespace esphome::sen6x {
 
 static const char *const TAG = "sen6x";
 
-static constexpr uint8_t  POLL_RETRIES = 24;
+static constexpr uint8_t POLL_RETRIES = 24;
 static constexpr uint32_t I2C_READ_DELAY = 20;
 static constexpr uint32_t POLL_INTERVAL = 50;
 static constexpr uint32_t TIMEOUT_POLL = 1;
@@ -56,8 +56,6 @@ static constexpr uint16_t SEN6X_CMD_SET_AMBIENT_PRESSURE = 0x6720;
 static constexpr uint16_t SEN6X_CMD_GET_SENSOR_ALTITUDE = 0x6736;
 static constexpr uint16_t SEN6X_CMD_SET_SENSOR_ALTITUDE = 0x6736;
 
-
-
 static inline void set_read_command_and_words(SEN6XComponent::Sen6xType type, uint16_t &read_cmd, uint8_t &read_words) {
   switch (type) {
     case SEN6XComponent::SEN62:
@@ -87,19 +85,25 @@ static inline void set_read_command_and_words(SEN6XComponent::Sen6xType type, ui
     case SEN6XComponent::UNKNOWN:
       read_cmd = SEN6X_CMD_READ_MEASUREMENT_SEN66;
       read_words = 9;
-      break;			
+      break;
   }
 }
 
 SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string &product_name) {
   // Use a simple mapping to match product strings to types.
   // We check if the product name contains the model string to handle potential suffixes.
-  if (product_name.find("SEN62") != std::string::npos) return SEN62;
-  if (product_name.find("SEN63C") != std::string::npos) return SEN63C;
-  if (product_name.find("SEN65") != std::string::npos) return SEN65;
-  if (product_name.find("SEN66") != std::string::npos) return SEN66;
-  if (product_name.find("SEN68") != std::string::npos) return SEN68;
-  if (product_name.find("SEN69C") != std::string::npos) return SEN69C;
+  if (product_name.find("SEN62") != std::string::npos)
+    return SEN62;
+  if (product_name.find("SEN63C") != std::string::npos)
+    return SEN63C;
+  if (product_name.find("SEN65") != std::string::npos)
+    return SEN65;
+  if (product_name.find("SEN66") != std::string::npos)
+    return SEN66;
+  if (product_name.find("SEN68") != std::string::npos)
+    return SEN68;
+  if (product_name.find("SEN69C") != std::string::npos)
+    return SEN69C;
   // Log a warning if the product name was read but doesn't match known models
   if (!product_name.empty()) {
     ESP_LOGW(TAG, "Product name '%s' does not match any known SEN6x type", product_name.c_str());
@@ -162,9 +166,9 @@ void SEN6XComponent::setup() {
         // Define capabilities based on detected/configured type
         const bool has_voc_nox = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 ||
                                   this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C);
-        const bool has_co2     = (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C);
-        const bool has_hcho    = (this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C);
-        const bool has_nc      = (this->sen6x_type_ != SEN69C); // SEN69C is the only one lacking NC in the series
+        const bool has_co2 = (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C);
+        const bool has_hcho = (this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C);
+        const bool has_nc = (this->sen6x_type_ != SEN69C);  // SEN69C is the only one lacking NC in the series
 
         // Disable unsupported sensors and log errors
         if (this->voc_sensor_ && !has_voc_nox) {
@@ -283,7 +287,6 @@ void SEN6XComponent::update() {
   }
 }
 
-
 void SEN6XComponent::poll_data_ready_() {
   if (this->poll_retries_remaining_ == 0) {
     ESP_LOGW(TAG, "Data ready polling failed: maximum retries reached");
@@ -333,9 +336,7 @@ void SEN6XComponent::read_measurements_() {
   }
   // Step 2: Wait for the sensor to prepare the data buffer (I2C_READ_DELAY).
   // Then proceed to parse and publish the values to the ESPHome frontend.
-  this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() {
-    this->parse_and_publish_measurements_();
-  });
+  this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_measurements_(); });
 }
 
 void SEN6XComponent::parse_and_publish_measurements_() {
@@ -355,7 +356,7 @@ void SEN6XComponent::parse_and_publish_measurements_() {
 
   // Helper lambda to handle Sensirion's NAN/Invalid values
   // auto check_nan = [](uint16_t value, uint16_t invalid_marker) -> float {
-    // return (value == invalid_marker) ? NAN : NAN; // Placeholder logic
+  // return (value == invalid_marker) ? NAN : NAN; // Placeholder logic
   // };
 
   // --- Core Measurements (PM, Temp, Hum) ---
@@ -374,12 +375,32 @@ void SEN6XComponent::parse_and_publish_measurements_() {
   bool co2_is_u16 = false;
 
   switch (this->sen6x_type_) {
-    case SEN63C: co2_idx = 6; break;
-    case SEN65:  voc_idx = 6; nox_idx = 7; break;
-    case SEN66:  voc_idx = 6; nox_idx = 7; co2_idx = 8; co2_is_u16 = true; break;
-    case SEN68:  voc_idx = 6; nox_idx = 7; hcho_idx = 8; break;
-    case SEN69C: voc_idx = 6; nox_idx = 7; hcho_idx = 8; co2_idx = 9; break;
-    default: break;
+    case SEN63C:
+      co2_idx = 6;
+      break;
+    case SEN65:
+      voc_idx = 6;
+      nox_idx = 7;
+      break;
+    case SEN66:
+      voc_idx = 6;
+      nox_idx = 7;
+      co2_idx = 8;
+      co2_is_u16 = true;
+      break;
+    case SEN68:
+      voc_idx = 6;
+      nox_idx = 7;
+      hcho_idx = 8;
+      break;
+    case SEN69C:
+      voc_idx = 6;
+      nox_idx = 7;
+      hcho_idx = 8;
+      co2_idx = 9;
+      break;
+    default:
+      break;
   }
 
   // --- Gas Index Measurements ---
@@ -387,32 +408,47 @@ void SEN6XComponent::parse_and_publish_measurements_() {
   float voc = NAN, nox = NAN, hcho = NAN, co2 = NAN;
 
   if (this->state_ == MEASURING) {
-    if (voc_idx >= 0) voc = (m[voc_idx] == 0x7FFF) ? NAN : static_cast<int16_t>(m[voc_idx]) / 10.0f;
-    if (nox_idx >= 0) nox = (m[nox_idx] == 0x7FFF) ? NAN : static_cast<int16_t>(m[nox_idx]) / 10.0f;
+    if (voc_idx >= 0)
+      voc = (m[voc_idx] == 0x7FFF) ? NAN : static_cast<int16_t>(m[voc_idx]) / 10.0f;
+    if (nox_idx >= 0)
+      nox = (m[nox_idx] == 0x7FFF) ? NAN : static_cast<int16_t>(m[nox_idx]) / 10.0f;
   }
 
-  if (hcho_idx >= 0) hcho = (m[hcho_idx] == 0xFFFF) ? NAN : m[hcho_idx] / 10.0f;
+  if (hcho_idx >= 0)
+    hcho = (m[hcho_idx] == 0xFFFF) ? NAN : m[hcho_idx] / 10.0f;
 
   if (co2_idx >= 0) {
-    if (co2_is_u16) co2 = (m[co2_idx] == 0xFFFF) ? NAN : m[co2_idx];
-    else co2 = (m[co2_idx] == 0x7FFF) ? NAN : static_cast<int16_t>(m[co2_idx]);
+    if (co2_is_u16)
+      co2 = (m[co2_idx] == 0xFFFF) ? NAN : m[co2_idx];
+    else
+      co2 = (m[co2_idx] == 0x7FFF) ? NAN : static_cast<int16_t>(m[co2_idx]);
   }
 
   // --- Publish States ---
-  if (this->pm_1_0_sensor_) this->pm_1_0_sensor_->publish_state(pm1);
-  if (this->pm_2_5_sensor_) this->pm_2_5_sensor_->publish_state(pm2_5);
-  if (this->pm_4_0_sensor_) this->pm_4_0_sensor_->publish_state(pm4);
-  if (this->pm_10_0_sensor_) this->pm_10_0_sensor_->publish_state(pm10);
-  if (this->temperature_sensor_) this->temperature_sensor_->publish_state(temp);
-  if (this->humidity_sensor_) this->humidity_sensor_->publish_state(hum);
-  if (this->voc_sensor_) this->voc_sensor_->publish_state(voc);
-  if (this->nox_sensor_) this->nox_sensor_->publish_state(nox);
-  if (this->hcho_sensor_) this->hcho_sensor_->publish_state(hcho);
-  if (this->co2_sensor_) this->co2_sensor_->publish_state(co2);
+  if (this->pm_1_0_sensor_)
+    this->pm_1_0_sensor_->publish_state(pm1);
+  if (this->pm_2_5_sensor_)
+    this->pm_2_5_sensor_->publish_state(pm2_5);
+  if (this->pm_4_0_sensor_)
+    this->pm_4_0_sensor_->publish_state(pm4);
+  if (this->pm_10_0_sensor_)
+    this->pm_10_0_sensor_->publish_state(pm10);
+  if (this->temperature_sensor_)
+    this->temperature_sensor_->publish_state(temp);
+  if (this->humidity_sensor_)
+    this->humidity_sensor_->publish_state(hum);
+  if (this->voc_sensor_)
+    this->voc_sensor_->publish_state(voc);
+  if (this->nox_sensor_)
+    this->nox_sensor_->publish_state(nox);
+  if (this->hcho_sensor_)
+    this->hcho_sensor_->publish_state(hcho);
+  if (this->co2_sensor_)
+    this->co2_sensor_->publish_state(co2);
 
   // --- Handle Number Concentration (NC) ---
   const bool has_nc_configured = (this->pm_nc_0_5_sensor_ || this->pm_nc_1_0_sensor_ || this->pm_nc_2_5_sensor_);
-  const bool can_read_nc = (this->sen6x_type_ != SEN69C); // SEN69C usually doesn't provide NC via 0x0316
+  const bool can_read_nc = (this->sen6x_type_ != SEN69C);  // SEN69C usually doesn't provide NC via 0x0316
 
   if (has_nc_configured && can_read_nc) {
     this->read_number_concentration_();
@@ -428,13 +464,11 @@ void SEN6XComponent::read_number_concentration_() {
   }
   // Step 2: Wait for the sensor to prepare the data buffer
   // Then proceed to parse and publish the NC values
-  this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() {
-    this->parse_and_publish_number_concentration_();
-  });
+  this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_number_concentration_(); });
 }
 
 void SEN6XComponent::parse_and_publish_number_concentration_() {
-  uint16_t m[5]; // NC 0.5, 1.0, 2.5, 4.0, 10.0
+  uint16_t m[5];  // NC 0.5, 1.0, 2.5, 4.0, 10.0
 
   // Read the 5 data words for Number Concentration
   if (!this->read_data(m, 5)) {
@@ -444,18 +478,23 @@ void SEN6XComponent::parse_and_publish_number_concentration_() {
 
   // Parse values: Sensirion uses 0xFFFF as an invalid/missing data marker.
   // Valid values must be divided by 10.0 to get the correct concentration.
-  float nc0_5  = (m[0] == 0xFFFF) ? NAN : m[0] / 10.0f;
-  float nc1_0  = (m[1] == 0xFFFF) ? NAN : m[1] / 10.0f;
-  float nc2_5  = (m[2] == 0xFFFF) ? NAN : m[2] / 10.0f;
-  float nc4_0  = (m[3] == 0xFFFF) ? NAN : m[3] / 10.0f;
+  float nc0_5 = (m[0] == 0xFFFF) ? NAN : m[0] / 10.0f;
+  float nc1_0 = (m[1] == 0xFFFF) ? NAN : m[1] / 10.0f;
+  float nc2_5 = (m[2] == 0xFFFF) ? NAN : m[2] / 10.0f;
+  float nc4_0 = (m[3] == 0xFFFF) ? NAN : m[3] / 10.0f;
   float nc10_0 = (m[4] == 0xFFFF) ? NAN : m[4] / 10.0f;
 
   // Publish states to ESPHome sensors if they are configured
-  if (this->pm_nc_0_5_sensor_)  this->pm_nc_0_5_sensor_->publish_state(nc0_5);
-  if (this->pm_nc_1_0_sensor_)  this->pm_nc_1_0_sensor_->publish_state(nc1_0);
-  if (this->pm_nc_2_5_sensor_)  this->pm_nc_2_5_sensor_->publish_state(nc2_5);
-  if (this->pm_nc_4_0_sensor_)  this->pm_nc_4_0_sensor_->publish_state(nc4_0);
-  if (this->pm_nc_10_0_sensor_) this->pm_nc_10_0_sensor_->publish_state(nc10_0);
+  if (this->pm_nc_0_5_sensor_)
+    this->pm_nc_0_5_sensor_->publish_state(nc0_5);
+  if (this->pm_nc_1_0_sensor_)
+    this->pm_nc_1_0_sensor_->publish_state(nc1_0);
+  if (this->pm_nc_2_5_sensor_)
+    this->pm_nc_2_5_sensor_->publish_state(nc2_5);
+  if (this->pm_nc_4_0_sensor_)
+    this->pm_nc_4_0_sensor_->publish_state(nc4_0);
+  if (this->pm_nc_10_0_sensor_)
+    this->pm_nc_10_0_sensor_->publish_state(nc10_0);
 
   // Success: ensure any transient communication warnings are cleared
   this->status_clear_warning();
@@ -599,8 +638,7 @@ void SEN6XComponent::set_temperature_offset(float offset_c) {
 void SEN6XComponent::set_temperature_acceleration(uint16_t profile) {
   // This setting can only be changed when the sensor is not actively measuring
   if (!this->is_idle_()) {
-    ESP_LOGW(TAG, "Cannot set temperature acceleration: sensor is not IDLE (current: %s)",
-             this->get_state().c_str());
+    ESP_LOGW(TAG, "Cannot set temperature acceleration: sensor is not IDLE (current: %s)", this->get_state().c_str());
     return;
   }
 
@@ -627,13 +665,11 @@ void SEN6XComponent::set_ambient_pressure(uint16_t pressure_hpa) {
   }
 
   // Only models with CO2 sensors (SEN63C, SEN66, SEN69C) support pressure compensation
-  const bool supports_pressure = (this->sen6x_type_ == SEN63C ||
-                                  this->sen6x_type_ == SEN66 ||
-                                  this->sen6x_type_ == SEN69C);
+  const bool supports_pressure =
+      (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C);
 
   if (!supports_pressure) {
-    ESP_LOGW(TAG, "Ambient pressure compensation is not supported on this model (%s)",
-             this->product_name_.c_str());
+    ESP_LOGW(TAG, "Ambient pressure compensation is not supported on this model (%s)", this->product_name_.c_str());
     return;
   }
 
@@ -648,13 +684,11 @@ void SEN6XComponent::set_ambient_pressure(uint16_t pressure_hpa) {
 
 uint16_t SEN6XComponent::get_ambient_pressure() {
   // Only models with CO2 sensors (SEN63C, SEN66, SEN69C) support pressure readings
-  const bool supports_pressure = (this->sen6x_type_ == SEN63C ||
-                                  this->sen6x_type_ == SEN66 ||
-                                  this->sen6x_type_ == SEN69C);
+  const bool supports_pressure =
+      (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C);
 
   if (!supports_pressure) {
-    ESP_LOGW(TAG, "Ambient pressure reading is not supported on this model (%s)",
-             this->product_name_.c_str());
+    ESP_LOGW(TAG, "Ambient pressure reading is not supported on this model (%s)", this->product_name_.c_str());
     return 0;
   }
 
@@ -672,19 +706,16 @@ uint16_t SEN6XComponent::get_ambient_pressure() {
 void SEN6XComponent::set_sensor_altitude(uint16_t altitude_meters) {
   // Sensor altitude can only be configured while the sensor is in IDLE state
   if (!this->is_idle_()) {
-    ESP_LOGW(TAG, "Cannot set altitude: sensor is not IDLE (current: %s)",
-             this->get_state().c_str());
+    ESP_LOGW(TAG, "Cannot set altitude: sensor is not IDLE (current: %s)", this->get_state().c_str());
     return;
   }
 
   // Only models with CO2 sensors (SEN63C, SEN66, SEN69C) support altitude compensation
-  const bool supports_altitude = (this->sen6x_type_ == SEN63C ||
-                                  this->sen6x_type_ == SEN66 ||
-                                  this->sen6x_type_ == SEN69C);
+  const bool supports_altitude =
+      (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C);
 
   if (!supports_altitude) {
-    ESP_LOGW(TAG, "Altitude compensation is not supported on this model (%s)",
-             this->product_name_.c_str());
+    ESP_LOGW(TAG, "Altitude compensation is not supported on this model (%s)", this->product_name_.c_str());
     return;
   }
 
@@ -699,13 +730,11 @@ void SEN6XComponent::set_sensor_altitude(uint16_t altitude_meters) {
 
 uint16_t SEN6XComponent::get_sensor_altitude() {
   // Only models with CO2 sensors (SEN63C, SEN66, SEN69C) support altitude compensation
-  const bool supports_altitude = (this->sen6x_type_ == SEN63C ||
-                                  this->sen6x_type_ == SEN66 ||
-                                  this->sen6x_type_ == SEN69C);
+  const bool supports_altitude =
+      (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C);
 
   if (!supports_altitude) {
-    ESP_LOGW(TAG, "Altitude reading is not supported on this model (%s)",
-             this->product_name_.c_str());
+    ESP_LOGW(TAG, "Altitude reading is not supported on this model (%s)", this->product_name_.c_str());
     return 0;
   }
 
@@ -723,8 +752,7 @@ uint16_t SEN6XComponent::get_sensor_altitude() {
 void SEN6XComponent::start_fan_cleaning() {
   // Fan cleaning is a high-speed burst that must be triggered in IDLE state
   if (!this->is_idle_()) {
-    ESP_LOGW(TAG, "Cannot start fan cleaning: sensor is not IDLE (current: %s)",
-             this->get_state().c_str());
+    ESP_LOGW(TAG, "Cannot start fan cleaning: sensor is not IDLE (current: %s)", this->get_state().c_str());
     return;
   }
 
@@ -740,8 +768,7 @@ void SEN6XComponent::start_fan_cleaning() {
 void SEN6XComponent::activate_sht_heater() {
   // The heater is used to remove condensation and must be activated in IDLE state
   if (!this->is_idle_()) {
-    ESP_LOGW(TAG, "Cannot activate SHT heater: sensor is not IDLE (current: %s)",
-             this->get_state().c_str());
+    ESP_LOGW(TAG, "Cannot activate SHT heater: sensor is not IDLE (current: %s)", this->get_state().c_str());
     return;
   }
 
@@ -757,12 +784,11 @@ void SEN6XComponent::activate_sht_heater() {
 bool SEN6XComponent::get_sht_heater_measurements(float &temp, float &hum) {
   // SHT Heater measurements can only be retrieved while the sensor is in IDLE state
   if (!this->is_idle_()) {
-    ESP_LOGW(TAG, "Cannot read SHT heater measurements: sensor is not IDLE (current: %s)",
-             this->get_state().c_str());
+    ESP_LOGW(TAG, "Cannot read SHT heater measurements: sensor is not IDLE (current: %s)", this->get_state().c_str());
     return false;
   }
 
-  uint16_t data[3]; // Response format: [0]=Temperature, [1]=Humidity, [2]=Dummy/Reserved
+  uint16_t data[3];  // Response format: [0]=Temperature, [1]=Humidity, [2]=Dummy/Reserved
 
   // Request the specific heater-influenced RHT data from the sensor
   if (!this->get_register(SEN6X_CMD_GET_SHT_HEATER_MEASUREMENTS, data, 3, I2C_READ_DELAY)) {
@@ -773,27 +799,26 @@ bool SEN6XComponent::get_sht_heater_measurements(float &temp, float &hum) {
   // Parse values with Sensirion's 0x7FFF invalid data marker check
   // Temperature: ticks / 200.0, Humidity: ticks / 100.0
   temp = (data[0] == 0x7FFF) ? NAN : static_cast<int16_t>(data[0]) / 200.0f;
-  hum  = (data[1] == 0x7FFF) ? NAN : static_cast<int16_t>(data[1]) / 100.0f;
+  hum = (data[1] == 0x7FFF) ? NAN : static_cast<int16_t>(data[1]) / 100.0f;
 
   ESP_LOGV(TAG, "SHT heater diagnostics: T=%.2f °C, RH=%.2f %%", temp, hum);
   return true;
 }
 
-void SEN6XComponent::set_voc_algorithm_tuning_parameters(uint16_t index_offset, uint16_t learning_time, uint16_t gain, uint16_t gate_max) {
+void SEN6XComponent::set_voc_algorithm_tuning_parameters(uint16_t index_offset, uint16_t learning_time, uint16_t gain,
+                                                         uint16_t gate_max) {
   // Tuning parameters for the gas engine must be configured in IDLE state
   if (!this->is_idle_()) {
-    ESP_LOGW(TAG, "Cannot set VOC tuning: sensor is not IDLE (current: %s)",
-             this->get_state().c_str());
+    ESP_LOGW(TAG, "Cannot set VOC tuning: sensor is not IDLE (current: %s)", this->get_state().c_str());
     return;
   }
 
   // Only models equipped with a VOC sensor support algorithm tuning
-  const bool supports_voc = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 ||
-                             this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C);
+  const bool supports_voc = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN68 ||
+                             this->sen6x_type_ == SEN69C);
 
   if (!supports_voc) {
-    ESP_LOGW(TAG, "VOC algorithm tuning is not supported on this model (%s)",
-             this->product_name_.c_str());
+    ESP_LOGW(TAG, "VOC algorithm tuning is not supported on this model (%s)", this->product_name_.c_str());
     return;
   }
 
@@ -805,25 +830,24 @@ void SEN6XComponent::set_voc_algorithm_tuning_parameters(uint16_t index_offset, 
     return;
   }
 
-  ESP_LOGI(TAG, "VOC tuning successfully set: Offset=%u, Learning=%u h, Gain=%u, Gate=%u m",
-           index_offset, learning_time, gain, gate_max);
+  ESP_LOGI(TAG, "VOC tuning successfully set: Offset=%u, Learning=%u h, Gain=%u, Gate=%u m", index_offset,
+           learning_time, gain, gate_max);
 }
 
-void SEN6XComponent::set_nox_algorithm_tuning_parameters(uint16_t index_offset, uint16_t learning_time, uint16_t gain, uint16_t gate_max) {
+void SEN6XComponent::set_nox_algorithm_tuning_parameters(uint16_t index_offset, uint16_t learning_time, uint16_t gain,
+                                                         uint16_t gate_max) {
   // NOx algorithm parameters can only be updated while the sensor is in IDLE state
   if (!this->is_idle_()) {
-    ESP_LOGW(TAG, "Cannot set NOx tuning: sensor is not IDLE (current: %s)",
-             this->get_state().c_str());
+    ESP_LOGW(TAG, "Cannot set NOx tuning: sensor is not IDLE (current: %s)", this->get_state().c_str());
     return;
   }
 
   // Only models equipped with a NOx sensor support algorithm tuning
-  const bool supports_nox = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 ||
-                             this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C);
+  const bool supports_nox = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN68 ||
+                             this->sen6x_type_ == SEN69C);
 
   if (!supports_nox) {
-    ESP_LOGW(TAG, "NOx algorithm tuning is not supported on this model (%s)",
-             this->product_name_.c_str());
+    ESP_LOGW(TAG, "NOx algorithm tuning is not supported on this model (%s)", this->product_name_.c_str());
     return;
   }
 
@@ -835,25 +859,24 @@ void SEN6XComponent::set_nox_algorithm_tuning_parameters(uint16_t index_offset, 
     return;
   }
 
-  ESP_LOGI(TAG, "NOx tuning successfully set: Offset=%u, Learning=%u h, Gain=%u, Gate=%u m",
-           index_offset, learning_time, gain, gate_max);
+  ESP_LOGI(TAG, "NOx tuning successfully set: Offset=%u, Learning=%u h, Gain=%u, Gate=%u m", index_offset,
+           learning_time, gain, gate_max);
 }
 
-bool SEN6XComponent::get_voc_algorithm_tuning_parameters(uint16_t &index_offset, uint16_t &learning_time, uint16_t &gain, uint16_t &gate_max) {
+bool SEN6XComponent::get_voc_algorithm_tuning_parameters(uint16_t &index_offset, uint16_t &learning_time,
+                                                         uint16_t &gain, uint16_t &gate_max) {
   // Tuning parameters can only be retrieved while the sensor is in IDLE state
   if (!this->is_idle_()) {
-    ESP_LOGW(TAG, "Cannot get VOC tuning: sensor is not IDLE (current: %s)",
-             this->get_state().c_str());
+    ESP_LOGW(TAG, "Cannot get VOC tuning: sensor is not IDLE (current: %s)", this->get_state().c_str());
     return false;
   }
 
   // Only models with gas sensors (VOC/NOx) support these parameters
-  const bool supports_voc = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 ||
-                             this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C);
+  const bool supports_voc = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN68 ||
+                             this->sen6x_type_ == SEN69C);
 
   if (!supports_voc) {
-    ESP_LOGW(TAG, "VOC tuning is not supported on this model (%s)",
-             this->product_name_.c_str());
+    ESP_LOGW(TAG, "VOC tuning is not supported on this model (%s)", this->product_name_.c_str());
     return false;
   }
 
@@ -864,30 +887,29 @@ bool SEN6XComponent::get_voc_algorithm_tuning_parameters(uint16_t &index_offset,
     return false;
   }
 
-  index_offset  = data[0];
+  index_offset = data[0];
   learning_time = data[1];
-  gain          = data[2];
-  gate_max      = data[3];
+  gain = data[2];
+  gate_max = data[3];
 
-  ESP_LOGI(TAG, "VOC tuning parameters read: Offset=%u, Learning=%u h, Gain=%u, Gate=%u m",
-           index_offset, learning_time, gain, gate_max);
+  ESP_LOGI(TAG, "VOC tuning parameters read: Offset=%u, Learning=%u h, Gain=%u, Gate=%u m", index_offset, learning_time,
+           gain, gate_max);
   return true;
 }
 
-bool SEN6XComponent::get_nox_algorithm_tuning_parameters(uint16_t &index_offset, uint16_t &learning_time, uint16_t &gain, uint16_t &gate_max) {
+bool SEN6XComponent::get_nox_algorithm_tuning_parameters(uint16_t &index_offset, uint16_t &learning_time,
+                                                         uint16_t &gain, uint16_t &gate_max) {
   // Tuning parameters can only be retrieved while the sensor is in IDLE state
   if (!this->is_idle_()) {
-    ESP_LOGW(TAG, "Cannot get NOx tuning: sensor is not IDLE (current: %s)",
-             this->get_state().c_str());
+    ESP_LOGW(TAG, "Cannot get NOx tuning: sensor is not IDLE (current: %s)", this->get_state().c_str());
     return false;
   }
 
-  const bool supports_nox = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 ||
-                             this->sen6x_type_ == SEN68 || this->sen6x_type_ == SEN69C);
+  const bool supports_nox = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN68 ||
+                             this->sen6x_type_ == SEN69C);
 
   if (!supports_nox) {
-    ESP_LOGW(TAG, "NOx tuning is not supported on this model (%s)",
-             this->product_name_.c_str());
+    ESP_LOGW(TAG, "NOx tuning is not supported on this model (%s)", this->product_name_.c_str());
     return false;
   }
 
@@ -898,25 +920,22 @@ bool SEN6XComponent::get_nox_algorithm_tuning_parameters(uint16_t &index_offset,
     return false;
   }
 
-  index_offset  = data[0];
+  index_offset = data[0];
   learning_time = data[1];
-  gain          = data[2];
-  gate_max      = data[3];
+  gain = data[2];
+  gate_max = data[3];
 
-  ESP_LOGI(TAG, "NOx tuning parameters read: Offset=%u, Learning=%u h, Gain=%u, Gate=%u m",
-           index_offset, learning_time, gain, gate_max);
+  ESP_LOGI(TAG, "NOx tuning parameters read: Offset=%u, Learning=%u h, Gain=%u, Gate=%u m", index_offset, learning_time,
+           gain, gate_max);
   return true;
 }
 
 void SEN6XComponent::set_co2_automatic_self_calibration(bool enable) {
   // Check if the current model supports CO2 sensor features (ASC)
-  const bool supports_co2 = (this->sen6x_type_ == SEN63C ||
-                             this->sen6x_type_ == SEN66 ||
-                             this->sen6x_type_ == SEN69C);
+  const bool supports_co2 = (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C);
 
   if (!supports_co2) {
-    ESP_LOGW(TAG, "CO2 Automatic Self Calibration is not supported on this model (%s)",
-             this->product_name_.c_str());
+    ESP_LOGW(TAG, "CO2 Automatic Self Calibration is not supported on this model (%s)", this->product_name_.c_str());
     return;
   }
 
@@ -934,9 +953,7 @@ void SEN6XComponent::set_co2_automatic_self_calibration(bool enable) {
 
 bool SEN6XComponent::get_co2_automatic_self_calibration() {
   // Only models with CO2 sensors (SEN63C, SEN66, SEN69C) support ASC
-  const bool supports_co2 = (this->sen6x_type_ == SEN63C ||
-                             this->sen6x_type_ == SEN66 ||
-                             this->sen6x_type_ == SEN69C);
+  const bool supports_co2 = (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C);
 
   if (!supports_co2) {
     ESP_LOGW(TAG, "CO2 Automatic Self Calibration reading is not supported on this model (%s)",
@@ -957,20 +974,16 @@ bool SEN6XComponent::get_co2_automatic_self_calibration() {
 
 void SEN6XComponent::perform_forced_co2_recalibration(uint16_t co2_ppm) {
   // Only models with CO2 sensors (SEN63C, SEN66, SEN69C) support FRC
-  const bool supports_co2 = (this->sen6x_type_ == SEN63C ||
-                             this->sen6x_type_ == SEN66 ||
-                             this->sen6x_type_ == SEN69C);
+  const bool supports_co2 = (this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C);
 
   if (!supports_co2) {
-    ESP_LOGW(TAG, "Forced CO2 Recalibration is not supported on this model (%s)",
-             this->product_name_.c_str());
+    ESP_LOGW(TAG, "Forced CO2 Recalibration is not supported on this model (%s)", this->product_name_.c_str());
     return;
   }
 
   // FRC requires the sensor to be actively measuring for at least several minutes
   if (!this->is_measuring_()) {
-    ESP_LOGW(TAG, "Cannot perform FRC: sensor must be in MEASURING state (current: %s)",
-             this->get_state().c_str());
+    ESP_LOGW(TAG, "Cannot perform FRC: sensor must be in MEASURING state (current: %s)", this->get_state().c_str());
     return;
   }
 
@@ -985,19 +998,16 @@ void SEN6XComponent::perform_forced_co2_recalibration(uint16_t co2_ppm) {
 
 void SEN6XComponent::perform_co2_sensor_factory_reset() {
   // CO2 factory reset is only applicable to specific CO2-enabled models
-  const bool supports_co2_reset = (this->sen6x_type_ == SEN66 ||
-                                   this->sen6x_type_ == SEN69C);
+  const bool supports_co2_reset = (this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C);
 
   if (!supports_co2_reset) {
-    ESP_LOGW(TAG, "CO2 factory reset is not supported on this model (%s)",
-             this->product_name_.c_str());
+    ESP_LOGW(TAG, "CO2 factory reset is not supported on this model (%s)", this->product_name_.c_str());
     return;
   }
 
   // It is recommended to perform NVM (Non-Volatile Memory) operations in IDLE state
   if (!this->is_idle_()) {
-    ESP_LOGW(TAG, "Cannot perform CO2 factory reset: sensor is not IDLE (current: %s)",
-             this->get_state().c_str());
+    ESP_LOGW(TAG, "Cannot perform CO2 factory reset: sensor is not IDLE (current: %s)", this->get_state().c_str());
     return;
   }
 
@@ -1011,4 +1021,3 @@ void SEN6XComponent::perform_co2_sensor_factory_reset() {
 }
 
 }  // namespace esphome::sen6x
-

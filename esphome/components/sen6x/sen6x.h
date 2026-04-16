@@ -48,7 +48,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
 
   // Temperature & Compensation
   void set_temperature_offset(float offset_c);
-  void set_temperature_acceleration(uint16_t profile); // 0: default, 1: slow, 2: fast
+  void set_temperature_acceleration(uint16_t profile);  // 0: default, 1: slow, 2: fast
   void set_ambient_pressure(uint16_t pressure_hpa);
   uint16_t get_ambient_pressure();
   void set_sensor_altitude(uint16_t altitude_meters);
@@ -58,16 +58,20 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   std::string get_product_name() const { return this->product_name_; }
   std::string get_serial_number() const { return this->serial_number_; }
   std::string get_firmware_version() const {
-    return std::to_string(this->firmware_version_major_) + "." +
-           std::to_string(this->firmware_version_minor_);
+    return std::to_string(this->firmware_version_major_) + "." + std::to_string(this->firmware_version_minor_);
   }
   std::string get_state() const {
     switch (this->state_) {
-      case STARTING: return "STARTING";
-      case WARMING_UP: return "WARMING_UP";
-      case MEASURING: return "MEASURING";
-      case IDLE: return "IDLE";
-      default: return "";
+      case STARTING:
+        return "STARTING";
+      case WARMING_UP:
+        return "WARMING_UP";
+      case MEASURING:
+        return "MEASURING";
+      case IDLE:
+        return "IDLE";
+      default:
+        return "";
     }
   }
 
@@ -77,10 +81,14 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool get_sht_heater_measurements(float &temp, float &hum);
 
   // Tuning Parameters (VOC & NOx)
-  void set_voc_algorithm_tuning_parameters(uint16_t index_offset, uint16_t learning_time, uint16_t gain, uint16_t gate_max);
-  void set_nox_algorithm_tuning_parameters(uint16_t index_offset, uint16_t learning_time, uint16_t gain, uint16_t gate_max);
-  bool get_voc_algorithm_tuning_parameters(uint16_t &index_offset, uint16_t &learning_time, uint16_t &gain, uint16_t &gate_max);
-  bool get_nox_algorithm_tuning_parameters(uint16_t &index_offset, uint16_t &learning_time, uint16_t &gain, uint16_t &gate_max);
+  void set_voc_algorithm_tuning_parameters(uint16_t index_offset, uint16_t learning_time, uint16_t gain,
+                                           uint16_t gate_max);
+  void set_nox_algorithm_tuning_parameters(uint16_t index_offset, uint16_t learning_time, uint16_t gain,
+                                           uint16_t gate_max);
+  bool get_voc_algorithm_tuning_parameters(uint16_t &index_offset, uint16_t &learning_time, uint16_t &gain,
+                                           uint16_t &gate_max);
+  bool get_nox_algorithm_tuning_parameters(uint16_t &index_offset, uint16_t &learning_time, uint16_t &gain,
+                                           uint16_t &gate_max);
 
   // CO2 Calibration
   void set_co2_automatic_self_calibration(bool enable);

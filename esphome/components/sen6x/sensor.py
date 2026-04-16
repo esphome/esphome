@@ -177,6 +177,7 @@ SENSOR_MAP = {
     CONF_FORMALDEHYDE: "set_hcho_sensor",
 }
 
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -189,4 +190,3 @@ async def to_code(config):
         if cfg := config.get(key):
             sens = await sensor.new_sensor(cfg)
             cg.add(getattr(var, func_name)(sens))
-
