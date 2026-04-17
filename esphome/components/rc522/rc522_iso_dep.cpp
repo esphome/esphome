@@ -264,8 +264,7 @@ RC522::StatusCode RC522::iso_dep_transceive_(const uint8_t *send_data, uint8_t s
   return STATUS_TIMEOUT;
 }
 
-RC522::StatusCode RC522::iso_dep_send_apdu_(const uint8_t *apdu, uint8_t apdu_len, uint8_t *resp,
-                                            uint8_t &resp_len) {
+RC522::StatusCode RC522::iso_dep_send_apdu_(const uint8_t *apdu, uint8_t apdu_len, uint8_t *resp, uint8_t &resp_len) {
   uint8_t response[RC522_FIFO_SIZE];
   uint8_t response_len = sizeof(response);
 
@@ -301,8 +300,14 @@ std::unique_ptr<nfc::NfcTag> RC522::read_iso_dep_tag_(nfc::NfcTagUid &uid) {
   auto make_type_4_tag = [&uid]() { return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_4); };
 
   auto select_file = [this](uint16_t file_id) {
-    uint8_t apdu[] = {ISO_CLA, ISO_INS_SELECT, 0x00, 0x00, 0x02, static_cast<uint8_t>((file_id >> 8) & 0xFF),
-                      static_cast<uint8_t>(file_id & 0xFF), 0x00};
+    uint8_t apdu[] = {ISO_CLA,
+                      ISO_INS_SELECT,
+                      0x00,
+                      0x00,
+                      0x02,
+                      static_cast<uint8_t>((file_id >> 8) & 0xFF),
+                      static_cast<uint8_t>(file_id & 0xFF),
+                      0x00};
     uint8_t response[16];
     uint8_t response_len = sizeof(response);
     return this->iso_dep_send_apdu_(apdu, sizeof(apdu), response, response_len);
@@ -319,10 +324,19 @@ std::unique_ptr<nfc::NfcTag> RC522::read_iso_dep_tag_(nfc::NfcTagUid &uid) {
     return make_uid_only_tag();
   }
 
-  uint8_t select_app[] = {ISO_CLA,         ISO_INS_SELECT,        0x04,
-                          0x00,            0x07,                  NDEF_APPLICATION_DFN[0],
-                          NDEF_APPLICATION_DFN[1], NDEF_APPLICATION_DFN[2], NDEF_APPLICATION_DFN[3],
-                          NDEF_APPLICATION_DFN[4], NDEF_APPLICATION_DFN[5], NDEF_APPLICATION_DFN[6], 0x00};
+  uint8_t select_app[] = {ISO_CLA,
+                          ISO_INS_SELECT,
+                          0x04,
+                          0x00,
+                          0x07,
+                          NDEF_APPLICATION_DFN[0],
+                          NDEF_APPLICATION_DFN[1],
+                          NDEF_APPLICATION_DFN[2],
+                          NDEF_APPLICATION_DFN[3],
+                          NDEF_APPLICATION_DFN[4],
+                          NDEF_APPLICATION_DFN[5],
+                          NDEF_APPLICATION_DFN[6],
+                          0x00};
   uint8_t app_resp[16];
   uint8_t app_resp_len = sizeof(app_resp);
   if (this->iso_dep_send_apdu_(select_app, sizeof(select_app), app_resp, app_resp_len) != STATUS_OK) {
@@ -413,8 +427,7 @@ std::unique_ptr<nfc::NfcTag> RC522::read_iso_dep_tag_(nfc::NfcTagUid &uid) {
   uint16_t offset = 0;
   while (offset < ndef_length) {
     uint8_t chunk = std::min<uint16_t>(ndef_length - offset, read_chunk_size);
-    uint8_t read_apdu[5] = {ISO_CLA, ISO_INS_READ_BINARY,
-                            static_cast<uint8_t>(((2 + offset) >> 8) & 0xFF),
+    uint8_t read_apdu[5] = {ISO_CLA, ISO_INS_READ_BINARY, static_cast<uint8_t>(((2 + offset) >> 8) & 0xFF),
                             static_cast<uint8_t>((2 + offset) & 0xFF), chunk};
 
     uint8_t chunk_resp[56];

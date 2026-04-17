@@ -243,8 +243,8 @@ class RC522 : public PollingComponent {
   StatusCode await_transceive_();
   StatusCode await_crc_();
 
-  uint8_t buffer_[9];       ///< buffer for communication, the first bits [0..back_idx-1] are for tx ,
-                            ///< [back_idx..back_idx+back_len] for rx
+  uint8_t buffer_[9];  ///< buffer for communication, the first bits [0..back_idx-1] are for tx ,
+                       ///< [back_idx..back_idx+back_len] for rx
   uint8_t ndef_buffer_[18];
   uint8_t send_len_;        // index of first byte for RX
   uint8_t back_length_;     ///< In: Max number of uint8_ts to write to *backData. Out: The number of uint8_ts returned.
