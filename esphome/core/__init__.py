@@ -532,12 +532,17 @@ class Library:
 
 
 def _wrap_in_noinline_iifes(lines: list[str], max_statements: int) -> list[str]:
-    """Wrap ``lines`` in one or more ``[]() [[gnu::noinline]] { ... }();`` IIFEs.
+    """Wrap ``lines`` in one or more ``[]() __attribute__((noinline)) {...}();`` IIFEs.
 
     Splits into IIFEs of up to ``max_statements`` entries each. Never splits
     inside a brace-balanced block (e.g. the ``{`` / ``}`` pair that
     ``cg.with_local_variable()`` emits around a scoped local), so an IIFE
     may exceed ``max_statements`` when a block straddles the boundary.
+
+    GCC note: ``__attribute__((noinline))`` between the lambda parameter
+    list and body binds to ``operator()``. The C++ standard-attribute
+    spelling ``[[gnu::noinline]]`` in that position binds to the return
+    type instead and produces ``-Wattributes`` warnings.
     """
     out: list[str] = []
     chunk: list[str] = []
@@ -546,7 +551,7 @@ def _wrap_in_noinline_iifes(lines: list[str], max_statements: int) -> list[str]:
     def flush() -> None:
         if not chunk:
             return
-        out.append("[]() [[gnu::noinline]] {")
+        out.append("[]() __attribute__((noinline)) {")
         out.extend(chunk)
         out.append("}();")
         chunk.clear()

@@ -877,7 +877,7 @@ def test_wrap_in_noinline_iifes_empty_input() -> None:
 def test_wrap_in_noinline_iifes_fewer_lines_than_limit() -> None:
     lines = ["a();", "b();", "c();"]
     assert core._wrap_in_noinline_iifes(lines, max_statements=10) == [
-        "[]() [[gnu::noinline]] {",
+        "[]() __attribute__((noinline)) {",
         "a();",
         "b();",
         "c();",
@@ -896,13 +896,13 @@ def test_wrap_in_noinline_iifes_never_splits_inside_braces() -> None:
     # max=2 would naively split after "{" but brace guard keeps block whole.
     lines = ["a();", "{", "inner();", "}", "b();"]
     assert core._wrap_in_noinline_iifes(lines, max_statements=2) == [
-        "[]() [[gnu::noinline]] {",
+        "[]() __attribute__((noinline)) {",
         "a();",
         "{",
         "inner();",
         "}",
         "}();",
-        "[]() [[gnu::noinline]] {",
+        "[]() __attribute__((noinline)) {",
         "b();",
         "}();",
     ]
@@ -911,14 +911,14 @@ def test_wrap_in_noinline_iifes_never_splits_inside_braces() -> None:
 def test_wrap_in_noinline_iifes_nested_braces() -> None:
     lines = ["{", "{", "deep();", "}", "}", "after();"]
     assert core._wrap_in_noinline_iifes(lines, max_statements=1) == [
-        "[]() [[gnu::noinline]] {",
+        "[]() __attribute__((noinline)) {",
         "{",
         "{",
         "deep();",
         "}",
         "}",
         "}();",
-        "[]() [[gnu::noinline]] {",
+        "[]() __attribute__((noinline)) {",
         "after();",
         "}();",
     ]
@@ -929,7 +929,7 @@ def test_wrap_in_noinline_iifes_unbalanced_braces_fall_through() -> None:
     # a single IIFE with all lines rather than splitting mid-flight.
     lines = ["a();", "}", "b();"]
     result = core._wrap_in_noinline_iifes(lines, max_statements=1)
-    assert result[0] == "[]() [[gnu::noinline]] {"
+    assert result[0] == "[]() __attribute__((noinline)) {"
     assert result[-1] == "}();"
     assert [line for line in result if line in lines] == lines
 
@@ -952,7 +952,7 @@ def test_cpp_main_section_component_marker_wraps_in_iife() -> None:
         RawStatement("new_wifi();"),
     ]
     out = target.cpp_main_section
-    assert out.count("[]() [[gnu::noinline]] {") == 2
+    assert out.count("[]() __attribute__((noinline)) {") == 2
     assert out.count("}();") == 2
     assert "// === logger ===" in out
     assert "// === wifi ===" in out
@@ -966,4 +966,4 @@ def test_cpp_main_section_prefix_statements_stay_outside_iife() -> None:
         RawStatement("body();"),
     ]
     out = target.cpp_main_section
-    assert out.index("prefix();") < out.index("[]() [[gnu::noinline]] {")
+    assert out.index("prefix();") < out.index("[]() __attribute__((noinline)) {")
