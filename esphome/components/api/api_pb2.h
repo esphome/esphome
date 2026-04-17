@@ -129,6 +129,12 @@ enum ClimateAction : uint32_t {
   CLIMATE_ACTION_FAN = 6,
   CLIMATE_ACTION_DEFROSTING = 7,
 };
+enum ClimateTemperatureUnit : uint32_t {
+  CLIMATE_TEMPERATURE_UNIT_UNSET = 0,
+  CLIMATE_TEMPERATURE_UNIT_CELSIUS = 1,
+  CLIMATE_TEMPERATURE_UNIT_FAHRENHEIT = 2,
+  CLIMATE_TEMPERATURE_UNIT_KELVIN = 3,
+};
 enum ClimatePreset : uint32_t {
   CLIMATE_PRESET_NONE = 0,
   CLIMATE_PRESET_HOME = 1,
@@ -141,6 +147,12 @@ enum ClimatePreset : uint32_t {
 };
 #endif
 #ifdef USE_WATER_HEATER
+enum WaterHeaterTemperatureUnit : uint32_t {
+  WATER_HEATER_TEMPERATURE_UNIT_UNSET = 0,
+  WATER_HEATER_TEMPERATURE_UNIT_CELSIUS = 1,
+  WATER_HEATER_TEMPERATURE_UNIT_FAHRENHEIT = 2,
+  WATER_HEATER_TEMPERATURE_UNIT_KELVIN = 3,
+};
 enum WaterHeaterMode : uint32_t {
   WATER_HEATER_MODE_OFF = 0,
   WATER_HEATER_MODE_ECO = 1,
@@ -1372,7 +1384,7 @@ class CameraImageRequest final : public ProtoDecodableMessage {
 class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 46;
-  static constexpr uint8_t ESTIMATED_SIZE = 150;
+  static constexpr uint8_t ESTIMATED_SIZE = 153;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_climate_response"); }
 #endif
@@ -1394,6 +1406,7 @@ class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
   float visual_min_humidity{0.0f};
   float visual_max_humidity{0.0f};
   uint32_t feature_flags{0};
+  enums::ClimateTemperatureUnit temperature_unit{};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1471,7 +1484,7 @@ class ClimateCommandRequest final : public CommandProtoMessage {
 class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 132;
-  static constexpr uint8_t ESTIMATED_SIZE = 63;
+  static constexpr uint8_t ESTIMATED_SIZE = 65;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_water_heater_response"); }
 #endif
@@ -1480,6 +1493,7 @@ class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
   float target_temperature_step{0.0f};
   const water_heater::WaterHeaterModeMask *supported_modes{};
   uint32_t supported_features{0};
+  enums::WaterHeaterTemperatureUnit temperature_unit{};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP

@@ -378,6 +378,20 @@ template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::Climate
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+template<> const char *proto_enum_to_string<enums::ClimateTemperatureUnit>(enums::ClimateTemperatureUnit value) {
+  switch (value) {
+    case enums::CLIMATE_TEMPERATURE_UNIT_UNSET:
+      return ESPHOME_PSTR("CLIMATE_TEMPERATURE_UNIT_UNSET");
+    case enums::CLIMATE_TEMPERATURE_UNIT_CELSIUS:
+      return ESPHOME_PSTR("CLIMATE_TEMPERATURE_UNIT_CELSIUS");
+    case enums::CLIMATE_TEMPERATURE_UNIT_FAHRENHEIT:
+      return ESPHOME_PSTR("CLIMATE_TEMPERATURE_UNIT_FAHRENHEIT");
+    case enums::CLIMATE_TEMPERATURE_UNIT_KELVIN:
+      return ESPHOME_PSTR("CLIMATE_TEMPERATURE_UNIT_KELVIN");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::ClimatePreset value) {
   switch (value) {
     case enums::CLIMATE_PRESET_NONE:
@@ -402,6 +416,21 @@ template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::Climate
 }
 #endif
 #ifdef USE_WATER_HEATER
+template<>
+const char *proto_enum_to_string<enums::WaterHeaterTemperatureUnit>(enums::WaterHeaterTemperatureUnit value) {
+  switch (value) {
+    case enums::WATER_HEATER_TEMPERATURE_UNIT_UNSET:
+      return ESPHOME_PSTR("WATER_HEATER_TEMPERATURE_UNIT_UNSET");
+    case enums::WATER_HEATER_TEMPERATURE_UNIT_CELSIUS:
+      return ESPHOME_PSTR("WATER_HEATER_TEMPERATURE_UNIT_CELSIUS");
+    case enums::WATER_HEATER_TEMPERATURE_UNIT_FAHRENHEIT:
+      return ESPHOME_PSTR("WATER_HEATER_TEMPERATURE_UNIT_FAHRENHEIT");
+    case enums::WATER_HEATER_TEMPERATURE_UNIT_KELVIN:
+      return ESPHOME_PSTR("WATER_HEATER_TEMPERATURE_UNIT_KELVIN");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 template<> const char *proto_enum_to_string<enums::WaterHeaterMode>(enums::WaterHeaterMode value) {
   switch (value) {
     case enums::WATER_HEATER_MODE_OFF:
@@ -1539,6 +1568,7 @@ const char *ListEntitiesClimateResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
   dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  dump_field(out, ESPHOME_PSTR("temperature_unit"), static_cast<enums::ClimateTemperatureUnit>(this->temperature_unit));
   return out.c_str();
 }
 const char *ClimateStateResponse::dump_to(DumpBuffer &out) const {
@@ -1612,6 +1642,8 @@ const char *ListEntitiesWaterHeaterResponse::dump_to(DumpBuffer &out) const {
     dump_field(out, ESPHOME_PSTR("supported_modes"), static_cast<enums::WaterHeaterMode>(it), 4);
   }
   dump_field(out, ESPHOME_PSTR("supported_features"), this->supported_features);
+  dump_field(out, ESPHOME_PSTR("temperature_unit"),
+             static_cast<enums::WaterHeaterTemperatureUnit>(this->temperature_unit));
   return out.c_str();
 }
 const char *WaterHeaterStateResponse::dump_to(DumpBuffer &out) const {
