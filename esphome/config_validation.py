@@ -953,7 +953,7 @@ def update_interval(value):
     # true run-every-loop behaviour.
     if result.total_milliseconds == 0:
         _LOGGER.warning(
-            "update_interval of 0ms is not supported — coercing to 1ms. "
+            "update_interval of 0ms is not supported - coercing to 1ms. "
             "A literal 0ms schedule would spin the main loop (the scheduled "
             "item would always be due, so the scheduler would never yield "
             "back) and trigger a watchdog reset. Set update_interval to a "

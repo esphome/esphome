@@ -152,7 +152,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   // the intended mechanism for running fast in the main loop. Zero-delay
   // timeouts (defer) remain legitimate one-shots and are not affected.
   if (type == SchedulerItem::INTERVAL && delay == 0) [[unlikely]] {
-    ESP_LOGW(TAG, "[%s] set_interval(0) would spin main loop — coercing to 1ms (use HighFrequencyLoopRequester)",
+    ESP_LOGW(TAG, "[%s] set_interval(0) would spin main loop - coercing to 1ms (use HighFrequencyLoopRequester)",
              component ? LOG_STR_ARG(component->get_component_log_str()) : LOG_STR_LITERAL("?"));
     delay = 1;
   }
