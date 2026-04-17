@@ -238,7 +238,7 @@ def validate_font_config(config):
     return config
 
 
-FONT_EXTENSIONS = (".ttf", ".woff", ".otf", "bdf", ".pcf")
+FONT_EXTENSIONS = (".ttf", ".woff", ".otf", ".bdf", ".pcf")
 
 
 def validate_truetype_file(value):
@@ -325,7 +325,7 @@ def download_gfont(value):
             raise cv.Invalid(
                 f"Could not download font at {url}, please check the fonts exists "
                 f"at google fonts ({e})"
-            )
+            ) from e
         match = re.search(r"src:\s+url\((.+)\)\s+format\('truetype'\);", req.text)
         if match is None:
             raise cv.Invalid(

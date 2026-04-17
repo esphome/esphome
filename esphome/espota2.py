@@ -130,7 +130,7 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     :param expect: Expected response code(s), None to skip validation.
     :raises OTAError: If an error code is detected or response doesn't match expected.
     """
-    if not expect:
+    if expect is None:
         return
     if not data:
         raise OTAError(
@@ -278,7 +278,7 @@ def perform_ota(
             raise OTAError("ESP requests password, but no password given!")
 
         nonce_bytes = receive_exactly(
-            sock, nonce_size, f"{hash_name} authentication nonce", [], decode=False
+            sock, nonce_size, f"{hash_name} authentication nonce", None, decode=False
         )
         assert isinstance(nonce_bytes, bytes)
         nonce = nonce_bytes.decode()

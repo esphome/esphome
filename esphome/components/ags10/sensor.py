@@ -35,7 +35,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(AGS10Component),
-            cv.Optional(CONF_TVOC): sensor.sensor_schema(
+            cv.Required(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
@@ -97,7 +97,7 @@ AGS10_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
 async def ags10newi2caddress_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    address = await cg.templatable(config[CONF_ADDRESS], args, int)
+    address = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
     cg.add(var.set_new_address(address))
     return var
 
