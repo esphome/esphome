@@ -666,7 +666,7 @@ async def throttle_with_priority_filter_to_code(config, filter_id):
     # omits `value:`) to avoid the TemplatableFn<float> array + NaN lambda the
     # generic ValueListFilter path requires. Behavior is identical: NaN sensor
     # readings always bypass the throttle.
-    if all(isinstance(v, float) and math.isnan(v) for v in values):
+    if values and all(isinstance(v, float) and math.isnan(v) for v in values):
         filter_id = filter_id.copy()
         filter_id.type = ThrottleWithPriorityNanFilter
         return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
