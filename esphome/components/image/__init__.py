@@ -675,17 +675,16 @@ def _final_validate(config):
     :param config:
     :return:
     """
-    if not all(CONF_BYTE_ORDER in x for x in config):
-        config = config.copy()
-        for c in config:
-            if byte_order := c.get(CONF_BYTE_ORDER):
-                if byte_order == "BIG_ENDIAN":
-                    _LOGGER.warning(
-                        "The image '%s' is configured with big-endian byte order, little-endian is expected",
-                        c.get(CONF_FILE),
-                    )
-            else:
-                c[CONF_BYTE_ORDER] = "LITTLE_ENDIAN"
+    config = config.copy()
+    for c in config:
+        if byte_order := c.get(CONF_BYTE_ORDER):
+            if byte_order == "BIG_ENDIAN":
+                _LOGGER.warning(
+                    "The image '%s' is configured with big-endian byte order, little-endian is expected",
+                    c.get(CONF_FILE),
+                )
+        else:
+            c[CONF_BYTE_ORDER] = "LITTLE_ENDIAN"
     return config
 
 
