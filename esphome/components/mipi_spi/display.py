@@ -299,7 +299,7 @@ def _final_validate(config):
         # Target a buffer size of 20kB, except for large displays, which shouldn't end up here
         fraction = min(20000.0, buffer_size // 4) / buffer_size
         config[CONF_BUFFER_SIZE] = 1.0 / next(
-            x for x in range(2, 17) if fraction >= 1 / x
+            (x for x in range(2, 8) if fraction >= 1 / x), 1 / 8
         )
 
 
