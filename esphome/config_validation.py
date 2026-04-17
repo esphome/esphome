@@ -943,7 +943,26 @@ def time_period_in_minutes_(value):
 def update_interval(value):
     if value == "never":
         return TimePeriodMilliseconds(milliseconds=SCHEDULER_DONT_RUN)
-    return positive_time_period_milliseconds(value)
+    result = positive_time_period_milliseconds(value)
+    # 0ms was historically (mis)used as a pseudo-loop() mechanism for
+    # PollingComponents. Under the hood it calls set_interval(0), which
+    # causes Scheduler::call() to spin (WDT reset in the field). Coerce
+    # to 1ms so existing configs keep working at ~1kHz instead of
+    # spinning. Don't hard-fail so configs don't break on upgrade;
+    # authors should migrate to HighFrequencyLoopRequester (C++) for
+    # true run-every-loop behaviour.
+    if result.total_milliseconds == 0:
+        _LOGGER.warning(
+            "update_interval of 0ms is not supported - coercing to 1ms. "
+            "A literal 0ms schedule would spin the main loop (the scheduled "
+            "item would always be due, so the scheduler would never yield "
+            "back) and trigger a watchdog reset. Set update_interval to a "
+            "non-zero value such as 1ms or higher. (Custom C++ components "
+            "that need true run-every-loop behaviour should override loop() "
+            "with HighFrequencyLoopRequester instead.)"
+        )
+        return TimePeriodMilliseconds(milliseconds=1)
+    return result
 
 
 time_period = Any(time_period_str_unit, time_period_str_colon, time_period_dict)

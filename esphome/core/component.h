@@ -116,6 +116,13 @@ struct ComponentRuntimeStats {
   uint64_t total_time_us{0};
   uint32_t total_max_time_us{0};
 
+  // Cumulative sum of every record_time() duration since boot, across all
+  // components. Used by Application::loop() to snapshot time spent inside
+  // WarnIfComponentBlockingGuard (including guards constructed by the
+  // scheduler at scheduler.cpp) so main-loop overhead accounting can
+  // subtract scheduled-callback time from the before_loop_tasks_ wall time.
+  static uint64_t global_recorded_us;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
   void record_time(uint32_t duration_us) {
     this->period_count++;
     this->period_time_us += duration_us;
@@ -125,6 +132,7 @@ struct ComponentRuntimeStats {
     this->total_time_us += duration_us;
     if (duration_us > this->total_max_time_us)
       this->total_max_time_us = duration_us;
+    global_recorded_us += duration_us;
   }
   void reset_period() {
     this->period_count = 0;
