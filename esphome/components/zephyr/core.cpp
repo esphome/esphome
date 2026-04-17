@@ -99,7 +99,6 @@ int main() {
   setup();
   while (true) {
     loop();
-    esphome::yield();
   }
   return 0;
 }

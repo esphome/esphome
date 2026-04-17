@@ -27,42 +27,46 @@ DEPENDENCIES = ["uart"]
 hlw8032_ns = cg.esphome_ns.namespace("hlw8032")
 HLW8032Component = hlw8032_ns.class_("HLW8032Component", cg.Component, uart.UARTDevice)
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(HLW8032Component),
-        cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-            unit_of_measurement=UNIT_AMPERE,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_CURRENT,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_POWER): sensor.sensor_schema(
-            unit_of_measurement=UNIT_WATT,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_APPARENT_POWER): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT_AMPS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_POWER_FACTOR,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
-        cv.Optional(CONF_VOLTAGE_DIVIDER, default=1.720): cv.positive_float,
-    }
-).extend(uart.UART_DEVICE_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(HLW8032Component),
+            cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_CURRENT): sensor.sensor_schema(
+                unit_of_measurement=UNIT_AMPERE,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_POWER): sensor.sensor_schema(
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_APPARENT_POWER): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT_AMPS,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_APPARENT_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_POWER_FACTOR,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
+            cv.Optional(CONF_VOLTAGE_DIVIDER, default=1.720): cv.positive_float,
+        }
+    )
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     "hlw8032", baud_rate=4800, require_rx=True, data_bits=8, parity="EVEN"

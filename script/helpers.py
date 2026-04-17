@@ -174,7 +174,12 @@ def build_all_include(header_files: list[str] | None = None) -> None:
             if line
         ]
 
-    headers = [f'#include "{h}"' for h in header_files]
+    from esphome.writer import ENTITY_TYPES_H_TARGET
+
+    # X-macro files are included multiple times with different macro definitions
+    # and must not be included bare in the all-include header
+    exclude = {ENTITY_TYPES_H_TARGET}
+    headers = [f'#include "{h}"' for h in header_files if h not in exclude]
     headers.sort()
     headers.append("")
     content = "\n".join(headers)

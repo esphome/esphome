@@ -92,10 +92,8 @@ void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
 
-  // Wake main loop immediately to process ESP-NOW send event instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Wake main loop immediately to process ESP-NOW send event
   App.wake_loop_threadsafe();
-#endif
 }
 
 void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
@@ -115,10 +113,8 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
 
-  // Wake main loop immediately to process ESP-NOW receive event instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Wake main loop immediately to process ESP-NOW receive event
   App.wake_loop_threadsafe();
-#endif
 }
 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
