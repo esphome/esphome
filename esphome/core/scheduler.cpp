@@ -144,6 +144,15 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     return;
   }
 
+  // An interval of 0 means "fire every tick forever," which is misuse: it
+  // asks the main loop to spin unbounded. The correct mechanism for running
+  // fast in the main loop is HighFrequencyLoopRequester, not a zero-delay
+  // interval. Zero-delay timeouts (defer) remain legitimate one-shots.
+  if (type == SchedulerItem::INTERVAL && delay == 0) [[unlikely]] {
+    ESP_LOGW(TAG, "[%s] set_interval(0) is misuse — use HighFrequencyLoopRequester",
+             component ? LOG_STR_ARG(component->get_component_log_str()) : LOG_STR_LITERAL("?"));
+  }
+
   // Take lock early to protect scheduler_item_pool_ access and retry-cancelled check
   LockGuard guard{this->lock_};
 
