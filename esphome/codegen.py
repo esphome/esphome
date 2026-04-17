@@ -13,6 +13,7 @@ from esphome.cpp_generator import (  # noqa: F401
     ComponentMarker,
     Expression,
     FlashStringLiteral,
+    IIFEUnsafeStatement,
     LineComment,
     LogStringLiteral,
     MockObj,

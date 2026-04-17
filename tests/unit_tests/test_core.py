@@ -7,7 +7,12 @@ import pytest
 from strategies import mac_addr_strings
 
 from esphome import const, core
-from esphome.cpp_generator import ComponentMarker, RawStatement
+from esphome.cpp_generator import (
+    ComponentMarker,
+    IIFEUnsafeStatement,
+    RawExpression,
+    RawStatement,
+)
 
 
 class TestHexInt:
@@ -1009,6 +1014,31 @@ def test_cpp_main_section_component_marker_wraps_in_iife() -> None:
     assert out.count("}();") == 2
     # ComponentMarker produces no output of its own.
     assert "component-marker" not in out
+
+
+def test_cpp_main_section_iife_unsafe_statement_emits_component_flat() -> None:
+    # A component that emits IIFEUnsafeStatement (e.g. safe_mode with
+    # `if (...) return;`) must be emitted flat — a `return` inside an
+    # IIFE would only exit the lambda, not setup().
+    target = core.EsphomeCore()
+    target.main_statements = [
+        ComponentMarker("logger"),
+        RawStatement("new_logger();"),
+        ComponentMarker("safe_mode"),
+        RawStatement("new_safe_mode();"),
+        IIFEUnsafeStatement(RawExpression("if (entering) return")),
+        ComponentMarker("sensor"),
+        RawStatement("new_sensor();"),
+    ]
+    out = target.cpp_main_section
+    # logger and sensor wrapped; safe_mode flat.
+    assert out.count("[]() {") == 2
+    # safe_mode's statements appear at top level, not indented in a lambda.
+    assert "new_safe_mode();" in out
+    assert "if (entering) return;" in out
+    # The IIFEUnsafeStatement wrapper picks up the trailing semicolon
+    # via statement() when inner is a bare Expression.
+    assert "if (entering) return\n" not in out
 
 
 def test_cpp_main_section_comment_only_component_omits_iife() -> None:

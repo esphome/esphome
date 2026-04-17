@@ -541,7 +541,7 @@ def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
     keeping flash small without regressing peak stack."""
     out: list[str] = []
     chunk: list[str] = []
-    depth = 0
+    depth: int = 0
 
     def flush() -> None:
         if not chunk:
@@ -1038,29 +1038,43 @@ class EsphomeCore:
         self.data[KEY_CONTROLLER_REGISTRY_COUNT] = controller_count + 1
 
     @property
-    def cpp_main_section(self):
-        from esphome.cpp_generator import ComponentMarker, statement
+    def cpp_main_section(self) -> str:
+        from esphome.cpp_generator import (
+            ComponentMarker,
+            IIFEUnsafeStatement,
+            statement,
+        )
 
         # Split main_statements at ComponentMarker sentinels and wrap each
         # component's group in an IIFE, sub-splitting at 50 statements so
         # a single heavy component (e.g. a sensor platform with many
         # filter registrations) can't blow the peak chunk frame.
+        # Components that contain an IIFEUnsafeStatement (e.g. safe_mode's
+        # setup-scope `return`) are emitted flat so the statement affects
+        # setup()'s control flow, not the lambda's.
         prefix: list[str] = []
-        components: list[list[str]] = []
-        current = prefix
+        components: list[tuple[list[str], list[bool]]] = []
+        current: list[str] = prefix
+        unsafe_flag: list[bool] = [False]  # unused for prefix
         for exp in self.main_statements:
             if isinstance(exp, ComponentMarker):
                 current = []
-                components.append(current)
+                unsafe_flag = [False]
+                components.append((current, unsafe_flag))
                 continue
+            if isinstance(exp, IIFEUnsafeStatement):
+                unsafe_flag[0] = True
             current.append(str(statement(exp)).rstrip())
 
         if not components:
             return "\n".join(prefix) + "\n\n"
 
-        pieces = list(prefix)
-        for body in components:
-            pieces.extend(_wrap_in_iifes(body, max_statements=50))
+        pieces: list[str] = list(prefix)
+        for body, group_unsafe in components:
+            if group_unsafe[0]:
+                pieces.extend(body)
+            else:
+                pieces.extend(_wrap_in_iifes(body, max_statements=50))
         return "\n".join(pieces) + "\n\n"
 
     @property

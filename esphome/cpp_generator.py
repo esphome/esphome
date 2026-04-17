@@ -434,6 +434,25 @@ class LineComment(Statement):
         return "\n".join(parts)
 
 
+class IIFEUnsafeStatement(Statement):
+    """Statement that must not be placed inside an IIFE lambda when
+    ``cpp_main_section`` chunks ``setup()``. Causes the containing
+    component's block to be emitted flat (no IIFE), so constructs that
+    rely on exiting ``setup()`` directly — e.g. safe_mode's
+    ``if (should_enter_safe_mode(...)) return;`` — still work.
+
+    Accepts either a ``Statement`` or a bare ``Expression``; bare
+    expressions are wrapped so they terminate with a semicolon."""
+
+    __slots__ = ("inner",)
+
+    def __init__(self, inner: Expression | Statement) -> None:
+        self.inner = inner
+
+    def __str__(self) -> str:
+        return str(statement(self.inner))
+
+
 class ComponentMarker(Statement):
     """Chunking-boundary sentinel. ``cpp_main_section`` wraps the
     statements between two markers in an IIFE to shorten temporary
@@ -446,10 +465,10 @@ class ComponentMarker(Statement):
 
     __slots__ = ("name",)
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         self.name = name
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"// component-marker: {self.name}"
 
 

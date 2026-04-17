@@ -87,7 +87,10 @@ async def to_code(config):
             config[CONF_REBOOT_TIMEOUT],
             config[CONF_BOOT_IS_GOOD_AFTER],
         )
-        cg.add(RawExpression(f"if ({condition}) return"))
+        # Wrap in IIFEUnsafeStatement so cpp_main_section emits this
+        # component's block flat rather than inside an IIFE lambda —
+        # the `return` must exit setup() itself, not just the lambda.
+        cg.add(cg.IIFEUnsafeStatement(RawExpression(f"if ({condition}) return")))
 
     CORE.data[CONF_SAFE_MODE] = {}
     CORE.data[CONF_SAFE_MODE][KEY_PAST_SAFE_MODE] = True
