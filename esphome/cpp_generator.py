@@ -450,8 +450,8 @@ class ComponentMarker(Statement):
     (e.g. ``cg.get_variable``) and re-schedule by priority, which
     means a component's later statements can land between a different
     component's earlier statements. This is semantically safe because
-    every statement placement-news into static storage or mutates a
-    global already declared at file scope."""
+    every statement either uses placement new into static storage or
+    mutates a global already declared at file scope."""
 
     __slots__ = ("name",)
 
