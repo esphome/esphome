@@ -10,6 +10,7 @@
 # pylint: disable=unused-import
 from esphome.cpp_generator import (  # noqa: F401
     ArrayInitializer,
+    ComponentMarker,
     Expression,
     FlashStringLiteral,
     LineComment,

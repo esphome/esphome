@@ -7,6 +7,7 @@ import pytest
 from strategies import mac_addr_strings
 
 from esphome import const, core
+from esphome.cpp_generator import ComponentMarker, RawStatement
 
 
 class TestHexInt:
@@ -867,3 +868,170 @@ class TestEsphomeCore:
             mock_enable.assert_called_once_with("Wire")
 
         assert "Wire" in target.platformio_libraries
+
+
+def test_wrap_in_iifes_empty_input() -> None:
+    assert core._wrap_in_iifes([], max_statements=10) == []
+
+
+def test_wrap_in_iifes_fewer_lines_than_limit() -> None:
+    lines = ["a();", "b();", "c();"]
+    assert core._wrap_in_iifes(lines, max_statements=10) == [
+        "[]() {",
+        "a();",
+        "b();",
+        "c();",
+        "}();",
+    ]
+
+
+def test_wrap_in_iifes_splits_at_max_statements() -> None:
+    lines = [f"s{i}();" for i in range(5)]
+    result = core._wrap_in_iifes(lines, max_statements=2)
+    # With max=2 and 5 lines: chunks of 2, 2, 1 → 3 IIFEs.
+    assert sum(1 for line in result if line.startswith("[]()")) == 3
+
+
+def test_wrap_in_iifes_never_splits_inside_braces() -> None:
+    # max=2 would naively split after "{" but brace guard keeps block whole.
+    lines = ["a();", "{", "inner();", "}", "b();"]
+    assert core._wrap_in_iifes(lines, max_statements=2) == [
+        "[]() {",
+        "a();",
+        "{",
+        "inner();",
+        "}",
+        "}();",
+        "[]() {",
+        "b();",
+        "}();",
+    ]
+
+
+def test_wrap_in_iifes_nested_braces() -> None:
+    lines = ["{", "{", "deep();", "}", "}", "after();"]
+    assert core._wrap_in_iifes(lines, max_statements=1) == [
+        "[]() {",
+        "{",
+        "{",
+        "deep();",
+        "}",
+        "}",
+        "}();",
+        "[]() {",
+        "after();",
+        "}();",
+    ]
+
+
+def test_wrap_in_iifes_unbalanced_braces_fall_through() -> None:
+    # Pathological input where "}" appears before "{": don't crash; emit
+    # a single IIFE with all lines rather than splitting mid-flight.
+    lines = ["a();", "}", "b();"]
+    result = core._wrap_in_iifes(lines, max_statements=1)
+    assert result[0] == "[]() {"
+    assert result[-1] == "}();"
+    assert [line for line in result if line in lines] == lines
+
+
+def test_wrap_in_iifes_never_splits_inline_brace_lines() -> None:
+    # Defensive: if codegen ever emits control flow with braces on the
+    # same line (if/else/for), the depth tracker should keep the whole
+    # scoped block together even with aggressive max_statements.
+    lines = [
+        "before();",
+        "if (cond) {",
+        "then_branch();",
+        "} else {",
+        "for (;;) {",
+        "loop_body();",
+        "}",
+        "}",
+        "after();",
+    ]
+    assert core._wrap_in_iifes(lines, max_statements=1) == [
+        "[]() {",
+        "before();",
+        "}();",
+        "[]() {",
+        "if (cond) {",
+        "then_branch();",
+        "} else {",
+        "for (;;) {",
+        "loop_body();",
+        "}",
+        "}",
+        "}();",
+        "[]() {",
+        "after();",
+        "}();",
+    ]
+
+
+def test_wrap_in_iifes_skips_comment_only_chunks() -> None:
+    # A chunk with no C++ statements (only comments, e.g. a component's
+    # config dump) should be emitted verbatim without a no-op IIFE.
+    lines = ["// sha256:", "//   {}"]
+    assert core._wrap_in_iifes(lines, max_statements=50) == lines
+
+
+def test_wrap_in_iifes_ignores_iife_pattern_in_comment() -> None:
+    # A comment whose text mentions "[]()" (e.g. a YAML dump of a
+    # lambda) must not fool the comment-only detector into wrapping.
+    lines = [
+        "// on_value:",
+        "//   - !lambda |-",
+        "//       return []() { return 5; };",
+    ]
+    assert core._wrap_in_iifes(lines, max_statements=50) == lines
+
+
+def test_cpp_main_section_no_components_emits_flat() -> None:
+    target = core.EsphomeCore()
+    target.main_statements = [RawStatement("a();"), RawStatement("b();")]
+    out = target.cpp_main_section
+    assert "[]() {" not in out
+    assert "a();" in out
+    assert "b();" in out
+
+
+def test_cpp_main_section_component_marker_wraps_in_iife() -> None:
+    target = core.EsphomeCore()
+    target.main_statements = [
+        ComponentMarker("logger"),
+        RawStatement("new_logger();"),
+        ComponentMarker("wifi"),
+        RawStatement("new_wifi();"),
+    ]
+    out = target.cpp_main_section
+    # One IIFE per component that emits C++ statements.
+    assert out.count("[]() {") == 2
+    assert out.count("}();") == 2
+    # ComponentMarker produces no output of its own.
+    assert "component-marker" not in out
+
+
+def test_cpp_main_section_comment_only_component_omits_iife() -> None:
+    # A component that emits only a ComponentMarker (no statements) adds
+    # nothing to the generated output. A neighboring component with
+    # actual code still gets its own IIFE.
+    target = core.EsphomeCore()
+    target.main_statements = [
+        ComponentMarker("sha256"),
+        ComponentMarker("wifi"),
+        RawStatement("new_wifi();"),
+    ]
+    out = target.cpp_main_section
+    assert out.count("[]() {") == 1
+    assert "new_wifi();" in out
+
+
+def test_cpp_main_section_prefix_statements_stay_outside_iife() -> None:
+    target = core.EsphomeCore()
+    target.main_statements = [
+        RawStatement("prefix();"),
+        ComponentMarker("c"),
+        RawStatement("body();"),
+    ]
+    out = target.cpp_main_section
+    assert out.index("prefix();") < out.index("[]() {")

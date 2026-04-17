@@ -434,6 +434,25 @@ class LineComment(Statement):
         return "\n".join(parts)
 
 
+class ComponentMarker(Statement):
+    """Chunking-boundary sentinel. ``cpp_main_section`` wraps the
+    statements between two markers in an IIFE to shorten temporary
+    lifetimes and bound peak setup-time stack. Emits no C++ output.
+
+    Grouping is best-effort: ``flush_tasks`` can interleave coroutines
+    on ``await``, so a component's later statements may land in another
+    component's chunk. Safe because every statement either placement-
+    news into static storage or mutates a file-scope global."""
+
+    __slots__ = ("name",)
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def __str__(self):
+        return f"// component-marker: {self.name}"
+
+
 class ProgmemAssignmentExpression(AssignmentExpression):
     __slots__ = ()
 
@@ -458,7 +477,13 @@ def progmem_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
     assignment = ProgmemAssignmentExpression(id_.type, id_, rhs)
-    CORE.add(assignment)
+    # Emit at file scope, not inside setup(). setup() is split into
+    # per-component IIFE lambdas; a function-local static declared in one
+    # lambda is not visible to statements in sibling lambdas that
+    # reference the same shared table (e.g. two lights sharing a gamma
+    # lookup). File-scope static constexpr is semantically identical for
+    # read-only lookup tables.
+    CORE.add_global(assignment)
     CORE.register_variable(id_, obj)
     return obj
 
@@ -467,7 +492,7 @@ def static_const_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
     assignment = StaticConstAssignmentExpression(id_.type, id_, rhs)
-    CORE.add(assignment)
+    CORE.add_global(assignment)
     CORE.register_variable(id_, obj)
     return obj
 

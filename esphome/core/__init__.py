@@ -531,6 +531,42 @@ class Library:
         return self
 
 
+def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
+    """Wrap ``lines`` in ``[]() {...}();`` IIFEs of up to ``max_statements``
+    each. Never splits inside a brace-balanced block (e.g. the ``{`` / ``}``
+    pair from ``cg.with_local_variable()``), so an IIFE may exceed the cap
+    when a block straddles it. Comment-only chunks pass through verbatim.
+
+    No ``noinline`` attribute — GCC's inliner re-folds small chunks freely,
+    keeping flash small without regressing peak stack."""
+    out: list[str] = []
+    chunk: list[str] = []
+    depth = 0
+
+    def flush() -> None:
+        if not chunk:
+            return
+        if all(line.lstrip().startswith("//") for line in chunk):
+            out.extend(chunk)
+        else:
+            out.append("[]() {")
+            out.extend(chunk)
+            out.append("}();")
+        chunk.clear()
+
+    for line in lines:
+        chunk.append(line)
+        # Count { and } per line so inline control flow (e.g. `if (cond) {`)
+        # and balanced inline lambdas are tracked correctly. If depth ever
+        # goes negative (unbalanced input) we never return to 0 and the
+        # rest falls through into a single final IIFE — safe fallback.
+        depth += line.count("{") - line.count("}")
+        if depth == 0 and len(chunk) >= max_statements:
+            flush()
+    flush()
+    return out
+
+
 # pylint: disable=too-many-public-methods
 class EsphomeCore:
     def __init__(self):
@@ -1003,14 +1039,29 @@ class EsphomeCore:
 
     @property
     def cpp_main_section(self):
-        from esphome.cpp_generator import statement
+        from esphome.cpp_generator import ComponentMarker, statement
 
-        main_code = []
+        # Split main_statements at ComponentMarker sentinels and wrap each
+        # component's group in an IIFE, sub-splitting at 50 statements so
+        # a single heavy component (e.g. a sensor platform with many
+        # filter registrations) can't blow the peak chunk frame.
+        prefix: list[str] = []
+        components: list[list[str]] = []
+        current = prefix
         for exp in self.main_statements:
-            text = str(statement(exp))
-            text = text.rstrip()
-            main_code.append(text)
-        return "\n".join(main_code) + "\n\n"
+            if isinstance(exp, ComponentMarker):
+                current = []
+                components.append(current)
+                continue
+            current.append(str(statement(exp)).rstrip())
+
+        if not components:
+            return "\n".join(prefix) + "\n\n"
+
+        pieces = list(prefix)
+        for body in components:
+            pieces.extend(_wrap_in_iifes(body, max_statements=50))
+        return "\n".join(pieces) + "\n\n"
 
     @property
     def cpp_global_section(self):
