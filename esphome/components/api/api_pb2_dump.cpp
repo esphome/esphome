@@ -380,8 +380,6 @@ template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::Climate
 }
 template<> const char *proto_enum_to_string<enums::ClimateTemperatureUnit>(enums::ClimateTemperatureUnit value) {
   switch (value) {
-    case enums::CLIMATE_TEMPERATURE_UNIT_UNSET:
-      return ESPHOME_PSTR("CLIMATE_TEMPERATURE_UNIT_UNSET");
     case enums::CLIMATE_TEMPERATURE_UNIT_CELSIUS:
       return ESPHOME_PSTR("CLIMATE_TEMPERATURE_UNIT_CELSIUS");
     case enums::CLIMATE_TEMPERATURE_UNIT_FAHRENHEIT:
@@ -419,8 +417,6 @@ template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::Climate
 template<>
 const char *proto_enum_to_string<enums::WaterHeaterTemperatureUnit>(enums::WaterHeaterTemperatureUnit value) {
   switch (value) {
-    case enums::WATER_HEATER_TEMPERATURE_UNIT_UNSET:
-      return ESPHOME_PSTR("WATER_HEATER_TEMPERATURE_UNIT_UNSET");
     case enums::WATER_HEATER_TEMPERATURE_UNIT_CELSIUS:
       return ESPHOME_PSTR("WATER_HEATER_TEMPERATURE_UNIT_CELSIUS");
     case enums::WATER_HEATER_TEMPERATURE_UNIT_FAHRENHEIT:
