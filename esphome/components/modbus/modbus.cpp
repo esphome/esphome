@@ -57,11 +57,10 @@ void Modbus::loop() {
   // (no rx_full_threshold gate). The gate is only a useful heuristic for the auto-derived
   // value — users who know their device sends in short bursts with long gaps want the long
   // delay to apply from the very first byte, not only once the buffer has already grown.
-  const uint16_t long_delay = this->long_rx_buffer_delay_user_set_
-                                  ? this->long_rx_buffer_delay_ms_
-                                  : (this->rx_buffer_.size() >= this->parent_->get_rx_full_threshold()
-                                         ? this->long_rx_buffer_delay_ms_
-                                         : 0);
+  const uint16_t long_delay =
+      this->long_rx_buffer_delay_user_set_
+          ? this->long_rx_buffer_delay_ms_
+          : (this->rx_buffer_.size() >= this->parent_->get_rx_full_threshold() ? this->long_rx_buffer_delay_ms_ : 0);
   const uint16_t timeout = std::max((uint16_t) this->frame_delay_ms_, long_delay);
   // We use millis() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
   // It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
@@ -366,17 +365,16 @@ void Modbus::send_next_frame_() {
 }
 
 void Modbus::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "Modbus:\n"
-                "  Send Wait Time: %d ms\n"
-                "  Turnaround Time: %d ms\n"
-                "  Frame Delay: %d ms\n"
-                "  Long Rx Buffer Delay: %d ms%s\n"
-                "  CRC Disabled: %s",
-                this->send_wait_time_, this->turnaround_delay_ms_, this->frame_delay_ms_,
-                this->long_rx_buffer_delay_ms_,
-                this->long_rx_buffer_delay_user_set_ ? " (user-set, applies unconditionally)" : "",
-                YESNO(this->disable_crc_));
+  ESP_LOGCONFIG(
+      TAG,
+      "Modbus:\n"
+      "  Send Wait Time: %d ms\n"
+      "  Turnaround Time: %d ms\n"
+      "  Frame Delay: %d ms\n"
+      "  Long Rx Buffer Delay: %d ms%s\n"
+      "  CRC Disabled: %s",
+      this->send_wait_time_, this->turnaround_delay_ms_, this->frame_delay_ms_, this->long_rx_buffer_delay_ms_,
+      this->long_rx_buffer_delay_user_set_ ? " (user-set, applies unconditionally)" : "", YESNO(this->disable_crc_));
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
 float Modbus::get_setup_priority() const {
