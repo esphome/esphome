@@ -75,6 +75,9 @@ class ListEntitiesIterator final : public ComponentIterator {
 #ifdef USE_VALVE
   bool on_valve(valve::Valve *obj) override;
 #endif
+#ifdef USE_MEDIA_PLAYER
+  bool on_media_player(media_player::MediaPlayer *obj) override { return true; }
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *obj) override;
 #endif
