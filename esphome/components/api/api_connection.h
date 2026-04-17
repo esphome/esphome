@@ -40,7 +40,7 @@ namespace esphome::api {
 #ifdef USE_API_CLIENT_KEEPALIVE_INTERVAL
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = USE_API_CLIENT_KEEPALIVE_INTERVAL;
 // keepalive_timeout_ms + 90 seconds (for round trip)
-static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = KEEPALIVE_TIMEOUT_MS + 900000;
+static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = KEEPALIVE_TIMEOUT_MS + 90000;
 #else
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
 static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
