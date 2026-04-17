@@ -1,0 +1,54 @@
+# M5Stack Atom Lite + Unit RFID (RC522 I2C) — NDEF read example
+# Hardware: M5Stack Atom Lite, Unit RFID (SDA: GPIO26, SCL: GPIO32, addr: 0x28)
+# Reads NDEF messages (e.g. Bolt Card URLs) from MIFARE Ultralight / NTAG tags.
+
+esphome:
+  name: atom-rfid
+  friendly_name: Atom RFID Reader
+
+esp32:
+  board: m5stack-atom
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+i2c:
+  sda: GPIO26
+  scl: GPIO32
+  scan: true
+
+rc522_i2c:
+  - id: nfc_reader
+    address: 0x28
+    update_interval: 500ms
+    on_tag:
+      - lambda: |-
+          ESP_LOGI("rfid", "Tag detected — UID: %s", x.c_str());
+          if (tag.has_ndef_message()) {
+            auto msg = tag.get_ndef_message();
+            ESP_LOGI("rfid", "NDEF message with %d record(s)", msg->get_records().size());
+            for (auto &record : msg->get_records()) {
+              ESP_LOGI("rfid", "  Type: %s  Payload: %s",
+                       record->get_type().c_str(),
+                       record->get_payload().c_str());
+            }
+          } else {
+            ESP_LOGI("rfid", "No NDEF message found on tag");
+          }
+    on_tag_removed:
+      - lambda: |-
+          ESP_LOGI("rfid", "Tag removed — UID: %s", x.c_str());

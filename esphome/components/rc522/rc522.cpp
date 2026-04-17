@@ -1,4 +1,7 @@
 #include "rc522.h"
+
+#include <memory>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -16,6 +19,18 @@ static const char *const TAG = "rc522";
 static constexpr size_t RC522_MAX_UID_SIZE = 10;
 
 static const uint8_t RESET_COUNT = 5;
+
+static bool uid_equals(const nfc::NfcTagUid &lhs, const nfc::NfcTagUid &rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < lhs.size(); i++) {
+    if (lhs[i] != rhs[i]) {
+      return false;
+    }
+  }
+  return true;
+}
 
 void RC522::setup() {
   state_ = STATE_SETUP;
@@ -219,43 +234,63 @@ void RC522::loop() {
         return;
       }
 
-      std::vector<uint8_t> rfid_uid(std::begin(uid_buffer_), std::begin(uid_buffer_) + uid_idx_);
+      nfc::NfcTagUid tag_uid;
+      for (uint8_t i = 0; i < uid_idx_; i++) {
+        auto byte = uid_buffer_[i];
+        tag_uid.push_back(byte);
+      }
+
+      this->sak_ = buffer_[send_len_];
+      bool is_iso_14443_4 = (this->sak_ & 0x20) != 0;
       uid_idx_ = 0;
-      // ESP_LOGD(TAG, "Processing '%s'", format_hex_pretty(rfid_uid, '-', false).c_str());  // NOLINT
-      pcd_antenna_off_();
-      state_ = STATE_INIT;  // scan again on next update
+      state_ = STATE_INIT;
+
       bool report = true;
 
       for (auto *tag : this->binary_sensors_) {
-        if (tag->process(rfid_uid)) {
+        if (tag->process(tag_uid)) {
           report = false;
         }
       }
 
-      if (this->current_uid_ == rfid_uid) {
+      if (uid_equals(this->current_uid_, tag_uid)) {
+        pcd_antenna_off_();
         return;
       }
 
-      this->current_uid_ = rfid_uid;
+      this->current_uid_ = tag_uid;
+      std::unique_ptr<nfc::NfcTag> nfc_tag;
+      if (is_iso_14443_4) {
+        nfc_tag = this->read_iso_dep_tag_(tag_uid);
+      } else {
+        uint8_t tag_type = nfc::guess_tag_type(tag_uid.size());
+        if (tag_type == nfc::TAG_TYPE_2) {
+          nfc_tag = this->read_mifare_ultralight_tag_(tag_uid);
+        } else {
+          nfc_tag = make_unique<nfc::NfcTag>(tag_uid);
+        }
+      }
+
+      pcd_antenna_off_();
 
       for (auto *trigger : this->triggers_ontag_)
-        trigger->process(rfid_uid);
+        trigger->process(nfc_tag);
 
       if (report) {
-        char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-        ESP_LOGD(TAG, "Found new tag '%s'", format_hex_pretty_to(uid_buf, rfid_uid.data(), rfid_uid.size(), '-'));
+        char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
+        ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid_to(uid_buf, tag_uid));
       }
       break;
     }
     case STATE_DONE: {
       if (!this->current_uid_.empty()) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-        char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-        ESP_LOGV(TAG, "Tag '%s' removed",
-                 format_hex_pretty_to(uid_buf, this->current_uid_.data(), this->current_uid_.size(), '-'));
+        char removed_uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
+        ESP_LOGV(TAG, "Tag '%s' removed", nfc::format_uid_to(removed_uid_buf, this->current_uid_));
 #endif
+        auto removed_tag = make_unique<nfc::NfcTag>(this->current_uid_);
         for (auto *trigger : this->triggers_ontagremoved_)
-          trigger->process(this->current_uid_);
+          trigger->process(removed_tag);
       }
       this->current_uid_ = {};
       state_ = STATE_INIT;
@@ -477,7 +512,7 @@ RC522::StatusCode RC522::await_crc_() {
   return STATUS_TIMEOUT;
 }
 
-bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
+bool RC522BinarySensor::process(const nfc::NfcTagUid &data) {
   bool result = true;
   if (data.size() != this->uid_.size()) {
     result = false;
@@ -492,10 +527,6 @@ bool RC522BinarySensor::process(std::vector<uint8_t> &data) {
   this->publish_state(result);
   this->found_ = result;
   return result;
-}
-void RC522Trigger::process(std::vector<uint8_t> &data) {
-  char uid_buf[format_hex_pretty_size(RC522_MAX_UID_SIZE)];
-  this->trigger(format_hex_pretty_to(uid_buf, data.data(), data.size(), '-'));
 }
 
 }  // namespace rc522

@@ -4,14 +4,16 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/nfc/nfc.h"
+#include "esphome/components/nfc/automation.h"
 
+#include <memory>
 #include <vector>
 
 namespace esphome {
 namespace rc522 {
 
 class RC522BinarySensor;
-class RC522Trigger;
 class RC522 : public PollingComponent {
  public:
   void setup() override;
@@ -23,8 +25,8 @@ class RC522 : public PollingComponent {
   void loop() override;
 
   void register_tag(RC522BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
-  void register_ontag_trigger(RC522Trigger *trig) { this->triggers_ontag_.push_back(trig); }
-  void register_ontagremoved_trigger(RC522Trigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
+  void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
+  void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
 
@@ -223,6 +225,19 @@ class RC522 : public PollingComponent {
                           uint8_t length  ///< In: The number of uint8_ts to transfer.
   );
 
+  std::unique_ptr<nfc::NfcTag> read_mifare_ultralight_tag_(nfc::NfcTagUid &uid);
+  StatusCode read_mifare_ultralight_page_(uint8_t page, uint8_t *data);
+  bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_data);
+  bool find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_data, uint8_t &message_length,
+                                    uint8_t &message_start_index);
+
+  std::unique_ptr<nfc::NfcTag> read_iso_dep_tag_(nfc::NfcTagUid &uid);
+  StatusCode rats_();
+  StatusCode iso_dep_transceive_(const uint8_t *send_data, uint8_t send_len, uint8_t *recv_data, uint8_t &recv_len);
+  StatusCode iso_dep_send_apdu_(const uint8_t *apdu, uint8_t apdu_len, uint8_t *resp, uint8_t &resp_len);
+  void pcd_calculate_crc_sync_(uint8_t *data, uint8_t length, uint8_t *crc_out);
+  StatusCode pcd_transceive_sync_(const uint8_t *send_data, uint8_t send_len, uint8_t *recv_data, uint8_t &recv_len);
+
   bool awaiting_comm_;
   uint32_t awaiting_comm_time_;
   StatusCode await_transceive_();
@@ -230,6 +245,7 @@ class RC522 : public PollingComponent {
 
   uint8_t buffer_[9];       ///< buffer for communication, the first bits [0..back_idx-1] are for tx ,
                             ///< [back_idx..back_idx+back_len] for rx
+  uint8_t ndef_buffer_[18];
   uint8_t send_len_;        // index of first byte for RX
   uint8_t back_length_;     ///< In: Max number of uint8_ts to write to *backData. Out: The number of uint8_ts returned.
   uint8_t uid_buffer_[10];  // buffer to construct the uid (for 7 and 10 bit uids)
@@ -242,9 +258,10 @@ class RC522 : public PollingComponent {
   uint8_t reset_count_{0};
   uint32_t reset_timeout_{0};
   std::vector<RC522BinarySensor *> binary_sensors_;
-  std::vector<RC522Trigger *> triggers_ontag_;
-  std::vector<RC522Trigger *> triggers_ontagremoved_;
-  std::vector<uint8_t> current_uid_;
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
+  nfc::NfcTagUid current_uid_;
+  uint8_t sak_{0};
 
   enum RC522Error {
     NONE = 0,
@@ -254,9 +271,9 @@ class RC522 : public PollingComponent {
 
 class RC522BinarySensor : public binary_sensor::BinarySensor {
  public:
-  void set_uid(const std::vector<uint8_t> &uid) { uid_ = uid; }
+  void set_uid(const nfc::NfcTagUid &uid) { uid_ = uid; }
 
-  bool process(std::vector<uint8_t> &data);
+  bool process(const nfc::NfcTagUid &data);
 
   void on_scan_end() {
     if (!this->found_) {
@@ -266,13 +283,8 @@ class RC522BinarySensor : public binary_sensor::BinarySensor {
   }
 
  protected:
-  std::vector<uint8_t> uid_;
+  nfc::NfcTagUid uid_;
   bool found_{false};
-};
-
-class RC522Trigger : public Trigger<std::string> {
- public:
-  void process(std::vector<uint8_t> &data);
 };
 
 }  // namespace rc522
