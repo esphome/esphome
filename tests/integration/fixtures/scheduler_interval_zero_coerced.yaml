@@ -16,7 +16,7 @@ interval:
   # Scheduler::set_timer_common_ coercion (not the Python cv.update_interval
   # path, since interval: doesn't call cv.update_interval — it's an intervals
   # component schema, not a PollingComponent's update_interval).
-  # Expected: scheduler coerces to 1ms at registration, emits ESP_LOGW,
+  # Expected: scheduler coerces to 1ms at registration, emits ESP_LOGE,
   # fires at ~1kHz instead of spinning.
   - interval: 0ms
     then:
