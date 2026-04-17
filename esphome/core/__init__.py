@@ -531,18 +531,19 @@ class Library:
         return self
 
 
-def _wrap_in_noinline_iifes(lines: list[str], max_statements: int) -> list[str]:
-    """Wrap ``lines`` in one or more ``[]() __attribute__((noinline)) {...}();`` IIFEs.
+def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
+    """Wrap ``lines`` in one or more ``[]() {...}();`` IIFEs.
 
     Splits into IIFEs of up to ``max_statements`` entries each. Never splits
     inside a brace-balanced block (e.g. the ``{`` / ``}`` pair that
     ``cg.with_local_variable()`` emits around a scoped local), so an IIFE
     may exceed ``max_statements`` when a block straddles the boundary.
 
-    GCC note: ``__attribute__((noinline))`` between the lambda parameter
-    list and body binds to ``operator()``. The C++ standard-attribute
-    spelling ``[[gnu::noinline]]`` in that position binds to the return
-    type instead and produces ``-Wattributes`` warnings.
+    The IIFEs intentionally have no ``noinline`` attribute: GCC's ``-Os``
+    inliner makes good decisions about which chunks to keep as functions
+    and which to re-inline, and forcing all chunks to stay as functions
+    costs flash without measurably improving peak stack on configs where
+    the scope structure is itself sufficient to bound live-range lifetimes.
     """
     out: list[str] = []
     chunk: list[str] = []
@@ -551,7 +552,7 @@ def _wrap_in_noinline_iifes(lines: list[str], max_statements: int) -> list[str]:
     def flush() -> None:
         if not chunk:
             return
-        out.append("[]() __attribute__((noinline)) {")
+        out.append("[]() {")
         out.extend(chunk)
         out.append("}();")
         chunk.clear()
@@ -1065,7 +1066,7 @@ class EsphomeCore:
         # (e.g. sensor platforms with many filter registrations).
         pieces = list(prefix)
         for block in components:
-            pieces.extend(_wrap_in_noinline_iifes(block, max_statements=50))
+            pieces.extend(_wrap_in_iifes(block, max_statements=50))
         return "\n".join(pieces) + "\n\n"
 
     @property
