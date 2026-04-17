@@ -477,7 +477,13 @@ def progmem_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
     assignment = ProgmemAssignmentExpression(id_.type, id_, rhs)
-    CORE.add(assignment)
+    # Emit at file scope, not inside setup(). setup() is split into
+    # per-component IIFE lambdas; a function-local static declared in one
+    # lambda is not visible to statements in sibling lambdas that
+    # reference the same shared table (e.g. two lights sharing a gamma
+    # lookup). File-scope static constexpr is semantically identical for
+    # read-only lookup tables.
+    CORE.add_global(assignment)
     CORE.register_variable(id_, obj)
     return obj
 
@@ -486,7 +492,7 @@ def static_const_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, ".")
     assignment = StaticConstAssignmentExpression(id_.type, id_, rhs)
-    CORE.add(assignment)
+    CORE.add_global(assignment)
     CORE.register_variable(id_, obj)
     return obj
 
