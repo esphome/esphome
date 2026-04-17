@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from esphome.components.esp32 import VARIANTS
+from esphome.components.esp32 import VARIANT_ESP32, VARIANTS
 from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS, KEY_VARIANT
 from esphome.components.esp32.gpio import validate_gpio_pin
 import esphome.config_validation as cv
@@ -161,8 +161,6 @@ def test_ignore_pin_validation_error_on_clean_pin_warns(
 ) -> None:
     """A pin that passes validation but sets `ignore_pin_validation_error: true`
     should log a warning nudging the user to remove the flag, and not raise."""
-    from esphome.components.esp32 import VARIANT_ESP32
-
     set_core_config(
         PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32}
     )
@@ -181,8 +179,6 @@ def test_ignore_pin_validation_error_on_dirty_pin_suppresses(
 ) -> None:
     """A pin that fails validation with `ignore_pin_validation_error: true` should
     log the suppression warning and not raise (existing behavior)."""
-    from esphome.components.esp32 import VARIANT_ESP32
-
     set_core_config(
         PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32}
     )
@@ -200,8 +196,6 @@ def test_dirty_pin_without_ignore_flag_raises(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     """A pin that fails validation without the ignore flag should still raise."""
-    from esphome.components.esp32 import VARIANT_ESP32
-
     set_core_config(
         PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32}
     )
@@ -216,8 +210,6 @@ def test_clean_pin_without_ignore_flag_does_not_warn(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A clean pin without the ignore flag should pass silently."""
-    from esphome.components.esp32 import VARIANT_ESP32
-
     set_core_config(
         PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32}
     )
