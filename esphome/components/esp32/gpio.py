@@ -172,10 +172,10 @@ def validate_gpio_pin(pin):
             exc,
         )
     else:
-        # `ignore_pin_validation_error` is meant to suppress an actual validation
-        # error (strapping/SPI flash/USB-JTAG/etc.). If the pin has no such error,
-        # the option is a no-op -- warn so the user can clean it up, but don't
-        # block the build.
+        # `ignore_pin_validation_error` only suppresses an error raised by the
+        # variant's pin_validation above (e.g. SPI flash/PSRAM pins, invalid pin
+        # numbers). If that didn't raise, the option is a no-op -- warn so the
+        # user can clean it up, but don't block the build.
         if ignore_pin_validation_warning:
             _LOGGER.warning(
                 "GPIO%d has no validation errors to ignore; "
