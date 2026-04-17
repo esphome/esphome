@@ -1020,13 +1020,19 @@ def test_cpp_main_section_component_marker_wraps_in_iife() -> None:
     assert "component-marker" not in out
 
 
+_CHUNK_COUNT = 3  # number of sub-chunks to force when testing splitting
+# Statement count that produces exactly _CHUNK_COUNT IIFEs when sub-split
+# at IIFE_MAX_STATEMENTS (full chunks at the cap, no partial).
+_STATEMENTS_OVER_CAP = core.IIFE_MAX_STATEMENTS * _CHUNK_COUNT
+
+
 def test_cpp_main_section_scope_brace_raw_disables_sub_split() -> None:
     # A group containing scope-brace RawStatements (e.g. `{` / `}` from
     # with_local_variable) must stay in one IIFE regardless of size so
     # the scope bounds and any locals between them stay together.
     target = core.EsphomeCore()
     stmts: list = [ComponentMarker("wifi"), RawStatement("{")]
-    stmts.extend(RawStatement(f"s{i}();") for i in range(100))
+    stmts.extend(RawStatement(f"s{i}();") for i in range(_STATEMENTS_OVER_CAP))
     stmts.append(RawStatement("}"))
     target.main_statements = stmts
     out = target.cpp_main_section
@@ -1040,11 +1046,12 @@ def test_cpp_main_section_inline_comment_raw_still_sub_splits() -> None:
     # content-aware check only triggers on bare `{` / `}`.
     target = core.EsphomeCore()
     stmts: list = [ComponentMarker("sensor")]
-    stmts.extend(RawStatement(f"s{i}();  // flags") for i in range(120))
+    stmts.extend(
+        RawStatement(f"s{i}();  // flags") for i in range(_STATEMENTS_OVER_CAP)
+    )
     target.main_statements = stmts
     out = target.cpp_main_section
-    # 120 statements / 50-cap = 3 sub-chunks expected.
-    assert out.count("[]() {") == 3
+    assert out.count("[]() {") == _CHUNK_COUNT
 
 
 def test_cpp_main_section_raw_expression_disables_sub_split() -> None:
@@ -1057,7 +1064,8 @@ def test_cpp_main_section_raw_expression_disables_sub_split() -> None:
         ExpressionStatement(RawExpression("time::ParsedTimezone tz{}")),
     ]
     stmts.extend(
-        ExpressionStatement(RawExpression(f"tz.field_{i} = {i}")) for i in range(100)
+        ExpressionStatement(RawExpression(f"tz.field_{i} = {i}"))
+        for i in range(_STATEMENTS_OVER_CAP)
     )
     target.main_statements = stmts
     out = target.cpp_main_section
@@ -1069,21 +1077,18 @@ def test_cpp_main_section_raw_expression_as_call_arg_still_sub_splits() -> None:
     # `var.set_program(RawExpression("&foo"))`) produces
     # `ExpressionStatement(CallExpression(..., RawExpression))` — the
     # outer expression is a CallExpression, not a RawExpression, so
-    # the group is still sub-splittable. Exercise this with actual
-    # CallExpression-wrapping-RawExpression statements filling the
-    # group past the 50-statement cap.
+    # the group is still sub-splittable.
     target = core.EsphomeCore()
     stmts: list = [ComponentMarker("rp2040_pio_led_strip")]
     stmts.extend(
         ExpressionStatement(
             CallExpression(MockObj(f"var_{i}.set_program"), RawExpression("&foo"))
         )
-        for i in range(120)
+        for i in range(_STATEMENTS_OVER_CAP)
     )
     target.main_statements = stmts
     out = target.cpp_main_section
-    # 120 statements / 50-cap -> 3 sub-chunks.
-    assert out.count("[]() {") == 3
+    assert out.count("[]() {") == _CHUNK_COUNT
 
 
 def test_cpp_main_section_typed_assignment_disables_sub_split() -> None:
@@ -1096,7 +1101,7 @@ def test_cpp_main_section_typed_assignment_disables_sub_split() -> None:
         AssignmentExpression(MockObj("int"), "", MockObj("x"), MockObj("42"))
     )
     stmts: list = [ComponentMarker("custom"), typed_assign]
-    stmts.extend(RawStatement(f"use_x_{i}();") for i in range(100))
+    stmts.extend(RawStatement(f"use_x_{i}();") for i in range(_STATEMENTS_OVER_CAP))
     target.main_statements = stmts
     out = target.cpp_main_section
     assert out.count("[]() {") == 1

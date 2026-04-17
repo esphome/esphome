@@ -531,6 +531,14 @@ class Library:
         return self
 
 
+# Cap on the number of statements in a single IIFE chunk when a
+# component's to_code body is sub-split. Picks a frame-size sweet spot
+# on esp32-s3 — large enough that most components fit in one chunk and
+# small enough that heavy sensor platforms (many filter registrations)
+# don't produce a chunk with a very large spill frame.
+IIFE_MAX_STATEMENTS = 50
+
+
 def _emits_bare_local(exp: "Statement") -> bool:
     """True if ``exp`` emits a scope brace or bare-raw construct that may
     declare a function-local whose lifetime extends past the current
@@ -1134,7 +1142,7 @@ class EsphomeCore:
                 # declarations must stay in one IIFE so the declarations
                 # remain visible to subsequent uses. ``max_statements=None``
                 # disables sub-splitting for the group.
-                cap = None if group_no_split[0] else 50
+                cap = None if group_no_split[0] else IIFE_MAX_STATEMENTS
                 pieces.extend(_wrap_in_iifes(body, max_statements=cap))
         return "\n".join(pieces) + "\n\n"
 
