@@ -552,9 +552,15 @@ def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
     def flush() -> None:
         if not chunk:
             return
-        out.append("[]() {")
-        out.extend(chunk)
-        out.append("}();")
+        # If the chunk is comments-only (e.g. a component that emits a
+        # header marker and config dump but no C++ statements), emit them
+        # verbatim without wrapping — an empty IIFE is pure clutter.
+        if all(line.lstrip().startswith("//") for line in chunk):
+            out.extend(chunk)
+        else:
+            out.append("[]() {")
+            out.extend(chunk)
+            out.append("}();")
         chunk.clear()
 
     for line in lines:

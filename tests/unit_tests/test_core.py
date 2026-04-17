@@ -934,6 +934,13 @@ def test_wrap_in_iifes_unbalanced_braces_fall_through() -> None:
     assert [line for line in result if line in lines] == lines
 
 
+def test_wrap_in_iifes_skips_comment_only_chunks() -> None:
+    # Components that emit only a ComponentMarker + config dump (no C++
+    # statements) should not be wrapped in an empty IIFE.
+    lines = ["// === sha256 ===", "// sha256:", "//   {}"]
+    assert core._wrap_in_iifes(lines, max_statements=50) == lines
+
+
 def test_cpp_main_section_no_components_emits_flat() -> None:
     target = core.EsphomeCore()
     target.main_statements = [RawStatement("a();"), RawStatement("b();")]
