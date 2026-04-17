@@ -961,8 +961,23 @@ def test_cpp_main_section_component_marker_wraps_in_iife() -> None:
     out = target.cpp_main_section
     assert out.count("[]() {") == 2
     assert out.count("}();") == 2
-    assert "// === logger ===" in out
-    assert "// === wifi ===" in out
+    # Each component's marker brackets its IIFE (once before, once after).
+    assert out.count("// === logger ===") == 2
+    assert out.count("// === wifi ===") == 2
+
+
+def test_cpp_main_section_comment_only_component_emits_single_marker() -> None:
+    # A component that emits no C++ statements (only a ComponentMarker)
+    # should not grow a useless trailing duplicate marker.
+    target = core.EsphomeCore()
+    target.main_statements = [
+        ComponentMarker("sha256"),
+        ComponentMarker("wifi"),
+        RawStatement("new_wifi();"),
+    ]
+    out = target.cpp_main_section
+    assert out.count("// === sha256 ===") == 1
+    assert out.count("// === wifi ===") == 2  # wifi has an IIFE
 
 
 def test_cpp_main_section_prefix_statements_stay_outside_iife() -> None:

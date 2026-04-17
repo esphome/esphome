@@ -1052,13 +1052,16 @@ class EsphomeCore:
 
         # Split main_statements at ComponentMarker sentinels into a prefix
         # (statements emitted before any component) plus per-component groups.
+        # Each group's first entry is its marker comment, kept separate so
+        # it can bracket the IIFE rather than be buried inside it.
         prefix: list[str] = []
-        components: list[list[str]] = []
+        components: list[tuple[str, list[str]]] = []
         current = prefix
         for exp in self.main_statements:
             if isinstance(exp, ComponentMarker):
-                current = [str(exp).rstrip()]
-                components.append(current)
+                body: list[str] = []
+                components.append((str(exp).rstrip(), body))
+                current = body
                 continue
             current.append(str(statement(exp)).rstrip())
 
@@ -1066,13 +1069,19 @@ class EsphomeCore:
         if not components:
             return "\n".join(prefix) + "\n\n"
 
-        # Each component's block is wrapped in a noinline IIFE lambda so its
-        # stack frame is released on return, bounding peak stack during
-        # setup(). Large blocks are sub-split to cap single heavy components
-        # (e.g. sensor platforms with many filter registrations).
+        # Each component's block is wrapped in IIFE lambdas so its stack
+        # frame is released on return, bounding peak stack during setup().
+        # Large blocks are sub-split to cap single heavy components (e.g.
+        # sensor platforms with many filter registrations). The marker
+        # comment brackets the IIFE on both sides so the generated
+        # main.cpp is easy to scan by component.
         pieces = list(prefix)
-        for block in components:
-            pieces.extend(_wrap_in_iifes(block, max_statements=50))
+        for marker, body in components:
+            wrapped = _wrap_in_iifes(body, max_statements=50)
+            pieces.append(marker)
+            pieces.extend(wrapped)
+            if any("[]()" in line for line in wrapped):
+                pieces.append(marker)
         return "\n".join(pieces) + "\n\n"
 
     @property
