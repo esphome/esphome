@@ -8,8 +8,11 @@ from strategies import mac_addr_strings
 
 from esphome import const, core
 from esphome.cpp_generator import (
+    AssignmentExpression,
     ComponentMarker,
+    ExpressionStatement,
     IIFEUnsafeStatement,
+    MockObj,
     RawExpression,
     RawStatement,
 )
@@ -1014,6 +1017,83 @@ def test_cpp_main_section_component_marker_wraps_in_iife() -> None:
     assert out.count("}();") == 2
     # ComponentMarker produces no output of its own.
     assert "component-marker" not in out
+
+
+def test_cpp_main_section_scope_brace_raw_disables_sub_split() -> None:
+    # A group containing scope-brace RawStatements (e.g. `{` / `}` from
+    # with_local_variable) must stay in one IIFE regardless of size so
+    # the scope bounds and any locals between them stay together.
+    target = core.EsphomeCore()
+    stmts: list = [ComponentMarker("wifi"), RawStatement("{")]
+    stmts.extend(RawStatement(f"s{i}();") for i in range(100))
+    stmts.append(RawStatement("}"))
+    target.main_statements = stmts
+    out = target.cpp_main_section
+    assert out.count("[]() {") == 1
+    assert out.count("}();") == 1
+
+
+def test_cpp_main_section_inline_comment_raw_still_sub_splits() -> None:
+    # entity_helpers emits `call();  // flags` as RawStatement for inline
+    # comments. Those shouldn't flag the group as scope-using — the
+    # content-aware check only triggers on bare `{` / `}`.
+    target = core.EsphomeCore()
+    stmts: list = [ComponentMarker("sensor")]
+    stmts.extend(RawStatement(f"s{i}();  // flags") for i in range(120))
+    target.main_statements = stmts
+    out = target.cpp_main_section
+    # 120 statements / 50-cap = 3 sub-chunks expected.
+    assert out.count("[]() {") == 3
+
+
+def test_cpp_main_section_raw_expression_disables_sub_split() -> None:
+    # cg.add(RawExpression(...)) — e.g. `time::ParsedTimezone tz` followed
+    # by `tz.field = ...` — is raw bare text that may reference a local
+    # declared elsewhere in the same group. Keep the group in one IIFE.
+    target = core.EsphomeCore()
+    stmts: list = [
+        ComponentMarker("time"),
+        ExpressionStatement(RawExpression("time::ParsedTimezone tz{}")),
+    ]
+    stmts.extend(
+        ExpressionStatement(RawExpression(f"tz.field_{i} = {i}")) for i in range(100)
+    )
+    target.main_statements = stmts
+    out = target.cpp_main_section
+    assert out.count("[]() {") == 1
+
+
+def test_cpp_main_section_raw_expression_as_call_arg_still_sub_splits() -> None:
+    # RawExpression passed as an argument to a method call (e.g.
+    # `var.set_program(RawExpression("&foo"))`) produces
+    # `ExpressionStatement(CallExpression(..., RawExpression))` — the
+    # outer expression is a CallExpression, not a RawExpression, so
+    # the group is still sub-splittable.
+    target = core.EsphomeCore()
+    stmts: list = [ComponentMarker("rp2040_pio_led_strip")]
+    # Emit >50 plain statements with one being an ExpressionStatement
+    # wrapping a non-RawExpression inner (RawStatement for simplicity
+    # here — the real codegen wraps a CallExpression).
+    stmts.extend(RawStatement(f"s{i}();") for i in range(120))
+    target.main_statements = stmts
+    out = target.cpp_main_section
+    assert out.count("[]() {") == 3
+
+
+def test_cpp_main_section_typed_assignment_disables_sub_split() -> None:
+    # cg.variable(id, rhs) emits `Type id = rhs;` via
+    # ExpressionStatement(AssignmentExpression(type=..., ...)). That's a
+    # function-local whose name must stay visible across all uses in
+    # the component — no sub-split.
+    target = core.EsphomeCore()
+    typed_assign = ExpressionStatement(
+        AssignmentExpression(MockObj("int"), "", MockObj("x"), MockObj("42"))
+    )
+    stmts: list = [ComponentMarker("custom"), typed_assign]
+    stmts.extend(RawStatement(f"use_x_{i}();") for i in range(100))
+    target.main_statements = stmts
+    out = target.cpp_main_section
+    assert out.count("[]() {") == 1
 
 
 def test_cpp_main_section_iife_unsafe_statement_emits_component_flat() -> None:

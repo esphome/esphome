@@ -531,11 +531,47 @@ class Library:
         return self
 
 
-def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
+def _emits_bare_local(exp: "Statement") -> bool:
+    """True if ``exp`` emits a scope brace or bare-raw construct that may
+    declare a function-local whose lifetime extends past the current
+    statement. Components that emit any such statement must not be
+    sub-split — later references within the same ``to_code`` would land
+    in a different IIFE and fail to compile."""
+    from esphome.cpp_generator import (
+        AssignmentExpression,
+        ExpressionStatement,
+        RawExpression,
+        RawStatement,
+    )
+
+    # Scope braces from cg.with_local_variable() or inline scope blocks
+    # (e.g. time's tz pattern). Content-aware so RawStatements emitted
+    # for "call();  // comment" (entity_helpers) don't false-positive.
+    if isinstance(exp, RawStatement) and str(exp).strip() in ("{", "}"):
+        return True
+    # cg.add(RawExpression(...)) — bare raw text, e.g.
+    # `time::ParsedTimezone tz{}` or `tz.field = ...`. CORE.add wraps
+    # a passed Expression in an ExpressionStatement; when the inner is
+    # a RawExpression the author is emitting uninterpreted text that
+    # may reference a local declared elsewhere in the same block.
+    if isinstance(exp, ExpressionStatement) and isinstance(
+        exp.expression, RawExpression
+    ):
+        return True
+    # cg.variable(id, rhs) — emits ``Type id = rhs;`` as a function-local.
+    return (
+        isinstance(exp, ExpressionStatement)
+        and isinstance(exp.expression, AssignmentExpression)
+        and exp.expression.type is not None
+    )
+
+
+def _wrap_in_iifes(lines: list[str], max_statements: int | None) -> list[str]:
     """Wrap ``lines`` in ``[]() {...}();`` IIFEs of up to ``max_statements``
-    each. Never splits inside a brace-balanced block (e.g. the ``{`` / ``}``
-    pair from ``cg.with_local_variable()``), so an IIFE may exceed the cap
-    when a block straddles it. Comment-only chunks pass through verbatim.
+    each, or in a single IIFE when ``max_statements`` is ``None``. Never
+    splits inside a brace-balanced block (e.g. the ``{`` / ``}`` pair from
+    ``cg.with_local_variable()``), so an IIFE may exceed the cap when a
+    block straddles it. Comment-only chunks pass through verbatim.
 
     No ``noinline`` attribute — GCC's inliner re-folds small chunks freely,
     keeping flash small without regressing peak stack."""
@@ -561,7 +597,7 @@ def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
         # goes negative (unbalanced input) we never return to 0 and the
         # rest falls through into a single final IIFE — safe fallback.
         depth += line.count("{") - line.count("}")
-        if depth == 0 and len(chunk) >= max_statements:
+        if max_statements is not None and depth == 0 and len(chunk) >= max_statements:
             flush()
     flush()
     return out
@@ -1049,32 +1085,57 @@ class EsphomeCore:
         # component's group in an IIFE, sub-splitting at 50 statements so
         # a single heavy component (e.g. a sensor platform with many
         # filter registrations) can't blow the peak chunk frame.
-        # Components that contain an IIFEUnsafeStatement (e.g. safe_mode's
-        # setup-scope `return`) are emitted flat so the statement affects
-        # setup()'s control flow, not the lambda's.
+        #
+        # Two escape hatches control whether a component's group is safe
+        # to sub-split:
+        #
+        # - IIFEUnsafeStatement (e.g. safe_mode's setup-scope `return`):
+        #   the whole group must stay at setup() scope so the statement
+        #   affects setup()'s control flow, not the lambda's. Emit flat.
+        #
+        # - Any statement that may declare a function-local: a bare
+        #   ``{`` / ``}`` RawStatement (from ``cg.with_local_variable``,
+        #   time's inline tz block, etc.), a direct ``RawExpression``
+        #   passed to ``cg.add`` (raw bare-local or field-assignment
+        #   emission like ``time::ParsedTimezone tz`` followed by
+        #   ``tz.field = ...``), or a typed ``AssignmentExpression``
+        #   (``cg.variable`` emitting ``Type id = rhs;``). Each signals
+        #   "this group's body may contain bare names whose scope is the
+        #   enclosing IIFE"; wrap the whole group in one IIFE with no
+        #   sub-split so the declaration and any later references stay
+        #   together.
         prefix: list[str] = []
-        components: list[tuple[list[str], list[bool]]] = []
+        components: list[tuple[list[str], list[bool], list[bool]]] = []
         current: list[str] = prefix
         unsafe_flag: list[bool] = [False]  # unused for prefix
+        no_split_flag: list[bool] = [False]  # unused for prefix
         for exp in self.main_statements:
             if isinstance(exp, ComponentMarker):
                 current = []
                 unsafe_flag = [False]
-                components.append((current, unsafe_flag))
+                no_split_flag = [False]
+                components.append((current, unsafe_flag, no_split_flag))
                 continue
             if isinstance(exp, IIFEUnsafeStatement):
                 unsafe_flag[0] = True
+            if _emits_bare_local(exp):
+                no_split_flag[0] = True
             current.append(str(statement(exp)).rstrip())
 
         if not components:
             return "\n".join(prefix) + "\n\n"
 
         pieces: list[str] = list(prefix)
-        for body, group_unsafe in components:
+        for body, group_unsafe, group_no_split in components:
             if group_unsafe[0]:
                 pieces.extend(body)
             else:
-                pieces.extend(_wrap_in_iifes(body, max_statements=50))
+                # A group containing raw scope braces or bare-local
+                # declarations must stay in one IIFE so the declarations
+                # remain visible to subsequent uses. ``max_statements=None``
+                # disables sub-splitting for the group.
+                cap = None if group_no_split[0] else 50
+                pieces.extend(_wrap_in_iifes(body, max_statements=cap))
         return "\n".join(pieces) + "\n\n"
 
     @property

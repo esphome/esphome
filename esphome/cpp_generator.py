@@ -534,9 +534,14 @@ def literal(name: str) -> "MockObj":
 
 
 def variable(
-    id_: ID, rhs: SafeExpType, type_: "MockObj" = None, register=True
+    id_: ID, rhs: SafeExpType, type_: "MockObj" = None, register: bool = True
 ) -> "MockObj":
     """Declare a new variable, not pointer type, in the code generation.
+
+    Emits a function-local declaration ``Type id = rhs;`` inside setup().
+    ``cpp_main_section`` detects typed ``AssignmentExpression`` and
+    disables sub-chunking for the component's group, so later references
+    to the local within the same ``to_code`` stay visible.
 
     :param id_: The ID used to declare the variable.
     :param rhs: The expression to place on the right hand side of the assignment.
