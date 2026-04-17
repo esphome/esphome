@@ -327,8 +327,8 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
     return LOG_STR("RESTARTING");
   return LOG_STR("UNKNOWN");
 }
-
 #endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
+
 bool WiFiComponent::went_through_explicit_hidden_phase_() const {
   // If first configured network is marked hidden, we went through EXPLICIT_HIDDEN phase
   // This means those networks were already tried and should be skipped in RETRY_HIDDEN
