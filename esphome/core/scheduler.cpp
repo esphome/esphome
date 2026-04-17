@@ -144,6 +144,19 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     return;
   }
 
+  // An interval of 0 means "fire every tick forever," which is misuse: the
+  // item would always be due, causing Scheduler::call() to spin and starve
+  // the main loop (WDT reset in the field). Coerce to 1ms so existing code
+  // using update_interval=0ms as a pseudo-loop() continues to work at ~1kHz,
+  // and warn so authors can migrate to HighFrequencyLoopRequester which is
+  // the intended mechanism for running fast in the main loop. Zero-delay
+  // timeouts (defer) remain legitimate one-shots and are not affected.
+  if (type == SchedulerItem::INTERVAL && delay == 0) [[unlikely]] {
+    ESP_LOGE(TAG, "[%s] set_interval(0) would spin main loop - coercing to 1ms (use HighFrequencyLoopRequester)",
+             component ? LOG_STR_ARG(component->get_component_log_str()) : LOG_STR_LITERAL("?"));
+    delay = 1;
+  }
+
   // Take lock early to protect scheduler_item_pool_ access and retry-cancelled check
   LockGuard guard{this->lock_};
 

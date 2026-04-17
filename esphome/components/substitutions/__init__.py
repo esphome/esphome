@@ -188,7 +188,7 @@ def _expand_substitutions(
                 f"\nRelevant context:\n{err.context_trace_str()}"
                 f"\nSee {'->'.join(str(x) for x in path)}",
                 path,
-            )
+            ) from err
         else:
             if isinstance(orig_value, ESPHomeDataBase):
                 value = _restore_data_base(value, orig_value)
