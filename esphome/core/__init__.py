@@ -531,6 +531,39 @@ class Library:
         return self
 
 
+def _wrap_in_noinline_iifes(lines: list[str], max_statements: int) -> list[str]:
+    """Wrap ``lines`` in one or more ``[]() [[gnu::noinline]] { ... }();`` IIFEs.
+
+    Splits into IIFEs of up to ``max_statements`` entries each. Never splits
+    inside a brace-balanced block (e.g. the ``{`` / ``}`` pair that
+    ``cg.with_local_variable()`` emits around a scoped local), so an IIFE
+    may exceed ``max_statements`` when a block straddles the boundary.
+    """
+    out: list[str] = []
+    chunk: list[str] = []
+    depth = 0
+
+    def flush() -> None:
+        if not chunk:
+            return
+        out.append("[]() [[gnu::noinline]] {")
+        out.extend(chunk)
+        out.append("}();")
+        chunk.clear()
+
+    for line in lines:
+        chunk.append(line)
+        stripped = line.strip()
+        if stripped == "{":
+            depth += 1
+        elif stripped == "}":
+            depth -= 1
+        if depth == 0 and len(chunk) >= max_statements:
+            flush()
+    flush()
+    return out
+
+
 # pylint: disable=too-many-public-methods
 class EsphomeCore:
     def __init__(self):
@@ -1003,14 +1036,32 @@ class EsphomeCore:
 
     @property
     def cpp_main_section(self):
-        from esphome.cpp_generator import statement
+        from esphome.cpp_generator import ComponentMarker, statement
 
-        main_code = []
+        # Split main_statements at ComponentMarker sentinels into a prefix
+        # (statements emitted before any component) plus per-component groups.
+        prefix: list[str] = []
+        components: list[list[str]] = []
+        current = prefix
         for exp in self.main_statements:
-            text = str(statement(exp))
-            text = text.rstrip()
-            main_code.append(text)
-        return "\n".join(main_code) + "\n\n"
+            if isinstance(exp, ComponentMarker):
+                current = [str(exp).rstrip()]
+                components.append(current)
+                continue
+            current.append(str(statement(exp)).rstrip())
+
+        # No components → flat output (host build, tests).
+        if not components:
+            return "\n".join(prefix) + "\n\n"
+
+        # Each component's block is wrapped in a noinline IIFE lambda so its
+        # stack frame is released on return, bounding peak stack during
+        # setup(). Large blocks are sub-split to cap single heavy components
+        # (e.g. sensor platforms with many filter registrations).
+        pieces = list(prefix)
+        for block in components:
+            pieces.extend(_wrap_in_noinline_iifes(block, max_statements=50))
+        return "\n".join(pieces) + "\n\n"
 
     @property
     def cpp_global_section(self):

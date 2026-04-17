@@ -569,6 +569,7 @@ def wrap_to_code(name, comp):
 
     @functools.wraps(comp.to_code)
     async def wrapped(conf):
+        cg.add(cg.ComponentMarker(name))
         cg.add(cg.LineComment(f"{name}:"))
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)

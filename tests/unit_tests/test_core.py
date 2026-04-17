@@ -7,6 +7,7 @@ import pytest
 from strategies import mac_addr_strings
 
 from esphome import const, core
+from esphome.cpp_generator import ComponentMarker, RawStatement
 
 
 class TestHexInt:
@@ -867,3 +868,102 @@ class TestEsphomeCore:
             mock_enable.assert_called_once_with("Wire")
 
         assert "Wire" in target.platformio_libraries
+
+
+def test_wrap_in_noinline_iifes_empty_input() -> None:
+    assert not core._wrap_in_noinline_iifes([], max_statements=10)
+
+
+def test_wrap_in_noinline_iifes_fewer_lines_than_limit() -> None:
+    lines = ["a();", "b();", "c();"]
+    assert core._wrap_in_noinline_iifes(lines, max_statements=10) == [
+        "[]() [[gnu::noinline]] {",
+        "a();",
+        "b();",
+        "c();",
+        "}();",
+    ]
+
+
+def test_wrap_in_noinline_iifes_splits_at_max_statements() -> None:
+    lines = [f"s{i}();" for i in range(5)]
+    result = core._wrap_in_noinline_iifes(lines, max_statements=2)
+    # With max=2 and 5 lines: chunks of 2, 2, 1 → 3 IIFEs.
+    assert sum(1 for line in result if line.startswith("[]()")) == 3
+
+
+def test_wrap_in_noinline_iifes_never_splits_inside_braces() -> None:
+    # max=2 would naively split after "{" but brace guard keeps block whole.
+    lines = ["a();", "{", "inner();", "}", "b();"]
+    assert core._wrap_in_noinline_iifes(lines, max_statements=2) == [
+        "[]() [[gnu::noinline]] {",
+        "a();",
+        "{",
+        "inner();",
+        "}",
+        "}();",
+        "[]() [[gnu::noinline]] {",
+        "b();",
+        "}();",
+    ]
+
+
+def test_wrap_in_noinline_iifes_nested_braces() -> None:
+    lines = ["{", "{", "deep();", "}", "}", "after();"]
+    assert core._wrap_in_noinline_iifes(lines, max_statements=1) == [
+        "[]() [[gnu::noinline]] {",
+        "{",
+        "{",
+        "deep();",
+        "}",
+        "}",
+        "}();",
+        "[]() [[gnu::noinline]] {",
+        "after();",
+        "}();",
+    ]
+
+
+def test_wrap_in_noinline_iifes_unbalanced_braces_fall_through() -> None:
+    # Pathological input where "}" appears before "{": don't crash; emit
+    # a single IIFE with all lines rather than splitting mid-flight.
+    lines = ["a();", "}", "b();"]
+    result = core._wrap_in_noinline_iifes(lines, max_statements=1)
+    assert result[0] == "[]() [[gnu::noinline]] {"
+    assert result[-1] == "}();"
+    assert [line for line in result if line in lines] == lines
+
+
+def test_cpp_main_section_no_components_emits_flat() -> None:
+    target = core.EsphomeCore()
+    target.main_statements = [RawStatement("a();"), RawStatement("b();")]
+    out = target.cpp_main_section
+    assert "[[gnu::noinline]]" not in out
+    assert "a();" in out
+    assert "b();" in out
+
+
+def test_cpp_main_section_component_marker_wraps_in_iife() -> None:
+    target = core.EsphomeCore()
+    target.main_statements = [
+        ComponentMarker("logger"),
+        RawStatement("new_logger();"),
+        ComponentMarker("wifi"),
+        RawStatement("new_wifi();"),
+    ]
+    out = target.cpp_main_section
+    assert out.count("[]() [[gnu::noinline]] {") == 2
+    assert out.count("}();") == 2
+    assert "// === logger ===" in out
+    assert "// === wifi ===" in out
+
+
+def test_cpp_main_section_prefix_statements_stay_outside_iife() -> None:
+    target = core.EsphomeCore()
+    target.main_statements = [
+        RawStatement("prefix();"),
+        ComponentMarker("c"),
+        RawStatement("body();"),
+    ]
+    out = target.cpp_main_section
+    assert out.index("prefix();") < out.index("[]() [[gnu::noinline]] {")

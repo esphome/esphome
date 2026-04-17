@@ -434,6 +434,21 @@ class LineComment(Statement):
         return "\n".join(parts)
 
 
+class ComponentMarker(Statement):
+    """Sentinel marker recorded in main_statements when a component's
+    to_code begins emitting code. Used by cpp_main_section to split
+    setup() output into per-component chunks, so each component's
+    stack frame is released on return."""
+
+    __slots__ = ("name",)
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def __str__(self):
+        return f"// === {self.name} ==="
+
+
 class ProgmemAssignmentExpression(AssignmentExpression):
     __slots__ = ()
 
