@@ -1,5 +1,6 @@
 from collections import defaultdict
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 import logging
 import math
 import os
@@ -537,6 +538,24 @@ class Library:
 # small enough that heavy sensor platforms (many filter registrations)
 # don't produce a chunk with a very large spill frame.
 IIFE_MAX_STATEMENTS = 50
+
+
+@dataclass
+class _ComponentGroup:
+    """A contiguous run of statements emitted by one component's to_code."""
+
+    lines: list[str] = field(default_factory=list)
+    # True when the group contains a statement that must affect setup()'s
+    # own control flow (e.g. safe_mode's `return`). Emit the group flat,
+    # bypassing IIFE wrapping entirely.
+    unsafe: bool = False
+    # True when the group contains a statement that may declare a
+    # function-local whose lifetime extends past the current statement
+    # (scope-brace RawStatement, direct RawExpression, typed
+    # AssignmentExpression). Wrap the group in a single IIFE without
+    # sub-splitting so the declaration and any later references stay
+    # in the same lambda.
+    no_split: bool = False
 
 
 def _emits_bare_local(exp: "Statement") -> bool:
@@ -1124,43 +1143,32 @@ class EsphomeCore:
         #   sub-split so the declaration and any later references stay
         #   together.
         prefix: list[str] = []
-        # Flags are stored as 1-element lists so they can be mutated by
-        # reference after the tuple has been pushed into ``components``
-        # (assignment to a local ``unsafe_flag`` inside the loop would
-        # rebind the local without updating the stored tuple entry).
-        # A small dataclass would read cleaner but the pattern is
-        # localized to this one property.
-        components: list[tuple[list[str], list[bool], list[bool]]] = []
+        components: list[_ComponentGroup] = []
         current: list[str] = prefix
-        unsafe_flag: list[bool] = [False]  # unused for prefix
-        no_split_flag: list[bool] = [False]  # unused for prefix
+        group: _ComponentGroup | None = None
         for exp in self.main_statements:
             if isinstance(exp, ComponentMarker):
-                current = []
-                unsafe_flag = [False]
-                no_split_flag = [False]
-                components.append((current, unsafe_flag, no_split_flag))
+                group = _ComponentGroup()
+                components.append(group)
+                current = group.lines
                 continue
-            if isinstance(exp, IIFEUnsafeStatement):
-                unsafe_flag[0] = True
-            if _emits_bare_local(exp):
-                no_split_flag[0] = True
+            if group is not None:
+                if isinstance(exp, IIFEUnsafeStatement):
+                    group.unsafe = True
+                if _emits_bare_local(exp):
+                    group.no_split = True
             current.append(str(statement(exp)).rstrip())
 
         if not components:
             return "\n".join(prefix) + "\n\n"
 
         pieces: list[str] = list(prefix)
-        for body, group_unsafe, group_no_split in components:
-            if group_unsafe[0]:
-                pieces.extend(body)
+        for g in components:
+            if g.unsafe:
+                pieces.extend(g.lines)
             else:
-                # A group containing raw scope braces or bare-local
-                # declarations must stay in one IIFE so the declarations
-                # remain visible to subsequent uses. ``max_statements=None``
-                # disables sub-splitting for the group.
-                cap = None if group_no_split[0] else IIFE_MAX_STATEMENTS
-                pieces.extend(_wrap_in_iifes(body, max_statements=cap))
+                cap = None if g.no_split else IIFE_MAX_STATEMENTS
+                pieces.extend(_wrap_in_iifes(g.lines, max_statements=cap))
         return "\n".join(pieces) + "\n\n"
 
     @property
