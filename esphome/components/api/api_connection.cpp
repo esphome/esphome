@@ -753,7 +753,7 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.supports_action = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   // Current feature flags and other supported parameters
   msg.feature_flags = traits.get_feature_flags();
-  msg.temperature_unit = enums::CLIMATE_TEMPERATURE_UNIT_CELSIUS;
+  msg.temperature_unit = enums::TEMPERATURE_UNIT_CELSIUS;
   msg.supported_modes = &traits.get_supported_modes();
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
@@ -1425,7 +1425,7 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
   msg.target_temperature_step = traits.get_target_temperature_step();
   msg.supported_modes = &traits.get_supported_modes();
   msg.supported_features = traits.get_feature_flags();
-  msg.temperature_unit = enums::WATER_HEATER_TEMPERATURE_UNIT_CELSIUS;
+  msg.temperature_unit = enums::TEMPERATURE_UNIT_CELSIUS;
   return fill_and_encode_entity_info(wh, msg, conn, remaining_size);
 }
 

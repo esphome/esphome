@@ -1025,6 +1025,13 @@ message CameraImageRequest {
   bool stream = 2;
 }
 
+// ==================== TEMPERATURE UNIT ====================
+enum TemperatureUnit {
+  TEMPERATURE_UNIT_CELSIUS = 0;
+  TEMPERATURE_UNIT_FAHRENHEIT = 1;
+  TEMPERATURE_UNIT_KELVIN = 2;
+}
+
 // ==================== CLIMATE ====================
 enum ClimateMode {
   CLIMATE_MODE_OFF = 0;
@@ -1062,11 +1069,6 @@ enum ClimateAction {
   CLIMATE_ACTION_DRYING = 5;
   CLIMATE_ACTION_FAN = 6;
   CLIMATE_ACTION_DEFROSTING = 7;
-}
-enum ClimateTemperatureUnit {
-  CLIMATE_TEMPERATURE_UNIT_CELSIUS = 0;
-  CLIMATE_TEMPERATURE_UNIT_FAHRENHEIT = 1;
-  CLIMATE_TEMPERATURE_UNIT_KELVIN = 2;
 }
 enum ClimatePreset {
   CLIMATE_PRESET_NONE = 0;
@@ -1115,7 +1117,7 @@ message ListEntitiesClimateResponse {
   float visual_max_humidity = 25;
   uint32 device_id = 26 [(field_ifdef) = "USE_DEVICES"];
   uint32 feature_flags = 27;
-  ClimateTemperatureUnit temperature_unit = 28;
+  TemperatureUnit temperature_unit = 28;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -1180,11 +1182,6 @@ message ClimateCommandRequest {
 }
 
 // ==================== WATER_HEATER ====================
-enum WaterHeaterTemperatureUnit {
-  WATER_HEATER_TEMPERATURE_UNIT_CELSIUS = 0;
-  WATER_HEATER_TEMPERATURE_UNIT_FAHRENHEIT = 1;
-  WATER_HEATER_TEMPERATURE_UNIT_KELVIN = 2;
-}
 enum WaterHeaterMode {
   WATER_HEATER_MODE_OFF = 0;
   WATER_HEATER_MODE_ECO = 1;
@@ -1214,7 +1211,7 @@ message ListEntitiesWaterHeaterResponse {
   repeated WaterHeaterMode supported_modes = 11 [(container_pointer_no_template) = "water_heater::WaterHeaterModeMask"];
   // Bitmask of WaterHeaterFeature flags
   uint32 supported_features = 12;
-  WaterHeaterTemperatureUnit temperature_unit = 13;
+  TemperatureUnit temperature_unit = 13;
 }
 
 message WaterHeaterStateResponse {
