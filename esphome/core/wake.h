@@ -77,6 +77,9 @@ void wake_loop_any_context();
 /// Non-ISR: always inline.
 inline void wake_loop_threadsafe() { wake_loop_impl(); }
 
+/// ISR-safe: no task_woken arg because ESP8266 has no FreeRTOS. Caller must be IRAM_ATTR.
+inline void ESPHOME_ALWAYS_INLINE wake_loop_isrsafe() { wake_loop_impl(); }
+
 namespace internal {
 inline void wakeable_delay(uint32_t ms) {
   if (ms == 0) {
