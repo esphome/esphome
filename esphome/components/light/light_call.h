@@ -10,6 +10,7 @@ struct LogString;
 namespace light {
 
 class LightState;
+class LightTraits;
 
 /** This class represents a requested change in a light state.
  *
@@ -130,6 +131,8 @@ class LightCall {
   LightCall &set_effect(optional<std::string> effect);
   /// Set the effect of the light by its name.
   LightCall &set_effect(const std::string &effect) { return this->set_effect(effect.data(), effect.size()); }
+  /// Set the effect of the light by its name (const char * overload to resolve ambiguity).
+  LightCall &set_effect(const char *effect) { return this->set_effect(effect, strlen(effect)); }
   /// Set the effect of the light by its name and length (zero-copy from API).
   LightCall &set_effect(const char *effect, size_t len);
   /// Set the effect of the light by its internal index number (only for internal use).
@@ -186,11 +189,11 @@ class LightCall {
   LightColorValues validate_();
 
   //// Compute the color mode that should be used for this call.
-  ColorMode compute_color_mode_();
+  ColorMode compute_color_mode_(const LightTraits &traits);
   /// Get potential color modes bitmask for this light call.
   color_mode_bitmask_t get_suitable_color_modes_mask_();
   /// Some color modes also can be set using non-native parameters, transform those calls.
-  void transform_parameters_();
+  void transform_parameters_(const LightTraits &traits);
 
   // Bitfield flags - each flag indicates whether a corresponding value has been set.
   enum FieldFlags : uint16_t {

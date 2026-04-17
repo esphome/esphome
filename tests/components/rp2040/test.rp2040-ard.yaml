@@ -1,3 +1,6 @@
+rp2040:
+  enable_full_printf: false
+
 logger:
   level: VERBOSE
 

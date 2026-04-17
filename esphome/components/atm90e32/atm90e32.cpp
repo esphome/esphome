@@ -550,8 +550,8 @@ float ATM90E32Component::get_phase_harmonic_active_power_(uint8_t phase) {
 }
 
 float ATM90E32Component::get_phase_angle_(uint8_t phase) {
-  uint16_t val = this->read16_(ATM90E32_REGISTER_PANGLE + phase) / 10.0;
-  return (val > 180) ? (float) (val - 360.0f) : (float) val;
+  float val = this->read16_(ATM90E32_REGISTER_PANGLE + phase) / 10.0f;
+  return (val > 180.0f) ? val - 360.0f : val;
 }
 
 float ATM90E32Component::get_phase_peak_current_(uint8_t phase) {
@@ -619,7 +619,7 @@ void ATM90E32Component::run_gain_calibrations() {
       ESP_LOGW(TAG, "[CALIBRATION][%s] Phase %s - Skipping voltage calibration: measured voltage is 0.", cs,
                phase_labels[phase]);
     } else {
-      uint32_t new_voltage_gain = static_cast<uint16_t>((ref_voltage / measured_voltage) * current_voltage_gain);
+      uint32_t new_voltage_gain = static_cast<uint32_t>((ref_voltage / measured_voltage) * current_voltage_gain);
       if (new_voltage_gain == 0) {
         ESP_LOGW(TAG, "[CALIBRATION][%s] Phase %s - Voltage gain would be 0. Check reference and measured voltage.", cs,
                  phase_labels[phase]);
@@ -644,7 +644,7 @@ void ATM90E32Component::run_gain_calibrations() {
       ESP_LOGW(TAG, "[CALIBRATION][%s] Phase %s - Skipping current calibration: measured current is 0.", cs,
                phase_labels[phase]);
     } else {
-      uint32_t new_current_gain = static_cast<uint16_t>((ref_current / measured_current) * current_current_gain);
+      uint32_t new_current_gain = static_cast<uint32_t>((ref_current / measured_current) * current_current_gain);
       if (new_current_gain == 0) {
         ESP_LOGW(TAG, "[CALIBRATION][%s] Phase %s - Current gain would be 0. Check reference and measured current.", cs,
                  phase_labels[phase]);

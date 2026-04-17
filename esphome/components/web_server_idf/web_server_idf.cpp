@@ -74,12 +74,13 @@ int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_
   // Use MSG_DONTWAIT to prevent blocking when TCP send buffer is full
   int ret = send(sockfd, buf, buf_len, flags | MSG_DONTWAIT);
   if (ret < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    const int err = errno;
+    if (err == EAGAIN || err == EWOULDBLOCK) {
       // Buffer full - retry later
       return HTTPD_SOCK_ERR_TIMEOUT;
     }
     // Real error
-    ESP_LOGD(TAG, "send error: errno %d", errno);
+    ESP_LOGD(TAG, "send error: errno %d", err);
     return HTTPD_SOCK_ERR_FAIL;
   }
   return ret;
@@ -120,7 +121,10 @@ void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
   }
+  // Default httpd stack is defined by ESP-IDF. Increase to accommodate SerializationBuffer's
+  // 640-byte stack buffer used by web_server JSON request handlers.
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.stack_size = config.stack_size + 256;
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.
@@ -256,19 +260,6 @@ StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) co
   // Decode URL-encoded characters in-place (e.g., %20 -> space)
   size_t decoded_len = url_decode(buffer.data());
   return StringRef(buffer.data(), decoded_len);
-}
-
-void AsyncWebServerRequest::send(AsyncWebServerResponse *response) {
-  httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
-}
-
-void AsyncWebServerRequest::send(int code, const char *content_type, const char *content) {
-  this->init_response_(nullptr, code, content_type);
-  if (content) {
-    httpd_resp_send(*this, content, HTTPD_RESP_USE_STRLEN);
-  } else {
-    httpd_resp_send(*this, nullptr, 0);
-  }
 }
 
 void AsyncWebServerRequest::redirect(const std::string &url) {
@@ -493,9 +484,12 @@ void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
     this->on_connect_(rsp);
   }
   this->sessions_.push_back(rsp);
+  // Wake up WebServer::loop() to drain deferred event queues for this client.
+  // Safe from httpd task context via the pending_enable_loop_ flag.
+  this->web_server_->enable_loop_soon_any_context();
 }
 
-void AsyncEventSource::loop() {
+bool AsyncEventSource::loop() {
   // Clean up dead sessions safely
   // This follows the ESP-IDF pattern where free_ctx marks resources as dead
   // and the main loop handles the actual cleanup to avoid race conditions
@@ -513,6 +507,7 @@ void AsyncEventSource::loop() {
       ++i;
     }
   }
+  return !this->sessions_.empty();
 }
 
 void AsyncEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
@@ -563,7 +558,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
   // Configure reconnect timeout and send config
   // this should always go through since the tcp send buffer is empty on connect
-  std::string message = ws->get_config_json();
+  auto message = ws->get_config_json();
   this->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
@@ -617,7 +612,7 @@ void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_g
 void AsyncEventSourceResponse::process_deferred_queue_() {
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
-    std::string message = de.message_generator_(web_server_, de.source_);
+    auto message = de.message_generator_(web_server_, de.source_);
     if (this->try_send_nodefer(message.c_str(), "state")) {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
@@ -854,7 +849,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
     // trying to send first
     deq_push_back_with_dedup_(source, message_generator);
   } else {
-    std::string message = message_generator(web_server_, source);
+    auto message = message_generator(web_server_, source);
     if (!this->try_send_nodefer(message.c_str(), "state")) {
       deq_push_back_with_dedup_(source, message_generator);
     }
@@ -921,7 +916,7 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
   });
 
   // Use heap buffer - 1460 bytes is too large for the httpd task stack
-  auto buffer = std::make_unique<char[]>(MULTIPART_CHUNK_SIZE);
+  auto buffer = std::make_unique_for_overwrite<char[]>(MULTIPART_CHUNK_SIZE);
   size_t bytes_since_yield = 0;
 
   for (size_t remaining = r->content_len; remaining > 0;) {

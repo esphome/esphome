@@ -166,6 +166,8 @@ async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("NET_IP_ADDR_CHECK", False)
     zephyr_add_prj_conf("NET_UDP", False)
 
+    cg.add_build_flag("-Wl,--wrap=zb_zcl_put_reporting_info_from_req")
+
     if CONF_IEEE802154_VENDOR_OUI in config:
         zephyr_add_prj_conf("IEEE802154_VENDOR_OUI_ENABLE", True)
         random_number = config[CONF_IEEE802154_VENDOR_OUI]
@@ -179,6 +181,13 @@ async def zephyr_to_code(config: ConfigType) -> None:
                 "USE_ZIGBEE_WIPE_ON_BOOT_MAGIC", random.randint(0x000001, 0xFFFFFF)
             )
         cg.add_define("USE_ZIGBEE_WIPE_ON_BOOT")
+
+    # Generate attribute lists before any await that could yield (e.g., build_automation
+    # waiting for variables from other components). If the hub's priority decays while
+    # yielding, deferred entity jobs may add cluster list globals that reference these
+    # attribute lists before they're declared.
+    await _attr_to_code(config)
+
     var = cg.new_Pvariable(config[CONF_ID])
 
     if on_join_config := config.get(CONF_ON_JOIN):
@@ -186,7 +195,6 @@ async def zephyr_to_code(config: ConfigType) -> None:
 
     await cg.register_component(var, config)
 
-    await _attr_to_code(config)
     CORE.add_job(_ctx_to_code, config)
 
 

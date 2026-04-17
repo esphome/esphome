@@ -10,7 +10,12 @@
 
 #ifdef USE_ESP32
 
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include <psa/crypto.h>
+#else
 #include "mbedtls/ccm.h"
+#endif
 
 namespace esphome {
 namespace bthome_mithermometer {
@@ -196,6 +201,37 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
   const uint8_t *ciphertext = data.data() + 1;
   const uint8_t *mic = data.data() + data.size() - BTHOME_MIC_SIZE;
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  // PSA AEAD expects ciphertext + tag concatenated
+  // BLE advertisement max payload is 31 bytes, so this is always sufficient
+  static constexpr size_t MAX_CT_WITH_TAG = 32;
+  uint8_t ct_with_tag[MAX_CT_WITH_TAG];
+  size_t ct_with_tag_size = ciphertext_size + BTHOME_MIC_SIZE;
+  memcpy(ct_with_tag, ciphertext, ciphertext_size);
+  memcpy(ct_with_tag + ciphertext_size, mic, BTHOME_MIC_SIZE);
+
+  psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+  psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
+  psa_set_key_bits(&attributes, BTHOME_BINDKEY_SIZE * 8);
+  psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_DECRYPT);
+  psa_set_key_algorithm(&attributes, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, BTHOME_MIC_SIZE));
+
+  mbedtls_svc_key_id_t key_id;
+  if (psa_import_key(&attributes, this->bindkey_, BTHOME_BINDKEY_SIZE, &key_id) != PSA_SUCCESS) {
+    ESP_LOGVV(TAG, "psa_import_key() failed.");
+    return false;
+  }
+
+  size_t plaintext_length;
+  psa_status_t status = psa_aead_decrypt(key_id, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, BTHOME_MIC_SIZE),
+                                         nonce.data(), nonce.size(), nullptr, 0, ct_with_tag, ct_with_tag_size,
+                                         payload.data(), ciphertext_size, &plaintext_length);
+  psa_destroy_key(key_id);
+  if (status != PSA_SUCCESS || plaintext_length != ciphertext_size) {
+    ESP_LOGVV(TAG, "BTHome decryption failed.");
+    return false;
+  }
+#else
   mbedtls_ccm_context ctx;
   mbedtls_ccm_init(&ctx);
 
@@ -213,6 +249,7 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
     ESP_LOGVV(TAG, "BTHome decryption failed (ret=%d).", ret);
     return false;
   }
+#endif
   return true;
 }
 

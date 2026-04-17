@@ -37,9 +37,11 @@ using namespace ld24xx;
 
 // Constants
 static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset presense status 5 sec.
-static constexpr uint8_t MAX_LINE_LENGTH = 41;          // Max characters for serial buffer
-static constexpr uint8_t MAX_TARGETS = 3;               // Max 3 Targets in LD2450
-static constexpr uint8_t MAX_ZONES = 3;                 // Max 3 Zones in LD2450
+// Zone query response is 40 bytes; +1 for null terminator, +4 so that a frame footer always
+// lands inside the buffer during footer-based resynchronization after losing sync.
+static constexpr uint8_t MAX_LINE_LENGTH = 45;
+static constexpr uint8_t MAX_TARGETS = 3;  // Max 3 Targets in LD2450
+static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
 
 enum Direction : uint8_t {
   DIRECTION_APPROACHING = 0,
@@ -142,7 +144,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
                       int32_t zone3_y1, int32_t zone3_x2, int32_t zone3_y2);
 
   /// Add a callback that will be called after each successfully processed periodic data frame.
-  void add_on_data_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_data_callback(F &&callback) { this->data_callback_.add(std::forward<F>(callback)); }
 
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
@@ -160,12 +162,12 @@ class LD2450Component : public Component, public uart::UARTDevice {
   void save_to_flash_(float value);
   float restore_from_flash_();
   bool get_timeout_status_(uint32_t check_millis);
-  uint8_t count_targets_in_zone_(const Zone &zone, bool is_moving);
+  void count_targets_in_zone_(const Zone &zone, uint8_t &still, uint8_t &moving);
 
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;
   uint32_t moving_presence_millis_ = 0;
-  uint16_t timeout_ = 5;
+  uint32_t timeout_ = 5;
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   uint8_t mac_address_[6] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
@@ -180,28 +182,22 @@ class LD2450Component : public Component, public uart::UARTDevice {
   ZoneOfNumbers zone_numbers_[MAX_ZONES];
 #endif
 #ifdef USE_SENSOR
-  std::array<SensorWithDedup<int16_t> *, MAX_TARGETS> move_x_sensors_{};
-  std::array<SensorWithDedup<int16_t> *, MAX_TARGETS> move_y_sensors_{};
-  std::array<SensorWithDedup<int16_t> *, MAX_TARGETS> move_speed_sensors_{};
-  std::array<SensorWithDedup<float> *, MAX_TARGETS> move_angle_sensors_{};
-  std::array<SensorWithDedup<uint16_t> *, MAX_TARGETS> move_distance_sensors_{};
-  std::array<SensorWithDedup<uint16_t> *, MAX_TARGETS> move_resolution_sensors_{};
-  std::array<SensorWithDedup<uint8_t> *, MAX_ZONES> zone_target_count_sensors_{};
-  std::array<SensorWithDedup<uint8_t> *, MAX_ZONES> zone_still_target_count_sensors_{};
-  std::array<SensorWithDedup<uint8_t> *, MAX_ZONES> zone_moving_target_count_sensors_{};
+  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_x_sensors_{};
+  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_y_sensors_{};
+  std::array<SensorWithDedup<int16_t>, MAX_TARGETS> move_speed_sensors_{};
+  std::array<SensorWithDedup<float>, MAX_TARGETS> move_angle_sensors_{};
+  std::array<SensorWithDedup<uint16_t>, MAX_TARGETS> move_distance_sensors_{};
+  std::array<SensorWithDedup<uint16_t>, MAX_TARGETS> move_resolution_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_target_count_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_still_target_count_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, MAX_ZONES> zone_moving_target_count_sensors_{};
 #endif
 #ifdef USE_TEXT_SENSOR
-  std::array<text_sensor::TextSensor *, 3> direction_text_sensors_{};
+  std::array<text_sensor::TextSensor *, MAX_TARGETS> direction_text_sensors_{};
+  std::array<Deduplicator<uint8_t>, MAX_TARGETS> direction_dedup_{};
 #endif
 
   LazyCallbackManager<void()> data_callback_;
-};
-
-class LD2450DataTrigger : public Trigger<> {
- public:
-  explicit LD2450DataTrigger(LD2450Component *parent) {
-    parent->add_on_data_callback([this]() { this->trigger(); });
-  }
 };
 
 }  // namespace esphome::ld2450

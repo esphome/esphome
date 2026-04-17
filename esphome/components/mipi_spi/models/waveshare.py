@@ -15,7 +15,7 @@ from esphome.components.mipi import (
 import esphome.config_validation as cv
 
 from .amoled import CO5300
-from .ili import ILI9488_A
+from .ili import ILI9488_A, ST7789V
 from .jc import AXS15231
 
 DriverChip(
@@ -242,4 +242,16 @@ ST7789P.extend(
             0x23,
         ),
     ),
+)
+
+ST7789V.extend(
+    "WAVESHARE-ESP32-C6-LCD-1.47",
+    width=172,
+    height=320,
+    offset_width=34,
+    invert_colors=True,
+    data_rate="40MHz",
+    reset_pin=21,
+    cs_pin=14,
+    dc_pin={"number": 15, "ignore_strapping_warning": True},
 )

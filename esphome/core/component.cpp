@@ -9,9 +9,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#ifdef USE_RUNTIME_STATS
-#include "esphome/components/runtime_stats/runtime_stats.h"
-#endif
 
 namespace esphome {
 
@@ -41,20 +38,23 @@ struct ComponentErrorMessage {
   bool is_flash_ptr;
 };
 
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 struct ComponentPriorityOverride {
   const Component *component;
   float priority;
 };
+
+// Setup priority overrides - freed after setup completes
+// Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
+#endif
 
 // Error messages for failed components
 // Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
 // This is never freed as error messages persist for the lifetime of the device
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::vector<ComponentErrorMessage> *component_error_messages = nullptr;
-// Setup priority overrides - freed after setup completes
-// Using raw pointer instead of unique_ptr to avoid global constructor/destructor overhead
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
 
 // Helper to store error messages - reduces duplication between deprecated and new API
 // Remove before 2026.6.0 when deprecated const char* API is removed
@@ -76,43 +76,13 @@ void store_component_error_message(const Component *component, const char *messa
 }
 }  // namespace
 
-namespace setup_priority {
+// setup_priority, component state, and status LED constants are now
+// constexpr in component.h
 
-const float BUS = 1000.0f;
-const float IO = 900.0f;
-const float HARDWARE = 800.0f;
-const float DATA = 600.0f;
-const float PROCESSOR = 400.0;
-const float BLUETOOTH = 350.0f;
-const float AFTER_BLUETOOTH = 300.0f;
-const float WIFI = 250.0f;
-const float ETHERNET = 250.0f;
-const float BEFORE_CONNECTION = 220.0f;
-const float AFTER_WIFI = 200.0f;
-const float AFTER_CONNECTION = 100.0f;
-const float LATE = -100.0f;
-
-}  // namespace setup_priority
-
-// Component state uses bits 0-2 (8 states, 5 used)
-const uint8_t COMPONENT_STATE_MASK = 0x07;
-const uint8_t COMPONENT_STATE_CONSTRUCTION = 0x00;
-const uint8_t COMPONENT_STATE_SETUP = 0x01;
-const uint8_t COMPONENT_STATE_LOOP = 0x02;
-const uint8_t COMPONENT_STATE_FAILED = 0x03;
-const uint8_t COMPONENT_STATE_LOOP_DONE = 0x04;
-// Status LED uses bits 3-4
-const uint8_t STATUS_LED_MASK = 0x18;
-const uint8_t STATUS_LED_OK = 0x00;
-const uint8_t STATUS_LED_WARNING = 0x08;  // Bit 3
-const uint8_t STATUS_LED_ERROR = 0x10;    // Bit 4
-
-const uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;       ///< Initial blocking time allowed without warning
-const uint16_t WARN_IF_BLOCKING_INCREMENT_MS = 10U;  ///< How long the blocking time must be larger to warn again
-
-uint32_t global_state = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-float Component::get_loop_priority() const { return 0.0f; }
+static constexpr uint16_t WARN_IF_BLOCKING_INCREMENT_MS =
+    10U;  ///< How long the blocking time must be larger to warn again
+// Threshold in ms (computed from centiseconds constant in component.h)
+static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
 
 float Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -234,9 +204,8 @@ bool Component::cancel_retry(uint32_t id) {
 #pragma GCC diagnostic pop
 }
 
-void Component::call_loop() { this->loop(); }
 void Component::call_setup() { this->setup(); }
-void Component::call_dump_config() {
+void Component::call_dump_config_() {
   this->dump_config();
   if (this->is_failed()) {
     // Look up error message from global vector
@@ -258,7 +227,6 @@ void Component::call_dump_config() {
   }
 }
 
-uint8_t Component::get_component_state() const { return this->component_state_; }
 void Component::call() {
   uint8_t state = this->component_state_ & COMPONENT_STATE_MASK;
   switch (state) {
@@ -285,11 +253,11 @@ void Component::call() {
     case COMPONENT_STATE_SETUP:
       // State setup: Call first loop and set state to loop
       this->set_component_state_(COMPONENT_STATE_LOOP);
-      this->call_loop();
+      this->loop();
       break;
     case COMPONENT_STATE_LOOP:
       // State loop: Call loop
-      this->call_loop();
+      this->loop();
       break;
     case COMPONENT_STATE_FAILED:
       // State failed: Do nothing
@@ -299,18 +267,15 @@ void Component::call() {
       break;
   }
 }
-const LogString *Component::get_component_log_str() const {
-  return this->component_source_ == nullptr ? LOG_STR("<unknown>") : this->component_source_;
-}
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
-  if (blocking_time > this->warn_if_blocking_over_) {
-    // Prevent overflow when adding increment - if we're about to overflow, just max out
-    if (blocking_time + WARN_IF_BLOCKING_INCREMENT_MS < blocking_time ||
-        blocking_time + WARN_IF_BLOCKING_INCREMENT_MS > std::numeric_limits<uint16_t>::max()) {
-      this->warn_if_blocking_over_ = std::numeric_limits<uint16_t>::max();
-    } else {
-      this->warn_if_blocking_over_ = static_cast<uint16_t>(blocking_time + WARN_IF_BLOCKING_INCREMENT_MS);
-    }
+  // Convert centisecond threshold to milliseconds for comparison
+  uint32_t threshold_ms = static_cast<uint32_t>(this->warn_if_blocking_over_) * 10U;
+  if (blocking_time > threshold_ms) {
+    // Set new threshold: blocking_time + increment, converted back to centiseconds
+    uint32_t new_threshold_ms = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
+    uint32_t new_cs = new_threshold_ms / 10U;
+    // Saturate at uint8_t max (255 = 2550ms)
+    this->warn_if_blocking_over_ = static_cast<uint8_t>(new_cs > 255U ? 255U : new_cs);
     return true;
   }
   return false;
@@ -322,10 +287,6 @@ void Component::mark_failed() {
   // Also remove from loop since failed components shouldn't loop
   App.disable_component_loop_(this);
 }
-void Component::set_component_state_(uint8_t state) {
-  this->component_state_ &= ~COMPONENT_STATE_MASK;
-  this->component_state_ |= state;
-}
 void Component::disable_loop() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
     ESP_LOGVV(TAG, "%s loop disabled", LOG_STR_ARG(this->get_component_log_str()));
@@ -333,18 +294,16 @@ void Component::disable_loop() {
     App.disable_component_loop_(this);
   }
 }
-void Component::enable_loop() {
-  if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
-    ESP_LOGVV(TAG, "%s loop enabled", LOG_STR_ARG(this->get_component_log_str()));
-    this->set_component_state_(COMPONENT_STATE_LOOP);
-    App.enable_component_loop_(this);
-  }
+void Component::enable_loop_slow_path_() {
+  ESP_LOGVV(TAG, "%s loop enabled", LOG_STR_ARG(this->get_component_log_str()));
+  this->set_component_state_(COMPONENT_STATE_LOOP);
+  App.enable_component_loop_(this);
 }
-void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
+void IRAM_ATTR Component::enable_loop_soon_any_context() {
   // This method is thread and ISR-safe because:
   // 1. Only performs simple assignments to volatile variables (atomic on all platforms)
   // 2. No read-modify-write operations that could be interrupted
-  // 3. No memory allocation, object construction, or function calls
+  // 3. No memory allocation or object construction; on ESP32 the only call (wake_loop_any_context) is ISR-safe
   // 4. IRAM_ATTR ensures code is in IRAM, not flash (required for ISR execution)
   // 5. Components are never destroyed, so no use-after-free concerns
   // 6. App is guaranteed to be initialized before any ISR could fire
@@ -352,6 +311,9 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // 8. Race condition with main loop is handled by clearing flag before processing
   this->pending_enable_loop_ = true;
   App.has_pending_enable_loop_requests_ = true;
+  // Wake the main loop from sleep. Without this, the main loop would not
+  // wake until the select/delay timeout expires (~16ms).
+  wake_loop_any_context();
 }
 void Component::reset_to_construction_state() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {
@@ -360,9 +322,6 @@ void Component::reset_to_construction_state() {
     // Clear error status when resetting
     this->status_clear_error();
   }
-}
-bool Component::is_in_loop_state() const {
-  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP;
 }
 void Component::defer(std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, static_cast<const char *>(nullptr), 0, std::move(f));
@@ -402,41 +361,38 @@ void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std:
   App.scheduler.set_retry(this, "", initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
 #pragma GCC diagnostic pop
 }
-bool Component::is_failed() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 bool Component::is_ready() const {
-  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP ||
-         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE ||
-         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
+  // Bitmask check: valid states are SETUP(1), LOOP(2), LOOP_DONE(4)
+  // (1 << state) & 0b10110 checks membership in one instruction
+  return ((1u << (this->component_state_ & COMPONENT_STATE_MASK)) &
+          ((1u << COMPONENT_STATE_SETUP) | (1u << COMPONENT_STATE_LOOP) | (1u << COMPONENT_STATE_LOOP_DONE))) != 0;
 }
-bool Component::is_idle() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE; }
 bool Component::can_proceed() { return true; }
-bool Component::status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
-bool Component::status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
+bool Component::set_status_flag_(uint8_t flag) {
+  if ((this->component_state_ & flag) != 0)
+    return false;
+  this->component_state_ |= flag;
+  App.app_state_ |= flag;
+  return true;
+}
 
+void Component::status_set_warning() { this->status_set_warning((const LogString *) nullptr); }
 void Component::status_set_warning(const char *message) {
-  // Don't spam the log. This risks missing different warning messages though.
-  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+  if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
-  this->component_state_ |= STATUS_LED_WARNING;
-  App.app_state_ |= STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? message : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_warning(const LogString *message) {
-  // Don't spam the log. This risks missing different warning messages though.
-  if ((this->component_state_ & STATUS_LED_WARNING) != 0)
+  if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
-  this->component_state_ |= STATUS_LED_WARNING;
-  App.app_state_ |= STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s set Warning flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_error() { this->status_set_error((const LogString *) nullptr); }
 void Component::status_set_error(const char *message) {
-  if ((this->component_state_ & STATUS_LED_ERROR) != 0)
+  if (!this->set_status_flag_(STATUS_LED_ERROR))
     return;
-  this->component_state_ |= STATUS_LED_ERROR;
-  App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? message : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
@@ -444,10 +400,8 @@ void Component::status_set_error(const char *message) {
   }
 }
 void Component::status_set_error(const LogString *message) {
-  if ((this->component_state_ & STATUS_LED_ERROR) != 0)
+  if (!this->set_status_flag_(STATUS_LED_ERROR))
     return;
-  this->component_state_ |= STATUS_LED_ERROR;
-  App.app_state_ |= STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
@@ -455,16 +409,25 @@ void Component::status_set_error(const LogString *message) {
     store_component_error_message(this, LOG_STR_ARG(message), true);
   }
 }
-void Component::status_clear_warning() {
-  if ((this->component_state_ & STATUS_LED_WARNING) == 0)
-    return;
+void Component::status_clear_warning_slow_path_() {
   this->component_state_ &= ~STATUS_LED_WARNING;
+  // Clear the app-wide STATUS_LED_WARNING bit only if setup has finished
+  // AND no other component still has it set. During setup the forced
+  // STATUS_LED_WARNING (from the slow-setup busy-wait) must not be wiped
+  // by a transient component clear — Application::setup() reconciles
+  // the warning bit once at the end before setting APP_STATE_SETUP_COMPLETE.
+  // The set path is unchanged (set_status_flag_ still writes directly).
+  if (App.is_setup_complete() && !App.any_component_has_status_flag_(STATUS_LED_WARNING))
+    App.app_state_ &= ~STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s cleared Warning flag", LOG_STR_ARG(this->get_component_log_str()));
 }
-void Component::status_clear_error() {
-  if ((this->component_state_ & STATUS_LED_ERROR) == 0)
-    return;
+void Component::status_clear_error_slow_path_() {
   this->component_state_ &= ~STATUS_LED_ERROR;
+  // STATUS_LED_ERROR is never artificially forced — it only ever lands
+  // in app_state_ via a real set_status_flag_ call. So the walk-and-clear
+  // path is always safe, including during setup.
+  if (!App.any_component_has_status_flag_(STATUS_LED_ERROR))
+    App.app_state_ &= ~STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s cleared Error flag", LOG_STR_ARG(this->get_component_log_str()));
 }
 void Component::status_momentary_warning(const char *name, uint32_t length) {
@@ -489,6 +452,7 @@ void log_update_interval(const char *tag, PollingComponent *component) {
   }
 }
 float Component::get_actual_setup_priority() const {
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Check if there's an override in the global vector
   if (setup_priority_overrides) {
     // Linear search is fine for small n (typically < 5 overrides)
@@ -498,14 +462,14 @@ float Component::get_actual_setup_priority() const {
       }
     }
   }
+#endif
   return this->get_setup_priority();
 }
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 void Component::set_setup_priority(float priority) {
   // Lazy allocate the vector if needed
   if (!setup_priority_overrides) {
     setup_priority_overrides = new std::vector<ComponentPriorityOverride>();
-    // Reserve some space to avoid reallocations (most configs have < 10 overrides)
-    setup_priority_overrides->reserve(10);
   }
 
   // Check if this component already has an override
@@ -519,20 +483,7 @@ void Component::set_setup_priority(float priority) {
   // Add new override
   setup_priority_overrides->emplace_back(ComponentPriorityOverride{this, priority});
 }
-
-bool Component::has_overridden_loop() const {
-#if defined(USE_HOST) || defined(CLANG_TIDY)
-  bool loop_overridden = true;
-  bool call_loop_overridden = true;
-#else
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpmf-conversions"
-  bool loop_overridden = (void *) (this->*(&Component::loop)) != (void *) (&Component::loop);
-  bool call_loop_overridden = (void *) (this->*(&Component::call_loop)) != (void *) (&Component::call_loop);
-#pragma GCC diagnostic pop
 #endif
-  return loop_overridden || call_loop_overridden;
-}
 
 PollingComponent::PollingComponent(uint32_t update_interval) : update_interval_(update_interval) {}
 
@@ -554,43 +505,35 @@ void PollingComponent::stop_poller() {
 }
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
-void PollingComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
-
-WarnIfComponentBlockingGuard::WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
-    : started_(start_time), component_(component) {}
-uint32_t WarnIfComponentBlockingGuard::finish() {
-  uint32_t curr_time = millis();
-
-  uint32_t blocking_time = curr_time - this->started_;
 
 #ifdef USE_RUNTIME_STATS
-  // Record component runtime stats
-  if (global_runtime_stats != nullptr) {
-    global_runtime_stats->record_component_time(this->component_, blocking_time, curr_time);
-  }
+uint64_t ComponentRuntimeStats::global_recorded_us = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
+
+void __attribute__((noinline, cold))
+WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t blocking_time) {
   bool should_warn;
-  if (this->component_ != nullptr) {
-    should_warn = this->component_->should_warn_of_blocking(blocking_time);
+  if (component != nullptr) {
+    should_warn = component->should_warn_of_blocking(blocking_time);
   } else {
-    should_warn = blocking_time > WARN_IF_BLOCKING_OVER_MS;
+    should_warn = true;  // Already checked > WARN_IF_BLOCKING_OVER_MS in caller
   }
   if (should_warn) {
-    ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms)",
-             component_ == nullptr ? LOG_STR_LITERAL("<null>") : LOG_STR_ARG(component_->get_component_log_str()),
+    ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms), max is 30 ms",
+             component == nullptr ? LOG_STR_LITERAL("<null>") : LOG_STR_ARG(component->get_component_log_str()),
              blocking_time);
-    ESP_LOGW(TAG, "Components should block for at most 30 ms");
   }
-
-  return curr_time;
 }
 
-WarnIfComponentBlockingGuard::~WarnIfComponentBlockingGuard() {}
-
+#ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {
   // Free the setup priority map completely
   delete setup_priority_overrides;
   setup_priority_overrides = nullptr;
 }
+#endif
+
+// Weak default for component_source_lookup - overridden by generated code
+__attribute__((weak)) const LogString *component_source_lookup(uint8_t) { return LOG_STR("<unknown>"); }
 
 }  // namespace esphome

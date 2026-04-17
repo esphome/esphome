@@ -1,6 +1,8 @@
 #include "vl53l0x_sensor.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 /*
  * Most of the code in this integration is based on the VL53L0x library
  * by Pololu (Pololu Corporation), which in turn is based on the VL53L0X
@@ -28,8 +30,8 @@ void VL53L0XSensor::dump_config() {
     LOG_PIN("  Enable Pin: ", this->enable_pin_);
   }
   ESP_LOGCONFIG(TAG,
-                "  Timeout: %u%s\n"
-                "  Timing Budget %uus ",
+                "  Timeout: %" PRIu32 "%s\n"
+                "  Timing Budget %" PRIu32 "us ",
                 this->timeout_us_, this->timeout_us_ > 0 ? "us" : " (no timeout)", this->measurement_timing_budget_us_);
 }
 
@@ -87,9 +89,9 @@ void VL53L0XSensor::setup() {
   reg(0x94) = 0x6B;
   reg(0x83) = 0x00;
 
-  this->timeout_start_us_ = micros();
+  uint32_t timeout_start_us = micros();
   while (reg(0x83).get() == 0x00) {
-    if (this->timeout_us_ > 0 && ((uint16_t) (micros() - this->timeout_start_us_) > this->timeout_us_)) {
+    if (this->timeout_us_ > 0 && (micros() - timeout_start_us > this->timeout_us_)) {
       ESP_LOGE(TAG, "'%s' - setup timeout", this->name_.c_str());
       this->mark_failed();
       return;
@@ -266,6 +268,7 @@ void VL53L0XSensor::update() {
     this->status_momentary_warning("update", 5000);
     ESP_LOGW(TAG, "%s - update called before prior reading complete - initiated:%d waiting_for_interrupt:%d",
              this->name_.c_str(), this->initiated_read_, this->waiting_for_interrupt_);
+    return;
   }
 
   // initiate single shot measurement
