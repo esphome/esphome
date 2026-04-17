@@ -5,6 +5,5 @@ preferences:
 esphome:
   on_boot:
     then:
-      - lambda: |-
-          prefs_syncer->stop_poller();
-          prefs_syncer->start_poller();
+      - component.suspend: prefs_syncer
+      - component.resume: prefs_syncer
