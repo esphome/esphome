@@ -268,6 +268,7 @@ class USBUartTypeCH934X : public USBUartComponent {
 
   void start_input(USBUartChannel *channel);
   void start_output(USBUartChannel *channel);
+  uint8_t get_port_offset() const { return this->port_offset_; }
 
  protected:
   void on_connected() override;
