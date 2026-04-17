@@ -871,7 +871,7 @@ class TestEsphomeCore:
 
 
 def test_wrap_in_iifes_empty_input() -> None:
-    assert not core._wrap_in_iifes([], max_statements=10)
+    assert core._wrap_in_iifes([], max_statements=10) == []
 
 
 def test_wrap_in_iifes_fewer_lines_than_limit() -> None:
@@ -969,9 +969,20 @@ def test_wrap_in_iifes_never_splits_inline_brace_lines() -> None:
 
 
 def test_wrap_in_iifes_skips_comment_only_chunks() -> None:
-    # Components that emit only a ComponentMarker + config dump (no C++
-    # statements) should not be wrapped in an empty IIFE.
-    lines = ["// === begin sha256 ===", "// sha256:", "//   {}"]
+    # A chunk with no C++ statements (only comments, e.g. a component's
+    # config dump) should be emitted verbatim without a no-op IIFE.
+    lines = ["// sha256:", "//   {}"]
+    assert core._wrap_in_iifes(lines, max_statements=50) == lines
+
+
+def test_wrap_in_iifes_ignores_iife_pattern_in_comment() -> None:
+    # A comment whose text mentions "[]()" (e.g. a YAML dump of a
+    # lambda) must not fool the comment-only detector into wrapping.
+    lines = [
+        "// on_value:",
+        "//   - !lambda |-",
+        "//       return []() { return 5; };",
+    ]
     assert core._wrap_in_iifes(lines, max_statements=50) == lines
 
 
@@ -979,7 +990,7 @@ def test_cpp_main_section_no_components_emits_flat() -> None:
     target = core.EsphomeCore()
     target.main_statements = [RawStatement("a();"), RawStatement("b();")]
     out = target.cpp_main_section
-    assert "[[gnu::noinline]]" not in out
+    assert "[]() {" not in out
     assert "a();" in out
     assert "b();" in out
 
@@ -993,18 +1004,17 @@ def test_cpp_main_section_component_marker_wraps_in_iife() -> None:
         RawStatement("new_wifi();"),
     ]
     out = target.cpp_main_section
+    # One IIFE per component that emits C++ statements.
     assert out.count("[]() {") == 2
     assert out.count("}();") == 2
-    # Each component's IIFE is bracketed by a begin/end marker pair.
-    assert "// === begin logger ===" in out
-    assert "// === end logger ===" in out
-    assert "// === begin wifi ===" in out
-    assert "// === end wifi ===" in out
+    # ComponentMarker produces no output of its own.
+    assert "component-marker" not in out
 
 
-def test_cpp_main_section_comment_only_component_emits_single_marker() -> None:
-    # A component that emits no C++ statements (only a ComponentMarker)
-    # gets only a begin marker — no IIFE, so no end marker.
+def test_cpp_main_section_comment_only_component_omits_iife() -> None:
+    # A component that emits only a ComponentMarker (no statements) adds
+    # nothing to the generated output. A neighboring component with
+    # actual code still gets its own IIFE.
     target = core.EsphomeCore()
     target.main_statements = [
         ComponentMarker("sha256"),
@@ -1012,10 +1022,8 @@ def test_cpp_main_section_comment_only_component_emits_single_marker() -> None:
         RawStatement("new_wifi();"),
     ]
     out = target.cpp_main_section
-    assert "// === begin sha256 ===" in out
-    assert "// === end sha256 ===" not in out
-    assert "// === begin wifi ===" in out
-    assert "// === end wifi ===" in out
+    assert out.count("[]() {") == 1
+    assert "new_wifi();" in out
 
 
 def test_cpp_main_section_prefix_statements_stay_outside_iife() -> None:

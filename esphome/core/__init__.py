@@ -538,6 +538,8 @@ def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
     inside a brace-balanced block (e.g. the ``{`` / ``}`` pair that
     ``cg.with_local_variable()`` emits around a scoped local), so an IIFE
     may exceed ``max_statements`` when a block straddles the boundary.
+    A comment-only chunk is emitted verbatim with no IIFE, since wrapping
+    pure comments in a no-op lambda is clutter.
 
     The IIFEs intentionally have no ``noinline`` attribute: GCC's ``-Os``
     inliner makes good decisions about which chunks to keep as functions
@@ -552,9 +554,6 @@ def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
     def flush() -> None:
         if not chunk:
             return
-        # If the chunk is comments-only (e.g. a component that emits a
-        # header marker and config dump but no C++ statements), emit them
-        # verbatim without wrapping — an empty IIFE is pure clutter.
         if all(line.lstrip().startswith("//") for line in chunk):
             out.extend(chunk)
         else:
@@ -566,16 +565,22 @@ def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
     for line in lines:
         chunk.append(line)
         # Track brace depth by counting ``{`` and ``}`` characters per line
-        # rather than matching whole-line tokens. Today the only codegen
-        # that emits scope braces as separate statements is
-        # ``cg.with_local_variable()`` (standalone ``{`` / ``}`` lines),
-        # but counting is robust against future codegen that emits inline
-        # control-flow like ``if (cond) {`` or ``} else {`` on a single
-        # line. Multi-line statements (inline lambdas) carry balanced
-        # braces within one list entry so they contribute no net depth.
-        # Braces inside string literals would throw the count off, but
-        # esphome's generated main.cpp does not currently emit strings
-        # that contain unbalanced braces in main_statements.
+        # rather than matching whole-line tokens. The current codegen only
+        # emits scope braces via ``cg.with_local_variable()`` (standalone
+        # ``{`` / ``}`` lines), but counting is robust against future
+        # codegen emitting inline control flow like ``if (cond) {`` or
+        # ``} else {``. Multi-line statements (e.g. inline lambdas) carry
+        # balanced braces within one list entry and contribute no net
+        # depth. Braces inside string literals would throw the count off;
+        # esphome's generated main.cpp does not currently emit such
+        # strings in main_statements.
+        #
+        # If depth ever goes negative (unmatched ``}`` before ``{``), we
+        # never return to depth 0 for the remainder of the input, so no
+        # further flushes fire and the rest of the chunk falls through
+        # into a single IIFE at the final ``flush()``. This is the
+        # intended safe-harbor behavior — negative depth signals a
+        # violated assumption about the input, not a normal branch.
         depth += line.count("{") - line.count("}")
         if depth == 0 and len(chunk) >= max_statements:
             flush()
@@ -1058,43 +1063,30 @@ class EsphomeCore:
         from esphome.cpp_generator import ComponentMarker, statement
 
         # Split main_statements at ComponentMarker sentinels into a prefix
-        # (statements emitted before any component) plus per-component groups.
-        # Each group carries its component name so cpp_main_section can emit
-        # begin/end marker comments bracketing the IIFE.
+        # (statements emitted before any component) plus per-component
+        # groups. Each group is wrapped in an IIFE lambda so GCC can
+        # shorten temporary lifetimes and bound peak setup-time stack;
+        # large groups are sub-split to cap single heavy components
+        # (e.g. sensor platforms with many filter registrations). The
+        # IIFEs have no noinline attribute, so the compiler is free to
+        # inline the block when that produces smaller code without
+        # regressing peak stack.
         prefix: list[str] = []
-        components: list[tuple[str, list[str]]] = []
+        components: list[list[str]] = []
         current = prefix
         for exp in self.main_statements:
             if isinstance(exp, ComponentMarker):
-                body: list[str] = []
-                components.append((exp.name, body))
-                current = body
+                current = []
+                components.append(current)
                 continue
             current.append(str(statement(exp)).rstrip())
 
-        # No components → flat output (host build, tests).
         if not components:
             return "\n".join(prefix) + "\n\n"
 
-        # Each component's block is wrapped in an IIFE lambda that
-        # introduces a nested scope, shortening the lifetimes of
-        # temporaries so GCC can bound peak setup-time stack usage.
-        # The IIFE has no noinline attribute, so the compiler is free
-        # to inline the block when that produces smaller code without
-        # regressing peak stack. Large blocks are sub-split to cap
-        # single heavy components (e.g. sensor platforms with many
-        # filter registrations). "begin X" and "end X" marker comments
-        # bracket the IIFE so the generated main.cpp is easy to scan by
-        # component; a comment-only component gets a single "begin X"
-        # marker (no IIFE, no end marker).
         pieces = list(prefix)
-        for name, body in components:
-            wrapped = _wrap_in_iifes(body, max_statements=50)
-            has_iife = any("[]()" in line for line in wrapped)
-            pieces.append(f"// === begin {name} ===")
-            pieces.extend(wrapped)
-            if has_iife:
-                pieces.append(f"// === end {name} ===")
+        for body in components:
+            pieces.extend(_wrap_in_iifes(body, max_statements=50))
         return "\n".join(pieces) + "\n\n"
 
     @property

@@ -436,13 +436,22 @@ class LineComment(Statement):
 
 class ComponentMarker(Statement):
     """Sentinel marker recorded in main_statements when a component's
-    to_code begins emitting code. ``cpp_main_section`` consumes these
-    to bracket each component's generated block with begin/end comment
-    markers and to wrap it in an IIFE scope. The IIFE introduces a
-    nested scope so GCC can shorten temporary lifetimes and help reduce
-    peak setup-time stack usage; the lambda has no ``noinline``
-    attribute, so the compiler may still inline the block when that
-    produces smaller code without regressing peak stack."""
+    ``to_code`` begins emitting code. ``cpp_main_section`` consumes
+    these as chunking boundaries: the statements between two markers
+    form a group that gets wrapped in an IIFE so GCC can shorten
+    temporary lifetimes and bound peak setup-time stack usage.
+
+    The marker produces no C++ output of its own; its ``__str__`` is
+    only used for debugging (e.g. ``repr`` of ``main_statements``).
+    The component name is retained so tooling can inspect grouping if
+    needed, but the generated ``main.cpp`` carries no per-component
+    labels — partitioning is best-effort anyway because
+    ``CORE.flush_tasks`` can interleave coroutines on each ``await``
+    (e.g. ``cg.get_variable``) and re-schedule by priority, which
+    means a component's later statements can land between a different
+    component's earlier statements. This is semantically safe because
+    every statement placement-news into static storage or mutates a
+    global already declared at file scope."""
 
     __slots__ = ("name",)
 
@@ -450,7 +459,7 @@ class ComponentMarker(Statement):
         self.name = name
 
     def __str__(self):
-        return f"// === begin {self.name} ==="
+        return f"// component-marker: {self.name}"
 
 
 class ProgmemAssignmentExpression(AssignmentExpression):
