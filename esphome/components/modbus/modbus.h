@@ -63,7 +63,14 @@ class Modbus : public uart::UARTDevice, public Component {
   ModbusRole role;
 
  protected:
+  enum class ParseResult {
+    NEEDS_MORE_BYTES,  // not enough bytes in rx_buffer_ yet, wait for more
+    FRAME_PROCESSED,   // a valid frame was parsed and rx_buffer_ was cleared
+    BAD_FRAME,         // CRC failed for a fixed-length frame; caller should drop 1 byte and retry
+  };
+
   bool parse_modbus_byte_(uint8_t byte);
+  ParseResult try_parse_rx_buffer_();
   void receive_and_parse_modbus_bytes_();
   void clear_rx_buffer_(const LogString *reason, bool warn = false);
   void send_next_frame_();
