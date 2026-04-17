@@ -435,23 +435,14 @@ class LineComment(Statement):
 
 
 class ComponentMarker(Statement):
-    """Sentinel marker recorded in main_statements when a component's
-    ``to_code`` begins emitting code. ``cpp_main_section`` consumes
-    these as chunking boundaries: the statements between two markers
-    form a group that gets wrapped in an IIFE so GCC can shorten
-    temporary lifetimes and bound peak setup-time stack usage.
+    """Chunking-boundary sentinel. ``cpp_main_section`` wraps the
+    statements between two markers in an IIFE to shorten temporary
+    lifetimes and bound peak setup-time stack. Emits no C++ output.
 
-    The marker produces no C++ output of its own; its ``__str__`` is
-    only used for debugging (e.g. ``repr`` of ``main_statements``).
-    The component name is retained so tooling can inspect grouping if
-    needed, but the generated ``main.cpp`` carries no per-component
-    labels — partitioning is best-effort anyway because
-    ``CORE.flush_tasks`` can interleave coroutines on each ``await``
-    (e.g. ``cg.get_variable``) and re-schedule by priority, which
-    means a component's later statements can land between a different
-    component's earlier statements. This is semantically safe because
-    every statement either uses placement new into static storage or
-    mutates a global already declared at file scope."""
+    Grouping is best-effort: ``flush_tasks`` can interleave coroutines
+    on ``await``, so a component's later statements may land in another
+    component's chunk. Safe because every statement either placement-
+    news into static storage or mutates a file-scope global."""
 
     __slots__ = ("name",)
 

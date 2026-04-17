@@ -532,21 +532,13 @@ class Library:
 
 
 def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
-    """Wrap ``lines`` in one or more ``[]() {...}();`` IIFEs.
+    """Wrap ``lines`` in ``[]() {...}();`` IIFEs of up to ``max_statements``
+    each. Never splits inside a brace-balanced block (e.g. the ``{`` / ``}``
+    pair from ``cg.with_local_variable()``), so an IIFE may exceed the cap
+    when a block straddles it. Comment-only chunks pass through verbatim.
 
-    Splits into IIFEs of up to ``max_statements`` entries each. Never splits
-    inside a brace-balanced block (e.g. the ``{`` / ``}`` pair that
-    ``cg.with_local_variable()`` emits around a scoped local), so an IIFE
-    may exceed ``max_statements`` when a block straddles the boundary.
-    A comment-only chunk is emitted verbatim with no IIFE, since wrapping
-    pure comments in a no-op lambda is clutter.
-
-    The IIFEs intentionally have no ``noinline`` attribute: GCC's ``-Os``
-    inliner makes good decisions about which chunks to keep as functions
-    and which to re-inline, and forcing all chunks to stay as functions
-    costs flash without measurably improving peak stack on configs where
-    the scope structure is itself sufficient to bound live-range lifetimes.
-    """
+    No ``noinline`` attribute — GCC's inliner re-folds small chunks freely,
+    keeping flash small without regressing peak stack."""
     out: list[str] = []
     chunk: list[str] = []
     depth = 0
@@ -564,23 +556,10 @@ def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
 
     for line in lines:
         chunk.append(line)
-        # Track brace depth by counting ``{`` and ``}`` characters per line
-        # rather than matching whole-line tokens. The current codegen only
-        # emits scope braces via ``cg.with_local_variable()`` (standalone
-        # ``{`` / ``}`` lines), but counting is robust against future
-        # codegen emitting inline control flow like ``if (cond) {`` or
-        # ``} else {``. Multi-line statements (e.g. inline lambdas) carry
-        # balanced braces within one list entry and contribute no net
-        # depth. Braces inside string literals would throw the count off;
-        # esphome's generated main.cpp does not currently emit such
-        # strings in main_statements.
-        #
-        # If depth ever goes negative (unmatched ``}`` before ``{``), we
-        # never return to depth 0 for the remainder of the input, so no
-        # further flushes fire and the rest of the chunk falls through
-        # into a single IIFE at the final ``flush()``. This is the
-        # intended safe-harbor behavior — negative depth signals a
-        # violated assumption about the input, not a normal branch.
+        # Count { and } per line so inline control flow (e.g. `if (cond) {`)
+        # and balanced inline lambdas are tracked correctly. If depth ever
+        # goes negative (unbalanced input) we never return to 0 and the
+        # rest falls through into a single final IIFE — safe fallback.
         depth += line.count("{") - line.count("}")
         if depth == 0 and len(chunk) >= max_statements:
             flush()
@@ -1062,15 +1041,10 @@ class EsphomeCore:
     def cpp_main_section(self):
         from esphome.cpp_generator import ComponentMarker, statement
 
-        # Split main_statements at ComponentMarker sentinels into a prefix
-        # (statements emitted before any component) plus per-component
-        # groups. Each group is wrapped in an IIFE lambda so GCC can
-        # shorten temporary lifetimes and bound peak setup-time stack;
-        # large groups are sub-split to cap single heavy components
-        # (e.g. sensor platforms with many filter registrations). The
-        # IIFEs have no noinline attribute, so the compiler is free to
-        # inline the block when that produces smaller code without
-        # regressing peak stack.
+        # Split main_statements at ComponentMarker sentinels and wrap each
+        # component's group in an IIFE, sub-splitting at 50 statements so
+        # a single heavy component (e.g. a sensor platform with many
+        # filter registrations) can't blow the peak chunk frame.
         prefix: list[str] = []
         components: list[list[str]] = []
         current = prefix
