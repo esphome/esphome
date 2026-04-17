@@ -4,22 +4,10 @@
 // without following the normal breaking changes policy. Use at your own risk.
 // Once the API is considered stable, this warning will be removed.
 
-#include "esphome/components/remote_base/remote_base.h"
-
-#ifdef USE_IR_RF
 #include "esphome/components/infrared/infrared.h"
-#endif
 
 namespace esphome::ir_rf_proxy {
 
-/// Transmit raw timings via a remote_transmitter backend.
-/// Works with any call type that exposes the raw-timings interface
-/// (InfraredCall, RadioFrequencyCall, or any future call type with the same methods).
-template<typename CallT>
-void transmit_raw_timings(remote_base::RemoteTransmitterBase *transmitter, uint32_t carrier_frequency,
-                          const CallT &call);
-
-#ifdef USE_IR_RF
 /// IrRfProxy - Infrared platform implementation using remote_transmitter/receiver as backend
 class IrRfProxy : public infrared::Infrared {
  public:
@@ -41,6 +29,5 @@ class IrRfProxy : public infrared::Infrared {
   // RF frequency in kHz (Hz / 1000); 0 = infrared, non-zero = RF
   uint32_t frequency_khz_{0};
 };
-#endif  // USE_IR_RF
 
 }  // namespace esphome::ir_rf_proxy
