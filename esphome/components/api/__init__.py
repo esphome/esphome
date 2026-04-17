@@ -7,11 +7,6 @@ import esphome.codegen as cg
 from esphome.components.logger import request_log_listener
 from esphome.config_helpers import get_logger_level
 import esphome.config_validation as cv
-
-from .const import (
-    CONF_CLIENT_KEEPALIVE_INTERVAL,
-)
-
 from esphome.const import (
     CONF_ACTION,
     CONF_ACTIONS,
@@ -40,6 +35,8 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigFragmentType, ConfigType
+
+from .const import CONF_CLIENT_KEEPALIVE_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
