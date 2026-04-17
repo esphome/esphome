@@ -566,6 +566,27 @@ bool PN532::iso_dep_send_apdu_(const std::vector<uint8_t> &apdu, std::vector<uin
   return true;
 }
 
+bool PN532::nfc_iso_dep_transceive_(const std::vector<uint8_t> &send, std::vector<uint8_t> &response) {
+  response.clear();
+  std::vector<uint8_t> cmd;
+  cmd.reserve(send.size() + 2);
+  cmd.push_back(PN532_COMMAND_INDATAEXCHANGE);
+  cmd.push_back(0x01);
+  cmd.insert(cmd.end(), send.begin(), send.end());
+
+  if (!this->write_command_(cmd)) {
+    return false;
+  }
+
+  if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, response) || response.empty() || response[0] != 0x00) {
+    response.clear();
+    return false;
+  }
+
+  response.erase(response.begin());
+  return true;
+}
+
 std::unique_ptr<nfc::NfcTag> PN532::read_iso_dep_tag_(nfc::NfcTagUid &uid) {
   auto make_uid_only_tag = [&uid]() { return make_unique<nfc::NfcTag>(uid); };
   auto make_type_4_tag = [&uid]() { return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_4); };

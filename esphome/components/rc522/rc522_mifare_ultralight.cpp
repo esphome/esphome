@@ -65,6 +65,16 @@ std::unique_ptr<nfc::NfcTag> RC522::read_mifare_ultralight_tag_(nfc::NfcTagUid &
   return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2, data);
 }
 
+bool RC522::nfc_read_mifare_ultralight_page_(uint8_t page, std::vector<uint8_t> &data) {
+  data.resize(RC522_MIFARE_READ_SIZE);
+  StatusCode status = this->read_mifare_ultralight_page_(page, data.data());
+  if (status != STATUS_OK) {
+    data.clear();
+    return false;
+  }
+  return true;
+}
+
 RC522::StatusCode RC522::read_mifare_ultralight_page_(uint8_t page, uint8_t *data) {
   this->ndef_buffer_[0] = PICC_CMD_MF_READ;
   this->ndef_buffer_[1] = page;
@@ -192,6 +202,13 @@ bool RC522::write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write
   }
 
   return true;
+}
+
+bool RC522::nfc_write_mifare_ultralight_page_(uint16_t page, const std::vector<uint8_t> &data) {
+  if (page > 0xFF) {
+    return false;
+  }
+  return this->write_mifare_ultralight_page_(static_cast<uint8_t>(page), data.data(), data.size());
 }
 
 bool RC522::write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message) {

@@ -14,7 +14,7 @@ namespace esphome {
 namespace rc522 {
 
 class RC522BinarySensor;
-class RC522 : public PollingComponent {
+class RC522 : public nfc::Nfcc, public PollingComponent {
  public:
   void setup() override;
 
@@ -40,6 +40,14 @@ class RC522 : public PollingComponent {
   void write_mode(nfc::NdefMessage *message);
 
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
+
+  bool nfc_auth_mifare_classic_block_(const nfc::NfcTagUid &uid, uint8_t block, uint8_t key_type,
+                                      const uint8_t *key) override;
+  bool nfc_read_mifare_classic_block_(uint8_t block, std::vector<uint8_t> &data) override;
+  bool nfc_write_mifare_classic_block_(uint8_t block, const std::vector<uint8_t> &data) override;
+  bool nfc_read_mifare_ultralight_page_(uint8_t page, std::vector<uint8_t> &data) override;
+  bool nfc_write_mifare_ultralight_page_(uint16_t page, const std::vector<uint8_t> &data) override;
+  bool nfc_iso_dep_transceive_(const std::vector<uint8_t> &send, std::vector<uint8_t> &response) override;
 
  protected:
   // Return codes from the functions in this class. Remember to update GetStatusCodeName() if you add more.

@@ -47,6 +47,12 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_ultralight_tag_(nfc::NfcTagUid &
   return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2, data);
 }
 
+bool PN532::nfc_read_mifare_ultralight_page_(uint8_t page, std::vector<uint8_t> &data) {
+  data.clear();
+  return this->read_mifare_ultralight_bytes_(page, nfc::MIFARE_ULTRALIGHT_PAGE_SIZE * nfc::MIFARE_ULTRALIGHT_READ_SIZE,
+                                             data);
+}
+
 bool PN532::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, std::vector<uint8_t> &data) {
   const uint8_t read_increment = nfc::MIFARE_ULTRALIGHT_READ_SIZE * nfc::MIFARE_ULTRALIGHT_PAGE_SIZE;
   std::vector<uint8_t> response;
@@ -187,6 +193,13 @@ bool PN532::write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write
   }
 
   return true;
+}
+
+bool PN532::nfc_write_mifare_ultralight_page_(uint16_t page, const std::vector<uint8_t> &data) {
+  if (page > 0xFF) {
+    return false;
+  }
+  return this->write_mifare_ultralight_page_(static_cast<uint8_t>(page), data.data(), data.size());
 }
 
 }  // namespace pn532

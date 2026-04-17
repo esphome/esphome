@@ -106,6 +106,12 @@ bool PN532::auth_mifare_classic_block_(nfc::NfcTagUid &uid, uint8_t block_num, u
   return true;
 }
 
+bool PN532::nfc_auth_mifare_classic_block_(const nfc::NfcTagUid &uid, uint8_t block, uint8_t key_type,
+                                           const uint8_t *key) {
+  auto uid_copy = uid;
+  return this->auth_mifare_classic_block_(uid_copy, block, key_type, key);
+}
+
 bool PN532::format_mifare_classic_mifare_(nfc::NfcTagUid &uid) {
   static constexpr std::array<uint8_t, nfc::MIFARE_CLASSIC_BLOCK_SIZE> BLANK_BUFFER = {
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -214,6 +220,14 @@ bool PN532::write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, 
   }
 
   return true;
+}
+
+bool PN532::nfc_read_mifare_classic_block_(uint8_t block, std::vector<uint8_t> &data) {
+  return this->read_mifare_classic_block_(block, data);
+}
+
+bool PN532::nfc_write_mifare_classic_block_(uint8_t block, const std::vector<uint8_t> &data) {
+  return this->write_mifare_classic_block_(block, data.data(), data.size());
 }
 
 bool PN532::write_mifare_classic_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message) {

@@ -307,6 +307,18 @@ RC522::StatusCode RC522::iso_dep_send_apdu_(const uint8_t *apdu, uint8_t apdu_le
   return STATUS_OK;
 }
 
+bool RC522::nfc_iso_dep_transceive_(const std::vector<uint8_t> &send, std::vector<uint8_t> &response) {
+  uint8_t recv_data[RC522_FIFO_SIZE];
+  uint8_t recv_len = sizeof(recv_data);
+  StatusCode status = this->iso_dep_transceive_(send.data(), send.size(), recv_data, recv_len);
+  if (status != STATUS_OK) {
+    response.clear();
+    return false;
+  }
+  response.assign(recv_data, recv_data + recv_len);
+  return true;
+}
+
 std::unique_ptr<nfc::NfcTag> RC522::read_iso_dep_tag_(nfc::NfcTagUid &uid) {
   auto make_uid_only_tag = [&uid]() { return make_unique<nfc::NfcTag>(uid); };
   auto make_type_4_tag = [&uid]() { return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_4); };

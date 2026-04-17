@@ -1,0 +1,108 @@
+INFO ESPHome 2026.5.0-dev
+INFO Reading configuration /home/ubuntu/src/esphome/tests/test_build_components/build/rc522_i2c.test.esp32-idf.yaml...
+INFO Generating C++ source...
+INFO Compiling app... Build path: /home/ubuntu/src/esphome/tests/test_build_components/build/.esphome/build/componenttestesp32idf
+Processing [36m[1mcomponenttestesp32idf[0m (board: esp32-pico-devkitm-2; framework: espidf; platform: https://github.com/pioarduino/platform-espressif32/releases/download/55.03.38-1/platform-espressif32.zip)
+[1m--------------------------------------------------------------------------------[0m
+[0mHARDWARE: ESP32 240MHz, 320KB RAM, 4MB Flash
+[0m - contrib-piohome @ 3.4.4 
+[0m - framework-espidf @ 3.50504.0 (5.5.4) 
+[0m - tool-cmake @ 4.0.3 
+[0m - tool-esp-rom-elfs @ 2024.10.11 
+[0m - tool-esptoolpy @ 5.2.0 
+[0m - tool-ninja @ 1.13.1 
+[0m - tool-scons @ 4.40801.0 (4.8.1) 
+[0m - tool-xtensa-esp-elf-gdb @ 16.3.0+20250913 
+[0m - toolchain-xtensa-esp-elf @ 14.2.0+20260121
+[33mUsing Python 3.12.3 environment at: /home/ubuntu/.platformio/penv/.espidf-5.5.4
+[0mReading CMake configuration...
+[0mNo dependencies
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/binary_sensor/automation.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/binary_sensor/binary_sensor.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/binary_sensor/filter.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/esp32/core.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/esp32/crash_handler.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/esp32/gpio.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/esp32/helpers.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/esp32/preferences.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/nfc/automation.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/nfc/nfc.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/rc522/rc522.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/rc522/rc522_iso_dep.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/rc522/rc522_mifare_ultralight.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/components/rc522_i2c/rc522_i2c.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/esphome/core/application.cpp.o
+[0mCompiling .pioenvs/componenttestesp32idf/src/main.cpp.o
+[0mLinking .pioenvs/componenttestesp32idf/firmware.elf
+[0m                            Memory Type Usage Summary                             
+[0m┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ Memory Type/Section ┃ Used [bytes] ┃ Used [%] ┃ Remain [bytes] ┃ Total [bytes] ┃
+[0m┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ Flash Code          │       138092 │          │                │               │
+[0m│    .text            │       138092 │          │                │               │
+[0m│ Flash Data          │        51752 │          │                │               │
+[0m│    .rodata          │        51496 │          │                │               │
+[0m│    .appdesc         │          256 │          │                │               │
+[0m│ IRAM                │        37903 │    28.92 │          93169 │        131072 │
+[0m│    .text            │        36875 │    28.13 │                │               │
+[0m│    .vectors         │         1028 │     0.78 │                │               │
+[0m│ DRAM                │        22364 │    12.37 │         158372 │        180736 │
+[0m│    .bss             │        12984 │     7.18 │                │               │
+[0m│    .data            │         9228 │     5.11 │                │               │
+[0m│    .noinit          │          152 │     0.08 │                │               │
+[0m└─────────────────────┴──────────────┴──────────┴────────────────┴───────────────┘
+[0m[33mTotal image size: 236975 bytes (.bin may be padded larger)
+[0m[33mNote: The reported total sizes may be smaller than those in the technical reference manual due to reserved memory and application configuration. The total flash size available for the application is not included by default, as it cannot be reliably determined due to the presence of other data like the bootloader, partition table, and application partition size.
+[0mRAM:   [=         ]   6.8% (used 22364 bytes from 327680 bytes)
+[0mFlash: [=         ]   5.6% (used 236719 bytes from 4194304 bytes)
+[0mBuilding .pioenvs/componenttestesp32idf/firmware.bin
+[0mCreating ESP32 image...
+[0mSuccessfully created ESP32 image.
+[0mCreating binary "firmware.factory.bin" with:
+[0m    Offset   | File
+[0m -  0x1000   | bootloader.bin
+[0m -  0x8000   | partitions.bin
+[0m -  0xd000   | ota_data_initial.bin
+[0m -  0x10000  | firmware.bin
+Successfully created combined binary image.
+[0msign_firmware([".pioenvs/componenttestesp32idf/firmware.bin"], [".pioenvs/componenttestesp32idf/firmware.elf"])
+[0mmerge_factory_bin([".pioenvs/componenttestesp32idf/firmware.bin"], [".pioenvs/componenttestesp32idf/firmware.elf"])
+[0mInfo: bootloader.bin not found - skipping
+[0mInfo: partition-table.bin not found - skipping
+[0mInfo: ota_data_initial.bin not found - skipping
+[0mInfo: componenttestesp32idf.bin not found - skipping
+[0mUsing FLASH_EXTRA_IMAGES from PlatformIO environment
+[0mMerging binaries into /home/ubuntu/src/esphome/tests/test_build_components/build/.esphome/build/componenttestesp32idf/.pioenvs/componenttestesp32idf/firmware.factory.bin
+[0mMerging binaries with esptool
+[0mSHA digest in image updated.
+[0mWrote 0x49e40 bytes to file '/home/ubuntu/src/esphome/tests/test_build_components/build/.esphome/build/componenttestesp32idf/.pioenvs/componenttestesp32idf/firmware.factory.bin', ready to flash to offset 0x0.
+[0mSuccessfully created /home/ubuntu/src/esphome/tests/test_build_components/build/.esphome/build/componenttestesp32idf/.pioenvs/componenttestesp32idf/firmware.factory.bin
+[0mesp32_copy_ota_bin([".pioenvs/componenttestesp32idf/firmware.bin"], [".pioenvs/componenttestesp32idf/firmware.elf"])
+[0mCopied firmware to /home/ubuntu/src/esphome/tests/test_build_components/build/.esphome/build/componenttestesp32idf/.pioenvs/componenttestesp32idf/firmware.ota.bin
+[0m========================= [[32m[1mSUCCESS[0m] Took 12.62 seconds =========================[0m
+INFO Build Info: config_hash=0xd974e118 build_time_str=2026-04-18 01:35:18 +0200
+INFO Successfully compiled program.
+Found 1 components to test
+
+================================================================================
+Analyzing components for intelligent grouping...
+================================================================================
+
+Grouping Plan:
+--------------------------------------------------------------------------------
+
+○ 1 components will be tested individually:
+  - rc522_i2c
+
+================================================================================
+Summary: 3 builds total (vs 3 without grouping)
+  • 0 grouped builds (0 components)
+  • 3 individual builds (1 components)
+  • Saves 0 builds (0.0% reduction)
+================================================================================
+
+> [rc522_i2c] [test] [esp32-idf]
+
+================================================================================
+Test Summary: 1 passed, 0 failed
+================================================================================

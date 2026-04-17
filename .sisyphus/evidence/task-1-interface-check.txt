@@ -1,0 +1,4 @@
+Interface verification:
+- grep -c "virtual bool nfc_" esphome/components/nfc/nfc.h => 6
+- rc522_i2c esp32-idf compile => SUCCESS
+- pn532_i2c esp32-idf compile => SUCCESS

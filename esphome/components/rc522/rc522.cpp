@@ -695,6 +695,20 @@ bool RC522::auth_mifare_classic_block_(nfc::NfcTagUid &uid, uint8_t block_num, u
   return true;
 }
 
+bool RC522::nfc_auth_mifare_classic_block_(const nfc::NfcTagUid &uid, uint8_t block, uint8_t key_type,
+                                           const uint8_t *key) {
+  auto uid_copy = uid;
+  return this->auth_mifare_classic_block_(uid_copy, block, key_type, key);
+}
+
+bool RC522::nfc_read_mifare_classic_block_(uint8_t block, std::vector<uint8_t> &data) {
+  return this->read_mifare_classic_block_(block, data);
+}
+
+bool RC522::nfc_write_mifare_classic_block_(uint8_t block, const std::vector<uint8_t> &data) {
+  return this->write_mifare_classic_block_(block, data.data(), data.size());
+}
+
 bool RC522::read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data) {
   uint8_t cmd[4] = {nfc::MIFARE_CMD_READ, block_num, 0, 0};
   this->pcd_calculate_crc_sync_(cmd, 2, &cmd[2]);

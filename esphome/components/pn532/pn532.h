@@ -28,7 +28,7 @@ enum PN532ReadReady {
 
 class PN532BinarySensor;
 
-class PN532 : public PollingComponent {
+class PN532 : public nfc::Nfcc, public PollingComponent {
  public:
   void setup() override;
 
@@ -54,6 +54,14 @@ class PN532 : public PollingComponent {
   void format_mode();
   void write_mode(nfc::NdefMessage *message);
   bool powerdown();
+
+  bool nfc_auth_mifare_classic_block_(const nfc::NfcTagUid &uid, uint8_t block, uint8_t key_type,
+                                      const uint8_t *key) override;
+  bool nfc_read_mifare_classic_block_(uint8_t block, std::vector<uint8_t> &data) override;
+  bool nfc_write_mifare_classic_block_(uint8_t block, const std::vector<uint8_t> &data) override;
+  bool nfc_read_mifare_ultralight_page_(uint8_t page, std::vector<uint8_t> &data) override;
+  bool nfc_write_mifare_ultralight_page_(uint16_t page, const std::vector<uint8_t> &data) override;
+  bool nfc_iso_dep_transceive_(const std::vector<uint8_t> &send, std::vector<uint8_t> &response) override;
 
  protected:
   void turn_off_rf_();

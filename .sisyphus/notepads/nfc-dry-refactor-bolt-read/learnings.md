@@ -1,0 +1,3 @@
+- Added six nfc_* transport hooks to nfc::Nfcc with default unsupported fallbacks so PN7150/PN7160 keep compiling.
+- RC522 and PN532 now inherit nfc::Nfcc directly and expose wrapper overrides for Classic auth/read/write, Ultralight page read/write, and ISO-DEP transceive.
+- RC522 wrappers preserve existing StatusCode-based internals by translating to bool at the interface boundary; PN532 wrappers reuse existing InDataExchange helpers.
