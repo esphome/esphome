@@ -579,7 +579,8 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
       int w = this->x_high_ - this->x_low_ + 1;
       int h = this->y_high_ - this->y_low_ + 1;
       this->write_to_display_(this->x_low_, this->y_low_, w, h, this->buffer_, this->x_low_,
-                              this->y_low_ - this->start_line_, round_buffer(this->get_width_internal()) - w);
+                              this->y_low_ - this->start_line_,
+                              round_buffer(this->get_width_internal()) - w - this->x_low_);
       // invalidate watermarks
       this->x_low_ = this->get_width_internal();
       this->y_low_ = this->get_height_internal();
