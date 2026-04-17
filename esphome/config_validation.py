@@ -954,9 +954,12 @@ def update_interval(value):
     if result.total_milliseconds == 0:
         _LOGGER.warning(
             "update_interval of 0ms is not supported — coercing to 1ms. "
-            "This was historically (mis)used as a pseudo-loop() mechanism; "
-            "use a real loop() override with HighFrequencyLoopRequester for "
-            "run-every-loop behaviour."
+            "A literal 0ms schedule would spin the main loop (the scheduled "
+            "item would always be due, so the scheduler would never yield "
+            "back) and trigger a watchdog reset. Set update_interval to a "
+            "non-zero value such as 1ms or higher. (Custom C++ components "
+            "that need true run-every-loop behaviour should override loop() "
+            "with HighFrequencyLoopRequester instead.)"
         )
         return TimePeriodMilliseconds(milliseconds=1)
     return result
