@@ -24,6 +24,7 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
+    SCHEDULER_DONT_RUN,
 )
 from esphome.core import CORE, HexInt, Lambda
 
@@ -789,6 +790,6 @@ def test_update_interval__preserves_nonzero_values() -> None:
 
 
 def test_update_interval__never_passes_through() -> None:
-    """update_interval: never must still map to SCHEDULER_DONT_RUN (0xFFFFFFFF)."""
+    """update_interval: never must still map to SCHEDULER_DONT_RUN."""
     result = config_validation.update_interval("never")
-    assert result.total_milliseconds == 0xFFFFFFFF
+    assert result.total_milliseconds == SCHEDULER_DONT_RUN
