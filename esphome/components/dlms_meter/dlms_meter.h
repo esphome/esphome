@@ -68,27 +68,18 @@ struct CustomPattern {
 
 class DlmsMeterComponent : public Component, public uart::UARTDevice {
  public:
-  DlmsMeterComponent() : parser_(&decryptor_) {}
+  DlmsMeterComponent(bool skip_crc_check, std::optional<std::array<uint8_t, 16>> decryption_key,
+                     std::optional<std::array<uint8_t, 16>> authentication_key,
+                     std::vector<CustomPattern> custom_patterns)
+      : skip_crc_check_(skip_crc_check),
+        custom_patterns_(std::move(custom_patterns)),
+        decryption_key_(decryption_key),
+        authentication_key_(authentication_key),
+        parser_(&decryptor_) {}
 
   void setup() override;
   void dump_config() override;
   void loop() override;
-
-  void set_decryption_key(const std::array<uint8_t, 16> &key);
-  void set_authentication_key(const std::array<uint8_t, 16> &key);
-
-  void add_custom_pattern(const std::string &pattern) {
-    this->custom_patterns_.push_back({pattern, std::nullopt, 0, std::nullopt});
-  }
-  void add_custom_pattern(const std::string &pattern, const std::string &name, int priority) {
-    this->custom_patterns_.push_back({pattern, name, priority, std::nullopt});
-  }
-  void add_custom_pattern(const std::string &pattern, const std::string &name, int priority,
-                          const std::array<uint8_t, 6> &default_obis) {
-    this->custom_patterns_.push_back({pattern, name, priority, default_obis});
-  }
-
-  void set_skip_crc_check(bool skip) { this->skip_crc_check_ = skip; }
 
 #ifdef USE_SENSOR
   void register_sensor(const std::string &obis_code, sensor::Sensor *sensor);
@@ -114,6 +105,8 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   bool skip_crc_check_{false};
 
   std::vector<CustomPattern> custom_patterns_;
+  std::optional<std::array<uint8_t, 16>> decryption_key_;
+  std::optional<std::array<uint8_t, 16>> authentication_key_;
 
   Aes128GcmDecryptorImpl decryptor_;
   dlms_parser::DlmsParser parser_;

@@ -125,37 +125,54 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("dlms_meter", require_
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
-
-    cg.add(var.set_skip_crc_check(config[CONF_SKIP_CRC]))
-
+    dec_key_expr = cg.RawExpression("std::nullopt")
     if CONF_DECRYPTION_KEY in config:
-        cg.add(var.set_decryption_key(config[CONF_DECRYPTION_KEY]))
+        dec_key_expr = cg.RawExpression(
+            f"std::array<uint8_t, 16>{{{', '.join(str(x) for x in config[CONF_DECRYPTION_KEY])}}}"
+        )
 
+    auth_key_expr = cg.RawExpression("std::nullopt")
     if CONF_AUTH_KEY in config:
-        cg.add(var.set_authentication_key(config[CONF_AUTH_KEY]))
+        auth_key_expr = cg.RawExpression(
+            f"std::array<uint8_t, 16>{{{', '.join(str(x) for x in config[CONF_AUTH_KEY])}}}"
+        )
 
+    patterns = []
     if CONF_CUSTOM_PATTERNS in config:
         for p in config[CONF_CUSTOM_PATTERNS]:
+            name_expr = (
+                p[CONF_NAME] if CONF_NAME in p else cg.RawExpression("std::nullopt")
+            )
             if CONF_DEFAULT_OBIS in p:
                 obis_vals = p[CONF_DEFAULT_OBIS]
                 obis_expr = cg.RawExpression(
                     f"std::array<uint8_t, 6>{{{obis_vals[0]}, {obis_vals[1]}, {obis_vals[2]}, {obis_vals[3]}, {obis_vals[4]}, {obis_vals[5]}}}"
                 )
-                cg.add(
-                    var.add_custom_pattern(
-                        p[CONF_PATTERN], p[CONF_NAME], p[CONF_PRIORITY], obis_expr
-                    )
-                )
-            elif CONF_NAME in p:
-                cg.add(
-                    var.add_custom_pattern(
-                        p[CONF_PATTERN], p[CONF_NAME], p[CONF_PRIORITY]
-                    )
-                )
             else:
-                cg.add(var.add_custom_pattern(p[CONF_PATTERN]))
+                obis_expr = cg.RawExpression("std::nullopt")
+
+            patterns.append(
+                cg.ArrayInitializer(
+                    p[CONF_PATTERN],
+                    name_expr,
+                    p.get(CONF_PRIORITY, 0),
+                    obis_expr,
+                )
+            )
+
+    patterns_expr = (
+        cg.ArrayInitializer(*patterns) if patterns else cg.RawExpression("{}")
+    )
+
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        config[CONF_SKIP_CRC],
+        dec_key_expr,
+        auth_key_expr,
+        patterns_expr,
+    )
+
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
 
     cg.add_library("dlms_parser", None, "https://github.com/esphome-libs/dlms_parser")

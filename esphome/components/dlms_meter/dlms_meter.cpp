@@ -34,7 +34,26 @@ static void log_callback(dlms_parser::LogLevel level, const char *fmt, va_list a
 void DlmsMeterComponent::setup() {
   dlms_parser::Logger::set_log_function(log_callback);
 
+  if (this->decryption_key_.has_value()) {
+    auto opt_key = dlms_parser::Aes128GcmDecryptionKey::from_bytes(this->decryption_key_.value());
+    if (opt_key) {
+      this->parser_.set_decryption_key(*opt_key);
+    } else {
+      ESP_LOGE(TAG, "Failed to set decryption key: invalid key format");
+    }
+  }
+
+  if (this->authentication_key_.has_value()) {
+    auto opt_key = dlms_parser::Aes128GcmAuthenticationKey::from_bytes(this->authentication_key_.value());
+    if (opt_key) {
+      this->parser_.set_authentication_key(*opt_key);
+    } else {
+      ESP_LOGE(TAG, "Failed to set authentication key: invalid key format");
+    }
+  }
+
   this->parser_.set_skip_crc_check(this->skip_crc_check_);
+
   this->parser_.load_default_patterns();
   for (const auto &pattern : this->custom_patterns_) {
     if (pattern.default_obis.has_value() && pattern.name.has_value()) {
@@ -87,24 +106,6 @@ void DlmsMeterComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.obis_code.c_str());
   }
 #endif
-}
-
-void DlmsMeterComponent::set_decryption_key(const std::array<uint8_t, 16> &key) {
-  auto opt_key = dlms_parser::Aes128GcmDecryptionKey::from_bytes(key);
-  if (opt_key) {
-    this->parser_.set_decryption_key(*opt_key);
-  } else {
-    ESP_LOGE(TAG, "Failed to set decryption key: invalid key format");
-  }
-}
-
-void DlmsMeterComponent::set_authentication_key(const std::array<uint8_t, 16> &key) {
-  auto opt_key = dlms_parser::Aes128GcmAuthenticationKey::from_bytes(key);
-  if (opt_key) {
-    this->parser_.set_authentication_key(*opt_key);
-  } else {
-    ESP_LOGE(TAG, "Failed to set authentication key: invalid key format");
-  }
 }
 
 void DlmsMeterComponent::loop() {
