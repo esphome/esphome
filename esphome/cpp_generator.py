@@ -460,8 +460,12 @@ class ComponentMarker(Statement):
 
     Grouping is best-effort: ``flush_tasks`` can interleave coroutines
     on ``await``, so a component's later statements may land in another
-    component's chunk. Safe because every statement either placement-
-    news into static storage or mutates a file-scope global."""
+    component's chunk. This is safe for the dominant codegen patterns
+    (placement-new into static storage, assignment to a file-scope
+    global); patterns that depend on function-local state within the
+    IIFE scope (cg.variable, with_local_variable, raw bare locals)
+    are kept together by the bare-local detection in cpp_main_section
+    so they aren't split across sibling lambdas."""
 
     __slots__ = ("name",)
 

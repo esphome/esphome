@@ -544,7 +544,14 @@ def _emits_bare_local(exp: "Statement") -> bool:
     declare a function-local whose lifetime extends past the current
     statement. Components that emit any such statement must not be
     sub-split — later references within the same ``to_code`` would land
-    in a different IIFE and fail to compile."""
+    in a different IIFE and fail to compile.
+
+    The detection is intentionally safety-biased: false negatives cause
+    silent broken C++, false positives just keep a component in one
+    slightly larger IIFE. Any ``cg.add(RawExpression(...))`` disables
+    sub-splitting for its group regardless of whether the raw text
+    actually references a local, because the chunker can't introspect
+    arbitrary raw text."""
     from esphome.cpp_generator import (
         AssignmentExpression,
         ExpressionStatement,
@@ -561,7 +568,11 @@ def _emits_bare_local(exp: "Statement") -> bool:
     # `time::ParsedTimezone tz{}` or `tz.field = ...`. CORE.add wraps
     # a passed Expression in an ExpressionStatement; when the inner is
     # a RawExpression the author is emitting uninterpreted text that
-    # may reference a local declared elsewhere in the same block.
+    # may reference a local declared elsewhere in the same block. A
+    # RawExpression passed as a CallExpression argument does NOT land
+    # here (its ExpressionStatement's .expression is the CallExpression),
+    # so value-pass patterns like `var.set_program(RawExpression("&foo"))`
+    # continue to sub-split normally.
     if isinstance(exp, ExpressionStatement) and isinstance(
         exp.expression, RawExpression
     ):
@@ -1113,6 +1124,12 @@ class EsphomeCore:
         #   sub-split so the declaration and any later references stay
         #   together.
         prefix: list[str] = []
+        # Flags are stored as 1-element lists so they can be mutated by
+        # reference after the tuple has been pushed into ``components``
+        # (assignment to a local ``unsafe_flag`` inside the loop would
+        # rebind the local without updating the stored tuple entry).
+        # A small dataclass would read cleaner but the pattern is
+        # localized to this one property.
         components: list[tuple[list[str], list[bool], list[bool]]] = []
         current: list[str] = prefix
         unsafe_flag: list[bool] = [False]  # unused for prefix

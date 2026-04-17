@@ -1107,6 +1107,24 @@ def test_cpp_main_section_typed_assignment_disables_sub_split() -> None:
     assert out.count("[]() {") == 1
 
 
+def test_cpp_main_section_iife_unsafe_wins_over_no_split() -> None:
+    # A group that triggers BOTH flags (IIFEUnsafeStatement present AND
+    # a bare-local emission) must still be emitted flat — the unsafe
+    # flag wins because a `return` inside any IIFE, even a single big
+    # one, only exits the lambda.
+    target = core.EsphomeCore()
+    target.main_statements = [
+        ComponentMarker("safe_mode_with_local"),
+        RawStatement("{"),  # would trigger no_split
+        RawStatement("new_foo();"),
+        RawStatement("}"),
+        IIFEUnsafeStatement(RawExpression("if (cond) return")),
+    ]
+    out = target.cpp_main_section
+    assert "[]() {" not in out
+    assert "if (cond) return;" in out
+
+
 def test_cpp_main_section_iife_unsafe_statement_emits_component_flat() -> None:
     # A component that emits IIFEUnsafeStatement (e.g. safe_mode with
     # `if (...) return;`) must be emitted flat — a `return` inside an
