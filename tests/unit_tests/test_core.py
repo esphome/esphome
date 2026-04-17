@@ -937,7 +937,7 @@ def test_wrap_in_iifes_unbalanced_braces_fall_through() -> None:
 def test_wrap_in_iifes_skips_comment_only_chunks() -> None:
     # Components that emit only a ComponentMarker + config dump (no C++
     # statements) should not be wrapped in an empty IIFE.
-    lines = ["// === sha256 ===", "// sha256:", "//   {}"]
+    lines = ["// === begin sha256 ===", "// sha256:", "//   {}"]
     assert core._wrap_in_iifes(lines, max_statements=50) == lines
 
 
@@ -961,14 +961,16 @@ def test_cpp_main_section_component_marker_wraps_in_iife() -> None:
     out = target.cpp_main_section
     assert out.count("[]() {") == 2
     assert out.count("}();") == 2
-    # Each component's marker brackets its IIFE (once before, once after).
-    assert out.count("// === logger ===") == 2
-    assert out.count("// === wifi ===") == 2
+    # Each component's IIFE is bracketed by a begin/end marker pair.
+    assert "// === begin logger ===" in out
+    assert "// === end logger ===" in out
+    assert "// === begin wifi ===" in out
+    assert "// === end wifi ===" in out
 
 
 def test_cpp_main_section_comment_only_component_emits_single_marker() -> None:
     # A component that emits no C++ statements (only a ComponentMarker)
-    # should not grow a useless trailing duplicate marker.
+    # gets only a begin marker — no IIFE, so no end marker.
     target = core.EsphomeCore()
     target.main_statements = [
         ComponentMarker("sha256"),
@@ -976,8 +978,10 @@ def test_cpp_main_section_comment_only_component_emits_single_marker() -> None:
         RawStatement("new_wifi();"),
     ]
     out = target.cpp_main_section
-    assert out.count("// === sha256 ===") == 1
-    assert out.count("// === wifi ===") == 2  # wifi has an IIFE
+    assert "// === begin sha256 ===" in out
+    assert "// === end sha256 ===" not in out
+    assert "// === begin wifi ===" in out
+    assert "// === end wifi ===" in out
 
 
 def test_cpp_main_section_prefix_statements_stay_outside_iife() -> None:

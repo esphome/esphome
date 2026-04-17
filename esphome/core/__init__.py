@@ -1052,15 +1052,15 @@ class EsphomeCore:
 
         # Split main_statements at ComponentMarker sentinels into a prefix
         # (statements emitted before any component) plus per-component groups.
-        # Each group's first entry is its marker comment, kept separate so
-        # it can bracket the IIFE rather than be buried inside it.
+        # Each group carries its component name so cpp_main_section can emit
+        # begin/end marker comments bracketing the IIFE.
         prefix: list[str] = []
         components: list[tuple[str, list[str]]] = []
         current = prefix
         for exp in self.main_statements:
             if isinstance(exp, ComponentMarker):
                 body: list[str] = []
-                components.append((str(exp).rstrip(), body))
+                components.append((exp.name, body))
                 current = body
                 continue
             current.append(str(statement(exp)).rstrip())
@@ -1072,16 +1072,18 @@ class EsphomeCore:
         # Each component's block is wrapped in IIFE lambdas so its stack
         # frame is released on return, bounding peak stack during setup().
         # Large blocks are sub-split to cap single heavy components (e.g.
-        # sensor platforms with many filter registrations). The marker
-        # comment brackets the IIFE on both sides so the generated
-        # main.cpp is easy to scan by component.
+        # sensor platforms with many filter registrations). "begin X" and
+        # "end X" marker comments bracket the IIFE so the generated
+        # main.cpp is easy to scan by component; a comment-only component
+        # gets a single "begin X" marker (no IIFE, no end marker).
         pieces = list(prefix)
-        for marker, body in components:
+        for name, body in components:
             wrapped = _wrap_in_iifes(body, max_statements=50)
-            pieces.append(marker)
+            has_iife = any("[]()" in line for line in wrapped)
+            pieces.append(f"// === begin {name} ===")
             pieces.extend(wrapped)
-            if any("[]()" in line for line in wrapped):
-                pieces.append(marker)
+            if has_iife:
+                pieces.append(f"// === end {name} ===")
         return "\n".join(pieces) + "\n\n"
 
     @property

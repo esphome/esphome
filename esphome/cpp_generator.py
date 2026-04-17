@@ -436,9 +436,8 @@ class LineComment(Statement):
 
 class ComponentMarker(Statement):
     """Sentinel marker recorded in main_statements when a component's
-    to_code begins emitting code. Used by cpp_main_section to split
-    setup() output into per-component chunks, so each component's
-    stack frame is released on return."""
+    to_code begins emitting code. ``cpp_main_section`` consumes these
+    to bracket each component's IIFE with begin/end comment markers."""
 
     __slots__ = ("name",)
 
@@ -446,7 +445,7 @@ class ComponentMarker(Statement):
         self.name = name
 
     def __str__(self):
-        return f"// === {self.name} ==="
+        return f"// === begin {self.name} ==="
 
 
 class ProgmemAssignmentExpression(AssignmentExpression):
