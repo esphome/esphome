@@ -1685,7 +1685,6 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
-  resp.server_keepalive_interval = (this->parent_->get_server_keepalive_interval() / 1000.0);
 
   // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();

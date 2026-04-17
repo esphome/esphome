@@ -404,7 +404,7 @@ class HelloRequest final : public ProtoDecodableMessage {
 class HelloResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 2;
-  static constexpr uint8_t ESTIMATED_SIZE = 30;
+  static constexpr uint8_t ESTIMATED_SIZE = 26;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("hello_response"); }
 #endif

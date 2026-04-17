@@ -231,9 +231,6 @@ class APIServer final : public Component,
   Trigger<std::string, std::string> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
 #endif
 
-  void set_server_keepalive_interval(uint32_t interval) { this->server_keepalive_interval_ = interval; }
-  uint32_t get_server_keepalive_interval() { return this->server_keepalive_interval_; }
-
  protected:
   // Accept incoming socket connections. Only called when socket has pending connections.
   void __attribute__((noinline)) accept_new_connections_();
@@ -275,7 +272,6 @@ class APIServer final : public Component,
   // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
   uint32_t last_connected_{0};
-  uint32_t server_keepalive_interval_{20000};
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;

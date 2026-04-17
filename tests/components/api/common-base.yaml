@@ -52,7 +52,6 @@ api:
   port: 8000
   reboot_timeout: 0min
   client_keepalive_interval: 60sec
-  server_keepalive_interval: 20sec
   actions:
     - action: hello_world
       variables:

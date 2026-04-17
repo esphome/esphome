@@ -7,11 +7,15 @@ import esphome.codegen as cg
 from esphome.components.logger import request_log_listener
 from esphome.config_helpers import get_logger_level
 import esphome.config_validation as cv
+
+from .const import (
+    CONF_CLIENT_KEEPALIVE_INTERVAL,
+)
+
 from esphome.const import (
     CONF_ACTION,
     CONF_ACTIONS,
     CONF_CAPTURE_RESPONSE,
-    CONF_CLIENT_KEEPALIVE_INTERVAL,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
     CONF_EVENT,
@@ -26,7 +30,6 @@ from esphome.const import (
     CONF_PORT,
     CONF_REBOOT_TIMEOUT,
     CONF_RESPONSE_TEMPLATE,
-    CONF_SERVER_KEEPALIVE_INTERVAL,
     CONF_SERVICE,
     CONF_SERVICES,
     CONF_TAG,
@@ -323,14 +326,6 @@ CONFIG_SCHEMA = cv.All(
                     max=cv.TimePeriod(seconds=180),
                 ),
             ),
-            # Wait interval to fire a ping from client when no message from device(server), 20sec - 3min guardrails
-            cv.Optional(CONF_SERVER_KEEPALIVE_INTERVAL, default="20sec"): cv.All(
-                cv.positive_time_period_milliseconds,
-                cv.Range(
-                    min=cv.TimePeriod(seconds=20),
-                    max=cv.TimePeriod(seconds=180),
-                ),
-            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
@@ -482,11 +477,6 @@ async def to_code(config: ConfigType) -> None:
         client_keepalive_interval := config.get(CONF_CLIENT_KEEPALIVE_INTERVAL, None)
     ) is not None:
         cg.add_define("USE_API_CLIENT_KEEPALIVE_INTERVAL", client_keepalive_interval)
-    if (
-        server_keepalive_interval := config.get(CONF_SERVER_KEEPALIVE_INTERVAL, None)
-    ) is not None:
-        cg.add(var.set_server_keepalive_interval(server_keepalive_interval))
-
     cg.add_define("USE_API")
     cg.add_global(api_ns.using)
 
