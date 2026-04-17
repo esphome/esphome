@@ -9,6 +9,7 @@ from strategies import mac_addr_strings
 from esphome import const, core
 from esphome.cpp_generator import (
     AssignmentExpression,
+    CallExpression,
     ComponentMarker,
     ExpressionStatement,
     IIFEUnsafeStatement,
@@ -1068,15 +1069,20 @@ def test_cpp_main_section_raw_expression_as_call_arg_still_sub_splits() -> None:
     # `var.set_program(RawExpression("&foo"))`) produces
     # `ExpressionStatement(CallExpression(..., RawExpression))` — the
     # outer expression is a CallExpression, not a RawExpression, so
-    # the group is still sub-splittable.
+    # the group is still sub-splittable. Exercise this with actual
+    # CallExpression-wrapping-RawExpression statements filling the
+    # group past the 50-statement cap.
     target = core.EsphomeCore()
     stmts: list = [ComponentMarker("rp2040_pio_led_strip")]
-    # Emit >50 plain statements with one being an ExpressionStatement
-    # wrapping a non-RawExpression inner (RawStatement for simplicity
-    # here — the real codegen wraps a CallExpression).
-    stmts.extend(RawStatement(f"s{i}();") for i in range(120))
+    stmts.extend(
+        ExpressionStatement(
+            CallExpression(MockObj(f"var_{i}.set_program"), RawExpression("&foo"))
+        )
+        for i in range(120)
+    )
     target.main_statements = stmts
     out = target.cpp_main_section
+    # 120 statements / 50-cap -> 3 sub-chunks.
     assert out.count("[]() {") == 3
 
 
