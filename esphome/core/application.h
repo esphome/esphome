@@ -575,10 +575,25 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
+#ifdef USE_RUNTIME_STATS
+  // Capture the start of the active (non-sleeping) portion of this iteration.
+  // Used to derive main-loop overhead = active time − Σ(component time) −
+  // before/tail splits recorded below.
+  uint32_t loop_active_start_us = micros();
+  // Snapshot the cumulative component-recorded time so we can subtract the
+  // slice that the scheduler spends inside its own WarnIfComponentBlockingGuard
+  // (scheduler.cpp) — that time is already counted in per-component stats,
+  // so charging it again to "before" would double-count.
+  uint64_t loop_recorded_snap = ComponentRuntimeStats::global_recorded_us;
+#endif
   // Get the initial loop time at the start
   uint32_t last_op_end_time = millis();
 
   this->before_loop_tasks_(last_op_end_time);
+#ifdef USE_RUNTIME_STATS
+  uint32_t loop_before_end_us = micros();
+  uint64_t loop_before_scheduled_us = ComponentRuntimeStats::global_recorded_us - loop_recorded_snap;
+#endif
 
   for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
        this->current_loop_index_++) {
@@ -597,12 +612,24 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
     this->feed_wdt_with_time(last_op_end_time);
   }
 
+#ifdef USE_RUNTIME_STATS
+  uint32_t loop_tail_start_us = micros();
+#endif
   this->after_loop_tasks_();
 
 #ifdef USE_RUNTIME_STATS
   // Process any pending runtime stats printing after all components have run
   // This ensures stats printing doesn't affect component timing measurements
   if (global_runtime_stats != nullptr) {
+    uint32_t loop_now_us = micros();
+    // Subtract scheduled-component time from the "before" bucket so it is
+    // not double-counted (it is already attributed to per-component stats).
+    uint32_t loop_before_wall_us = loop_before_end_us - loop_active_start_us;
+    uint32_t loop_before_overhead_us = loop_before_wall_us > loop_before_scheduled_us
+                                           ? loop_before_wall_us - static_cast<uint32_t>(loop_before_scheduled_us)
+                                           : 0;
+    global_runtime_stats->record_loop_active(loop_now_us - loop_active_start_us, loop_before_overhead_us,
+                                             loop_now_us - loop_tail_start_us);
     global_runtime_stats->process_pending_stats(last_op_end_time);
   }
 #endif
