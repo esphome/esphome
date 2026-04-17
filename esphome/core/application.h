@@ -340,6 +340,9 @@ class Application {
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   /// Wake from ISR (ESP32 and LibreTiny).
   static void IRAM_ATTR wake_loop_isrsafe(BaseType_t *px) { esphome::wake_loop_isrsafe(px); }
+#elif defined(USE_ESP8266)
+  /// Wake from ISR (ESP8266). No task_woken arg — no FreeRTOS. Caller must be IRAM_ATTR.
+  static void IRAM_ATTR ESPHOME_ALWAYS_INLINE wake_loop_isrsafe() { esphome::wake_loop_isrsafe(); }
 #endif
 
   /// Wake from any context (ISR, thread, callback).
