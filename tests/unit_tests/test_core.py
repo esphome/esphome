@@ -934,6 +934,40 @@ def test_wrap_in_iifes_unbalanced_braces_fall_through() -> None:
     assert [line for line in result if line in lines] == lines
 
 
+def test_wrap_in_iifes_never_splits_inline_brace_lines() -> None:
+    # Defensive: if codegen ever emits control flow with braces on the
+    # same line (if/else/for), the depth tracker should keep the whole
+    # scoped block together even with aggressive max_statements.
+    lines = [
+        "before();",
+        "if (cond) {",
+        "then_branch();",
+        "} else {",
+        "for (;;) {",
+        "loop_body();",
+        "}",
+        "}",
+        "after();",
+    ]
+    assert core._wrap_in_iifes(lines, max_statements=1) == [
+        "[]() {",
+        "before();",
+        "}();",
+        "[]() {",
+        "if (cond) {",
+        "then_branch();",
+        "} else {",
+        "for (;;) {",
+        "loop_body();",
+        "}",
+        "}",
+        "}();",
+        "[]() {",
+        "after();",
+        "}();",
+    ]
+
+
 def test_wrap_in_iifes_skips_comment_only_chunks() -> None:
     # Components that emit only a ComponentMarker + config dump (no C++
     # statements) should not be wrapped in an empty IIFE.

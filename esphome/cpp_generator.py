@@ -437,7 +437,12 @@ class LineComment(Statement):
 class ComponentMarker(Statement):
     """Sentinel marker recorded in main_statements when a component's
     to_code begins emitting code. ``cpp_main_section`` consumes these
-    to bracket each component's IIFE with begin/end comment markers."""
+    to bracket each component's generated block with begin/end comment
+    markers and to wrap it in an IIFE scope. The IIFE introduces a
+    nested scope so GCC can shorten temporary lifetimes and help reduce
+    peak setup-time stack usage; the lambda has no ``noinline``
+    attribute, so the compiler may still inline the block when that
+    produces smaller code without regressing peak stack."""
 
     __slots__ = ("name",)
 

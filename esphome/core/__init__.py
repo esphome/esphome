@@ -565,11 +565,18 @@ def _wrap_in_iifes(lines: list[str], max_statements: int) -> list[str]:
 
     for line in lines:
         chunk.append(line)
-        stripped = line.strip()
-        if stripped == "{":
-            depth += 1
-        elif stripped == "}":
-            depth -= 1
+        # Track brace depth by counting ``{`` and ``}`` characters per line
+        # rather than matching whole-line tokens. Today the only codegen
+        # that emits scope braces as separate statements is
+        # ``cg.with_local_variable()`` (standalone ``{`` / ``}`` lines),
+        # but counting is robust against future codegen that emits inline
+        # control-flow like ``if (cond) {`` or ``} else {`` on a single
+        # line. Multi-line statements (inline lambdas) carry balanced
+        # braces within one list entry so they contribute no net depth.
+        # Braces inside string literals would throw the count off, but
+        # esphome's generated main.cpp does not currently emit strings
+        # that contain unbalanced braces in main_statements.
+        depth += line.count("{") - line.count("}")
         if depth == 0 and len(chunk) >= max_statements:
             flush()
     flush()
@@ -1069,13 +1076,17 @@ class EsphomeCore:
         if not components:
             return "\n".join(prefix) + "\n\n"
 
-        # Each component's block is wrapped in IIFE lambdas so its stack
-        # frame is released on return, bounding peak stack during setup().
-        # Large blocks are sub-split to cap single heavy components (e.g.
-        # sensor platforms with many filter registrations). "begin X" and
-        # "end X" marker comments bracket the IIFE so the generated
-        # main.cpp is easy to scan by component; a comment-only component
-        # gets a single "begin X" marker (no IIFE, no end marker).
+        # Each component's block is wrapped in an IIFE lambda that
+        # introduces a nested scope, shortening the lifetimes of
+        # temporaries so GCC can bound peak setup-time stack usage.
+        # The IIFE has no noinline attribute, so the compiler is free
+        # to inline the block when that produces smaller code without
+        # regressing peak stack. Large blocks are sub-split to cap
+        # single heavy components (e.g. sensor platforms with many
+        # filter registrations). "begin X" and "end X" marker comments
+        # bracket the IIFE so the generated main.cpp is easy to scan by
+        # component; a comment-only component gets a single "begin X"
+        # marker (no IIFE, no end marker).
         pieces = list(prefix)
         for name, body in components:
             wrapped = _wrap_in_iifes(body, max_statements=50)
