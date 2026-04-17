@@ -1,6 +1,8 @@
 #include "rc522.h"
 
 #include <algorithm>
+#include <array>
+#include <cstring>
 
 #include "esphome/core/log.h"
 
@@ -13,6 +15,10 @@ static constexpr uint8_t RC522_MIFARE_READ_SIZE =
 static constexpr uint8_t RC522_WAIT_I_RQ = 0x30;
 static constexpr uint32_t RC522_MIFARE_OPERATION_TIMEOUT_MS = 500;
 static constexpr uint16_t RC522_MIFARE_TRANSCEIVE_DELAY_US = 2000;
+
+static bool rc522_is_mifare_ack_(const uint8_t *buffer, uint8_t buffer_length, uint8_t valid_bits) {
+  return buffer_length == 1 && valid_bits == 4 && (buffer[0] & 0x0F) == nfc::MIFARE_CMD_ACK;
+}
 
 std::unique_ptr<nfc::NfcTag> RC522::read_mifare_ultralight_tag_(nfc::NfcTagUid &uid) {
   std::vector<uint8_t> data(RC522_MIFARE_READ_SIZE);
@@ -150,6 +156,94 @@ RC522::StatusCode RC522::read_mifare_ultralight_page_(uint8_t page, uint8_t *dat
   }
 
   return STATUS_OK;
+}
+
+uint16_t RC522::read_mifare_ultralight_capacity_() {
+  if (this->read_mifare_ultralight_page_(3, this->ndef_buffer_) == STATUS_OK) {
+    ESP_LOGV(TAG, "Tag capacity is %u bytes", this->ndef_buffer_[2] * 8U);
+    return this->ndef_buffer_[2] * 8U;
+  }
+  return 0;
+}
+
+bool RC522::write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len) {
+  if (len != nfc::MIFARE_ULTRALIGHT_PAGE_SIZE) {
+    return false;
+  }
+
+  uint8_t cmd[2 + nfc::MIFARE_ULTRALIGHT_PAGE_SIZE + 2];
+  cmd[0] = PICC_CMD_UL_WRITE;
+  cmd[1] = page_num;
+  memcpy(cmd + 2, write_data, len);
+  this->pcd_calculate_crc_sync_(cmd, 2 + len, cmd + 2 + len);
+
+  uint8_t response[2];
+  uint8_t response_len = sizeof(response);
+  uint8_t valid_bits = 0;
+  StatusCode status = this->pcd_transceive_sync_raw_(cmd, sizeof(cmd), response, response_len, valid_bits);
+  if (status != STATUS_OK) {
+    ESP_LOGE(TAG, "Error writing page %u", page_num);
+    return false;
+  }
+
+  if (!rc522_is_mifare_ack_(response, response_len, valid_bits)) {
+    ESP_LOGE(TAG, "Page %u did not acknowledge write", page_num);
+    return false;
+  }
+
+  return true;
+}
+
+bool RC522::write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message) {
+  uint32_t capacity = this->read_mifare_ultralight_capacity_();
+
+  auto encoded = message->encode();
+
+  uint32_t message_length = encoded.size();
+  uint32_t buffer_length = nfc::get_mifare_ultralight_buffer_size(message_length);
+
+  if (buffer_length > capacity) {
+    ESP_LOGE(TAG, "Message length exceeds tag capacity %" PRIu32 " > %" PRIu32, buffer_length, capacity);
+    return false;
+  }
+
+  encoded.insert(encoded.begin(), 0x03);
+  if (message_length < 255) {
+    encoded.insert(encoded.begin() + 1, message_length);
+  } else {
+    encoded.insert(encoded.begin() + 1, 0xFF);
+    encoded.insert(encoded.begin() + 2, (message_length >> 8) & 0xFF);
+    encoded.insert(encoded.begin() + 3, message_length & 0xFF);
+  }
+  encoded.push_back(0xFE);
+
+  encoded.resize(buffer_length, 0);
+
+  uint32_t index = 0;
+  uint8_t current_page = nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE;
+
+  while (index < buffer_length) {
+    if (!this->write_mifare_ultralight_page_(current_page, encoded.data() + index, nfc::MIFARE_ULTRALIGHT_PAGE_SIZE)) {
+      return false;
+    }
+    index += nfc::MIFARE_ULTRALIGHT_PAGE_SIZE;
+    current_page++;
+  }
+  return true;
+}
+
+bool RC522::clean_mifare_ultralight_() {
+  uint32_t capacity = this->read_mifare_ultralight_capacity_();
+  uint8_t pages = (capacity / nfc::MIFARE_ULTRALIGHT_PAGE_SIZE) + nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE;
+
+  static constexpr std::array<uint8_t, nfc::MIFARE_ULTRALIGHT_PAGE_SIZE> BLANK_DATA = {0x00, 0x00, 0x00, 0x00};
+
+  for (int i = nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE; i < pages; i++) {
+    if (!this->write_mifare_ultralight_page_(i, BLANK_DATA.data(), BLANK_DATA.size())) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool RC522::is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_data) {

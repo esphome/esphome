@@ -102,6 +102,19 @@ void RC522::pcd_calculate_crc_sync_(uint8_t *data, uint8_t length, uint8_t *crc_
 
 RC522::StatusCode RC522::pcd_transceive_sync_(const uint8_t *send_data, uint8_t send_len, uint8_t *recv_data,
                                               uint8_t &recv_len) {
+  uint8_t valid_bits = 0;
+  StatusCode status = this->pcd_transceive_sync_raw_(send_data, send_len, recv_data, recv_len, valid_bits);
+  if (status != STATUS_OK) {
+    return status;
+  }
+  if (valid_bits != 0) {
+    return STATUS_ERROR;
+  }
+  return STATUS_OK;
+}
+
+RC522::StatusCode RC522::pcd_transceive_sync_raw_(const uint8_t *send_data, uint8_t send_len, uint8_t *recv_data,
+                                                  uint8_t &recv_len, uint8_t &valid_bits) {
   delayMicroseconds(2000);
 
   this->pcd_write_register(COMMAND_REG, PCD_IDLE);
@@ -143,11 +156,7 @@ RC522::StatusCode RC522::pcd_transceive_sync_(const uint8_t *send_data, uint8_t 
     return STATUS_ERROR;
   }
 
-  uint8_t valid_bits = this->pcd_read_register(CONTROL_REG) & 0x07;
-  if (valid_bits != 0) {
-    this->pcd_write_register(COMMAND_REG, PCD_IDLE);
-    return STATUS_ERROR;
-  }
+  valid_bits = this->pcd_read_register(CONTROL_REG) & 0x07;
 
   uint8_t fifo_len = this->pcd_read_register(FIFO_LEVEL_REG);
   if (fifo_len > RC522_FIFO_SIZE) {
@@ -167,6 +176,8 @@ RC522::StatusCode RC522::pcd_transceive_sync_(const uint8_t *send_data, uint8_t 
   recv_len = fifo_len;
   return STATUS_OK;
 }
+
+void RC522::pcd_stop_crypto1_() { this->pcd_clear_register_bit_mask_(STATUS2_REG, 0x08); }
 
 RC522::StatusCode RC522::rats_() {
   uint8_t cmd[4] = {PICC_CMD_RATS, 0x50, 0x00, 0x00};

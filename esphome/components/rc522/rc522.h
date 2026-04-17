@@ -28,6 +28,17 @@ class RC522 : public PollingComponent {
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
   void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
+  template<typename F> void add_on_finished_write_callback(F &&callback) {
+    this->on_finished_write_callback_.add(std::forward<F>(callback));
+  }
+
+  bool is_writing() { return this->next_task_ != READ; }
+
+  void read_mode();
+  void clean_mode();
+  void format_mode();
+  void write_mode(nfc::NdefMessage *message);
+
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
 
  protected:
@@ -57,6 +68,13 @@ class RC522 : public PollingComponent {
     STATE_READ_SERIAL_DONE,
     STATE_DONE,
   } state_{STATE_NONE};
+
+  enum NfcTask {
+    READ = 0,
+    CLEAN,
+    FORMAT,
+    WRITE,
+  } next_task_{READ};
 
   enum PcdRegister : uint8_t {
     // Page 0: Command and status
@@ -226,17 +244,36 @@ class RC522 : public PollingComponent {
   );
 
   std::unique_ptr<nfc::NfcTag> read_mifare_ultralight_tag_(nfc::NfcTagUid &uid);
+  uint16_t read_mifare_ultralight_capacity_();
   StatusCode read_mifare_ultralight_page_(uint8_t page, uint8_t *data);
+  bool write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len);
+  bool write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
+  bool clean_mifare_ultralight_();
   bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_data);
   bool find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_data, uint8_t &message_length,
                                     uint8_t &message_start_index);
+
+  std::unique_ptr<nfc::NfcTag> read_mifare_classic_tag_(nfc::NfcTagUid &uid);
+  bool read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
+  bool auth_mifare_classic_block_(nfc::NfcTagUid &uid, uint8_t block_num, uint8_t key_num, const uint8_t *key);
+  bool write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len);
+  bool format_mifare_classic_mifare_(nfc::NfcTagUid &uid);
+  bool format_mifare_classic_ndef_(nfc::NfcTagUid &uid);
+  bool write_mifare_classic_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
 
   std::unique_ptr<nfc::NfcTag> read_iso_dep_tag_(nfc::NfcTagUid &uid);
   StatusCode rats_();
   StatusCode iso_dep_transceive_(const uint8_t *send_data, uint8_t send_len, uint8_t *recv_data, uint8_t &recv_len);
   StatusCode iso_dep_send_apdu_(const uint8_t *apdu, uint8_t apdu_len, uint8_t *resp, uint8_t &resp_len);
   void pcd_calculate_crc_sync_(uint8_t *data, uint8_t length, uint8_t *crc_out);
+  StatusCode pcd_transceive_sync_raw_(const uint8_t *send_data, uint8_t send_len, uint8_t *recv_data, uint8_t &recv_len,
+                                      uint8_t &valid_bits);
   StatusCode pcd_transceive_sync_(const uint8_t *send_data, uint8_t send_len, uint8_t *recv_data, uint8_t &recv_len);
+  void pcd_stop_crypto1_();
+
+  bool clean_tag_(nfc::NfcTagUid &uid);
+  bool format_tag_(nfc::NfcTagUid &uid);
+  bool write_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
 
   bool awaiting_comm_;
   uint32_t awaiting_comm_time_;
@@ -261,7 +298,9 @@ class RC522 : public PollingComponent {
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
   nfc::NfcTagUid current_uid_;
+  nfc::NdefMessage *next_task_message_to_write_{nullptr};
   uint8_t sak_{0};
+  CallbackManager<void()> on_finished_write_callback_;
 
   enum RC522Error {
     NONE = 0,
@@ -285,6 +324,11 @@ class RC522BinarySensor : public binary_sensor::BinarySensor {
  protected:
   nfc::NfcTagUid uid_;
   bool found_{false};
+};
+
+template<typename... Ts> class RC522IsWritingCondition : public Condition<Ts...>, public Parented<RC522> {
+ public:
+  bool check(const Ts &...x) override { return this->parent_->is_writing(); }
 };
 
 }  // namespace rc522

@@ -92,12 +92,18 @@ class PN532 : public PollingComponent {
   bool write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
   bool clean_mifare_ultralight_();
 
+  std::unique_ptr<nfc::NfcTag> read_iso_dep_tag_(nfc::NfcTagUid &uid);
+  bool write_iso_dep_tag_(nfc::NdefMessage *message);
+  bool clean_iso_dep_tag_();
+  bool iso_dep_send_apdu_(const std::vector<uint8_t> &apdu, std::vector<uint8_t> &response);
+
   bool updates_enabled_{true};
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
   nfc::NfcTagUid current_uid_;
+  uint8_t sak_{0};
   nfc::NdefMessage *next_task_message_to_write_;
   optional<uint32_t> rd_start_time_{};
   enum PN532ReadReady rd_ready_ { WOULDBLOCK };

@@ -1,8 +1,10 @@
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import i2c, nfc
+from esphome.components import nfc
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ID,
+    CONF_ON_FINISHED_WRITE,
     CONF_ON_TAG,
     CONF_ON_TAG_REMOVED,
     CONF_RESET_PIN,
@@ -11,11 +13,16 @@ from esphome.const import (
 
 CODEOWNERS = ["@glmnet"]
 AUTO_LOAD = ["binary_sensor", "nfc"]
+MULTI_CONF = True
 
 CONF_RC522_ID = "rc522_id"
 
 rc522_ns = cg.esphome_ns.namespace("rc522")
-RC522 = rc522_ns.class_("RC522", cg.PollingComponent, i2c.I2CDevice)
+RC522 = rc522_ns.class_("RC522", cg.PollingComponent)
+
+RC522IsWritingCondition = rc522_ns.class_(
+    "RC522IsWritingCondition", automation.Condition
+)
 
 RC522_SCHEMA = cv.Schema(
     {
@@ -26,6 +33,7 @@ RC522_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(nfc.NfcOnTagTrigger),
             }
         ),
+        cv.Optional(CONF_ON_FINISHED_WRITE): automation.validate_automation({}),
         cv.Optional(CONF_ON_TAG_REMOVED): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(nfc.NfcOnTagTrigger),
@@ -33,6 +41,13 @@ RC522_SCHEMA = cv.Schema(
         ),
     }
 ).extend(cv.polling_component_schema("1s"))
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_FINISHED_WRITE, "add_on_finished_write_callback"
+    ),
+)
 
 
 async def setup_rc522(var, config):
@@ -55,3 +70,20 @@ async def setup_rc522(var, config):
         await automation.build_automation(
             trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
         )
+
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+
+
+@automation.register_condition(
+    "rc522.is_writing",
+    RC522IsWritingCondition,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(RC522),
+        }
+    ),
+)
+async def rc522_is_writing_to_code(config, condition_id, template_arg, args):
+    var = cg.new_Pvariable(condition_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
