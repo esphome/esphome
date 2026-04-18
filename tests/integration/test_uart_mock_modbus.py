@@ -309,7 +309,12 @@ async def test_uart_mock_modbus_server_controller_write(
 
 @pytest.mark.asyncio
 @pytest.mark.xfail(
-    reason="Modbus parser cannot handle server responses from other devices on the bus. Fix tracked in PR #11969.",
+    reason=(
+        "The sliding-resync parser recovers sensor values under multi-device peer traffic, "
+        "but the interframe-timeout clearing path still emits a single W-level log that the "
+        "strict no-warnings assertion rejects. A separate PR will downgrade that log to "
+        "ESP_LOGD for the server-mode peer-traffic case."
+    ),
     strict=True,
 )
 async def test_uart_mock_modbus_server_controller_multiple(

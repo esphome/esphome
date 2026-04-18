@@ -26,8 +26,10 @@ struct ModbusDeviceCommand {
   // Frame with exact-size allocation to avoid std::vector overhead
   std::unique_ptr<uint8_t[]> data;
   uint16_t size;  // Modbus RTU max is 256 bytes
+  ModbusDevice *sender{nullptr};
 
-  ModbusDeviceCommand(const uint8_t *src, uint16_t len) : data(std::make_unique<uint8_t[]>(len + 2)), size(len + 2) {
+  ModbusDeviceCommand(const uint8_t *src, uint16_t len, ModbusDevice *sender = nullptr)
+      : data(std::make_unique<uint8_t[]>(len + 2)), size(len + 2), sender(sender) {
     std::memcpy(this->data.get(), src, len);
     auto crc = crc16(data.get(), len);
     data[len + 0] = crc >> 0;
@@ -52,8 +54,8 @@ class Modbus : public uart::UARTDevice, public Component {
   bool tx_blocked();
 
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-            uint8_t payload_len = 0, const uint8_t *payload = nullptr);
-  void send_raw(const std::vector<uint8_t> &payload);
+            uint8_t payload_len = 0, const uint8_t *payload = nullptr, ModbusDevice *sender = nullptr);
+  void send_raw(const std::vector<uint8_t> &payload, ModbusDevice *sender = nullptr);
   void set_role(ModbusRole role) { this->role = role; }
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
   void set_send_wait_time(uint16_t time_in_ms) { this->send_wait_time_ = time_in_ms; }
@@ -69,7 +71,7 @@ class Modbus : public uart::UARTDevice, public Component {
   void receive_and_parse_modbus_bytes_();
   void clear_rx_buffer_(const LogString *reason, bool warn = false);
   void send_next_frame_();
-  void queue_raw_(const uint8_t *data, uint16_t len);
+  void queue_raw_(const uint8_t *data, uint16_t len, ModbusDevice *sender = nullptr);
   void drop_impossible_leading_bytes_();
 
   uint32_t last_modbus_byte_{0};
@@ -80,7 +82,10 @@ class Modbus : public uart::UARTDevice, public Component {
   uint16_t send_wait_time_{250};
   uint16_t turnaround_delay_ms_{100};
   uint8_t waiting_for_response_{0};
+  ModbusDevice *waiting_device_{nullptr};
   bool disable_crc_{false};
+  bool post_timeout_quarantine_{false};
+  uint32_t post_timeout_ts_{0};
 
   GPIOPin *flow_control_pin_{nullptr};
 
@@ -102,9 +107,9 @@ class ModbusDevice {
   virtual void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data){};
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
-    this->parent_->send(this->address_, function, start_address, number_of_entities, payload_len, payload);
+    this->parent_->send(this->address_, function, start_address, number_of_entities, payload_len, payload, this);
   }
-  void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload); }
+  void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
   void send_error(uint8_t function_code, ModbusExceptionCode exception_code) {
     std::vector<uint8_t> error_response;
     error_response.reserve(3);
