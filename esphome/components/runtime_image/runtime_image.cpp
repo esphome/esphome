@@ -89,9 +89,8 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       break;
     }
     case image::IMAGE_TYPE_GRAYSCALE4: {
-      uint32_t pos = (x >> 2) + y * ((this->buffer_width_ + 3) >>
-                                     2);  // Use stride-based addressing for 2bpp to handle row padding correctly
-      auto gray = color.r >> 6;           // we can use any channel since they all match
+      uint32_t pos = (x >> 2) + y * ((this->buffer_width_ + 3) >> 2);
+      auto gray = ColorUtils::color_to_grayscale_luma(color);
       uint8_t &byte = this->buffer_[pos];
       uint8_t shift = (3 - (x & 0x03)) << 1;
       byte = (byte & ~(0x03 << shift)) | ((gray & 0x03) << shift);
@@ -99,7 +98,7 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
     }
     case image::IMAGE_TYPE_GRAYSCALE: {
       uint32_t pos = this->get_position_(x, y);
-      auto gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
+      auto gray = ColorUtils::color_to_grayscale_luma(color);
       if (this->transparency_ == image::TRANSPARENCY_CHROMA_KEY) {
         if (gray == 1) {
           gray = 0;

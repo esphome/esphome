@@ -107,6 +107,10 @@ class ColorUtil {
     uint32_t gs4 = esp_scale8(color.white, 15);
     return gs4;
   }
+  static uint8_t color_to_grayscale_luma(Color color) {
+    uint8_t lum = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
+    return lum;
+  }
   /***
    * Converts a Color value to an 8bit index using a 24bit 888 palette.
    * Uses euclidiean distance to calculate the linear distance between
