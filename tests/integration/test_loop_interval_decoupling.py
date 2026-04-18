@@ -58,7 +58,9 @@ async def test_loop_interval_decoupling(
         # Component phase should fire ~4 times in 2s. The upper bound must be
         # less than 8: the pre-decoupling behavior clamped to ~250ms cadence
         # giving ~8 loops/2s, so allowing 8 would let the old behavior pass.
-        assert 2 <= loop_delta <= 6, (
+        # Lower bound 3 (not 2) keeps the test honest: a >30% slowdown from
+        # the ~4 nominal is not normal CI jitter and should fail.
+        assert 3 <= loop_delta <= 6, (
             f"Component loop should fire ~4 times in 2s at loop_interval=500ms, "
             f"got {loop_delta}"
         )
