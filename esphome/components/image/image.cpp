@@ -133,12 +133,12 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
         break;
 
       case IMAGE_TYPE_GRAYSCALE4: {
-        static const uint8_t grayscale_palette[8] = {
+        static const uint8_t GRAYSCALE4_PALETTE[8] = {
             0x00, 0x55, 0xAA, 0xFF  // 4 grayscale levels scaled to 8-bit
         };
-        this->dsc_.data = reinterpret_cast<const uint8_t *>(grayscale_palette);
+        this->dsc_.data = reinterpret_cast<const uint8_t *>(GRAYSCALE4_PALETTE);
         this->dsc_.header.cf = LV_COLOR_FORMAT_I2;
-        this->dsc_.data_size += sizeof(grayscale_palette);  // Adjust data size to include palette
+        this->dsc_.data_size += sizeof(GRAYSCALE4_PALETTE);  // Adjust data size to include palette
         break;
       }
 
@@ -194,7 +194,8 @@ uint8_t Image::get_grayscale4_pixel_(int x, int y) const {
   const uint32_t pos = (x >> 2) + y * this->get_width_stride();
   const uint8_t byte = progmem_read_byte(this->data_start_ + pos);
   // 2-bit grayscale stored in 2 bits, shift to upper bits of byte and scale to 0-255
-  return ((byte >> ((3 - (x & 0x03)) << 1)) & 0x03) << 6;
+  const uint8_t gray2 = (byte >> ((3 - (x & 0x03)) << 1)) & 0x03;
+  return gray2 * 85u;
 }
 Color Image::get_rgb_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) * this->bpp_ / 8;
