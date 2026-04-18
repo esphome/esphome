@@ -533,7 +533,7 @@ void HOT Scheduler::process_defer_queue_slow_path_(uint32_t &now) {
 }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
-void HOT Scheduler::call(uint32_t now) {
+uint32_t HOT Scheduler::call(uint32_t now) {
 #ifndef ESPHOME_THREAD_SINGLE
   this->process_defer_queue_(now);
 #endif /* not ESPHOME_THREAD_SINGLE */
@@ -703,6 +703,9 @@ void HOT Scheduler::call(uint32_t now) {
     this->debug_verify_no_leak_();
   }
 #endif
+  // execute_item_() advances `now` as items fire; return it so the caller
+  // stays monotonic with last_wdt_feed_.
+  return now;
 }
 void HOT Scheduler::process_to_add_slow_path_() {
   LockGuard guard{this->lock_};
