@@ -1,0 +1,42 @@
+## NdefRecordUri Code Review — Full URL Preservation Confirmed
+
+### File: esphome/components/nfc/ndef_record_uri.h
+
+Line 71:
+  const std::string &get_payload() const override { return this->uri_; };
+
+  → get_payload() returns this->uri_ directly. No truncation, no filtering.
+
+Line 13 (prefix table, index 0x00):
+  static const char *const PAYLOAD_IDENTIFIERS[] = {"",   // index 0x00 = empty string
+                                                    "http://www.",
+                                                    ...
+
+  → PAYLOAD_IDENTIFIERS[0x00] = "" (empty string)
+
+### File: esphome/components/nfc/ndef_record_uri.cpp
+
+Lines 8-25 (constructor from raw payload bytes):
+  NdefRecordUri::NdefRecordUri(const std::vector<uint8_t> &payload) {
+    uint8_t payload_identifier = payload[0];  // First byte = prefix code
+    std::string uri(payload.begin() + 1, payload.end());  // Rest = raw URI bytes
+
+    if (payload_identifier > 0x00 && payload_identifier <= PAYLOAD_IDENTIFIERS_COUNT) {
+      uri.insert(0, PAYLOAD_IDENTIFIERS[payload_identifier]);
+    }
+    // When payload_identifier == 0x00: condition is FALSE → no prefix inserted
+    // uri = raw payload bytes verbatim
+
+    this->set_uri(uri);  // Stored as-is in this->uri_
+  }
+
+### Conclusion
+
+For a Bolt card NDEF URI record with prefix byte 0x00:
+- Condition `payload_identifier > 0x00` is FALSE
+- No prefix is prepended
+- this->uri_ = the raw payload bytes starting at offset 1 (i.e. the full URL string)
+- get_payload() returns this->uri_ verbatim
+
+Query parameters (e.g. ?p=<picc_data>&c=<cmac>) are NOT stripped anywhere in the parse path.
+A lnurlw://...?p=abc&c=def URL will be returned in full by get_payload().

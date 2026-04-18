@@ -1,0 +1,14 @@
+## rc522_i2c compile verification
+
+Command:
+  script/test_build_components -c rc522_i2c -t esp32-idf
+
+Result:
+  Test Summary: 1 passed, 0 failed
+  EXIT_CODE: 0
+
+Notes:
+  - A stale PlatformIO build cache (from pn532.cpp relocation in a prior task) caused
+    the first attempt to fail with "source not found". Clearing the cache directory
+    (.esphome/build/componenttestesp32idf) allowed a clean rebuild which succeeded.
+  - The updated common.yaml with `record->get_payload().c_str()` logging compiled cleanly.

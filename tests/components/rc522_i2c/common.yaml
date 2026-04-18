@@ -9,6 +9,9 @@ rc522_i2c:
             auto msg = tag.get_ndef_message();
             for (auto &record : msg->get_records()) {
               ESP_LOGD("main", "  NDEF record type: %s", record->get_type().c_str());
+              // get_payload() returns the full URI including query params (e.g. lnurlw://...?p=<picc>&c=<cmac>).
+              // For URI records with prefix byte 0x00 (no known scheme), the payload is returned verbatim.
+              ESP_LOGD("main", "  NDEF record payload: %s", record->get_payload().c_str());
             }
           }
     on_tag_removed:
