@@ -44,8 +44,8 @@ def format_config_path(path: SubstitutionPath, current_obj: object) -> str:
     consecutive such keys, that is an include boundary.  The path is split
     into per-file frames and formatted innermost-first, e.g.::
 
-        In: packages->_roam_ in common/package/wifi.yaml 26:10
-          Included from packages->_wifi_ in common/hardware.yaml 44:2
+        In: packages->roam in common/package/wifi.yaml 26:10
+          Included from packages->net in common/hardware.yaml 44:2
           Included from packages->device in my_project.yaml 11:2
 
     The innermost ``In:`` line uses the location from *current_obj* when
