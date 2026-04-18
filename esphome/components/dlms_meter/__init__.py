@@ -119,8 +119,6 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
-    # Exclude Zephyr (nrf52)
-    cv.only_on(["esp32", "esp8266", "rp2040", "bk72xx", "rtl87xx", "ln882h", "host"]),
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("dlms_meter", require_rx=True)
