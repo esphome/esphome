@@ -63,11 +63,14 @@ class Modbus : public uart::UARTDevice, public Component {
   ModbusRole role;
 
  protected:
-  bool parse_modbus_byte_(uint8_t byte);
+  int check_frame_() const;
+  void try_extract_frame_();
+  void dispatch_frame_(size_t frame_len);
   void receive_and_parse_modbus_bytes_();
   void clear_rx_buffer_(const LogString *reason, bool warn = false);
   void send_next_frame_();
   void queue_raw_(const uint8_t *data, uint16_t len);
+  void drop_impossible_leading_bytes_();
 
   uint32_t last_modbus_byte_{0};
   uint32_t last_send_{0};

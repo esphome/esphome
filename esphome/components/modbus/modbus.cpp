@@ -53,8 +53,17 @@ void Modbus::loop() {
   // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
   // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
   // So in this component we don't use any cached timestamp values to avoid these annoying bugs
-  if (millis() - this->last_modbus_byte_ > timeout) {
-    this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
+  if (!this->rx_buffer_.empty() && millis() - this->last_modbus_byte_ > timeout) {
+    // Interframe gap expired. Try one last resync - a valid frame may be
+    // buried after leading noise bytes that prevented extraction earlier.
+    this->try_extract_frame_();
+    if (!this->rx_buffer_.empty()) {
+      const size_t dump_size = std::min(this->rx_buffer_.size(), MODBUS_MAX_LOG_BYTES);
+      char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+      ESP_LOGD(TAG, "Timeout buffer (%zu bytes) %" PRIu32 "ms after last send: %s", this->rx_buffer_.size(),
+               millis() - this->last_send_, format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), dump_size));
+      this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
+    }
   }
 
   // If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
@@ -90,79 +99,242 @@ bool Modbus::tx_blocked() {
 bool Modbus::tx_buffer_empty() { return this->tx_buffer_.empty(); }
 
 void Modbus::receive_and_parse_modbus_bytes_() {
-  // Read all available bytes in batches to reduce UART call overhead.
   size_t avail = this->available();
+  if (avail == 0)
+    return;
+
+  // Batch-read all available bytes into rx_buffer_.
+  bool was_empty = this->rx_buffer_.empty();
   uint8_t buf[64];
   while (avail > 0) {
     size_t to_read = std::min(avail, sizeof(buf));
-    if (!this->read_array(buf, to_read)) {
+    if (!this->read_array(buf, to_read))
+      break;
+    this->rx_buffer_.insert(this->rx_buffer_.end(), buf, buf + to_read);
+    avail -= to_read;
+  }
+  this->last_modbus_byte_ = millis();
+
+  if (was_empty && !this->rx_buffer_.empty()) {
+    const uint8_t first = this->rx_buffer_[0];
+    ESP_LOGV(TAG, "Received first byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", first, first,
+             millis() - this->last_send_);
+  }
+
+  // Guard against unbounded growth from continuous noise
+  if (this->rx_buffer_.size() > MAX_FRAME_SIZE) {
+    size_t excess = this->rx_buffer_.size() - MAX_FRAME_SIZE;
+    ESP_LOGW(TAG, "Rx buffer overflow (%zu bytes), discarding oldest %zu", this->rx_buffer_.size(), excess);
+    this->rx_buffer_.erase(this->rx_buffer_.begin(), this->rx_buffer_.begin() + excess);
+  }
+
+  this->drop_impossible_leading_bytes_();
+  this->try_extract_frame_();
+}
+
+void Modbus::drop_impossible_leading_bytes_() {
+  while (!this->rx_buffer_.empty()) {
+    const uint8_t first = this->rx_buffer_.front();
+    bool impossible = false;
+
+    if (this->waiting_for_response_ != 0) {
+      // While a response is pending, any leading byte that does not match the expected
+      // device address cannot begin a valid RTU response frame.
+      impossible = first != this->waiting_for_response_;
+    } else {
+      // With no response pending, only trim explicit NUL noise eagerly.
+      impossible = first == 0x00;
+    }
+
+    if (!impossible) {
       break;
     }
-    avail -= to_read;
-    for (size_t i = 0; i < to_read; i++) {
-      if (this->rx_buffer_.empty()) {
-        ESP_LOGV(TAG, "Received first byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", buf[i], buf[i],
-                 millis() - this->last_send_);
-      } else {
-        ESP_LOGVV(TAG, "Received byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", buf[i], buf[i],
-                  millis() - this->last_send_);
-      }
 
-      // If the bytes in the rx buffer do not parse, clear out the buffer
-      if (!this->parse_modbus_byte_(buf[i])) {
-        this->clear_rx_buffer_(LOG_STR("parse failed"), true);
-      }
-      this->last_modbus_byte_ = millis();
-    }
+    // ESP_LOGV, not ESP_LOGD: on a continuously noisy bus this fires once per byte and
+    // would flood the default log. Operators enable V when they need to investigate.
+    ESP_LOGV(TAG, "Dropping impossible leading byte 0x%02X while waiting for addr=%" PRIu8, first,
+             this->waiting_for_response_);
+    this->rx_buffer_.erase(this->rx_buffer_.begin());
   }
 }
 
-bool Modbus::parse_modbus_byte_(uint8_t byte) {
-  size_t at = this->rx_buffer_.size();
-  this->rx_buffer_.push_back(byte);
-  const uint8_t *raw = &this->rx_buffer_[0];
+// Examine rx_buffer_ starting at byte 0 for a complete, valid Modbus RTU frame.
+// Returns:
+//   > 0  total frame length (including CRC) - valid frame ready to dispatch
+//     0  incomplete frame, need more bytes
+//    -1  CRC failure or implausible header - caller should resync
+int Modbus::check_frame_() const {
+  const size_t len = this->rx_buffer_.size();
+  // Absolute minimum: addr(1) + FC(1) + CRC(2) = 4 bytes. Standard FCs need more than this
+  // and the check further down handles their lengths; user-defined FCs can legally be this short.
+  if (len < 4)
+    return 0;
 
-  // Byte 0: modbus address (match all)
-  if (at == 0)
-    return true;
-  // Byte 1: function code
-  if (at == 1)
-    return true;
-  // Byte 2: Size (with modbus rtu function code 4/3)
-  // See also https://en.wikipedia.org/wiki/Modbus
-  if (at == 2)
-    return true;
-
-  uint8_t address = raw[0];
+  const uint8_t *raw = this->rx_buffer_.data();
   uint8_t function_code = raw[1];
 
-  uint8_t data_len = raw[2];
-  uint8_t data_offset = 3;
-
-  // Per https://modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf Ch 5 User-Defined function codes
+  // --- User-defined function codes: unknown payload length, speculative CRC ---
+  // Per https://modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf Ch 5
   if (((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT) &&
        (function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END)) ||
       ((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT) &&
        (function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END))) {
-    // Handle user-defined function, since we don't know how big this ought to be,
-    // ideally we should delegate the entire length detection to whatever handler is
-    // installed, but wait, there is the CRC, and if we get a hit there is a good
-    // chance that this is a complete message ... admittedly there is a small chance is
-    // isn't but that is quite small given the purpose of the CRC in the first place
+    // Try CRC at every possible frame end (min 4 bytes: addr+FC+CRC_L+CRC_H)
+    for (size_t try_len = 4; try_len <= len && try_len <= MAX_FRAME_SIZE; try_len++) {
+      size_t crc_pos = try_len - 2;
+      uint16_t computed = crc16(raw, crc_pos);
+      uint16_t remote = uint16_t(raw[crc_pos]) | (uint16_t(raw[crc_pos + 1]) << 8);
+      if (computed == remote)
+        return static_cast<int>(try_len);
+    }
+    return (len < MAX_FRAME_SIZE) ? 0 : -1;
+  }
 
-    data_len = at - 2;
-    data_offset = 1;
+  // Standard function codes need at least an exception-response shape:
+  // addr(1) + FC(1) + exception(1) + CRC(2) = 5 bytes.
+  if (len < 5)
+    return 0;
 
-    uint16_t computed_crc = crc16(raw, data_offset + data_len);
-    uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
+  // --- Standard function codes: deterministic frame length ---
+  uint8_t data_offset = 3;
+  uint8_t data_len = raw[2];
 
-    if (computed_crc != remote_crc)
-      return true;
-
-    ESP_LOGD(TAG, "User-defined function %02X found", function_code);
-
-  } else {
+  // See also https://en.wikipedia.org/wiki/Modbus
+  if (this->role == ModbusRole::SERVER) {
     // data starts at 2 and length is 4 for read registers commands
+    if (function_code == ModbusFunctionCode::READ_COILS || function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS ||
+        function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
+        function_code == ModbusFunctionCode::READ_INPUT_REGISTERS ||
+        function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
+      data_offset = 2;
+      data_len = 4;
+    } else if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+      if (len < 7)
+        return 0;  // Need raw[6] for byte count
+      data_offset = 2;
+      // starting address (2 bytes) + quantity of registers (2 bytes) + byte count itself (1 byte) + actual byte count
+      data_len = 2 + 2 + 1 + raw[6];
+    }
+  } else {
+    // CLIENT mode - the response for write command mirrors the requests and data starts at offset 2 instead of 3 for
+    // read commands
+    if (function_code == ModbusFunctionCode::WRITE_SINGLE_COIL ||
+        function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
+        function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
+        function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+      data_offset = 2;
+      data_len = 4;
+    }
+    // else: read response - data_offset=3, data_len=raw[2] (defaults)
+  }
+
+  // Error ( msb indicates error ) overrides any previous layout
+  // response format:  Byte[0] = device address, Byte[1] function code | 0x80 , Byte[2] exception code, Byte[3-4] crc
+  if ((function_code & FUNCTION_CODE_EXCEPTION_MASK) == FUNCTION_CODE_EXCEPTION_MASK) {
+    data_offset = 2;
+    data_len = 1;
+  }
+
+  size_t frame_len = static_cast<size_t>(data_offset) + data_len + 2;
+
+  // Implausible length - noise probably corrupted the header
+  if (frame_len > MAX_FRAME_SIZE)
+    return -1;
+
+  // Not enough bytes yet
+  if (len < frame_len)
+    return 0;
+
+  // CRC validation
+  uint16_t computed = crc16(raw, data_offset + data_len);
+  uint16_t remote = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
+
+  if (computed != remote) {
+    if (this->disable_crc_) {
+      ESP_LOGD(TAG, "CRC check failed %" PRIu32 "ms after last send; ignoring", millis() - this->last_send_);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+      char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+      ESP_LOGVV(TAG, "  (%02X != %02X)  %s", computed, remote,
+                format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), this->rx_buffer_.size()));
+      return static_cast<int>(frame_len);
+    }
+    {
+      const size_t dump_size = std::min(this->rx_buffer_.size(), MODBUS_MAX_LOG_BYTES);
+      char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+      ESP_LOGD(TAG, "CRC check failed %" PRIu32 "ms after last send (%04X != %04X) %zu bytes: %s",
+               millis() - this->last_send_, computed, remote, this->rx_buffer_.size(),
+               format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), dump_size));
+    }
+    return -1;
+  }
+
+  return static_cast<int>(frame_len);
+}
+
+void Modbus::try_extract_frame_() {
+  // Standard Modbus RTU frames are at least 5 bytes, but user-defined function
+  // codes can legally have no payload and therefore be only 4 bytes
+  // (addr + function + CRC16).
+  static constexpr size_t MIN_FRAME_SIZE = 4;
+  // Upper bound on how much leading noise we will skip before giving up and clearing
+  // the buffer. 16 bytes covers the common "a few stray bits before the real frame"
+  // case without risking unbounded CPU on a line that is just continuously garbage.
+  static constexpr size_t MAX_RESYNC_DROPS = 16;
+  size_t drops = 0;
+
+  while (this->rx_buffer_.size() >= MIN_FRAME_SIZE) {
+    int frame_len = this->check_frame_();
+
+    if (frame_len > 0) {
+      // Valid frame found
+      if (drops > 0) {
+        ESP_LOGD(TAG, "Resync: recovered frame after dropping %zu noise byte(s)", drops);
+      }
+      this->dispatch_frame_(static_cast<size_t>(frame_len));
+      this->rx_buffer_.erase(this->rx_buffer_.begin(), this->rx_buffer_.begin() + frame_len);
+      drops = 0;
+      continue;  // Check for another frame in remaining bytes
+    }
+
+    if (frame_len == 0) {
+      return;  // Incomplete - wait for more bytes
+    }
+
+    // frame_len == -1: CRC failure or bad header - try resync by dropping byte 0
+    if (drops >= MAX_RESYNC_DROPS) {
+      ESP_LOGW(TAG, "Resync exhausted after dropping %zu bytes, clearing buffer", drops);
+      this->clear_rx_buffer_(LOG_STR("resync exhausted"), true);
+      return;
+    }
+    // ESP_LOGV for per-byte drops - the recovery summary at ESP_LOGD covers the useful signal.
+    ESP_LOGV(TAG, "Resync: dropping leading byte 0x%02X (%zu bytes remain)", this->rx_buffer_[0],
+             this->rx_buffer_.size() - 1);
+    this->rx_buffer_.erase(this->rx_buffer_.begin());
+    drops++;
+  }
+}
+
+void Modbus::dispatch_frame_(size_t frame_len) {
+  const uint8_t *raw = this->rx_buffer_.data();
+  uint8_t address = raw[0];
+  uint8_t function_code = raw[1];
+
+  uint8_t data_offset;
+  uint8_t data_len;
+
+  // Determine data layout (mirrors check_frame_ logic)
+  if (((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT) &&
+       (function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END)) ||
+      ((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT) &&
+       (function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END))) {
+    data_offset = 1;
+    data_len = static_cast<uint8_t>(frame_len - 3);  // frame minus addr(1) and CRC(2)
+    ESP_LOGD(TAG, "User-defined function %02X found", function_code);
+  } else {
+    data_offset = 3;
+    data_len = raw[2];
+
     if (this->role == ModbusRole::SERVER) {
       if (function_code == ModbusFunctionCode::READ_COILS ||
           function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS ||
@@ -172,15 +344,10 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
         data_offset = 2;
         data_len = 4;
       } else if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-        if (at < 6) {
-          return true;
-        }
         data_offset = 2;
-        // starting address (2 bytes) + quantity of registers (2 bytes) + byte count itself (1 byte) + actual byte count
         data_len = 2 + 2 + 1 + raw[6];
       }
     } else {
-      // the response for write command mirrors the requests and data starts at offset 2 instead of 3 for read commands
       if (function_code == ModbusFunctionCode::WRITE_SINGLE_COIL ||
           function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
           function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
@@ -190,44 +357,13 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
       }
     }
 
-    // Error ( msb indicates error )
-    // response format:  Byte[0] = device address, Byte[1] function code | 0x80 , Byte[2] exception code, Byte[3-4] crc
     if ((function_code & FUNCTION_CODE_EXCEPTION_MASK) == FUNCTION_CODE_EXCEPTION_MASK) {
       data_offset = 2;
       data_len = 1;
     }
-
-    // Byte data_offset..data_offset+data_len-1: Data
-    if (at < data_offset + data_len)
-      return true;
-
-    // Byte 3+data_len: CRC_LO (over all bytes)
-    if (at == data_offset + data_len)
-      return true;
-
-    // Byte data_offset+len+1: CRC_HI (over all bytes)
-    uint16_t computed_crc = crc16(raw, data_offset + data_len);
-    uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
-    if (computed_crc != remote_crc) {
-      if (this->disable_crc_) {
-        ESP_LOGD(TAG, "CRC check failed %" PRIu32 "ms after last send; ignoring", millis() - this->last_send_);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-        char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
-#endif
-        ESP_LOGVV(TAG, "  (%02X != %02X)  %s", computed_crc, remote_crc,
-                  format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), this->rx_buffer_.size()));
-      } else {
-        ESP_LOGW(TAG, "CRC check failed %" PRIu32 "ms after last send", millis() - this->last_send_);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-        char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
-#endif
-        ESP_LOGVV(TAG, "  (%02X != %02X) %s", computed_crc, remote_crc,
-                  format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), this->rx_buffer_.size()));
-        return false;
-      }
-    }
   }
-  std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + data_offset + data_len);
+
+  std::vector<uint8_t> data(raw + data_offset, raw + data_offset + data_len);
   bool found = false;
   for (auto *device : this->devices_) {
     if (device->address_ == address) {
@@ -273,12 +409,8 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
              millis() - this->last_send_);
   }
 
-  this->clear_rx_buffer_(LOG_STR("parse succeeded"));
-
   if (this->waiting_for_response_ == address)
     this->waiting_for_response_ = 0;
-
-  return true;
 }
 
 void Modbus::send_next_frame_() {
