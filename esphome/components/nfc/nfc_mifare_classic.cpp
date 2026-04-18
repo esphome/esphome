@@ -208,5 +208,5 @@ bool Nfcc::write_mifare_classic_tag_(NfcTagUid &uid, NdefMessage *message) {
   return true;
 }
 
-}
-}
+}  // namespace nfc
+}  // namespace esphome

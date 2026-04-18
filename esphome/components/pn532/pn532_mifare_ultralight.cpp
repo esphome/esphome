@@ -54,9 +54,7 @@ bool PN532::is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_t
   return this->nfc::Nfcc::is_mifare_ultralight_formatted_(page_3_to_6);
 }
 
-uint16_t PN532::read_mifare_ultralight_capacity_() {
-  return this->nfc::Nfcc::read_mifare_ultralight_capacity_();
-}
+uint16_t PN532::read_mifare_ultralight_capacity_() { return this->nfc::Nfcc::read_mifare_ultralight_capacity_(); }
 
 bool PN532::find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
                                          uint8_t &message_start_index) {
@@ -67,9 +65,7 @@ bool PN532::write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *
   return this->nfc::Nfcc::write_mifare_ultralight_tag_(uid, message);
 }
 
-bool PN532::clean_mifare_ultralight_() {
-  return this->nfc::Nfcc::clean_mifare_ultralight_();
-}
+bool PN532::clean_mifare_ultralight_() { return this->nfc::Nfcc::clean_mifare_ultralight_(); }
 
 bool PN532::write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len) {
   std::vector<uint8_t> cmd({

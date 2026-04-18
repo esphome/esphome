@@ -65,9 +65,7 @@ bool PN532::format_mifare_classic_mifare_(nfc::NfcTagUid &uid) {
   return this->Nfcc::format_mifare_classic_mifare_(uid);
 }
 
-bool PN532::format_mifare_classic_ndef_(nfc::NfcTagUid &uid) {
-  return this->Nfcc::format_mifare_classic_ndef_(uid);
-}
+bool PN532::format_mifare_classic_ndef_(nfc::NfcTagUid &uid) { return this->Nfcc::format_mifare_classic_ndef_(uid); }
 
 bool PN532::write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len) {
   std::vector<uint8_t> cmd({

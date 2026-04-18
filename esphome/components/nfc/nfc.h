@@ -104,32 +104,18 @@ class Nfcc {
 
   virtual bool nfc_auth_mifare_classic_block_(const NfcTagUid &uid, uint8_t block, uint8_t key_type,
                                               const uint8_t *key) {
-    ESP_LOGW("nfc", "MIFARE Classic authentication not supported");
     return false;
   }
 
-  virtual bool nfc_read_mifare_classic_block_(uint8_t block, std::vector<uint8_t> &data) {
-    ESP_LOGW("nfc", "MIFARE Classic read not supported");
-    return false;
-  }
+  virtual bool nfc_read_mifare_classic_block_(uint8_t block, std::vector<uint8_t> &data) { return false; }
 
-  virtual bool nfc_write_mifare_classic_block_(uint8_t block, const std::vector<uint8_t> &data) {
-    ESP_LOGW("nfc", "MIFARE Classic write not supported");
-    return false;
-  }
+  virtual bool nfc_write_mifare_classic_block_(uint8_t block, const std::vector<uint8_t> &data) { return false; }
 
-  virtual bool nfc_read_mifare_ultralight_page_(uint8_t page, std::vector<uint8_t> &data) {
-    ESP_LOGW("nfc", "MIFARE Ultralight read not supported");
-    return false;
-  }
+  virtual bool nfc_read_mifare_ultralight_page_(uint8_t page, std::vector<uint8_t> &data) { return false; }
 
-  virtual bool nfc_write_mifare_ultralight_page_(uint16_t page, const std::vector<uint8_t> &data) {
-    ESP_LOGW("nfc", "MIFARE Ultralight write not supported");
-    return false;
-  }
+  virtual bool nfc_write_mifare_ultralight_page_(uint16_t page, const std::vector<uint8_t> &data) { return false; }
 
   virtual bool nfc_iso_dep_transceive_(const std::vector<uint8_t> &send, std::vector<uint8_t> &response) {
-    ESP_LOGW("nfc", "ISO-DEP transceive not supported");
     return false;
   }
 

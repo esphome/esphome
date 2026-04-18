@@ -218,8 +218,7 @@ RC522::StatusCode RC522::iso_dep_transceive_(const uint8_t *send_data, uint8_t s
   return STATUS_TIMEOUT;
 }
 
-RC522::StatusCode RC522::iso_dep_send_apdu_(const uint8_t *apdu, uint8_t apdu_len, uint8_t *resp,
-                                            uint8_t &resp_len) {
+RC522::StatusCode RC522::iso_dep_send_apdu_(const uint8_t *apdu, uint8_t apdu_len, uint8_t *resp, uint8_t &resp_len) {
   uint8_t response[RC522_FIFO_SIZE];
   uint8_t response_len = sizeof(response);
 

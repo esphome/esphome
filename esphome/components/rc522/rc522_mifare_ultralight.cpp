@@ -10,8 +10,7 @@ namespace esphome {
 namespace rc522 {
 
 static const char *const TAG = "rc522.mifare_ultralight";
-static constexpr uint8_t RC522_MIFARE_READ_SIZE =
-    nfc::MIFARE_ULTRALIGHT_PAGE_SIZE * nfc::MIFARE_ULTRALIGHT_READ_SIZE;
+static constexpr uint8_t RC522_MIFARE_READ_SIZE = nfc::MIFARE_ULTRALIGHT_PAGE_SIZE * nfc::MIFARE_ULTRALIGHT_READ_SIZE;
 static constexpr uint8_t RC522_WAIT_I_RQ = 0x30;
 static constexpr uint32_t RC522_MIFARE_OPERATION_TIMEOUT_MS = 500;
 static constexpr uint16_t RC522_MIFARE_TRANSCEIVE_DELAY_US = 2000;
@@ -127,9 +126,7 @@ RC522::StatusCode RC522::read_mifare_ultralight_page_(uint8_t page, uint8_t *dat
   return STATUS_OK;
 }
 
-uint16_t RC522::read_mifare_ultralight_capacity_() {
-  return this->nfc::Nfcc::read_mifare_ultralight_capacity_();
-}
+uint16_t RC522::read_mifare_ultralight_capacity_() { return this->nfc::Nfcc::read_mifare_ultralight_capacity_(); }
 
 bool RC522::write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len) {
   if (len != nfc::MIFARE_ULTRALIGHT_PAGE_SIZE) {
@@ -170,9 +167,7 @@ bool RC522::write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *
   return this->nfc::Nfcc::write_mifare_ultralight_tag_(uid, message);
 }
 
-bool RC522::clean_mifare_ultralight_() {
-  return this->nfc::Nfcc::clean_mifare_ultralight_();
-}
+bool RC522::clean_mifare_ultralight_() { return this->nfc::Nfcc::clean_mifare_ultralight_(); }
 
 bool RC522::is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_data) {
   return this->nfc::Nfcc::is_mifare_ultralight_formatted_(page_data);

@@ -124,9 +124,8 @@ uint16_t Nfcc::read_mifare_ultralight_capacity_() {
 bool Nfcc::is_mifare_ultralight_formatted_(const std::vector<uint8_t> &data) {
   const uint8_t p4_offset = MIFARE_ULTRALIGHT_PAGE_SIZE;
 
-  return (data.size() > p4_offset + 3) &&
-         ((data[p4_offset + 0] != 0xFF) || (data[p4_offset + 1] != 0xFF) || (data[p4_offset + 2] != 0xFF) ||
-          (data[p4_offset + 3] != 0xFF));
+  return (data.size() > p4_offset + 3) && ((data[p4_offset + 0] != 0xFF) || (data[p4_offset + 1] != 0xFF) ||
+                                           (data[p4_offset + 2] != 0xFF) || (data[p4_offset + 3] != 0xFF));
 }
 
 bool Nfcc::find_mifare_ultralight_ndef_(const std::vector<uint8_t> &data, uint8_t &message_length,
@@ -151,5 +150,5 @@ bool Nfcc::find_mifare_ultralight_ndef_(const std::vector<uint8_t> &data, uint8_
   return false;
 }
 
-}
-}
+}  // namespace nfc
+}  // namespace esphome

@@ -83,7 +83,11 @@ std::unique_ptr<NfcTag> Nfcc::read_iso_dep_tag_(NfcTagUid &uid) {
   auto make_type_4_tag = [&uid]() { return std::make_unique<NfcTag>(uid, NFC_FORUM_TYPE_4); };
 
   auto select_file = [this](uint16_t file_id) {
-    std::vector<uint8_t> apdu = {ISO_CLA, ISO_INS_SELECT, 0x00, 0x0C, 0x02,
+    std::vector<uint8_t> apdu = {ISO_CLA,
+                                 ISO_INS_SELECT,
+                                 0x00,
+                                 0x0C,
+                                 0x02,
                                  static_cast<uint8_t>((file_id >> 8) & 0xFF),
                                  static_cast<uint8_t>(file_id & 0xFF)};
     std::vector<uint8_t> response;
@@ -97,16 +101,30 @@ std::unique_ptr<NfcTag> Nfcc::read_iso_dep_tag_(NfcTagUid &uid) {
   };
 
   std::vector<uint8_t> response;
-  std::vector<uint8_t> select_app_v2 = {ISO_CLA, ISO_INS_SELECT, 0x04, 0x00, 0x07,
-                                        NDEF_APPLICATION_DFN_V2[0], NDEF_APPLICATION_DFN_V2[1],
-                                        NDEF_APPLICATION_DFN_V2[2], NDEF_APPLICATION_DFN_V2[3],
-                                        NDEF_APPLICATION_DFN_V2[4], NDEF_APPLICATION_DFN_V2[5],
+  std::vector<uint8_t> select_app_v2 = {ISO_CLA,
+                                        ISO_INS_SELECT,
+                                        0x04,
+                                        0x00,
+                                        0x07,
+                                        NDEF_APPLICATION_DFN_V2[0],
+                                        NDEF_APPLICATION_DFN_V2[1],
+                                        NDEF_APPLICATION_DFN_V2[2],
+                                        NDEF_APPLICATION_DFN_V2[3],
+                                        NDEF_APPLICATION_DFN_V2[4],
+                                        NDEF_APPLICATION_DFN_V2[5],
                                         NDEF_APPLICATION_DFN_V2[6]};
   if (!this->send_iso_dep_apdu_(select_app_v2, response)) {
-    std::vector<uint8_t> select_app_v1 = {ISO_CLA, ISO_INS_SELECT, 0x04, 0x00, 0x07,
-                                          NDEF_APPLICATION_DFN_V1[0], NDEF_APPLICATION_DFN_V1[1],
-                                          NDEF_APPLICATION_DFN_V1[2], NDEF_APPLICATION_DFN_V1[3],
-                                          NDEF_APPLICATION_DFN_V1[4], NDEF_APPLICATION_DFN_V1[5],
+    std::vector<uint8_t> select_app_v1 = {ISO_CLA,
+                                          ISO_INS_SELECT,
+                                          0x04,
+                                          0x00,
+                                          0x07,
+                                          NDEF_APPLICATION_DFN_V1[0],
+                                          NDEF_APPLICATION_DFN_V1[1],
+                                          NDEF_APPLICATION_DFN_V1[2],
+                                          NDEF_APPLICATION_DFN_V1[3],
+                                          NDEF_APPLICATION_DFN_V1[4],
+                                          NDEF_APPLICATION_DFN_V1[5],
                                           NDEF_APPLICATION_DFN_V1[6]};
     if (!this->send_iso_dep_apdu_(select_app_v1, response)) {
       ESP_LOGD(TAG, "NDEF application select failed");
@@ -199,16 +217,30 @@ std::unique_ptr<NfcTag> Nfcc::read_iso_dep_tag_(NfcTagUid &uid) {
 
 bool Nfcc::clean_iso_dep_tag_() {
   std::vector<uint8_t> response;
-  std::vector<uint8_t> select_app_v2 = {ISO_CLA, ISO_INS_SELECT, 0x04, 0x00, 0x07,
-                                        NDEF_APPLICATION_DFN_V2[0], NDEF_APPLICATION_DFN_V2[1],
-                                        NDEF_APPLICATION_DFN_V2[2], NDEF_APPLICATION_DFN_V2[3],
-                                        NDEF_APPLICATION_DFN_V2[4], NDEF_APPLICATION_DFN_V2[5],
+  std::vector<uint8_t> select_app_v2 = {ISO_CLA,
+                                        ISO_INS_SELECT,
+                                        0x04,
+                                        0x00,
+                                        0x07,
+                                        NDEF_APPLICATION_DFN_V2[0],
+                                        NDEF_APPLICATION_DFN_V2[1],
+                                        NDEF_APPLICATION_DFN_V2[2],
+                                        NDEF_APPLICATION_DFN_V2[3],
+                                        NDEF_APPLICATION_DFN_V2[4],
+                                        NDEF_APPLICATION_DFN_V2[5],
                                         NDEF_APPLICATION_DFN_V2[6]};
   if (!this->send_iso_dep_apdu_(select_app_v2, response)) {
-    std::vector<uint8_t> select_app_v1 = {ISO_CLA, ISO_INS_SELECT, 0x04, 0x00, 0x07,
-                                          NDEF_APPLICATION_DFN_V1[0], NDEF_APPLICATION_DFN_V1[1],
-                                          NDEF_APPLICATION_DFN_V1[2], NDEF_APPLICATION_DFN_V1[3],
-                                          NDEF_APPLICATION_DFN_V1[4], NDEF_APPLICATION_DFN_V1[5],
+    std::vector<uint8_t> select_app_v1 = {ISO_CLA,
+                                          ISO_INS_SELECT,
+                                          0x04,
+                                          0x00,
+                                          0x07,
+                                          NDEF_APPLICATION_DFN_V1[0],
+                                          NDEF_APPLICATION_DFN_V1[1],
+                                          NDEF_APPLICATION_DFN_V1[2],
+                                          NDEF_APPLICATION_DFN_V1[3],
+                                          NDEF_APPLICATION_DFN_V1[4],
+                                          NDEF_APPLICATION_DFN_V1[5],
                                           NDEF_APPLICATION_DFN_V1[6]};
     if (!this->send_iso_dep_apdu_(select_app_v1, response)) {
       return false;
@@ -249,10 +281,10 @@ bool Nfcc::clean_iso_dep_tag_() {
     return false;
   }
 
-  if (!this->send_iso_dep_apdu_({ISO_CLA, ISO_INS_SELECT, 0x00, 0x0C, 0x02,
-                                 static_cast<uint8_t>((mapping.ndef_file_id >> 8) & 0xFF),
-                                 static_cast<uint8_t>(mapping.ndef_file_id & 0xFF)},
-                                response)) {
+  if (!this->send_iso_dep_apdu_(
+          {ISO_CLA, ISO_INS_SELECT, 0x00, 0x0C, 0x02, static_cast<uint8_t>((mapping.ndef_file_id >> 8) & 0xFF),
+           static_cast<uint8_t>(mapping.ndef_file_id & 0xFF)},
+          response)) {
     return false;
   }
 
@@ -262,16 +294,30 @@ bool Nfcc::clean_iso_dep_tag_() {
 
 bool Nfcc::write_iso_dep_tag_(NdefMessage *message) {
   std::vector<uint8_t> response;
-  std::vector<uint8_t> select_app_v2 = {ISO_CLA, ISO_INS_SELECT, 0x04, 0x00, 0x07,
-                                        NDEF_APPLICATION_DFN_V2[0], NDEF_APPLICATION_DFN_V2[1],
-                                        NDEF_APPLICATION_DFN_V2[2], NDEF_APPLICATION_DFN_V2[3],
-                                        NDEF_APPLICATION_DFN_V2[4], NDEF_APPLICATION_DFN_V2[5],
+  std::vector<uint8_t> select_app_v2 = {ISO_CLA,
+                                        ISO_INS_SELECT,
+                                        0x04,
+                                        0x00,
+                                        0x07,
+                                        NDEF_APPLICATION_DFN_V2[0],
+                                        NDEF_APPLICATION_DFN_V2[1],
+                                        NDEF_APPLICATION_DFN_V2[2],
+                                        NDEF_APPLICATION_DFN_V2[3],
+                                        NDEF_APPLICATION_DFN_V2[4],
+                                        NDEF_APPLICATION_DFN_V2[5],
                                         NDEF_APPLICATION_DFN_V2[6]};
   if (!this->send_iso_dep_apdu_(select_app_v2, response)) {
-    std::vector<uint8_t> select_app_v1 = {ISO_CLA, ISO_INS_SELECT, 0x04, 0x00, 0x07,
-                                          NDEF_APPLICATION_DFN_V1[0], NDEF_APPLICATION_DFN_V1[1],
-                                          NDEF_APPLICATION_DFN_V1[2], NDEF_APPLICATION_DFN_V1[3],
-                                          NDEF_APPLICATION_DFN_V1[4], NDEF_APPLICATION_DFN_V1[5],
+    std::vector<uint8_t> select_app_v1 = {ISO_CLA,
+                                          ISO_INS_SELECT,
+                                          0x04,
+                                          0x00,
+                                          0x07,
+                                          NDEF_APPLICATION_DFN_V1[0],
+                                          NDEF_APPLICATION_DFN_V1[1],
+                                          NDEF_APPLICATION_DFN_V1[2],
+                                          NDEF_APPLICATION_DFN_V1[3],
+                                          NDEF_APPLICATION_DFN_V1[4],
+                                          NDEF_APPLICATION_DFN_V1[5],
                                           NDEF_APPLICATION_DFN_V1[6]};
     if (!this->send_iso_dep_apdu_(select_app_v1, response)) {
       return false;
@@ -318,10 +364,10 @@ bool Nfcc::write_iso_dep_tag_(NdefMessage *message) {
     return false;
   }
 
-  if (!this->send_iso_dep_apdu_({ISO_CLA, ISO_INS_SELECT, 0x00, 0x0C, 0x02,
-                                 static_cast<uint8_t>((mapping.ndef_file_id >> 8) & 0xFF),
-                                 static_cast<uint8_t>(mapping.ndef_file_id & 0xFF)},
-                                response)) {
+  if (!this->send_iso_dep_apdu_(
+          {ISO_CLA, ISO_INS_SELECT, 0x00, 0x0C, 0x02, static_cast<uint8_t>((mapping.ndef_file_id >> 8) & 0xFF),
+           static_cast<uint8_t>(mapping.ndef_file_id & 0xFF)},
+          response)) {
     return false;
   }
 
@@ -342,10 +388,15 @@ bool Nfcc::write_iso_dep_tag_(NdefMessage *message) {
   }
 
   uint16_t nlen = encoded.size();
-  std::vector<uint8_t> nlen_apdu = {ISO_CLA, ISO_INS_UPDATE_BINARY, 0x00, 0x00, 0x02,
-                                    static_cast<uint8_t>((nlen >> 8) & 0xFF), static_cast<uint8_t>(nlen & 0xFF)};
+  std::vector<uint8_t> nlen_apdu = {ISO_CLA,
+                                    ISO_INS_UPDATE_BINARY,
+                                    0x00,
+                                    0x00,
+                                    0x02,
+                                    static_cast<uint8_t>((nlen >> 8) & 0xFF),
+                                    static_cast<uint8_t>(nlen & 0xFF)};
   return this->send_iso_dep_apdu_(nlen_apdu, response);
 }
 
-}
-}
+}  // namespace nfc
+}  // namespace esphome
