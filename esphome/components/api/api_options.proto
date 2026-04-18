@@ -23,6 +23,7 @@ extend google.protobuf.MessageOptions {
     optional bool no_delay = 1040 [default=false];
     optional string base_class = 1041;
     optional bool inline_encode = 1042 [default=false];
+    optional bool speed_optimized = 1043 [default=false];
 }
 
 extend google.protobuf.FieldOptions {
