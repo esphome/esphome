@@ -6,6 +6,7 @@
 #include "ndef_record.h"
 #include "nfc_tag.h"
 
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -126,6 +127,11 @@ class Nfcc {
   }
 
  protected:
+  std::unique_ptr<NfcTag> read_mifare_classic_tag_(NfcTagUid &uid);
+  bool write_mifare_classic_tag_(NfcTagUid &uid, NdefMessage *message);
+  bool format_mifare_classic_ndef_(NfcTagUid &uid);
+  bool format_mifare_classic_mifare_(NfcTagUid &uid);
+
   std::vector<NfcTagListener *> tag_listeners_;
 };
 
