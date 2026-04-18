@@ -596,19 +596,19 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // so charging it again to "before" would double-count.
   uint64_t loop_recorded_snap = ComponentRuntimeStats::global_recorded_us;
 #endif
-  uint32_t now = millis();
-
   // Phase A: always service the scheduler. Decouples scheduler cadence from
   // loop_interval_ so raised intervals (for power savings) don't drag scheduled
   // items forward. A tick that only runs the scheduler is cheap.
-  // Returned timestamp keeps us monotonic with last_wdt_feed_ (advanced by the
-  // scheduler's per-item feeds) without an extra millis() call.
-  const uint32_t scheduler_end = this->scheduler_tick_(now);
+  // scheduler_tick_ returns the timestamp of the last scheduler item that ran
+  // (advanced by its per-item feeds) or `now` unchanged. We adopt it as `now`
+  // so the gate check and WDT feed both reflect actual elapsed time after
+  // scheduler dispatch, without an extra millis() call.
+  uint32_t now = this->scheduler_tick_(millis());
   // Guarantee one WDT feed per tick even when the scheduler had nothing to
   // dispatch and the component phase is gated out — covers configs with no
   // looping components and no scheduler work (setup() has its own
   // per-component feed_wdt calls, so only do this here, not in scheduler_tick_).
-  this->feed_wdt_with_time(scheduler_end);
+  this->feed_wdt_with_time(now);
 
 #ifdef USE_RUNTIME_STATS
   uint32_t loop_before_end_us = micros();
@@ -620,11 +620,6 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // Gate the component phase on loop_interval_ or an active high-frequency
   // request. When a scheduler wake preempts sleep early, this gate keeps the
   // component phase from running more often than loop_interval_.
-  // We deliberately reuse the pre-scheduler `now` rather than refreshing it
-  // via another millis() call: empty scheduler.call() is sub-microsecond, and
-  // any scheduled item that takes long enough to matter is a blocking
-  // violation that will self-correct on the next tick anyway. The one saved
-  // millis() call per tick is worth that acceptable one-tick drift.
   const bool high_frequency = HighFrequencyLoopRequester::is_high_frequency();
   const uint32_t elapsed = now - this->last_loop_;
   const bool do_component_phase = high_frequency || (elapsed >= this->loop_interval_);
