@@ -718,8 +718,18 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // Compute sleep: bounded by time-until-next-component-phase and the
   // scheduler's next deadline. When a scheduler event wakes us early we
   // re-enter loop(), Phase A services it, and the component phase stays gated.
+  //
+  // Re-read HighFrequencyLoopRequester::is_high_frequency() here instead of
+  // reusing the cached `high_frequency` captured above: a component calling
+  // HighFrequencyLoopRequester::start() from within its loop() would
+  // otherwise sit under the stale value and sleep for up to loop_interval_
+  // before the request took effect. That was fine pre-decoupling (the old
+  // main loop also called the function fresh at the sleep point) but now
+  // matters much more — loop_interval_ is a power-saving knob documented
+  // to accept multi-second values, so the stale path could add seconds of
+  // latency on an HF request. The call is a trivial atomic read.
   uint32_t delay_time = 0;
-  if (!high_frequency) {
+  if (!HighFrequencyLoopRequester::is_high_frequency()) {
     const uint32_t elapsed_since_phase = now - this->last_loop_;
     const uint32_t until_phase =
         (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
