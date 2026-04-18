@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import argparse
 import ast
-from functools import lru_cache
+from functools import cache, lru_cache
 import json
 from pathlib import Path
 import re
@@ -515,67 +515,75 @@ def merge_compatible_bus_groups(
     return merged_groups
 
 
-@lru_cache(maxsize=1)
-def _component_conflicts() -> dict[str, frozenset[str]]:
-    """Return {component: components it conflicts with} via static AUTO_LOAD/CONFLICTS_WITH.
-
-    A conflict propagates through AUTO_LOAD: if X declares CONFLICTS_WITH=[Y]
-    and Z auto-loads Y, then X and Z conflict (e.g. bme680_bsec vs.
-    bme68x_bsec2_i2c which auto-loads bme68x_bsec2).
-    """
-    auto_load: dict[str, set[str]] = {}
-    direct: dict[str, set[str]] = {}
-    for comp_dir in (
-        COMPONENTS_SRC_PATH.iterdir() if COMPONENTS_SRC_PATH.exists() else ()
-    ):
-        init_file = comp_dir / "__init__.py"
-        if not comp_dir.is_dir() or not init_file.exists():
+@cache
+def _parse_component_init(name: str) -> tuple[frozenset[str], frozenset[str]]:
+    """Return (AUTO_LOAD, CONFLICTS_WITH) list-literal values for a single component."""
+    init_file = COMPONENTS_SRC_PATH / name / "__init__.py"
+    result: dict[str, frozenset[str]] = {
+        "AUTO_LOAD": frozenset(),
+        "CONFLICTS_WITH": frozenset(),
+    }
+    if not init_file.exists():
+        return result["AUTO_LOAD"], result["CONFLICTS_WITH"]
+    try:
+        tree = ast.parse(init_file.read_text())
+    except (OSError, SyntaxError):
+        return result["AUTO_LOAD"], result["CONFLICTS_WITH"]
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.List):
             continue
-        try:
-            tree = ast.parse(init_file.read_text())
-        except (OSError, SyntaxError):
-            continue
-        targets = {"AUTO_LOAD": auto_load, "CONFLICTS_WITH": direct}
-        for node in tree.body:
-            if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.List):
+        for target in node.targets:
+            if not isinstance(target, ast.Name) or target.id not in result:
                 continue
-            for target in node.targets:
-                if not isinstance(target, ast.Name) or target.id not in targets:
-                    continue
-                targets[target.id][comp_dir.name] = {
-                    e.value
-                    for e in node.value.elts
-                    if isinstance(e, ast.Constant) and isinstance(e.value, str)
-                }
-
-    # For each component, compute the full set of components that end up
-    # loaded alongside it (itself + everything it transitively auto-loads).
-    loaded_with: dict[str, set[str]] = {}
-    for name in auto_load.keys() | direct.keys():
-        loaded, stack = set(), [name]
-        while stack:
-            n = stack.pop()
-            if n not in loaded:
-                loaded.add(n)
-                stack.extend(auto_load.get(n, ()))
-        loaded_with[name] = loaded
-
-    result: dict[str, frozenset[str]] = {}
-    for name, loaded in loaded_with.items():
-        rejects = {c for n in loaded for c in direct.get(n, ())}
-        result[name] = frozenset(
-            other
-            for other, other_loaded in loaded_with.items()
-            if rejects & other_loaded
-        )
-    return result
+            result[target.id] = frozenset(
+                e.value
+                for e in node.value.elts
+                if isinstance(e, ast.Constant) and isinstance(e.value, str)
+            )
+    return result["AUTO_LOAD"], result["CONFLICTS_WITH"]
 
 
 def split_conflicting_groups(
     grouped_components: dict[tuple[str, str], list[str]],
 ) -> dict[tuple[str, str], list[str]]:
-    """Split groups so that components declaring mutual CONFLICTS_WITH end up in separate builds."""
-    conflicts = _component_conflicts()
+    """Split groups so that components declaring mutual CONFLICTS_WITH end up in separate builds.
+
+    A conflict propagates through AUTO_LOAD: if X declares CONFLICTS_WITH=[Y]
+    and Z auto-loads Y, then X and Z conflict (e.g. bme680_bsec vs.
+    bme68x_bsec2_i2c which auto-loads bme68x_bsec2). Only components that
+    appear in the batch (and their AUTO_LOAD closures) are parsed.
+    """
+    batch = {c for comps in grouped_components.values() for c in comps}
+
+    # For each batch component, compute the set of components loaded alongside it
+    # (itself + everything transitively auto-loaded) and the names it rejects.
+    loaded_with: dict[str, set[str]] = {}
+    rejects: dict[str, set[str]] = {}
+    for comp in batch:
+        loaded, stack = set(), [comp]
+        comp_rejects: set[str] = set()
+        while stack:
+            name = stack.pop()
+            if name in loaded:
+                continue
+            loaded.add(name)
+            auto_load, conflicts_with = _parse_component_init(name)
+            comp_rejects.update(conflicts_with)
+            stack.extend(auto_load)
+        loaded_with[comp] = loaded
+        rejects[comp] = comp_rejects
+
+    # Build symmetric conflict map restricted to the batch. The relation must
+    # be symmetric even if only one side declares CONFLICTS_WITH (e.g.
+    # ethernet declares it against wifi, wifi does not declare the reverse).
+    conflicts: dict[str, set[str]] = {comp: set() for comp in batch}
+    batch_list = list(batch)
+    for i, a in enumerate(batch_list):
+        for b in batch_list[i + 1 :]:
+            if rejects[a] & loaded_with[b] or rejects[b] & loaded_with[a]:
+                conflicts[a].add(b)
+                conflicts[b].add(a)
+
     result: dict[tuple[str, str], list[str]] = {}
     for (platform, signature), components in grouped_components.items():
         buckets: list[list[str]] = []
