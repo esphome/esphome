@@ -90,6 +90,7 @@ async def test_uart_mock_modbus(
             "late_response",
             "no_response",
             "exception_response",
+            "invalid_length_response",
         ]
     )
     basic_register_changed = tracker.expect("basic_register", 259.0)
@@ -99,6 +100,7 @@ async def test_uart_mock_modbus(
     late_response_changed = tracker.expect_any("late_response")
     no_response_changed = tracker.expect_any("no_response")
     exception_response_changed = tracker.expect_any("exception_response")
+    invalid_length_response_changed = tracker.expect_any("invalid_length_response")
 
     async with (
         run_compiled(yaml_config),
@@ -115,6 +117,9 @@ async def test_uart_mock_modbus(
             tracker.await_must_not_change(no_response_changed, "no_response"),
             tracker.await_must_not_change(
                 exception_response_changed, "exception_response"
+            ),
+            tracker.await_must_not_change(
+                invalid_length_response_changed, "invalid_length_response"
             ),
         )
 

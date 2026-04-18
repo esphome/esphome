@@ -423,8 +423,14 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
  protected:
   /// parse sensormap_ and create range of sequential addresses
   size_t create_register_ranges_();
+  /// find register range. Returns nullptr if not found.
+  const RegisterRange *find_register_range_(ModbusRegisterType register_type, uint16_t start_address) const;
   // find register in sensormap. Returns iterator with all registers having the same start address
   SensorSet find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const;
+  /// get the maximum response size across all sensors in a register range
+  size_t get_register_range_size_(const RegisterRange &range) const;
+  /// validate that a modbus response payload matches the queued command
+  bool validate_command_response_(const ModbusCommandItem &command, const std::vector<uint8_t> &data) const;
   /// submit the read command for the address range to the send queue
   void update_range_(RegisterRange &r);
   /// parse incoming modbus data

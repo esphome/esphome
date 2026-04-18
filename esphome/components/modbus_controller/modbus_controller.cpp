@@ -2,6 +2,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+
 namespace esphome {
 namespace modbus_controller {
 
@@ -65,6 +67,18 @@ void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
   }
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
+    if (!this->validate_command_response_(*current_command, data)) {
+      // A response arrived but its payload length did not match the queued command.
+      // The retry path only advances on timeouts, so leaving the command at the front
+      // of the queue would stall every subsequent range until max_cmd_retries_ was
+      // exhausted via artificial timeouts. Pop the command so the queue keeps moving;
+      // the WARN logged by validate_command_response_ already captured the diagnostic.
+      ESP_LOGW(TAG, "Invalid modbus response for device=%d register=0x%02X - removed from send queue", this->address_,
+               current_command->register_address);
+      this->command_queue_.pop_front();
+      return;
+    }
+
     if (this->module_offline_) {
       ESP_LOGW(TAG, "Modbus device=%d back online", this->address_);
 
@@ -273,20 +287,81 @@ void ModbusController::on_modbus_write_registers(uint8_t function_code, const st
   this->send_raw(response);
 }
 
-SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const {
+const RegisterRange *ModbusController::find_register_range_(ModbusRegisterType register_type,
+                                                            uint16_t start_address) const {
   auto reg_it = std::find_if(
       std::begin(this->register_ranges_), std::end(this->register_ranges_),
-      [=](RegisterRange const &r) { return (r.start_address == start_address && r.register_type == register_type); });
+      [=](const RegisterRange &r) { return r.start_address == start_address && r.register_type == register_type; });
 
   if (reg_it == this->register_ranges_.end()) {
+    return nullptr;
+  }
+
+  return &(*reg_it);
+}
+
+SensorSet ModbusController::find_sensors_(ModbusRegisterType register_type, uint16_t start_address) const {
+  const RegisterRange *range = this->find_register_range_(register_type, start_address);
+  if (range == nullptr) {
     ESP_LOGE(TAG, "No matching range for sensor found - start_address : 0x%X", start_address);
   } else {
-    return reg_it->sensors;
+    return range->sensors;
   }
 
   // not found
   return {};
 }
+
+size_t ModbusController::get_register_range_size_(const RegisterRange &range) const {
+  size_t expected_size = 0;
+  for (auto *sensor : range.sensors) {
+    expected_size = std::max(expected_size, size_t(sensor->offset) + sensor->get_register_size());
+  }
+  return expected_size;
+}
+
+bool ModbusController::validate_command_response_(const ModbusCommandItem &command,
+                                                  const std::vector<uint8_t> &data) const {
+  size_t expected_size = 0;
+
+  switch (command.function_code) {
+    case ModbusFunctionCode::READ_COILS:
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+      expected_size = (command.register_count + 7) / 8;
+      break;
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+    case ModbusFunctionCode::CUSTOM: {
+      const RegisterRange *range = this->find_register_range_(command.register_type, command.register_address);
+      if (range != nullptr) {
+        expected_size = this->get_register_range_size_(*range);
+      }
+      break;
+    }
+    case ModbusFunctionCode::WRITE_SINGLE_COIL:
+    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
+    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
+    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
+      expected_size = 4;
+      break;
+    default:
+      return true;
+  }
+
+  // expected_size == 0 means we could not determine an expected length (unknown function code,
+  // no matching register range, or a CUSTOM command with no registered size). In that case we
+  // pass the response through so existing behavior is preserved for unvalidatable commands.
+  if (expected_size == 0 || data.size() == expected_size) {
+    return true;
+  }
+
+  ESP_LOGW(TAG,
+           "Ignoring invalid response payload for device=%d register=0x%X function=0x%X: expected %zu bytes, got %zu",
+           this->address_, command.register_address, static_cast<uint8_t>(command.function_code), expected_size,
+           data.size());
+  return false;
+}
+
 void ModbusController::on_register_data(ModbusRegisterType register_type, uint16_t start_address,
                                         const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);

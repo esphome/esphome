@@ -39,6 +39,8 @@ uart_mock:
         inject_rx: [] # No response, should cause timeout
       - expect_tx: [0x01, 0x03, 0x00, 0x0A, 0x00, 0x01, 0xA4, 0x08] # Read holding register A on device 1 (exception_response)
         inject_rx: [0x01, 0x83, 0x02, 0xC0, 0xF1] # Exception response with code 2 (illegal data address)
+      - expect_tx: [0x01, 0x03, 0x00, 0x20, 0x00, 0x01, 0x85, 0xC0] # Read holding register 20 on device 1 (invalid_length_response)
+        inject_rx: [0x01, 0x03, 0x04, 0x00, 0x01, 0x02, 0x03, 0xEA, 0x92] # Wrong-length response: 4 bytes instead of 2
 
 modbus:
   uart_id: virtual_uart_dev
@@ -83,6 +85,11 @@ sensor:
   - platform: modbus_controller
     name: "exception_response"
     address: 0x0A
+    register_type: holding
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "invalid_length_response"
+    address: 0x20
     register_type: holding
     modbus_controller_id: modbus_controller_ok
 
