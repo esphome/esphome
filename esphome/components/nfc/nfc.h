@@ -13,6 +13,13 @@
 namespace esphome {
 namespace nfc {
 
+struct Type4NdefMapping {
+  uint16_t ndef_file_id;
+  uint16_t max_ndef_file_size;
+  uint16_t max_read_size;
+  uint8_t write_access;
+};
+
 static constexpr uint8_t MIFARE_CLASSIC_BLOCK_SIZE = 16;
 static constexpr uint8_t MIFARE_CLASSIC_LONG_TLV_SIZE = 4;
 static constexpr uint8_t MIFARE_CLASSIC_SHORT_TLV_SIZE = 2;
@@ -138,6 +145,10 @@ class Nfcc {
   bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &data);
   bool find_mifare_ultralight_ndef_(const std::vector<uint8_t> &data, uint8_t &message_length,
                                     uint8_t &message_start_index);
+  bool send_iso_dep_apdu_(const std::vector<uint8_t> &apdu, std::vector<uint8_t> &response);
+  std::unique_ptr<NfcTag> read_iso_dep_tag_(NfcTagUid &uid);
+  bool write_iso_dep_tag_(NdefMessage *message);
+  bool clean_iso_dep_tag_();
 
   std::vector<NfcTagListener *> tag_listeners_;
 };
