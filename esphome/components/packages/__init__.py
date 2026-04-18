@@ -12,7 +12,7 @@ from esphome.components.substitutions import (
     resolve_include,
     substitute,
 )
-from esphome.components.substitutions.jinja import has_jinja
+from esphome.components.substitutions.jinja import UndefinedError, has_jinja
 from esphome.config_helpers import Remove, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
@@ -359,12 +359,23 @@ def _substitute_package_definition(
     if isinstance(package_config, str) or (
         isinstance(package_config, dict) and is_remote_package(package_config)
     ):
-        package_config = substitute(
-            item=package_config,
-            path=[],
-            parent_context=context_vars or ContextVars(),
-            strict_undefined=False,
-        )
+        try:
+            package_config = substitute(
+                item=package_config,
+                path=[],
+                parent_context=context_vars or ContextVars(),
+                strict_undefined=True,
+            )
+        except UndefinedError as err:
+            location: str = ""
+            if (
+                isinstance(package_config, yaml_util.ESPHomeDataBase)
+                and package_config.esp_range is not None
+            ):
+                location = f" (in {str(package_config.esp_range.start_mark)})"
+            raise cv.Invalid(
+                f"Undefined variable in package definition: {err.message}{location}"
+            ) from err
     return package_config
 
 
