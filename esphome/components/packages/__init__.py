@@ -365,7 +365,7 @@ def _walk_packages(
 def _substitute_package_definition(
     package_config: dict | str,
     context_vars: ContextVars | None,
-    path: list[str | int],
+    path: list[str | int] | None = None,
 ) -> dict | str:
     """Substitute variables in a package definition string or remote package dict.
 
@@ -383,7 +383,7 @@ def _substitute_package_definition(
         errors: ErrList = []
         package_config = substitute(
             item=package_config,
-            path=path,
+            path=path or [],
             parent_context=context_vars or ContextVars(),
             strict_undefined=False,
             errors=errors,
