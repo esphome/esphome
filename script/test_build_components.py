@@ -37,10 +37,9 @@ from script.analyze_component_buses import (
     create_grouping_signature,
     is_platform_component,
     merge_compatible_bus_groups,
-    split_conflicting_groups,
     uses_local_file_references,
 )
-from script.helpers import get_component_test_files
+from script.helpers import get_component_test_files, split_conflicting_groups
 from script.merge_component_configs import merge_component_configs
 
 
