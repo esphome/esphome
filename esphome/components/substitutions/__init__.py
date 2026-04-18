@@ -66,34 +66,24 @@ def format_config_path(path: SubstitutionPath, current_obj: object) -> str:
         loc = str(item.esp_range.start_mark)
         if doc != current_doc:
             if current_doc is not None:
-                frames.append(
-                    (list(path[frame_start : last_key_idx + 1]), last_key_loc)
-                )
-                frame_start = last_key_idx + 1
+                # Close the current frame.  Any integers immediately following
+                # the last located key are list indices belonging to that key
+                # (e.g. "packages[0]"), so consume them into this frame.
+                seg = list(path[frame_start : last_key_idx + 1])
+                j = last_key_idx + 1
+                while j < i and isinstance(path[j], int):
+                    seg.append(path[j])
+                    j += 1
+                frames.append((seg, last_key_loc))
+                frame_start = j  # next frame starts after the consumed integers
             current_doc = doc
         last_key_idx = i
         last_key_loc = loc
 
     if current_doc is not None:
-        frames.append((list(path[frame_start : last_key_idx + 1]), last_key_loc))
-
-    # Post-process: leading integers in a frame are list indices belonging to the
-    # previous frame's last key (e.g. path=[..., "packages", 0, "inner_pkg", ...]).
-    # Move them to the end of the previous frame so they format as "packages[0]".
-    processed: list[tuple[list, str]] = []
-    for seg, loc in frames:
-        leading: list[int] = []
-        rest = list(seg)
-        while rest and isinstance(rest[0], int):
-            leading.append(rest.pop(0))
-        if leading and processed:
-            prev_seg, prev_loc = processed[-1]
-            processed[-1] = (prev_seg + leading, prev_loc)
-        elif leading:
-            rest = leading + rest  # no previous frame — keep them at front
-        if rest:
-            processed.append((rest, loc))
-    frames = processed
+        seg = list(path[frame_start : last_key_idx + 1])
+        seg += [item for item in path[last_key_idx + 1 :] if isinstance(item, int)]
+        frames.append((seg, last_key_loc))
 
     def fmt_path(seg: list) -> str:
         """Format a path segment, rendering integers as [n] subscripts."""
