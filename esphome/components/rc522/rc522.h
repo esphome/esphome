@@ -252,14 +252,14 @@ class RC522 : public nfc::Nfcc, public PollingComponent {
   );
 
   std::unique_ptr<nfc::NfcTag> read_mifare_ultralight_tag_(nfc::NfcTagUid &uid);
-  uint16_t read_mifare_ultralight_capacity_();
-  StatusCode read_mifare_ultralight_page_(uint8_t page, uint8_t *data);
-  bool write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len);
   bool write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
   bool clean_mifare_ultralight_();
+  uint16_t read_mifare_ultralight_capacity_();
   bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_data);
   bool find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_data, uint8_t &message_length,
                                     uint8_t &message_start_index);
+  StatusCode read_mifare_ultralight_page_(uint8_t page, uint8_t *data);
+  bool write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len);
 
   std::unique_ptr<nfc::NfcTag> read_mifare_classic_tag_(nfc::NfcTagUid &uid);
   bool read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);

@@ -92,13 +92,13 @@ class PN532 : public nfc::Nfcc, public PollingComponent {
 
   std::unique_ptr<nfc::NfcTag> read_mifare_ultralight_tag_(nfc::NfcTagUid &uid);
   bool read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, std::vector<uint8_t> &data);
-  bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_to_6);
+  bool write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
+  bool clean_mifare_ultralight_();
   uint16_t read_mifare_ultralight_capacity_();
+  bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_to_6);
   bool find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
                                     uint8_t &message_start_index);
   bool write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len);
-  bool write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
-  bool clean_mifare_ultralight_();
 
   std::unique_ptr<nfc::NfcTag> read_iso_dep_tag_(nfc::NfcTagUid &uid);
   bool write_iso_dep_tag_(nfc::NdefMessage *message);

@@ -131,6 +131,13 @@ class Nfcc {
   bool write_mifare_classic_tag_(NfcTagUid &uid, NdefMessage *message);
   bool format_mifare_classic_ndef_(NfcTagUid &uid);
   bool format_mifare_classic_mifare_(NfcTagUid &uid);
+  std::unique_ptr<NfcTag> read_mifare_ultralight_tag_(NfcTagUid &uid);
+  bool write_mifare_ultralight_tag_(NfcTagUid &uid, NdefMessage *message);
+  bool clean_mifare_ultralight_();
+  uint16_t read_mifare_ultralight_capacity_();
+  bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &data);
+  bool find_mifare_ultralight_ndef_(const std::vector<uint8_t> &data, uint8_t &message_length,
+                                    uint8_t &message_start_index);
 
   std::vector<NfcTagListener *> tag_listeners_;
 };
