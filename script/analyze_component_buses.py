@@ -535,19 +535,18 @@ def _component_conflicts() -> dict[str, frozenset[str]]:
             tree = ast.parse(init_file.read_text())
         except (OSError, SyntaxError):
             continue
+        targets = {"AUTO_LOAD": auto_load, "CONFLICTS_WITH": direct}
         for node in tree.body:
             if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.List):
                 continue
-            values = {
-                e.value
-                for e in node.value.elts
-                if isinstance(e, ast.Constant) and isinstance(e.value, str)
-            }
             for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "AUTO_LOAD":
-                    auto_load[comp_dir.name] = values
-                elif isinstance(target, ast.Name) and target.id == "CONFLICTS_WITH":
-                    direct[comp_dir.name] = values
+                if not isinstance(target, ast.Name) or target.id not in targets:
+                    continue
+                targets[target.id][comp_dir.name] = {
+                    e.value
+                    for e in node.value.elts
+                    if isinstance(e, ast.Constant) and isinstance(e.value, str)
+                }
 
     # For each component, compute the full set of components that end up
     # loaded alongside it (itself + everything it transitively auto-loads).
