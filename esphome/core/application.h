@@ -402,7 +402,7 @@ class Application {
   void enable_component_loop_(Component *component);
   void enable_pending_loops_();
   void activate_looping_component_(uint16_t index);
-  inline void ESPHOME_ALWAYS_INLINE scheduler_tick_(uint32_t now);
+  inline uint32_t ESPHOME_ALWAYS_INLINE scheduler_tick_(uint32_t now);
   inline void ESPHOME_ALWAYS_INLINE before_component_phase_();
   inline void ESPHOME_ALWAYS_INLINE after_loop_tasks_() { this->in_loop_ = false; }
 
@@ -551,12 +551,15 @@ inline void Application::drain_wake_notifications_() {
 // Application::loop() tick regardless of whether a component phase runs, so
 // scheduler items fire at their requested cadence even when the caller has
 // raised loop_interval_ for power savings (see Application::loop()).
-inline void ESPHOME_ALWAYS_INLINE Application::scheduler_tick_(uint32_t now) {
+// Returns the timestamp of the last scheduler item that ran (or `now`
+// unchanged if none ran), so the caller's WDT feed stays monotonic with the
+// per-item feeds inside scheduler.call() without an extra millis().
+inline uint32_t ESPHOME_ALWAYS_INLINE Application::scheduler_tick_(uint32_t now) {
 #ifdef USE_HOST
   // Drain wake notifications first to clear socket for next wake
   this->drain_wake_notifications_();
 #endif
-  this->scheduler.call(now);
+  return this->scheduler.call(now);
 }
 
 // Phase B entry: only invoked when a component loop phase is about to run.
@@ -598,11 +601,14 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // Phase A: always service the scheduler. Decouples scheduler cadence from
   // loop_interval_ so raised intervals (for power savings) don't drag scheduled
   // items forward. A tick that only runs the scheduler is cheap.
-  this->scheduler_tick_(now);
+  // Returned timestamp keeps us monotonic with last_wdt_feed_ (advanced by the
+  // scheduler's per-item feeds) without an extra millis() call.
+  const uint32_t scheduler_end = this->scheduler_tick_(now);
   // Guarantee one WDT feed per tick even when the scheduler had nothing to
-  // dispatch and the component phase is gated out (setup() has its own
+  // dispatch and the component phase is gated out — covers configs with no
+  // looping components and no scheduler work (setup() has its own
   // per-component feed_wdt calls, so only do this here, not in scheduler_tick_).
-  this->feed_wdt_with_time(now);
+  this->feed_wdt_with_time(scheduler_end);
 
 #ifdef USE_RUNTIME_STATS
   uint32_t loop_before_end_us = micros();
