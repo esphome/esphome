@@ -229,10 +229,17 @@ class Application {
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
-  /// Minimum interval between real arch_feed_wdt() calls. Chosen to keep the
-  /// rate of HAL pokes low while still being small enough that any plausible
-  /// watchdog timeout (seconds) has orders of magnitude of safety margin.
-  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 3;
+  /// Minimum interval between real arch_feed_wdt() calls. Sized so the outer
+  /// feed in Application::loop() is effectively rate-limited across both the
+  /// normal ~62 Hz cadence and worst-case wake-storm scenarios (e.g. external
+  /// stacks like OpenThread posting frequent wake notifications). Component
+  /// loops and scheduler items still feed after every op, so any op exceeding
+  /// this threshold triggers a real feed naturally.
+  /// Safety margins vs. platform watchdog timeouts:
+  ///   - ESP32 task WDT default (5 s): ~16x
+  ///   - ESP8266 soft WDT (~1.6 s):    ~5x
+  ///   - ESP8266 HW WDT (~6 s):        ~20x
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;
 
   /// Feed the task watchdog. Cold entry — callers without a millis()
   /// timestamp in hand. Out of line to keep call sites tiny.
