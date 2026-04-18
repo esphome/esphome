@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from functools import cache
 import hashlib
 import json
@@ -137,6 +139,109 @@ def get_component_test_files(
         return list(tests_dir.glob("test[.-]*.yaml"))
     # Match only test.*.yaml (base tests)
     return list(tests_dir.glob("test.*.yaml"))
+
+
+@dataclass(frozen=True)
+class ComponentMetadata:
+    """Statically-parsed AUTO_LOAD and CONFLICTS_WITH declarations."""
+
+    auto_load: frozenset[str] = field(default_factory=frozenset)
+    conflicts_with: frozenset[str] = field(default_factory=frozenset)
+
+
+@cache
+def parse_component_metadata(name: str) -> ComponentMetadata:
+    """Return the AUTO_LOAD / CONFLICTS_WITH declarations for a component.
+
+    Parses the component's ``esphome/components/<name>/__init__.py`` statically.
+    Callable forms (``def AUTO_LOAD():``) require runtime imports and are
+    reported as empty -- safe for conflict detection since they cannot be
+    evaluated without executing the module.
+    """
+    init_file = Path(root_path) / ESPHOME_COMPONENTS_PATH / name / "__init__.py"
+    if not init_file.exists():
+        return ComponentMetadata()
+    try:
+        tree = ast.parse(init_file.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeError):
+        return ComponentMetadata()
+    fields: dict[str, frozenset[str]] = {
+        "AUTO_LOAD": frozenset(),
+        "CONFLICTS_WITH": frozenset(),
+    }
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.List):
+            continue
+        for target in node.targets:
+            if not isinstance(target, ast.Name) or target.id not in fields:
+                continue
+            fields[target.id] = frozenset(
+                e.value
+                for e in node.value.elts
+                if isinstance(e, ast.Constant) and isinstance(e.value, str)
+            )
+    return ComponentMetadata(
+        auto_load=fields["AUTO_LOAD"],
+        conflicts_with=fields["CONFLICTS_WITH"],
+    )
+
+
+@dataclass
+class _ConflictWalk:
+    loaded: set[str]
+    rejects: set[str]
+
+
+def split_conflicting_groups(
+    grouped_components: dict[tuple[str, str], list[str]],
+) -> dict[tuple[str, str], list[str]]:
+    """Split groups so components declaring mutual CONFLICTS_WITH end up in separate builds.
+
+    A conflict propagates through AUTO_LOAD: if X declares CONFLICTS_WITH=[Y]
+    and Z auto-loads Y, then X and Z conflict (e.g. bme680_bsec vs.
+    bme68x_bsec2_i2c which auto-loads bme68x_bsec2). Only components that
+    appear in the batch (and their AUTO_LOAD closures) are parsed. The
+    conflict relation is treated as symmetric even when only one side
+    declares it (e.g. ethernet rejects wifi but wifi does not declare the
+    reverse).
+    """
+    batch = {c for comps in grouped_components.values() for c in comps}
+
+    walks: dict[str, _ConflictWalk] = {}
+    for comp in batch:
+        walk = _ConflictWalk(loaded={comp}, rejects=set())
+        stack = [comp]
+        while stack:
+            metadata = parse_component_metadata(stack.pop())
+            walk.rejects |= metadata.conflicts_with
+            new = metadata.auto_load - walk.loaded
+            walk.loaded |= new
+            stack.extend(new)
+        walks[comp] = walk
+
+    def conflicts(a: str, b: str) -> bool:
+        wa, wb = walks[a], walks[b]
+        return not wa.rejects.isdisjoint(wb.loaded) or not wb.rejects.isdisjoint(
+            wa.loaded
+        )
+
+    result: dict[tuple[str, str], list[str]] = {}
+    for (platform, signature), components in grouped_components.items():
+        buckets: list[list[str]] = []
+        for comp in components:
+            for bucket in buckets:
+                if not any(conflicts(comp, other) for other in bucket):
+                    bucket.append(comp)
+                    break
+            else:
+                buckets.append([comp])
+        if len(buckets) == 1:
+            result[(platform, signature)] = buckets[0]
+            continue
+        for index, bucket in enumerate(buckets):
+            key = signature if index == 0 else f"{signature}__conflict{index}"
+            result[(platform, key)] = bucket
+    return result
 
 
 def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
