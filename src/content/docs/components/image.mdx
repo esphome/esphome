@@ -75,9 +75,10 @@ image:
   - `NONE`  : Every pixel converts to its nearest color.
   - `FLOYDSTEINBERG`  : Uses Floyd-Steinberg dither to approximate the original image luminosity levels.
 
-- **byte_order** (*Optional*, string): For RGB565 images, the pixels are converted to 16 bit values. By default these will be stored in big endian byte order (MSB first),
-  but you can override this by setting `byte_order` to `little_endian`. Options are `big_endian` (default) and `little_endian`.
+- **byte_order** (*Optional*, string): For RGB565 images, the pixels are converted to 16 bit values. By default these will be stored in little endian byte order (LSB first),
+  but you can override this by setting `byte_order` to `big_endian`. Options are `little_endian` (default) and `big_endian`.
   Not applicable to other image formats.
+  Images used in displays and LVGL are expected to be in little endian format.
 
 ## Setting defaults
 
