@@ -3,16 +3,18 @@ from typing import Any
 
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.esp32 import only_on_variant
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     KEY_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    only_on_variant,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -37,6 +39,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 spi_ns = cg.esphome_ns.namespace("spi")
@@ -47,21 +50,60 @@ SPIDevice = spi_ns.class_("SPIDevice")
 SPIDataRate = spi_ns.enum("SPIDataRate")
 SPIMode = spi_ns.enum("SPIMode")
 
-SPI_DATA_RATE_OPTIONS = {
-    80e6: SPIDataRate.DATA_RATE_80MHZ,
-    40e6: SPIDataRate.DATA_RATE_40MHZ,
-    20e6: SPIDataRate.DATA_RATE_20MHZ,
-    10e6: SPIDataRate.DATA_RATE_10MHZ,
-    8e6: SPIDataRate.DATA_RATE_8MHZ,
-    5e6: SPIDataRate.DATA_RATE_5MHZ,
-    4e6: SPIDataRate.DATA_RATE_4MHZ,
-    2e6: SPIDataRate.DATA_RATE_2MHZ,
-    1e6: SPIDataRate.DATA_RATE_1MHZ,
-    2e5: SPIDataRate.DATA_RATE_200KHZ,
-    75e3: SPIDataRate.DATA_RATE_75KHZ,
-    1e3: SPIDataRate.DATA_RATE_1KHZ,
+PLATFORM_SPI_CLOCKS = {
+    PLATFORM_ESP8266: 40e6,
+    PLATFORM_ESP32: 80e6,
+    PLATFORM_RP2040: 62.5e6,
 }
-SPI_DATA_RATE_SCHEMA = cv.All(cv.frequency, cv.enum(SPI_DATA_RATE_OPTIONS))
+
+MAX_DATA_RATE_ERROR = 0.05  # Max allowable actual data rate difference from requested
+
+
+def _render_hz(value: float) -> str:
+    """Render a frequency in Hz as a human-readable string using Hz, KHz or MHz.
+
+    Examples:
+      500 -> "500 Hz"
+      1500 -> "1.5 kHz"
+      2000000 -> "2 MHz"
+    """
+    if value >= 1e6:
+        unit = "MHz"
+        num = value / 1e6
+    elif value >= 1e3:
+        unit = "kHz"
+        num = value / 1e3
+    else:
+        unit = "Hz"
+        num = value
+
+    # Format with up to 2 decimal places, then strip unnecessary trailing zeros and dot
+    formatted = f"{int(num)}" if unit == "Hz" else f"{num:.2f}".rstrip("0").rstrip(".")
+    return formatted + unit
+
+
+def _frequency_validator(value):
+    platform = get_target_platform()
+    frequency = PLATFORM_SPI_CLOCKS[platform]
+    value = cv.frequency(value)
+    if value > frequency:
+        raise cv.Invalid(
+            f"The configured SPI data rate ({_render_hz(value)}) exceeds the maximum for this platform ({_render_hz(frequency)})"
+        )
+    if value < 1000:
+        raise cv.Invalid("The configured SPI data rate must be at least 1000Hz")
+    divisor = round(frequency / value)
+    actual = frequency / divisor
+    error = abs(actual - value) / value
+    if error > MAX_DATA_RATE_ERROR:
+        raise cv.Invalid(
+            f"The configured SPI data rate ({_render_hz(value)}) is not available for this chip - closest is {_render_hz(actual)}"
+        )
+    return value
+
+
+SPI_DATA_RATE_SCHEMA = _frequency_validator
+
 
 SPI_MODE_OPTIONS = {
     "MODE0": SPIMode.MODE0,
@@ -128,7 +170,9 @@ def get_hw_interface_list():
         if get_target_variant() in [
             VARIANT_ESP32C2,
             VARIANT_ESP32C3,
+            VARIANT_ESP32C5,
             VARIANT_ESP32C6,
+            VARIANT_ESP32C61,
             VARIANT_ESP32H2,
         ]:
             return [["spi", "spi2"]]
@@ -202,11 +246,15 @@ def validate_hw_pins(spi, index=-1):
         return clk_pin_no >= 0
 
     if target_platform == PLATFORM_RP2040:
-        pin_set = (
-            list(filter(lambda s: clk_pin_no in s[CONF_CLK_PIN], RP_SPI_PINSETS))[0]
-            if index == -1
-            else RP_SPI_PINSETS[index]
-        )
+        if index == -1:
+            matches = list(
+                filter(lambda s: clk_pin_no in s[CONF_CLK_PIN], RP_SPI_PINSETS)
+            )
+            if not matches:
+                return False
+            pin_set = matches[0]
+        else:
+            pin_set = RP_SPI_PINSETS[index]
         if pin_set is None:
             return False
         if sdo_pin_no not in pin_set[CONF_MOSI_PIN]:
@@ -268,10 +316,11 @@ def validate_spi_config(config):
 
 # Given an SPI index, convert to a string that represents the C++ object for it.
 def get_spi_interface(index):
-    if CORE.using_esp_idf:
+    platform = get_target_platform()
+    if platform == PLATFORM_ESP32:
+        # ESP32 uses ESP-IDF SPI driver for both Arduino and IDF frameworks
         return ["SPI2_HOST", "SPI3_HOST"][index]
     # Arduino code follows
-    platform = get_target_platform()
     if platform == PLATFORM_RP2040:
         return ["&SPI", "&SPI1"][index]
     if index == 0:
@@ -306,11 +355,11 @@ def spi_mode_schema(mode):
     if mode == TYPE_SINGLE:
         return SPI_SINGLE_SCHEMA
     pin_count = 4 if mode == TYPE_QUAD else 8
-    onlys = [cv.only_on([PLATFORM_ESP32]), cv.only_with_esp_idf]
+    onlys = [cv.only_on([PLATFORM_ESP32])]
     if pin_count == 8:
         onlys.append(
             only_on_variant(
-                supported=[VARIANT_ESP32S3, VARIANT_ESP32S2, VARIANT_ESP32P4]
+                supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3]
             )
         )
     return cv.All(
@@ -352,7 +401,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(configs):
     cg.add_define("USE_SPI")
     cg.add_global(spi_ns.using)
-    if CORE.using_arduino:
+    if CORE.using_arduino and not CORE.is_esp32:
         cg.add_library("SPI", None)
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
@@ -388,24 +437,29 @@ def spi_device_schema(
     :param mode Choose single, quad or octal mode.
     :return: The SPI device schema, `extend` this in your config schema.
     """
-    schema = {
-        cv.GenerateID(CONF_SPI_ID): cv.use_id(TYPE_CLASS[mode]),
-        cv.Optional(CONF_DATA_RATE, default=default_data_rate): SPI_DATA_RATE_SCHEMA,
-        cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(
-            SPI_MODE_OPTIONS, upper=True
-        ),
-        cv.Optional(CONF_RELEASE_DEVICE): cv.All(cv.boolean, cv.only_with_esp_idf),
-    }
-    if cs_pin_required:
-        schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
-    else:
-        schema[cv.Optional(CONF_CS_PIN)] = pins.gpio_output_pin_schema
-    return cv.Schema(schema)
+    cs_pin_option = cv.Required if cs_pin_required else cv.Optional
+    return cv.Schema(
+        {
+            cv.GenerateID(CONF_SPI_ID): cv.use_id(TYPE_CLASS[mode]),
+            cv.Optional(
+                CONF_DATA_RATE, default=default_data_rate
+            ): SPI_DATA_RATE_SCHEMA,
+            cv.Optional(CONF_SPI_MODE, default=default_mode): cv.enum(
+                SPI_MODE_OPTIONS, upper=True
+            ),
+            cv.Optional(CONF_RELEASE_DEVICE): cv.All(cv.boolean, cv.only_on_esp32),
+            cs_pin_option(CONF_CS_PIN): pins.gpio_output_pin_schema,
+        }
+    )
 
 
-async def register_spi_device(var, config):
+async def register_spi_device(
+    var: cg.Pvariable, config: ConfigType, write_only: bool = False
+) -> None:
     parent = await cg.get_variable(config[CONF_SPI_ID])
     cg.add(var.set_spi_parent(parent))
+    if write_only:
+        cg.add(var.set_write_only(True))
     if cs_pin := config.get(CONF_CS_PIN):
         pin = await cg.gpio_pin_expression(cs_pin)
         cg.add(var.set_cs_pin(pin))
@@ -443,13 +497,15 @@ def final_validate_device_schema(name: str, *, require_mosi: bool, require_miso:
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "spi_arduino.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.RP2040_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
-        "spi_esp_idf.cpp": {PlatformFramework.ESP32_IDF},
+        "spi_esp_idf.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
     }
 )

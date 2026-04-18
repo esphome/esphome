@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
+from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_FREQUENCY, CONF_ID
 from esphome.core import ID
@@ -16,11 +17,9 @@ CONF_BANDWIDTH = "bandwidth"
 CONF_BITRATE = "bitrate"
 CONF_BITSYNC = "bitsync"
 CONF_CODING_RATE = "coding_rate"
-CONF_CRC_ENABLE = "crc_enable"
 CONF_DEVIATION = "deviation"
 CONF_DIO0_PIN = "dio0_pin"
 CONF_MODULATION = "modulation"
-CONF_ON_PACKET = "on_packet"
 CONF_PA_PIN = "pa_pin"
 CONF_PA_POWER = "pa_power"
 CONF_PA_RAMP = "pa_ramp"
@@ -197,9 +196,13 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_BITSYNC): cv.boolean,
             cv.Optional(CONF_CODING_RATE, default="CR_4_5"): cv.enum(CODING_RATE),
             cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
-            cv.Optional(CONF_DEVIATION, default=5000): cv.int_range(min=0, max=100000),
+            cv.Optional(CONF_DEVIATION, default="5kHz"): cv.All(
+                cv.frequency, cv.int_range(min=0, max=100000)
+            ),
             cv.Optional(CONF_DIO0_PIN): pins.internal_gpio_input_pin_schema,
-            cv.Required(CONF_FREQUENCY): cv.int_range(min=137000000, max=1020000000),
+            cv.Required(CONF_FREQUENCY): cv.All(
+                cv.frequency, cv.int_range(min=int(137e6), max=int(1020e6))
+            ),
             cv.Required(CONF_MODULATION): cv.enum(MOD),
             cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
             cv.Optional(CONF_PA_PIN, default="BOOST"): cv.enum(PA_PIN),
@@ -280,19 +283,34 @@ NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
 
 
 @automation.register_action(
-    "sx127x.run_image_cal", RunImageCalAction, NO_ARGS_ACTION_SCHEMA
+    "sx127x.run_image_cal",
+    RunImageCalAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sx127x.set_mode_tx", SetModeTxAction, NO_ARGS_ACTION_SCHEMA
+    "sx127x.set_mode_tx",
+    SetModeTxAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sx127x.set_mode_rx", SetModeRxAction, NO_ARGS_ACTION_SCHEMA
+    "sx127x.set_mode_rx",
+    SetModeRxAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sx127x.set_mode_sleep", SetModeSleepAction, NO_ARGS_ACTION_SCHEMA
+    "sx127x.set_mode_sleep",
+    SetModeSleepAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sx127x.set_mode_standby", SetModeStandbyAction, NO_ARGS_ACTION_SCHEMA
+    "sx127x.set_mode_standby",
+    SetModeStandbyAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def no_args_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -310,7 +328,10 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 
 
 @automation.register_action(
-    "sx127x.send_packet", SendPacketAction, SEND_PACKET_ACTION_SCHEMA
+    "sx127x.send_packet",
+    SendPacketAction,
+    SEND_PACKET_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def send_packet_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

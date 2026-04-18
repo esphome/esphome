@@ -16,8 +16,9 @@ static const char *const TAG = "esp32_can";
 
 static bool get_bitrate(canbus::CanSpeed bitrate, twai_timing_config_t *t_config) {
   switch (bitrate) {
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32C3) || \
-    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61) || \
+    defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || \
+    defined(USE_ESP32_VARIANT_ESP32S3)
     case canbus::CAN_1KBPS:
       *t_config = (twai_timing_config_t) TWAI_TIMING_CONFIG_1KBITS();
       return true;
@@ -74,8 +75,15 @@ bool ESP32Can::setup_internal() {
     return false;
   }
 
+  // Select TWAI mode based on configuration
+  twai_mode_t twai_mode = (this->mode_ == CAN_MODE_LISTEN_ONLY) ? TWAI_MODE_LISTEN_ONLY : TWAI_MODE_NORMAL;
+
+  if (this->mode_ == CAN_MODE_LISTEN_ONLY) {
+    ESP_LOGI(TAG, "CAN bus configured in LISTEN_ONLY mode (passive, no ACKs)");
+  }
+
   twai_general_config_t g_config =
-      TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t) this->tx_, (gpio_num_t) this->rx_, TWAI_MODE_NORMAL);
+      TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t) this->tx_, (gpio_num_t) this->rx_, twai_mode);
   g_config.controller_id = next_twai_ctrl_num++;
   if (this->tx_queue_len_.has_value()) {
     g_config.tx_queue_len = this->tx_queue_len_.value();
@@ -110,6 +118,12 @@ bool ESP32Can::setup_internal() {
 }
 
 canbus::Error ESP32Can::send_message(struct canbus::CanFrame *frame) {
+  // In listen-only mode, we cannot transmit
+  if (this->mode_ == CAN_MODE_LISTEN_ONLY) {
+    ESP_LOGW(TAG, "Cannot send messages in LISTEN_ONLY mode");
+    return canbus::ERROR_FAIL;
+  }
+
   if (this->twai_handle_ == nullptr) {
     // not setup yet or setup failed
     return canbus::ERROR_FAIL;

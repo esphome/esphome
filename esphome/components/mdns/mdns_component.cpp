@@ -29,13 +29,17 @@ static const char *const TAG = "mdns";
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
+#ifndef USE_SENDSPIN_PORT
+#define USE_SENDSPIN_PORT 8928  // NOLINT
+#endif
+
 // Define all constant strings using the macro
 MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 
 // Wrap build-time defines into flash storage
 MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
 
-void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
+void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf) {
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
   // in mdns/__init__.py. If you add a new service here, update both locations.
 
@@ -53,9 +57,9 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     auto &service = services.emplace_next();
     service.service_type = MDNS_STR(SERVICE_ESPHOMELIB);
     service.proto = MDNS_STR(SERVICE_TCP);
-    service.port = api::global_api_server->get_port();
+    service.port = []() -> uint16_t { return api::global_api_server->get_port(); };
 
-    const std::string &friendly_name = App.get_friendly_name();
+    const auto &friendly_name = App.get_friendly_name();
     bool friendly_name_empty = friendly_name.empty();
 
     // Calculate exact capacity for txt_records
@@ -86,7 +90,9 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
       txt_records.push_back({MDNS_STR(TXT_FRIENDLY_NAME), MDNS_STR(friendly_name.c_str())});
     }
     txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
-    txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(this->add_dynamic_txt_value(get_mac_address()))});
+
+    // MAC address: passed from caller (either member buffer or stack buffer depending on USE_MDNS_STORE_SERVICES)
+    txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)});
 
 #ifdef USE_ESP8266
     MDNS_STATIC_CONST_CHAR(PLATFORM_ESP8266, "ESP8266");
@@ -145,7 +151,19 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   auto &prom_service = services.emplace_next();
   prom_service.service_type = MDNS_STR(SERVICE_PROMETHEUS);
   prom_service.proto = MDNS_STR(SERVICE_TCP);
-  prom_service.port = USE_WEBSERVER_PORT;
+  prom_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
+#endif
+
+#ifdef USE_SENDSPIN
+  MDNS_STATIC_CONST_CHAR(SERVICE_SENDSPIN, "_sendspin");
+  MDNS_STATIC_CONST_CHAR(TXT_SENDSPIN_PATH, "path");
+  MDNS_STATIC_CONST_CHAR(VALUE_SENDSPIN_PATH, "/sendspin");
+
+  auto &sendspin_service = services.emplace_next();
+  sendspin_service.service_type = MDNS_STR(SERVICE_SENDSPIN);
+  sendspin_service.proto = MDNS_STR(SERVICE_TCP);
+  sendspin_service.port = []() -> uint16_t { return USE_SENDSPIN_PORT; };
+  sendspin_service.txt_records = {{MDNS_STR(TXT_SENDSPIN_PATH), MDNS_STR(VALUE_SENDSPIN_PATH)}};
 #endif
 
 #ifdef USE_WEBSERVER
@@ -154,10 +172,11 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   auto &web_service = services.emplace_next();
   web_service.service_type = MDNS_STR(SERVICE_HTTP);
   web_service.proto = MDNS_STR(SERVICE_TCP);
-  web_service.port = USE_WEBSERVER_PORT;
+  web_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
 #endif
 
-#if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_WEBSERVER) && !defined(USE_MDNS_EXTRA_SERVICES)
+#if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_WEBSERVER) && \
+    !defined(USE_MDNS_EXTRA_SERVICES)
   MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
   MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
 
@@ -166,7 +185,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   auto &fallback_service = services.emplace_next();
   fallback_service.service_type = MDNS_STR(SERVICE_HTTP);
   fallback_service.proto = MDNS_STR(SERVICE_TCP);
-  fallback_service.port = USE_WEBSERVER_PORT;
+  fallback_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
   fallback_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)}};
 #endif
 }
@@ -180,7 +199,7 @@ void MDNSComponent::dump_config() {
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
     ESP_LOGV(TAG, "  - %s, %s, %d", MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto),
-             const_cast<TemplatableValue<uint16_t> &>(service.port).value());
+             service.port.value());
     for (const auto &record : service.txt_records) {
       ESP_LOGV(TAG, "    TXT: %s = %s", MDNS_STR_ARG(record.key), MDNS_STR_ARG(record.value));
     }

@@ -15,4 +15,6 @@ text_sensor:
     mac_address:
       name: MAC Address
     dns_address:
-      name: DNS ADdress
+      name: DNS Address
+    power_save_mode:
+      name: "WiFi Power Save Mode"

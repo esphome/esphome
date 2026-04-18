@@ -1,10 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import esp32
-from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    add_idf_component,
+    add_idf_sdkconfig_option,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
@@ -53,7 +54,7 @@ async def to_code(config):
     if config[CONF_USB_SERIAL_STR]:
         cg.add(var.set_usb_desc_serial(config[CONF_USB_SERIAL_STR]))
 
-    add_idf_component(name="espressif/esp_tinyusb", ref="1.7.6~1")
+    add_idf_component(name="espressif/esp_tinyusb", ref="2.1.1")
 
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_USE_ESPRESSIF_VID", False)
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_USE_DEFAULT_PID", False)

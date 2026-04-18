@@ -33,8 +33,10 @@ namespace esphome::ld2410 {
 
 using namespace ld24xx;
 
-static constexpr uint8_t MAX_LINE_LENGTH = 46;  // Max characters for serial buffer
-static constexpr uint8_t TOTAL_GATES = 9;       // Total number of gates supported by the LD2410
+// Engineering data frame is 45 bytes; +1 for null terminator, +4 so that a frame footer always
+// lands inside the buffer during footer-based resynchronization after losing sync.
+static constexpr uint8_t MAX_LINE_LENGTH = 50;
+static constexpr uint8_t TOTAL_GATES = 9;  // Total number of gates supported by the LD2410
 
 class LD2410Component : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
@@ -127,8 +129,8 @@ class LD2410Component : public Component, public uart::UARTDevice {
   std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
 #endif
 #ifdef USE_SENSOR
-  std::array<SensorWithDedup<uint8_t> *, TOTAL_GATES> gate_move_sensors_{};
-  std::array<SensorWithDedup<uint8_t> *, TOTAL_GATES> gate_still_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_move_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_still_sensors_{};
 #endif
 };
 

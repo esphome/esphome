@@ -131,6 +131,13 @@ float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWA
 void ILI9XXXDisplay::fill(Color color) {
   if (!this->check_buffer_())
     return;
+
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   uint16_t new_color = 0;
   this->x_low_ = 0;
   this->y_low_ = 0;
@@ -222,6 +229,10 @@ void ILI9XXXDisplay::update() {
 }
 
 void ILI9XXXDisplay::display_() {
+  // buffer may be null if allocation failed
+  if (this->buffer_ == nullptr) {
+    return;
+  }
   // check if something was displayed
   if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
     return;

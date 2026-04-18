@@ -160,6 +160,76 @@ def format_change(before: int, after: int, threshold: float | None = None) -> st
     return f"{emoji} {delta_str} ({pct_str})"
 
 
+def _sig_base(sym: str) -> str:
+    """Strip argument types from a symbol name for fuzzy matching.
+
+    Removes the entire outermost parenthesized argument list (including
+    the parentheses) from the symbol string.
+
+    This makes, for example, "foo(int)::nested" and "foo(float)::nested"
+    share the same key "foo::nested", while "foo(int)" maps to "foo" and
+    therefore does NOT collide with "foo(int)::nested".
+    """
+    start = sym.find("(")
+    if start == -1:
+        return sym
+    end = sym.rfind(")")
+    if end == -1:
+        return sym
+    return sym[:start] + sym[end + 1 :]
+
+
+_AMBIGUOUS = object()
+
+
+def _match_signature_changes(
+    changed_symbols: list[tuple[str, int, int, int]],
+    new_symbols: list[tuple[str, int]],
+    removed_symbols: list[tuple[str, int]],
+) -> tuple[
+    list[tuple[str, int, int, int]],
+    list[tuple[str, int]],
+    list[tuple[str, int]],
+]:
+    """Match new/removed symbol pairs that only differ in argument types.
+
+    When a function's argument types change (e.g. foo(vector<>&) -> foo(Buffer&)),
+    it appears as a new + removed symbol. This matches them by base name and moves
+    them to changed_symbols. Only matches unambiguous 1:1 pairs.
+    """
+    if not new_symbols or not removed_symbols:
+        return changed_symbols, new_symbols, removed_symbols
+
+    # Build base -> entry maps; mark ambiguous bases with sentinel
+    new_by_base: dict[str, tuple[str, int] | object] = {}
+    for entry in new_symbols:
+        base = _sig_base(entry[0])
+        new_by_base[base] = _AMBIGUOUS if base in new_by_base else entry
+    removed_by_base: dict[str, tuple[str, int] | object] = {}
+    for entry in removed_symbols:
+        base = _sig_base(entry[0])
+        removed_by_base[base] = _AMBIGUOUS if base in removed_by_base else entry
+
+    matched: set[str] = set()  # matched base keys
+    for base, new_entry in new_by_base.items():
+        if new_entry is _AMBIGUOUS:
+            continue
+        rem_entry = removed_by_base.get(base)
+        if rem_entry is None or rem_entry is _AMBIGUOUS:
+            continue
+        pr_sym, pr_size = new_entry
+        _rm_sym, target_size = rem_entry
+        delta = pr_size - target_size
+        if delta != 0:
+            changed_symbols.append((pr_sym, target_size, pr_size, delta))
+        matched.add(base)
+
+    if matched:
+        new_symbols = [e for e in new_symbols if _sig_base(e[0]) not in matched]
+        removed_symbols = [e for e in removed_symbols if _sig_base(e[0]) not in matched]
+    return changed_symbols, new_symbols, removed_symbols
+
+
 def prepare_symbol_changes_data(
     target_symbols: dict | None, pr_symbols: dict | None
 ) -> dict | None:
@@ -200,6 +270,11 @@ def prepare_symbol_changes_data(
             delta = pr_size - target_size
             changed_symbols.append((symbol, target_size, pr_size, delta))
 
+    # Match new/removed symbols that only differ in argument types
+    changed_symbols, new_symbols, removed_symbols = _match_signature_changes(
+        changed_symbols, new_symbols, removed_symbols
+    )
+
     if not changed_symbols and not new_symbols and not removed_symbols:
         return None
 
@@ -213,6 +288,20 @@ def prepare_symbol_changes_data(
         "new_symbols": new_symbols,
         "removed_symbols": removed_symbols,
     }
+
+
+def format_components_str(components: list[str]) -> str:
+    """Format a list of components for display.
+
+    Args:
+        components: List of component names
+
+    Returns:
+        Formatted string with backtick-quoted component names
+    """
+    if len(components) == 1:
+        return f"`{components[0]}`"
+    return ", ".join(f"`{c}`" for c in sorted(components))
 
 
 def prepare_component_breakdown_data(
@@ -316,11 +405,10 @@ def create_comment_body(
     }
 
     # Format components list
+    context["components_str"] = format_components_str(components)
     if len(components) == 1:
-        context["components_str"] = f"`{components[0]}`"
         context["config_note"] = "a representative test configuration"
     else:
-        context["components_str"] = ", ".join(f"`{c}`" for c in sorted(components))
         context["config_note"] = (
             f"a merged configuration with {len(components)} components"
         )
@@ -502,6 +590,43 @@ def post_or_update_comment(pr_number: str, comment_body: str) -> None:
     print("Comment posted/updated successfully", file=sys.stderr)
 
 
+def create_target_unavailable_comment(
+    pr_data: dict,
+) -> str:
+    """Create a comment body when target branch data is unavailable.
+
+    This happens when the target branch (dev/beta/release) fails to build.
+    This can occur because:
+    1. The target branch has a build issue independent of this PR
+    2. This PR fixes a build issue on the target branch
+    In either case, we only care that the PR branch builds successfully.
+
+    Args:
+        pr_data: Dictionary with PR branch analysis results
+
+    Returns:
+        Formatted comment body
+    """
+    components = pr_data.get("components", [])
+    platform = pr_data.get("platform", "unknown")
+    pr_ram = pr_data.get("ram_bytes", 0)
+    pr_flash = pr_data.get("flash_bytes", 0)
+
+    env = Environment(
+        loader=FileSystemLoader(TEMPLATE_DIR),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    template = env.get_template("ci_memory_impact_target_unavailable.j2")
+    return template.render(
+        comment_marker=COMMENT_MARKER,
+        components_str=format_components_str(components),
+        platform=platform,
+        pr_ram=format_bytes(pr_ram),
+        pr_flash=format_bytes(pr_flash),
+    )
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -523,14 +648,24 @@ def main() -> int:
 
     # Load analysis JSON files (all data comes from JSON for security)
     target_data: dict | None = load_analysis_json(args.target_json)
-    if not target_data:
-        print("Error: Failed to load target analysis JSON", file=sys.stderr)
-        sys.exit(1)
-
     pr_data: dict | None = load_analysis_json(args.pr_json)
+
+    # PR data is required - if the PR branch can't build, that's a real error
     if not pr_data:
         print("Error: Failed to load PR analysis JSON", file=sys.stderr)
         sys.exit(1)
+
+    # Target data is optional - target branch (dev) may fail to build because:
+    # 1. The target branch has a build issue independent of this PR
+    # 2. This PR fixes a build issue on the target branch
+    if not target_data:
+        print(
+            "Warning: Target branch analysis unavailable, posting limited comment",
+            file=sys.stderr,
+        )
+        comment_body = create_target_unavailable_comment(pr_data)
+        post_or_update_comment(args.pr_number, comment_body)
+        return 0
 
     # Extract detailed analysis if available
     target_analysis: dict | None = None

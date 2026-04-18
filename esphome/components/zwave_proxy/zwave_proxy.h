@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_API
+
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/core/component.h"
@@ -11,6 +14,7 @@
 namespace esphome::zwave_proxy {
 
 static constexpr size_t MAX_ZWAVE_FRAME_SIZE = 257;  // Maximum Z-Wave frame size
+static constexpr size_t ZWAVE_HOME_ID_SIZE = 4;      // Z-Wave Home ID size in bytes
 
 enum ZWaveResponseTypes : uint8_t {
   ZWAVE_FRAME_TYPE_ACK = 0x06,
@@ -56,11 +60,14 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   uint32_t get_home_id() {
     return encode_uint32(this->home_id_[0], this->home_id_[1], this->home_id_[2], this->home_id_[3]);
   }
-  bool set_home_id(const uint8_t *new_home_id);  // Store a new home ID. Returns true if it changed.
 
   void send_frame(const uint8_t *data, size_t length);
 
  protected:
+  bool set_home_id_(const uint8_t *new_home_id);  // Store a new home ID. Returns true if it changed.
+  void clear_home_id_();                          // Clear home ID and notify API clients
+  void on_connection_changed_(bool connected);    // Handle modem connect/disconnect transitions
+  void retry_home_id_query_();                    // Retry home ID query after reconnect
   void send_homeid_changed_msg_(api::APIConnection *conn = nullptr);
   void send_simple_command_(uint8_t command_id);
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
@@ -70,22 +77,27 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
 
   // Pre-allocated message - always ready to send
   api::ZWaveProxyFrame outgoing_proto_msg_;
-  std::array<uint8_t, MAX_ZWAVE_FRAME_SIZE> buffer_;  // Fixed buffer for incoming data
-  std::array<uint8_t, 4> home_id_{0, 0, 0, 0};        // Fixed buffer for home ID
+  std::array<uint8_t, MAX_ZWAVE_FRAME_SIZE> buffer_;   // Fixed buffer for incoming data
+  std::array<uint8_t, ZWAVE_HOME_ID_SIZE> home_id_{};  // Fixed buffer for home ID
 
   // Pointers and 32-bit values (aligned together)
   api::APIConnection *api_connection_{nullptr};  // Current subscribed client
   uint32_t setup_time_{0};                       // Time when setup() was called
+  uint32_t reconnect_time_{0};                   // Timestamp of reconnect detection (0 = no pending query)
 
-  // 8-bit values (grouped together to minimize padding)
-  uint8_t buffer_index_{0};     // Index for populating the data buffer
-  uint8_t end_frame_after_{0};  // Payload reception ends after this index
-  uint8_t last_response_{0};    // Last response type sent
+  // Small values (grouped by size to minimize padding)
+  uint16_t buffer_index_{0};     // Index for populating the data buffer
+  uint16_t end_frame_after_{0};  // Payload reception ends after this index
+  uint8_t last_response_{0};     // Last response type sent
+  uint8_t query_retries_{0};     // Number of home ID query attempts after reconnect
   ZWaveParsingState parsing_state_{ZWAVE_PARSING_STATE_WAIT_START};
   bool in_bootloader_{false};  // True if the device is detected to be in bootloader mode
   bool home_id_ready_{false};  // True when home ID has been received from Z-Wave module
+  bool was_connected_{false};  // Previous UART connection state for edge detection
 };
 
 extern ZWaveProxy *global_zwave_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::zwave_proxy
+
+#endif  // USE_API

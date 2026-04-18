@@ -1,0 +1,11 @@
+dlms_meter:
+  decryption_key: "36C66639E48A8CA4D6BC8B282A793BBB"   # change this to your decryption key!
+
+sensor:
+  - platform: dlms_meter
+    reactive_energy_plus:
+      name: "Reactive energy taken from grid"
+    reactive_energy_minus:
+      name: "Reactive energy put into grid"
+
+<<: !include common.yaml

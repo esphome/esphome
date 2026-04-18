@@ -8,8 +8,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 static const char *const TAG = "alarm_control_panel";
 
@@ -32,29 +31,16 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
   this->last_update_ = millis();
   if (state != this->current_state_) {
     auto prev_state = this->current_state_;
-    ESP_LOGD(TAG, "Set state to: %s, previous: %s", LOG_STR_ARG(alarm_control_panel_state_to_string(state)),
+    ESP_LOGV(TAG, "'%s' >> %s (was %s)", this->get_name().c_str(),
+             LOG_STR_ARG(alarm_control_panel_state_to_string(state)),
              LOG_STR_ARG(alarm_control_panel_state_to_string(prev_state)));
     this->current_state_ = state;
-    this->state_callback_.call();
+    // Single state callback - listeners receive the new state as an argument
+    this->state_callback_.call(state);
 #if defined(USE_ALARM_CONTROL_PANEL) && defined(USE_CONTROLLER_REGISTRY)
     ControllerRegistry::notify_alarm_control_panel_update(this);
 #endif
-    if (state == ACP_STATE_TRIGGERED) {
-      this->triggered_callback_.call();
-    } else if (state == ACP_STATE_ARMING) {
-      this->arming_callback_.call();
-    } else if (state == ACP_STATE_PENDING) {
-      this->pending_callback_.call();
-    } else if (state == ACP_STATE_ARMED_HOME) {
-      this->armed_home_callback_.call();
-    } else if (state == ACP_STATE_ARMED_NIGHT) {
-      this->armed_night_callback_.call();
-    } else if (state == ACP_STATE_ARMED_AWAY) {
-      this->armed_away_callback_.call();
-    } else if (state == ACP_STATE_DISARMED) {
-      this->disarmed_callback_.call();
-    }
-
+    // Cleared fires when leaving TRIGGERED state
     if (prev_state == ACP_STATE_TRIGGERED) {
       this->cleared_callback_.call();
     }
@@ -65,97 +51,29 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
   }
 }
 
-void AlarmControlPanel::add_on_state_callback(std::function<void()> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_triggered_callback(std::function<void()> &&callback) {
-  this->triggered_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_arming_callback(std::function<void()> &&callback) {
-  this->arming_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_armed_home_callback(std::function<void()> &&callback) {
-  this->armed_home_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_armed_night_callback(std::function<void()> &&callback) {
-  this->armed_night_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_armed_away_callback(std::function<void()> &&callback) {
-  this->armed_away_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_pending_callback(std::function<void()> &&callback) {
-  this->pending_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_disarmed_callback(std::function<void()> &&callback) {
-  this->disarmed_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_cleared_callback(std::function<void()> &&callback) {
-  this->cleared_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_chime_callback(std::function<void()> &&callback) {
-  this->chime_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::add_on_ready_callback(std::function<void()> &&callback) {
-  this->ready_callback_.add(std::move(callback));
-}
-
-void AlarmControlPanel::arm_away(optional<std::string> code) {
+void AlarmControlPanel::arm_with_code_(AlarmControlPanelCall &(AlarmControlPanelCall::*arm_method)(),
+                                       const char *code) {
   auto call = this->make_call();
-  call.arm_away();
-  if (code.has_value())
-    call.set_code(code.value());
+  (call.*arm_method)();
+  if (code != nullptr)
+    call.set_code(code);
   call.perform();
 }
 
-void AlarmControlPanel::arm_home(optional<std::string> code) {
-  auto call = this->make_call();
-  call.arm_home();
-  if (code.has_value())
-    call.set_code(code.value());
-  call.perform();
+void AlarmControlPanel::arm_away(const char *code) { this->arm_with_code_(&AlarmControlPanelCall::arm_away, code); }
+
+void AlarmControlPanel::arm_home(const char *code) { this->arm_with_code_(&AlarmControlPanelCall::arm_home, code); }
+
+void AlarmControlPanel::arm_night(const char *code) { this->arm_with_code_(&AlarmControlPanelCall::arm_night, code); }
+
+void AlarmControlPanel::arm_vacation(const char *code) {
+  this->arm_with_code_(&AlarmControlPanelCall::arm_vacation, code);
 }
 
-void AlarmControlPanel::arm_night(optional<std::string> code) {
-  auto call = this->make_call();
-  call.arm_night();
-  if (code.has_value())
-    call.set_code(code.value());
-  call.perform();
+void AlarmControlPanel::arm_custom_bypass(const char *code) {
+  this->arm_with_code_(&AlarmControlPanelCall::arm_custom_bypass, code);
 }
 
-void AlarmControlPanel::arm_vacation(optional<std::string> code) {
-  auto call = this->make_call();
-  call.arm_vacation();
-  if (code.has_value())
-    call.set_code(code.value());
-  call.perform();
-}
+void AlarmControlPanel::disarm(const char *code) { this->arm_with_code_(&AlarmControlPanelCall::disarm, code); }
 
-void AlarmControlPanel::arm_custom_bypass(optional<std::string> code) {
-  auto call = this->make_call();
-  call.arm_custom_bypass();
-  if (code.has_value())
-    call.set_code(code.value());
-  call.perform();
-}
-
-void AlarmControlPanel::disarm(optional<std::string> code) {
-  auto call = this->make_call();
-  call.disarm();
-  if (code.has_value())
-    call.set_code(code.value());
-  call.perform();
-}
-
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel

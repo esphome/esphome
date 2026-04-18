@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_API
+#include "api_buffer.h"
 #include "api_noise_context.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
@@ -10,11 +11,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
-#ifdef USE_API_USER_DEFINED_ACTIONS
-#include "user_services.h"
-#endif
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -22,10 +21,14 @@
 #include "esphome/components/camera/camera.h"
 #endif
 
-#include <map>
 #include <vector>
 
 namespace esphome::api {
+
+#ifdef USE_API_USER_DEFINED_ACTIONS
+// Forward declaration - full definition in user_services.h
+class UserServiceDescriptor;
+#endif
 
 #ifdef USE_API_NOISE
 struct SavedNoisePsk {
@@ -33,15 +36,11 @@ struct SavedNoisePsk {
 } PACKED;  // NOLINT
 #endif
 
-class APIServer : public Component,
-                  public Controller
-#ifdef USE_LOGGER
-    ,
-                  public logger::LogListener
-#endif
+class APIServer final : public Component,
+                        public Controller
 #ifdef USE_CAMERA
     ,
-                  public camera::CameraListener
+                        public camera::CameraListener
 #endif
 {
  public:
@@ -54,14 +53,10 @@ class APIServer : public Component,
   void on_shutdown() override;
   bool teardown() override;
 #ifdef USE_LOGGER
-  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len) override;
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
 #endif
 #ifdef USE_CAMERA
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
-#endif
-#ifdef USE_API_PASSWORD
-  bool check_password(const uint8_t *password_data, size_t password_len) const;
-  void set_password(const std::string &password);
 #endif
   void set_port(uint16_t port);
   void set_reboot_timeout(uint32_t reboot_timeout);
@@ -71,7 +66,7 @@ class APIServer : public Component,
   void set_max_connections(uint8_t max_connections) { this->max_connections_ = max_connections; }
 
   // Get reference to shared buffer for API connections
-  std::vector<uint8_t> &get_shared_buffer_ref() { return shared_write_buffer_; }
+  APIBuffer &get_shared_buffer_ref() { return shared_write_buffer_; }
 
 #ifdef USE_API_NOISE
   bool save_noise_psk(psk_t psk, bool make_active = true);
@@ -132,6 +127,9 @@ class APIServer : public Component,
 #ifdef USE_MEDIA_PLAYER
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
+#ifdef USE_WATER_HEATER
+  void on_water_heater_update(water_heater::WaterHeater *obj) override;
+#endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void send_homeassistant_action(const HomeassistantActionRequest &call);
 
@@ -139,10 +137,10 @@ class APIServer : public Component,
   // Action response handling
   using ActionResponseCallback = std::function<void(const class ActionResponse &)>;
   void register_action_response_callback(uint32_t call_id, ActionResponseCallback callback);
-  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message);
+  void handle_action_response(uint32_t call_id, bool success, StringRef error_message);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  void handle_action_response(uint32_t call_id, bool success, const std::string &error_message,
-                              const uint8_t *response_data, size_t response_data_len);
+  void handle_action_response(uint32_t call_id, bool success, StringRef error_message, const uint8_t *response_data,
+                              size_t response_data_len);
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 #endif  // USE_API_HOMEASSISTANT_SERVICES
@@ -154,6 +152,19 @@ class APIServer : public Component,
   // Only compile push_back method when custom_services: true (external components)
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #endif
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  // Action call context management - supports concurrent calls from multiple clients
+  // Returns server-generated action_call_id to avoid collisions when clients use same call_id
+  uint32_t register_active_action_call(uint32_t client_call_id, APIConnection *conn);
+  void unregister_active_action_call(uint32_t action_call_id);
+  void unregister_active_action_calls_for_connection(APIConnection *conn);
+  // Send response for a specific action call (uses action_call_id, sends client_call_id in response)
+  void send_action_response(uint32_t action_call_id, bool success, StringRef error_message);
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  void send_action_response(uint32_t action_call_id, bool success, StringRef error_message,
+                            const uint8_t *response_data, size_t response_data_len);
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
@@ -169,23 +180,44 @@ class APIServer : public Component,
   void on_update(update::UpdateEntity *obj) override;
 #endif
 #ifdef USE_ZWAVE_PROXY
-  void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
+  void on_zwave_proxy_request(const ZWaveProxyRequest &msg);
+#endif
+#ifdef USE_IR_RF
+  void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
 #endif
 
-  bool is_connected(bool state_subscription_only = false) const;
+  bool is_connected() const { return !this->clients_.empty(); }
+  bool is_connected_with_state_subscription() const;
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
-    std::string entity_id;
-    optional<std::string> attribute;
-    std::function<void(std::string)> callback;
+    const char *entity_id;  // Pointer to flash (internal) or heap (external)
+    const char *attribute;  // Pointer to flash or nullptr (nullptr means no attribute)
+    std::function<void(StringRef)> callback;
     bool once;
+
+    // Dynamic storage for external components using std::string API (custom_api_device.h)
+    // These are only allocated when using the std::string overload (nullptr for const char* overload)
+    std::unique_ptr<std::string> entity_id_dynamic_storage;
+    std::unique_ptr<std::string> attribute_dynamic_storage;
   };
 
+  // New const char* overload (for internal components - zero allocation)
+  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
+  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
+
+  // std::string overload with StringRef callback (for custom_api_device.h with zero-allocation callback)
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                      std::function<void(std::string)> f);
+                                      std::function<void(StringRef)> &&f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                std::function<void(std::string)> f);
+                                std::function<void(StringRef)> &&f);
+
+  // Legacy std::string overload (for custom_api_device.h - converts StringRef to std::string for callback)
+  void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                      std::function<void(const std::string &)> &&f);
+  void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
+                                std::function<void(const std::string &)> &&f);
+
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
@@ -193,43 +225,77 @@ class APIServer : public Component,
 #endif
 
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
+  Trigger<std::string, std::string> *get_client_connected_trigger() { return &this->client_connected_trigger_; }
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> *get_client_disconnected_trigger() const {
-    return this->client_disconnected_trigger_;
-  }
+  Trigger<std::string, std::string> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
 #endif
 
  protected:
-  void schedule_reboot_timeout_();
+  // Accept incoming socket connections. Only called when socket has pending connections.
+  void __attribute__((noinline)) accept_new_connections_();
+  // Remove a disconnected client by index. Swaps with last element and pops.
+  void __attribute__((noinline)) remove_client_(size_t client_index);
+
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
-                         const psk_t &active_psk, bool make_active);
+                         bool make_active);
+  // Load saved PSK from preferences and apply it. Returns true on success.
+  bool load_and_apply_noise_psk_();
 #endif  // USE_API_NOISE
+#ifdef USE_API_HOMEASSISTANT_STATES
+  // Helper methods to reduce code duplication
+  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f,
+                               bool once);
+  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
+                               std::function<void(StringRef)> &&f, bool once);
+  // Legacy helper: wraps std::string callback and delegates to StringRef version
+  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
+                               std::function<void(const std::string &)> &&f, bool once);
+#endif  // USE_API_HOMEASSISTANT_STATES
+  // No explicit close() needed — listen sockets have no active connections on
+  // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
+  inline void destroy_socket_() {
+    delete this->socket_;
+    this->socket_ = nullptr;
+  }
+  void socket_failed_(const LogString *msg);
   // Pointers and pointer-like types first (4 bytes each)
-  std::unique_ptr<socket::Socket> socket_ = nullptr;
+  socket::ListenSocket *socket_{nullptr};
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
-  Trigger<std::string, std::string> *client_connected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> client_connected_trigger_;
 #endif
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
-  Trigger<std::string, std::string> *client_disconnected_trigger_ = new Trigger<std::string, std::string>();
+  Trigger<std::string, std::string> client_disconnected_trigger_;
 #endif
 
   // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
+  uint32_t last_connected_{0};
 
   // Vectors and strings (12 bytes each on 32-bit)
   std::vector<std::unique_ptr<APIConnection>> clients_;
-#ifdef USE_API_PASSWORD
-  std::string password_;
-#endif
-  std::vector<uint8_t> shared_write_buffer_;  // Shared proto write buffer for all connections
+  // Shared proto write buffer for all connections.
+  // Not pre-allocated: all send paths call prepare_first_message_buffer() which
+  // reserves the exact needed size. Pre-allocating here would cause heap fragmentation
+  // since the buffer would almost always reallocate on first use.
+  APIBuffer shared_write_buffer_;
 #ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   std::vector<UserServiceDescriptor *> user_services_;
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
+  // Active action calls - supports concurrent calls from multiple clients
+  // Uses server-generated action_call_id to avoid collisions when multiple clients use same call_id
+  struct ActiveActionCall {
+    uint32_t action_call_id;  // Server-generated unique ID (passed to actions)
+    uint32_t client_call_id;  // Client's original call_id (used in response)
+    APIConnection *connection;
+  };
+  std::vector<ActiveActionCall> active_action_calls_;
+  uint32_t next_action_call_id_{1};  // Counter for generating unique action_call_ids
+#endif                               // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   struct PendingActionResponse {
@@ -261,7 +327,10 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
   TEMPLATABLE_VALUE(bool, state_subscription_only)
  public:
   bool check(const Ts &...x) override {
-    return global_api_server->is_connected(this->state_subscription_only_.value(x...));
+    if (this->state_subscription_only_.value(x...)) {
+      return global_api_server->is_connected_with_state_subscription();
+    }
+    return global_api_server->is_connected();
   }
 };
 

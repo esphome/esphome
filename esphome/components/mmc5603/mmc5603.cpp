@@ -83,6 +83,7 @@ void MMC5603Component::dump_config() {
     ESP_LOGE(TAG, "The ID registers don't match - Is this really an MMC5603?");
   }
   LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Auto set/reset: %s", ONOFF(this->auto_set_reset_));
 
   LOG_SENSOR("  ", "X Axis", this->x_sensor_);
   LOG_SENSOR("  ", "Y Axis", this->y_sensor_);
@@ -90,10 +91,9 @@ void MMC5603Component::dump_config() {
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
 }
 
-float MMC5603Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void MMC5603Component::update() {
-  if (!this->write_byte(MMC56X3_CTRL0_REG, 0x01)) {
+  uint8_t ctrl0 = (this->auto_set_reset_) ? 0x21 : 0x01;
+  if (!this->write_byte(MMC56X3_CTRL0_REG, ctrl0)) {
     this->status_set_warning();
     return;
   }
@@ -126,21 +126,21 @@ void MMC5603Component::update() {
   int32_t raw_x = 0;
   raw_x |= buffer[0] << 12;
   raw_x |= buffer[1] << 4;
-  raw_x |= buffer[2] << 0;
+  raw_x |= buffer[2] & 0x0F;
 
   const float x = 0.00625 * (raw_x - 524288);
 
   int32_t raw_y = 0;
   raw_y |= buffer[3] << 12;
   raw_y |= buffer[4] << 4;
-  raw_y |= buffer[5] << 0;
+  raw_y |= buffer[5] & 0x0F;
 
   const float y = 0.00625 * (raw_y - 524288);
 
   int32_t raw_z = 0;
   raw_z |= buffer[6] << 12;
   raw_z |= buffer[7] << 4;
-  raw_z |= buffer[8] << 0;
+  raw_z |= buffer[8] & 0x0F;
 
   const float z = 0.00625 * (raw_z - 524288);
 

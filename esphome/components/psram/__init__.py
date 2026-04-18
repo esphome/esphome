@@ -7,14 +7,14 @@ from esphome.components.esp32 import (
     CONF_CPU_FREQUENCY,
     CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES,
     VARIANT_ESP32,
-    add_idf_sdkconfig_option,
-    get_esp32_variant,
-)
-from esphome.components.esp32.const import (
     VARIANT_ESP32C5,
+    VARIANT_ESP32C61,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
+    idf_version,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -24,8 +24,6 @@ from esphome.const import (
     CONF_ID,
     CONF_MODE,
     CONF_SPEED,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
 )
 from esphome.core import CORE
@@ -54,18 +52,20 @@ CONF_ENABLE_ECC = "enable_ecc"
 
 SPIRAM_MODES = {
     VARIANT_ESP32: (TYPE_QUAD,),
+    VARIANT_ESP32C5: (TYPE_QUAD,),
+    VARIANT_ESP32C61: (TYPE_QUAD,),
     VARIANT_ESP32S2: (TYPE_QUAD,),
     VARIANT_ESP32S3: (TYPE_QUAD, TYPE_OCTAL),
-    VARIANT_ESP32C5: (TYPE_QUAD,),
     VARIANT_ESP32P4: (TYPE_HEX,),
 }
 
 
 SPIRAM_SPEEDS = {
     VARIANT_ESP32: (40, 80, 120),
+    VARIANT_ESP32C5: (40, 80, 120),
+    VARIANT_ESP32C61: (40, 80),
     VARIANT_ESP32S2: (40, 80, 120),
     VARIANT_ESP32S3: (40, 80, 120),
-    VARIANT_ESP32C5: (40, 80, 120),
     VARIANT_ESP32P4: (20, 100, 200),
 }
 
@@ -180,9 +180,6 @@ async def to_code(config):
         if config[CONF_MODE] == TYPE_OCTAL:
             cg.add_platformio_option("board_build.arduino.memory_type", "qio_opi")
 
-    add_idf_sdkconfig_option(
-        f"CONFIG_{get_esp32_variant().upper()}_SPIRAM_SUPPORT", True
-    )
     add_idf_sdkconfig_option("CONFIG_SOC_SPIRAM_SUPPORTED", True)
     add_idf_sdkconfig_option("CONFIG_SPIRAM", True)
     add_idf_sdkconfig_option("CONFIG_SPIRAM_USE", True)
@@ -197,12 +194,17 @@ async def to_code(config):
     speed = int(config[CONF_SPEED][:-3])
     add_idf_sdkconfig_option(f"CONFIG_SPIRAM_SPEED_{speed}M", True)
     add_idf_sdkconfig_option("CONFIG_SPIRAM_SPEED", speed)
-    if config[CONF_MODE] == TYPE_OCTAL and speed == 120:
-        add_idf_sdkconfig_option("CONFIG_ESPTOOLPY_FLASHFREQ_120M", True)
-        add_idf_sdkconfig_option("CONFIG_BOOTLOADER_FLASH_DC_AWARE", True)
-        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(5, 4, 0):
+    if speed == 120:
+        variant = get_esp32_variant()
+        # On chips with MSPI timing tuning, FLASH and PSRAM share the core
+        # clock so flash frequency must match PSRAM frequency.
+        # ESP32 and ESP32-S2 don't have this constraint.
+        if variant not in (VARIANT_ESP32, VARIANT_ESP32S2):
+            add_idf_sdkconfig_option("CONFIG_ESPTOOLPY_FLASHFREQ_120M", True)
+        if config[CONF_MODE] == TYPE_OCTAL and idf_version() >= cv.Version(5, 4, 0):
             add_idf_sdkconfig_option(
-                "CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR", True
+                "CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR",
+                True,
             )
     if config[CONF_ENABLE_ECC]:
         add_idf_sdkconfig_option("CONFIG_SPIRAM_ECC_ENABLE", True)

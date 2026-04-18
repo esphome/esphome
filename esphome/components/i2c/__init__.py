@@ -2,6 +2,23 @@ import logging
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components import esp32
+from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    get_esp32_variant,
+)
+from esphome.components.esp32.gpio_esp32_c5 import esp32_c5_validate_lp_i2c
+from esphome.components.esp32.gpio_esp32_c6 import esp32_c6_validate_lp_i2c
+from esphome.components.esp32.gpio_esp32_p4 import esp32_p4_validate_lp_i2c
 from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_prj_conf,
@@ -16,6 +33,7 @@ from esphome.const import (
     CONF_I2C,
     CONF_I2C_ID,
     CONF_ID,
+    CONF_LOW_POWER_MODE,
     CONF_SCAN,
     CONF_SCL,
     CONF_SDA,
@@ -40,6 +58,25 @@ IDFI2CBus = i2c_ns.class_("IDFI2CBus", InternalI2CBus, cg.Component)
 ZephyrI2CBus = i2c_ns.class_("ZephyrI2CBus", I2CBus, cg.Component)
 I2CDevice = i2c_ns.class_("I2CDevice")
 
+ESP32_I2C_CAPABILITIES = {
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32/include/soc/soc_caps.h
+    VARIANT_ESP32: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32C2: {"NUM": 1, "HP": 1},
+    VARIANT_ESP32C3: {"NUM": 1, "HP": 1},
+    VARIANT_ESP32C5: {"NUM": 2, "HP": 1, "LP": 1},
+    VARIANT_ESP32C6: {"NUM": 2, "HP": 1, "LP": 1},
+    VARIANT_ESP32C61: {"NUM": 1, "HP": 1},
+    VARIANT_ESP32H2: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32P4: {"NUM": 3, "HP": 2, "LP": 1},
+    VARIANT_ESP32S2: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32S3: {"NUM": 2, "HP": 2},
+}
+VALIDATE_LP_I2C = {
+    VARIANT_ESP32C5: esp32_c5_validate_lp_i2c,
+    VARIANT_ESP32C6: esp32_c6_validate_lp_i2c,
+    VARIANT_ESP32P4: esp32_p4_validate_lp_i2c,
+}
+LP_I2C_VARIANT = list(VALIDATE_LP_I2C.keys())
 
 CONF_SDA_PULLUP_ENABLED = "sda_pullup_enabled"
 CONF_SCL_PULLUP_ENABLED = "scl_pullup_enabled"
@@ -56,11 +93,31 @@ def _bus_declare_type(value):
     raise NotImplementedError
 
 
+def _rp2040_i2c_controller(pin):
+    """Return the I2C controller number (0 or 1) for a given RP2040/RP2350 GPIO pin.
+
+    See RP2040 datasheet Table 2 (section 1.4.3, "GPIO Functions"):
+    https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
+    See RP2350 datasheet Table 7 (section 9.4, "Function Select"):
+    https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+    """
+    return (pin // 2) % 2
+
+
 def validate_config(config):
     if CORE.is_esp32:
         return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 2), esp32_arduino=cv.Version(3, 2, 1)
         )(config)
+    if CORE.is_rp2040:
+        sda_controller = _rp2040_i2c_controller(config[CONF_SDA])
+        scl_controller = _rp2040_i2c_controller(config[CONF_SCL])
+        if sda_controller != scl_controller:
+            raise cv.Invalid(
+                f"SDA pin GPIO{config[CONF_SDA]} is on I2C{sda_controller} but "
+                f"SCL pin GPIO{config[CONF_SCL]} is on I2C{scl_controller}. "
+                f"Both pins must be on the same I2C controller."
+            )
     return config
 
 
@@ -84,13 +141,20 @@ CONFIG_SCHEMA = cv.All(
                 nrf52="100kHz",
             ): cv.All(
                 cv.frequency,
-                cv.Range(min=0, min_included=False),
+                cv.float_range(min=0, min_included=False),
             ),
             cv.Optional(CONF_TIMEOUT): cv.All(
                 cv.only_with_framework(["arduino", "esp-idf"]),
                 cv.positive_time_period,
             ),
             cv.Optional(CONF_SCAN, default=True): cv.boolean,
+            cv.Optional(CONF_LOW_POWER_MODE): cv.All(
+                cv.only_on_esp32,
+                esp32.only_on_variant(
+                    supported=LP_I2C_VARIANT, msg_prefix="Low power i2c"
+                ),
+                cv.boolean,
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_NRF52]),
@@ -102,6 +166,48 @@ def _final_validate(config):
     full_config = fv.full_config.get()[CONF_I2C]
     if CORE.using_zephyr and len(full_config) > 1:
         raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
+    if CORE.is_rp2040:
+        if len(full_config) > 2:
+            raise cv.Invalid(
+                "The maximum number of I2C interfaces for RP2040/RP2350 is 2"
+            )
+        if len(full_config) > 1:
+            controllers = [
+                _rp2040_i2c_controller(conf[CONF_SDA]) for conf in full_config
+            ]
+            if len(set(controllers)) != len(controllers):
+                raise cv.Invalid(
+                    "Multiple I2C buses are configured to use the same I2C controller. "
+                    "Each bus must use pins on a different controller. "
+                    "The I2C controller is determined by (gpio / 2) % 2: "
+                    "even pin pairs (0-1, 4-5, 8-9, ...) use I2C0, "
+                    "odd pin pairs (2-3, 6-7, 10-11, ...) use I2C1."
+                )
+    if CORE.is_esp32 and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
+        variant = get_esp32_variant()
+        max_num = ESP32_I2C_CAPABILITIES[variant]["NUM"]
+        if len(full_config) > max_num:
+            raise cv.Invalid(
+                f"The maximum number of i2c interfaces for {variant} is {max_num}"
+            )
+        if variant in LP_I2C_VARIANT:
+            max_lp_num = ESP32_I2C_CAPABILITIES[variant]["LP"]
+            max_hp_num = ESP32_I2C_CAPABILITIES[variant]["HP"]
+            lp_num = sum(
+                CONF_LOW_POWER_MODE in conf and conf[CONF_LOW_POWER_MODE]
+                for conf in full_config
+            )
+            hp_num = len(full_config) - lp_num
+            if CONF_LOW_POWER_MODE in config and config[CONF_LOW_POWER_MODE]:
+                VALIDATE_LP_I2C[variant](config)
+            if lp_num > max_lp_num:
+                raise cv.Invalid(
+                    f"The maximum number of low power i2c interfaces for {variant} is {max_lp_num}"
+                )
+            if hp_num > max_hp_num:
+                raise cv.Invalid(
+                    f"The maximum number of high power i2c interfaces for {variant} is {max_hp_num}"
+                )
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -114,7 +220,7 @@ async def to_code(config):
     if CORE.using_zephyr:
         zephyr_add_prj_conf("I2C", True)
         i2c = "i2c0"
-        if zephyr_data()[KEY_BOARD] in ["xiao_ble"]:
+        if zephyr_data()[KEY_BOARD] == "xiao_ble":
             i2c = "i2c1"
         zephyr_add_overlay(
             f"""
@@ -155,6 +261,8 @@ async def to_code(config):
         cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
     if CORE.using_arduino and not CORE.is_esp32:
         cg.add_library("Wire", None)
+    if CONF_LOW_POWER_MODE in config:
+        cg.add(var.set_lp_mode(bool(config[CONF_LOW_POWER_MODE])))
 
 
 def i2c_device_schema(default_address):
@@ -166,10 +274,6 @@ def i2c_device_schema(default_address):
     """
     schema = {
         cv.GenerateID(CONF_I2C_ID): cv.use_id(I2CBus),
-        cv.Optional("multiplexer"): cv.invalid(
-            "This option has been removed, please see "
-            "the tca9584a docs for the updated way to use multiplexers"
-        ),
     }
     if default_address is None:
         schema[cv.Required(CONF_ADDRESS)] = cv.i2c_address
@@ -183,7 +287,7 @@ async def register_i2c_device(var, config):
 
     Sets the i2c bus to use and the i2c address.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
     """
     parent = await cg.get_variable(config[CONF_I2C_ID])
     cg.add(var.set_i2c_bus(parent))

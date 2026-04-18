@@ -3,20 +3,20 @@ esphome:
 
 host:
 api:
-  batch_delay: 0ms  # Disable batching to receive all state updates
+  batch_delay: 0ms # Disable batching to receive all state updates
 logger:
   level: DEBUG
 
 sensor:
   - platform: template
-    name: "Source Wraparound Sensor"
+    name: "Source Wraparound"
     id: source_wraparound
     accuracy_decimals: 2
 
   - platform: copy
     source_id: source_wraparound
-    name: "Wraparound Min Sensor"
-    id: wraparound_min_sensor
+    name: "Wraparound Min"
+    id: wraparound_min
     filters:
       - min:
           window_size: 3

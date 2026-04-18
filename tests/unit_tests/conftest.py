@@ -58,6 +58,7 @@ def mock_write_file_if_changed() -> Generator[Mock, None, None]:
 def mock_copy_file_if_changed() -> Generator[Mock, None, None]:
     """Mock copy_file_if_changed for core.config."""
     with patch("esphome.core.config.copy_file_if_changed") as mock:
+        mock.return_value = True
         yield mock
 
 
@@ -83,9 +84,9 @@ def mock_decode_pc() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
-def mock_run_external_command() -> Generator[Mock, None, None]:
-    """Mock run_external_command for platformio_api."""
-    with patch("esphome.platformio_api.run_external_command") as mock:
+def mock_run_external_process() -> Generator[Mock, None, None]:
+    """Mock run_external_process for platformio_api."""
+    with patch("esphome.platformio_api.run_external_process") as mock:
         yield mock
 
 

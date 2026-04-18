@@ -31,18 +31,15 @@ void Select::publish_state(size_t index) {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   this->state = option;  // Update deprecated member for backward compatibility
 #pragma GCC diagnostic pop
-  ESP_LOGD(TAG, "'%s': Sending state %s (index %zu)", this->get_name().c_str(), option, index);
-  // Callback signature requires std::string, create temporary for compatibility
-  this->state_callback_.call(std::string(option), index);
+  ESP_LOGV(TAG, "'%s' >> %s (%zu)", this->get_name().c_str(), option, index);
+  this->state_callback_.call(index);
 #if defined(USE_SELECT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_select_update(this);
 #endif
 }
 
-const char *Select::current_option() const { return this->has_state() ? this->option_at(this->active_index_) : ""; }
-
-void Select::add_on_state_callback(std::function<void(std::string, size_t)> &&callback) {
-  this->state_callback_.add(std::move(callback));
+StringRef Select::current_option() const {
+  return this->has_state() ? StringRef(this->option_at(this->active_index_)) : StringRef();
 }
 
 bool Select::has_option(const std::string &option) const { return this->index_of(option.c_str()).has_value(); }
@@ -56,12 +53,10 @@ size_t Select::size() const {
   return options.size();
 }
 
-optional<size_t> Select::index_of(const std::string &option) const { return this->index_of(option.c_str()); }
-
-optional<size_t> Select::index_of(const char *option) const {
+optional<size_t> Select::index_of(const char *option, size_t len) const {
   const auto &options = traits.get_options();
   for (size_t i = 0; i < options.size(); i++) {
-    if (strcmp(options[i], option) == 0) {
+    if (strncmp(options[i], option, len) == 0 && options[i][len] == '\0') {
       return i;
     }
   }

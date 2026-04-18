@@ -13,6 +13,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, Lambda, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.cpp_generator import LambdaExpression
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -21,7 +22,7 @@ DEPENDENCIES = ["network"]
 # Components that create mDNS services at runtime
 # IMPORTANT: If you add a new component here, you must also update the corresponding
 # #ifdef blocks in mdns_component.cpp compile_records_() method
-COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "web_server")
+COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "sendspin", "web_server")
 
 mdns_ns = cg.esphome_ns.namespace("mdns")
 MDNSComponent = mdns_ns.class_("MDNSComponent", cg.Component)
@@ -56,7 +57,7 @@ def _consume_mdns_sockets(config: ConfigType) -> ConfigType:
     from esphome.components import socket
 
     # mDNS needs 2 sockets (IPv4 + IPv6 multicast)
-    socket.consume_sockets(2, "mdns")(config)
+    socket.consume_sockets(2, "mdns", socket.SocketType.UDP)(config)
     return config
 
 
@@ -131,6 +132,12 @@ def mdns_service(
     Returns:
         A StructInitializer representing a MDNSService struct
     """
+    # Wrap port in a stateless lambda for TemplatableFn storage.
+    # Can't use cg.templatable() here because this is a sync function.
+    if not isinstance(port, LambdaExpression):
+        port = LambdaExpression(
+            f"return {cg.safe_exp(port)};", [], capture="", return_type=cg.uint16
+        )
     return cg.StructInitializer(
         MDNSService,
         ("service_type", cg.RawExpression(f"MDNS_STR({cg.safe_exp(service)})")),
@@ -157,15 +164,13 @@ async def to_code(config):
         return
 
     if CORE.using_arduino:
-        if CORE.is_esp32:
-            cg.add_library("ESPmDNS", None)
-        elif CORE.is_esp8266:
+        if CORE.is_esp8266:
             cg.add_library("ESP8266mDNS", None)
         elif CORE.is_rp2040:
             cg.add_library("LEAmDNS", None)
 
-    if CORE.using_esp_idf:
-        add_idf_component(name="espressif/mdns", ref="1.9.1")
+    if CORE.is_esp32:
+        add_idf_component(name="espressif/mdns", ref="1.11.0")
 
     cg.add_define("USE_MDNS")
 
@@ -184,10 +189,8 @@ async def to_code(config):
 
     # Calculate compile-time dynamic TXT value count
     # Dynamic values are those that cannot be stored in flash at compile time
+    # Note: MAC address is now stored in a fixed char[13] buffer, not dynamic storage
     dynamic_txt_count = 0
-    if "api" in CORE.config:
-        # Always: get_mac_address()
-        dynamic_txt_count += 1
     # User-provided templatable TXT values (only lambdas, not static strings)
     dynamic_txt_count += sum(
         1
@@ -196,8 +199,10 @@ async def to_code(config):
         if cg.is_template(txt_value)
     )
 
-    # Ensure at least 1 to avoid zero-size array
-    cg.add_define("MDNS_DYNAMIC_TXT_COUNT", max(1, dynamic_txt_count))
+    # Only add define if we actually need dynamic storage
+    if dynamic_txt_count > 0:
+        cg.add_define("USE_MDNS_DYNAMIC_TXT")
+        cg.add_define("MDNS_DYNAMIC_TXT_COUNT", dynamic_txt_count)
 
     # Enable storage if verbose logging is enabled (for dump_config)
     if get_logger_level() in ("VERBOSE", "VERY_VERBOSE"):
