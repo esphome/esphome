@@ -1468,3 +1468,159 @@ def test_cache_miss_corrupted_json(
         result = helpers.create_components_graph()
         # Should handle corruption gracefully and rebuild
         assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# parse_component_metadata / split_conflicting_groups
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_components(tmp_path: Path) -> Path:
+    """Create a fake esphome/components/ tree and return the repo root.
+
+    Component layout (tested against split_conflicting_groups):
+
+        alpha          -- CONFLICTS_WITH=["beta"]
+        beta           -- CONFLICTS_WITH=["alpha"]
+        beta_variant   -- AUTO_LOAD=["beta"]
+        gamma          -- (no metadata)
+        one_sided      -- CONFLICTS_WITH=["plain"]  (plain does not reject back)
+        plain          -- no CONFLICTS_WITH
+        callable_auto  -- AUTO_LOAD is a function (not a list literal) -> ignored
+        broken         -- __init__.py has a SyntaxError
+    """
+    components = tmp_path / "esphome" / "components"
+    components.mkdir(parents=True)
+
+    def write(name: str, body: str) -> None:
+        (components / name).mkdir()
+        (components / name / "__init__.py").write_text(body)
+
+    write("alpha", 'CONFLICTS_WITH = ["beta"]\n')
+    write("beta", 'CONFLICTS_WITH = ["alpha"]\n')
+    write("beta_variant", 'AUTO_LOAD = ["beta"]\n')
+    write("gamma", "")
+    write("one_sided", 'CONFLICTS_WITH = ["plain"]\n')
+    write("plain", "")
+    write("callable_auto", "def AUTO_LOAD():\n    return ['beta']\n")
+    write("broken", "this is not valid python !!!")
+    helpers.parse_component_metadata.cache_clear()
+    return tmp_path
+
+
+def test_parse_component_metadata_list_literals(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    meta = helpers.parse_component_metadata("alpha")
+    assert meta.conflicts_with == frozenset({"beta"})
+    assert meta.auto_load == frozenset()
+
+    variant = helpers.parse_component_metadata("beta_variant")
+    assert variant.auto_load == frozenset({"beta"})
+    assert variant.conflicts_with == frozenset()
+
+
+def test_parse_component_metadata_missing_empty_and_callable(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    # Unknown component -> empty metadata, not an error.
+    unknown = helpers.parse_component_metadata("does_not_exist")
+    assert unknown == helpers.ComponentMetadata()
+
+    # Empty __init__.py -> empty metadata.
+    assert helpers.parse_component_metadata("gamma") == helpers.ComponentMetadata()
+
+    # Callable AUTO_LOAD cannot be statically evaluated -> empty.
+    callable_meta = helpers.parse_component_metadata("callable_auto")
+    assert callable_meta.auto_load == frozenset()
+
+    # SyntaxError in __init__.py must not raise.
+    assert helpers.parse_component_metadata("broken") == helpers.ComponentMetadata()
+
+
+def test_split_conflicting_groups_splits_direct_conflict(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    result = helpers.split_conflicting_groups(
+        {("esp32", "i2c"): ["alpha", "beta", "gamma"]}
+    )
+    # alpha and beta must end up in different buckets; gamma has no conflicts.
+    buckets = list(result.values())
+    assert any("alpha" in b for b in buckets)
+    assert any("beta" in b for b in buckets)
+    for bucket in buckets:
+        assert not ({"alpha", "beta"} <= set(bucket))
+    # Gamma sticks with whichever bucket it landed in first (alpha's).
+    all_members = {c for b in buckets for c in b}
+    assert all_members == {"alpha", "beta", "gamma"}
+
+
+def test_split_conflicting_groups_propagates_through_auto_load(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A component that AUTO_LOADs a conflicting one must also be split out."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    result = helpers.split_conflicting_groups(
+        {("esp32", "i2c"): ["alpha", "beta_variant"]}
+    )
+    buckets = list(result.values())
+    for bucket in buckets:
+        assert not ({"alpha", "beta_variant"} <= set(bucket))
+    assert sum(len(b) for b in buckets) == 2
+
+
+def test_split_conflicting_groups_symmetric_one_sided_declaration(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """If only one side declares CONFLICTS_WITH, the pair must still be split."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    result = helpers.split_conflicting_groups(
+        {("esp32", "i2c"): ["one_sided", "plain"]}
+    )
+    buckets = list(result.values())
+    for bucket in buckets:
+        assert not ({"one_sided", "plain"} <= set(bucket))
+
+
+def test_split_conflicting_groups_preserves_non_conflicting_group(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    original = {("esp32", "i2c"): ["alpha", "gamma", "plain"]}
+    result = helpers.split_conflicting_groups(original)
+    # All three are mutually compatible -- the group must not be split.
+    assert result == original
+
+
+def test_split_conflicting_groups_preserves_original_signature_for_first_bucket(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """When a group is split, the first bucket keeps the original signature key."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    result = helpers.split_conflicting_groups({("esp32", "i2c"): ["alpha", "beta"]})
+    keys = set(result.keys())
+    assert ("esp32", "i2c") in keys
+    # One additional bucket with a disambiguated signature.
+    extra = keys - {("esp32", "i2c")}
+    assert len(extra) == 1
+    platform, signature = next(iter(extra))
+    assert platform == "esp32"
+    assert signature.startswith("i2c__conflict")
