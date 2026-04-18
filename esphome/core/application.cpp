@@ -211,11 +211,16 @@ void Application::process_dump_config_() {
 
 void Application::feed_wdt() {
   // Cold entry: callers without a millis() timestamp in hand. Fetches the
-  // time and takes the same rate-limit path as feed_wdt_with_time().
+  // time and takes the same rate-limit paths as feed_wdt_with_time().
   uint32_t now = millis();
   if (now - this->last_wdt_feed_ > WDT_FEED_INTERVAL_MS) {
     this->feed_wdt_slow_(now);
   }
+#ifdef USE_STATUS_LED
+  if (now - this->last_status_led_service_ > STATUS_LED_DISPATCH_INTERVAL_MS) {
+    this->service_status_led_slow_(now);
+  }
+#endif
 }
 
 void HOT Application::feed_wdt_slow_(uint32_t time) {
@@ -223,26 +228,35 @@ void HOT Application::feed_wdt_slow_(uint32_t time) {
   // confirmed the WDT_FEED_INTERVAL_MS rate limit was exceeded.
   arch_feed_wdt();
   this->last_wdt_feed_ = time;
-#ifdef USE_STATUS_LED
-  if (status_led::global_status_led != nullptr) {
-    auto *sl = status_led::global_status_led;
-    uint8_t sl_state = sl->get_component_state() & COMPONENT_STATE_MASK;
-    if (sl_state == COMPONENT_STATE_LOOP_DONE) {
-      // status_led only transitions to LOOP_DONE from inside its own loop() (after the
-      // first idle-path dispatch), so its pin is already initialized by pre_setup() and
-      // its setup() has already run. Re-dispatch only if an error or warning bit has been
-      // set since; otherwise skip entirely.
-      if ((this->app_state_ & STATUS_LED_MASK) == 0)
-        return;
-      sl->enable_loop();
-    } else if (sl_state != COMPONENT_STATE_LOOP) {
-      // CONSTRUCTION/SETUP/FAILED: not our job — App::setup() drives the lifecycle.
-      return;
-    }
-    sl->loop();
-  }
-#endif
 }
+
+#ifdef USE_STATUS_LED
+void HOT Application::service_status_led_slow_(uint32_t time) {
+  // Callers (feed_wdt(), feed_wdt_with_time()) have already confirmed the
+  // STATUS_LED_DISPATCH_INTERVAL_MS rate limit was exceeded. Rate-limited
+  // separately from arch_feed_wdt() so the LED blink pattern stays readable
+  // (status_led error blink period is 250 ms) while HAL watchdog pokes can
+  // still run at the much coarser WDT_FEED_INTERVAL_MS cadence.
+  this->last_status_led_service_ = time;
+  if (status_led::global_status_led == nullptr)
+    return;
+  auto *sl = status_led::global_status_led;
+  uint8_t sl_state = sl->get_component_state() & COMPONENT_STATE_MASK;
+  if (sl_state == COMPONENT_STATE_LOOP_DONE) {
+    // status_led only transitions to LOOP_DONE from inside its own loop() (after the
+    // first idle-path dispatch), so its pin is already initialized by pre_setup() and
+    // its setup() has already run. Re-dispatch only if an error or warning bit has been
+    // set since; otherwise skip entirely.
+    if ((this->app_state_ & STATUS_LED_MASK) == 0)
+      return;
+    sl->enable_loop();
+  } else if (sl_state != COMPONENT_STATE_LOOP) {
+    // CONSTRUCTION/SETUP/FAILED: not our job — App::setup() drives the lifecycle.
+    return;
+  }
+  sl->loop();
+}
+#endif
 
 bool Application::any_component_has_status_flag_(uint8_t flag) const {
   // Walk all components (not just looping ones) so non-looping components'
