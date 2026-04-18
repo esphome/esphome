@@ -476,35 +476,6 @@ bool PN532BinarySensor::process(const nfc::NfcTagUid &data) {
   return true;
 }
 
-bool PN532::iso_dep_send_apdu_(const std::vector<uint8_t> &apdu, std::vector<uint8_t> &response) {
-  std::vector<uint8_t> cmd;
-  cmd.reserve(apdu.size() + 2);
-  cmd.push_back(PN532_COMMAND_INDATAEXCHANGE);
-  cmd.push_back(0x01);
-  cmd.insert(cmd.end(), apdu.begin(), apdu.end());
-
-  if (!this->write_command_(cmd)) {
-    return false;
-  }
-
-  if (!this->read_response(PN532_COMMAND_INDATAEXCHANGE, response) || response.empty() || response[0] != 0x00) {
-    return false;
-  }
-
-  response.erase(response.begin());
-  if (response.size() < 2) {
-    return false;
-  }
-
-  if (response[response.size() - 2] != 0x90 || response[response.size() - 1] != 0x00) {
-    ESP_LOGW(TAG, "APDU failed: SW1=%02X SW2=%02X", response[response.size() - 2], response[response.size() - 1]);
-    return false;
-  }
-
-  response.resize(response.size() - 2);
-  return true;
-}
-
 bool PN532::nfc_iso_dep_transceive_(const std::vector<uint8_t> &send, std::vector<uint8_t> &response) {
   response.clear();
   std::vector<uint8_t> cmd;

@@ -103,7 +103,6 @@ class PN532 : public nfc::Nfcc, public PollingComponent {
   std::unique_ptr<nfc::NfcTag> read_iso_dep_tag_(nfc::NfcTagUid &uid);
   bool write_iso_dep_tag_(nfc::NdefMessage *message);
   bool clean_iso_dep_tag_();
-  bool iso_dep_send_apdu_(const std::vector<uint8_t> &apdu, std::vector<uint8_t> &response);
 
   bool updates_enabled_{true};
   bool requested_read_{false};

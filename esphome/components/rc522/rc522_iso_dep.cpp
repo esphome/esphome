@@ -218,37 +218,6 @@ RC522::StatusCode RC522::iso_dep_transceive_(const uint8_t *send_data, uint8_t s
   return STATUS_TIMEOUT;
 }
 
-RC522::StatusCode RC522::iso_dep_send_apdu_(const uint8_t *apdu, uint8_t apdu_len, uint8_t *resp, uint8_t &resp_len) {
-  uint8_t response[RC522_FIFO_SIZE];
-  uint8_t response_len = sizeof(response);
-
-  StatusCode status = this->iso_dep_transceive_(apdu, apdu_len, response, response_len);
-  if (status != STATUS_OK) {
-    return status;
-  }
-
-  if (response_len < 2) {
-    return STATUS_ERROR;
-  }
-
-  uint8_t sw1 = response[response_len - 2];
-  uint8_t sw2 = response[response_len - 1];
-
-  if (sw1 != 0x90 || sw2 != 0x00) {
-    ESP_LOGW(TAG, "APDU failed: SW1=%02X SW2=%02X", sw1, sw2);
-    return STATUS_ERROR;
-  }
-
-  uint8_t data_len = response_len - 2;
-  if (data_len > resp_len) {
-    return STATUS_NO_ROOM;
-  }
-
-  memcpy(resp, response, data_len);
-  resp_len = data_len;
-  return STATUS_OK;
-}
-
 bool RC522::nfc_iso_dep_transceive_(const std::vector<uint8_t> &send, std::vector<uint8_t> &response) {
   uint8_t recv_data[RC522_FIFO_SIZE];
   uint8_t recv_len = sizeof(recv_data);

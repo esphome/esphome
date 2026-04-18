@@ -272,7 +272,6 @@ class RC522 : public nfc::Nfcc, public PollingComponent {
   std::unique_ptr<nfc::NfcTag> read_iso_dep_tag_(nfc::NfcTagUid &uid);
   StatusCode rats_();
   StatusCode iso_dep_transceive_(const uint8_t *send_data, uint8_t send_len, uint8_t *recv_data, uint8_t &recv_len);
-  StatusCode iso_dep_send_apdu_(const uint8_t *apdu, uint8_t apdu_len, uint8_t *resp, uint8_t &resp_len);
   void pcd_calculate_crc_sync_(uint8_t *data, uint8_t length, uint8_t *crc_out);
   StatusCode pcd_transceive_sync_raw_(const uint8_t *send_data, uint8_t send_len, uint8_t *recv_data, uint8_t &recv_len,
                                       uint8_t &valid_bits);
