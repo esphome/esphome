@@ -1215,7 +1215,9 @@ def test_named_dict_with_include_files_no_false_deprecation_warning(
 
     call_count = 0
 
-    def failing_callback(package_config: dict, context: object) -> dict:
+    def failing_callback(
+        package_config: dict, context: object, path: list = None
+    ) -> dict:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -1251,7 +1253,9 @@ def test_validate_deprecated_false_raises_directly(
 
     call_count = 0
 
-    def failing_callback(package_config: dict, context: object) -> dict:
+    def failing_callback(
+        package_config: dict, context: object, path: list = None
+    ) -> dict:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -1283,7 +1287,7 @@ def test_error_on_first_declared_package_still_detected() -> None:
 
     call_count = 0
 
-    def fail_on_last(package_config: dict, context: object) -> dict:
+    def fail_on_last(package_config: dict, context: object, path: list = None) -> dict:
         nonlocal call_count
         call_count += 1
         # Reverse iteration: third_pkg (1), second_pkg (2), first_pkg (3)
@@ -1312,7 +1316,9 @@ def test_deprecated_single_package_fallback_still_works(
 
     attempt = 0
 
-    def fail_then_succeed(package_config: dict, context: object) -> dict:
+    def fail_then_succeed(
+        package_config: dict, context: object, path: list = None
+    ) -> dict:
         nonlocal attempt
         attempt += 1
         if attempt == 1:
