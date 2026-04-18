@@ -99,12 +99,19 @@ void TimeBasedCover::control(const CoverCall &call) {
         this->start_direction_(op);
       }
     } else {
-      auto op = pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
-      if (this->manual_control_ && (pos == COVER_OPEN || pos == COVER_CLOSED)) {
-        this->position = pos == COVER_CLOSED ? COVER_OPEN : COVER_CLOSED;
+      if (!this->is_at_target_() && call.get_pause()) {
+        // if not at target and "pause" is enabled then do a stop.
+        this->target_position_ = this->position;
+        this->start_direction_(COVER_OPERATION_IDLE);
+        this->publish_state();
+      } else {
+        auto op = pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
+        if (this->manual_control_ && (pos == COVER_OPEN || pos == COVER_CLOSED)) {
+          this->position = pos == COVER_CLOSED ? COVER_OPEN : COVER_CLOSED;
+        }
+        this->target_position_ = pos;
+        this->start_direction_(op);
       }
-      this->target_position_ = pos;
-      this->start_direction_(op);
     }
   }
 }

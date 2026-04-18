@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+from esphome.components.const import CONF_PAUSE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -287,6 +288,7 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Cover),
         cv.Optional(CONF_STOP): cv.templatable(cv.boolean),
+        cv.Optional(CONF_PAUSE): cv.templatable(cv.boolean),
         cv.Exclusive(CONF_STATE, "pos"): cv.templatable(validate_cover_state),
         cv.Exclusive(CONF_POSITION, "pos"): cv.templatable(cv.percentage),
         cv.Optional(CONF_TILT): cv.templatable(cv.percentage),
@@ -303,6 +305,9 @@ async def cover_control_to_code(config, action_id, template_arg, args):
     if (stop := config.get(CONF_STOP)) is not None:
         template_ = await cg.templatable(stop, args, cg.bool_)
         cg.add(var.set_stop(template_))
+    if (pause := config.get(CONF_PAUSE)) is not None:
+        template_ = await cg.templatable(pause, args, cg.bool_)
+        cg.add(var.set_pause(template_))
     if (state := config.get(CONF_STATE)) is not None:
         template_ = await cg.templatable(state, args, cg.float_)
         cg.add(var.set_position(template_))

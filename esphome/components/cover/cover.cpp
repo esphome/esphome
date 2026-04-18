@@ -63,6 +63,10 @@ CoverCall &CoverCall::set_position(float position) {
   this->position_ = position;
   return *this;
 }
+CoverCall &CoverCall::set_pause() {
+  this->pause_ = true;
+  return *this;
+}
 CoverCall &CoverCall::set_tilt(float tilt) {
   this->tilt_ = tilt;
   return *this;
@@ -81,6 +85,11 @@ void CoverCall::perform() {
       ESP_LOGV(TAG, "  Command: %s", LOG_STR_ARG(cover_command_to_str(*this->position_)));
     }
   }
+  if (this->pause_) {
+    ESP_LOGV(TAG, "  Pause: YES");
+  } else {
+    ESP_LOGV(TAG, "  Pause: NO");
+  }
   if (this->tilt_.has_value()) {
     ESP_LOGV(TAG, "  Tilt: %.0f%%", *this->tilt_ * 100.0f);
   }
@@ -90,6 +99,7 @@ void CoverCall::perform() {
   this->parent_->control(*this);
 }
 const optional<float> &CoverCall::get_position() const { return this->position_; }
+bool CoverCall::get_pause() const { return this->pause_; }
 const optional<float> &CoverCall::get_tilt() const { return this->tilt_; }
 const optional<bool> &CoverCall::get_toggle() const { return this->toggle_; }
 void CoverCall::validate_() {

@@ -41,6 +41,8 @@ class CoverCall {
   CoverCall &set_command_toggle();
   /// Set the call to a certain target position.
   CoverCall &set_position(float position);
+  /// Set the call to pause if OPEN/CLOSE is already in progress.
+  CoverCall &set_pause();
   /// Set the call to a certain target tilt.
   CoverCall &set_tilt(float tilt);
   /// Set whether this cover call should stop the cover.
@@ -50,6 +52,7 @@ class CoverCall {
   void perform();
 
   const optional<float> &get_position() const;
+  bool get_pause() const;
   bool get_stop() const;
   const optional<float> &get_tilt() const;
   const optional<bool> &get_toggle() const;
@@ -60,6 +63,7 @@ class CoverCall {
   Cover *parent_;
   bool stop_{false};
   optional<float> position_{};
+  bool pause_{};
   optional<float> tilt_{};
   optional<bool> toggle_{};
 };

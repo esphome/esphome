@@ -51,6 +51,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   explicit ControlAction(Cover *cover) : cover_(cover) {}
 
   TEMPLATABLE_VALUE(bool, stop)
+  TEMPLATABLE_VALUE(bool, pause)
   TEMPLATABLE_VALUE(float, position)
   TEMPLATABLE_VALUE(float, tilt)
 
@@ -58,6 +59,8 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
     auto call = this->cover_->make_call();
     if (this->stop_.has_value())
       call.set_stop(this->stop_.value(x...));
+    if (this->pause_.has_value())
+      call.set_pause();
     if (this->position_.has_value())
       call.set_position(this->position_.value(x...));
     if (this->tilt_.has_value())
