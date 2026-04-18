@@ -1,5 +1,6 @@
 #include "gpio_binary_sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome {
 namespace gpio {
@@ -7,17 +8,12 @@ namespace gpio {
 static const char *const TAG = "gpio.binary_sensor";
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+// Interrupt type strings indexed by edge-triggered InterruptType values:
+// indices 1-3: RISING_EDGE, FALLING_EDGE, ANY_EDGE; other values (e.g. level-triggered) map to UNKNOWN (index 0).
+PROGMEM_STRING_TABLE(InterruptTypeStrings, "UNKNOWN", "RISING_EDGE", "FALLING_EDGE", "ANY_EDGE");
+
 static const LogString *interrupt_type_to_string(gpio::InterruptType type) {
-  switch (type) {
-    case gpio::INTERRUPT_RISING_EDGE:
-      return LOG_STR("RISING_EDGE");
-    case gpio::INTERRUPT_FALLING_EDGE:
-      return LOG_STR("FALLING_EDGE");
-    case gpio::INTERRUPT_ANY_EDGE:
-      return LOG_STR("ANY_EDGE");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return InterruptTypeStrings::get_log_str(static_cast<uint8_t>(type), 0);
 }
 
 static const LogString *gpio_mode_to_string(bool use_interrupt) {
@@ -27,9 +23,8 @@ static const LogString *gpio_mode_to_string(bool use_interrupt) {
 
 void IRAM_ATTR GPIOBinarySensorStore::gpio_intr(GPIOBinarySensorStore *arg) {
   bool new_state = arg->isr_pin_.digital_read();
-  if (new_state != arg->last_state_) {
+  if (new_state != arg->state_) {
     arg->state_ = new_state;
-    arg->last_state_ = new_state;
     arg->changed_ = true;
     // Wake up the component from its disabled loop state
     if (arg->component_ != nullptr) {
@@ -38,28 +33,22 @@ void IRAM_ATTR GPIOBinarySensorStore::gpio_intr(GPIOBinarySensorStore *arg) {
   }
 }
 
-void GPIOBinarySensorStore::setup(InternalGPIOPin *pin, gpio::InterruptType type, Component *component) {
+void GPIOBinarySensorStore::setup(InternalGPIOPin *pin, Component *component) {
   pin->setup();
   this->isr_pin_ = pin->to_isr();
   this->component_ = component;
 
   // Read initial state
-  this->last_state_ = pin->digital_read();
-  this->state_ = this->last_state_;
+  this->state_ = pin->digital_read();
 
   // Attach interrupt - from this point on, any changes will be caught by the interrupt
-  pin->attach_interrupt(&GPIOBinarySensorStore::gpio_intr, this, type);
+  pin->attach_interrupt(&GPIOBinarySensorStore::gpio_intr, this, this->interrupt_type_);
 }
 
 void GPIOBinarySensor::setup() {
-  if (this->use_interrupt_ && !this->pin_->is_internal()) {
-    ESP_LOGD(TAG, "GPIO is not internal, falling back to polling mode");
-    this->use_interrupt_ = false;
-  }
-
-  if (this->use_interrupt_) {
+  if (this->store_.use_interrupt_) {
     auto *internal_pin = static_cast<InternalGPIOPin *>(this->pin_);
-    this->store_.setup(internal_pin, this->interrupt_type_, this);
+    this->store_.setup(internal_pin, this);
     this->publish_initial_state(this->store_.get_state());
   } else {
     this->pin_->setup();
@@ -70,14 +59,14 @@ void GPIOBinarySensor::setup() {
 void GPIOBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "GPIO Binary Sensor", this);
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Mode: %s", LOG_STR_ARG(gpio_mode_to_string(this->use_interrupt_)));
-  if (this->use_interrupt_) {
-    ESP_LOGCONFIG(TAG, "  Interrupt Type: %s", LOG_STR_ARG(interrupt_type_to_string(this->interrupt_type_)));
+  ESP_LOGCONFIG(TAG, "  Mode: %s", LOG_STR_ARG(gpio_mode_to_string(this->store_.use_interrupt_)));
+  if (this->store_.use_interrupt_) {
+    ESP_LOGCONFIG(TAG, "  Interrupt Type: %s", LOG_STR_ARG(interrupt_type_to_string(this->store_.interrupt_type_)));
   }
 }
 
 void GPIOBinarySensor::loop() {
-  if (this->use_interrupt_) {
+  if (this->store_.use_interrupt_) {
     if (this->store_.is_changed()) {
       // Clear the flag immediately to minimize the window where we might miss changes
       this->store_.clear_changed();

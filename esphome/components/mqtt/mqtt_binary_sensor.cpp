@@ -19,7 +19,7 @@ void MQTTBinarySensorComponent::setup() {
 
 void MQTTBinarySensorComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Binary Sensor '%s':", this->binary_sensor_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, false)
+  LOG_MQTT_COMPONENT(true, false);
 }
 MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor *binary_sensor)
     : binary_sensor_(binary_sensor) {
@@ -30,15 +30,11 @@ MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor
 
 void MQTTBinarySensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  const auto device_class = this->binary_sensor_->get_device_class_ref();
-  if (!device_class.empty()) {
-    root[MQTT_DEVICE_CLASS] = device_class;
-  }
-  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
   if (this->binary_sensor_->is_status_binary_sensor())
     root[MQTT_PAYLOAD_ON] = mqtt::global_mqtt_client->get_availability().payload_available;
   if (this->binary_sensor_->is_status_binary_sensor())
     root[MQTT_PAYLOAD_OFF] = mqtt::global_mqtt_client->get_availability().payload_not_available;
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
   config.command_topic = false;
 }
 bool MQTTBinarySensorComponent::send_initial_state() {
@@ -52,8 +48,9 @@ bool MQTTBinarySensorComponent::publish_state(bool state) {
   if (this->binary_sensor_->is_status_binary_sensor())
     return true;
 
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   const char *state_s = state ? "ON" : "OFF";
-  return this->publish(this->get_state_topic_(), state_s);
+  return this->publish(this->get_state_topic_to_(topic_buf), state_s);
 }
 
 }  // namespace esphome::mqtt

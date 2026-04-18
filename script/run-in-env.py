@@ -44,7 +44,8 @@ def find_and_activate_virtualenv():
 def run_command():
     # Execute the remaining arguments in the new environment
     if len(sys.argv) > 1:
-        subprocess.run(sys.argv[1:], check=False, close_fds=False)
+        result = subprocess.run(sys.argv[1:], check=False, close_fds=False)
+        sys.exit(result.returncode)
     else:
         print(
             "No command provided to run in the virtual environment.",

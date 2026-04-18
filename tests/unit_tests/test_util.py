@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+import io
 from pathlib import Path
+import subprocess
+import sys
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -402,3 +408,304 @@ def test_shlex_quote_edge_cases() -> None:
     assert util.shlex_quote("\t") == "'\t'"
     assert util.shlex_quote("\n") == "'\n'"
     assert util.shlex_quote("   ") == "'   '"
+
+
+def _make_redirect(
+    line_callbacks: list[Callable[[str], str | None]] | None = None,
+    filter_lines: list[str] | None = None,
+) -> tuple[util.RedirectText, io.StringIO]:
+    """Create a RedirectText that writes to a StringIO buffer."""
+    buf = io.StringIO()
+    redirect = util.RedirectText(
+        buf, filter_lines=filter_lines, line_callbacks=line_callbacks
+    )
+    return redirect, buf
+
+
+def test_redirect_text_callback_called_on_matching_line() -> None:
+    """Test that a line callback is called and its output is written."""
+    results: list[str] = []
+
+    def callback(line: str) -> str | None:
+        results.append(line)
+        if "target" in line:
+            return "CALLBACK OUTPUT\n"
+        return None
+
+    redirect, buf = _make_redirect(line_callbacks=[callback])
+    redirect.write("some target line\n")
+
+    assert "some target line" in buf.getvalue()
+    assert "CALLBACK OUTPUT" in buf.getvalue()
+    assert len(results) == 1
+
+
+def test_redirect_text_callback_not_triggered_on_non_matching_line() -> None:
+    """Test that callback returns None for non-matching lines."""
+
+    def callback(line: str) -> str | None:
+        if "target" in line:
+            return "FOUND\n"
+        return None
+
+    redirect, buf = _make_redirect(line_callbacks=[callback])
+    redirect.write("no match here\n")
+
+    assert "no match here" in buf.getvalue()
+    assert "FOUND" not in buf.getvalue()
+
+
+def test_redirect_text_callback_works_without_filter_pattern() -> None:
+    """Test that callbacks fire even when no filter_lines is set."""
+
+    def callback(line: str) -> str | None:
+        if "Crystal" in line:
+            return "WARNING: mismatch\n"
+        return None
+
+    redirect, buf = _make_redirect(line_callbacks=[callback])
+    redirect.write("Crystal frequency:  26MHz\n")
+
+    assert "Crystal frequency:  26MHz" in buf.getvalue()
+    assert "WARNING: mismatch" in buf.getvalue()
+
+
+def test_redirect_text_callback_works_with_filter_pattern() -> None:
+    """Test that callbacks fire alongside filter patterns."""
+
+    def callback(line: str) -> str | None:
+        if "important" in line:
+            return "NOTED\n"
+        return None
+
+    redirect, buf = _make_redirect(
+        line_callbacks=[callback],
+        filter_lines=[r"^skip this.*"],
+    )
+    redirect.write("skip this line\n")
+    redirect.write("important line\n")
+
+    assert "skip this" not in buf.getvalue()
+    assert "important line" in buf.getvalue()
+    assert "NOTED" in buf.getvalue()
+
+
+def test_redirect_text_multiple_callbacks() -> None:
+    """Test that multiple callbacks are all invoked."""
+
+    def callback_a(line: str) -> str | None:
+        if "test" in line:
+            return "FROM A\n"
+        return None
+
+    def callback_b(line: str) -> str | None:
+        if "test" in line:
+            return "FROM B\n"
+        return None
+
+    redirect, buf = _make_redirect(line_callbacks=[callback_a, callback_b])
+    redirect.write("test line\n")
+
+    output = buf.getvalue()
+    assert "FROM A" in output
+    assert "FROM B" in output
+
+
+def test_redirect_text_incomplete_line_buffered() -> None:
+    """Test that incomplete lines are buffered until newline."""
+    results: list[str] = []
+
+    def callback(line: str) -> str | None:
+        results.append(line)
+        return None
+
+    redirect, buf = _make_redirect(line_callbacks=[callback])
+    redirect.write("partial")
+    assert len(results) == 0
+
+    redirect.write(" line\n")
+    assert len(results) == 1
+    assert results[0] == "partial line"
+
+
+def test_run_external_command_line_callbacks(capsys: pytest.CaptureFixture) -> None:
+    """Test that run_external_command passes line_callbacks to RedirectText."""
+    results: list[str] = []
+
+    def callback(line: str) -> str | None:
+        results.append(line)
+        if "hello" in line:
+            return "CALLBACK FIRED\n"
+        return None
+
+    def fake_main() -> int:
+        print("hello world")
+        return 0
+
+    rc = util.run_external_command(fake_main, "fake", line_callbacks=[callback])
+
+    assert rc == 0
+    assert len(results) == 1
+    assert "hello world" in results[0]
+    captured = capsys.readouterr()
+    assert "CALLBACK FIRED" in captured.out
+
+
+def test_run_external_process_line_callbacks() -> None:
+    """Test that run_external_process passes line_callbacks to RedirectText."""
+    results: list[str] = []
+
+    def callback(line: str) -> str | None:
+        results.append(line)
+        if "from subprocess" in line:
+            return "PROCESS CALLBACK\n"
+        return None
+
+    with patch("esphome.util.subprocess.run") as mock_run:
+
+        def run_side_effect(*args: Any, **kwargs: Any) -> MagicMock:
+            # Simulate subprocess writing to the stdout RedirectText
+            stdout = kwargs.get("stdout")
+            if stdout is not None and isinstance(stdout, util.RedirectText):
+                stdout.write("from subprocess\n")
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = run_side_effect
+
+        rc = util.run_external_process(
+            "echo",
+            "test",
+            line_callbacks=[callback],
+        )
+
+    assert rc == 0
+    assert any("from subprocess" in r for r in results)
+
+
+def test_get_picotool_path_found(tmp_path: Path) -> None:
+    """Test picotool path derivation from cc_path."""
+    # Create the expected directory structure
+    packages_dir = tmp_path / "packages"
+    toolchain_dir = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_dir.mkdir(parents=True)
+    gcc = toolchain_dir / "arm-none-eabi-gcc"
+    gcc.touch()
+
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
+    picotool_dir.mkdir(parents=True)
+    picotool = picotool_dir / binary_name
+    picotool.touch()
+
+    result = util.get_picotool_path(str(gcc))
+    assert result == picotool
+
+
+def test_get_picotool_path_not_found(tmp_path: Path) -> None:
+    """Test picotool path returns None when not installed."""
+    packages_dir = tmp_path / "packages"
+    toolchain_dir = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_dir.mkdir(parents=True)
+    gcc = toolchain_dir / "arm-none-eabi-gcc"
+    gcc.touch()
+
+    result = util.get_picotool_path(str(gcc))
+    assert result is None
+
+
+def test_get_picotool_path_windows(tmp_path: Path) -> None:
+    """Test picotool path uses .exe on Windows."""
+    packages_dir = tmp_path / "packages"
+    toolchain_dir = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_dir.mkdir(parents=True)
+    gcc = toolchain_dir / "arm-none-eabi-gcc.exe"
+    gcc.touch()
+
+    picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
+    picotool_dir.mkdir(parents=True)
+    picotool = picotool_dir / "picotool.exe"
+    picotool.touch()
+
+    with patch("esphome.util.sys.platform", "win32"):
+        result = util.get_picotool_path(str(gcc))
+    assert result == picotool
+
+
+def test_detect_rp2040_bootsel_found() -> None:
+    """Test BOOTSEL device detection when device is present."""
+    mock_result = MagicMock()
+    mock_result.stdout = b"Device Information\n type: RP2040\n"
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 1
+    assert result.permission_error is False
+
+
+def test_detect_rp2040_bootsel_multiple() -> None:
+    """Test BOOTSEL detection with multiple devices."""
+    mock_result = MagicMock()
+    mock_result.stdout = b"type: RP2040\ntype: RP2350\n"
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 2
+    assert result.permission_error is False
+
+
+def test_detect_rp2040_bootsel_none() -> None:
+    """Test BOOTSEL detection when no device found."""
+    mock_result = MagicMock()
+    mock_result.stdout = (
+        b"No accessible RP2040/RP2350 devices in BOOTSEL mode were found.\n"
+    )
+    mock_result.stderr = b""
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 0
+    assert result.permission_error is False
+
+
+def test_detect_rp2040_bootsel_permission_error() -> None:
+    """Test BOOTSEL detection with device found but not accessible."""
+    mock_result = MagicMock()
+    mock_result.stdout = (
+        b"No accessible RP-series devices in BOOTSEL mode were found.\n"
+    )
+    mock_result.stderr = (
+        b"RP2040 device at bus 5, address 24 appears to be in BOOTSEL mode, "
+        b"but picotool was unable to connect. "
+        b"Maybe try 'sudo' or check your permissions.\n"
+    )
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 0
+    assert result.permission_error is True
+
+
+def test_detect_rp2040_bootsel_libusb_access_error() -> None:
+    """Test BOOTSEL detection with LIBUSB_ERROR_ACCESS."""
+    mock_result = MagicMock()
+    mock_result.stdout = b""
+    mock_result.stderr = b"LIBUSB_ERROR_ACCESS\n"
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 0
+    assert result.permission_error is True
+
+
+def test_detect_rp2040_bootsel_oserror() -> None:
+    """Test BOOTSEL detection handles OSError."""
+    with patch("esphome.util.subprocess.run", side_effect=OSError("not found")):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 0
+    assert result.permission_error is False
+
+
+def test_detect_rp2040_bootsel_timeout() -> None:
+    """Test BOOTSEL detection handles timeout."""
+    with patch(
+        "esphome.util.subprocess.run",
+        side_effect=subprocess.TimeoutExpired("picotool", 10),
+    ):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 0
+    assert result.permission_error is False

@@ -265,10 +265,7 @@ uint8_t PN7160::reset_core_(const bool reset_config, const bool power) {
     return nfc::STATUS_FAILED;
   }
 
-  ESP_LOGD(TAG,
-           "Configuration %s\n"
-           "NCI version: %s\n"
-           "Manufacturer ID: 0x%02X",
+  ESP_LOGD(TAG, "Configuration %s, NCI version: %s, Manufacturer ID: 0x%02X",
            rx.get_message()[4] ? "reset" : "retained", rx.get_message()[5] == 0x20 ? "2.0" : "1.0",
            rx.get_message()[6]);
   rx.get_message().erase(rx.get_message().begin(), rx.get_message().begin() + 8);
@@ -301,11 +298,12 @@ uint8_t PN7160::init_core_() {
 
   char feat_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
   ESP_LOGD(TAG,
-           "Hardware version: %u\n"
-           "ROM code version: %u\n"
-           "FLASH major version: %u\n"
-           "FLASH minor version: %u\n"
-           "Features: %s",
+           "PN7160 chip info:\n"
+           "  Hardware version: %u\n"
+           "  ROM code version: %u\n"
+           "  FLASH major version: %u\n"
+           "  FLASH minor version: %u\n"
+           "  Features: %s",
            hw_version, rom_code_version, flash_major_version, flash_minor_version,
            nfc::format_bytes_to(feat_buf, features));
 
@@ -506,7 +504,7 @@ uint8_t PN7160::read_endpoint_data_(nfc::NfcTag &tag) {
   return nfc::STATUS_FAILED;
 }
 
-uint8_t PN7160::clean_endpoint_(std::vector<uint8_t> &uid) {
+uint8_t PN7160::clean_endpoint_(nfc::NfcTagUid &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   switch (type) {
     case nfc::TAG_TYPE_MIFARE_CLASSIC:
@@ -522,7 +520,7 @@ uint8_t PN7160::clean_endpoint_(std::vector<uint8_t> &uid) {
   return nfc::STATUS_FAILED;
 }
 
-uint8_t PN7160::format_endpoint_(std::vector<uint8_t> &uid) {
+uint8_t PN7160::format_endpoint_(nfc::NfcTagUid &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   switch (type) {
     case nfc::TAG_TYPE_MIFARE_CLASSIC:
@@ -538,7 +536,7 @@ uint8_t PN7160::format_endpoint_(std::vector<uint8_t> &uid) {
   return nfc::STATUS_FAILED;
 }
 
-uint8_t PN7160::write_endpoint_(std::vector<uint8_t> &uid, std::shared_ptr<nfc::NdefMessage> &message) {
+uint8_t PN7160::write_endpoint_(nfc::NfcTagUid &uid, std::shared_ptr<nfc::NdefMessage> &message) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   switch (type) {
     case nfc::TAG_TYPE_MIFARE_CLASSIC:
@@ -562,7 +560,7 @@ std::unique_ptr<nfc::NfcTag> PN7160::build_tag_(const uint8_t mode_tech, const s
         ESP_LOGE(TAG, "UID length cannot be zero");
         return nullptr;
       }
-      std::vector<uint8_t> uid(data.begin() + 3, data.begin() + 3 + uid_length);
+      nfc::NfcTagUid uid(data.begin() + 3, data.begin() + 3 + uid_length);
       const auto *tag_type_str =
           nfc::guess_tag_type(uid_length) == nfc::TAG_TYPE_MIFARE_CLASSIC ? nfc::MIFARE_CLASSIC : nfc::NFC_FORUM_TYPE_2;
       return make_unique<nfc::NfcTag>(uid, tag_type_str);
@@ -571,7 +569,7 @@ std::unique_ptr<nfc::NfcTag> PN7160::build_tag_(const uint8_t mode_tech, const s
   return nullptr;
 }
 
-optional<size_t> PN7160::find_tag_uid_(const std::vector<uint8_t> &uid) {
+optional<size_t> PN7160::find_tag_uid_(const nfc::NfcTagUid &uid) {
   if (!this->discovered_endpoint_.empty()) {
     for (size_t i = 0; i < this->discovered_endpoint_.size(); i++) {
       auto existing_tag_uid = this->discovered_endpoint_[i].tag->get_uid();
@@ -591,9 +589,9 @@ optional<size_t> PN7160::find_tag_uid_(const std::vector<uint8_t> &uid) {
 }
 
 void PN7160::purge_old_tags_() {
-  for (size_t i = 0; i < this->discovered_endpoint_.size(); i++) {
-    if (millis() - this->discovered_endpoint_[i].last_seen > this->tag_ttl_) {
-      this->erase_tag_(i);
+  for (size_t i = this->discovered_endpoint_.size(); i > 0; i--) {
+    if (millis() - this->discovered_endpoint_[i - 1].last_seen > this->tag_ttl_) {
+      this->erase_tag_(i - 1);
     }
   }
 }
