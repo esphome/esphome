@@ -25,6 +25,85 @@ _LOGGER = logging.getLogger(__name__)
 ContextVars = ChainMap[str, Any]
 SubstitutionPath = list[int | str]
 ErrList = list[tuple[UndefinedError, SubstitutionPath, Any]]
+
+
+def _path_doc(item: object) -> str | None:
+    """Return the source document name if *item* carries location info."""
+    if isinstance(item, ESPHomeDataBase):
+        r = item.esp_range
+        if r is not None:
+            return r.start_mark.document
+    return None
+
+
+def format_config_path(path: SubstitutionPath, current_obj: object) -> str:
+    """Build a human-readable include stack from a config path.
+
+    Each YAML key in *path* that carries an ``ESPHomeDataBase`` ``esp_range``
+    reveals which file it came from.  When the source document changes between
+    consecutive such keys, that is an include boundary.  The path is split
+    into per-file frames and formatted innermost-first, e.g.::
+
+        In: packages->_roam_ in common/package/wifi.yaml 26:10
+          Included from packages->_wifi_ in common/hardware.yaml 44:2
+          Included from packages->device in my_project.yaml 11:2
+
+    The innermost ``In:`` line uses the location from *current_obj* when
+    available (the value that triggered the error) for extra precision.
+    """
+    # Split path into frames: start a new frame each time the source document
+    # changes among the path items that carry location info.
+    frames: list[tuple[list, str]] = []  # (path_segment, location_str)
+    current_doc: str | None = None
+    frame_start = 0
+    last_key_idx = -1
+    last_key_loc = ""
+
+    for i, item in enumerate(path):
+        doc = _path_doc(item)
+        if doc is None:
+            continue
+        loc = str(item.esp_range.start_mark)
+        if doc != current_doc:
+            if current_doc is not None:
+                frames.append(
+                    (list(path[frame_start : last_key_idx + 1]), last_key_loc)
+                )
+                frame_start = last_key_idx + 1
+            current_doc = doc
+        last_key_idx = i
+        last_key_loc = loc
+
+    if current_doc is not None:
+        frames.append((list(path[frame_start : last_key_idx + 1]), last_key_loc))
+
+    def fmt_path(seg: list) -> str:
+        return "->".join(str(s) for s in seg)
+
+    if not frames:
+        # No location info in path — use current_obj if possible
+        location = ""
+        if isinstance(current_obj, ESPHomeDataBase):
+            r = getattr(current_obj, "esp_range", None)
+            if r is not None:
+                location = f" in {r.start_mark}"
+        return f"In: {fmt_path(path)}{location}"
+
+    # For the innermost "In:" line prefer the current object's location
+    # (the value that triggered the error, usually more precise than the key).
+    inner_seg, inner_loc = frames[-1]
+    if isinstance(current_obj, ESPHomeDataBase):
+        r = getattr(current_obj, "esp_range", None)
+        if r is not None:
+            inner_loc = str(r.start_mark)
+
+    lines = [f"In: {fmt_path(inner_seg)} in {inner_loc}"]
+    for seg, loc in reversed(frames[:-1]):
+        lines.append(f"  Included from {fmt_path(seg)} in {loc}")
+
+    return "\n".join(lines)
+
+
 # Module-level instance is safe: context_vars is passed per-call, and context_trace
 # is stack-saved/restored within expand(). Not thread-safe — only use from one thread.
 jinja = Jinja()
@@ -236,7 +315,7 @@ def _expand_substitutions(
                 f"\nEvaluation stack: (most recent evaluation last)"
                 f"\n{err.stack_trace_str()}"
                 f"\nRelevant context:\n{err.context_trace_str()}"
-                f"\nSee {'->'.join(str(x) for x in path)}",
+                f"\n{format_config_path(path, orig_value)}",
                 path,
             ) from err
         else:
@@ -451,16 +530,12 @@ def _warn_unresolved_variables(errors: ErrList) -> None:
     for err, path, expression in errors:
         if "password" in path:
             continue
-        location: str = "->".join(str(x) for x in path)
-        if isinstance(expression, ESPHomeDataBase) and expression.esp_range is not None:
-            location += f" in {str(expression.esp_range.start_mark)}"
-
         _LOGGER.warning(
             "The string '%s' looks like an expression,"
-            " but could not resolve all the variables: %s (see %s)",
+            " but could not resolve all the variables: %s\n%s",
             expression,
             err.message,
-            location,
+            format_config_path(path, expression),
         )
 
 
