@@ -12,7 +12,7 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
   return lt_get_reboot_reason_name(lt_get_reboot_reason());
 }
 
-const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) { return ""; }
+const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer) { return ""; }
 
 uint32_t DebugComponent::get_free_heap_() { return lt_heap_get_free(); }
 
@@ -27,12 +27,14 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   uint32_t mac_id = lt_cpu_get_mac_id();
 
   ESP_LOGD(TAG,
-           "LibreTiny Version: %s\n"
-           "Chip: %s (%04x) @ %u MHz\n"
-           "Chip ID: 0x%06" PRIX32 "\n"
-           "Board: %s\n"
-           "Flash: %" PRIu32 " KiB / RAM: %" PRIu32 " KiB\n"
-           "Reset Reason: %s",
+           "LibreTiny debug info:\n"
+           "  Version: %s\n"
+           "  Chip: %s (%04x) @ %u MHz\n"
+           "  Chip ID: 0x%06" PRIX32 "\n"
+           "  Board: %s\n"
+           "  Flash: %" PRIu32 " KiB\n"
+           "  RAM: %" PRIu32 " KiB\n"
+           "  Reset Reason: %s",
            lt_get_version(), lt_cpu_get_model_name(), lt_cpu_get_model(), lt_cpu_get_freq_mhz(), mac_id,
            lt_get_board_code(), flash_kib, ram_kib, reset_reason);
 

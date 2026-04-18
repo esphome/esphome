@@ -12,8 +12,7 @@
 #include "esphome/core/event_pool.h"
 #include <atomic>
 
-namespace esphome {
-namespace usb_host {
+namespace esphome::usb_host {
 
 // THREADING MODEL:
 // This component uses a dedicated USB task for event processing to prevent data loss.
@@ -44,16 +43,16 @@ struct TransferRequest;
 class USBClient;
 
 // constants for setup packet type
-static const uint8_t USB_RECIP_DEVICE = 0;
-static const uint8_t USB_RECIP_INTERFACE = 1;
-static const uint8_t USB_RECIP_ENDPOINT = 2;
-static const uint8_t USB_TYPE_STANDARD = 0 << 5;
-static const uint8_t USB_TYPE_CLASS = 1 << 5;
-static const uint8_t USB_TYPE_VENDOR = 2 << 5;
-static const uint8_t USB_DIR_MASK = 1 << 7;
-static const uint8_t USB_DIR_IN = 1 << 7;
-static const uint8_t USB_DIR_OUT = 0;
-static const size_t SETUP_PACKET_SIZE = 8;
+static constexpr uint8_t USB_RECIP_DEVICE = 0;
+static constexpr uint8_t USB_RECIP_INTERFACE = 1;
+static constexpr uint8_t USB_RECIP_ENDPOINT = 2;
+static constexpr uint8_t USB_TYPE_STANDARD = 0 << 5;
+static constexpr uint8_t USB_TYPE_CLASS = 1 << 5;
+static constexpr uint8_t USB_TYPE_VENDOR = 2 << 5;
+static constexpr uint8_t USB_DIR_MASK = 1 << 7;
+static constexpr uint8_t USB_DIR_IN = 1 << 7;
+static constexpr uint8_t USB_DIR_OUT = 0;
+static constexpr size_t SETUP_PACKET_SIZE = 8;
 
 static constexpr size_t MAX_REQUESTS = USB_HOST_MAX_REQUESTS;  // maximum number of outstanding requests possible.
 static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be between 1 and 32");
@@ -145,7 +144,10 @@ class USBClient : public Component {
   // Lock-free event queue and pool for USB task to main loop communication
   // Must be public for access from static callbacks
   LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
-  EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE> event_pool;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
+  // before push() can fail, preventing a pool slot leak.
+  EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE - 1> event_pool;
 
  protected:
   // Process USB events from the queue. Returns true if any work was done.
@@ -189,7 +191,6 @@ class USBHost : public Component {
   std::vector<USBClient *> clients_{};
 };
 
-}  // namespace usb_host
-}  // namespace esphome
+}  // namespace esphome::usb_host
 
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

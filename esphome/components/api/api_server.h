@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_API
+#include "api_buffer.h"
 #include "api_noise_context.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
@@ -35,11 +36,11 @@ struct SavedNoisePsk {
 } PACKED;  // NOLINT
 #endif
 
-class APIServer : public Component,
-                  public Controller
+class APIServer final : public Component,
+                        public Controller
 #ifdef USE_CAMERA
     ,
-                  public camera::CameraListener
+                        public camera::CameraListener
 #endif
 {
  public:
@@ -65,7 +66,7 @@ class APIServer : public Component,
   void set_max_connections(uint8_t max_connections) { this->max_connections_ = max_connections; }
 
   // Get reference to shared buffer for API connections
-  std::vector<uint8_t> &get_shared_buffer_ref() { return shared_write_buffer_; }
+  APIBuffer &get_shared_buffer_ref() { return shared_write_buffer_; }
 
 #ifdef USE_API_NOISE
   bool save_noise_psk(psk_t psk, bool make_active = true);
@@ -179,13 +180,14 @@ class APIServer : public Component,
   void on_update(update::UpdateEntity *obj) override;
 #endif
 #ifdef USE_ZWAVE_PROXY
-  void on_zwave_proxy_request(const esphome::api::ProtoMessage &msg);
+  void on_zwave_proxy_request(const ZWaveProxyRequest &msg);
 #endif
 #ifdef USE_IR_RF
   void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
 #endif
 
-  bool is_connected(bool state_subscription_only = false) const;
+  bool is_connected() const { return !this->clients_.empty(); }
+  bool is_connected_with_state_subscription() const;
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
@@ -201,20 +203,20 @@ class APIServer : public Component,
   };
 
   // New const char* overload (for internal components - zero allocation)
-  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> f);
-  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> f);
+  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
+  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
 
   // std::string overload with StringRef callback (for custom_api_device.h with zero-allocation callback)
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                      std::function<void(StringRef)> f);
+                                      std::function<void(StringRef)> &&f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                std::function<void(StringRef)> f);
+                                std::function<void(StringRef)> &&f);
 
   // Legacy std::string overload (for custom_api_device.h - converts StringRef to std::string for callback)
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                      std::function<void(const std::string &)> f);
+                                      std::function<void(const std::string &)> &&f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
-                                std::function<void(const std::string &)> f);
+                                std::function<void(const std::string &)> &&f);
 
   const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
 #endif
@@ -237,17 +239,19 @@ class APIServer : public Component,
 
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
-                         const psk_t &active_psk, bool make_active);
+                         bool make_active);
+  // Load saved PSK from preferences and apply it. Returns true on success.
+  bool load_and_apply_noise_psk_();
 #endif  // USE_API_NOISE
 #ifdef USE_API_HOMEASSISTANT_STATES
   // Helper methods to reduce code duplication
-  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> f,
+  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f,
                                bool once);
-  void add_state_subscription_(std::string entity_id, optional<std::string> attribute, std::function<void(StringRef)> f,
-                               bool once);
+  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
+                               std::function<void(StringRef)> &&f, bool once);
   // Legacy helper: wraps std::string callback and delegates to StringRef version
   void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                               std::function<void(const std::string &)> f, bool once);
+                               std::function<void(const std::string &)> &&f, bool once);
 #endif  // USE_API_HOMEASSISTANT_STATES
   // No explicit close() needed — listen sockets have no active connections on
   // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
@@ -257,7 +261,7 @@ class APIServer : public Component,
   }
   void socket_failed_(const LogString *msg);
   // Pointers and pointer-like types first (4 bytes each)
-  socket::Socket *socket_{nullptr};
+  socket::ListenSocket *socket_{nullptr};
 #ifdef USE_API_CLIENT_CONNECTED_TRIGGER
   Trigger<std::string, std::string> client_connected_trigger_;
 #endif
@@ -275,7 +279,7 @@ class APIServer : public Component,
   // Not pre-allocated: all send paths call prepare_first_message_buffer() which
   // reserves the exact needed size. Pre-allocating here would cause heap fragmentation
   // since the buffer would almost always reallocate on first use.
-  std::vector<uint8_t> shared_write_buffer_;
+  APIBuffer shared_write_buffer_;
 #ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
 #endif
@@ -323,7 +327,10 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
   TEMPLATABLE_VALUE(bool, state_subscription_only)
  public:
   bool check(const Ts &...x) override {
-    return global_api_server->is_connected(this->state_subscription_only_.value(x...));
+    if (this->state_subscription_only_.value(x...)) {
+      return global_api_server->is_connected_with_state_subscription();
+    }
+    return global_api_server->is_connected();
   }
 };
 

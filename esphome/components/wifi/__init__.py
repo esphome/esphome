@@ -42,6 +42,7 @@ from esphome.const import (
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_ERROR,
+    CONF_OUTPUT_POWER,
     CONF_PASSWORD,
     CONF_POWER_SAVE_MODE,
     CONF_PRIORITY,
@@ -58,6 +59,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from . import wpa2_eap
 
@@ -164,6 +166,7 @@ TTLS_PHASE_2 = {
 }
 
 EAP_AUTH_SCHEMA = cv.All(
+    cv.only_on([Platform.ESP32, Platform.ESP8266]),
     cv.Schema(
         {
             cv.Optional(CONF_IDENTITY): cv.string_strict,
@@ -208,7 +211,13 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
 def wifi_network_ap(value):
     if value is None:
         value = {}
-    return WIFI_NETWORK_AP(value)
+    config = WIFI_NETWORK_AP(value)
+    if CONF_MANUAL_IP in config and CORE.is_rp2040:
+        raise cv.Invalid(
+            "Manual AP IP configuration is not supported on RP2040. "
+            "The AP uses the default IP 192.168.4.1"
+        )
+    return config
 
 
 WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
@@ -226,6 +235,14 @@ def validate_variant(_):
         variant = get_esp32_variant()
         if variant in NO_WIFI_VARIANTS and "esp32_hosted" not in fv.full_config.get():
             raise cv.Invalid(f"WiFi requires component esp32_hosted on {variant}")
+    if CORE.is_rp2040:
+        from esphome.components.rp2040 import board_has_wifi, get_board
+
+        if not board_has_wifi():
+            raise cv.Invalid(
+                f"Board '{get_board()}' does not have WiFi support (no CYW43 wireless chip). "
+                f"Use a WiFi-capable board like 'rpipicow' or 'rpipico2w'."
+            )
 
 
 def _apply_min_auth_mode_default(config):
@@ -269,9 +286,28 @@ def final_validate(config):
         )
 
 
+def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
+    """Register UDP PCBs used internally by lwIP for DHCP and DNS.
+
+    Only needed on LibreTiny where we directly set MEMP_NUM_UDP_PCB (the raw
+    PCB pool shared by both application sockets and lwIP internals like DHCP/DNS).
+    On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket layer —
+    DHCP/DNS use raw udp_new() which bypasses it entirely.
+    """
+    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x):
+        return config
+    from esphome.components import socket
+
+    # lwIP allocates UDP PCBs for DHCP client and DNS resolver internally.
+    # These are not application sockets but consume MEMP_NUM_UDP_PCB pool entries.
+    socket.consume_sockets(2, "wifi.lwip_internal", socket.SocketType.UDP)(config)
+    return config
+
+
 FINAL_VALIDATE_SCHEMA = cv.All(
     final_validate,
     validate_variant,
+    _consume_wifi_sockets,
 )
 
 
@@ -324,7 +360,6 @@ def _validate(config):
     return config
 
 
-CONF_OUTPUT_POWER = "output_power"
 CONF_PASSIVE_SCAN = "passive_scan"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -637,12 +672,16 @@ async def wifi_ap_active_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
 
 
-@automation.register_action("wifi.enable", WiFiEnableAction, cv.Schema({}))
+@automation.register_action(
+    "wifi.enable", WiFiEnableAction, cv.Schema({}), synchronous=True
+)
 async def wifi_enable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
 
 
-@automation.register_action("wifi.disable", WiFiDisableAction, cv.Schema({}))
+@automation.register_action(
+    "wifi.disable", WiFiDisableAction, cv.Schema({}), synchronous=True
+)
 async def wifi_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
 
@@ -748,6 +787,7 @@ async def final_step():
             cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         }
     ),
+    synchronous=False,
 )
 async def wifi_set_sta_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

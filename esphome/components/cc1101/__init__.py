@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_DATA,
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_OUTPUT_POWER,
     CONF_VALUE,
     CONF_WAIT_TIME,
 )
@@ -22,7 +23,6 @@ ns = cg.esphome_ns.namespace("cc1101")
 CC1101Component = ns.class_("CC1101Component", cg.Component, spi.SPIDevice)
 
 # Config keys
-CONF_OUTPUT_POWER = "output_power"
 CONF_RX_ATTENUATION = "rx_attenuation"
 CONF_DC_BLOCKING_FILTER = "dc_blocking_filter"
 CONF_IF_FREQUENCY = "if_frequency"
@@ -287,10 +287,18 @@ CC1101_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action("cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.begin_rx", BeginRxAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.reset", ResetAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.set_idle", SetIdleAction, CC1101_ACTION_SCHEMA)
+@automation.register_action(
+    "cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "cc1101.begin_rx", BeginRxAction, CC1101_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "cc1101.reset", ResetAction, CC1101_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "cc1101.set_idle", SetIdleAction, CC1101_ACTION_SCHEMA, synchronous=True
+)
 async def cc1101_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
@@ -317,7 +325,10 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 
 
 @automation.register_action(
-    "cc1101.send_packet", SendPacketAction, SEND_PACKET_ACTION_SCHEMA
+    "cc1101.send_packet",
+    SendPacketAction,
+    SEND_PACKET_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def send_packet_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -412,16 +423,15 @@ def _register_setter_actions():
             var = cg.new_Pvariable(action_id, template_arg)
             await cg.register_parented(var, config[CONF_ID])
             data = config[CONF_VALUE]
-            if cg.is_template(data):
-                templ_ = await cg.templatable(data, args, _type)
-                cg.add(getattr(var, _setter)(templ_))
-            else:
-                cg.add(getattr(var, _setter)(_map[data] if _map else data))
+            if _map and not cg.is_template(data):
+                data = _map[data]
+            templ_ = await cg.templatable(data, args, _type)
+            cg.add(getattr(var, _setter)(templ_))
             return var
 
-        automation.register_action(f"cc1101.{setter_name}", action_cls, schema)(
-            _setter_action_to_code
-        )
+        automation.register_action(
+            f"cc1101.{setter_name}", action_cls, schema, synchronous=True
+        )(_setter_action_to_code)
 
 
 _register_setter_actions()

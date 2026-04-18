@@ -53,7 +53,7 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
   return buf;
 }
 
-const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
+const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer) {
   // Zephyr doesn't have detailed wakeup cause like ESP32
   return "";
 }
@@ -79,17 +79,60 @@ static void fa_cb(const struct flash_area *fa, void *user_data) {
 void DebugComponent::log_partition_info_() {
 #if CONFIG_FLASH_MAP_LABELS
   ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
-                     "| Label                   | Offset     | Size\n"
-                     "--------------------------------------------"
+                     "| Label                   | Offset     | Size");
+  ESP_LOGCONFIG(TAG, "--------------------------------------------"
                      "-----------------------------------------------");
 #else
   ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
-                     "| Offset     | Size\n"
-                     "-----------------------------------------"
+                     "| Offset     | Size");
+  ESP_LOGCONFIG(TAG, "-----------------------------------------"
                      "------------------------------");
 #endif
   flash_area_foreach(fa_cb, nullptr);
 }
+
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+// Check if an nRF peripheral's ENABLE register indicates it is enabled.
+// periph: peripheral register prefix (e.g. USBD, UARTE, SPI)
+// reg: register block pointer (e.g. NRF_USBD, NRF_UARTE0)
+#define NRF_PERIPH_ENABLED(periph, reg) \
+  YESNO(((reg)->ENABLE & periph##_ENABLE_ENABLE_Msk) == (periph##_ENABLE_ENABLE_Enabled << periph##_ENABLE_ENABLE_Pos))
+
+static void log_peripherals_info() {
+  // most peripherals are enabled only when in use so ESP_LOGV is enough
+  ESP_LOGV(TAG, "Peripherals status:");
+  ESP_LOGV(TAG, "  USBD:  %-3s| UARTE0: %-3s| UARTE1: %-3s| UART0: %-3s",  //
+           NRF_PERIPH_ENABLED(USBD, NRF_USBD), NRF_PERIPH_ENABLED(UARTE, NRF_UARTE0),
+           NRF_PERIPH_ENABLED(UARTE, NRF_UARTE1), NRF_PERIPH_ENABLED(UART, NRF_UART0));
+  ESP_LOGV(TAG, "  TWIS0: %-3s| TWIS1:  %-3s| TWIM0:  %-3s| TWIM1: %-3s",  //
+           NRF_PERIPH_ENABLED(TWIS, NRF_TWIS0), NRF_PERIPH_ENABLED(TWIS, NRF_TWIS1),
+           NRF_PERIPH_ENABLED(TWIM, NRF_TWIM0), NRF_PERIPH_ENABLED(TWIM, NRF_TWIM1));
+  ESP_LOGV(TAG, "  TWI0:  %-3s| TWI1:   %-3s| COMP:   %-3s| CCM:   %-3s",  //
+           NRF_PERIPH_ENABLED(TWI, NRF_TWI0), NRF_PERIPH_ENABLED(TWI, NRF_TWI1), NRF_PERIPH_ENABLED(COMP, NRF_COMP),
+           NRF_PERIPH_ENABLED(CCM, NRF_CCM));
+  ESP_LOGV(TAG, "  PDM:   %-3s| SPIS0:  %-3s| SPIS1:  %-3s| SPIS2: %-3s",  //
+           NRF_PERIPH_ENABLED(PDM, NRF_PDM), NRF_PERIPH_ENABLED(SPIS, NRF_SPIS0), NRF_PERIPH_ENABLED(SPIS, NRF_SPIS1),
+           NRF_PERIPH_ENABLED(SPIS, NRF_SPIS2));
+  ESP_LOGV(TAG, "  SPIM0: %-3s| SPIM1:  %-3s| SPIM2:  %-3s| SPIM3: %-3s",  //
+           NRF_PERIPH_ENABLED(SPIM, NRF_SPIM0), NRF_PERIPH_ENABLED(SPIM, NRF_SPIM1),
+           NRF_PERIPH_ENABLED(SPIM, NRF_SPIM2), NRF_PERIPH_ENABLED(SPIM, NRF_SPIM3));
+  ESP_LOGV(TAG, "  SPI0:  %-3s| SPI1:   %-3s| SPI2:   %-3s| SAADC: %-3s",  //
+           NRF_PERIPH_ENABLED(SPI, NRF_SPI0), NRF_PERIPH_ENABLED(SPI, NRF_SPI1), NRF_PERIPH_ENABLED(SPI, NRF_SPI2),
+           NRF_PERIPH_ENABLED(SAADC, NRF_SAADC));
+  ESP_LOGV(TAG, "  QSPI:  %-3s| QDEC:   %-3s| LPCOMP: %-3s| I2S:   %-3s",  //
+           NRF_PERIPH_ENABLED(QSPI, NRF_QSPI), NRF_PERIPH_ENABLED(QDEC, NRF_QDEC),
+           NRF_PERIPH_ENABLED(LPCOMP, NRF_LPCOMP), NRF_PERIPH_ENABLED(I2S, NRF_I2S));
+  ESP_LOGV(TAG, "  PWM0:  %-3s| PWM1:   %-3s| PWM2:   %-3s| PWM3:  %-3s",  //
+           NRF_PERIPH_ENABLED(PWM, NRF_PWM0), NRF_PERIPH_ENABLED(PWM, NRF_PWM1), NRF_PERIPH_ENABLED(PWM, NRF_PWM2),
+           NRF_PERIPH_ENABLED(PWM, NRF_PWM3));
+  ESP_LOGV(TAG, "  AAR:   %-3s| QSPI deep power-down:%-3s| CRYPTOCELL: %-3s", NRF_PERIPH_ENABLED(AAR, NRF_AAR),
+           YESNO((NRF_QSPI->IFCONFIG0 & QSPI_IFCONFIG0_DPMENABLE_Msk) ==
+                 (QSPI_IFCONFIG0_DPMENABLE_Enable << QSPI_IFCONFIG0_DPMENABLE_Pos)),
+           YESNO((NRF_CRYPTOCELL->ENABLE & CRYPTOCELL_ENABLE_ENABLE_Msk) ==
+                 (CRYPTOCELL_ENABLE_ENABLE_Enabled << CRYPTOCELL_ENABLE_ENABLE_Pos)));
+}
+#undef NRF_PERIPH_ENABLED
+#endif
 
 static const char *regout0_to_str(uint32_t value) {
   switch (value) {
@@ -284,11 +327,12 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   char mac_pretty[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   get_mac_address_pretty_into_buffer(mac_pretty);
   ESP_LOGD(TAG,
-           "Code page size: %u, code size: %u, device id: 0x%08x%08x\n"
-           "Encryption root: 0x%08x%08x%08x%08x, Identity Root: 0x%08x%08x%08x%08x\n"
-           "Device address type: %s, address: %s\n"
-           "Part code: nRF%x, version: %c%c%c%c, package: %s\n"
-           "RAM: %ukB, Flash: %ukB, production test: %sdone",
+           "nRF debug info:\n"
+           "  Code page size: %u, code size: %u, device id: 0x%08x%08x\n"
+           "  Encryption root: 0x%08x%08x%08x%08x, Identity Root: 0x%08x%08x%08x%08x\n"
+           "  Device address type: %s, address: %s\n"
+           "  Part code: nRF%x, version: %c%c%c%c, package: %s\n"
+           "  RAM: %ukB, Flash: %ukB, production test: %sdone",
            NRF_FICR->CODEPAGESIZE, NRF_FICR->CODESIZE, NRF_FICR->DEVICEID[1], NRF_FICR->DEVICEID[0], NRF_FICR->ER[0],
            NRF_FICR->ER[1], NRF_FICR->ER[2], NRF_FICR->ER[3], NRF_FICR->IR[0], NRF_FICR->IR[1], NRF_FICR->IR[2],
            NRF_FICR->IR[3], (NRF_FICR->DEVICEADDRTYPE & 0x1 ? "Random" : "Public"), mac_pretty, NRF_FICR->INFO.PART,
@@ -299,23 +343,22 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
                          (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) == UICR_PSELRESET_CONNECT_Connected
                                                                                       << UICR_PSELRESET_CONNECT_Pos;
   ESP_LOGD(
-      TAG, "GPIO as NFC pins: %s, GPIO as nRESET pin: %s",
+      TAG, "  GPIO as NFC pins: %s, GPIO as nRESET pin: %s",
       YESNO((NRF_UICR->NFCPINS & UICR_NFCPINS_PROTECT_Msk) == (UICR_NFCPINS_PROTECT_NFC << UICR_NFCPINS_PROTECT_Pos)),
       YESNO(n_reset_enabled));
   if (n_reset_enabled) {
     uint8_t port = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PORT_Msk) >> UICR_PSELRESET_PORT_Pos;
     uint8_t pin = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PIN_Msk) >> UICR_PSELRESET_PIN_Pos;
-    ESP_LOGD(TAG, "nRESET port P%u.%02u", port, pin);
+    ESP_LOGD(TAG, "  nRESET port P%u.%02u", port, pin);
   }
 #ifdef USE_BOOTLOADER_MCUBOOT
-  ESP_LOGD(TAG, "bootloader: mcuboot");
+  ESP_LOGD(TAG, "  Bootloader: mcuboot");
 #else
-  ESP_LOGD(TAG, "bootloader: Adafruit, version %u.%u.%u", (BOOTLOADER_VERSION_REGISTER >> 16) & 0xFF,
+  ESP_LOGD(TAG, "  Bootloader: Adafruit, version %u.%u.%u", (BOOTLOADER_VERSION_REGISTER >> 16) & 0xFF,
            (BOOTLOADER_VERSION_REGISTER >> 8) & 0xFF, BOOTLOADER_VERSION_REGISTER & 0xFF);
-  ESP_LOGD(TAG,
-           "MBR bootloader addr 0x%08x, UICR bootloader addr 0x%08x\n"
-           "MBR param page addr 0x%08x, UICR param page addr 0x%08x",
-           read_mem_u32(MBR_BOOTLOADER_ADDR), NRF_UICR->NRFFW[0], read_mem_u32(MBR_PARAM_PAGE_ADDR),
+  ESP_LOGD(TAG, "  MBR bootloader addr 0x%08x, UICR bootloader addr 0x%08x", read_mem_u32(MBR_BOOTLOADER_ADDR),
+           NRF_UICR->NRFFW[0]);
+  ESP_LOGD(TAG, "  MBR param page addr 0x%08x, UICR param page addr 0x%08x", read_mem_u32(MBR_PARAM_PAGE_ADDR),
            NRF_UICR->NRFFW[1]);
   if (is_sd_present()) {
     uint32_t const sd_id = sd_id_get();
@@ -326,7 +369,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     ver[1] = (sd_version - ver[0] * 1000000) / 1000;
     ver[2] = (sd_version - ver[0] * 1000000 - ver[1] * 1000);
 
-    ESP_LOGD(TAG, "SoftDevice: S%u %u.%u.%u", sd_id, ver[0], ver[1], ver[2]);
+    ESP_LOGD(TAG, "  SoftDevice: S%u %u.%u.%u", sd_id, ver[0], ver[1], ver[2]);
 #ifdef USE_SOFTDEVICE_ID
 #ifdef USE_SOFTDEVICE_VERSION
     if (USE_SOFTDEVICE_ID != sd_id || USE_SOFTDEVICE_VERSION != ver[0]) {
@@ -352,11 +395,11 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     }
     return res;
   };
-  ESP_LOGD(TAG,
-           "NRFFW %s\n"
-           "NRFHW %s",
-           uicr(NRF_UICR->NRFFW, 13).c_str(), uicr(NRF_UICR->NRFHW, 12).c_str());
-
+  ESP_LOGD(TAG, "  NRFFW %s", uicr(NRF_UICR->NRFFW, 13).c_str());
+  ESP_LOGD(TAG, "  NRFHW %s", uicr(NRF_UICR->NRFHW, 12).c_str());
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  log_peripherals_info();
+#endif
   return pos;
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cinttypes>
 #include <utility>
 
@@ -89,15 +90,14 @@ class DoubleClickTrigger : public Trigger<> {
   uint32_t max_length_;  /// Maximum length of click. 0 means no maximum.
 };
 
-class MultiClickTrigger : public Trigger<>, public Component {
+/// Non-template base for MultiClickTrigger (keeps large method bodies out of the header).
+class MultiClickTriggerBase : public Trigger<>, public Component {
  public:
-  explicit MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
-      : parent_(parent), timing_(timing) {}
+  explicit MultiClickTriggerBase(BinarySensor *parent) : parent_(parent) {}
 
   void setup() override {
     this->last_state_ = this->parent_->get_state_default(false);
-    auto f = std::bind(&MultiClickTrigger::on_state_, this, std::placeholders::_1);
-    this->parent_->add_on_state_callback(f);
+    this->parent_->add_on_state_callback([this](bool state) { this->on_state_(state); });
   }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
@@ -105,6 +105,8 @@ class MultiClickTrigger : public Trigger<>, public Component {
   void set_invalid_cooldown(uint32_t invalid_cooldown) { this->invalid_cooldown_ = invalid_cooldown; }
 
   void cancel();
+  MultiClickTriggerBase(const MultiClickTriggerBase &) = delete;
+  MultiClickTriggerBase &operator=(const MultiClickTriggerBase &) = delete;
 
  protected:
   void on_state_(bool state);
@@ -114,12 +116,28 @@ class MultiClickTrigger : public Trigger<>, public Component {
   void trigger_();
 
   BinarySensor *parent_;
-  FixedVector<MultiClickTriggerEvent> timing_;
+  const MultiClickTriggerEvent *timing_{nullptr};
   uint32_t invalid_cooldown_{1000};
   optional<size_t> at_index_{};
+  uint8_t timing_count_{0};
   bool last_state_{false};
   bool is_in_cooldown_{false};
   bool is_valid_{false};
+};
+
+/// Template wrapper that provides inline std::array storage for timing events.
+/// N is set by code generation to match the exact number of timing events configured in YAML.
+template<size_t N> class MultiClickTrigger : public MultiClickTriggerBase {
+ public:
+  MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
+      : MultiClickTriggerBase(parent) {
+    init_array_from(this->timing_storage_, timing);
+    this->timing_ = this->timing_storage_.data();
+    this->timing_count_ = N;
+  }
+
+ protected:
+  std::array<MultiClickTriggerEvent, N> timing_storage_{};
 };
 
 class StateTrigger : public Trigger<bool> {

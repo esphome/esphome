@@ -101,7 +101,7 @@ const LogString *valve_operation_to_str(ValveOperation op);
  * to control all values of the valve. Also implement get_traits() to return what operations
  * the valve supports.
  */
-class Valve : public EntityBase, public EntityBase_DeviceClass {
+class Valve : public EntityBase {
  public:
   explicit Valve();
 
@@ -117,7 +117,7 @@ class Valve : public EntityBase, public EntityBase_DeviceClass {
   /// Construct a new valve call used to control the valve.
   ValveCall make_call();
 
-  void add_on_state_callback(std::function<void()> &&f);
+  template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
 
   /** Publish the current state of the valve.
    *

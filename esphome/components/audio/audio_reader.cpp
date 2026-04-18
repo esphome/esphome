@@ -185,26 +185,8 @@ esp_err_t AudioReader::start(const std::string &uri, AudioFileType &file_type) {
       return err;
     }
 
-    if (str_endswith_ignore_case(url, ".wav")) {
-      file_type = AudioFileType::WAV;
-    }
-#ifdef USE_AUDIO_MP3_SUPPORT
-    else if (str_endswith_ignore_case(url, ".mp3")) {
-      file_type = AudioFileType::MP3;
-    }
-#endif
-#ifdef USE_AUDIO_FLAC_SUPPORT
-    else if (str_endswith_ignore_case(url, ".flac")) {
-      file_type = AudioFileType::FLAC;
-    }
-#endif
-#ifdef USE_AUDIO_OPUS_SUPPORT
-    else if (str_endswith_ignore_case(url, ".opus")) {
-      file_type = AudioFileType::OPUS;
-    }
-#endif
-    else {
-      file_type = AudioFileType::NONE;
+    file_type = detect_audio_file_type(nullptr, url);
+    if (file_type == AudioFileType::NONE) {
       this->cleanup_connection_();
       return ESP_ERR_NOT_SUPPORTED;
     }
@@ -232,32 +214,6 @@ AudioReaderState AudioReader::read() {
   return AudioReaderState::FAILED;
 }
 
-AudioFileType AudioReader::get_audio_type(const char *content_type) {
-#ifdef USE_AUDIO_MP3_SUPPORT
-  if (strcasecmp(content_type, "mp3") == 0 || strcasecmp(content_type, "audio/mp3") == 0 ||
-      strcasecmp(content_type, "audio/mpeg") == 0) {
-    return AudioFileType::MP3;
-  }
-#endif
-  if (strcasecmp(content_type, "audio/wav") == 0) {
-    return AudioFileType::WAV;
-  }
-#ifdef USE_AUDIO_FLAC_SUPPORT
-  if (strcasecmp(content_type, "audio/flac") == 0 || strcasecmp(content_type, "audio/x-flac") == 0) {
-    return AudioFileType::FLAC;
-  }
-#endif
-#ifdef USE_AUDIO_OPUS_SUPPORT
-  // Match "audio/ogg" with a codecs parameter containing "opus"
-  // Valid forms: audio/ogg;codecs=opus, audio/ogg; codecs="opus", etc.
-  // Plain "audio/ogg" without a codecs parameter is not matched, as those are almost always Ogg Vorbis streams
-  if (strncasecmp(content_type, "audio/ogg", 9) == 0 && strcasestr(content_type + 9, "opus") != nullptr) {
-    return AudioFileType::OPUS;
-  }
-#endif
-  return AudioFileType::NONE;
-}
-
 esp_err_t AudioReader::http_event_handler(esp_http_client_event_t *evt) {
   // Based on https://github.com/maroc81/WeatherLily/tree/main/main/net accessed 20241224
   AudioReader *this_reader = (AudioReader *) evt->user_data;
@@ -265,7 +221,7 @@ esp_err_t AudioReader::http_event_handler(esp_http_client_event_t *evt) {
   switch (evt->event_id) {
     case HTTP_EVENT_ON_HEADER:
       if (strcasecmp(evt->header_key, "Content-Type") == 0) {
-        this_reader->audio_file_type_ = get_audio_type(evt->header_value);
+        this_reader->audio_file_type_ = detect_audio_file_type(evt->header_value, nullptr);
       }
       break;
     default:

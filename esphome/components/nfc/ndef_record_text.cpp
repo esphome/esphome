@@ -14,6 +14,11 @@ NdefRecordText::NdefRecordText(const std::vector<uint8_t> &payload) {
 
   uint8_t language_code_length = payload[0] & 0b00111111;  // Todo, make use of encoding bit?
 
+  if (1 + language_code_length > payload.size()) {
+    ESP_LOGE(TAG, "Record payload too short for language code");
+    return;
+  }
+
   this->language_code_ = std::string(payload.begin() + 1, payload.begin() + 1 + language_code_length);
 
   this->text_ = std::string(payload.begin() + 1 + language_code_length, payload.end());

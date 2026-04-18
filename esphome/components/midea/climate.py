@@ -53,7 +53,9 @@ def templatize(value):
 
 def register_action(name, type_, schema):
     validator = templatize(schema).extend(MIDEA_ACTION_BASE_SCHEMA)
-    registerer = automation.register_action(f"midea_ac.{name}", type_, validator)
+    registerer = automation.register_action(
+        f"midea_ac.{name}", type_, validator, synchronous=True
+    )
 
     def decorator(func):
         async def new_func(config, action_id, template_arg, args):
