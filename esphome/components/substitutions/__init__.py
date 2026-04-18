@@ -77,8 +77,36 @@ def format_config_path(path: SubstitutionPath, current_obj: object) -> str:
     if current_doc is not None:
         frames.append((list(path[frame_start : last_key_idx + 1]), last_key_loc))
 
+    # Post-process: leading integers in a frame are list indices belonging to the
+    # previous frame's last key (e.g. path=[..., "packages", 0, "inner_pkg", ...]).
+    # Move them to the end of the previous frame so they format as "packages[0]".
+    processed: list[tuple[list, str]] = []
+    for seg, loc in frames:
+        leading: list[int] = []
+        rest = list(seg)
+        while rest and isinstance(rest[0], int):
+            leading.append(rest.pop(0))
+        if leading and processed:
+            prev_seg, prev_loc = processed[-1]
+            processed[-1] = (prev_seg + leading, prev_loc)
+        elif leading:
+            rest = leading + rest  # no previous frame — keep them at front
+        if rest:
+            processed.append((rest, loc))
+    frames = processed
+
     def fmt_path(seg: list) -> str:
-        return "->".join(str(s) for s in seg)
+        """Format a path segment, rendering integers as [n] subscripts."""
+        parts: list[str] = []
+        for item in seg:
+            if isinstance(item, int):
+                if parts:
+                    parts[-1] = f"{parts[-1]}[{item}]"
+                else:
+                    parts.append(f"[{item}]")
+            else:
+                parts.append(str(item))
+        return "->".join(parts)
 
     if not frames:
         # No location info in path — use current_obj if possible
@@ -467,12 +495,8 @@ def _substitute_include(
     errors: ErrList | None,
 ) -> Any:
     """Resolve an include and substitute its content."""
-    content, filename = resolve_include(
-        include, path, context_vars, strict_undefined, errors
-    )
-    return substitute(
-        content, path + [f"<{filename}>"], context_vars, strict_undefined, errors
-    )
+    content, _ = resolve_include(include, path, context_vars, strict_undefined, errors)
+    return substitute(content, path, context_vars, strict_undefined, errors)
 
 
 def substitute(

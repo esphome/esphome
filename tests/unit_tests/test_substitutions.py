@@ -863,7 +863,24 @@ class TestFormatConfigPath:
         result = format_config_path([], None)
         assert result == "In: "
 
-    def test_integer_path_items_in_flat_fallback(self):
-        """Integer indices (list packages) appear in the flat 'In:' when no esp_range items exist."""
+    def test_integer_path_items_formatted_as_subscript(self):
+        """Integer indices are rendered as [n] subscripts in the flat fallback."""
         result = format_config_path(["packages", 0], None)
-        assert result == "In: packages->0"
+        assert result == "In: packages[0]"
+
+    def test_integer_list_index_attached_to_previous_frame(self):
+        """A list index between two include boundaries attaches to the outer frame."""
+        path = [
+            "packages",
+            _located("packages", "main.yaml", 5, 0),
+            0,
+            _located("packages", "level1.yaml", 2, 0),
+            0,
+            _located("esphome", "level2.yaml", 0, 0),
+            _located("name", "level2.yaml", 1, 8),
+        ]
+        result = format_config_path(path, None)
+        lines = result.splitlines()
+        assert lines[0].startswith("In: esphome->name in level2.yaml")
+        assert "packages[0]" in lines[1] and "level1.yaml" in lines[1]
+        assert "packages[0]" in lines[2] and "main.yaml" in lines[2]
