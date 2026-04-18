@@ -24,6 +24,7 @@ Example output:
 from __future__ import annotations
 
 import argparse
+import ast
 from functools import lru_cache
 import json
 from pathlib import Path
@@ -41,6 +42,9 @@ from esphome.config_helpers import Extend, Remove
 
 # Path to common bus configs
 COMMON_BUS_PATH = Path("tests/test_build_components/common")
+
+# Path to esphome component sources (used to parse AUTO_LOAD / CONFLICTS_WITH metadata)
+COMPONENTS_SRC_PATH = Path("esphome/components")
 
 # Package dependencies - maps packages to the packages they include
 # When a component uses a package on the left, it automatically gets
@@ -509,6 +513,88 @@ def merge_compatible_bus_groups(
         merged_groups[(platform1, merged_sig)] = merged_comps
 
     return merged_groups
+
+
+@lru_cache(maxsize=1)
+def _component_conflicts() -> dict[str, frozenset[str]]:
+    """Return {component: components it conflicts with} via static AUTO_LOAD/CONFLICTS_WITH.
+
+    A conflict propagates through AUTO_LOAD: if X declares CONFLICTS_WITH=[Y]
+    and Z auto-loads Y, then X and Z conflict (e.g. bme680_bsec vs.
+    bme68x_bsec2_i2c which auto-loads bme68x_bsec2).
+    """
+    auto_load: dict[str, set[str]] = {}
+    direct: dict[str, set[str]] = {}
+    for comp_dir in (
+        COMPONENTS_SRC_PATH.iterdir() if COMPONENTS_SRC_PATH.exists() else ()
+    ):
+        init_file = comp_dir / "__init__.py"
+        if not comp_dir.is_dir() or not init_file.exists():
+            continue
+        try:
+            tree = ast.parse(init_file.read_text())
+        except (OSError, SyntaxError):
+            continue
+        for node in tree.body:
+            if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.List):
+                continue
+            values = {
+                e.value
+                for e in node.value.elts
+                if isinstance(e, ast.Constant) and isinstance(e.value, str)
+            }
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "AUTO_LOAD":
+                    auto_load[comp_dir.name] = values
+                elif isinstance(target, ast.Name) and target.id == "CONFLICTS_WITH":
+                    direct[comp_dir.name] = values
+
+    # For each component, compute the full set of components that end up
+    # loaded alongside it (itself + everything it transitively auto-loads).
+    loaded_with: dict[str, set[str]] = {}
+    for name in auto_load.keys() | direct.keys():
+        loaded, stack = set(), [name]
+        while stack:
+            n = stack.pop()
+            if n not in loaded:
+                loaded.add(n)
+                stack.extend(auto_load.get(n, ()))
+        loaded_with[name] = loaded
+
+    result: dict[str, frozenset[str]] = {}
+    for name, loaded in loaded_with.items():
+        rejects = {c for n in loaded for c in direct.get(n, ())}
+        result[name] = frozenset(
+            other
+            for other, other_loaded in loaded_with.items()
+            if rejects & other_loaded
+        )
+    return result
+
+
+def split_conflicting_groups(
+    grouped_components: dict[tuple[str, str], list[str]],
+) -> dict[tuple[str, str], list[str]]:
+    """Split groups so that components declaring mutual CONFLICTS_WITH end up in separate builds."""
+    conflicts = _component_conflicts()
+    result: dict[tuple[str, str], list[str]] = {}
+    for (platform, signature), components in grouped_components.items():
+        buckets: list[list[str]] = []
+        for comp in components:
+            conflict_set = conflicts.get(comp, frozenset())
+            for bucket in buckets:
+                if conflict_set.isdisjoint(bucket):
+                    bucket.append(comp)
+                    break
+            else:
+                buckets.append([comp])
+        if len(buckets) == 1:
+            result[(platform, signature)] = buckets[0]
+            continue
+        for index, bucket in enumerate(buckets):
+            key = signature if index == 0 else f"{signature}__conflict{index}"
+            result[(platform, key)] = bucket
+    return result
 
 
 def create_grouping_signature(
