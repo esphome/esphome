@@ -616,6 +616,12 @@ def _wrap_in_iifes(lines: list[str], max_statements: int | None) -> list[str]:
     out: list[str] = []
     chunk: list[str] = []
     depth: int = 0
+    # Once depth goes negative we stop trusting the brace count and
+    # keep everything remaining in one final IIFE. A later ``{`` could
+    # arithmetically bring depth back to 0, but by that point the brace
+    # tracking is already unreliable — re-enabling mid-stream splits
+    # could land between a declaration and its use.
+    poisoned: bool = False
 
     def flush() -> None:
         if not chunk:
@@ -631,11 +637,16 @@ def _wrap_in_iifes(lines: list[str], max_statements: int | None) -> list[str]:
     for line in lines:
         chunk.append(line)
         # Count { and } per line so inline control flow (e.g. `if (cond) {`)
-        # and balanced inline lambdas are tracked correctly. If depth ever
-        # goes negative (unbalanced input) we never return to 0 and the
-        # rest falls through into a single final IIFE — safe fallback.
+        # and balanced inline lambdas are tracked correctly.
         depth += line.count("{") - line.count("}")
-        if max_statements is not None and depth == 0 and len(chunk) >= max_statements:
+        if depth < 0:
+            poisoned = True
+        if (
+            not poisoned
+            and max_statements is not None
+            and depth == 0
+            and len(chunk) >= max_statements
+        ):
             flush()
     flush()
     return out

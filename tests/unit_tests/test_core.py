@@ -943,6 +943,20 @@ def test_wrap_in_iifes_unbalanced_braces_fall_through() -> None:
     assert [line for line in result if line in lines] == lines
 
 
+def test_wrap_in_iifes_negative_depth_stays_poisoned() -> None:
+    # Once depth goes negative the brace tracker is unreliable; a later
+    # arithmetic return to depth 0 must not re-enable splitting. Here
+    # "}" drives depth to -1 immediately, then "{" later brings depth
+    # back to 0 arithmetically. With max=1 every statement would flush
+    # if splitting were still enabled — assert everything emits as one
+    # IIFE because the poisoned flag stayed set.
+    lines = ["}", "a();", "{", "b();", "}", "c();"]
+    result = core._wrap_in_iifes(lines, max_statements=1)
+    assert sum(1 for line in result if line == "[]() {") == 1
+    assert result[0] == "[]() {"
+    assert result[-1] == "}();"
+
+
 def test_wrap_in_iifes_never_splits_inline_brace_lines() -> None:
     # Defensive: if codegen ever emits control flow with braces on the
     # same line (if/else/for), the depth tracker should keep the whole
