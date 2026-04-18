@@ -96,7 +96,6 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
   }
 }
 Color Image::get_pixel(int x, int y, const Color color_on, const Color color_off) const {
-  uint8_t g = 0;
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return color_off;
   switch (this->type_) {
@@ -104,9 +103,10 @@ Color Image::get_pixel(int x, int y, const Color color_on, const Color color_off
       if (this->get_binary_pixel_(x, y))
         return color_on;
       return color_off;
-    case IMAGE_TYPE_GRAYSCALE4:
-      g = this->get_grayscale4_pixel_(x, y);
+    case IMAGE_TYPE_GRAYSCALE4: {
+      uint8_t g = this->get_grayscale4_pixel_(x, y);
       return Color(g, g, g);
+    }
     case IMAGE_TYPE_GRAYSCALE:
       return this->get_grayscale_pixel_(x, y);
     case IMAGE_TYPE_RGB565:
@@ -132,9 +132,15 @@ lv_image_dsc_t *Image::get_lv_image_dsc() {
         this->dsc_.header.cf = LV_COLOR_FORMAT_A1;
         break;
 
-      case IMAGE_TYPE_GRAYSCALE4:
+      case IMAGE_TYPE_GRAYSCALE4: {
+        static const uint8_t grayscale_palette[8] = {
+            0x00, 0x55, 0xAA, 0xFF  // 4 grayscale levels scaled to 8-bit
+        };
+        this->dsc_.data = reinterpret_cast<const uint8_t *>(grayscale_palette);
         this->dsc_.header.cf = LV_COLOR_FORMAT_I2;
+        this->dsc_.data_size += sizeof(grayscale_palette);  // Adjust data size to include palette
         break;
+      }
 
       case IMAGE_TYPE_GRAYSCALE:
         this->dsc_.header.cf = LV_COLOR_FORMAT_A8;
@@ -185,7 +191,7 @@ bool Image::get_binary_pixel_(int x, int y) const {
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
 uint8_t Image::get_grayscale4_pixel_(int x, int y) const {
-  const uint32_t pos = (x + y * this->width_) >> 2;
+  const uint32_t pos = (x >> 2) + y * this->get_width_stride();
   const uint8_t byte = progmem_read_byte(this->data_start_ + pos);
   // 2-bit grayscale stored in 2 bits, shift to upper bits of byte and scale to 0-255
   return ((byte >> ((3 - (x & 0x03)) << 1)) & 0x03) << 6;

@@ -191,8 +191,12 @@ class ImageBinary(ImageEncoder):
 
 
 class ImageGrayscale4(ImageEncoder):
+    def __init__(self, width, height, transparency, dither, invert_alpha):
+        self.width8 = (width + 3) // 4
+        super().__init__(self.width8, height, transparency, dither, invert_alpha)
+
     def convert(self, image, path):
-        if self.dither != "NONE":
+        if self.dither != Image.Dither.NONE:
             # Create a palette image with the 4 grayscale values we want to dither to
             palette = Image.new("P", (1, 4))
             palette.putpalette(
@@ -212,6 +216,10 @@ class ImageGrayscale4(ImageEncoder):
         self.data[self.index // 4] |= b << shift
 
         self.index += 1
+
+    def end_row(self):
+        if self.index % 4 != 0:
+            self.index += 4 - (self.index % 4)
 
 
 class ImageGrayscale(ImageEncoder):

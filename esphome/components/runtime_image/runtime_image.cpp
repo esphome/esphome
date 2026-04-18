@@ -94,7 +94,6 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       uint8_t &byte = this->buffer_[pos];
       uint8_t shift = (3 - (x & 0x03)) << 1;
       byte = (byte & ~(0x03 << shift)) | ((gray & 0x03) << shift);
-      this->buffer_[pos] = byte;
       break;
     }
     case image::IMAGE_TYPE_GRAYSCALE: {
