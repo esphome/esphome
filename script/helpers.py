@@ -162,8 +162,8 @@ def parse_component_metadata(name: str) -> ComponentMetadata:
     if not init_file.exists():
         return ComponentMetadata()
     try:
-        tree = ast.parse(init_file.read_text())
-    except (OSError, SyntaxError):
+        tree = ast.parse(init_file.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeError):
         return ComponentMetadata()
     fields: dict[str, frozenset[str]] = {
         "AUTO_LOAD": frozenset(),
