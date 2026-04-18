@@ -35,21 +35,29 @@ void DlmsMeterComponent::setup() {
   dlms_parser::Logger::set_log_function(log_callback);
 
   if (this->decryption_key_.has_value()) {
+#ifdef DLMS_METER_NO_CRYPTO
+    ESP_LOGE(TAG, "Decryption is not supported on this platform (no compatible crypto library found)");
+#else
     auto opt_key = dlms_parser::Aes128GcmDecryptionKey::from_bytes(this->decryption_key_.value());
     if (opt_key) {
       this->parser_.set_decryption_key(*opt_key);
     } else {
       ESP_LOGE(TAG, "Failed to set decryption key: invalid key format");
     }
+#endif
   }
 
   if (this->authentication_key_.has_value()) {
+#ifdef DLMS_METER_NO_CRYPTO
+    ESP_LOGE(TAG, "Authentication is not supported on this platform (no compatible crypto library found)");
+#else
     auto opt_key = dlms_parser::Aes128GcmAuthenticationKey::from_bytes(this->authentication_key_.value());
     if (opt_key) {
       this->parser_.set_authentication_key(*opt_key);
     } else {
       ESP_LOGE(TAG, "Failed to set authentication key: invalid key format");
     }
+#endif
   }
 
   this->parser_.set_skip_crc_check(this->skip_crc_check_);

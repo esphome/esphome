@@ -30,7 +30,18 @@ using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorMbedTls;
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_bearssl.h>
 using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorBearSsl;
 #else
-#error "The platform doesn't provide a compatible encryption library for dlms_meter"
+#define DLMS_METER_NO_CRYPTO
+#include <span>
+// Fallback dummy decryptor for platforms without supported crypto (e.g., Zephyr during clang-tidy)
+class Aes128GcmDecryptorDummy : public dlms_parser::Aes128GcmDecryptor {
+ public:
+  void set_decryption_key(const dlms_parser::Aes128GcmDecryptionKey &key) override {}
+  bool decrypt_in_place(std::span<const uint8_t> iv, std::span<uint8_t> ciphertext_and_plaintext,
+                        std::span<const uint8_t> aad, std::span<const uint8_t> tag) override {
+    return false;
+  }
+};
+using Aes128GcmDecryptorImpl = Aes128GcmDecryptorDummy;
 #endif
 
 #include <vector>
