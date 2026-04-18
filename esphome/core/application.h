@@ -402,7 +402,7 @@ class Application {
   void enable_component_loop_(Component *component);
   void enable_pending_loops_();
   void activate_looping_component_(uint16_t index);
-  inline void ESPHOME_ALWAYS_INLINE before_loop_tasks_(uint32_t loop_start_time);
+  inline uint32_t ESPHOME_ALWAYS_INLINE before_loop_tasks_(uint32_t loop_start_time);
   inline void ESPHOME_ALWAYS_INLINE after_loop_tasks_() { this->in_loop_ = false; }
 
   /// Process dump_config output one component per loop iteration.
@@ -546,18 +546,15 @@ inline void Application::drain_wake_notifications_() {
 }
 #endif  // USE_HOST
 
-inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_start_time) {
+inline uint32_t ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_start_time) {
 #ifdef USE_HOST
   // Drain wake notifications first to clear socket for next wake
   this->drain_wake_notifications_();
 #endif
 
-  // Process scheduled tasks. Scheduler::call now feeds the watchdog itself
-  // after each scheduled item that actually runs, so we no longer need an
-  // unconditional feed here — when Scheduler::call has no work to do, the
-  // only elapsed time is a sleep wake + a few instructions, and when it does
-  // have work, it fed the wdt as it went.
-  this->scheduler.call(loop_start_time);
+  // Scheduler::call feeds the WDT per item and returns the timestamp of the
+  // last fired item, or the input unchanged when nothing ran.
+  uint32_t last_op_end_time = this->scheduler.call(loop_start_time);
 
   // Process any pending enable_loop requests from ISRs
   // This must be done before marking in_loop_ = true to avoid race conditions
@@ -575,6 +572,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
 
   // Mark that we're in the loop for safe reentrant modifications
   this->in_loop_ = true;
+  return last_op_end_time;
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
@@ -592,7 +590,13 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // Get the initial loop time at the start
   uint32_t last_op_end_time = millis();
 
-  this->before_loop_tasks_(last_op_end_time);
+  // Returned timestamp keeps us monotonic with last_wdt_feed_ (advanced by
+  // the scheduler's per-item feeds) without an extra millis() call.
+  last_op_end_time = this->before_loop_tasks_(last_op_end_time);
+  // Guarantee a WDT touch every tick — covers configs with no looping
+  // components and no scheduler work, where the per-item / per-component
+  // feeds never fire. Rate-limited inline fast path, ~free when unneeded.
+  this->feed_wdt_with_time(last_op_end_time);
 #ifdef USE_RUNTIME_STATS
   uint32_t loop_before_end_us = micros();
   uint64_t loop_before_scheduled_us = ComponentRuntimeStats::global_recorded_us - loop_recorded_snap;
