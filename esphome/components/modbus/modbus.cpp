@@ -296,8 +296,16 @@ void Modbus::send_next_frame_() {
 
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->digital_write(true);
+    if (this->flow_control_pin_pre_send_delay_ms_ != 0) {
+      delay(this->flow_control_pin_pre_send_delay_ms_);
+    }
     this->write_array(frame.data.get(), frame.size);
     this->flush();
+    // Post-send delay BEFORE releasing the bus — keeps the transceiver in TX mode
+    // while the last byte clears the wire and any bus ringing settles.
+    if (this->flow_control_pin_post_send_delay_ms_ != 0) {
+      delay(this->flow_control_pin_post_send_delay_ms_);
+    }
     this->flow_control_pin_->digital_write(false);
     this->last_send_tx_offset_ = 0;
   } else {
@@ -324,9 +332,12 @@ void Modbus::dump_config() {
                 "  Turnaround Time: %d ms\n"
                 "  Frame Delay: %d ms\n"
                 "  Long Rx Buffer Delay: %d ms\n"
+                "  Flow Control Pre-Send Delay: %d ms\n"
+                "  Flow Control Post-Send Delay: %d ms\n"
                 "  CRC Disabled: %s",
                 this->send_wait_time_, this->turnaround_delay_ms_, this->frame_delay_ms_,
-                this->long_rx_buffer_delay_ms_, YESNO(this->disable_crc_));
+                this->long_rx_buffer_delay_ms_, this->flow_control_pin_pre_send_delay_ms_,
+                this->flow_control_pin_post_send_delay_ms_, YESNO(this->disable_crc_));
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
 float Modbus::get_setup_priority() const {

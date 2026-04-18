@@ -56,6 +56,12 @@ class Modbus : public uart::UARTDevice, public Component {
   void send_raw(const std::vector<uint8_t> &payload);
   void set_role(ModbusRole role) { this->role = role; }
   void set_flow_control_pin(GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
+  void set_flow_control_pin_pre_send_delay(uint16_t time_in_ms) {
+    this->flow_control_pin_pre_send_delay_ms_ = time_in_ms;
+  }
+  void set_flow_control_pin_post_send_delay(uint16_t time_in_ms) {
+    this->flow_control_pin_post_send_delay_ms_ = time_in_ms;
+  }
   void set_send_wait_time(uint16_t time_in_ms) { this->send_wait_time_ = time_in_ms; }
   void set_turnaround_time(uint16_t time_in_ms) { this->turnaround_delay_ms_ = time_in_ms; }
   void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
@@ -74,6 +80,8 @@ class Modbus : public uart::UARTDevice, public Component {
   uint32_t last_send_tx_offset_{0};
   uint16_t frame_delay_ms_{5};
   uint16_t long_rx_buffer_delay_ms_{0};
+  uint16_t flow_control_pin_pre_send_delay_ms_{0};
+  uint16_t flow_control_pin_post_send_delay_ms_{0};
   uint16_t send_wait_time_{250};
   uint16_t turnaround_delay_ms_{100};
   uint8_t waiting_for_response_{0};
