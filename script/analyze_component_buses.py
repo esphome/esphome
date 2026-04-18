@@ -555,42 +555,33 @@ def split_conflicting_groups(
     """
     batch = {c for comps in grouped_components.values() for c in comps}
 
-    # For each batch component, compute the set of components loaded alongside it
-    # (itself + everything transitively auto-loaded) and the names it rejects.
-    loaded_with: dict[str, set[str]] = {}
-    rejects: dict[str, set[str]] = {}
+    # Walk each batch component's AUTO_LOAD chain once, collecting the full
+    # loaded-alongside set and the names it rejects via CONFLICTS_WITH. Two
+    # components conflict when either one's rejects intersect the other's
+    # loaded set (relation must be symmetric -- e.g. ethernet rejects wifi
+    # but wifi does not reject ethernet).
+    walks: dict[str, tuple[set[str], set[str]]] = {}
     for comp in batch:
-        loaded, stack = set(), [comp]
-        comp_rejects: set[str] = set()
+        loaded, rejects, stack = {comp}, set(), [comp]
         while stack:
-            name = stack.pop()
-            if name in loaded:
-                continue
-            loaded.add(name)
-            auto_load, conflicts_with = _parse_component_init(name)
-            comp_rejects.update(conflicts_with)
-            stack.extend(auto_load)
-        loaded_with[comp] = loaded
-        rejects[comp] = comp_rejects
+            auto_load, conflicts_with = _parse_component_init(stack.pop())
+            rejects |= conflicts_with
+            new = auto_load - loaded
+            loaded |= new
+            stack.extend(new)
+        walks[comp] = (loaded, rejects)
 
-    # Build symmetric conflict map restricted to the batch. The relation must
-    # be symmetric even if only one side declares CONFLICTS_WITH (e.g.
-    # ethernet declares it against wifi, wifi does not declare the reverse).
-    conflicts: dict[str, set[str]] = {comp: set() for comp in batch}
-    batch_list = list(batch)
-    for i, a in enumerate(batch_list):
-        for b in batch_list[i + 1 :]:
-            if rejects[a] & loaded_with[b] or rejects[b] & loaded_with[a]:
-                conflicts[a].add(b)
-                conflicts[b].add(a)
+    def conflicts(a: str, b: str) -> bool:
+        loaded_a, rejects_a = walks[a]
+        loaded_b, rejects_b = walks[b]
+        return not rejects_a.isdisjoint(loaded_b) or not rejects_b.isdisjoint(loaded_a)
 
     result: dict[tuple[str, str], list[str]] = {}
     for (platform, signature), components in grouped_components.items():
         buckets: list[list[str]] = []
         for comp in components:
-            conflict_set = conflicts.get(comp, frozenset())
             for bucket in buckets:
-                if conflict_set.isdisjoint(bucket):
+                if not any(conflicts(comp, other) for other in bucket):
                     bucket.append(comp)
                     break
             else:
