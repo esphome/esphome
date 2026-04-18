@@ -264,7 +264,16 @@ async def to_code(config):
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",
-        [f"platformio/framework-arduinoespressif8266@{conf[CONF_SOURCE]}"],
+        [
+            f"platformio/framework-arduinoespressif8266@{conf[CONF_SOURCE]}",
+            # Override the ancient tool-esptoolpy ~1.30000.0 pinned by
+            # platform-espressif8266 4.2.1 with the same 5.x build the
+            # pioarduino ESP32 platform uses, so both platforms share the
+            # same installed package and stop reinstalling on every switch.
+            # The 0.0.1 path component is pioarduino's stable registry
+            # release tag (not the tool version); the tool itself is 5.2.0.
+            "pioarduino/tool-esptoolpy@https://github.com/pioarduino/registry/releases/download/0.0.1/esptoolpy-v5.2.0.zip",
+        ],
     )
 
     # Default for platformio is LWIP2_LOW_MEMORY with:
