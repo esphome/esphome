@@ -516,7 +516,14 @@ def do_packages_pass(
     if CONF_PACKAGES not in config:
         return config
 
-    substitutions = UserDict(config.pop(CONF_SUBSTITUTIONS, {}))
+    raw_substitutions = config.pop(CONF_SUBSTITUTIONS, {})
+    if isinstance(raw_substitutions, yaml_util.IncludeFile):
+        # Resolve `substitutions: !include file.yaml` before feeding into UserDict.
+        with cv.prepend_path(CONF_SUBSTITUTIONS):
+            raw_substitutions, _ = resolve_include(
+                raw_substitutions, [], ContextVars(), strict_undefined=False
+            )
+    substitutions = UserDict(raw_substitutions)
     processor = _PackageProcessor(
         substitutions, command_line_substitutions, skip_update
     )

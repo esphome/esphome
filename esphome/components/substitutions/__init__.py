@@ -429,6 +429,11 @@ def do_substitution_pass(
     # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()
     substitutions = config.pop(CONF_SUBSTITUTIONS, {})
     with cv.prepend_path(CONF_SUBSTITUTIONS):
+        if isinstance(substitutions, IncludeFile):
+            # Resolve `substitutions: !include file.yaml` before validating the shape.
+            substitutions, _ = resolve_include(
+                substitutions, [], ContextVars(), strict_undefined=False
+            )
         if not isinstance(substitutions, dict):
             raise cv.Invalid(
                 f"Substitutions must be a key to value mapping, got {type(substitutions)}"
