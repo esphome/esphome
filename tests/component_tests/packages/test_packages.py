@@ -1459,7 +1459,11 @@ def test_substitute_package_definition_undefined_in_remote_dict_non_first_field(
 
 
 def test_substitute_package_definition_includes_source_location(tmp_path: Path) -> None:
-    """A package loaded from YAML surfaces file/line/col in the cv.Invalid message."""
+    """A package loaded from YAML surfaces file/line/col in the cv.Invalid message.
+
+    Line/column are rendered 1-based (matching config.line_info() and editor
+    line numbering) and point at the offending scalar, not the enclosing dict.
+    """
     yaml_file = tmp_path / "main.yaml"
     yaml_file.write_text(
         "packages:\n  broken: github://org/repo/${undefined_var}/pkg.yaml\n"
@@ -1471,6 +1475,11 @@ def test_substitute_package_definition_includes_source_location(tmp_path: Path) 
         _substitute_package_definition(package_config, ContextVars())
 
     err = str(exc_info.value)
-    # Error must surface the file path and a "<line>:<col>" mark from
-    # DocumentLocation.__str__ so users can jump straight to the typo.
-    assert re.search(r"main\.yaml \d+:\d+", err), err
+    assert "main.yaml" in err
+    # The offending value lives on line 2 (1-based). Column depends on the YAML
+    # loader, so we only pin line and check that a 1-based column is present.
+    match = re.search(r"main\.yaml (\d+):(\d+)", err)
+    assert match, err
+    line, col = int(match.group(1)), int(match.group(2))
+    assert line == 2, f"expected 1-based line 2, got {line} (err={err!r})"
+    assert col >= 1, f"expected 1-based column ≥ 1, got {col} (err={err!r})"

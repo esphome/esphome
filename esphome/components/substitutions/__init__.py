@@ -48,7 +48,7 @@ def raise_first_undefined(
     """
     if not errors:
         return
-    err, err_path, _ = errors[0]
+    err, err_path, err_value = errors[0]
     if len(errors) > 1:
         # Log any further undefined variables so debug-level output covers
         # the full set, even though only the first is surfaced to the user.
@@ -57,9 +57,23 @@ def raise_first_undefined(
             for e, p_path, _ in errors[1:]
         )
         _LOGGER.debug("Additional undefined variables in %s: %s", context_label, extras)
+    # Prefer the location of the offending scalar (e.g. the `url:` value) over
+    # the enclosing package-definition dict so the message points at the exact
+    # line/column that carries the undefined variable.
+    location_node = (
+        err_value
+        if isinstance(err_value, ESPHomeDataBase) and err_value.esp_range is not None
+        else source
+    )
     location = ""
-    if isinstance(source, ESPHomeDataBase) and source.esp_range is not None:
-        location = f" (in {source.esp_range.start_mark})"
+    if (
+        isinstance(location_node, ESPHomeDataBase)
+        and location_node.esp_range is not None
+    ):
+        mark = location_node.esp_range.start_mark
+        # DocumentLocation.line/column are 0-based (from the YAML Mark). Render
+        # as 1-based to match config.line_info() and editor line numbering.
+        location = f" (in {mark.document} {mark.line + 1}:{mark.column + 1})"
     field = f" at '{'->'.join(str(p) for p in err_path)}'" if err_path else ""
     raise cv.Invalid(
         f"Undefined variable in {context_label}{field}: {err.message}{location}"
