@@ -116,6 +116,44 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_FINGER_SCAN_START, "add_on_finger_scan_start_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_FINGER_SCAN_MATCHED,
+        "add_on_finger_scan_matched_callback",
+        [(cg.uint16, "finger_id"), (cg.uint16, "confidence")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_FINGER_SCAN_UNMATCHED,
+        "add_on_finger_scan_unmatched_callback",
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_FINGER_SCAN_MISPLACED,
+        "add_on_finger_scan_misplaced_callback",
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_FINGER_SCAN_INVALID, "add_on_finger_scan_invalid_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ENROLLMENT_SCAN,
+        "add_on_enrollment_scan_callback",
+        [(cg.uint8, "scan_num"), (cg.uint16, "finger_id")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ENROLLMENT_DONE,
+        "add_on_enrollment_done_callback",
+        [(cg.uint16, "finger_id")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ENROLLMENT_FAILED,
+        "add_on_enrollment_failed_callback",
+        [(cg.uint16, "finger_id")],
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -140,44 +178,7 @@ async def to_code(config):
         idle_period_to_sleep_ms = config[CONF_IDLE_PERIOD_TO_SLEEP]
         cg.add(var.set_idle_period_to_sleep_ms(idle_period_to_sleep_ms))
 
-    for conf in config.get(CONF_ON_FINGER_SCAN_START, []):
-        await automation.build_callback_automation(
-            var, "add_on_finger_scan_start_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_FINGER_SCAN_MATCHED, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_finger_scan_matched_callback",
-            [(cg.uint16, "finger_id"), (cg.uint16, "confidence")],
-            conf,
-        )
-    for conf in config.get(CONF_ON_FINGER_SCAN_UNMATCHED, []):
-        await automation.build_callback_automation(
-            var, "add_on_finger_scan_unmatched_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_FINGER_SCAN_MISPLACED, []):
-        await automation.build_callback_automation(
-            var, "add_on_finger_scan_misplaced_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_FINGER_SCAN_INVALID, []):
-        await automation.build_callback_automation(
-            var, "add_on_finger_scan_invalid_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_ENROLLMENT_SCAN, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_enrollment_scan_callback",
-            [(cg.uint8, "scan_num"), (cg.uint16, "finger_id")],
-            conf,
-        )
-    for conf in config.get(CONF_ON_ENROLLMENT_DONE, []):
-        await automation.build_callback_automation(
-            var, "add_on_enrollment_done_callback", [(cg.uint16, "finger_id")], conf
-        )
-    for conf in config.get(CONF_ON_ENROLLMENT_FAILED, []):
-        await automation.build_callback_automation(
-            var, "add_on_enrollment_failed_callback", [(cg.uint16, "finger_id")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_action(

@@ -1,7 +1,11 @@
 from dataclasses import dataclass
 
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_component, include_builtin_idf_component
+from esphome.components.esp32 import (
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    include_builtin_idf_component,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_BITS_PER_SAMPLE, CONF_NUM_CHANNELS, CONF_SAMPLE_RATE
 from esphome.core import CORE
@@ -27,6 +31,7 @@ class AudioData:
     flac_support: bool = False
     mp3_support: bool = False
     opus_support: bool = False
+    micro_decoder_support: bool = False
 
 
 def _get_data() -> AudioData:
@@ -48,6 +53,11 @@ def request_mp3_support() -> None:
 def request_opus_support() -> None:
     """Request Opus codec support for audio decoding."""
     _get_data().opus_support = True
+
+
+def request_micro_decoder_support() -> None:
+    """Request micro-decoder library support for audio decoding."""
+    _get_data().micro_decoder_support = True
 
 
 CONF_MIN_BITS_PER_SAMPLE = "min_bits_per_sample"
@@ -208,6 +218,19 @@ async def to_code(config):
     )
 
     data = _get_data()
+
+    if data.micro_decoder_support:
+        add_idf_component(name="esphome/micro-decoder", ref="0.1.1")
+
+        # All codecs are enabled by default in micro-decoder, so disable the ones that aren't requested to save flash
+        if not data.flac_support:
+            add_idf_sdkconfig_option("CONFIG_MICRO_DECODER_CODEC_FLAC", False)
+        if not data.mp3_support:
+            add_idf_sdkconfig_option("CONFIG_MICRO_DECODER_CODEC_MP3", False)
+        if not data.opus_support:
+            add_idf_sdkconfig_option("CONFIG_MICRO_DECODER_CODEC_OPUS", False)
+
+    # Legacy audio_decoder.cpp support defines and components
     if data.flac_support:
         cg.add_define("USE_AUDIO_FLAC_SUPPORT")
         add_idf_component(name="esphome/micro-flac", ref="0.1.1")
