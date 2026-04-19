@@ -43,9 +43,9 @@ from esphome.const import (
     CONF_VARS,
     CONF_WIFI,
 )
-from esphome.core import CORE, DocumentLocation, DocumentRange
+from esphome.core import CORE
 from esphome.util import OrderedDict
-from esphome.yaml_util import ESPHomeDataBase, IncludeFile, add_context, make_data_base
+from esphome.yaml_util import IncludeFile, add_context
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -1405,15 +1405,6 @@ def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:
 # ---------------------------------------------------------------------------
 # _substitute_package_definition
 # ---------------------------------------------------------------------------
-
-
-def _located(value, doc: str, line: int, col: int):
-    """Return *value* wrapped with a fake ESPHomeDataBase source location."""
-    loc = DocumentLocation(doc, line, col)
-    obj = make_data_base(value)
-    if isinstance(obj, ESPHomeDataBase):
-        obj._esp_range = DocumentRange(loc, loc)
-    return obj
 
 
 class TestSubstitutePackageDefinition:
