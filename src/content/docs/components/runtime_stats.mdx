@@ -55,18 +55,46 @@ For each component, the following metrics are reported:
 
 Components are sorted by total execution time (descending) to highlight the most impactful components first.
 
+### Main loop metrics
+
+In addition to per-component timings, two main-loop lines are emitted in both the Period and Total sections. They describe the wall time spent in `Application::loop()` **excluding** the sleep/yield at the end of each iteration, so they reflect real work the CPU is doing for ESPHome — not idle time.
+
+**`main_loop:` line**
+
+- **iters**: Number of main-loop iterations observed in this window.
+- **active_avg**: Average per-iteration active time (loop start to just before yield/sleep).
+- **active_max**: Largest single-iteration active time seen (outliers often point to a component that blocked the loop).
+- **active_total**: Sum of per-iteration active time across the window — i.e. total non-sleeping CPU time in the main loop.
+- **overhead_total**: `active_total` minus the sum of all per-component `total` times. Represents time spent in the main loop that is *not* attributable to any single component (scheduler dispatch, inter-component bookkeeping, framework glue).
+
+**`main_loop_overhead_section:` line**
+
+Breaks `overhead_total` down into three buckets so you can tell *where* overhead is being spent:
+
+- **before**: Time inside `before_loop_tasks_` — scheduler dispatch and ISR `enable_loop` processing.
+- **tail**: Time inside `after_loop_tasks_` plus the small prefix before stats recording. Normally near zero.
+- **inter_component**: Residual per-iteration bookkeeping that runs between components (`set_current_component`, per-component timing guard construction/destruction, `feed_wdt_with_time` calls, the for-loop itself).
+
+A regression in `before` points at the scheduler or a component requesting `enable_loop` frequently from an ISR; a regression in `inter_component` points at the per-component dispatch path; `tail` should stay flat.
+
 ## Example Output
+
+In the example below, `overhead_total` is the difference between `active_total` and the sum of per-component `total` times — for the period section, `479.1ms − (300.0 + 40.0 + 10.4)ms = 128.7ms`. The three overhead-section buckets (`before + tail + inter_component`) sum back to `overhead_total`.
 
 ```text
 [09:55:52][I][runtime_stats:042]: Component Runtime Statistics
-[09:55:52][I][runtime_stats:043]: Period stats (last 60000ms):
-[09:55:52][I][runtime_stats:066]:   wifi: count=60, avg=0.50ms, max=5ms, total=30ms
-[09:55:52][I][runtime_stats:066]:   api: count=120, avg=0.01ms, max=1ms, total=1ms
-[09:55:52][I][runtime_stats:066]:   sensor: count=600, avg=0.00ms, max=1ms, total=2ms
-[09:55:52][I][runtime_stats:070]: Total stats (since boot):
-[09:55:52][I][runtime_stats:084]:   wifi: count=600, avg=0.45ms, max=5ms, total=270ms
-[09:55:52][I][runtime_stats:084]:   api: count=1200, avg=0.01ms, max=1ms, total=12ms
-[09:55:52][I][runtime_stats:084]:   sensor: count=6000, avg=0.00ms, max=1ms, total=20ms
+[09:55:52][I][runtime_stats:043]:  Period stats (last 60000ms): 3 active components
+[09:55:52][I][runtime_stats:066]:   wifi: count=60, avg=5.000ms, max=8.00ms, total=300.0ms
+[09:55:52][I][runtime_stats:066]:   api: count=120, avg=0.333ms, max=1.00ms, total=40.0ms
+[09:55:52][I][runtime_stats:066]:   sensor: count=600, avg=0.017ms, max=0.10ms, total=10.4ms
+[09:55:52][I][runtime_stats:068]:   main_loop: iters=7650, active_avg=0.063ms, active_max=10.67ms, active_total=479.1ms, overhead_total=128.7ms
+[09:55:52][I][runtime_stats:070]:   main_loop_overhead_section: before=45.0ms, tail=8.0ms, inter_component=75.7ms
+[09:55:52][I][runtime_stats:072]:  Total stats (since boot): 3 active components
+[09:55:52][I][runtime_stats:084]:   wifi: count=600, avg=5.000ms, max=8.00ms, total=3000.0ms
+[09:55:52][I][runtime_stats:084]:   api: count=1200, avg=0.333ms, max=1.00ms, total=400.0ms
+[09:55:52][I][runtime_stats:084]:   sensor: count=6000, avg=0.017ms, max=0.10ms, total=104.0ms
+[09:55:52][I][runtime_stats:094]:   main_loop: iters=76500, active_avg=0.063ms, active_max=14.30ms, active_total=4791.0ms, overhead_total=1287.0ms
+[09:55:52][I][runtime_stats:096]:   main_loop_overhead_section: before=450.0ms, tail=80.0ms, inter_component=757.0ms
 ```
 
 ## Use Cases
