@@ -72,11 +72,11 @@ bool HOT EPaperE2271KS0C1::transfer_data() {
       this->current_data_index_++;
 
       if (millis() - start_time > MAX_TRANSFER_TIME) {
-        this->end_data_();
+        this->disable();
         return false;  // Yield and continue next loop
       }
     }
-    this->end_data_();
+    this->disable();
 
     // Start Frame 2 transfer
     this->command(CMD_FRAME2);
@@ -94,11 +94,11 @@ bool HOT EPaperE2271KS0C1::transfer_data() {
       this->current_data_index_++;
 
       if (millis() - start_time > MAX_TRANSFER_TIME) {
-        this->end_data_();
+        this->disable();
         return false;  // Yield and continue next loop
       }
     }
-    this->end_data_();
+    this->disable();
 
     // Finalize
     if (partial) {
