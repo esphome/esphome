@@ -10,6 +10,7 @@ from esphome.components.substitutions import (
     ContextVars,
     push_context,
     resolve_include,
+    resolve_substitutions_block,
     substitute,
 )
 from esphome.components.substitutions.jinja import has_jinja
@@ -516,23 +517,12 @@ def do_packages_pass(
     if CONF_PACKAGES not in config:
         return config
 
-    raw_substitutions = config.pop(CONF_SUBSTITUTIONS, {})
     with cv.prepend_path(CONF_SUBSTITUTIONS):
-        if isinstance(raw_substitutions, yaml_util.IncludeFile):
-            # Resolve `substitutions: !include file.yaml` before feeding into UserDict.
-            # Seed with command-line substitutions so `!include ${var}.yaml` can
-            # reference CLI-provided vars in the filename.
-            raw_substitutions, _ = resolve_include(
-                raw_substitutions,
-                [],
-                ContextVars(command_line_substitutions or {}),
-                strict_undefined=False,
+        substitutions = UserDict(
+            resolve_substitutions_block(
+                config.pop(CONF_SUBSTITUTIONS, {}), command_line_substitutions
             )
-        if not isinstance(raw_substitutions, dict):
-            raise cv.Invalid(
-                f"Substitutions must be a key to value mapping, got {type(raw_substitutions)}"
-            )
-    substitutions = UserDict(raw_substitutions)
+        )
     processor = _PackageProcessor(
         substitutions, command_line_substitutions, skip_update
     )
