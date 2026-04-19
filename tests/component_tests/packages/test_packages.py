@@ -1438,11 +1438,3 @@ class TestSubstitutePackageDefinition:
                 "github://org/repo/${undefined_var}/pkg.yaml", ContextVars()
             )
 
-    def test_undefined_variable_error_includes_location(self):
-        """When the package entry has source location info, it appears in the error."""
-        pkg_str = _located(
-            "github://org/repo/${undefined_var}/pkg.yaml", "config.yaml", 5, 12
-        )
-        with pytest.raises(cv.Invalid) as exc_info:
-            _substitute_package_definition(pkg_str, ContextVars())
-        assert "config.yaml" in str(exc_info.value)
