@@ -109,9 +109,9 @@ void OptolinkTextSensor::datapoint_value_changed(uint32_t value) {
       std::string result = "Device ID: ";
       uint8_t *bytes = (uint8_t *) &value;
       uint16_t tmp = esphome::byteswap(*((uint16_t *) bytes));
-      char deviceId[format_hex_pretty_uint16_size(1)];
-      format_hex_pretty_to(deviceId, &tmp, 1);
-      result.append(deviceId);
+      char device_id[format_hex_pretty_uint16_size(1)];
+      format_hex_pretty_to(device_id, &tmp, 1);
+      result.append(device_id);
       result.append("|Hardware Revision: ");
       char hardware_revision[format_hex_pretty_size(1)];
       format_hex_pretty_to(hardware_revision, (uint8_t *) bytes + 2, 1);
