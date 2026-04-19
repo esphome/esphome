@@ -108,30 +108,70 @@ void Modbus::receive_and_parse_modbus_bytes_() {
                   millis() - this->last_send_);
       }
 
-      // If the bytes in the rx buffer do not parse, clear out the buffer
-      if (!this->parse_modbus_byte_(buf[i])) {
-        this->clear_rx_buffer_(LOG_STR("parse failed"), true);
-      }
+      // parse_modbus_byte_ is responsible for resynchronising the buffer on CRC failure, so it
+      // always returns true and we never clear the buffer here.
+      this->parse_modbus_byte_(buf[i]);
       this->last_modbus_byte_ = millis();
     }
   }
 }
 
 bool Modbus::parse_modbus_byte_(uint8_t byte) {
-  size_t at = this->rx_buffer_.size();
+  // Append the new byte and try to parse a frame from the front of rx_buffer_.
+  // We resynchronise past any leading junk so the parser can recover from e.g. stale bytes
+  // from a late-arriving previous response, or direction-switch noise from some RS485
+  // transceiver modules, without waiting for the receive timeout.
+  //
+  // Two resync mechanisms cooperate:
+  //
+  // 1. CLIENT fast-path: while a response is pending (waiting_for_response_ != 0), any byte at
+  //    the front of rx_buffer_ that doesn't match the expected device address is dropped
+  //    immediately. This avoids the trap where junk byte 1 looks like a function code and
+  //    junk byte 2 looks like a large payload length, causing the parser to swallow the real
+  //    frame as "payload" without ever reaching a CRC check.
+  //
+  // 2. BAD_FRAME drop-one-byte retry: if try_parse_rx_buffer_ reaches a CRC check and it
+  //    fails, we drop byte 0 and retry. This handles junk that happens to begin with the
+  //    expected address by coincidence.
   this->rx_buffer_.push_back(byte);
-  const uint8_t *raw = &this->rx_buffer_[0];
+  while (!this->rx_buffer_.empty()) {
+    if (this->role == ModbusRole::CLIENT) {
+      // No request pending — any byte arriving in the buffer is unsolicited noise
+      // (typically the trailing byte of RS485 direction-switch on some transceivers).
+      // Dropping here avoids the "timeout after partial response" warning that would
+      // otherwise fire when the stray byte sits in the buffer until frame_delay expires.
+      if (this->waiting_for_response_ == 0) {
+        ESP_LOGV(TAG, "Resync: dropping 0x%02X (no request pending)", this->rx_buffer_[0]);
+        this->rx_buffer_.erase(this->rx_buffer_.begin());
+        continue;
+      }
+      // Request pending — drop bytes that don't match the awaited device address.
+      if (this->rx_buffer_[0] != this->waiting_for_response_) {
+        ESP_LOGV(TAG, "Resync: dropping 0x%02X (waiting for address 0x%02X)", this->rx_buffer_[0],
+                 this->waiting_for_response_);
+        this->rx_buffer_.erase(this->rx_buffer_.begin());
+        continue;
+      }
+    }
+    const ParseResult result = this->try_parse_rx_buffer_();
+    if (result == ParseResult::NEEDS_MORE_BYTES || result == ParseResult::FRAME_PROCESSED) {
+      return true;
+    }
+    // BAD_FRAME: drop the first byte and retry parsing from the new front.
+    ESP_LOGV(TAG, "Resync: dropping byte 0x%02X after CRC fail, %zu bytes remain", this->rx_buffer_[0],
+             this->rx_buffer_.size() - 1);
+    this->rx_buffer_.erase(this->rx_buffer_.begin());
+  }
+  return true;
+}
 
-  // Byte 0: modbus address (match all)
-  if (at == 0)
-    return true;
-  // Byte 1: function code
-  if (at == 1)
-    return true;
-  // Byte 2: Size (with modbus rtu function code 4/3)
-  // See also https://en.wikipedia.org/wiki/Modbus
-  if (at == 2)
-    return true;
+Modbus::ParseResult Modbus::try_parse_rx_buffer_() {
+  const size_t size = this->rx_buffer_.size();
+  // Byte 0: modbus address, byte 1: function code, byte 2: size (for read registers).
+  if (size < 3) {
+    return ParseResult::NEEDS_MORE_BYTES;
+  }
+  const uint8_t *raw = this->rx_buffer_.data();
 
   uint8_t address = raw[0];
   uint8_t function_code = raw[1];
@@ -149,15 +189,17 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     // installed, but wait, there is the CRC, and if we get a hit there is a good
     // chance that this is a complete message ... admittedly there is a small chance is
     // isn't but that is quite small given the purpose of the CRC in the first place
-
-    data_len = at - 2;
     data_offset = 1;
+    data_len = size - data_offset - 2;
 
     uint16_t computed_crc = crc16(raw, data_offset + data_len);
     uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
 
-    if (computed_crc != remote_crc)
-      return true;
+    if (computed_crc != remote_crc) {
+      // For user-defined functions the frame length is discovered by searching for a matching CRC;
+      // keep accumulating bytes until either the CRC matches or the frame-delay timeout fires.
+      return ParseResult::NEEDS_MORE_BYTES;
+    }
 
     ESP_LOGD(TAG, "User-defined function %02X found", function_code);
 
@@ -172,8 +214,8 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
         data_offset = 2;
         data_len = 4;
       } else if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-        if (at < 6) {
-          return true;
+        if (size < 7) {
+          return ParseResult::NEEDS_MORE_BYTES;
         }
         data_offset = 2;
         // starting address (2 bytes) + quantity of registers (2 bytes) + byte count itself (1 byte) + actual byte count
@@ -197,15 +239,11 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
       data_len = 1;
     }
 
-    // Byte data_offset..data_offset+data_len-1: Data
-    if (at < data_offset + data_len)
-      return true;
+    // Need header + data + 2 CRC bytes before we can validate.
+    if (size < static_cast<size_t>(data_offset) + data_len + 2) {
+      return ParseResult::NEEDS_MORE_BYTES;
+    }
 
-    // Byte 3+data_len: CRC_LO (over all bytes)
-    if (at == data_offset + data_len)
-      return true;
-
-    // Byte data_offset+len+1: CRC_HI (over all bytes)
     uint16_t computed_crc = crc16(raw, data_offset + data_len);
     uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
     if (computed_crc != remote_crc) {
@@ -216,14 +254,17 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 #endif
         ESP_LOGVV(TAG, "  (%02X != %02X)  %s", computed_crc, remote_crc,
                   format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), this->rx_buffer_.size()));
+        // Fall through: user has opted into accepting mismatched frames, publish the data.
       } else {
-        ESP_LOGW(TAG, "CRC check failed %" PRIu32 "ms after last send", millis() - this->last_send_);
+        // Demoted to VERBOSE because resync will typically fire on every poll on a lossy bus
+        // and we don't want to flood the log. The hex dump stays at VERY_VERBOSE.
+        ESP_LOGV(TAG, "CRC check failed %" PRIu32 "ms after last send", millis() - this->last_send_);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
         char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
         ESP_LOGVV(TAG, "  (%02X != %02X) %s", computed_crc, remote_crc,
                   format_hex_pretty_to(hex_buf, this->rx_buffer_.data(), this->rx_buffer_.size()));
-        return false;
+        return ParseResult::BAD_FRAME;
       }
     }
   }
@@ -269,7 +310,10 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   }
 
   if (!found && this->role == ModbusRole::CLIENT) {
-    ESP_LOGW(TAG, "Got frame from unknown address %" PRIu8 ", %" PRIu32 "ms after last send", address,
+    // Demoted to DEBUG: with byte-walking resync, junk bytes can very occasionally CRC-match an
+    // unconfigured address. A legitimate unknown-address frame is still surfaced at DEBUG and
+    // users investigating bus setup will see it at that level.
+    ESP_LOGD(TAG, "Got frame from unknown address %" PRIu8 ", %" PRIu32 "ms after last send", address,
              millis() - this->last_send_);
   }
 
@@ -278,7 +322,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   if (this->waiting_for_response_ == address)
     this->waiting_for_response_ = 0;
 
-  return true;
+  return ParseResult::FRAME_PROCESSED;
 }
 
 void Modbus::send_next_frame_() {
