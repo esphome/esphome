@@ -30,6 +30,34 @@ ErrList = list[tuple[UndefinedError, SubstitutionPath, Any]]
 jinja = Jinja()
 
 
+def raise_first_undefined(
+    errors: ErrList,
+    source: Any,
+    context_label: str,
+) -> None:
+    """If *errors* is non-empty, raise ``cv.Invalid`` for the first undefined variable.
+
+    The raised error names the missing variable, the path walked into *source*
+    (for nested dicts, e.g. ``url`` or ``ref``), and the YAML source location
+    when *source* carries one. Only the first error is surfaced; the user will
+    re-run after fixing it and any remaining undefined variables will be
+    reported then.
+
+    ``context_label`` is the noun describing where the undefined variable
+    appeared (e.g. ``"package definition"``).
+    """
+    if not errors:
+        return
+    err, err_path, _ = errors[0]
+    location = ""
+    if isinstance(source, ESPHomeDataBase) and source.esp_range is not None:
+        location = f" (in {source.esp_range.start_mark})"
+    field = f" at '{'->'.join(str(p) for p in err_path)}'" if err_path else ""
+    raise cv.Invalid(
+        f"Undefined variable in {context_label}{field}: {err.message}{location}"
+    )
+
+
 def validate_substitution_key(value: Any) -> str:
     """Validate and normalize a substitution key, stripping a leading ``$`` if present."""
     value = cv.string(value)

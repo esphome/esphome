@@ -8,7 +8,9 @@ from typing import Any
 from esphome import git, yaml_util
 from esphome.components.substitutions import (
     ContextVars,
+    ErrList,
     push_context,
+    raise_first_undefined,
     resolve_include,
     substitute,
 )
@@ -363,7 +365,7 @@ def _substitute_package_definition(
         # path walked through a remote-package dict is preserved and the user
         # sees which field (url / path / ref / ...) referenced the undefined
         # variable.
-        errors: list[tuple[Exception, list[int | str], Any]] = []
+        errors: ErrList = []
         package_config = substitute(
             item=package_config,
             path=[],
@@ -371,19 +373,7 @@ def _substitute_package_definition(
             strict_undefined=False,
             errors=errors,
         )
-        if errors:
-            err, err_path, _ = errors[0]
-            location = ""
-            if (
-                isinstance(package_config, yaml_util.ESPHomeDataBase)
-                and package_config.esp_range is not None
-            ):
-                location = f" (in {str(package_config.esp_range.start_mark)})"
-            field = f" at '{'->'.join(str(p) for p in err_path)}'" if err_path else ""
-            raise cv.Invalid(
-                f"Undefined variable in package definition{field}: "
-                f"{err.message}{location}"
-            )
+        raise_first_undefined(errors, package_config, "package definition")
     return package_config
 
 

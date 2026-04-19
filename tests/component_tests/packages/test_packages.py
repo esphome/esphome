@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -45,7 +46,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.util import OrderedDict
-from esphome.yaml_util import IncludeFile, add_context
+from esphome.yaml_util import IncludeFile, add_context, load_yaml
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -1438,3 +1439,38 @@ def test_substitute_package_definition_undefined_in_remote_dict_field() -> None:
     err = str(exc_info.value)
     assert "'typo' is undefined" in err
     assert CONF_URL in err
+
+
+def test_substitute_package_definition_undefined_in_remote_dict_non_first_field() -> (
+    None
+):
+    """The field path joins correctly for non-first dict fields (e.g. ``ref``)."""
+    with pytest.raises(cv.Invalid) as exc_info:
+        _substitute_package_definition(
+            {
+                CONF_URL: "github://org/repo",
+                CONF_REF: "branch-${branch_typo}",
+            },
+            ContextVars(),
+        )
+    err = str(exc_info.value)
+    assert "'branch_typo' is undefined" in err
+    assert CONF_REF in err
+
+
+def test_substitute_package_definition_includes_source_location(tmp_path: Path) -> None:
+    """A package loaded from YAML surfaces file/line/col in the cv.Invalid message."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "packages:\n  broken: github://org/repo/${undefined_var}/pkg.yaml\n"
+    )
+    config = load_yaml(yaml_file)
+    package_config = config[CONF_PACKAGES]["broken"]
+
+    with pytest.raises(cv.Invalid) as exc_info:
+        _substitute_package_definition(package_config, ContextVars())
+
+    err = str(exc_info.value)
+    # Error must surface the file path and a "<line>:<col>" mark from
+    # DocumentLocation.__str__ so users can jump straight to the typo.
+    assert re.search(r"main\.yaml \d+:\d+", err), err
