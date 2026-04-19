@@ -1,6 +1,7 @@
 sensor:
   - platform: sdm_meter
     modbus_id: modbus_bus
+    chunk_size: 16
     phase_a:
       current:
         name: Phase A Current

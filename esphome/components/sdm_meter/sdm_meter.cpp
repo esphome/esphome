@@ -9,14 +9,70 @@ namespace sdm_meter {
 static const char *const TAG = "sdm_meter";
 
 static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x04;
-static const uint8_t MODBUS_REGISTER_COUNT = 80;  // 74 x 16-bit registers
+static const uint16_t MODBUS_REGISTER_COUNT = 80;  // 40 x FP32 registers (0x00..0x4F)
+
+void SDMMeter::loop() {
+  // If update() was unable to send we retry until we can send.
+  if (!this->waiting_to_update_)
+    return;
+  this->update();
+}
+
+void SDMMeter::update() {
+  // The bus might be slow, or there might be other devices, or other components might be talking to our device.
+  if (!this->ready_for_immediate_send()) {
+    this->waiting_to_update_ = true;
+    return;
+  }
+  this->waiting_to_update_ = false;
+
+  if (this->polling_) {
+    ESP_LOGW(TAG, "Previous poll incomplete (stuck at chunk 0x%04X) - restarting", this->next_chunk_start_);
+  }
+  this->polling_ = true;
+  this->next_chunk_start_ = 0;
+  this->chunk_buffer_.assign(MODBUS_REGISTER_COUNT * 2, 0);
+  const uint16_t first_count = (this->chunk_size_ < MODBUS_REGISTER_COUNT) ? this->chunk_size_ : MODBUS_REGISTER_COUNT;
+  this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, first_count);
+}
 
 void SDMMeter::on_modbus_data(const std::vector<uint8_t> &data) {
-  if (data.size() < MODBUS_REGISTER_COUNT * 2) {
-    ESP_LOGW(TAG, "Invalid size for SDMMeter!");
+  if (!this->polling_) {
+    ESP_LOGW(TAG, "Received modbus data while not polling - ignoring");
     return;
   }
 
+  const uint16_t pending_count = ((MODBUS_REGISTER_COUNT - this->next_chunk_start_) < this->chunk_size_)
+                                     ? (MODBUS_REGISTER_COUNT - this->next_chunk_start_)
+                                     : this->chunk_size_;
+  const size_t expected = static_cast<size_t>(pending_count) * 2;
+  if (data.size() != expected) {
+    ESP_LOGW(TAG, "Chunk size mismatch at register 0x%04X: got %u expected %u - aborting this poll",
+             this->next_chunk_start_, static_cast<unsigned>(data.size()), static_cast<unsigned>(expected));
+    this->polling_ = false;
+    return;
+  }
+
+  const size_t offset = static_cast<size_t>(this->next_chunk_start_) * 2;
+  std::copy(data.begin(), data.end(), this->chunk_buffer_.begin() + offset);
+
+  this->next_chunk_start_ += this->chunk_size_;
+
+  // Compute size of next chunk, clamped so we don't over-read past MODBUS_REGISTER_COUNT.
+  const uint16_t remaining =
+      (this->next_chunk_start_ < MODBUS_REGISTER_COUNT) ? (MODBUS_REGISTER_COUNT - this->next_chunk_start_) : 0;
+  const uint16_t this_count = (remaining < this->chunk_size_) ? remaining : this->chunk_size_;
+
+  if (this_count > 0) {
+    this->send(MODBUS_CMD_READ_IN_REGISTERS, this->next_chunk_start_, this_count);
+    return;
+  }
+
+  this->polling_ = false;
+  this->publish_all_(this->chunk_buffer_);
+}
+
+void SDMMeter::publish_all_(const std::vector<uint8_t> &data) {
   auto sdm_meter_get_float = [&](size_t i) -> float {
     uint32_t temp = encode_uint32(data[i], data[i + 1], data[i + 2], data[i + 3]);
     float f;
@@ -83,12 +139,13 @@ void SDMMeter::on_modbus_data(const std::vector<uint8_t> &data) {
     this->export_reactive_energy_sensor_->publish_state(export_reactive_energy);
 }
 
-void SDMMeter::update() { this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT); }
 void SDMMeter::dump_config() {
+  const uint16_t chunks = (MODBUS_REGISTER_COUNT + this->chunk_size_ - 1) / this->chunk_size_;
   ESP_LOGCONFIG(TAG,
                 "SDM Meter:\n"
-                "  Address: 0x%02X",
-                this->address_);
+                "  Address: 0x%02X\n"
+                "  Chunk size: %u registers (%u request%s per poll)",
+                this->address_, this->chunk_size_, chunks, chunks == 1 ? "" : "s");
   for (uint8_t i = 0; i < 3; i++) {
     auto phase = this->phases_[i];
     if (!phase.setup)

@@ -54,6 +54,10 @@ class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
     this->export_reactive_energy_sensor_ = export_reactive_energy_sensor;
   }
 
+  void set_chunk_size(uint8_t chunk_size) { this->chunk_size_ = chunk_size; }
+
+  void loop() override;
+
   void update() override;
 
   void on_modbus_data(const std::vector<uint8_t> &data) override;
@@ -61,6 +65,8 @@ class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
   void dump_config() override;
 
  protected:
+  void publish_all_(const std::vector<uint8_t> &data);
+
   struct SDMPhase {
     bool setup{false};
     sensor::Sensor *voltage_sensor_{nullptr};
@@ -77,6 +83,12 @@ class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *export_active_energy_sensor_{nullptr};
   sensor::Sensor *import_reactive_energy_sensor_{nullptr};
   sensor::Sensor *export_reactive_energy_sensor_{nullptr};
+
+  std::vector<uint8_t> chunk_buffer_;
+  uint16_t next_chunk_start_{0};
+  uint8_t chunk_size_{80};
+  bool polling_{false};
+  bool waiting_to_update_{false};
 };
 
 }  // namespace sdm_meter
