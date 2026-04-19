@@ -271,7 +271,7 @@ class HDMICEC : public Component {
   }
 
   // Component overrides
-  float get_setup_priority() const override { return esphome::setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return esphome::setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void loop() override;

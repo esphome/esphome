@@ -33,8 +33,6 @@ static constexpr uint8_t MAX_ATTEMPTS = 5;
 
 // constants used for this implementation:
 static const char *const TAG = "hdmi_cec";
-static constexpr gpio::Flags PIN_MODE_FLAGS =
-    gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
 Frame::Frame(uint8_t initiator_addr, uint8_t target_addr, const uint8_t *payload, unsigned int payload_size) {
   this->set_header(initiator_addr, target_addr);
