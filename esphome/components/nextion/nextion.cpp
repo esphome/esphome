@@ -1338,7 +1338,7 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   if (this->send_command_(command)) {
     nextion_queue->pending_command.clear();
   }
-#else   // USE_NEXTION_COMMAND_SPACING
+#else  // USE_NEXTION_COMMAND_SPACING
   if (this->send_command_(command)) {
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
     if (!this->nextion_queue_.push(nextion_queue)) {
