@@ -103,7 +103,7 @@ uint8_t *encode_day_schedule(const std::string &input, uint8_t *output) {
  * @return true if the input string was successfully parsed and encoded, false otherwise.
  */
 bool encode_datetime(const std::string &value, uint8_t *buffer) {
-  int year, month, day, hour, min, sec;
+  int year, month;
 
   struct tm tm = {0};
   const char *ptr = value.c_str();
@@ -117,14 +117,13 @@ bool encode_datetime(const std::string &value, uint8_t *buffer) {
     return true;
   };
 
-  int y, m;
-  if (!parse_next(y, '-') || !parse_next(m, '-') || !parse_next(tm.tm_mday, 'T') || !parse_next(tm.tm_hour, ':') ||
-      !parse_next(tm.tm_min, ':') || !parse_next(tm.tm_sec, '\0')) {
+  if (!parse_next(year, '-') || !parse_next(month, '-') || !parse_next(tm.tm_mday, 'T') ||
+      !parse_next(tm.tm_hour, ':') || !parse_next(tm.tm_min, ':') || !parse_next(tm.tm_sec, '\0')) {
     ESP_LOGE(TAG, "Failed to parse datetime string");
     return false;
   }
-  tm.tm_year = y - 1900;
-  tm.tm_mon = m - 1;
+  tm.tm_year = year - 1900;
+  tm.tm_mon = month - 1;
 
   if (mktime(&tm) == -1) {
     ESP_LOGE(TAG, "Failed to convert time using mktime.");
@@ -134,11 +133,11 @@ bool encode_datetime(const std::string &value, uint8_t *buffer) {
   buffer[0] = dec_to_bcd(year / 100);
   buffer[1] = dec_to_bcd(year % 100);
   buffer[2] = dec_to_bcd(month);
-  buffer[3] = dec_to_bcd(day);
+  buffer[3] = dec_to_bcd(tm.tm_mday);
   buffer[4] = dec_to_bcd((tm.tm_wday + 6) % 7 + 1);
-  buffer[5] = dec_to_bcd(hour);
-  buffer[6] = dec_to_bcd(min);
-  buffer[7] = dec_to_bcd(sec);
+  buffer[5] = dec_to_bcd(tm.tm_hour);
+  buffer[6] = dec_to_bcd(tm.tm_min);
+  buffer[7] = dec_to_bcd(tm.tm_sec);
 
   ESP_LOGD(TAG, "Encoded buffer values: %02X %02X %02X %02X %02X %02X %02X %02X", buffer[0], buffer[1], buffer[2],
            buffer[3], buffer[4], buffer[5], buffer[6], buffer[7]);
