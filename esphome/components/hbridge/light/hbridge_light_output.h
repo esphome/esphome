@@ -1,20 +1,17 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/components/output/float_output.h"
 #include "esphome/components/light/light_output.h"
-#include "esphome/core/log.h"
+#include "esphome/components/output/float_output.h"
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace hbridge {
 
-// Using PollingComponent as the updates are more consistent and reduces flickering
-class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
+class HBridgeLightOutput : public Component, public light::LightOutput {
  public:
-  HBridgeLightOutput() : PollingComponent(1) {}
-
-  void set_pina_pin(output::FloatOutput *pina_pin) { pina_pin_ = pina_pin; }
-  void set_pinb_pin(output::FloatOutput *pinb_pin) { pinb_pin_ = pinb_pin; }
+  void set_pina_pin(output::FloatOutput *pina_pin) { this->pina_pin_ = pina_pin; }
+  void set_pinb_pin(output::FloatOutput *pinb_pin) { this->pinb_pin_ = pinb_pin; }
 
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
@@ -24,16 +21,16 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
     return traits;
   }
 
-  void setup() override { this->forward_direction_ = false; }
+  void setup() override { this->disable_loop(); }
 
-  void update() override {
-    // This method runs around 60 times per second
-    // We cannot do the PWM ourselves so we are reliant on the hardware PWM
-    if (!this->forward_direction_) {  // First LED Direction
+  void loop() override {
+    // Only called when both channels are active — alternate H-bridge direction
+    // each iteration to multiplex cold and warm white.
+    if (!this->forward_direction_) {
       this->pina_pin_->set_level(this->pina_duty_);
       this->pinb_pin_->set_level(0);
       this->forward_direction_ = true;
-    } else {  // Second LED Direction
+    } else {
       this->pina_pin_->set_level(0);
       this->pinb_pin_->set_level(this->pinb_duty_);
       this->forward_direction_ = false;
@@ -43,15 +40,32 @@ class HBridgeLightOutput : public PollingComponent, public light::LightOutput {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void write_state(light::LightState *state) override {
-    state->current_values_as_cwww(&this->pina_duty_, &this->pinb_duty_, false);
+    float new_pina, new_pinb;
+    state->current_values_as_cwww(&new_pina, &new_pinb, false);
+
+    this->pina_duty_ = new_pina;
+    this->pinb_duty_ = new_pinb;
+
+    if (new_pina != 0.0f && new_pinb != 0.0f) {
+      // Both channels active — need loop to alternate H-bridge direction
+      this->high_freq_.start();
+      this->enable_loop();
+    } else {
+      // Zero or one channel active — drive pins directly, no multiplexing needed
+      this->high_freq_.stop();
+      this->disable_loop();
+      this->pina_pin_->set_level(new_pina);
+      this->pinb_pin_->set_level(new_pinb);
+    }
   }
 
  protected:
   output::FloatOutput *pina_pin_;
   output::FloatOutput *pinb_pin_;
-  float pina_duty_ = 0;
-  float pinb_duty_ = 0;
-  bool forward_direction_ = false;
+  float pina_duty_{0};
+  float pinb_duty_{0};
+  bool forward_direction_{false};
+  HighFrequencyLoopRequester high_freq_;
 };
 
 }  // namespace hbridge

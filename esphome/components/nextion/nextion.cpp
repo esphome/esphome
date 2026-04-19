@@ -1,8 +1,11 @@
 #include "nextion.h"
+
 #include <cinttypes>
+
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/core/util.h"
 
 namespace esphome::nextion {
@@ -33,8 +36,9 @@ bool Nextion::send_command_(const std::string &command) {
   }
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  if (!this->connection_state_.ignore_is_setup_ && !this->command_pacer_.can_send()) {
-    ESP_LOGN(TAG, "Command spacing: delaying command '%s'", command.c_str());
+  const uint32_t now = App.get_loop_component_start_time();
+  if (!this->connection_state_.ignore_is_setup_ && !this->command_pacer_.can_send(now)) {
+    ESP_LOGN(TAG, "Command spacing: delaying '%s'", command.c_str());
     return false;
   }
 #endif  // USE_NEXTION_COMMAND_SPACING
@@ -44,6 +48,16 @@ bool Nextion::send_command_(const std::string &command) {
   this->write_str(command.c_str());
   const uint8_t to_send[3] = {0xFF, 0xFF, 0xFF};
   this->write_array(to_send, sizeof(to_send));
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  // Mark sent immediately after writing to UART. The pacer enforces inter-command
+  // spacing from the transmit side. Marking on ACK (0x01) would leave last_command_time_
+  // at zero indefinitely, making can_send() always return true and spacing a no-op.
+  // ignore_is_setup_ commands (setup/init sequence) bypass spacing intentionally.
+  if (!this->connection_state_.ignore_is_setup_) {
+    this->command_pacer_.mark_sent(now);
+  }
+#endif  // USE_NEXTION_COMMAND_SPACING
 
   return true;
 }
@@ -256,11 +270,8 @@ bool Nextion::send_command(const char *command) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || this->is_sleeping())
     return false;
 
-  if (this->send_command_(command)) {
-    this->add_no_result_to_queue_("command");
-    return true;
-  }
-  return false;
+  this->add_no_result_to_queue_with_command_("command", command);
+  return true;
 }
 
 bool Nextion::send_command_printf(const char *format, ...) {
@@ -277,11 +288,8 @@ bool Nextion::send_command_printf(const char *format, ...) {
     return false;
   }
 
-  if (this->send_command_(buffer)) {
-    this->add_no_result_to_queue_("command_printf");
-    return true;
-  }
-  return false;
+  this->add_no_result_to_queue_with_command_("command_printf", buffer);
+  return true;
 }
 
 #ifdef NEXTION_PROTOCOL_LOG
@@ -352,25 +360,43 @@ void Nextion::loop() {
   }
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  // Try to send any pending commands if spacing allows
   this->process_pending_in_queue_();
+#ifdef USE_NEXTION_WAVEFORM
+  if (!this->waveform_queue_.empty()) {
+    this->check_pending_waveform_();
+  }
+#endif  // USE_NEXTION_WAVEFORM
 #endif  // USE_NEXTION_COMMAND_SPACING
 }
 
 #ifdef USE_NEXTION_COMMAND_SPACING
 void Nextion::process_pending_in_queue_() {
-  if (this->nextion_queue_.empty() || !this->command_pacer_.can_send()) {
-    return;
-  }
+#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
+  size_t commands_sent = 0;
+#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
 
-  // Check if first item in queue has a pending command
-  auto *front_item = this->nextion_queue_.front();
-  if (front_item && !front_item->pending_command.empty()) {
-    if (this->send_command_(front_item->pending_command)) {
-      // Command sent successfully, clear the pending command
-      front_item->pending_command.clear();
-      ESP_LOGVV(TAG, "Pending command sent: %s", front_item->component->get_variable_name().c_str());
+  for (auto *item : this->nextion_queue_) {
+    if (item == nullptr || item->pending_command.empty()) {
+      continue;  // Already sent, waiting for ACK — skip, don't stop
     }
+
+#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
+    if (++commands_sent > this->max_commands_per_loop_) {
+      ESP_LOGV(TAG, "Pending cmds: loop limit reached, deferring");
+      break;
+    }
+#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
+
+    const uint32_t now = App.get_loop_component_start_time();
+    if (!this->command_pacer_.can_send(now)) {
+      break;  // Spacing not elapsed, stop for this loop iteration
+    }
+
+    if (!this->send_command_(item->pending_command)) {
+      break;  // Unexpected send failure, stop
+    }
+    item->pending_command.clear();
+    ESP_LOGVV(TAG, "Pending cmd sent: %s", item->component->get_variable_name().c_str());
   }
 }
 #endif  // USE_NEXTION_COMMAND_SPACING
@@ -473,10 +499,6 @@ void Nextion::process_nextion_commands_() {
             this->setup_callback_.call();
           }
         }
-#ifdef USE_NEXTION_COMMAND_SPACING
-        this->command_pacer_.mark_sent();  // Here is where we should mark the command as sent
-        ESP_LOGN(TAG, "Command spacing: marked command sent");
-#endif
         break;
       case 0x02:  // invalid Component ID or name was used
         ESP_LOGW(TAG, "Invalid component ID/name");
@@ -712,7 +734,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad switch data (0x90)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -720,6 +742,10 @@ void Nextion::process_nextion_commands_() {
         ++index;
 
         ESP_LOGN(TAG, "Switch %s: %s", ONOFF(to_process[index] != 0), variable_name.c_str());
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+        this->custom_switch_callback_.call(StringRef(variable_name), to_process[index] != 0);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
 
         for (auto *switchtype : this->switchtype_) {
           switchtype->process_bool(variable_name, to_process[index] != 0);
@@ -738,7 +764,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) != 4) {
           ESP_LOGE(TAG, "Bad sensor data (0x91)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -749,6 +775,10 @@ void Nextion::process_nextion_commands_() {
             encode_uint32(to_process[index + 4], to_process[index + 3], to_process[index + 2], to_process[index + 1]));
 
         ESP_LOGN(TAG, "Sensor: %s=%d", variable_name.c_str(), value);
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+        this->custom_sensor_callback_.call(StringRef(variable_name), value);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
 
         for (auto *sensor : this->sensortype_) {
           sensor->process_sensor(variable_name, value);
@@ -771,7 +801,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad text data (0x92)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -787,6 +817,11 @@ void Nextion::process_nextion_commands_() {
         // nq->variable_name = variable_name;
         // nq->state = text_value;
         // this->textsensorq_.push_back(nq);
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+        this->custom_text_sensor_callback_.call(StringRef(variable_name), StringRef(text_value));
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+
         for (auto *textsensortype : this->textsensortype_) {
           textsensortype->process_text(variable_name, text_value);
         }
@@ -804,8 +839,8 @@ void Nextion::process_nextion_commands_() {
         // Get variable name
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
-          ESP_LOGE(TAG, "Bad binary data (0x92)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGE(TAG, "Bad binary data (0x93)");
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -813,6 +848,10 @@ void Nextion::process_nextion_commands_() {
         ++index;
 
         ESP_LOGN(TAG, "Binary sensor: %s=%s", variable_name.c_str(), ONOFF(to_process[index] != 0));
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+        this->custom_binary_sensor_callback_.call(StringRef(variable_name), to_process[index] != 0);
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
 
         for (auto *binarysensortype : this->binarysensortype_) {
           binarysensortype->process_bool(&variable_name[0], to_process[index] != 0);
@@ -1065,10 +1104,18 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
 }
 
 /**
- * @brief
+ * @brief Send a command and enqueue it for response tracking.
  *
- * @param variable_name Variable name for the queue
- * @param command
+ * Callers are responsible for checking is_sleeping() before calling this
+ * method. The sleep guard is deliberately absent here because some callers
+ * (e.g. add_no_result_to_queue_with_ignore_sleep_printf_()) are explicitly
+ * sleep-safe and must bypass it.
+ *
+ * If USE_NEXTION_COMMAND_SPACING is enabled and the pacer is not ready,
+ * the command is saved in the queue entry for retry rather than dropped.
+ *
+ * @param variable_name Name of the variable or component associated with the command.
+ * @param command       The raw command string to send.
  */
 void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_name, const std::string &command) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || command.empty())
@@ -1249,9 +1296,22 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
 
   std::string command = "get " + component->get_variable_name_to_send();
 
+#ifdef USE_NEXTION_COMMAND_SPACING
+  // Always enqueue first so the response handler is present when the command
+  // is eventually sent. Store the command for retry if spacing blocked it;
+  // process_pending_in_queue_() will transmit it when the pacer allows.
+  nextion_queue->pending_command = command;
+  this->nextion_queue_.push_back(nextion_queue);
+  if (this->send_command_(command)) {
+    nextion_queue->pending_command.clear();
+  }
+#else   // USE_NEXTION_COMMAND_SPACING
   if (this->send_command_(command)) {
     this->nextion_queue_.push_back(nextion_queue);
+  } else {
+    delete nextion_queue;  // NOLINT(cppcoreguidelines-owning-memory)
   }
+#endif  // USE_NEXTION_COMMAND_SPACING
 }
 
 #ifdef USE_NEXTION_WAVEFORM
@@ -1295,10 +1355,10 @@ void Nextion::check_pending_waveform_() {
   char command[24];  // "addt " + uint8 + "," + uint8 + "," + uint8 + null = max 17 chars
   buf_append_printf(command, sizeof(command), 0, "addt %u,%u,%zu", component->get_component_id(),
                     component->get_wave_channel_id(), buffer_to_send);
-  if (!this->send_command_(command)) {
-    delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-    this->waveform_queue_.pop();
-  }
+  // If spacing or setup state blocks the send, leave the entry at the front
+  // of waveform_queue_ for retry on the next loop iteration via
+  // check_pending_waveform_(). Only pop on a successful send.
+  this->send_command_(command);
 }
 #endif  // USE_NEXTION_WAVEFORM
 
