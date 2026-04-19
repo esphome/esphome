@@ -426,6 +426,9 @@ def resolve_substitutions_block(
     ``substitutions: !include ${var}.yaml`` can reference CLI-provided vars.
     """
     if isinstance(substitutions, IncludeFile):
+        # Single-shot resolution — matches ``_walk_packages`` for the
+        # ``packages: !include`` entry point.  Chained includes (an include that
+        # itself loads another ``!include`` at the top level) are not supported.
         substitutions, _ = resolve_include(
             substitutions,
             [],

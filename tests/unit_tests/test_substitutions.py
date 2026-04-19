@@ -675,6 +675,57 @@ def test_include_filename_substitution_undefined_var(tmp_path: Path) -> None:
         substitutions.do_substitution_pass(config)
 
 
+def test_do_substitution_pass_included_substitutions_must_be_mapping(
+    tmp_path: Path,
+) -> None:
+    """`substitutions: !include list.yaml` where the file holds a list raises cv.Invalid.
+
+    Locks in the shape check that runs after the deferred IncludeFile has been
+    resolved.
+    """
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def loader(path: Path):
+        return ["not", "a", "mapping"]
+
+    include = yaml_util.IncludeFile(parent, "subs.yaml", None, loader)
+    config = OrderedDict({CONF_SUBSTITUTIONS: include})
+
+    with pytest.raises(
+        cv.Invalid, match="Substitutions must be a key to value mapping"
+    ):
+        substitutions.do_substitution_pass(config)
+
+
+def test_do_packages_pass_included_substitutions_must_be_mapping(
+    tmp_path: Path,
+) -> None:
+    """`substitutions: !include list.yaml` alongside `packages:` raises cv.Invalid.
+
+    Without the shape check, ``UserDict(...)`` would surface a low-level
+    ``TypeError``; the explicit ``cv.Invalid`` points at the substitutions path.
+    """
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def loader(path: Path):
+        return ["not", "a", "mapping"]
+
+    include = yaml_util.IncludeFile(parent, "subs.yaml", None, loader)
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: include,
+            "packages": {"noop": {"wifi": {"ssid": "main"}}},
+        }
+    )
+
+    with pytest.raises(
+        cv.Invalid, match="Substitutions must be a key to value mapping"
+    ):
+        do_packages_pass(config)
+
+
 def test_resolve_package_undefined_var_in_include_filename(tmp_path: Path) -> None:
     """An undefined substitution in a package include filename raises cv.Invalid.
 
