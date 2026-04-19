@@ -450,16 +450,28 @@ current can spike to 300-500mA. The most common causes:
 
 ### Quick fixes
 
-1. **Reduce WiFi transmit power** -- this is the most effective single change:
+1. **Reduce WiFi transmit power** -- this is the most effective single change. See
+   [`output_power`](/components/wifi/#configuration-variables) on the WiFi component page for the full range:
 
 ```yaml
 wifi:
   output_power: 13dB  # default is 20dB
 ```
 
-2. **Use a quality power supply** -- a dedicated 5V/2A supply with a short, thick USB cable.
+2. **Lower the CPU frequency** -- on the ESP32, current draw scales roughly with clock speed. If you cannot
+   change the upstream power hardware (e.g. a modded consumer device or a board wired into an existing circuit),
+   dropping the CPU frequency can keep transient current within what the regulator can supply. The allowed
+   values are variant-specific; see [`cpu_frequency`](/components/esp32/#configuration-variables) on the ESP32
+   platform page for the values supported by your chip:
 
-3. **Add a capacitor** -- a 100-1000µF electrolytic capacitor across the 3.3V and GND pins can absorb brief current spikes.
+```yaml
+esp32:
+  cpu_frequency: 160MHz
+```
+
+3. **Use a quality power supply** -- a dedicated 5V/2A supply with a short, thick USB cable.
+
+4. **Add a capacitor** -- a 100-1000µF electrolytic capacitor across the 3.3V and GND pins can absorb brief current spikes.
 
 ## Component states not restored after reboot
 
