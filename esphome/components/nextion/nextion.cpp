@@ -1334,7 +1334,15 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   // is eventually sent. Store the command for retry if spacing blocked it;
   // process_pending_in_queue_() will transmit it when the pacer allows.
   nextion_queue->pending_command = command;
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  if (!this->nextion_queue_.push(nextion_queue)) {
+    ESP_LOGW(TAG, "Queue full, drop GET: %s", component->get_variable_name().c_str());
+    delete nextion_queue;  // NOLINT(cppcoreguidelines-owning-memory)
+    return;
+  }
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
   this->nextion_queue_.push_back(nextion_queue);
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
   if (this->send_command_(command)) {
     nextion_queue->pending_command.clear();
   }
