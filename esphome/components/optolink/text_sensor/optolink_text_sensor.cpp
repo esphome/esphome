@@ -29,12 +29,10 @@ void OptolinkTextSensor::setup() {
       set_div_ratio(DIV_RATIO_BINARY);
       break;
     case TEXT_SENSOR_TYPE_DEVICE_INFO:
-      set_entity_category(esphome::ENTITY_CATEGORY_DIAGNOSTIC);
       set_bytes(4);
       set_address(0x00f8);
       break;
     case TEXT_SENSOR_TYPE_STATE_INFO:
-      set_entity_category(esphome::ENTITY_CATEGORY_DIAGNOSTIC);
       return;  // no datapoint setup!
   }
   setup_datapoint_();
@@ -90,16 +88,26 @@ void OptolinkTextSensor::datapoint_value_changed(uint8_t *value, size_t length) 
 void OptolinkTextSensor::datapoint_value_changed(uint32_t value) {
   switch (type_) {
     case TEXT_SENSOR_TYPE_DEVICE_INFO: {
+      std::string result = "Device ID: ";
       uint8_t *bytes = (uint8_t *) &value;
       uint16_t tmp = esphome::byteswap(*((uint16_t *) bytes));
-      std::string geraetekennung = esphome::format_hex_pretty(&tmp, 1);
-      std::string hardware_revision = esphome::format_hex_pretty((uint8_t *) bytes + 2, 1);
-      std::string software_index = esphome::format_hex_pretty((uint8_t *) bytes + 3, 1);
-      publish_state("Device ID: " + geraetekennung + "|Hardware Revision: " + hardware_revision +
-                    "|Software Index: " + software_index);
+      char deviceId[format_hex_pretty_uint16_size(1)];
+      format_hex_pretty_to(deviceId, &tmp, 1);
+      result.append(deviceId);
+      result.append("|Hardware Revision: ");
+      char hardware_revision[format_hex_pretty_size(1)];
+      format_hex_pretty_to(hardware_revision, (uint8_t *) bytes + 2, 1);
+      result.append(hardware_revision);
+      result.append("|Software Index: ");
+      char software_index[format_hex_pretty_size(1)];
+      format_hex_pretty_to(software_index, (uint8_t *) bytes + 3, 1);
+      result.append(software_index);
+      publish_state(result);
     } break;
     default:
-      publish_state(std::to_string(value));
+      char buf[16];
+      snprintf(buf, sizeof(buf), "%u", value);
+      publish_state(buf);
   }
 };
 
