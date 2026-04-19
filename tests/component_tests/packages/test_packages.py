@@ -1431,8 +1431,12 @@ class TestSubstitutePackageDefinition:
 
     def test_undefined_variable_raises_cv_invalid(self):
         """An undefined variable in a package URL raises cv.Invalid."""
-        with pytest.raises(cv.Invalid, match="Undefined variable in package definition"):
-            _substitute_package_definition("github://org/repo/${undefined_var}/pkg.yaml", ContextVars())
+        with pytest.raises(
+            cv.Invalid, match="Undefined variable in package definition"
+        ):
+            _substitute_package_definition(
+                "github://org/repo/${undefined_var}/pkg.yaml", ContextVars()
+            )
 
     def test_undefined_variable_error_includes_location(self):
         """When the package entry has source location info, it appears in the error."""
