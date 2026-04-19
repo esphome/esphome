@@ -89,6 +89,11 @@ inline constexpr uint8_t STATUS_LED_WARNING = 0x08;
 inline constexpr uint8_t STATUS_LED_ERROR = 0x10;
 // Component loop override flag uses bit 5 (set at registration time)
 inline constexpr uint8_t COMPONENT_HAS_LOOP = 0x20;
+// Bit 6 on Application::app_state_ (ONLY) — set at the end of
+// Application::setup(). Component::status_clear_*_slow_path_() uses this to
+// decide whether to propagate clears to App.app_state_. Never set on a
+// Component's component_state_.
+inline constexpr uint8_t APP_STATE_SETUP_COMPLETE = 0x40;
 // Remove before 2026.8.0
 enum class RetryResult { DONE, RETRY };
 
@@ -111,6 +116,13 @@ struct ComponentRuntimeStats {
   uint64_t total_time_us{0};
   uint32_t total_max_time_us{0};
 
+  // Cumulative sum of every record_time() duration since boot, across all
+  // components. Used by Application::loop() to snapshot time spent inside
+  // WarnIfComponentBlockingGuard (including guards constructed by the
+  // scheduler at scheduler.cpp) so main-loop overhead accounting can
+  // subtract scheduled-callback time from the before_loop_tasks_ wall time.
+  static uint64_t global_recorded_us;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
   void record_time(uint32_t duration_us) {
     this->period_count++;
     this->period_time_us += duration_us;
@@ -120,6 +132,7 @@ struct ComponentRuntimeStats {
     this->total_time_us += duration_us;
     if (duration_us > this->total_max_time_us)
       this->total_max_time_us = duration_us;
+    global_recorded_us += duration_us;
   }
   void reset_period() {
     this->period_count = 0;
@@ -588,7 +601,7 @@ class Component {
  */
 class PollingComponent : public Component {
  public:
-  PollingComponent() : PollingComponent(0) {}
+  PollingComponent() : PollingComponent(1) {}
 
   /** Initialize this polling component with the given update interval in ms.
    *

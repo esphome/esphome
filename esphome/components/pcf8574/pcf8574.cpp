@@ -15,16 +15,33 @@ void PCF8574Component::setup() {
 
   this->write_gpio_();
   this->read_gpio_();
+
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&PCF8574Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    // Don't invalidate cache on read — only invalidate when interrupt fires
+    this->set_invalidate_on_read_(false);
+  }
+  // Disable loop until an input pin is configured via pin_mode()
+  // For interrupt-driven mode, loop is re-enabled by the ISR
+  // For polling mode, loop is re-enabled when pin_mode() registers an input pin
+  this->disable_loop();
 }
+void IRAM_ATTR PCF8574Component::gpio_intr(PCF8574Component *arg) { arg->enable_loop_soon_any_context(); }
 void PCF8574Component::loop() {
-  // Invalidate the cache at the start of each loop
+  // Invalidate the cache so the next digital_read() triggers a fresh I2C read
   this->reset_pin_cache_();
+  if (this->interrupt_pin_ != nullptr) {
+    // Interrupt-driven: disable loop until next interrupt fires
+    this->disable_loop();
+  }
 }
 void PCF8574Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "PCF8574:\n"
                 "  Is PCF8575: %s",
                 YESNO(this->pcf8575_));
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -51,6 +68,11 @@ void PCF8574Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->mode_mask_ &= ~(1 << pin);
     // Write GPIO to enable input mode
     this->write_gpio_();
+    // Enable polling loop for input pins (not needed for interrupt-driven mode
+    // where the ISR handles re-enabling loop)
+    if (this->interrupt_pin_ == nullptr) {
+      this->enable_loop();
+    }
   } else if (flags == gpio::FLAG_OUTPUT) {
     // Set mode mask bit
     this->mode_mask_ |= 1 << pin;

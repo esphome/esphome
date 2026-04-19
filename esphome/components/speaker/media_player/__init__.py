@@ -173,7 +173,7 @@ def _read_audio_file_and_type(file_config):
         raise cv.Invalid(
             f"Unable to determine audio file type of '{path}'. "
             f"Try re-encoding the file into a supported format. Details: {e}"
-        )
+        ) from e
 
     media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
     if file_type in ("wav"):
@@ -516,7 +516,8 @@ async def play_on_device_media_media_action(config, action_id, template_arg, arg
     announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
     enqueue = await cg.templatable(config[CONF_ENQUEUE], args, cg.bool_)
 
-    cg.add(var.set_audio_file(media_file))
+    template_ = await cg.templatable(media_file, args, audio.AudioFile.operator("ptr"))
+    cg.add(var.set_audio_file(template_))
     cg.add(var.set_announcement(announcement))
     cg.add(var.set_enqueue(enqueue))
     return var

@@ -109,8 +109,7 @@ def _parse_cron_int(value, special_mapping, message):
     try:
         return int(value)
     except ValueError:
-        # pylint: disable=raise-missing-from
-        raise cv.Invalid(message.format(value))
+        raise cv.Invalid(message.format(value)) from None
 
 
 def _parse_cron_part(part, min_value, max_value, special_mapping):
@@ -134,10 +133,9 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         try:
             repeat_n = int(repeat)
         except ValueError:
-            # pylint: disable=raise-missing-from
             raise cv.Invalid(
                 f"Repeat for '/' time expression must be an integer, got {repeat}"
-            )
+            ) from None
         return set(range(offset_n, max_value + 1, repeat_n))
     if "-" in part:
         data = part.split("-")

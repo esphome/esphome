@@ -46,6 +46,7 @@ from esphome.const import (
     ThreadModel,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.core.config import BOARD_MAX_LENGTH
 import esphome.final_validate as fv
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
@@ -145,7 +146,9 @@ CONFIG_SCHEMA = cv.All(
     set_core_data,
     cv.Schema(
         {
-            cv.Required(CONF_BOARD): cv.string_strict,
+            cv.Required(CONF_BOARD): cv.All(
+                cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
+            ),
             cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
             cv.Optional(CONF_DFU): cv.Schema(
                 {
