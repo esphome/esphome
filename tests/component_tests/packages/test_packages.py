@@ -43,9 +43,9 @@ from esphome.const import (
     CONF_VARS,
     CONF_WIFI,
 )
-from esphome.core import CORE, DocumentLocation, DocumentRange
+from esphome.core import CORE
 from esphome.util import OrderedDict
-from esphome.yaml_util import ESPHomeDataBase, IncludeFile, add_context, make_data_base
+from esphome.yaml_util import IncludeFile, add_context
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -1407,34 +1407,34 @@ def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _located(value, doc: str, line: int, col: int):
-    """Return *value* wrapped with a fake ESPHomeDataBase source location."""
-    loc = DocumentLocation(doc, line, col)
-    obj = make_data_base(value)
-    if isinstance(obj, ESPHomeDataBase):
-        obj._esp_range = DocumentRange(loc, loc)
-    return obj
+def test_substitute_package_definition_local_dict_returned_unchanged() -> None:
+    """A plain local config dict is not substituted and is returned as-is."""
+    pkg = {CONF_WIFI: {CONF_SSID: "test"}}
+    result = _substitute_package_definition(pkg, ContextVars())
+    assert result is pkg
 
 
-class TestSubstitutePackageDefinition:
-    def test_local_dict_returned_unchanged(self):
-        """A plain local config dict is not substituted and is returned as-is."""
-        pkg = {CONF_WIFI: {CONF_SSID: "test"}}
-        result = _substitute_package_definition(pkg, ContextVars())
-        assert result is pkg
+def test_substitute_package_definition_string_resolved_with_context() -> None:
+    """A string package definition has its variables substituted."""
+    ctx = ContextVars({"variant": "esp32"})
+    result = _substitute_package_definition("device-${variant}.yaml", ctx)
+    assert result == "device-esp32.yaml"
 
-    def test_string_resolved_with_context(self):
-        """A string package definition has its variables substituted."""
-        ctx = ContextVars({"variant": "esp32"})
-        result = _substitute_package_definition("device-${variant}.yaml", ctx)
-        assert result == "device-esp32.yaml"
 
-    def test_undefined_variable_raises_cv_invalid(self):
-        """An undefined variable in a package URL raises cv.Invalid."""
-        with pytest.raises(
-            cv.Invalid, match="Undefined variable in package definition"
-        ):
-            _substitute_package_definition(
-                "github://org/repo/${undefined_var}/pkg.yaml", ContextVars()
-            )
+def test_substitute_package_definition_undefined_in_string() -> None:
+    """An undefined variable in a package URL string raises cv.Invalid."""
+    with pytest.raises(cv.Invalid, match="Undefined variable in package definition"):
+        _substitute_package_definition(
+            "github://org/repo/${undefined_var}/pkg.yaml", ContextVars()
+        )
 
+
+def test_substitute_package_definition_undefined_in_remote_dict_field() -> None:
+    """An undefined variable inside a remote-dict field names the offending field."""
+    with pytest.raises(cv.Invalid) as exc_info:
+        _substitute_package_definition(
+            {CONF_URL: "github://${typo}/repo"}, ContextVars()
+        )
+    err = str(exc_info.value)
+    assert "'typo' is undefined" in err
+    assert CONF_URL in err

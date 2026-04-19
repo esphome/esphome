@@ -12,7 +12,7 @@ from esphome.components.substitutions import (
     resolve_include,
     substitute,
 )
-from esphome.components.substitutions.jinja import UndefinedError, has_jinja
+from esphome.components.substitutions.jinja import has_jinja
 from esphome.config_helpers import Remove, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
@@ -359,23 +359,31 @@ def _substitute_package_definition(
     if isinstance(package_config, str) or (
         isinstance(package_config, dict) and is_remote_package(package_config)
     ):
-        try:
-            package_config = substitute(
-                item=package_config,
-                path=[],
-                parent_context=context_vars or ContextVars(),
-                strict_undefined=True,
-            )
-        except UndefinedError as err:
-            location: str = ""
+        # Collect undefined-variable errors (rather than raising strict) so the
+        # path walked through a remote-package dict is preserved and the user
+        # sees which field (url / path / ref / ...) referenced the undefined
+        # variable.
+        errors: list[tuple[Exception, list[int | str], Any]] = []
+        package_config = substitute(
+            item=package_config,
+            path=[],
+            parent_context=context_vars or ContextVars(),
+            strict_undefined=False,
+            errors=errors,
+        )
+        if errors:
+            err, err_path, _ = errors[0]
+            location = ""
             if (
                 isinstance(package_config, yaml_util.ESPHomeDataBase)
                 and package_config.esp_range is not None
             ):
                 location = f" (in {str(package_config.esp_range.start_mark)})"
+            field = f" at '{'->'.join(str(p) for p in err_path)}'" if err_path else ""
             raise cv.Invalid(
-                f"Undefined variable in package definition: {err.message}{location}"
-            ) from err
+                f"Undefined variable in package definition{field}: "
+                f"{err.message}{location}"
+            )
     return package_config
 
 
