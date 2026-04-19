@@ -46,6 +46,24 @@ void OptolinkTextSensor::update() {
   }
 }
 
+void OptolinkTextSensor::datapoint_value_changed(float value) {
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%g", value);
+  publish_state(buf);
+}
+
+void OptolinkTextSensor::datapoint_value_changed(uint8_t value) {
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%u", value);
+  publish_state(buf);
+}
+
+void OptolinkTextSensor::datapoint_value_changed(uint16_t value) {
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%u", value);
+  publish_state(buf);
+}
+
 void OptolinkTextSensor::datapoint_value_changed(const std::string &value) {
   switch (type_) {
     case TEXT_SENSOR_TYPE_RAW:

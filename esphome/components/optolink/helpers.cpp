@@ -30,9 +30,9 @@ std::string decode_day_schedule(const uint8_t *input) {
     int hour = input[i] >> 3;
     int minute = (input[i] & 0b111) * 10;
     if (input[i] != 0xFF) {
-      sprintf(buffer + i * 6, "%02d:%02d ", hour, minute);
+      snprintf(buffer + i * 6, 7, "%02d:%02d ", hour, minute);
     } else {
-      sprintf(buffer + i * 6, "      ");
+      snprintf(buffer + i * 6, 7, "      ");
     }
   }
   return std::string(buffer);
@@ -45,28 +45,26 @@ uint8_t *encode_day_schedule(const std::string &input, uint8_t *output) {
   Time time_values[8];
   Time prev_time = {0, 0};
   int time_count = 0;
-
-  char *token = strtok(buffer, " ");
-  while (token && time_count < 8) {
+  char *ptr = buffer;
+  while (*ptr != '\0' && time_count < 8) {
+    char *endptr = nullptr;
     Time current_time;
-    // NOLINTNEXTLINE
-    if (sscanf(token, "%d:%d", &current_time.hours, &current_time.minutes) == 2) {
-      if (check_time_values(current_time) && check_time_sequence(prev_time, current_time)) {
-        time_values[time_count++] = current_time;
-        prev_time = current_time;
-      } else {
-        ESP_LOGE(
-            TAG,
-            "Time values should be in the format hh:mm and in increasing order within the range of 00:00 to 23:59");
-        return nullptr;
-      }
-    } else {
-      ESP_LOGE(TAG, "Invalid time format");
+    current_time.hours = static_cast<int>(strtol(ptr, &endptr, 10));
+    bool hour_parsed = (ptr != endptr && *endptr == ':');
+    ptr = endptr + 1;
+    current_time.minutes = static_cast<int>(strtol(ptr, &endptr, 10));
+    bool min_parsed = (ptr != (endptr));
+    if (!hour_parsed || !min_parsed || !check_time_values(current_time) ||
+        !check_time_sequence(prev_time, current_time)) {
+      ESP_LOGE(TAG, "Invalid time: must be hh:mm, 00:00-23:59, and in increasing order.");
       return nullptr;
     }
-    token = strtok(nullptr, " ");
+    time_values[time_count++] = current_time;
+    prev_time = current_time;
+    ptr = endptr;
+    while (*ptr == ' ')
+      ptr++;
   }
-
   if (time_count % 2) {
     ESP_LOGE(TAG, "Number of time values must be even");
     return nullptr;
@@ -105,24 +103,28 @@ uint8_t *encode_day_schedule(const std::string &input, uint8_t *output) {
  * @return true if the input string was successfully parsed and encoded, false otherwise.
  */
 bool encode_datetime(const std::string &value, uint8_t *buffer) {
-  if (value.length() != 19 || value[10] != 'T') {
-    ESP_LOGW(TAG, "Invalid format: Expected length 19 and 'T' at position 10.");
-    return false;
-  }
-
   int year, month, day, hour, min, sec;
-  if (sscanf(value.c_str(), "%4d-%2d-%2dT%2d:%2d:%2d", &year, &month, &day, &hour, &min, &sec) != 6) {
-    ESP_LOGE(TAG, "Failed to parse datetime string: %s", value.c_str());
-    return false;
-  }
 
   struct tm tm = {0};
-  tm.tm_year = year - 1900;
-  tm.tm_mon = month - 1;
-  tm.tm_mday = day;
-  tm.tm_hour = hour;
-  tm.tm_min = min;
-  tm.tm_sec = sec;
+  const char *ptr = value.c_str();
+  char *endptr = nullptr;
+
+  auto parse_next = [&](int &val, char expected_delim) {
+    val = static_cast<int>(strtol(ptr, &endptr, 10));
+    if (ptr == endptr || (*endptr != expected_delim && expected_delim != '\0'))
+      return false;
+    ptr = endptr + 1;
+    return true;
+  };
+
+  int y, m;
+  if (!parse_next(y, '-') || !parse_next(m, '-') || !parse_next(tm.tm_mday, 'T') || !parse_next(tm.tm_hour, ':') ||
+      !parse_next(tm.tm_min, ':') || !parse_next(tm.tm_sec, '\0')) {
+    ESP_LOGE(TAG, "Failed to parse datetime string");
+    return false;
+  }
+  tm.tm_year = y - 1900;
+  tm.tm_mon = m - 1;
 
   if (mktime(&tm) == -1) {
     ESP_LOGE(TAG, "Failed to convert time using mktime.");

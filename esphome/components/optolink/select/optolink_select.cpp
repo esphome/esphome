@@ -44,23 +44,27 @@ void OptolinkSelect::datapoint_value_changed(const std::string &value) {
 }
 
 void OptolinkSelect::datapoint_value_changed(uint8_t value) {
-  std::string key = std::to_string(value);
-  datapoint_value_changed(key);
+  char key[8];
+  snprintf(key, sizeof(key), "%u", value);
+  datapoint_value_changed(std::string(key));
 }
 
 void OptolinkSelect::datapoint_value_changed(uint16_t value) {
-  std::string key = std::to_string(value);
-  datapoint_value_changed(key);
+  char key[16];
+  snprintf(key, sizeof(key), "%u", value);
+  datapoint_value_changed(std::string(key));
 }
 
 void OptolinkSelect::datapoint_value_changed(uint32_t value) {
-  std::string key = std::to_string(value);
-  datapoint_value_changed(key);
+  char key[16];
+  snprintf(key, sizeof(key), "%lu", static_cast<unsigned long>(value));
+  datapoint_value_changed(std::string(key));
 }
 
 void OptolinkSelect::datapoint_value_changed(float value) {
-  std::string key = std::to_string(value);
-  datapoint_value_changed(key);
+  char key[32];
+  snprintf(key, sizeof(key), "%g", value);
+  datapoint_value_changed(std::string(key));
 }
 
 }  // namespace optolink
