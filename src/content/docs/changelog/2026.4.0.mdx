@@ -501,6 +501,41 @@ For detailed migration guides and API documentation, see the [ESPHome Developers
 
 {/* markdownlint-disable MD013 */}
 
+## Release 2026.4.1 - April 20
+
+<details>
+<summary></summary>
+
+- [core] Fix app_state_ status bits clobbered for non-looping components [esphome#15658](https://github.com/esphome/esphome/pull/15658) by [@bdraco](https://github.com/bdraco)
+- [core] Inline feed_wdt hot path with out-of-line slow path [esphome#15656](https://github.com/esphome/esphome/pull/15656) by [@bdraco](https://github.com/bdraco)
+- [st7789v] Fix swapped offset_width/offset_height in model presets [esphome#15755](https://github.com/esphome/esphome/pull/15755) by [@swoboda1337](https://github.com/swoboda1337)
+- [sx126x][sx127x] Fix frequency precision loss from float32 codegen [esphome#15753](https://github.com/esphome/esphome/pull/15753) by [@swoboda1337](https://github.com/swoboda1337)
+- Bump aioesphomeapi from 44.15.0 to 44.16.0 [esphome#15757](https://github.com/esphome/esphome/pull/15757) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- [lvgl] Clean the build if lv_conf.h changes [esphome#15777](https://github.com/esphome/esphome/pull/15777) by [@clydebarrow](https://github.com/clydebarrow)
+- [mitsubishi_cn105] use HEAT_COOL mode to enable temperature slider [esphome#15748](https://github.com/esphome/esphome/pull/15748) by [@crnjan](https://github.com/crnjan)
+- [core] Diagnose missing cg.templatable in codegen for TEMPLATABLE_VALUE fields [esphome#15758](https://github.com/esphome/esphome/pull/15758) by [@bdraco](https://github.com/bdraco)
+- [time] Fix RTC is_valid() rejecting valid times after day_of_year cleanup [esphome#15763](https://github.com/esphome/esphome/pull/15763) by [@bdraco](https://github.com/bdraco)
+- [qmc5883l] Move per-update log line from DEBUG to VERBOSE [esphome#15781](https://github.com/esphome/esphome/pull/15781) by [@swoboda1337](https://github.com/swoboda1337)
+- [bundle] Force-resolve nested IncludeFile during file discovery [esphome#15762](https://github.com/esphome/esphome/pull/15762) by [@bdraco](https://github.com/bdraco)
+- [ili9xxx] Guard against null buffer in display_() when allocation fails [esphome#15786](https://github.com/esphome/esphome/pull/15786) by [@bdraco](https://github.com/bdraco)
+- [esp32] Accept unquoted minimum_chip_revision values [esphome#15785](https://github.com/esphome/esphome/pull/15785) by [@swoboda1337](https://github.com/swoboda1337)
+- [lvgl] Guard lv_image_set_src wrapper with LV_USE_IMAGE [esphome#15789](https://github.com/esphome/esphome/pull/15789) by [@swoboda1337](https://github.com/swoboda1337)
+- [mipi_spi] Drawing fixes for native display [esphome#15802](https://github.com/esphome/esphome/pull/15802) by [@clydebarrow](https://github.com/clydebarrow)
+- [image] Fix byte order handling [esphome#15800](https://github.com/esphome/esphome/pull/15800) by [@clydebarrow](https://github.com/clydebarrow)
+- [core] coerce set_interval(0) / update_interval: 0ms to 1ms [esphome#15799](https://github.com/esphome/esphome/pull/15799) by [@bdraco](https://github.com/bdraco)
+- [ethernet] Fix SPI3_HOST default breaking compile on variants without SPI3 [esphome#15809](https://github.com/esphome/esphome/pull/15809) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Fix DelayAction compile error with non-const reference args [esphome#15814](https://github.com/esphome/esphome/pull/15814) by [@bdraco](https://github.com/bdraco)
+- [esp32] Downgrade unneeded `ignore_pin_validation_error` to a warning [esphome#15811](https://github.com/esphome/esphome/pull/15811) by [@swoboda1337](https://github.com/swoboda1337)
+- [runtime_image] Fix RGB order [esphome#15813](https://github.com/esphome/esphome/pull/15813) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Fix crash with snow on rotated display [esphome#15822](https://github.com/esphome/esphome/pull/15822) by [@clydebarrow](https://github.com/clydebarrow)
+- [core] Feed WDT unconditionally in main loop to fix empty-config panic [esphome#15830](https://github.com/esphome/esphome/pull/15830) by [@bdraco](https://github.com/bdraco)
+- Bump aioesphomeapi from 44.16.0 to 44.16.1 [esphome#15836](https://github.com/esphome/esphome/pull/15836) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- [core] Default PollingComponent() to 1ms when codegen is bypassed [esphome#15831](https://github.com/esphome/esphome/pull/15831) by [@bdraco](https://github.com/bdraco)
+- [substitutions] Fix `substitutions: !include file.yaml` regression [esphome#15850](https://github.com/esphome/esphome/pull/15850) by [@bdraco](https://github.com/bdraco)
+- [packages] Improve error messages with include stack and fix missing path propagation [esphome#15844](https://github.com/esphome/esphome/pull/15844) by [@jpeletier](https://github.com/jpeletier)
+
+</details>
+
 ## Full list of changes
 
 ### New Features
