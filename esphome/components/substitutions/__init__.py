@@ -49,6 +49,14 @@ def raise_first_undefined(
     if not errors:
         return
     err, err_path, _ = errors[0]
+    if len(errors) > 1:
+        # Log any further undefined variables so debug-level output covers
+        # the full set, even though only the first is surfaced to the user.
+        extras = ", ".join(
+            f"{e.message} at '{'->'.join(str(p) for p in p_path)}'"
+            for e, p_path, _ in errors[1:]
+        )
+        _LOGGER.debug("Additional undefined variables in %s: %s", context_label, extras)
     location = ""
     if isinstance(source, ESPHomeDataBase) and source.esp_range is not None:
         location = f" (in {source.esp_range.start_mark})"
