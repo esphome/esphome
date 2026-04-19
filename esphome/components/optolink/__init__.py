@@ -1,5 +1,6 @@
 from esphome import core, pins
 import esphome.codegen as cg
+from esphome.components.esp8266.const import enable_serial
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -76,9 +77,7 @@ def check_bytes_for_types(types_bytes_needed):
             )
 
         types_bytes_day_schedule = ["DAY_SCHEDULE"]
-        if config[CONF_TYPE] in types_bytes_day_schedule and config[CONF_BYTES] not in [
-            56
-        ]:
+        if config[CONF_TYPE] in types_bytes_day_schedule and config[CONF_BYTES] != 56:
             raise cv.Invalid(
                 f"{CONF_BYTES} must be 56 for this types: {types_bytes_day_schedule}"
             )
@@ -170,6 +169,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     cg.add_library("VitoWiFi", "1.1.2")
+    enable_serial()
 
     cg.add_define(
         "USE_OPTOLINK_VITOWIFI_PROTOCOL",
