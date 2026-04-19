@@ -33,6 +33,7 @@ CONFIG_SCHEMA = (
 # This authentication mode requires that the device must have transmit and receive functionality, a parity mode of "NONE", and a stop bit of one.
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     "seeed_mr24hpc1",
+    baud_rate=115200,
     require_tx=True,
     require_rx=True,
     parity="NONE",
