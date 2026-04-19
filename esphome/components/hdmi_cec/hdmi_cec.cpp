@@ -289,7 +289,9 @@ void CECTransmit::transmit_message() {
     return;
   }
 
-  if (ATOMIC_GET(receiver_is_busy_) && (confirm_received_us_ + 15 * TOTAL_BIT_US < micros())) {
+  int32_t time_to_expiration = (int32_t) (confirm_received_us_ + 15 * TOTAL_BIT_US - micros());
+  // be careful with wrap-around of uint32 time values.
+  if (ATOMIC_GET(receiver_is_busy_) && (time_to_expiration <= 0)) {
     // protocol error on the bus between receiver and transmitter, this should never occur!
     // The Receiver has stopped giving byte_eom_ack confirmations, which should occur after
     // every received byte, which is 10x bit-period. So, >=15 bit periods is an error.
@@ -349,9 +351,15 @@ void CECTransmit::transmit_message() {
   }
 
   const Frame *frame = send_queue_.front();  // check for presence of next frame to send (null if queue is empty)
-  if (!frame || ATOMIC_GET(receiver_is_busy_) || (micros() < allow_xmit_message_us_)) {
+  if (!frame || ATOMIC_GET(receiver_is_busy_)) {
     // If the receiver is busy, the bus is occupied, and a transmit must wait until the bus is idle
-    // Maybe it is too early for a transmit, to satisfy the CEC standard bus idle time
+    return;
+  }
+
+  int32_t time_to_deadline = (int32_t) (allow_xmit_message_us_ - micros());
+  // be careful with wrap-around of uint32 time values.
+  if (time_to_deadline > 0) {
+    // It is too early for a transmit, to satisfy the CEC standard bus idle time
     return;
   }
 
