@@ -78,7 +78,7 @@ class ArcType(NumberType):
                 prop = str(prop)
                 if prop.endswith("_angle"):
                     await w.set_property(
-                        "bg_" + prop, config.get(prop), processor=validator
+                        "bg_" + prop, await validator.process(config.get(prop))
                     )
                 else:
                     await w.set_property(prop, config, processor=validator)
