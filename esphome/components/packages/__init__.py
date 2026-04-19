@@ -10,6 +10,7 @@ from esphome.components.substitutions import (
     ContextVars,
     push_context,
     resolve_include,
+    resolve_substitutions_block,
     substitute,
 )
 from esphome.components.substitutions.jinja import has_jinja
@@ -516,7 +517,12 @@ def do_packages_pass(
     if CONF_PACKAGES not in config:
         return config
 
-    substitutions = UserDict(config.pop(CONF_SUBSTITUTIONS, {}))
+    with cv.prepend_path(CONF_SUBSTITUTIONS):
+        substitutions = UserDict(
+            resolve_substitutions_block(
+                config.pop(CONF_SUBSTITUTIONS, {}), command_line_substitutions
+            )
+        )
     processor = _PackageProcessor(
         substitutions, command_line_substitutions, skip_update
     )

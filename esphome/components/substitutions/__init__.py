@@ -414,6 +414,34 @@ def _warn_unresolved_variables(errors: ErrList) -> None:
         )
 
 
+def resolve_substitutions_block(
+    substitutions: Any,
+    command_line_substitutions: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Resolve a deferred ``substitutions: !include file.yaml`` and validate the shape.
+
+    The caller is responsible for wrapping the call in
+    ``cv.prepend_path(CONF_SUBSTITUTIONS)`` for error reporting.
+    ``command_line_substitutions`` seeds the filename context so
+    ``substitutions: !include ${var}.yaml`` can reference CLI-provided vars.
+    """
+    if isinstance(substitutions, IncludeFile):
+        # Single-shot resolution — matches ``_walk_packages`` for the
+        # ``packages: !include`` entry point.  Chained includes (an include that
+        # itself loads another ``!include`` at the top level) are not supported.
+        substitutions, _ = resolve_include(
+            substitutions,
+            [],
+            ContextVars(command_line_substitutions or {}),
+            strict_undefined=False,
+        )
+    if not isinstance(substitutions, dict):
+        raise cv.Invalid(
+            f"Substitutions must be a key to value mapping, got {type(substitutions)}"
+        )
+    return substitutions
+
+
 def do_substitution_pass(
     config: OrderedDict, command_line_substitutions: dict[str, Any] | None = None
 ) -> OrderedDict:
@@ -429,10 +457,9 @@ def do_substitution_pass(
     # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()
     substitutions = config.pop(CONF_SUBSTITUTIONS, {})
     with cv.prepend_path(CONF_SUBSTITUTIONS):
-        if not isinstance(substitutions, dict):
-            raise cv.Invalid(
-                f"Substitutions must be a key to value mapping, got {type(substitutions)}"
-            )
+        substitutions = resolve_substitutions_block(
+            substitutions, command_line_substitutions
+        )
         substitutions = merge_dicts_ordered(
             substitutions, command_line_substitutions or {}
         )
