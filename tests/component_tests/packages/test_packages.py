@@ -1437,4 +1437,3 @@ class TestSubstitutePackageDefinition:
             _substitute_package_definition(
                 "github://org/repo/${undefined_var}/pkg.yaml", ContextVars()
             )
-
