@@ -672,7 +672,7 @@ def lint_using_esp_idf_deprecated(fname, line, col, content):
     )
 
 
-@lint_content_check(include=["*.h"])
+@lint_content_check(include=["*.h"], exclude=["esphome/core/entity_types.h"])
 def lint_pragma_once(fname, content):
     if "#pragma once" not in content:
         return (

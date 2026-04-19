@@ -28,7 +28,8 @@ void AirConditioner::on_status_change() {
   if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK &&
       this->base_.getCapabilities().supportFrostProtectionPreset() && !this->frost_protection_set_) {
     // Read existing presets (set by codegen), append frost protection, write back
-    const auto &existing = this->get_traits().get_supported_custom_presets();
+    auto traits = this->get_traits();
+    const auto &existing = traits.get_supported_custom_presets();
     bool found = false;
     for (const char *p : existing) {
       if (strcmp(p, Constants::FREEZE_PROTECTION) == 0) {
