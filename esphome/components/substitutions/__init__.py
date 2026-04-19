@@ -431,8 +431,13 @@ def do_substitution_pass(
     with cv.prepend_path(CONF_SUBSTITUTIONS):
         if isinstance(substitutions, IncludeFile):
             # Resolve `substitutions: !include file.yaml` before validating the shape.
+            # Seed with command-line substitutions so `!include ${var}.yaml` can
+            # reference CLI-provided vars in the filename.
             substitutions, _ = resolve_include(
-                substitutions, [], ContextVars(), strict_undefined=False
+                substitutions,
+                [],
+                ContextVars(command_line_substitutions or {}),
+                strict_undefined=False,
             )
         if not isinstance(substitutions, dict):
             raise cv.Invalid(
