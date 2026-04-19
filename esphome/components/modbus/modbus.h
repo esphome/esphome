@@ -59,6 +59,7 @@ class Modbus : public uart::UARTDevice, public Component {
   void set_send_wait_time(uint16_t time_in_ms) { this->send_wait_time_ = time_in_ms; }
   void set_turnaround_time(uint16_t time_in_ms) { this->turnaround_delay_ms_ = time_in_ms; }
   void set_disable_crc(bool disable_crc) { this->disable_crc_ = disable_crc; }
+  void set_accept_truncated_frames(bool accept) { this->accept_truncated_frames_ = accept; }
   void set_long_rx_buffer_delay(uint16_t time_in_ms) {
     this->long_rx_buffer_delay_ms_ = time_in_ms;
     this->long_rx_buffer_delay_user_set_ = true;
@@ -75,6 +76,7 @@ class Modbus : public uart::UARTDevice, public Component {
 
   bool parse_modbus_byte_(uint8_t byte);
   ParseResult try_parse_rx_buffer_();
+  bool try_accept_truncated_rx_buffer_();
   void receive_and_parse_modbus_bytes_();
   void clear_rx_buffer_(const LogString *reason, bool warn = false);
   void send_next_frame_();
@@ -89,6 +91,7 @@ class Modbus : public uart::UARTDevice, public Component {
   uint16_t turnaround_delay_ms_{100};
   uint8_t waiting_for_response_{0};
   bool disable_crc_{false};
+  bool accept_truncated_frames_{false};
   bool long_rx_buffer_delay_user_set_{false};
 
   GPIOPin *flow_control_pin_{nullptr};

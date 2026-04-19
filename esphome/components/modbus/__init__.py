@@ -22,6 +22,7 @@ CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
 CONF_LONG_RX_BUFFER_DELAY = "long_rx_buffer_delay"
+CONF_ACCEPT_TRUNCATED_FRAMES = "accept_truncated_frames"
 
 ModbusRole = modbus_ns.enum("ModbusRole")
 MODBUS_ROLES = {
@@ -45,6 +46,7 @@ CONFIG_SCHEMA = (
                 CONF_LONG_RX_BUFFER_DELAY
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_DISABLE_CRC, default=False): cv.boolean,
+            cv.Optional(CONF_ACCEPT_TRUNCATED_FRAMES, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -67,6 +69,7 @@ async def to_code(config):
     cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
     cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
     cg.add(var.set_disable_crc(config[CONF_DISABLE_CRC]))
+    cg.add(var.set_accept_truncated_frames(config[CONF_ACCEPT_TRUNCATED_FRAMES]))
     if (long_rx := config.get(CONF_LONG_RX_BUFFER_DELAY)) is not None:
         cg.add(var.set_long_rx_buffer_delay(long_rx))
 

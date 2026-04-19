@@ -68,7 +68,18 @@ void Modbus::loop() {
   // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
   // So in this component we don't use any cached timestamp values to avoid these annoying bugs
   if (millis() - this->last_modbus_byte_ > timeout) {
-    this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
+    // Some devices (e.g. certain SDM630 firmwares) deliver a complete data payload on the wire
+    // but cut the transmission before the trailing CRC bytes. accept_truncated_frames opts into
+    // dispatching such a frame anyway, on the same timeout that would otherwise discard it.
+    // Only applies when: (a) user has opted in, (b) a response is pending, (c) buffer begins
+    // with the awaited address, and (d) enough bytes have arrived to cover the full declared
+    // data payload. CRC is simply not checked (analogous to disable_crc, but for the missing
+    // bytes case rather than the wrong bytes case).
+    if (this->accept_truncated_frames_ && this->waiting_for_response_ != 0 && this->try_accept_truncated_rx_buffer_()) {
+      // Frame dispatched; buffer cleared by the helper.
+    } else {
+      this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
+    }
   }
 
   // If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
@@ -339,6 +350,71 @@ Modbus::ParseResult Modbus::try_parse_rx_buffer_() {
   return ParseResult::FRAME_PROCESSED;
 }
 
+// Called from loop() when the inter-byte timeout has fired and accept_truncated_frames is enabled.
+// Mirrors the CLIENT-side payload-layout logic of try_parse_rx_buffer_ but skips the CRC check
+// entirely — the caller has established that no further bytes are arriving, so if the declared
+// payload has fully arrived we dispatch it regardless of whether the trailing CRC bytes made it
+// onto the wire. User-defined function codes are not supported: their frame length is discovered
+// by finding a matching CRC, which is meaningless once we've opted out of CRC.
+bool Modbus::try_accept_truncated_rx_buffer_() {
+  if (this->role != ModbusRole::CLIENT)
+    return false;
+
+  const size_t size = this->rx_buffer_.size();
+  if (size < 3)
+    return false;
+
+  const uint8_t *raw = this->rx_buffer_.data();
+  const uint8_t address = raw[0];
+  const uint8_t function_code = raw[1];
+
+  if (address != this->waiting_for_response_)
+    return false;
+
+  uint8_t data_offset = 3;
+  uint8_t data_len = raw[2];
+
+  if (function_code == ModbusFunctionCode::WRITE_SINGLE_COIL ||
+      function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
+      function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
+      function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+    data_offset = 2;
+    data_len = 4;
+  } else if ((function_code & FUNCTION_CODE_EXCEPTION_MASK) == FUNCTION_CODE_EXCEPTION_MASK) {
+    data_offset = 2;
+    data_len = 1;
+  } else if (((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT) &&
+              (function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END)) ||
+             ((function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT) &&
+              (function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END))) {
+    return false;
+  }
+
+  if (size < static_cast<size_t>(data_offset) + data_len)
+    return false;
+
+  ESP_LOGD(TAG,
+           "Accepting truncated frame (%zu bytes received, expected %u with CRC) from 0x%02X %" PRIu32
+           "ms after last send",
+           size, static_cast<unsigned>(data_offset + data_len + 2), address, millis() - this->last_send_);
+
+  std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + data_offset + data_len);
+
+  for (auto *device : this->devices_) {
+    if (device->address_ == address) {
+      if ((function_code & FUNCTION_CODE_EXCEPTION_MASK) == FUNCTION_CODE_EXCEPTION_MASK) {
+        device->on_modbus_error(function_code & FUNCTION_CODE_MASK, raw[2]);
+      } else {
+        device->on_modbus_data(data);
+      }
+    }
+  }
+
+  this->clear_rx_buffer_(LOG_STR("truncated frame accepted"));
+  this->waiting_for_response_ = 0;
+  return true;
+}
+
 void Modbus::send_next_frame_() {
   if (this->tx_buffer_.empty())
     return;
@@ -376,16 +452,18 @@ void Modbus::send_next_frame_() {
 }
 
 void Modbus::dump_config() {
-  ESP_LOGCONFIG(
-      TAG,
-      "Modbus:\n"
-      "  Send Wait Time: %d ms\n"
-      "  Turnaround Time: %d ms\n"
-      "  Frame Delay: %d ms\n"
-      "  Long Rx Buffer Delay: %d ms%s\n"
-      "  CRC Disabled: %s",
-      this->send_wait_time_, this->turnaround_delay_ms_, this->frame_delay_ms_, this->long_rx_buffer_delay_ms_,
-      this->long_rx_buffer_delay_user_set_ ? " (user-set, applies unconditionally)" : "", YESNO(this->disable_crc_));
+  ESP_LOGCONFIG(TAG,
+                "Modbus:\n"
+                "  Send Wait Time: %d ms\n"
+                "  Turnaround Time: %d ms\n"
+                "  Frame Delay: %d ms\n"
+                "  Long Rx Buffer Delay: %d ms%s\n"
+                "  CRC Disabled: %s\n"
+                "  Accept Truncated Frames: %s",
+                this->send_wait_time_, this->turnaround_delay_ms_, this->frame_delay_ms_,
+                this->long_rx_buffer_delay_ms_,
+                this->long_rx_buffer_delay_user_set_ ? " (user-set, applies unconditionally)" : "",
+                YESNO(this->disable_crc_), YESNO(this->accept_truncated_frames_));
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
 float Modbus::get_setup_priority() const {
