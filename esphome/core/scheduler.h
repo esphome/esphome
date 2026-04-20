@@ -129,7 +129,8 @@ class Scheduler {
 
   // Execute all scheduled items that are ready
   // @param now Fresh timestamp from millis() - must not be stale/cached
-  void call(uint32_t now);
+  // @return Timestamp of the last item that ran, or `now` unchanged if none ran.
+  uint32_t call(uint32_t now);
 
   // Move items from to_add_ into the main heap.
   // IMPORTANT: This method should only be called from the main thread (loop task).
