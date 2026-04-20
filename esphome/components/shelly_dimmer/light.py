@@ -84,7 +84,7 @@ def get_firmware(value):
             req = requests.get(url, timeout=30)
             req.raise_for_status()
         except requests.exceptions.RequestException as e:
-            raise cv.Invalid(f"Could not download firmware file ({url}): {e}")
+            raise cv.Invalid(f"Could not download firmware file ({url}): {e}") from e
 
         h = hashlib.new("sha256")
         h.update(req.content)

@@ -555,7 +555,7 @@ ST7789V = DriverChip(
         ),
     ),
 )
-DriverChip(
+GC9A01A = DriverChip(
     "GC9A01A",
     mirror_x=True,
     width=240,
