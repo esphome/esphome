@@ -2032,6 +2032,10 @@ BOARDS = {
         "name": "LilyGo T-Display-S3",
         "variant": VARIANT_ESP32S3,
     },
+    "lilygo-t-energy-s3": {
+        "name": "LilyGo T-Energy-S3",
+        "variant": VARIANT_ESP32S3,
+    },
     "lilygo-t3-s3": {
         "name": "LilyGo T3-S3",
         "variant": VARIANT_ESP32S3,

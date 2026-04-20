@@ -79,12 +79,14 @@ def button_schema(
     return _BUTTON_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_PRESS, "add_on_press_callback"),
+)
+
+
 @setup_entity("button")
 async def setup_button_core_(var, config):
-    for conf in config.get(CONF_ON_PRESS, []):
-        await automation.build_callback_automation(
-            var, "add_on_press_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     setup_device_class(config)
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 import logging
 from pathlib import Path
 
@@ -27,8 +27,8 @@ def has_remote_file_changed(url: str, local_file_path: Path) -> bool:
         _LOGGER.debug("has_remote_file_changed: File exists at %s", local_file_path)
         try:
             local_modification_time = local_file_path.stat().st_mtime
-            local_modification_time_str = datetime.utcfromtimestamp(
-                local_modification_time
+            local_modification_time_str = datetime.fromtimestamp(
+                local_modification_time, tz=UTC
             ).strftime("%a, %d %b %Y %H:%M:%S GMT")
 
             headers = {
@@ -107,7 +107,7 @@ def download_content(url: str, path: Path, timeout=NETWORK_TIMEOUT) -> bytes:
                 e,
             )
             return path.read_bytes()
-        raise cv.Invalid(f"Could not download from {url}: {e}")
+        raise cv.Invalid(f"Could not download from {url}: {e}") from e
 
     path.parent.mkdir(parents=True, exist_ok=True)
     data = req.content

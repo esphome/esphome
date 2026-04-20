@@ -89,6 +89,11 @@ inline constexpr uint8_t STATUS_LED_WARNING = 0x08;
 inline constexpr uint8_t STATUS_LED_ERROR = 0x10;
 // Component loop override flag uses bit 5 (set at registration time)
 inline constexpr uint8_t COMPONENT_HAS_LOOP = 0x20;
+// Bit 6 on Application::app_state_ (ONLY) — set at the end of
+// Application::setup(). Component::status_clear_*_slow_path_() uses this to
+// decide whether to propagate clears to App.app_state_. Never set on a
+// Component's component_state_.
+inline constexpr uint8_t APP_STATE_SETUP_COMPLETE = 0x40;
 // Remove before 2026.8.0
 enum class RetryResult { DONE, RETRY };
 
@@ -111,6 +116,13 @@ struct ComponentRuntimeStats {
   uint64_t total_time_us{0};
   uint32_t total_max_time_us{0};
 
+  // Cumulative sum of every record_time() duration since boot, across all
+  // components. Used by Application::loop() to snapshot time spent inside
+  // WarnIfComponentBlockingGuard (including guards constructed by the
+  // scheduler at scheduler.cpp) so main-loop overhead accounting can
+  // subtract scheduled-callback time from the before_loop_tasks_ wall time.
+  static uint64_t global_recorded_us;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
   void record_time(uint32_t duration_us) {
     this->period_count++;
     this->period_time_us += duration_us;
@@ -120,6 +132,7 @@ struct ComponentRuntimeStats {
     this->total_time_us += duration_us;
     if (duration_us > this->total_max_time_us)
       this->total_max_time_us = duration_us;
+    global_recorded_us += duration_us;
   }
   void reset_period() {
     this->period_count = 0;
@@ -242,7 +255,10 @@ class Component {
    * @note Components should call this->enable_loop() on themselves, not on other components.
    *       This ensures the component's state is properly updated along with the loop partition.
    */
-  void enable_loop();
+  void enable_loop() {
+    if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE)
+      this->enable_loop_slow_path_();
+  }
 
   /** Thread and ISR-safe version of enable_loop() that can be called from any context.
    *
@@ -323,7 +339,9 @@ class Component {
    *
    * Returns LOG_STR("<unknown>") if source not set
    */
-  const LogString *get_component_log_str() const;
+  inline const LogString *get_component_log_str() const ESPHOME_ALWAYS_INLINE {
+    return component_source_lookup(this->component_source_index_);
+  }
 
   bool should_warn_of_blocking(uint32_t blocking_time);
 
@@ -341,6 +359,8 @@ class Component {
 
   virtual void call_setup();
   void call_dump_config_();
+
+  void enable_loop_slow_path_();
 
   /// Helper to set component state (clears state bits and sets new state)
   inline void set_component_state_(uint8_t state) {
@@ -581,7 +601,7 @@ class Component {
  */
 class PollingComponent : public Component {
  public:
-  PollingComponent() : PollingComponent(0) {}
+  PollingComponent() : PollingComponent(SCHEDULER_DONT_RUN) {}
 
   /** Initialize this polling component with the given update interval in ms.
    *
@@ -630,17 +650,17 @@ class WarnIfComponentBlockingGuard {
   {
   }
 
-  // Finish the timing operation and return the current time
+  // Finish the timing operation and return the current time (millis)
   // Inlined: the fast path is just millis() + subtract + compare
   inline uint32_t HOT finish() {
-    uint32_t curr_time = millis();
-    uint32_t blocking_time = curr_time - this->started_;
 #ifdef USE_RUNTIME_STATS
-    this->record_runtime_stats_();
+    this->component_->runtime_stats_.record_time(micros() - this->started_us_);
 #endif
+    uint32_t curr_time = millis();
 #ifndef USE_BENCHMARK
     // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
     static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
+    uint32_t blocking_time = curr_time - this->started_;
     if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
       warn_blocking(this->component_, blocking_time);
     }
@@ -655,7 +675,6 @@ class WarnIfComponentBlockingGuard {
   Component *component_;
 #ifdef USE_RUNTIME_STATS
   uint32_t started_us_;
-  void record_runtime_stats_();
 #endif
 
  private:

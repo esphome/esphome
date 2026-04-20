@@ -57,7 +57,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     auto &service = services.emplace_next();
     service.service_type = MDNS_STR(SERVICE_ESPHOMELIB);
     service.proto = MDNS_STR(SERVICE_TCP);
-    service.port = api::global_api_server->get_port();
+    service.port = []() -> uint16_t { return api::global_api_server->get_port(); };
 
     const auto &friendly_name = App.get_friendly_name();
     bool friendly_name_empty = friendly_name.empty();
@@ -151,7 +151,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   auto &prom_service = services.emplace_next();
   prom_service.service_type = MDNS_STR(SERVICE_PROMETHEUS);
   prom_service.proto = MDNS_STR(SERVICE_TCP);
-  prom_service.port = USE_WEBSERVER_PORT;
+  prom_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
 #endif
 
 #ifdef USE_SENDSPIN
@@ -162,7 +162,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   auto &sendspin_service = services.emplace_next();
   sendspin_service.service_type = MDNS_STR(SERVICE_SENDSPIN);
   sendspin_service.proto = MDNS_STR(SERVICE_TCP);
-  sendspin_service.port = USE_SENDSPIN_PORT;
+  sendspin_service.port = []() -> uint16_t { return USE_SENDSPIN_PORT; };
   sendspin_service.txt_records = {{MDNS_STR(TXT_SENDSPIN_PATH), MDNS_STR(VALUE_SENDSPIN_PATH)}};
 #endif
 
@@ -172,7 +172,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   auto &web_service = services.emplace_next();
   web_service.service_type = MDNS_STR(SERVICE_HTTP);
   web_service.proto = MDNS_STR(SERVICE_TCP);
-  web_service.port = USE_WEBSERVER_PORT;
+  web_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
 #endif
 
 #if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_WEBSERVER) && \
@@ -185,7 +185,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   auto &fallback_service = services.emplace_next();
   fallback_service.service_type = MDNS_STR(SERVICE_HTTP);
   fallback_service.proto = MDNS_STR(SERVICE_TCP);
-  fallback_service.port = USE_WEBSERVER_PORT;
+  fallback_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
   fallback_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)}};
 #endif
 }
@@ -199,7 +199,7 @@ void MDNSComponent::dump_config() {
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
     ESP_LOGV(TAG, "  - %s, %s, %d", MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto),
-             const_cast<TemplatableValue<uint16_t> &>(service.port).value());
+             service.port.value());
     for (const auto &record : service.txt_records) {
       ESP_LOGV(TAG, "    TXT: %s = %s", MDNS_STR_ARG(record.key), MDNS_STR_ARG(record.value));
     }

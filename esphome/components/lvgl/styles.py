@@ -7,7 +7,7 @@ from esphome.core import ID
 from .defines import CONF_STYLE_DEFINITIONS, CONF_THEME, LValidator, literal
 from .helpers import add_lv_use
 from .lvcode import LambdaContext, lv
-from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, remap_property
+from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, WIDGET_TYPES, remap_property
 from .types import ObjUpdateAction, lv_style_t
 from .widgets import collect_parts, theme_widget_map, wait_for_widgets
 
@@ -85,7 +85,7 @@ async def style_update_to_code(config, action_id, template_arg, args):
 async def theme_to_code(config):
     if theme := config.get(CONF_THEME):
         add_lv_use(CONF_THEME)
-        for w_name, style in theme.items():
+        for w_name, style in ((k, v) for k, v in theme.items() if k in WIDGET_TYPES):
             # Work around Python 3.10 bug with nested async comprehensions
             # With Python 3.11 this could be simplified
             # TODO: Now that we require Python 3.11+, this can be updated to use nested comprehensions
