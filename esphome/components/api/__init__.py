@@ -320,7 +320,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(
                     min=cv.TimePeriod(seconds=60),
-                    max=cv.TimePeriod(seconds=180),
+                    max=cv.TimePeriod(seconds=600),
                 ),
             ),
         }
