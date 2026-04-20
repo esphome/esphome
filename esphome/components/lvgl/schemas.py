@@ -2,6 +2,7 @@ from collections.abc import Callable
 
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
+from esphome.components.mapping import mapping_class
 from esphome.components.time import RealTimeClock
 from esphome.config_validation import prepend_path
 from esphome.const import (
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_TEXT,
     CONF_TIME,
     CONF_TRIGGER_ID,
+    CONF_VALUE,
     CONF_X,
     CONF_Y,
 )
@@ -24,6 +26,7 @@ from esphome.core.config import StartupTrigger
 from . import defines as df, lv_validation as lvalid
 from .defines import (
     CONF_EXT_CLICK_AREA,
+    CONF_MAPPING,
     CONF_SCROLL_DIR,
     CONF_SCROLL_SNAP_X,
     CONF_SCROLL_SNAP_Y,
@@ -73,6 +76,13 @@ PRINTF_TEXT_SCHEMA = cv.All(
     validate_printf,
 )
 
+MAPPING_TEXT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_MAPPING): cv.use_id(mapping_class),
+        cv.Required(CONF_VALUE): cv.templatable(cv.string),
+    }
+)
+
 
 def _validate_text(value):
     """
@@ -84,6 +94,8 @@ def _validate_text(value):
     if isinstance(value, dict):
         if CONF_TIME_FORMAT in value:
             return TIME_TEXT_SCHEMA(value)
+        if CONF_MAPPING in value:
+            return MAPPING_TEXT_SCHEMA(value)
         return PRINTF_TEXT_SCHEMA(value)
 
     return cv.templatable(cv.string)(value)

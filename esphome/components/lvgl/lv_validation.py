@@ -22,9 +22,11 @@ from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
+from ..mapping import get_mapping_metadata
 from . import types as ty
 from .defines import (
     CONF_END_VALUE,
+    CONF_MAPPING,
     CONF_START_VALUE,
     CONF_TIME_FORMAT,
     LV_FONTS,
@@ -435,6 +437,18 @@ class TextValidator(LValidator):
                         f"(std::isfinite({arg_expr}) ? {sprintf_str} : {nanval})"
                     )
                 return literal(sprintf_str)
+            if mapping_id := value.get(CONF_MAPPING):
+                mapping_var = await cg.get_variable(mapping_id)
+                metadata = get_mapping_metadata(mapping_id.id)
+                index = value[CONF_VALUE]
+                if isinstance(index, Lambda):
+                    index = call_lambda(
+                        await cg.process_lambda(
+                            index, args, return_type=metadata.to_.data_type
+                        )
+                    )
+                return mapping_var.get(index).c_str()
+
             if time_format := value.get(CONF_TIME_FORMAT):
                 source = value[CONF_TIME]
                 if isinstance(source, Lambda):
