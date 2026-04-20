@@ -39,7 +39,7 @@ void ZE15COComponent::update() {
       this->status_set_warning();
       return;
     }
-  this->warmup_complete_ = true;
+    this->warmup_complete_ = true;
   }
 
   // Send Question command
