@@ -202,6 +202,9 @@ lvgl:
                   bg_opa: !lambda return 0.5;
               - lvgl.image.update:
                   id: lv_image
+                  src:
+                    mapping: image_map
+                    value: 0
                   scale: !lambda return 512;
                   rotation: !lambda return 100;
                   pivot_x: !lambda return 20;
@@ -322,9 +325,16 @@ lvgl:
             text_font: montserrat_40
             border_post: true
             on_press:
-              lvgl.label.update:
-                id: hello_label
-                text: Goodbye
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    mapping: string_map
+                    value: !lambda return 2;
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    mapping: string_map
+                    value: 2
             on_click:
               then:
                 - lvgl.animimg.stop: anim_img
@@ -1313,6 +1323,21 @@ image:
     resize: 100x100
     invert_alpha: true
     transparency: alpha_channel
+
+mapping:
+  - id: image_map
+    from: int
+    to: image
+    entries:
+      0: cat_image
+      1: dog_image
+  - id: string_map
+    from: int
+    to: string
+    entries:
+      0: "First"
+      1: "Second"
+      2: "Third"
 
 color:
   - id: light_blue

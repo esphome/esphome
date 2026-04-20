@@ -83,6 +83,13 @@ MAPPING_TEXT_SCHEMA = cv.Schema(
     }
 )
 
+MAPPING_IMAGE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_MAPPING): cv.use_id(mapping_class),
+        cv.Required(CONF_VALUE): cv.templatable(cv.string),
+    }
+)
+
 
 def _validate_text(value):
     """

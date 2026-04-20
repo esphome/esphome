@@ -26,6 +26,7 @@ from ..mapping import get_mapping_metadata
 from . import types as ty
 from .defines import (
     CONF_END_VALUE,
+    CONF_IMAGE,
     CONF_MAPPING,
     CONF_START_VALUE,
     CONF_TIME_FORMAT,
@@ -375,21 +376,53 @@ def stop_value(value):
 lv_images_used = set()
 
 
-def image_validator(value):
-    value = requires_component("image")(value)
+def _image_validator(value):
+    if isinstance(value, dict) and CONF_MAPPING in value:
+        from .schemas import MAPPING_IMAGE_SCHEMA
+
+        return MAPPING_IMAGE_SCHEMA(value)
     value = cv.use_id(Image_)(value)
     lv_images_used.add(value)
-    add_lv_use("img", "label")
     return value
 
 
-lv_image = LValidator(
-    image_validator,
-    image.Image_.operator("ptr"),
-    requires="image",
-)
+class ImageValidator(LValidator):
+    def __init__(self):
+        super().__init__(
+            validator=_image_validator,
+            rtype=image.Image_.operator("ptr"),
+            requires=CONF_IMAGE,
+        )
+
+    async def process(
+        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+    ) -> Expression:
+        # Local import to avoid circular import at module level
+        from .lvcode import get_lambda_context_args
+
+        args = args or get_lambda_context_args()
+        if isinstance(value, dict) and CONF_MAPPING in value:
+            mapping_id = value[CONF_MAPPING]
+            mapping_var = await cg.get_variable(mapping_id)
+            metadata = get_mapping_metadata(mapping_id.id)
+            index = value[CONF_VALUE]
+            if isinstance(index, Lambda):
+                index = call_lambda(
+                    await cg.process_lambda(
+                        index, args, return_type=metadata.to_.data_type
+                    )
+                )
+            else:
+                index = await metadata.from_.convert_value(index)
+            return mapping_var.get(index)
+
+        return await super().process(value, args)
+
+
+lv_image = ImageValidator()
+
 lv_image_list = LValidator(
-    cv.ensure_list(image_validator),
+    cv.ensure_list(_image_validator),
     cg.std_vector.template(image.Image_.operator("ptr")),
     requires="image",
 )
@@ -447,6 +480,8 @@ class TextValidator(LValidator):
                             index, args, return_type=metadata.to_.data_type
                         )
                     )
+                else:
+                    index = await metadata.from_.convert_value(index)
                 return mapping_var.get(index).c_str()
 
             if time_format := value.get(CONF_TIME_FORMAT):

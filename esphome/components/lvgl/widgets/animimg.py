@@ -68,7 +68,7 @@ class AnimimgType(WidgetType):
             lv.animimg_start(w.obj)
 
     def get_uses(self):
-        return "img", CONF_IMAGE, CONF_LABEL
+        return CONF_IMAGE, CONF_LABEL
 
 
 animimg_spec = AnimimgType()
