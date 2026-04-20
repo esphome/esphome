@@ -23,6 +23,7 @@ class ZE15COComponent : public sensor::Sensor, public PollingComponent, public u
  protected:
   Mode mode_{Mode::QA};
   uint32_t warmup_seconds_{30};
+  bool warmup_complete_{false};
 
   uint8_t buffer_[9];
   uint8_t buffer_pos_{0};

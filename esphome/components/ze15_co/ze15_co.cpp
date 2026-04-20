@@ -31,12 +31,15 @@ void ZE15COComponent::update() {
     return;
 
   // Check if we are in the warming period
-  uint32_t now_ms = App.get_loop_component_start_time();
-  uint32_t warmup_ms = this->warmup_seconds_ * 1000;
-  if (now_ms < warmup_ms) {
-    ESP_LOGW(TAG, "ZE15-CO warming up, %" PRIu32 " s left", (warmup_ms - now_ms) / 1000);
-    this->status_set_warning();
-    return;
+  if (!this->warmup_complete_) {
+    uint32_t now_ms = App.get_loop_component_start_time();
+    uint32_t warmup_ms = this->warmup_seconds_ * 1000;
+    if (now_ms < warmup_ms) {
+      ESP_LOGW(TAG, "ZE15-CO warming up, %" PRIu32 " s left", (warmup_ms - now_ms) / 1000);
+      this->status_set_warning();
+      return;
+    }
+  this->warmup_complete_ = true;
   }
 
   // Send Question command
@@ -104,12 +107,15 @@ void ZE15COComponent::process_stream_byte_(uint8_t byte) {
   buffer_pos_ = 0;
 
   // Check if we are in the warming period
-  uint32_t now_ms = App.get_loop_component_start_time();
-  uint32_t warmup_ms = this->warmup_seconds_ * 1000;
-  if (now_ms < warmup_ms) {
-    ESP_LOGW(TAG, "ZE15-CO warming up, %" PRIu32 " s left", (warmup_ms - now_ms) / 1000);
-    this->status_set_warning();
-    return;
+  if (!this->warmup_complete_) {
+    uint32_t now_ms = App.get_loop_component_start_time();
+    uint32_t warmup_ms = this->warmup_seconds_ * 1000;
+    if (now_ms < warmup_ms) {
+      ESP_LOGW(TAG, "ZE15-CO warming up, %" PRIu32 " s left", (warmup_ms - now_ms) / 1000);
+      this->status_set_warning();
+      return;
+    }
+    this->warmup_complete_ = true;
   }
 
   // Check gas type
