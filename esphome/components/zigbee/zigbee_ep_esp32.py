@@ -27,7 +27,7 @@ ep_configs: dict[str, dict[str, Any]] = {
                     {
                         CONF_ATTRIBUTE_ID: 0x55,
                         CONF_TYPE: "BOOL",
-                        CONF_REPORT: REPORT["yes"],
+                        CONF_REPORT: REPORT["enable"],
                         CONF_DEVICE: None,
                     },
                     {
