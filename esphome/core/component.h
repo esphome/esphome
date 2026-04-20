@@ -601,7 +601,7 @@ class Component {
  */
 class PollingComponent : public Component {
  public:
-  PollingComponent() : PollingComponent(1) {}
+  PollingComponent() : PollingComponent(SCHEDULER_DONT_RUN) {}
 
   /** Initialize this polling component with the given update interval in ms.
    *
