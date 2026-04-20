@@ -27,7 +27,7 @@ SubstitutionPath = list[int | str]
 ErrList = list[tuple[UndefinedError, SubstitutionPath, Any]]
 
 
-def _path_doc(item: object) -> str | None:
+def _path_doc(item: Any) -> str | None:
     """Return the source document name if *item* carries location info."""
     if isinstance(item, ESPHomeDataBase):
         r = item.esp_range
@@ -36,7 +36,7 @@ def _path_doc(item: object) -> str | None:
     return None
 
 
-def format_config_path(path: SubstitutionPath, current_obj: object) -> str:
+def format_config_path(path: SubstitutionPath, current_obj: Any) -> str:
     """Build a human-readable include stack from a config path.
 
     Each YAML key in *path* that carries an ``ESPHomeDataBase`` ``esp_range``
@@ -51,39 +51,33 @@ def format_config_path(path: SubstitutionPath, current_obj: object) -> str:
     The innermost ``In:`` line uses the location from *current_obj* when
     available (the value that triggered the error) for extra precision.
     """
-    # Split path into frames: start a new frame each time the source document
-    # changes among the path items that carry location info.
-    frames: list[tuple[list, str]] = []  # (path_segment, location_str)
+    # Walk once, splitting into frames at document boundaries. Integer list
+    # subscripts stay with the currently open frame ("packages[0]"); plain
+    # string keys before a document change belong to the *next* frame, so we
+    # buffer them in `pending` until the next located key flushes them in.
+    frames: list[tuple[list, str]] = []
+    segment: list = []
+    pending: list = []
+    location = ""
     current_doc: str | None = None
-    frame_start = 0
-    last_key_idx = -1
-    last_key_loc = ""
 
-    for i, item in enumerate(path):
+    for item in path:
         doc = _path_doc(item)
         if doc is None:
+            target = segment if isinstance(item, int) and current_doc else pending
+            target.append(item)
             continue
-        loc = str(item.esp_range.start_mark)
-        if doc != current_doc:
-            if current_doc is not None:
-                # Close the current frame.  Any integers immediately following
-                # the last located key are list indices belonging to that key
-                # (e.g. "packages[0]"), so consume them into this frame.
-                seg = list(path[frame_start : last_key_idx + 1])
-                j = last_key_idx + 1
-                while j < i and isinstance(path[j], int):
-                    seg.append(path[j])
-                    j += 1
-                frames.append((seg, last_key_loc))
-                frame_start = j  # next frame starts after the consumed integers
-            current_doc = doc
-        last_key_idx = i
-        last_key_loc = loc
+        if current_doc is not None and doc != current_doc:
+            frames.append((segment, location))
+            segment = []
+        segment.extend(pending)
+        pending = []
+        segment.append(item)
+        current_doc = doc
+        location = str(item.esp_range.start_mark)
 
     if current_doc is not None:
-        seg = list(path[frame_start : last_key_idx + 1])
-        seg += [item for item in path[last_key_idx + 1 :] if isinstance(item, int)]
-        frames.append((seg, last_key_loc))
+        frames.append((segment, location))
 
     def fmt_path(seg: list) -> str:
         """Format a path segment, rendering integers as [n] subscripts."""
@@ -98,27 +92,21 @@ def format_config_path(path: SubstitutionPath, current_obj: object) -> str:
                 parts.append(str(item))
         return "->".join(parts)
 
-    if not frames:
-        # No location info in path — use current_obj if possible
-        location = ""
-        if isinstance(current_obj, ESPHomeDataBase):
-            r = getattr(current_obj, "esp_range", None)
-            if r is not None:
-                location = f" in {r.start_mark}"
-        return f"In: {fmt_path(path)}{location}"
-
-    # For the innermost "In:" line prefer the current object's location
-    # (the value that triggered the error, usually more precise than the key).
-    inner_seg, inner_loc = frames[-1]
+    obj_loc = ""
     if isinstance(current_obj, ESPHomeDataBase):
         r = getattr(current_obj, "esp_range", None)
         if r is not None:
-            inner_loc = str(r.start_mark)
+            obj_loc = str(r.start_mark)
 
-    lines = [f"In: {fmt_path(inner_seg)} in {inner_loc}"]
+    if not frames:
+        return f"In: {fmt_path(path)}" + (f" in {obj_loc}" if obj_loc else "")
+
+    # Innermost line prefers current_obj's location (usually more precise
+    # than the key that owns it).
+    inner_seg, inner_loc = frames[-1]
+    lines = [f"In: {fmt_path(inner_seg)} in {obj_loc or inner_loc}"]
     for seg, loc in reversed(frames[:-1]):
         lines.append(f"  Included from {fmt_path(seg)} in {loc}")
-
     return "\n".join(lines)
 
 
