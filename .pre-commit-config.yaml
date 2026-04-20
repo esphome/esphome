@@ -58,6 +58,7 @@ repos:
         entry: python3 script/run-in-env.py pylint
         language: system
         types: [python]
+        files: ^esphome/.+\.py$
       - id: clang-tidy-hash
         name: Update clang-tidy hash
         entry: python script/clang_tidy_hash.py --update-if-changed
