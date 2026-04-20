@@ -41,7 +41,12 @@ async def new_fastled_light(config):
     if CONF_MAX_REFRESH_RATE in config:
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
-    cg.add_library("fastled/FastLED", "3.9.16")
+    # Pinned to a GitHub SHA because the PlatformIO registry lags several releases behind upstream.
+    cg.add_library(
+        "FastLED",
+        None,
+        "https://github.com/FastLED/FastLED.git#a8432344254ae1fcee67b6e3c9ce6df899629a72",
+    )
     if CORE.is_esp32:
         from esphome.components.esp32 import include_builtin_idf_component
 
