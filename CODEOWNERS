@@ -370,6 +370,14 @@ esphome/components/online_image/* @clydebarrow @guillempages
 esphome/components/opentherm/* @olegtarasov
 esphome/components/openthread/* @mrene
 esphome/components/opt3001/* @ccutrer
+esphome/components/optolink/* @j0ta29
+esphome/components/optolink/binary_sensor/* @j0ta29
+esphome/components/optolink/number/* @j0ta29
+esphome/components/optolink/select/* @j0ta29
+esphome/components/optolink/sensor/* @j0ta29
+esphome/components/optolink/switch/* @j0ta29
+esphome/components/optolink/text/* @j0ta29
+esphome/components/optolink/text_sensor/* @j0ta29
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/packet_transport/* @clydebarrow

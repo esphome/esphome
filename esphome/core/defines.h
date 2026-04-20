@@ -201,6 +201,8 @@
 #ifdef USE_ARDUINO
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
+#define USE_OPTOLINK_VITOWIFI_PROTOCOL P300
+#define USE_I2S_LEGACY
 #endif
 
 // Platforms with native 64-bit time sources (no rollover tracking needed)
