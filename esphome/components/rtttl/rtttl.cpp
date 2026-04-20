@@ -295,13 +295,18 @@ void Rtttl::play(std::string rtttl) {
   ESP_LOGD(TAG, "Playing song %.*s", (int) this->position_, this->rtttl_.c_str());
 
   size_t name_end_position = this->position_;
+  size_t control_end = this->rtttl_.find(':', name_end_position + 1);
+  if (control_end == std::string::npos) {
+    ESP_LOGE(TAG, "Missing second ':'");
+    return;
+  }
 
   // Get default duration
-  this->position_ = this->rtttl_.find("d=", name_end_position);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGI(TAG, "Missing 'd='; use default duration %d", this->default_note_denominator_);
+  size_t pos = this->rtttl_.find("d=", name_end_position);
+  if (pos == std::string::npos || pos >= control_end) {
+    ESP_LOGW(TAG, "Missing 'd='; use default duration %d", this->default_note_denominator_);
   } else {
-    this->position_ += 2;
+    this->position_ = pos + 2;
     num = this->get_integer_();
     if (num == 1 || num == 2 || num == 4 || num == 8 || num == 16 || num == 32) {
       this->default_note_denominator_ = num;
@@ -312,11 +317,11 @@ void Rtttl::play(std::string rtttl) {
   }
 
   // Get default octave
-  this->position_ = this->rtttl_.find("o=", name_end_position);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGI(TAG, "Missing 'o='; use default octave %d", this->default_octave_);
+  pos = this->rtttl_.find("o=", name_end_position);
+  if (pos == std::string::npos || pos >= control_end) {
+    ESP_LOGW(TAG, "Missing 'o='; use default octave %d", this->default_octave_);
   } else {
-    this->position_ += 2;
+    this->position_ = pos + 2;
     num = this->get_integer_();
     if (num >= MIN_OCTAVE && num <= MAX_OCTAVE) {
       this->default_octave_ = num;
@@ -327,11 +332,11 @@ void Rtttl::play(std::string rtttl) {
   }
 
   // Get BPM
-  this->position_ = this->rtttl_.find("b=", name_end_position);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGI(TAG, "Missing 'b='; use default BPM %d", bpm);
+  pos = this->rtttl_.find("b=", name_end_position);
+  if (pos == std::string::npos || pos >= control_end) {
+    ESP_LOGW(TAG, "Missing 'b='; use default BPM %d", bpm);
   } else {
-    this->position_ += 2;
+    this->position_ = pos + 2;
     num = this->get_integer_();
     if (num >= 4) {  // Below 4 is not realistic and would cause a integer overflow
       bpm = num;
@@ -341,12 +346,7 @@ void Rtttl::play(std::string rtttl) {
     }
   }
 
-  this->position_ = this->rtttl_.find(':', this->position_);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing second ':'");
-    return;
-  }
-  this->position_++;
+  this->position_ = control_end + 1;
 
   // BPM usually expresses the number of quarter notes per minute
   this->wholenote_duration_ = 60 * 1000L * 4 / bpm;  // This is the time for whole note (in milliseconds)
