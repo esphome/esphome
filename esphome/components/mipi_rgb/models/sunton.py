@@ -3,7 +3,7 @@ from esphome.config_validation import UNDEFINED
 
 # fmt: off
 sunton = DriverChip(
-    "SUNTON_8048S070",
+    "ESP32-8048S070",
     swap_xy=UNDEFINED,
     initsequence=(),
     width=800,
@@ -27,7 +27,7 @@ sunton = DriverChip(
 )
 
 sunton.extend(
-    "SUNTON_8048S050",
+    "ESP32-8048S050",
     swap_xy=UNDEFINED,
     initsequence=(),
     width=800,
