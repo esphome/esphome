@@ -19,6 +19,7 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   void control(const climate::ClimateCall &call) override;
 
   void set_update_interval(uint32_t ms) { hp_.set_update_interval(ms); }
+  void set_current_temperature_min_interval(uint32_t ms) { hp_.set_room_temperature_min_interval(ms); }
 
  protected:
   void apply_values_();

@@ -12,9 +12,10 @@ const {
   detectTests,
   detectPRTemplateCheckboxes,
   detectDeprecatedComponents,
+  detectMaintainerAccess,
   detectRequirements
 } = require('./detectors');
-const { handleReviews } = require('./reviews');
+const { handleReviews, handleMaintainerAccessComment } = require('./reviews');
 const { applyLabels, removeOldLabels } = require('./labels');
 
 // Fetch API data
@@ -114,7 +115,8 @@ module.exports = async ({ github, context }) => {
     codeOwnerLabels,
     testLabels,
     checkboxLabels,
-    deprecatedResult
+    deprecatedResult,
+    maintainerAccess
   ] = await Promise.all([
     detectMergeBranch(context),
     detectComponentPlatforms(changedFiles, apiData),
@@ -127,7 +129,8 @@ module.exports = async ({ github, context }) => {
     detectCodeOwner(github, context, changedFiles),
     detectTests(changedFiles),
     detectPRTemplateCheckboxes(context),
-    detectDeprecatedComponents(github, context, changedFiles)
+    detectDeprecatedComponents(github, context, changedFiles),
+    detectMaintainerAccess(context)
   ]);
 
   // Extract deprecated component info
@@ -177,8 +180,11 @@ module.exports = async ({ github, context }) => {
 
   console.log('Computed labels:', finalLabels.join(', '));
 
-  // Handle reviews
-  await handleReviews(github, context, finalLabels, originalLabelCount, deprecatedInfo, prFiles, totalAdditions, totalDeletions, MAX_LABELS, TOO_BIG_THRESHOLD);
+  // Handle reviews and org fork comment
+  await Promise.all([
+    handleReviews(github, context, finalLabels, originalLabelCount, deprecatedInfo, prFiles, totalAdditions, totalDeletions, MAX_LABELS, TOO_BIG_THRESHOLD),
+    handleMaintainerAccessComment(github, context, maintainerAccess)
+  ]);
 
   // Apply labels
   await applyLabels(github, context, finalLabels);
