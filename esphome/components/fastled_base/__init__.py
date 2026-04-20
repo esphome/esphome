@@ -42,13 +42,13 @@ async def new_fastled_light(config):
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     # Pinned to a GitHub SHA because the PlatformIO registry lags several releases behind upstream.
-    # Tag 3.10.3 -> 20667c3a6413ed46a828f78ec95fb57e58d753f8. Master HEAD moved
-    # `InlineBlockClocklessController` into the `fl::` namespace and introduced SIMD headers
-    # that dont compile on ESP8266, so pin to the last tag instead.
+    # SHA b9e818437c3365584ce9f639386c2e2c78c81f44 (2026-03-20) is the last commit before the
+    # 2026-03-21 math refactor that introduced SIMD headers which dont build on ESP8266.
+    # It includes the IDF 6.0 compat fix (issue #2200) needed for IDF 6 builds.
     cg.add_library(
         "FastLED",
-        "3.10.3",
-        "https://github.com/FastLED/FastLED.git#20667c3a6413ed46a828f78ec95fb57e58d753f8",
+        None,
+        "https://github.com/FastLED/FastLED.git#b9e818437c3365584ce9f639386c2e2c78c81f44",
     )
     if CORE.is_esp32:
         from esphome.components.esp32 import include_builtin_idf_component

@@ -179,23 +179,23 @@ class FastLEDLightOutput : public light::AddressableLight {
 #ifdef PORTA_FIRST_PIN
       case WS2811_PORTA:
         return add_leds(
-            new InlineBlockClocklessController<NUM_LANES, PORTA_FIRST_PIN, NS(320), NS(320), NS(640), RGB_ORDER>(),
+            new fl::InlineBlockClocklessController<NUM_LANES, PORTA_FIRST_PIN, NS(320), NS(320), NS(640), RGB_ORDER>(),
             num_leds);
       case WS2811_400_PORTA:
         return add_leds(
-            new InlineBlockClocklessController<NUM_LANES, PORTA_FIRST_PIN, NS(800), NS(800), NS(900), RGB_ORDER>(),
+            new fl::InlineBlockClocklessController<NUM_LANES, PORTA_FIRST_PIN, NS(800), NS(800), NS(900), RGB_ORDER>(),
             num_leds);
       case WS2813_PORTA:
-        return add_leds(new InlineBlockClocklessController<NUM_LANES, PORTA_FIRST_PIN, NS(320), NS(320), NS(640),
-                                                           RGB_ORDER, 0, false, 300>(),
+        return add_leds(new fl::InlineBlockClocklessController<NUM_LANES, PORTA_FIRST_PIN, NS(320), NS(320), NS(640),
+                                                               RGB_ORDER, 0, false, 300>(),
                         num_leds);
       case TM1803_PORTA:
         return add_leds(
-            new InlineBlockClocklessController<NUM_LANES, PORTA_FIRST_PIN, NS(700), NS(1100), NS(700), RGB_ORDER>(),
+            new fl::InlineBlockClocklessController<NUM_LANES, PORTA_FIRST_PIN, NS(700), NS(1100), NS(700), RGB_ORDER>(),
             num_leds);
       case UCS1903_PORTA:
         return add_leds(
-            new InlineBlockClocklessController<NUM_LANES, PORTA_FIRST_PIN, NS(500), NS(1500), NS(500), RGB_ORDER>(),
+            new fl::InlineBlockClocklessController<NUM_LANES, PORTA_FIRST_PIN, NS(500), NS(1500), NS(500), RGB_ORDER>(),
             num_leds);
 #endif
     }
