@@ -190,7 +190,7 @@ void AcDimmer::setup() {
     this->zero_cross_pin_->setup();
     this->store_.zero_cross_pin = this->zero_cross_pin_->to_isr();
     this->zero_cross_pin_->attach_interrupt(&AcDimmerDataStore::s_gpio_intr, &this->store_,
-                                            gpio::INTERRUPT_FALLING_EDGE);
+                                            this->zero_cross_interrupt_type_);
   }
 
 #ifdef USE_ESP8266
