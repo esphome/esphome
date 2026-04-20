@@ -129,7 +129,8 @@ class Scheduler {
 
   // Execute all scheduled items that are ready
   // @param now Fresh timestamp from millis() - must not be stale/cached
-  void call(uint32_t now);
+  // @return Timestamp of the last item that ran, or `now` unchanged if none ran.
+  uint32_t call(uint32_t now);
 
   // Move items from to_add_ into the main heap.
   // IMPORTANT: This method should only be called from the main thread (loop task).
@@ -286,7 +287,7 @@ class Scheduler {
   // Extend a 32-bit millis() value to 64-bit. Use when the caller already has a fresh now.
   // On platforms with native 64-bit time, ignores now and uses millis_64() directly.
   // On other platforms, extends now to 64-bit using rollover tracking.
-  uint64_t millis_64_from_(uint32_t now) {
+  uint64_t ESPHOME_ALWAYS_INLINE millis_64_from_(uint32_t now) {
 #ifdef USE_NATIVE_64BIT_TIME
     (void) now;
     return millis_64();

@@ -3,6 +3,8 @@ dependencies:
     version: "7.4.2"
   esphome/esp-audio-libs:
     version: 2.0.4
+  esphome/micro-decoder:
+    version: 0.1.1
   esphome/micro-flac:
     version: 0.1.1
   esphome/micro-opus:

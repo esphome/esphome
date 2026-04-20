@@ -8,8 +8,11 @@ from typing import Any
 from esphome import git, yaml_util
 from esphome.components.substitutions import (
     ContextVars,
+    ErrList,
     push_context,
+    raise_first_undefined,
     resolve_include,
+    resolve_substitutions_block,
     substitute,
 )
 from esphome.components.substitutions.jinja import has_jinja
@@ -359,12 +362,19 @@ def _substitute_package_definition(
     if isinstance(package_config, str) or (
         isinstance(package_config, dict) and is_remote_package(package_config)
     ):
+        # Collect undefined-variable errors (rather than raising strict) so the
+        # path walked through a remote-package dict is preserved and the user
+        # sees which field (url / path / ref / ...) referenced the undefined
+        # variable.
+        errors: ErrList = []
         package_config = substitute(
             item=package_config,
             path=[],
             parent_context=context_vars or ContextVars(),
             strict_undefined=False,
+            errors=errors,
         )
+        raise_first_undefined(errors, package_config, "package definition")
     return package_config
 
 
@@ -516,7 +526,12 @@ def do_packages_pass(
     if CONF_PACKAGES not in config:
         return config
 
-    substitutions = UserDict(config.pop(CONF_SUBSTITUTIONS, {}))
+    with cv.prepend_path(CONF_SUBSTITUTIONS):
+        substitutions = UserDict(
+            resolve_substitutions_block(
+                config.pop(CONF_SUBSTITUTIONS, {}), command_line_substitutions
+            )
+        )
     processor = _PackageProcessor(
         substitutions, command_line_substitutions, skip_update
     )
