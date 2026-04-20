@@ -28,17 +28,27 @@ extern volatile bool g_main_loop_woke;
 // === ESP32 / LibreTiny (FreeRTOS) ===
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
 
-#ifdef USE_ESP32
-/// IRAM_ATTR entry point — defined in wake.cpp.
-void wake_loop_isrsafe(BaseType_t *px_higher_priority_task_woken);
-/// IRAM_ATTR entry point — defined in wake.cpp.
-void wake_loop_any_context();
+/// Wake the main loop from any context (ISR or task).
+/// always_inline so callers placed in IRAM keep the whole wake path in IRAM.
+__attribute__((always_inline)) inline void wake_main_task_any_context() {
+  if (in_isr_context()) {
+    BaseType_t px_higher_priority_task_woken = pdFALSE;
+    esphome_main_task_notify_from_isr(&px_higher_priority_task_woken);
+#ifdef portYIELD_FROM_ISR
+    portYIELD_FROM_ISR(px_higher_priority_task_woken);
 #else
-/// LibreTiny: IRAM_ATTR is not functional and the FreeRTOS port does not
-/// provide vTaskNotifyGiveFromISR/portYIELD_FROM_ISR, so ISR-safe wake
-/// is not possible. xTaskNotifyGive is used as the best available option.
-inline void wake_loop_any_context() { esphome_main_task_notify(); }
+    // ARM9 FreeRTOS port (BK72xx) does not define portYIELD_FROM_ISR; the IRQ
+    // exit sequence performs the context switch if one was requested.
+    (void) px_higher_priority_task_woken;
 #endif
+  } else {
+    esphome_main_task_notify();
+  }
+}
+
+/// IRAM_ATTR entry points — defined in wake.cpp.
+void wake_loop_isrsafe(BaseType_t *px_higher_priority_task_woken);
+void wake_loop_any_context();
 
 inline void wake_loop_threadsafe() { esphome_main_task_notify(); }
 
@@ -66,6 +76,9 @@ void wake_loop_any_context();
 
 /// Non-ISR: always inline.
 inline void wake_loop_threadsafe() { wake_loop_impl(); }
+
+/// ISR-safe: no task_woken arg because ESP8266 has no FreeRTOS. Caller must be IRAM_ATTR.
+inline void ESPHOME_ALWAYS_INLINE wake_loop_isrsafe() { wake_loop_impl(); }
 
 namespace internal {
 inline void wakeable_delay(uint32_t ms) {

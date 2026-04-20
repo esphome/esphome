@@ -225,7 +225,21 @@ void HOT Application::feed_wdt_slow_(uint32_t time) {
   this->last_wdt_feed_ = time;
 #ifdef USE_STATUS_LED
   if (status_led::global_status_led != nullptr) {
-    status_led::global_status_led->call();
+    auto *sl = status_led::global_status_led;
+    uint8_t sl_state = sl->get_component_state() & COMPONENT_STATE_MASK;
+    if (sl_state == COMPONENT_STATE_LOOP_DONE) {
+      // status_led only transitions to LOOP_DONE from inside its own loop() (after the
+      // first idle-path dispatch), so its pin is already initialized by pre_setup() and
+      // its setup() has already run. Re-dispatch only if an error or warning bit has been
+      // set since; otherwise skip entirely.
+      if ((this->app_state_ & STATUS_LED_MASK) == 0)
+        return;
+      sl->enable_loop();
+    } else if (sl_state != COMPONENT_STATE_LOOP) {
+      // CONSTRUCTION/SETUP/FAILED: not our job — App::setup() drives the lifecycle.
+      return;
+    }
+    sl->loop();
   }
 #endif
 }
