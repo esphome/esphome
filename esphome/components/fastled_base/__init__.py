@@ -42,10 +42,13 @@ async def new_fastled_light(config):
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     # Pinned to a GitHub SHA because the PlatformIO registry lags several releases behind upstream.
+    # Tag 3.10.3 -> 20667c3a6413ed46a828f78ec95fb57e58d753f8. Master HEAD moved
+    # `InlineBlockClocklessController` into the `fl::` namespace and introduced SIMD headers
+    # that dont compile on ESP8266, so pin to the last tag instead.
     cg.add_library(
         "FastLED",
-        None,
-        "https://github.com/FastLED/FastLED.git#a8432344254ae1fcee67b6e3c9ce6df899629a72",
+        "3.10.3",
+        "https://github.com/FastLED/FastLED.git#20667c3a6413ed46a828f78ec95fb57e58d753f8",
     )
     if CORE.is_esp32:
         from esphome.components.esp32 import include_builtin_idf_component
