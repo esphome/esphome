@@ -40,7 +40,6 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_RATE): sensor.sensor_schema(
                 unit_of_measurement=f"{UNIT_PERCENT}/{UNIT_HOUR}",
                 accuracy_decimals=1,  # Actual Resolution: 0.208%/hr
-                device_class=None,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
