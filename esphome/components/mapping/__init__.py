@@ -106,11 +106,11 @@ def get_mapping_metadata(mapping_id: str) -> MappingMetaData:
 
 
 def add_metadata(
-    id: str | MockObj,
+    mapping_id: str | MockObj,
     from_: IndexType,
     to_: IndexType,
 ):
-    get_all_mapping_metadata()[str(id)] = MappingMetaData(from_, to_)
+    get_all_mapping_metadata()[str(mapping_id)] = MappingMetaData(from_, to_)
 
 
 def map_schema(config):
@@ -131,11 +131,9 @@ def map_schema(config):
                 f"No known mappable class name matches '{to_}'; did you mean one of {', '.join(matches)}?"
             )
         validator = cv.use_id(object_type)
-        if validator(config[CONF_ENTRIES][0]).op != ".":
-            object_type = object_type.operator("ptr")
         value_type = IndexType(validator, object_type)
     config[CONF_ENTRIES] = {k: value_type.validator(v) for k, v in entries.items()}
-    if default_value := config.get(CONF_DEFAULT_VALUE):
+    if (default_value := config.get(CONF_DEFAULT_VALUE)) is not None:
         config[CONF_DEFAULT_VALUE] = value_type.validator(default_value)
     unexpected_keys = config.keys() - {
         CONF_ENTRIES,
@@ -164,9 +162,14 @@ async def to_code(config):
         metadata.from_.conversion(key): await metadata.to_.convert_value(value)
         for key, value in config[CONF_ENTRIES].items()
     }
+    value_type = metadata.to_.data_type
+    # entries guaranteed to be non-empty here.
+    value_0 = list(entries.values())[0]
+    if isinstance(value_0, MockObj) and value_0.op != ".":
+        value_type = value_type.operator("ptr")
     varid.type = mapping_class.template(
         metadata.from_.data_type,
-        metadata.to_.data_type,
+        value_type,
     )
     var = MockObj(varid, ".")
     decl = VariableDeclarationExpression(varid.type, "", varid, static=True)
@@ -176,5 +179,5 @@ async def to_code(config):
     for key, value in entries.items():
         cg.add(var.set(key, value))
     if (default_value := config.get(CONF_DEFAULT_VALUE)) is not None:
-        cg.add(var.set_default_value(default_value))
+        cg.add(var.set_default_value(await metadata.to_.convert_value(default_value)))
     return var
