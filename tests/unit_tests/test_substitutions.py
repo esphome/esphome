@@ -690,7 +690,7 @@ def test_raise_first_undefined_logs_extras_at_debug(
         caplog.at_level(logging.DEBUG, logger="esphome.components.substitutions"),
         pytest.raises(cv.Invalid) as exc_info,
     ):
-        substitutions.raise_first_undefined(errors, None, "package definition")
+        substitutions.raise_first_undefined(errors, "package definition")
 
     # First error is surfaced as the cv.Invalid message.
     raised = str(exc_info.value)
@@ -706,7 +706,7 @@ def test_raise_first_undefined_logs_extras_at_debug(
 
 def test_raise_first_undefined_noop_on_empty() -> None:
     """An empty errors list is a no-op — no exception, no log."""
-    substitutions.raise_first_undefined([], None, "package definition")
+    substitutions.raise_first_undefined([], "package definition")
 
 
 def test_do_substitution_pass_included_substitutions_must_be_mapping(

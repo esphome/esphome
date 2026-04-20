@@ -34,16 +34,13 @@ jinja = Jinja()
 
 def raise_first_undefined(
     errors: ErrList,
-    source: Any,
     context_label: str,
 ) -> None:
     """If *errors* is non-empty, raise ``cv.Invalid`` for the first undefined variable.
 
-    The raised error names the missing variable, the path walked into *source*
-    (for nested dicts, e.g. ``url`` or ``ref``), and the YAML source location
-    when *source* carries one. Only the first error is surfaced; the user will
-    re-run after fixing it and any remaining undefined variables will be
-    reported then.
+    The raised error names the missing variable and its location in the include
+    stack. Only the first error is surfaced; the user will re-run after fixing it
+    and any remaining undefined variables will be reported then.
 
     ``context_label`` is the noun describing where the undefined variable
     appeared (e.g. ``"package definition"``).
@@ -59,26 +56,8 @@ def raise_first_undefined(
             for e, p_path, _ in errors[1:]
         )
         _LOGGER.debug("Additional undefined variables in %s: %s", context_label, extras)
-    # Prefer the location of the offending scalar (e.g. the `url:` value) over
-    # the enclosing package-definition dict so the message points at the exact
-    # line/column that carries the undefined variable.
-    location_node = (
-        err_value
-        if isinstance(err_value, ESPHomeDataBase) and err_value.esp_range is not None
-        else source
-    )
-    location = ""
-    if (
-        isinstance(location_node, ESPHomeDataBase)
-        and location_node.esp_range is not None
-    ):
-        mark = location_node.esp_range.start_mark
-        # DocumentLocation.line/column are 0-based (from the YAML Mark). Render
-        # as 1-based to match config.line_info() and editor line numbering.
-        location = f" (in {mark.document} {mark.line + 1}:{mark.column + 1})"
-    field = f" at '{'->'.join(str(p) for p in err_path)}'" if err_path else ""
     raise cv.Invalid(
-        f"Undefined variable in {context_label}{field}: {err.message}{location}"
+        f"Undefined variable in {context_label}: {err.message}\n{format_path(err_path, err_value)}"
     )
 
 

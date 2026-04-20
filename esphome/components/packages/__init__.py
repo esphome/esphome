@@ -390,7 +390,7 @@ def _substitute_package_definition(
             strict_undefined=False,
             errors=errors,
         )
-        raise_first_undefined(errors, package_config, "package definition")
+        raise_first_undefined(errors, "package definition")
     return package_config
 
 

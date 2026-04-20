@@ -690,6 +690,11 @@ def _path_doc(item: Any) -> str | None:
     return None
 
 
+def _fmt_mark(loc: Any) -> str:
+    """Render a DocumentLocation as a 1-based 'file line:col' string."""
+    return f"{loc.document} {loc.line + 1}:{loc.column + 1}"
+
+
 def format_path(path: DocumentPath, current_obj: Any) -> str:
     """Build a human-readable include stack from a config path.
 
@@ -728,7 +733,7 @@ def format_path(path: DocumentPath, current_obj: Any) -> str:
         pending = []
         segment.append(item)
         current_doc = doc
-        location = str(item.esp_range.start_mark)
+        location = _fmt_mark(item.esp_range.start_mark)
 
     if current_doc is not None:
         frames.append((segment, location))
@@ -750,7 +755,7 @@ def format_path(path: DocumentPath, current_obj: Any) -> str:
     if isinstance(current_obj, ESPHomeDataBase):
         r = getattr(current_obj, "esp_range", None)
         if r is not None:
-            obj_loc = str(r.start_mark)
+            obj_loc = _fmt_mark(r.start_mark)
 
     if not frames:
         return f"In: {fmt_path(path)}" + (f" in {obj_loc}" if obj_loc else "")

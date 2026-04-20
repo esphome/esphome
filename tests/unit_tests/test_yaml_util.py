@@ -734,14 +734,14 @@ def test_format_path_no_location_info_current_obj_adds_file():
     """When path has no location but current_obj does, its location is shown."""
     obj = _located("${var}", "main.yaml", 5, 10)
     result = format_path(["wifi", "ssid"], obj)
-    assert result == "In: wifi->ssid in main.yaml 5:10"
+    assert result == "In: wifi->ssid in main.yaml 6:11"
 
 
 def test_format_path_single_frame_no_include_boundary():
     """All located keys from the same document → single 'In:' line, no 'Included from'."""
     path = ["packages", _located("pkg1", "root.yaml", 5, 2)]
     result = format_path(path, None)
-    assert result.startswith("In: packages->pkg1 in root.yaml 5:2")
+    assert result.startswith("In: packages->pkg1 in root.yaml 6:3")
     assert "Included from" not in result
 
 
@@ -754,8 +754,8 @@ def test_format_path_two_frames_shows_included_from():
         _located("inner", "hardware.yaml", 3, 2),
     ]
     result = format_path(path, None)
-    assert "In: packages->inner in hardware.yaml 3:2" in result
-    assert "Included from packages->device in root.yaml 10:2" in result
+    assert "In: packages->inner in hardware.yaml 4:3" in result
+    assert "Included from packages->device in root.yaml 11:3" in result
 
 
 def test_format_path_three_frames_full_include_stack():
@@ -781,8 +781,8 @@ def test_format_path_current_obj_overrides_innermost_location():
     # Value (the expression) sits at column 10, not column 2 like the key
     value = _located("${undefined}", "root.yaml", 5, 10)
     result = format_path(path, value)
-    assert "5:10" in result
-    assert "5:2" not in result
+    assert "6:11" in result
+    assert "6:3" not in result
 
 
 def test_format_path_empty_path_with_no_location():
