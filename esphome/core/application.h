@@ -656,12 +656,20 @@ inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::l
   uint32_t loop_tail_start_us = loop_before_end_us;
 #endif
 
-  // Gate the component phase on loop_interval_ or an active high-frequency
-  // request. When a scheduler wake preempts sleep early, this gate keeps the
-  // component phase from running more often than loop_interval_.
+  // Gate the component phase on loop_interval_, an active high-frequency
+  // request, or an explicit wake from a background producer. A scheduler-only
+  // wake (e.g. set_interval firing under a raised loop_interval_) leaves the
+  // component phase gated; an external producer that called wake_loop_*
+  // (MQTT RX, USB RX, BLE event, etc.) needs the component phase to actually
+  // run so its component's loop() can drain the queued work — that is the
+  // long-standing semantic of wake_loop_threadsafe(), and the wake_request
+  // flag preserves it. wake_request_take() exchange-clears the flag; wakes
+  // that arrive during Phase B re-set it and run Phase B again on the next
+  // iteration.
   const bool high_frequency = HighFrequencyLoopRequester::is_high_frequency();
   const uint32_t elapsed = now - this->last_loop_;
-  const bool do_component_phase = high_frequency || (elapsed >= this->loop_interval_);
+  const bool woke = esphome::wake_request_take();
+  const bool do_component_phase = high_frequency || woke || (elapsed >= this->loop_interval_);
 
   if (do_component_phase) {
     this->before_component_phase_();
@@ -712,8 +720,12 @@ inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::l
 #endif
 
   // Compute sleep: bounded by time-until-next-component-phase and the
-  // scheduler's next deadline. When a scheduler event wakes us early we
-  // re-enter loop(), Phase A services it, and the component phase stays gated.
+  // scheduler's next deadline. When a scheduler timer fires it re-enters
+  // loop(), Phase A services it, and the component phase stays gated by
+  // loop_interval_. When a background producer calls wake_loop_threadsafe()
+  // it sets the wake_request flag and wakes select() / the task notification;
+  // the gate above sees the flag and runs Phase B too so the producer's
+  // component can drain its queued work without waiting up to loop_interval_.
   //
   // Re-read HighFrequencyLoopRequester::is_high_frequency() here instead of
   // reusing the cached `high_frequency` captured above: a component calling
