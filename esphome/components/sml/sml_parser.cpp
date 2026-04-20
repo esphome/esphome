@@ -106,7 +106,7 @@ std::string bytes_repr(const BytesView &buffer) {
   std::string repr;
   for (auto const value : buffer) {
     unsigned int num_val = static_cast<unsigned int>(value);
-    if (num_val == 10) { // 10 = "LF" -> Exclude illegal ASCII char (DZG DVS74 outputs it at start of "1-0:96.50.1")
+    if (num_val == 10) {  // 10 = "LF" -> Exclude illegal ASCII char (DZG DVS74 outputs it at start of "1-0:96.50.1")
       continue;
     }
     // max 3: 2 hex digits + null
