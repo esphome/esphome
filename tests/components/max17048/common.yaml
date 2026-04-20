@@ -5,4 +5,6 @@ sensor:
       name: "Battery Voltage"
     battery_level:
       name: Battery
+    rate:
+      name: "Battery rate"
     update_interval: 10s
