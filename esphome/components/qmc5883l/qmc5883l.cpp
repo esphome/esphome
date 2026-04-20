@@ -1,4 +1,5 @@
 #include "qmc5883l.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <cmath>
@@ -70,6 +71,10 @@ void QMC5883LComponent::setup() {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
+  }
+
+  if (!this->drdy_use_isr_ && this->get_update_interval() < App.get_loop_interval()) {
+    this->high_freq_.start();
   }
 }
 
