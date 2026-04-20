@@ -244,6 +244,12 @@ async def to_code(config):
         # disable built in rgb support as it uses the new RMT drivers and will
         # conflict with NeoPixelBus which uses the legacy drivers
         cg.add_build_flag("-DESP32_ARDUINO_NO_RGB_BUILTIN")
-        cg.add_library("makuna/NeoPixelBus", "2.8.0")
+        # Pinned to the CORE3 branch HEAD because upstream hasnt cut a release with the
+        # Arduino Core 3 / IDF 5.5 fixes yet and the PIO registry version doesnt build.
+        cg.add_library(
+            "NeoPixelBus",
+            None,
+            "https://github.com/Makuna/NeoPixelBus.git#76afe832f74b0738a3fa1bba0caf389ade9e7693",
+        )
     else:
         cg.add_library("makuna/NeoPixelBus", "2.7.3")
