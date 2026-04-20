@@ -25,11 +25,13 @@ void ZE15COComponent::dump_config() {
                 this->mode_ == Mode::QA ? "qa" : "stream", this->warmup_seconds_);
 }
 
-void ZE15COComponent::update() {
-  // This event is exclusive for the QA mode
-  if (this->mode_ != Mode::QA)
-    return;
+void ZE15COComponent::setup() {
+  if (this->mode_ != Mode::QA) {
+    this->stop_poller();
+  }
+}
 
+void ZE15COComponent::update() {
   // Check if we are in the warming period
   if (!this->warmup_complete_) {
     uint32_t now_ms = App.get_loop_component_start_time();
