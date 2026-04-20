@@ -27,7 +27,6 @@ _LOGGER = logging.getLogger(__name__)
 ContextVars = ChainMap[str, Any]
 ErrList = list[tuple[UndefinedError, DocumentPath, Any]]
 
-
 # Module-level instance is safe: context_vars is passed per-call, and context_trace
 # is stack-saved/restored within expand(). Not thread-safe — only use from one thread.
 jinja = Jinja()

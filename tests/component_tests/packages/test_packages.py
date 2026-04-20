@@ -46,7 +46,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.util import OrderedDict
-from esphome.yaml_util import IncludeFile, add_context, load_yaml
+from esphome.yaml_util import DocumentPath, IncludeFile, add_context, load_yaml
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -1216,7 +1216,7 @@ def test_named_dict_with_include_files_no_false_deprecation_warning(
     call_count = 0
 
     def failing_callback(
-        package_config: dict, context: object, path: list = None
+        package_config: dict, context: object, path: DocumentPath | None = None
     ) -> dict:
         nonlocal call_count
         call_count += 1
@@ -1254,7 +1254,7 @@ def test_validate_deprecated_false_raises_directly(
     call_count = 0
 
     def failing_callback(
-        package_config: dict, context: object, path: list = None
+        package_config: dict, context: object, path: DocumentPath | None = None
     ) -> dict:
         nonlocal call_count
         call_count += 1
@@ -1287,7 +1287,9 @@ def test_error_on_first_declared_package_still_detected() -> None:
 
     call_count = 0
 
-    def fail_on_last(package_config: dict, context: object, path: list = None) -> dict:
+    def fail_on_last(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal call_count
         call_count += 1
         # Reverse iteration: third_pkg (1), second_pkg (2), first_pkg (3)
@@ -1317,7 +1319,7 @@ def test_deprecated_single_package_fallback_still_works(
     attempt = 0
 
     def fail_then_succeed(
-        package_config: dict, context: object, path: list = None
+        package_config: dict, context: object, path: DocumentPath | None = None
     ) -> dict:
         nonlocal attempt
         attempt += 1

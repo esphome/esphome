@@ -42,6 +42,8 @@ DOMAIN = CONF_PACKAGES
 # Guard against infinite include chains (e.g. A includes B includes A).
 MAX_INCLUDE_DEPTH = 20
 
+PackageCallback = Callable[[dict, ContextVars | None, yaml_util.DocumentPath], dict]
+
 
 def is_remote_package(package_config: dict) -> bool:
     """Returns True if the package_config is a remote package definition."""
@@ -281,7 +283,7 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
 
 def _walk_package_dict(
     packages: dict,
-    callback: Callable[[dict, ContextVars | None, list], dict],
+    callback: PackageCallback,
     context: ContextVars | None,
     path: yaml_util.DocumentPath,
 ) -> cv.Invalid | None:
@@ -302,7 +304,7 @@ def _walk_package_dict(
 
 def _walk_package_list(
     packages: list,
-    callback: Callable[[dict, ContextVars | None, list], dict],
+    callback: PackageCallback,
     context: ContextVars | None,
     path: yaml_util.DocumentPath,
 ) -> None:
@@ -314,7 +316,7 @@ def _walk_package_list(
 
 def _walk_packages(
     config: dict,
-    callback: Callable[[dict, ContextVars | None, list], dict],
+    callback: PackageCallback,
     context: ContextVars | None = None,
     validate_deprecated: bool = True,
     path: yaml_util.DocumentPath | None = None,
