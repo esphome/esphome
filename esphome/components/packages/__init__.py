@@ -283,7 +283,7 @@ def _walk_package_dict(
     packages: dict,
     callback: Callable[[dict, ContextVars | None, list], dict],
     context: ContextVars | None,
-    path: list[str | int],
+    path: yaml_util.DocumentPath,
 ) -> cv.Invalid | None:
     """Iterate a packages dict in reverse priority order, invoking callback on each entry.
 
@@ -304,7 +304,7 @@ def _walk_package_list(
     packages: list,
     callback: Callable[[dict, ContextVars | None, list], dict],
     context: ContextVars | None,
-    path: list[str | int],
+    path: yaml_util.DocumentPath,
 ) -> None:
     """Iterate a packages list in reverse priority order, invoking callback on each entry."""
     for idx in reversed(range(len(packages))):
@@ -317,7 +317,7 @@ def _walk_packages(
     callback: Callable[[dict, ContextVars | None, list], dict],
     context: ContextVars | None = None,
     validate_deprecated: bool = True,
-    path: list[str | int] | None = None,
+    path: yaml_util.DocumentPath | None = None,
 ) -> dict:
     """Walks the packages structure in priority order, invoking ``callback`` on each package definition found.
 
@@ -365,7 +365,7 @@ def _walk_packages(
 def _substitute_package_definition(
     package_config: dict | str,
     context_vars: ContextVars | None,
-    path: list[str | int] | None = None,
+    path: yaml_util.DocumentPath | None = None,
 ) -> dict | str:
     """Substitute variables in a package definition string or remote package dict.
 
@@ -446,7 +446,7 @@ class _PackageProcessor:
         self,
         package_config: dict | str | yaml_util.IncludeFile,
         context_vars: ContextVars | None,
-        path: list[str | int],
+        path: yaml_util.DocumentPath,
     ) -> dict:
         """Resolve a package definition to a concrete ``dict`` and fetch remote packages.
 
@@ -501,7 +501,7 @@ class _PackageProcessor:
         self,
         package_config: dict | str,
         context_vars: ContextVars | None,
-        path: list[str | int],
+        path: yaml_util.DocumentPath,
     ) -> dict:
         """Resolve a single package and recurse into any nested packages."""
         from_remote = isinstance(package_config, dict) and is_remote_package(
@@ -584,7 +584,9 @@ def merge_packages(config: dict) -> dict:
     merge_list: list[dict] = []
 
     def process_package_callback(
-        package_config: dict, context: ContextVars | None, path: list[str | int] = None
+        package_config: dict,
+        context: ContextVars | None,
+        path: yaml_util.DocumentPath | None = None,
     ) -> dict:
         """This will be called for each package found in the config."""
         merge_list.append(package_config)

@@ -48,6 +48,8 @@ _SECRET_VALUES = {}
 # Not thread-safe — config processing is single-threaded today.
 _load_listeners: list[Callable[[Path], None]] = []
 
+DocumentPath = list[str | int]
+
 
 @contextmanager
 def track_yaml_loads() -> Generator[list[Path]]:
@@ -677,6 +679,89 @@ def is_secret(value):
         return _SECRET_VALUES[str(value)]
     except (KeyError, ValueError):
         return None
+
+
+def _path_doc(item: Any) -> str | None:
+    """Return the source document name if *item* carries location info."""
+    if isinstance(item, ESPHomeDataBase):
+        r = item.esp_range
+        if r is not None:
+            return r.start_mark.document
+    return None
+
+
+def format_path(path: DocumentPath, current_obj: Any) -> str:
+    """Build a human-readable include stack from a config path.
+
+    Each YAML key in *path* that carries an ``ESPHomeDataBase`` ``esp_range``
+    reveals which file it came from.  When the source document changes between
+    consecutive such keys, that is an include boundary.  The path is split
+    into per-file frames and formatted innermost-first, e.g.::
+
+        In: packages->roam in common/package/wifi.yaml 26:10
+          Included from packages->net in common/hardware.yaml 44:2
+          Included from packages->device in my_project.yaml 11:2
+
+    The innermost ``In:`` line uses the location from *current_obj* when
+    available (the value that triggered the error) for extra precision.
+    """
+    # Walk once, splitting into frames at document boundaries. Integer list
+    # subscripts stay with the currently open frame ("packages[0]"); plain
+    # string keys before a document change belong to the *next* frame, so we
+    # buffer them in `pending` until the next located key flushes them in.
+    frames: list[tuple[list, str]] = []
+    segment: list = []
+    pending: list = []
+    location = ""
+    current_doc: str | None = None
+
+    for item in path:
+        doc = _path_doc(item)
+        if doc is None:
+            target = segment if isinstance(item, int) and current_doc else pending
+            target.append(item)
+            continue
+        if current_doc is not None and doc != current_doc:
+            frames.append((segment, location))
+            segment = []
+        segment.extend(pending)
+        pending = []
+        segment.append(item)
+        current_doc = doc
+        location = str(item.esp_range.start_mark)
+
+    if current_doc is not None:
+        frames.append((segment, location))
+
+    def fmt_path(seg: list) -> str:
+        """Format a path segment, rendering integers as [n] subscripts."""
+        parts: list[str] = []
+        for item in seg:
+            if isinstance(item, int):
+                if parts:
+                    parts[-1] = f"{parts[-1]}[{item}]"
+                else:
+                    parts.append(f"[{item}]")
+            else:
+                parts.append(str(item))
+        return "->".join(parts)
+
+    obj_loc = ""
+    if isinstance(current_obj, ESPHomeDataBase):
+        r = getattr(current_obj, "esp_range", None)
+        if r is not None:
+            obj_loc = str(r.start_mark)
+
+    if not frames:
+        return f"In: {fmt_path(path)}" + (f" in {obj_loc}" if obj_loc else "")
+
+    # Innermost line prefers current_obj's location (usually more precise
+    # than the key that owns it).
+    inner_seg, inner_loc = frames[-1]
+    lines = [f"In: {fmt_path(inner_seg)} in {obj_loc or inner_loc}"]
+    for seg, loc in reversed(frames[:-1]):
+        lines.append(f"  Included from {fmt_path(seg)} in {loc}")
+    return "\n".join(lines)
 
 
 class ESPHomeDumper(yaml.SafeDumper):

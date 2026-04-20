@@ -14,15 +14,13 @@ from esphome.components.packages import (
     do_packages_pass,
     merge_packages,
 )
-from esphome.components.substitutions import format_config_path
 from esphome.components.substitutions.jinja import UndefinedError
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, merge_config
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS
-from esphome.core import CORE, DocumentLocation, DocumentRange, EsphomeError, Lambda
+from esphome.core import CORE, EsphomeError, Lambda
 from esphome.util import OrderedDict
-from esphome.yaml_util import ESPHomeDataBase, make_data_base
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -781,113 +779,3 @@ def test_resolve_package_undefined_var_in_include_filename(tmp_path: Path) -> No
     processor = _PackageProcessor({}, None, False)
     with pytest.raises(cv.Invalid, match="unresolved substitutions"):
         processor.resolve_package(package_config, substitutions.ContextVars(), [])
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _located(value, doc: str, line: int, col: int):
-    """Return *value* wrapped with a fake ESPHomeDataBase source location."""
-    loc = DocumentLocation(doc, line, col)
-    obj = make_data_base(value)
-    if isinstance(obj, ESPHomeDataBase):
-        obj._esp_range = DocumentRange(loc, loc)
-    return obj
-
-
-# ---------------------------------------------------------------------------
-# format_config_path
-# ---------------------------------------------------------------------------
-
-
-def test_format_config_path_no_location_info_returns_flat_path():
-    """Plain path items with no esp_range produce a simple flat 'In:' line."""
-    result = format_config_path(["wifi", "ssid"], None)
-    assert result == "In: wifi->ssid"
-
-
-def test_format_config_path_no_location_info_current_obj_adds_file():
-    """When path has no location but current_obj does, its location is shown."""
-    obj = _located("${var}", "main.yaml", 5, 10)
-    result = format_config_path(["wifi", "ssid"], obj)
-    assert result == "In: wifi->ssid in main.yaml 5:10"
-
-
-def test_format_config_path_single_frame_no_include_boundary():
-    """All located keys from the same document → single 'In:' line, no 'Included from'."""
-    path = ["packages", _located("pkg1", "root.yaml", 5, 2)]
-    result = format_config_path(path, None)
-    assert result.startswith("In: packages->pkg1 in root.yaml 5:2")
-    assert "Included from" not in result
-
-
-def test_format_config_path_two_frames_shows_included_from():
-    """Keys from two different documents produce 'In:' + one 'Included from' line."""
-    path = [
-        "packages",
-        _located("device", "root.yaml", 10, 2),
-        "packages",
-        _located("inner", "hardware.yaml", 3, 2),
-    ]
-    result = format_config_path(path, None)
-    assert "In: packages->inner in hardware.yaml 3:2" in result
-    assert "Included from packages->device in root.yaml 10:2" in result
-
-
-def test_format_config_path_three_frames_full_include_stack():
-    """Three document levels produce two 'Included from' lines in correct order."""
-    path = [
-        "packages",
-        _located("device", "root.yaml", 10, 2),
-        "packages",
-        _located("_wifi_", "hardware.yaml", 43, 2),
-        "packages",
-        _located("_roam_", "wifi.yaml", 25, 2),
-    ]
-    result = format_config_path(path, None)
-    lines = result.splitlines()
-    assert lines[0].startswith("In: packages->_roam_ in wifi.yaml")
-    assert lines[1].startswith("  Included from packages->_wifi_ in hardware.yaml")
-    assert lines[2].startswith("  Included from packages->device in root.yaml")
-
-
-def test_format_config_path_current_obj_overrides_innermost_location():
-    """current_obj's esp_range replaces the key's column for the 'In:' line."""
-    path = ["packages", _located("pkg1", "root.yaml", 5, 2)]
-    # Value (the expression) sits at column 10, not column 2 like the key
-    value = _located("${undefined}", "root.yaml", 5, 10)
-    result = format_config_path(path, value)
-    assert "5:10" in result
-    assert "5:2" not in result
-
-
-def test_format_config_path_empty_path_with_no_location():
-    """Empty path with no location info returns 'In: '."""
-    result = format_config_path([], None)
-    assert result == "In: "
-
-
-def test_format_config_path_integer_path_items_formatted_as_subscript():
-    """Integer indices are rendered as [n] subscripts in the flat fallback."""
-    result = format_config_path(["packages", 0], None)
-    assert result == "In: packages[0]"
-
-
-def test_format_config_path_integer_list_index_attached_to_previous_frame():
-    """A list index between two include boundaries attaches to the outer frame."""
-    path = [
-        "packages",
-        _located("packages", "main.yaml", 5, 0),
-        0,
-        _located("packages", "level1.yaml", 2, 0),
-        0,
-        _located("esphome", "level2.yaml", 0, 0),
-        _located("name", "level2.yaml", 1, 8),
-    ]
-    result = format_config_path(path, None)
-    lines = result.splitlines()
-    assert lines[0].startswith("In: esphome->name in level2.yaml")
-    assert "packages[0]" in lines[1] and "level1.yaml" in lines[1]
-    assert "packages[0]" in lines[2] and "main.yaml" in lines[2]
