@@ -13,6 +13,7 @@ MULTI_CONF = True
 mapping_ns = cg.esphome_ns.namespace("mapping")
 mapping_class = mapping_ns.class_("Mapping")
 
+CONF_DEFAULT_VALUE = "default_value"
 CONF_ENTRIES = "entries"
 CONF_CLASS = "class"
 
@@ -100,6 +101,21 @@ def map_schema(config):
             )
         value_type = cv.use_id(value_type)
     config[CONF_ENTRIES] = {k: value_type(v) for k, v in entries.items()}
+    if default_value := config.get(CONF_DEFAULT_VALUE):
+        config[CONF_DEFAULT_VALUE] = value_type(default_value)
+    unexpected_keys = config.keys() - {
+        CONF_ENTRIES,
+        CONF_TO,
+        CONF_FROM,
+        CONF_ID,
+        CONF_DEFAULT_VALUE,
+    }
+    if unexpected_keys:
+        errors = [
+            cv.Invalid(f"Unexpected key '{k}'", path=[k]) for k in unexpected_keys
+        ]
+        raise cv.MultipleInvalid(errors)
+
     return config
 
 
@@ -139,4 +155,6 @@ async def to_code(config):
 
     for key, value in entries.items():
         cg.add(var.set(key, value))
+    if (default_value := config.get(CONF_DEFAULT_VALUE)) is not None:
+        cg.add(var.set_default_value(default_value))
     return var
