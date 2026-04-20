@@ -2,18 +2,20 @@
 
 import logging
 from pathlib import Path
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from esphome.components.packages import (
     CONFIG_SCHEMA,
+    _substitute_package_definition,
     _walk_packages,
     do_packages_pass,
     is_package_definition,
     merge_packages,
 )
-from esphome.components.substitutions import do_substitution_pass
+from esphome.components.substitutions import ContextVars, do_substitution_pass
 import esphome.config as config_module
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, Remove
@@ -44,7 +46,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.util import OrderedDict
-from esphome.yaml_util import IncludeFile, add_context
+from esphome.yaml_util import IncludeFile, add_context, load_yaml
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -1399,3 +1401,85 @@ def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:
         "CORE.raw_config should contain esphome section after package merge"
     )
     assert CORE.raw_config[CONF_ESPHOME][CONF_NAME] == TEST_DEVICE_NAME
+
+
+# ---------------------------------------------------------------------------
+# _substitute_package_definition
+# ---------------------------------------------------------------------------
+
+
+def test_substitute_package_definition_local_dict_returned_unchanged() -> None:
+    """A plain local config dict is not substituted and is returned as-is."""
+    pkg = {CONF_WIFI: {CONF_SSID: "test"}}
+    result = _substitute_package_definition(pkg, ContextVars())
+    assert result is pkg
+
+
+def test_substitute_package_definition_string_resolved_with_context() -> None:
+    """A string package definition has its variables substituted."""
+    ctx = ContextVars({"variant": "esp32"})
+    result = _substitute_package_definition("device-${variant}.yaml", ctx)
+    assert result == "device-esp32.yaml"
+
+
+def test_substitute_package_definition_undefined_in_string() -> None:
+    """An undefined variable in a package URL string raises cv.Invalid."""
+    with pytest.raises(cv.Invalid, match="Undefined variable in package definition"):
+        _substitute_package_definition(
+            "github://org/repo/${undefined_var}/pkg.yaml", ContextVars()
+        )
+
+
+def test_substitute_package_definition_undefined_in_remote_dict_field() -> None:
+    """An undefined variable inside a remote-dict field names the offending field."""
+    with pytest.raises(cv.Invalid) as exc_info:
+        _substitute_package_definition(
+            {CONF_URL: "github://${typo}/repo"}, ContextVars()
+        )
+    err = str(exc_info.value)
+    assert "'typo' is undefined" in err
+    assert CONF_URL in err
+
+
+def test_substitute_package_definition_undefined_in_remote_dict_non_first_field() -> (
+    None
+):
+    """The field path joins correctly for non-first dict fields (e.g. ``ref``)."""
+    with pytest.raises(cv.Invalid) as exc_info:
+        _substitute_package_definition(
+            {
+                CONF_URL: "github://org/repo",
+                CONF_REF: "branch-${branch_typo}",
+            },
+            ContextVars(),
+        )
+    err = str(exc_info.value)
+    assert "'branch_typo' is undefined" in err
+    assert CONF_REF in err
+
+
+def test_substitute_package_definition_includes_source_location(tmp_path: Path) -> None:
+    """A package loaded from YAML surfaces file/line/col in the cv.Invalid message.
+
+    Line/column are rendered 1-based (matching config.line_info() and editor
+    line numbering) and point at the offending scalar, not the enclosing dict.
+    """
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "packages:\n  broken: github://org/repo/${undefined_var}/pkg.yaml\n"
+    )
+    config = load_yaml(yaml_file)
+    package_config = config[CONF_PACKAGES]["broken"]
+
+    with pytest.raises(cv.Invalid) as exc_info:
+        _substitute_package_definition(package_config, ContextVars())
+
+    err = str(exc_info.value)
+    assert "main.yaml" in err
+    # The offending value lives on line 2 (1-based). Column depends on the YAML
+    # loader, so we only pin line and check that a 1-based column is present.
+    match = re.search(r"main\.yaml (\d+):(\d+)", err)
+    assert match, err
+    line, col = int(match.group(1)), int(match.group(2))
+    assert line == 2, f"expected 1-based line 2, got {line} (err={err!r})"
+    assert col >= 1, f"expected 1-based column ≥ 1, got {col} (err={err!r})"
