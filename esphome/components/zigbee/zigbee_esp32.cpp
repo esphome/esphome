@@ -56,13 +56,13 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
     case ESP_ZB_BDB_SIGNAL_DEVICE_REBOOT:
       if (err_status == ESP_OK) {
         ESP_LOGD(TAG, "Device started up in %sfactory-reset mode", esp_zb_bdb_is_factory_new() ? "" : "non ");
-        global_zigbee->started_ = true;
+        global_zigbee->started = true;
         if (esp_zb_bdb_is_factory_new()) {
           ESP_LOGD(TAG, "Start network steering");
           esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING);
         } else {
           ESP_LOGD(TAG, "Device rebooted");
-          global_zigbee->connected_ = true;
+          global_zigbee->connected = true;
         }
       } else {
         ESP_LOGE(TAG, "FIRST_START.  Device started up in %sfactory-reset mode with an error %d (%s)",
@@ -77,7 +77,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
         steering_retry_count = 0;
         ESP_LOGI(TAG, "Joined network successfully (PAN ID: 0x%04hx, Channel:%d)", esp_zb_get_pan_id(),
                  esp_zb_get_current_channel());
-        global_zigbee->connected_ = true;
+        global_zigbee->connected = true;
       } else {
         ESP_LOGI(TAG, "Network steering was not successful (status: %s)", esp_err_to_name(err_status));
         if (steering_retry_count < 10) {

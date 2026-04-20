@@ -225,7 +225,10 @@ async def attributes_to_code(
         await cg.register_component(attr_var, attr)
 
         cg.add(attr_var.add_attr(attr[CONF_VALUE]))
-        if CONF_REPORT in attr and attr[CONF_REPORT]:
+        if CONF_REPORT in attr and attr[CONF_REPORT] in [
+            REPORT["enable"],
+            REPORT["force"],
+        ]:
             cg.add(attr_var.set_report(attr[CONF_REPORT] == REPORT["force"]))
 
         if CONF_DEVICE in attr:

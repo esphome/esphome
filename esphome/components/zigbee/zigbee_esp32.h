@@ -22,12 +22,6 @@
 
 namespace esphome::zigbee {
 
-enum ZigbeeReportT {
-  ZIGBEE_REPORT_NO,
-  ZIGBEE_REPORT_YES,
-  ZIGBEE_REPORT_FORCE,
-};
-
 /* Zigbee configuration */
 static const uint16_t ED_KEEP_ALIVE = 3000; /* 3000 millisecond */
 static const uint8_t MAX_CHILDREN = 10;
@@ -67,10 +61,10 @@ class ZigbeeComponent : public Component {
     esp_zb_lock_release();
   }
 
-  bool is_started() { return this->started_; }
-  bool is_connected() { return this->connected_; }
-  std::atomic<bool> connected_ = false;
-  std::atomic<bool> started_ = false;
+  bool is_started() { return this->started; }
+  bool is_connected() { return this->connected; }
+  std::atomic<bool> connected = false;
+  std::atomic<bool> started = false;
 
  protected:
   struct {

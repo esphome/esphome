@@ -11,8 +11,8 @@ AnalogAttrsOutput = zigbee_ns.struct("AnalogAttrsOutput")
 
 report = zigbee_ns.enum("ZigbeeReportT")
 REPORT = {
-    "no": report.ZIGBEE_REPORT_NO,
-    "yes": report.ZIGBEE_REPORT_YES,
+    "coordinator": report.ZIGBEE_REPORT_COORDINATOR,
+    "enable": report.ZIGBEE_REPORT_ENABLE,
     "force": report.ZIGBEE_REPORT_FORCE,
 }
 
