@@ -12,6 +12,6 @@ light:
           intensity: 5%
     type: GRBW
     variant: SK6812
-    method: ESP32_I2S_0
+    method: ESP32_RMT_0
     num_leds: 5
     pin: 4

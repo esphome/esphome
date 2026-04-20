@@ -398,6 +398,10 @@ METHODS = {
     METHOD_ESP32_I2S: MethodDescriptor(
         method_schema=cv.All(
             cv.only_on_esp32,
+            cv.invalid(
+                "The ESP32 I2S method is no longer supported. NeoPixelBus dropped "
+                "ESP32 I2S on Arduino Core 3. Use the RMT method instead."
+            ),
             {
                 cv.Optional(
                     CONF_BUS, default=_esp32_i2s_default_bus

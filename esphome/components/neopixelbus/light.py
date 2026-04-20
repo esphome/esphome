@@ -1,12 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import light
-from esphome.components.esp32 import (
-    VARIANT_ESP32C3,
-    VARIANT_ESP32S3,
-    get_esp32_variant,
-    include_builtin_idf_component,
-)
+from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
@@ -95,10 +90,8 @@ def _choose_default_method(config):
             config[CONF_METHOD] = _validate_method(METHOD_BIT_BANG)
 
     if CORE.is_esp32:
-        if get_esp32_variant() in (VARIANT_ESP32C3, VARIANT_ESP32S3):
-            config[CONF_METHOD] = _validate_method(METHOD_ESP32_RMT)
-        else:
-            config[CONF_METHOD] = _validate_method(METHOD_ESP32_I2S)
+        # NeoPixelBus CORE3 branch (Arduino Core 3) only supports RMT on ESP32.
+        config[CONF_METHOD] = _validate_method(METHOD_ESP32_RMT)
 
     return config
 
