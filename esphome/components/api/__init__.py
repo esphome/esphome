@@ -295,7 +295,7 @@ CONFIG_SCHEMA = cv.All(
                 rp2040=4,  # 264KB RAM but LWIP constraints
                 bk72xx=6,  # Moderate RAM
                 rtl87xx=6,  # Moderate RAM
-                host=6,  # Abundant resources, but array is compile-time so keep it reasonable
+                host=8,  # Abundant resources, no BSS-slot concern
                 ln882x=6,  # Moderate RAM
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
