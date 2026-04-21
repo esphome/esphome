@@ -37,14 +37,14 @@ CONFIG_SCHEMA = {
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
         unit_of_measurement=UNIT_CELSIUS,
         icon=ICON_THERMOMETER,
-        accuracy_decimals=0,
+        accuracy_decimals=2,
         device_class=DEVICE_CLASS_TEMPERATURE,
         state_class=STATE_CLASS_MEASUREMENT,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     cv.Optional(CONF_SIGNAL_STRENGTH): sensor.sensor_schema(
         icon=ICON_SIGNAL,
-        accuracy_decimals=2,
+        accuracy_decimals=0,
         device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
         state_class=STATE_CLASS_MEASUREMENT,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
