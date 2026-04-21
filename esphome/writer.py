@@ -171,6 +171,7 @@ VERSION_H_FORMAT = """\
 DEFINES_H_TARGET = "esphome/core/defines.h"
 VERSION_H_TARGET = "esphome/core/version.h"
 BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
+ENTITY_TYPES_H_TARGET = "esphome/core/entity_types.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -196,9 +197,12 @@ def copy_src_tree():
     source_files_l.sort()
 
     # Build #include list for esphome.h
+    # X-macro files are included multiple times with different macro definitions
+    # and must not be included bare in esphome.h
+    esphome_h_exclude = {Path(ENTITY_TYPES_H_TARGET)}
     include_l = []
     for target, _ in source_files_l:
-        if target.suffix in HEADER_FILE_EXTENSIONS:
+        if target.suffix in HEADER_FILE_EXTENSIONS and target not in esphome_h_exclude:
             include_l.append(f'#include "{target}"')
     include_l.append("")
     include_s = "\n".join(include_l)
