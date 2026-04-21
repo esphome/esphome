@@ -50,19 +50,19 @@ void TFLuna::dump_config() {
 void TFLuna::setup() {
   uint8_t major;
   if (!this->read_byte(VERSION_MAJOR_REGISTER, &major)) {
-    ESP_LOGE(TAG, "Failed to get major firmware version");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
   uint8_t minor;
   if (!this->read_byte(VERSION_MINOR_REGISTER, &minor)) {
-    ESP_LOGE(TAG, "Failed to get minor firmware version");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
   uint8_t revision;
   if (!this->read_byte(VERSION_REVISION_REGISTER, &revision)) {
-    ESP_LOGE(TAG, "Failed to get revision firmware version");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -76,13 +76,13 @@ void TFLuna::setup() {
 #endif
 
   if (!this->write_byte(MODE_REGISTER, MODE_TRIGGER)) {
-    ESP_LOGE(TAG, "Failed to set mode to trigger mode");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
 
   if (!this->write_byte(SAVE_REGISTER, 1)) {
-    ESP_LOGE(TAG, "Failed to set save settings");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -92,12 +92,12 @@ void TFLuna::update() {
   auto read_timestamp = [this](uint16_t *timestamp) -> bool {
     uint8_t timestamp_low;
     if (!this->read_byte(TIMESTAMP_LOW_REGISTER, &timestamp_low)) {
-      this->status_set_warning("Failed to get timestamp low");
+      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
       return false;
     }
     uint8_t timestamp_high;
     if (!this->read_byte(TIMESTAMP_HIGH_REGISTER, &timestamp_high)) {
-      this->status_set_warning("Failed to get timestamp high");
+      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
       return false;
     }
     *timestamp = timestamp_low + timestamp_high * 256;
@@ -110,7 +110,7 @@ void TFLuna::update() {
   }
 
   if (!this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)) {
-    this->status_set_warning("Failed to trigger a oneshot");
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 
@@ -140,12 +140,12 @@ void TFLuna::update() {
   if (this->distance_sensor_ != nullptr) {
     uint8_t distance_low;
     if (!this->read_byte(DISTANCE_LOW_REGISTER, &distance_low)) {
-      this->status_set_warning("Failed to get distance low");
+      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
       return;
     }
     uint8_t distance_high;
     if (!this->read_byte(DISTANCE_HIGH_REGISTER, &distance_high)) {
-      this->status_set_warning("Failed to get distance high");
+      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
       return;
     }
     uint16_t distance = distance_low + distance_high * 256;
@@ -156,12 +156,12 @@ void TFLuna::update() {
   if (this->temperature_sensor_ != nullptr) {
     uint8_t temperature_low;
     if (!this->read_byte(TEMPERATURE_LOW_REGISTER, &temperature_low)) {
-      this->status_set_warning("Failed to get temperature low");
+      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
       return;
     }
     uint8_t temperature_high;
     if (!this->read_byte(TEMPERATURE_HIGH_REGISTER, &temperature_high)) {
-      this->status_set_warning("Failed to get temperature high");
+      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
       return;
     }
     float temperature = (temperature_low + temperature_high * 256) / (float) 100;
@@ -172,12 +172,12 @@ void TFLuna::update() {
   if (this->signal_strength_sensor_ != nullptr) {
     uint8_t signal_strength_low;
     if (!this->read_byte(AMP_LOW_REGISTER, &signal_strength_low)) {
-      this->status_set_warning("Failed to get signal strength low");
+      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
       return;
     }
     uint8_t signal_strength_high;
     if (!this->read_byte(AMP_HIGH_REGISTER, &signal_strength_high)) {
-      this->status_set_warning("Failed to get signal strength high");
+      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
       return;
     }
     uint16_t signal_strength = signal_strength_low + signal_strength_high * 256;
@@ -190,7 +190,7 @@ void TFLuna::update() {
 
 void TFLuna::factory_reset() {
   if (!this->write_byte(RESTORE_FACTORY_DEFAULTS_REGISTER, 1)) {
-    ESP_LOGE(TAG, "Failed to restore factory defaults");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   this->setup();
@@ -198,7 +198,7 @@ void TFLuna::factory_reset() {
 
 void TFLuna::restart() {
   if (!this->write_byte(SHUTDOWN_REBOOT_REGISTER, 0x02)) {
-    ESP_LOGE(TAG, "Failed to restart");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 }
