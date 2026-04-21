@@ -611,7 +611,7 @@ inline uint32_t ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t l
   return last_op_end_time;
 }
 
-inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) // NOLINT(clang-diagnostic-unknown-attributes)
+inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 Application::loop() {
 #ifdef USE_RUNTIME_STATS
   // Capture the start of the active (non-sleeping) portion of this iteration.
