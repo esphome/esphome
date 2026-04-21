@@ -8,10 +8,16 @@ from typing import Any
 
 import pytest
 
-from esphome.components.esp32 import VARIANTS
-from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
+from esphome.components.esp32 import VARIANT_ESP32, VARIANTS
+from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS, KEY_VARIANT
+from esphome.components.esp32.gpio import validate_gpio_pin
 import esphome.config_validation as cv
-from esphome.const import CONF_ESPHOME, PlatformFramework
+from esphome.const import (
+    CONF_ESPHOME,
+    CONF_IGNORE_PIN_VALIDATION_ERROR,
+    CONF_NUMBER,
+    PlatformFramework,
+)
 from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -147,6 +153,73 @@ def test_execute_from_psram_p4_sdkconfig(
     assert sdkconfig.get("CONFIG_SPIRAM_XIP_FROM_PSRAM") is True
     assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
     assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
+
+
+def test_ignore_pin_validation_error_on_clean_pin_warns(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A pin that passes validation but sets `ignore_pin_validation_error: true`
+    should log a warning nudging the user to remove the flag, and not raise."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32}
+    )
+
+    pin = {CONF_NUMBER: 4, CONF_IGNORE_PIN_VALIDATION_ERROR: True}
+    with caplog.at_level("WARNING"):
+        result = validate_gpio_pin(pin)
+
+    assert result[CONF_NUMBER] == 4
+    assert "GPIO4 has no validation errors to ignore" in caplog.text
+
+
+def test_ignore_pin_validation_error_on_dirty_pin_suppresses(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A pin that fails validation with `ignore_pin_validation_error: true` should
+    log the suppression warning and not raise (existing behavior)."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32}
+    )
+
+    # GPIO6 is a flash pin on ESP32 -> pin_validation raises cv.Invalid
+    pin = {CONF_NUMBER: 6, CONF_IGNORE_PIN_VALIDATION_ERROR: True}
+    with caplog.at_level("WARNING"):
+        result = validate_gpio_pin(pin)
+
+    assert result[CONF_NUMBER] == 6
+    assert "Ignoring validation error on pin 6" in caplog.text
+
+
+def test_dirty_pin_without_ignore_flag_raises(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A pin that fails validation without the ignore flag should still raise."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32}
+    )
+
+    pin = {CONF_NUMBER: 6, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+    with pytest.raises(cv.Invalid, match="flash interface"):
+        validate_gpio_pin(pin)
+
+
+def test_clean_pin_without_ignore_flag_does_not_warn(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A clean pin without the ignore flag should pass silently."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32}
+    )
+
+    pin = {CONF_NUMBER: 4, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+    with caplog.at_level("WARNING"):
+        result = validate_gpio_pin(pin)
+
+    assert result[CONF_NUMBER] == 4
+    assert "has no validation errors to ignore" not in caplog.text
 
 
 def test_execute_from_psram_disabled_sdkconfig(

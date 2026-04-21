@@ -229,23 +229,50 @@ class Application {
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
-  /// Minimum interval between real arch_feed_wdt() calls. Chosen to keep the
-  /// rate of HAL pokes low while still being small enough that any plausible
-  /// watchdog timeout (seconds) has orders of magnitude of safety margin.
-  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 3;
+  /// Minimum interval between real arch_feed_wdt() calls. Sized so the outer
+  /// feed in Application::loop() is effectively rate-limited across both the
+  /// normal ~62 Hz cadence and worst-case wake-storm scenarios (e.g. external
+  /// stacks like OpenThread posting frequent wake notifications). Component
+  /// loops and scheduler items still feed after every op, so any op exceeding
+  /// this threshold triggers a real feed naturally.
+  /// Safety margins vs. platform watchdog timeouts:
+  ///   - ESP32 task WDT default (5 s): ~16x
+  ///   - ESP8266 soft WDT (~1.6 s):    ~5x  <-- floor case; any future change
+  ///                                             must keep comfortable margin here
+  ///   - ESP8266 HW WDT (~6 s):        ~20x
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;
 
   /// Feed the task watchdog. Cold entry — callers without a millis()
   /// timestamp in hand. Out of line to keep call sites tiny.
   void feed_wdt();
 
+#ifdef USE_STATUS_LED
+  /// Dispatch interval for the status LED update. Deliberately shorter than
+  /// WDT_FEED_INTERVAL_MS because the status LED error blink has a 250 ms
+  /// period (status_led.cpp:ERROR_PERIOD_MS) and a 150 ms on-window; the
+  /// dispatch cadence must be short enough to render that blink without
+  /// aliasing. Sampling every 100 ms yields an on/off observation inside
+  /// every error period with headroom for the 250 ms warning on-window.
+  static constexpr uint32_t STATUS_LED_DISPATCH_INTERVAL_MS = 100;
+#endif
+
   /// Feed the task watchdog, hot entry. Callers that already have a
   /// millis() timestamp pay only a load + sub + branch on the common
-  /// (no-op) path. The actual arch feed + status LED update live in
-  /// feed_wdt_slow_.
+  /// (no-op) path. The actual arch feed lives in feed_wdt_slow_.
+  /// When USE_STATUS_LED is compiled in, also gates a separate (shorter)
+  /// interval for dispatching status_led so the LED blink pattern stays
+  /// readable even though arch_feed_wdt pokes are now rate-limited at
+  /// WDT_FEED_INTERVAL_MS. The two rate limits are independent so raising
+  /// WDT_FEED_INTERVAL_MS does not distort the LED cadence.
   void ESPHOME_ALWAYS_INLINE feed_wdt_with_time(uint32_t time) {
     if (static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) [[unlikely]] {
       this->feed_wdt_slow_(time);
     }
+#ifdef USE_STATUS_LED
+    if (static_cast<uint32_t>(time - this->last_status_led_service_) > STATUS_LED_DISPATCH_INTERVAL_MS) [[unlikely]] {
+      this->service_status_led_slow_(time);
+    }
+#endif
   }
 
   void reboot();
@@ -318,16 +345,13 @@ class Application {
 
   Scheduler scheduler;
 
-  /// Register/unregister a socket to be monitored for read events.
-  /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop.
-#ifdef USE_LWIP_FAST_SELECT
-  /// Fast select path: hooks netconn callback and registers for monitoring.
-  /// @return true if registration was successful, false if sock is null
-  bool register_socket(struct lwip_sock *sock);
-  void unregister_socket(struct lwip_sock *sock);
-#elif defined(USE_HOST)
-  /// Fallback select() path: monitors file descriptors.
+#ifdef USE_HOST
+  /// Register/unregister a socket file descriptor with the host select() fallback loop.
+  /// USE_LWIP_FAST_SELECT builds do not use this API — sockets hook the lwIP netconn
+  /// event_callback directly (see socket.h hook_fd_for_fast_select) and rely on FreeRTOS
+  /// task notifications for wake-up.
   /// NOTE: File descriptors >= FD_SETSIZE (typically 10 on ESP) will be rejected with an error.
+  /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop.
   /// @return true if registration was successful, false if fd exceeds limits
   bool register_socket_fd(int fd);
   void unregister_socket_fd(int fd);
@@ -340,6 +364,9 @@ class Application {
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   /// Wake from ISR (ESP32 and LibreTiny).
   static void IRAM_ATTR wake_loop_isrsafe(BaseType_t *px) { esphome::wake_loop_isrsafe(px); }
+#elif defined(USE_ESP8266)
+  /// Wake from ISR (ESP8266). No task_woken arg — no FreeRTOS. Caller must be IRAM_ATTR.
+  static void IRAM_ATTR ESPHOME_ALWAYS_INLINE wake_loop_isrsafe() { esphome::wake_loop_isrsafe(); }
 #endif
 
   /// Wake from any context (ISR, thread, callback).
@@ -399,7 +426,7 @@ class Application {
   void enable_component_loop_(Component *component);
   void enable_pending_loops_();
   void activate_looping_component_(uint16_t index);
-  inline void ESPHOME_ALWAYS_INLINE before_loop_tasks_(uint32_t loop_start_time);
+  inline uint32_t ESPHOME_ALWAYS_INLINE before_loop_tasks_(uint32_t loop_start_time);
   inline void ESPHOME_ALWAYS_INLINE after_loop_tasks_() { this->in_loop_ = false; }
 
   /// Process dump_config output one component per loop iteration.
@@ -407,10 +434,20 @@ class Application {
   /// Caller must ensure dump_config_at_ < components_.size().
   void __attribute__((noinline)) process_dump_config_();
 
-  /// Slow path for feed_wdt(): actually calls arch_feed_wdt(), updates
-  /// last_wdt_feed_, and re-dispatches the status LED. Out of line so the
-  /// inline wrapper stays tiny.
+  /// Slow path for feed_wdt(): actually calls arch_feed_wdt() and updates
+  /// last_wdt_feed_. Out of line so the inline wrapper stays tiny. Does NOT
+  /// touch status_led — that's gated separately via service_status_led_slow_
+  /// because the two rate limits have very different safe ranges (~ seconds
+  /// for WDT, < 250 ms for LED blink rendering).
   void feed_wdt_slow_(uint32_t time);
+
+#ifdef USE_STATUS_LED
+  /// Slow path for the status_led dispatch rate limit. Runs the status_led
+  /// component's loop() based on its state (LOOP / LOOP_DONE with status
+  /// bits set), and updates last_status_led_service_. Out of line to keep
+  /// the feed_wdt_with_time hot path a couple of load+branch sequences.
+  void service_status_led_slow_(uint32_t time);
+#endif
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
 #ifdef USE_HOST
@@ -448,9 +485,7 @@ class Application {
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
   FixedVector<Component *> looping_components_{};
-#ifdef USE_LWIP_FAST_SELECT
-  std::vector<struct lwip_sock *> monitored_sockets_;  // Cached lwip_sock pointers for direct rcvevent read
-#elif defined(USE_HOST)
+#ifdef USE_HOST
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
 #endif
 #ifdef USE_HOST
@@ -465,6 +500,10 @@ class Application {
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
   uint32_t last_wdt_feed_{0};  // millis() of most recent arch_feed_wdt(); rate-limits feed_wdt() hot path
+#ifdef USE_STATUS_LED
+  // millis() of most recent status_led dispatch; rate-limits independently of last_wdt_feed_
+  uint32_t last_status_led_service_{0};
+#endif
 
 #ifdef USE_HOST
   int max_fd_{-1};  // Highest file descriptor number for select()
@@ -543,18 +582,15 @@ inline void Application::drain_wake_notifications_() {
 }
 #endif  // USE_HOST
 
-inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_start_time) {
+inline uint32_t ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_start_time) {
 #ifdef USE_HOST
   // Drain wake notifications first to clear socket for next wake
   this->drain_wake_notifications_();
 #endif
 
-  // Process scheduled tasks. Scheduler::call now feeds the watchdog itself
-  // after each scheduled item that actually runs, so we no longer need an
-  // unconditional feed here — when Scheduler::call has no work to do, the
-  // only elapsed time is a sleep wake + a few instructions, and when it does
-  // have work, it fed the wdt as it went.
-  this->scheduler.call(loop_start_time);
+  // Scheduler::call feeds the WDT per item and returns the timestamp of the
+  // last fired item, or the input unchanged when nothing ran.
+  uint32_t last_op_end_time = this->scheduler.call(loop_start_time);
 
   // Process any pending enable_loop requests from ISRs
   // This must be done before marking in_loop_ = true to avoid race conditions
@@ -572,6 +608,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
 
   // Mark that we're in the loop for safe reentrant modifications
   this->in_loop_ = true;
+  return last_op_end_time;
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
@@ -589,7 +626,13 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // Get the initial loop time at the start
   uint32_t last_op_end_time = millis();
 
-  this->before_loop_tasks_(last_op_end_time);
+  // Returned timestamp keeps us monotonic with last_wdt_feed_ (advanced by
+  // the scheduler's per-item feeds) without an extra millis() call.
+  last_op_end_time = this->before_loop_tasks_(last_op_end_time);
+  // Guarantee a WDT touch every tick — covers configs with no looping
+  // components and no scheduler work, where the per-item / per-component
+  // feeds never fire. Rate-limited inline fast path, ~free when unneeded.
+  this->feed_wdt_with_time(last_op_end_time);
 #ifdef USE_RUNTIME_STATS
   uint32_t loop_before_end_us = micros();
   uint64_t loop_before_scheduled_us = ComponentRuntimeStats::global_recorded_us - loop_recorded_snap;
@@ -657,26 +700,16 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #ifndef USE_HOST
 inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
 #ifdef USE_LWIP_FAST_SELECT
-  // Fast path (ESP32/LibreTiny): reads rcvevent directly from cached lwip_sock pointers.
-  // Safe because this runs on the main loop which owns socket lifetime (create, read, close).
+  // Fast path (ESP32/LibreTiny): FreeRTOS task notifications posted by the lwip
+  // event_callback wrapper (see lwip_fast_select.c) are the single source of truth for
+  // socket wake-ups. Every NETCONN_EVT_RCVPLUS posts an xTaskNotifyGive, so any notification
+  // that lands between wakes keeps the counter non-zero (next ulTaskNotifyTake returns
+  // immediately) or wakes a blocked Take directly. Additional wake sources:
+  // wake_loop_threadsafe() from background tasks, and the delay_ms timeout.
   if (delay_ms == 0) [[unlikely]] {
     yield();
     return;
   }
-
-  // Check if any socket already has pending data before sleeping.
-  // If a socket still has unread data (rcvevent > 0) but the task notification was already
-  // consumed, ulTaskNotifyTake would block until timeout — adding up to delay_ms latency.
-  // This scan preserves select() semantics: return immediately when any fd is ready.
-  for (struct lwip_sock *sock : this->monitored_sockets_) {
-    if (esphome_lwip_socket_has_data(sock)) {
-      yield();
-      return;
-    }
-  }
-
-  // Sleep with instant wake via FreeRTOS task notification.
-  // Woken by: callback wrapper (socket data), wake_loop_threadsafe() (background tasks), or timeout.
 #endif
   esphome::internal::wakeable_delay(delay_ms);
 }
