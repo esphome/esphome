@@ -81,20 +81,23 @@ def lock_schema(
     return _LOCK_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_LOCK,
+        "add_on_state_callback",
+        forwarder=LockStateForwarder.template(LockState.LOCK_STATE_LOCKED),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_UNLOCK,
+        "add_on_state_callback",
+        forwarder=LockStateForwarder.template(LockState.LOCK_STATE_UNLOCKED),
+    ),
+)
+
+
 @setup_entity("lock")
 async def _setup_lock_core(var, config):
-    for conf_key, state_enum in (
-        (CONF_ON_LOCK, LockState.LOCK_STATE_LOCKED),
-        (CONF_ON_UNLOCK, LockState.LOCK_STATE_UNLOCKED),
-    ):
-        for conf in config.get(conf_key, []):
-            await automation.build_callback_automation(
-                var,
-                "add_on_state_callback",
-                [],
-                conf,
-                forwarder=LockStateForwarder.template(state_enum),
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     if mqtt_id := config.get(CONF_MQTT_ID):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)

@@ -8,12 +8,18 @@ import pytest
 
 from esphome import config as config_module, yaml_util
 from esphome.components import substitutions
-from esphome.components.packages import do_packages_pass, merge_packages
+from esphome.components.packages import (
+    MAX_INCLUDE_DEPTH,
+    _PackageProcessor,
+    do_packages_pass,
+    merge_packages,
+)
+from esphome.components.substitutions.jinja import UndefinedError
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, merge_config
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS
-from esphome.core import CORE, Lambda
+from esphome.core import CORE, EsphomeError, Lambda
 from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
@@ -630,3 +636,146 @@ def test_do_substitution_pass_substitutions_must_be_mapping_from_config() -> Non
         cv.Invalid, match="Substitutions must be a key to value mapping"
     ):
         substitutions.do_substitution_pass(config)
+
+
+# ── IncludeFile / package loading tests ────────────────────────────────────
+
+
+def test_resolve_package_max_depth_exceeded(tmp_path: Path) -> None:
+    """A yaml_loader that always returns another IncludeFile triggers the depth guard."""
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    # Each call to the loader returns a fresh IncludeFile pointing at itself,
+    # so PACKAGE_SCHEMA always sees an IncludeFile and never a dict.
+    def always_returns_include(path: Path) -> yaml_util.IncludeFile:
+        return yaml_util.IncludeFile(parent, path.name, None, always_returns_include)
+
+    package_config = yaml_util.IncludeFile(
+        parent, "test.yaml", None, always_returns_include
+    )
+    processor = _PackageProcessor({}, None, False)
+    with pytest.raises(
+        cv.Invalid,
+        match=f"Maximum include nesting depth \\({MAX_INCLUDE_DEPTH}\\) exceeded",
+    ):
+        processor.resolve_package(package_config, substitutions.ContextVars())
+
+
+def test_include_filename_substitution_undefined_var(tmp_path: Path) -> None:
+    """!include with an undefined substitution variable raises cv.Invalid.
+
+    The error message must reference the unresolved filename template so the
+    user knows which include failed, rather than seeing a bare file-not-found.
+    """
+    main_file = tmp_path / "main.yaml"
+    main_file.write_text("result: !include ${undefined_var}.yaml\n")
+
+    config = yaml_util.load_yaml(main_file)
+    with pytest.raises(cv.Invalid, match=r"\$\{undefined_var\}"):
+        substitutions.do_substitution_pass(config)
+
+
+def test_raise_first_undefined_logs_extras_at_debug(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Only the first undefined error is raised; extras are logged at debug."""
+    errors: substitutions.ErrList = [
+        (UndefinedError("'a' is undefined"), ["url"], None),
+        (UndefinedError("'b' is undefined"), ["ref"], None),
+        (UndefinedError("'c' is undefined"), ["path"], None),
+    ]
+
+    with (
+        caplog.at_level(logging.DEBUG, logger="esphome.components.substitutions"),
+        pytest.raises(cv.Invalid) as exc_info,
+    ):
+        substitutions.raise_first_undefined(errors, None, "package definition")
+
+    # First error is surfaced as the cv.Invalid message.
+    raised = str(exc_info.value)
+    assert "'a' is undefined" in raised
+    assert "'b' is undefined" not in raised
+    assert "'c' is undefined" not in raised
+
+    # Remaining errors are captured via debug logging for troubleshooting.
+    assert "Additional undefined variables in package definition" in caplog.text
+    assert "'b' is undefined at 'ref'" in caplog.text
+    assert "'c' is undefined at 'path'" in caplog.text
+
+
+def test_raise_first_undefined_noop_on_empty() -> None:
+    """An empty errors list is a no-op — no exception, no log."""
+    substitutions.raise_first_undefined([], None, "package definition")
+
+
+def test_do_substitution_pass_included_substitutions_must_be_mapping(
+    tmp_path: Path,
+) -> None:
+    """`substitutions: !include list.yaml` where the file holds a list raises cv.Invalid.
+
+    Locks in the shape check that runs after the deferred IncludeFile has been
+    resolved.
+    """
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def loader(path: Path):
+        return ["not", "a", "mapping"]
+
+    include = yaml_util.IncludeFile(parent, "subs.yaml", None, loader)
+    config = OrderedDict({CONF_SUBSTITUTIONS: include})
+
+    with pytest.raises(
+        cv.Invalid, match="Substitutions must be a key to value mapping"
+    ):
+        substitutions.do_substitution_pass(config)
+
+
+def test_do_packages_pass_included_substitutions_must_be_mapping(
+    tmp_path: Path,
+) -> None:
+    """`substitutions: !include list.yaml` alongside `packages:` raises cv.Invalid.
+
+    Without the shape check, ``UserDict(...)`` would surface a low-level
+    ``TypeError``; the explicit ``cv.Invalid`` points at the substitutions path.
+    """
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def loader(path: Path):
+        return ["not", "a", "mapping"]
+
+    include = yaml_util.IncludeFile(parent, "subs.yaml", None, loader)
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: include,
+            "packages": {"noop": {"wifi": {"ssid": "main"}}},
+        }
+    )
+
+    with pytest.raises(
+        cv.Invalid, match="Substitutions must be a key to value mapping"
+    ):
+        do_packages_pass(config)
+
+
+def test_resolve_package_undefined_var_in_include_filename(tmp_path: Path) -> None:
+    """An undefined substitution in a package include filename raises cv.Invalid.
+
+    Previously this would raise an unhandled UndefinedError. With
+    strict_undefined=False, the unresolved filename passes through to
+    file loading which produces a clean cv.Invalid error.
+    """
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def loader(path: Path):
+        raise EsphomeError(f"Error reading file {path}: No such file")
+
+    package_config = yaml_util.IncludeFile(
+        parent, "${undefined_var}.yaml", None, loader
+    )
+    processor = _PackageProcessor({}, None, False)
+    with pytest.raises(cv.Invalid, match="unresolved substitutions"):
+        processor.resolve_package(package_config, substitutions.ContextVars())

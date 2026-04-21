@@ -78,17 +78,28 @@ class LwIPSocketImpl {
   int setblocking(bool blocking);
   int loop() { return 0; }
 
+  /// Check if the socket has buffered data ready to read.
+  /// See the ready() contract in socket.h — callers must drain or track remaining data.
   bool ready() const;
 
   int get_fd() const { return this->fd_; }
 
  protected:
+  // fd_ < 0 means "not open" — used both pre-open (initial state) and post-close. This
+  // replaces a separate closed_ flag: close() sets fd_ = -1 after lwip_close(), and the
+  // destructor / double-close path just check fd_ < 0.
   int fd_{-1};
 #ifdef USE_LWIP_FAST_SELECT
-  struct lwip_sock *cached_sock_{nullptr};  // Cached for direct rcvevent read in ready()
-#endif
-  bool closed_{false};
+  // Cached lwip_sock pointer used for direct rcvevent reads in ready() on the
+  // fast-select path. Replaces loop_monitored_: null means this socket is not being
+  // monitored for read events — either monitoring was not requested, the fd was
+  // invalid, or esphome_lwip_get_sock() failed. Non-null means the netconn event
+  // callback was hooked and notifications are flowing. close() nulls this to prevent
+  // use-after-free via a recycled lwip slot.
+  struct lwip_sock *cached_sock_{nullptr};
+#else
   bool loop_monitored_{false};
+#endif
 };
 
 }  // namespace esphome::socket
