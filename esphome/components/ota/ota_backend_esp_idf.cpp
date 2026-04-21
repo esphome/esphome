@@ -191,9 +191,10 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   const esp_partition_t *running_app_part = nullptr;
   if (running_app_size == 0) {
     running_app_part = esp_ota_get_running_partition();
-    // esp_ota_get_running_partition() returns a pointer to invalid data after esp_partition_unload_all() was called on a previous run.
-    // Cache the running app offset and size.
-    running_app_size = ((running_app_size + running_app_part->erase_size - 1) / running_app_part->erase_size) * running_app_part->erase_size;
+    // esp_ota_get_running_partition() returns a pointer to invalid data after esp_partition_unload_all() was called on
+    // a previous run. Cache the running app offset and size.
+    running_app_size = ((running_app_size + running_app_part->erase_size - 1) / running_app_part->erase_size) *
+                       running_app_part->erase_size;
     running_app_offset = running_app_part->address;
     const esp_partition_pos_t running_app_pos = {
         .offset = running_app_part->address,
@@ -206,8 +207,10 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
       running_app_size = image_metadata.image_len;
     }
     // Align running_app_size to flash sectors
-    running_app_size = ((running_app_size + running_app_part->erase_size - 1) / running_app_part->erase_size) * running_app_part->erase_size;
-    ESP_LOGD(TAG, "Running app: address=0x%X partition_size=0x%X used_size=0x%X, aligned_size=0x%X", running_app_part->address, running_app_part->size,  image_metadata.image_len, running_app_size);
+    running_app_size = ((running_app_size + running_app_part->erase_size - 1) / running_app_part->erase_size) *
+                       running_app_part->erase_size;
+    ESP_LOGD(TAG, "Running app: address=0x%X partition_size=0x%X used_size=0x%X, aligned_size=0x%X",
+             running_app_part->address, running_app_part->size, image_metadata.image_len, running_app_size);
   }
 
   // Get partition table partition
@@ -309,7 +312,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
       }
       esp_partition_iterator_release(it);
     }
-    ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address, app_copy_target_part->address, running_app_size);
+    ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,
+             app_copy_target_part->address, running_app_size);
 
 #if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
     // The following function takes longer than the 5 seconds timeout of WDT
