@@ -266,8 +266,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_WAKEUP_PIN): validate_wakeup_pin,
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
                 cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
-                cv.enum(WAKEUP_PIN_MODES),
-                upper=True,
+                cv.enum(WAKEUP_PIN_MODES, upper=True),
             ),
             cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(
                 cv.only_on_esp32,
@@ -405,7 +404,10 @@ DEEP_SLEEP_ENTER_SCHEMA = cv.All(
 
 
 @automation.register_action(
-    "deep_sleep.enter", EnterDeepSleepAction, DEEP_SLEEP_ENTER_SCHEMA
+    "deep_sleep.enter",
+    EnterDeepSleepAction,
+    DEEP_SLEEP_ENTER_SCHEMA,
+    synchronous=True,
 )
 async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -428,11 +430,13 @@ async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     "deep_sleep.prevent",
     PreventDeepSleepAction,
     automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
+    synchronous=True,
 )
 @automation.register_action(
     "deep_sleep.allow",
     AllowDeepSleepAction,
     automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
+    synchronous=True,
 )
 async def deep_sleep_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
