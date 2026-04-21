@@ -72,8 +72,28 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   void send_simple_command_(uint8_t command_id);
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
   void parse_start_(uint8_t byte);
-  bool response_handler_();
-  void process_uart_();  // Process all available UART data
+  // Inline fast-path: most calls happen with parsing_state_ outside the SEND_* range, so skip the
+  // out-of-line call entirely in the hot path (e.g. every loop() tick) and only pay for the real
+  // work when a response is actually pending. ESPHOME_ALWAYS_INLINE is required because with -Os
+  // gcc otherwise clones the wrapper into a shared $isra$ outline and keeps the call8.
+  ESPHOME_ALWAYS_INLINE bool response_handler_() {
+    if (this->parsing_state_ < ZWAVE_PARSING_STATE_SEND_ACK || this->parsing_state_ > ZWAVE_PARSING_STATE_SEND_NAK) {
+      return false;
+    }
+    return this->response_handler_slow_();
+  }
+  bool response_handler_slow_();
+  // Inline fast-path: UART::available() is cheap (ring-buffer head/tail compare on most backends).
+  // On an idle loop tick we want to skip the call to process_uart_ entirely. When bytes are
+  // pending we fall into the slow path, which drains the UART with a do/while so available() is
+  // only checked once per byte — no redundant re-check on entry.
+  ESPHOME_ALWAYS_INLINE void process_uart_() {
+    if (!this->available()) {
+      return;
+    }
+    this->process_uart_slow_();
+  }
+  void process_uart_slow_();  // Drain all available UART data
 
   // Pre-allocated message - always ready to send
   api::ZWaveProxyFrame outgoing_proto_msg_;
