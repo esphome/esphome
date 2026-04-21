@@ -104,6 +104,9 @@ void BL0906::setup() {
   this->bias_correction_(BL0906_RMSOS_6, 0.01200, 0);  // Calibration current_6
 
   this->write_array(USR_WRPROT_ONLYREAD, sizeof(USR_WRPROT_ONLYREAD));
+
+  // Loop stays idle until the first update() or enqueued action.
+  this->disable_loop();
 }
 
 void BL0906::update() {
