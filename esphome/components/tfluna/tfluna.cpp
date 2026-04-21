@@ -66,8 +66,9 @@ void TFLuna::setup() {
     this->mark_failed();
     return;
   }
-  auto version = str_snprintf("%d.%d.%d", major, minor, revision);
-  ESP_LOGI(TAG, "Firmware: %s", version.c_str());
+  char version[15];
+  snprintf(version, sizeof(version), "%d.%d.%d", major, minor, revision);
+  ESP_LOGI(TAG, "Firmware: %s", version);
 
 #ifdef USE_TEXT_SENSOR
   if (this->version_text_sensor_ != nullptr) {
