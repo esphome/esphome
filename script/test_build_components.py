@@ -39,7 +39,7 @@ from script.analyze_component_buses import (
     merge_compatible_bus_groups,
     uses_local_file_references,
 )
-from script.helpers import get_component_test_files
+from script.helpers import get_component_test_files, split_conflicting_groups
 from script.merge_component_configs import merge_component_configs
 
 
@@ -674,6 +674,13 @@ def run_grouped_component_tests(
     # This allows mixing components with different buses (e.g., ble + uart)
     # as long as they don't have conflicting configurations for the same bus type
     grouped_components = merge_compatible_bus_groups(grouped_components)
+
+    # Split groups that contain components declaring CONFLICTS_WITH each other.
+    # The bus-level merge above only considers shared bus configs; components
+    # with the same bus signature (e.g. both I2C) can still be mutually
+    # incompatible (e.g. bme680_bsec vs. bme68x_bsec2_i2c which auto-loads
+    # bme68x_bsec2). Those must end up in separate builds.
+    grouped_components = split_conflicting_groups(grouped_components)
 
     # Print detailed grouping plan
     print("\nGrouping Plan:")
