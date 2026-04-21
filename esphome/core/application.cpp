@@ -214,7 +214,7 @@ void Application::process_dump_config_() {
 
 void Application::feed_wdt() {
   // Cold entry: callers without a millis() timestamp in hand. Fetches the
-  // time and takes the same rate-limit path as feed_wdt_with_time().
+  // time and takes the same rate-limit paths as feed_wdt_with_time().
   uint32_t now = MillisInternal::get();
   if (now - this->last_wdt_feed_ > WDT_FEED_INTERVAL_MS) {
     this->feed_wdt_slow_(now);

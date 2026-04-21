@@ -262,7 +262,7 @@ class Application {
   /// When USE_STATUS_LED is compiled in, also gates a separate (shorter)
   /// interval for dispatching status_led so the LED blink pattern stays
   /// readable even though arch_feed_wdt pokes are now rate-limited at
-  /// 300 ms. The two rate limits are independent so raising
+  /// WDT_FEED_INTERVAL_MS. The two rate limits are independent so raising
   /// WDT_FEED_INTERVAL_MS does not distort the LED cadence.
   void ESPHOME_ALWAYS_INLINE feed_wdt_with_time(uint32_t time) {
     if (static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) [[unlikely]] {
