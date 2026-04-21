@@ -93,8 +93,11 @@ void Application::setup() {
     do {
       uint32_t now = millis();
 
-      // Process pending loop enables to handle GPIO interrupts during setup
-      this->before_loop_tasks_(now);
+      // Service scheduler and process pending loop enables to handle GPIO
+      // interrupts during setup. During setup we always run the component
+      // phase (no loop_interval_ gate), so call both helpers unconditionally.
+      this->scheduler_tick_(now);
+      this->before_component_phase_();
 
       for (uint32_t j = 0; j <= i; j++) {
         // Update loop_component_start_time_ right before calling each component
@@ -103,7 +106,7 @@ void Application::setup() {
         this->feed_wdt();
       }
 
-      this->after_loop_tasks_();
+      this->after_component_phase_();
       yield();
     } while (!component->can_proceed() && !component->is_failed());
   }

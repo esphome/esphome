@@ -740,6 +740,11 @@ template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallb
 /// @name Mathematics
 ///@{
 
+/// Compute floor(log10(fabs(value))) using iterative comparison.
+/// Avoids pulling in __ieee754_logf/log10f (~1KB flash).
+/// Only valid for finite, non-zero values.
+int8_t ilog10(float value);
+
 /// Compute 10^exp using iterative multiplication/division.
 /// Avoids pulling in powf/__ieee754_powf (~2.3KB flash) for small integer exponents.  // NOLINT
 /// Matches powf(10, exp) for the int8_t exponent range used by sensor accuracy_decimals.  // NOLINT
@@ -1117,7 +1122,10 @@ inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str
     return size;
   }
   size_t remaining = size - pos - 1;  // reserve space for null terminator
-  size_t len = strnlen(str, remaining);
+  size_t len = 0;
+  while (len < remaining && str[len] != '\0') {
+    len++;
+  }
   memcpy(buf + pos, str, len);
   pos += len;
   buf[pos] = '\0';
