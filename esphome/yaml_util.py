@@ -683,16 +683,35 @@ def is_secret(value):
 
 def _path_doc(item: Any) -> str | None:
     """Return the source document name if *item* carries location info."""
-    if isinstance(item, ESPHomeDataBase):
-        r = item.esp_range
-        if r is not None:
-            return r.start_mark.document
+    if isinstance(item, ESPHomeDataBase) and (r := item.esp_range) is not None:
+        return r.start_mark.document
     return None
 
 
 def _fmt_mark(loc: Any) -> str:
     """Render a DocumentLocation as a 1-based 'file line:col' string."""
     return f"{loc.document} {loc.line + 1}:{loc.column + 1}"
+
+
+def _obj_loc(obj: Any) -> str:
+    """Return formatted source location for *obj*, or '' if it has none."""
+    if isinstance(obj, ESPHomeDataBase) and (r := obj.esp_range) is not None:
+        return _fmt_mark(r.start_mark)
+    return ""
+
+
+def _fmt_segment(seg: list) -> str:
+    """Format a path segment, rendering integers as [n] subscripts."""
+    parts: list[str] = []
+    for item in seg:
+        if isinstance(item, int):
+            if parts:
+                parts[-1] = f"{parts[-1]}[{item}]"
+            else:
+                parts.append(f"[{item}]")
+        else:
+            parts.append(str(item))
+    return "->".join(parts)
 
 
 def format_path(path: DocumentPath, current_obj: Any) -> str:
@@ -723,52 +742,33 @@ def format_path(path: DocumentPath, current_obj: Any) -> str:
     for item in path:
         doc = _path_doc(item)
         if doc is None:
-            target = segment if isinstance(item, int) and current_doc else pending
-            target.append(item)
+            (segment if isinstance(item, int) and current_doc else pending).append(item)
             continue
         if current_doc is not None and doc != current_doc:
             frames.append((segment, location))
             segment = []
         segment.extend(pending)
-        pending = []
+        pending.clear()
         segment.append(item)
         current_doc = doc
         location = _fmt_mark(item.esp_range.start_mark)
 
     if current_doc is not None:
-        # Flush any trailing unlocated keys into the innermost frame so they
-        # appear in the output (e.g. plain string keys after the last located
-        # YAML key in the path).
+        # Trailing unlocated keys belong to the innermost frame.
         segment.extend(pending)
-        pending = []
         frames.append((segment, location))
 
-    def fmt_path(seg: list) -> str:
-        """Format a path segment, rendering integers as [n] subscripts."""
-        parts: list[str] = []
-        for item in seg:
-            if isinstance(item, int):
-                if parts:
-                    parts[-1] = f"{parts[-1]}[{item}]"
-                else:
-                    parts.append(f"[{item}]")
-            else:
-                parts.append(str(item))
-        return "->".join(parts)
-
-    obj_loc = ""
-    if isinstance(current_obj, ESPHomeDataBase) and current_obj.esp_range is not None:
-        obj_loc = _fmt_mark(current_obj.esp_range.start_mark)
+    obj_loc = _obj_loc(current_obj)
 
     if not frames:
-        return f"In: {fmt_path(path)}" + (f" in {obj_loc}" if obj_loc else "")
+        return f"In: {_fmt_segment(path)}" + (f" in {obj_loc}" if obj_loc else "")
 
     # Innermost line prefers current_obj's location (usually more precise
     # than the key that owns it).
     inner_seg, inner_loc = frames[-1]
-    lines = [f"In: {fmt_path(inner_seg)} in {obj_loc or inner_loc}"]
+    lines = [f"In: {_fmt_segment(inner_seg)} in {obj_loc or inner_loc}"]
     for seg, loc in reversed(frames[:-1]):
-        lines.append(f"  Included from {fmt_path(seg)} in {loc}")
+        lines.append(f"  Included from {_fmt_segment(seg)} in {loc}")
     return "\n".join(lines)
 
 
