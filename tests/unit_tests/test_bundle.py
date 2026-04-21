@@ -5,8 +5,10 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
+import shutil
 import tarfile
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -20,6 +22,7 @@ from esphome.bundle import (
     _add_bytes_to_tar,
     _default_target_dir,
     _find_used_secret_keys,
+    _force_load_include_files,
     extract_bundle,
     is_bundle_path,
     prepare_bundle_for_compile,
@@ -485,7 +488,7 @@ def test_read_bundle_manifest_minimal(tmp_path: Path) -> None:
 
     result = read_bundle_manifest(bundle_path)
     assert result.esphome_version == "unknown"
-    assert result.files == []
+    assert not result.files
     assert result.has_secrets is False
 
 
@@ -862,6 +865,117 @@ def test_discover_files_skips_missing_directory(tmp_path: Path) -> None:
     assert len(files) == 1
 
 
+def test_discover_files_nested_include(tmp_path: Path) -> None:
+    """Nested !include files (e.g. wifi: !include wifi.yaml) are bundled."""
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\nwifi: !include wifi.yaml\n"
+    )
+    (config_dir / "wifi.yaml").write_text('ssid: "a"\npassword: "b"\n')
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "test.yaml" in paths
+    assert "wifi.yaml" in paths
+
+
+def test_discover_files_deeply_nested_include(tmp_path: Path) -> None:
+    """Chains of !include (a includes b includes c) are fully resolved."""
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\nwifi: !include level1.yaml\n"
+    )
+    (config_dir / "level1.yaml").write_text("nested: !include level2.yaml\n")
+    (config_dir / "level2.yaml").write_text('value: "leaf"\n')
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "level1.yaml" in paths
+    assert "level2.yaml" in paths
+
+
+def test_discover_files_nested_include_unresolved_substitution(
+    tmp_path: Path,
+) -> None:
+    """!include with substitution vars in path cannot be resolved; skipped gracefully."""
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\nwifi: !include ${platform}.yaml\n"
+    )
+
+    creator = ConfigBundleCreator({})
+    # Should not raise
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "test.yaml" in paths
+
+
+def test_discover_files_nested_include_load_failure(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A nested !include pointing at a missing file is logged and skipped."""
+    config_dir = _setup_config_dir(tmp_path)
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\nwifi: !include missing.yaml\n"
+    )
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "test.yaml" in paths
+    assert any(
+        "failed to load !include" in r.message and "missing.yaml" in r.message
+        for r in caplog.records
+    )
+
+
+def test_force_load_skips_duplicate_include_file() -> None:
+    """The same IncludeFile referenced twice is only loaded once."""
+
+    class _StubInclude:
+        """Mimics yaml_util.IncludeFile minimally for _force_load testing."""
+
+        def __init__(self) -> None:
+            self.file = Path("dup.yaml")
+            self.parent_file = Path("root.yaml")
+            self.load_calls = 0
+
+        def has_unresolved_expressions(self) -> bool:
+            return False
+
+        def load(self) -> dict[str, Any]:
+            self.load_calls += 1
+            return {}
+
+    stub = _StubInclude()
+    # Same instance appears twice — second visit must hit the _seen guard.
+    tree = {"a": stub, "b": [stub]}
+
+    with patch("esphome.bundle.yaml_util.IncludeFile", _StubInclude):
+        _force_load_include_files(tree)
+
+    assert stub.load_calls == 1
+
+
+def test_force_load_handles_cyclic_containers() -> None:
+    """Cyclic dict/list references don't cause infinite recursion."""
+    cyclic_dict: dict[str, Any] = {}
+    cyclic_dict["self"] = cyclic_dict
+
+    cyclic_list: list[Any] = []
+    cyclic_list.append(cyclic_list)
+
+    # Should return without recursing forever
+    _force_load_include_files(cyclic_dict)
+    _force_load_include_files(cyclic_list)
+
+
 def test_discover_files_yaml_reload_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1006,6 +1120,40 @@ def test_discover_files_walk_tuple_values(tmp_path: Path) -> None:
 
     paths = [f.path for f in files]
     assert "a.pem" in paths
+
+
+# ---------------------------------------------------------------------------
+# ConfigBundleCreator - fixture-based end-to-end
+# ---------------------------------------------------------------------------
+
+
+def test_discover_files_fixture_config(fixture_path: Path, tmp_path: Path) -> None:
+    """Use the real ``fixtures/bundle/`` tree as an end-to-end reproducer.
+
+    The fixture config uses ``wifi: !include common/wifi.yaml`` — a plain
+    nested !include that is returned as a deferred ``IncludeFile`` and only
+    resolved during the substitution pass. Before this fix, bundle discovery
+    never ran substitutions, so ``common/wifi.yaml`` was silently missing
+    from the bundle.
+    """
+    # Copy the fixture tree into a tmp dir so the test doesn't rely on the
+    # source repo being writable and so we can set CORE.config_path freely.
+    src = fixture_path / "bundle"
+    dst = tmp_path / "bundle"
+    shutil.copytree(src, dst)
+
+    CORE.config_path = dst / "bundle_test.yaml"
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+    paths = {f.path for f in files}
+
+    # Root and top-level !secret-referenced files
+    assert "bundle_test.yaml" in paths
+    assert "secrets.yaml" in paths
+    # The nested !include — this is what regressed when IncludeFile became
+    # deferred (PR #12213).
+    assert "common/wifi.yaml" in paths
 
 
 # ---------------------------------------------------------------------------

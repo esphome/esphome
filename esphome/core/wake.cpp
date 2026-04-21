@@ -12,12 +12,12 @@
 
 namespace esphome {
 
-// === ESP32 — IRAM_ATTR entry points ===
-#ifdef USE_ESP32
+// === ESP32 / LibreTiny — IRAM_ATTR entry points ===
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
 void IRAM_ATTR wake_loop_isrsafe(BaseType_t *px_higher_priority_task_woken) {
   esphome_main_task_notify_from_isr(px_higher_priority_task_woken);
 }
-void IRAM_ATTR wake_loop_any_context() { esphome_main_task_notify_any_context(); }
+void IRAM_ATTR wake_loop_any_context() { wake_main_task_any_context(); }
 #endif
 
 // === ESP8266 / RP2040 ===
