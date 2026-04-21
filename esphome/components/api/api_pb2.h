@@ -92,13 +92,11 @@ enum SupportsResponseType : uint32_t {
   SUPPORTS_RESPONSE_STATUS = 100,
 };
 #endif
-#if defined(USE_CLIMATE) || defined(USE_WATER_HEATER)
 enum TemperatureUnit : uint32_t {
   TEMPERATURE_UNIT_CELSIUS = 0,
   TEMPERATURE_UNIT_FAHRENHEIT = 1,
   TEMPERATURE_UNIT_KELVIN = 2,
 };
-#endif
 #ifdef USE_CLIMATE
 enum ClimateMode : uint32_t {
   CLIMATE_MODE_OFF = 0,

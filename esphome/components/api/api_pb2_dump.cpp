@@ -297,7 +297,6 @@ template<> const char *proto_enum_to_string<enums::SupportsResponseType>(enums::
   }
 }
 #endif
-#if defined(USE_CLIMATE) || defined(USE_WATER_HEATER)
 template<> const char *proto_enum_to_string<enums::TemperatureUnit>(enums::TemperatureUnit value) {
   switch (value) {
     case enums::TEMPERATURE_UNIT_CELSIUS:
@@ -310,7 +309,6 @@ template<> const char *proto_enum_to_string<enums::TemperatureUnit>(enums::Tempe
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
-#endif
 #ifdef USE_CLIMATE
 template<> const char *proto_enum_to_string<enums::ClimateMode>(enums::ClimateMode value) {
   switch (value) {
