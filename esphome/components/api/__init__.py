@@ -290,13 +290,13 @@ CONFIG_SCHEMA = cv.All(
             ): cv.int_range(min=1, max=10),
             cv.SplitDefault(
                 CONF_MAX_CONNECTIONS,
-                esp8266=4,  # ~40KB free RAM, each connection uses ~500-1000 bytes
-                esp32=5,  # 520KB RAM — 5 slots makes the static-RAM trade true net-negative at 1 client
-                rp2040=4,  # 264KB RAM but LWIP constraints
-                bk72xx=5,  # Moderate RAM — net-negative at 1 client
-                rtl87xx=5,  # Moderate RAM — net-negative at 1 client
-                host=8,  # Abundant resources, no BSS-slot concern
-                ln882x=5,  # Moderate RAM — net-negative at 1 client
+                esp8266=4,
+                esp32=5,
+                rp2040=4,
+                bk72xx=5,
+                rtl87xx=5,
+                host=8,
+                ln882x=5,
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
@@ -336,9 +336,6 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
     if CONF_LISTEN_BACKLOG in config:
         cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
-    # MAX_API_CONNECTIONS sizes the compile-time std::array<APIConnection*, N> in APIServer.
-    # Making this a compile-time constant (rather than a runtime set_max_connections setter)
-    # eliminates the std::vector heap allocation and its reallocation machinery.
     cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 

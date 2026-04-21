@@ -65,8 +65,6 @@ class APIServer final : public Component,
   void set_batch_delay(uint16_t batch_delay);
   uint16_t get_batch_delay() const { return batch_delay_; }
   void set_listen_backlog(uint8_t listen_backlog) { this->listen_backlog_ = listen_backlog; }
-  // Max connections is a compile-time constant (MAX_API_CONNECTIONS) set from YAML via codegen;
-  // the array sizing and the accept-time cap both derive from it.
 
   // Get reference to shared buffer for API connections
   APIBuffer &get_shared_buffer_ref() { return shared_write_buffer_; }
@@ -192,9 +190,7 @@ class APIServer final : public Component,
   bool is_connected() const { return this->api_connection_count_ != 0; }
   bool is_connected_with_state_subscription() const;
 
-  // View over the active (populated) slice of clients_. Use this for range-for iteration so we
-  // don't walk past api_connection_count_ into unused slots. Pointer range keeps iterator
-  // semantics equivalent to std::vector<std::unique_ptr<APIConnection>>::iterator.
+  // Range-for view over the populated slice [0, api_connection_count_).
   using APIConnectionPtr = std::unique_ptr<APIConnection>;
   class ActiveClientsView {
     APIConnectionPtr *begin_;
@@ -293,10 +289,7 @@ class APIServer final : public Component,
   uint32_t reboot_timeout_{300000};
   uint32_t last_connected_{0};
 
-  // Compile-time sized array of active API connections.
-  // Slots [0, api_connection_count_) are populated; slots [api_connection_count_, N) are kept as
-  // nullptr so the invariant "touching any live slot is safe" holds. No heap allocation, no
-  // std::vector reallocation machinery — eliminates a persistent heap-fragmentation source.
+  // Slots [0, api_connection_count_) are populated; trailing slots are always nullptr.
   std::array<std::unique_ptr<APIConnection>, MAX_API_CONNECTIONS> clients_{};
   // Vectors and strings (12 bytes each on 32-bit)
   // Shared proto write buffer for all connections.
@@ -336,9 +329,6 @@ class APIServer final : public Component,
   // from cv.SplitDefault in __init__.py which sets platform-specific defaults.
   uint8_t listen_backlog_{4};
   bool shutting_down_ = false;
-  // Active-slot count for clients_ (populated slots are [0, api_connection_count_)).
-  // Placed here to fill what used to be the 1-byte padding slot — zero size overhead versus the
-  // previous layout where this was the removed max_connections_ field.
   uint8_t api_connection_count_{0};
   // 7 bytes used, 1 byte padding
 

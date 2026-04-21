@@ -179,9 +179,8 @@ void APIServer::remove_client_(uint8_t client_index) {
   // Close socket now (was deferred from on_fatal_error to allow getpeername)
   client->helper_->close();
 
-  // Swap with the last populated slot and shrink the active range by one. Resetting the
-  // now-unused trailing slot preserves the invariant that slots [api_connection_count_, N)
-  // are always nullptr, which makes debugging and defensive iteration safer.
+  // Swap-and-reset: move the removed client to the trailing slot and null it out so slots
+  // [api_connection_count_, N) remain nullptr.
   const uint8_t last_index = this->api_connection_count_ - 1;
   if (client_index < last_index) {
     std::swap(this->clients_[client_index], this->clients_[last_index]);
@@ -597,8 +596,6 @@ void APIServer::request_time() {
 #endif
 
 bool APIServer::is_connected_with_state_subscription() const {
-  // Indexed iteration (not active_clients()) because this method is const; keeps the view
-  // struct single-flavor in the header.
   for (uint8_t i = 0; i < this->api_connection_count_; i++) {
     if (this->clients_[i]->flags_.state_subscription) {
       return true;
