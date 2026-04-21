@@ -756,7 +756,7 @@ async def write_image(config, all_frames=False):
             for col in range(width):
                 encoder.encode(pixels[row * width + col])
             encoder.end_row()
-        encoder.end_image()
+    encoder.end_image()
 
     rhs = [HexInt(x) for x in encoder.data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
