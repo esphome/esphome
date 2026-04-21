@@ -8,6 +8,20 @@ namespace bl0906 {
 
 static const char *const TAG = "bl0906";
 
+// Stage values for the read state machine. After CHANNEL_6 the state machine jumps
+// to the two sentinel stages below, then to IDLE_STAGE which marks the cycle as
+// complete and disables the loop.
+static constexpr uint8_t TEMP_STAGE = 0;  // chip temperature
+static constexpr uint8_t CHANNEL_1 = 1;   // per-phase current + power + energy
+static constexpr uint8_t CHANNEL_2 = 2;
+static constexpr uint8_t CHANNEL_3 = 3;
+static constexpr uint8_t CHANNEL_4 = 4;
+static constexpr uint8_t CHANNEL_5 = 5;
+static constexpr uint8_t CHANNEL_6 = 6;
+static constexpr uint8_t FREQ_STAGE = UINT8_MAX - 2;   // frequency + voltage
+static constexpr uint8_t POWER_STAGE = UINT8_MAX - 1;  // total power + total energy
+static constexpr uint8_t IDLE_STAGE = UINT8_MAX;       // cycle complete
+
 constexpr uint32_t to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
 
 constexpr int32_t to_int32_t(sbe24_t input) {
@@ -20,56 +34,75 @@ constexpr uint8_t bl0906_checksum(const uint8_t address, const DataPacket *data)
 }
 
 void BL0906::loop() {
-  if (this->current_channel_ == UINT8_MAX) {
-    return;
-  }
-
   while (this->available())
     this->flush();
 
-  if (this->current_channel_ == 0) {
+  if (this->current_stage_ == IDLE_STAGE) {
+    // Woken up between cycles to drain the action queue. Go back to sleep.
+    this->handle_actions_();
+    this->disable_loop();
+    return;
+  }
+
+  if (this->current_stage_ == TEMP_STAGE) {
     // Temperature
     this->read_data_(BL0906_TEMPERATURE, BL0906_TREF, this->temperature_sensor_);
-  } else if (this->current_channel_ == 1) {
+  } else if (this->current_stage_ == CHANNEL_1) {
     this->read_data_(BL0906_I_1_RMS, BL0906_IREF, this->current_1_sensor_);
     this->read_data_(BL0906_WATT_1, BL0906_PREF, this->power_1_sensor_);
     this->read_data_(BL0906_CF_1_CNT, BL0906_EREF, this->energy_1_sensor_);
-  } else if (this->current_channel_ == 2) {
+  } else if (this->current_stage_ == CHANNEL_2) {
     this->read_data_(BL0906_I_2_RMS, BL0906_IREF, this->current_2_sensor_);
     this->read_data_(BL0906_WATT_2, BL0906_PREF, this->power_2_sensor_);
     this->read_data_(BL0906_CF_2_CNT, BL0906_EREF, this->energy_2_sensor_);
-  } else if (this->current_channel_ == 3) {
+  } else if (this->current_stage_ == CHANNEL_3) {
     this->read_data_(BL0906_I_3_RMS, BL0906_IREF, this->current_3_sensor_);
     this->read_data_(BL0906_WATT_3, BL0906_PREF, this->power_3_sensor_);
     this->read_data_(BL0906_CF_3_CNT, BL0906_EREF, this->energy_3_sensor_);
-  } else if (this->current_channel_ == 4) {
+  } else if (this->current_stage_ == CHANNEL_4) {
     this->read_data_(BL0906_I_4_RMS, BL0906_IREF, this->current_4_sensor_);
     this->read_data_(BL0906_WATT_4, BL0906_PREF, this->power_4_sensor_);
     this->read_data_(BL0906_CF_4_CNT, BL0906_EREF, this->energy_4_sensor_);
-  } else if (this->current_channel_ == 5) {
+  } else if (this->current_stage_ == CHANNEL_5) {
     this->read_data_(BL0906_I_5_RMS, BL0906_IREF, this->current_5_sensor_);
     this->read_data_(BL0906_WATT_5, BL0906_PREF, this->power_5_sensor_);
     this->read_data_(BL0906_CF_5_CNT, BL0906_EREF, this->energy_5_sensor_);
-  } else if (this->current_channel_ == 6) {
+  } else if (this->current_stage_ == CHANNEL_6) {
     this->read_data_(BL0906_I_6_RMS, BL0906_IREF, this->current_6_sensor_);
     this->read_data_(BL0906_WATT_6, BL0906_PREF, this->power_6_sensor_);
     this->read_data_(BL0906_CF_6_CNT, BL0906_EREF, this->energy_6_sensor_);
-  } else if (this->current_channel_ == UINT8_MAX - 2) {
+  } else if (this->current_stage_ == FREQ_STAGE) {
     // Frequency
     this->read_data_(BL0906_FREQUENCY, BL0906_FREF, frequency_sensor_);
     // Voltage
     this->read_data_(BL0906_V_RMS, BL0906_UREF, voltage_sensor_);
-  } else if (this->current_channel_ == UINT8_MAX - 1) {
+  } else if (this->current_stage_ == POWER_STAGE) {
     // Total power
     this->read_data_(BL0906_WATT_SUM, BL0906_WATT, this->total_power_sensor_);
     // Total Energy
     this->read_data_(BL0906_CF_SUM_CNT, BL0906_CF, this->total_energy_sensor_);
-  } else {
-    this->current_channel_ = UINT8_MAX - 2;  // Go to frequency and voltage
-    return;
   }
-  this->current_channel_++;
+  this->advance_stage_();
   this->handle_actions_();
+}
+
+void BL0906::advance_stage_() {
+  switch (this->current_stage_) {
+    case CHANNEL_6:
+      this->current_stage_ = FREQ_STAGE;
+      break;
+    case FREQ_STAGE:
+      this->current_stage_ = POWER_STAGE;
+      break;
+    case POWER_STAGE:
+      // Cycle complete; sleep until the next update().
+      this->current_stage_ = IDLE_STAGE;
+      this->disable_loop();
+      break;
+    default:
+      this->current_stage_++;
+      break;
+  }
 }
 
 void BL0906::setup() {
@@ -87,10 +120,15 @@ void BL0906::setup() {
   this->write_array(USR_WRPROT_ONLYREAD, sizeof(USR_WRPROT_ONLYREAD));
 }
 
-void BL0906::update() { this->current_channel_ = 0; }
+void BL0906::update() {
+  this->current_stage_ = TEMP_STAGE;
+  this->enable_loop();
+}
 
 size_t BL0906::enqueue_action_(ActionCallbackFuncPtr function) {
   this->action_queue_.push_back(function);
+  // Ensure the queue is serviced even if the read cycle has already completed.
+  this->enable_loop();
   return this->action_queue_.size();
 }
 

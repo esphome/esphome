@@ -79,7 +79,8 @@ class BL0906 : public PollingComponent, public uart::UARTDevice {
 
   void bias_correction_(uint8_t address, float measurements, float correction);
 
-  uint8_t current_channel_{0};
+  uint8_t current_stage_{0};
+  void advance_stage_();
   size_t enqueue_action_(ActionCallbackFuncPtr function);
   void handle_actions_();
 
