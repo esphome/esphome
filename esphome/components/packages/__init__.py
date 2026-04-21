@@ -338,7 +338,7 @@ def _walk_packages(
     with cv.prepend_path(CONF_PACKAGES):
         if isinstance(packages, yaml_util.IncludeFile):
             # If the packages key is an IncludeFile, resolve it first before processing.
-            packages, _ = resolve_include(
+            packages = resolve_include(
                 packages, packages_path, context, strict_undefined=False
             )
         if not isinstance(packages, (dict, list)):
@@ -474,7 +474,7 @@ class _PackageProcessor:
         """
         for _ in range(MAX_INCLUDE_DEPTH):
             if isinstance(package_config, yaml_util.IncludeFile):
-                package_config, _ = resolve_include(
+                package_config = resolve_include(
                     package_config,
                     path,
                     context_vars or ContextVars(),

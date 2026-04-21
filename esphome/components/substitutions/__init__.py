@@ -330,10 +330,8 @@ def resolve_include(
     context_vars: ContextVars,
     strict_undefined: bool = True,
     errors: ErrList | None = None,
-) -> tuple[Any, str]:
+) -> Any:
     """Resolve an include, substituting the filename if needed.
-
-    Returns the loaded content and the resolved filename.
 
     Note: no path-traversal validation is performed on the resolved filename.
     A substitution that resolves to an absolute path will bypass the parent
@@ -353,7 +351,7 @@ def resolve_include(
             include.parent_file, filename, include.vars, include.yaml_loader
         )
     try:
-        return include.load(), filename
+        return include.load()
     except esphome.core.EsphomeError as err:
         raise cv.Invalid(
             f"Error including file '{filename}': {err}",
@@ -369,7 +367,7 @@ def _substitute_include(
     errors: ErrList | None,
 ) -> Any:
     """Resolve an include and substitute its content."""
-    content, _ = resolve_include(include, path, context_vars, strict_undefined, errors)
+    content = resolve_include(include, path, context_vars, strict_undefined, errors)
     return substitute(content, path, context_vars, strict_undefined, errors)
 
 
@@ -452,7 +450,7 @@ def resolve_substitutions_block(
         # Single-shot resolution — matches ``_walk_packages`` for the
         # ``packages: !include`` entry point.  Chained includes (an include that
         # itself loads another ``!include`` at the top level) are not supported.
-        substitutions, _ = resolve_include(
+        substitutions = resolve_include(
             substitutions,
             [],
             ContextVars(command_line_substitutions or {}),
