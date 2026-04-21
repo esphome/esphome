@@ -14,6 +14,8 @@ from esphome.const import (
 
 DEPENDENCIES = ["i2c"]
 
+CONF_PRESSURE_RANGE_BAR = "pressure_range_bar"
+
 xdb401_ns = cg.esphome_ns.namespace("xdb401")
 
 XDB401Component = xdb401_ns.class_(
@@ -26,7 +28,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(XDB401Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=0,
+                accuracy_decimals=2,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
@@ -35,6 +37,9 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_PRESSURE,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PRESSURE_RANGE_BAR, default=10): cv.one_of(
+                1, 2, 5, 10, 20, 50, 100, int=True
             ),
         }
     )
@@ -47,6 +52,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+
+    cg.add(var.set_pressure_range_bar(config[CONF_PRESSURE_RANGE_BAR]))
 
     if temperature_config := config.get(CONF_TEMPERATURE):
         sens = await sensor.new_sensor(temperature_config)
