@@ -140,7 +140,6 @@ void MPU6050Component::update() {
 
   this->status_clear_warning();
 }
-float MPU6050Component::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace mpu6050
 }  // namespace esphome

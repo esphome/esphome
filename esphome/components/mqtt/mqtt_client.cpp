@@ -8,6 +8,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/version.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -27,6 +28,15 @@ namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt";
 
+// Maximum number of MQTT component resends per loop iteration.
+// Limits work to avoid triggering the task watchdog on reconnect.
+static constexpr uint8_t MAX_RESENDS_PER_LOOP = 8;
+
+// Disconnect reason strings indexed by MQTTClientDisconnectReason enum (0-8)
+PROGMEM_STRING_TABLE(MQTTDisconnectReasonStrings, "TCP disconnected", "Unacceptable Protocol Version",
+                     "Identifier Rejected", "Server Unavailable", "Malformed Credentials", "Not Authorized",
+                     "Not Enough Space", "TLS Bad Fingerprint", "DNS Resolve Error", "Unknown");
+
 MQTTClientComponent::MQTTClientComponent() {
   global_mqtt_client = this;
   char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
@@ -38,8 +48,10 @@ MQTTClientComponent::MQTTClientComponent() {
 void MQTTClientComponent::setup() {
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
-        if (index == 0)
+        if (index == 0) {
+          this->payload_buffer_.clear();
           this->payload_buffer_.reserve(total);
+        }
 
         // append new payload, may contain incomplete MQTT message
         this->payload_buffer_.append(payload, len);
@@ -58,7 +70,10 @@ void MQTTClientComponent::setup() {
   });
 #ifdef USE_LOGGER
   if (this->is_log_message_enabled() && logger::global_logger != nullptr) {
-    logger::global_logger->add_log_listener(this);
+    logger::global_logger->add_log_callback(
+        this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+          static_cast<MQTTClientComponent *>(self)->on_log(level, tag, message, message_len);
+        });
   }
 #endif
 
@@ -98,7 +113,17 @@ void MQTTClientComponent::send_device_info_() {
         uint8_t index = 0;
         for (auto &ip : network::get_ip_addresses()) {
           if (ip.is_set()) {
-            root["ip" + (index == 0 ? "" : esphome::to_string(index))] = ip.str();
+            char key[8];  // "ip" + up to 3 digits + null
+            char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+            if (index == 0) {
+              key[0] = 'i';
+              key[1] = 'p';
+              key[2] = '\0';
+            } else {
+              buf_append_printf(key, sizeof(key), 0, "ip%u", index);
+            }
+            ip.str_to(ip_buf);
+            root[key] = ip_buf;
             index++;
           }
         }
@@ -154,10 +179,8 @@ void MQTTClientComponent::send_device_info_() {
 void MQTTClientComponent::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) tag;
   if (level <= this->log_level_ && this->is_connected()) {
-    this->publish({.topic = this->log_message_.topic,
-                   .payload = std::string(message, message_len),
-                   .qos = this->log_message_.qos,
-                   .retain = this->log_message_.retain});
+    this->publish(this->log_message_.topic.c_str(), message, message_len, this->log_message_.qos,
+                  this->log_message_.retain);
   }
 }
 #endif
@@ -338,36 +361,8 @@ void MQTTClientComponent::loop() {
   mqtt_backend_.loop();
 
   if (this->disconnect_reason_.has_value()) {
-    const LogString *reason_s;
-    switch (*this->disconnect_reason_) {
-      case MQTTClientDisconnectReason::TCP_DISCONNECTED:
-        reason_s = LOG_STR("TCP disconnected");
-        break;
-      case MQTTClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
-        reason_s = LOG_STR("Unacceptable Protocol Version");
-        break;
-      case MQTTClientDisconnectReason::MQTT_IDENTIFIER_REJECTED:
-        reason_s = LOG_STR("Identifier Rejected");
-        break;
-      case MQTTClientDisconnectReason::MQTT_SERVER_UNAVAILABLE:
-        reason_s = LOG_STR("Server Unavailable");
-        break;
-      case MQTTClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS:
-        reason_s = LOG_STR("Malformed Credentials");
-        break;
-      case MQTTClientDisconnectReason::MQTT_NOT_AUTHORIZED:
-        reason_s = LOG_STR("Not Authorized");
-        break;
-      case MQTTClientDisconnectReason::ESP8266_NOT_ENOUGH_SPACE:
-        reason_s = LOG_STR("Not Enough Space");
-        break;
-      case MQTTClientDisconnectReason::TLS_BAD_FINGERPRINT:
-        reason_s = LOG_STR("TLS Bad Fingerprint");
-        break;
-      default:
-        reason_s = LOG_STR("Unknown");
-        break;
-    }
+    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(
+        static_cast<uint8_t>(*this->disconnect_reason_), MQTTDisconnectReasonStrings::LAST_INDEX);
     if (!network::is_connected()) {
       reason_s = LOG_STR("WiFi disconnected");
     }
@@ -405,9 +400,16 @@ void MQTTClientComponent::loop() {
         this->resubscribe_subscriptions_();
 
         // Process pending resends for all MQTT components centrally
-        // This is more efficient than each component polling in its own loop
-        for (MQTTComponent *component : this->children_) {
-          component->process_resend();
+        // Limit work per loop iteration to avoid triggering task WDT on reconnect
+        {
+          uint8_t resend_count = 0;
+          for (MQTTComponent *component : this->children_) {
+            if (component->is_resend_pending()) {
+              component->process_resend();
+              if (++resend_count >= MAX_RESENDS_PER_LOOP)
+                break;
+            }
+          }
         }
       }
       break;
@@ -554,8 +556,8 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
 }
 
 bool MQTTClientComponent::publish_json(const char *topic, const json::json_build_t &f, uint8_t qos, bool retain) {
-  std::string message = json::build_json(f);
-  return this->publish(topic, message.c_str(), message.length(), qos, retain);
+  auto message = json::build_json(f);
+  return this->publish(topic, message.c_str(), message.size(), qos, retain);
 }
 
 void MQTTClientComponent::enable() {
@@ -633,10 +635,34 @@ static bool topic_match(const char *message, const char *subscription) {
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-  for (auto &subscription : this->subscriptions_) {
-    if (topic_match(topic.c_str(), subscription.topic.c_str()))
-      subscription.callback(topic, payload);
-  }
+#ifdef USE_ESP8266
+  // IMPORTANT: This defer is REQUIRED to prevent stack overflow crashes on ESP8266.
+  //
+  // On ESP8266, this callback is invoked directly from the lwIP/AsyncTCP network stack
+  // which runs in the "sys" context with a very limited stack (~4KB). By the time we
+  // reach this function, the stack is already partially consumed by the network
+  // processing chain: tcp_input -> AsyncClient::_recv -> AsyncMqttClient::_onMessage -> here.
+  //
+  // MQTT subscription callbacks can trigger arbitrary user actions (automations, HTTP
+  // requests, sensor updates, etc.) which may have deep call stacks of their own.
+  // For example, an HTTP request action requires: DNS lookup -> TCP connect -> TLS
+  // handshake (if HTTPS) -> request formatting. This easily overflows the remaining
+  // system stack space, causing a LoadStoreAlignmentCause exception or silent corruption.
+  //
+  // By deferring to the main loop, we ensure callbacks execute with a fresh, full-size
+  // stack in the normal application context rather than the constrained network task.
+  //
+  // DO NOT REMOVE THIS DEFER without understanding the above. It may appear to work
+  // in simple tests but will cause crashes with complex automations.
+  this->defer([this, topic, payload]() {
+#endif
+    for (auto &subscription : this->subscriptions_) {
+      if (topic_match(topic.c_str(), subscription.topic.c_str()))
+        subscription.callback(topic, payload);
+    }
+#ifdef USE_ESP8266
+  });
+#endif
 }
 
 // Setters
@@ -735,13 +761,6 @@ void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&call
   this->mqtt_backend_.set_on_disconnect(std::forward<mqtt_on_disconnect_callback_t>(callback));
   this->on_disconnect_.add(std::move(callback_copy));
 }
-
-#if ASYNC_TCP_SSL_ENABLED
-void MQTTClientComponent::add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint) {
-  this->mqtt_backend_.setSecure(true);
-  this->mqtt_backend_.addServerFingerprint(fingerprint.data());
-}
-#endif
 
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

@@ -3,9 +3,15 @@ display:
     spi_16: true
     pixel_mode: 18bit
     model: ili9488
-    dc_pin: ${dc_pin}
-    cs_pin: ${cs_pin}
-    reset_pin: ${reset_pin}
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}
     data_rate: 20MHz
     invert_colors: true
     show_test_card: true
@@ -24,3 +30,15 @@ display:
       height: 200
     enable_pin: ${enable_pin}
     bus_mode: single
+
+  - platform: mipi_spi
+    model: WAVESHARE-1.83-V2
+    dc_pin:
+      allow_other_uses: true
+      number: ${dc_pin}
+    cs_pin:
+      allow_other_uses: true
+      number: ${cs_pin}
+    reset_pin:
+      allow_other_uses: true
+      number: ${reset_pin}

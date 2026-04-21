@@ -30,8 +30,7 @@
 #include <cerrno>
 #include <sys/socket.h>
 
-namespace esphome {
-namespace web_server_idf {
+namespace esphome::web_server_idf {
 
 #ifndef HTTPD_409
 #define HTTPD_409 "409 Conflict"
@@ -75,12 +74,13 @@ int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_
   // Use MSG_DONTWAIT to prevent blocking when TCP send buffer is full
   int ret = send(sockfd, buf, buf_len, flags | MSG_DONTWAIT);
   if (ret < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    const int err = errno;
+    if (err == EAGAIN || err == EWOULDBLOCK) {
       // Buffer full - retry later
       return HTTPD_SOCK_ERR_TIMEOUT;
     }
     // Real error
-    ESP_LOGD(TAG, "send error: errno %d", errno);
+    ESP_LOGD(TAG, "send error: errno %d", err);
     return HTTPD_SOCK_ERR_FAIL;
   }
   return ret;
@@ -121,7 +121,10 @@ void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
   }
+  // Default httpd stack is defined by ESP-IDF. Increase to accommodate SerializationBuffer's
+  // 640-byte stack buffer used by web_server JSON request handlers.
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.stack_size = config.stack_size + 256;
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.
@@ -172,10 +175,11 @@ esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
     const char *content_type_char = content_type.value().c_str();
 
     // Check most common case first
-    if (stristr(content_type_char, "application/x-www-form-urlencoded") != nullptr) {
+    size_t content_type_len = strlen(content_type_char);
+    if (strcasestr_n(content_type_char, content_type_len, "application/x-www-form-urlencoded") != nullptr) {
       // Normal form data - proceed with regular handling
 #ifdef USE_WEBSERVER_OTA
-    } else if (stristr(content_type_char, "multipart/form-data") != nullptr) {
+    } else if (strcasestr_n(content_type_char, content_type_len, "multipart/form-data") != nullptr) {
       auto *server = static_cast<AsyncWebServer *>(r->user_ctx);
       return server->handle_multipart_upload_(r, content_type_char);
 #endif
@@ -246,36 +250,16 @@ optional<std::string> AsyncWebServerRequest::get_header(const char *name) const 
   return request_get_header(*this, name);
 }
 
-std::string AsyncWebServerRequest::url() const {
-  auto *query_start = strchr(this->req_->uri, '?');
-  std::string result;
-  if (query_start == nullptr) {
-    result = this->req_->uri;
-  } else {
-    result = std::string(this->req_->uri, query_start - this->req_->uri);
-  }
+StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) const {
+  const char *uri = this->req_->uri;
+  const char *query_start = strchr(uri, '?');
+  size_t uri_len = query_start ? static_cast<size_t>(query_start - uri) : strlen(uri);
+  size_t copy_len = std::min(uri_len, URL_BUF_SIZE - 1);
+  memcpy(buffer.data(), uri, copy_len);
+  buffer[copy_len] = '\0';
   // Decode URL-encoded characters in-place (e.g., %20 -> space)
-  // This matches AsyncWebServer behavior on Arduino
-  if (!result.empty()) {
-    size_t new_len = url_decode(&result[0]);
-    result.resize(new_len);
-  }
-  return result;
-}
-
-std::string AsyncWebServerRequest::host() const { return this->get_header("Host").value(); }
-
-void AsyncWebServerRequest::send(AsyncWebServerResponse *response) {
-  httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
-}
-
-void AsyncWebServerRequest::send(int code, const char *content_type, const char *content) {
-  this->init_response_(nullptr, code, content_type);
-  if (content) {
-    httpd_resp_send(*this, content, HTTPD_RESP_USE_STRLEN);
-  } else {
-    httpd_resp_send(*this, nullptr, 0);
-  }
+  size_t decoded_len = url_decode(buffer.data());
+  return StringRef(buffer.data(), decoded_len);
 }
 
 void AsyncWebServerRequest::redirect(const std::string &url) {
@@ -352,14 +336,34 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   memcpy(user_info + user_len + 1, password, pass_len);
   user_info[user_info_len] = '\0';
 
-  size_t n = 0, out;
-  esp_crypto_base64_encode(nullptr, 0, &n, reinterpret_cast<const uint8_t *>(user_info), user_info_len);
-
-  auto digest = std::unique_ptr<char[]>(new char[n + 1]);
-  esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest.get()), n, &out,
+  // Base64 output size is ceil(input_len * 4/3) + 1, with input bounded to 256 bytes
+  // max output is ceil(256 * 4/3) + 1 = 343 bytes, use 350 for safety
+  constexpr size_t max_digest_len = 350;
+  char digest[max_digest_len];
+  size_t out;
+  esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest), max_digest_len, &out,
                            reinterpret_cast<const uint8_t *>(user_info), user_info_len);
 
-  return strcmp(digest.get(), auth_str + auth_prefix_len) == 0;
+  // Constant-time comparison to avoid timing side channels.
+  // No early return on length mismatch — the length difference is folded
+  // into the accumulator so any mismatch is rejected.
+  const char *provided = auth_str + auth_prefix_len;
+  size_t digest_len = out;  // length from esp_crypto_base64_encode
+  // Derive provided_len from the already-sized std::string rather than
+  // rescanning with strlen (avoids attacker-controlled scan length).
+  size_t provided_len = auth.value().size() - auth_prefix_len;
+  // Use full-width XOR so any bit difference in the lengths is preserved
+  // (uint8_t truncation would miss differences in higher bytes, e.g.
+  // digest_len vs digest_len + 256).
+  volatile size_t result = digest_len ^ provided_len;
+  // Iterate over the expected digest length only — the full-width length
+  // XOR above already rejects any length mismatch, and bounding the loop
+  // prevents a long Authorization header from forcing extra work.
+  for (size_t i = 0; i < digest_len; i++) {
+    char provided_ch = (i < provided_len) ? provided[i] : 0;
+    result |= static_cast<uint8_t>(digest[i] ^ provided_ch);
+  }
+  return result == 0;
 }
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
@@ -371,7 +375,7 @@ void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
 }
 #endif
 
-AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
+AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   // Check cache first - only successful lookups are cached
   for (auto *param : this->params_) {
     if (param->name() == name) {
@@ -380,13 +384,7 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   }
 
   // Look up value from query strings
-  optional<std::string> val = query_key_value(this->post_query_, name);
-  if (!val.has_value()) {
-    auto url_query = request_get_url_query(*this);
-    if (url_query.has_value()) {
-      val = query_key_value(url_query.value(), name);
-    }
-  }
+  auto val = this->find_query_value_(name);
 
   // Don't cache misses to avoid wasting memory when handlers check for
   // optional parameters that don't exist in the request
@@ -397,6 +395,50 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   auto *param = new AsyncWebParameter(name, val.value());  // NOLINT(cppcoreguidelines-owning-memory)
   this->params_.push_back(param);
   return param;
+}
+
+/// Search post_query then URL query with a callback.
+/// Returns first truthy result, or value-initialized default.
+/// URL query is accessed directly from req->uri (same pattern as url_to()).
+template<typename Func>
+static auto search_query_sources(httpd_req_t *req, const std::string &post_query, const char *name, Func func)
+    -> decltype(func(nullptr, size_t{0}, name)) {
+  if (!post_query.empty()) {
+    auto result = func(post_query.c_str(), post_query.size(), name);
+    if (result) {
+      return result;
+    }
+  }
+  // Use httpd API for query length, then access string directly from URI.
+  // http_parser identifies components by offset/length without modifying the URI string.
+  // This is the same pattern used by url_to().
+  auto len = httpd_req_get_url_query_len(req);
+  if (len == 0) {
+    return {};
+  }
+  const char *query = strchr(req->uri, '?');
+  if (query == nullptr) {
+    return {};
+  }
+  query++;  // skip '?'
+  return func(query, len, name);
+}
+
+optional<std::string> AsyncWebServerRequest::find_query_value_(const char *name) const {
+  return search_query_sources(this->req_, this->post_query_, name,
+                              [](const char *q, size_t len, const char *k) { return query_key_value(q, len, k); });
+}
+
+bool AsyncWebServerRequest::hasArg(const char *name) {
+  return search_query_sources(this->req_, this->post_query_, name, query_has_key);
+}
+
+std::string AsyncWebServerRequest::arg(const char *name) {
+  auto val = this->find_query_value_(name);
+  if (val.has_value()) {
+    return std::move(val.value());
+  }
+  return {};
 }
 
 void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
@@ -442,9 +484,12 @@ void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
     this->on_connect_(rsp);
   }
   this->sessions_.push_back(rsp);
+  // Wake up WebServer::loop() to drain deferred event queues for this client.
+  // Safe from httpd task context via the pending_enable_loop_ flag.
+  this->web_server_->enable_loop_soon_any_context();
 }
 
-void AsyncEventSource::loop() {
+bool AsyncEventSource::loop() {
   // Clean up dead sessions safely
   // This follows the ESP-IDF pattern where free_ctx marks resources as dead
   // and the main loop handles the actual cleanup to avoid race conditions
@@ -462,6 +507,7 @@ void AsyncEventSource::loop() {
       ++i;
     }
   }
+  return !this->sessions_.empty();
 }
 
 void AsyncEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
@@ -512,7 +558,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
   // Configure reconnect timeout and send config
   // this should always go through since the tcp send buffer is empty on connect
-  std::string message = ws->get_config_json();
+  auto message = ws->get_config_json();
   this->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
@@ -566,7 +612,7 @@ void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_g
 void AsyncEventSourceResponse::process_deferred_queue_() {
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
-    std::string message = de.message_generator_(web_server_, de.source_);
+    auto message = de.message_generator_(web_server_, de.source_);
     if (this->try_send_nodefer(message.c_str(), "state")) {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
@@ -803,7 +849,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
     // trying to send first
     deq_push_back_with_dedup_(source, message_generator);
   } else {
-    std::string message = message_generator(web_server_, source);
+    auto message = message_generator(web_server_, source);
     if (!this->try_send_nodefer(message.c_str(), "state")) {
       deq_push_back_with_dedup_(source, message_generator);
     }
@@ -869,8 +915,8 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
     }
   });
 
-  // Process data
-  std::unique_ptr<char[]> buffer(new char[MULTIPART_CHUNK_SIZE]);
+  // Use heap buffer - 1460 bytes is too large for the httpd task stack
+  auto buffer = std::make_unique_for_overwrite<char[]>(MULTIPART_CHUNK_SIZE);
   size_t bytes_since_yield = 0;
 
   for (size_t remaining = r->content_len; remaining > 0;) {
@@ -902,7 +948,6 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
 }
 #endif  // USE_WEBSERVER_OTA
 
-}  // namespace web_server_idf
-}  // namespace esphome
+}  // namespace esphome::web_server_idf
 
 #endif  // !defined(USE_ESP32)
