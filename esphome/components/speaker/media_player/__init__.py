@@ -173,7 +173,7 @@ def _read_audio_file_and_type(file_config):
         raise cv.Invalid(
             f"Unable to determine audio file type of '{path}'. "
             f"Try re-encoding the file into a supported format. Details: {e}"
-        )
+        ) from e
 
     media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
     if file_type in ("wav"):
