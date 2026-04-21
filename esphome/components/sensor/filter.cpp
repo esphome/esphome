@@ -269,6 +269,18 @@ optional<float> throttle_with_priority_new_value(Sensor *parent, float value, co
   return {};
 }
 
+// ThrottleWithPriorityNanFilter
+ThrottleWithPriorityNanFilter::ThrottleWithPriorityNanFilter(uint32_t min_time_between_inputs)
+    : min_time_between_inputs_(min_time_between_inputs) {}
+optional<float> ThrottleWithPriorityNanFilter::new_value(float value) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ || std::isnan(value)) {
+    this->last_input_ = now;
+    return value;
+  }
+  return {};
+}
+
 // DeltaFilter
 DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
     : min_a0_(min_a0), min_a1_(min_a1), max_a0_(max_a0), max_a1_(max_a1) {}
