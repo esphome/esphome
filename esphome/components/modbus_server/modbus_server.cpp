@@ -3,6 +3,9 @@
 #include "esphome/core/log.h"
 
 namespace esphome::modbus_server {
+using modbus::ModbusFunctionCode;
+using modbus::ModbusRegisterType;
+using modbus::ModbusExceptionCode;
 
 static const char *const TAG = "modbus_server";
 
