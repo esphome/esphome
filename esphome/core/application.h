@@ -428,7 +428,7 @@ class Application {
   void activate_looping_component_(uint16_t index);
   inline uint32_t ESPHOME_ALWAYS_INLINE scheduler_tick_(uint32_t now);
   inline void ESPHOME_ALWAYS_INLINE before_component_phase_();
-  inline void ESPHOME_ALWAYS_INLINE after_loop_tasks_() { this->in_loop_ = false; }
+  inline void ESPHOME_ALWAYS_INLINE after_component_phase_() { this->in_loop_ = false; }
 
   /// Process dump_config output one component per loop iteration.
   /// Extracted from loop() to keep cold startup/reconnect logging out of the hot path.
@@ -695,10 +695,9 @@ inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::l
 #ifdef USE_RUNTIME_STATS
     loop_tail_start_us = micros();
 #endif
-    this->after_loop_tasks_();
-
     this->last_loop_ = last_op_end_time;
     now = last_op_end_time;
+    this->after_component_phase_();
   }
 
 #ifdef USE_RUNTIME_STATS

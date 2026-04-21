@@ -106,7 +106,7 @@ void Application::setup() {
         this->feed_wdt();
       }
 
-      this->after_loop_tasks_();
+      this->after_component_phase_();
       yield();
     } while (!component->can_proceed() && !component->is_failed());
   }
