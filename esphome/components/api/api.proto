@@ -217,6 +217,7 @@ enum SerialProxyPortType {
 message SerialProxyInfo {
   string name = 1;                    // Human-readable port name
   SerialProxyPortType port_type = 2;  // Port type (RS232, RS485)
+  string id = 3;                      // Port ID
 }
 
 // DeviceInfoResponse max_data_length values:
