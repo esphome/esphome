@@ -41,7 +41,7 @@ class RuntimeStatsCollector {
   //   active_us = total time between loop start and just before yield.
   //   before_us = time spent in Phase A (scheduler tick) excluding time
   //               already attributed to per-component stats.
-  //   tail_us   = time spent in after_loop_tasks_ + the trailing record/stats
+  //   tail_us   = time spent in after_component_phase_ + the trailing record/stats
   //               prefix. On Phase A-only ticks (component phase gated) this
   //               is just the small trailing prefix between loop_before_end_us
   //               and loop_now_us — non-zero but typically a few µs.
