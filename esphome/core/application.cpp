@@ -512,32 +512,7 @@ void Application::enable_pending_loops_() {
   }
 }
 
-#ifdef USE_LWIP_FAST_SELECT
-bool Application::register_socket(struct lwip_sock *sock) {
-  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
-  if (sock == nullptr)
-    return false;
-  esphome_lwip_hook_socket(sock);
-  this->monitored_sockets_.push_back(sock);
-  return true;
-}
-
-void Application::unregister_socket(struct lwip_sock *sock) {
-  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
-  for (size_t i = 0; i < this->monitored_sockets_.size(); i++) {
-    if (this->monitored_sockets_[i] != sock)
-      continue;
-
-    // Swap with last element and pop - O(1) removal since order doesn't matter.
-    // No need to unhook the netconn callback — all LwIP sockets share the same
-    // static event_callback, and the socket will be closed by the caller.
-    if (i < this->monitored_sockets_.size() - 1)
-      this->monitored_sockets_[i] = this->monitored_sockets_.back();
-    this->monitored_sockets_.pop_back();
-    return;
-  }
-}
-#elif defined(USE_HOST)
+#ifdef USE_HOST
 bool Application::register_socket_fd(int fd) {
   // WARNING: This function is NOT thread-safe and must only be called from the main loop
   // It modifies socket_fds_ and related variables without locking

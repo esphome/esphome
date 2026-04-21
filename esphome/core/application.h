@@ -262,7 +262,7 @@ class Application {
   /// When USE_STATUS_LED is compiled in, also gates a separate (shorter)
   /// interval for dispatching status_led so the LED blink pattern stays
   /// readable even though arch_feed_wdt pokes are now rate-limited at
-  /// 300 ms. The two rate limits are independent so raising
+  /// WDT_FEED_INTERVAL_MS. The two rate limits are independent so raising
   /// WDT_FEED_INTERVAL_MS does not distort the LED cadence.
   void ESPHOME_ALWAYS_INLINE feed_wdt_with_time(uint32_t time) {
     if (static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) [[unlikely]] {
@@ -345,16 +345,13 @@ class Application {
 
   Scheduler scheduler;
 
-  /// Register/unregister a socket to be monitored for read events.
-  /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop.
-#ifdef USE_LWIP_FAST_SELECT
-  /// Fast select path: hooks netconn callback and registers for monitoring.
-  /// @return true if registration was successful, false if sock is null
-  bool register_socket(struct lwip_sock *sock);
-  void unregister_socket(struct lwip_sock *sock);
-#elif defined(USE_HOST)
-  /// Fallback select() path: monitors file descriptors.
+#ifdef USE_HOST
+  /// Register/unregister a socket file descriptor with the host select() fallback loop.
+  /// USE_LWIP_FAST_SELECT builds do not use this API — sockets hook the lwIP netconn
+  /// event_callback directly (see socket.h hook_fd_for_fast_select) and rely on FreeRTOS
+  /// task notifications for wake-up.
   /// NOTE: File descriptors >= FD_SETSIZE (typically 10 on ESP) will be rejected with an error.
+  /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop.
   /// @return true if registration was successful, false if fd exceeds limits
   bool register_socket_fd(int fd);
   void unregister_socket_fd(int fd);
@@ -489,9 +486,7 @@ class Application {
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
   FixedVector<Component *> looping_components_{};
-#ifdef USE_LWIP_FAST_SELECT
-  std::vector<struct lwip_sock *> monitored_sockets_;  // Cached lwip_sock pointers for direct rcvevent read
-#elif defined(USE_HOST)
+#ifdef USE_HOST
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
 #endif
 #ifdef USE_HOST
@@ -759,26 +754,16 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #ifndef USE_HOST
 inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
 #ifdef USE_LWIP_FAST_SELECT
-  // Fast path (ESP32/LibreTiny): reads rcvevent directly from cached lwip_sock pointers.
-  // Safe because this runs on the main loop which owns socket lifetime (create, read, close).
+  // Fast path (ESP32/LibreTiny): FreeRTOS task notifications posted by the lwip
+  // event_callback wrapper (see lwip_fast_select.c) are the single source of truth for
+  // socket wake-ups. Every NETCONN_EVT_RCVPLUS posts an xTaskNotifyGive, so any notification
+  // that lands between wakes keeps the counter non-zero (next ulTaskNotifyTake returns
+  // immediately) or wakes a blocked Take directly. Additional wake sources:
+  // wake_loop_threadsafe() from background tasks, and the delay_ms timeout.
   if (delay_ms == 0) [[unlikely]] {
     yield();
     return;
   }
-
-  // Check if any socket already has pending data before sleeping.
-  // If a socket still has unread data (rcvevent > 0) but the task notification was already
-  // consumed, ulTaskNotifyTake would block until timeout — adding up to delay_ms latency.
-  // This scan preserves select() semantics: return immediately when any fd is ready.
-  for (struct lwip_sock *sock : this->monitored_sockets_) {
-    if (esphome_lwip_socket_has_data(sock)) {
-      yield();
-      return;
-    }
-  }
-
-  // Sleep with instant wake via FreeRTOS task notification.
-  // Woken by: callback wrapper (socket data), wake_loop_threadsafe() (background tasks), or timeout.
 #endif
   esphome::internal::wakeable_delay(delay_ms);
 }
