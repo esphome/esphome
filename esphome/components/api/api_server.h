@@ -205,19 +205,7 @@ class APIServer final : public Component,
     APIConnectionPtr *begin() { return this->begin_; }
     APIConnectionPtr *end() { return this->end_; }
   };
-  class ConstActiveClientsView {
-    const APIConnectionPtr *begin_;
-    const APIConnectionPtr *end_;
-
-   public:
-    ConstActiveClientsView(const APIConnectionPtr *b, const APIConnectionPtr *e) : begin_(b), end_(e) {}
-    const APIConnectionPtr *begin() const { return this->begin_; }
-    const APIConnectionPtr *end() const { return this->end_; }
-  };
   ActiveClientsView active_clients() {
-    return {this->clients_.data(), this->clients_.data() + this->api_connection_count_};
-  }
-  ConstActiveClientsView active_clients() const {
     return {this->clients_.data(), this->clients_.data() + this->api_connection_count_};
   }
 

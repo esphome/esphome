@@ -597,8 +597,10 @@ void APIServer::request_time() {
 #endif
 
 bool APIServer::is_connected_with_state_subscription() const {
-  for (const auto &client : this->active_clients()) {
-    if (client->flags_.state_subscription) {
+  // Indexed iteration (not active_clients()) because this method is const; keeps the view
+  // struct single-flavor in the header.
+  for (uint8_t i = 0; i < this->api_connection_count_; i++) {
+    if (this->clients_[i]->flags_.state_subscription) {
       return true;
     }
   }
