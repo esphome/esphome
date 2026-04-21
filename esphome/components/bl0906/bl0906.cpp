@@ -61,7 +61,7 @@ void BL0906::loop() {
     // Frequency
     this->read_data_(BL0906_FREQUENCY, BL0906_FREF, this->frequency_sensor_);
     // Voltage
-    this->read_data_(BL0906_V_RMS, BL0906_UREF, voltage_sensor_);
+    this->read_data_(BL0906_V_RMS, BL0906_UREF, this->voltage_sensor_);
   } else if (this->current_stage_ == STAGE_POWER) {
     // Total power
     this->read_data_(BL0906_WATT_SUM, BL0906_WATT, this->total_power_sensor_);
