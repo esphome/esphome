@@ -6,7 +6,6 @@ import os  # noqa: E402
 import pathlib  # noqa: E402
 import shutil  # noqa: E402
 import subprocess  # noqa: E402
-import sys  # noqa: E402
 from glob import glob  # noqa: E402
 
 
@@ -56,6 +55,8 @@ def _generate_v1_verification_key(env):
             return
         signing_key_path = pathlib.Path(signing_key)
         if not signing_key_path.exists():
+            print(f"Error: V1 ECDSA signing key not found: {signing_key_path}")
+            env.Exit(1)
             return
 
         if not bin_path.exists() or bin_path.stat().st_mtime < signing_key_path.stat().st_mtime:

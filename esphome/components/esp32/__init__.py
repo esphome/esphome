@@ -1018,6 +1018,8 @@ def final_validate(config):
             )
         elif variant == VARIANT_ESP32:
             # On ESP32, V2 RSA requires minimum_chip_revision >= 3.0
+            # Note: string comparison works here because cv.one_of constrains
+            # min_rev to known ESP32_CHIP_REVISIONS values ("0.0".."3.1").
             if scheme == "rsa3072" and (min_rev is None or min_rev < "3.0"):
                 errs.append(
                     cv.Invalid(
