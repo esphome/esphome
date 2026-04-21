@@ -44,6 +44,8 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   void set_humidity_device(MS8607HumidityDevice *humidity_device) { humidity_device_ = humidity_device; }
 
  protected:
+  /// Attempt to reset both I2C devices, retrying with backoff on failure
+  void try_reset_();
   /**
    Read and store the Pressure & Temperature calibration settings from the PROM.
    Intended to be called during setup(), this will set the `failure_reason_`
@@ -65,9 +67,9 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   /// use raw temperature & pressure to calculate & publish values
   void calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure);
 
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *pressure_sensor_;
-  sensor::Sensor *humidity_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *pressure_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
 
   /** I2CDevice object to communicate with secondary I2C address for the humidity sensor
    *
@@ -75,7 +77,7 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
    *
    * Default address for humidity is 0x40
    */
-  MS8607HumidityDevice *humidity_device_;
+  MS8607HumidityDevice *humidity_device_{nullptr};
 
   /// This device's pressure & temperature calibration values, read from PROM
   struct CalibrationValues {
@@ -102,6 +104,8 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   enum class SetupStatus;
   /// Current step in the multi-step & possibly delayed setup() process
   SetupStatus setup_status_;
+  uint32_t reset_interval_{5};
+  uint8_t reset_attempts_remaining_{0};
 };
 
 }  // namespace ms8607

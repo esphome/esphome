@@ -11,7 +11,7 @@ ci:
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.14.13
+    rev: v0.15.11
     hooks:
       # Run the linter.
       - id: ruff
@@ -37,7 +37,7 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.20.0
+    rev: v3.21.2
     hooks:
       - id: pyupgrade
         args: [--py311-plus]
@@ -58,6 +58,7 @@ repos:
         entry: python3 script/run-in-env.py pylint
         language: system
         types: [python]
+        files: ^esphome/.+\.py$
       - id: clang-tidy-hash
         name: Update clang-tidy hash
         entry: python script/clang_tidy_hash.py --update-if-changed
@@ -65,3 +66,7 @@ repos:
         files: ^(\.clang-tidy|platformio\.ini|requirements_dev\.txt)$
         pass_filenames: false
         additional_dependencies: []
+      - id: ci-custom
+        name: ci-custom
+        entry: python3 script/run-in-env.py script/ci-custom.py
+        language: system

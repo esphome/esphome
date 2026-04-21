@@ -12,9 +12,7 @@ namespace esphome::select {
 #define LOG_SELECT(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
-    } \
+    LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
 #define SUB_SELECT(name) \
@@ -78,7 +76,9 @@ class Select : public EntityBase {
   /// Return the option value at the provided index offset (as const char* from flash).
   const char *option_at(size_t index) const;
 
-  void add_on_state_callback(std::function<void(size_t)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   friend class SelectCall;

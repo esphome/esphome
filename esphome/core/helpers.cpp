@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 #include <strings.h>
@@ -20,6 +21,19 @@
 namespace esphome {
 
 static const char *const TAG = "helpers";
+
+__attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity,
+                                                            size_t elem_size) {
+  ESPHOME_DEBUG_ASSERT(size < UINT16_MAX);
+  uint16_t new_cap = size + 1;
+  auto *new_data = ::operator new(new_cap *elem_size);
+  if (data) {
+    __builtin_memcpy(new_data, data, size * elem_size);
+    ::operator delete(data);
+  }
+  capacity = new_cap;
+  return new_data;
+}
 
 static const uint16_t CRC16_A001_LE_LUT_L[] = {0x0000, 0xc0c1, 0xc181, 0x0140, 0xc301, 0x03c0, 0x0280, 0xc241,
                                                0xc601, 0x06c0, 0x0780, 0xc741, 0x0500, 0xc5c1, 0xc481, 0x0440};
@@ -155,6 +169,32 @@ uint32_t fnv1_hash(const char *str) {
   return hash;
 }
 
+// SplitMix32 — a fast, non-cryptographic PRNG from the SplitMix family
+// (Steele et al., 2014). Uses a Weyl sequence with golden-ratio increment
+// and the MurmurHash3 32-bit finalizer as output mixing function.
+// Reference: https://doi.org/10.1145/2714064.2660195
+// Test results: https://lemire.me/blog/2017/08/22/testing-non-cryptographic-random-number-generators-my-results/
+// Seeded lazily from the platform's secure RNG via random_bytes().
+// ESP8266 uses os_random() instead (defined in esp8266/helpers.cpp).
+#ifndef USE_ESP8266
+static uint32_t splitmix32_state;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+uint32_t random_uint32() {
+  // State of 0 means unseeded. The state will wrap back to 0 after 2^32 calls,
+  // triggering one extra random_bytes() call — an acceptable trade-off vs. adding
+  // a separate bool flag (4 bytes BSS + branch on every call).
+  if (splitmix32_state == 0) {
+    random_bytes(reinterpret_cast<uint8_t *>(&splitmix32_state), sizeof(splitmix32_state));
+    splitmix32_state |= 1;  // ensure non-zero seed
+  }
+  splitmix32_state += 0x9e3779b9u;
+  uint32_t z = splitmix32_state;
+  z = (z ^ (z >> 16)) * 0x85ebca6bu;
+  z = (z ^ (z >> 13)) * 0xc2b2ae35u;
+  return z ^ (z >> 16);
+}
+#endif
+
 float random_float() { return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX); }
 
 // Strings
@@ -181,31 +221,7 @@ bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffi
   return strncasecmp(str + str_len - suffix_len, suffix, suffix_len) == 0;
 }
 
-std::string str_truncate(const std::string &str, size_t length) {
-  return str.length() > length ? str.substr(0, length) : str;
-}
-std::string str_until(const char *str, char ch) {
-  const char *pos = strchr(str, ch);
-  return pos == nullptr ? std::string(str) : std::string(str, pos - str);
-}
-std::string str_until(const std::string &str, char ch) { return str.substr(0, str.find(ch)); }
-// wrapper around std::transform to run safely on functions from the ctype.h header
-// see https://en.cppreference.com/w/cpp/string/byte/toupper#Notes
-template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str) {
-  std::string result;
-  result.resize(str.length());
-  std::transform(str.begin(), str.end(), result.begin(), [](unsigned char ch) { return fn(ch); });
-  return result;
-}
-std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
-std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
-std::string str_snake_case(const std::string &str) {
-  std::string result = str;
-  for (char &c : result) {
-    c = to_snake_case_char(c);
-  }
-  return result;
-}
+// str_truncate, str_until, str_lower_case, str_upper_case, str_snake_case moved to alloc_helpers.cpp
 char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
   if (buffer_size == 0) {
     return buffer;
@@ -218,41 +234,7 @@ char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
   return buffer;
 }
 
-std::string str_sanitize(const std::string &str) {
-  std::string result;
-  result.resize(str.size());
-  str_sanitize_to(&result[0], str.size() + 1, str.c_str());
-  return result;
-}
-std::string str_snprintf(const char *fmt, size_t len, ...) {
-  std::string str;
-  va_list args;
-
-  str.resize(len);
-  va_start(args, len);
-  size_t out_length = vsnprintf(&str[0], len + 1, fmt, args);
-  va_end(args);
-
-  if (out_length < len)
-    str.resize(out_length);
-
-  return str;
-}
-std::string str_sprintf(const char *fmt, ...) {
-  std::string str;
-  va_list args;
-
-  va_start(args, fmt);
-  size_t length = vsnprintf(nullptr, 0, fmt, args);
-  va_end(args);
-
-  str.resize(length);
-  va_start(args, fmt);
-  vsnprintf(&str[0], length + 1, fmt, args);
-  va_end(args);
-
-  return str;
-}
+// str_sanitize, str_snprintf, str_sprintf moved to alloc_helpers.cpp
 
 // Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
 static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
@@ -294,30 +276,27 @@ size_t parse_hex(const char *str, size_t length, uint8_t *data, size_t count) {
   size_t chars = std::min(length, 2 * count);
   for (size_t i = 2 * count - chars; i < 2 * count; i++, str++) {
     uint8_t val = parse_hex_char(*str);
-    if (val > 15)
+    if (val == INVALID_HEX_CHAR)
       return 0;
     data[i >> 1] = (i & 1) ? data[i >> 1] | val : val << 4;
   }
   return chars;
 }
 
-std::string format_mac_address_pretty(const uint8_t *mac) {
-  char buf[18];
-  format_mac_addr_upper(mac, buf);
-  return std::string(buf);
-}
+// format_mac_address_pretty moved to alloc_helpers.cpp
 
-// Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase
+// Internal helper for hex formatting - base is 'a' for lowercase or 'A' for uppercase.
+// When separator is set, it is written unconditionally after each byte and the last
+// one is overwritten with '\0', eliminating the per-byte `i < length - 1` check.
 static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator,
                                  char base) {
-  if (length == 0) {
-    buffer[0] = '\0';
+  if (length == 0 || buffer_size == 0) {
+    if (buffer_size > 0)
+      buffer[0] = '\0';
     return buffer;
   }
-  // With separator: total length is 3*length (2*length hex chars, (length-1) separators, 1 null terminator)
-  // Without separator: total length is 2*length + 1 (2*length hex chars, 1 null terminator)
   uint8_t stride = separator ? 3 : 2;
-  size_t max_bytes = separator ? (buffer_size / stride) : ((buffer_size - 1) / stride);
+  size_t max_bytes = separator ? (buffer_size / 3) : ((buffer_size - 1) / 2);
   if (max_bytes == 0) {
     buffer[0] = '\0';
     return buffer;
@@ -329,25 +308,35 @@ static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t
     size_t pos = i * stride;
     buffer[pos] = format_hex_char(data[i] >> 4, base);
     buffer[pos + 1] = format_hex_char(data[i] & 0x0F, base);
-    if (separator && i < length - 1) {
+    if (separator) {
       buffer[pos + 2] = separator;
     }
   }
+  // With separator: overwrite last separator with '\0'
+  // Without: write '\0' after last hex char
   buffer[length * stride - (separator ? 1 : 0)] = '\0';
   return buffer;
+}
+
+char *uint32_to_str_unchecked(char *buf, uint32_t val) {
+  if (val == 0) {
+    *buf++ = '0';
+    return buf;
+  }
+  char *start = buf;
+  while (val > 0) {
+    *buf++ = '0' + (val % 10);
+    val /= 10;
+  }
+  std::reverse(start, buf);
+  return buf;
 }
 
 char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
   return format_hex_internal(buffer, buffer_size, data, length, 0, 'a');
 }
 
-std::string format_hex(const uint8_t *data, size_t length) {
-  std::string ret;
-  ret.resize(length * 2);
-  format_hex_to(&ret[0], length * 2 + 1, data, length);
-  return ret;
-}
-std::string format_hex(const std::vector<uint8_t> &data) { return format_hex(data.data(), data.size()); }
+// format_hex (std::string returning overloads) moved to alloc_helpers.cpp
 
 char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length, char separator) {
   return format_hex_internal(buffer, buffer_size, data, length, separator, 'A');
@@ -384,43 +373,7 @@ char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint16_t *dat
   return buffer;
 }
 
-// Shared implementation for uint8_t and string hex formatting
-static std::string format_hex_pretty_uint8(const uint8_t *data, size_t length, char separator, bool show_length) {
-  if (data == nullptr || length == 0)
-    return "";
-  std::string ret;
-  size_t hex_len = separator ? (length * 3 - 1) : (length * 2);
-  ret.resize(hex_len);
-  format_hex_pretty_to(&ret[0], hex_len + 1, data, length, separator);
-  if (show_length && length > 4)
-    return ret + " (" + std::to_string(length) + ")";
-  return ret;
-}
-
-std::string format_hex_pretty(const uint8_t *data, size_t length, char separator, bool show_length) {
-  return format_hex_pretty_uint8(data, length, separator, show_length);
-}
-std::string format_hex_pretty(const std::vector<uint8_t> &data, char separator, bool show_length) {
-  return format_hex_pretty(data.data(), data.size(), separator, show_length);
-}
-
-std::string format_hex_pretty(const uint16_t *data, size_t length, char separator, bool show_length) {
-  if (data == nullptr || length == 0)
-    return "";
-  std::string ret;
-  size_t hex_len = separator ? (length * 5 - 1) : (length * 4);
-  ret.resize(hex_len);
-  format_hex_pretty_to(&ret[0], hex_len + 1, data, length, separator);
-  if (show_length && length > 4)
-    return ret + " (" + std::to_string(length) + ")";
-  return ret;
-}
-std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator, bool show_length) {
-  return format_hex_pretty(data.data(), data.size(), separator, show_length);
-}
-std::string format_hex_pretty(const std::string &data, char separator, bool show_length) {
-  return format_hex_pretty_uint8(reinterpret_cast<const uint8_t *>(data.data()), data.length(), separator, show_length);
-}
+// format_hex_pretty (all std::string returning overloads) moved to alloc_helpers.cpp
 
 char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t length) {
   if (buffer_size == 0) {
@@ -443,23 +396,18 @@ char *format_bin_to(char *buffer, size_t buffer_size, const uint8_t *data, size_
   return buffer;
 }
 
-std::string format_bin(const uint8_t *data, size_t length) {
-  std::string result;
-  result.resize(length * 8);
-  format_bin_to(&result[0], length * 8 + 1, data, length);
-  return result;
-}
+// format_bin moved to alloc_helpers.cpp
 
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
-  if (on == nullptr && strcasecmp(str, "on") == 0)
+  if (on == nullptr && ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("on")) == 0)
     return PARSE_ON;
   if (on != nullptr && strcasecmp(str, on) == 0)
     return PARSE_ON;
-  if (off == nullptr && strcasecmp(str, "off") == 0)
+  if (off == nullptr && ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("off")) == 0)
     return PARSE_OFF;
   if (off != nullptr && strcasecmp(str, off) == 0)
     return PARSE_OFF;
-  if (strcasecmp(str, "toggle") == 0)
+  if (ESPHOME_strcasecmp_P(str, ESPHOME_PSTR("toggle")) == 0)
     return PARSE_TOGGLE;
 
   return PARSE_NONE;
@@ -467,17 +415,20 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
 
 static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_decimals) {
   if (accuracy_decimals < 0) {
-    auto multiplier = powf(10.0f, accuracy_decimals);
-    value = roundf(value * multiplier) / multiplier;
+    float divisor;
+    if (accuracy_decimals == -1) {
+      divisor = 10.0f;
+    } else if (accuracy_decimals == -2) {
+      divisor = 100.0f;
+    } else {
+      divisor = pow10_int(-accuracy_decimals);
+    }
+    value = roundf(value / divisor) * divisor;
     accuracy_decimals = 0;
   }
 }
 
-std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  char buf[VALUE_ACCURACY_MAX_LEN];
-  value_accuracy_to_buf(buf, value, accuracy_decimals);
-  return std::string(buf);
-}
+// value_accuracy_to_string moved to alloc_helpers.cpp
 
 size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals) {
   normalize_accuracy_decimals(value, accuracy_decimals);
@@ -542,59 +493,39 @@ static inline uint8_t base64_find_char(char c) {
 // Check if character is valid base64 or base64url
 static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/') || (c == '-') || (c == '_')); }
 
-std::string base64_encode(const std::vector<uint8_t> &buf) { return base64_encode(buf.data(), buf.size()); }
-
-std::string base64_encode(const uint8_t *buf, size_t buf_len) {
-  std::string ret;
-  int i = 0;
-  int j = 0;
-  char char_array_3[3];
-  char char_array_4[4];
-
-  while (buf_len--) {
-    char_array_3[i++] = *(buf++);
-    if (i == 3) {
-      char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-      char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-      char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
-      char_array_4[3] = char_array_3[2] & 0x3f;
-
-      for (i = 0; (i < 4); i++)
-        ret += BASE64_CHARS[static_cast<uint8_t>(char_array_4[i])];
-      i = 0;
-    }
-  }
-
-  if (i) {
-    for (j = i; j < 3; j++)
-      char_array_3[j] = '\0';
-
-    char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
-    char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
-    char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
-    char_array_4[3] = char_array_3[2] & 0x3f;
-
-    for (j = 0; (j < i + 1); j++)
-      ret += BASE64_CHARS[static_cast<uint8_t>(char_array_4[j])];
-
-    while ((i++ < 3))
-      ret += '=';
-  }
-
-  return ret;
-}
+// base64_encode (both overloads) moved to alloc_helpers.cpp
 
 size_t base64_decode(const std::string &encoded_string, uint8_t *buf, size_t buf_len) {
   return base64_decode(reinterpret_cast<const uint8_t *>(encoded_string.data()), encoded_string.size(), buf, buf_len);
 }
 
+// Decode 4 base64 characters to up to 'count' output bytes, returns true if truncated.
+static inline bool base64_decode_quad(uint8_t *char_array_4, int count, uint8_t *buf, size_t buf_len, size_t &out) {
+  for (int i = 0; i < 4; i++)
+    char_array_4[i] = base64_find_char(char_array_4[i]);
+
+  uint8_t char_array_3[3];
+  char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+  char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+  char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+  bool truncated = false;
+  for (int j = 0; j < count; j++) {
+    if (out < buf_len) {
+      buf[out++] = char_array_3[j];
+    } else {
+      truncated = true;
+    }
+  }
+  return truncated;
+}
+
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len) {
   size_t in_len = encoded_len;
   int i = 0;
-  int j = 0;
   size_t in = 0;
   size_t out = 0;
-  uint8_t char_array_4[4], char_array_3[3];
+  uint8_t char_array_4[4];
   bool truncated = false;
 
   // SAFETY: The loop condition checks is_base64() before processing each character.
@@ -604,42 +535,16 @@ size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *b
     char_array_4[i++] = encoded_data[in];
     in++;
     if (i == 4) {
-      for (i = 0; i < 4; i++)
-        char_array_4[i] = base64_find_char(char_array_4[i]);
-
-      char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-      char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-      char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
-
-      for (i = 0; i < 3; i++) {
-        if (out < buf_len) {
-          buf[out++] = char_array_3[i];
-        } else {
-          truncated = true;
-        }
-      }
+      truncated |= base64_decode_quad(char_array_4, 3, buf, buf_len, out);
       i = 0;
     }
   }
 
   if (i) {
-    for (j = i; j < 4; j++)
+    for (int j = i; j < 4; j++)
       char_array_4[j] = 0;
 
-    for (j = 0; j < 4; j++)
-      char_array_4[j] = base64_find_char(char_array_4[j]);
-
-    char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-    char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-    char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
-
-    for (j = 0; j < i - 1; j++) {
-      if (out < buf_len) {
-        buf[out++] = char_array_3[j];
-      } else {
-        truncated = true;
-      }
-    }
+    truncated |= base64_decode_quad(char_array_4, i - 1, buf, buf_len, out);
   }
 
   if (truncated) {
@@ -649,14 +554,7 @@ size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *b
   return out;
 }
 
-std::vector<uint8_t> base64_decode(const std::string &encoded_string) {
-  // Calculate maximum decoded size: every 4 base64 chars = 3 bytes
-  size_t max_len = ((encoded_string.size() + 3) / 4) * 3;
-  std::vector<uint8_t> ret(max_len);
-  size_t actual_len = base64_decode(encoded_string, ret.data(), max_len);
-  ret.resize(actual_len);
-  return ret;
-}
+// base64_decode (vector-returning overload) moved to alloc_helpers.cpp
 
 /// Decode base64/base64url string directly into vector of little-endian int32 values
 /// @param base64 Base64 or base64url encoded string (both +/ and -_ accepted)
@@ -706,7 +604,7 @@ float gamma_correct(float value, float gamma) {
   if (gamma <= 0.0f)
     return value;
 
-  return powf(value, gamma);
+  return powf(value, gamma);  // NOLINT - deprecated, removal 2026.9.0
 }
 float gamma_uncorrect(float value, float gamma) {
   if (value <= 0.0f)
@@ -714,7 +612,7 @@ float gamma_uncorrect(float value, float gamma) {
   if (gamma <= 0.0f)
     return value;
 
-  return powf(value, 1 / gamma);
+  return powf(value, 1 / gamma);  // NOLINT - deprecated, removal 2026.9.0
 }
 
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {
@@ -794,20 +692,8 @@ void HighFrequencyLoopRequester::stop() {
   num_requests--;
   this->started_ = false;
 }
-bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; }
 
-std::string get_mac_address() {
-  uint8_t mac[6];
-  get_mac_address_raw(mac);
-  char buf[13];
-  format_mac_addr_lower_no_sep(mac, buf);
-  return std::string(buf);
-}
-
-std::string get_mac_address_pretty() {
-  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  return std::string(get_mac_address_pretty_into_buffer(buf));
-}
+// get_mac_address, get_mac_address_pretty moved to alloc_helpers.cpp
 
 void get_mac_address_into_buffer(std::span<char, MAC_ADDRESS_BUFFER_SIZE> buf) {
   uint8_t mac[6];
@@ -838,16 +724,25 @@ bool mac_address_is_valid(const uint8_t *mac) {
       is_all_ones = false;
     }
   }
-  return !(is_all_zeros || is_all_ones);
+  if (is_all_zeros || is_all_ones) {
+    return false;
+  }
+  // Reject multicast MACs (bit 0 of first byte set) - device MACs must be unicast.
+  // This catches garbage data from corrupted eFuse custom MAC areas, which often
+  // has random values that would otherwise pass the all-zeros/all-ones check.
+  if (mac[0] & 0x01) {
+    return false;
+  }
+  return true;
 }
 
 void IRAM_ATTR HOT delay_microseconds_safe(uint32_t us) {
   // avoids CPU locks that could trigger WDT or affect WiFi/BT stability
   uint32_t start = micros();
 
-  const uint32_t lag = 5000;  // microseconds, specifies the maximum time for a CPU busy-loop.
-                              // it must be larger than the worst-case duration of a delay(1) call (hardware tasks)
-                              // 5ms is conservative, it could be reduced when exact BT/WiFi stack delays are known
+  constexpr uint32_t lag = 5000;  // microseconds, specifies the maximum time for a CPU busy-loop.
+                                  // it must be larger than the worst-case duration of a delay(1) call (hardware tasks)
+                                  // 5ms is conservative, it could be reduced when exact BT/WiFi stack delays are known
   if (us > lag) {
     delay((us - lag) / 1000UL);  // note: in disabled-interrupt contexts delay() won't actually sleep
     while (micros() - start < us - lag)

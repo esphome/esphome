@@ -86,8 +86,6 @@ void QMC5883LComponent::dump_config() {
   LOG_PIN("  DRDY Pin: ", this->drdy_pin_);
 }
 
-float QMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void QMC5883LComponent::update() {
   i2c::ErrorCode err;
   uint8_t status = false;
@@ -102,7 +100,7 @@ void QMC5883LComponent::update() {
   // ROL_PNT in setup and reading 7 bytes starting at the status register.
   // If status and all three axes are desired, using ROL_PNT saves you 3 bytes.
   // But simply not reading status saves you 4 bytes always and is much simpler.
-  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG) {
+  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
     err = this->read_register(QMC5883L_REGISTER_STATUS, &status, 1);
     if (err != i2c::ERROR_OK) {
       char buf[32];
@@ -167,7 +165,7 @@ void QMC5883LComponent::update() {
     temp = int16_t(raw_temp) * 0.01f;
   }
 
-  ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f° temperature=%0.01f°C status=%u", x, y, z, heading,
+  ESP_LOGV(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f° temperature=%0.01f°C status=%u", x, y, z, heading,
            temp, status);
 
   if (this->x_sensor_ != nullptr)

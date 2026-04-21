@@ -85,7 +85,7 @@ class EzoPMP : public PollingComponent, public i2c::I2CDevice {
   bool is_paused_flag_ = false;
   bool is_dosing_flag_ = false;
 
-  const char *arbitrary_command_{nullptr};
+  std::string arbitrary_command_{};
 
   void send_next_command_();
   void read_command_result_();
