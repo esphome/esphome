@@ -650,10 +650,10 @@ inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::l
 #ifdef USE_RUNTIME_STATS
   uint32_t loop_before_end_us = micros();
   uint64_t loop_before_scheduled_us = ComponentRuntimeStats::global_recorded_us - loop_recorded_snap;
-  // Default tail_start to end-of-before so tail_us on Phase A-only ticks
-  // captures only the small gate-check + record_loop_active prefix between
-  // here and the loop_now_us sample below (not strictly zero, but tiny).
-  uint32_t loop_tail_start_us = loop_before_end_us;
+  // Only meaningful when do_component_phase is true; initialized to 0 so the
+  // tail bucket receives 0 on Phase A-only ticks (no component tail happened,
+  // the gate-check / stats-prefix overhead belongs to "residual", not "tail").
+  uint32_t loop_tail_start_us = 0;
 #endif
 
   // Gate the component phase on loop_interval_, an active high-frequency
@@ -712,8 +712,10 @@ inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::l
     uint32_t loop_before_overhead_us = loop_before_wall_us > loop_before_scheduled_us
                                            ? loop_before_wall_us - static_cast<uint32_t>(loop_before_scheduled_us)
                                            : 0;
-    global_runtime_stats->record_loop_active(loop_now_us - loop_active_start_us, loop_before_overhead_us,
-                                             loop_now_us - loop_tail_start_us);
+    // tail_us is only defined when Phase B ran; 0 on Phase A-only ticks so the
+    // stats bucket keeps its "component-phase trailing overhead" meaning.
+    uint32_t loop_tail_us = do_component_phase ? (loop_now_us - loop_tail_start_us) : 0;
+    global_runtime_stats->record_loop_active(loop_now_us - loop_active_start_us, loop_before_overhead_us, loop_tail_us);
     global_runtime_stats->process_pending_stats(now);
   }
 #endif
