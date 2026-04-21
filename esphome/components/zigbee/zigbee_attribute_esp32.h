@@ -18,6 +18,12 @@
 
 namespace esphome::zigbee {
 
+enum ZigbeeReportT {
+  ZIGBEE_REPORT_COORDINATOR,
+  ZIGBEE_REPORT_ENABLE,
+  ZIGBEE_REPORT_FORCE,
+};
+
 class ZigbeeAttribute : public Component {
  public:
   ZigbeeAttribute(ZigbeeComponent *parent, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
