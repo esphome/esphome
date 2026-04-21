@@ -340,21 +340,25 @@ def resolve_include(
     values (including command-line substitutions), so path restrictions are
     an explicit non-goal here.
     """
-    original = str(include.file)
+    original = include.file
+    original_str = str(original)
     filename = str(
         _expand_substitutions(
-            original, path + ["file"], context_vars, strict_undefined, errors
+            original_str, path + ["file"], context_vars, strict_undefined, errors
         )
     )
-    if filename != original:
+    resolved = ""
+    if filename != original_str:
         include = IncludeFile(
             include.parent_file, filename, include.vars, include.yaml_loader
         )
+        resolved = f" (expanded from '{original}')"
     try:
         return include.load()
     except esphome.core.EsphomeError as err:
         raise cv.Invalid(
-            f"Error including file '{filename}': {err}",
+            f"Error including file '{filename}'{resolved}: {err}"
+            f"\n{format_path(path, original)}",
             path + [f"<{filename}>"],
         ) from err
 
