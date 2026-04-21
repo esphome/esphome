@@ -102,7 +102,7 @@ void Application::setup() {
 
         for (uint32_t j = 0; j <= i; j++) {
           // Update loop_component_start_time_ right before calling each component
-          this->loop_component_start_time_ = millis();
+          this->loop_component_start_time_ = MillisInternal::get();
           this->components_[j]->call();
           this->feed_wdt();
         }
