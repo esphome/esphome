@@ -12,7 +12,8 @@ from typing import TypeVar
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
 from esphome import git, yaml_util
-from esphome.const import CONF_PACKAGES, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.components.const import CONF_GENERATED
+from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, Library
 from esphome.espidf_framework import (
     archive_extract_all,
@@ -90,7 +91,7 @@ class URLSource(Source):
         self.url = url
 
     def download(self, dir_suffix: str, force: bool = False) -> Path:
-        base_dir = Path(CORE.data_dir) / CONF_PACKAGES
+        base_dir = Path(CORE.data_dir) / CONF_GENERATED
         h = hashlib.new("sha256")
         h.update(self.url.encode())
         path = base_dir / h.hexdigest()[:8] / dir_suffix
@@ -130,7 +131,7 @@ class GitSource(Source):
             url=self.url,
             ref=self.ref,
             refresh=git.NEVER_REFRESH if not force else None,
-            domain=CONF_PACKAGES,
+            domain=CONF_GENERATED,
             submodules=[],
             subpath=Path(dir_suffix),
         )
