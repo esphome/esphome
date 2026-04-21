@@ -193,7 +193,8 @@ void TFLuna::factory_reset() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     return;
   }
-  this->setup();
+  ESP_LOGW(TAG, "Factory reset issued; device may be temporarily unavailable while applying defaults");
+  this->status_set_warning("Factory reset issued; waiting for device to become ready");
 }
 
 void TFLuna::restart() {
