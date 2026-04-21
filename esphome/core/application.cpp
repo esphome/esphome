@@ -91,12 +91,10 @@ void Application::setup() {
     this->app_state_ |= STATUS_LED_WARNING;
 
     do {
-      uint32_t now = MillisInternal::get();
-
       // Service scheduler and process pending loop enables to handle GPIO
       // interrupts during setup. During setup we always run the component
       // phase (no loop_interval_ gate), so call both helpers unconditionally.
-      this->scheduler_tick_(now);
+      this->scheduler_tick_(MillisInternal::get());
       this->before_component_phase_();
 
       for (uint32_t j = 0; j <= i; j++) {
