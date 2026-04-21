@@ -42,7 +42,10 @@ DOMAIN = CONF_PACKAGES
 # Guard against infinite include chains (e.g. A includes B includes A).
 MAX_INCLUDE_DEPTH = 20
 
-PackageCallback = Callable[[dict, ContextVars | None, yaml_util.DocumentPath], dict]
+PackageCallback = Callable[
+    [dict | str | yaml_util.IncludeFile, ContextVars | None, yaml_util.DocumentPath],
+    dict,
+]
 
 
 def is_remote_package(package_config: dict) -> bool:

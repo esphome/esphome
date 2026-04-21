@@ -813,3 +813,81 @@ def test_format_path_integer_list_index_attached_to_previous_frame():
     assert lines[0].startswith("In: esphome->name in level2.yaml")
     assert "packages[0]" in lines[1] and "level1.yaml" in lines[1]
     assert "packages[0]" in lines[2] and "main.yaml" in lines[2]
+
+
+def test_format_path_trailing_unlocated_string_after_located_key():
+    """Plain string keys after the last located key must still appear in output."""
+    path = [_located("packages", "main.yaml", 5, 0), "sub", "key"]
+    result = format_path(path, None)
+    assert result == "In: packages->sub->key in main.yaml 6:1"
+
+
+def test_format_path_trailing_unlocated_int_attaches_to_current_frame():
+    """Trailing ints attach to the open frame's last key (subscript), strings
+    buffer until end-of-path and then flush behind."""
+    path = [_located("packages", "main.yaml", 5, 0), 0, "sub"]
+    result = format_path(path, None)
+    # Int attaches to 'packages' as [0] subscript; trailing 'sub' is flushed
+    # at end and appears after.
+    assert result == "In: packages[0]->sub in main.yaml 6:1"
+
+
+def test_format_path_only_trailing_unlocated_strings_are_preserved():
+    """Trailing pending items must not be silently dropped after the last frame."""
+    path = [
+        _located("packages", "main.yaml", 5, 0),
+        _located("inner", "hardware.yaml", 3, 0),
+        "tail1",
+        "tail2",
+    ]
+    result = format_path(path, None)
+    lines = result.splitlines()
+    assert lines[0] == "In: inner->tail1->tail2 in hardware.yaml 4:1"
+    assert lines[1] == "  Included from packages in main.yaml 6:1"
+
+
+def test_format_path_leading_int_with_no_current_doc_goes_to_pending():
+    """An int before any located key is buffered and shown in the first frame."""
+    path = [0, _located("name", "main.yaml", 1, 0)]
+    result = format_path(path, None)
+    # Leading ints have no preceding name to subscript onto, so they render
+    # as bare [n] in the formatted segment.
+    assert result == "In: [0]->name in main.yaml 2:1"
+
+
+def test_format_path_only_unlocated_int_returns_flat_fallback():
+    """Path with only an int and no location info renders via the flat fallback."""
+    result = format_path([0], None)
+    assert result == "In: [0]"
+
+
+def test_format_path_current_obj_in_different_doc_than_innermost_frame():
+    """current_obj's location is preferred even when its document differs from the frame's."""
+    path = [_located("packages", "root.yaml", 1, 0)]
+    value = _located("${var}", "other.yaml", 9, 4)
+    result = format_path(path, value)
+    # Innermost line uses current_obj's mark (other.yaml 10:5), not the key's.
+    assert result == "In: packages in other.yaml 10:5"
+
+
+def test_format_path_current_obj_without_location_falls_back_to_key():
+    """An ESPHomeDataBase current_obj with no esp_range falls back to the key's location."""
+
+    class _NoRange(ESPHomeDataBase, str):
+        pass
+
+    obj = _NoRange.__new__(_NoRange, "value")
+    str.__init__(obj)
+    # No _esp_range set on this instance.
+    assert obj.esp_range is None
+
+    path = [_located("packages", "main.yaml", 5, 2)]
+    result = format_path(path, obj)
+    assert result == "In: packages in main.yaml 6:3"
+
+
+def test_format_path_empty_path_with_located_current_obj():
+    """An empty path with a located current_obj still surfaces the location."""
+    obj = _located("${var}", "main.yaml", 0, 0)
+    result = format_path([], obj)
+    assert result == "In:  in main.yaml 1:1"

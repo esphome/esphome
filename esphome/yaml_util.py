@@ -736,6 +736,11 @@ def format_path(path: DocumentPath, current_obj: Any) -> str:
         location = _fmt_mark(item.esp_range.start_mark)
 
     if current_doc is not None:
+        # Flush any trailing unlocated keys into the innermost frame so they
+        # appear in the output (e.g. plain string keys after the last located
+        # YAML key in the path).
+        segment.extend(pending)
+        pending = []
         frames.append((segment, location))
 
     def fmt_path(seg: list) -> str:
@@ -752,10 +757,8 @@ def format_path(path: DocumentPath, current_obj: Any) -> str:
         return "->".join(parts)
 
     obj_loc = ""
-    if isinstance(current_obj, ESPHomeDataBase):
-        r = getattr(current_obj, "esp_range", None)
-        if r is not None:
-            obj_loc = _fmt_mark(r.start_mark)
+    if isinstance(current_obj, ESPHomeDataBase) and current_obj.esp_range is not None:
+        obj_loc = _fmt_mark(current_obj.esp_range.start_mark)
 
     if not frames:
         return f"In: {fmt_path(path)}" + (f" in {obj_loc}" if obj_loc else "")
