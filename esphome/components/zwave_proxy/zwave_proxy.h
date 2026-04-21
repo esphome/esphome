@@ -38,6 +38,13 @@ enum ZWaveParsingState : uint8_t {
   ZWAVE_PARSING_STATE_READ_BL_MENU,
 };
 
+// response_handler_()'s inline fast-path relies on SEND_ACK/CAN/NAK being contiguous in this
+// enum so a single range check (state - SEND_ACK < 3) is equivalent to three equality checks.
+static_assert(ZWAVE_PARSING_STATE_SEND_CAN == ZWAVE_PARSING_STATE_SEND_ACK + 1,
+              "SEND_CAN must immediately follow SEND_ACK for response_handler_ fast-path");
+static_assert(ZWAVE_PARSING_STATE_SEND_NAK == ZWAVE_PARSING_STATE_SEND_ACK + 2,
+              "SEND_NAK must immediately follow SEND_CAN for response_handler_ fast-path");
+
 enum ZWaveProxyFeature : uint32_t {
   FEATURE_ZWAVE_PROXY_ENABLED = 1 << 0,
 };
@@ -93,7 +100,10 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
     }
     this->process_uart_slow_();
   }
-  void process_uart_slow_();  // Drain all available UART data
+  // Precondition: caller must guarantee available() > 0 before invoking (see inline
+  // process_uart_ above). The slow path uses do/while and would otherwise set a spurious UART
+  // warning on entry if called with no bytes pending.
+  void process_uart_slow_();
 
   // Pre-allocated message - always ready to send
   api::ZWaveProxyFrame outgoing_proto_msg_;
