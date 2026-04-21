@@ -17,60 +17,16 @@ namespace esphome::ota {
 
 static const char *const TAG = "ota.idf";
 
+#ifdef USE_OTA_PARTITIONS
+static uint32_t running_app_offset = 0;
+static size_t running_app_size = 0;
+#endif
+
 std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
+#ifdef USE_OTA_PARTITIONS
 OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) {
   this->ota_type_ = ota_type;
-  if (this->ota_type_ == ota::OTA_TYPE_UPDATE_APP) {
-#ifdef USE_OTA_ROLLBACK
-    // If we're starting an OTA, the current boot is good enough - mark it valid
-    // to prevent rollback and allow the OTA to proceed even if the safe mode
-    // timer hasn't expired yet.
-    esp_ota_mark_app_valid_cancel_rollback();
-#endif
-
-    this->partition_ = esp_ota_get_next_update_partition(nullptr);
-    if (this->partition_ == nullptr) {
-      return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
-    }
-
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-    // The following function takes longer than the 5 seconds timeout of WDT
-    esp_task_wdt_config_t wdtc;
-    wdtc.idle_core_mask = 0;
-#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0
-    wdtc.idle_core_mask |= (1 << 0);
-#endif
-#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1
-    wdtc.idle_core_mask |= (1 << 1);
-#endif
-    wdtc.timeout_ms = 15000;
-    wdtc.trigger_panic = false;
-    esp_task_wdt_reconfigure(&wdtc);
-#endif
-
-    esp_err_t err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
-
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-    // Set the WDT back to the configured timeout
-    wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
-    esp_task_wdt_reconfigure(&wdtc);
-#endif
-
-    if (err != ESP_OK) {
-      esp_ota_abort(this->update_handle_);
-      this->update_handle_ = 0;
-      if (err == ESP_ERR_INVALID_SIZE) {
-        return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
-      } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
-        return OTA_RESPONSE_ERROR_WRITING_FLASH;
-      }
-      return OTA_RESPONSE_ERROR_UNKNOWN;
-    }
-    this->md5_.init();
-    return OTA_RESPONSE_OK;
-  }
-#ifdef USE_OTA_PARTITIONS
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
     if (image_size > ESP_PARTITION_TABLE_SIZE || image_size > ESP_PARTITION_TABLE_MAX_LEN ||
         image_size > OTA_BUFFER_SIZE) {
@@ -82,8 +38,59 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
     this->md5_.init();
     return OTA_RESPONSE_OK;
   }
+  if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP) {
+    return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+  }
+#else
+OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
 #endif
-  return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+#ifdef USE_OTA_ROLLBACK
+  // If we're starting an OTA, the current boot is good enough - mark it valid
+  // to prevent rollback and allow the OTA to proceed even if the safe mode
+  // timer hasn't expired yet.
+  esp_ota_mark_app_valid_cancel_rollback();
+#endif
+
+  this->partition_ = esp_ota_get_next_update_partition(nullptr);
+  if (this->partition_ == nullptr) {
+    return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
+  }
+
+#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
+  // The following function takes longer than the 5 seconds timeout of WDT
+  esp_task_wdt_config_t wdtc;
+  wdtc.idle_core_mask = 0;
+#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0
+  wdtc.idle_core_mask |= (1 << 0);
+#endif
+#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1
+  wdtc.idle_core_mask |= (1 << 1);
+#endif
+  wdtc.timeout_ms = 15000;
+  wdtc.trigger_panic = false;
+  esp_task_wdt_reconfigure(&wdtc);
+#endif
+
+  esp_err_t err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
+
+#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
+  // Set the WDT back to the configured timeout
+  wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
+  esp_task_wdt_reconfigure(&wdtc);
+#endif
+
+  if (err != ESP_OK) {
+    esp_ota_abort(this->update_handle_);
+    this->update_handle_ = 0;
+    if (err == ESP_ERR_INVALID_SIZE) {
+      return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
+    } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
+      return OTA_RESPONSE_ERROR_WRITING_FLASH;
+    }
+    return OTA_RESPONSE_ERROR_UNKNOWN;
+  }
+  this->md5_.init();
+  return OTA_RESPONSE_OK;
 }
 
 void IDFOTABackend::set_update_md5(const char *expected_md5) {
@@ -92,19 +99,6 @@ void IDFOTABackend::set_update_md5(const char *expected_md5) {
 }
 
 OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
-  if (this->ota_type_ == ota::OTA_TYPE_UPDATE_APP) {
-    esp_err_t err = esp_ota_write(this->update_handle_, data, len);
-    this->md5_.add(data, len);
-    if (err != ESP_OK) {
-      if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
-        return OTA_RESPONSE_ERROR_MAGIC;
-      } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
-        return OTA_RESPONSE_ERROR_WRITING_FLASH;
-      }
-      return OTA_RESPONSE_ERROR_UNKNOWN;
-    }
-    return OTA_RESPONSE_OK;
-  }
 #ifdef USE_OTA_PARTITIONS
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
     if (len > OTA_BUFFER_SIZE - this->buf_written_) {
@@ -115,8 +109,21 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
     this->md5_.add(data, len);
     return OTA_RESPONSE_OK;
   }
+  if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP) {
+    return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+  }
 #endif
-  return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+  esp_err_t err = esp_ota_write(this->update_handle_, data, len);
+  this->md5_.add(data, len);
+  if (err != ESP_OK) {
+    if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+      return OTA_RESPONSE_ERROR_MAGIC;
+    } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
+      return OTA_RESPONSE_ERROR_WRITING_FLASH;
+    }
+    return OTA_RESPONSE_ERROR_UNKNOWN;
+  }
+  return OTA_RESPONSE_OK;
 }
 
 OTAResponseTypes IDFOTABackend::end() {
@@ -127,47 +134,48 @@ OTAResponseTypes IDFOTABackend::end() {
       return OTA_RESPONSE_ERROR_MD5_MISMATCH;
     }
   }
-  if (this->ota_type_ == ota::OTA_TYPE_UPDATE_APP) {
-    esp_err_t err = esp_ota_end(this->update_handle_);
-    this->update_handle_ = 0;
-    if (err == ESP_OK) {
-      err = esp_ota_set_boot_partition(this->partition_);
-      if (err == ESP_OK) {
-        return OTA_RESPONSE_OK;
-      }
-    }
-    if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
-#ifdef USE_OTA_SIGNED_VERIFICATION
-      ESP_LOGE(TAG, "OTA validation failed (err=0x%X) - possible signature verification failure", err);
-      return OTA_RESPONSE_ERROR_SIGNATURE_INVALID;
-#else
-      return OTA_RESPONSE_ERROR_UPDATE_END;
-#endif
-    }
-    if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
-      return OTA_RESPONSE_ERROR_WRITING_FLASH;
-    }
-    return OTA_RESPONSE_ERROR_UNKNOWN;
-  }
 #ifdef USE_OTA_PARTITIONS
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
     return this->update_partition_table();
   }
+  if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP) {
+    return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+  }
 #endif
-  return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+  esp_err_t err = esp_ota_end(this->update_handle_);
+  this->update_handle_ = 0;
+  if (err == ESP_OK) {
+    err = esp_ota_set_boot_partition(this->partition_);
+    if (err == ESP_OK) {
+      return OTA_RESPONSE_OK;
+    }
+  }
+  if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+#ifdef USE_OTA_SIGNED_VERIFICATION
+    ESP_LOGE(TAG, "OTA validation failed (err=0x%X) - possible signature verification failure", err);
+    return OTA_RESPONSE_ERROR_SIGNATURE_INVALID;
+#else
+    return OTA_RESPONSE_ERROR_UPDATE_END;
+#endif
+  }
+  if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
+    return OTA_RESPONSE_ERROR_WRITING_FLASH;
+  }
+  return OTA_RESPONSE_ERROR_UNKNOWN;
 }
 
 void IDFOTABackend::abort() {
-  if (this->ota_type_ == ota::OTA_TYPE_UPDATE_APP) {
-    esp_ota_abort(this->update_handle_);
-    this->update_handle_ = 0;
-  }
 #ifdef USE_OTA_PARTITIONS
   if (this->partition_table_part_ != nullptr) {
     esp_partition_deregister_external(this->partition_table_part_);
     this->partition_table_part_ = nullptr;
   }
+  if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP) {
+    return;
+  }
 #endif
+  esp_ota_abort(this->update_handle_);
+  this->update_handle_ = 0;
 }
 
 #ifdef USE_OTA_PARTITIONS
@@ -178,20 +186,28 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGE(TAG, "not enough data received (%d/%d bytes)", this->buf_written_, this->image_size_);
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
-  ESP_LOGD(TAG, "partition table size %d", this->image_size_);
 
   // Get running app partition and used size
-  const esp_partition_t *running_app_part = esp_ota_get_running_partition();
-  size_t running_app_size = running_app_part->size;
-  const esp_partition_pos_t running_app_pos = {
-      .offset = running_app_part->address,
-      .size = running_app_part->size,
-  };
-  esp_image_metadata_t image_metadata;
-  image_metadata.start_addr = running_app_part->address;
-  err = esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &running_app_pos, &image_metadata);
-  if (err == ESP_OK && image_metadata.image_len < running_app_part->size) {
-    running_app_size = image_metadata.image_len;
+  const esp_partition_t *running_app_part = nullptr;
+  if (running_app_size == 0) {
+    running_app_part = esp_ota_get_running_partition();
+    // esp_ota_get_running_partition() returns a pointer to invalid data after esp_partition_unload_all() was called on a previous run.
+    // Cache the running app offset and size.
+    running_app_size = ((running_app_size + running_app_part->erase_size - 1) / running_app_part->erase_size) * running_app_part->erase_size;
+    running_app_offset = running_app_part->address;
+    const esp_partition_pos_t running_app_pos = {
+        .offset = running_app_part->address,
+        .size = running_app_part->size,
+    };
+    esp_image_metadata_t image_metadata;
+    image_metadata.start_addr = running_app_part->address;
+    err = esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &running_app_pos, &image_metadata);
+    if (err == ESP_OK && image_metadata.image_len < running_app_part->size) {
+      running_app_size = image_metadata.image_len;
+    }
+    // Align running_app_size to flash sectors
+    running_app_size = ((running_app_size + running_app_part->erase_size - 1) / running_app_part->erase_size) * running_app_part->erase_size;
+    ESP_LOGD(TAG, "Running app: address=0x%X partition_size=0x%X used_size=0x%X, aligned_size=0x%X", running_app_part->address, running_app_part->size,  image_metadata.image_len, running_app_size);
   }
 
   // Get partition table partition
@@ -234,47 +250,94 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   int app_index_with_copy = -1;
   int otadata_index = -1;
   bool otadata_no_overlap = false;
+  const esp_partition_t *app_copy_target_part{nullptr};
   for (int i = 0; i < num_partitions; i++) {
-    const esp_partition_info_t *part = &new_partition_table[i];
-    if (part->type == ESP_PARTITION_TYPE_APP) {
+    const esp_partition_info_t *new_part = &new_partition_table[i];
+    if (new_part->type == ESP_PARTITION_TYPE_APP) {
       app_partitions_found++;
-      if (part->pos.size >= running_app_size) {
-        if (part->pos.offset == running_app_part->address) {
+      if (new_part->pos.size >= running_app_size) {
+        if (new_part->pos.offset == running_app_offset) {
           app_index = i;
-        } else if (part->pos.offset >= running_app_part->address + running_app_size ||
-                   running_app_part->address >= part->pos.offset + part->pos.size) {
-          // No overlap with running app
-          app_index_with_copy = i;
+        } else if (new_part->pos.offset >= running_app_offset + running_app_size ||
+                   running_app_offset >= new_part->pos.offset + new_part->pos.size) {
+          // New app partition has no overlap with running app
+          esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
+          while (it != NULL) {
+            const esp_partition_t *p = esp_partition_get(it);
+            if (p->address == new_part->pos.offset && p->size >= running_app_size) {
+              // App partition exists in old and new partition table
+              app_index_with_copy = i;
+              app_copy_target_part = p;
+            }
+            it = esp_partition_next(it);
+          }
+          esp_partition_iterator_release(it);
         }
       }
-    } else if (part->type == ESP_PARTITION_TYPE_DATA && part->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA) {
+    } else if (new_part->type == ESP_PARTITION_TYPE_DATA && new_part->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA) {
       otadata_index = i;
-      otadata_no_overlap = part->pos.offset >= running_app_part->address + running_app_size ||
-                           running_app_part->address >= part->pos.offset + part->pos.size;
+      otadata_no_overlap = new_part->pos.offset >= running_app_offset + running_app_size ||
+                           running_app_offset >= new_part->pos.offset + new_part->pos.size;
     }
   }
   if (app_index == -1 && app_index_with_copy == -1) {
-    // Can't move running app to new partition layout
     ESP_LOGE(TAG, "No compatible app partition found in the new partition table");
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
   if (app_partitions_found < 2 || otadata_index == -1) {
-    // OTA would be impossible with new partition table
-    ESP_LOGE(TAG, "New partition table is missing the required partitions for OTA");
+    ESP_LOGE(TAG, "New partition table is missing the required app or otadata partitions");
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
   if (!otadata_no_overlap) {
-    // Can't write to new otadata partition because it overlaps with the running app
     ESP_LOGE(TAG, "New otadata partition overlaps with running app");
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
 
   ESP_LOGD(TAG, "Checks passed, starting partition table update", err);
 
-  // TODO: Copy the running app partition to new position if needed
+  // Copy the running app partition to new position if needed
   if (app_index == -1) {
-    ESP_LOGE(TAG, "Moving the app partition is required but not implemented");
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    if (running_app_part == nullptr) {
+      esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
+      while (it != NULL) {
+        const esp_partition_t *p = esp_partition_get(it);
+        const esp_partition_info_t *new_part = &new_partition_table[app_index == -1 ? app_index_with_copy : app_index];
+        if (p->address == running_app_offset && p->size >= running_app_size) {
+          running_app_part = p;
+        }
+        it = esp_partition_next(it);
+      }
+      esp_partition_iterator_release(it);
+    }
+    ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address, app_copy_target_part->address, running_app_size);
+
+#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
+    // The following function takes longer than the 5 seconds timeout of WDT
+    esp_task_wdt_config_t wdtc;
+    wdtc.idle_core_mask = 0;
+#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0
+    wdtc.idle_core_mask |= (1 << 0);
+#endif
+#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1
+    wdtc.idle_core_mask |= (1 << 1);
+#endif
+    wdtc.timeout_ms = 15000;
+    wdtc.trigger_panic = false;
+    esp_task_wdt_reconfigure(&wdtc);
+#endif
+
+    err = esp_partition_copy(app_copy_target_part, 0, running_app_part, 0, running_app_size);
+
+#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
+    // Set the WDT back to the configured timeout
+    wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
+    esp_task_wdt_reconfigure(&wdtc);
+#endif
+
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_partition_copy failed (err=0x%X) ", err);
+      return OTA_RESPONSE_ERROR_UNKNOWN;
+    }
   }
 
   // Update the partition table
@@ -296,9 +359,28 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
+  esp_partition_unload_all();
 
-  // TODO: Reload partition table and rewrite otadata
+  // Write otadata to set the new boot partition
+  const esp_partition_t *new_boot_partition = nullptr;
+  esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
+  while (it != NULL) {
+    const esp_partition_t *p = esp_partition_get(it);
+    const esp_partition_info_t *new_part = &new_partition_table[app_index == -1 ? app_index_with_copy : app_index];
+    if (p->address == new_part->pos.offset) {
+      new_boot_partition = p;
+    }
+    it = esp_partition_next(it);
+  }
+  esp_partition_iterator_release(it);
+  ESP_LOGD(TAG, "Setting next boot partition to 0x%X", new_boot_partition->address);
+  err = esp_ota_set_boot_partition(new_boot_partition);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (err=0x%X) ", err);
+    return OTA_RESPONSE_ERROR_UNKNOWN;
+  }
 
+  ESP_LOGD(TAG, "Partition table updated successfully", err);
   return OTA_RESPONSE_OK;
 }
 #endif

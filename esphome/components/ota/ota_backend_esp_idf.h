@@ -15,7 +15,11 @@ static constexpr size_t OTA_BUFFER_SIZE = ESP_PARTITION_TABLE_MAX_LEN;  // 0xC00
 
 class IDFOTABackend final {
  public:
+#ifdef USE_OTA_PARTITIONS
   OTAResponseTypes begin(size_t image_size, ota::OTAType ota_type = ota::OTA_TYPE_UPDATE_APP);
+#else
+  OTAResponseTypes begin(size_t image_size);
+#endif
   void set_update_md5(const char *md5);
   OTAResponseTypes write(uint8_t *data, size_t len);
   OTAResponseTypes end();
@@ -33,8 +37,8 @@ class IDFOTABackend final {
   md5::MD5Digest md5_{};
   char expected_bin_md5_[32];
   bool md5_set_{false};
-  ota::OTAType ota_type_{ota::OTA_TYPE_UPDATE_APP};
 #ifdef USE_OTA_PARTITIONS
+  ota::OTAType ota_type_{ota::OTA_TYPE_UPDATE_APP};
   uint8_t buf_[OTA_BUFFER_SIZE];
   size_t buf_written_{0};
   size_t image_size_{0};
