@@ -12,7 +12,7 @@ from PIL import Image, UnidentifiedImageError
 
 from esphome import core, external_files
 import esphome.codegen as cg
-from esphome.components.const import CONF_BYTE_ORDER
+from esphome.components.const import CONF_BYTE_ORDER, KEY_METADATA
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEFAULTS,
@@ -28,7 +28,6 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import CORE, HexInt
-from esphome.final_validate import full_config
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,7 +52,6 @@ CONF_CHROMA_KEY = "chroma_key"
 CONF_ALPHA_CHANNEL = "alpha_channel"
 CONF_INVERT_ALPHA = "invert_alpha"
 CONF_IMAGES = "images"
-KEY_METADATA = "metadata"
 
 TRANSPARENCY_TYPES = (
     CONF_OPAQUE,
@@ -677,12 +675,16 @@ def _final_validate(config):
     :param config:
     :return:
     """
-    fv = full_config.get()
-    if "lvgl" in fv and not all(CONF_BYTE_ORDER in x for x in config):
-        config = config.copy()
-        for c in config:
-            if not c.get(CONF_BYTE_ORDER):
-                c[CONF_BYTE_ORDER] = "LITTLE_ENDIAN"
+    config = config.copy()
+    for c in config:
+        if byte_order := c.get(CONF_BYTE_ORDER):
+            if byte_order == "BIG_ENDIAN":
+                _LOGGER.warning(
+                    "The image '%s' is configured with big-endian byte order, little-endian is expected",
+                    c.get(CONF_FILE),
+                )
+        else:
+            c[CONF_BYTE_ORDER] = "LITTLE_ENDIAN"
     return config
 
 
@@ -754,7 +756,7 @@ async def write_image(config, all_frames=False):
             for col in range(width):
                 encoder.encode(pixels[row * width + col])
             encoder.end_row()
-        encoder.end_image()
+    encoder.end_image()
 
     rhs = [HexInt(x) for x in encoder.data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
