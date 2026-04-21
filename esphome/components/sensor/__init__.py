@@ -118,6 +118,7 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
+
 DEVICE_CLASSES = [
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
@@ -293,6 +294,7 @@ SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
+RoundSignificantDigitsFilter = sensor_ns.class_("RoundSignificantDigitsFilter", Filter)
 
 validate_unit_of_measurement = cv.All(
     cv.string_strict,
@@ -897,6 +899,18 @@ async def round_multiple_filter_to_code(config, filter_id):
     return cg.new_Pvariable(
         filter_id,
         config[CONF_MULTIPLE],
+    )
+
+
+@FILTER_REGISTRY.register(
+    "round_to_significant_digits",
+    RoundSignificantDigitsFilter,
+    cv.int_range(min=1, max=6),
+)
+async def round_significant_digits_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        cg.TemplateArguments(config),
     )
 
 
