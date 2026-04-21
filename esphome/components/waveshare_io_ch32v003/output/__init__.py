@@ -24,13 +24,14 @@ DUTY_DEFAULT_MAX = 247
 
 
 def validate_pwm_limits(config):
-    """Validate that pwm_min_value <= pwm_max_value"""
+    """Validate that safe_pwm_levels.min_value <= safe_pwm_levels.max_value."""
 
     min_val = config.get(CONF_SAFE_PWM_LEVELS, {}).get(CONF_MIN_VALUE, DUTY_DEFAULT_MIN)
     max_val = config.get(CONF_SAFE_PWM_LEVELS, {}).get(CONF_MAX_VALUE, DUTY_DEFAULT_MAX)
     if min_val > max_val:
         raise cv.Invalid(
-            f"pwm_min_value ({min_val}) cannot be greater than pwm_max_value ({max_val})"
+            f"safe_pwm_levels.min_value ({min_val}) cannot be greater than "
+            f"safe_pwm_levels.max_value ({max_val})"
         )
     return config
 
