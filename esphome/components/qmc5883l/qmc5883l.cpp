@@ -92,6 +92,10 @@ void QMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_PIN("  DRDY Pin: ", this->drdy_pin_);
+  if (this->drdy_pin_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  DRDY mode: %s",
+                  this->drdy_use_isr_ ? LOG_STR_LITERAL("interrupt") : LOG_STR_LITERAL("polling"));
+  }
 }
 
 void QMC5883LComponent::update() {
