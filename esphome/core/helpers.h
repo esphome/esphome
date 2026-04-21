@@ -740,6 +740,11 @@ template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallb
 /// @name Mathematics
 ///@{
 
+/// Compute floor(log10(fabs(value))) using iterative comparison.
+/// Avoids pulling in __ieee754_logf/log10f (~1KB flash).
+/// Only valid for finite, non-zero values.
+int8_t ilog10(float value);
+
 /// Compute 10^exp using iterative multiplication/division.
 /// Avoids pulling in powf/__ieee754_powf (~2.3KB flash) for small integer exponents.  // NOLINT
 /// Matches powf(10, exp) for the int8_t exponent range used by sensor accuracy_decimals.  // NOLINT

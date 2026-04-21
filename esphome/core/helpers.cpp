@@ -413,6 +413,23 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   return PARSE_NONE;
 }
 
+int8_t ilog10(float value) {
+  float abs_val = fabsf(value);
+  int8_t exp = 0;
+  if (abs_val >= 10.0f) {
+    while (abs_val >= 10.0f) {
+      abs_val /= 10.0f;
+      exp++;
+    }
+  } else if (abs_val < 1.0f) {
+    while (abs_val < 1.0f) {
+      abs_val *= 10.0f;
+      exp--;
+    }
+  }
+  return exp;
+}
+
 static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_decimals) {
   if (accuracy_decimals < 0) {
     float divisor;
