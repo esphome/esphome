@@ -39,11 +39,8 @@ namespace esphome::api {
 // Keepalive timeout in milliseconds
 #ifdef USE_API_CLIENT_KEEPALIVE_INTERVAL
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = USE_API_CLIENT_KEEPALIVE_INTERVAL;
-// keepalive_timeout_ms + 90 seconds (for round trip)
-static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = KEEPALIVE_TIMEOUT_MS + 90000;
 #else
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
-static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS * 5) / 2;
 #endif
 // Maximum number of entities to process in a single batch during initial state/info sending
 // API 1.14+ clients compute object_id client-side, so messages are smaller and we can fit more per batch
