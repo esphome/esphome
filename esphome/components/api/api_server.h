@@ -190,18 +190,20 @@ class APIServer final : public Component,
   bool is_connected() const { return this->api_connection_count_ != 0; }
   bool is_connected_with_state_subscription() const;
 
-  // Range-for view over the populated slice [0, api_connection_count_).
+  // Range-for view over the populated slice [0, api_connection_count_). Read-only with respect
+  // to ownership — callers get `const unique_ptr&` so they can invoke non-const methods on the
+  // APIConnection but cannot reset/move the slot and break the count invariant.
   using APIConnectionPtr = std::unique_ptr<APIConnection>;
   class ActiveClientsView {
-    APIConnectionPtr *begin_;
-    APIConnectionPtr *end_;
+    const APIConnectionPtr *begin_;
+    const APIConnectionPtr *end_;
 
    public:
-    ActiveClientsView(APIConnectionPtr *b, APIConnectionPtr *e) : begin_(b), end_(e) {}
-    APIConnectionPtr *begin() { return this->begin_; }
-    APIConnectionPtr *end() { return this->end_; }
+    ActiveClientsView(const APIConnectionPtr *b, const APIConnectionPtr *e) : begin_(b), end_(e) {}
+    const APIConnectionPtr *begin() const { return this->begin_; }
+    const APIConnectionPtr *end() const { return this->end_; }
   };
-  ActiveClientsView active_clients() {
+  ActiveClientsView active_clients() const {
     return {this->clients_.data(), this->clients_.data() + this->api_connection_count_};
   }
 
