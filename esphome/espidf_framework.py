@@ -561,7 +561,7 @@ def archive_extract_all(
             )
 
         # 2. Detect archive format and select appropriate extraction function
-        matched_fct = _tar_extract_all
+        matched_fct = None
         magic_len = max(len(k) for k in _ARCHIVE_MAGIC_MAP)
         header = archive_ref.peek(magic_len)
         for magic, fct in _ARCHIVE_MAGIC_MAP.items():
