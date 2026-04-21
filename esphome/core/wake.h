@@ -7,6 +7,10 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+#include <atomic>
+#endif
+
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
 #include "esphome/core/main_task.h"
 #endif
@@ -25,12 +29,48 @@ namespace esphome {
 extern volatile bool g_main_loop_woke;
 #endif
 
+// === wake_request flag — signals Application::loop() that a producer queued
+// work for some component's loop() to drain (MQTT RX, USB RX, BLE event, etc.)
+// and the component phase should run this tick instead of being held off by
+// the loop_interval_ gate. Set by every wake_loop_* entry point; consumed
+// (via exchange-and-clear) at the gate in Application::loop(). ===
+//
+// std::atomic<uint8_t> rather than std::atomic<bool> because GCC on Xtensa
+// generates an indirect function call for atomic<bool> ops instead of inlining
+// them — same workaround applied in scheduler.h for the SchedulerItem::remove
+// flag. On non-atomic platforms a volatile uint8_t suffices: 8-bit aligned
+// loads/stores are atomic on every supported MCU, and the platform signal
+// that follows wake_request_set() (FreeRTOS task-notify, esp_schedule, socket
+// send) provides the cross-thread/cross-core memory barrier.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+extern std::atomic<uint8_t> g_wake_requested;
+
+__attribute__((always_inline)) inline void wake_request_set() { g_wake_requested.store(1, std::memory_order_release); }
+__attribute__((always_inline)) inline bool wake_request_take() {
+  return g_wake_requested.exchange(0, std::memory_order_acquire) != 0;
+}
+#else
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+extern volatile uint8_t g_wake_requested;
+
+__attribute__((always_inline)) inline void wake_request_set() { g_wake_requested = 1; }
+__attribute__((always_inline)) inline bool wake_request_take() {
+  uint8_t v = g_wake_requested;
+  g_wake_requested = 0;
+  return v != 0;
+}
+#endif
+
 // === ESP32 / LibreTiny (FreeRTOS) ===
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
 
 /// Wake the main loop from any context (ISR or task).
 /// always_inline so callers placed in IRAM keep the whole wake path in IRAM.
 __attribute__((always_inline)) inline void wake_main_task_any_context() {
+  // Set the wake-requested flag BEFORE the task notification so the consumer
+  // (Application::loop() gate) is guaranteed to see it on its next gate check.
+  wake_request_set();
   if (in_isr_context()) {
     BaseType_t px_higher_priority_task_woken = pdFALSE;
     esphome_main_task_notify_from_isr(&px_higher_priority_task_woken);
@@ -50,7 +90,10 @@ __attribute__((always_inline)) inline void wake_main_task_any_context() {
 void wake_loop_isrsafe(BaseType_t *px_higher_priority_task_woken);
 void wake_loop_any_context();
 
-inline void wake_loop_threadsafe() { esphome_main_task_notify(); }
+inline void wake_loop_threadsafe() {
+  wake_request_set();
+  esphome_main_task_notify();
+}
 
 namespace internal {
 inline void wakeable_delay(uint32_t ms) {
@@ -67,6 +110,9 @@ inline void wakeable_delay(uint32_t ms) {
 
 /// Inline implementation — IRAM callers inline this directly.
 inline void ESPHOME_ALWAYS_INLINE wake_loop_impl() {
+  // Set the wake-requested flag BEFORE esp_schedule so the consumer is
+  // guaranteed to see it on its next gate check.
+  wake_request_set();
   g_main_loop_woke = true;
   esp_schedule();
 }
@@ -98,6 +144,9 @@ inline void wakeable_delay(uint32_t ms) {
 #elif defined(USE_RP2040)
 
 inline void wake_loop_any_context() {
+  // Set the wake-requested flag BEFORE the SEV so the consumer is guaranteed
+  // to see it on its next gate check.
+  wake_request_set();
   g_main_loop_woke = true;
   __sev();
 }

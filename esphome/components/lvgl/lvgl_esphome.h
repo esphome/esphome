@@ -88,6 +88,12 @@ inline void lv_obj_set_style_bitmap_mask_src(lv_obj_t *obj, image::Image *image,
 inline void lv_obj_set_style_bg_image_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
   ::lv_obj_set_style_bg_image_src(obj, image->get_lv_image_dsc(), selector);
 }
+inline void lv_style_set_bg_image_src(lv_style_t *style, image::Image *image) {
+  ::lv_style_set_bg_image_src(style, image->get_lv_image_dsc());
+}
+inline void lv_style_set_bitmap_mask_src(lv_style_t *style, image::Image *image) {
+  ::lv_style_set_bitmap_mask_src(style, image->get_lv_image_dsc());
+}
 #endif  // USE_LVGL_IMAGE
 #ifdef USE_LVGL_ANIMIMG
 inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images) {

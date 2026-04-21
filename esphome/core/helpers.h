@@ -21,6 +21,12 @@
 
 #include "esphome/core/optional.h"
 
+// Backward compatibility re-export of heap-allocating helpers.
+// These functions have moved to alloc_helpers.h. External components should
+// update their includes to use #include "esphome/core/alloc_helpers.h" directly.
+// This re-export will be removed in 2026.11.0.
+#include "esphome/core/alloc_helpers.h"
+
 #ifdef USE_ESP8266
 #include <Esp.h>
 #include <pgmspace.h>
@@ -979,27 +985,13 @@ inline bool str_endswith_ignore_case(const std::string &str, const char *suffix)
   return str_endswith_ignore_case(str.c_str(), str.size(), suffix, strlen(suffix));
 }
 
-/// Truncate a string to a specific length.
-/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
-std::string str_truncate(const std::string &str, size_t length);
+// str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
 
-/// Extract the part of the string until either the first occurrence of the specified character, or the end
-/// (requires str to be null-terminated).
-std::string str_until(const char *str, char ch);
-/// Extract the part of the string until either the first occurrence of the specified character, or the end.
-std::string str_until(const std::string &str, char ch);
-
-/// Convert the string to lower case.
-std::string str_lower_case(const std::string &str);
-/// Convert the string to upper case.
-/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
-std::string str_upper_case(const std::string &str);
+// str_until, str_lower_case, str_upper_case moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Convert a single char to snake_case: lowercase and space to underscore.
 constexpr char to_snake_case_char(char c) { return (c == ' ') ? '_' : (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c; }
-/// Convert the string to snake case (lowercase with underscores).
-/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
-std::string str_snake_case(const std::string &str);
+// str_snake_case moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Sanitize a single char: keep alphanumerics, dashes, underscores; replace others with underscore.
 constexpr char to_sanitized_char(char c) {
@@ -1022,9 +1014,7 @@ template<size_t N> inline char *str_sanitize_to(char (&buffer)[N], const char *s
   return str_sanitize_to(buffer, N, str);
 }
 
-/// Sanitizes the input string by removing all characters but alphanumerics, dashes and underscores.
-/// @warning Allocates heap memory. Use str_sanitize_to() with a stack buffer instead.
-std::string str_sanitize(const std::string &str);
+// str_sanitize moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Calculate FNV-1 hash of a string while applying snake_case + sanitize transformations.
 /// This computes object_id hashes directly from names without creating an intermediate buffer.
@@ -1040,13 +1030,7 @@ inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
   return hash;
 }
 
-/// snprintf-like function returning std::string of maximum length \p len (excluding null terminator).
-/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
-std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t len, ...);
-
-/// sprintf-like function returning std::string.
-/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
-std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
+// str_snprintf, str_sprintf moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 #ifdef USE_ESP8266
 // ESP8266: Use vsnprintf_P to keep format strings in flash (PROGMEM)
@@ -1095,7 +1079,33 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
 }
 #endif
 
-/// Safely append a string to buffer without format parsing, returning new position (capped at size).
+#ifdef USE_ESP8266
+/// Safely append a PROGMEM string to buffer, returning new position (capped at size).
+/// ESP8266 internal implementation — prefer the `buf_append_str` macro which wraps
+/// literals with `PSTR()` automatically so they stay in flash instead of eating RAM.
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param str PROGMEM-resident string to append (must not be null)
+/// @return New position after appending; returns `size` if `pos >= size`, otherwise
+///         returns at most `size - 1` because one byte is reserved for the null terminator
+inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str) {
+  if (pos >= size) {
+    return size;
+  }
+  size_t remaining = size - pos - 1;  // reserve space for null terminator
+  size_t len = strnlen_P(str, remaining);
+  memcpy_P(buf + pos, str, len);
+  pos += len;
+  buf[pos] = '\0';
+  return pos;
+}
+/// Safely append a string to buffer, returning new position (capped at size).
+/// More efficient than buf_append_printf for plain string literals.
+/// On ESP8266 the literal is wrapped with PSTR() so it stays in flash.
+#define buf_append_str(buf, size, pos, str) buf_append_str_p(buf, size, pos, PSTR(str))
+#else
+/// Safely append a string to buffer, returning new position (capped at size).
 /// More efficient than buf_append_printf for plain string literals.
 /// @param buf Output buffer
 /// @param size Total buffer size
@@ -1107,15 +1117,16 @@ inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str
     return size;
   }
   size_t remaining = size - pos - 1;  // reserve space for null terminator
-  size_t len = strlen(str);
-  if (len > remaining) {
-    len = remaining;
+  size_t len = 0;
+  while (len < remaining && str[len] != '\0') {
+    len++;
   }
   memcpy(buf + pos, str, len);
   pos += len;
   buf[pos] = '\0';
   return pos;
 }
+#endif
 
 /// Concatenate a name with a separator and suffix using an efficient stack-based approach.
 /// This avoids multiple heap allocations during string construction.
@@ -1441,189 +1452,26 @@ inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
   format_hex_to(output, MAC_ADDRESS_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE);
 }
 
-/// Format the six-byte array \p mac into a MAC address.
-/// @warning Allocates heap memory. Use format_mac_addr_upper() with a stack buffer instead.
-/// Causes heap fragmentation on long-running devices.
-std::string format_mac_address_pretty(const uint8_t mac[6]);
-/// Format the byte array \p data of length \p len in lowercased hex.
-/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
-/// Causes heap fragmentation on long-running devices.
-std::string format_hex(const uint8_t *data, size_t length);
-/// Format the vector \p data in lowercased hex.
-/// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
-/// Causes heap fragmentation on long-running devices.
-std::string format_hex(const std::vector<uint8_t> &data);
+// format_mac_address_pretty, format_hex (all overloads) moved to alloc_helpers.h
+// Remove this comment and the template overloads below before 2026.11.0
+
 /// Format an unsigned integer in lowercased hex, starting with the most significant byte.
 /// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
-/// Causes heap fragmentation on long-running devices.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_hex(T val) {
   val = convert_big_endian(val);
   return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 }
 /// Format the std::array \p data in lowercased hex.
 /// @warning Allocates heap memory. Use format_hex_to() with a stack buffer instead.
-/// Causes heap fragmentation on long-running devices.
 template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &data) {
   return format_hex(data.data(), data.size());
 }
 
-/** Format a byte array in pretty-printed, human-readable hex format.
- *
- * Converts binary data to a hexadecimal string representation with customizable formatting.
- * Each byte is displayed as a two-digit uppercase hex value, separated by the specified separator.
- * Optionally includes the total byte count in parentheses at the end.
- *
- * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
- * Causes heap fragmentation on long-running devices.
- *
- * @param data Pointer to the byte array to format.
- * @param length Number of bytes in the array.
- * @param separator Character to use between hex bytes (default: '.').
- * @param show_length Whether to append the byte count in parentheses (default: true).
- * @return Formatted hex string, e.g., "A1.B2.C3.D4.E5 (5)" or "A1:B2:C3" depending on parameters.
- *
- * @note Returns empty string if data is nullptr or length is 0.
- * @note The length will only be appended if show_length is true AND the length is greater than 4.
- *
- * Example:
- * @code
- * uint8_t data[] = {0xA1, 0xB2, 0xC3};
- * format_hex_pretty(data, 3);           // Returns "A1.B2.C3" (no length shown for <= 4 parts)
- * uint8_t data2[] = {0xA1, 0xB2, 0xC3, 0xD4, 0xE5};
- * format_hex_pretty(data2, 5);          // Returns "A1.B2.C3.D4.E5 (5)"
- * format_hex_pretty(data2, 5, ':');     // Returns "A1:B2:C3:D4:E5 (5)"
- * format_hex_pretty(data2, 5, '.', false); // Returns "A1.B2.C3.D4.E5"
- * @endcode
- */
-std::string format_hex_pretty(const uint8_t *data, size_t length, char separator = '.', bool show_length = true);
+// format_hex_pretty (all overloads) moved to alloc_helpers.h
+// Remove this comment and the template overload below before 2026.11.0
 
-/** Format a 16-bit word array in pretty-printed, human-readable hex format.
- *
- * Similar to the byte array version, but formats 16-bit words as 4-digit hex values.
- *
- * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
- * Causes heap fragmentation on long-running devices.
- *
- * @param data Pointer to the 16-bit word array to format.
- * @param length Number of 16-bit words in the array.
- * @param separator Character to use between hex words (default: '.').
- * @param show_length Whether to append the word count in parentheses (default: true).
- * @return Formatted hex string with 4-digit hex values per word.
- *
- * @note The length will only be appended if show_length is true AND the length is greater than 4.
- *
- * Example:
- * @code
- * uint16_t data[] = {0xA1B2, 0xC3D4};
- * format_hex_pretty(data, 2); // Returns "A1B2.C3D4" (no length shown for <= 4 parts)
- * uint16_t data2[] = {0xA1B2, 0xC3D4, 0xE5F6};
- * format_hex_pretty(data2, 3); // Returns "A1B2.C3D4.E5F6 (3)"
- * @endcode
- */
-std::string format_hex_pretty(const uint16_t *data, size_t length, char separator = '.', bool show_length = true);
-
-/** Format a byte vector in pretty-printed, human-readable hex format.
- *
- * Convenience overload for std::vector<uint8_t>. Formats each byte as a two-digit
- * uppercase hex value with customizable separator.
- *
- * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
- * Causes heap fragmentation on long-running devices.
- *
- * @param data Vector of bytes to format.
- * @param separator Character to use between hex bytes (default: '.').
- * @param show_length Whether to append the byte count in parentheses (default: true).
- * @return Formatted hex string representation of the vector contents.
- *
- * @note The length will only be appended if show_length is true AND the vector size is greater than 4.
- *
- * Example:
- * @code
- * std::vector<uint8_t> data = {0xDE, 0xAD, 0xBE, 0xEF};
- * format_hex_pretty(data);        // Returns "DE.AD.BE.EF" (no length shown for <= 4 parts)
- * std::vector<uint8_t> data2 = {0xDE, 0xAD, 0xBE, 0xEF, 0xCA};
- * format_hex_pretty(data2);       // Returns "DE.AD.BE.EF.CA (5)"
- * format_hex_pretty(data2, '-');  // Returns "DE-AD-BE-EF-CA (5)"
- * @endcode
- */
-std::string format_hex_pretty(const std::vector<uint8_t> &data, char separator = '.', bool show_length = true);
-
-/** Format a 16-bit word vector in pretty-printed, human-readable hex format.
- *
- * Convenience overload for std::vector<uint16_t>. Each 16-bit word is formatted
- * as a 4-digit uppercase hex value in big-endian order.
- *
- * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
- * Causes heap fragmentation on long-running devices.
- *
- * @param data Vector of 16-bit words to format.
- * @param separator Character to use between hex words (default: '.').
- * @param show_length Whether to append the word count in parentheses (default: true).
- * @return Formatted hex string representation of the vector contents.
- *
- * @note The length will only be appended if show_length is true AND the vector size is greater than 4.
- *
- * Example:
- * @code
- * std::vector<uint16_t> data = {0x1234, 0x5678};
- * format_hex_pretty(data); // Returns "1234.5678" (no length shown for <= 4 parts)
- * std::vector<uint16_t> data2 = {0x1234, 0x5678, 0x9ABC};
- * format_hex_pretty(data2); // Returns "1234.5678.9ABC (3)"
- * @endcode
- */
-std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator = '.', bool show_length = true);
-
-/** Format a string's bytes in pretty-printed, human-readable hex format.
- *
- * Treats each character in the string as a byte and formats it in hex.
- * Useful for debugging binary data stored in std::string containers.
- *
- * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
- * Causes heap fragmentation on long-running devices.
- *
- * @param data String whose bytes should be formatted as hex.
- * @param separator Character to use between hex bytes (default: '.').
- * @param show_length Whether to append the byte count in parentheses (default: true).
- * @return Formatted hex string representation of the string's byte contents.
- *
- * @note The length will only be appended if show_length is true AND the string length is greater than 4.
- *
- * Example:
- * @code
- * std::string data = "ABC";  // ASCII: 0x41, 0x42, 0x43
- * format_hex_pretty(data);   // Returns "41.42.43" (no length shown for <= 4 parts)
- * std::string data2 = "ABCDE";
- * format_hex_pretty(data2);  // Returns "41.42.43.44.45 (5)"
- * @endcode
- */
-std::string format_hex_pretty(const std::string &data, char separator = '.', bool show_length = true);
-
-/** Format an unsigned integer in pretty-printed, human-readable hex format.
- *
- * Converts the integer to big-endian byte order and formats each byte as hex.
- * The most significant byte appears first in the output string.
- *
- * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
- * Causes heap fragmentation on long-running devices.
- *
- * @tparam T Unsigned integer type (uint8_t, uint16_t, uint32_t, uint64_t, etc.).
- * @param val The unsigned integer value to format.
- * @param separator Character to use between hex bytes (default: '.').
- * @param show_length Whether to append the byte count in parentheses (default: true).
- * @return Formatted hex string with most significant byte first.
- *
- * @note The length will only be appended if show_length is true AND sizeof(T) is greater than 4.
- *
- * Example:
- * @code
- * uint32_t value = 0x12345678;
- * format_hex_pretty(value);        // Returns "12.34.56.78" (no length shown for <= 4 parts)
- * uint64_t value2 = 0x123456789ABCDEF0;
- * format_hex_pretty(value2);       // Returns "12.34.56.78.9A.BC.DE.F0 (8)"
- * format_hex_pretty(value2, ':');  // Returns "12:34:56:78:9A:BC:DE:F0 (8)"
- * format_hex_pretty<uint16_t>(0x1234); // Returns "12.34"
- * @endcode
- */
+/// Format an unsigned integer in pretty-printed, human-readable hex format.
+/// @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
 std::string format_hex_pretty(T val, char separator = '.', bool show_length = true) {
   val = convert_big_endian(val);
@@ -1683,13 +1531,10 @@ inline char *format_bin_to(char (&buffer)[N], T val) {
   return format_bin_to(buffer, reinterpret_cast<const uint8_t *>(&val), sizeof(T));
 }
 
-/// Format the byte array \p data of length \p len in binary.
-/// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
-/// Causes heap fragmentation on long-running devices.
-std::string format_bin(const uint8_t *data, size_t length);
+// format_bin moved to alloc_helpers.h - remove this comment and template overload before 2026.11.0
+
 /// Format an unsigned integer in binary, starting with the most significant byte.
 /// @warning Allocates heap memory. Use format_bin_to() with a stack buffer instead.
-/// Causes heap fragmentation on long-running devices.
 template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::string format_bin(T val) {
   val = convert_big_endian(val);
   return format_bin(reinterpret_cast<uint8_t *>(&val), sizeof(T));
@@ -1705,9 +1550,7 @@ enum ParseOnOffState : uint8_t {
 /// Parse a string that contains either on, off or toggle.
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
 
-/// @deprecated Allocates heap memory. Use value_accuracy_to_buf() instead. Removed in 2026.7.0.
-ESPDEPRECATED("Allocates heap memory. Use value_accuracy_to_buf() instead. Removed in 2026.7.0.", "2026.1.0")
-std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
+// value_accuracy_to_string moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Maximum buffer size for value_accuracy formatting (float ~15 chars + space + UOM ~40 chars + null)
 static constexpr size_t VALUE_ACCURACY_MAX_LEN = 64;
@@ -1721,10 +1564,8 @@ size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> bu
 /// Derive accuracy in decimals from an increment step.
 int8_t step_to_accuracy_decimals(float step);
 
-std::string base64_encode(const uint8_t *buf, size_t buf_len);
-std::string base64_encode(const std::vector<uint8_t> &buf);
-
-std::vector<uint8_t> base64_decode(const std::string &encoded_string);
+// base64_encode (both overloads), base64_decode (vector overload) moved to alloc_helpers.h
+// Remove this comment before 2026.11.0
 size_t base64_decode(std::string const &encoded_string, uint8_t *buf, size_t buf_len);
 size_t base64_decode(const uint8_t *encoded_data, size_t encoded_len, uint8_t *buf, size_t buf_len);
 
@@ -2160,15 +2001,7 @@ class HighFrequencyLoopRequester {
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
 void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
 
-/// Get the device MAC address as a string, in lowercase hex notation.
-/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
-/// Use get_mac_address_into_buffer() instead.
-std::string get_mac_address();
-
-/// Get the device MAC address as a string, in colon-separated uppercase hex notation.
-/// @warning Allocates heap memory. Avoid in new code - causes heap fragmentation on long-running devices.
-/// Use get_mac_address_pretty_into_buffer() instead.
-std::string get_mac_address_pretty();
+// get_mac_address, get_mac_address_pretty moved to alloc_helpers.h - remove this comment before 2026.11.0
 
 /// Get the device MAC address into the given buffer, in lowercase hex notation.
 /// Assumes buffer length is MAC_ADDRESS_BUFFER_SIZE (12 digits for hexadecimal representation followed by null
