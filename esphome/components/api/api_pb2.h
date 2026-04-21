@@ -506,6 +506,7 @@ class SerialProxyInfo final : public ProtoMessage {
  public:
   StringRef name{};
   enums::SerialProxyPortType port_type{};
+  StringRef id{};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP

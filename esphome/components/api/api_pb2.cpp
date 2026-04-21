@@ -82,12 +82,14 @@ uint8_t *SerialProxyInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PAR
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->name);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->port_type));
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->id);
   return pos;
 }
 uint32_t SerialProxyInfo::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_length(1, this->name.size());
   size += this->port_type ? 2 : 0;
+  size += ProtoSize::calc_length(1, this->id.size());
   return size;
 }
 #endif
