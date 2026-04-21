@@ -39,11 +39,11 @@ void TFLuna::dump_config() {
   LOG_SENSOR("  ", "Timestamp:", this->timestamp_sensor_);
 #endif
 #ifdef USE_TEXT_SENSOR
-  LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "Version:", this->version_text_sensor_);
 #endif
 #ifdef USE_BUTTON
-  LOG_BUTTON("  ", "ResetButton", this->reset_button_);
-  LOG_BUTTON("  ", "RestartButton", this->restart_button_);
+  LOG_BUTTON("  ", "Factory Reset:", this->reset_button_);
+  LOG_BUTTON("  ", "Restart:", this->restart_button_);
 #endif
 }
 
