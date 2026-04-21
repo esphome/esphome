@@ -2,8 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_server {
+namespace esphome::modbus_server {
 
 static const char *const TAG = "modbus_server";
 
@@ -188,5 +187,4 @@ void ModbusServer::dump_config() {
 #endif
 }
 
-}  // namespace modbus_server
-}  // namespace esphome
+}  // namespace esphome::modbus_server
