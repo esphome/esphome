@@ -352,12 +352,31 @@ class ProtoEncode {
     PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
     *pos++ = b;
   }
+  /// Reserve one byte for later backpatch (e.g., sub-message length).
+  /// Advances pos past the reserved byte without writing a value.
+  static inline void ESPHOME_ALWAYS_INLINE reserve_byte(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM) {
+    PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
+    pos++;
+  }
   /// Write raw bytes to the buffer (no tag, no length prefix).
   static inline void ESPHOME_ALWAYS_INLINE encode_raw(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
                                                       const void *data, size_t len) {
     PROTO_ENCODE_CHECK_BOUNDS(pos, len);
     std::memcpy(pos, data, len);
     pos += len;
+  }
+  /// Encode tag + 1-byte length + raw string data. For strings with max_data_length < 128.
+  /// Tag must be a single-byte varint (< 128). Always encodes (no zero check).
+  static inline void encode_short_string_force(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint8_t tag,
+                                               const StringRef &ref) {
+#ifdef ESPHOME_DEBUG_API
+    assert(ref.size() < 128 && "encode_short_string_force: string exceeds max_data_length < 128");
+#endif
+    PROTO_ENCODE_CHECK_BOUNDS(pos, 2 + ref.size());
+    pos[0] = tag;
+    pos[1] = static_cast<uint8_t>(ref.size());
+    std::memcpy(pos + 2, ref.c_str(), ref.size());
+    pos += 2 + ref.size();
   }
   /// Write a precomputed tag byte + 32-bit value in one operation.
   static inline void ESPHOME_ALWAYS_INLINE write_tag_and_fixed32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
@@ -631,6 +650,17 @@ class ProtoSize {
   static constexpr uint32_t VARINT_THRESHOLD_2_BYTE = VARINT_MAX_2_BYTE;
   static constexpr uint32_t VARINT_THRESHOLD_3_BYTE = 1 << 21;  // 2097152
   static constexpr uint32_t VARINT_THRESHOLD_4_BYTE = 1 << 28;  // 268435456
+
+  // Varint encoded length for a 16-bit value (1, 2, or 3 bytes).
+  // Fully inline — no slow path call for values >= 128.
+  static constexpr inline uint8_t ESPHOME_ALWAYS_INLINE varint16(uint16_t value) {
+    return value < VARINT_THRESHOLD_1_BYTE ? 1 : (value < VARINT_THRESHOLD_2_BYTE ? 2 : 3);
+  }
+
+  // Varint encoded length for an 8-bit value (1 or 2 bytes).
+  static constexpr inline uint8_t ESPHOME_ALWAYS_INLINE varint8(uint8_t value) {
+    return value < VARINT_THRESHOLD_1_BYTE ? 1 : 2;
+  }
 
   /**
    * @brief Calculates the size in bytes needed to encode a uint32_t value as a varint

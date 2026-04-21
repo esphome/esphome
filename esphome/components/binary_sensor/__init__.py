@@ -332,8 +332,9 @@ def parse_multi_click_timing_str(value):
     try:
         state = cv.boolean(parts[0])
     except cv.Invalid:
-        # pylint: disable=raise-missing-from
-        raise cv.Invalid(f"First word must either be ON or OFF, not {parts[0]}")
+        raise cv.Invalid(
+            f"First word must either be ON or OFF, not {parts[0]}"
+        ) from None
 
     if parts[1] != "for":
         raise cv.Invalid(f"Second word must be 'for', got {parts[1]}")
@@ -350,7 +351,9 @@ def parse_multi_click_timing_str(value):
         try:
             length = cv.positive_time_period_milliseconds(parts[4])
         except cv.Invalid as err:
-            raise cv.Invalid(f"Multi Click Grammar Parsing length failed: {err}")
+            raise cv.Invalid(
+                f"Multi Click Grammar Parsing length failed: {err}"
+            ) from err
         return {CONF_STATE: state, key: str(length)}
 
     if parts[3] != "to":
@@ -359,12 +362,16 @@ def parse_multi_click_timing_str(value):
     try:
         min_length = cv.positive_time_period_milliseconds(parts[2])
     except cv.Invalid as err:
-        raise cv.Invalid(f"Multi Click Grammar Parsing minimum length failed: {err}")
+        raise cv.Invalid(
+            f"Multi Click Grammar Parsing minimum length failed: {err}"
+        ) from err
 
     try:
         max_length = cv.positive_time_period_milliseconds(parts[4])
     except cv.Invalid as err:
-        raise cv.Invalid(f"Multi Click Grammar Parsing minimum length failed: {err}")
+        raise cv.Invalid(
+            f"Multi Click Grammar Parsing maximum length failed: {err}"
+        ) from err
 
     return {
         CONF_STATE: state,
@@ -531,16 +538,31 @@ def binary_sensor_schema(
     return _BINARY_SENSOR_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_PRESS,
+        "add_on_state_callback",
+        forwarder=automation.TriggerOnTrueForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_RELEASE,
+        "add_on_state_callback",
+        forwarder=automation.TriggerOnFalseForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", [(bool, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STATE_CHANGE,
+        "add_full_state_callback",
+        [(cg.optional.template(bool), "x_previous"), (cg.optional.template(bool), "x")],
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_binary_sensor_automations(var, config):
-    for conf_key, forwarder in (
-        (CONF_ON_PRESS, automation.TriggerOnTrueForwarder),
-        (CONF_ON_RELEASE, automation.TriggerOnFalseForwarder),
-    ):
-        for conf in config.get(conf_key, []):
-            await automation.build_callback_automation(
-                var, "add_on_state_callback", [], conf, forwarder=forwarder
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     for conf in config.get(CONF_ON_CLICK, []):
         trigger = cg.new_Pvariable(
@@ -571,22 +593,6 @@ async def _build_binary_sensor_automations(var, config):
             cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_STATE, []):
-        await automation.build_callback_automation(
-            var, "add_on_state_callback", [(bool, "x")], conf
-        )
-
-    for conf in config.get(CONF_ON_STATE_CHANGE, []):
-        await automation.build_callback_automation(
-            var,
-            "add_full_state_callback",
-            [
-                (cg.optional.template(bool), "x_previous"),
-                (cg.optional.template(bool), "x"),
-            ],
-            conf,
-        )
 
 
 @setup_entity("binary_sensor")

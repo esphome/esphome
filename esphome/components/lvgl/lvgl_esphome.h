@@ -26,6 +26,10 @@
 #include <utility>
 #include <vector>
 
+#ifdef USE_ESP32_VARIANT_ESP32P4
+#include "driver/ppa.h"
+#endif
+
 #ifdef USE_FONT
 #include "esphome/components/font/font.h"
 #endif  // USE_LVGL_FONT
@@ -72,16 +76,23 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
 }
 #endif
 #if defined(USE_LVGL_IMAGE) && defined(USE_IMAGE)
-// Shortcut / overload, so that the source of an image can easily be updated
-// from within a lambda.
-inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) { lv_image_set_src(obj, image->get_lv_image_dsc()); }
+#if LV_USE_IMAGE
+// Shortcut / overload, so that the source of an image widget can easily be updated from within a lambda.
+inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) { ::lv_image_set_src(obj, image->get_lv_image_dsc()); }
+#endif  // LV_USE_IMAGE
 
 inline void lv_obj_set_style_bitmap_mask_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
-  lv_obj_set_style_bitmap_mask_src(obj, image->get_lv_image_dsc(), selector);
+  ::lv_obj_set_style_bitmap_mask_src(obj, image->get_lv_image_dsc(), selector);
 }
 
 inline void lv_obj_set_style_bg_image_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
-  lv_obj_set_style_bg_image_src(obj, image->get_lv_image_dsc(), selector);
+  ::lv_obj_set_style_bg_image_src(obj, image->get_lv_image_dsc(), selector);
+}
+inline void lv_style_set_bg_image_src(lv_style_t *style, image::Image *image) {
+  ::lv_style_set_bg_image_src(style, image->get_lv_image_dsc());
+}
+inline void lv_style_set_bitmap_mask_src(lv_style_t *style, image::Image *image) {
+  ::lv_style_set_bitmap_mask_src(style, image->get_lv_image_dsc());
 }
 #endif  // USE_LVGL_IMAGE
 #ifdef USE_LVGL_ANIMIMG
@@ -229,6 +240,9 @@ class LvglComponent : public PollingComponent {
   display::DisplayRotation get_rotation() const { return this->rotation_; }
   void rotate_coordinates(int32_t &x, int32_t &y) const;
 
+  uint16_t get_width() const { return lv_display_get_horizontal_resolution(this->disp_); }
+  uint16_t get_height() const { return lv_display_get_vertical_resolution(this->disp_); }
+
  protected:
   void set_resolution_() const;
   void draw_end_();
@@ -238,6 +252,10 @@ class LvglComponent : public PollingComponent {
 
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_data *ptr);
+#ifdef USE_ESP32_VARIANT_ESP32P4
+  bool ppa_rotate_(const lv_color_data *src, lv_color_data *dst, uint16_t width, uint16_t height,
+                   uint32_t height_rounded);
+#endif
   void flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p);
 
   std::vector<display::Display *> displays_{};
@@ -266,14 +284,17 @@ class LvglComponent : public PollingComponent {
   void *rotate_buf_{};
   display::DisplayRotation rotation_{display::DISPLAY_ROTATION_0_DEGREES};
   RotationType rotation_type_;
+#ifdef USE_ESP32_VARIANT_ESP32P4
+  ppa_client_handle_t ppa_client_{};
+#endif
 };
 
 class IdleTrigger : public Trigger<> {
  public:
-  explicit IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeout);
+  explicit IdleTrigger(LvglComponent *parent, TemplatableFn<uint32_t> timeout);
 
  protected:
-  TemplatableValue<uint32_t> timeout_;
+  TemplatableFn<uint32_t> timeout_;
   bool is_idle_{};
 };
 

@@ -213,17 +213,17 @@ optional<float> LambdaFilter::new_value(float value) {
 }
 
 // OffsetFilter
-OffsetFilter::OffsetFilter(TemplatableValue<float> offset) : offset_(std::move(offset)) {}
+OffsetFilter::OffsetFilter(TemplatableFn<float> offset) : offset_(offset) {}
 
 optional<float> OffsetFilter::new_value(float value) { return value + this->offset_.value(); }
 
 // MultiplyFilter
-MultiplyFilter::MultiplyFilter(TemplatableValue<float> multiplier) : multiplier_(std::move(multiplier)) {}
+MultiplyFilter::MultiplyFilter(TemplatableFn<float> multiplier) : multiplier_(multiplier) {}
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
 // ValueListFilter helper (non-template, shared by all ValueListFilter<N> instantiations)
-bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableValue<float> *values, size_t count) {
+bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableFn<float> *values, size_t count) {
   int8_t accuracy = parent->get_accuracy_decimals();
   float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
@@ -258,12 +258,24 @@ optional<float> ThrottleFilter::new_value(float value) {
 }
 
 // ThrottleWithPriorityFilter helper (non-template, keeps App access in .cpp)
-optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableValue<float> *values,
+optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableFn<float> *values,
                                                  size_t count, uint32_t &last_input, uint32_t min_time_between_inputs) {
   const uint32_t now = App.get_loop_component_start_time();
   if (last_input == 0 || now - last_input >= min_time_between_inputs ||
       value_list_matches_any(parent, value, values, count)) {
     last_input = now;
+    return value;
+  }
+  return {};
+}
+
+// ThrottleWithPriorityNanFilter
+ThrottleWithPriorityNanFilter::ThrottleWithPriorityNanFilter(uint32_t min_time_between_inputs)
+    : min_time_between_inputs_(min_time_between_inputs) {}
+optional<float> ThrottleWithPriorityNanFilter::new_value(float value) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ || std::isnan(value)) {
+    this->last_input_ = now;
     return value;
   }
   return {};
