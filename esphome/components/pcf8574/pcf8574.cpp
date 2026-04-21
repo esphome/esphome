@@ -32,8 +32,12 @@ void PCF8574Component::loop() {
   // Invalidate the cache so the next digital_read() triggers a fresh I2C read
   this->reset_pin_cache_();
   if (this->interrupt_pin_ != nullptr) {
-    // Interrupt-driven: disable loop until next interrupt fires
-    this->disable_loop();
+    // Only disable the loop once INT# has actually gone HIGH. Input transitions that straddle the
+    // I2C read leave INT# asserted without re-firing a falling edge, which would strand us with
+    // stale state forever; keep looping until the line is released so we self-heal.
+    if (this->interrupt_pin_->digital_read()) {
+      this->disable_loop();
+    }
   }
 }
 void PCF8574Component::dump_config() {
