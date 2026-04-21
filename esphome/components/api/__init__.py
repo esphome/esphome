@@ -290,13 +290,13 @@ CONFIG_SCHEMA = cv.All(
             ): cv.int_range(min=1, max=10),
             cv.SplitDefault(
                 CONF_MAX_CONNECTIONS,
-                esp8266=4,
-                esp32=5,
-                rp2040=4,
-                bk72xx=5,
-                rtl87xx=5,
-                host=8,
-                ln882x=5,
+                esp8266=4,  # ~40KB free RAM, each connection uses ~500-1000 bytes
+                esp32=5,  # 520KB RAM available
+                rp2040=4,  # 264KB RAM but LWIP constraints
+                bk72xx=5,  # Moderate RAM
+                rtl87xx=5,  # Moderate RAM
+                host=8,  # Abundant resources
+                ln882x=5,  # Moderate RAM
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
