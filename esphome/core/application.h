@@ -427,8 +427,20 @@ class Application {
   void enable_pending_loops_();
   void activate_looping_component_(uint16_t index);
   inline uint32_t ESPHOME_ALWAYS_INLINE scheduler_tick_(uint32_t now);
-  inline void ESPHOME_ALWAYS_INLINE before_component_phase_();
-  inline void ESPHOME_ALWAYS_INLINE after_component_phase_() { this->in_loop_ = false; }
+
+  // RAII guard for a component loop phase. Constructor processes any pending
+  // enable_loop requests from ISRs and marks in_loop_ so reentrant
+  // modifications during component.loop() are safe; destructor clears in_loop_.
+  class ComponentPhaseGuard {
+   public:
+    inline ESPHOME_ALWAYS_INLINE explicit ComponentPhaseGuard(Application &app);
+    inline ESPHOME_ALWAYS_INLINE ~ComponentPhaseGuard() { this->app_.in_loop_ = false; }
+    ComponentPhaseGuard(const ComponentPhaseGuard &) = delete;
+    ComponentPhaseGuard &operator=(const ComponentPhaseGuard &) = delete;
+
+   private:
+    Application &app_;
+  };
 
   /// Process dump_config output one component per loop iteration.
   /// Extracted from loop() to keep cold startup/reconnect logging out of the hot path.
@@ -601,10 +613,10 @@ inline uint32_t ESPHOME_ALWAYS_INLINE Application::scheduler_tick_(uint32_t now)
 // Phase B entry: only invoked when a component loop phase is about to run.
 // Processes pending enable_loop requests from ISRs and marks in_loop_ so
 // reentrant modifications during component.loop() are safe.
-inline void ESPHOME_ALWAYS_INLINE Application::before_component_phase_() {
+inline ESPHOME_ALWAYS_INLINE Application::ComponentPhaseGuard::ComponentPhaseGuard(Application &app) : app_(app) {
   // Process any pending enable_loop requests from ISRs
   // This must be done before marking in_loop_ = true to avoid race conditions
-  if (this->has_pending_enable_loop_requests_) {
+  if (this->app_.has_pending_enable_loop_requests_) {
     // Clear flag BEFORE processing to avoid race condition
     // If ISR sets it during processing, we'll catch it next loop iteration
     // This is safe because:
@@ -612,12 +624,12 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_component_phase_() {
     // 2. If we can't process a component (wrong state), enable_pending_loops_()
     //    will set this flag back to true
     // 3. Any new ISR requests during processing will set the flag again
-    this->has_pending_enable_loop_requests_ = false;
-    this->enable_pending_loops_();
+    this->app_.has_pending_enable_loop_requests_ = false;
+    this->app_.enable_pending_loops_();
   }
 
   // Mark that we're in the loop for safe reentrant modifications
-  this->in_loop_ = true;
+  this->app_.in_loop_ = true;
 }
 
 // NOLINTNEXTLINE(clang-diagnostic-unknown-attributes)
@@ -672,7 +684,7 @@ inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::l
   const bool do_component_phase = high_frequency || woke || (elapsed >= this->loop_interval_);
 
   if (do_component_phase) {
-    this->before_component_phase_();
+    ComponentPhaseGuard phase_guard{*this};
 
     uint32_t last_op_end_time = now;
     for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
@@ -697,7 +709,7 @@ inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::l
 #endif
     this->last_loop_ = last_op_end_time;
     now = last_op_end_time;
-    this->after_component_phase_();
+    // phase_guard destructor clears in_loop_ at scope exit
   }
 
 #ifdef USE_RUNTIME_STATS
