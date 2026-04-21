@@ -154,8 +154,9 @@ void WaveshareIOCH32V003Component::digital_write_hw(uint8_t pin, bool value) {
 bool WaveshareIOCH32V003Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 float WaveshareIOCH32V003Component::get_setup_priority() const { return setup_priority::IO; }
 
-// Run our loop() method very early in the loop, so that we cache read values
-// before other components call our digital_read() method.
+// Run our loop() method very early in the loop, so that we invalidate the pin
+// cache before other components call our digital_read() method. This ensures the
+// first digital_read() in the loop triggers a fresh I2C read.
 #ifdef USE_LOOP_PRIORITY
 float WaveshareIOCH32V003Component::get_loop_priority() const { return 9.0f; }  // Just after WIFI
 #endif
