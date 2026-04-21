@@ -127,7 +127,9 @@ i2c::ErrorCode XDB401Component::read_pressure_(float &pressure) {
     ESP_LOGE(TAG, "Error reading pressure register");
     return err_code;
   }
-  ESP_LOGV(TAG, "Got pressure data: %s", format_hex_pretty(p_data, 3).c_str());
+  char pressure_buf[3 * 5];
+  format_hex_pretty_to(pressure_buf, sizeof(pressure_buf), p_data, 3);
+  ESP_LOGV(TAG, "Got pressure data: %s", pressure_buf);
 
   // Sign-extend 24-bit big-endian pressure value to int32_t.
   int32_t raw_pressure = static_cast<int32_t>(encode_uint24(p_data[0], p_data[1], p_data[2]) << 8) >> 8;
@@ -146,7 +148,9 @@ i2c::ErrorCode XDB401Component::read_temperature_(float &temperature) {
     ESP_LOGE(TAG, "Error reading temperature register");
     return err_code;
   }
-  ESP_LOGV(TAG, "Got temperature data: %s", format_hex_pretty(t_data, 2).c_str());
+  char temperature_buf[2 * 5];
+  format_hex_pretty_to(temperature_buf, sizeof(temperature_buf), t_data, 2);
+  ESP_LOGV(TAG, "Got temperature data: %s", temperature_buf);
 
   // Temperature is a signed 16-bit big-endian value.
   int16_t raw_temperature = static_cast<int16_t>(encode_uint16(t_data[0], t_data[1]));
