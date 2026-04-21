@@ -291,12 +291,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_MAX_CONNECTIONS,
                 esp8266=4,  # ~40KB free RAM, each connection uses ~500-1000 bytes
-                esp32=6,  # 520KB RAM — 6 is enough for HA + dashboard + a couple of spares
+                esp32=5,  # 520KB RAM — 5 slots makes the static-RAM trade true net-negative at 1 client
                 rp2040=4,  # 264KB RAM but LWIP constraints
-                bk72xx=6,  # Moderate RAM
-                rtl87xx=6,  # Moderate RAM
+                bk72xx=5,  # Moderate RAM — net-negative at 1 client
+                rtl87xx=5,  # Moderate RAM — net-negative at 1 client
                 host=8,  # Abundant resources, no BSS-slot concern
-                ln882x=6,  # Moderate RAM
+                ln882x=5,  # Moderate RAM — net-negative at 1 client
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
