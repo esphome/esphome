@@ -89,29 +89,49 @@ void TFLuna::setup() {
 }
 
 void TFLuna::update() {
+  auto read_timestamp = [this](uint16_t *timestamp) -> bool {
+    uint8_t timestamp_low;
+    if (!this->read_byte(TIMESTAMP_LOW_REGISTER, &timestamp_low)) {
+      this->status_set_warning("Failed to get timestamp low");
+      return false;
+    }
+    uint8_t timestamp_high;
+    if (!this->read_byte(TIMESTAMP_HIGH_REGISTER, &timestamp_high)) {
+      this->status_set_warning("Failed to get timestamp high");
+      return false;
+    }
+    *timestamp = timestamp_low + timestamp_high * 256;
+    return true;
+  };
+
+  uint16_t previous_timestamp;
+  if (!read_timestamp(&previous_timestamp)) {
+    return;
+  }
+
   if (!this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)) {
     this->status_set_warning("Failed to trigger a oneshot");
     return;
   }
 
-  uint8_t timestamp_low;
-  if (!this->read_byte(TIMESTAMP_LOW_REGISTER, &timestamp_low)) {
-    this->status_set_warning("Failed to get timestamp low");
-    return;
+  uint16_t timestamp = previous_timestamp;
+  bool updated = false;
+  for (uint8_t attempt = 0; attempt < 5; attempt++) {
+    delay(5);
+    if (!read_timestamp(&timestamp)) {
+      return;
+    }
+    if (timestamp != previous_timestamp) {
+      updated = true;
+      break;
+    }
   }
-  uint8_t timestamp_high;
-  if (!this->read_byte(TIMESTAMP_HIGH_REGISTER, &timestamp_high)) {
-    this->status_set_warning("Failed to get timestamp high");
-    return;
-  }
-  uint16_t timestamp = timestamp_low + timestamp_high * 256;
-  static uint16_t previous_timestamp = 0;
-  if (timestamp == previous_timestamp) {
+
+  if (!updated) {
     this->status_set_warning("Hung device, restarting...");
     this->restart();
     return;
   }
-  previous_timestamp = timestamp;
 
 #ifdef USE_SENSOR
   if (this->timestamp_sensor_ != nullptr) {
