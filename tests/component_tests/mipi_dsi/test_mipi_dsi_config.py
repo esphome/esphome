@@ -7,6 +7,11 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.esp32 import KEY_BOARD, VARIANT_ESP32P4
+
+# Importing xl9535 registers its pin schema with pins.PIN_SCHEMA_REGISTRY so that
+# models (e.g. SEEED-RETERMINAL-D1001) that reference xl9535-backed pins in their
+# defaults can be validated by the mipi_dsi CONFIG_SCHEMA in this test.
+import esphome.components.xl9535  # noqa: F401
 from esphome.const import (
     CONF_DIMENSIONS,
     CONF_HEIGHT,

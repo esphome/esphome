@@ -195,7 +195,7 @@ def model_schema(config):
                     "big_endian", "little_endian", lower=True
                 ),
                 model.option(CONF_COLOR_DEPTH, 16): cv.one_of(*color_depth, lower=True),
-                model.option(CONF_DRAW_ROUNDING, 2): power_of_two,
+                model.option(CONF_DRAW_ROUNDING, 1): power_of_two,
                 model.option(CONF_PIXEL_MODE, DISPLAY_16BIT): cv.one_of(
                     *pixel_modes, lower=True
                 ),
@@ -297,9 +297,9 @@ def _final_validate(config):
 
         buffer_size = color_depth // 8 * width * height // frac
         # Target a buffer size of 20kB, except for large displays, which shouldn't end up here
-        fraction = min(20000.0, buffer_size // 16) / buffer_size
+        fraction = min(20000.0, buffer_size // 4) / buffer_size
         config[CONF_BUFFER_SIZE] = 1.0 / next(
-            x for x in range(2, 17) if fraction >= 1 / x
+            (x for x in range(2, 8) if fraction >= 1 / x), 8
         )
 
 

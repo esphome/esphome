@@ -671,11 +671,12 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 7),
-    "latest": cv.Version(3, 3, 7),
-    "dev": cv.Version(3, 3, 7),
+    "recommended": cv.Version(3, 3, 8),
+    "latest": cv.Version(3, 3, 8),
+    "dev": cv.Version(3, 3, 8),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(3, 3, 8): cv.Version(55, 3, 38, "1"),
     cv.Version(3, 3, 7): cv.Version(55, 3, 37),
     cv.Version(3, 3, 6): cv.Version(55, 3, 36),
     cv.Version(3, 3, 5): cv.Version(55, 3, 35),
@@ -695,6 +696,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(3, 3, 8): cv.Version(5, 5, 4),
     cv.Version(3, 3, 7): cv.Version(5, 5, 3, "1"),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
     cv.Version(3, 3, 5): cv.Version(5, 5, 2),
@@ -714,17 +716,15 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 3, "1"),
-    "latest": cv.Version(5, 5, 3, "1"),
+    "recommended": cv.Version(5, 5, 4),
+    "latest": cv.Version(5, 5, 4),
     "dev": cv.Version(5, 5, 4),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
-    cv.Version(
-        5, 5, 4
-    ): "https://github.com/pioarduino/platform-espressif32.git#develop",
+    cv.Version(5, 5, 4): cv.Version(55, 3, 38, "1"),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),
@@ -744,8 +744,8 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 37),
-    "latest": cv.Version(55, 3, 37),
+    "recommended": cv.Version(55, 3, 38, "1"),
+    "latest": cv.Version(55, 3, 38, "1"),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
@@ -1058,6 +1058,7 @@ CONF_DISABLE_MBEDTLS_PEER_CERT = "disable_mbedtls_peer_cert"
 CONF_DISABLE_MBEDTLS_PKCS7 = "disable_mbedtls_pkcs7"
 CONF_DISABLE_REGI2C_IN_IRAM = "disable_regi2c_in_iram"
 CONF_DISABLE_FATFS = "disable_fatfs"
+CONF_ADC_ONESHOT_IN_IRAM = "adc_oneshot_in_iram"
 
 # VFS requirement tracking
 # Components that need VFS features can call require_vfs_*() functions
@@ -1071,6 +1072,7 @@ KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
 KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
 KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
+KEY_ADC_ONESHOT_IRAM_REQUIRED = "adc_oneshot_iram_required"
 
 
 def require_vfs_select() -> None:
@@ -1168,6 +1170,17 @@ def require_fatfs() -> None:
     CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
 
 
+def require_adc_oneshot_iram() -> None:
+    """Mark that ADC oneshot IRAM safety is required by a component.
+
+    Call this from components that use the ADC oneshot driver. When flash cache is
+    disabled (e.g., during NVS writes by WiFi, BLE, Zigbee, or power management),
+    the ADC oneshot read function must be in IRAM to avoid crashes.
+    This sets CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM.
+    """
+    CORE.data[KEY_ESP32][KEY_ADC_ONESHOT_IRAM_REQUIRED] = True
+
+
 def _parse_idf_component(value: str) -> ConfigType:
     """Parse IDF component shorthand syntax like 'owner/component^version'"""
     # Match operator followed by version-like string (digit or *)
@@ -1209,7 +1222,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False): cv.boolean,
                 cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
                 cv.Optional(CONF_MINIMUM_CHIP_REVISION): cv.one_of(
-                    *ESP32_CHIP_REVISIONS
+                    *ESP32_CHIP_REVISIONS, string=True
                 ),
                 cv.Optional(CONF_SRAM1_AS_IRAM, default=False): cv.boolean,
                 # DHCP server is needed for WiFi AP mode. When WiFi component is used,
@@ -1268,6 +1281,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_MBEDTLS_PEER_CERT, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_PKCS7, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_REGI2C_IN_IRAM, default=True): cv.boolean,
+                cv.Optional(CONF_ADC_ONESHOT_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_DISABLE_FATFS, default=True): cv.boolean,
             }
         ),
@@ -2067,6 +2081,16 @@ async def to_code(config):
     # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
     if advanced[CONF_DISABLE_REGI2C_IN_IRAM]:
         add_idf_sdkconfig_option("CONFIG_ESP_REGI2C_CTRL_FUNC_IN_IRAM", False)
+
+    # Place ADC oneshot control functions in IRAM for cache safety
+    # When flash cache is disabled (during NVS writes by WiFi, BLE, Zigbee, Thread,
+    # power management, etc.), ADC reads will crash if these functions are in flash.
+    # Components using ADC call require_adc_oneshot_iram() to force this.
+    if (
+        CORE.data[KEY_ESP32].get(KEY_ADC_ONESHOT_IRAM_REQUIRED, False)
+        or advanced[CONF_ADC_ONESHOT_IN_IRAM]
+    ):
+        add_idf_sdkconfig_option("CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM", True)
 
     # Disable FATFS support
     # Components that need FATFS (SD card, etc.) can call require_fatfs()

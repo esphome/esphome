@@ -291,12 +291,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_MAX_CONNECTIONS,
                 esp8266=4,  # ~40KB free RAM, each connection uses ~500-1000 bytes
-                esp32=8,  # 520KB RAM available
+                esp32=5,  # 520KB RAM available
                 rp2040=4,  # 264KB RAM but LWIP constraints
-                bk72xx=8,  # Moderate RAM
-                rtl87xx=8,  # Moderate RAM
+                bk72xx=5,  # Moderate RAM
+                rtl87xx=5,  # Moderate RAM
                 host=8,  # Abundant resources
-                ln882x=8,  # Moderate RAM
+                ln882x=5,  # Moderate RAM
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
@@ -336,8 +336,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
     if CONF_LISTEN_BACKLOG in config:
         cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
-    if CONF_MAX_CONNECTIONS in config:
-        cg.add(var.set_max_connections(config[CONF_MAX_CONNECTIONS]))
+    cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
     # Set USE_API_USER_DEFINED_ACTIONS if any services are enabled
