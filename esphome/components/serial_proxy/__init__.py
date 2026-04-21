@@ -85,6 +85,7 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
     cg.add(cg.App.register_serial_proxy(var))
     cg.add(var.set_name(config[CONF_NAME]))
+    cg.add(var.set_id(str(config[CONF_ID])))
     cg.add(var.set_port_type(config[CONF_PORT_TYPE]))
     cg.add_define("USE_SERIAL_PROXY")
 

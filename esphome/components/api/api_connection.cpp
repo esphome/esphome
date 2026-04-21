@@ -1801,6 +1801,7 @@ bool APIConnection::send_device_info_response_() {
     auto &info = resp.serial_proxies[serial_proxy_index++];
     info.name = StringRef(proxy->get_name());
     info.port_type = proxy->get_port_type();
+    info.id = StringRef(proxy->get_id());
   }
 #endif
 #ifdef USE_API_NOISE

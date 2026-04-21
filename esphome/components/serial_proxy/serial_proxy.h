@@ -60,6 +60,12 @@ class SerialProxy : public uart::UARTDevice, public Component {
   /// Get the human-readable port name
   const char *get_name() const { return this->name_; }
 
+  /// Set the YAML component ID (string literal in flash)
+  void set_id(const char *id) { this->id_ = id; }
+
+  /// Get the YAML component ID
+  const char *get_id() const { return this->id_; }
+
   /// Set the port type (from YAML configuration)
   void set_port_type(api::enums::SerialProxyPortType port_type) { this->port_type_ = port_type; }
 
@@ -119,6 +125,9 @@ class SerialProxy : public uart::UARTDevice, public Component {
 
   /// Human-readable port name (points to a string literal in flash)
   const char *name_{nullptr};
+
+  /// YAML component ID (points to a string literal in flash)
+  const char *id_{nullptr};
 
   /// Port type
   api::enums::SerialProxyPortType port_type_{};
