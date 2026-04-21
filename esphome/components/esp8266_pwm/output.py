@@ -62,6 +62,6 @@ async def to_code(config) -> None:
 async def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_FREQUENCY], args, float)
+    template_ = await cg.templatable(config[CONF_FREQUENCY], args, cg.float_)
     cg.add(var.set_frequency(template_))
     return var

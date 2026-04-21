@@ -42,10 +42,25 @@ using ListenSocket = LWIPRawListenImpl;
 
 #ifdef USE_LWIP_FAST_SELECT
 /// Shared ready() helper using cached lwip_sock pointer for direct rcvevent read.
-inline bool socket_ready(struct lwip_sock *cached_sock, bool loop_monitored) {
-  return !loop_monitored || (cached_sock != nullptr && esphome_lwip_socket_has_data(cached_sock));
+/// cached_sock == nullptr means the socket is not monitored (monitor_loop was false, fd
+/// was invalid, or esphome_lwip_get_sock() failed) — in that case return true so the
+/// caller attempts the read and handles blocking itself.
+inline bool socket_ready(struct lwip_sock *cached_sock) {
+  return cached_sock == nullptr || esphome_lwip_socket_has_data(cached_sock);
 }
-#elif defined(USE_SOCKET_SELECT_SUPPORT)
+
+/// Resolve an fd to its lwip_sock and install the netconn event-callback hook so the
+/// main loop is woken by FreeRTOS task notifications when data arrives. Shared between
+/// BSD and LwIP socket impls on the fast-select path. Returns the cached lwip_sock
+/// pointer (or nullptr if the fd does not map to a valid lwip_sock).
+inline struct lwip_sock *hook_fd_for_fast_select(int fd) {
+  struct lwip_sock *sock = esphome_lwip_get_sock(fd);
+  if (sock != nullptr) {
+    esphome_lwip_hook_socket(sock);
+  }
+  return sock;
+}
+#elif defined(USE_HOST)
 /// Shared ready() helper for fd-based socket implementations.
 /// Checks if the Application's select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored);
@@ -53,10 +68,23 @@ bool socket_ready_fd(int fd, bool loop_monitored);
 
 // Inline ready() — defined here because it depends on socket_ready/socket_ready_fd
 // declared above, while the impl headers are included before those declarations.
+//
+// Contract (applies to ALL socket implementations — each platform implements
+// ready() differently, but this contract holds regardless of the mechanism):
+// ready() checks if the socket has buffered data ready to read. When it returns
+// true, the caller MUST read until it would block (EAGAIN/EWOULDBLOCK), or until
+// read() returns 0 to indicate EOF / connection closed, or track that it stopped
+// early and retry without calling ready(). The next call to ready() will only
+// report new data correctly if all callers fulfill this contract. Failing to
+// drain the socket may cause ready() to return false while data remains readable.
+//
+// In practice each socket is owned by a single component, so this contract is
+// straightforward to fulfill — but the owning component must be aware of it,
+// especially if it limits how many messages it processes per loop iteration.
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 inline bool Socket::ready() const {
 #ifdef USE_LWIP_FAST_SELECT
-  return socket_ready(this->cached_sock_, this->loop_monitored_);
+  return socket_ready(this->cached_sock_);
 #else
   return socket_ready_fd(this->fd_, this->loop_monitored_);
 #endif
@@ -119,20 +147,6 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
 
 /// Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);
-
-#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-/// Delay that can be woken early by socket activity.
-/// On ESP8266, uses esp_delay() with a callback that checks socket activity.
-/// On RP2040, uses __wfe() (Wait For Event) to truly sleep until an interrupt
-/// (for example, CYW43 GPIO or a timer alarm) fires and wakes the CPU.
-void socket_delay(uint32_t ms);  // NOLINT(readability-redundant-declaration)
-
-/// Signal socket/IO activity and wake the main loop early.
-/// On ESP8266: sets flag + esp_schedule().
-/// On RP2040: sets flag + __sev() (Send Event) to wake from __wfe().
-/// ISR-safe on both platforms.
-void socket_wake();  // NOLINT(readability-redundant-declaration)
-#endif
 
 }  // namespace esphome::socket
 #endif

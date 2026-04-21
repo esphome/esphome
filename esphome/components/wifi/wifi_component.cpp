@@ -308,6 +308,7 @@ bool CompactString::operator==(const StringRef &other) const {
 /// │  - Roaming fail (RECONNECTING on other AP): counter preserved        │
 /// └──────────────────────────────────────────────────────────────────────┘
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
 // Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   if (phase == WiFiRetryPhase::INITIAL_CONNECT)
@@ -326,6 +327,7 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
     return LOG_STR("RESTARTING");
   return LOG_STR("UNKNOWN");
 }
+#endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
 
 bool WiFiComponent::went_through_explicit_hidden_phase_() const {
   // If first configured network is marked hidden, we went through EXPLICIT_HIDDEN phase
@@ -784,7 +786,8 @@ void WiFiComponent::loop() {
       }
 
       case WIFI_COMPONENT_STATE_STA_CONNECTED: {
-        if (!this->is_connected_()) {
+        // Use cached connected_ set unconditionally at the top of loop()
+        if (!this->connected_) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
@@ -2129,11 +2132,6 @@ void WiFiComponent::retry_connect() {
 }
 
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
-bool WiFiComponent::is_connected_() const {
-  return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
-         this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
-}
-void WiFiComponent::update_connected_state_() { this->connected_ = this->is_connected_(); }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
   this->power_save_ = power_save;
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)

@@ -65,18 +65,22 @@ async def safe_mode_mark_successful_to_code(config, action_id, template_arg, arg
     return var
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_SAFE_MODE, "add_on_safe_mode_callback"),
+)
+
+
 @coroutine_with_priority(CoroPriority.APPLICATION)
 async def to_code(config):
     if not config[CONF_DISABLED]:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
 
-        if on_safe_mode_config := config.get(CONF_ON_SAFE_MODE):
+        if config.get(CONF_ON_SAFE_MODE):
             cg.add_define("USE_SAFE_MODE_CALLBACK")
-            for conf in on_safe_mode_config:
-                await automation.build_callback_automation(
-                    var, "add_on_safe_mode_callback", [], conf
-                )
+            await automation.build_callback_automations(
+                var, config, _CALLBACK_AUTOMATIONS
+            )
 
         condition = var.should_enter_safe_mode(
             config[CONF_NUM_ATTEMPTS],
