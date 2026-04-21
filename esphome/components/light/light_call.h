@@ -10,6 +10,7 @@ struct LogString;
 namespace light {
 
 class LightState;
+class LightTraits;
 
 /** This class represents a requested change in a light state.
  *
@@ -188,11 +189,11 @@ class LightCall {
   LightColorValues validate_();
 
   //// Compute the color mode that should be used for this call.
-  ColorMode compute_color_mode_();
+  ColorMode compute_color_mode_(const LightTraits &traits);
   /// Get potential color modes bitmask for this light call.
   color_mode_bitmask_t get_suitable_color_modes_mask_();
   /// Some color modes also can be set using non-native parameters, transform those calls.
-  void transform_parameters_();
+  void transform_parameters_(const LightTraits &traits);
 
   // Bitfield flags - each flag indicates whether a corresponding value has been set.
   enum FieldFlags : uint16_t {
@@ -221,7 +222,7 @@ class LightCall {
   inline bool get_save_() { return (this->flags_ & FLAG_SAVE) != 0; }
 
   // Helper to set flag - defaults to true for common case
-  void set_flag_(FieldFlags flag, bool value = true) {
+  void set_flag_(FieldFlags flag, bool value = true) ESPHOME_ALWAYS_INLINE {
     if (value) {
       this->flags_ |= flag;
     } else {
@@ -230,7 +231,7 @@ class LightCall {
   }
 
   // Helper to clear flag - reduces code size for common case
-  void clear_flag_(FieldFlags flag) { this->flags_ &= ~flag; }
+  void clear_flag_(FieldFlags flag) ESPHOME_ALWAYS_INLINE { this->flags_ &= ~flag; }
 
   // Helper to log unsupported feature and clear flag - reduces code duplication
   void log_and_clear_unsupported_(FieldFlags flag, const LogString *feature, bool use_color_mode_log);

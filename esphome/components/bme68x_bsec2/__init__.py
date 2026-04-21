@@ -13,10 +13,12 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@neffs", "@kbx81"]
+CONFLICTS_WITH = ["bme680_bsec"]
 
 DOMAIN = "bme68x_bsec2"
 
 BSEC2_LIBRARY_VERSION = "1.10.2610"
+BME68x_LIBRARY_VERSION = "v1.3.40408"
 
 CONF_ALGORITHM_OUTPUT = "algorithm_output"
 CONF_BME68X_BSEC2_ID = "bme68x_bsec2_id"
@@ -170,7 +172,9 @@ async def to_code_base(config):
         with open(path, encoding="utf-8") as f:
             bsec2_iaq_config = f.read()
     except Exception as e:
-        raise core.EsphomeError(f"Could not open binary configuration file {path}: {e}")
+        raise core.EsphomeError(
+            f"Could not open binary configuration file {path}: {e}"
+        ) from e
 
     # Convert retrieved BSEC2 config to an array of ints
     rhs = [int(x) for x in bsec2_iaq_config.split(",")]
@@ -184,16 +188,31 @@ async def to_code_base(config):
     if core.CORE.using_arduino:
         cg.add_library("Wire", None)
         cg.add_library("SPI", None)
-    cg.add_library(
-        "BME68x Sensor library",
-        None,
-        "https://github.com/boschsensortec/Bosch-BME68x-Library#v1.3.40408",
-    )
-    cg.add_library(
-        "BSEC2 Software Library",
-        None,
-        f"https://github.com/boschsensortec/Bosch-BSEC2-Library.git#{BSEC2_LIBRARY_VERSION}",
-    )
+
+    if core.CORE.is_esp32:
+        from esphome.components.esp32 import add_idf_component
+
+        add_idf_component(
+            name="boschsensortec/Bosch-BME68x-Library",
+            repo="https://github.com/esphome-libs/Bosch-BME68x-Library",
+            ref=BME68x_LIBRARY_VERSION,
+        )
+        add_idf_component(
+            name="boschsensortec/Bosch-BSEC2-Library",
+            repo="https://github.com/esphome-libs/Bosch-BSEC2-Library",
+            ref=BSEC2_LIBRARY_VERSION,
+        )
+    else:
+        cg.add_library(
+            "BME68x Sensor library",
+            None,
+            f"https://github.com/boschsensortec/Bosch-BME68x-Library#{BME68x_LIBRARY_VERSION}",
+        )
+        cg.add_library(
+            "BSEC2 Software Library",
+            None,
+            f"https://github.com/boschsensortec/Bosch-BSEC2-Library.git#{BSEC2_LIBRARY_VERSION}",
+        )
 
     cg.add_define("USE_BSEC2")
 
