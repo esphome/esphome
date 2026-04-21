@@ -347,15 +347,15 @@ def resolve_include(
             original_str, path + ["file"], context_vars, strict_undefined, errors
         )
     )
-    resolved = ""
-    if filename != original_str:
+    substituted = filename != original_str
+    if substituted:
         include = IncludeFile(
             include.parent_file, filename, include.vars, include.yaml_loader
         )
-        resolved = f" (expanded from '{original}')"
     try:
         return include.load()
     except esphome.core.EsphomeError as err:
+        resolved = f" (expanded from '{original}')" if substituted else ""
         raise cv.Invalid(
             f"Error including file '{filename}'{resolved}: {err}"
             f"\n{format_path(path, original)}",
