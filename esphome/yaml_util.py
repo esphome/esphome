@@ -714,6 +714,59 @@ def _fmt_segment(seg: list) -> str:
     return "->".join(parts)
 
 
+def _split_into_frames(
+    path: DocumentPath,
+) -> list[tuple[list, str]]:
+    """Group *path* into per-file frames at include boundaries.
+
+    A "frame" is the slice of the path that belongs to one source document.
+    Each path item is either:
+
+      * a **located key** — has an ``ESPHomeDataBase`` source mark; this is
+        what tells us which document owns the surrounding keys.
+      * an **integer** — a list subscript; always attaches to the open frame
+        (renders as ``foo[3]`` on the previous name).
+      * an **unlocated string** — a key with no source mark (e.g. constants
+        like ``CONF_PACKAGES``); it describes the parent of the *next* file,
+        so it migrates to the next frame when the document changes.
+
+    Returns a list of ``(items, "file line:col")`` tuples in walk order
+    (outermost frame first).
+    """
+    frames: list[tuple[list, str]] = []
+    open_frame: list = []
+    next_frame_keys: list = []  # unlocated strings buffered for the next frame
+    open_doc: str | None = None
+    open_loc = ""
+
+    for item in path:
+        doc = _path_doc(item)
+        if doc is None:
+            # Ints subscript the open frame's last name; everything else
+            # (strings, or leading ints with no open frame) is buffered for
+            # the next frame.
+            if isinstance(item, int) and open_doc is not None:
+                open_frame.append(item)
+            else:
+                next_frame_keys.append(item)
+            continue
+        if open_doc is not None and doc != open_doc:
+            # Crossed an include boundary: close the open frame.
+            frames.append((open_frame, open_loc))
+            open_frame = []
+        open_frame.extend(next_frame_keys)
+        next_frame_keys.clear()
+        open_frame.append(item)
+        open_doc = doc
+        open_loc = _fmt_mark(item.esp_range.start_mark)
+
+    if open_doc is not None:
+        # Trailing buffered keys belong to the innermost (last) frame.
+        open_frame.extend(next_frame_keys)
+        frames.append((open_frame, open_loc))
+    return frames
+
+
 def format_path(path: DocumentPath, current_obj: Any) -> str:
     """Build a human-readable include stack from a config path.
 
@@ -729,42 +782,15 @@ def format_path(path: DocumentPath, current_obj: Any) -> str:
     The innermost ``In:`` line uses the location from *current_obj* when
     available (the value that triggered the error) for extra precision.
     """
-    # Walk once, splitting into frames at document boundaries. Integer list
-    # subscripts stay with the currently open frame ("packages[0]"); plain
-    # string keys before a document change belong to the *next* frame, so we
-    # buffer them in `pending` until the next located key flushes them in.
-    frames: list[tuple[list, str]] = []
-    segment: list = []
-    pending: list = []
-    location = ""
-    current_doc: str | None = None
-
-    for item in path:
-        doc = _path_doc(item)
-        if doc is None:
-            (segment if isinstance(item, int) and current_doc else pending).append(item)
-            continue
-        if current_doc is not None and doc != current_doc:
-            frames.append((segment, location))
-            segment = []
-        segment.extend(pending)
-        pending.clear()
-        segment.append(item)
-        current_doc = doc
-        location = _fmt_mark(item.esp_range.start_mark)
-
-    if current_doc is not None:
-        # Trailing unlocated keys belong to the innermost frame.
-        segment.extend(pending)
-        frames.append((segment, location))
-
+    frames = _split_into_frames(path)
     obj_loc = _obj_loc(current_obj)
 
     if not frames:
-        return f"In: {_fmt_segment(path)}" + (f" in {obj_loc}" if obj_loc else "")
+        # No source info anywhere in the path: render as a flat path,
+        # using current_obj's location if it happens to have one.
+        suffix = f" in {obj_loc}" if obj_loc else ""
+        return f"In: {_fmt_segment(path)}{suffix}"
 
-    # Innermost line prefers current_obj's location (usually more precise
-    # than the key that owns it).
     inner_seg, inner_loc = frames[-1]
     lines = [f"In: {_fmt_segment(inner_seg)} in {obj_loc or inner_loc}"]
     for seg, loc in reversed(frames[:-1]):
