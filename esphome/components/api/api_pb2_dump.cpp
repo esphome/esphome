@@ -423,7 +423,8 @@ template<> const char *proto_enum_to_string<enums::WaterHeaterMode>(enums::Water
   }
 }
 #endif
-template<> const char *proto_enum_to_string<enums::WaterHeaterCommandHasField>(enums::WaterHeaterCommandHasField value) {
+template<>
+const char *proto_enum_to_string<enums::WaterHeaterCommandHasField>(enums::WaterHeaterCommandHasField value) {
   switch (value) {
     case enums::WATER_HEATER_COMMAND_HAS_NONE:
       return ESPHOME_PSTR("WATER_HEATER_COMMAND_HAS_NONE");
@@ -562,7 +563,8 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerFormatPurpose>(enu
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-template<> const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
+template<>
+const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
   switch (value) {
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
       return ESPHOME_PSTR("BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT");
@@ -611,7 +613,8 @@ template<> const char *proto_enum_to_string<enums::BluetoothScannerMode>(enums::
   }
 }
 #endif
-template<> const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::VoiceAssistantSubscribeFlag value) {
+template<>
+const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::VoiceAssistantSubscribeFlag value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_SUBSCRIBE_NONE:
       return ESPHOME_PSTR("VOICE_ASSISTANT_SUBSCRIBE_NONE");
@@ -714,7 +717,8 @@ template<> const char *proto_enum_to_string<enums::AlarmControlPanelState>(enums
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
-template<> const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::AlarmControlPanelStateCommand value) {
+template<>
+const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::AlarmControlPanelStateCommand value) {
   switch (value) {
     case enums::ALARM_CONTROL_PANEL_DISARM:
       return ESPHOME_PSTR("ALARM_CONTROL_PANEL_DISARM");
@@ -831,7 +835,6 @@ template<> const char *proto_enum_to_string<enums::SerialProxyStatus>(enums::Ser
   }
 }
 #endif
-
 
 const char *HelloRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("HelloRequest"));

@@ -24,9 +24,9 @@ void APIServerConnectionBase::log_receive_message_(const LogString *name) {
 void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {
   // Check authentication/connection requirements
   switch (msg_type) {
-    case HelloRequest::MESSAGE_TYPE:  // No setup required
+    case HelloRequest::MESSAGE_TYPE:       // No setup required
     case DisconnectRequest::MESSAGE_TYPE:  // No setup required
-    case PingRequest::MESSAGE_TYPE:  // No setup required
+    case PingRequest::MESSAGE_TYPE:        // No setup required
       break;
     case 9 /* DeviceInfoRequest is empty */:  // Connection setup only
       if (!this->check_connection_setup_()) {
