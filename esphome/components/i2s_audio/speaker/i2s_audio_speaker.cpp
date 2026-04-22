@@ -65,7 +65,7 @@ void I2SAudioSpeakerBase::loop() {
 
   // Handle the task's state
   if (event_group_bits & SpeakerEventGroupBits::TASK_STARTING) {
-    ESP_LOGV(TAG, "Starting");
+    ESP_LOGD(TAG, "Starting");
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::TASK_STARTING);
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_RUNNING) {
@@ -79,7 +79,7 @@ void I2SAudioSpeakerBase::loop() {
     this->state_ = speaker::STATE_STOPPING;
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPED) {
-    ESP_LOGV(TAG, "Stopped");
+    ESP_LOGD(TAG, "Stopped");
 
     vTaskDelete(this->speaker_task_handle_);
     this->speaker_task_handle_ = nullptr;
