@@ -9,6 +9,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/millis_internal.h"
 #include "esphome/core/optional.h"
 
 // Forward declarations for friend access from codegen-generated setup()
@@ -601,7 +602,7 @@ class Component {
  */
 class PollingComponent : public Component {
  public:
-  PollingComponent() : PollingComponent(0) {}
+  PollingComponent() : PollingComponent(SCHEDULER_DONT_RUN) {}
 
   /** Initialize this polling component with the given update interval in ms.
    *
@@ -656,7 +657,7 @@ class WarnIfComponentBlockingGuard {
 #ifdef USE_RUNTIME_STATS
     this->component_->runtime_stats_.record_time(micros() - this->started_us_);
 #endif
-    uint32_t curr_time = millis();
+    uint32_t curr_time = MillisInternal::get();
 #ifndef USE_BENCHMARK
     // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
     static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;

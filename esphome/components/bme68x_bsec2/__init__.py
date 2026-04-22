@@ -13,6 +13,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@neffs", "@kbx81"]
+CONFLICTS_WITH = ["bme680_bsec"]
 
 DOMAIN = "bme68x_bsec2"
 
