@@ -122,7 +122,7 @@ bool SendspinHub::save_last_server_hash(uint32_t hash) {
 // THREAD CONTEXT: Main loop (invoked by client_->loop() during lifecycle events)
 std::optional<uint32_t> SendspinHub::load_last_server_hash() {
   LastPlayedServerPref pref{};
-  if (this->last_played_server_pref_.load(&pref) && pref.server_id_hash != 0) {
+  if (this->last_played_server_pref_.load(&pref)) {
     ESP_LOGI(TAG, "Loaded last played server hash: 0x%08X", pref.server_id_hash);
     return pref.server_id_hash;
   }
