@@ -33,6 +33,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VARIANT,
     CONF_VERSION,
+    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_NAME,
@@ -1507,6 +1508,10 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
+            cv.Optional(CONF_WATCHDOG_TIMEOUT, default="5s"): cv.All(
+                cv.positive_time_period_seconds,
+                cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
+            ),
         }
     ),
     _detect_variant,
@@ -1874,6 +1879,10 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
+    add_idf_sdkconfig_option(
+        "CONFIG_ESP_TASK_WDT_TIMEOUT_S",
+        config[CONF_WATCHDOG_TIMEOUT].total_seconds,
+    )
 
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
