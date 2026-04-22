@@ -26,6 +26,7 @@ CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
 CONF_MAX_PACKET_SIZE = "max_packet_size"
 
+
 def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Schema:
     schema = cv.COMPONENT_SCHEMA.extend(
         {
