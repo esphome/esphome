@@ -1,3 +1,6 @@
+// Ignore Zephyr. It doesn't have any encryption library.
+#if defined(USE_ESP32) || defined(USE_ARDUINO) || defined(USE_HOST)
+
 #include "dsmr.h"
 #include "esphome/core/log.h"
 #include <dsmr_parser/util.h>
@@ -147,7 +150,7 @@ void Dsmr::receive_encrypted_telegram_() {
   }
 }
 
-bool Dsmr::parse_telegram_(const dsmr_parser::DsmrUnencryptedTelegram telegram) {
+bool Dsmr::parse_telegram_(const dsmr_parser::DsmrUnencryptedTelegram &telegram) {
   this->stop_requesting_data_();
 
   ESP_LOGV(TAG, "Trying to parse telegram (%zu bytes)", telegram.content().size());
@@ -221,3 +224,5 @@ std::span<uint8_t> Dsmr::uart_read_chunk_() {
 }
 
 }  // namespace esphome::dsmr
+
+#endif

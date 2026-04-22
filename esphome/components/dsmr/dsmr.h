@@ -1,5 +1,8 @@
 #pragma once
 
+// Ignore Zephyr. It doesn't have any encryption library.
+#if defined(USE_ESP32) || defined(USE_ARDUINO) || defined(USE_HOST)
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -104,7 +107,7 @@ class Dsmr : public Component, public uart::UARTDevice {
   void receive_encrypted_telegram_();
   void flush_rx_buffer_();
 
-  bool parse_telegram_(dsmr_parser::DsmrUnencryptedTelegram telegram);
+  bool parse_telegram_(const dsmr_parser::DsmrUnencryptedTelegram &telegram);
   bool request_interval_reached_() const;
   bool ready_to_request_data_();
   void start_requesting_data_();
@@ -134,3 +137,5 @@ class Dsmr : public Component, public uart::UARTDevice {
   std::array<uint8_t, 256> uart_chunk_reading_buf_;
 };
 }  // namespace esphome::dsmr
+
+#endif
