@@ -10,7 +10,7 @@ tzdata>=2026.1  # from time
 pyserial==3.5
 platformio==6.1.19
 esptool==5.2.0
-click==8.3.2
+click==8.3.3
 esphome-dashboard==20260408.1
 aioesphomeapi==44.19.0
 zeroconf==0.148.0
