@@ -36,14 +36,13 @@ class MillisInternal {
 #if defined(USE_ESP32) && CONFIG_FREERTOS_HZ == 1000
     return xTaskGetTickCount();
 #elif defined(USE_LIBRETINY) && (defined(USE_RTL87XX) || defined(USE_LN882X))
-    // RTL87xx and LN882x run FreeRTOS at 1 kHz, so xTaskGetTickCount() is
-    // already in milliseconds.
+    // 1 kHz: xTaskGetTickCount() is already ms.
     static_assert(configTICK_RATE_HZ == 1000, "MillisInternal fast path requires 1 kHz FreeRTOS tick");
     return xTaskGetTickCount();
 #elif defined(USE_BK72XX)
-    // BK72xx runs FreeRTOS at 500 Hz; scale ticks by portTICK_PERIOD_MS (== 2).
-    // Inlined here because esphome::millis() on BK72xx has no-op IRAM_ATTR but
-    // is still out-of-line, so calling it would cost a real function call.
+    // 500 Hz: scale by portTICK_PERIOD_MS (== 2). Inlined to avoid the
+    // out-of-line call to esphome::millis() (IRAM_ATTR is a no-op on BK72xx —
+    // SDK masks FIQ + IRQ during flash writes, see hal.h).
     static_assert(configTICK_RATE_HZ == 500, "BK72xx MillisInternal assumes 500 Hz FreeRTOS tick");
     return xTaskGetTickCount() * portTICK_PERIOD_MS;
 #else
