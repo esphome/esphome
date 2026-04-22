@@ -1,4 +1,4 @@
-# `sendspin.switch` action enables the controller role, so we move it to a standalone test
+# `sendspin.switch` action enables the controller role, so we use a standalone test
 packages:
   base: !include common.yaml
 
