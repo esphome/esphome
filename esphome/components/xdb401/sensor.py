@@ -12,13 +12,19 @@ from esphome.const import (
     UNIT_PASCAL,
 )
 
-UNIT_FAHRENHEIT = "°F"
-
 DEPENDENCIES = ["i2c"]
 
 CONF_PRESSURE_RANGE_BAR = "pressure_range_bar"
+CONF_TEMPERATURE_UNIT = "temperature_unit"
+UNIT_FAHRENHEIT = "°F"
 
 xdb401_ns = cg.esphome_ns.namespace("xdb401")
+
+TemperatureUnit = xdb401_ns.enum("TemperatureUnit")
+TEMPERATURE_UNITS = {
+    "C": TemperatureUnit.TEMPERATURE_UNIT_C,
+    "F": TemperatureUnit.TEMPERATURE_UNIT_F,
+}
 
 XDB401Component = xdb401_ns.class_(
     "XDB401Component", cg.PollingComponent, i2c.I2CDevice
@@ -28,15 +34,14 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(XDB401Component),
+            cv.Optional(CONF_TEMPERATURE_UNIT, default="F"): cv.one_of(
+                "C", "F", upper=True
+            ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_TEMPERATURE): cv.Any(
-                temperature_sensor_schema(UNIT_CELSIUS),
-                temperature_sensor_schema(UNIT_FAHRENHEIT),
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PASCAL,
@@ -60,8 +65,15 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_pressure_range_bar(config[CONF_PRESSURE_RANGE_BAR]))
+    cg.add(var.set_temperature_unit(TEMPERATURE_UNITS[config[CONF_TEMPERATURE_UNIT]]))
 
     if temperature_config := config.get(CONF_TEMPERATURE):
+        temperature_config = temperature_config.copy()
+        if config[CONF_TEMPERATURE_UNIT] == "F":
+            temperature_config["unit_of_measurement"] = UNIT_FAHRENHEIT
+        else:
+            temperature_config["unit_of_measurement"] = UNIT_CELSIUS
+
         sens = await sensor.new_sensor(temperature_config)
         cg.add(var.set_temperature_sensor(sens))
 
