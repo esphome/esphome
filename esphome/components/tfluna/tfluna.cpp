@@ -21,7 +21,6 @@ static const uint8_t DISTANCE_HIGH_REGISTER = 0x01;
 static const uint8_t RESTORE_FACTORY_DEFAULTS_REGISTER = 0x29;
 static const uint8_t SHUTDOWN_REBOOT_REGISTER = 0x21;
 static const uint8_t MODE_REGISTER = 0x23;
-static const uint8_t MODE_CONTINUOUS = 0x00;
 static const uint8_t MODE_TRIGGER = 0x01;
 static const uint8_t TRIGGER_ONESHOT_REGISTER = 0x24;
 static const char *const TAG = "tfluna";
