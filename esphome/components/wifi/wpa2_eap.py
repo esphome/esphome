@@ -71,9 +71,11 @@ def _validate_load_certificate(value):
 
 
 def validate_certificate(value):
+    # _validate_load_certificate already calls cv.file_() internally,
+    # but returns the parsed certificate object.  We re-call cv.file_()
+    # to get the resolved path string that the bundle walker can discover.
     _validate_load_certificate(value)
-    # Validation result should be the path, not the loaded certificate
-    return value
+    return str(cv.file_(value))
 
 
 def _validate_load_private_key(key, cert_pw):

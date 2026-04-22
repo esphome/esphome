@@ -22,6 +22,8 @@ uart_mock:
     baud_rate: 9600
     rx_full_threshold: 120
     rx_timeout: 2
+    # auto_start must be false to avoid races: the test presses the
+    # "Start Scenario" button only after subscribing to states.
     auto_start: false
     debug:
     on_tx:
@@ -61,4 +63,4 @@ button:
     name: "Start Scenario"
     id: start_scenario_btn
     on_press:
-      - lambda: 'id(virtual_uart_dev).start_scenario();'
+      - lambda: "id(virtual_uart_dev).start_scenario();"
