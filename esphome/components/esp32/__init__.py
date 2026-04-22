@@ -1879,6 +1879,10 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
+    add_idf_sdkconfig_option(
+        "CONFIG_ESP_TASK_WDT_TIMEOUT_S",
+        config[CONF_WATCHDOG_TIMEOUT].total_seconds,
+    )
 
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
