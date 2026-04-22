@@ -172,10 +172,16 @@ def validate_gpio_pin(pin):
             exc,
         )
     else:
-        # Throw an exception if used for a pin that would not have resulted
-        # in a validation error anyway!
+        # `ignore_pin_validation_error` only suppresses an error raised by the
+        # variant's pin_validation above (e.g. SPI flash/PSRAM pins, invalid pin
+        # numbers). If that didn't raise, the option is a no-op -- warn so the
+        # user can clean it up, but don't block the build.
         if ignore_pin_validation_warning:
-            raise cv.Invalid(f"GPIO{pin[CONF_NUMBER]} is not a reserved pin")
+            _LOGGER.warning(
+                "GPIO%d has no validation errors to ignore; "
+                "remove `ignore_pin_validation_error: true` from this pin.",
+                pin[CONF_NUMBER],
+            )
 
     return pin
 
