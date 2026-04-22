@@ -31,14 +31,20 @@ static void log_callback(dlms_parser::LogLevel level, const char *fmt, va_list a
   }
 }
 
-void DlmsMeterComponent::setup() {
+DlmsMeterComponent::DlmsMeterComponent(bool skip_crc_check, std::optional<std::array<uint8_t, 16>> decryption_key,
+                                       std::optional<std::array<uint8_t, 16>> authentication_key,
+                                       std::vector<CustomPattern> custom_patterns)
+    : rx_buffer_(2048),
+      skip_crc_check_(skip_crc_check),
+      custom_patterns_(std::move(custom_patterns)),
+      parser_(&decryptor_) {
   dlms_parser::Logger::set_log_function(log_callback);
 
-  if (this->decryption_key_.has_value()) {
+  if (decryption_key.has_value()) {
 #ifdef DLMS_METER_NO_CRYPTO
     ESP_LOGE(TAG, "Decryption is not supported on this platform (no compatible crypto library found)");
 #else
-    auto opt_key = dlms_parser::Aes128GcmDecryptionKey::from_bytes(this->decryption_key_.value());
+    auto opt_key = dlms_parser::Aes128GcmDecryptionKey::from_bytes(decryption_key.value());
     if (opt_key) {
       this->parser_.set_decryption_key(*opt_key);
     } else {
@@ -47,11 +53,11 @@ void DlmsMeterComponent::setup() {
 #endif
   }
 
-  if (this->authentication_key_.has_value()) {
+  if (authentication_key.has_value()) {
 #ifdef DLMS_METER_NO_CRYPTO
     ESP_LOGE(TAG, "Authentication is not supported on this platform (no compatible crypto library found)");
 #else
-    auto opt_key = dlms_parser::Aes128GcmAuthenticationKey::from_bytes(this->authentication_key_.value());
+    auto opt_key = dlms_parser::Aes128GcmAuthenticationKey::from_bytes(authentication_key.value());
     if (opt_key) {
       this->parser_.set_authentication_key(*opt_key);
     } else {
@@ -73,9 +79,9 @@ void DlmsMeterComponent::setup() {
       this->parser_.register_pattern(pattern.pattern.c_str());
     }
   }
-
-  this->flush_rx_buffer_();
 }
+
+void DlmsMeterComponent::setup() { this->flush_rx_buffer_(); }
 
 void DlmsMeterComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DLMS Meter:");

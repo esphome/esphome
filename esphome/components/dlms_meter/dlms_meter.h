@@ -17,21 +17,23 @@
 
 #include <dlms_parser/dlms_parser.h>
 
+#include <vector>
+#include <string>
+#include <array>
+#include <optional>
+#include <span>
+
 #if __has_include(<psa/crypto.h>)
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_tfpsa.h>
-using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorTfPsa;
 #elif __has_include(<mbedtls/gcm.h>)
 #if __has_include(<mbedtls/esp_config.h>)
 #include <mbedtls/esp_config.h>
 #endif
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_mbedtls.h>
-using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorMbedTls;
 #elif __has_include(<bearssl/bearssl.h>)
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_bearssl.h>
-using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorBearSsl;
 #else
 #define DLMS_METER_NO_CRYPTO
-#include <span>
 // Fallback dummy decryptor for platforms without supported crypto (e.g., Zephyr during clang-tidy)
 class Aes128GcmDecryptorDummy : public dlms_parser::Aes128GcmDecryptor {
  public:
@@ -41,15 +43,19 @@ class Aes128GcmDecryptorDummy : public dlms_parser::Aes128GcmDecryptor {
     return false;
   }
 };
-using Aes128GcmDecryptorImpl = Aes128GcmDecryptorDummy;
 #endif
 
-#include <vector>
-#include <string>
-#include <array>
-#include <optional>
-
 namespace esphome::dlms_meter {
+
+#if __has_include(<psa/crypto.h>)
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorTfPsa;
+#elif __has_include(<mbedtls/gcm.h>)
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorMbedTls;
+#elif __has_include(<bearssl/bearssl.h>)
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorBearSsl;
+#else
+using Aes128GcmDecryptorImpl = Aes128GcmDecryptorDummy;
+#endif
 
 #ifdef USE_SENSOR
 struct SensorItem {
@@ -81,12 +87,7 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
  public:
   DlmsMeterComponent(bool skip_crc_check, std::optional<std::array<uint8_t, 16>> decryption_key,
                      std::optional<std::array<uint8_t, 16>> authentication_key,
-                     std::vector<CustomPattern> custom_patterns)
-      : skip_crc_check_(skip_crc_check),
-        custom_patterns_(std::move(custom_patterns)),
-        decryption_key_(decryption_key),
-        authentication_key_(authentication_key),
-        parser_(&decryptor_) {}
+                     std::vector<CustomPattern> custom_patterns);
 
   void setup() override;
   void dump_config() override;
@@ -108,7 +109,7 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   void process_frame_();
   void on_data_(const char *obis_code, float float_val, const char *str_val, bool is_numeric);
 
-  std::array<uint8_t, 2048> rx_buffer_;
+  std::vector<uint8_t> rx_buffer_;
   size_t bytes_accumulated_{0};
   uint32_t last_rx_char_time_{0};
 
@@ -116,8 +117,6 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   bool skip_crc_check_{false};
 
   std::vector<CustomPattern> custom_patterns_;
-  std::optional<std::array<uint8_t, 16>> decryption_key_;
-  std::optional<std::array<uint8_t, 16>> authentication_key_;
 
   Aes128GcmDecryptorImpl decryptor_;
   dlms_parser::DlmsParser parser_;
