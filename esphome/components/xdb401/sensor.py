@@ -9,9 +9,10 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    UNIT_FAHRENHEIT,
     UNIT_PASCAL,
 )
+
+UNIT_FAHRENHEIT = "°F"
 
 DEPENDENCIES = ["i2c"]
 
