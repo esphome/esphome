@@ -26,7 +26,7 @@ class XDB401Component : public PollingComponent, public i2c::I2CDevice {
   i2c::ErrorCode read_pressure_(float &pressure);
   i2c::ErrorCode read_temperature_(float &temperature);
 
-  static constexpr float full_scale_pressure_pa_(uint8_t pressure_range_bar) { return pressure_range_bar * 100000.0f; }
+  static constexpr float full_scale_pressure_pa(uint8_t pressure_range_bar) { return pressure_range_bar * 100000.0f; }
 
   uint8_t comm_err_counter_{0};
   bool measurement_in_progress_{false};
