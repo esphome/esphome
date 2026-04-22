@@ -58,9 +58,31 @@ class SendspinHub : public Component,
   void setup() override;
   void loop() override;
 
+  /// @brief Connects the underlying client to the given Sendspin server.
+  ///
+  /// No-op if the hub's client is not ready (e.g. setup() has not completed).
+  /// Must be called from the main loop thread.
+  /// @param url WebSocket URL of the Sendspin server, starting with `ws://` (e.g. `ws://host:port/path`).
   void connect_to_server(const std::string &url);
+
+  /// @brief Disconnects the underlying client from the current server.
+  ///
+  /// Sends a `client/goodbye` message with the given reason before closing the connection.
+  /// No-op if the hub's client is not ready. Must be called from the main loop thread.
+  /// @param reason Reason reported to the server:
+  ///   - `ANOTHER_SERVER`: client is switching to another server.
+  ///   - `SHUTDOWN`: client is shutting down.
+  ///   - `RESTART`: client is restarting.
+  ///   - `USER_REQUEST`: user explicitly requested disconnect.
   void disconnect_from_server(sendspin::SendspinGoodbyeReason reason);
 
+  /// @brief Updates the client's reported playback state on the server.
+  ///
+  /// No-op if the hub's client is not ready. Must be called from the main loop thread.
+  /// @param state New client state:
+  ///   - `SYNCHRONIZED`: client is synchronized and playing from the server.
+  ///   - `ERROR`: client encountered a playback error.
+  ///   - `EXTERNAL_SOURCE`: client is playing from a non-Sendspin source.
   void update_state(sendspin::SendspinClientState state);
 
   // --- Configuration setters (called from codegen) ---
