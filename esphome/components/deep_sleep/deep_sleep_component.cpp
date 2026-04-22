@@ -70,7 +70,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     ESP_LOGI(TAG, "Sleeping for %" PRId64 "us", *this->sleep_duration_);
   }
 
-// nRF52 returns from sleep without reset.
+// nRF52 may return from sleep without reset.
 // Do not teardown things to make sure it still works after.
 #if defined(USE_NRF52) && !defined(USE_ZIGBEE)
   if (!this->sleep_duration_.has_value()) {
