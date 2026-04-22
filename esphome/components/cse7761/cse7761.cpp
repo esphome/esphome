@@ -210,6 +210,7 @@ void CSE7761Component::get_data_() {
   value = this->read_(CSE7761_REG_RMSIB, 3);
   this->data_.current_rms[1] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;  // No load threshold of 10mA
   value = this->read_(CSE7761_REG_POWERPB, 4);
+  // PowerPB is two's complement signed 32-bit per datasheet
   this->data_.active_power[1] = (0 == this->data_.current_rms[1]) ? 0 : static_cast<int32_t>(value);
 
   // convert values and publish to sensors
