@@ -24,6 +24,7 @@
 # AND RELATED RIGHTS IN THE DIGITAL SINGLE MARKET.
 
 User-agent: *
+Content-Signal: search=yes, ai-input=yes, ai-train=no
 Allow: /
 
 Sitemap: https://esphome.io/sitemap-index.xml

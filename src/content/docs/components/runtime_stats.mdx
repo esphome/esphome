@@ -31,12 +31,21 @@ runtime_stats:
 
 ## Understanding the Output
 
-> [!NOTE]
-> Runtime statistics use `millis()` for time measurement, which provides millisecond resolution. This means:
+> [!IMPORTANT]
+> **Wall time, not CPU time:** Runtime statistics measure wall time (elapsed real time), not CPU time.
+> This means the measured time includes any FreeRTOS context switches that occur while a component is
+> executing. On **single-core chips** (ESP32-C3, C2, H2), Wi-Fi, BLE, and other system tasks share the
+> same core and can preempt the main loop, inflating the measured times. On **dual-core chips** (ESP32, S3),
+> system tasks mostly run on the protocol core (core 0) while the main loop runs on core 1, so measured
+> times are much closer to actual CPU time spent in the component.
 >
-> - Components that execute in less than 1ms will show as 0ms
-> - Very fast operations cannot be accurately measured
-> - The statistics are best suited for finding components that take multiple milliseconds
+> For example, the same bluetooth_proxy component may show `avg=1.8ms` on an ESP32-C3 but only `avg=0.4ms`
+> on a dual-core ESP32. The C3 is slower, but not by as much as the numbers suggest — the difference is
+> inflated by system task preemption on the single core.
+>
+> Runtime statistics are still valuable for identifying blocking components, but keep in mind that the
+> absolute times will appear higher than the actual CPU time consumed, especially on single-core
+> FreeRTOS-based systems.
 
 The component logs two types of statistics:
 
