@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 import string
 
@@ -19,17 +20,24 @@ from esphome.components.esp32 import (
 )
 from esphome.config_validation import Invalid
 from esphome.const import (
+    CONF_CURRENT_TEMPERATURE,
     CONF_DAY,
     CONF_HOUR,
     CONF_ID,
     CONF_INTERNAL,
+    CONF_MAX_TEMPERATURE,
+    CONF_MIN_TEMPERATURE,
     CONF_MINUTE,
     CONF_MONTH,
     CONF_NAME,
     CONF_REF,
     CONF_SECOND,
+    CONF_TARGET_TEMPERATURE,
+    CONF_TEMPERATURE_STEP,
     CONF_TYPE,
+    CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
+    CONF_VISUAL,
     CONF_YEAR,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
@@ -45,6 +53,9 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
+    UNIT_KELVIN,
     Framework,
 )
 from esphome.core import (
@@ -2989,3 +3000,299 @@ def test_file__remapped_path_is_directory_raises(setup_core: Path) -> None:
 
     with pytest.raises(Invalid, match="is not a file"):
         cv.file_("/original/config/headers")
+
+
+# ---------------------------------------------------------------------------
+# temperature and temperature_delta
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("0°C", 0.0),
+        ("20C", 20.0),
+        ("20", 20.0),
+        ("373.15K", 100.0),
+        ("373.15°K", 100.0),
+        ("32°F", 0.0),
+        ("212F", 100.0),
+    ],
+)
+def test_temperature__valid(value, expected) -> None:
+    assert math.isclose(cv.temperature(value), expected, abs_tol=1e-4)
+
+
+def test_temperature__invalid() -> None:
+    with pytest.raises(Invalid):
+        cv.temperature(None)
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("1°C", 1.0),
+        ("1C", 1.0),
+        ("1", 1.0),
+        ("1K", 1.0),
+        ("1.8°F", 1.8 * 5 / 9),
+    ],
+)
+def test_temperature_delta__valid(value, expected) -> None:
+    assert math.isclose(cv.temperature_delta(value), expected, abs_tol=1e-4)
+
+
+def test_temperature_delta__invalid() -> None:
+    with pytest.raises(Invalid):
+        cv.temperature_delta(None)
+
+
+# ---------------------------------------------------------------------------
+# temperature_with_unit
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value, expected_raw, expected_unit",
+    [
+        ("100°F", 100.0, UNIT_FAHRENHEIT),
+        ("100 °F", 100.0, UNIT_FAHRENHEIT),
+        ("100F", 100.0, UNIT_FAHRENHEIT),
+        ("100°C", 100.0, UNIT_CELSIUS),
+        ("100C", 100.0, UNIT_CELSIUS),
+        ("373.15K", 373.15, UNIT_KELVIN),
+        ("373.15°K", 373.15, UNIT_KELVIN),
+        # No unit: raw value returned, unit is None
+        ("100", 100.0, None),
+        ("100°", 100.0, None),
+        (100, 100.0, None),
+    ],
+)
+def test_temperature_with_unit__valid(value, expected_raw, expected_unit) -> None:
+    raw, unit = cv.temperature_with_unit(value)
+    assert math.isclose(raw, expected_raw, rel_tol=1e-6)
+    assert unit == expected_unit
+
+
+@pytest.mark.parametrize("value", ("not_a_number", "abc°F", None))
+def test_temperature_with_unit__invalid(value) -> None:
+    with pytest.raises(Invalid):
+        cv.temperature_with_unit(value)
+
+
+# ---------------------------------------------------------------------------
+# visual_temperature_step
+# ---------------------------------------------------------------------------
+
+
+def test_visual_temperature_step__scalar() -> None:
+    """A scalar value sets both target and current to the same value."""
+    result = cv.visual_temperature_step("1°F")
+    assert result[CONF_TARGET_TEMPERATURE] == (1.0, UNIT_FAHRENHEIT)
+    assert result[CONF_CURRENT_TEMPERATURE] == (1.0, UNIT_FAHRENHEIT)
+
+
+def test_visual_temperature_step__scalar_no_unit() -> None:
+    result = cv.visual_temperature_step("0.5")
+    assert result[CONF_TARGET_TEMPERATURE] == (0.5, None)
+    assert result[CONF_CURRENT_TEMPERATURE] == (0.5, None)
+
+
+def test_visual_temperature_step__dict_separate_values() -> None:
+    result = cv.visual_temperature_step(
+        {
+            CONF_TARGET_TEMPERATURE: "1°F",
+            CONF_CURRENT_TEMPERATURE: "0.5°F",
+        }
+    )
+    assert result[CONF_TARGET_TEMPERATURE] == (1.0, UNIT_FAHRENHEIT)
+    assert result[CONF_CURRENT_TEMPERATURE] == (0.5, UNIT_FAHRENHEIT)
+
+
+def test_visual_temperature_step__dict_missing_key_invalid() -> None:
+    with pytest.raises(Invalid):
+        cv.visual_temperature_step({CONF_TARGET_TEMPERATURE: "1°F"})
+
+
+# ---------------------------------------------------------------------------
+# validate_temperature_config
+# ---------------------------------------------------------------------------
+
+
+def _make_config(uom=None, visual=None):
+    """Helper to build a minimal config dict for validate_temperature_config."""
+    config = {CONF_VISUAL: visual or {}}
+    if uom is not None:
+        config[CONF_UNIT_OF_MEASUREMENT] = uom
+    return config
+
+
+def test_validate_temperature_config__empty_visual_defaults_to_celsius() -> None:
+    """No temperatures and no UOM: UOM defaults to Celsius."""
+    result = cv.validate_temperature_config(_make_config())
+    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
+
+
+def test_validate_temperature_config__explicit_uom_fahrenheit_no_conversion() -> None:
+    """Explicit UOM=°F with °F temps: values stored as-is (no conversion)."""
+    config = _make_config(
+        uom=UNIT_FAHRENHEIT,
+        visual={
+            CONF_MIN_TEMPERATURE: (100.0, UNIT_FAHRENHEIT),
+            CONF_MAX_TEMPERATURE: (145.0, UNIT_FAHRENHEIT),
+        },
+    )
+    result = cv.validate_temperature_config(config)
+    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_FAHRENHEIT
+    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 100.0)
+    assert math.isclose(result[CONF_VISUAL][CONF_MAX_TEMPERATURE], 145.0)
+
+
+def test_validate_temperature_config__explicit_uom_celsius() -> None:
+    """Explicit UOM=°C: values stored as-is."""
+    config = _make_config(
+        uom=UNIT_CELSIUS,
+        visual={CONF_MIN_TEMPERATURE: (18.0, UNIT_CELSIUS)},
+    )
+    result = cv.validate_temperature_config(config)
+    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
+    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 18.0)
+
+
+def test_validate_temperature_config__explicit_uom_kelvin() -> None:
+    """Explicit UOM=K: values stored as-is."""
+    config = _make_config(
+        uom=UNIT_KELVIN,
+        visual={CONF_MIN_TEMPERATURE: (293.15, UNIT_KELVIN)},
+    )
+    result = cv.validate_temperature_config(config)
+    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_KELVIN
+    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 293.15)
+
+
+def test_validate_temperature_config__implicit_fahrenheit_legacy_conversion() -> None:
+    """No explicit UOM but °F suffixes: legacy path converts to Celsius, sets UOM=°C."""
+    config = _make_config(
+        visual={CONF_MIN_TEMPERATURE: (32.0, UNIT_FAHRENHEIT)},
+    )
+    result = cv.validate_temperature_config(config)
+    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
+    # 32°F → 0°C
+    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 0.0, abs_tol=1e-6)
+
+
+def test_validate_temperature_config__implicit_kelvin_legacy_conversion() -> None:
+    """No explicit UOM but K suffixes: legacy path converts to Celsius, sets UOM=°C."""
+    config = _make_config(
+        visual={CONF_MIN_TEMPERATURE: (273.15, UNIT_KELVIN)},
+    )
+    result = cv.validate_temperature_config(config)
+    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
+    # 273.15 K → 0°C
+    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 0.0, abs_tol=1e-6)
+
+
+def test_validate_temperature_config__implicit_celsius_no_conversion() -> None:
+    """No explicit UOM, °C suffix: stored as-is, UOM=°C."""
+    config = _make_config(
+        visual={CONF_MIN_TEMPERATURE: (18.0, UNIT_CELSIUS)},
+    )
+    result = cv.validate_temperature_config(config)
+    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
+    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 18.0)
+
+
+def test_validate_temperature_config__no_unit_suffix_defaults_celsius() -> None:
+    """Temperature field with no unit suffix: stored as-is, UOM=°C."""
+    config = _make_config(
+        visual={CONF_MIN_TEMPERATURE: (18.0, None)},
+    )
+    result = cv.validate_temperature_config(config)
+    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
+    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 18.0)
+
+
+def test_validate_temperature_config__mixed_units_legacy_converts_independently() -> (
+    None
+):
+    """No UOM with mixed unit suffixes: each field is converted to °C independently."""
+    config = _make_config(
+        visual={
+            CONF_MIN_TEMPERATURE: (18.0, UNIT_CELSIUS),
+            CONF_MAX_TEMPERATURE: (86.0, UNIT_FAHRENHEIT),
+        },
+    )
+    result = cv.validate_temperature_config(config)
+    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_CELSIUS
+    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 18.0)
+    # 86°F → 30°C
+    assert math.isclose(result[CONF_VISUAL][CONF_MAX_TEMPERATURE], 30.0, abs_tol=1e-4)
+
+
+def test_validate_temperature_config__uom_converts_mismatched_field_unit() -> None:
+    """Explicit UOM with a field in a different unit: field is converted to the UOM."""
+    config = _make_config(
+        uom=UNIT_FAHRENHEIT,
+        visual={CONF_MIN_TEMPERATURE: (0.0, UNIT_CELSIUS)},
+    )
+    result = cv.validate_temperature_config(config)
+    assert result[CONF_UNIT_OF_MEASUREMENT] == UNIT_FAHRENHEIT
+    # 0°C → 32°F
+    assert math.isclose(result[CONF_VISUAL][CONF_MIN_TEMPERATURE], 32.0, abs_tol=1e-4)
+
+
+def test_validate_temperature_config__temperature_step_scalar() -> None:
+    """Scalar temperature_step (water_heater style) is stored as a plain float."""
+    config = _make_config(
+        uom=UNIT_FAHRENHEIT,
+        visual={CONF_TEMPERATURE_STEP: (1.0, UNIT_FAHRENHEIT)},
+    )
+    result = cv.validate_temperature_config(config)
+    assert math.isclose(result[CONF_VISUAL][CONF_TEMPERATURE_STEP], 1.0)
+
+
+def test_validate_temperature_config__temperature_step_scalar_legacy_conversion() -> (
+    None
+):
+    """Scalar °F step with no UOM (legacy): converted as a relative delta (no offset)."""
+    config = _make_config(
+        visual={CONF_TEMPERATURE_STEP: (1.0, UNIT_FAHRENHEIT)},
+    )
+    result = cv.validate_temperature_config(config)
+    # 1°F delta → 1 * (5/9) °C delta
+    assert math.isclose(
+        result[CONF_VISUAL][CONF_TEMPERATURE_STEP], 1.0 * 5.0 / 9.0, rel_tol=1e-6
+    )
+
+
+def test_validate_temperature_config__temperature_step_dict_climate_style() -> None:
+    """Dict temperature_step (climate style) processes target and current separately."""
+    config = _make_config(
+        uom=UNIT_FAHRENHEIT,
+        visual={
+            CONF_TEMPERATURE_STEP: {
+                CONF_TARGET_TEMPERATURE: (1.0, UNIT_FAHRENHEIT),
+                CONF_CURRENT_TEMPERATURE: (0.5, UNIT_FAHRENHEIT),
+            }
+        },
+    )
+    result = cv.validate_temperature_config(config)
+    step = result[CONF_VISUAL][CONF_TEMPERATURE_STEP]
+    assert math.isclose(step[CONF_TARGET_TEMPERATURE], 1.0)
+    assert math.isclose(step[CONF_CURRENT_TEMPERATURE], 0.5)
+
+
+def test_validate_temperature_config__temperature_step_dict_legacy_conversion() -> None:
+    """Dict °F step with no UOM (legacy): each sub-value converted as relative delta."""
+    config = _make_config(
+        visual={
+            CONF_TEMPERATURE_STEP: {
+                CONF_TARGET_TEMPERATURE: (1.8, UNIT_FAHRENHEIT),
+                CONF_CURRENT_TEMPERATURE: (0.9, UNIT_FAHRENHEIT),
+            }
+        },
+    )
+    result = cv.validate_temperature_config(config)
+    step = result[CONF_VISUAL][CONF_TEMPERATURE_STEP]
+    assert math.isclose(step[CONF_TARGET_TEMPERATURE], 1.8 * 5.0 / 9.0, rel_tol=1e-6)
+    assert math.isclose(step[CONF_CURRENT_TEMPERATURE], 0.9 * 5.0 / 9.0, rel_tol=1e-6)
