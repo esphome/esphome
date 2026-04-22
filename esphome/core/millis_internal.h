@@ -42,8 +42,13 @@ class MillisInternal {
     return xTaskGetTickCount();
 #elif defined(USE_BK72XX)
     // BK72xx runs FreeRTOS at 500 Hz; scale ticks by portTICK_PERIOD_MS (== 2).
-    // Inlined here because esphome::millis() on BK72xx has no-op IRAM_ATTR but
-    // is still out-of-line, so calling it would cost a real function call.
+    // Inlined here because esphome::millis() on BK72xx is out-of-line (its
+    // IRAM_ATTR is a no-op — see hal.h — because the BK72xx SDK wraps flash
+    // operations in GLOBAL_INT_DISABLE() which masks FIQ + IRQ at the CPU for
+    // the duration of every write, so no ISR runs while flash is stalled and
+    // IRAM placement / FromISR dispatch are both unnecessary). Calling the
+    // out-of-line esphome::millis() would still cost a real function call,
+    // which this inlined path avoids.
     static_assert(configTICK_RATE_HZ == 500, "BK72xx MillisInternal assumes 500 Hz FreeRTOS tick");
     return xTaskGetTickCount() * portTICK_PERIOD_MS;
 #else
