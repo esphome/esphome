@@ -50,6 +50,12 @@ esp32:
 
 - **framework** (*Optional*): Options for the underlying framework used by ESPHome. See [Framework](#esp32-framework).
 
+- **watchdog_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The timeout applied to the
+  ESP-IDF task watchdog. If a subscribed task fails to feed the watchdog within this period, the device
+  will reboot. Useful for power-managed devices or long blocking operations that need extended watchdog
+  windows. Defaults to `5s`, valid range is `5s` to `60s`. Note: OTA updates temporarily raise the
+  watchdog to `15s` when the configured timeout is below that threshold.
+
 ## Variants
 
 ESPHome supports the following ESP32 variants. Use the `variant` configuration option to select the correct one
