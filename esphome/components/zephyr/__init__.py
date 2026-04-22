@@ -192,8 +192,8 @@ def zephyr_add_kconfig(kconfig: str) -> None:
     zephyr_data()[KEY_KCONFIG] += textwrap.dedent(kconfig) + "\n"
 
 
-def zephyr_add_pm_static(section: Section):
-    zephyr_data()[KEY_PM_STATIC].extend(section)
+def zephyr_add_pm_static(sections: list[Section]) -> None:
+    zephyr_data()[KEY_PM_STATIC].extend(sections)
 
 
 def zephyr_add_user(key, value):
