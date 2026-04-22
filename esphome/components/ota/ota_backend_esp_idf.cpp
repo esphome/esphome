@@ -11,16 +11,12 @@
 
 #ifdef USE_OTA_PARTITIONS
 #include <esp_image_format.h>
+#include <nvs_flash.h>
 #endif
 
 namespace esphome::ota {
 
 static const char *const TAG = "ota.idf";
-
-#ifdef USE_OTA_PARTITIONS
-static uint32_t running_app_offset = 0;
-static size_t running_app_size = 0;
-#endif
 
 std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
@@ -188,6 +184,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   }
 
   // Get running app partition and used size
+  static uint32_t running_app_offset = 0;
+  static size_t running_app_size = 0;
   const esp_partition_t *running_app_part = nullptr;
   if (running_app_size == 0) {
     running_app_part = esp_ota_get_running_partition();
@@ -262,7 +260,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
         if (new_part->pos.offset == running_app_offset) {
           app_index = i;
         } else if (new_part->pos.offset >= running_app_offset + running_app_size ||
-                   running_app_offset >= new_part->pos.offset + new_part->pos.size) {
+                   running_app_offset >= new_part->pos.offset + running_app_size) {
           // New app partition has no overlap with running app
           esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
           while (it != NULL) {
@@ -296,7 +294,10 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
 
-  ESP_LOGD(TAG, "Checks passed, starting partition table update", err);
+  ESP_LOGD(TAG, "Checks passed, starting partition table update");
+
+  // Deinitialize NVS to prevent unwanted flash writes
+  nvs_flash_deinit();
 
   // Copy the running app partition to new position if needed
   if (app_index == -1) {
@@ -383,8 +384,6 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
-
-  ESP_LOGD(TAG, "Partition table updated successfully", err);
   return OTA_RESPONSE_OK;
 }
 #endif
