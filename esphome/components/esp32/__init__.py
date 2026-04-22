@@ -33,6 +33,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VARIANT,
     CONF_VERSION,
+    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_NAME,
@@ -1452,6 +1453,10 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
+            cv.Optional(CONF_WATCHDOG_TIMEOUT, default="5s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
+            ),
         }
     ),
     _detect_variant,
@@ -2119,6 +2124,11 @@ async def to_code(config):
     # components have had a chance to call cg.add_library() to enable libraries they need.
     if conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         CORE.add_job(_write_arduino_libraries_sdkconfig)
+
+    if timeout_s := config.get(CONF_WATCHDOG_TIMEOUT):
+        add_idf_sdkconfig_option(
+            "CONFIG_ESP_TASK_WDT_TIMEOUT_S", timeout_s.total_seconds
+        )
 
 
 KEY_CUSTOM_PARTITIONS = "custom_partitions"
