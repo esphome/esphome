@@ -16,30 +16,19 @@ extern "C" {
 namespace esphome {
 
 void HOT yield() { ::yield(); }
-// Arduino ESP8266's millis() uses 4× 64-bit multiplies with magic constants to
-// convert system_get_time() → ms while tracking overflow (~3.3 μs per call on
-// the LX106 which has no hardware multiply-high instruction). We replace it with
-// a simple accumulator that tracks a running millis counter from μs deltas using
-// pure 32-bit ops on the common path (subtract, add, compare-and-subtract).
-// Large gaps (>10 ms) fall back to a constant-time /1000 conversion.
+// Fast accumulator replacement for Arduino's millis() (~3.3 μs via 4× 64-bit
+// multiplies on the LX106). Tracks a running ms counter from 32-bit
+// system_get_time() deltas using pure 32-bit ops. Installed as __wrap_millis
+// (via -Wl,--wrap=millis) so Arduino libs and IRAM_ATTR ISR handlers (e.g.
+// Wiegand, ZyAura) also get the fast version. xt_rsil(15) guards the static
+// state against ISR re-entry; the critical section is bounded (≤9 while-loop
+// iterations, ~100 ns on the common path, or a constant-time /1000 ~2.5 μs on
+// the rare path — well under WiFi's ~10 μs ISR latency budget).
 //
-// Overflow safety: system_get_time() is a uint32_t that wraps every ~71.6 minutes.
-// Unsigned subtraction (now - last) handles one wrap correctly. ESPHome calls
-// millis() thousands of times per second (1+N per loop iteration at 60+ Hz), so
-// missing a full 71-minute wrap period is not a realistic concern. At boot,
-// state.last_us starts at 0 and system_get_time() counts from 0, so the first call's
-// delta equals the real elapsed time — no special initialization needed.
-//
-// This function is also installed as __wrap_millis (via -Wl,--wrap=millis) so
-// that Arduino library code and ISR handlers (e.g. Wiegand, ZyAura) calling
-// ::millis() directly also get the fast version. Interrupts are briefly disabled
-// to protect the static state from concurrent ISR access. The critical section
-// is bounded: the common path (delta < 10 ms) runs at most 10 subtract-and-
-// compare iterations (~100 ns). Large gaps (WiFi scan, boot) fall back to a
-// constant-time multiply-by-reciprocal (~2.5 μs, rare).
-// Threshold above which we use constant-time /1000 instead of the while loop.
-// 10 ms means the while loop runs at most 10 iterations (~100 ns) on the
-// common path, well within the WiFi stack's ~10 μs interrupt latency budget.
+// Overflow: system_get_time() wraps every ~71.6 min; unsigned now_us - last_us
+// handles one wrap. Both the ESPHome main loop (1+N millis() calls per
+// iteration at 60+ Hz) and esphome::delay() (which polls millis() in its wait
+// loop) keep state.last_us fresh well inside the 71-minute window.
 static constexpr uint32_t MILLIS_RARE_PATH_THRESHOLD_US = 10000;
 static constexpr uint32_t US_PER_MS = 1000;
 
@@ -63,8 +52,7 @@ uint32_t IRAM_ATTR HOT millis() {
     state.cache += ms;
     state.remainder -= ms * US_PER_MS;
   } else {
-    // Common path: small gap. Loop runs at most
-    // MILLIS_RARE_PATH_THRESHOLD_US / US_PER_MS iterations.
+    // Common path: small gap.
     while (state.remainder >= US_PER_MS) {
       state.cache++;
       state.remainder -= US_PER_MS;
@@ -75,17 +63,14 @@ uint32_t IRAM_ATTR HOT millis() {
   return result;
 }
 uint64_t millis_64() { return Millis64Impl::compute(millis()); }
-// Avoid calling ::delay() which pulls in __delay from core_esp8266_wiring.cpp.
-// __delay has an intra-object call to the original millis() that --wrap=millis
-// can't intercept, preventing the linker from garbage-collecting the expensive
-// original millis body (~80 bytes IRAM).
-//
-// Semantic difference from Arduino's delay(): Arduino sets up a one-shot
-// os_timer and calls esp_suspend() to suspend the continuation once for the
-// full duration. Our loop polls millis() + optimistic_yield(1000) which still
-// calls esp_schedule()/esp_suspend_within_cont() via yield(), so SDK tasks
-// and WiFi run correctly. Less power-efficient for long delays but
-// functionally equivalent.
+// Poll-based delay that avoids ::delay() — Arduino's __delay has an intra-object
+// call to the original millis() that --wrap can't intercept, so calling ::delay()
+// would keep the slow Arduino millis body alive in IRAM. optimistic_yield still
+// enters esp_schedule()/esp_suspend_within_cont() via yield(), so SDK tasks and
+// WiFi run correctly. Theoretically less power-efficient than Arduino's
+// os_timer-based delay() for long waits, but nearly all ESPHome delays are short
+// (sensor/I²C/SPI settling in the 1–100 ms range) where the difference is
+// negligible.
 void HOT delay(uint32_t ms) {
   if (ms == 0) {
     optimistic_yield(1000);
