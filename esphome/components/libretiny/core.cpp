@@ -19,8 +19,9 @@ void HOT yield() { ::yield(); }
 // Skip the Arduino core's ::millis() wrapper so the public esphome::millis() is
 // inlinable at its call sites and matches MillisInternal::get()'s fast path.
 // IRAM_ATTR is kept because components (e.g. rotary_encoder) call millis() from
-// ISR handlers; xTaskGetTickCountFromISR() is used in ISR context to satisfy the
-// FreeRTOS API contract.
+// ISR handlers. On RTL87xx / LN882x, millis() dispatches to xTaskGetTickCountFromISR()
+// in ISR context to satisfy the FreeRTOS API contract; on BK72xx it intentionally
+// matches the Arduino core's wiring.c and always uses xTaskGetTickCount().
 //
 // RTL87xx and LN882x run FreeRTOS at 1 kHz, so xTaskGetTickCount() is already in
 // milliseconds. BK72xx runs at 500 Hz — multiply by portTICK_PERIOD_MS (== 2) to
@@ -32,7 +33,7 @@ uint32_t IRAM_ATTR HOT millis() {
 }
 #elif defined(USE_BK72XX)
 uint32_t IRAM_ATTR HOT millis() {
-  // BK72xx's Arduino millis() does not dispatch on ISR context; match that.
+  static_assert(configTICK_RATE_HZ == 500, "BK72xx millis() fast path assumes 500 Hz FreeRTOS tick");
   return xTaskGetTickCount() * portTICK_PERIOD_MS;
 }
 #else
