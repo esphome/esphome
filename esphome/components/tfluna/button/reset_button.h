@@ -8,7 +8,6 @@ namespace tfluna {
 
 class ResetButton : public button::Button, public Parented<TFLuna> {
  public:
-  ResetButton() = default;
 
  protected:
   void press_action() override;
