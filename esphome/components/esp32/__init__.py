@@ -2184,10 +2184,6 @@ async def to_code(config):
     if conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         CORE.add_job(_write_arduino_libraries_sdkconfig)
 
-    add_idf_sdkconfig_option(
-        "CONFIG_ESP_TASK_WDT_TIMEOUT_S", config.get(CONF_WATCHDOG_TIMEOUT).total_seconds
-    )
-
 
 KEY_CUSTOM_PARTITIONS = "custom_partitions"
 
