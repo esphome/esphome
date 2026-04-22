@@ -13,8 +13,7 @@
 #endif
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace tfluna {
+namespace esphome::tfluna {
 
 class TFLuna : public i2c::I2CDevice, public PollingComponent {
 #ifdef USE_SENSOR
@@ -44,5 +43,4 @@ class TFLuna : public i2c::I2CDevice, public PollingComponent {
   void restart();
 };
 
-}  // namespace tfluna
-}  // namespace esphome
+}  // namespace esphome::tfluna
