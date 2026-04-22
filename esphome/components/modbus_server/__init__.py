@@ -11,11 +11,11 @@ from esphome.const import CONF_ADDRESS, CONF_ID
 from esphome.cpp_helpers import logging
 
 from .const import (
+    CONF_COURTESY_RESPONSE,
     CONF_READ_LAMBDA,
     CONF_REGISTER_LAST_ADDRESS,
     CONF_REGISTER_VALUE,
-    CONF_SERVER_COURTESY_RESPONSE,
-    CONF_SERVER_REGISTERS,
+    CONF_REGISTERS,
     CONF_VALUE_TYPE,
     CONF_WRITE_LAMBDA,
 )
@@ -59,9 +59,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ModbusServer),
-            cv.Optional(CONF_SERVER_COURTESY_RESPONSE): SERVER_COURTESY_RESPONSE_SCHEMA,
+            cv.Optional(CONF_COURTESY_RESPONSE): SERVER_COURTESY_RESPONSE_SCHEMA,
             cv.Optional(
-                CONF_SERVER_REGISTERS,
+                CONF_REGISTERS,
             ): cv.ensure_list(ModbusServerRegisterSchema),
         }
     ).extend(modbus.modbus_device_schema(0x01)),
@@ -77,7 +77,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    if server_courtesy_response := config.get(CONF_SERVER_COURTESY_RESPONSE):
+    if server_courtesy_response := config.get(CONF_COURTESY_RESPONSE):
         cg.add(
             var.set_server_courtesy_response(
                 cg.StructInitializer(
@@ -91,8 +91,8 @@ async def to_code(config):
                 )
             )
         )
-    if CONF_SERVER_REGISTERS in config:
-        for server_register in config[CONF_SERVER_REGISTERS]:
+    if CONF_REGISTERS in config:
+        for server_register in config[CONF_REGISTERS]:
             server_register_var = cg.new_Pvariable(
                 server_register[CONF_ID],
                 server_register[CONF_ADDRESS],

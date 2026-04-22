@@ -8,10 +8,6 @@ from esphome.components.modbus.helpers import (
     TYPE_REGISTER_MAP,
     ModbusRegisterType,
 )
-from esphome.components.modbus_server.const import (
-    CONF_SERVER_COURTESY_RESPONSE,
-    CONF_SERVER_REGISTERS,
-)
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OFFSET
 from esphome.cpp_helpers import logging
@@ -32,6 +28,8 @@ from .const import (
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
+    CONF_SERVER_COURTESY_RESPONSE,
+    CONF_SERVER_REGISTERS,
     CONF_SKIP_UPDATES,
     CONF_VALUE_TYPE,
 )
