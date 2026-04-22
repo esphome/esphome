@@ -107,8 +107,9 @@ void XDB401Component::read_measurement_() {
     return;
   }
 
-  if (this->temperature_unit_ == TEMPERATURE_UNIT_F) {
-    temperature = temperature * 9.0f / 5.0f + 32.0f;
+  // Sensor reports temperature in Fahrenheit.
+  if (this->temperature_unit_ == TEMPERATURE_UNIT_C) {
+    temperature = (temperature - 32.0f) * 5.0f / 9.0f;
   }
 
   ESP_LOGD(TAG, "Got pressure=%.1f Pa, temperature=%.2f%s", pressure, temperature,
@@ -152,15 +153,16 @@ i2c::ErrorCode XDB401Component::read_temperature_(float &temperature) {
     ESP_LOGE(TAG, "Error reading temperature register");
     return err_code;
   }
+
   char temperature_buf[2 * 5];
   format_hex_pretty_to(temperature_buf, sizeof(temperature_buf), t_data, 2);
   ESP_LOGV(TAG, "Got temperature data: %s", temperature_buf);
 
-  // Temperature is a signed 16-bit big-endian value.
+  // Temperature is a signed 16-bit big-endian value in 0.01 °F units.
   int16_t raw_temperature = static_cast<int16_t>(encode_uint16(t_data[0], t_data[1]));
   ESP_LOGD(TAG, "Temperature data raw %i", raw_temperature);
 
-  temperature = static_cast<float>(raw_temperature) / SCALE_TEMPERATURE;
+  temperature = static_cast<float>(raw_temperature) / 100.0f;
 
   return err_code;
 }
