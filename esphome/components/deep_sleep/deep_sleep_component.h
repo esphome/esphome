@@ -137,7 +137,8 @@ class DeepSleepComponent : public Component {
   void dump_config_platform_();
   bool prepare_to_sleep_();
   void deep_sleep_();
-  void setup_deep_sleep_();
+  void schedule_sleep_();
+  bool should_teardown_();
 
 #ifdef USE_BK72XX
   bool pin_prevents_sleep_(WakeUpPinItem &pinItem) const;

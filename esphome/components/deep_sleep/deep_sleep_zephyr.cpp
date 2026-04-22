@@ -44,6 +44,17 @@ void DeepSleepComponent::deep_sleep_() {
   }
 }
 
+bool DeepSleepComponent::should_teardown_() {
+  if (this->sleep_duration_.has_value()) {
+    return false;
+  }
+#ifdef USE_ZIGBEE
+  return false;
+#else
+  return true;
+#endif
+}
+
 }  // namespace esphome::deep_sleep
 
 #endif

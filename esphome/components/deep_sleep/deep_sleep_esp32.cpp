@@ -165,6 +165,8 @@ void DeepSleepComponent::deep_sleep_() {
   esp_deep_sleep_start();
 }
 
+bool DeepSleepComponent::should_teardown_() { return true; }
+
 }  // namespace deep_sleep
 }  // namespace esphome
 #endif  // USE_ESP32
