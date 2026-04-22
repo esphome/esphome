@@ -13,16 +13,23 @@ instructions for capturing and understanding crash data.
 
 ## Getting a Stack Trace from Crashes
 
-### ESP32: Automatic Crash Reporting (No Serial Cable Needed)
+### Automatic Crash Reporting (No Serial Cable Needed)
 
-ESP32 devices using the **ESP-IDF framework** (the default) automatically capture the crash backtrace and store it
-across software resets (warm reboots). After a crash, the backtrace is logged at boot and when Home Assistant or
-`esphome logs` connects via the API. The CLI automatically decodes the addresses using the debug symbols from your
-last local compile.
+ESPHome automatically captures crash backtraces and stores them across software resets (warm reboots) on
+**ESP32**, **ESP8266**, and **RP2040**. After a crash, the backtrace is logged at boot and
+when `esphome logs` connects via the API. The ESPHome CLI and ESPHome Builder automatically decode the addresses
+using the debug symbols from your last local compile.
 
 > [!NOTE]
-> This feature requires the ESP-IDF framework, which is the default for ESP32 devices. It is not available when
-> using the Arduino framework.
+> On ESP32, this feature requires the ESP-IDF framework (the default). It is not available when using the
+> Arduino framework on ESP32. On ESP8266 and RP2040, crash reporting is always enabled.
+
+> [!WARNING]
+> To get decoded stack traces, you must view the logs using the **ESPHome CLI** (`esphome logs`) or the
+> **ESPHome Builder**. Viewing logs through other tools (such as a generic serial monitor or the Home Assistant
+> log viewer) will show raw addresses without decoding them. The ESPHome CLI and ESPHome Builder use the debug
+> symbols from your last local compile to decode the crash addresses into function names, file paths, and line
+> numbers.
 
 To see the decoded crash data:
 
@@ -33,7 +40,7 @@ To see the decoded crash data:
    esphome upload your-device.yaml
    ```
 
-1. **Connect via API** after the crash (no USB needed):
+1. **View logs using the ESPHome CLI or ESPHome Builder** after the crash (no USB needed):
 
    ```shell
    esphome logs your-device.yaml
@@ -58,19 +65,20 @@ To see the decoded crash data:
    WARNING Decoded 0x400D6C7E: esphome::button::Button::press()
    ```
 
-   The crash data also appears in the Home Assistant log viewer. To enable this, go to the ESPHome device's
-   integration options in Home Assistant and enable **Subscribe to logs from the device**. The logs appear under
-   the `homeassistant.components.esphome` logger. See the
-   [Home Assistant ESPHome integration docs](https://www.home-assistant.io/integrations/esphome/#obtaining-logs-from-the-device)
-   for details.
-
 > [!NOTE]
 > The crash data survives software resets but not power cycles. If the device crashes and is power-cycled
 > before you can connect, the crash data will be lost.
 
+> [!NOTE]
+> The raw (undecoded) crash data can also appear in the Home Assistant log viewer if you enable
+> **Subscribe to logs from the device** in the ESPHome device's integration options. However, Home Assistant
+> does not decode the addresses — you would need to decode them manually using the
+> [web-based stack trace decoder](#alternative-web-based-stack-trace-decoder). Using `esphome logs` is
+> recommended as it decodes the stack trace automatically.
+
 ### All Platforms: Serial Console Stack Trace
 
-For platforms without automatic crash reporting, or when you need the full register dump, you can capture the
+When you need the full register dump, or when you cannot connect over the network, you can capture the
 crash output via serial console. This requires:
 
 1. Compiling the firmware locally (to have matching debug symbols)
@@ -149,7 +157,7 @@ crash output via serial console. This requires:
 If you already have a stack trace but need to decode it, you can use the
 [ESP Stack Trace Decoder](https://esphome.github.io/esp-stacktrace-decoder/) web tool:
 
-1. **Download the .elf file**: From the ESPHome dashboard, click the overflow menu (three dots) on your device card
+1. **Download the .elf file**: From ESPHome Builder, click the overflow menu (three dots) on your device card
    and select "Download .elf file"
 
    > [!NOTE]
