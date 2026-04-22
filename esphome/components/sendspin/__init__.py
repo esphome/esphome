@@ -63,6 +63,13 @@ def request_visualizer_support() -> None:
     _get_data().visualizer_support = True
 
 
+def _validate_task_stack_in_psram(value):
+    value = cv.boolean(value)
+    if value:
+        cv.requires_component(psram.DOMAIN)(value)
+    return value
+
+
 def _request_high_performance_networking(config: ConfigType) -> ConfigType:
     """Request high performance networking for Sendspin streaming.
 
@@ -84,9 +91,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SendspinHub),
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
-                cv.boolean, cv.requires_component(psram.DOMAIN)
-            ),
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): _validate_task_stack_in_psram,
         }
     ),
     cv.only_on([PLATFORM_ESP32]),
