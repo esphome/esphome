@@ -36,7 +36,7 @@ struct MDNSService {
   // second label indicating protocol _including_ underscore character prefix
   // as defined in RFC6763 Section 7, like "_tcp" or "_udp"
   const MDNSString *proto;
-  TemplatableValue<uint16_t> port;
+  TemplatableFn<uint16_t> port;
   FixedVector<MDNSTXTRecord> txt_records;
 };
 
@@ -129,6 +129,10 @@ class MDNSComponent final : public Component {
 #endif
 #ifdef USE_MDNS_STORE_SERVICES
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_{};
+#endif
+#ifdef USE_RP2040
+  bool was_connected_{false};
+  bool initialized_{false};
 #endif
   void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf);
 };

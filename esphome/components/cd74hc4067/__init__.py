@@ -9,9 +9,7 @@ MULTI_CONF = True
 
 cd74hc4067_ns = cg.esphome_ns.namespace("cd74hc4067")
 
-CD74HC4067Component = cd74hc4067_ns.class_(
-    "CD74HC4067Component", cg.Component, cg.PollingComponent
-)
+CD74HC4067Component = cd74hc4067_ns.class_("CD74HC4067Component", cg.Component)
 
 CONF_PIN_S0 = "pin_s0"
 CONF_PIN_S1 = "pin_s1"

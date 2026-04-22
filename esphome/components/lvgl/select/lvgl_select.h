@@ -6,7 +6,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
-#include "../lvgl.h"
+#include "esphome/components/lvgl/lvgl_esphome.h"
 
 namespace esphome {
 namespace lvgl {
@@ -28,12 +28,12 @@ class LVGLSelect : public select::Select, public Component {
     lv_obj_add_event_cb(
         this->widget_->obj,
         [](lv_event_t *e) {
-          auto *it = static_cast<LVGLSelect *>(e->user_data);
+          auto *it = static_cast<LVGLSelect *>(lv_event_get_user_data(e));
           it->set_options_();
         },
         LV_EVENT_REFRESH, this);
     auto lamb = [](lv_event_t *e) {
-      auto *self = static_cast<LVGLSelect *>(e->user_data);
+      auto *self = static_cast<LVGLSelect *>(lv_event_get_user_data(e));
       self->publish();
     };
     lv_obj_add_event_cb(this->widget_->obj, lamb, LV_EVENT_VALUE_CHANGED, this);

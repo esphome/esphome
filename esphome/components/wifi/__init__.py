@@ -166,6 +166,7 @@ TTLS_PHASE_2 = {
 }
 
 EAP_AUTH_SCHEMA = cv.All(
+    cv.only_on([Platform.ESP32, Platform.ESP8266]),
     cv.Schema(
         {
             cv.Optional(CONF_IDENTITY): cv.string_strict,
@@ -234,6 +235,14 @@ def validate_variant(_):
         variant = get_esp32_variant()
         if variant in NO_WIFI_VARIANTS and "esp32_hosted" not in fv.full_config.get():
             raise cv.Invalid(f"WiFi requires component esp32_hosted on {variant}")
+    if CORE.is_rp2040:
+        from esphome.components.rp2040 import board_has_wifi, get_board
+
+        if not board_has_wifi():
+            raise cv.Invalid(
+                f"Board '{get_board()}' does not have WiFi support (no CYW43 wireless chip). "
+                f"Use a WiFi-capable board like 'rpipicow' or 'rpipico2w'."
+            )
 
 
 def _apply_min_auth_mode_default(config):
@@ -280,12 +289,12 @@ def final_validate(config):
 def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
     """Register UDP PCBs used internally by lwIP for DHCP and DNS.
 
-    Only needed on LibreTiny where we directly set MEMP_NUM_UDP_PCB (the raw
-    PCB pool shared by both application sockets and lwIP internals like DHCP/DNS).
-    On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket layer —
-    DHCP/DNS use raw udp_new() which bypasses it entirely.
+    Needed on LibreTiny and RP2040 where we directly set MEMP_NUM_UDP_PCB (the
+    raw PCB pool shared by both application sockets and lwIP internals like
+    DHCP/DNS). On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket
+    layer — DHCP/DNS use raw udp_new() which bypasses it entirely.
     """
-    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x):
+    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x or CORE.is_rp2040):
         return config
     from esphome.components import socket
 
@@ -562,13 +571,6 @@ async def to_code(config):
         cg.add_library("ESP8266WiFi", None)
     elif CORE.is_rp2040:
         cg.add_library("WiFi", None)
-        # RP2040's mDNS library (LEAmDNS) relies on LwipIntf::stateUpCB() to restart
-        # mDNS when the network interface reconnects. However, this callback is disabled
-        # in the arduino-pico framework. As a workaround, we block component setup until
-        # WiFi is connected via can_proceed(), ensuring mDNS.begin() is called with an
-        # active connection. This define enables the loop priority sorting infrastructure
-        # used during the setup blocking phase.
-        cg.add_define("USE_LOOP_PRIORITY")
 
     if CORE.is_esp32:
         if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:

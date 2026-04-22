@@ -2,26 +2,32 @@ from collections.abc import Callable
 from typing import Any
 
 from esphome import automation
+from esphome.automation import StatelessLambdaAction
 import esphome.codegen as cg
+from esphome.components.display import validate_rotation
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_TIMEOUT
+from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_ROTATION, CONF_TIMEOUT
 from esphome.core import Lambda
 from esphome.cpp_generator import TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
 
 from .defines import (
-    CONF_DISP_BG_COLOR,
-    CONF_DISP_BG_IMAGE,
-    CONF_DISP_BG_OPA,
+    CONF_BG_OPA,
+    CONF_BOTTOM_LAYER,
     CONF_EDITING,
     CONF_FREEZE,
     CONF_LVGL_ID,
+    CONF_MAIN,
+    CONF_OBJ,
+    CONF_SCROLLBAR,
     CONF_SHOW_SNOW,
+    CONF_TOP_LAYER,
     PARTS,
-    literal,
-    static_cast,
+    StaticCastExpression,
+    add_warning,
+    get_options,
 )
-from .lv_validation import lv_bool, lv_color, lv_image, lv_milliseconds, opacity
+from .lv_validation import lv_bool, lv_milliseconds
 from .lvcode import (
     LVGL_COMP_ARG,
     UPDATE_EVENT,
@@ -42,13 +48,13 @@ from .schemas import (
     LIST_ACTION_SCHEMA,
     LVGL_SCHEMA,
     base_update_schema,
+    part_schema,
 )
 from .types import (
     LV_STATE,
     LvglAction,
     LvglCondition,
     ObjUpdateAction,
-    lv_disp_t,
     lv_group_t,
     lv_obj_base_t,
     lv_obj_t,
@@ -56,7 +62,9 @@ from .types import (
 )
 from .widgets import (
     Widget,
-    get_scr_act,
+    WidgetType,
+    add_widgets,
+    get_screen_active,
     get_widgets,
     set_obj_properties,
     wait_for_widgets,
@@ -65,6 +73,41 @@ from .widgets import (
 # Record widgets that are used in a focused action here
 focused_widgets = set()
 refreshed_widgets = set()
+
+
+async def layers_to_code(lv_component, config):
+    if top_conf := config.get(CONF_TOP_LAYER):
+        top_layer = lv_expr.display_get_layer_top(lv_component.get_disp())
+        with LocalVariable("top_layer", lv_obj_t, top_layer) as top_layer_obj:
+            top_w = Widget(top_layer_obj, layer_spec, top_conf)
+            await set_obj_properties(top_w, top_conf)
+            await add_widgets(top_w, top_conf)
+    if bottom_conf := config.get(CONF_BOTTOM_LAYER):
+        bottom_layer = lv_expr.display_get_layer_bottom(lv_component.get_disp())
+        with LocalVariable("bottom_layer", lv_obj_t, bottom_layer) as bottom_layer_obj:
+            bottom_w = Widget(bottom_layer_obj, layer_spec, bottom_conf)
+            await set_obj_properties(bottom_w, bottom_conf)
+            await add_widgets(bottom_w, bottom_conf)
+
+
+async def lvgl_update(lv_component, config):
+    bottom = {k.removeprefix("disp_"): v for k, v in config.items() if k in DISP_PROPS}
+    if not bottom:
+        return
+    plural = len(bottom) != 1
+    add_warning(
+        "The propert"
+        + ("ies " if plural else "y ")
+        + "'"
+        + "','".join(k for k in config if k in DISP_PROPS)
+        + "'"
+        + (" are " if plural else " is ")
+        + "deprecated, use 'bottom_layer' instead."
+    )
+    # Preserve default opacity from 8.x
+    if CONF_BG_OPA not in bottom:
+        bottom[CONF_BG_OPA] = 1.0
+    await layers_to_code(lv_component, {CONF_BOTTOM_LAYER: bottom})
 
 
 async def action_to_code(
@@ -96,7 +139,7 @@ async def update_to_code(config, action_id, template_arg, args):
             widget.type.w_type.value_property is not None
             and widget.type.w_type.value_property in config
         ):
-            lv.event_send(widget.obj, UPDATE_EVENT, nullptr)
+            lv_obj.send_event(widget.obj, UPDATE_EVENT, nullptr)
 
     widgets = await get_widgets(config[CONF_ID])
     return await action_to_code(
@@ -151,23 +194,30 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
     return var
 
 
-async def disp_update(disp, config: dict):
-    if (
-        CONF_DISP_BG_COLOR not in config
-        and CONF_DISP_BG_IMAGE not in config
-        and CONF_DISP_BG_OPA not in config
-    ):
-        return
-    with LocalVariable("lv_disp_tmp", lv_disp_t, disp) as disp_temp:
-        if (bg_color := config.get(CONF_DISP_BG_COLOR)) is not None:
-            lv.disp_set_bg_color(disp_temp, await lv_color.process(bg_color))
-        if bg_image := config.get(CONF_DISP_BG_IMAGE):
-            if bg_image == "none":
-                lv.disp_set_bg_image(disp_temp, static_cast("void *", "nullptr"))
-            else:
-                lv.disp_set_bg_image(disp_temp, await lv_image.process(bg_image))
-        if (bg_opa := config.get(CONF_DISP_BG_OPA)) is not None:
-            lv.disp_set_bg_opa(disp_temp, await opacity.process(bg_opa))
+def _validate_rotation(value):
+    # Note that we need rotation
+    get_options()[CONF_ROTATION] = True
+    return validate_rotation(value)
+
+
+@automation.register_action(
+    "lvgl.display.set_rotation",
+    StatelessLambdaAction,
+    cv.maybe_simple_value(
+        LVGL_SCHEMA.extend(
+            {
+                cv.Required(CONF_ROTATION): _validate_rotation,
+            }
+        ),
+        key=CONF_ROTATION,
+    ),
+    synchronous=True,
+)
+async def lvgl_set_rotation(config, action_id, template_arg, args):
+    lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
+    async with LambdaContext(args, where=action_id) as context:
+        lv_add(lv_comp.set_rotation(config[CONF_ROTATION]))
+    return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
 
 @automation.register_action(
@@ -187,7 +237,7 @@ async def disp_update(disp, config: dict):
 async def obj_invalidate_to_code(config, action_id, template_arg, args):
     if CONF_LVGL_ID in config:
         lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
-        widgets = [get_scr_act(lv_comp)]
+        widgets = [get_screen_active(lv_comp)]
     else:
         widgets = await get_widgets(config)
 
@@ -197,20 +247,30 @@ async def obj_invalidate_to_code(config, action_id, template_arg, args):
     return await action_to_code(widgets, do_invalidate, action_id, template_arg, args)
 
 
+layer_spec = WidgetType(CONF_OBJ, lv_obj_t, (CONF_MAIN, CONF_SCROLLBAR), is_mock=True)
+
+DISP_PROPS = {str(x) for x in DISP_BG_SCHEMA.schema}
+
+
 @automation.register_action(
     "lvgl.update",
     LvglAction,
-    DISP_BG_SCHEMA.extend(LVGL_SCHEMA).add_extra(
-        cv.has_at_least_one_key(CONF_DISP_BG_COLOR, CONF_DISP_BG_IMAGE)
+    part_schema(layer_spec.parts)
+    .extend(LVGL_SCHEMA)
+    .extend(DISP_BG_SCHEMA)
+    .extend(
+        {
+            cv.Optional(CONF_TOP_LAYER): part_schema(layer_spec.parts),
+            cv.Optional(CONF_BOTTOM_LAYER): part_schema(layer_spec.parts),
+        }
     ),
     synchronous=True,
 )
 async def lvgl_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config, CONF_LVGL_ID)
     w = widgets[0]
-    disp = literal(f"{w.obj}->get_disp()")
     async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
-        await disp_update(disp, config)
+        await lvgl_update(w.var, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, w.var)
     return var
@@ -336,7 +396,7 @@ async def widget_focus(config, action_id, template_arg, args):
     widget = await get_widgets(config)
     if widget:
         widget = widget[0]
-        group = static_cast(
+        group = StaticCastExpression(
             lv_group_t.operator("ptr"), lv_expr.obj_get_group(widget.obj)
         )
     elif group := config.get(CONF_GROUP):
@@ -424,6 +484,6 @@ async def obj_refresh_to_code(config, action_id, template_arg, args):
                 widget.type.w_type.value_property is not None
                 and widget.type.w_type.value_property in config
             ):
-                lv.event_send(widget.obj, UPDATE_EVENT, nullptr)
+                lv_obj.send_event(widget.obj, UPDATE_EVENT, nullptr)
 
     return await action_to_code(widget, do_refresh, action_id, template_arg, args)

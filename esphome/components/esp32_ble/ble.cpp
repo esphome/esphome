@@ -81,8 +81,6 @@ void ESP32BLE::disable() {
   this->state_ = BLE_COMPONENT_STATE_DISABLE;
 }
 
-bool ESP32BLE::is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
-
 #ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_start() {
   this->advertising_init_();
@@ -259,11 +257,9 @@ bool ESP32BLE::ble_setup_() {
 
   if (this->name_ != nullptr) {
     if (App.is_name_add_mac_suffix_enabled()) {
-      // MAC address length: 12 hex chars + null terminator
-      constexpr size_t mac_address_len = 13;
       // MAC address suffix length (last 6 characters of 12-char MAC address string)
       constexpr size_t mac_address_suffix_len = 6;
-      char mac_addr[mac_address_len];
+      char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
       get_mac_address_into_buffer(mac_addr);
       const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
       make_name_with_suffix_to(name_buffer, sizeof(name_buffer), this->name_, strlen(this->name_), '-', mac_suffix_ptr,
@@ -401,8 +397,17 @@ void ESP32BLE::loop() {
     return;
   }
 
+#ifdef USE_ESP32_BLE_ADVERTISING
+  if (this->advertising_ != nullptr) {
+    this->advertising_->loop();
+  }
+#endif
+
   BLEEvent *ble_event = this->ble_events_.pop();
-  while (ble_event != nullptr) {
+  if (ble_event == nullptr)
+    return;
+
+  do {
     switch (ble_event->type_) {
 #if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
       case BLEEvent::GATTS: {
@@ -410,9 +415,7 @@ void ESP32BLE::loop() {
         esp_gatt_if_t gatts_if = ble_event->event_.gatts.gatts_if;
         esp_ble_gatts_cb_param_t *param = &ble_event->event_.gatts.gatts_param;
         ESP_LOGV(TAG, "gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
-        for (auto *gatts_handler : this->gatts_event_handlers_) {
-          gatts_handler->gatts_event_handler(event, gatts_if, param);
-        }
+        this->gatts_event_callbacks_.call(event, gatts_if, param);
         break;
       }
 #endif
@@ -422,9 +425,7 @@ void ESP32BLE::loop() {
         esp_gatt_if_t gattc_if = ble_event->event_.gattc.gattc_if;
         esp_ble_gattc_cb_param_t *param = &ble_event->event_.gattc.gattc_param;
         ESP_LOGV(TAG, "gattc_event [esp_gatt_if: %d] - %d", gattc_if, event);
-        for (auto *gattc_handler : this->gattc_event_handlers_) {
-          gattc_handler->gattc_event_handler(event, gattc_if, param);
-        }
+        this->gattc_event_callbacks_.call(event, gattc_if, param);
         break;
       }
 #endif
@@ -433,10 +434,7 @@ void ESP32BLE::loop() {
         switch (gap_event) {
           case ESP_GAP_BLE_SCAN_RESULT_EVT:
 #ifdef ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT
-            // Use the new scan event handler - no memcpy!
-            for (auto *scan_handler : this->gap_scan_event_handlers_) {
-              scan_handler->gap_scan_event_handler(ble_event->scan_result());
-            }
+            this->gap_scan_event_callbacks_.call(ble_event->scan_result());
 #endif
             break;
 
@@ -480,9 +478,7 @@ void ESP32BLE::loop() {
               }
               // clang-format on
               // Dispatch to all registered handlers
-              for (auto *gap_handler : this->gap_event_handlers_) {
-                gap_handler->gap_event_handler(gap_event, param);
-              }
+              this->gap_event_callbacks_.call(gap_event, param);
             }
 #endif
             break;
@@ -499,15 +495,11 @@ void ESP32BLE::loop() {
     }
     // Return the event to the pool
     this->ble_event_pool_.release(ble_event);
-    ble_event = this->ble_events_.pop();
-  }
-#ifdef USE_ESP32_BLE_ADVERTISING
-  if (this->advertising_ != nullptr) {
-    this->advertising_->loop();
-  }
-#endif
+  } while ((ble_event = this->ble_events_.pop()) != nullptr);
 
-  // Log dropped events periodically
+  // Log dropped events - only reachable when events were processed.
+  // Drops only occur when the queue is full, and only this loop drains it,
+  // so if pop() returned nullptr above we can skip this check (saves a memw).
   uint16_t dropped = this->ble_events_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u BLE events due to buffer overflow", dropped);
@@ -520,9 +512,7 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
     ESP_LOGD(TAG, "Disabling");
 
 #ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
-    for (auto *ble_event_handler : this->ble_status_event_handlers_) {
-      ble_event_handler->ble_before_disabled_event_handler();
-    }
+    this->ble_status_event_callbacks_.call();
 #endif
 
     if (!ble_dismantle_()) {
@@ -575,8 +565,9 @@ template<typename... Args> void enqueue_ble_event(Args... args) {
   load_ble_event(event, args...);
 
   // Push the event to the queue
+  // Push always succeeds: pool is sized to queue capacity (N-1), so if
+  // allocate() returned non-null, the queue is guaranteed to have room.
   global_ble->ble_events_.push(event);
-  // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
 }
 
 // Explicit template instantiations for the friend function
@@ -606,9 +597,7 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     GAP_SECURITY_EVENTS:
       enqueue_ble_event(event, param);
       // Wake up main loop to process security event immediately
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
       App.wake_loop_threadsafe();
-#endif
       return;
 
     // Ignore these GAP events as they are not relevant for our use case
@@ -629,9 +618,7 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
                                    esp_ble_gatts_cb_param_t *param) {
   enqueue_ble_event(event, gatts_if, param);
   // Wake up main loop to process GATT event immediately
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
-#endif
 }
 #endif
 
@@ -640,9 +627,7 @@ void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
                                    esp_ble_gattc_cb_param_t *param) {
   enqueue_ble_event(event, gattc_if, param);
   // Wake up main loop to process GATT event immediately
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
-#endif
 }
 #endif
 
@@ -680,6 +665,9 @@ void ESP32BLE::dump_config() {
                   "  MAC address: %s\n"
                   "  IO Capability: %s",
                   mac_s, io_capability_s);
+#ifdef USE_ESP32_BLE_PSRAM
+    ESP_LOGCONFIG(TAG, "  PSRAM BLE allocation: enabled");
+#endif
 
 #ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
     const char *auth_req_mode_s = "<default>";

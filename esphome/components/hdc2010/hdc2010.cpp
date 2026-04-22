@@ -7,50 +7,36 @@ namespace hdc2010 {
 
 static const char *const TAG = "hdc2010";
 
-static const uint8_t HDC2010_ADDRESS = 0x40;  // 0b1000000 or 0b1000001 from datasheet
-static const uint8_t HDC2010_CMD_CONFIGURATION_MEASUREMENT = 0x8F;
-static const uint8_t HDC2010_CMD_START_MEASUREMENT = 0xF9;
-static const uint8_t HDC2010_CMD_TEMPERATURE_LOW = 0x00;
-static const uint8_t HDC2010_CMD_TEMPERATURE_HIGH = 0x01;
-static const uint8_t HDC2010_CMD_HUMIDITY_LOW = 0x02;
-static const uint8_t HDC2010_CMD_HUMIDITY_HIGH = 0x03;
-static const uint8_t CONFIG = 0x0E;
-static const uint8_t MEASUREMENT_CONFIG = 0x0F;
+// Register addresses
+static constexpr uint8_t REG_TEMPERATURE_LOW = 0x00;
+static constexpr uint8_t REG_TEMPERATURE_HIGH = 0x01;
+static constexpr uint8_t REG_HUMIDITY_LOW = 0x02;
+static constexpr uint8_t REG_HUMIDITY_HIGH = 0x03;
+static constexpr uint8_t REG_RESET_DRDY_INT_CONF = 0x0E;
+static constexpr uint8_t REG_MEASUREMENT_CONF = 0x0F;
+
+// REG_MEASUREMENT_CONF (0x0F) bit masks
+static constexpr uint8_t MEAS_TRIG = 0x01;       // Bit 0: measurement trigger
+static constexpr uint8_t MEAS_CONF_MASK = 0x06;  // Bits 2:1: measurement mode
+static constexpr uint8_t HRES_MASK = 0x30;       // Bits 5:4: humidity resolution
+static constexpr uint8_t TRES_MASK = 0xC0;       // Bits 7:6: temperature resolution
+
+// REG_RESET_DRDY_INT_CONF (0x0E) bit masks
+static constexpr uint8_t AMM_MASK = 0x70;  // Bits 6:4: auto measurement mode
 
 void HDC2010Component::setup() {
   ESP_LOGCONFIG(TAG, "Running setup");
 
-  const uint8_t data[2] = {
-      0b00000000,  // resolution 14bit for both humidity and temperature
-      0b00000000   // reserved
-  };
-
-  if (!this->write_bytes(HDC2010_CMD_CONFIGURATION_MEASUREMENT, data, 2)) {
-    ESP_LOGW(TAG, "Initial config instruction error");
-    this->status_set_warning();
-    return;
-  }
-
-  // Set measurement mode to temperature and humidity
+  // Set 14-bit resolution for both sensors and measurement mode to temp + humidity
   uint8_t config_contents;
-  this->read_register(MEASUREMENT_CONFIG, &config_contents, 1);
-  config_contents = (config_contents & 0xF9);  // Always set to TEMP_AND_HUMID mode
-  this->write_bytes(MEASUREMENT_CONFIG, &config_contents, 1);
+  this->read_register(REG_MEASUREMENT_CONF, &config_contents, 1);
+  config_contents &= ~(TRES_MASK | HRES_MASK | MEAS_CONF_MASK);  // 14-bit temp, 14-bit humidity, temp+humidity mode
+  this->write_bytes(REG_MEASUREMENT_CONF, &config_contents, 1);
 
-  // Set rate to manual
-  this->read_register(CONFIG, &config_contents, 1);
-  config_contents &= 0x8F;
-  this->write_bytes(CONFIG, &config_contents, 1);
-
-  // Set temperature resolution to 14bit
-  this->read_register(CONFIG, &config_contents, 1);
-  config_contents &= 0x3F;
-  this->write_bytes(CONFIG, &config_contents, 1);
-
-  // Set humidity resolution to 14bit
-  this->read_register(CONFIG, &config_contents, 1);
-  config_contents &= 0xCF;
-  this->write_bytes(CONFIG, &config_contents, 1);
+  // Set auto measurement rate to manual (on-demand via MEAS_TRIG)
+  this->read_register(REG_RESET_DRDY_INT_CONF, &config_contents, 1);
+  config_contents &= ~AMM_MASK;
+  this->write_bytes(REG_RESET_DRDY_INT_CONF, &config_contents, 1);
 }
 
 void HDC2010Component::dump_config() {
@@ -67,9 +53,9 @@ void HDC2010Component::dump_config() {
 void HDC2010Component::update() {
   // Trigger measurement
   uint8_t config_contents;
-  this->read_register(CONFIG, &config_contents, 1);
-  config_contents |= 0x01;
-  this->write_bytes(MEASUREMENT_CONFIG, &config_contents, 1);
+  this->read_register(REG_MEASUREMENT_CONF, &config_contents, 1);
+  config_contents |= MEAS_TRIG;
+  this->write_bytes(REG_MEASUREMENT_CONF, &config_contents, 1);
 
   // 1ms delay after triggering the sample
   set_timeout(1, [this]() {
@@ -90,8 +76,8 @@ void HDC2010Component::update() {
 float HDC2010Component::read_temp() {
   uint8_t byte[2];
 
-  this->read_register(HDC2010_CMD_TEMPERATURE_LOW, &byte[0], 1);
-  this->read_register(HDC2010_CMD_TEMPERATURE_HIGH, &byte[1], 1);
+  this->read_register(REG_TEMPERATURE_LOW, &byte[0], 1);
+  this->read_register(REG_TEMPERATURE_HIGH, &byte[1], 1);
 
   uint16_t temp = encode_uint16(byte[1], byte[0]);
   return (float) temp * 0.0025177f - 40.0f;
@@ -100,8 +86,8 @@ float HDC2010Component::read_temp() {
 float HDC2010Component::read_humidity() {
   uint8_t byte[2];
 
-  this->read_register(HDC2010_CMD_HUMIDITY_LOW, &byte[0], 1);
-  this->read_register(HDC2010_CMD_HUMIDITY_HIGH, &byte[1], 1);
+  this->read_register(REG_HUMIDITY_LOW, &byte[0], 1);
+  this->read_register(REG_HUMIDITY_HIGH, &byte[1], 1);
 
   uint16_t humidity = encode_uint16(byte[1], byte[0]);
   return (float) humidity * 0.001525879f;
