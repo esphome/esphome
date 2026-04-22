@@ -9,6 +9,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
     UNIT_PASCAL,
 )
 
@@ -31,6 +32,10 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=2,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_TEMPERATURE): cv.Any(
+                temperature_sensor_schema(UNIT_CELSIUS),
+                temperature_sensor_schema(UNIT_FAHRENHEIT),
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PASCAL,
