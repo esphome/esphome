@@ -753,7 +753,6 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.supports_action = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   // Current feature flags and other supported parameters
   msg.feature_flags = traits.get_feature_flags();
-  msg.temperature_unit = enums::TEMPERATURE_UNIT_CELSIUS;
   msg.supported_modes = &traits.get_supported_modes();
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
