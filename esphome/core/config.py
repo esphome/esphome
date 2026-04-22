@@ -156,22 +156,22 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
         hash_dict[hash_val] = id_obj.id
 
     # Collect all areas
-    all_areas: list[dict[str, str | core.ID]] = []
+    all_areas: list[tuple[dict[str, str | core.ID], str]] = []
     if CONF_AREA in config:
-        all_areas.append(config[CONF_AREA])
-    all_areas.extend(config[CONF_AREAS])
+        all_areas.append((config[CONF_AREA], CONF_AREA))
+    all_areas.extend((area, CONF_AREAS) for area in config.get(CONF_AREAS, []))
 
     # Validate area hash collisions and collect IDs
     area_hashes: dict[int, str] = {}
     area_ids: set[str] = set()
-    for area in all_areas:
+    for area, key in all_areas:
         area_id: core.ID = area[CONF_ID]
-        check_hash_collision(area_id, area_hashes, "Area", [CONF_AREAS, area_id.id])
+        check_hash_collision(area_id, area_hashes, "Area", [key, area_id.id])
         area_ids.add(area_id.id)
 
     # Validate device hash collisions and area references
     device_hashes: dict[int, str] = {}
-    for device in config[CONF_DEVICES]:
+    for device in config.get(CONF_DEVICES, []):
         device_id: core.ID = device[CONF_ID]
         check_hash_collision(
             device_id, device_hashes, "Device", [CONF_DEVICES, device_id.id]
@@ -233,11 +233,20 @@ DEVICE_CLASS_MAX_LENGTH = 47
 # Keep in sync with MAX_ICON_LENGTH in esphome/core/entity_base.h
 ICON_MAX_LENGTH = 63
 
+# Max unit of measurement string length
+UNIT_OF_MEASUREMENT_MAX_LENGTH = 63
+
+# Max project name/version string length (must fit in single-byte varint for proto encoding)
+PROJECT_MAX_LENGTH = 127
+
+# Max board/model string length (must fit in single-byte varint for proto encoding)
+BOARD_MAX_LENGTH = 127
+
 AREA_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Area),
         cv.Required(CONF_NAME): cv.All(
-            cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+            cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
     }
 )
@@ -246,7 +255,7 @@ DEVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Device),
         cv.Required(CONF_NAME): cv.All(
-            cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+            cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
     }
@@ -263,7 +272,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NAME): cv.valid_name,
             # Keep max=120 in sync with OBJECT_ID_MAX_LEN in esphome/core/entity_base.h
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(
-                cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+                cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
             ),
             cv.Optional(CONF_AREA): validate_area_config,
             cv.Optional(CONF_COMMENT): cv.All(cv.string, cv.Length(max=255)),
@@ -303,9 +312,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
                     cv.Required(CONF_NAME): cv.All(
-                        cv.string_strict, valid_project_name
+                        cv.string_strict,
+                        valid_project_name,
+                        cv.ByteLength(max=PROJECT_MAX_LENGTH),
                     ),
-                    cv.Required(CONF_VERSION): cv.string_strict,
+                    cv.Required(CONF_VERSION): cv.All(
+                        cv.string_strict, cv.ByteLength(max=PROJECT_MAX_LENGTH)
+                    ),
                     cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -327,9 +340,6 @@ CONFIG_SCHEMA = cv.All(
     ),
     validate_hostname,
 )
-
-
-FINAL_VALIDATE_SCHEMA = cv.All(validate_ids_and_references)
 
 
 PRELOAD_CONFIG_SCHEMA = cv.Schema(
@@ -587,9 +597,14 @@ async def _add_looping_components() -> None:
 
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
-    cg.add_global(cg.global_ns.namespace("esphome").using)
+    # using namespace esphome is hardcoded in writer.py to guarantee it
+    # precedes all variable declarations regardless of coroutine priority.
+
     # These can be used by user lambdas, put them to default scope
+    # picolibc (IDF 6.0+) declares isnan in global scope, conflicting with using std::isnan
+    cg.add_global(cg.RawStatement("#ifndef __PICOLIBC__"))
     cg.add_global(cg.RawExpression("using std::isnan"))
+    cg.add_global(cg.RawStatement("#endif"))
     cg.add_global(cg.RawExpression("using std::min"))
     cg.add_global(cg.RawExpression("using std::max"))
 
@@ -750,6 +765,20 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "static_task.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
+        },
+        "main_task.c": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "lwip_fast_select.c": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
         },
         "time_64.cpp": {
             PlatformFramework.ESP8266_ARDUINO,

@@ -4,7 +4,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esp_lcd_panel_rgb.h"
+#include <driver/gpio.h>
+#include <esp_lcd_panel_rgb.h>
 #include <span>
 
 namespace esphome {
@@ -117,15 +118,7 @@ void MipiRgbSpi::dump_config() {
   MipiRgb::dump_config();
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
-  ESP_LOGCONFIG(TAG,
-                "  SPI Data rate: %uMHz"
-                "\n  Mirror X: %s"
-                "\n  Mirror Y: %s"
-                "\n  Swap X/Y: %s"
-                "\n  Color Order: %s",
-                (unsigned) (this->data_rate_ / 1000000), YESNO(this->madctl_ & (MADCTL_XFLIP | MADCTL_MX)),
-                YESNO(this->madctl_ & (MADCTL_YFLIP | MADCTL_MY | MADCTL_ML)), YESNO(this->madctl_ & MADCTL_MV),
-                this->madctl_ & MADCTL_BGR ? "BGR" : "RGB");
+  ESP_LOGCONFIG(TAG, "  SPI Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
 }
 
 #endif  // USE_SPI
@@ -153,18 +146,26 @@ void MipiRgb::common_setup_() {
   config.clk_src = LCD_CLK_SRC_PLL160M;
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++) {
-    config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
+    config.data_gpio_nums[i] = static_cast<gpio_num_t>(this->data_pins_[i]->get_pin());
   }
   config.data_width = data_pin_count;
-  config.disp_gpio_num = -1;
-  config.hsync_gpio_num = this->hsync_pin_->get_pin();
-  config.vsync_gpio_num = this->vsync_pin_->get_pin();
-  if (this->de_pin_) {
-    config.de_gpio_num = this->de_pin_->get_pin();
+  config.disp_gpio_num = GPIO_NUM_NC;
+  if (this->hsync_pin_) {
+    config.hsync_gpio_num = static_cast<gpio_num_t>(this->hsync_pin_->get_pin());
   } else {
-    config.de_gpio_num = -1;
+    config.hsync_gpio_num = GPIO_NUM_NC;
   }
-  config.pclk_gpio_num = this->pclk_pin_->get_pin();
+  if (this->vsync_pin_) {
+    config.vsync_gpio_num = static_cast<gpio_num_t>(this->vsync_pin_->get_pin());
+  } else {
+    config.vsync_gpio_num = GPIO_NUM_NC;
+  }
+  if (this->de_pin_) {
+    config.de_gpio_num = static_cast<gpio_num_t>(this->de_pin_->get_pin());
+  } else {
+    config.de_gpio_num = GPIO_NUM_NC;
+  }
+  config.pclk_gpio_num = static_cast<gpio_num_t>(this->pclk_pin_->get_pin());
   esp_err_t err = esp_lcd_new_rgb_panel(&config, &this->handle_);
   if (err == ESP_OK)
     err = esp_lcd_panel_reset(this->handle_);

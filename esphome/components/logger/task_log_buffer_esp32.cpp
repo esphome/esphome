@@ -1,33 +1,23 @@
 #ifdef USE_ESP32
 
 #include "task_log_buffer_esp32.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
 
 namespace esphome::logger {
 
-TaskLogBuffer::TaskLogBuffer(size_t total_buffer_size) {
-  // Store the buffer size
-  this->size_ = total_buffer_size;
-  // Allocate memory for the ring buffer using ESPHome's RAM allocator
-  RAMAllocator<uint8_t> allocator;
-  this->storage_ = allocator.allocate(this->size_);
+TaskLogBuffer::TaskLogBuffer() {
   // Create a static ring buffer with RINGBUF_TYPE_NOSPLIT for message integrity
-  this->ring_buffer_ = xRingbufferCreateStatic(this->size_, RINGBUF_TYPE_NOSPLIT, this->storage_, &this->structure_);
+  // Storage is a member array (embedded in Logger), no heap allocation needed
+  this->ring_buffer_ =
+      xRingbufferCreateStatic(sizeof(this->storage_), RINGBUF_TYPE_NOSPLIT, this->storage_, &this->structure_);
 }
 
 TaskLogBuffer::~TaskLogBuffer() {
   if (this->ring_buffer_ != nullptr) {
-    // Delete the ring buffer
     vRingbufferDelete(this->ring_buffer_);
     this->ring_buffer_ = nullptr;
-
-    // Free the allocated memory
-    RAMAllocator<uint8_t> allocator;
-    allocator.deallocate(this->storage_, this->size_);
-    this->storage_ = nullptr;
   }
 }
 

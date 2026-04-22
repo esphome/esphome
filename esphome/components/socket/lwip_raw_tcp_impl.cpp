@@ -5,9 +5,15 @@
 
 #include <cerrno>
 #include <cstring>
+#include <sys/time.h>
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/wake.h"
 #include "esphome/core/log.h"
+
+#ifdef USE_OTA_PLATFORM_ESPHOME
+extern "C" void esphome_wake_ota_component_any_context();
+#endif
 
 #ifdef USE_ESP8266
 #include <coredecls.h>  // For esp_schedule()
@@ -17,99 +23,6 @@
 #endif
 
 namespace esphome::socket {
-
-#ifdef USE_ESP8266
-// Flag to signal socket activity - checked by socket_delay() to exit early
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static volatile bool s_socket_woke = false;
-
-void socket_delay(uint32_t ms) {
-  // Use esp_delay with a callback that checks if socket data arrived.
-  // This allows the delay to exit early when socket_wake() is called by
-  // lwip recv_fn/accept_fn callbacks, reducing socket latency.
-  //
-  // When ms is 0, we must use delay(0) because esp_delay(0, callback)
-  // exits immediately without yielding, which can cause watchdog timeouts
-  // when the main loop runs in high-frequency mode (e.g., during light effects).
-  if (ms == 0) {
-    delay(0);
-    return;
-  }
-  s_socket_woke = false;
-  esp_delay(ms, []() { return !s_socket_woke; });
-}
-
-void IRAM_ATTR socket_wake() {
-  s_socket_woke = true;
-  esp_schedule();
-}
-#elif defined(USE_RP2040)
-// RP2040 (non-FreeRTOS) socket wake using hardware WFE/SEV instructions.
-//
-// Same pattern as ESP8266's esp_delay()/esp_schedule(): set a one-shot timer,
-// then sleep with __wfe(). Wake on either:
-//   - Timer alarm fires → callback calls __sev() → __wfe() returns → timeout
-//   - Socket data arrives → LWIP callback calls socket_wake() → __sev() → __wfe() returns → early wake
-//
-// CYW43 WiFi chip communicates via SPI interrupts on core 0. When data arrives,
-// the GPIO interrupt fires → async_context pendsv processes CYW43/LWIP → recv/accept
-// callbacks call socket_wake() → __sev() wakes the main loop from __wfe() sleep.
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static volatile bool s_socket_woke = false;
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static volatile bool s_delay_expired = false;
-
-static int64_t alarm_callback(alarm_id_t id, void *user_data) {
-  (void) id;
-  (void) user_data;
-  s_delay_expired = true;
-  // Wake the main loop from __wfe() sleep — timeout expired.
-  __sev();
-  // Return 0 = don't reschedule (one-shot)
-  return 0;
-}
-
-void socket_delay(uint32_t ms) {
-  if (ms == 0) {
-    yield();
-    return;
-  }
-  // If a wake was already signalled, consume it and return immediately
-  // instead of going to sleep. This avoids losing a wake that arrived
-  // between loop iterations.
-  if (s_socket_woke) {
-    s_socket_woke = false;
-    return;
-  }
-  s_socket_woke = false;
-  s_delay_expired = false;
-  // Set a one-shot timer to wake us after the timeout.
-  // add_alarm_in_ms returns >0 on success, 0 if time already passed, <0 on error.
-  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback, nullptr, true);
-  if (alarm <= 0) {
-    delay(ms);
-    return;
-  }
-  // Sleep until woken by either the timer alarm or socket_wake().
-  // __wfe() may return spuriously (stale event register, other interrupts),
-  // so we loop checking both flags.
-  while (!s_socket_woke && !s_delay_expired) {
-    __wfe();
-  }
-  // Cancel timer if we woke early (socket data arrived before timeout)
-  if (!s_delay_expired)
-    cancel_alarm(alarm);
-}
-
-// No IRAM_ATTR equivalent needed: on RP2040, CYW43 async_context runs LWIP
-// callbacks via pendsv (not hard IRQ), so they execute from flash safely.
-void socket_wake() {
-  s_socket_woke = true;
-  // Wake the main loop from __wfe() sleep. __sev() is a global event that
-  // wakes any core sleeping in __wfe(). This is ISR-safe.
-  __sev();
-}
-#endif
 
 // ---- LWIP thread safety ----
 //
@@ -126,7 +39,8 @@ void socket_wake() {
 // code (CONT context) — they never preempt each other, so no locking is needed.
 //
 // esphome::LwIPLock is the platform-provided RAII guard (see helpers.h/helpers.cpp).
-// On RP2040, it acquires cyw43_arch_lwip_begin/end. On ESP8266, it's a no-op.
+// On RP2040, it acquires cyw43_arch_lwip_begin/end (WiFi) or ethernet_arch_lwip_begin/end
+// (Ethernet). On ESP8266, it's a no-op.
 #define LWIP_LOCK() esphome::LwIPLock lwip_lock_guard  // NOLINT
 
 static const char *const TAG = "socket.lwip";
@@ -138,13 +52,46 @@ static const char *const TAG = "socket.lwip";
 #define LWIP_LOG(msg, ...)
 #endif
 
+// Clear arg, recv, and err callbacks, then abort a connected PCB.
+// Only valid for full tcp_pcb (not tcp_pcb_listen).
+// Must be called before destroying the object that tcp_arg points to —
+// tcp_abort() triggers the err callback synchronously, which would
+// otherwise call back into a partially-destroyed object.
+// tcp_sent/tcp_poll are not cleared because this implementation
+// never registers them.
+static void pcb_detach_abort(struct tcp_pcb *pcb) {
+  tcp_arg(pcb, nullptr);
+  tcp_recv(pcb, nullptr);
+  tcp_err(pcb, nullptr);
+  tcp_abort(pcb);
+}
+
+// Clear arg, recv, and err callbacks, then gracefully close a connected PCB.
+// Only valid for full tcp_pcb (not tcp_pcb_listen).
+// After tcp_close(), the PCB remains alive during the TCP close handshake
+// (FIN_WAIT, TIME_WAIT states). Without clearing callbacks first, LWIP
+// would call recv/err on a destroyed socket object, corrupting the heap.
+// tcp_sent/tcp_poll are not cleared because this implementation
+// never registers them.
+// Returns ERR_OK on success; on failure the PCB is aborted instead.
+static err_t pcb_detach_close(struct tcp_pcb *pcb) {
+  tcp_arg(pcb, nullptr);
+  tcp_recv(pcb, nullptr);
+  tcp_err(pcb, nullptr);
+  err_t err = tcp_close(pcb);
+  if (err != ERR_OK) {
+    tcp_abort(pcb);
+  }
+  return err;
+}
+
 // ---- LWIPRawCommon methods ----
 
 LWIPRawCommon::~LWIPRawCommon() {
   LWIP_LOCK();
   if (this->pcb_ != nullptr) {
     LWIP_LOG("tcp_abort(%p)", this->pcb_);
-    tcp_abort(this->pcb_);
+    pcb_detach_abort(this->pcb_);
     this->pcb_ = nullptr;
   }
 }
@@ -222,15 +169,13 @@ int LWIPRawCommon::close() {
     return -1;
   }
   LWIP_LOG("tcp_close(%p)", this->pcb_);
-  err_t err = tcp_close(this->pcb_);
+  err_t err = pcb_detach_close(this->pcb_);
+  this->pcb_ = nullptr;
   if (err != ERR_OK) {
     LWIP_LOG("  -> err %d", err);
-    tcp_abort(this->pcb_);
-    this->pcb_ = nullptr;
     errno = err == ERR_MEM ? ENOMEM : EIO;
     return -1;
   }
-  this->pcb_ = nullptr;
   return 0;
 }
 
@@ -328,6 +273,18 @@ int LWIPRawCommon::getsockopt(int level, int optname, void *optval, socklen_t *o
     *optlen = 4;
     return 0;
   }
+  if (level == SOL_SOCKET && optname == SO_RCVTIMEO) {
+    if (*optlen < sizeof(struct timeval)) {
+      errno = EINVAL;
+      return -1;
+    }
+    uint32_t ms = this->recv_timeout_cs_ * 10;
+    auto *tv = reinterpret_cast<struct timeval *>(optval);
+    tv->tv_sec = ms / 1000;
+    tv->tv_usec = (ms % 1000) * 1000;
+    *optlen = sizeof(struct timeval);
+    return 0;
+  }
   if (level == IPPROTO_TCP && optname == TCP_NODELAY) {
     if (*optlen < 4) {
       errno = EINVAL;
@@ -355,6 +312,21 @@ int LWIPRawCommon::setsockopt(int level, int optname, const void *optval, sockle
     }
     // lwip doesn't seem to have this feature. Don't send an error
     // to prevent warnings
+    return 0;
+  }
+  if (level == SOL_SOCKET && optname == SO_RCVTIMEO) {
+    if (optlen < sizeof(struct timeval)) {
+      errno = EINVAL;
+      return -1;
+    }
+    const auto *tv = reinterpret_cast<const struct timeval *>(optval);
+    uint32_t ms = tv->tv_sec * 1000 + tv->tv_usec / 1000;
+    uint32_t cs = (ms + 9) / 10;  // round up to nearest centisecond
+    this->recv_timeout_cs_ = cs > 255 ? 255 : static_cast<uint8_t>(cs);
+    return 0;
+  }
+  if (level == SOL_SOCKET && optname == SO_SNDTIMEO) {
+    // Raw TCP writes are non-blocking (tcp_write), so send timeout is a no-op.
     return 0;
   }
   if (level == IPPROTO_TCP && optname == TCP_NODELAY) {
@@ -480,15 +452,30 @@ err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
   } else {
     pbuf_cat(this->rx_buf_, pb);
   }
-#if (defined(USE_ESP8266) || defined(USE_RP2040))
   // Wake the main loop immediately so it can process the received data.
-  socket_wake();
-#endif
+  esphome::wake_loop_any_context();
   return ERR_OK;
 }
 
-ssize_t LWIPRawImpl::read(void *buf, size_t len) {
-  LWIP_LOCK();
+void LWIPRawImpl::wait_for_data_() {
+  // Wait for data without holding LWIP_LOCK so recv_fn() can run on RP2040
+  // (needs async_context lock).
+  //
+  // Loop until data arrives, connection closes, or the full timeout elapses.
+  // wakeable_delay() may return early due to any wake source,
+  // so we re-enter for the remaining time.
+  uint32_t timeout_ms = this->recv_timeout_cs_ * 10;
+  uint32_t start = millis();
+  while (this->waiting_for_data_()) {
+    uint32_t elapsed = millis() - start;
+    if (elapsed >= timeout_ms)
+      break;
+    esphome::internal::wakeable_delay(timeout_ms - elapsed);
+  }
+}
+
+ssize_t LWIPRawImpl::read_locked_(void *buf, size_t len) {
+  // Caller must hold LWIP_LOCK. Copies available data from rx_buf_ into buf.
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -547,11 +534,26 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
   return read;
 }
 
+ssize_t LWIPRawImpl::read(void *buf, size_t len) {
+  // See waiting_for_data_() for safety of unlocked reads.
+  if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
+    this->wait_for_data_();
+  }
+
+  LWIP_LOCK();
+  return this->read_locked_(buf, len);
+}
+
 ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
+  // See waiting_for_data_() for safety of unlocked reads.
+  if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
+    this->wait_for_data_();
+  }
+
   LWIP_LOCK();  // Hold for entire scatter-gather operation
   ssize_t ret = 0;
   for (int i = 0; i < iovcnt; i++) {
-    ssize_t err = this->read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+    ssize_t err = this->read_locked_(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
     if (err == -1) {
       if (ret != 0) {
         // if we already read some don't return an error
@@ -673,13 +675,10 @@ ssize_t LWIPRawImpl::writev(const struct iovec *iov, int iovcnt) {
 LWIPRawListenImpl::~LWIPRawListenImpl() {
   LWIP_LOCK();
   // Abort any queued PCBs that were never accepted by the main loop.
-  // Clear the error callback first — tcp_abort triggers it, and we don't
-  // want s_queued_err_fn writing to slots during destruction.
   for (uint8_t i = 0; i < this->accepted_socket_count_; i++) {
     auto &entry = this->accepted_pcbs_[i];
     if (entry.pcb != nullptr) {
-      tcp_err(entry.pcb, nullptr);
-      tcp_abort(entry.pcb);
+      pcb_detach_abort(entry.pcb);
       entry.pcb = nullptr;
     }
     if (entry.rx_buf != nullptr) {
@@ -691,6 +690,10 @@ LWIPRawListenImpl::~LWIPRawListenImpl() {
   // Listen PCBs must use tcp_close(), not tcp_abort().
   // tcp_abandon() asserts pcb->state != LISTEN and would access
   // fields that don't exist in the smaller tcp_pcb_listen struct.
+  // Don't use pcb_detach_close() here — tcp_recv()/tcp_err() also access
+  // fields that only exist in the full tcp_pcb, not tcp_pcb_listen.
+  // tcp_close() on a listen PCB is synchronous (frees immediately),
+  // so there are no async callbacks to worry about.
   // Close here and null pcb_ so the base destructor skips tcp_abort.
   if (this->pcb_ != nullptr) {
     tcp_close(this->pcb_);
@@ -855,10 +858,12 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   tcp_err(newpcb, LWIPRawListenImpl::s_queued_err_fn);
   tcp_recv(newpcb, LWIPRawListenImpl::s_queued_recv_fn);
   LWIP_LOG("Accepted connection, queue size: %d", this->accepted_socket_count_);
-#if (defined(USE_ESP8266) || defined(USE_RP2040))
-  // Wake the main loop immediately so it can accept the new connection.
-  socket_wake();
+#ifdef USE_OTA_PLATFORM_ESPHOME
+  // Must run before wake_loop_any_context() so flags are visible when the main task wakes.
+  esphome_wake_ota_component_any_context();
 #endif
+  // Wake the main loop immediately so it can accept the new connection.
+  esphome::wake_loop_any_context();
   return ERR_OK;
 }
 

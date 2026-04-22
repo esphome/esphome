@@ -74,6 +74,8 @@ from esphome.util import (
 
 _LOGGER = logging.getLogger(__name__)
 
+ESPHOME_COMMAND = [sys.executable, "-m", "esphome"]
+
 # Maximum buffer size for serial log reading to prevent unbounded memory growth
 SERIAL_BUFFER_MAX_SIZE = 65536
 
@@ -748,8 +750,15 @@ def upload_using_esptool(
             platformio_api.FlashImage(
                 path=idedata.firmware_bin_path, offset=firmware_offset
             ),
-            *idedata.extra_flash_images,
         ]
+        for image in idedata.extra_flash_images:
+            if not image.path.is_file():
+                _LOGGER.warning(
+                    "Skipping missing flash image declared by platform: %s",
+                    image.path,
+                )
+                continue
+            flash_images.append(image)
 
     mcu = "esp8266"
     if CORE.is_esp32:
@@ -1044,7 +1053,11 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     ):
         from esphome.components.api.client import run_logs
 
-        return run_logs(config, network_devices)
+        return run_logs(
+            config,
+            network_devices,
+            subscribe_states=not getattr(args, "no_states", False),
+        )
 
     if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
         from esphome import mqtt
@@ -1077,7 +1090,7 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     # add the console decoration so the front-end can hide the secrets
     if not args.show_secrets:
         output = re.sub(
-            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[5m\2\\033[6m", output
+            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[8m\2\\033[28m", output
         )
     if not CORE.quiet:
         safe_print(output)
@@ -1236,6 +1249,38 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
     return 0
 
 
+def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome.bundle import BUNDLE_EXTENSION, ConfigBundleCreator
+
+    creator = ConfigBundleCreator(config)
+
+    if args.list_only:
+        files = creator.discover_files()
+        for bf in sorted(files, key=lambda f: f.path):
+            safe_print(f"  {bf.path}")
+        _LOGGER.info("Found %d files", len(files))
+        return 0
+
+    result = creator.create_bundle()
+
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        stem = CORE.config_path.stem
+        output_path = CORE.config_dir / f"{stem}{BUNDLE_EXTENSION}"
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(result.data)
+
+    _LOGGER.info(
+        "Bundle created: %s (%d files, %.1f KB)",
+        output_path,
+        len(result.files),
+        len(result.data) / 1024,
+    )
+    return 0
+
+
 def command_dashboard(args: ArgsProtocol) -> int | None:
     from esphome.dashboard import dashboard
 
@@ -1307,9 +1352,8 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     files = list_yaml_files(args.configuration)
 
     def build_command(f):
-        if CORE.dashboard:
-            return ["esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"]
-        return ["esphome", "run", f, "--no-logs", "--device", "OTA"]
+        dashboard = ["--dashboard"] if CORE.dashboard else []
+        return [*ESPHOME_COMMAND, *dashboard, "run", f, "--no-logs", "--device", "OTA"]
 
     return run_multiple_configs(files, build_command)
 
@@ -1458,7 +1502,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     new_path.write_text(new_raw, encoding="utf-8")
 
-    rc = run_external_process("esphome", "config", str(new_path))
+    rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
     if rc != 0:
         print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
         new_path.unlink()
@@ -1476,7 +1520,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
         cli_args.insert(0, "--dashboard")
 
     try:
-        rc = run_external_process("esphome", *cli_args)
+        rc = run_external_process(*ESPHOME_COMMAND, *cli_args)
     except KeyboardInterrupt:
         rc = 1
     if rc != 0:
@@ -1512,6 +1556,7 @@ POST_CONFIG_ACTIONS = {
     "rename": command_rename,
     "discover": command_discover,
     "analyze-memory": command_analyze_memory,
+    "bundle": command_bundle,
 }
 
 SIMPLE_CONFIG_ACTIONS = [
@@ -1663,6 +1708,11 @@ def parse_args(argv):
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
     )
+    parser_logs.add_argument(
+        "--no-states",
+        action="store_true",
+        help="Do not show entity state changes in log output.",
+    )
 
     parser_discover = subparsers.add_parser(
         "discover",
@@ -1808,6 +1858,24 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
+    parser_bundle = subparsers.add_parser(
+        "bundle",
+        help="Create a self-contained config bundle for remote compilation.",
+    )
+    parser_bundle.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
+    parser_bundle.add_argument(
+        "-o",
+        "--output",
+        help="Output path for the bundle archive.",
+    )
+    parser_bundle.add_argument(
+        "--list-only",
+        help="List discovered files without creating the archive.",
+        action="store_true",
+    )
+
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.
     #
@@ -1873,7 +1941,7 @@ def run_esphome(argv):
         # argv[0] is the program path, skip it since we prefix with "esphome"
         def build_command(f):
             return (
-                ["esphome"]
+                [*ESPHOME_COMMAND]
                 + [arg for arg in argv[1:] if arg not in args.configuration]
                 + [str(f)]
             )
@@ -1885,6 +1953,16 @@ def run_esphome(argv):
     if any(conf_path.name == x for x in SECRETS_FILES):
         _LOGGER.warning("Skipping secrets file %s", conf_path)
         return 0
+
+    # Bundle support: if the configuration is a .esphomebundle, extract it
+    # and rewrite conf_path to the extracted YAML config.
+    from esphome.bundle import is_bundle_path, prepare_bundle_for_compile
+
+    if is_bundle_path(conf_path):
+        _LOGGER.info("Extracting config bundle %s...", conf_path)
+        conf_path = prepare_bundle_for_compile(conf_path)
+        # Update the argument so downstream code sees the extracted path
+        args.configuration[0] = str(conf_path)
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
