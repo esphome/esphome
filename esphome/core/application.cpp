@@ -78,34 +78,48 @@ void Application::setup() {
     Component *component = this->components_[i];
 
     // Update loop_component_start_time_ before calling each component during setup
-    this->loop_component_start_time_ = millis();
+    this->loop_component_start_time_ = MillisInternal::get();
     component->call();
     this->scheduler.process_to_add();
     this->feed_wdt();
     if (component->can_proceed())
       continue;
 
+    // Force the status LED to blink WARNING while we wait for a slow
+    // component to come up. Cleared after setup() finishes if no real
+    // component has warning set.
+    this->app_state_ |= STATUS_LED_WARNING;
+
     do {
-      uint8_t new_app_state = STATUS_LED_WARNING;
-      uint32_t now = millis();
+      // Service scheduler and process pending loop enables to handle GPIO
+      // interrupts during setup. During setup we always run the component
+      // phase (no loop_interval_ gate), so call both helpers unconditionally.
+      this->scheduler_tick_(MillisInternal::get());
+      {
+        ComponentPhaseGuard phase_guard{*this};
 
-      // Process pending loop enables to handle GPIO interrupts during setup
-      this->before_loop_tasks_(now);
-
-      for (uint32_t j = 0; j <= i; j++) {
-        // Update loop_component_start_time_ right before calling each component
-        this->loop_component_start_time_ = millis();
-        this->components_[j]->call();
-        new_app_state |= this->components_[j]->get_component_state();
-        this->app_state_ |= new_app_state;
-        this->feed_wdt();
+        for (uint32_t j = 0; j <= i; j++) {
+          // Update loop_component_start_time_ right before calling each component
+          this->loop_component_start_time_ = MillisInternal::get();
+          this->components_[j]->call();
+          this->feed_wdt();
+        }
       }
-
-      this->after_loop_tasks_();
-      this->app_state_ = new_app_state;
       yield();
     } while (!component->can_proceed() && !component->is_failed());
   }
+
+  // Setup is complete. Reconcile STATUS_LED_WARNING: the slow-setup path
+  // above may have forced it on, and any status_clear_warning() calls
+  // from components during setup were intentional no-ops (gated by
+  // APP_STATE_SETUP_COMPLETE). Walk components once here to pick up the
+  // real state. STATUS_LED_ERROR is never artificially forced, so its
+  // clear path always works and needs no reconciliation. Finally, set
+  // APP_STATE_SETUP_COMPLETE so subsequent warning clears go through
+  // the normal walk-and-clear path.
+  if (!this->any_component_has_status_flag_(STATUS_LED_WARNING))
+    this->app_state_ &= ~STATUS_LED_WARNING;
+  this->app_state_ |= APP_STATE_SETUP_COMPLETE;
 
   ESP_LOGI(TAG, "setup() finished successfully!");
 
@@ -196,21 +210,68 @@ void Application::process_dump_config_() {
   this->dump_config_at_++;
 }
 
-void HOT Application::feed_wdt(uint32_t time) {
-  static uint32_t last_feed = 0;
-  // Use provided time if available, otherwise get current time
-  uint32_t now = time ? time : millis();
-  // Compare in milliseconds (3ms threshold)
-  if (now - last_feed > 3) {
-    arch_feed_wdt();
-    last_feed = now;
-#ifdef USE_STATUS_LED
-    if (status_led::global_status_led != nullptr) {
-      status_led::global_status_led->call();
-    }
-#endif
+void Application::feed_wdt() {
+  // Cold entry: callers without a millis() timestamp in hand. Fetches the
+  // time and takes the same rate-limit paths as feed_wdt_with_time().
+  uint32_t now = MillisInternal::get();
+  if (now - this->last_wdt_feed_ > WDT_FEED_INTERVAL_MS) {
+    this->feed_wdt_slow_(now);
   }
+#ifdef USE_STATUS_LED
+  if (now - this->last_status_led_service_ > STATUS_LED_DISPATCH_INTERVAL_MS) {
+    this->service_status_led_slow_(now);
+  }
+#endif
 }
+
+void HOT Application::feed_wdt_slow_(uint32_t time) {
+  // Callers (both feed_wdt() and feed_wdt_with_time()) have already
+  // confirmed the WDT_FEED_INTERVAL_MS rate limit was exceeded.
+  arch_feed_wdt();
+  this->last_wdt_feed_ = time;
+}
+
+#ifdef USE_STATUS_LED
+void HOT Application::service_status_led_slow_(uint32_t time) {
+  // Callers (feed_wdt(), feed_wdt_with_time()) have already confirmed the
+  // STATUS_LED_DISPATCH_INTERVAL_MS rate limit was exceeded. Rate-limited
+  // separately from arch_feed_wdt() so the LED blink pattern stays readable
+  // (status_led error blink period is 250 ms) while HAL watchdog pokes can
+  // still run at the much coarser WDT_FEED_INTERVAL_MS cadence.
+  this->last_status_led_service_ = time;
+  if (status_led::global_status_led == nullptr)
+    return;
+  auto *sl = status_led::global_status_led;
+  uint8_t sl_state = sl->get_component_state() & COMPONENT_STATE_MASK;
+  if (sl_state == COMPONENT_STATE_LOOP_DONE) {
+    // status_led only transitions to LOOP_DONE from inside its own loop() (after the
+    // first idle-path dispatch), so its pin is already initialized by pre_setup() and
+    // its setup() has already run. Re-dispatch only if an error or warning bit has been
+    // set since; otherwise skip entirely.
+    if ((this->app_state_ & STATUS_LED_MASK) == 0)
+      return;
+    sl->enable_loop();
+  } else if (sl_state != COMPONENT_STATE_LOOP) {
+    // CONSTRUCTION/SETUP/FAILED: not our job — App::setup() drives the lifecycle.
+    return;
+  }
+  sl->loop();
+}
+#endif
+
+bool Application::any_component_has_status_flag_(uint8_t flag) const {
+  // Walk all components (not just looping ones) so non-looping components'
+  // status bits are respected. Only called from the slow-path clear helpers
+  // (status_clear_warning_slow_path_ / status_clear_error_slow_path_) on an
+  // actual set→clear transition, so walking O(N) here is paid once per
+  // transition — not once per loop iteration.
+  for (auto *component : this->components_) {
+    if ((component->get_component_state() & flag) != 0)
+      return true;
+  }
+  return false;
+}
+
 void Application::reboot() {
   ESP_LOGI(TAG, "Forcing a reboot");
   for (auto &component : std::ranges::reverse_view(this->components_)) {
@@ -242,7 +303,7 @@ void Application::run_powerdown_hooks() {
 }
 
 void Application::teardown_components(uint32_t timeout_ms) {
-  uint32_t start_time = millis();
+  uint32_t start_time = MillisInternal::get();
 
   // Use a StaticVector instead of std::vector to avoid heap allocation
   // since we know the actual size at compile time
@@ -299,7 +360,7 @@ void Application::teardown_components(uint32_t timeout_ms) {
 
   while (pending_count > 0 && (now - start_time) < timeout_ms) {
     // Feed watchdog during teardown to prevent triggering
-    this->feed_wdt(now);
+    this->feed_wdt_with_time(now);
 
     // Process components and compact the array, keeping only those still pending
     size_t still_pending = 0;
@@ -321,7 +382,7 @@ void Application::teardown_components(uint32_t timeout_ms) {
     }
 
     // Update time for next iteration
-    now = millis();
+    now = MillisInternal::get();
   }
 
   if (pending_count > 0) {
@@ -364,7 +425,7 @@ void Application::disable_component_loop_(Component *component) {
           // This prevents integer underflow in timing calculations by ensuring
           // the swapped component starts with a fresh timing reference, avoiding
           // errors caused by stale or wrapped timing values.
-          this->loop_component_start_time_ = millis();
+          this->loop_component_start_time_ = MillisInternal::get();
         }
       }
       return;
@@ -449,32 +510,7 @@ void Application::enable_pending_loops_() {
   }
 }
 
-#ifdef USE_LWIP_FAST_SELECT
-bool Application::register_socket(struct lwip_sock *sock) {
-  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
-  if (sock == nullptr)
-    return false;
-  esphome_lwip_hook_socket(sock);
-  this->monitored_sockets_.push_back(sock);
-  return true;
-}
-
-void Application::unregister_socket(struct lwip_sock *sock) {
-  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
-  for (size_t i = 0; i < this->monitored_sockets_.size(); i++) {
-    if (this->monitored_sockets_[i] != sock)
-      continue;
-
-    // Swap with last element and pop - O(1) removal since order doesn't matter.
-    // No need to unhook the netconn callback — all LwIP sockets share the same
-    // static event_callback, and the socket will be closed by the caller.
-    if (i < this->monitored_sockets_.size() - 1)
-      this->monitored_sockets_[i] = this->monitored_sockets_.back();
-    this->monitored_sockets_.pop_back();
-    return;
-  }
-}
-#elif defined(USE_HOST)
+#ifdef USE_HOST
 bool Application::register_socket_fd(int fd) {
   // WARNING: This function is NOT thread-safe and must only be called from the main loop
   // It modifies socket_fds_ and related variables without locking
