@@ -78,7 +78,7 @@ void Application::setup() {
     Component *component = this->components_[i];
 
     // Update loop_component_start_time_ before calling each component during setup
-    this->loop_component_start_time_ = millis();
+    this->loop_component_start_time_ = MillisInternal::get();
     component->call();
     this->scheduler.process_to_add();
     this->feed_wdt();
@@ -91,17 +91,15 @@ void Application::setup() {
     this->app_state_ |= STATUS_LED_WARNING;
 
     do {
-      uint32_t now = millis();
-
       // Service scheduler and process pending loop enables to handle GPIO
       // interrupts during setup. During setup we always run the component
       // phase (no loop_interval_ gate), so call both helpers unconditionally.
-      this->scheduler_tick_(now);
+      this->scheduler_tick_(MillisInternal::get());
       this->before_component_phase_();
 
       for (uint32_t j = 0; j <= i; j++) {
         // Update loop_component_start_time_ right before calling each component
-        this->loop_component_start_time_ = millis();
+        this->loop_component_start_time_ = MillisInternal::get();
         this->components_[j]->call();
         this->feed_wdt();
       }
@@ -215,7 +213,7 @@ void Application::process_dump_config_() {
 void Application::feed_wdt() {
   // Cold entry: callers without a millis() timestamp in hand. Fetches the
   // time and takes the same rate-limit paths as feed_wdt_with_time().
-  uint32_t now = millis();
+  uint32_t now = MillisInternal::get();
   if (now - this->last_wdt_feed_ > WDT_FEED_INTERVAL_MS) {
     this->feed_wdt_slow_(now);
   }
@@ -305,7 +303,7 @@ void Application::run_powerdown_hooks() {
 }
 
 void Application::teardown_components(uint32_t timeout_ms) {
-  uint32_t start_time = millis();
+  uint32_t start_time = MillisInternal::get();
 
   // Use a StaticVector instead of std::vector to avoid heap allocation
   // since we know the actual size at compile time
@@ -384,7 +382,7 @@ void Application::teardown_components(uint32_t timeout_ms) {
     }
 
     // Update time for next iteration
-    now = millis();
+    now = MillisInternal::get();
   }
 
   if (pending_count > 0) {
@@ -427,7 +425,7 @@ void Application::disable_component_loop_(Component *component) {
           // This prevents integer underflow in timing calculations by ensuring
           // the swapped component starts with a fresh timing reference, avoiding
           // errors caused by stale or wrapped timing values.
-          this->loop_component_start_time_ = millis();
+          this->loop_component_start_time_ = MillisInternal::get();
         }
       }
       return;
