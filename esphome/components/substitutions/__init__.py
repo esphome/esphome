@@ -11,9 +11,11 @@ from esphome.types import ConfigType
 from esphome.util import OrderedDict
 from esphome.yaml_util import (
     ConfigContext,
+    DocumentPath,
     ESPHomeDataBase,
     ESPLiteralValue,
     IncludeFile,
+    format_path,
     make_data_base,
 )
 
@@ -23,8 +25,8 @@ CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
 
 ContextVars = ChainMap[str, Any]
-SubstitutionPath = list[int | str]
-ErrList = list[tuple[UndefinedError, SubstitutionPath, Any]]
+ErrList = list[tuple[UndefinedError, DocumentPath, Any]]
+
 # Module-level instance is safe: context_vars is passed per-call, and context_trace
 # is stack-saved/restored within expand(). Not thread-safe — only use from one thread.
 jinja = Jinja()
@@ -32,16 +34,13 @@ jinja = Jinja()
 
 def raise_first_undefined(
     errors: ErrList,
-    source: Any,
     context_label: str,
 ) -> None:
     """If *errors* is non-empty, raise ``cv.Invalid`` for the first undefined variable.
 
-    The raised error names the missing variable, the path walked into *source*
-    (for nested dicts, e.g. ``url`` or ``ref``), and the YAML source location
-    when *source* carries one. Only the first error is surfaced; the user will
-    re-run after fixing it and any remaining undefined variables will be
-    reported then.
+    The raised error names the missing variable and its location in the include
+    stack. Only the first error is surfaced; the user will re-run after fixing it
+    and any remaining undefined variables will be reported then.
 
     ``context_label`` is the noun describing where the undefined variable
     appeared (e.g. ``"package definition"``).
@@ -57,26 +56,8 @@ def raise_first_undefined(
             for e, p_path, _ in errors[1:]
         )
         _LOGGER.debug("Additional undefined variables in %s: %s", context_label, extras)
-    # Prefer the location of the offending scalar (e.g. the `url:` value) over
-    # the enclosing package-definition dict so the message points at the exact
-    # line/column that carries the undefined variable.
-    location_node = (
-        err_value
-        if isinstance(err_value, ESPHomeDataBase) and err_value.esp_range is not None
-        else source
-    )
-    location = ""
-    if (
-        isinstance(location_node, ESPHomeDataBase)
-        and location_node.esp_range is not None
-    ):
-        mark = location_node.esp_range.start_mark
-        # DocumentLocation.line/column are 0-based (from the YAML Mark). Render
-        # as 1-based to match config.line_info() and editor line numbering.
-        location = f" (in {mark.document} {mark.line + 1}:{mark.column + 1})"
-    field = f" at '{'->'.join(str(p) for p in err_path)}'" if err_path else ""
     raise cv.Invalid(
-        f"Undefined variable in {context_label}{field}: {err.message}{location}"
+        f"Undefined variable in {context_label}: {err.message}\n{format_path(err_path, err_value)}"
     )
 
 
@@ -145,7 +126,7 @@ def _resolve_var(name: str, context_vars: ContextVars) -> Any:
 
 def _handle_undefined(
     err: UndefinedError,
-    path: SubstitutionPath,
+    path: DocumentPath,
     value: Any,
     strict_undefined: bool,
     errors: ErrList | None,
@@ -163,7 +144,7 @@ def _handle_undefined(
 
 def _expand_substitutions(
     value: str,
-    path: SubstitutionPath,
+    path: DocumentPath,
     context_vars: ContextVars,
     strict_undefined: bool,
     errors: ErrList | None,
@@ -236,7 +217,7 @@ def _expand_substitutions(
                 f"\nEvaluation stack: (most recent evaluation last)"
                 f"\n{err.stack_trace_str()}"
                 f"\nRelevant context:\n{err.context_trace_str()}"
-                f"\nSee {'->'.join(str(x) for x in path)}",
+                f"\n{format_path(path, orig_value)}",
                 path,
             ) from err
         else:
@@ -345,14 +326,12 @@ def push_context(
 
 def resolve_include(
     include: IncludeFile,
-    path: list[int | str],
+    path: DocumentPath,
     context_vars: ContextVars,
     strict_undefined: bool = True,
     errors: ErrList | None = None,
-) -> tuple[Any, str]:
+) -> Any:
     """Resolve an include, substituting the filename if needed.
-
-    Returns the loaded content and the resolved filename.
 
     Note: no path-traversal validation is performed on the resolved filename.
     A substitution that resolves to an absolute path will bypass the parent
@@ -361,44 +340,44 @@ def resolve_include(
     values (including command-line substitutions), so path restrictions are
     an explicit non-goal here.
     """
-    original = str(include.file)
+    original = include.file
+    original_str = str(original)
     filename = str(
         _expand_substitutions(
-            original, path + ["file"], context_vars, strict_undefined, errors
+            original_str, path + ["file"], context_vars, strict_undefined, errors
         )
     )
-    if filename != original:
+    substituted = filename != original_str
+    if substituted:
         include = IncludeFile(
             include.parent_file, filename, include.vars, include.yaml_loader
         )
     try:
-        return include.load(), filename
+        return include.load()
     except esphome.core.EsphomeError as err:
+        resolved = f" (expanded from '{original}')" if substituted else ""
         raise cv.Invalid(
-            f"Error including file '{filename}': {err}",
+            f"Error including file '{filename}'{resolved}: {err}"
+            f"\n{format_path(path, original)}",
             path + [f"<{filename}>"],
         ) from err
 
 
 def _substitute_include(
     include: IncludeFile,
-    path: list[int | str],
+    path: DocumentPath,
     context_vars: ContextVars,
     strict_undefined: bool,
     errors: ErrList | None,
 ) -> Any:
     """Resolve an include and substitute its content."""
-    content, filename = resolve_include(
-        include, path, context_vars, strict_undefined, errors
-    )
-    return substitute(
-        content, path + [f"<{filename}>"], context_vars, strict_undefined, errors
-    )
+    content = resolve_include(include, path, context_vars, strict_undefined, errors)
+    return substitute(content, path, context_vars, strict_undefined, errors)
 
 
 def substitute(
     item: Any,
-    path: SubstitutionPath,
+    path: DocumentPath,
     parent_context: ContextVars,
     strict_undefined: bool,
     errors: ErrList | None = None,
@@ -451,16 +430,12 @@ def _warn_unresolved_variables(errors: ErrList) -> None:
     for err, path, expression in errors:
         if "password" in path:
             continue
-        location: str = "->".join(str(x) for x in path)
-        if isinstance(expression, ESPHomeDataBase) and expression.esp_range is not None:
-            location += f" in {str(expression.esp_range.start_mark)}"
-
         _LOGGER.warning(
             "The string '%s' looks like an expression,"
-            " but could not resolve all the variables: %s (see %s)",
+            " but could not resolve all the variables: %s\n%s",
             expression,
             err.message,
-            location,
+            format_path(path, expression),
         )
 
 
@@ -479,7 +454,7 @@ def resolve_substitutions_block(
         # Single-shot resolution — matches ``_walk_packages`` for the
         # ``packages: !include`` entry point.  Chained includes (an include that
         # itself loads another ``!include`` at the top level) are not supported.
-        substitutions, _ = resolve_include(
+        substitutions = resolve_include(
             substitutions,
             [],
             ContextVars(command_line_substitutions or {}),
