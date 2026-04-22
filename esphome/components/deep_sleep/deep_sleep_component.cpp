@@ -69,11 +69,20 @@ void DeepSleepComponent::begin_sleep(bool manual) {
   if (this->sleep_duration_.has_value()) {
     ESP_LOGI(TAG, "Sleeping for %" PRId64 "us", *this->sleep_duration_);
   }
-  App.run_safe_shutdown_hooks();
-  // It's critical to teardown components cleanly for deep sleep to ensure
-  // Home Assistant sees a clean disconnect instead of marking the device unavailable
-  App.teardown_components(TEARDOWN_TIMEOUT_DEEP_SLEEP_MS);
-  App.run_powerdown_hooks();
+
+// nRF52 returns from sleep without reset.
+// Do not teardown things to make sure it still works after.
+#if defined(USE_NRF52) && !defined(USE_ZIGBEE)
+  if (!this->sleep_duration_.has_value()) {
+#endif
+    App.run_safe_shutdown_hooks();
+    // It's critical to teardown components cleanly for deep sleep to ensure
+    // Home Assistant sees a clean disconnect instead of marking the device unavailable
+    App.teardown_components(TEARDOWN_TIMEOUT_DEEP_SLEEP_MS);
+    App.run_powerdown_hooks();
+#if defined(USE_NRF52) && !defined(USE_ZIGBEE)
+  }
+#endif
 
   this->deep_sleep_();
   this->setup_deep_sleep_();
