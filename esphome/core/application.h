@@ -499,9 +499,6 @@ class Application {
 #ifdef USE_HOST
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
 #endif
-#ifdef USE_HOST
-  int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
-#endif
 
   // StringRef members (8 bytes each: pointer + size)
   StringRef name_;
@@ -517,7 +514,8 @@ class Application {
 #endif
 
 #ifdef USE_HOST
-  int max_fd_{-1};  // Highest file descriptor number for select()
+  int max_fd_{-1};          // Highest file descriptor number for select()
+  int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
 #endif
 
   // 2-byte members (grouped together for alignment)
@@ -534,9 +532,7 @@ class Application {
 
 #ifdef USE_HOST
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
-#endif
 
-#ifdef USE_HOST
   // Variable-sized members (not needed with fast select — is_socket_ready_ reads rcvevent directly)
   fd_set read_fds_{};       // Working fd_set: populated by select()
   fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
