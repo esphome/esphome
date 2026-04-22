@@ -11,6 +11,7 @@
 from esphome.cpp_generator import (  # noqa: F401
     ArrayInitializer,
     Expression,
+    FlashStringLiteral,
     LineComment,
     LogStringLiteral,
     MockObj,
@@ -78,6 +79,7 @@ from esphome.cpp_types import (  # noqa: F401
     float_,
     global_ns,
     gpio_Flags,
+    int8,
     int16,
     int32,
     int64,
@@ -87,6 +89,7 @@ from esphome.cpp_types import (  # noqa: F401
     size_t,
     std_ns,
     std_shared_ptr,
+    std_span,
     std_string,
     std_string_ref,
     std_vector,

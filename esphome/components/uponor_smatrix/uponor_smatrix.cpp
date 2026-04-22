@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace uponor_smatrix {
 
@@ -24,7 +26,7 @@ void UponorSmatrixComponent::dump_config() {
 #ifdef USE_TIME
   if (this->time_id_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Time synchronization: YES");
-    ESP_LOGCONFIG(TAG, "  Time master device address: 0x%08X", this->time_device_address_);
+    ESP_LOGCONFIG(TAG, "  Time master device address: 0x%08" PRIX32 "", this->time_device_address_);
   }
 #endif
 
@@ -33,7 +35,7 @@ void UponorSmatrixComponent::dump_config() {
   if (!this->unknown_devices_.empty()) {
     ESP_LOGCONFIG(TAG, "  Detected unknown device addresses:");
     for (auto device_address : this->unknown_devices_) {
-      ESP_LOGCONFIG(TAG, "    0x%08X", device_address);
+      ESP_LOGCONFIG(TAG, "    0x%08" PRIX32 "", device_address);
     }
   }
 }
@@ -103,14 +105,14 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_size(UPONOR_MAX_LOG_BYTES)];
 #endif
-  ESP_LOGV(TAG, "Received packet: addr=%08X, data=%s, crc=%04X", device_address,
+  ESP_LOGV(TAG, "Received packet: addr=%08" PRIX32 ", data=%s, crc=%04X", device_address,
            format_hex_to(hex_buf, &packet[4], packet_len - 6), crc);
 
   // Handle packet
   size_t data_len = (packet_len - 6) / 3;
   if (data_len == 0) {
     if (packet[4] == UPONOR_ID_REQUEST)
-      ESP_LOGVV(TAG, "Ignoring request packet for device 0x%08X", device_address);
+      ESP_LOGVV(TAG, "Ignoring request packet for device 0x%08" PRIX32 "", device_address);
     return true;
   }
 
@@ -135,7 +137,7 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
       if (data[i].id == UPONOR_ID_DATETIME1)
         found_time = true;
       if (found_temperature && found_time) {
-        ESP_LOGI(TAG, "Using detected time device address 0x%08X", device_address);
+        ESP_LOGI(TAG, "Using detected time device address 0x%08" PRIX32 "", device_address);
         this->time_device_address_ = device_address;
         break;
       }
@@ -154,7 +156,7 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
 
   // Log unknown device addresses
   if (!found && !this->unknown_devices_.count(device_address)) {
-    ESP_LOGI(TAG, "Received packet for unknown device address 0x%08X ", device_address);
+    ESP_LOGI(TAG, "Received packet for unknown device address 0x%08" PRIX32 " ", device_address);
     this->unknown_devices_.insert(device_address);
   }
 

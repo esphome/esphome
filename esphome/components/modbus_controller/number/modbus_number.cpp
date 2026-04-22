@@ -62,7 +62,7 @@ void ModbusNumber::control(float value) {
           this->parent_->on_write_register_response(write_cmd.register_type, this->start_address, data);
         });
   } else {
-    data = float_to_payload(write_value, this->sensor_value_type);
+    data = modbus::helpers::float_to_payload(write_value, this->sensor_value_type);
 
     ESP_LOGD(TAG,
              "Updating register: connected Sensor=%s start address=0x%X register count=%d new value=%.02f (val=%.02f)",

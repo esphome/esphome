@@ -34,3 +34,11 @@ usb_uart:
       - id: channel_4_1
         debug: true
         dummy_receiver: true
+        debug_prefix: "[ESP_JTAG] "
+  - id: uart_5
+    type: cp210x
+    channels:
+      - id: channel_5_1
+        baud_rate: 9600
+        debug: true
+        debug_prefix: "[CP210X] "

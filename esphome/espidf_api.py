@@ -8,7 +8,6 @@ import shutil
 import subprocess
 
 from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE
-from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME
 from esphome.core import CORE, EsphomeError
 
 _LOGGER = logging.getLogger(__name__)
@@ -102,6 +101,55 @@ def run_reconfigure() -> int:
     return run_idf_py("reconfigure")
 
 
+def has_outdated_files():
+    """Check if the build configuration is stale.
+
+    Returns True if required build files are missing or if configuration inputs
+    are newer than the generated CMake/Ninja build artifacts.
+    """
+    cmakecache_txt_path = CORE.relative_build_path("build/CMakeCache.txt")
+
+    cmakelists_txt_build_path = CORE.relative_build_path("CMakeLists.txt")
+    cmakelists_txt_src_path = CORE.relative_src_path("CMakeLists.txt")
+    build_config_path = CORE.relative_build_path("build/config")
+    sdkconfig_internal_path = CORE.relative_build_path(
+        f"sdkconfig.{CORE.name}.esphomeinternal"
+    )
+    dependency_lock_path = CORE.relative_build_path("dependencies.lock")
+    build_ninja_path = CORE.relative_build_path("build/build.ninja")
+
+    if not os.path.isdir(build_config_path) or not os.listdir(build_config_path):
+        return True
+    if not os.path.isfile(cmakecache_txt_path):
+        return True
+    if not os.path.isfile(build_ninja_path):
+        return True
+    if os.path.isfile(dependency_lock_path) and os.path.getmtime(
+        dependency_lock_path
+    ) > os.path.getmtime(build_ninja_path):
+        return True
+
+    cmakecache_txt_mtime = os.path.getmtime(cmakecache_txt_path)
+    return any(
+        os.path.getmtime(f) > cmakecache_txt_mtime
+        for f in [
+            _get_idf_path(),
+            cmakelists_txt_build_path,
+            cmakelists_txt_src_path,
+            sdkconfig_internal_path,
+            build_config_path,
+        ]
+        if f and os.path.exists(f)
+    )
+
+
+def need_reconfigure() -> bool:
+    from esphome.build_gen.espidf import has_discovered_components
+
+    # We need to reconfigure either if the files are outdated or if there is no component discovered
+    return has_outdated_files() or not has_discovered_components()
+
+
 def run_compile(config, verbose: bool) -> int:
     """Compile the ESP-IDF project.
 
@@ -110,10 +158,10 @@ def run_compile(config, verbose: bool) -> int:
     2. Regenerate CMakeLists.txt with discovered components
     3. Run full build
     """
-    from esphome.build_gen.espidf import has_discovered_components, write_project
+    from esphome.build_gen.espidf import write_project
 
     # Check if we need to do discovery phase
-    if not has_discovered_components():
+    if need_reconfigure():
         _LOGGER.info("Discovering available ESP-IDF components...")
         write_project(minimal=True)
         rc = run_reconfigure()
@@ -124,15 +172,12 @@ def run_compile(config, verbose: bool) -> int:
         write_project(minimal=False)
 
     # Build
-    args = ["build"]
+    args = []
 
     if verbose:
         args.append("-v")
 
-    # Add parallel job limit if configured
-    if CONF_COMPILE_PROCESS_LIMIT in config.get(CONF_ESPHOME, {}):
-        limit = config[CONF_ESPHOME][CONF_COMPILE_PROCESS_LIMIT]
-        args.extend(["-j", str(limit)])
+    args.append("build")
 
     # Set the sdkconfig file
     sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")

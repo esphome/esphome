@@ -1,8 +1,8 @@
 import contextlib
 from datetime import datetime
-import hashlib
 import json
 import logging
+import os
 import ssl
 import tempfile
 import time
@@ -22,14 +22,12 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_PORT,
     CONF_SKIP_CERT_CN_CHECK,
-    CONF_SSL_FINGERPRINTS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
     CONF_USERNAME,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import EsphomeError
 from esphome.helpers import get_int_env, get_str_env
-from esphome.log import AnsiFore, color
 from esphome.types import ConfigType
 from esphome.util import safe_print
 
@@ -102,9 +100,7 @@ def prepare(
     elif username:
         client.username_pw_set(username, password)
 
-    if config[CONF_MQTT].get(CONF_SSL_FINGERPRINTS) or config[CONF_MQTT].get(
-        CONF_CERTIFICATE_AUTHORITY
-    ):
+    if config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY):
         context = ssl.create_default_context(
             cadata=config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY)
         )
@@ -114,14 +110,18 @@ def prepare(
             CONF_CLIENT_CERTIFICATE_KEY
         ):
             with (
-                tempfile.NamedTemporaryFile(mode="w+") as cert_file,
-                tempfile.NamedTemporaryFile(mode="w+") as key_file,
+                tempfile.NamedTemporaryFile(mode="w+", delete=False) as cert_file,
+                tempfile.NamedTemporaryFile(mode="w+", delete=False) as key_file,
             ):
-                cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
-                cert_file.flush()
-                key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
-                key_file.flush()
-                context.load_cert_chain(cert_file.name, key_file.name)
+                try:
+                    cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
+                    key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
+                    cert_file.close()
+                    key_file.close()
+                    context.load_cert_chain(cert_file.name, key_file.name)
+                finally:
+                    os.unlink(cert_file.name)
+                    os.unlink(key_file.name)
         client.tls_set_context(context)
 
     try:
@@ -283,23 +283,3 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
         client.publish(msg.topic, None, retain=True)
 
     return initialize(config, [topic], on_message, None, username, password, client_id)
-
-
-# From marvinroger/async-mqtt-client -> scripts/get-fingerprint/get-fingerprint.py
-def get_fingerprint(config):
-    addr = str(config[CONF_MQTT][CONF_BROKER]), int(config[CONF_MQTT][CONF_PORT])
-    _LOGGER.info("Getting fingerprint from %s:%s", addr[0], addr[1])
-    try:
-        cert_pem = ssl.get_server_certificate(addr)
-    except OSError as err:
-        _LOGGER.error("Unable to connect to server: %s", err)
-        return 1
-    cert_der = ssl.PEM_cert_to_DER_cert(cert_pem)
-
-    sha1 = hashlib.sha1(cert_der).hexdigest()
-
-    safe_print(f"SHA1 Fingerprint: {color(AnsiFore.CYAN, sha1)}")
-    safe_print(
-        f"Copy the string above into mqtt.ssl_fingerprints section of {CORE.config_path}"
-    )
-    return 0

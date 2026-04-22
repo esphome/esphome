@@ -61,6 +61,15 @@ void BedJetClimate::dump_config() {
 }
 
 void BedJetClimate::setup() {
+  // Set custom modes once during setup — stored on Climate base class, wired via get_traits()
+  this->set_supported_custom_fan_modes(BEDJET_FAN_STEP_NAMES);
+  this->set_supported_custom_presets({
+      this->heating_mode_ == HEAT_MODE_EXTENDED ? "LTD HT" : "EXT HT",
+      "M1",
+      "M2",
+      "M3",
+  });
+
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {
@@ -96,8 +105,9 @@ void BedJetClimate::control(const ClimateCall &call) {
     return;
   }
 
-  if (call.get_mode().has_value()) {
-    ClimateMode mode = *call.get_mode();
+  auto mode_opt = call.get_mode();
+  if (mode_opt.has_value()) {
+    ClimateMode mode = *mode_opt;
     bool button_result;
     switch (mode) {
       case CLIMATE_MODE_OFF:
@@ -125,8 +135,9 @@ void BedJetClimate::control(const ClimateCall &call) {
     }
   }
 
-  if (call.get_target_temperature().has_value()) {
-    auto target_temp = *call.get_target_temperature();
+  auto target_temp_opt = call.get_target_temperature();
+  if (target_temp_opt.has_value()) {
+    auto target_temp = *target_temp_opt;
     auto result = this->parent_->set_target_temp(target_temp);
 
     if (result) {
@@ -134,8 +145,9 @@ void BedJetClimate::control(const ClimateCall &call) {
     }
   }
 
-  if (call.get_preset().has_value()) {
-    ClimatePreset preset = *call.get_preset();
+  auto preset_opt = call.get_preset();
+  if (preset_opt.has_value()) {
+    ClimatePreset preset = *preset_opt;
     bool result;
 
     if (preset == CLIMATE_PRESET_BOOST) {
@@ -187,10 +199,11 @@ void BedJetClimate::control(const ClimateCall &call) {
     }
   }
 
-  if (call.get_fan_mode().has_value()) {
+  auto fan_mode_opt = call.get_fan_mode();
+  if (fan_mode_opt.has_value()) {
     // Climate fan mode only supports low/med/high, but the BedJet supports 5-100% increments.
     // We can still support a ClimateCall that requests low/med/high, and just translate it to a step increment here.
-    auto fan_mode = *call.get_fan_mode();
+    auto fan_mode = *fan_mode_opt;
     bool result;
     if (fan_mode == CLIMATE_FAN_LOW) {
       result = this->parent_->set_fan_speed(20);
