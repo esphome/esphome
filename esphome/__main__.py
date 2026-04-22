@@ -741,8 +741,11 @@ def upload_using_esptool(
     elif CORE.using_native_idf:
         from esphome import espidf_api
 
-        file = espidf_api.get_factory_firmware_path()
-        flash_images = [platformio_api.FlashImage(path=file, offset="0x0")]
+        flash_images = [
+            platformio_api.FlashImage(
+                path=espidf_api.get_factory_firmware_path(), offset="0x0"
+            )
+        ]
     else:
         idedata = platformio_api.get_idedata(config)
 
