@@ -37,6 +37,7 @@ void XDB401Component::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Pressure Range: %u bar", this->pressure_range_bar_);
+  ESP_LOGCONFIG(TAG, "  Temperature Unit: %s", this->temperature_unit_ == TEMPERATURE_UNIT_F ? "°F" : "°C");
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
@@ -96,19 +97,22 @@ void XDB401Component::read_measurement_() {
 
   i2c::ErrorCode err_code = this->read_pressure_(pressure);
   if (err_code != i2c::ERROR_OK) {
-    this->status_set_warning("Could not read pressure data");
-    this->measurement_in_progress_ = false;
+    this->handle_comm_failure_("Could not read pressure data");
     return;
   }
 
   err_code = this->read_temperature_(temperature);
   if (err_code != i2c::ERROR_OK) {
-    this->status_set_warning("Could not read temperature data");
-    this->measurement_in_progress_ = false;
+    this->handle_comm_failure_("Could not read temperature data");
     return;
   }
 
-  ESP_LOGD(TAG, "Got pressure=%.1f Pa, temperature=%.1f°C", pressure, temperature);
+  if (this->temperature_unit_ == TEMPERATURE_UNIT_F) {
+    temperature = temperature * 9.0f / 5.0f + 32.0f;
+  }
+
+  ESP_LOGD(TAG, "Got pressure=%.1f Pa, temperature=%.2f%s", pressure, temperature,
+           this->temperature_unit_ == TEMPERATURE_UNIT_F ? "°F" : "°C");
 
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
