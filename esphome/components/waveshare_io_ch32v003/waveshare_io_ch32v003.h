@@ -23,7 +23,7 @@ class WaveshareIOCH32V003Component : public Component,
   void loop() override;
 
   uint16_t get_adc_value();
-  uint8_t get_interrupt_status();
+  uint8_t get_rtc_interrupt_status();
   void set_pwm_value(uint8_t value);  // 0 - 255
 
  protected:

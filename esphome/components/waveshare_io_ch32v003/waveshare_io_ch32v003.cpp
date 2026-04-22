@@ -8,7 +8,7 @@ static const uint8_t IO_EXTENSION_IO_OUTPUT_ADDR = 0x03;
 static const uint8_t IO_EXTENSION_IO_INPUT_ADDR = 0x04;
 static const uint8_t IO_EXTENSION_PWM_ADDR = 0x05;
 static const uint8_t IO_EXTENSION_ADC_ADDR = 0x06;
-static const uint8_t IO_EXTENSION_INTERRUPT_ADDR = 0x07;
+static const uint8_t IO_EXTENSION_RTC_INT_ADDR = 0x07;
 
 static const char *const TAG = "waveshare_io_ch32v003";
 
@@ -65,13 +65,13 @@ uint16_t WaveshareIOCH32V003Component::get_adc_value() {
   return adc_value;
 }
 
-uint8_t WaveshareIOCH32V003Component::get_interrupt_status() {
+uint8_t WaveshareIOCH32V003Component::get_rtc_interrupt_status() {
   if (this->is_failed())
     return 0;
 
   uint8_t data = 0;
-  if (!this->read_bytes(IO_EXTENSION_INTERRUPT_ADDR, &data, 1)) {
-    this->status_set_warning(LOG_STR("Failed to read interrupt register"));
+  if (!this->read_bytes(IO_EXTENSION_RTC_INT_ADDR, &data, 1)) {
+    this->status_set_warning(LOG_STR("Failed to read RTC interrupt register"));
     return 0;
   }
   this->status_clear_warning();
