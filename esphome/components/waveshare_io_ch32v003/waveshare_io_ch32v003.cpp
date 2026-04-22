@@ -25,8 +25,7 @@ void WaveshareIOCH32V003Component::setup() {
     return;
   }
 
-  ESP_LOGCONFIG(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
-                this->status_has_error());
+  this->disable_loop();
 }
 
 void WaveshareIOCH32V003Component::pin_mode(uint8_t pin, gpio::Flags flags) {
@@ -34,6 +33,7 @@ void WaveshareIOCH32V003Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
     // Clear mode mask bit
     this->mode_mask_ &= ~(1 << pin);
+    this->enable_loop();
   } else if (flags == gpio::FLAG_OUTPUT) {
     // Set mode mask bit
     this->mode_mask_ |= 1 << pin;
@@ -57,7 +57,7 @@ uint16_t WaveshareIOCH32V003Component::get_adc_value() {
 
   uint8_t data[2];
   if (!this->read_bytes(IO_EXTENSION_ADC_ADDR, data, 2)) {
-    this->status_set_warning("Failed to read ADC register");
+    this->status_set_warning(LOG_STR("Failed to read ADC register"));
     return 0;
   }
   uint16_t adc_value = (data[1] << 8) | data[0];
@@ -71,7 +71,7 @@ uint8_t WaveshareIOCH32V003Component::get_interrupt_status() {
 
   uint8_t data = 0;
   if (!this->read_bytes(IO_EXTENSION_INTERRUPT_ADDR, &data, 1)) {
-    this->status_set_warning("Failed to read interrupt register");
+    this->status_set_warning(LOG_STR("Failed to read interrupt register"));
     return 0;
   }
   this->status_clear_warning();
@@ -86,9 +86,8 @@ void WaveshareIOCH32V003Component::set_pwm_value(uint8_t value) {
   // based on circuit schematic requirements. This follows the pattern from the
   // original Waveshare IO library function "void IO_EXTENSION_Pwm_Output(uint8_t Value)".
 
-  uint8_t data[2] = {IO_EXTENSION_PWM_ADDR, value};
-  if (!this->write_bytes(data[0], &data[1], 1)) {
-    this->status_set_warning("Failed to set PWM duty cycle");
+  if (!this->write_byte(IO_EXTENSION_PWM_ADDR, value)) {
+    this->status_set_warning(LOG_STR("Failed to set PWM duty cycle"));
     return;
   }
 
@@ -99,7 +98,7 @@ bool WaveshareIOCH32V003Component::write_gpio_modes_() {
   if (this->is_failed())
     return false;
   if (!this->write_byte(IO_EXTENSION_DIRECTION, this->mode_mask_)) {
-    this->status_set_warning("Failed to write mode register");
+    this->status_set_warning(LOG_STR("Failed to write mode register"));
     return false;
   }
   this->status_clear_warning();
@@ -110,7 +109,7 @@ bool WaveshareIOCH32V003Component::write_gpio_outputs_() {
   if (this->is_failed())
     return false;
   if (!this->write_byte(IO_EXTENSION_IO_OUTPUT_ADDR, this->output_mask_)) {
-    this->status_set_warning("Failed to write output register");
+    this->status_set_warning(LOG_STR("Failed to write output register"));
     return false;
   }
   this->status_clear_warning();
@@ -123,7 +122,7 @@ bool WaveshareIOCH32V003Component::digital_read_hw(uint8_t pin) {
 
   uint8_t data = 0;
   if (!this->read_bytes(IO_EXTENSION_IO_INPUT_ADDR, &data, 1)) {
-    this->status_set_warning("Failed to read input register");
+    this->status_set_warning(LOG_STR("Failed to read input register"));
     return false;
   }
   this->input_mask_ = data;
@@ -144,7 +143,7 @@ void WaveshareIOCH32V003Component::digital_write_hw(uint8_t pin, bool value) {
 
   uint8_t data = this->output_mask_;
   if (!this->write_byte(IO_EXTENSION_IO_OUTPUT_ADDR, data)) {
-    this->status_set_warning("Failed to write output register");
+    this->status_set_warning(LOG_STR("Failed to write output register"));
     return;
   }
 
@@ -154,13 +153,7 @@ void WaveshareIOCH32V003Component::digital_write_hw(uint8_t pin, bool value) {
 bool WaveshareIOCH32V003Component::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 float WaveshareIOCH32V003Component::get_setup_priority() const { return setup_priority::IO; }
 
-// Run our loop() method very early in the loop, so that we invalidate the pin
-// cache before other components call our digital_read() method. This ensures the
-// first digital_read() in the loop triggers a fresh I2C read.
-#ifdef USE_LOOP_PRIORITY
-float WaveshareIOCH32V003Component::get_loop_priority() const { return 9.0f; }  // Just after WIFI
-#endif
-
+void WaveshareIOCH32V003GPIOPin::setup() { this->pin_mode(this->flags_); }
 void WaveshareIOCH32V003GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool WaveshareIOCH32V003GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) ^ this->inverted_; }
 
@@ -169,11 +162,7 @@ void WaveshareIOCH32V003GPIOPin::digital_write(bool value) {
 }
 
 size_t WaveshareIOCH32V003GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "EXIO%u via WaveshareIO", this->pin_);
-}
-void WaveshareIOCH32V003GPIOPin::set_flags(gpio::Flags flags) {
-  flags_ = flags;
-  this->parent_->pin_mode(this->pin_, flags);
+  return buf_append_printf(buffer, len, 0, "EXIO%u via WaveshareIO", this->pin_);
 }
 
 }  // namespace esphome::waveshare_io_ch32v003

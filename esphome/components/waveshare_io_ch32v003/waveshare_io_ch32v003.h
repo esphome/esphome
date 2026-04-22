@@ -33,10 +33,6 @@ class WaveshareIOCH32V003Component : public Component,
   bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
-#ifdef USE_LOOP_PRIORITY
-  float get_loop_priority() const override;
-#endif
-
   uint8_t mode_mask_{0x00};    // Mask for the pin mode - 1 means output, 0 means input
   uint8_t output_mask_{0x00};  // The mask to write as output state - 1 means HIGH, 0 means LOW
   uint8_t input_mask_{0x00};   // The state read in digital_read_hw - 1 means HIGH, 0 means LOW
@@ -48,15 +44,15 @@ class WaveshareIOCH32V003Component : public Component,
 /// Helper class to expose a WaveshareIO pin as a GPIO pin.
 class WaveshareIOCH32V003GPIOPin : public GPIOPin, public Parented<WaveshareIOCH32V003Component> {
  public:
-  void setup() override{};
+  void setup() override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
   size_t dump_summary(char *buffer, size_t len) const override;
 
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_flags(gpio::Flags flags);
+  void set_pin(uint8_t pin) { this->pin_ = pin; }
+  void set_inverted(bool inverted) { this->inverted_ = inverted; }
+  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
 
   gpio::Flags get_flags() const override { return this->flags_; }
 
