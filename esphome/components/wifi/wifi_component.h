@@ -9,6 +9,11 @@
 #ifdef USE_ESP32
 #include "esphome/core/lock_free_queue.h"
 #endif
+#if defined(USE_LIBRETINY) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
+#include "esphome/core/lock_free_queue.h"
+#elif defined(USE_LIBRETINY) && defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
+#include "esphome/core/freertos_queue.h"
+#endif
 #include "esphome/core/string_ref.h"
 
 #include <span>
@@ -657,7 +662,7 @@ class WiFiComponent final : public Component {
 
   void connect_soon_();
 
-  void wifi_loop_();
+  bool wifi_loop_();
 #ifdef USE_ESP8266
   void process_pending_callbacks_();
 #endif
@@ -880,6 +885,19 @@ class WiFiComponent final : public Component {
   // 17 slots = 16 usable (ring buffer reserves one slot). WiFi events are rare.
   // Placed at end of class to avoid padding between smaller fields.
   LockFreeQueue<IDFWiFiEvent, 17> event_queue_;
+#endif
+
+#ifdef USE_LIBRETINY
+  // Thread-safe queue for WiFi events from LibreTiny callback thread.
+  // LockFreeQueue on platforms with hardware atomics (RTL87xx, LN882x),
+  // FreeRTOSQueue on platforms without (BK72xx).
+  static constexpr uint8_t LT_EVENT_QUEUE_SIZE = 16;
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  // Ring buffer reserves one slot, so +1 for 16 usable slots
+  LockFreeQueue<LTWiFiEvent, LT_EVENT_QUEUE_SIZE + 1> event_queue_;
+#else
+  FreeRTOSQueue<LTWiFiEvent, LT_EVENT_QUEUE_SIZE> event_queue_;
+#endif
 #endif
 
  private:
