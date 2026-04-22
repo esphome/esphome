@@ -95,16 +95,16 @@ void Application::setup() {
       // interrupts during setup. During setup we always run the component
       // phase (no loop_interval_ gate), so call both helpers unconditionally.
       this->scheduler_tick_(MillisInternal::get());
-      this->before_component_phase_();
+      {
+        ComponentPhaseGuard phase_guard{*this};
 
-      for (uint32_t j = 0; j <= i; j++) {
-        // Update loop_component_start_time_ right before calling each component
-        this->loop_component_start_time_ = MillisInternal::get();
-        this->components_[j]->call();
-        this->feed_wdt();
+        for (uint32_t j = 0; j <= i; j++) {
+          // Update loop_component_start_time_ right before calling each component
+          this->loop_component_start_time_ = MillisInternal::get();
+          this->components_[j]->call();
+          this->feed_wdt();
+        }
       }
-
-      this->after_component_phase_();
       yield();
     } while (!component->can_proceed() && !component->is_failed());
   }

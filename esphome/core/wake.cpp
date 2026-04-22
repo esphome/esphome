@@ -58,7 +58,7 @@ static int64_t alarm_callback_(alarm_id_t id, void *user_data) {
 
 namespace internal {
 void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
+  if (ms == 0) [[unlikely]] {
     yield();
     return;
   }
