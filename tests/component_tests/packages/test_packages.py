@@ -46,7 +46,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.util import OrderedDict
-from esphome.yaml_util import IncludeFile, add_context, load_yaml
+from esphome.yaml_util import DocumentPath, IncludeFile, add_context, load_yaml
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -1113,7 +1113,7 @@ def test_packages_include_file_resolves_to_list(mock_resolve_include) -> None:
     """When packages: is an IncludeFile that resolves to a list, it is processed correctly."""
     include_file = MagicMock(spec=IncludeFile)
     package_content = {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
-    mock_resolve_include.return_value = ([package_content], None)
+    mock_resolve_include.return_value = [package_content]
 
     config = {CONF_PACKAGES: include_file}
     result = do_packages_pass(config)
@@ -1127,7 +1127,7 @@ def test_packages_include_file_resolves_to_dict(mock_resolve_include) -> None:
     """When packages: is an IncludeFile that resolves to a dict, it is processed correctly."""
     include_file = MagicMock(spec=IncludeFile)
     package_content = {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
-    mock_resolve_include.return_value = ({"network": package_content}, None)
+    mock_resolve_include.return_value = {"network": package_content}
 
     config = {CONF_PACKAGES: include_file}
     result = do_packages_pass(config)
@@ -1142,7 +1142,7 @@ def test_packages_include_file_resolves_to_invalid_type_raises(
 ) -> None:
     """When packages: is an IncludeFile that resolves to an invalid type, cv.Invalid is raised."""
     include_file = MagicMock(spec=IncludeFile)
-    mock_resolve_include.return_value = ("not_a_dict_or_list", None)
+    mock_resolve_include.return_value = "not_a_dict_or_list"
 
     config = {CONF_PACKAGES: include_file}
     with pytest.raises(
@@ -1215,7 +1215,9 @@ def test_named_dict_with_include_files_no_false_deprecation_warning(
 
     call_count = 0
 
-    def failing_callback(package_config: dict, context: object) -> dict:
+    def failing_callback(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -1251,7 +1253,9 @@ def test_validate_deprecated_false_raises_directly(
 
     call_count = 0
 
-    def failing_callback(package_config: dict, context: object) -> dict:
+    def failing_callback(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -1283,7 +1287,9 @@ def test_error_on_first_declared_package_still_detected() -> None:
 
     call_count = 0
 
-    def fail_on_last(package_config: dict, context: object) -> dict:
+    def fail_on_last(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal call_count
         call_count += 1
         # Reverse iteration: third_pkg (1), second_pkg (2), first_pkg (3)
@@ -1312,7 +1318,9 @@ def test_deprecated_single_package_fallback_still_works(
 
     attempt = 0
 
-    def fail_then_succeed(package_config: dict, context: object) -> dict:
+    def fail_then_succeed(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal attempt
         attempt += 1
         if attempt == 1:

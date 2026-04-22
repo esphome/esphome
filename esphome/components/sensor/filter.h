@@ -604,6 +604,19 @@ class RoundMultipleFilter : public Filter {
   float multiple_;
 };
 
+template<uint8_t Digits> class RoundSignificantDigitsFilter : public Filter {
+ public:
+  optional<float> new_value(float value) override {
+    if (std::isfinite(value)) {
+      if (value == 0.0f)
+        return 0.0f;
+      float factor = pow10_int(Digits - 1 - ilog10(value));
+      return roundf(value * factor) / factor;
+    }
+    return value;
+  }
+};
+
 class ToNTCResistanceFilter : public Filter {
  public:
   ToNTCResistanceFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}

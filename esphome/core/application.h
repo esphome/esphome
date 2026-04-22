@@ -82,11 +82,9 @@ class Application {
   void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
     this->name_add_mac_suffix_ = true;
-    // MAC address length: 12 hex chars + null terminator
-    constexpr size_t mac_address_len = 13;
     // MAC address suffix length (last 6 characters of 12-char MAC address string)
     constexpr size_t mac_address_suffix_len = 6;
-    char mac_addr[mac_address_len];
+    char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
     get_mac_address_into_buffer(mac_addr);
     // Overwrite the placeholder suffix in the mutable static buffers with actual MAC
     // name is always non-empty (validated by validate_hostname in Python config)
@@ -651,7 +649,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // (advanced by its per-item feeds) or `now` unchanged. We adopt it as `now`
   // so the gate check and WDT feed both reflect actual elapsed time after
   // scheduler dispatch, without an extra millis() call.
-  uint32_t now = this->scheduler_tick_(millis());
+  uint32_t now = this->scheduler_tick_(MillisInternal::get());
   // Guarantee one WDT feed per tick even when the scheduler had nothing to
   // dispatch and the component phase is gated out — covers configs with no
   // looping components and no scheduler work (setup() has its own
