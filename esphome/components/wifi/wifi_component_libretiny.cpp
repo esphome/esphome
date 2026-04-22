@@ -10,9 +10,6 @@
 #include "lwip/err.h"
 #include "lwip/dns.h"
 
-#include <FreeRTOS.h>
-#include <queue.h>
-
 #ifdef USE_BK72XX
 extern "C" {
 #include <wlan_ui_pub.h>
@@ -43,16 +40,13 @@ static const char *const TAG = "wifi_lt";
 // (like connection status flags) from the callback causes race conditions:
 // - The main loop may never see state changes (values cached in registers)
 // - State changes may be visible in inconsistent order
-// - LibreTiny targets (BK7231, RTL8720) lack atomic instructions (no LDREX/STREX)
 //
 // Solution: Queue events in the callback and process them in the main loop.
 // This is the same approach used by ESP32 IDF's wifi_process_event_().
 // All state modifications happen in the main loop context, eliminating races.
-
-static constexpr size_t EVENT_QUEUE_SIZE = 16;  // Max pending WiFi events before overflow
-static QueueHandle_t s_event_queue = nullptr;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static volatile uint32_t s_event_queue_overflow_count =
-    0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+//
+// On platforms with hardware atomics (RTL87xx, LN882x): LockFreeQueue (SPSC ring buffer)
+// On platforms without (BK72xx): FreeRTOSQueue (xQueue wrapper with critical sections)
 
 // Event structure for queued WiFi events - contains a copy of event data
 // to avoid lifetime issues with the original event data from the callback
@@ -352,10 +346,6 @@ using esphome_wifi_event_info_t = arduino_event_info_t;
 // Event callback - runs in WiFi driver thread context
 // Only queues events for processing in main loop, no logging or state changes here
 void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_wifi_event_info_t info) {
-  if (s_event_queue == nullptr) {
-    return;
-  }
-
   // Allocate on heap and fill directly to avoid extra memcpy
   auto *to_send = new LTWiFiEvent{};  // NOLINT(cppcoreguidelines-owning-memory)
   to_send->event_id = event;
@@ -428,9 +418,8 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
   }
 
   // Queue event (don't block if queue is full)
-  if (xQueueSend(s_event_queue, &to_send, 0) != pdPASS) {
+  if (!this->event_queue_.push(to_send)) {
     delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
-    s_event_queue_overflow_count++;
   }
 }
 
@@ -620,14 +609,6 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
   }
 }
 void WiFiComponent::wifi_pre_setup_() {
-  // Create event queue for thread-safe event handling
-  // Events are pushed from WiFi callback thread and processed in main loop
-  s_event_queue = xQueueCreate(EVENT_QUEUE_SIZE, sizeof(LTWiFiEvent *));
-  if (s_event_queue == nullptr) {
-    ESP_LOGE(TAG, "Failed to create event queue");
-    return;
-  }
-
   WiFi.onEvent(
       [this](arduino_event_id_t event, arduino_event_info_t info) { this->wifi_event_callback_(event, info); });
   // Make sure WiFi is in clean state before anything starts
@@ -796,28 +777,26 @@ int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
-void WiFiComponent::wifi_loop_() {
-  // Process all pending events from the queue
-  if (s_event_queue == nullptr) {
-    return;
-  }
+bool WiFiComponent::wifi_loop_() {
+  // Use pop() directly instead of empty() — avoids redundant synchronization.
+  // LockFreeQueue: pop() costs 1 memw vs empty()'s 2 memw on Xtensa.
+  // FreeRTOSQueue: pop() is 1 critical section vs empty() + pop() = 2.
+  LTWiFiEvent *event = this->event_queue_.pop();
+  if (event == nullptr)
+    return false;
 
-  // Check for dropped events due to queue overflow
-  if (s_event_queue_overflow_count > 0) {
-    ESP_LOGW(TAG, "Event queue overflow, %" PRIu32 " events dropped", s_event_queue_overflow_count);
-    s_event_queue_overflow_count = 0;
-  }
-
-  while (true) {
-    LTWiFiEvent *event;
-    if (xQueueReceive(s_event_queue, &event, 0) != pdTRUE) {
-      // No more events
-      break;
-    }
-
+  do {
     wifi_process_event_(event);
     delete event;  // NOLINT(cppcoreguidelines-owning-memory)
+  } while ((event = this->event_queue_.pop()) != nullptr);
+
+  // Drops only occur when the queue is full, and only this loop drains it,
+  // so if pop() returned nullptr above we can skip this check.
+  uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
+  if (dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %" PRIu16 " WiFi events due to buffer overflow", dropped);
   }
+  return true;
 }
 
 }  // namespace esphome::wifi
