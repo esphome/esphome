@@ -8,6 +8,10 @@ from esphome.components.modbus.helpers import (
     TYPE_REGISTER_MAP,
     ModbusRegisterType,
 )
+from esphome.components.modbus_server.const import (
+    CONF_SERVER_COURTESY_RESPONSE,
+    CONF_SERVER_REGISTERS,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OFFSET
 from esphome.cpp_helpers import logging
@@ -55,8 +59,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_COMMAND_THROTTLE, default="0ms"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_SERVER_COURTESY_RESPONSE): cv.invalid(
+                "This option has been removed. Use modbus_server component instead: https://esphome.io/components/modbus_server/"
+            ),
             cv.Optional(CONF_MAX_CMD_RETRIES, default=4): cv.positive_int,
             cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
+            cv.Optional(
+                CONF_SERVER_REGISTERS,
+            ): cv.invalid(
+                "This option has been removed. Use modbus_server component instead: https://esphome.io/components/modbus_server/"
+            ),
             cv.Optional(CONF_ON_COMMAND_SENT): automation.validate_automation({}),
             cv.Optional(CONF_ON_ONLINE): automation.validate_automation({}),
             cv.Optional(CONF_ON_OFFLINE): automation.validate_automation({}),
