@@ -222,7 +222,7 @@ void USBUartComponent::loop() {
 
 #ifdef USE_UART_DEBUGGER
     if (channel->debug_) {
-      char buf[4 + format_hex_pretty_size(usb_host::USB_MAX_PACKET_SIZE];  // "<<< " + hex
+      char buf[4 + format_hex_pretty_size(usb_host::USB_MAX_PACKET_SIZE)];  // "<<< " + hex
       memcpy(buf, "<<< ", 4);
       format_hex_pretty_to(buf + 4, sizeof(buf) - 4, chunk->data, chunk->length, ',');
       ESP_LOGD(TAG, "%s%s", channel->debug_prefix_.c_str(), buf);
