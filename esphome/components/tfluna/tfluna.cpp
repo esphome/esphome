@@ -46,26 +46,14 @@ void TFLuna::dump_config() {
 }
 
 void TFLuna::setup() {
-  uint8_t major;
-  if (!this->read_byte(VERSION_MAJOR_REGISTER, &major)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+  uint8_t buf[3];
+
+  if (!this->read_bytes(VERSION_REVISION_REGISTER, buf, sizeof(buf))) {
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
-  uint8_t minor;
-  if (!this->read_byte(VERSION_MINOR_REGISTER, &minor)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
-    return;
-  }
-  uint8_t revision;
-  if (!this->read_byte(VERSION_REVISION_REGISTER, &revision)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
-    return;
-  }
-  char version[15];
-  snprintf(version, sizeof(version), "%d.%d.%d", major, minor, revision);
+  char version[11];
+  snprintf(version, sizeof(version), "%d.%d.%d", buf[2], buf[1], buf[0]);
   ESP_LOGI(TAG, "Firmware: %s", version);
 
 #ifdef USE_TEXT_SENSOR
@@ -89,17 +77,13 @@ void TFLuna::setup() {
 
 void TFLuna::update() {
   auto read_timestamp = [this](uint16_t *timestamp) -> bool {
-    uint8_t timestamp_low;
-    if (!this->read_byte(TIMESTAMP_LOW_REGISTER, &timestamp_low)) {
+    uint8_t buf[2];
+
+    if (!this->read_bytes(TIMESTAMP_LOW_REGISTER, buf, sizeof(buf))) {
       this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
       return false;
     }
-    uint8_t timestamp_high;
-    if (!this->read_byte(TIMESTAMP_HIGH_REGISTER, &timestamp_high)) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-      return false;
-    }
-    *timestamp = timestamp_low + timestamp_high * 256;
+    *timestamp = encode_uint16(buf[1], buf[0]);
     return true;
   };
 
@@ -133,54 +117,31 @@ void TFLuna::update() {
   }
 
 #ifdef USE_SENSOR
+  uint8_t buf[8];
+  if (!this->read_bytes(DISTANCE_LOW_REGISTER, buf, sizeof(buf))) {
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    return;
+  }
+  // Layout:
+  // buf[0..1] = distance (LE), buf[2..3] = signal (LE),
+  // buf[4..5] = temperature (LE), buf[6..7] = timestamp (LE)
+  uint16_t distance = encode_uint16(buf[1], buf[0]);
+  uint16_t signal_strength = encode_uint16(buf[3], buf[2]);
+  uint16_t temperature_raw = encode_uint16(buf[5], buf[4]);
+  timestamp = encode_uint16(buf[7], buf[6]);
+
   if (this->timestamp_sensor_ != nullptr) {
     this->timestamp_sensor_->publish_state(timestamp);
   }
   if (this->distance_sensor_ != nullptr) {
-    uint8_t distance_low;
-    if (!this->read_byte(DISTANCE_LOW_REGISTER, &distance_low)) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-      return;
-    }
-    uint8_t distance_high;
-    if (!this->read_byte(DISTANCE_HIGH_REGISTER, &distance_high)) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-      return;
-    }
-    uint16_t distance = distance_low + distance_high * 256;
-
     this->distance_sensor_->publish_state(distance);
   }
 
   if (this->temperature_sensor_ != nullptr) {
-    uint8_t temperature_low;
-    if (!this->read_byte(TEMPERATURE_LOW_REGISTER, &temperature_low)) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-      return;
-    }
-    uint8_t temperature_high;
-    if (!this->read_byte(TEMPERATURE_HIGH_REGISTER, &temperature_high)) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-      return;
-    }
-    float temperature = (temperature_low + temperature_high * 256) / (float) 100;
-
-    this->temperature_sensor_->publish_state(temperature);
+    this->temperature_sensor_->publish_state(temperature_raw / (float) 100);
   }
 
   if (this->signal_strength_sensor_ != nullptr) {
-    uint8_t signal_strength_low;
-    if (!this->read_byte(AMP_LOW_REGISTER, &signal_strength_low)) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-      return;
-    }
-    uint8_t signal_strength_high;
-    if (!this->read_byte(AMP_HIGH_REGISTER, &signal_strength_high)) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-      return;
-    }
-    uint16_t signal_strength = signal_strength_low + signal_strength_high * 256;
-
     this->signal_strength_sensor_->publish_state(signal_strength);
   }
 #endif
