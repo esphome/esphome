@@ -1,3 +1,9 @@
+esp32:
+  board: esp32-c6-devkitc-1
+  framework:
+    type: esp-idf
+    log_level: DEBUG
+
 network:
   enable_ipv6: true
 
@@ -13,3 +19,4 @@ openthread:
   force_dataset: true
   use_address: open-thread-test.local
   poll_period: 20sec
+  output_power: 1dBm

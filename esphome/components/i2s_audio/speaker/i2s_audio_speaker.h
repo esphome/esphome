@@ -29,16 +29,8 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
 
   void set_buffer_duration(uint32_t buffer_duration_ms) { this->buffer_duration_ms_ = buffer_duration_ms; }
   void set_timeout(uint32_t ms) { this->timeout_ = ms; }
-#ifdef USE_I2S_LEGACY
-#if SOC_I2S_SUPPORTS_DAC
-  void set_internal_dac_mode(i2s_dac_mode_t mode) { this->internal_dac_mode_ = mode; }
-#endif
-  void set_dout_pin(uint8_t pin) { this->dout_pin_ = pin; }
-  void set_i2s_comm_fmt(i2s_comm_format_t mode) { this->i2s_comm_fmt_ = mode; }
-#else
   void set_dout_pin(uint8_t pin) { this->dout_pin_ = (gpio_num_t) pin; }
   void set_i2s_comm_fmt(std::string mode) { this->i2s_comm_fmt_ = std::move(mode); }
-#endif
 
   void start() override;
   void stop() override;
@@ -83,14 +75,12 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   /// @param wait_on_empty If false, sends the COMMAND_STOP signal. If true, sends the COMMAND_STOP_GRACEFULLY signal.
   void stop_(bool wait_on_empty);
 
-#ifndef USE_I2S_LEGACY
   /// @brief Callback function used to send playback timestamps the to the speaker task.
   /// @param handle (i2s_chan_handle_t)
   /// @param event (i2s_event_data_t)
   /// @param user_ctx (void*) User context pointer that the callback accesses
   /// @return True if a higher priority task was interrupted
   static bool i2s_on_sent_cb(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
-#endif
 
   /// @brief Starts the ESP32 I2S driver.
   /// Attempts to lock the I2S port, starts the I2S driver using the passed in stream information, and sets the data out
@@ -110,7 +100,7 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   TaskHandle_t speaker_task_handle_{nullptr};
   EventGroupHandle_t event_group_{nullptr};
 
-  QueueHandle_t i2s_event_queue_;
+  QueueHandle_t i2s_event_queue_{nullptr};
 
   std::weak_ptr<RingBuffer> audio_ring_buffer_;
 
@@ -124,17 +114,9 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
 
   audio::AudioStreamInfo current_stream_info_;  // The currently loaded driver's stream info
 
-#ifdef USE_I2S_LEGACY
-#if SOC_I2S_SUPPORTS_DAC
-  i2s_dac_mode_t internal_dac_mode_{I2S_DAC_CHANNEL_DISABLE};
-#endif
-  uint8_t dout_pin_;
-  i2s_comm_format_t i2s_comm_fmt_;
-#else
   gpio_num_t dout_pin_;
   std::string i2s_comm_fmt_;
   i2s_chan_handle_t tx_handle_;
-#endif
 };
 
 }  // namespace i2s_audio

@@ -10,13 +10,17 @@ AUTO_LOAD = ["sml"]
 SmlSensor = sml_ns.class_("SmlSensor", sensor.Sensor, cg.Component)
 
 
-CONFIG_SCHEMA = sensor.sensor_schema().extend(
-    {
-        cv.GenerateID(): cv.declare_id(SmlSensor),
-        cv.GenerateID(CONF_SML_ID): cv.use_id(Sml),
-        cv.Required(CONF_OBIS_CODE): obis_code,
-        cv.Optional(CONF_SERVER_ID, default=""): cv.string,
-    }
+CONFIG_SCHEMA = (
+    sensor.sensor_schema()
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(SmlSensor),
+            cv.GenerateID(CONF_SML_ID): cv.use_id(Sml),
+            cv.Required(CONF_OBIS_CODE): obis_code,
+            cv.Optional(CONF_SERVER_ID, default=""): cv.string,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 

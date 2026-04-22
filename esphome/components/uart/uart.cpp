@@ -3,11 +3,15 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <cinttypes>
 
 namespace esphome::uart {
 
 static const char *const TAG = "uart";
+
+// UART parity strings indexed by UARTParityOptions enum (0-2): NONE, EVEN, ODD
+PROGMEM_STRING_TABLE(UARTParityStrings, "NONE", "EVEN", "ODD", "UNKNOWN");
 
 void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UARTParityOptions parity,
                                      uint8_t data_bits) {
@@ -30,16 +34,7 @@ void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UART
 }
 
 const LogString *parity_to_str(UARTParityOptions parity) {
-  switch (parity) {
-    case UART_CONFIG_PARITY_NONE:
-      return LOG_STR("NONE");
-    case UART_CONFIG_PARITY_EVEN:
-      return LOG_STR("EVEN");
-    case UART_CONFIG_PARITY_ODD:
-      return LOG_STR("ODD");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return UARTParityStrings::get_log_str(static_cast<uint8_t>(parity), UARTParityStrings::LAST_INDEX);
 }
 
 }  // namespace esphome::uart

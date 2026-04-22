@@ -1,0 +1,171 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+import os
+import re
+import subprocess
+
+# ESPHome marks ISR code IRAM_ATTR, which on LibreTiny maps to a per-family
+# section routed into RAM-executable memory (see esphome/core/hal.h).
+#
+# This script is NOT loaded on BK72xx (IRAM_ATTR is a no-op there; the SDK
+# masks FIQ+IRQ around flash writes). On the remaining families:
+# - RTL8710B: hal.h uses section(".image2.ram.text"); stock linker consumes it.
+# - RTL8720C: hal.h uses section(".sram.text"); stock linker consumes it.
+# - LN882H: stock linker has no glob for ".sram.text", so we inject
+#   KEEP(*(.sram.text*)) into ".flash_copysection" (> RAM0 AT> FLASH).
+#
+# All families also get a post-link summary showing where IRAM_ATTR landed.
+
+
+_MARKER = "/* esphome .sram.text */"
+# Strong assignments (not PROVIDE) so the symbols are always emitted in the
+# ELF; PROVIDE symbols with no references can be garbage-collected.
+_KEEP_LINE = (
+    "    __esphome_sram_text_start = .; "
+    "KEEP(*(.sram.text*)) "
+    "__esphome_sram_text_end = .; "
+    + _MARKER + "\n"
+)
+_LN_COPY = re.compile(r"(\.flash_copysection\s*:\s*\{\s*\n)")
+
+
+def _detect(env):
+    prefix = "USE_LIBRETINY_VARIANT_"
+    # CPPDEFINES may hold strings or (name, value) tuples; BUILD_FLAGS holds
+    # the raw "-DNAME" strings. PlatformIO populates both, but the exact order
+    # vs. extra_scripts varies, so check both to be robust.
+    for token in env.get("CPPDEFINES", []):
+        if isinstance(token, (list, tuple)):
+            token = token[0]
+        if isinstance(token, str) and token.startswith(prefix):
+            return token[len(prefix):]
+    for flag in env.get("BUILD_FLAGS", []):
+        if isinstance(flag, str) and "-D" + prefix in flag:
+            name = flag.split("-D", 1)[1].split("=", 1)[0].strip()
+            if name.startswith(prefix):
+                return name[len(prefix):]
+    return None
+
+
+KNOWN_VARIANTS = frozenset({
+    "LN882H",
+    "RTL8710B",
+    "RTL8720C",
+})
+
+
+def _inject_keep(host_section):
+    """Return a patcher that injects _KEEP_LINE at the top of `host_section`."""
+    def patch(content):
+        if _MARKER in content:
+            return content
+        return host_section.sub(r"\1" + _KEEP_LINE, content, count=1)
+    return patch
+
+
+# Variants not listed here intentionally have no .ld patcher:
+# - RTL8710B: hal.h uses section(".image2.ram.text") which the stock linker
+#   already routes into .ram_image2.text (> BD_RAM).
+# - RTL8720C: stock linker already consumes *(.sram.text*).
+# - BK72xx (all): SDK masks FIQ+IRQ around flash writes, IRAM_ATTR is no-op.
+_PATCHERS_BY_VARIANT = {
+    "LN882H": (_inject_keep(_LN_COPY),),
+}
+
+
+def _patchers_for(variant):
+    return _PATCHERS_BY_VARIANT.get(variant, ())
+
+
+def _pre_link(target, source, env):
+    build_dir = env.subst("$BUILD_DIR")
+    ld_files = [f for f in os.listdir(build_dir) if f.endswith(".ld")]
+    patched = 0
+    for name in ld_files:
+        path = os.path.join(build_dir, name)
+        with open(path, "r", encoding="utf-8") as fh:
+            original = fh.read()
+        if _MARKER in original:
+            patched += 1
+            continue
+        content = original
+        for fn in _patchers:
+            content = fn(content)
+        if content != original:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(content)
+            print("ESPHome: patched {} for IRAM_ATTR placement".format(name))
+            patched += 1
+    if not patched:
+        raise RuntimeError(
+            "ESPHome: no .ld in {} was patched for IRAM_ATTR. Update the "
+            "regex in patch_linker.py.script (_PATCHERS_BY_VARIANT).".format(
+                build_dir
+            )
+        )
+
+
+# Substrings matched against demangled names as a fallback on RTL8720C,
+# where we cannot inject __esphome_sram_text_start/end markers.
+_FALLBACK_SUBSTRINGS = ("wake_loop_any_context", "wake_loop_isrsafe",
+                        "enable_loop_soon_any_context")
+
+
+def _post_link(target, source, env):
+    """Print where IRAM_ATTR ended up so users can confirm at a glance."""
+    elf = env.subst("$BUILD_DIR/${PROGNAME}.elf")
+    if not os.path.isfile(elf):
+        return
+    nm = env.subst("$NM")
+    try:
+        out = subprocess.check_output(
+            [nm, "--defined-only", "--demangle", elf], text=True
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print("ESPHome: IRAM_ATTR summary unavailable (nm failed: {})".format(exc))
+        return
+    start = end = None
+    fallback = []
+    for line in out.splitlines():
+        parts = line.split(maxsplit=2)
+        if len(parts) != 3:
+            continue
+        addr_str, _kind, name = parts
+        if name == "__esphome_sram_text_start":
+            start = int(addr_str, 16)
+        elif name == "__esphome_sram_text_end":
+            end = int(addr_str, 16)
+        elif "veneer" not in name and any(s in name for s in _FALLBACK_SUBSTRINGS):
+            fallback.append(int(addr_str, 16))
+    print("ESPHome: IRAM_ATTR placement summary ({}):".format(_variant))
+    if start is not None and end is not None:
+        print("  .sram.text:  {} bytes at 0x{:08x} - 0x{:08x}".format(end - start, start, end))
+    elif fallback:
+        lo, hi = min(fallback), max(fallback)
+        print("  IRAM symbols at 0x{:08x} - 0x{:08x} (approx {} bytes)".format(lo, hi, hi - lo))
+    else:
+        print("  no IRAM_ATTR symbols found")
+
+
+if (_variant := _detect(env)) is None:
+    raise RuntimeError(
+        "ESPHome: could not determine LibreTiny variant from build flags. "
+        "patch_linker.py needs USE_LIBRETINY_VARIANT_* to route IRAM_ATTR "
+        "into SRAM; without it, ISR handlers would silently end up in flash."
+    )
+if _variant not in KNOWN_VARIANTS:
+    raise RuntimeError(
+        "ESPHome: unknown LibreTiny variant {!r}; patch_linker.py does not "
+        "know how to route IRAM_ATTR into SRAM for this family. Update "
+        "patch_linker.py.script before shipping firmware.".format(_variant)
+    )
+
+if _patchers := _patchers_for(_variant):
+    # LibreTiny writes the processed .ld templates into $BUILD_DIR during its
+    # own builder setup, which may run after this script. Register the patch
+    # as a pre-link action so it executes once the linker scripts exist.
+    env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", _pre_link)
+
+# Post-link summary for every family that reaches this script.
+env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", _post_link)

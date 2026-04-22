@@ -20,4 +20,4 @@ nrf52:
     voltage: 2.1V
     uicr_erase: true
   framework:
-    version: "2.6.1-7"
+    version: "2.6.1-a"

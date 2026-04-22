@@ -5,8 +5,6 @@
 // Once the API is considered stable, this warning will be removed.
 
 #include "esphome/components/infrared/infrared.h"
-#include "esphome/components/remote_transmitter/remote_transmitter.h"
-#include "esphome/components/remote_receiver/remote_receiver.h"
 
 namespace esphome::ir_rf_proxy {
 
@@ -23,6 +21,9 @@ class IrRfProxy : public infrared::Infrared {
   uint32_t get_frequency() const { return this->frequency_khz_; }
   /// Check if this is RF mode (non-zero frequency)
   bool is_rf() const { return this->frequency_khz_ > 0; }
+
+  /// Set the receiver's hardware demodulation frequency in Hz (metadata only, does not affect hardware)
+  void set_receiver_frequency(uint32_t frequency_hz) { this->get_traits().set_receiver_frequency_hz(frequency_hz); }
 
  protected:
   // RF frequency in kHz (Hz / 1000); 0 = infrared, non-zero = RF
