@@ -226,13 +226,13 @@ extern int g_wake_socket_fd;
 extern fd_set g_read_fds;
 }  // namespace internal
 
-inline bool wake_fd_ready(int fd) { return FD_ISSET(fd, &internal::g_read_fds); }
+inline bool ESPHOME_ALWAYS_INLINE wake_fd_ready(int fd) { return FD_ISSET(fd, &internal::g_read_fds); }
 
 // Small buffer for draining wake notification bytes (1 byte sent per wake).
 // Sized to drain multiple notifications per recvfrom() without wasting stack.
 inline constexpr size_t WAKE_NOTIFY_DRAIN_BUFFER_SIZE = 16;
 
-inline void wake_drain_notifications() {
+inline void ESPHOME_ALWAYS_INLINE wake_drain_notifications() {
   // Called from main loop to drain any pending wake notifications.
   // Must check wake_fd_ready() to avoid blocking on empty socket.
   if (internal::g_wake_socket_fd >= 0 && wake_fd_ready(internal::g_wake_socket_fd)) {
