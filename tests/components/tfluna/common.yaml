@@ -1,7 +1,3 @@
-i2c:
-  - scl: ${scl_pin}
-    sda: ${sda_pin}
-
 tfluna:
 
 sensor:
