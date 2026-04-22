@@ -97,6 +97,7 @@ void Application::setup() {
       this->scheduler_tick_(MillisInternal::get());
       {
         ComponentPhaseGuard phase_guard{*this};
+
         for (uint32_t j = 0; j <= i; j++) {
           // Update loop_component_start_time_ right before calling each component
           this->loop_component_start_time_ = MillisInternal::get();
