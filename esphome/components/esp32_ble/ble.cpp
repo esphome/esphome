@@ -667,6 +667,9 @@ void ESP32BLE::dump_config() {
                   "  MAC address: %s\n"
                   "  IO Capability: %s",
                   mac_s, io_capability_s);
+#ifdef USE_ESP32_BLE_PSRAM
+    ESP_LOGCONFIG(TAG, "  PSRAM BLE allocation: enabled");
+#endif
 
 #ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
     const char *auth_req_mode_s = "<default>";
