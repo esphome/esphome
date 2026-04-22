@@ -285,8 +285,14 @@ class Scheduler {
   bool cancel_retry_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
 
   // Extend a 32-bit millis() value to 64-bit. Use when the caller already has a fresh now.
-  // On platforms with native 64-bit time, ignores now and uses millis_64() directly.
-  // On other platforms, extends now to 64-bit using rollover tracking.
+  // On platforms with native 64-bit time (ESP32, Host, Zephyr, RP2040 — see
+  // USE_NATIVE_64BIT_TIME in defines.h), ignores now and uses millis_64() directly, so the
+  // Scheduler always works in 64-bit time regardless of what the caller's 32-bit now came
+  // from. On ESP32 specifically, millis() comes from xTaskGetTickCount while millis_64()
+  // comes from esp_timer — two different clocks — but that is safe because scheduling
+  // compares millis_64 values against millis_64 only, never against millis().
+  // On platforms without native 64-bit time (e.g. ESP8266), extends now to 64-bit using
+  // rollover tracking, so both millis() and scheduling use the same underlying clock.
   uint64_t ESPHOME_ALWAYS_INLINE millis_64_from_(uint32_t now) {
 #ifdef USE_NATIVE_64BIT_TIME
     (void) now;
