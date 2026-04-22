@@ -86,13 +86,17 @@ void SendspinHub::on_group_update(const sendspin::GroupUpdateObject &group) {
 
 void SendspinHub::on_request_high_performance() {
 #ifdef USE_WIFI
-  wifi::global_wifi_component->request_high_performance();
+  if (wifi::global_wifi_component != nullptr) {
+    wifi::global_wifi_component->request_high_performance();
+  }
 #endif
 }
 
 void SendspinHub::on_release_high_performance() {
 #ifdef USE_WIFI
-  wifi::global_wifi_component->release_high_performance();
+  if (wifi::global_wifi_component != nullptr) {
+    wifi::global_wifi_component->release_high_performance();
+  }
 #endif
 }
 
