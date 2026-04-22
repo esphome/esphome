@@ -13,6 +13,10 @@
 #include <sendspin/config.h>
 #include <sendspin/types.h>
 
+#ifdef USE_SENDSPIN_CONTROLLER
+#include <sendspin/controller_role.h>
+#endif
+
 #include <functional>
 #include <memory>
 #include <optional>
@@ -50,6 +54,9 @@ struct LastPlayedServerPref {
 ///    (for services the library pulls; e.g., persistence, network readiness).
 ///  - User -> library communication uses exposed functions on the client and role objects that the user calls.
 class SendspinHub final : public Component,
+#ifdef USE_SENDSPIN_CONTROLLER
+                          public sendspin::ControllerRoleListener,
+#endif
                           public sendspin::SendspinClientListener,
                           public sendspin::SendspinNetworkProvider,
                           public sendspin::SendspinPersistenceProvider {
@@ -94,6 +101,17 @@ class SendspinHub final : public Component,
 
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
+  // --- Sendspin role specific methods ---
+
+#ifdef USE_SENDSPIN_CONTROLLER
+  void send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume = std::nullopt,
+                           std::optional<bool> mute = std::nullopt);
+
+  template<typename F> void add_controller_state_callback(F &&callback) {
+    this->controller_state_callbacks_.add(std::forward<F>(callback));
+  }
+#endif
+
  protected:
   /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
   sendspin::SendspinClientConfig build_client_config_();
@@ -111,6 +129,19 @@ class SendspinHub final : public Component,
   // --- SendspinPersistenceProvider overrides ---
   bool save_last_server_hash(uint32_t hash) override;
   std::optional<uint32_t> load_last_server_hash() override;
+
+  // --- Sendspin role specific methods/overrides/member variables ---
+
+#ifdef USE_SENDSPIN_CONTROLLER
+  sendspin::ControllerRole *controller_role_{nullptr};
+
+  void on_controller_state(const sendspin::ServerStateControllerObject &state) override;
+
+  // Callback fan-out to child components; they filter as needed
+  CallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
+#endif
+
+  // --- Core member variables ---
 
   ESPPreferenceObject last_played_server_pref_;
 
