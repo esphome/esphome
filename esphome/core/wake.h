@@ -96,8 +96,14 @@ inline void wake_loop_threadsafe() {
 }
 
 namespace internal {
-inline void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
+inline void ESPHOME_ALWAYS_INLINE wakeable_delay(uint32_t ms) {
+  // Fast path (with USE_LWIP_FAST_SELECT): FreeRTOS task notifications posted by the lwip
+  // event_callback wrapper (see lwip_fast_select.c) are the single source of truth for
+  // socket wake-ups. Every NETCONN_EVT_RCVPLUS posts an xTaskNotifyGive, so any notification
+  // that lands between wakes keeps the counter non-zero (next ulTaskNotifyTake returns
+  // immediately) or wakes a blocked Take directly. Additional wake sources:
+  // wake_loop_threadsafe() from background tasks, and the ms timeout.
+  if (ms == 0) [[unlikely]] {
     yield();
     return;
   }
@@ -127,8 +133,8 @@ inline void wake_loop_threadsafe() { wake_loop_impl(); }
 inline void ESPHOME_ALWAYS_INLINE wake_loop_isrsafe() { wake_loop_impl(); }
 
 namespace internal {
-inline void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
+inline void ESPHOME_ALWAYS_INLINE wakeable_delay(uint32_t ms) {
+  if (ms == 0) [[unlikely]] {
     delay(0);
     return;
   }
@@ -174,8 +180,8 @@ inline void wake_loop_threadsafe() {}
 inline void wake_loop_any_context() { wake_loop_threadsafe(); }
 
 namespace internal {
-inline void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
+inline void ESPHOME_ALWAYS_INLINE wakeable_delay(uint32_t ms) {
+  if (ms == 0) [[unlikely]] {
     yield();
     return;
   }

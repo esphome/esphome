@@ -761,18 +761,6 @@ inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::l
 // Inline yield_with_select_ for all paths except the select() fallback
 #ifndef USE_HOST
 inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
-#ifdef USE_LWIP_FAST_SELECT
-  // Fast path (ESP32/LibreTiny): FreeRTOS task notifications posted by the lwip
-  // event_callback wrapper (see lwip_fast_select.c) are the single source of truth for
-  // socket wake-ups. Every NETCONN_EVT_RCVPLUS posts an xTaskNotifyGive, so any notification
-  // that lands between wakes keeps the counter non-zero (next ulTaskNotifyTake returns
-  // immediately) or wakes a blocked Take directly. Additional wake sources:
-  // wake_loop_threadsafe() from background tasks, and the delay_ms timeout.
-  if (delay_ms == 0) [[unlikely]] {
-    yield();
-    return;
-  }
-#endif
   esphome::internal::wakeable_delay(delay_ms);
 }
 #endif  // !USE_HOST
