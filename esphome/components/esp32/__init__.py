@@ -1509,7 +1509,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
             cv.Optional(CONF_WATCHDOG_TIMEOUT, default="5s"): cv.All(
-                cv.positive_time_period_milliseconds,
+                cv.positive_time_period_seconds,
                 cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
             ),
         }
