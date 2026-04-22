@@ -47,15 +47,8 @@ static constexpr size_t API_MAX_LOG_BYTES = 168;
               format_hex_pretty_to(hex_buf_, (buffer).data(), \
                                    (buffer).size() < API_MAX_LOG_BYTES ? (buffer).size() : API_MAX_LOG_BYTES)); \
   } while (0)
-#define LOG_PACKET_SENDING(data, len) \
-  do { \
-    char hex_buf_[format_hex_pretty_size(API_MAX_LOG_BYTES)]; \
-    ESP_LOGVV(TAG, "Sending raw: %s", \
-              format_hex_pretty_to(hex_buf_, data, (len) < API_MAX_LOG_BYTES ? (len) : API_MAX_LOG_BYTES)); \
-  } while (0)
 #else
 #define LOG_PACKET_RECEIVED(buffer) ((void) 0)
-#define LOG_PACKET_SENDING(data, len) ((void) 0)
 #endif
 
 /// Convert a noise error code to a readable error
@@ -464,65 +457,83 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = type;
   return APIError::OK;
 }
-APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
-  APIError aerr = this->check_data_state_();
+// Encrypt a single noise message in place and return the encrypted frame length.
+// Returns APIError::OK on success.
+APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, uint16_t payload_size, uint8_t message_type,
+                                                     uint16_t &encrypted_len_out) {
+  // Write noise header
+  buf_start[0] = 0x01;  // indicator
+  // buf_start[1], buf_start[2] to be set after encryption
+
+  // Write message header (to be encrypted)
+  constexpr uint8_t msg_offset = 3;
+  buf_start[msg_offset] = static_cast<uint8_t>(message_type >> 8);      // type high byte
+  buf_start[msg_offset + 1] = static_cast<uint8_t>(message_type);       // type low byte
+  buf_start[msg_offset + 2] = static_cast<uint8_t>(payload_size >> 8);  // data_len high byte
+  buf_start[msg_offset + 3] = static_cast<uint8_t>(payload_size);       // data_len low byte
+  // payload data is already in the buffer starting at offset + 7
+
+  // Encrypt the message in place
+  NoiseBuffer mbuf;
+  noise_buffer_init(mbuf);
+  noise_buffer_set_inout(mbuf, buf_start + msg_offset, 4 + payload_size, 4 + payload_size + this->frame_footer_size_);
+
+  int err = noise_cipherstate_encrypt(this->send_cipher_, &mbuf);
+  APIError aerr =
+      this->handle_noise_error_(err, LOG_STR("noise_cipherstate_encrypt"), APIError::CIPHERSTATE_ENCRYPT_FAILED);
   if (aerr != APIError::OK)
     return aerr;
 
-  if (messages.empty()) {
-    return APIError::OK;
-  }
+  // Fill in the encrypted size
+  buf_start[1] = static_cast<uint8_t>(mbuf.size >> 8);
+  buf_start[2] = static_cast<uint8_t>(mbuf.size);
 
+  encrypted_len_out = static_cast<uint16_t>(3 + mbuf.size);  // indicator + size + encrypted data
+  return APIError::OK;
+}
+
+APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
+#ifdef ESPHOME_DEBUG_API
+  assert(this->state_ == State::DATA);
+#endif
+
+  // Resize buffer to include footer space for Noise MAC
+  if (this->frame_footer_size_)
+    buffer.get_buffer()->resize(buffer.get_buffer()->size() + this->frame_footer_size_);
+
+  uint16_t payload_size =
+      static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING - this->frame_footer_size_);
+  uint8_t *buf_start = buffer.get_buffer()->data();
+  uint16_t encrypted_len;
+  APIError aerr = this->encrypt_noise_message_(buf_start, payload_size, type, encrypted_len);
+  if (aerr != APIError::OK)
+    return aerr;
+  return this->write_raw_fast_buf_(buf_start, encrypted_len);
+}
+
+APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
+#ifdef ESPHOME_DEBUG_API
+  assert(this->state_ == State::DATA);
+  assert(!messages.empty());
+#endif
+
+  // Noise messages are already contiguous in the buffer:
+  // HEADER_PADDING (7) exactly matches the fixed header size, and
+  // footer space (16) is consumed by the encryption MAC.
   uint8_t *buffer_data = buffer.get_buffer()->data();
-
-  // Stack-allocated iovec array - no heap allocation
-  StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
+  uint8_t *write_start = buffer_data + messages[0].offset;
   uint16_t total_write_len = 0;
 
-  // We need to encrypt each message in place
   for (const auto &msg : messages) {
-    // The buffer already has padding at offset
     uint8_t *buf_start = buffer_data + msg.offset;
-
-    // Write noise header
-    buf_start[0] = 0x01;  // indicator
-    // buf_start[1], buf_start[2] to be set after encryption
-
-    // Write message header (to be encrypted)
-    constexpr uint8_t msg_offset = 3;
-    buf_start[msg_offset] = static_cast<uint8_t>(msg.message_type >> 8);      // type high byte
-    buf_start[msg_offset + 1] = static_cast<uint8_t>(msg.message_type);       // type low byte
-    buf_start[msg_offset + 2] = static_cast<uint8_t>(msg.payload_size >> 8);  // data_len high byte
-    buf_start[msg_offset + 3] = static_cast<uint8_t>(msg.payload_size);       // data_len low byte
-    // payload data is already in the buffer starting at offset + 7
-
-    // Make sure we have space for MAC
-    // The buffer should already have been sized appropriately
-
-    // Encrypt the message in place
-    NoiseBuffer mbuf;
-    noise_buffer_init(mbuf);
-    noise_buffer_set_inout(mbuf, buf_start + msg_offset, 4 + msg.payload_size,
-                           4 + msg.payload_size + frame_footer_size_);
-
-    int err = noise_cipherstate_encrypt(send_cipher_, &mbuf);
-    APIError aerr =
-        handle_noise_error_(err, LOG_STR("noise_cipherstate_encrypt"), APIError::CIPHERSTATE_ENCRYPT_FAILED);
+    uint16_t encrypted_len;
+    APIError aerr = this->encrypt_noise_message_(buf_start, msg.payload_size, msg.message_type, encrypted_len);
     if (aerr != APIError::OK)
       return aerr;
-
-    // Fill in the encrypted size
-    buf_start[1] = static_cast<uint8_t>(mbuf.size >> 8);
-    buf_start[2] = static_cast<uint8_t>(mbuf.size);
-
-    // Add iovec for this encrypted message
-    size_t msg_len = static_cast<size_t>(3 + mbuf.size);  // indicator + size + encrypted data
-    iovs.push_back({buf_start, msg_len});
-    total_write_len += msg_len;
+    total_write_len += encrypted_len;
   }
 
-  // Send all encrypted messages in one writev call
-  return this->write_raw_(iovs.data(), iovs.size(), total_write_len);
+  return this->write_raw_fast_buf_(write_start, total_write_len);
 }
 
 APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
@@ -531,16 +542,16 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
   header[1] = (uint8_t) (len >> 8);
   header[2] = (uint8_t) len;
 
+  if (len == 0) {
+    return this->write_raw_buf_(header, 3);
+  }
   struct iovec iov[2];
   iov[0].iov_base = header;
   iov[0].iov_len = 3;
-  if (len == 0) {
-    return this->write_raw_(iov, 1, 3);  // Just header
-  }
   iov[1].iov_base = const_cast<uint8_t *>(data);
   iov[1].iov_len = len;
 
-  return this->write_raw_(iov, 2, 3 + len);  // Header + data
+  return this->write_raw_iov_(iov, 2, 3 + len);
 }
 
 /** Initiate the data structures for the handshake.
@@ -606,7 +617,7 @@ APIError APINoiseFrameHelper::check_handshake_finished_() {
   if (aerr != APIError::OK)
     return aerr;
 
-  frame_footer_size_ = noise_cipherstate_get_mac_length(send_cipher_);
+  this->frame_footer_size_ = noise_cipherstate_get_mac_length(send_cipher_);
 
   HELPER_LOG("Handshake complete!");
   noise_handshakestate_free(handshake_);

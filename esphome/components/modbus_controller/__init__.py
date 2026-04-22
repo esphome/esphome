@@ -8,6 +8,10 @@ from esphome.components.modbus.helpers import (
     TYPE_REGISTER_MAP,
     ModbusRegisterType,
 )
+from esphome.components.modbus_server.const import (
+    CONF_SERVER_COURTESY_RESPONSE,
+    CONF_SERVER_REGISTERS,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OFFSET
 from esphome.cpp_helpers import logging
@@ -55,8 +59,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_COMMAND_THROTTLE, default="0ms"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_SERVER_COURTESY_RESPONSE): cv.invalid(
+                "This option has been removed. Use modbus_server component instead: https://esphome.io/components/modbus_server/"
+            ),
             cv.Optional(CONF_MAX_CMD_RETRIES, default=4): cv.positive_int,
             cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
+            cv.Optional(
+                CONF_SERVER_REGISTERS,
+            ): cv.invalid(
+                "This option has been removed. Use modbus_server component instead: https://esphome.io/components/modbus_server/"
+            ),
             cv.Optional(CONF_ON_COMMAND_SENT): automation.validate_automation({}),
             cv.Optional(CONF_ON_ONLINE): automation.validate_automation({}),
             cv.Optional(CONF_ON_OFFLINE): automation.validate_automation({}),
@@ -169,6 +181,25 @@ async def add_modbus_base_properties(
         cg.add(var.set_template(template_))
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_COMMAND_SENT,
+        "add_on_command_sent_callback",
+        [(cg.int_, "function_code"), (cg.int_, "address")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ONLINE,
+        "add_on_online_callback",
+        [(cg.int_, "function_code"), (cg.int_, "address")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_OFFLINE,
+        "add_on_offline_callback",
+        [(cg.int_, "function_code"), (cg.int_, "address")],
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_allow_duplicate_commands(config[CONF_ALLOW_DUPLICATE_COMMANDS]))
@@ -176,27 +207,7 @@ async def to_code(config):
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
     await register_modbus_device(var, config)
-    for conf in config.get(CONF_ON_COMMAND_SENT, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_command_sent_callback",
-            [(cg.int_, "function_code"), (cg.int_, "address")],
-            conf,
-        )
-    for conf in config.get(CONF_ON_ONLINE, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_online_callback",
-            [(cg.int_, "function_code"), (cg.int_, "address")],
-            conf,
-        )
-    for conf in config.get(CONF_ON_OFFLINE, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_offline_callback",
-            [(cg.int_, "function_code"), (cg.int_, "address")],
-            conf,
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 async def register_modbus_device(var, config):

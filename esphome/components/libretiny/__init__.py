@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -23,6 +24,8 @@ from esphome.const import (
     __version__,
 )
 from esphome.core import CORE
+from esphome.core.config import BOARD_MAX_LENGTH
+from esphome.helpers import copy_file_if_changed
 from esphome.storage_json import StorageJSON
 
 from . import gpio  # noqa
@@ -266,7 +269,9 @@ CONFIG_SCHEMA = cv.All(_notify_old_style)
 BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LTComponent),
-        cv.Required(CONF_BOARD): cv.string_strict,
+        cv.Required(CONF_BOARD): cv.All(
+            cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
+        ),
         cv.Optional(CONF_FAMILY): cv.one_of(*FAMILIES, upper=True),
         cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
     },
@@ -462,6 +467,11 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
+    # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
+    # On other families, patch_linker.py routes .sram.text into the right
+    # RAM-executable output section and prints a post-link placement summary.
+    if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
+        cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
     # decrease web server stack size (16k words -> 4k words)
@@ -546,3 +556,13 @@ async def component_to_code(config):
     _configure_lwip(config)
 
     await cg.register_component(var, config)
+
+
+# Called by writer.py
+def copy_files() -> None:
+    script_dir = Path(__file__).parent
+    patch_linker_file = script_dir / "patch_linker.py.script"
+    copy_file_if_changed(
+        patch_linker_file,
+        CORE.relative_build_path("patch_linker.py"),
+    )

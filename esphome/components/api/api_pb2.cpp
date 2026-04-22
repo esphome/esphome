@@ -35,29 +35,29 @@ uint8_t *HelloResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->api_version_major);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->api_version_minor);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->server_info);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->server_info);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 34, this->name);
   return pos;
 }
 uint32_t HelloResponse::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint32(1, this->api_version_major);
   size += ProtoSize::calc_uint32(1, this->api_version_minor);
-  size += ProtoSize::calc_length(1, this->server_info.size());
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->server_info.size();
+  size += 2 + this->name.size();
   return size;
 }
 #ifdef USE_AREAS
 uint8_t *AreaInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->area_id);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, this->name);
   return pos;
 }
 uint32_t AreaInfo::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint32(1, this->area_id);
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
   return size;
 }
 #endif
@@ -65,14 +65,14 @@ uint32_t AreaInfo::calculate_size() const {
 uint8_t *DeviceInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->device_id);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, this->name);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->area_id);
   return pos;
 }
 uint32_t DeviceInfo::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint32(1, this->device_id);
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
   size += ProtoSize::calc_uint32(1, this->area_id);
   return size;
 }
@@ -93,19 +93,19 @@ uint32_t SerialProxyInfo::calculate_size() const {
 #endif
 uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->name);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->mac_address);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->esphome_version);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->compilation_time);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, this->model);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->mac_address);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 34, this->esphome_version);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 42, this->compilation_time);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 50, this->model);
 #ifdef USE_DEEP_SLEEP
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->project_name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 66, this->project_name);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, this->project_version);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 74, this->project_version);
 #endif
 #ifdef USE_WEBSERVER
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, this->webserver_port);
@@ -113,16 +113,16 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
 #ifdef USE_BLUETOOTH_PROXY
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 15, this->bluetooth_proxy_feature_flags);
 #endif
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 12, this->manufacturer);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 13, this->friendly_name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 98, this->manufacturer);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 106, this->friendly_name);
 #ifdef USE_VOICE_ASSISTANT
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 17, this->voice_assistant_feature_flags);
 #endif
 #ifdef USE_AREAS
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 16, this->suggested_area);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 16, this->suggested_area, true);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 18, this->bluetooth_mac_address);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 18, this->bluetooth_mac_address, true);
 #endif
 #ifdef USE_API_NOISE
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 19, this->api_encryption_supported);
@@ -155,19 +155,19 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
 }
 uint32_t DeviceInfoResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->name.size());
-  size += ProtoSize::calc_length(1, this->mac_address.size());
-  size += ProtoSize::calc_length(1, this->esphome_version.size());
-  size += ProtoSize::calc_length(1, this->compilation_time.size());
-  size += ProtoSize::calc_length(1, this->model.size());
+  size += 2 + this->name.size();
+  size += 2 + this->mac_address.size();
+  size += 2 + this->esphome_version.size();
+  size += 2 + this->compilation_time.size();
+  size += 2 + this->model.size();
 #ifdef USE_DEEP_SLEEP
   size += ProtoSize::calc_bool(1, this->has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  size += ProtoSize::calc_length(1, this->project_name.size());
+  size += 2 + this->project_name.size();
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  size += ProtoSize::calc_length(1, this->project_version.size());
+  size += 2 + this->project_version.size();
 #endif
 #ifdef USE_WEBSERVER
   size += ProtoSize::calc_uint32(1, this->webserver_port);
@@ -175,16 +175,16 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 #ifdef USE_BLUETOOTH_PROXY
   size += ProtoSize::calc_uint32(1, this->bluetooth_proxy_feature_flags);
 #endif
-  size += ProtoSize::calc_length(1, this->manufacturer.size());
-  size += ProtoSize::calc_length(1, this->friendly_name.size());
+  size += 2 + this->manufacturer.size();
+  size += 2 + this->friendly_name.size();
 #ifdef USE_VOICE_ASSISTANT
   size += ProtoSize::calc_uint32(2, this->voice_assistant_feature_flags);
 #endif
 #ifdef USE_AREAS
-  size += ProtoSize::calc_length(2, this->suggested_area.size());
+  size += 3 + this->suggested_area.size();
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  size += ProtoSize::calc_length(2, this->bluetooth_mac_address.size());
+  size += 3 + this->bluetooth_mac_address.size();
 #endif
 #ifdef USE_API_NOISE
   size += ProtoSize::calc_bool(2, this->api_encryption_supported);
@@ -218,9 +218,9 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 #ifdef USE_BINARY_SENSOR
 uint8_t *ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->device_class);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->is_status_binary_sensor);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->disabled_by_default);
@@ -235,14 +235,14 @@ uint8_t *ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer &buffer PROTO
 }
 uint32_t ListEntitiesBinarySensorResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += 2 + this->name.size();
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
   size += ProtoSize::calc_bool(1, this->is_status_binary_sensor);
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += this->entity_category ? 2 : 0;
 #ifdef USE_DEVICES
@@ -274,9 +274,9 @@ uint32_t BinarySensorStateResponse::calculate_size() const {
 #ifdef USE_COVER
 uint8_t *ListEntitiesCoverResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->assumed_state);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->supports_position);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->supports_tilt);
@@ -294,16 +294,16 @@ uint8_t *ListEntitiesCoverResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE
 }
 uint32_t ListEntitiesCoverResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
   size += ProtoSize::calc_bool(1, this->assumed_state);
   size += ProtoSize::calc_bool(1, this->supports_position);
   size += ProtoSize::calc_bool(1, this->supports_tilt);
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += this->entity_category ? 2 : 0;
   size += ProtoSize::calc_bool(1, this->supports_stop);
@@ -375,9 +375,9 @@ bool CoverCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_FAN
 uint8_t *ListEntitiesFanResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->supports_oscillation);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->supports_speed);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->supports_direction);
@@ -397,16 +397,16 @@ uint8_t *ListEntitiesFanResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_D
 }
 uint32_t ListEntitiesFanResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
   size += ProtoSize::calc_bool(1, this->supports_oscillation);
   size += ProtoSize::calc_bool(1, this->supports_speed);
   size += ProtoSize::calc_bool(1, this->supports_direction);
   size += ProtoSize::calc_int32(1, this->supported_speed_count);
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += this->entity_category ? 2 : 0;
   if (!this->supported_preset_modes->empty()) {
@@ -509,9 +509,9 @@ bool FanCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_LIGHT
 uint8_t *ListEntitiesLightResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   for (const auto &it : *this->supported_color_modes) {
     ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, static_cast<uint32_t>(it), true);
   }
@@ -532,9 +532,9 @@ uint8_t *ListEntitiesLightResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE
 }
 uint32_t ListEntitiesLightResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
   if (!this->supported_color_modes->empty()) {
     size += this->supported_color_modes->size() * 2;
   }
@@ -547,7 +547,7 @@ uint32_t ListEntitiesLightResponse::calculate_size() const {
   }
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += this->entity_category ? 2 : 0;
 #ifdef USE_DEVICES
@@ -707,9 +707,9 @@ bool LightCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_SENSOR
 uint8_t *ListEntitiesSensorResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -727,16 +727,16 @@ uint8_t *ListEntitiesSensorResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
 }
 uint32_t ListEntitiesSensorResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
-  size += ProtoSize::calc_length(1, this->unit_of_measurement.size());
+  size += !this->unit_of_measurement.empty() ? 2 + this->unit_of_measurement.size() : 0;
   size += ProtoSize::calc_int32(1, this->accuracy_decimals);
   size += ProtoSize::calc_bool(1, this->force_update);
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
   size += this->state_class ? 2 : 0;
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
@@ -745,7 +745,9 @@ uint32_t ListEntitiesSensorResponse::calculate_size() const {
 #endif
   return size;
 }
-uint8_t *SensorStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint8_t *
+SensorStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->key);
   ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 2, this->state);
@@ -755,7 +757,9 @@ uint8_t *SensorStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG
 #endif
   return pos;
 }
-uint32_t SensorStateResponse::calculate_size() const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint32_t
+SensorStateResponse::calculate_size() const {
   uint32_t size = 0;
   size += 5;
   size += ProtoSize::calc_float(1, this->state);
@@ -769,9 +773,9 @@ uint32_t SensorStateResponse::calculate_size() const {
 #ifdef USE_SWITCH
 uint8_t *ListEntitiesSwitchResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -786,16 +790,16 @@ uint8_t *ListEntitiesSwitchResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
 }
 uint32_t ListEntitiesSwitchResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->assumed_state);
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, this->device_id);
 #endif
@@ -848,9 +852,9 @@ bool SwitchCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_TEXT_SENSOR
 uint8_t *ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -864,15 +868,15 @@ uint8_t *ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer &buffer PROTO_E
 }
 uint32_t ListEntitiesTextSensorResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, this->device_id);
 #endif
@@ -912,16 +916,22 @@ bool SubscribeLogsRequest::decode_varint(uint32_t field_id, proto_varint_value_t
   }
   return true;
 }
-uint8_t *SubscribeLogsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint8_t *
+SubscribeLogsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->level));
-  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 3, this->message_ptr_, this->message_len_);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->level), true);
+  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 26);
+  ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, this->message_len_);
+  ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, this->message_ptr_, this->message_len_);
   return pos;
 }
-uint32_t SubscribeLogsResponse::calculate_size() const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint32_t
+SubscribeLogsResponse::calculate_size() const {
   uint32_t size = 0;
-  size += this->level ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->message_len_);
+  size += 2;
+  size += ProtoSize::calc_length_force(1, this->message_len_);
   return size;
 }
 #ifdef USE_API_NOISE
@@ -1323,9 +1333,9 @@ uint32_t ExecuteServiceResponse::calculate_size() const {
 #ifdef USE_CAMERA
 uint8_t *ListEntitiesCameraResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, this->icon);
@@ -1338,12 +1348,12 @@ uint8_t *ListEntitiesCameraResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
 }
 uint32_t ListEntitiesCameraResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += this->entity_category ? 2 : 0;
 #ifdef USE_DEVICES
@@ -1388,9 +1398,9 @@ bool CameraImageRequest::decode_varint(uint32_t field_id, proto_varint_value_t v
 #ifdef USE_CLIMATE
 uint8_t *ListEntitiesClimateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->supports_current_temperature);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->supports_two_point_target_temperature);
   for (const auto &it : *this->supported_modes) {
@@ -1433,9 +1443,9 @@ uint8_t *ListEntitiesClimateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCO
 }
 uint32_t ListEntitiesClimateResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
   size += ProtoSize::calc_bool(1, this->supports_current_temperature);
   size += ProtoSize::calc_bool(1, this->supports_two_point_target_temperature);
   if (!this->supported_modes->empty()) {
@@ -1466,7 +1476,7 @@ uint32_t ListEntitiesClimateResponse::calculate_size() const {
   }
   size += ProtoSize::calc_bool(2, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(2, this->icon.size());
+  size += !this->icon.empty() ? 3 + this->icon.size() : 0;
 #endif
   size += this->entity_category ? 3 : 0;
   size += ProtoSize::calc_float(2, this->visual_current_temperature_step);
@@ -1617,9 +1627,9 @@ bool ClimateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_WATER_HEATER
 uint8_t *ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->icon);
 #endif
@@ -1639,11 +1649,11 @@ uint8_t *ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer &buffer PROTO_
 }
 uint32_t ListEntitiesWaterHeaterResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
@@ -1731,9 +1741,9 @@ bool WaterHeaterCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value
 #ifdef USE_NUMBER
 uint8_t *ListEntitiesNumberResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -1752,20 +1762,20 @@ uint8_t *ListEntitiesNumberResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
 }
 uint32_t ListEntitiesNumberResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_float(1, this->min_value);
   size += ProtoSize::calc_float(1, this->max_value);
   size += ProtoSize::calc_float(1, this->step);
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->unit_of_measurement.size());
+  size += !this->unit_of_measurement.empty() ? 2 + this->unit_of_measurement.size() : 0;
   size += this->mode ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, this->device_id);
 #endif
@@ -1820,9 +1830,9 @@ bool NumberCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_SELECT
 uint8_t *ListEntitiesSelectResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -1838,11 +1848,11 @@ uint8_t *ListEntitiesSelectResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
 }
 uint32_t ListEntitiesSelectResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   if (!this->options->empty()) {
     for (const char *it : *this->options) {
@@ -1913,9 +1923,9 @@ bool SelectCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_SIREN
 uint8_t *ListEntitiesSirenResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -1933,11 +1943,11 @@ uint8_t *ListEntitiesSirenResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE
 }
 uint32_t ListEntitiesSirenResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   if (!this->tones->empty()) {
@@ -2029,9 +2039,9 @@ bool SirenCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_LOCK
 uint8_t *ListEntitiesLockResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -2048,11 +2058,11 @@ uint8_t *ListEntitiesLockResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_
 }
 uint32_t ListEntitiesLockResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
@@ -2126,9 +2136,9 @@ bool LockCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_BUTTON
 uint8_t *ListEntitiesButtonResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -2142,15 +2152,15 @@ uint8_t *ListEntitiesButtonResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
 }
 uint32_t ListEntitiesButtonResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, this->device_id);
 #endif
@@ -2200,9 +2210,9 @@ uint32_t MediaPlayerSupportedFormat::calculate_size() const {
 }
 uint8_t *ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -2220,11 +2230,11 @@ uint8_t *ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer &buffer PROTO_
 }
 uint32_t ListEntitiesMediaPlayerResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
@@ -2328,40 +2338,41 @@ bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id,
   }
   return true;
 }
-uint8_t *BluetoothLERawAdvertisement::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
-  uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 8);
-  ProtoEncode::encode_varint_raw_64(pos PROTO_ENCODE_DEBUG_ARG, this->address);
-  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
-  ProtoEncode::encode_varint_raw_short(pos PROTO_ENCODE_DEBUG_ARG, encode_zigzag32(this->rssi));
-  if (this->address_type) {
-    ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 24);
-    ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, this->address_type);
-  }
-  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 34);
-  ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(this->data_len));
-  ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, this->data, this->data_len);
-  return pos;
-}
-uint32_t BluetoothLERawAdvertisement::calculate_size() const {
-  uint32_t size = 0;
-  size += ProtoSize::calc_uint64_force(1, this->address);
-  size += ProtoSize::calc_sint32_force(1, this->rssi);
-  size += this->address_type ? 2 : 0;
-  size += 2 + this->data_len;
-  return size;
-}
-uint8_t *BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint8_t *
+BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
-    ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 1, this->advertisements[i]);
+    auto &sub_msg = this->advertisements[i];
+    ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 10);
+    uint8_t *len_pos = pos;
+    ProtoEncode::reserve_byte(pos PROTO_ENCODE_DEBUG_ARG);
+    ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 8);
+    ProtoEncode::encode_varint_raw_64(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.address);
+    ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
+    ProtoEncode::encode_varint_raw_short(pos PROTO_ENCODE_DEBUG_ARG, encode_zigzag32(sub_msg.rssi));
+    if (sub_msg.address_type) {
+      ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 24);
+      ProtoEncode::encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.address_type);
+    }
+    ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 34);
+    ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(sub_msg.data_len));
+    ProtoEncode::encode_raw(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.data, sub_msg.data_len);
+    *len_pos = static_cast<uint8_t>(pos - len_pos - 1);
   }
   return pos;
 }
-uint32_t BluetoothLERawAdvertisementsResponse::calculate_size() const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint32_t
+BluetoothLERawAdvertisementsResponse::calculate_size() const {
   uint32_t size = 0;
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
-    size += ProtoSize::calc_message_force(1, this->advertisements[i].calculate_size());
+    auto &sub_msg = this->advertisements[i];
+    size += 2;
+    size += ProtoSize::calc_uint64_force(1, sub_msg.address);
+    size += ProtoSize::calc_sint32_force(1, sub_msg.rssi);
+    size += sub_msg.address_type ? 2 : 0;
+    size += 2 + sub_msg.data_len;
   }
   return size;
 }
@@ -3079,9 +3090,9 @@ bool VoiceAssistantSetConfiguration::decode_length(uint32_t field_id, ProtoLengt
 #ifdef USE_ALARM_CONTROL_PANEL
 uint8_t *ListEntitiesAlarmControlPanelResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3097,11 +3108,11 @@ uint8_t *ListEntitiesAlarmControlPanelResponse::encode(ProtoWriteBuffer &buffer 
 }
 uint32_t ListEntitiesAlarmControlPanelResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
@@ -3171,9 +3182,9 @@ bool AlarmControlPanelCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit
 #ifdef USE_TEXT
 uint8_t *ListEntitiesTextResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3190,11 +3201,11 @@ uint8_t *ListEntitiesTextResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_
 }
 uint32_t ListEntitiesTextResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
@@ -3264,9 +3275,9 @@ bool TextCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_DATETIME_DATE
 uint8_t *ListEntitiesDateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3279,11 +3290,11 @@ uint8_t *ListEntitiesDateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_
 }
 uint32_t ListEntitiesDateResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
@@ -3351,9 +3362,9 @@ bool DateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_DATETIME_TIME
 uint8_t *ListEntitiesTimeResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3366,11 +3377,11 @@ uint8_t *ListEntitiesTimeResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_
 }
 uint32_t ListEntitiesTimeResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
@@ -3438,9 +3449,9 @@ bool TimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_EVENT
 uint8_t *ListEntitiesEventResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3457,15 +3468,15 @@ uint8_t *ListEntitiesEventResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE
 }
 uint32_t ListEntitiesEventResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
   if (!this->event_types->empty()) {
     for (const char *it : *this->event_types) {
       size += ProtoSize::calc_length_force(1, strlen(it));
@@ -3498,9 +3509,9 @@ uint32_t EventResponse::calculate_size() const {
 #ifdef USE_VALVE
 uint8_t *ListEntitiesValveResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3517,15 +3528,15 @@ uint8_t *ListEntitiesValveResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE
 }
 uint32_t ListEntitiesValveResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
   size += ProtoSize::calc_bool(1, this->assumed_state);
   size += ProtoSize::calc_bool(1, this->supports_position);
   size += ProtoSize::calc_bool(1, this->supports_stop);
@@ -3589,9 +3600,9 @@ bool ValveCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_DATETIME_DATETIME
 uint8_t *ListEntitiesDateTimeResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3604,11 +3615,11 @@ uint8_t *ListEntitiesDateTimeResponse::encode(ProtoWriteBuffer &buffer PROTO_ENC
 }
 uint32_t ListEntitiesDateTimeResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
@@ -3666,9 +3677,9 @@ bool DateTimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_UPDATE
 uint8_t *ListEntitiesUpdateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3682,15 +3693,15 @@ uint8_t *ListEntitiesUpdateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
 }
 uint32_t ListEntitiesUpdateResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, this->device_id);
 #endif
@@ -3817,9 +3828,9 @@ uint32_t ZWaveProxyRequest::calculate_size() const {
 #ifdef USE_INFRARED
 uint8_t *ListEntitiesInfraredResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->object_id);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->icon);
 #endif
@@ -3834,11 +3845,11 @@ uint8_t *ListEntitiesInfraredResponse::encode(ProtoWriteBuffer &buffer PROTO_ENC
 }
 uint32_t ListEntitiesInfraredResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->object_id.size());
+  size += 2 + this->object_id.size();
   size += 5;
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;

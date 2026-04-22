@@ -52,58 +52,53 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_FACE_SCAN_MATCHED,
+        "add_on_face_scan_matched_callback",
+        [(cg.int16, "face_id"), (cg.std_string, "name")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_FACE_SCAN_UNMATCHED, "add_on_face_scan_unmatched_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_FACE_SCAN_INVALID,
+        "add_on_face_scan_invalid_callback",
+        [(cg.uint8, "error")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_FACE_INFO,
+        "add_on_face_info_callback",
+        [
+            (cg.int16, "status"),
+            (cg.int16, "left"),
+            (cg.int16, "top"),
+            (cg.int16, "right"),
+            (cg.int16, "bottom"),
+            (cg.int16, "yaw"),
+            (cg.int16, "pitch"),
+            (cg.int16, "roll"),
+        ],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ENROLLMENT_DONE,
+        "add_on_enrollment_done_callback",
+        [(cg.int16, "face_id"), (cg.uint8, "direction")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ENROLLMENT_FAILED,
+        "add_on_enrollment_failed_callback",
+        [(cg.uint8, "error")],
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    for conf in config.get(CONF_ON_FACE_SCAN_MATCHED, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_face_scan_matched_callback",
-            [(cg.int16, "face_id"), (cg.std_string, "name")],
-            conf,
-        )
-
-    for conf in config.get(CONF_ON_FACE_SCAN_UNMATCHED, []):
-        await automation.build_callback_automation(
-            var, "add_on_face_scan_unmatched_callback", [], conf
-        )
-
-    for conf in config.get(CONF_ON_FACE_SCAN_INVALID, []):
-        await automation.build_callback_automation(
-            var, "add_on_face_scan_invalid_callback", [(cg.uint8, "error")], conf
-        )
-
-    for conf in config.get(CONF_ON_FACE_INFO, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_face_info_callback",
-            [
-                (cg.int16, "status"),
-                (cg.int16, "left"),
-                (cg.int16, "top"),
-                (cg.int16, "right"),
-                (cg.int16, "bottom"),
-                (cg.int16, "yaw"),
-                (cg.int16, "pitch"),
-                (cg.int16, "roll"),
-            ],
-            conf,
-        )
-
-    for conf in config.get(CONF_ON_ENROLLMENT_DONE, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_enrollment_done_callback",
-            [(cg.int16, "face_id"), (cg.uint8, "direction")],
-            conf,
-        )
-
-    for conf in config.get(CONF_ON_ENROLLMENT_FAILED, []):
-        await automation.build_callback_automation(
-            var, "add_on_enrollment_failed_callback", [(cg.uint8, "error")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_action(
@@ -136,7 +131,7 @@ async def hlk_fm22x_enroll_to_code(config, action_id, template_arg, args):
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
-            cv.Required(CONF_FACE_ID): cv.templatable(cv.uint16_t),
+            cv.Required(CONF_FACE_ID): cv.templatable(cv.int_range(min=0, max=32767)),
         },
         key=CONF_FACE_ID,
     ),

@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import modbus
+from esphome.components.const import CONF_ENABLED
 from esphome.components.modbus.helpers import (
     CPP_TYPE_REGISTER_MAP,
     SENSOR_VALUE_TYPE,
@@ -10,25 +11,24 @@ from esphome.const import CONF_ADDRESS, CONF_ID
 from esphome.cpp_helpers import logging
 
 from .const import (
-    CONF_ENABLED,
+    CONF_READ_LAMBDA,
     CONF_REGISTER_LAST_ADDRESS,
     CONF_REGISTER_VALUE,
     CONF_SERVER_COURTESY_RESPONSE,
+    CONF_SERVER_REGISTERS,
     CONF_VALUE_TYPE,
+    CONF_WRITE_LAMBDA,
 )
 
-CODEOWNERS = ["@martgras"]
+CODEOWNERS = ["@exciton"]
 
 AUTO_LOAD = ["modbus"]
 
-CONF_READ_LAMBDA = "read_lambda"
-CONF_WRITE_LAMBDA = "write_lambda"
-CONF_SERVER_REGISTERS = "server_registers"
 MULTI_CONF = True
 
 modbus_server_ns = cg.esphome_ns.namespace("modbus_server")
 ModbusServer = modbus_server_ns.class_(
-    "ModbusServer", cg.PollingComponent, modbus.ModbusServerDevice
+    "ModbusServer", cg.Component, modbus.ModbusDevice
 )
 
 ServerCourtesyResponse = modbus_server_ns.struct("ServerCourtesyResponse")

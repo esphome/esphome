@@ -9,17 +9,9 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace modbus_server {
+namespace esphome::modbus_server {
 
-class ModbusServer;
-
-using modbus::ModbusFunctionCode;
-using modbus::ModbusRegisterType;
-using modbus::ModbusExceptionCode;
-using namespace modbus::helpers;
-
-class ModbusServer;
+using modbus::helpers::SensorValueType;
 
 struct ServerCourtesyResponse {
   bool enabled{false};
@@ -124,5 +116,4 @@ class ModbusServer : public Component, public modbus::ModbusServerDevice {
       .enabled = false, .register_last_address = 0xFFFF, .register_value = 0};
 };
 
-}  // namespace modbus_server
-}  // namespace esphome
+}  // namespace esphome::modbus_server
