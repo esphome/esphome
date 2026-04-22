@@ -72,15 +72,22 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 
 // nRF52 may return from sleep without reset.
 // Do not teardown things to make sure it still works after.
-#if defined(USE_NRF52) && !defined(USE_ZIGBEE)
-  if (!this->sleep_duration_.has_value()) {
+#ifdef USE_NRF52
+  bool poweroff = true;
+  if (this->sleep_duration_.has_value()) {
+    poweroff = false;
+  }
+#ifdef USE_ZIGBEE
+  poweroff = false;
+#endif
+  if (poweroff) {
 #endif
     App.run_safe_shutdown_hooks();
     // It's critical to teardown components cleanly for deep sleep to ensure
     // Home Assistant sees a clean disconnect instead of marking the device unavailable
     App.teardown_components(TEARDOWN_TIMEOUT_DEEP_SLEEP_MS);
     App.run_powerdown_hooks();
-#if defined(USE_NRF52) && !defined(USE_ZIGBEE)
+#ifdef USE_NRF52
   }
 #endif
 
