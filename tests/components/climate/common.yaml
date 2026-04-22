@@ -14,6 +14,7 @@ sensor:
     update_interval: 60s
 
 climate:
+  # Default (Celsius, no unit_of_measurement)
   - platform: bang_bang
     id: climate_test_climate
     name: Test Climate
@@ -55,6 +56,49 @@ climate:
       - name: Default
         default_target_temperature_low: 18°C
         default_target_temperature_high: 22°C
+  # Explicit Fahrenheit via unit_of_measurement
+  - platform: bang_bang
+    id: climate_test_fahrenheit
+    name: Test Climate Fahrenheit
+    sensor: climate_temperature_sensor
+    unit_of_measurement: °F
+    default_target_temperature_low: 64°F
+    default_target_temperature_high: 75°F
+    idle_action:
+      - switch.turn_off: climate_heater_switch
+      - switch.turn_off: climate_cooler_switch
+    cool_action:
+      - switch.turn_on: climate_cooler_switch
+      - switch.turn_off: climate_heater_switch
+    heat_action:
+      - switch.turn_on: climate_heater_switch
+      - switch.turn_off: climate_cooler_switch
+    visual:
+      min_temperature: 60°F
+      max_temperature: 86°F
+      temperature_step:
+        target_temperature: 1°F
+        current_temperature: 0.5°F
+
+  # Implicit Fahrenheit inferred from visual field suffixes
+  - platform: bang_bang
+    id: climate_test_implicit_fahrenheit
+    name: Test Climate Implicit Fahrenheit
+    sensor: climate_temperature_sensor
+    default_target_temperature_low: 64°F
+    default_target_temperature_high: 75°F
+    idle_action:
+      - switch.turn_off: climate_heater_switch
+      - switch.turn_off: climate_cooler_switch
+    cool_action:
+      - switch.turn_on: climate_cooler_switch
+      - switch.turn_off: climate_heater_switch
+    heat_action:
+      - switch.turn_on: climate_heater_switch
+      - switch.turn_off: climate_cooler_switch
+    visual:
+      min_temperature: 60°F
+      max_temperature: 86°F
 
 button:
   # Exercise the climate.control: action so ControlAction templates get

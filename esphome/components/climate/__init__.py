@@ -45,8 +45,12 @@ from esphome.const import (
     CONF_TARGET_TEMPERATURE_STATE_TOPIC,
     CONF_TEMPERATURE_STEP,
     CONF_TRIGGER_ID,
+    CONF_UNIT_OF_MEASUREMENT,
     CONF_VISUAL,
     CONF_WEB_SERVER,
+    UNIT_CELSIUS,
+    UNIT_FAHRENHEIT,
+    UNIT_KELVIN,
 )
 from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
 from esphome.core.entity_helpers import (
@@ -121,31 +125,12 @@ CONF_MIN_HUMIDITY = "min_humidity"
 CONF_MAX_HUMIDITY = "max_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
 
-visual_temperature = cv.float_with_unit("visual_temperature", "(°|(° ?)?[CKF])?")
-
-
-VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_TARGET_TEMPERATURE): visual_temperature,
-        cv.Required(CONF_CURRENT_TEMPERATURE): visual_temperature,
-    }
-)
-
-
-def visual_temperature_step(value):
-    # Allow defining target/current temperature steps separately
-    if isinstance(value, dict):
-        return VISUAL_TEMPERATURE_STEP_SCHEMA(value)
-
-    # Otherwise, use the single value for both properties
-    value = visual_temperature(value)
-    return VISUAL_TEMPERATURE_STEP_SCHEMA(
-        {
-            CONF_TARGET_TEMPERATURE: value,
-            CONF_CURRENT_TEMPERATURE: value,
-        }
-    )
-
+TemperatureUnit = cg.esphome_ns.enum("TemperatureUnit", is_class=True)
+TEMPERATURE_UNITS = {
+    UNIT_CELSIUS: TemperatureUnit.CELSIUS,
+    UNIT_FAHRENHEIT: TemperatureUnit.FAHRENHEIT,
+    UNIT_KELVIN: TemperatureUnit.KELVIN,
+}
 
 # Actions
 ControlAction = climate_ns.class_("ControlAction", automation.Action)
@@ -162,11 +147,12 @@ _CLIMATE_SCHEMA = (
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTClimateComponent),
+            cv.Optional(CONF_UNIT_OF_MEASUREMENT): cv.temperature_unit,
             cv.Optional(CONF_VISUAL, default={}): cv.Schema(
                 {
-                    cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
-                    cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
-                    cv.Optional(CONF_TEMPERATURE_STEP): visual_temperature_step,
+                    cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature_with_unit,
+                    cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature_with_unit,
+                    cv.Optional(CONF_TEMPERATURE_STEP): cv.visual_temperature_step,
                     cv.Optional(CONF_MIN_HUMIDITY): cv.percentage_int,
                     cv.Optional(CONF_MAX_HUMIDITY): cv.percentage_int,
                 }
@@ -250,6 +236,7 @@ _CLIMATE_SCHEMA = (
 
 
 _CLIMATE_SCHEMA.add_extra(entity_duplicate_validator("climate"))
+_CLIMATE_SCHEMA.add_extra(cv.validate_temperature_config)
 
 
 def climate_schema(
@@ -295,6 +282,10 @@ async def setup_climate_core_(var, config):
     if (max_humidity := visual.get(CONF_MAX_HUMIDITY)) is not None:
         cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_max_humidity_override(max_humidity))
+
+    if (uom := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
+        cg.add_define("USE_CLIMATE_TEMPERATURE_UNIT")
+        cg.add(var.set_temperature_unit_override(TEMPERATURE_UNITS[uom]))
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)

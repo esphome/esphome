@@ -230,6 +230,9 @@ WaterHeaterTraits WaterHeater::get_traits() {
     traits.set_target_temperature_step(this->visual_target_temperature_step_override_);
   }
 #endif
+#ifdef USE_WATER_HEATER_TEMPERATURE_UNIT
+  traits.set_temperature_unit(this->temperature_unit_override_);
+#endif
   return traits;
 }
 
@@ -243,6 +246,9 @@ void WaterHeater::set_visual_max_temperature_override(float max_temperature_over
 void WaterHeater::set_visual_target_temperature_step_override(float visual_target_temperature_step_override) {
   this->visual_target_temperature_step_override_ = visual_target_temperature_step_override;
 }
+#endif
+#ifdef USE_WATER_HEATER_TEMPERATURE_UNIT
+void WaterHeater::set_temperature_unit_override(TemperatureUnit unit) { this->temperature_unit_override_ = unit; }
 #endif
 
 // Water heater mode strings indexed by WaterHeaterMode enum (0-6): OFF, ECO, ELECTRIC, PERFORMANCE, HIGH_DEMAND,

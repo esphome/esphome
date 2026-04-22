@@ -58,6 +58,7 @@ from esphome.const import (
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
     CONF_TARGET_TEMPERATURE,
+    CONF_TARGET_TEMPERATURE_STEP,
     CONF_TEMPERATURE_STEP,
     CONF_TOPIC,
     CONF_TYPE,
@@ -1533,25 +1534,33 @@ def validate_temperature_config(config):
     explicit_uom = config.get(CONF_UNIT_OF_MEASUREMENT)
     visual = config[CONF_VISUAL]
     temp_fields = {}
-    VISUAL_FIELDS = (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE, CONF_TEMPERATURE_STEP)
-    STEP_FIELDS = (CONF_TARGET_TEMPERATURE, CONF_CURRENT_TEMPERATURE)
+    VISUAL_FIELDS = (
+        CONF_MIN_TEMPERATURE,
+        CONF_MAX_TEMPERATURE,
+        CONF_TEMPERATURE_STEP,
+        CONF_TARGET_TEMPERATURE_STEP,
+    )
+    NESTED_STEP_FIELDS = (CONF_TARGET_TEMPERATURE, CONF_CURRENT_TEMPERATURE)
     for key in VISUAL_FIELDS:
         if key in visual:
             if key == CONF_TEMPERATURE_STEP and isinstance(visual[key], dict):
-                for sub_key in STEP_FIELDS:
+                for sub_key in NESTED_STEP_FIELDS:
                     if sub_key in visual[key]:
                         temp_fields[sub_key] = visual[key][sub_key]
             else:
                 temp_fields[key] = visual[key]
 
     def store(key, value):
-        if key in STEP_FIELDS:
+        if key in NESTED_STEP_FIELDS:
             visual[CONF_TEMPERATURE_STEP][key] = value
         else:
             visual[key] = value
 
     def key_is_relative(key):
-        return key in STEP_FIELDS or key == CONF_TEMPERATURE_STEP
+        return key in NESTED_STEP_FIELDS or key in [
+            CONF_TEMPERATURE_STEP,
+            CONF_TARGET_TEMPERATURE_STEP,
+        ]
 
     if explicit_uom:
         # New path: convert each field to the explicit UOM.

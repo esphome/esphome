@@ -234,6 +234,9 @@ class Climate : public EntityBase {
   void set_visual_min_humidity_override(float visual_min_humidity_override);
   void set_visual_max_humidity_override(float visual_max_humidity_override);
 #endif
+#ifdef USE_CLIMATE_TEMPERATURE_UNIT
+  void set_temperature_unit_override(TemperatureUnit temperature_unit_override);
+#endif
 
   /// Set the supported custom fan modes (stored on Climate, referenced by ClimateTraits).
   void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
@@ -374,6 +377,9 @@ class Climate : public EntityBase {
   float visual_current_temperature_step_override_{NAN};
   float visual_min_humidity_override_{NAN};
   float visual_max_humidity_override_{NAN};
+#endif
+#ifdef USE_CLIMATE_TEMPERATURE_UNIT
+  TemperatureUnit temperature_unit_override_{TemperatureUnit::CELSIUS};
 #endif
 
  private:
