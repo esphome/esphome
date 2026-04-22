@@ -10,6 +10,8 @@
 #include "esphome/core/preferences.h"
 
 #include <sendspin/client.h>
+#include <sendspin/config.h>
+#include <sendspin/types.h>
 
 #include <functional>
 #include <memory>
