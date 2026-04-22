@@ -128,22 +128,29 @@ ASSERTION_LEVELS = {
 SIGNING_SCHEMES = {
     "rsa3072": "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME",
     "ecdsa256": "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME",
+    "ecdsa_v1": "CONFIG_SECURE_SIGNED_APPS_ECDSA_SCHEME",
 }
 
-# Chip variants that only support one signing scheme for Secure Boot V2.
+# Chip variants that only support one V2 signing scheme.
 # Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h.
-# Variants not listed in either set support both RSA and ECDSA
+# Variants not listed in either set support both RSA and ECDSA V2
 # (e.g. C5, C6, H2, P4). New variants should be added to the
 # appropriate set if they only support one scheme.
-SIGNED_OTA_RSA_ONLY_VARIANTS = {
-    VARIANT_ESP32,
+# Note: VARIANT_ESP32 is not listed here because it supports V2 RSA only
+# when minimum_chip_revision >= 3.0, which requires special handling.
+SIGNED_OTA_V2_RSA_ONLY_VARIANTS = {
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     VARIANT_ESP32C3,
 }
-SIGNED_OTA_ECC_ONLY_VARIANTS = {
+SIGNED_OTA_V2_ECC_ONLY_VARIANTS = {
     VARIANT_ESP32C2,
     VARIANT_ESP32C61,
+}
+# V1 ECDSA (Secure Boot V1) is only supported on the original ESP32.
+# Based on SOC_SECURE_BOOT_V1 in soc_caps.h.
+SIGNED_OTA_V1_ECDSA_VARIANTS = {
+    VARIANT_ESP32,
 }
 
 COMPILER_OPTIMIZATIONS = {
@@ -991,25 +998,73 @@ def final_validate(config):
     if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
         scheme = signed_ota[CONF_SIGNING_SCHEME]
         variant = config[CONF_VARIANT]
-        scheme_variant_conflicts = {
-            "ecdsa256": (SIGNED_OTA_RSA_ONLY_VARIANTS, "rsa3072"),
-            "rsa3072": (SIGNED_OTA_ECC_ONLY_VARIANTS, "ecdsa256"),
-        }
-        if (conflict := scheme_variant_conflicts.get(scheme)) and variant in conflict[
-            0
-        ]:
+        min_rev = advanced.get(CONF_MINIMUM_CHIP_REVISION)
+        scheme_path = [
+            CONF_FRAMEWORK,
+            CONF_ADVANCED,
+            CONF_SIGNED_OTA_VERIFICATION,
+            CONF_SIGNING_SCHEME,
+        ]
+
+        # V1 ECDSA is only available on the original ESP32
+        if scheme == "ecdsa_v1" and variant not in SIGNED_OTA_V1_ECDSA_VARIANTS:
             errs.append(
                 cv.Invalid(
-                    f"Signing scheme '{scheme}' is not supported on "
-                    f"{VARIANT_FRIENDLY[variant]}. Use '{conflict[1]}' instead.",
-                    path=[
-                        CONF_FRAMEWORK,
-                        CONF_ADVANCED,
-                        CONF_SIGNED_OTA_VERIFICATION,
-                        CONF_SIGNING_SCHEME,
-                    ],
+                    f"Signing scheme 'ecdsa_v1' is only supported on "
+                    f"{VARIANT_FRIENDLY[VARIANT_ESP32]}. "
+                    f"Use 'rsa3072' or 'ecdsa256' instead.",
+                    path=scheme_path,
                 )
             )
+        elif variant == VARIANT_ESP32:
+            # On ESP32, V2 RSA requires minimum_chip_revision >= 3.0
+            # Note: string comparison works here because cv.one_of constrains
+            # min_rev to known ESP32_CHIP_REVISIONS values ("0.0".."3.1").
+            if scheme == "rsa3072" and (min_rev is None or min_rev < "3.0"):
+                errs.append(
+                    cv.Invalid(
+                        f"Signing scheme 'rsa3072' on {VARIANT_FRIENDLY[variant]} "
+                        f"requires minimum_chip_revision: '3.0' or higher "
+                        f"(Secure Boot V2 RSA needs chip revision 3.0+). "
+                        f"For older chip revisions, use 'ecdsa_v1' instead.",
+                        path=scheme_path,
+                    )
+                )
+            # ESP32 does not support V2 ECDSA (no SOC_SECURE_BOOT_V2_ECC)
+            elif scheme == "ecdsa256":
+                errs.append(
+                    cv.Invalid(
+                        f"Signing scheme 'ecdsa256' is not supported on "
+                        f"{VARIANT_FRIENDLY[variant]}. Use 'rsa3072' (with "
+                        f"minimum_chip_revision: '3.0') or 'ecdsa_v1' instead.",
+                        path=scheme_path,
+                    )
+                )
+            # V1 on rev 3.0+ -- suggest V2 RSA for stronger security
+            elif scheme == "ecdsa_v1" and min_rev is not None and min_rev >= "3.0":
+                _LOGGER.info(
+                    "Using Secure Boot V1 ECDSA on %s rev %s. "
+                    "Consider using 'rsa3072' (Secure Boot V2 RSA) for "
+                    "stronger security on chip revision 3.0+.",
+                    VARIANT_FRIENDLY[variant],
+                    min_rev,
+                )
+        else:
+            # Non-ESP32 variants: check V2 scheme-variant compatibility
+            scheme_variant_conflicts = {
+                "ecdsa256": (SIGNED_OTA_V2_RSA_ONLY_VARIANTS, "rsa3072"),
+                "rsa3072": (SIGNED_OTA_V2_ECC_ONLY_VARIANTS, "ecdsa256"),
+            }
+            if (
+                conflict := scheme_variant_conflicts.get(scheme)
+            ) and variant in conflict[0]:
+                errs.append(
+                    cv.Invalid(
+                        f"Signing scheme '{scheme}' is not supported on "
+                        f"{VARIANT_FRIENDLY[variant]}. Use '{conflict[1]}' instead.",
+                        path=scheme_path,
+                    )
+                )
         if CONF_OTA not in full_config:
             _LOGGER.warning(
                 "Signed OTA verification is enabled but no OTA component is configured. "

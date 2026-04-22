@@ -97,28 +97,28 @@ modbus_controller:
 modbus_server:
   - address: 1
     modbus_id: virtual_modbus_server
-    server_registers:
-      - address: 0x01
+    registers:
+      - address: 0x1
         value_type: U_WORD
         read_lambda: return id(stored_u_word);
         write_lambda: id(stored_u_word) = x; return true;
-      - address: 0x03
+      - address: 0x3
         value_type: S_WORD
         read_lambda: return id(stored_s_word);
         write_lambda: id(stored_s_word) = x; return true;
-      - address: 0x05
+      - address: 0x5
         value_type: U_DWORD
         read_lambda: return id(stored_u_dword);
         write_lambda: id(stored_u_dword) = x; return true;
-      - address: 0x08
+      - address: 0x8
         value_type: S_DWORD
         read_lambda: return id(stored_s_dword);
         write_lambda: id(stored_s_dword) = x; return true;
-      - address: 0x0B
+      - address: 0xb
         value_type: U_DWORD_R
         read_lambda: return id(stored_u_dword_r);
         write_lambda: id(stored_u_dword_r) = x; return true;
-      - address: 0x0E
+      - address: 0xe
         value_type: S_DWORD_R
         read_lambda: return id(stored_s_dword_r);
         write_lambda: id(stored_s_dword_r) = x; return true;
@@ -130,7 +130,7 @@ modbus_server:
         value_type: S_QWORD
         read_lambda: return id(stored_s_qword);
         write_lambda: id(stored_s_qword) = x; return true;
-      - address: 0x1B
+      - address: 0x1b
         value_type: U_QWORD_R
         read_lambda: return id(stored_u_qword_r);
         write_lambda: id(stored_u_qword_r) = x; return true;
@@ -151,37 +151,37 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "reg_u_word"
-    address: 0x01
+    address: 0x1
     register_type: holding
     value_type: U_WORD
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "reg_s_word"
-    address: 0x03
+    address: 0x3
     register_type: holding
     value_type: S_WORD
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "reg_u_dword"
-    address: 0x05
+    address: 0x5
     register_type: holding
     value_type: U_DWORD
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "reg_s_dword"
-    address: 0x08
+    address: 0x8
     register_type: holding
     value_type: S_DWORD
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "reg_u_dword_r"
-    address: 0x0B
+    address: 0xb
     register_type: holding
     value_type: U_DWORD_R
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "reg_s_dword_r"
-    address: 0x0E
+    address: 0xe
     register_type: holding
     value_type: S_DWORD_R
   - platform: modbus_controller
@@ -199,7 +199,7 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "reg_u_qword_r"
-    address: 0x1B
+    address: 0x1b
     register_type: holding
     value_type: U_QWORD_R
   - platform: modbus_controller
@@ -225,7 +225,7 @@ number:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "write_u_word"
-    address: 0x01
+    address: 0x1
     register_type: holding
     value_type: U_WORD
     min_value: 0
@@ -233,7 +233,7 @@ number:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "write_s_word"
-    address: 0x03
+    address: 0x3
     register_type: holding
     value_type: S_WORD
     min_value: -16777215
@@ -241,7 +241,7 @@ number:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "write_u_dword"
-    address: 0x05
+    address: 0x5
     register_type: holding
     value_type: U_DWORD
     min_value: 0
@@ -249,7 +249,7 @@ number:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "write_s_dword"
-    address: 0x08
+    address: 0x8
     register_type: holding
     value_type: S_DWORD
     min_value: -16777215
@@ -257,7 +257,7 @@ number:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "write_u_dword_r"
-    address: 0x0B
+    address: 0xb
     register_type: holding
     value_type: U_DWORD_R
     min_value: 0
@@ -265,7 +265,7 @@ number:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "write_s_dword_r"
-    address: 0x0E
+    address: 0xe
     register_type: holding
     value_type: S_DWORD_R
     min_value: -16777215
@@ -289,7 +289,7 @@ number:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "write_u_qword_r"
-    address: 0x1B
+    address: 0x1b
     register_type: holding
     value_type: U_QWORD_R
     min_value: 0

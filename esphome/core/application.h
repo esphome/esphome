@@ -426,8 +426,9 @@ class Application {
   void enable_component_loop_(Component *component);
   void enable_pending_loops_();
   void activate_looping_component_(uint16_t index);
-  inline uint32_t ESPHOME_ALWAYS_INLINE before_loop_tasks_(uint32_t loop_start_time);
-  inline void ESPHOME_ALWAYS_INLINE after_loop_tasks_() { this->in_loop_ = false; }
+  inline uint32_t ESPHOME_ALWAYS_INLINE scheduler_tick_(uint32_t now);
+  inline void ESPHOME_ALWAYS_INLINE before_component_phase_();
+  inline void ESPHOME_ALWAYS_INLINE after_component_phase_() { this->in_loop_ = false; }
 
   /// Process dump_config output one component per loop iteration.
   /// Extracted from loop() to keep cold startup/reconnect logging out of the hot path.
@@ -582,16 +583,25 @@ inline void Application::drain_wake_notifications_() {
 }
 #endif  // USE_HOST
 
-inline uint32_t ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_start_time) {
+// Phase A: drain wake notifications and run the scheduler. Invoked on every
+// Application::loop() tick regardless of whether a component phase runs, so
+// scheduler items fire at their requested cadence even when the caller has
+// raised loop_interval_ for power savings (see Application::loop()).
+// Returns the timestamp of the last scheduler item that ran (or `now`
+// unchanged if none ran), so the caller's WDT feed stays monotonic with the
+// per-item feeds inside scheduler.call() without an extra millis().
+inline uint32_t ESPHOME_ALWAYS_INLINE Application::scheduler_tick_(uint32_t now) {
 #ifdef USE_HOST
   // Drain wake notifications first to clear socket for next wake
   this->drain_wake_notifications_();
 #endif
+  return this->scheduler.call(now);
+}
 
-  // Scheduler::call feeds the WDT per item and returns the timestamp of the
-  // last fired item, or the input unchanged when nothing ran.
-  uint32_t last_op_end_time = this->scheduler.call(loop_start_time);
-
+// Phase B entry: only invoked when a component loop phase is about to run.
+// Processes pending enable_loop requests from ISRs and marks in_loop_ so
+// reentrant modifications during component.loop() are safe.
+inline void ESPHOME_ALWAYS_INLINE Application::before_component_phase_() {
   // Process any pending enable_loop requests from ISRs
   // This must be done before marking in_loop_ = true to avoid race conditions
   if (this->has_pending_enable_loop_requests_) {
@@ -608,7 +618,6 @@ inline uint32_t ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t l
 
   // Mark that we're in the loop for safe reentrant modifications
   this->in_loop_ = true;
-  return last_op_end_time;
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
@@ -623,46 +632,77 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // so charging it again to "before" would double-count.
   uint64_t loop_recorded_snap = ComponentRuntimeStats::global_recorded_us;
 #endif
-  // Get the initial loop time at the start
-  uint32_t last_op_end_time = millis();
+  // Phase A: always service the scheduler. Decouples scheduler cadence from
+  // loop_interval_ so raised intervals (for power savings) don't drag scheduled
+  // items forward. A tick that only runs the scheduler is cheap.
+  // scheduler_tick_ returns the timestamp of the last scheduler item that ran
+  // (advanced by its per-item feeds) or `now` unchanged. We adopt it as `now`
+  // so the gate check and WDT feed both reflect actual elapsed time after
+  // scheduler dispatch, without an extra millis() call.
+  uint32_t now = this->scheduler_tick_(millis());
+  // Guarantee one WDT feed per tick even when the scheduler had nothing to
+  // dispatch and the component phase is gated out — covers configs with no
+  // looping components and no scheduler work (setup() has its own
+  // per-component feed_wdt calls, so only do this here, not in scheduler_tick_).
+  this->feed_wdt_with_time(now);
 
-  // Returned timestamp keeps us monotonic with last_wdt_feed_ (advanced by
-  // the scheduler's per-item feeds) without an extra millis() call.
-  last_op_end_time = this->before_loop_tasks_(last_op_end_time);
-  // Guarantee a WDT touch every tick — covers configs with no looping
-  // components and no scheduler work, where the per-item / per-component
-  // feeds never fire. Rate-limited inline fast path, ~free when unneeded.
-  this->feed_wdt_with_time(last_op_end_time);
 #ifdef USE_RUNTIME_STATS
   uint32_t loop_before_end_us = micros();
   uint64_t loop_before_scheduled_us = ComponentRuntimeStats::global_recorded_us - loop_recorded_snap;
+  // Only meaningful when do_component_phase is true; initialized to 0 so the
+  // tail bucket receives 0 on Phase A-only ticks (no component tail happened,
+  // the gate-check / stats-prefix overhead belongs to "residual", not "tail").
+  uint32_t loop_tail_start_us = 0;
 #endif
 
-  for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
-       this->current_loop_index_++) {
-    Component *component = this->looping_components_[this->current_loop_index_];
+  // Gate the component phase on loop_interval_, an active high-frequency
+  // request, or an explicit wake from a background producer. A scheduler-only
+  // wake (e.g. set_interval firing under a raised loop_interval_) leaves the
+  // component phase gated; an external producer that called wake_loop_*
+  // (MQTT RX, USB RX, BLE event, etc.) needs the component phase to actually
+  // run so its component's loop() can drain the queued work — that is the
+  // long-standing semantic of wake_loop_threadsafe(), and the wake_request
+  // flag preserves it. wake_request_take() exchange-clears the flag; wakes
+  // that arrive during Phase B re-set it and run Phase B again on the next
+  // iteration.
+  const bool high_frequency = HighFrequencyLoopRequester::is_high_frequency();
+  const uint32_t elapsed = now - this->last_loop_;
+  const bool woke = esphome::wake_request_take();
+  const bool do_component_phase = high_frequency || woke || (elapsed >= this->loop_interval_);
 
-    // Update the cached time before each component runs
-    this->loop_component_start_time_ = last_op_end_time;
+  if (do_component_phase) {
+    this->before_component_phase_();
 
-    {
-      this->set_current_component(component);
-      WarnIfComponentBlockingGuard guard{component, last_op_end_time};
-      component->loop();
-      // Use the finish method to get the current time as the end time
-      last_op_end_time = guard.finish();
+    uint32_t last_op_end_time = now;
+    for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
+         this->current_loop_index_++) {
+      Component *component = this->looping_components_[this->current_loop_index_];
+
+      // Update the cached time before each component runs
+      this->loop_component_start_time_ = last_op_end_time;
+
+      {
+        this->set_current_component(component);
+        WarnIfComponentBlockingGuard guard{component, last_op_end_time};
+        component->loop();
+        // Use the finish method to get the current time as the end time
+        last_op_end_time = guard.finish();
+      }
+      this->feed_wdt_with_time(last_op_end_time);
     }
-    this->feed_wdt_with_time(last_op_end_time);
+
+#ifdef USE_RUNTIME_STATS
+    loop_tail_start_us = micros();
+#endif
+    this->last_loop_ = last_op_end_time;
+    now = last_op_end_time;
+    this->after_component_phase_();
   }
 
 #ifdef USE_RUNTIME_STATS
-  uint32_t loop_tail_start_us = micros();
-#endif
-  this->after_loop_tasks_();
-
-#ifdef USE_RUNTIME_STATS
-  // Process any pending runtime stats printing after all components have run
-  // This ensures stats printing doesn't affect component timing measurements
+  // Record per-tick timing on every loop, not just component-phase ticks.
+  // record_loop_active is a small accumulator; process_pending_stats is an
+  // inline gate check that early-outs unless now >= next_log_time_.
   if (global_runtime_stats != nullptr) {
     uint32_t loop_now_us = micros();
     // Subtract scheduled-component time from the "before" bucket so it is
@@ -671,25 +711,40 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
     uint32_t loop_before_overhead_us = loop_before_wall_us > loop_before_scheduled_us
                                            ? loop_before_wall_us - static_cast<uint32_t>(loop_before_scheduled_us)
                                            : 0;
-    global_runtime_stats->record_loop_active(loop_now_us - loop_active_start_us, loop_before_overhead_us,
-                                             loop_now_us - loop_tail_start_us);
-    global_runtime_stats->process_pending_stats(last_op_end_time);
+    // tail_us is only defined when Phase B ran; 0 on Phase A-only ticks so the
+    // stats bucket keeps its "component-phase trailing overhead" meaning.
+    uint32_t loop_tail_us = do_component_phase ? (loop_now_us - loop_tail_start_us) : 0;
+    global_runtime_stats->record_loop_active(loop_now_us - loop_active_start_us, loop_before_overhead_us, loop_tail_us);
+    global_runtime_stats->process_pending_stats(now);
   }
 #endif
 
-  // Use the last component's end time instead of calling millis() again
+  // Compute sleep: bounded by time-until-next-component-phase and the
+  // scheduler's next deadline. When a scheduler timer fires it re-enters
+  // loop(), Phase A services it, and the component phase stays gated by
+  // loop_interval_. When a background producer calls wake_loop_threadsafe()
+  // it sets the wake_request flag and wakes select() / the task notification;
+  // the gate above sees the flag and runs Phase B too so the producer's
+  // component can drain its queued work without waiting up to loop_interval_.
+  //
+  // Re-read HighFrequencyLoopRequester::is_high_frequency() here instead of
+  // reusing the cached `high_frequency` captured above: a component calling
+  // HighFrequencyLoopRequester::start() from within its loop() would
+  // otherwise sit under the stale value and sleep for up to loop_interval_
+  // before the request took effect. That was fine pre-decoupling (the old
+  // main loop also called the function fresh at the sleep point) but now
+  // matters much more — loop_interval_ is a power-saving knob documented
+  // to accept multi-second values, so the stale path could add seconds of
+  // latency on an HF request. The call is a trivial atomic read.
   uint32_t delay_time = 0;
-  auto elapsed = last_op_end_time - this->last_loop_;
-  if (elapsed < this->loop_interval_ && !HighFrequencyLoopRequester::is_high_frequency()) {
-    delay_time = this->loop_interval_ - elapsed;
-    uint32_t next_schedule = this->scheduler.next_schedule_in(last_op_end_time).value_or(delay_time);
-    // next_schedule is max 0.5*delay_time
-    // otherwise interval=0 schedules result in constant looping with almost no sleep
-    next_schedule = std::max(next_schedule, delay_time / 2);
-    delay_time = std::min(next_schedule, delay_time);
+  if (!HighFrequencyLoopRequester::is_high_frequency()) {
+    const uint32_t elapsed_since_phase = now - this->last_loop_;
+    const uint32_t until_phase =
+        (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+    const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
+    delay_time = std::min(until_phase, until_sched);
   }
   this->yield_with_select_(delay_time);
-  this->last_loop_ = last_op_end_time;
 
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
