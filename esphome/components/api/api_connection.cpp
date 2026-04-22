@@ -1424,7 +1424,6 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
   msg.target_temperature_step = traits.get_target_temperature_step();
   msg.supported_modes = &traits.get_supported_modes();
   msg.supported_features = traits.get_feature_flags();
-  msg.temperature_unit = enums::TEMPERATURE_UNIT_CELSIUS;
   return fill_and_encode_entity_info(wh, msg, conn, remaining_size);
 }
 
