@@ -447,28 +447,58 @@ static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_de
 
 // value_accuracy_to_string moved to alloc_helpers.cpp
 
+// Fast float-to-string for accuracy_decimals 0-3 (covers virtually all sensor usage).
+// Avoids snprintf("%.*f") which pulls in heavy float formatting machinery.
+// Caller must guarantee value is finite and |value| * mult fits in uint32_t.
+static size_t value_accuracy_to_buf_fast(char *buf, float value, int8_t accuracy_decimals, uint32_t mult) {
+  char *p = buf;
+  if (std::signbit(value)) {
+    *p++ = '-';
+    value = -value;
+  }
+  // Cast to double for the multiply to match snprintf's rounding precision.
+  // float*int loses bits at exact-half boundaries (e.g. 23.45f*10 = 234.5 in float,
+  // but snprintf sees 234.500007... via double promotion and rounds differently).
+  // llrint returns long long so the result fits even on 32-bit targets where
+  // long is 32-bit; caller has already bounded |value * mult| to UINT32_MAX.
+  uint32_t scaled = static_cast<uint32_t>(llrint(static_cast<double>(value) * mult));
+  p = uint32_to_str_unchecked(p, scaled / mult);
+  if (accuracy_decimals > 0) {
+    *p++ = '.';
+    p = frac_to_str_unchecked(p, scaled % mult, mult / 10);
+  }
+  *p = '\0';
+  return static_cast<size_t>(p - buf);
+}
+
 size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals) {
   normalize_accuracy_decimals(value, accuracy_decimals);
-  // snprintf returns chars that would be written (excluding null), or negative on error
+
+  // Fast path for accuracy 0-3, finite values whose scaled magnitude fits in uint32_t.
+  // For 3 decimals that's |value| < ~4.29e6; larger totals fall through to snprintf.
+  if (accuracy_decimals <= 3 && std::isfinite(value)) {
+    const uint32_t mult = small_pow10(accuracy_decimals);
+    if (std::fabs(value) < static_cast<float>(UINT32_MAX) / mult) {
+      return value_accuracy_to_buf_fast(buf.data(), value, accuracy_decimals, mult);
+    }
+  }
+
+  // Fallback for NaN/Inf/high accuracy/out-of-range
   int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, value);
   if (len < 0)
-    return 0;  // encoding error
-  // On truncation, snprintf returns would-be length; actual written is buf.size() - 1
+    return 0;
   return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
 }
 
 size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value,
                                       int8_t accuracy_decimals, StringRef unit_of_measurement) {
-  if (unit_of_measurement.empty()) {
-    return value_accuracy_to_buf(buf, value, accuracy_decimals);
+  size_t len = value_accuracy_to_buf(buf, value, accuracy_decimals);
+  if (len == 0 || unit_of_measurement.empty()) {
+    return len;
   }
-  normalize_accuracy_decimals(value, accuracy_decimals);
-  // snprintf returns chars that would be written (excluding null), or negative on error
-  int len = snprintf(buf.data(), buf.size(), "%.*f %s", accuracy_decimals, value, unit_of_measurement.c_str());
-  if (len < 0)
-    return 0;  // encoding error
-  // On truncation, snprintf returns would-be length; actual written is buf.size() - 1
-  return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
+  char *end = buf_append_sep_str(buf.data() + len, buf.size() - len, ' ', unit_of_measurement.c_str(),
+                                 unit_of_measurement.size());
+  return static_cast<size_t>(end - buf.data());
 }
 
 int8_t step_to_accuracy_decimals(float step) {

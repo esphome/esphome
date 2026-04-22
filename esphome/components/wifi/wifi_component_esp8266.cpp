@@ -938,7 +938,10 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() {
   return network::IPAddress(&ip.gw);
 }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddress(dns_getserver(num)); }
-void WiFiComponent::wifi_loop_() { this->process_pending_callbacks_(); }
+bool WiFiComponent::wifi_loop_() {
+  this->process_pending_callbacks_();
+  return true;
+}
 
 void WiFiComponent::process_pending_callbacks_() {
   // Process callbacks deferred from ESP8266 SDK system context (~2KB stack)

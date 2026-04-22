@@ -82,11 +82,9 @@ class Application {
   void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
     this->name_add_mac_suffix_ = true;
-    // MAC address length: 12 hex chars + null terminator
-    constexpr size_t mac_address_len = 13;
     // MAC address suffix length (last 6 characters of 12-char MAC address string)
     constexpr size_t mac_address_suffix_len = 6;
-    char mac_addr[mac_address_len];
+    char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
     get_mac_address_into_buffer(mac_addr);
     // Overwrite the placeholder suffix in the mutable static buffers with actual MAC
     // name is always non-empty (validated by validate_hostname in Python config)
@@ -427,8 +425,20 @@ class Application {
   void enable_pending_loops_();
   void activate_looping_component_(uint16_t index);
   inline uint32_t ESPHOME_ALWAYS_INLINE scheduler_tick_(uint32_t now);
-  inline void ESPHOME_ALWAYS_INLINE before_component_phase_();
-  inline void ESPHOME_ALWAYS_INLINE after_component_phase_() { this->in_loop_ = false; }
+
+  // RAII guard for a component loop phase. Constructor processes any pending
+  // enable_loop requests from ISRs and marks in_loop_ so reentrant
+  // modifications during component.loop() are safe; destructor clears in_loop_.
+  class ComponentPhaseGuard {
+   public:
+    inline ESPHOME_ALWAYS_INLINE explicit ComponentPhaseGuard(Application &app);
+    inline ESPHOME_ALWAYS_INLINE ~ComponentPhaseGuard() { this->app_.in_loop_ = false; }
+    ComponentPhaseGuard(const ComponentPhaseGuard &) = delete;
+    ComponentPhaseGuard &operator=(const ComponentPhaseGuard &) = delete;
+
+   private:
+    Application &app_;
+  };
 
   /// Process dump_config output one component per loop iteration.
   /// Extracted from loop() to keep cold startup/reconnect logging out of the hot path.
@@ -489,9 +499,6 @@ class Application {
 #ifdef USE_HOST
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
 #endif
-#ifdef USE_HOST
-  int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
-#endif
 
   // StringRef members (8 bytes each: pointer + size)
   StringRef name_;
@@ -507,7 +514,8 @@ class Application {
 #endif
 
 #ifdef USE_HOST
-  int max_fd_{-1};  // Highest file descriptor number for select()
+  int max_fd_{-1};          // Highest file descriptor number for select()
+  int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
 #endif
 
   // 2-byte members (grouped together for alignment)
@@ -524,9 +532,7 @@ class Application {
 
 #ifdef USE_HOST
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
-#endif
 
-#ifdef USE_HOST
   // Variable-sized members (not needed with fast select — is_socket_ready_ reads rcvevent directly)
   fd_set read_fds_{};       // Working fd_set: populated by select()
   fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
@@ -601,10 +607,10 @@ inline uint32_t ESPHOME_ALWAYS_INLINE Application::scheduler_tick_(uint32_t now)
 // Phase B entry: only invoked when a component loop phase is about to run.
 // Processes pending enable_loop requests from ISRs and marks in_loop_ so
 // reentrant modifications during component.loop() are safe.
-inline void ESPHOME_ALWAYS_INLINE Application::before_component_phase_() {
+inline ESPHOME_ALWAYS_INLINE Application::ComponentPhaseGuard::ComponentPhaseGuard(Application &app) : app_(app) {
   // Process any pending enable_loop requests from ISRs
   // This must be done before marking in_loop_ = true to avoid race conditions
-  if (this->has_pending_enable_loop_requests_) {
+  if (this->app_.has_pending_enable_loop_requests_) {
     // Clear flag BEFORE processing to avoid race condition
     // If ISR sets it during processing, we'll catch it next loop iteration
     // This is safe because:
@@ -612,12 +618,12 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_component_phase_() {
     // 2. If we can't process a component (wrong state), enable_pending_loops_()
     //    will set this flag back to true
     // 3. Any new ISR requests during processing will set the flag again
-    this->has_pending_enable_loop_requests_ = false;
-    this->enable_pending_loops_();
+    this->app_.has_pending_enable_loop_requests_ = false;
+    this->app_.enable_pending_loops_();
   }
 
   // Mark that we're in the loop for safe reentrant modifications
-  this->in_loop_ = true;
+  this->app_.in_loop_ = true;
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
@@ -639,7 +645,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // (advanced by its per-item feeds) or `now` unchanged. We adopt it as `now`
   // so the gate check and WDT feed both reflect actual elapsed time after
   // scheduler dispatch, without an extra millis() call.
-  uint32_t now = this->scheduler_tick_(millis());
+  uint32_t now = this->scheduler_tick_(MillisInternal::get());
   // Guarantee one WDT feed per tick even when the scheduler had nothing to
   // dispatch and the component phase is gated out — covers configs with no
   // looping components and no scheduler work (setup() has its own
@@ -671,7 +677,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   const bool do_component_phase = high_frequency || woke || (elapsed >= this->loop_interval_);
 
   if (do_component_phase) {
-    this->before_component_phase_();
+    ComponentPhaseGuard phase_guard{*this};
 
     uint32_t last_op_end_time = now;
     for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
@@ -696,7 +702,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #endif
     this->last_loop_ = last_op_end_time;
     now = last_op_end_time;
-    this->after_component_phase_();
+    // phase_guard destructor clears in_loop_ at scope exit
   }
 
 #ifdef USE_RUNTIME_STATS
@@ -754,18 +760,6 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 // Inline yield_with_select_ for all paths except the select() fallback
 #ifndef USE_HOST
 inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
-#ifdef USE_LWIP_FAST_SELECT
-  // Fast path (ESP32/LibreTiny): FreeRTOS task notifications posted by the lwip
-  // event_callback wrapper (see lwip_fast_select.c) are the single source of truth for
-  // socket wake-ups. Every NETCONN_EVT_RCVPLUS posts an xTaskNotifyGive, so any notification
-  // that lands between wakes keeps the counter non-zero (next ulTaskNotifyTake returns
-  // immediately) or wakes a blocked Take directly. Additional wake sources:
-  // wake_loop_threadsafe() from background tasks, and the delay_ms timeout.
-  if (delay_ms == 0) [[unlikely]] {
-    yield();
-    return;
-  }
-#endif
   esphome::internal::wakeable_delay(delay_ms);
 }
 #endif  // !USE_HOST
