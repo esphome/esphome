@@ -15,7 +15,7 @@ class WaveshareIOCH32V003Output : public output::FloatOutput, public Parented<Wa
  protected:
   void write_state(float state) override;
 
-  uint8_t pwm_min_value_{0};
+  uint8_t pwm_min_value_{1};
   uint8_t pwm_max_value_{247};
 };
 

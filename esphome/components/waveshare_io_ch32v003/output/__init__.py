@@ -19,7 +19,7 @@ WaveshareIOCH32V003Output = waveshare_io_ch32v003_ns.class_(
 
 CONF_SAFE_PWM_LEVELS = "safe_pwm_levels"
 
-DUTY_DEFAULT_MIN = 0
+DUTY_DEFAULT_MIN = 1
 DUTY_DEFAULT_MAX = 247
 
 
