@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace tfluna {
+namespace esphome::tfluna {
 
 // see https://files.waveshare.com/upload/a/ac/SJ-PM-TF-Luna_A05_Product_Manual.pdf
 static const uint8_t SAVE_REGISTER = 0x20;
@@ -205,5 +204,4 @@ void TFLuna::restart() {
   }
 }
 
-}  // namespace tfluna
-}  // namespace esphome
+}  // namespace esphome::tfluna
