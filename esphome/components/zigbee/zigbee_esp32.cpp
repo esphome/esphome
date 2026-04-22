@@ -149,11 +149,11 @@ void ZigbeeComponent::add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint
   this->attribute_list_[{endpoint_id, cluster_id, role}] = attr_list;
 }
 
-void ZigbeeComponent::set_basic_cluster(std::string model, std::string manufacturer, std::string date) {
+void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufacturer, const char *date) {
   this->basic_cluster_data_ = {
-      .model = model,
-      .manufacturer = manufacturer,
-      .date = date,
+      .model = get_zcl_string(model, 31),
+      .manufacturer = get_zcl_string(manufacturer, 31),
+      .date = get_zcl_string(date, 15),
   };
 }
 
@@ -162,16 +162,11 @@ esp_zb_attribute_list_t *ZigbeeComponent::create_basic_cluster_() {
       .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
       .power_source = 0,
   };
-  uint8_t *manufacturer_name = get_zcl_string(this->basic_cluster_data_.manufacturer.c_str(), 31);
-  uint8_t *model_identifier = get_zcl_string(this->basic_cluster_data_.model.c_str(), 31);
-  uint8_t *date_code = get_zcl_string(this->basic_cluster_data_.date.c_str(), 15);
   esp_zb_attribute_list_t *attr_list = esp_zb_basic_cluster_create(&basic_cluster_cfg);
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, manufacturer_name);
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, model_identifier);
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID, date_code);
-  delete[] manufacturer_name;
-  delete[] model_identifier;
-  delete[] date_code;
+  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID,
+                                this->basic_cluster_data_.manufacturer);
+  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, this->basic_cluster_data_.model);
+  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID, this->basic_cluster_data_.date);
   return attr_list;
 }
 
@@ -286,21 +281,27 @@ void ZigbeeComponent::setup() {
 }
 
 void ZigbeeComponent::dump_config() {
-  esp_zb_lock_acquire(10 / portTICK_PERIOD_MS);
-  ESP_LOGCONFIG(TAG,
-                "Zigbee\n"
-                "  Model: %s\n"
-                "  Router: %s\n"
-                "  Device is joined to the network: %s\n"
-                "  Current channel: %d\n"
-                "  Short addr: 0x%04X\n"
-                "  Short pan id: 0x%04X",
-                this->basic_cluster_data_.model.c_str(), YESNO(this->device_role_ == ESP_ZB_DEVICE_TYPE_ROUTER),
-                YESNO(esp_zb_bdb_dev_joined()), esp_zb_get_current_channel(), esp_zb_get_short_address(),
-                esp_zb_get_pan_id());
-  esp_zb_lock_release();
+  if (esp_zb_lock_acquire(10 / portTICK_PERIOD_MS)) {
+    ESP_LOGCONFIG(TAG,
+                  "Zigbee\n"
+                  "  Model: %s\n"
+                  "  Router: %s\n"
+                  "  Device is joined to the network: %s\n"
+                  "  Current channel: %d\n"
+                  "  Short addr: 0x%04X\n"
+                  "  Short pan id: 0x%04X",
+                  this->basic_cluster_data_.model, YESNO(this->device_role_ == ESP_ZB_DEVICE_TYPE_ROUTER),
+                  YESNO(esp_zb_bdb_dev_joined()), esp_zb_get_current_channel(), esp_zb_get_short_address(),
+                  esp_zb_get_pan_id());
+    esp_zb_lock_release();
+  } else {
+    ESP_LOGCONFIG(TAG,
+                  "Zigbee\n"
+                  "  Model: %s\n"
+                  "  Router: %s\n",
+                  this->basic_cluster_data_.model, YESNO(this->device_role_ == ESP_ZB_DEVICE_TYPE_ROUTER));
+  }
 }
-
 }  // namespace esphome::zigbee
 
 #endif

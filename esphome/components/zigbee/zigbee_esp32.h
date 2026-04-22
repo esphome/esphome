@@ -42,7 +42,7 @@ class ZigbeeComponent : public Component {
   void dump_config() override;
   esp_err_t create_endpoint(uint8_t endpoint_id, zb_ha_standard_devs_e device_id,
                             esp_zb_cluster_list_t *esp_zb_cluster_list);
-  void set_basic_cluster(std::string model, std::string manufacturer, std::string date);
+  void set_basic_cluster(const char *model, const char *manufacturer, const char *date);
   void add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role);
   void create_default_cluster(uint8_t endpoint_id, zb_ha_standard_devs_e device_id);
 
@@ -52,8 +52,6 @@ class ZigbeeComponent : public Component {
 
   template<typename T>
   void add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id, uint8_t max_size, T value);
-
-  void handle_attribute(esp_zb_device_cb_common_info_t info, esp_zb_zcl_attribute_t attribute);
 
   void factory_reset() {
     esp_zb_lock_acquire(portMAX_DELAY);
@@ -68,9 +66,9 @@ class ZigbeeComponent : public Component {
 
  protected:
   struct {
-    std::string model;
-    std::string manufacturer;
-    std::string date;
+    uint8_t *model;
+    uint8_t *manufacturer;
+    uint8_t *date;
   } basic_cluster_data_;
 #ifdef ZB_ED_ROLE
   esp_zb_nwk_device_type_t device_role_ = ESP_ZB_DEVICE_TYPE_ED;
