@@ -26,10 +26,6 @@ CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
 CONF_MAX_PACKET_SIZE = "max_packet_size"
 
-USB_FS_MPS = 64
-USB_HS_MPS = 512
-
-
 def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Schema:
     schema = cv.COMPONENT_SCHEMA.extend(
         {
@@ -56,7 +52,7 @@ CONFIG_SCHEMA = cv.All(
                 min=1, max=32
             ),
             cv.Optional(CONF_MAX_PACKET_SIZE, default=USB_FS_MPS): cv.one_of(
-                64, 128, 256, 512, int=True
+                64, 128, 256, 512, 1024, int=True
             ),
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
         }
