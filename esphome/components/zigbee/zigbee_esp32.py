@@ -28,14 +28,7 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .const import (
-    CONF_REPORT,
-    CONF_ROUTER,
-    KEY_ZIGBEE,
-    REPORT,
-    ZIGBEE_DATE,
-    ZigbeeAttribute,
-)
+from .const import CONF_REPORT, CONF_ROUTER, KEY_ZIGBEE, REPORT, ZigbeeAttribute
 from .const_esp32 import (
     ATTR_TYPE,
     CLUSTER_ID,
@@ -266,7 +259,6 @@ async def esp32_to_code(config: ConfigType) -> None:
         var.set_basic_cluster(
             config[CONF_MODEL],
             "esphome",
-            ZIGBEE_DATE,
         )
     )
     for ep in ep_list:

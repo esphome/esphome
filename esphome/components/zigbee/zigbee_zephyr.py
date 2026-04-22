@@ -1,3 +1,4 @@
+import datetime
 import random
 
 from esphome import automation
@@ -54,7 +55,6 @@ from .const import (
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
     POWER_SOURCE,
-    ZIGBEE_DATE,
     AnalogAttrs,
     AnalogAttrsOutput,
     BinaryAttrs,
@@ -213,7 +213,9 @@ async def _attr_to_code(config: ConfigType) -> None:
         zigbee_assign(basic_attrs.hw_version, 0),
         zigbee_set_string(basic_attrs.mf_name, "esphome"),
         zigbee_set_string(basic_attrs.model_id, config[CONF_MODEL]),
-        zigbee_set_string(basic_attrs.date_code, ZIGBEE_DATE),
+        zigbee_set_string(
+            basic_attrs.date_code, datetime.datetime.now().strftime("%Y%m%d %H%M%S")
+        ),
         zigbee_assign(
             basic_attrs.power_source,
             cg.RawExpression(POWER_SOURCE[config[CONF_POWER_SOURCE]]),

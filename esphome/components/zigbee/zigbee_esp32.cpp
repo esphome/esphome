@@ -8,6 +8,7 @@
 #include "nvs_flash.h"
 #include "zigbee_attribute_esp32.h"
 #include "zigbee_esp32.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "zigbee_helpers_esp32.h"
 #ifdef USE_WIFI
@@ -149,11 +150,15 @@ void ZigbeeComponent::add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint
   this->attribute_list_[{endpoint_id, cluster_id, role}] = attr_list;
 }
 
-void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufacturer, const char *date) {
+void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufacturer) {
+  char date_buf[16];
+  time_t time_val = App.get_build_time();
+  struct tm *timeinfo = localtime(&time_val);
+  strftime(date_buf, sizeof(date_buf), "%Y%m%d %H%M%S", timeinfo);
   this->basic_cluster_data_ = {
       .model = get_zcl_string(model, 31),
       .manufacturer = get_zcl_string(manufacturer, 31),
-      .date = get_zcl_string(date, 15),
+      .date = get_zcl_string(date_buf, 15),
   };
 }
 

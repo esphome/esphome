@@ -42,7 +42,7 @@ class ZigbeeComponent : public Component {
   void dump_config() override;
   esp_err_t create_endpoint(uint8_t endpoint_id, zb_ha_standard_devs_e device_id,
                             esp_zb_cluster_list_t *esp_zb_cluster_list);
-  void set_basic_cluster(const char *model, const char *manufacturer, const char *date);
+  void set_basic_cluster(const char *model, const char *manufacturer);
   void add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role);
   void create_default_cluster(uint8_t endpoint_id, zb_ha_standard_devs_e device_id);
 

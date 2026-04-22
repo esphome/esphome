@@ -1,5 +1,3 @@
-import datetime
-
 import esphome.codegen as cg
 
 zigbee_ns = cg.esphome_ns.namespace("zigbee")
@@ -32,4 +30,3 @@ POWER_SOURCE = {
 }
 
 KEY_ZIGBEE = "zigbee"
-ZIGBEE_DATE = datetime.datetime.now().strftime("%Y%m%d %H%M%S")
