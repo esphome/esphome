@@ -30,4 +30,4 @@ requests==2.33.1
 pyparsing >= 3.3.2
 
 # For autocompletion
-argcomplete>=2.0.0
+argcomplete>=3.6.3
