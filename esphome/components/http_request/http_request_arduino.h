@@ -47,10 +47,20 @@ class HttpContainerArduino : public HttpContainer {
 };
 
 class HttpRequestArduino : public HttpRequestComponent {
+ public:
+#ifdef USE_ESP8266
+  void set_tls_buffer_size_rx(uint16_t size) { this->tls_buffer_size_rx_ = size; }
+  void set_tls_buffer_size_tx(uint16_t size) { this->tls_buffer_size_tx_ = size; }
+#endif
+
  protected:
   std::shared_ptr<HttpContainer> perform(const std::string &url, const std::string &method, const std::string &body,
-                                         const std::list<Header> &request_headers,
-                                         const std::set<std::string> &collect_headers) override;
+                                         const std::vector<Header> &request_headers,
+                                         const std::vector<std::string> &lower_case_collect_headers) override;
+#ifdef USE_ESP8266
+  uint16_t tls_buffer_size_rx_{512};
+  uint16_t tls_buffer_size_tx_{512};
+#endif
 };
 
 }  // namespace esphome::http_request

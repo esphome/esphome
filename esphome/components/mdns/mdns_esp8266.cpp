@@ -27,7 +27,7 @@ static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SER
     while (progmem_read_byte((const uint8_t *) service_type) == '_') {
       service_type++;
     }
-    uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
+    uint16_t port = service.port.value();
     MDNS.addService(FPSTR(service_type), FPSTR(proto), port);
     for (const auto &record : service.txt_records) {
       MDNS.addServiceTxt(FPSTR(service_type), FPSTR(proto), FPSTR(MDNS_STR_ARG(record.key)),
@@ -36,9 +36,14 @@ static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SER
   }
 }
 
-void MDNSComponent::setup() { this->setup_buffers_and_register_(register_esp8266); }
-
-void MDNSComponent::loop() { MDNS.update(); }
+void MDNSComponent::setup() {
+  this->setup_buffers_and_register_(register_esp8266);
+  // Schedule MDNS.update() via set_interval() instead of overriding loop().
+  // This removes the component from the per-iteration loop list entirely,
+  // eliminating virtual dispatch overhead on every main loop cycle.
+  // See MDNS_UPDATE_INTERVAL_MS comment in mdns_component.h for safety analysis.
+  this->set_interval(MDNS_UPDATE_INTERVAL_MS, []() { MDNS.update(); });
+}
 
 void MDNSComponent::on_shutdown() {
   MDNS.close();

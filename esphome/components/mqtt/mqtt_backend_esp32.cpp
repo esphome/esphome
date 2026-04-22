@@ -82,10 +82,16 @@ bool MQTTBackendESP32::initialize_() {
 void MQTTBackendESP32::loop() {
   // process new events
   // handle only 1 message per loop iteration
-  if (!mqtt_events_.empty()) {
-    auto &event = mqtt_events_.front();
-    mqtt_event_handler_(event);
-    mqtt_events_.pop();
+  Event *event = this->mqtt_event_queue_.pop();
+  if (event != nullptr) {
+    this->mqtt_event_handler_(*event);
+    this->mqtt_event_pool_.release(event);
+  }
+
+  // Log dropped inbound events (check is cheap - single atomic load in common case)
+  uint16_t inbound_dropped = this->mqtt_event_queue_.get_and_reset_dropped_count();
+  if (inbound_dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u inbound MQTT events", inbound_dropped);
   }
 
 #if defined(USE_MQTT_IDF_ENQUEUE)
@@ -150,25 +156,21 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
       this->on_publish_.call((int) event.msg_id);
       break;
     case MQTT_EVENT_DATA: {
-      static std::string topic;
       if (!event.topic.empty()) {
         // When a single message arrives as multiple chunks, the topic will be empty
         // on any but the first message, leading to event.topic being an empty string.
         // To ensure handlers get the correct topic, cache the last seen topic to
         // simulate always receiving the topic from underlying library
-        topic = event.topic;
+        this->cached_topic_ = event.topic;
       }
-      ESP_LOGV(TAG, "MQTT_EVENT_DATA %s", topic.c_str());
-      this->on_message_.call(topic.c_str(), event.data.data(), event.data.size(), event.current_data_offset,
-                             event.total_data_len);
+      ESP_LOGV(TAG, "MQTT_EVENT_DATA %s", this->cached_topic_.c_str());
+      this->on_message_.call(this->cached_topic_.c_str(), event.data.data(), event.data.size(),
+                             event.current_data_offset, event.total_data_len);
     } break;
     case MQTT_EVENT_ERROR:
       ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
       if (event.error_handle.error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-        ESP_LOGE(TAG,
-                 "Last error code reported from esp-tls: 0x%x\n"
-                 "Last tls stack error number: 0x%x\n"
-                 "Last captured errno : %d (%s)",
+        ESP_LOGE(TAG, "Last esp-tls error: 0x%x, tls stack error: 0x%x, socket errno: %d (%s)",
                  event.error_handle.esp_tls_last_esp_err, event.error_handle.esp_tls_stack_err,
                  event.error_handle.esp_transport_sock_errno, strerror(event.error_handle.esp_transport_sock_errno));
       } else if (event.error_handle.error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
@@ -187,15 +189,21 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id,
                                           void *event_data) {
   MQTTBackendESP32 *instance = static_cast<MQTTBackendESP32 *>(handler_args);
-  // queue event to decouple processing
+  // queue event to decouple processing from ESP-IDF MQTT task to main loop
   if (instance) {
-    auto event = *static_cast<esp_mqtt_event_t *>(event_data);
-    instance->mqtt_events_.emplace(event);
+    auto *event = instance->mqtt_event_pool_.allocate();
+    if (event == nullptr) {
+      // Pool exhausted, drop event (counted via queue's dropped counter)
+      instance->mqtt_event_queue_.increment_dropped_count();
+      return;
+    }
+    event->populate(*static_cast<esp_mqtt_event_t *>(event_data));
+    // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+    // allocate() returned non-null, the queue cannot be full.
+    instance->mqtt_event_queue_.push(event);
 
-    // Wake main loop immediately to process MQTT event instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+    // Wake main loop immediately to process MQTT event
     App.wake_loop_threadsafe();
-#endif
   }
 }
 
@@ -230,14 +238,14 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
             break;
         }
       }
-      this_mqtt->mqtt_event_pool_.release(elem);
+      this_mqtt->mqtt_outbound_pool_.release(elem);
     }
   }
 }
 
 bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos, bool retain, const char *payload,
                                 size_t len) {
-  auto *elem = this->mqtt_event_pool_.allocate();
+  auto *elem = this->mqtt_outbound_pool_.allocate();
 
   if (!elem) {
     // Queue is full - increment counter but don't log immediately.
@@ -257,7 +265,7 @@ bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos,
   // Use the helper to allocate and copy data
   if (!elem->set_data(topic, payload, len)) {
     // Allocation failed, return elem to pool
-    this->mqtt_event_pool_.release(elem);
+    this->mqtt_outbound_pool_.release(elem);
     // Increment counter without logging to avoid cascade effect during memory pressure
     this->mqtt_queue_.increment_dropped_count();
     return false;

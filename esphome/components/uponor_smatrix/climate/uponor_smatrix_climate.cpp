@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace uponor_smatrix {
 
@@ -10,7 +12,7 @@ static const char *const TAG = "uponor_smatrix.climate";
 
 void UponorSmatrixClimate::dump_config() {
   LOG_CLIMATE("", "Uponor Smatrix Climate", this);
-  ESP_LOGCONFIG(TAG, "  Device address: 0x%08X", this->address_);
+  ESP_LOGCONFIG(TAG, "  Device address: 0x%08" PRIX32, this->address_);
 }
 
 void UponorSmatrixClimate::loop() {
@@ -42,8 +44,9 @@ climate::ClimateTraits UponorSmatrixClimate::traits() {
 }
 
 void UponorSmatrixClimate::control(const climate::ClimateCall &call) {
-  if (call.get_target_temperature().has_value()) {
-    uint16_t temp = celsius_to_raw(*call.get_target_temperature());
+  auto val = call.get_target_temperature();
+  if (val.has_value()) {
+    uint16_t temp = celsius_to_raw(*val);
     if (this->preset == climate::CLIMATE_PRESET_ECO) {
       // During ECO mode, the thermostat automatically substracts the setback value from the setpoint,
       // so we need to add it here first

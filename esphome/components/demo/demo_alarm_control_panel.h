@@ -29,10 +29,11 @@ class DemoAlarmControlPanel : public AlarmControlPanel, public Component {
  protected:
   void control(const AlarmControlPanelCall &call) override {
     auto state = call.get_state().value_or(ACP_STATE_DISARMED);
+    auto code = call.get_code();
     switch (state) {
       case ACP_STATE_ARMED_AWAY:
-        if (this->get_requires_code_to_arm() && call.get_code().has_value()) {
-          if (call.get_code().value() != "1234") {
+        if (this->get_requires_code_to_arm()) {
+          if (!code.has_value() || *code != "1234") {
             this->status_momentary_error("invalid_code", 5000);
             return;
           }
@@ -40,8 +41,8 @@ class DemoAlarmControlPanel : public AlarmControlPanel, public Component {
         this->publish_state(ACP_STATE_ARMED_AWAY);
         break;
       case ACP_STATE_DISARMED:
-        if (this->get_requires_code() && call.get_code().has_value()) {
-          if (call.get_code().value() != "1234") {
+        if (this->get_requires_code()) {
+          if (!code.has_value() || *code != "1234") {
             this->status_momentary_error("invalid_code", 5000);
             return;
           }
