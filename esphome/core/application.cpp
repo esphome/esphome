@@ -702,7 +702,10 @@ void Application::get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> b
 
 uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
 
-uint32_t Application::get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
+uint32_t Application::get_config_version_hash() {
+  constexpr uint32_t HASH = fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION);
+  return HASH;
+}
 
 time_t Application::get_build_time() { return ESPHOME_BUILD_TIME; }
 
