@@ -69,52 +69,11 @@ void TFLuna::setup() {
   }
 }
 
-void TFLuna::update() {
-  auto read_timestamp = [this](uint16_t *timestamp) -> bool {
-    uint8_t buf[2];
-
-    if (!this->read_bytes(TIMESTAMP_LOW_REGISTER, buf, sizeof(buf))) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-      return false;
-    }
-    *timestamp = encode_uint16(buf[1], buf[0]);
-    return true;
-  };
-
-  uint16_t previous_timestamp;
-  if (!read_timestamp(&previous_timestamp)) {
-    return;
-  }
-
-  if (!this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-    return;
-  }
-
-  uint16_t timestamp = previous_timestamp;
-  bool updated = false;
-  for (uint8_t attempt = 0; attempt < 5; attempt++) {
-    delay(5);
-    if (!read_timestamp(&timestamp)) {
-      return;
-    }
-    if (timestamp != previous_timestamp) {
-      updated = true;
-      break;
-    }
-  }
-
-  if (!updated) {
-    this->status_set_warning("Hung device, restarting...");
-    this->restart();
-    return;
-  }
-
-#ifdef USE_SENSOR
+bool TFLuna::read_data_() {
   uint8_t buf[8];
   if (!this->read_bytes(DISTANCE_LOW_REGISTER, buf, sizeof(buf))) {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
-    return;
+    return false;
   }
   // Layout:
   // buf[0..1] = distance (LE), buf[2..3] = signal (LE),
@@ -122,8 +81,13 @@ void TFLuna::update() {
   uint16_t distance = encode_uint16(buf[1], buf[0]);
   uint16_t signal_strength = encode_uint16(buf[3], buf[2]);
   uint16_t temperature_raw = encode_uint16(buf[5], buf[4]);
-  timestamp = encode_uint16(buf[7], buf[6]);
+  uint16_t timestamp = encode_uint16(buf[7], buf[6]);
 
+  if (timestamp == previous_timestamp_) {
+    return false;
+  }
+
+#ifdef USE_SENSOR
   if (this->timestamp_sensor_ != nullptr) {
     this->timestamp_sensor_->publish_state(timestamp);
   }
@@ -140,6 +104,29 @@ void TFLuna::update() {
   }
 #endif
   this->status_clear_warning();
+  this->previous_timestamp_ = timestamp;
+  return true;
+}
+
+void TFLuna::read_data_timeout_() {
+  if (!this->read_data_()) {
+    if (this->attempt_ < 5) {
+      this->attempt_++;
+      this->set_timeout("read_data_timeout_", 5, [this]() { this->read_data_timeout_(); });
+    } else {
+      this->status_set_warning("Hung device, restarting...");
+      this->restart();
+    }
+  }
+}
+
+void TFLuna::update() {
+  if (!this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)) {
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    return;
+  }
+  this->attempt_ = 0;
+  this->read_data_timeout_();
 }
 
 void TFLuna::factory_reset() {
