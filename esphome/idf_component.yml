@@ -83,5 +83,37 @@ dependencies:
       - if: "idf_version >=6.0.0 && target in [esp32s2, esp32s3, esp32p4]"
   esp32async/asynctcp:
     version: 3.4.91
+  dsp_processor:
+    version: 696e0efa7273b002f0ed59286fe5eb07f3a81566
+    git: https://github.com/luar123/snapclient.git
+    path: components/dsp_processor
+  flac:
+    version: 696e0efa7273b002f0ed59286fe5eb07f3a81566
+    git: https://github.com/luar123/snapclient.git
+    path: components/flac
+  libbuffer:
+    version: 696e0efa7273b002f0ed59286fe5eb07f3a81566
+    git: https://github.com/luar123/snapclient.git
+    path: components/libbuffer
+  libmedian:
+    version: 696e0efa7273b002f0ed59286fe5eb07f3a81566
+    git: https://github.com/luar123/snapclient.git
+    path: components/libmedian
+  lightsnapcast:
+    version: 696e0efa7273b002f0ed59286fe5eb07f3a81566
+    git: https://github.com/luar123/snapclient.git
+    path: components/lightsnapcast
+  opus:
+    version: 696e0efa7273b002f0ed59286fe5eb07f3a81566
+    git: https://github.com/luar123/snapclient.git
+    path: components/opus
+  snapclient:
+    version: 696e0efa7273b002f0ed59286fe5eb07f3a81566
+    git: https://github.com/luar123/snapclient.git
+    path: components/snapclient
+  timefilter:
+    version: 696e0efa7273b002f0ed59286fe5eb07f3a81566
+    git: https://github.com/luar123/snapclient.git
+    path: components/timefilter
   lvgl/lvgl:
     version: 9.5.0
