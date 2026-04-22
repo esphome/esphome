@@ -5,14 +5,7 @@ import esphome.codegen as cg
 from esphome.components.output import FloatOutput
 from esphome.components.speaker import Speaker
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_GAIN,
-    CONF_ID,
-    CONF_OUTPUT,
-    CONF_PLATFORM,
-    CONF_SPEAKER,
-    CONF_TRIGGER_ID,
-)
+from esphome.const import CONF_GAIN, CONF_ID, CONF_OUTPUT, CONF_PLATFORM, CONF_SPEAKER
 import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,9 +19,6 @@ rtttl_ns = cg.esphome_ns.namespace("rtttl")
 Rtttl = rtttl_ns.class_("Rtttl", cg.Component)
 PlayAction = rtttl_ns.class_("PlayAction", automation.Action)
 StopAction = rtttl_ns.class_("StopAction", automation.Action)
-FinishedPlaybackTrigger = rtttl_ns.class_(
-    "FinishedPlaybackTrigger", automation.Trigger.template()
-)
 IsPlayingCondition = rtttl_ns.class_("IsPlayingCondition", automation.Condition)
 
 MULTI_CONF = True
@@ -40,13 +30,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_OUTPUT): cv.use_id(FloatOutput),
             cv.Optional(CONF_SPEAKER): cv.use_id(Speaker),
             cv.Optional(CONF_GAIN, default="0.6"): cv.percentage,
-            cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        FinishedPlaybackTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation({}),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_exactly_one_key(CONF_OUTPUT, CONF_SPEAKER),
@@ -87,6 +71,13 @@ FINAL_VALIDATE_SCHEMA = cv.Schema(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_FINISHED_PLAYBACK, "add_on_finished_playback_callback"
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -102,9 +93,7 @@ async def to_code(config):
 
     cg.add(var.set_gain(config[CONF_GAIN]))
 
-    for conf in config.get(CONF_ON_FINISHED_PLAYBACK, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_action(

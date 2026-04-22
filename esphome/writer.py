@@ -171,6 +171,7 @@ VERSION_H_FORMAT = """\
 DEFINES_H_TARGET = "esphome/core/defines.h"
 VERSION_H_TARGET = "esphome/core/version.h"
 BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
+ENTITY_TYPES_H_TARGET = "esphome/core/entity_types.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -196,9 +197,12 @@ def copy_src_tree():
     source_files_l.sort()
 
     # Build #include list for esphome.h
+    # X-macro files are included multiple times with different macro definitions
+    # and must not be included bare in esphome.h
+    esphome_h_exclude = {Path(ENTITY_TYPES_H_TARGET)}
     include_l = []
     for target, _ in source_files_l:
-        if target.suffix in HEADER_FILE_EXTENSIONS:
+        if target.suffix in HEADER_FILE_EXTENSIONS and target not in esphome_h_exclude:
             include_l.append(f'#include "{target}"')
     include_l.append("")
     include_s = "\n".join(include_l)
@@ -476,6 +480,16 @@ def clean_all(configuration: list[str]):
         data_dirs.append(Path(env_data_dir))
     if env_build_path := os.environ.get("ESPHOME_BUILD_PATH"):
         data_dirs.append(Path(env_build_path))
+    if not data_dirs:
+        # No config files or known data dirs, check current directory
+        cwd_esphome = Path.cwd() / ".esphome"
+        if cwd_esphome.is_dir():
+            data_dirs.append(cwd_esphome)
+        else:
+            _LOGGER.warning(
+                "No configuration files specified and no .esphome directory found in current directory. "
+                "Pass YAML files or a configuration directory to clean build artifacts."
+            )
 
     # Clean build dir
     for dir in data_dirs:

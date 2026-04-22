@@ -168,8 +168,8 @@ void Converters::to_climate_traits(ClimateTraits &traits, const dudanov::midea::
     traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_BOOST);
   if (capabilities.supportEcoPreset())
     traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_ECO);
-  if (capabilities.supportFrostProtectionPreset())
-    traits.set_supported_custom_presets({Constants::FREEZE_PROTECTION});
+  // Frost protection custom preset is handled by AirConditioner directly
+  // since custom presets are stored on the Climate base class
 }
 
 }  // namespace ac

@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_NUM_ATTEMPTS,
     CONF_REBOOT_TIMEOUT,
     CONF_SAFE_MODE,
-    CONF_TRIGGER_ID,
     KEY_PAST_SAFE_MODE,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -20,7 +19,6 @@ CONF_ON_SAFE_MODE = "on_safe_mode"
 
 safe_mode_ns = cg.esphome_ns.namespace("safe_mode")
 SafeModeComponent = safe_mode_ns.class_("SafeModeComponent", cg.Component)
-SafeModeTrigger = safe_mode_ns.class_("SafeModeTrigger", automation.Trigger.template())
 MarkSuccessfulAction = safe_mode_ns.class_("MarkSuccessfulAction", automation.Action)
 
 
@@ -43,11 +41,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="5min"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_ON_SAFE_MODE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SafeModeTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_SAFE_MODE): automation.validate_automation({}),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _remove_id_if_disabled,
@@ -71,17 +65,22 @@ async def safe_mode_mark_successful_to_code(config, action_id, template_arg, arg
     return var
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_SAFE_MODE, "add_on_safe_mode_callback"),
+)
+
+
 @coroutine_with_priority(CoroPriority.APPLICATION)
 async def to_code(config):
     if not config[CONF_DISABLED]:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
 
-        if on_safe_mode_config := config.get(CONF_ON_SAFE_MODE):
+        if config.get(CONF_ON_SAFE_MODE):
             cg.add_define("USE_SAFE_MODE_CALLBACK")
-            for conf in on_safe_mode_config:
-                trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-                await automation.build_automation(trigger, [], conf)
+            await automation.build_callback_automations(
+                var, config, _CALLBACK_AUTOMATIONS
+            )
 
         condition = var.should_enter_safe_mode(
             config[CONF_NUM_ATTEMPTS],
