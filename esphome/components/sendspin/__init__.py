@@ -1,0 +1,145 @@
+from dataclasses import dataclass
+
+import esphome.codegen as cg
+from esphome.components import esp32, network, psram, socket, wifi
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_TASK_STACK_IN_PSRAM, PLATFORM_ESP32
+from esphome.core import CORE
+from esphome.types import ConfigType
+
+# mdns for autodiscovery
+AUTO_LOAD = ["mdns"]
+CODEOWNERS = ["@kahrendt"]
+DEPENDENCIES = ["network"]
+DOMAIN = "sendspin"
+
+CONF_SENDSPIN_ID = "sendspin_id"
+
+# sendspin-cpp library uses `sendspin` namespace
+sendspin_ns = cg.esphome_ns.namespace("sendspin_impl")
+SendspinHub = sendspin_ns.class_(
+    "SendspinHub",
+    cg.Component,
+)
+
+
+@dataclass
+class SendspinConfiguration:
+    artwork_support: bool = False
+    controller_support: bool = False
+    metadata_support: bool = False
+    player_support: bool = False
+    visualizer_support: bool = False
+
+
+def _get_data() -> SendspinConfiguration:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = SendspinConfiguration()
+    return CORE.data[DOMAIN]
+
+
+def request_artwork_support() -> None:
+    """Request artwork role support for Sendspin."""
+    _get_data().artwork_support = True
+
+
+def request_controller_support() -> None:
+    """Request controller role support for Sendspin."""
+    _get_data().controller_support = True
+
+
+def request_metadata_support() -> None:
+    """Request metadata role support for Sendspin."""
+    _get_data().metadata_support = True
+
+
+def request_player_support() -> None:
+    """Request player role support for Sendspin."""
+    _get_data().player_support = True
+
+
+def request_visualizer_support() -> None:
+    """Request visualizer role support for Sendspin."""
+    _get_data().visualizer_support = True
+
+
+def _request_high_performance_networking(config: ConfigType) -> ConfigType:
+    """Request high performance networking for Sendspin streaming.
+
+    Also enables wake_loop_threadsafe support for fast defer() callbacks
+    from background threads (WebSocket handler, image decoder).
+    """
+    network.require_high_performance_networking()
+    # Socket consumption varies by mode:
+    # - Server mode: 1 listening socket + 2 client connections (for handoff)
+    # - Client mode: 1 outbound connection
+    socket.consume_sockets(3, "sendspin_websocket_server")(config)
+    socket.consume_sockets(1, "sendspin_websocket_client")(config)
+
+    wifi.enable_runtime_power_save_control()
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(SendspinHub),
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
+                cv.boolean, cv.requires_component(psram.DOMAIN)
+            ),
+        }
+    ),
+    cv.only_on([PLATFORM_ESP32]),
+    _request_high_performance_networking,
+)
+
+
+def _request_controller_role(config: ConfigType) -> ConfigType:
+    """Request the controller role for the sendspin.switch action."""
+    request_controller_support()
+    return config
+
+
+async def to_code(config: ConfigType) -> None:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+
+    if task_stack_in_psram := config.get(CONF_TASK_STACK_IN_PSRAM):
+        cg.add(var.set_task_stack_in_psram(task_stack_in_psram))
+        if task_stack_in_psram:
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
+            )
+
+    # sendspin-cpp library
+    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.3.0")
+
+    cg.add_define("USE_SENDSPIN", True)  # for MDNS
+
+    data = _get_data()
+
+    # Configure Sendspin roles based on requested features and disable building unused code paths in the library
+    if data.artwork_support:
+        cg.add_define("USE_SENDSPIN_ARTWORK", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_ARTWORK", False)
+
+    if data.controller_support:
+        cg.add_define("USE_SENDSPIN_CONTROLLER", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_CONTROLLER", False)
+
+    if data.metadata_support:
+        cg.add_define("USE_SENDSPIN_METADATA", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_METADATA", False)
+
+    if data.player_support:
+        cg.add_define("USE_SENDSPIN_PLAYER", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_PLAYER", False)
+
+    if data.visualizer_support:
+        cg.add_define("USE_SENDSPIN_VISUALIZER", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_VISUALIZER", False)
