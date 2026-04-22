@@ -16,8 +16,29 @@ void loop();
 namespace esphome {
 
 void HOT yield() { ::yield(); }
+// Skip the Arduino core's ::millis() wrapper so the public esphome::millis() is
+// inlinable at its call sites and matches MillisInternal::get()'s fast path.
+// IRAM_ATTR is kept because components (e.g. rotary_encoder) call millis() from
+// ISR handlers; xTaskGetTickCountFromISR() is used in ISR context to satisfy the
+// FreeRTOS API contract.
+//
+// RTL87xx and LN882x run FreeRTOS at 1 kHz, so xTaskGetTickCount() is already in
+// milliseconds. BK72xx runs at 500 Hz — multiply by portTICK_PERIOD_MS (== 2) to
+// convert ticks to milliseconds, matching the Arduino core's wiring.c.
+#if defined(USE_RTL87XX) || defined(USE_LN882X)
+uint32_t IRAM_ATTR HOT millis() {
+  static_assert(configTICK_RATE_HZ == 1000, "millis() fast path requires 1 kHz FreeRTOS tick");
+  return in_isr_context() ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
+}
+#elif defined(USE_BK72XX)
+uint32_t IRAM_ATTR HOT millis() {
+  // BK72xx's Arduino millis() does not dispatch on ISR context; match that.
+  return xTaskGetTickCount() * portTICK_PERIOD_MS;
+}
+#else
 uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
-uint64_t millis_64() { return Millis64Impl::compute(::millis()); }
+#endif
+uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void HOT delay(uint32_t ms) { ::delay(ms); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }

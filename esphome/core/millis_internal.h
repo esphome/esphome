@@ -7,6 +7,9 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <sdkconfig.h>
+#elif defined(USE_LIBRETINY)
+#include <FreeRTOS.h>
+#include <task.h>
 #endif
 
 namespace esphome {
@@ -14,10 +17,11 @@ namespace esphome {
 // Friend-gated accessor for a fast millis() variant intended only for
 // known task-context callers on the main loop hot path (Application::loop()
 // and WarnIfComponentBlockingGuard::finish()). It skips the ISR-context
-// dispatch that the public esphome::millis() pays on ESP32.
+// dispatch that the public esphome::millis() pays on ESP32 and libretiny.
 //
-// MUST NOT be called from ISR context: on ESP32 it calls the non-FromISR
-// FreeRTOS API directly, which is undefined behavior in ISR context.
+// MUST NOT be called from ISR context: on ESP32 and libretiny it calls the
+// non-FromISR FreeRTOS API directly, which is undefined behavior in ISR
+// context.
 //
 // Adding new callers requires adding a friend declaration here — that
 // is the review point. Do not relax the access (e.g. by making get()
@@ -31,6 +35,17 @@ class MillisInternal {
   static ESPHOME_ALWAYS_INLINE uint32_t get() {
 #if defined(USE_ESP32) && CONFIG_FREERTOS_HZ == 1000
     return xTaskGetTickCount();
+#elif defined(USE_LIBRETINY) && (defined(USE_RTL87XX) || defined(USE_LN882X))
+    // RTL87xx and LN882x run FreeRTOS at 1 kHz, so xTaskGetTickCount() is
+    // already in milliseconds.
+    static_assert(configTICK_RATE_HZ == 1000, "MillisInternal fast path requires 1 kHz FreeRTOS tick");
+    return xTaskGetTickCount();
+#elif defined(USE_BK72XX)
+    // BK72xx runs FreeRTOS at 500 Hz; scale ticks by portTICK_PERIOD_MS (== 2).
+    // Inlined here because esphome::millis() on BK72xx has no-op IRAM_ATTR but
+    // is still out-of-line, so calling it would cost a real function call.
+    static_assert(configTICK_RATE_HZ == 500, "BK72xx MillisInternal assumes 500 Hz FreeRTOS tick");
+    return xTaskGetTickCount() * portTICK_PERIOD_MS;
 #else
     return millis();
 #endif
