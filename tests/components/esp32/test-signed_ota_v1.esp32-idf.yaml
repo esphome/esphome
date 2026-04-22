@@ -1,0 +1,10 @@
+esp32:
+  variant: esp32
+  framework:
+    type: esp-idf
+    advanced:
+      signed_ota_verification:
+        signing_key: ../../components/esp32/dummy_signing_key_v1_ecdsa.pem
+        signing_scheme: ecdsa_v1
+
+<<: !include common.yaml
