@@ -146,27 +146,32 @@ def cmd_check(args: argparse.Namespace) -> int:
         f"measured   {TARGET_MODULE}: {_format_us(measured)} "
         f"(budget {_format_us(baseline)} + {margin_pct}% = {_format_us(ceiling)})"
     )
+    passed = measured <= ceiling
+    stream = sys.stdout if passed else sys.stderr
 
-    if measured <= ceiling:
+    if passed:
         print(summary)
-        return 0
+    else:
+        print(
+            f"REGRESSION: `import {TARGET_MODULE}` took {_format_us(measured)}, "
+            f"exceeding the budget of {_format_us(baseline)} + {margin_pct}% "
+            f"({_format_us(ceiling)}).",
+            file=stream,
+        )
 
-    print(
-        f"REGRESSION: `import {TARGET_MODULE}` took {_format_us(measured)}, "
-        f"exceeding the budget of {_format_us(baseline)} + {margin_pct}% "
-        f"({_format_us(ceiling)}).\n"
-        f"Top import-time offenders (by self time):",
-        file=sys.stderr,
-    )
-    _print_offenders_table(top_offenders(har, OFFENDERS_TOP_N), sys.stderr)
-    print(
-        "\nIf this regression is intentional, regenerate the budget with:\n"
-        "  script/check_import_time.py --update\n"
-        "Otherwise, consider making the new import lazy "
-        "(import inside the function that uses it).",
-        file=sys.stderr,
-    )
-    return 1
+    print("\nTop import-time offenders (by self time):", file=stream)
+    _print_offenders_table(top_offenders(har, OFFENDERS_TOP_N), stream)
+
+    if not passed:
+        print(
+            "\nIf this regression is intentional, regenerate the budget with:\n"
+            "  script/check_import_time.py --update\n"
+            "Otherwise, consider making the new import lazy "
+            "(import inside the function that uses it).",
+            file=stream,
+        )
+        return 1
+    return 0
 
 
 def cmd_update(args: argparse.Namespace) -> int:
