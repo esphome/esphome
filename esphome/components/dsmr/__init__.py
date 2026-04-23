@@ -1,8 +1,19 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_RECEIVE_TIMEOUT, CONF_UART_ID
+from esphome.const import (
+    CONF_ID,
+    CONF_RECEIVE_TIMEOUT,
+    CONF_RX_BUFFER_SIZE,
+    CONF_UART_ID,
+)
+import esphome.final_validate as fv
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@glmnet", "@PolarGoose"]
 
@@ -21,8 +32,7 @@ CONF_MAX_TELEGRAM_LENGTH = "max_telegram_length"
 CONF_REQUEST_INTERVAL = "request_interval"
 CONF_REQUEST_PIN = "request_pin"
 
-# Hack to prevent compile error due to ambiguity with lib namespace
-dsmr_ns = cg.esphome_ns.namespace("esphome::dsmr")
+dsmr_ns = cg.esphome_ns.namespace("dsmr")
 Dsmr = dsmr_ns.class_("Dsmr", cg.Component, uart.UARTDevice)
 
 
@@ -54,24 +64,47 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     uart_component = await cg.get_variable(config[CONF_UART_ID])
-    var = cg.new_Pvariable(config[CONF_ID], uart_component, config[CONF_CRC_CHECK])
-    cg.add(var.set_max_telegram_length(config[CONF_MAX_TELEGRAM_LENGTH]))
-    if CONF_DECRYPTION_KEY in config:
-        cg.add(var.set_decryption_key(config[CONF_DECRYPTION_KEY]))
-    await cg.register_component(var, config)
-
     if CONF_REQUEST_PIN in config:
         request_pin = await cg.gpio_pin_expression(config[CONF_REQUEST_PIN])
-        cg.add(var.set_request_pin(request_pin))
-    cg.add(var.set_request_interval(config[CONF_REQUEST_INTERVAL].total_milliseconds))
-    cg.add(var.set_receive_timeout(config[CONF_RECEIVE_TIMEOUT].total_milliseconds))
+    else:
+        request_pin = cg.nullptr
+    decryption_key = config.get(CONF_DECRYPTION_KEY)
+    if decryption_key is None:
+        decryption_key = cg.nullptr
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        uart_component,
+        config[CONF_CRC_CHECK],
+        config[CONF_MAX_TELEGRAM_LENGTH],
+        config[CONF_REQUEST_INTERVAL].total_milliseconds,
+        config[CONF_RECEIVE_TIMEOUT].total_milliseconds,
+        request_pin,
+        decryption_key,
+    )
+    await cg.register_component(var, config)
 
     cg.add_build_flag("-DDSMR_GAS_MBUS_ID=" + str(config[CONF_GAS_MBUS_ID]))
     cg.add_build_flag("-DDSMR_WATER_MBUS_ID=" + str(config[CONF_WATER_MBUS_ID]))
     cg.add_build_flag("-DDSMR_THERMAL_MBUS_ID=" + str(config[CONF_THERMAL_MBUS_ID]))
 
-    # DSMR Parser
-    cg.add_library("esphome/dsmr_parser", "1.1.0")
+    cg.add_library("esphome/dsmr_parser", "1.4.0")
 
-    # Crypto
-    cg.add_library("polargoose/Crypto-no-arduino", "0.4.0")
+
+def final_validate(config: ConfigType) -> ConfigType:
+    full_config = fv.full_config.get()
+
+    for uart_conf in full_config["uart"]:
+        if uart_conf[CONF_ID] == config[CONF_UART_ID]:
+            rx_buffer_size = uart_conf[CONF_RX_BUFFER_SIZE]
+            if rx_buffer_size < 1500:
+                _LOGGER.warning(
+                    "UART '%s' rx_buffer_size should be bigger than 1500 bytes to avoid packet losses (currently %d bytes).",
+                    config[CONF_UART_ID],
+                    rx_buffer_size,
+                )
+            break
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = final_validate

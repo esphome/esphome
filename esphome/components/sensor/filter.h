@@ -399,6 +399,19 @@ template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> 
   uint32_t min_time_between_inputs_;
 };
 
+/// Specialization of ThrottleWithPriorityFilter for the common "prioritize NaN"
+/// case: skips the TemplatableFn<float> array + lambda and inlines the check.
+class ThrottleWithPriorityNanFilter : public Filter {
+ public:
+  explicit ThrottleWithPriorityNanFilter(uint32_t min_time_between_inputs);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  uint32_t last_input_{0};
+  uint32_t min_time_between_inputs_;
+};
+
 // Base class for timeout filters - contains common loop logic
 class TimeoutFilterBase : public Filter, public Component {
  public:
@@ -589,6 +602,19 @@ class RoundMultipleFilter : public Filter {
 
  protected:
   float multiple_;
+};
+
+template<uint8_t Digits> class RoundSignificantDigitsFilter : public Filter {
+ public:
+  optional<float> new_value(float value) override {
+    if (std::isfinite(value)) {
+      if (value == 0.0f)
+        return 0.0f;
+      float factor = pow10_int(Digits - 1 - ilog10(value));
+      return roundf(value * factor) / factor;
+    }
+    return value;
+  }
 };
 
 class ToNTCResistanceFilter : public Filter {

@@ -229,6 +229,10 @@ void ILI9XXXDisplay::update() {
 }
 
 void ILI9XXXDisplay::display_() {
+  // buffer may be null if allocation failed
+  if (this->buffer_ == nullptr) {
+    return;
+  }
   // check if something was displayed
   if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
     return;
