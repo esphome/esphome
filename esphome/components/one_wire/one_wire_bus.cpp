@@ -85,10 +85,10 @@ void OneWireBus::dump_devices_(const char *tag) {
   if (this->devices_.empty()) {
     ESP_LOGW(tag, "  Found no devices!");
   } else {
-    ESP_LOGCONFIG(tag, "  Found devices:");
+    ESP_LOGI(tag, "  Found devices:");
     char hex_buf[17];  // uint64_t = 16 hex chars + null
     for (auto &address : this->devices_) {
-      ESP_LOGCONFIG(tag, "    0x%s (%s)", format_hex_to(hex_buf, address), LOG_STR_ARG(get_model_str(address & 0xff)));
+      ESP_LOGI(tag, "    0x%s (%s)", format_hex_to(hex_buf, address), LOG_STR_ARG(get_model_str(address & 0xff)));
     }
   }
 }
