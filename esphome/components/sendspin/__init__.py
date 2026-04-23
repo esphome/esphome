@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import esphome.codegen as cg
 from esphome.components import esp32, network, psram, socket, wifi
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TASK_STACK_IN_PSRAM, PLATFORM_ESP32
+from esphome.const import CONF_ID, CONF_TASK_STACK_IN_PSRAM
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -94,7 +94,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): _validate_task_stack_in_psram,
         }
     ),
-    cv.only_on([PLATFORM_ESP32]),
+    cv.only_on_esp32,
     _request_high_performance_networking,
 )
 
