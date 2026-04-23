@@ -17,7 +17,7 @@
 #include <memory>
 #include <optional>
 
-namespace esphome::sendspin_impl {
+namespace esphome::sendspin_ {
 
 /// @brief Setup priorities for the sendspin hub and its child components.
 ///
@@ -132,6 +132,6 @@ class SendspinChild : public Component, public Parented<SendspinHub> {
   float get_setup_priority() const override { return sendspin_priority::CHILD; }
 };
 
-}  // namespace esphome::sendspin_impl
+}  // namespace esphome::sendspin_
 
 #endif  // USE_ESP32

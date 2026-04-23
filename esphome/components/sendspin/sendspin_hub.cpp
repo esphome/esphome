@@ -14,7 +14,7 @@
 
 #include <esp_log.h>
 
-namespace esphome::sendspin_impl {
+namespace esphome::sendspin_ {
 
 static const char *const TAG = "sendspin.hub";
 
@@ -129,6 +129,6 @@ std::optional<uint32_t> SendspinHub::load_last_server_hash() {
   return std::nullopt;
 }
 
-}  // namespace esphome::sendspin_impl
+}  // namespace esphome::sendspin_
 
 #endif  // USE_ESP32
