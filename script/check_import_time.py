@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Regression check for `import esphome.__main__` cost.
 
-Runs `python -X importtime -c "import esphome.__main__"` in fresh subprocesses
-and compares the root cumulative import time against a checked-in budget
+Runs `python -m importtime_waterfall --har esphome.__main__` (which invokes
+`-X importtime` in fresh subprocesses, best-of-N) and compares the root
+cumulative import time against a checked-in budget
 (`script/import_time_budget.json`).
 
 The CLI pays this cost on every invocation before the requested command even
-runs, so a regression here hurts every user. Pair this with
-`python -m importtime_waterfall --har` for human-readable waterfalls.
+runs, so a regression here hurts every user.
 """
 
 from __future__ import annotations
@@ -17,93 +17,72 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-import time
 from typing import Any, TextIO
 
 SCRIPT_DIR = Path(__file__).parent
 BUDGET_PATH = SCRIPT_DIR / "import_time_budget.json"
 
 TARGET_MODULE = "esphome.__main__"
-DEFAULT_RUNS = 3
 DEFAULT_MARGIN_PCT = 15
 OFFENDERS_TOP_N = 15
-IMPORT_TIME_PREFIX = "import time:"
 
 
-def _run_importtime(module: str) -> tuple[float, str]:
-    """Run `python -X importtime -c 'import <module>'` once.
+def run_waterfall(module: str) -> str:
+    """Run `importtime_waterfall --har <module>` and return the HAR JSON text.
 
-    Returns (wall_seconds, stderr_text).
+    `importtime_waterfall` itself runs the target in 6 fresh subprocesses
+    under `-X importtime` and emits the HAR of the fastest run.
     """
-    before = time.monotonic()
     result = subprocess.run(
-        [sys.executable, "-X", "importtime", "-c", f"import {module}"],
+        [sys.executable, "-m", "importtime_waterfall", "--har", module],
         check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,
         text=True,
     )
-    return time.monotonic() - before, result.stderr
+    return result.stdout
 
 
-def measure(module: str, runs: int) -> str:
-    """Run `module` import `runs` times; return the fastest run's stderr."""
-    best_wall, best_stderr = _run_importtime(module)
-    for _ in range(runs - 1):
-        wall, stderr = _run_importtime(module)
-        if wall < best_wall:
-            best_wall, best_stderr = wall, stderr
-    return best_stderr
+def measure(module: str) -> dict[str, Any]:
+    """Return the parsed HAR for importing `module`."""
+    return json.loads(run_waterfall(module))
 
 
-def parse_trace(stderr: str) -> list[tuple[int, int, int, str]]:
-    """Parse `-X importtime` stderr into (depth, self_us, cumulative_us, name)."""
-    entries: list[tuple[int, int, int, str]] = []
-    for line in stderr.splitlines():
-        if not line.startswith(IMPORT_TIME_PREFIX):
-            continue
-        body = line[len(IMPORT_TIME_PREFIX) :]
-        parts = body.split("|")
-        if len(parts) != 3:
-            continue
-        try:
-            self_us = int(parts[0].strip())
-            cumulative_us = int(parts[1].strip())
-        except ValueError:
-            continue  # header row
-        name_field = parts[2].rstrip("\n")
-        name = name_field.lstrip(" ")
-        depth = (len(name_field) - len(name)) // 2
-        entries.append((depth, self_us, cumulative_us, name))
-    return entries
+def _entries(har: dict[str, Any]) -> list[dict[str, Any]]:
+    return har["log"]["entries"]
 
 
-def root_cumulative_us(entries: list[tuple[int, int, int, str]], module: str) -> int:
-    """Return the cumulative import time of `module` (the root probe)."""
-    for depth, _self_us, cumulative_us, name in reversed(entries):
-        if depth == 0 and name == module:
-            return cumulative_us
+def root_cumulative_us(har: dict[str, Any], module: str) -> int:
+    """Return the cumulative import time (µs) of `module` from a HAR.
+
+    The HAR `time` field is authored by importtime_waterfall using µs values
+    fed through `timedelta(milliseconds=...)`, so the number read back is the
+    original self/cumulative time in microseconds (labelled "ms" in HAR).
+    """
+    for entry in _entries(har):
+        if entry["request"]["url"] == module:
+            return entry["time"]
     raise RuntimeError(
-        f"Did not find a root-level trace entry for {module!r}. Is it importable?"
+        f"No HAR entry for {module!r}. Is it importable with "
+        f"`python -c 'import {module}'`?"
     )
 
 
-def top_offenders(
-    entries: list[tuple[int, int, int, str]], n: int
-) -> list[tuple[str, int, int]]:
-    """Return up to `n` modules with the highest self-time, deduped by name.
+def top_offenders(har: dict[str, Any], n: int) -> list[tuple[str, int, int]]:
+    """Return up to `n` (name, self_us, cumulative_us), ranked by self_us desc.
 
-    Returns list of (name, self_us, cumulative_us). A module imported from
-    multiple places is counted once, at its deepest-stacktrace occurrence
-    (same as what the user sees on the `--graph` output).
+    A module imported from multiple places is counted once (first entry wins,
+    matching importtime's own de-duplication).
     """
     seen: dict[str, tuple[int, int]] = {}
-    for _depth, self_us, cumulative_us, name in entries:
+    for entry in _entries(har):
+        name = entry["request"]["url"]
         if name in seen:
             continue
+        self_us = entry["timings"]["receive"]
+        cumulative_us = entry["time"]
         seen[name] = (self_us, cumulative_us)
     ranked = sorted(
-        ((name, self_us, cum_us) for name, (self_us, cum_us) in seen.items()),
+        ((name, s, c) for name, (s, c) in seen.items()),
         key=lambda row: row[1],
         reverse=True,
     )
@@ -156,9 +135,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         )
         return 2
 
-    stderr = measure(TARGET_MODULE, args.runs)
-    entries = parse_trace(stderr)
-    measured = root_cumulative_us(entries, TARGET_MODULE)
+    har = measure(TARGET_MODULE)
+    measured = root_cumulative_us(har, TARGET_MODULE)
 
     baseline = budget["cumulative_us"]
     margin_pct = budget.get("margin_pct", DEFAULT_MARGIN_PCT)
@@ -180,7 +158,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         f"Top import-time offenders (by self time):",
         file=sys.stderr,
     )
-    _print_offenders_table(top_offenders(entries, OFFENDERS_TOP_N), sys.stderr)
+    _print_offenders_table(top_offenders(har, OFFENDERS_TOP_N), sys.stderr)
     print(
         "\nIf this regression is intentional, regenerate the budget with:\n"
         "  script/check_import_time.py --update\n"
@@ -192,9 +170,8 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def cmd_update(args: argparse.Namespace) -> int:
-    stderr = measure(TARGET_MODULE, args.runs)
-    entries = parse_trace(stderr)
-    measured = root_cumulative_us(entries, TARGET_MODULE)
+    har = measure(TARGET_MODULE)
+    measured = root_cumulative_us(har, TARGET_MODULE)
     write_budget(measured, args.margin_pct)
     print(
         f"Wrote {BUDGET_PATH.name}: "
@@ -205,26 +182,13 @@ def cmd_update(args: argparse.Namespace) -> int:
 
 
 def cmd_har(args: argparse.Namespace) -> int:
-    out_path = Path(args.har)
-    result = subprocess.run(
-        [sys.executable, "-m", "importtime_waterfall", "--har", TARGET_MODULE],
-        check=True,
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    out_path.write_text(result.stdout)
-    print(f"Wrote waterfall HAR to {out_path}")
+    Path(args.har).write_text(run_waterfall(TARGET_MODULE))
+    print(f"Wrote waterfall HAR to {args.har}")
     return 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--runs",
-        type=int,
-        default=DEFAULT_RUNS,
-        help=f"Number of measurement runs (default: {DEFAULT_RUNS}, best-of-N).",
-    )
     parser.add_argument(
         "--margin-pct",
         type=int,
