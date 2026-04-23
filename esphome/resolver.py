@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import os
+
 from aioesphomeapi.core import ResolveAPIError, ResolveTimeoutAPIError
 import aioesphomeapi.host_resolver as hr
 
 from esphome.async_thread import AsyncThreadRunner
 from esphome.core import EsphomeError
 
-RESOLVE_TIMEOUT = 10.0  # seconds
+RESOLVE_TIMEOUT = float(os.environ.get("ESPHOME_RESOLVE_TIMEOUT", 10.0))
 
 
 class AsyncResolver:
