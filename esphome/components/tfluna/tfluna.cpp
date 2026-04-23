@@ -66,7 +66,7 @@ void TFLuna::setup() {
   }
 }
 
-bool TFLuna::read_data_() {
+[[nodiscard]] bool TFLuna::read_data_() {
   uint8_t buf[8];
   if (!this->read_bytes(DISTANCE_LOW_REGISTER, buf, sizeof(buf))) {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
