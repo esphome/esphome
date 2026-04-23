@@ -524,35 +524,35 @@ class Scheduler {
   std::vector<SchedulerItem *> to_add_;
 
 #ifndef ESPHOME_THREAD_SINGLE
-  // Fast-path counter for process_to_add() to skip taking the lock when there is
-  // nothing to add. Uses std::atomic on platforms that support it, plain uint32_t
-  // otherwise. On non-atomic platforms, callers must hold the scheduler lock when
-  // mutating this counter. Not needed on single-threaded platforms where we can
-  // check to_add_.empty() directly.
+  // Fast-path counter for process_to_add() to skip taking the lock when there
+  // is nothing to add. std::atomic on ATOMICS; volatile uint32_t on NO_ATOMICS
+  // (aligned 32-bit reads are atomic on ARMv5TE — BK72xx — and volatile
+  // prevents the compiler caching/eliding the read). On NO_ATOMICS, callers
+  // must hold lock_ for any RMW mutation. Not needed on SINGLE.
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   std::atomic<uint32_t> to_add_count_{0};
 #else
-  uint32_t to_add_count_{0};
+  volatile uint32_t to_add_count_{0};
 #endif
 #endif /* ESPHOME_THREAD_SINGLE */
 
-  // Fast-path helper for process_to_add() to decide if it can try the lock-free path.
-  // - On ESPHOME_THREAD_SINGLE: direct container check is safe (no concurrent writers).
-  // - On ESPHOME_THREAD_MULTI_ATOMICS: performs a lock-free check via to_add_count_.
-  // - On ESPHOME_THREAD_MULTI_NO_ATOMICS: always returns false to force the caller
-  //   down the locked path; this is NOT a lock-free emptiness check on that platform.
+  // Fast-path helper for process_to_add() to decide if it can skip the lock.
+  // - SINGLE: direct container check (no concurrent writers).
+  // - ATOMICS: lock-free load of to_add_count_.
+  // - NO_ATOMICS: volatile read. A stale 0 is benign — next call() iteration
+  //   observes the update; RMW mutation is still under lock_.
   bool to_add_empty_() const {
 #ifdef ESPHOME_THREAD_SINGLE
     return this->to_add_.empty();
 #elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
     return this->to_add_count_.load(std::memory_order_relaxed) == 0;
 #else
-  return false;
+  return this->to_add_count_ == 0;
 #endif
   }
 
   // Increment to_add_count_ (no-op on single-threaded platforms)
-  void to_add_count_increment_() {
+  void to_add_count_increment_locked_() {
 #ifdef ESPHOME_THREAD_SINGLE
     // No counter needed — to_add_empty_() checks the vector directly
 #elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
@@ -563,7 +563,7 @@ class Scheduler {
   }
 
   // Reset to_add_count_ (no-op on single-threaded platforms)
-  void to_add_count_clear_() {
+  void to_add_count_clear_locked_() {
 #ifdef ESPHOME_THREAD_SINGLE
     // No counter needed — to_add_empty_() checks the vector directly
 #elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
@@ -580,24 +580,24 @@ class Scheduler {
   std::vector<SchedulerItem *> defer_queue_;  // FIFO queue for defer() calls
   size_t defer_queue_front_{0};               // Index of first valid item in defer_queue_ (tracks consumed items)
 
-  // Fast-path counter for process_defer_queue_() to skip lock when nothing to process.
+  // Fast-path counter for process_defer_queue_() to skip lock when nothing to
+  // process. See to_add_count_ above for the volatile rationale on NO_ATOMICS.
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   std::atomic<uint32_t> defer_count_{0};
 #else
-  uint32_t defer_count_{0};
+  volatile uint32_t defer_count_{0};
 #endif
 
   bool defer_empty_() const {
     // defer_queue_ only exists on multi-threaded platforms, so no ESPHOME_THREAD_SINGLE path
-    // ESPHOME_THREAD_MULTI_NO_ATOMICS: always take the lock
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     return this->defer_count_.load(std::memory_order_relaxed) == 0;
 #else
-    return false;
+    return this->defer_count_ == 0;
 #endif
   }
 
-  void defer_count_increment_() {
+  void defer_count_increment_locked_() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->defer_count_.fetch_add(1, std::memory_order_relaxed);
 #else
@@ -605,7 +605,7 @@ class Scheduler {
 #endif
   }
 
-  void defer_count_clear_() {
+  void defer_count_clear_locked_() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->defer_count_.store(0, std::memory_order_relaxed);
 #else
@@ -615,27 +615,27 @@ class Scheduler {
 
 #endif /* ESPHOME_THREAD_SINGLE */
 
-  // Counter for items marked for removal. Incremented cross-thread in cancel_item_locked_().
-  // On ESPHOME_THREAD_MULTI_ATOMICS this is read without a lock in the cleanup_() fast path;
-  // on ESPHOME_THREAD_MULTI_NO_ATOMICS the fast path is disabled so cleanup_() always takes the lock.
+  // Counter for items marked for removal. Incremented cross-thread in
+  // cancel_item_locked_(). See to_add_count_ above for the volatile rationale
+  // on NO_ATOMICS.
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   std::atomic<uint32_t> to_remove_{0};
+#elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
+  volatile uint32_t to_remove_{0};
 #else
-  uint32_t to_remove_{0};
+uint32_t to_remove_{0};
 #endif
 
   // Lock-free check if there are items to remove (for fast-path in cleanup_)
   bool to_remove_empty_() const {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     return this->to_remove_.load(std::memory_order_relaxed) == 0;
-#elif defined(ESPHOME_THREAD_SINGLE)
-    return this->to_remove_ == 0;
 #else
-  return false;  // Always take the lock path
+    return this->to_remove_ == 0;
 #endif
   }
 
-  void to_remove_add_(uint32_t count) {
+  void to_remove_add_locked_(uint32_t count) {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->to_remove_.fetch_add(count, std::memory_order_relaxed);
 #else
@@ -643,7 +643,7 @@ class Scheduler {
 #endif
   }
 
-  void to_remove_decrement_() {
+  void to_remove_decrement_locked_() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->to_remove_.fetch_sub(1, std::memory_order_relaxed);
 #else
@@ -651,7 +651,7 @@ class Scheduler {
 #endif
   }
 
-  void to_remove_clear_() {
+  void to_remove_clear_locked_() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->to_remove_.store(0, std::memory_order_relaxed);
 #else
