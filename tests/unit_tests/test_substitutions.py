@@ -659,7 +659,7 @@ def test_resolve_package_max_depth_exceeded(tmp_path: Path) -> None:
         cv.Invalid,
         match=f"Maximum include nesting depth \\({MAX_INCLUDE_DEPTH}\\) exceeded",
     ):
-        processor.resolve_package(package_config, substitutions.ContextVars())
+        processor.resolve_package(package_config, substitutions.ContextVars(), [])
 
 
 def test_include_filename_substitution_undefined_var(tmp_path: Path) -> None:
@@ -690,7 +690,7 @@ def test_raise_first_undefined_logs_extras_at_debug(
         caplog.at_level(logging.DEBUG, logger="esphome.components.substitutions"),
         pytest.raises(cv.Invalid) as exc_info,
     ):
-        substitutions.raise_first_undefined(errors, None, "package definition")
+        substitutions.raise_first_undefined(errors, "package definition")
 
     # First error is surfaced as the cv.Invalid message.
     raised = str(exc_info.value)
@@ -706,7 +706,7 @@ def test_raise_first_undefined_logs_extras_at_debug(
 
 def test_raise_first_undefined_noop_on_empty() -> None:
     """An empty errors list is a no-op — no exception, no log."""
-    substitutions.raise_first_undefined([], None, "package definition")
+    substitutions.raise_first_undefined([], "package definition")
 
 
 def test_do_substitution_pass_included_substitutions_must_be_mapping(
@@ -778,4 +778,43 @@ def test_resolve_package_undefined_var_in_include_filename(tmp_path: Path) -> No
     )
     processor = _PackageProcessor({}, None, False)
     with pytest.raises(cv.Invalid, match="unresolved substitutions"):
-        processor.resolve_package(package_config, substitutions.ContextVars())
+        processor.resolve_package(package_config, substitutions.ContextVars(), [])
+
+
+def test_resolve_include_error_shows_expanded_from_when_substituted(
+    tmp_path: Path,
+) -> None:
+    """When a substituted filename fails to load, the error includes '(expanded from ...)'."""
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def failing_loader(_path: Path) -> None:
+        raise EsphomeError("File not found")
+
+    include = yaml_util.IncludeFile(parent, "${device}.yaml", None, failing_loader)
+    context = substitutions.ContextVars({"device": "my_device"})
+
+    with pytest.raises(cv.Invalid) as exc_info:
+        substitutions.resolve_include(include, [], context)
+
+    msg = str(exc_info.value)
+    assert "my_device.yaml" in msg
+    assert "expanded from '${device}.yaml'" in msg
+
+
+def test_resolve_include_error_no_expanded_from_for_literal_filename(
+    tmp_path: Path,
+) -> None:
+    """When a literal filename fails to load, the error has no 'expanded from' clause."""
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def failing_loader(_path: Path) -> None:
+        raise EsphomeError("File not found")
+
+    include = yaml_util.IncludeFile(parent, "literal.yaml", None, failing_loader)
+
+    with pytest.raises(cv.Invalid) as exc_info:
+        substitutions.resolve_include(include, [], substitutions.ContextVars())
+
+    assert "expanded from" not in str(exc_info.value)
