@@ -414,17 +414,9 @@ class Scheduler {
 #ifndef ESPHOME_THREAD_SINGLE
   // Process defer queue for FIFO execution of deferred items.
   // IMPORTANT: This method should only be called from the main thread (loop task).
-  // Inlined: the fast path (nothing deferred) is just an atomic load check.
-  inline void ESPHOME_ALWAYS_INLINE HOT process_defer_queue_(uint32_t &now) {
-    // Fast path: nothing to process, avoid lock entirely.
-    // Worst case is a one-loop-iteration delay before newly deferred items are processed.
-    if (this->defer_empty_())
-      return;
-    this->process_defer_queue_slow_path_(now);
-  }
-
-  // Slow path for process_defer_queue_() - defined in scheduler.cpp
-  void process_defer_queue_slow_path_(uint32_t &now);
+  // The fast path (nothing deferred) is handled by Scheduler::call()'s snapshot
+  // gate; this is only invoked when the snapshot saw defer_count_ > 0.
+  void process_defer_queue_(uint32_t &now);
 
   // Helper to cleanup defer_queue_ after processing.
   // Keeps the common clear() path inline, outlines the rare compaction to keep

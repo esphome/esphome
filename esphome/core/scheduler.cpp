@@ -476,7 +476,7 @@ void Scheduler::compact_defer_queue_locked_() {
   // (saves ~156 bytes flash). Erasing from the end is O(1) - no shifting needed.
   this->defer_queue_.erase(this->defer_queue_.begin() + remaining, this->defer_queue_.end());
 }
-void HOT Scheduler::process_defer_queue_slow_path_(uint32_t &now) {
+void HOT Scheduler::process_defer_queue_(uint32_t &now) {
   // Process defer queue to guarantee FIFO execution order for deferred items.
   // Previously, defer() used the heap which gave undefined order for equal timestamps,
   // causing race conditions on multi-core systems (ESP32, BK7200).
@@ -543,7 +543,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
   this->snapshot_counters_(snap_defer, snap_add, snap_remove);
 
   if (snap_defer > 0) {
-    this->process_defer_queue_slow_path_(now);
+    this->process_defer_queue_(now);
     // Defer callbacks may set_timeout/set_interval/cancel_*, mutating the
     // other two counters. Re-snapshot.
     this->snapshot_counters_(snap_defer, snap_add, snap_remove);
