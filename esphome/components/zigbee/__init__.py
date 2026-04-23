@@ -108,9 +108,8 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 cv.requires_component("nrf52"),
             ),
-            cv.Optional(CONF_SLEEPY, default=False): cv.All(
+            cv.OnlyWith(CONF_SLEEPY, "nrf52", default=False): cv.All(
                 cv.boolean,
-                cv.requires_component("nrf52"),
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
