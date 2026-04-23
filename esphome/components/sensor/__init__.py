@@ -4,6 +4,7 @@ import math
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server, zigbee
+from esphome.components.const import CONF_B_CONSTANT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
@@ -1046,7 +1047,6 @@ def validate_ntc_calibration_parameter(value):
 CONF_A = "a"
 CONF_B = "b"
 CONF_C = "c"
-CONF_B_CONSTANT = "b_constant"
 ZERO_POINT = 273.15
 
 
