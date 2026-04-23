@@ -5,6 +5,7 @@ import json  # noqa: E402
 import os  # noqa: E402
 import pathlib  # noqa: E402
 import shutil  # noqa: E402
+import subprocess  # noqa: E402
 from glob import glob  # noqa: E402
 
 
@@ -23,6 +24,114 @@ def _parse_sdkconfig(sdkconfig_path):
     except FileNotFoundError:
         pass
     return options
+
+
+def _generate_v1_verification_key(env):
+    """Generate the V1 ECDSA verification key binary and assembly source file.
+
+    Secure Boot V1 embeds the public verification key directly in the app binary
+    as a compiled object (via a .S assembly file). The ESP-IDF CMake build generates
+    these files via custom commands, but PlatformIO's SCons bridge does not execute
+    them. This function replicates that logic:
+      1. Extracts the raw public key from the PEM signing key using espsecure.
+      2. Generates the .S assembly source that embeds the key bytes.
+    """
+    build_dir = pathlib.Path(env.subst("$BUILD_DIR"))
+    project_dir = pathlib.Path(env.subst("$PROJECT_DIR"))
+    pioenv = env.subst("$PIOENV")
+    sdkconfig = _parse_sdkconfig(project_dir / f"sdkconfig.{pioenv}")
+
+    if sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_ECDSA_SCHEME") != "y":
+        return
+
+    bin_path = build_dir / "signature_verification_key.bin"
+    asm_path = build_dir / "signature_verification_key.bin.S"
+
+    # Determine the source of the verification key
+    if sdkconfig.get("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES") == "y":
+        # Extract public key from the signing key
+        signing_key = sdkconfig.get("CONFIG_SECURE_BOOT_SIGNING_KEY")
+        if not signing_key:
+            return
+        signing_key_path = pathlib.Path(signing_key)
+        if not signing_key_path.exists():
+            print(f"Error: V1 ECDSA signing key not found: {signing_key_path}")
+            env.Exit(1)
+            return
+
+        if not bin_path.exists() or bin_path.stat().st_mtime < signing_key_path.stat().st_mtime:
+            python_exe = env.subst("$PYTHONEXE")
+            result = subprocess.run(
+                [python_exe, "-m", "espsecure", "extract_public_key",
+                 "--keyfile", str(signing_key_path), str(bin_path)],
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                print(f"Error extracting V1 verification key: {result.stderr}")
+                env.Exit(1)
+                return
+            print(f"Extracted V1 ECDSA verification key from {signing_key_path.name}")
+    else:
+        # User-provided verification key -- should already be a raw binary file
+        verification_key = sdkconfig.get("CONFIG_SECURE_BOOT_VERIFICATION_KEY")
+        if not verification_key:
+            return
+        verification_key_path = pathlib.Path(verification_key)
+        if not verification_key_path.exists():
+            print(f"Error: Verification key not found: {verification_key_path}")
+            env.Exit(1)
+            return
+        shutil.copyfile(str(verification_key_path), str(bin_path))
+
+    if not bin_path.exists():
+        return
+
+    # Generate the .S assembly file from the binary key data.
+    # Replicates ESP-IDF's data_file_embed_asm.cmake with RENAME_TO=signature_verification_key_bin.
+    # The file is needed in both the app build dir and the bootloader build dir, since
+    # the bootloader also embeds the verification key when CONFIG_SECURE_SIGNED_ON_BOOT_NO_SECURE_BOOT
+    # is enabled. PlatformIO's SCons bridge does not execute the CMake custom commands that
+    # normally generate these files.
+    data = bin_path.read_bytes()
+    varname = "signature_verification_key_bin"
+
+    lines = []
+    lines.append(f"/* Data converted from {bin_path.name} */")
+    lines.append(".data")
+    lines.append("#if !defined (__APPLE__) && !defined (__linux__)")
+    lines.append(".section .rodata.embedded")
+    lines.append("#endif")
+    lines.append(f"\n.global {varname}")
+    lines.append(f"{varname}:")
+    lines.append(f"\n.global _binary_{varname}_start")
+    lines.append(f"_binary_{varname}_start: /* for objcopy compatibility */")
+
+    # Format binary data as .byte lines (16 bytes per line)
+    for i in range(0, len(data), 16):
+        chunk = data[i:i + 16]
+        hex_bytes = ", ".join(f"0x{b:02x}" for b in chunk)
+        lines.append(f".byte {hex_bytes}")
+
+    lines.append(f"\n.global _binary_{varname}_end")
+    lines.append(f"_binary_{varname}_end: /* for objcopy compatibility */")
+    lines.append(f"\n.global {varname}_length")
+    lines.append(f"{varname}_length:")
+    lines.append(f".long {len(data)}")
+    lines.append("")
+    lines.append('#if defined (__linux__)')
+    lines.append('.section .note.GNU-stack,"",@progbits')
+    lines.append("#endif")
+
+    asm_content = "\n".join(lines) + "\n"
+
+    # Write to app build dir and bootloader build dir
+    asm_path.write_text(asm_content)
+    bootloader_dir = build_dir / "bootloader"
+    if bootloader_dir.is_dir():
+        bootloader_bin = bootloader_dir / "signature_verification_key.bin"
+        bootloader_asm = bootloader_dir / "signature_verification_key.bin.S"
+        shutil.copyfile(str(bin_path), str(bootloader_bin))
+        bootloader_asm.write_text(asm_content)
 
 
 def sign_firmware(source, target, env):
@@ -55,9 +164,12 @@ def sign_firmware(source, target, env):
         env.Exit(1)
         return
 
-    # ESPHome only exposes RSA3072 and ECDSA256 (both Secure Boot V2 schemes),
-    # so the espsecure signature version is always 2.
-    sign_version = "2"
+    # Determine espsecure signature version from the signing scheme:
+    # V1 ECDSA (Secure Boot V1) uses --version 1, V2 RSA/ECDSA use --version 2.
+    if sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_ECDSA_SCHEME") == "y":
+        sign_version = "1"
+    else:
+        sign_version = "2"
 
     firmware_name = os.path.basename(env.subst("$PROGNAME")) + ".bin"
     firmware_path = build_dir / firmware_name
@@ -216,6 +328,11 @@ def esp32_copy_ota_bin(source, target, env):
     shutil.copyfile(firmware_name, new_file_name)
     print(f"Copied firmware to {new_file_name}")
 
+
+# Generate V1 ECDSA verification key files before build starts.
+# Workaround for PlatformIO not executing CMake custom commands that extract
+# the public key and generate the .S assembly file for Secure Boot V1.
+_generate_v1_verification_key(env)  # noqa: F821
 
 # Run signing first, then merge, then ota copy
 env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", sign_firmware)  # noqa: F821
