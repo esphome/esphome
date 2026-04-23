@@ -368,7 +368,7 @@ void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
 }
 #endif
 
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_id, uint32_t key,
                                                const std::vector<int32_t> *timings) {
   InfraredRFReceiveEvent resp{};
