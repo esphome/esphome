@@ -72,12 +72,8 @@ uint64_t Millis64Impl::compute(uint32_t now) {
   // Without atomics, this implementation uses locks more aggressively:
   // 1. Always locks when near the rollover boundary (within 10 seconds)
   // 2. Always locks when detecting a large backwards jump
-  // 3. Updates without lock in normal forward progression.
-  // Concurrent reads/writes use __atomic_load_n / __atomic_store_n with
-  // __ATOMIC_RELAXED so the cross-thread accesses are well-defined in the
-  // C++ memory model. On ARMv5TE these compile to plain LDR/STR. Writers
-  // holding `lock` use plain assignments; the lock serialises them against
-  // other writers.
+  // 3. Updates without lock in normal forward progression (accepting minor races)
+  // This is less efficient but necessary without atomic operations.
   uint16_t major = __atomic_load_n(&millis_major, __ATOMIC_RELAXED);
   uint32_t last = __atomic_load_n(&last_millis, __ATOMIC_RELAXED);
 
@@ -105,10 +101,9 @@ uint64_t Millis64Impl::compute(uint32_t now) {
     // Update last_millis while holding lock
     last_millis = now;
   } else if (now > last) {
-    // Normal case: Not near rollover and time moved forward. Publish the new
-    // low word without taking the lock. A concurrent writer under lock may
-    // overwrite this with a slightly-different value, which can produce a
-    // few microseconds of backwards time movement — acceptable because:
+    // Normal case: Not near rollover and time moved forward
+    // Update without lock. While this may cause minor races (microseconds of
+    // backwards time movement), they're acceptable because:
     // 1. The scheduler operates at millisecond resolution, not microsecond
     // 2. We've already prevented the critical rollover race condition
     // 3. Any backwards movement is orders of magnitude smaller than scheduler delays
