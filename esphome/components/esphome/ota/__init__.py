@@ -150,12 +150,14 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
 
-    # Always compile the auth path so set_auth_password() is callable from lambda
-    # (e.g. to rotate the password at runtime). A runtime-empty password_ is treated
-    # as "no password" by the server.
-    cg.add_define("USE_OTA_PASSWORD")
-    if config.get(CONF_PASSWORD):
-        cg.add(var.set_auth_password(config[CONF_PASSWORD]))
+    # Compile the auth path whenever `password:` is present in YAML, even if empty.
+    # An empty password opts in to the auth code path so set_auth_password() can be
+    # called at runtime (e.g. to rotate the password from a lambda). When `password:`
+    # is omitted entirely, the auth path is excluded to save flash on small devices.
+    if CONF_PASSWORD in config:
+        cg.add_define("USE_OTA_PASSWORD")
+        if config[CONF_PASSWORD]:
+            cg.add(var.set_auth_password(config[CONF_PASSWORD]))
     cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
     # Build flag so lwip_fast_select.c (a .c file that can't include defines.h) sees it.
     cg.add_build_flag("-DUSE_OTA_PLATFORM_ESPHOME")
