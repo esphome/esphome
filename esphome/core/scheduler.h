@@ -550,16 +550,15 @@ class Scheduler {
   }
 
   // Increment to_add_count_ (no-op on single-threaded platforms).
-  // On NO_ATOMICS the caller must hold lock_ to serialise the load-modify-store
-  // against other writers; the __atomic_store_n makes the write visible to
-  // concurrent readers in the C++ memory model.
+  // On NO_ATOMICS the caller must hold lock_ to serialise RMW against
+  // other writers; reader fast-path uses __atomic_load_n.
   void to_add_count_increment_locked_() {
 #ifdef ESPHOME_THREAD_SINGLE
     // No counter needed — to_add_empty_() checks the vector directly
 #elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
     this->to_add_count_.fetch_add(1, std::memory_order_relaxed);
 #else
-  __atomic_store_n(&this->to_add_count_, __atomic_load_n(&this->to_add_count_, __ATOMIC_RELAXED) + 1, __ATOMIC_RELAXED);
+  this->to_add_count_++;
 #endif
   }
 
@@ -570,7 +569,7 @@ class Scheduler {
 #elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
     this->to_add_count_.store(0, std::memory_order_relaxed);
 #else
-  __atomic_store_n(&this->to_add_count_, 0, __ATOMIC_RELAXED);
+  this->to_add_count_ = 0;
 #endif
   }
 
@@ -602,7 +601,7 @@ class Scheduler {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->defer_count_.fetch_add(1, std::memory_order_relaxed);
 #else
-    __atomic_store_n(&this->defer_count_, __atomic_load_n(&this->defer_count_, __ATOMIC_RELAXED) + 1, __ATOMIC_RELAXED);
+    this->defer_count_++;
 #endif
   }
 
@@ -610,7 +609,7 @@ class Scheduler {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->defer_count_.store(0, std::memory_order_relaxed);
 #else
-    __atomic_store_n(&this->defer_count_, 0, __ATOMIC_RELAXED);
+    this->defer_count_ = 0;
 #endif
   }
 
@@ -639,30 +638,24 @@ class Scheduler {
   void to_remove_add_locked_(uint32_t count) {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->to_remove_.fetch_add(count, std::memory_order_relaxed);
-#elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
-    __atomic_store_n(&this->to_remove_, __atomic_load_n(&this->to_remove_, __ATOMIC_RELAXED) + count, __ATOMIC_RELAXED);
 #else
-  this->to_remove_ += count;
+    this->to_remove_ += count;
 #endif
   }
 
   void to_remove_decrement_locked_() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->to_remove_.fetch_sub(1, std::memory_order_relaxed);
-#elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
-    __atomic_store_n(&this->to_remove_, __atomic_load_n(&this->to_remove_, __ATOMIC_RELAXED) - 1, __ATOMIC_RELAXED);
 #else
-  this->to_remove_--;
+    this->to_remove_--;
 #endif
   }
 
   void to_remove_clear_locked_() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->to_remove_.store(0, std::memory_order_relaxed);
-#elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
-    __atomic_store_n(&this->to_remove_, 0, __ATOMIC_RELAXED);
 #else
-  this->to_remove_ = 0;
+    this->to_remove_ = 0;
 #endif
   }
 
