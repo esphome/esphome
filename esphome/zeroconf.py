@@ -193,18 +193,51 @@ class EsphomeZeroconf(Zeroconf):
         return None
 
 
+async def async_resolve_hosts(
+    zeroconf: Zeroconf, hosts: list[str], timeout: float = DEFAULT_TIMEOUT
+) -> dict[str, list[str]]:
+    """Resolve ``hosts`` to IPs using a shared ``Zeroconf`` instance.
+
+    Tries the cache synchronously first (so hosts already primed by a recent
+    browse return immediately with no network round-trip), then issues
+    ``async_request`` for the remaining misses in parallel via
+    ``asyncio.gather``. Returns a dict mapping each host to its list of
+    addresses (empty list when unresolved). Only ``<short>.local`` form is
+    queried, matching the name scheme the resolvers below expect.
+    """
+    resolvers: dict[str, AddressResolver] = {}
+    pending: list[str] = []
+    for host in hosts:
+        resolver = AddressResolver(f"{host.partition('.')[0]}.local.")
+        resolvers[host] = resolver
+        if not resolver.load_from_cache(zeroconf):
+            pending.append(host)
+
+    if pending and timeout:
+        results = await asyncio.gather(
+            *(
+                resolvers[host].async_request(zeroconf, timeout * 1000)
+                for host in pending
+            ),
+            return_exceptions=True,
+        )
+        for host, result in zip(pending, results):
+            if isinstance(result, BaseException):
+                _LOGGER.debug("Failed to resolve %s: %s", host, result)
+
+    return {
+        host: resolver.parsed_scoped_addresses(IPVersion.All)
+        for host, resolver in resolvers.items()
+    }
+
+
 class AsyncEsphomeZeroconf(AsyncZeroconf):
     async def async_resolve_host(
         self, host: str, timeout: float = DEFAULT_TIMEOUT
     ) -> list[str] | None:
         """Resolve a host name to an IP address."""
-        info = AddressResolver(f"{host.partition('.')[0]}.local.")
-        if (
-            info.load_from_cache(self.zeroconf)
-            or (timeout and await info.async_request(self.zeroconf, timeout * 1000))
-        ) and (addresses := info.parsed_scoped_addresses(IPVersion.All)):
-            return addresses
-        return None
+        addresses = (await async_resolve_hosts(self.zeroconf, [host], timeout))[host]
+        return addresses or None
 
 
 def _is_mac_suffix_match(device_name: str, prefix: str) -> bool:
@@ -290,16 +323,12 @@ async def async_discover_mdns_devices(
             prefix,
         )
 
-        # Resolve each discovered hostname on the SAME Zeroconf instance so we
-        # don't spin up a second client. Records are typically already cached
-        # from the service browse, so resolution is effectively free.
-        for host in list(discovered):
-            try:
-                addresses = await aiozc.async_resolve_host(host, timeout=1.0)
-            except Exception as err:  # pylint: disable=broad-except
-                # Per-host resolution failure shouldn't abort the whole discovery.
-                _LOGGER.debug("Failed to resolve %s: %s", host, err)
-                continue
+        # Resolve each discovered hostname on the SAME Zeroconf instance so
+        # we don't spin up a second client. ``async_resolve_hosts`` tries the
+        # cache synchronously (the browse usually primes it) before issuing
+        # any ``async_request`` in parallel for misses.
+        resolved = await async_resolve_hosts(aiozc.zeroconf, list(discovered))
+        for host, addresses in resolved.items():
             if addresses:
                 discovered[host] = addresses
                 _LOGGER.debug("Resolved %s -> %s", host, addresses)

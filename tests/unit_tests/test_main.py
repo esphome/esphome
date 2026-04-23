@@ -2252,28 +2252,43 @@ def test_has_name_add_mac_suffix() -> None:
 def mock_mdns_discovery() -> Generator[MagicMock]:
     """Fixture to mock the async mDNS discovery infrastructure.
 
-    Patches ``AsyncEsphomeZeroconf`` and ``AsyncServiceBrowser`` in
-    ``esphome.zeroconf`` and exposes hooks for tests to stage browser events
-    and control resolution results.
+    Patches ``AsyncEsphomeZeroconf``, ``AsyncServiceBrowser`` and
+    ``AddressResolver`` in ``esphome.zeroconf`` and exposes hooks for tests to
+    stage browser events and control resolution results. The default
+    ``AddressResolver`` stub simulates a cache hit returning no addresses, so
+    matched hosts appear in the discovery output with empty address lists
+    unless the test overrides ``_resolver_setup``.
     """
     with (
         patch("esphome.zeroconf.AsyncEsphomeZeroconf") as mock_aiozc_class,
         patch("esphome.zeroconf.AsyncServiceBrowser") as mock_browser_class,
+        patch("esphome.zeroconf.AddressResolver") as mock_resolver_class,
     ):
         mock_aiozc = MagicMock()
         mock_aiozc.zeroconf = MagicMock()
         mock_aiozc.async_close = AsyncMock(return_value=None)
-        # Default: no addresses resolved
-        mock_aiozc.async_resolve_host = AsyncMock(return_value=None)
         mock_aiozc_class.return_value = mock_aiozc
 
         mock_browser = MagicMock()
         mock_browser.async_cancel = AsyncMock(return_value=None)
 
+        # Default: each host gets a fresh resolver that hits the cache and
+        # returns no addresses. Tests can override via ``_resolver_setup``.
+        def default_resolver_factory(name: str) -> MagicMock:
+            resolver = MagicMock()
+            resolver._name = name
+            resolver.load_from_cache.return_value = True
+            resolver.async_request = AsyncMock(return_value=True)
+            resolver.parsed_scoped_addresses.return_value = []
+            return resolver
+
+        mock_resolver_class.side_effect = default_resolver_factory
+
         # Store references for test access
         mock_aiozc._mock_browser_class = mock_browser_class
         mock_aiozc._mock_browser = mock_browser
         mock_aiozc._mock_class = mock_aiozc_class
+        mock_aiozc._mock_resolver_class = mock_resolver_class
         yield mock_aiozc
 
 
@@ -2372,18 +2387,26 @@ def test_discover_mdns_devices(
 
     mock_mdns_discovery._mock_browser_class.side_effect = capture_callback
 
-    # Resolve each discovered host to a fixed IP so we can assert on dict values
-    async def fake_resolve(host: str, timeout: float = 1.0) -> list[str]:
-        return [f"10.0.0.1#{host}"]
+    # Each discovered host gets a resolver that returns a unique IP string
+    # derived from its server name so we can assert per-host.
+    def resolver_factory(name: str) -> MagicMock:
+        resolver = MagicMock()
+        resolver._name = name
+        resolver.load_from_cache.return_value = True
+        resolver.async_request = AsyncMock(return_value=True)
+        resolver.parsed_scoped_addresses.return_value = [f"10.0.0.1#{name}"]
+        return resolver
 
-    mock_mdns_discovery.async_resolve_host.side_effect = fake_resolve
+    mock_mdns_discovery._mock_resolver_class.side_effect = resolver_factory
 
     result = discover_mdns_devices(base_name, timeout=0)
 
     assert sorted(result) == expected_hosts
-    # Resolved addresses should be stored for matched hosts
+    # Resolved addresses should be stored for matched hosts. AddressResolver
+    # receives the fully-qualified name (``<device>.local.``).
     for host in expected_hosts:
-        assert result[host] == [f"10.0.0.1#{host}"]
+        short = host.partition(".")[0]
+        assert result[host] == [f"10.0.0.1#{short}.local."]
     mock_browser.async_cancel.assert_awaited_once()
     mock_mdns_discovery.async_close.assert_awaited_once()
 
@@ -2423,7 +2446,16 @@ def test_discover_mdns_devices_resolution_failure(
         return mock_browser
 
     mock_mdns_discovery._mock_browser_class.side_effect = capture_callback
-    mock_mdns_discovery.async_resolve_host.side_effect = OSError("boom")
+
+    # Resolver misses the cache, then async_request raises.
+    def failing_resolver_factory(name: str) -> MagicMock:
+        resolver = MagicMock()
+        resolver.load_from_cache.return_value = False
+        resolver.async_request = AsyncMock(side_effect=OSError("boom"))
+        resolver.parsed_scoped_addresses.return_value = []
+        return resolver
+
+    mock_mdns_discovery._mock_resolver_class.side_effect = failing_resolver_factory
 
     result = discover_mdns_devices("mydevice", timeout=0)
 
@@ -2454,7 +2486,8 @@ def test_discover_mdns_devices_ignores_removed_state(
     result = discover_mdns_devices("mydevice", timeout=0)
 
     assert result == {}
-    mock_mdns_discovery.async_resolve_host.assert_not_called()
+    # No AddressResolver should have been constructed since no host matched.
+    mock_mdns_discovery._mock_resolver_class.assert_not_called()
 
 
 def test_discover_mdns_devices_empty_resolution(
@@ -2477,8 +2510,8 @@ def test_discover_mdns_devices_empty_resolution(
         return mock_browser
 
     mock_mdns_discovery._mock_browser_class.side_effect = capture_callback
-    # Resolver succeeds but returns no addresses (e.g. cache miss + timeout)
-    mock_mdns_discovery.async_resolve_host.return_value = None
+    # Default fixture resolver is a cache-hit with no addresses — simulates
+    # the "browse found it but no A/AAAA records are available" case.
 
     result = discover_mdns_devices("mydevice", timeout=0)
 
