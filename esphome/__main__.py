@@ -482,7 +482,9 @@ def has_name_add_mac_suffix() -> bool:
     return esphome_config.get(CONF_NAME_ADD_MAC_SUFFIX, False)
 
 
-def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
+def mqtt_get_ip(
+    config: ConfigType, username: str, password: str, client_id: str
+) -> list[str]:
     from esphome import mqtt
 
     return mqtt.get_esphome_device_ip(config, username, password, client_id)
@@ -519,13 +521,16 @@ def _resolve_network_devices(
             # Only resolve MQTT once, even if multiple MQTT entries
             if not mqtt_resolved:
                 try:
-                    mqtt_ips = list(
-                        mqtt_get_ip(
-                            config, args.username, args.password, args.client_id
-                        )
+                    mqtt_ips = mqtt_get_ip(
+                        config, args.username, args.password, args.client_id
                     )
+                    # pylint can't infer mqtt_get_ip's return through its
+                    # lazy ``from esphome import mqtt`` import, so it flags
+                    # the genexpr below.
                     network_devices.extend(
-                        addr for addr in mqtt_ips if addr not in network_devices
+                        addr
+                        for addr in mqtt_ips  # pylint: disable=not-an-iterable
+                        if addr not in network_devices
                     )
                 except EsphomeError as err:
                     _LOGGER.warning(
@@ -535,15 +540,15 @@ def _resolve_network_devices(
                 mqtt_resolved = True
             continue
 
-        # Regular network address or IP. If the hostname is already in the
-        # address cache (e.g. populated by mDNS discovery), substitute the
-        # cached IPs so aioesphomeapi doesn't open its own Zeroconf to
-        # re-resolve it.
+        # If the hostname is already in the address cache (e.g. populated by
+        # mDNS discovery), substitute the cached IPs so aioesphomeapi doesn't
+        # open its own Zeroconf to re-resolve it.
         if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
             network_devices.extend(
                 addr for addr in cached if addr not in network_devices
             )
         elif device not in network_devices:
+            # Regular network address or IP - add if not already present
             network_devices.append(device)
 
     return network_devices
