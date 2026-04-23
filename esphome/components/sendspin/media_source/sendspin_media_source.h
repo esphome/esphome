@@ -64,15 +64,9 @@ class SendspinMediaSource : public SendspinChild,
 
   float cached_volume_{0.0f};
 
-  size_t buffer_size_{1000000};
-  int32_t fixed_delay_us_{0};
-
-  uint16_t initial_static_delay_ms_{0};
-
   bool cached_muted_{false};
   bool pending_start_{false};
   bool static_delay_adjustable_{false};
-  bool task_stack_in_psram_{false};
 };
 
 }  // namespace esphome::sendspin_
