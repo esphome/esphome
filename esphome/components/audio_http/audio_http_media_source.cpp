@@ -2,8 +2,12 @@
 
 #ifdef USE_ESP32
 
+#include "esphome/core/log.h"
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+
+#include <algorithm>
 
 namespace esphome::audio_http {
 

@@ -12,6 +12,8 @@
 #include <micro_decoder/types.h>
 
 #include <atomic>
+#include <memory>
+#include <string>
 
 namespace esphome::audio_http {
 
