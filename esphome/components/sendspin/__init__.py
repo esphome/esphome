@@ -111,10 +111,9 @@ async def to_code(config: ConfigType) -> None:
 
     if task_stack_in_psram := config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(task_stack_in_psram))
-        if task_stack_in_psram:
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
-            )
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
+        )
 
     # sendspin-cpp library
     esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.3.0")
