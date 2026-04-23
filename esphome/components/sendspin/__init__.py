@@ -66,7 +66,7 @@ def request_visualizer_support() -> None:
 def _validate_task_stack_in_psram(value):
     value = cv.boolean(value)
     if value:
-        cv.requires_component(psram.DOMAIN)(value)
+        return cv.requires_component(psram.DOMAIN)(value)
     return value
 
 
