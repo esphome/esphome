@@ -1,9 +1,7 @@
 #include "restart_button.h"
 
-namespace esphome {
-namespace tfluna {
+namespace esphome::tfluna {
 
 void RestartButton::press_action() { this->parent_->restart(); }
 
-}  // namespace tfluna
-}  // namespace esphome
+}  // namespace esphome::tfluna

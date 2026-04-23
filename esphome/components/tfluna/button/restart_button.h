@@ -3,8 +3,7 @@
 #include "esphome/components/button/button.h"
 #include "../tfluna.h"
 
-namespace esphome {
-namespace tfluna {
+namespace esphome::tfluna {
 
 class RestartButton : public button::Button, public Parented<TFLuna> {
  public:
@@ -14,5 +13,4 @@ class RestartButton : public button::Button, public Parented<TFLuna> {
   void press_action() override;
 };
 
-}  // namespace tfluna
-}  // namespace esphome
+}  // namespace esphome::tfluna
