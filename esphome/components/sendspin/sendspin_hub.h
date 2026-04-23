@@ -1,0 +1,138 @@
+#pragma once
+
+#include "esphome/core/defines.h"
+
+#ifdef USE_ESP32
+
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
+
+#include <sendspin/client.h>
+#include <sendspin/config.h>
+#include <sendspin/types.h>
+
+#include <functional>
+#include <memory>
+#include <optional>
+
+namespace esphome::sendspin_ {
+
+/// @brief Setup priorities for the sendspin hub and its child components.
+///
+/// Centralized here so every sendspin component orders itself relative to the hub
+/// without each subcomponent having to pick a priority independently. Children run
+/// one step later than hub so they can assume hub's setup() has already completed.
+namespace sendspin_priority {
+inline constexpr float HUB = esphome::setup_priority::PROCESSOR;
+inline constexpr float CHILD = HUB - 1.0f;
+}  // namespace sendspin_priority
+
+/// @brief Persistent storage structure for last played server hash.
+struct LastPlayedServerPref {
+  uint32_t server_id_hash;
+};
+
+/// @brief Thin adapter over sendspin::SendspinClient.
+///
+/// The hub owns a SendspinClient instance and bridges its listener/provider interfaces to ESPHome's CallbackManager for
+/// fan-out to child components.
+///  - Provides persistence via ESPPreferenceObject and WiFi power management integration.
+///  - Handles Sendspin roles that apply to multiple child components (artwork, controller, metadata) so their events
+///    can be fanned out. Roles specific to a single component (player) are configured by the hub but owned by the
+///    child thereafter, since no fan-out is needed.
+///
+/// The sendspin-cpp library follows this design:
+///  - Core and role configuration are passed at client/role construction time as structs. Built in our `setup()`.
+///  - Library -> user code communication happens via two interface types the user implements and registers in our
+///    `setup()`: listener interfaces (for events the library pushes; e.g., group updates) and provider interfaces
+///    (for services the library pulls; e.g., persistence, network readiness).
+///  - User -> library communication uses exposed functions on the client and role objects that the user calls.
+class SendspinHub final : public Component,
+                          public sendspin::SendspinClientListener,
+                          public sendspin::SendspinNetworkProvider,
+                          public sendspin::SendspinPersistenceProvider {
+ public:
+  float get_setup_priority() const override { return sendspin_priority::HUB; }
+  void setup() override;
+  void loop() override;
+  void dump_config() override;
+
+  /// @brief Connects the underlying client to the given Sendspin server.
+  ///
+  /// No-op if the hub's client is not ready (e.g. setup() has not completed).
+  /// Must be called from the main loop thread.
+  /// @param url WebSocket URL of the Sendspin server, starting with `ws://` (e.g. `ws://host:port/path`).
+  void connect_to_server(const std::string &url);
+
+  /// @brief Disconnects the underlying client from the current server.
+  ///
+  /// Sends a `client/goodbye` message with the given reason before closing the connection.
+  /// No-op if the hub's client is not ready. Must be called from the main loop thread.
+  /// @param reason Reason reported to the server:
+  ///   - `ANOTHER_SERVER`: client is switching to another server.
+  ///   - `SHUTDOWN`: client is shutting down.
+  ///   - `RESTART`: client is restarting.
+  ///   - `USER_REQUEST`: user explicitly requested disconnect.
+  void disconnect_from_server(sendspin::SendspinGoodbyeReason reason);
+
+  /// @brief Updates the client's reported playback state on the server.
+  ///
+  /// No-op if the hub's client is not ready. Must be called from the main loop thread.
+  /// @param state New client state:
+  ///   - `SYNCHRONIZED`: client is synchronized and playing from the server.
+  ///   - `ERROR`: client encountered a playback error.
+  ///   - `EXTERNAL_SOURCE`: client is playing from a non-Sendspin source.
+  void update_state(sendspin::SendspinClientState state);
+
+  // --- Configuration setters (called from codegen) ---
+
+  template<typename F> void add_group_update_callback(F &&callback) {
+    this->group_update_callbacks_.add(std::forward<F>(callback));
+  }
+
+  void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
+
+ protected:
+  /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
+  sendspin::SendspinClientConfig build_client_config_();
+
+  // --- SendspinClientListener overrides ---
+  void on_group_update(const sendspin::GroupUpdateObject &group) override;
+
+  void on_request_high_performance() override;
+
+  void on_release_high_performance() override;
+
+  // --- SendspinNetworkProvider override ---
+  bool is_network_ready() override;
+
+  // --- SendspinPersistenceProvider overrides ---
+  bool save_last_server_hash(uint32_t hash) override;
+  std::optional<uint32_t> load_last_server_hash() override;
+
+  ESPPreferenceObject last_played_server_pref_;
+
+  std::unique_ptr<sendspin::SendspinClient> client_;
+
+  // Callback fan-out to child components
+  CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
+
+  bool task_stack_in_psram_{false};
+};
+
+/// @brief Base class for all sendspin subcomponents.
+///
+/// Consolidates the Component + Parented<SendspinHub> inheritance and pins the setup
+/// priority so the hub's setup() always runs before any child. Subcomponents should
+/// inherit from this instead of listing Component/Parented individually and must not
+/// override get_setup_priority().
+class SendspinChild : public Component, public Parented<SendspinHub> {
+ public:
+  float get_setup_priority() const override { return sendspin_priority::CHILD; }
+};
+
+}  // namespace esphome::sendspin_
+
+#endif  // USE_ESP32

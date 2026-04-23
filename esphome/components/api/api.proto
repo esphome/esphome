@@ -2544,25 +2544,48 @@ message ListEntitiesInfraredResponse {
 message InfraredRFTransmitRawTimingsRequest {
   option (id) = 136;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_IR_RF";
+  option (ifdef) = "USE_IR_RF || USE_RADIO_FREQUENCY";
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
-  fixed32 key = 2 [(force) = true];                                       // Key identifying the transmitter instance
-  uint32 carrier_frequency = 3;                          // Carrier frequency in Hz
-  uint32 repeat_count = 4;                               // Number of times to transmit (1 = once, 2 = twice, etc.)
+  fixed32 key = 2 [(force) = true];     // Key identifying the transmitter instance
+  uint32 carrier_frequency = 3;         // Carrier frequency in Hz
+  uint32 repeat_count = 4;              // Number of times to transmit (1 = once, 2 = twice, etc.)
   repeated sint32 timings = 5 [packed = true, (packed_buffer) = true];  // Raw timings in microseconds (zigzag-encoded): positive = mark (LED/TX on), negative = space (LED/TX off)
+  uint32 modulation = 6;  // RadioFrequencyModulation enum value (0 = OOK; ignored for IR entities)
 }
 
 // Event message for received infrared/RF data
 message InfraredRFReceiveEvent {
   option (id) = 137;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_IR_RF";
+  option (ifdef) = "USE_IR_RF || USE_RADIO_FREQUENCY";
   option (no_delay) = true;
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
-  fixed32 key = 2 [(force) = true];                                    // Key identifying the receiver instance
+  fixed32 key = 2 [(force) = true];     // Key identifying the receiver instance
   repeated sint32 timings = 3 [packed = true, (container_pointer_no_template) = "std::vector<int32_t>"];  // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
+}
+
+// ==================== RADIO FREQUENCY ====================
+
+// Lists available radio frequency entity instances
+message ListEntitiesRadioFrequencyResponse {
+  option (id) = 148;
+  option (base_class) = "InfoResponseProtoMessage";
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_RADIO_FREQUENCY";
+
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
+  fixed32 key = 2 [(force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true];
+  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
+  bool disabled_by_default = 5;
+  EntityCategory entity_category = 6;
+  uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
+  uint32 capabilities = 8;           // Bitmask of RadioFrequencyCapabilityFlags: bit 0 = transmitter, bit 1 = receiver
+  uint32 frequency_min = 9;          // Minimum tunable frequency in Hz; if min == max (non-zero): fixed frequency; 0 = unspecified
+  uint32 frequency_max = 10;         // Maximum tunable frequency in Hz; 0 = unspecified
+  uint32 supported_modulations = 11; // Bitmask of supported RadioFrequencyModulation values (bit N = modulation N supported)
 }
 
 // ==================== SERIAL PROXY ====================
