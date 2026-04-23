@@ -35,9 +35,7 @@ class AudioHTTPMediaSource : public Component, public media_source::MediaSource,
   // MediaSource interface implementation
   bool play_uri(const std::string &uri) override;
   void handle_command(media_source::MediaSourceCommand command) override;
-  bool can_handle(const std::string &uri) const override {
-    return uri.starts_with("http://") || uri.starts_with("https://");
-  }
+  bool can_handle(const std::string &uri) const override;
 
   // DecoderListener interface implementation
   size_t on_audio_write(const uint8_t *data, size_t length, uint32_t timeout_ms) override;

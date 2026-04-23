@@ -23,6 +23,8 @@ static constexpr uint8_t DECODER_TASK_PRIORITY = 2;
 static constexpr size_t READER_TASK_STACK_SIZE = 4096;
 static constexpr size_t DECODER_TASK_STACK_SIZE = 5120;
 static constexpr uint32_t PAUSE_POLL_DELAY_MS = 20;
+static constexpr const char *const HTTP_URI_PREFIX = "http://";
+static constexpr const char *const HTTPS_URI_PREFIX = "https://";
 
 void AudioHTTPMediaSource::dump_config() {
   ESP_LOGCONFIG(TAG, "Audio HTTP Media Source:");
@@ -53,6 +55,10 @@ void AudioHTTPMediaSource::setup() {
 
 void AudioHTTPMediaSource::loop() { this->decoder_->loop(); }
 
+bool AudioHTTPMediaSource::can_handle(const std::string &uri) const {
+  return uri.starts_with(HTTP_URI_PREFIX) || uri.starts_with(HTTPS_URI_PREFIX);
+}
+
 // Called from the orchestrator's main loop, so no synchronization needed with loop()
 bool AudioHTTPMediaSource::play_uri(const std::string &uri) {
   if (!this->is_ready() || this->is_failed() || this->status_has_error() || !this->has_listener()) {
@@ -66,7 +72,7 @@ bool AudioHTTPMediaSource::play_uri(const std::string &uri) {
   }
 
   // Validate URI starts with "http://" or "https://"
-  if (!uri.starts_with("http://") && !uri.starts_with("https://")) {
+  if (!uri.starts_with(HTTP_URI_PREFIX) && !uri.starts_with(HTTPS_URI_PREFIX)) {
     ESP_LOGE(TAG, "Invalid URI: '%s'", uri.c_str());
     return false;
   }
