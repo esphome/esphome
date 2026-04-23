@@ -52,6 +52,12 @@ bool SendspinMediaSource::play_uri(const std::string &uri) {
   }
 
   std::string sendspin_id = uri.substr(11);  // "sendspin://" is 11 characters
+
+  if (sendspin_id.empty()) {
+    ESP_LOGE(TAG, "Invalid URI: '%s'", uri.c_str());
+    return false;
+  }
+
   ESP_LOGD(TAG, "sendspin_id: %s", sendspin_id.c_str());
 
   if (sendspin_id != "current") {
