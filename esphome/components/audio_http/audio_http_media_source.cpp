@@ -99,6 +99,11 @@ void AudioHTTPMediaSource::handle_command(media_source::MediaSourceCommand comma
       this->decoder_->stop();
       break;
     case media_source::MediaSourceCommand::PAUSE:
+      // Only valid while actively playing; ignoring from IDLE/ERROR/PAUSED prevents the state
+      // machine from getting stuck in PAUSED when no playback is active (which would block the
+      // next play_uri() call via its IDLE-state precondition).
+      if (this->get_state() != media_source::MediaSourceState::PLAYING)
+        break;
       // PAUSE does not stop the decoder task. Instead, on_audio_write() returns 0 and temporarily
       // yields, which fills the ring buffer and applies back pressure that effectively pauses both
       // the decoder and HTTP reader tasks.
@@ -106,6 +111,9 @@ void AudioHTTPMediaSource::handle_command(media_source::MediaSourceCommand comma
       this->pause_.store(true, std::memory_order_relaxed);
       break;
     case media_source::MediaSourceCommand::PLAY:
+      // Only resume from PAUSED; don't fabricate a PLAYING state from IDLE/ERROR.
+      if (this->get_state() != media_source::MediaSourceState::PAUSED)
+        break;
       this->set_state_(media_source::MediaSourceState::PLAYING);
       this->pause_.store(false, std::memory_order_relaxed);
       break;
