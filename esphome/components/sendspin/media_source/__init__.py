@@ -47,7 +47,6 @@ DisableStaticDelayAdjustmentAction = sendspin_ns.class_(
 
 
 def _register(config: ConfigType) -> ConfigType:
-    """Request roles and register player config with the hub."""
     request_controller_support()
     register_player_config(
         {
@@ -89,7 +88,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    """Generate code for sendspin media source."""
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await media_source.register_media_source(var, config)
