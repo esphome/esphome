@@ -534,13 +534,29 @@ void HOT Scheduler::process_defer_queue_slow_path_(uint32_t &now) {
 #endif /* not ESPHOME_THREAD_SINGLE */
 
 uint32_t HOT Scheduler::call(uint32_t now) {
+  // Snapshot the skip-work counters once up front so the gates below don't
+  // each re-lock on NO_ATOMICS. See snapshot_counters_ for per-platform cost.
+  uint32_t snap_add;
+  uint32_t snap_remove;
 #ifndef ESPHOME_THREAD_SINGLE
-  this->process_defer_queue_(now);
-#endif /* not ESPHOME_THREAD_SINGLE */
+  uint32_t snap_defer;
+  this->snapshot_counters_(snap_defer, snap_add, snap_remove);
+
+  if (snap_defer > 0) {
+    this->process_defer_queue_slow_path_(now);
+    // Defer callbacks may set_timeout/set_interval/cancel_*, mutating the
+    // other two counters. Re-snapshot.
+    this->snapshot_counters_(snap_defer, snap_add, snap_remove);
+  }
+#else
+  this->snapshot_counters_(snap_add, snap_remove);
+#endif
 
   // Extend the caller's 32-bit timestamp to 64-bit for scheduler operations
   const auto now_64 = this->millis_64_from_(now);
-  this->process_to_add();
+
+  if (snap_add > 0)
+    this->process_to_add_slow_path_();
 
   // Track if any items were added to to_add_ during callbacks
   bool has_added_items = false;
@@ -582,13 +598,9 @@ uint32_t HOT Scheduler::call(uint32_t now) {
   }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
-  // Cleanup removed items before processing
-  // First try to clean items from the top of the heap (fast path)
-  this->cleanup_();
-
-  // If we still have too many cancelled items, do a full cleanup
-  // This only happens if cancelled items are stuck in the middle/bottom of the heap
-  if (this->to_remove_count_() >= MAX_LOGICALLY_DELETED_ITEMS) {
+  // cleanup_slow_path_ returns the post-cleanup to_remove_ value (read
+  // under lock), so the MAX gate uses the fresh count for free.
+  if (snap_remove > 0 && this->cleanup_slow_path_() >= MAX_LOGICALLY_DELETED_ITEMS) {
     this->full_cleanup_removed_items_();
   }
   // IMPORTANT: This loop uses index-based access (items_[0]), NOT iterators.
@@ -723,7 +735,7 @@ void HOT Scheduler::process_to_add_slow_path_() {
   this->to_add_.clear();
   this->to_add_count_clear_();
 }
-bool HOT Scheduler::cleanup_slow_path_() {
+uint32_t HOT Scheduler::cleanup_slow_path_() {
   // We must hold the lock for the entire cleanup operation because:
   // 1. We're modifying items_ (via pop_raw_locked_) which requires exclusive access
   // 2. We're decrementing to_remove_ which is also modified by other threads
@@ -740,7 +752,7 @@ bool HOT Scheduler::cleanup_slow_path_() {
     this->to_remove_decrement_();
     this->recycle_item_main_loop_(this->pop_raw_locked_());
   }
-  return !this->items_.empty();
+  return this->to_remove_count_();
 }
 Scheduler::SchedulerItem *HOT Scheduler::pop_raw_locked_() {
   std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);

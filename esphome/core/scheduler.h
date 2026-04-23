@@ -312,10 +312,11 @@ class Scheduler {
   inline bool ESPHOME_ALWAYS_INLINE HOT cleanup_() {
     if (this->to_remove_empty_())
       return !this->items_.empty();
-    return this->cleanup_slow_path_();
+    this->cleanup_slow_path_();
+    return !this->items_.empty();
   }
-  // Slow path for cleanup_() when there are items to remove - defined in scheduler.cpp
-  bool cleanup_slow_path_();
+  // Slow path for cleanup_() - returns the post-cleanup to_remove_ count.
+  uint32_t cleanup_slow_path_();
   // Slow path for process_to_add() when there are items to merge - defined in scheduler.cpp
   void process_to_add_slow_path_();
   // Remove and return the front item from the heap as a raw pointer.
@@ -446,7 +447,29 @@ class Scheduler {
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
   // IMPORTANT: Must not be inlined - rare path, outlined to keep it out of the hot instruction cache lines.
   void __attribute__((noinline)) compact_defer_queue_locked_();
-#endif /* not ESPHOME_THREAD_SINGLE */
+
+  // Snapshot skip-work counters for Scheduler::call(). NO_ATOMICS: one lock
+  // for all three reads. ATOMICS: three relaxed loads, free.
+  inline void ESPHOME_ALWAYS_INLINE HOT snapshot_counters_(uint32_t &defer, uint32_t &add, uint32_t &remove) {
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+    LockGuard guard{this->lock_};
+    defer = this->defer_count_;
+    add = this->to_add_count_;
+    remove = this->to_remove_;
+#else /* ESPHOME_THREAD_MULTI_ATOMICS */
+    defer = this->defer_count_.load(std::memory_order_relaxed);
+    add = this->to_add_count_.load(std::memory_order_relaxed);
+    remove = this->to_remove_.load(std::memory_order_relaxed);
+#endif
+  }
+#else  /* ESPHOME_THREAD_SINGLE */
+  // SINGLE form — two direct reads, no defer queue. Lets call() use the
+  // same snap_add / snap_remove gates on every platform.
+  inline void ESPHOME_ALWAYS_INLINE HOT snapshot_counters_(uint32_t &add, uint32_t &remove) {
+    add = static_cast<uint32_t>(this->to_add_.size());
+    remove = this->to_remove_;
+  }
+#endif /* ESPHOME_THREAD_SINGLE */
 
   // Helper to check if item is marked for removal (platform-specific)
   // Returns true if item should be skipped, handles platform-specific synchronization
