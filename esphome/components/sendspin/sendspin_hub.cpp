@@ -40,6 +40,15 @@ void SendspinHub::setup() {
 
 void SendspinHub::loop() { this->client_->loop(); }
 
+void SendspinHub::dump_config() {
+  char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGCONFIG(TAG,
+                "Sendspin Hub:\n"
+                "  Client ID: %s\n"
+                "  Task stack in PSRAM: %s",
+                get_mac_address_pretty_into_buffer(mac_buf), YESNO(this->task_stack_in_psram_));
+}
+
 // --- Delegating methods ---
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)

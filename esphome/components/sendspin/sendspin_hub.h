@@ -57,6 +57,7 @@ class SendspinHub final : public Component,
   float get_setup_priority() const override { return sendspin_priority::HUB; }
   void setup() override;
   void loop() override;
+  void dump_config() override;
 
   /// @brief Connects the underlying client to the given Sendspin server.
   ///
