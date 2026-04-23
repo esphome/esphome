@@ -92,14 +92,14 @@ uint64_t Millis64Impl::compute(uint32_t now) {
 
     if (now < last && (last - now) > HALF_MAX_UINT32) {
       // True rollover detected (happens every ~49.7 days)
-      millis_major++;
+      __atomic_store_n(&millis_major, static_cast<uint16_t>(millis_major + 1), __ATOMIC_RELAXED);
       major++;
 #ifdef ESPHOME_DEBUG_SCHEDULER
       ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
     }
     // Update last_millis while holding lock
-    last_millis = now;
+    __atomic_store_n(&last_millis, now, __ATOMIC_RELAXED);
   } else if (now > last) {
     // Normal case: Not near rollover and time moved forward
     // Update without lock. While this may cause minor races (microseconds of
