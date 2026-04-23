@@ -242,8 +242,7 @@ def _discover_mac_suffix_devices() -> list[str] | None:
     if not (has_name_add_mac_suffix() and has_mdns() and has_non_ip_address()):
         return None
     _LOGGER.info("Discovering devices...")
-    discovered = discover_mdns_devices(CORE.name)
-    if not discovered:
+    if not (discovered := discover_mdns_devices(CORE.name)):
         _LOGGER.warning(
             "No devices matching '%s-<mac>.local' were discovered.", CORE.name
         )
@@ -260,8 +259,7 @@ def _ota_hostnames_for_default(purpose: Purpose) -> list[str]:
     caller should not fall back to the base name). Otherwise falls back to
     the cache-resolved ``CORE.address``.
     """
-    discovered = _discover_mac_suffix_devices()
-    if discovered is not None:
+    if (discovered := _discover_mac_suffix_devices()) is not None:
         return discovered
     return _resolve_with_cache(CORE.address, purpose)
 
@@ -345,8 +343,7 @@ def choose_upload_log_host(
 
     def add_ota_options() -> None:
         """Add OTA options, using mDNS discovery if name_add_mac_suffix is enabled."""
-        discovered = _discover_mac_suffix_devices()
-        if discovered is not None:
+        if (discovered := _discover_mac_suffix_devices()) is not None:
             # Discovery was applicable. Use whatever we found — on empty,
             # intentionally skip the base-name fallback since with
             # name_add_mac_suffix on, the base name doesn't exist on the net.
@@ -516,21 +513,20 @@ def _resolve_network_devices(
     network_devices: list[str] = []
     mqtt_resolved: bool = False
 
-    def _append_unique(addrs: list[str]) -> None:
-        for addr in addrs:
-            if addr not in network_devices:
-                network_devices.append(addr)
-
     for device in devices:
         port_type = get_port_type(device)
         if port_type in _MQTT_PORT_TYPES:
             # Only resolve MQTT once, even if multiple MQTT entries
             if not mqtt_resolved:
                 try:
-                    mqtt_ips = mqtt_get_ip(
-                        config, args.username, args.password, args.client_id
+                    mqtt_ips = list(
+                        mqtt_get_ip(
+                            config, args.username, args.password, args.client_id
+                        )
                     )
-                    _append_unique(mqtt_ips)
+                    network_devices.extend(
+                        addr for addr in mqtt_ips if addr not in network_devices
+                    )
                 except EsphomeError as err:
                     _LOGGER.warning(
                         "MQTT IP discovery failed (%s), will try other devices if available",
@@ -544,7 +540,9 @@ def _resolve_network_devices(
         # cached IPs so aioesphomeapi doesn't open its own Zeroconf to
         # re-resolve it.
         if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
-            _append_unique(cached)
+            network_devices.extend(
+                addr for addr in cached if addr not in network_devices
+            )
         elif device not in network_devices:
             network_devices.append(device)
 
