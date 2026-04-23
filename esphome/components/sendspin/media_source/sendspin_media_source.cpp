@@ -9,7 +9,7 @@
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin_media_source";
+static const char *const TAG = "sendspin.media_source";
 
 void SendspinMediaSource::setup() {
   this->player_role_ = this->parent_->get_player_role();
