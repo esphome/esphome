@@ -18,21 +18,26 @@
 
 #if __has_include(<psa/crypto.h>)
 #include <dsmr_parser/decryption/aes128gcm_tfpsa.h>
-using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmTfPsa;
 #elif __has_include(<mbedtls/gcm.h>)
 #if __has_include(<mbedtls/esp_config.h>)
 #include <mbedtls/esp_config.h>
 #endif
 #include <dsmr_parser/decryption/aes128gcm_mbedtls.h>
-using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmMbedTls;
 #elif __has_include(<bearssl/bearssl.h>)
 #include <dsmr_parser/decryption/aes128gcm_bearssl.h>
-using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmBearSsl;
 #else
 #error "The platform doesn't provide a compatible encryption library for dsmr_parser"
 #endif
 
 namespace esphome::dsmr {
+
+#if __has_include(<psa/crypto.h>)
+using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmTfPsa;
+#elif __has_include(<mbedtls/gcm.h>)
+using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmMbedTls;
+#else
+using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmBearSsl;
+#endif
 
 using namespace dsmr_parser::fields;
 

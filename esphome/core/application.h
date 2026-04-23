@@ -24,9 +24,6 @@
 #include "esphome/core/area.h"
 #endif
 
-#ifdef USE_LWIP_FAST_SELECT
-#include "esphome/core/lwip_fast_select.h"
-#endif
 #ifdef USE_RUNTIME_STATS
 #include "esphome/components/runtime_stats/runtime_stats.h"
 #endif
@@ -219,11 +216,19 @@ class Application {
   /// loops and scheduler items still feed after every op, so any op exceeding
   /// this threshold triggers a real feed naturally.
   /// Safety margins vs. platform watchdog timeouts:
-  ///   - ESP32 task WDT default (5 s): ~16x
-  ///   - ESP8266 soft WDT (~1.6 s):    ~5x  <-- floor case; any future change
-  ///                                             must keep comfortable margin here
-  ///   - ESP8266 HW WDT (~6 s):        ~20x
+  ///   - ESP32 task WDT default (5 s):  ~16x
+  ///   - ESP8266 soft WDT (~1.6 s):     ~5x  <-- floor case; any future change
+  ///                                              must keep comfortable margin here
+  ///   - ESP8266 HW WDT (~6 s):         ~20x
+  ///   - BK72xx HW WDT (10 s):          ~5x  <-- platform override below
+#ifdef USE_BK72XX
+  // BDK busy-waits 200us per WDT reload (sctrl_dpll_delay200us). LibreTiny
+  // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:
+  // https://github.com/libretiny-eu/framework-beken-bdk/blob/44800e7451ea30fbcbd3bb6e905315de59349fee/beken378/driver/wdt/wdt.c#L75-L87
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 2000;
+#else
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;
+#endif
 
   /// Feed the task watchdog. Cold entry — callers without a millis()
   /// timestamp in hand. Out of line to keep call sites tiny.
@@ -422,10 +427,6 @@ class Application {
   /// the feed_wdt_with_time hot path a couple of load+branch sequences.
   void service_status_led_slow_(uint32_t time);
 #endif
-
-  /// Sleep for up to delay_ms, returning early if a wake event arrives.
-  /// Thin wrapper over the platform wake primitive in wake.h.
-  inline void ESPHOME_ALWAYS_INLINE yield_with_select_(uint32_t delay_ms);
 
   // === Member variables ordered by size to minimize padding ===
 
@@ -664,18 +665,14 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
     const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
     delay_time = std::min(until_phase, until_sched);
   }
-  this->yield_with_select_(delay_time);
+  // All platforms route loop yields through the platform wake primitive.
+  // On host this drains the loopback wake socket via select(); on FreeRTOS
+  // targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
+  esphome::internal::wakeable_delay(delay_time);
 
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
   }
-}
-
-// All platforms route loop yields through the platform wake primitive.
-// On host this drains the loopback wake socket via select(); on FreeRTOS
-// targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
-inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
-  esphome::internal::wakeable_delay(delay_ms);
 }
 
 }  // namespace esphome

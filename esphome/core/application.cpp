@@ -12,9 +12,6 @@
 #include <esp_ota_ops.h>
 #include <esp_bootloader_desc.h>
 #endif
-#ifdef USE_LWIP_FAST_SELECT
-#include "esphome/core/lwip_fast_select.h"
-#endif  // USE_LWIP_FAST_SELECT
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
@@ -22,10 +19,6 @@
 
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
-#endif
-
-#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-#include "esphome/components/socket/socket.h"
 #endif
 
 namespace esphome {
@@ -366,7 +359,7 @@ void Application::teardown_components(uint32_t timeout_ms) {
 
     // Give some time for I/O operations if components are still pending
     if (pending_count > 0) {
-      this->yield_with_select_(1);
+      esphome::internal::wakeable_delay(1);
     }
 
     // Update time for next iteration
