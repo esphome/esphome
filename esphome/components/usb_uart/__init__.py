@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER,
     CONF_ID,
 )
+from esphome.core import CORE
 from esphome.cpp_types import Component
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
