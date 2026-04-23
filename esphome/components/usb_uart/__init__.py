@@ -1,12 +1,9 @@
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
-from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT
 from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
 from esphome.components.usb_host import (
-    CONF_MAX_PACKET_SIZE,
     DOMAIN as USB_HOST_DOMAIN,
-    USBClient,
-    USBHost,
+    CONF_MAX_PACKET_SIZE,
     register_usb_client,
     usb_device_schema,
 )
@@ -19,14 +16,13 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER,
     CONF_ID,
 )
-from esphome.core import CORE
+from esphome.cpp_types import Component
 
-CONF_USB_HOST_ID = "usb_host_id"
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
 
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
-USBUartComponent = usb_uart_ns.class_("USBUartComponent", USBClient)
+USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
 
 UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
@@ -46,7 +42,6 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
-CONF_DEBUG_ADD_UART_SETTINGS = "debug_add_uart_settings"
 
 
 class Type:
@@ -60,29 +55,17 @@ class Type:
         self.baud_rate_required = baud_rate_required
 
 
-def get_target_variant():
-    return CORE.data.get(KEY_ESP32, {}).get(KEY_VARIANT, "")
-
-
 uart_types = (
-    Type("FT23XX", 0x0403, 0x6010, "FT23XX", 4),
-    Type("CH934X", 0x1A86, 0x55D9, "CH934X", 8),
-    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
+    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 3),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
     Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
-    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 4),
+    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
 )
 
 
-def get_usb_mps() -> int:
-    usb_host_data = CORE.data.get(USB_HOST_DOMAIN, {})
-    return usb_host_data.get(CONF_MAX_PACKET_SIZE, 64)
-
-
-def channel_schema(max_channels, baud_rate_required, class_name):
-    available_channels = 7 if "P4" in get_target_variant() else 3
+def channel_schema(channels, baud_rate_required):
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
@@ -113,31 +96,27 @@ def channel_schema(max_channels, baud_rate_required, class_name):
                             cv.Optional(CONF_DEBUG, default=False): cv.boolean,
                             cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
                             cv.Optional(
-                                CONF_DEBUG_ADD_UART_SETTINGS, default=False
-                            ): cv.boolean,
-                            cv.Optional(
                                 CONF_FLUSH_TIMEOUT, default="100ms"
                             ): cv.positive_time_period_milliseconds,
                         }
                     )
                 ),
-                cv.Length(max=max_channels)
-                if class_name == "CH934X" or available_channels >= max_channels
-                else cv.Length(max=available_channels),
+                cv.Length(max=channels),
             )
         }
     )
 
 
+def get_usb_mps() -> int:
+    usb_host_data = CORE.data.get(USB_HOST_DOMAIN, {})
+    return usb_host_data.get(CONF_MAX_PACKET_SIZE, 64)
+
+
 CONFIG_SCHEMA = cv.ensure_list(
     cv.typed_schema(
         {
-            it.name: usb_device_schema(it.cls, it.vid, it.pid)
-            .extend(channel_schema(it.max_channels, it.baud_rate_required, it.cls))
-            .extend(
-                {
-                    cv.Optional(CONF_USB_HOST_ID): cv.use_id(USBHost),
-                }
+            it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
+                channel_schema(it.max_channels, it.baud_rate_required)
             )
             for it in uart_types
         },
@@ -160,14 +139,10 @@ async def to_code(config):
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
     for device in config:
-        parent = None
-        if CONF_USB_HOST_ID in device:
-            parent = await cg.get_variable(device[CONF_USB_HOST_ID])
-        var = await register_usb_client(device, parent=parent)
+        var = await register_usb_client(device)
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
-            cg.add(chvar.set_rx_buffer_size(channel[CONF_BUFFER_SIZE]))
             cg.add(chvar.set_stop_bits(channel[CONF_STOP_BITS]))
             cg.add(chvar.set_data_bits(channel[CONF_DATA_BITS]))
             cg.add(chvar.set_parity(channel[CONF_PARITY]))
@@ -177,13 +152,6 @@ async def to_code(config):
             cg.add(chvar.set_debug(channel[CONF_DEBUG]))
             if channel[CONF_DEBUG_PREFIX]:
                 cg.add(chvar.set_debug_prefix(channel[CONF_DEBUG_PREFIX]))
+            cg.add(var.add_channel(chvar))
             if channel[CONF_DEBUG]:
                 cg.add_define("USE_UART_DEBUGGER")
-                if channel[CONF_DEBUG_ADD_UART_SETTINGS]:
-                    cg.add(
-                        chvar.set_debug_add_settings(
-                            channel[CONF_DEBUG_ADD_UART_SETTINGS]
-                        )
-                    )
-                    cg.add_define("UART_DEBUGGER_ADD_SETTINGS")
-            cg.add(var.add_channel(chvar))
