@@ -61,7 +61,6 @@ uart_types = (
 
 
 def get_usb_mps() -> int:
-    """Get usb max packet size."""
     return CORE.data.get("usb_host", {}).get("max_packet_size", 64)
 
 

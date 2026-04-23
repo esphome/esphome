@@ -45,8 +45,8 @@ def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Sch
 
 
 def add_usb_mps(mps_value: int):
-    CORE.data.setdefault(DOMAIN, {}).setdefault(CONF_MAX_PACKET_SIZE, mps_value)
-
+    usb_mps = CORE.data.setdefault(DOMAIN, {})
+    usb_mps[CONF_MAX_PACKET_SIZE] = mps_value
 
 
 CONFIG_SCHEMA = cv.All(
