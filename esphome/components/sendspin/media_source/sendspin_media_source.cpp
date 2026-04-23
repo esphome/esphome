@@ -71,7 +71,7 @@ void SendspinMediaSource::handle_command(media_source::MediaSourceCommand comman
   switch (command) {
     case media_source::MediaSourceCommand::STOP: {
       if (!this->pending_start_) {
-        // Ignore stop comamnds if we have a pending start, since the orchestrator may send a stop command before
+        // Ignore stop commands if we have a pending start, since the orchestrator may send a stop command before
         // play_uri
         ESP_LOGD(TAG, "Received STOP command, updating Sendspin state to EXTERNAL_SOURCE");
         this->parent_->update_state(sendspin::SendspinClientState::EXTERNAL_SOURCE);

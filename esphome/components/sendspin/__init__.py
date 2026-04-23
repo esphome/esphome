@@ -21,18 +21,18 @@ CONF_INITIAL_STATIC_DELAY = "initial_static_delay"
 CONF_FIXED_DELAY = "fixed_delay"
 
 # sendspin-cpp library lives in the global `sendspin` namespace.
-sendspin_libray_ns = cg.esphome_ns.namespace("sendspin")
+sendspin_library_ns = cg.esphome_ns.namespace("sendspin")
 
 # Library Enums
-SendspinCodecFormat = sendspin_libray_ns.enum("SendspinCodecFormat", is_class=True)
+SendspinCodecFormat = sendspin_library_ns.enum("SendspinCodecFormat", is_class=True)
 CODEC_FORMAT_FLAC = SendspinCodecFormat.enum("FLAC")
 CODEC_FORMAT_OPUS = SendspinCodecFormat.enum("OPUS")
 CODEC_FORMAT_PCM = SendspinCodecFormat.enum("PCM")
 CODEC_FORMAT_UNSUPPORTED = SendspinCodecFormat.enum("UNSUPPORTED")
 
 # Library Structs
-AudioSupportedFormatObject = sendspin_libray_ns.struct("AudioSupportedFormatObject")
-PlayerRoleConfig = sendspin_libray_ns.struct("PlayerRoleConfig")
+AudioSupportedFormatObject = sendspin_library_ns.struct("AudioSupportedFormatObject")
+PlayerRoleConfig = sendspin_library_ns.struct("PlayerRoleConfig")
 
 # Trailing underscore avoids clashing with sendspin-cpp's global `sendspin` namespace.
 # Analysis tools strip the trailing underscore (same pattern as `template_`).
@@ -94,8 +94,13 @@ def request_visualizer_support() -> None:
 
 def register_player_config(config: ConfigType) -> None:
     """Register the player role config from the media source subcomponent."""
+    data = _get_data()
     request_player_support()
-    _get_data().player_config = config
+    if data.player_config is not None:
+        raise cv.Invalid(
+            "Only one sendspin media_source player configuration is supported"
+        )
+    data.player_config = config
 
 
 def _validate_task_stack_in_psram(value):

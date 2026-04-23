@@ -191,7 +191,7 @@ bool SendspinHub::save_static_delay(uint16_t delay_ms) {
 // THREAD CONTEXT: Main loop (SendspinPersistenceProvider override)
 std::optional<uint16_t> SendspinHub::load_static_delay() {
   StaticDelayPref pref{};
-  if (this->static_delay_pref_.load(&pref) && pref.delay_ms != 0) {
+  if (this->static_delay_pref_.load(&pref)) {
     ESP_LOGI(TAG, "Loaded static delay: %u ms", pref.delay_ms);
     return pref.delay_ms;
   }

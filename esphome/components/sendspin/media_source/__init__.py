@@ -102,7 +102,7 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(sendspin_hub.set_listener(var))
 
-    var.set_static_delay_adjustable(config[CONF_STATIC_DELAY_ADJUSTABLE])
+    cg.add(var.set_static_delay_adjustable(config[CONF_STATIC_DELAY_ADJUSTABLE]))
 
 
 SENDSPIN_MEDIA_SOURCE_ACTION_SCHEMA = automation.maybe_simple_id(
