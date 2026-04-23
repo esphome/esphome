@@ -13,8 +13,12 @@ from typing import Any
 
 from esphome.const import SOURCE_FILE_EXTENSIONS
 from esphome.core import CORE
-import esphome.core.config
 from esphome.types import ConfigType
+
+# `esphome.core.config` is imported lazily in `_lookup_module` when the
+# "esphome" pseudo-component is first resolved. It pulls in
+# `esphome.automation` and `esphome.config_validation`, which together
+# dominate `esphome.__main__` startup cost when loaded eagerly.
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -202,6 +206,13 @@ def _lookup_module(domain: str, exception: bool) -> ComponentManifest | None:
     if domain in _COMPONENT_CACHE:
         return _COMPONENT_CACHE[domain]
 
+    if domain == "esphome":
+        import esphome.core.config
+
+        manif = ComponentManifest(esphome.core.config)
+        _COMPONENT_CACHE[domain] = manif
+        return manif
+
     try:
         module = importlib.import_module(f"esphome.components.{domain}")
     except ImportError as e:
@@ -237,7 +248,6 @@ def get_platform(domain: str, platform: str) -> ComponentManifest | None:
 
 _COMPONENT_CACHE: dict[str, ComponentManifest] = {}
 CORE_COMPONENTS_PATH = (Path(__file__).parent / "components").resolve()
-_COMPONENT_CACHE["esphome"] = ComponentManifest(esphome.core.config)
 
 
 def _replace_component_manifest(domain: str, manifest: ComponentManifest) -> None:
