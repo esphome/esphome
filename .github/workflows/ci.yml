@@ -123,10 +123,6 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Install importtime-waterfall
-        run: |
-          . venv/bin/activate
-          pip install importtime-waterfall==1.0.0
       - name: Check import time against budget
         run: |
           . venv/bin/activate
