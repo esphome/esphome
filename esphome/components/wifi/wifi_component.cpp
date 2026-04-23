@@ -732,9 +732,16 @@ void WiFiComponent::restart_adapter() {
 }
 
 void WiFiComponent::loop() {
-  this->wifi_loop_();
+  bool events_processed = this->wifi_loop_();
   const uint32_t now = App.get_loop_component_start_time();
-  this->update_connected_state_();
+  // Connection state can only change when events are processed (ESP-IDF/LibreTiny)
+  // or polled (ESP8266/Pico W). Skip the expensive wifi_sta_connect_status_() call
+  // when no events arrived and we're already in steady state.
+  // Must also run when connected_ is false — after state transitions to STA_CONNECTED,
+  // connected_ won't be set until update_connected_state_() runs.
+  if (events_processed || !this->connected_) {
+    this->update_connected_state_();
+  }
 
   if (this->has_sta()) {
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
