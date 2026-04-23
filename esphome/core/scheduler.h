@@ -312,11 +312,10 @@ class Scheduler {
   inline bool ESPHOME_ALWAYS_INLINE HOT cleanup_() {
     if (this->to_remove_empty_())
       return !this->items_.empty();
-    this->cleanup_slow_path_();
-    return !this->items_.empty();
+    return this->cleanup_slow_path_();
   }
-  // Slow path for cleanup_() - returns the post-cleanup to_remove_ count.
-  uint32_t cleanup_slow_path_();
+  // Slow path for cleanup_() when there are items to remove - defined in scheduler.cpp
+  bool cleanup_slow_path_();
   // Slow path for process_to_add() when there are items to merge - defined in scheduler.cpp
   void process_to_add_slow_path_();
   // Remove and return the front item from the heap as a raw pointer.
