@@ -9,6 +9,7 @@ from esphome.components.esp32 import (
     only_on_variant,
 )
 import esphome.config_validation as cv
+from esphome.core import CORE
 from esphome.const import CONF_DEVICES, CONF_ID
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
