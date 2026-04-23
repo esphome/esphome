@@ -37,7 +37,6 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
-CONF_USB_HOST_DOMAIN = "usb_host"
 
 class Type:
     def __init__(self, name, vid, pid, cls, max_channels=1, baud_rate_required=True):
@@ -61,7 +60,7 @@ uart_types = (
 
 def get_usb_mps() -> int:
     """Get usb max packet size."""
-    return CORE.data.get(CONF_USB_HOST_DOMAIN, {}).get("max_packet_size", 64)
+    return CORE.data.get("usb_host", {}).get("max_packet_size", 64)
 
 def channel_schema(channels, baud_rate_required):
     return cv.Schema(
