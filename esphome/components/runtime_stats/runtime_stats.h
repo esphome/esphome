@@ -49,7 +49,8 @@ class RuntimeStatsCollector {
   // which captures per-iteration inter-component bookkeeping (set_current_component,
   // WarnIfComponentBlockingGuard construction/destruction, feed_wdt_with_time calls,
   // the for-loop itself).
-  void record_loop_active(uint32_t active_us, uint32_t before_us, uint32_t tail_us) {
+  void record_loop_active(uint32_t active_us, uint32_t before_us, uint32_t sched_us, uint32_t wdt_us,
+                          uint32_t tail_us) {
     this->period_active_count_++;
     this->period_active_time_us_ += active_us;
     if (active_us > this->period_active_max_us_)
@@ -61,6 +62,10 @@ class RuntimeStatsCollector {
 
     this->period_before_time_us_ += before_us;
     this->total_before_time_us_ += before_us;
+    this->period_before_sched_time_us_ += sched_us;
+    this->total_before_sched_time_us_ += sched_us;
+    this->period_before_wdt_time_us_ += wdt_us;
+    this->total_before_wdt_time_us_ += wdt_us;
     this->period_tail_time_us_ += tail_us;
     this->total_tail_time_us_ += tail_us;
   }
@@ -88,6 +93,11 @@ class RuntimeStatsCollector {
   // Split of overhead sections — accumulated per iteration.
   uint64_t period_before_time_us_{0};
   uint64_t total_before_time_us_{0};
+  // Sub-split of `before` into scheduler_tick_ vs. post-scheduler feed_wdt_with_time.
+  uint64_t period_before_sched_time_us_{0};
+  uint64_t total_before_sched_time_us_{0};
+  uint64_t period_before_wdt_time_us_{0};
+  uint64_t total_before_wdt_time_us_{0};
   uint64_t period_tail_time_us_{0};
   uint64_t total_tail_time_us_{0};
 };

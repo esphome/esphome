@@ -81,6 +81,19 @@ void RuntimeStatsCollector::log_stats_() {
     ESP_LOGI(TAG, "  main_loop_overhead_section: before=%.1fms, tail=%.1fms, inter_component=%.1fms",
              static_cast<double>(before) / 1000.0, static_cast<double>(tail) / 1000.0,
              static_cast<double>(inter) / 1000.0);
+    uint64_t sched = this->period_before_sched_time_us_;
+    uint64_t wdt = this->period_before_wdt_time_us_;
+    uint64_t before_residual = before > sched + wdt ? before - sched - wdt : 0;
+    ESP_LOGI(TAG, "  main_loop_before_breakdown: sched=%.1fms, wdt=%.1fms, residual=%.1fms",
+             static_cast<double>(sched) / 1000.0, static_cast<double>(wdt) / 1000.0,
+             static_cast<double>(before_residual) / 1000.0);
+    uint32_t wdt_slow_hits = App.wdt_slow_count_;
+    App.wdt_slow_count_ = 0;
+    ESP_LOGI(TAG, "  wdt_slow_path: hits=%" PRIu32 " (%.1f%% of iters, avg=%.2fus/hit)", wdt_slow_hits,
+             this->period_active_count_ > 0
+                 ? 100.0 * static_cast<double>(wdt_slow_hits) / static_cast<double>(this->period_active_count_)
+                 : 0.0,
+             wdt_slow_hits > 0 ? static_cast<double>(wdt) / static_cast<double>(wdt_slow_hits) : 0.0);
   }
 
   // Log total stats since boot (only for active components - idle ones haven't changed)
@@ -116,6 +129,12 @@ void RuntimeStatsCollector::log_stats_() {
     ESP_LOGI(TAG, "  main_loop_overhead_section: before=%.1fms, tail=%.1fms, inter_component=%.1fms",
              static_cast<double>(before) / 1000.0, static_cast<double>(tail) / 1000.0,
              static_cast<double>(inter) / 1000.0);
+    uint64_t sched = this->total_before_sched_time_us_;
+    uint64_t wdt = this->total_before_wdt_time_us_;
+    uint64_t before_residual = before > sched + wdt ? before - sched - wdt : 0;
+    ESP_LOGI(TAG, "  main_loop_before_breakdown: sched=%.1fms, wdt=%.1fms, residual=%.1fms",
+             static_cast<double>(sched) / 1000.0, static_cast<double>(wdt) / 1000.0,
+             static_cast<double>(before_residual) / 1000.0);
   }
 
   // Reset period stats
@@ -126,6 +145,8 @@ void RuntimeStatsCollector::log_stats_() {
   this->period_active_time_us_ = 0;
   this->period_active_max_us_ = 0;
   this->period_before_time_us_ = 0;
+  this->period_before_sched_time_us_ = 0;
+  this->period_before_wdt_time_us_ = 0;
   this->period_tail_time_us_ = 0;
 }
 

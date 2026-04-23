@@ -210,6 +210,9 @@ void HOT Application::feed_wdt_slow_(uint32_t time) {
   // confirmed the WDT_FEED_INTERVAL_MS rate limit was exceeded.
   arch_feed_wdt();
   this->last_wdt_feed_ = time;
+#ifdef USE_RUNTIME_STATS
+  this->wdt_slow_count_++;
+#endif
 }
 
 #ifdef USE_STATUS_LED
