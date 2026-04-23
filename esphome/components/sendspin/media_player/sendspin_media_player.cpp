@@ -72,6 +72,10 @@ media_player::MediaPlayerTraits SendspinMediaPlayer::get_traits() {
       media_player::MediaPlayerEntityFeature::STOP | media_player::MediaPlayerEntityFeature::VOLUME_STEP |
       media_player::MediaPlayerEntityFeature::VOLUME_SET | media_player::MediaPlayerEntityFeature::VOLUME_MUTE);
 
+  // NEXT_TRACK, PREVIOUS_TRACK, SHUFFLE_SET, and REPEAT_SET are intentionally not advertised: the ESPHome native API
+  // does not implement the corresponding media player commands, so Home Assistant cannot actually send them even if
+  // we expose the capability. They remain accessible via ESPHome YAML automations.
+
   return traits;
 }
 
