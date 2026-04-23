@@ -23,8 +23,7 @@ def _request_micro_decoder(config: ConfigType) -> ConfigType:
 def _validate_task_stack_in_psram(value: Any) -> bool:
     # Only require the psram component when actually enabling PSRAM stacks; validating
     # the boolean first means `false` doesn't trigger the requires_component check.
-    value = cv.boolean(value)
-    if value:
+    if value := cv.boolean(value):
         return cv.requires_component(psram.DOMAIN)(value)
     return value
 
