@@ -226,11 +226,13 @@ class Application {
   ///   - BK72xx HW WDT (10 s):          ~5x  <-- platform override below
 #ifdef USE_BK72XX
   /// BK72xx silicon requires a ~200 µs busy-wait between two watchdog register
-  /// key writes on every reload (sctrl_dpll_delay200us() in BDK wdt.c), making
-  /// each arch_feed_wdt() ~300 µs. LibreTiny initialises the HW WDT at 10 s,
-  /// so 2000 ms keeps a 5x safety margin — matching the ESP8266 ratio that
-  /// motivated the generic 300 ms value — while cutting feed frequency ~6x
-  /// and recovering ~50 ms/min of main-loop overhead on typical configs.
+  /// key writes on every reload, making each arch_feed_wdt() ~300 µs. The
+  /// sctrl_dpll_delay200us() call lives in BDK's wdt_ctrl (WCMD_RELOAD_PERIOD):
+  /// https://github.com/libretiny-eu/framework-beken-bdk/blob/44800e7451ea30fbcbd3bb6e905315de59349fee/beken378/driver/wdt/wdt.c#L75-L87
+  /// LibreTiny initialises the HW WDT at 10 s, so 2000 ms keeps a 5x safety
+  /// margin — matching the ESP8266 ratio that motivated the generic 300 ms
+  /// value — while cutting feed frequency ~6x and recovering ~50 ms/min of
+  /// main-loop overhead on typical configs.
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 2000;
 #else
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;
@@ -474,6 +476,11 @@ class Application {
   // millis() of most recent status_led dispatch; rate-limits independently of last_wdt_feed_
   uint32_t last_status_led_service_{0};
 #endif
+#ifdef USE_RUNTIME_STATS
+  // Count of feed_wdt_slow_() invocations since last runtime_stats log. Lets
+  // stats output report how often the slow path (arch_feed_wdt) actually runs.
+  uint32_t wdt_slow_count_{0};
+#endif
 
   // 2-byte members (grouped together for alignment)
   uint16_t dump_config_at_{std::numeric_limits<uint16_t>::max()};  // Index into components_ for dump_config progress
@@ -572,6 +579,12 @@ inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::l
   // so the gate check and WDT feed both reflect actual elapsed time after
   // scheduler dispatch, without an extra millis() call.
   uint32_t now = this->scheduler_tick_(MillisInternal::get());
+#ifdef USE_RUNTIME_STATS
+  // Capture immediately after scheduler_tick_ returns so the post-scheduler
+  // feed_wdt_with_time slice can be separated from the scheduler slice in
+  // the `before` bucket.
+  uint32_t loop_after_sched_us = micros();
+#endif
   // Guarantee one WDT feed per tick even when the scheduler had nothing to
   // dispatch and the component phase is gated out — covers configs with no
   // looping components and no scheduler work (setup() has its own
@@ -643,10 +656,22 @@ inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::l
     uint32_t loop_before_overhead_us = loop_before_wall_us > loop_before_scheduled_us
                                            ? loop_before_wall_us - static_cast<uint32_t>(loop_before_scheduled_us)
                                            : 0;
+    // Sub-split of the `before` bucket. `sched_us` covers MillisInternal::get()
+    // plus scheduler_tick_ (everything before the post-scheduler feed_wdt_with_time),
+    // with scheduled-component time subtracted out so it reflects scheduler
+    // infrastructure overhead only. `wdt_us` covers the post-scheduler
+    // feed_wdt_with_time() call (including any status_led dispatch when the
+    // STATUS_LED_DISPATCH_INTERVAL_MS gate also elapses on the same call).
+    uint32_t loop_before_sched_wall_us = loop_after_sched_us - loop_active_start_us;
+    uint32_t loop_before_sched_us = loop_before_sched_wall_us > loop_before_scheduled_us
+                                        ? loop_before_sched_wall_us - static_cast<uint32_t>(loop_before_scheduled_us)
+                                        : 0;
+    uint32_t loop_before_wdt_us = loop_before_end_us - loop_after_sched_us;
     // tail_us is only defined when Phase B ran; 0 on Phase A-only ticks so the
     // stats bucket keeps its "component-phase trailing overhead" meaning.
     uint32_t loop_tail_us = do_component_phase ? (loop_now_us - loop_tail_start_us) : 0;
-    global_runtime_stats->record_loop_active(loop_now_us - loop_active_start_us, loop_before_overhead_us, loop_tail_us);
+    global_runtime_stats->record_loop_active(loop_now_us - loop_active_start_us, loop_before_overhead_us,
+                                             loop_before_sched_us, loop_before_wdt_us, loop_tail_us);
     global_runtime_stats->process_pending_stats(now);
   }
 #endif
