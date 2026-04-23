@@ -29,7 +29,6 @@ def _request_roles(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(
     media_player.media_player_schema(SendspinMediaPlayer).extend(
         {
-            cv.GenerateID(): cv.declare_id(SendspinMediaPlayer),
             cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub),
             cv.Optional(CONF_VOLUME_INCREMENT, default=5): cv.int_range(min=1, max=50),
         }

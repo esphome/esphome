@@ -25,7 +25,6 @@ class SendspinMediaPlayer : public SendspinChild, public media_player::MediaPlay
   void control(const media_player::MediaPlayerCall &call) override;
 
   uint8_t volume_increment_{5};
-  bool force_publish_state_{false};
   bool muted_{false};
 };
 
