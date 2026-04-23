@@ -303,7 +303,7 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
 // Connect state listener notifications are deferred until after the state machine
 // transitions (in check_connecting_finished) so that conditions like wifi.connected
 // return correct values in automations.
-void WiFiComponent::wifi_loop_() {
+bool WiFiComponent::wifi_loop_() {
   // Handle scan completion
   if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
     this->scan_done_ = true;
@@ -365,6 +365,7 @@ void WiFiComponent::wifi_loop_() {
 #endif
     }
   }
+  return true;
 }
 
 void WiFiComponent::wifi_pre_setup_() {}

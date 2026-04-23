@@ -223,7 +223,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_water_heater_command_request(const WaterHeaterCommandRequest &msg);
 #endif
 
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
   void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg);
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
 #endif
@@ -611,6 +611,9 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
 #ifdef USE_INFRARED
   static uint16_t try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  static uint16_t try_send_radio_frequency_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
 #ifdef USE_EVENT
   static uint16_t try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,

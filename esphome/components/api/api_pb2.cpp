@@ -3861,7 +3861,7 @@ uint32_t ListEntitiesInfraredResponse::calculate_size() const {
   return size;
 }
 #endif
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 bool InfraredRFTransmitRawTimingsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
 #ifdef USE_DEVICES
@@ -3874,6 +3874,9 @@ bool InfraredRFTransmitRawTimingsRequest::decode_varint(uint32_t field_id, proto
       break;
     case 4:
       this->repeat_count = value;
+      break;
+    case 6:
+      this->modulation = value;
       break;
     default:
       return false;
@@ -3925,6 +3928,46 @@ uint32_t InfraredRFReceiveEvent::calculate_size() const {
       size += ProtoSize::calc_sint32_force(1, it);
     }
   }
+  return size;
+}
+#endif
+#ifdef USE_RADIO_FREQUENCY
+uint8_t *ListEntitiesRadioFrequencyResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
+  ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
+#ifdef USE_ENTITY_ICON
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->icon);
+#endif
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->disabled_by_default);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, static_cast<uint32_t>(this->entity_category));
+#ifdef USE_DEVICES
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, this->device_id);
+#endif
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 8, this->capabilities);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, this->frequency_min);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, this->frequency_max);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, this->supported_modulations);
+  return pos;
+}
+uint32_t ListEntitiesRadioFrequencyResponse::calculate_size() const {
+  uint32_t size = 0;
+  size += 2 + this->object_id.size();
+  size += 5;
+  size += 2 + this->name.size();
+#ifdef USE_ENTITY_ICON
+  size += !this->icon.empty() ? 2 + this->icon.size() : 0;
+#endif
+  size += ProtoSize::calc_bool(1, this->disabled_by_default);
+  size += this->entity_category ? 2 : 0;
+#ifdef USE_DEVICES
+  size += ProtoSize::calc_uint32(1, this->device_id);
+#endif
+  size += ProtoSize::calc_uint32(1, this->capabilities);
+  size += ProtoSize::calc_uint32(1, this->frequency_min);
+  size += ProtoSize::calc_uint32(1, this->frequency_max);
+  size += ProtoSize::calc_uint32(1, this->supported_modulations);
   return size;
 }
 #endif
