@@ -50,6 +50,11 @@ void AudioHTTPMediaSource::setup() {
   config.decoder_stack_in_psram = this->decoder_task_stack_in_psram_;
 
   this->decoder_ = std::make_unique<micro_decoder::DecoderSource>(config);
+  if (this->decoder_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate decoder");
+    this->mark_failed();
+    return;
+  }
   this->decoder_->set_listener(this);  // We inherit from micro_decoder::DecoderListener
 }
 
