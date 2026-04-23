@@ -4,19 +4,22 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 import logging
-import time
 
 from zeroconf import (
     AddressResolver,
     IPVersion,
-    ServiceBrowser,
     ServiceInfo,
     ServiceStateChange,
     Zeroconf,
 )
 from zeroconf.asyncio import AsyncServiceBrowser, AsyncServiceInfo, AsyncZeroconf
 
+from esphome.async_thread import AsyncThreadRunner
 from esphome.storage_json import StorageJSON, ext_storage_path
+
+# Length of the MAC suffix appended when name_add_mac_suffix is enabled.
+MAC_SUFFIX_LEN = 6
+_HEX_CHARS = frozenset("0123456789abcdef")
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -204,21 +207,36 @@ class AsyncEsphomeZeroconf(AsyncZeroconf):
         return None
 
 
-def discover_mdns_devices(base_name: str, timeout: float = 5.0) -> list[str]:
-    """Discover ESPHome devices via mDNS that match the base name pattern.
+def _is_mac_suffix_match(device_name: str, prefix: str) -> bool:
+    """Return True if ``device_name`` is ``prefix`` followed by a 6-char hex MAC."""
+    if not device_name.startswith(prefix):
+        return False
+    suffix = device_name[len(prefix) :]
+    return len(suffix) == MAC_SUFFIX_LEN and all(c in _HEX_CHARS for c in suffix)
 
-    When name_add_mac_suffix is enabled, devices advertise as <base_name>-<mac>.local.
-    This function discovers all such devices on the network.
+
+async def async_discover_mdns_devices(
+    base_name: str, timeout: float = 5.0
+) -> dict[str, list[str]]:
+    """Discover ESPHome devices via mDNS that match the base name + MAC suffix.
+
+    When ``name_add_mac_suffix`` is enabled, devices advertise as
+    ``<base_name>-<6-hex-mac>.local``. This function uses a single
+    ``AsyncEsphomeZeroconf`` lifecycle to both browse for matching services and
+    resolve their IP addresses, so callers get resolved addresses without
+    opening a second Zeroconf client.
 
     Args:
-        base_name: The base device name (without MAC suffix)
-        timeout: How long to wait for mDNS responses (default 5 seconds)
+        base_name: The base device name (without MAC suffix).
+        timeout: How long to wait for mDNS responses (default 5 seconds).
 
     Returns:
-        List of discovered device addresses (e.g., ['device-abc123.local'])
+        Mapping of ``<device>.local`` hostnames to their resolved IP addresses
+        (may be empty for a device if resolution failed within the timeout).
     """
-    discovered: list[str] = []
     prefix = f"{base_name}-"
+    # Preserves insertion order for stable output and deduplicates
+    discovered: dict[str, list[str]] = {}
 
     def on_service_state_change(
         zeroconf: Zeroconf,
@@ -226,29 +244,97 @@ def discover_mdns_devices(base_name: str, timeout: float = 5.0) -> list[str]:
         name: str,
         state_change: ServiceStateChange,
     ) -> None:
-        if state_change in (ServiceStateChange.Added, ServiceStateChange.Updated):
-            # Extract device name from service name (removes service type suffix)
-            device_name = name.partition(".")[0]
-            # Check if this device matches our base name pattern
-            if device_name.startswith(prefix) and device_name not in discovered:
-                discovered.append(device_name)
+        if state_change not in (ServiceStateChange.Added, ServiceStateChange.Updated):
+            return
+        device_name = name.partition(".")[0]
+        if not _is_mac_suffix_match(device_name, prefix):
+            _LOGGER.debug(
+                "Ignoring %s (%s): does not match '%s<6-hex>'",
+                device_name,
+                state_change.name,
+                prefix,
+            )
+            return
+        host = f"{device_name}.local"
+        if host in discovered:
+            return
+        discovered[host] = []
+        _LOGGER.debug("Discovered %s (%s)", host, state_change.name)
 
+    _LOGGER.debug(
+        "Starting mDNS discovery for '%s<mac>.local' (timeout=%.1fs)",
+        prefix,
+        timeout,
+    )
     try:
-        zc = Zeroconf()
-    except OSError as err:
+        aiozc = AsyncEsphomeZeroconf()
+    except Exception as err:  # pylint: disable=broad-except
+        # Zeroconf init can raise OSError, NonUniqueNameException, etc.
+        # Any failure here just means we can't discover — log and move on.
         _LOGGER.warning("mDNS discovery failed to initialize: %s", err)
-        return []
+        return {}
 
-    browser: ServiceBrowser | None = None
     try:
-        browser = ServiceBrowser(
-            zc, ESPHOME_SERVICE_TYPE, handlers=[on_service_state_change]
+        browser = AsyncServiceBrowser(
+            aiozc.zeroconf,
+            ESPHOME_SERVICE_TYPE,
+            handlers=[on_service_state_change],
         )
-        # Wait for discovery
-        time.sleep(timeout)
-    finally:
-        if browser is not None:
-            browser.cancel()
-        zc.close()
+        try:
+            await asyncio.sleep(timeout)
+        finally:
+            await browser.async_cancel()
+        _LOGGER.debug(
+            "Browse finished: %d device(s) matched '%s<mac>'",
+            len(discovered),
+            prefix,
+        )
 
-    return [f"{name}.local" for name in sorted(discovered)]
+        # Resolve each discovered hostname on the SAME Zeroconf instance so we
+        # don't spin up a second client. Records are typically already cached
+        # from the service browse, so resolution is effectively free.
+        for host in list(discovered):
+            try:
+                addresses = await aiozc.async_resolve_host(host, timeout=1.0)
+            except Exception as err:  # pylint: disable=broad-except
+                # Per-host resolution failure shouldn't abort the whole discovery.
+                _LOGGER.debug("Failed to resolve %s: %s", host, err)
+                continue
+            if addresses:
+                discovered[host] = addresses
+                _LOGGER.debug("Resolved %s -> %s", host, addresses)
+            else:
+                _LOGGER.debug("No addresses returned for %s", host)
+    finally:
+        await aiozc.async_close()
+
+    return dict(sorted(discovered.items()))
+
+
+def _await_discovery(
+    runner: AsyncThreadRunner[dict[str, list[str]]], timeout: float
+) -> dict[str, list[str]]:
+    """Wait for ``runner`` to finish and return its discovery result.
+
+    Split out of :func:`discover_mdns_devices` so the timeout branch is
+    testable without patching ``asyncio`` or ``threading`` internals — a test
+    passes a stub whose ``event.wait`` returns ``False``.
+    """
+    # Give the discovery an extra second over the browse timeout for the
+    # resolution + cleanup pass.
+    if not runner.event.wait(timeout=timeout + 2.0):
+        _LOGGER.warning("mDNS discovery timed out after %.1fs", timeout)
+        return {}
+    if runner.exception is not None:
+        _LOGGER.warning("mDNS discovery failed: %s", runner.exception)
+        return {}
+    return runner.result or {}
+
+
+def discover_mdns_devices(base_name: str, timeout: float = 5.0) -> dict[str, list[str]]:
+    """Synchronous wrapper around :func:`async_discover_mdns_devices`."""
+    runner = AsyncThreadRunner(
+        lambda: async_discover_mdns_devices(base_name, timeout=timeout)
+    )
+    runner.start()
+    return _await_discovery(runner, timeout)

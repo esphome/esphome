@@ -206,6 +206,23 @@ def _resolve_with_cache(address: str, purpose: Purpose) -> list[str]:
     return [address]
 
 
+def _populate_mdns_cache(hosts_to_addresses: dict[str, list[str]]) -> None:
+    """Store discovered ``host -> [ips]`` entries in ``CORE.address_cache``.
+
+    Ensures ``CORE.address_cache`` exists, then records each mDNS hostname so
+    the downstream resolution path (``resolve_ip_address``) can skip opening a
+    second Zeroconf client.
+    """
+    from esphome.address_cache import AddressCache
+
+    if CORE.address_cache is None:
+        CORE.address_cache = AddressCache()
+    for host, addresses in hosts_to_addresses.items():
+        if addresses:
+            _LOGGER.debug("Caching mDNS result %s -> %s", host, addresses)
+        CORE.address_cache.add_mdns_addresses(host, addresses)
+
+
 def choose_upload_log_host(
     default: list[str] | str | None,
     check_default: str | None,
@@ -286,15 +303,24 @@ def choose_upload_log_host(
     def add_ota_options() -> None:
         """Add OTA options, using mDNS discovery if name_add_mac_suffix is enabled."""
         if has_name_add_mac_suffix() and has_mdns() and has_non_ip_address():
-            # Discover devices via mDNS when name_add_mac_suffix is enabled
-            safe_print("Discovering devices...")
+            # Discover devices via mDNS when name_add_mac_suffix is enabled. The
+            # discovery call uses a single Zeroconf lifecycle for both the
+            # service browse and the subsequent address resolution, and we
+            # stash the results in CORE.address_cache so downstream resolution
+            # (OTA/API client) doesn't need to open a second Zeroconf.
+            _LOGGER.info("Discovering devices...")
             discovered = discover_mdns_devices(CORE.name)
-            for device_addr in discovered:
-                options.append((f"Over The Air ({device_addr})", device_addr))
-            if not discovered and has_resolvable_address():
-                # No devices found, show base address as fallback
-                options.append(
-                    (f"Over The Air ({CORE.address}) (no devices found)", CORE.address)
+            if discovered:
+                _populate_mdns_cache(discovered)
+                for host in discovered:
+                    options.append((f"Over The Air ({host})", host))
+            elif has_resolvable_address():
+                # Nothing answered to our browse; the base name without the
+                # MAC suffix won't resolve either, so skip the OTA option
+                # entirely and let the user re-run once the device is online.
+                _LOGGER.warning(
+                    "No devices matching '%s-<mac>.local' were discovered.",
+                    CORE.name,
                 )
         elif has_resolvable_address():
             options.append((f"Over The Air ({CORE.address})", CORE.address))
@@ -442,6 +468,9 @@ def _resolve_network_devices(
 
     This function filters the devices list to:
     - Replace MQTT/MQTTIP magic strings with actual IP addresses via MQTT lookup
+    - Expand hostnames that are already in ``CORE.address_cache`` to their
+      cached IPs so downstream code (e.g. aioesphomeapi) doesn't open a second
+      Zeroconf client to resolve them
     - Deduplicate addresses while preserving order
     - Only resolve MQTT once even if multiple MQTT strings are present
     - If MQTT resolution fails, log a warning and continue with other devices
@@ -457,6 +486,11 @@ def _resolve_network_devices(
     network_devices: list[str] = []
     mqtt_resolved: bool = False
 
+    def _append_unique(addrs: list[str]) -> None:
+        for addr in addrs:
+            if addr not in network_devices:
+                network_devices.append(addr)
+
     for device in devices:
         port_type = get_port_type(device)
         if port_type in _MQTT_PORT_TYPES:
@@ -466,15 +500,22 @@ def _resolve_network_devices(
                     mqtt_ips = mqtt_get_ip(
                         config, args.username, args.password, args.client_id
                     )
-                    network_devices.extend(mqtt_ips)
+                    _append_unique(mqtt_ips)
                 except EsphomeError as err:
                     _LOGGER.warning(
                         "MQTT IP discovery failed (%s), will try other devices if available",
                         err,
                     )
                 mqtt_resolved = True
+            continue
+
+        # Regular network address or IP. If the hostname is already in the
+        # address cache (e.g. populated by mDNS discovery), substitute the
+        # cached IPs so aioesphomeapi doesn't open its own Zeroconf to
+        # re-resolve it.
+        if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
+            _append_unique(cached)
         elif device not in network_devices:
-            # Regular network address or IP - add if not already present
             network_devices.append(device)
 
     return network_devices
