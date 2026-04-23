@@ -2239,6 +2239,7 @@ async def Toto_action(var, config, args):
         template_ = await cg.templatable(36000, args, cg.uint32)
         cg.add(var.set_send_wait(template_))
 
+
 # Intertechno
 (
     IntertechnoData,
@@ -2281,4 +2282,3 @@ def intertechno_dumper(var, config):
 async def intertechno_action(var, config, args):
     template_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
     cg.add(var.set_code(template_))
-
