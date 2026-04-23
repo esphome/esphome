@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_MQTT_ID,
     CONF_ON_LOCK,
     CONF_ON_UNLOCK,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -31,15 +30,16 @@ OpenAction = lock_ns.class_("OpenAction", automation.Action)
 LockPublishAction = lock_ns.class_("LockPublishAction", automation.Action)
 
 LockCondition = lock_ns.class_("LockCondition", Condition)
-LockLockTrigger = lock_ns.class_("LockLockTrigger", automation.Trigger.template())
-LockUnlockTrigger = lock_ns.class_("LockUnlockTrigger", automation.Trigger.template())
+LockStateForwarder = lock_ns.class_("LockStateForwarder")
 
 LockState = lock_ns.enum("LockState")
 
 LOCK_STATES = {
+    "OPEN": LockState.LOCK_STATE_OPEN,
     "LOCKED": LockState.LOCK_STATE_LOCKED,
     "UNLOCKED": LockState.LOCK_STATE_UNLOCKED,
     "JAMMED": LockState.LOCK_STATE_JAMMED,
+    "OPENING": LockState.LOCK_STATE_OPENING,
     "LOCKING": LockState.LOCK_STATE_LOCKING,
     "UNLOCKING": LockState.LOCK_STATE_UNLOCKING,
 }
@@ -52,16 +52,8 @@ _LOCK_SCHEMA = (
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTLockComponent),
-            cv.Optional(CONF_ON_LOCK): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LockLockTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_UNLOCK): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LockUnlockTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_LOCK): automation.validate_automation({}),
+            cv.Optional(CONF_ON_UNLOCK): automation.validate_automation({}),
         }
     )
 )
@@ -91,14 +83,23 @@ def lock_schema(
     return _LOCK_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_LOCK,
+        "add_on_state_callback",
+        forwarder=LockStateForwarder.template(LockState.LOCK_STATE_LOCKED),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_UNLOCK,
+        "add_on_state_callback",
+        forwarder=LockStateForwarder.template(LockState.LOCK_STATE_UNLOCKED),
+    ),
+)
+
+
 @setup_entity("lock")
 async def _setup_lock_core(var, config):
-    for conf in config.get(CONF_ON_LOCK, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_UNLOCK, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     if mqtt_id := config.get(CONF_MQTT_ID):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -129,9 +130,15 @@ LOCK_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("lock.unlock", UnlockAction, LOCK_ACTION_SCHEMA)
-@automation.register_action("lock.lock", LockAction, LOCK_ACTION_SCHEMA)
-@automation.register_action("lock.open", OpenAction, LOCK_ACTION_SCHEMA)
+@automation.register_action(
+    "lock.unlock", UnlockAction, LOCK_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "lock.lock", LockAction, LOCK_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "lock.open", OpenAction, LOCK_ACTION_SCHEMA, synchronous=True
+)
 async def lock_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

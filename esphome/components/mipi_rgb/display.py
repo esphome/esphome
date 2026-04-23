@@ -194,8 +194,12 @@ def model_schema(config):
                 CONF_DE_PIN, cv.UNDEFINED
             ): pins.internal_gpio_output_pin_schema,
             model.option(CONF_PCLK_PIN): pins.internal_gpio_output_pin_schema,
-            model.option(CONF_HSYNC_PIN): pins.internal_gpio_output_pin_schema,
-            model.option(CONF_VSYNC_PIN): pins.internal_gpio_output_pin_schema,
+            model.option(
+                CONF_HSYNC_PIN, cv.UNDEFINED
+            ): pins.internal_gpio_output_pin_schema,
+            model.option(
+                CONF_VSYNC_PIN, cv.UNDEFINED
+            ): pins.internal_gpio_output_pin_schema,
             model.option(CONF_RESET_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
         }
     )
@@ -261,9 +265,8 @@ async def to_code(config):
 
     if CONF_SPI_ID in config:
         await spi.register_spi_device(var, config, write_only=True)
-        sequence, madctl = model.get_sequence(config)
+        sequence = model.get_sequence(config)
         cg.add(var.set_init_sequence(sequence))
-        cg.add(var.set_madctl(madctl))
 
     cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
@@ -307,10 +310,12 @@ async def to_code(config):
         cg.add(var.set_de_pin(pin))
     pin = await cg.gpio_pin_expression(config[CONF_PCLK_PIN])
     cg.add(var.set_pclk_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_HSYNC_PIN])
-    cg.add(var.set_hsync_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_VSYNC_PIN])
-    cg.add(var.set_vsync_pin(pin))
+    if hsync_pin := config.get(CONF_HSYNC_PIN):
+        pin = await cg.gpio_pin_expression(hsync_pin)
+        cg.add(var.set_hsync_pin(pin))
+    if vsync_pin := config.get(CONF_VSYNC_PIN):
+        pin = await cg.gpio_pin_expression(vsync_pin)
+        cg.add(var.set_vsync_pin(pin))
 
     await display.register_display(var, config)
     if lamb := config.get(CONF_LAMBDA):

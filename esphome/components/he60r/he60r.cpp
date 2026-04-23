@@ -239,7 +239,7 @@ void HE60rCover::recompute_position_() {
     return;
 
   const uint32_t now = millis();
-  if (now > this->last_recompute_time_) {
+  if (now != this->last_recompute_time_) {
     auto diff = (unsigned) (now - last_recompute_time_);
     float delta;
     switch (this->current_operation) {

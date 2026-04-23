@@ -9,9 +9,13 @@
 #include <cinttypes>
 #include <cstdio>
 
-#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+#ifdef USE_OTA_ROLLBACK
+#ifdef USE_ZEPHYR
+#include <zephyr/dfu/mcuboot.h>
+#elif defined(USE_ESP32)
 #include <esp_ota_ops.h>
 #include <esp_system.h>
+#endif
 #endif
 
 namespace esphome::safe_mode {
@@ -51,11 +55,13 @@ void SafeModeComponent::dump_config() {
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
   const esp_partition_t *last_invalid = esp_ota_get_last_invalid_partition();
   if (last_invalid != nullptr) {
-    ESP_LOGW(TAG, "OTA rollback detected! Rolled back from partition '%s'", last_invalid->label);
-    ESP_LOGW(TAG, "The device reset before the boot was marked successful");
+    ESP_LOGW(TAG,
+             "OTA rollback detected! Rolled back from partition '%s'\n"
+             " The device reset before the boot was marked successful",
+             last_invalid->label);
     if (esp_reset_reason() == ESP_RST_BROWNOUT) {
-      ESP_LOGW(TAG, "Last reset was due to brownout - check your power supply!");
-      ESP_LOGW(TAG, "See https://esphome.io/guides/faq.html#brownout-detector-was-triggered");
+      ESP_LOGW(TAG, "Last reset was due to brownout - check your power supply!\n"
+                    " See https://esphome.io/guides/faq.html#brownout-detector-was-triggered");
     }
   }
 #endif
@@ -66,16 +72,24 @@ float SafeModeComponent::get_setup_priority() const { return setup_priority::AFT
 void SafeModeComponent::mark_successful() {
   this->clean_rtc();
   this->boot_successful_ = true;
-#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+#if defined(USE_OTA_ROLLBACK)
+// Mark OTA partition as valid to prevent rollback
+#if defined(USE_ZEPHYR)
+  if (!boot_is_img_confirmed()) {
+    boot_write_img_confirmed();
+  }
+#elif defined(USE_ESP32)
   // Mark OTA partition as valid to prevent rollback
   esp_ota_mark_app_valid_cancel_rollback();
+#endif
 #endif
   // Disable loop since we no longer need to check
   this->disable_loop();
 }
 
 void SafeModeComponent::loop() {
-  if (!this->boot_successful_ && (millis() - this->safe_mode_start_time_) > this->safe_mode_boot_is_good_after_) {
+  if (!this->boot_successful_ &&
+      (App.get_loop_component_start_time() - this->safe_mode_start_time_) > this->safe_mode_boot_is_good_after_) {
     // successful boot, reset counter
     ESP_LOGI(TAG, "Boot seems successful; resetting boot loop counter");
     this->mark_successful();

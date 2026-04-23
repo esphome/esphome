@@ -35,7 +35,16 @@ static constexpr uint8_t MAX_BLE_QUEUE_SIZE = 100;  // 64 + 36 (ring buffer size
 static constexpr uint8_t MAX_BLE_QUEUE_SIZE = 88;  // 64 + 24 (ring buffer size without PSRAM)
 #endif
 
-uint64_t ble_addr_to_uint64(const esp_bd_addr_t address);
+inline uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
+  uint64_t u = 0;
+  u |= uint64_t(address[0] & 0xFF) << 40;
+  u |= uint64_t(address[1] & 0xFF) << 32;
+  u |= uint64_t(address[2] & 0xFF) << 24;
+  u |= uint64_t(address[3] & 0xFF) << 16;
+  u |= uint64_t(address[4] & 0xFF) << 8;
+  u |= uint64_t(address[5] & 0xFF) << 0;
+  return u;
+}
 
 // NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
@@ -78,37 +87,6 @@ enum BLEComponentState : uint8_t {
   BLE_COMPONENT_STATE_ACTIVE,
 };
 
-class GAPEventHandler {
- public:
-  virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
-};
-
-class GAPScanEventHandler {
- public:
-  virtual void gap_scan_event_handler(const BLEScanResult &scan_result) = 0;
-};
-
-#ifdef USE_ESP32_BLE_CLIENT
-class GATTcEventHandler {
- public:
-  virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                                   esp_ble_gattc_cb_param_t *param) = 0;
-};
-#endif
-
-#ifdef USE_ESP32_BLE_SERVER
-class GATTsEventHandler {
- public:
-  virtual void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
-                                   esp_ble_gatts_cb_param_t *param) = 0;
-};
-#endif
-
-class BLEStatusEventHandler {
- public:
-  virtual void ble_before_disabled_event_handler() = 0;
-};
-
 class ESP32BLE : public Component {
  public:
   void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
@@ -126,7 +104,7 @@ class ESP32BLE : public Component {
 
   void enable();
   void disable();
-  bool is_active();
+  ESPHOME_ALWAYS_INLINE bool is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -145,22 +123,28 @@ class ESP32BLE : public Component {
 #endif
 
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-  void register_gap_event_handler(GAPEventHandler *handler) { this->gap_event_handlers_.push_back(handler); }
+  template<typename F> void add_gap_event_callback(F &&callback) {
+    this->gap_event_callbacks_.add(std::forward<F>(callback));
+  }
 #endif
 #ifdef ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT
-  void register_gap_scan_event_handler(GAPScanEventHandler *handler) {
-    this->gap_scan_event_handlers_.push_back(handler);
+  template<typename F> void add_gap_scan_event_callback(F &&callback) {
+    this->gap_scan_event_callbacks_.add(std::forward<F>(callback));
   }
 #endif
 #if defined(USE_ESP32_BLE_CLIENT) && defined(ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT)
-  void register_gattc_event_handler(GATTcEventHandler *handler) { this->gattc_event_handlers_.push_back(handler); }
+  template<typename F> void add_gattc_event_callback(F &&callback) {
+    this->gattc_event_callbacks_.add(std::forward<F>(callback));
+  }
 #endif
 #if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
-  void register_gatts_event_handler(GATTsEventHandler *handler) { this->gatts_event_handlers_.push_back(handler); }
+  template<typename F> void add_gatts_event_callback(F &&callback) {
+    this->gatts_event_callbacks_.add(std::forward<F>(callback));
+  }
 #endif
 #ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
-  void register_ble_status_event_handler(BLEStatusEventHandler *handler) {
-    this->ble_status_event_handlers_.push_back(handler);
+  template<typename F> void add_ble_status_event_callback(F &&callback) {
+    this->ble_status_event_callbacks_.add(std::forward<F>(callback));
   }
 #endif
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
@@ -193,26 +177,38 @@ class ESP32BLE : public Component {
  private:
   template<typename... Args> friend void enqueue_ble_event(Args... args);
 
-  // Handler vectors - use StaticVector when counts are known at compile time
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
-  StaticVector<GAPEventHandler *, ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT> gap_event_handlers_;
+  StaticCallbackManager<ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT,
+                        void(esp_gap_ble_cb_event_t, esp_ble_gap_cb_param_t *)>
+      gap_event_callbacks_;
 #endif
 #ifdef ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT
-  StaticVector<GAPScanEventHandler *, ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT> gap_scan_event_handlers_;
+  StaticCallbackManager<ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT, void(const BLEScanResult &)>
+      gap_scan_event_callbacks_;
 #endif
 #if defined(USE_ESP32_BLE_CLIENT) && defined(ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT)
-  StaticVector<GATTcEventHandler *, ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT> gattc_event_handlers_;
+  StaticCallbackManager<ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT,
+                        void(esp_gattc_cb_event_t, esp_gatt_if_t, esp_ble_gattc_cb_param_t *)>
+      gattc_event_callbacks_;
 #endif
 #if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
-  StaticVector<GATTsEventHandler *, ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT> gatts_event_handlers_;
+  StaticCallbackManager<ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT,
+                        void(esp_gatts_cb_event_t, esp_gatt_if_t, esp_ble_gatts_cb_param_t *)>
+      gatts_event_callbacks_;
 #endif
 #ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
-  StaticVector<BLEStatusEventHandler *, ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT> ble_status_event_handlers_;
+  StaticCallbackManager<ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT, void()> ble_status_event_callbacks_;
 #endif
 
   // Large objects (size depends on template parameters, but typically aligned to 4 bytes)
   esphome::LockFreeQueue<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_events_;
-  esphome::EventPool<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_event_pool_;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements (one slot distinguishes full from empty).
+  // This guarantees allocate() returns nullptr before push() can fail, which:
+  //  1. Prevents leaking a pool slot (the Nth allocate succeeds but push fails)
+  //  2. Avoids needing release() on the producer path after a failed push(),
+  //     preserving the SPSC contract on the pool's internal free list
+  esphome::EventPool<BLEEvent, MAX_BLE_QUEUE_SIZE - 1> ble_event_pool_;
 
   // 4-byte aligned members
 #ifdef USE_ESP32_BLE_ADVERTISING

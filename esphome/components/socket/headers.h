@@ -51,6 +51,8 @@
 #define SO_REUSEADDR 0x0004 /* Allow local address reuse */
 #define SO_KEEPALIVE 0x0008 /* keep connections alive */
 #define SO_BROADCAST 0x0020 /* permit to send and to receive broadcast messages (see IP_SOF_BROADCAST option) */
+#define SO_RCVTIMEO 0x1006  /* receive timeout */
+#define SO_SNDTIMEO 0x1005  /* send timeout */
 
 #define SOL_SOCKET 0xfff /* options for socket level */
 

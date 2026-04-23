@@ -42,16 +42,6 @@ CODEOWNERS = ["@esphome/core"]
 DOMAIN = "uart"
 
 
-def AUTO_LOAD() -> list[str]:
-    """Ideally, we would only auto-load socket only when wake_loop_on_rx is requested;
-    however, AUTO_LOAD is examined before wake_loop_on_rx is set, so instead, since ESP32
-    always uses socket select support in the main app, we'll just ensure it's loaded here.
-    """
-    if CORE.is_esp32:
-        return ["socket"]
-    return []
-
-
 uart_ns = cg.esphome_ns.namespace("uart")
 UARTComponent = uart_ns.class_("UARTComponent")
 
@@ -183,6 +173,7 @@ UART_PARITY_OPTIONS = {
     "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
 }
 
+CONF_FLUSH_TIMEOUT = "flush_timeout"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
 CONF_RX_TIMEOUT = "rx_timeout"
 
@@ -203,8 +194,10 @@ UART_DIRECTIONS = {
 # round numbers.
 AFTER_DEFAULTS = {CONF_BYTES: 150, CONF_TIMEOUT: "100ms"}
 
+CONF_DEBUG_PREFIX = "debug_prefix"
+
 # By default, log in hex format when no specific sequence is provided.
-DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':');"
+DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':', debug_prefix);"
 DEFAULT_SEQUENCE = [{CONF_LAMBDA: make_data_base(DEFAULT_DEBUG_OUTPUT)}]
 
 
@@ -242,6 +235,7 @@ DEBUG_SCHEMA = cv.Schema(
         ): automation.validate_automation(),
         cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
         cv.GenerateID(CONF_DUMMY_RECEIVER_ID): cv.declare_id(UARTDummyReceiver),
+        cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
     }
 )
 
@@ -263,6 +257,9 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_RX_TIMEOUT, esp32=2): cv.All(
                 cv.only_on_esp32, cv.validate_bytes, cv.int_range(min=0, max=92)
             ),
+            cv.Optional(CONF_FLUSH_TIMEOUT): cv.All(
+                cv.only_on_esp32, cv.positive_time_period_milliseconds
+            ),
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
             cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
@@ -283,7 +280,11 @@ async def debug_to_code(config, parent):
     for action in config[CONF_SEQUENCE]:
         await automation.build_automation(
             trigger,
-            [(UARTDirection, "direction"), (cg.std_vector.template(cg.uint8), "bytes")],
+            [
+                (UARTDirection, "direction"),
+                (cg.std_vector.template(cg.uint8), "bytes"),
+                (cg.StringRef, "debug_prefix"),
+            ],
             action,
         )
     cg.add(trigger.set_direction(config[CONF_DIRECTION]))
@@ -299,6 +300,8 @@ async def debug_to_code(config, parent):
     if config[CONF_DUMMY_RECEIVER]:
         dummy = cg.new_Pvariable(config[CONF_DUMMY_RECEIVER_ID], parent)
         await cg.register_component(dummy, {})
+    if debug_prefix := config[CONF_DEBUG_PREFIX]:
+        cg.add(trigger.set_debug_prefix(debug_prefix))
     cg.add_define("USE_UART_DEBUGGER")
 
 
@@ -336,6 +339,8 @@ async def to_code(config):
             )
         cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
+        if CONF_FLUSH_TIMEOUT in config:
+            cg.add(var.set_flush_timeout(config[CONF_FLUSH_TIMEOUT]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))
@@ -485,6 +490,7 @@ async def register_uart_device(var, config):
         },
         key=CONF_DATA,
     ),
+    synchronous=True,
 )
 async def uart_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -511,10 +517,6 @@ async def final_step():
         # Wake-on-RX is essentially free on ESP32 (just an ISR function pointer
         # registration) — enable by default to reduce RX buffer overflow risk
         # by waking the main loop immediately when data arrives.
-        # Requires networking for the wake_loop_isrsafe() infrastructure.
-        from esphome.components import socket
-
-        socket.require_wake_loop_threadsafe()
         cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 

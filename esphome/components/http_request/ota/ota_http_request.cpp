@@ -8,10 +8,6 @@
 
 #include "esphome/components/md5/md5.h"
 #include "esphome/components/watchdog/watchdog.h"
-#include "esphome/components/ota/ota_backend.h"
-#include "esphome/components/ota/ota_backend_esp8266.h"
-#include "esphome/components/ota/ota_backend_arduino_rp2040.h"
-#include "esphome/components/ota/ota_backend_esp_idf.h"
 
 namespace esphome {
 namespace http_request {
@@ -69,8 +65,7 @@ void OtaHttpRequestComponent::flash() {
   }
 }
 
-void OtaHttpRequestComponent::cleanup_(std::unique_ptr<ota::OTABackend> backend,
-                                       const std::shared_ptr<HttpContainer> &container) {
+void OtaHttpRequestComponent::cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container) {
   if (this->update_started_) {
     ESP_LOGV(TAG, "Aborting OTA backend");
     backend->abort();

@@ -29,11 +29,6 @@ static constexpr uint8_t REPEATING_NOTE_GAP_MS = 10;
 static constexpr uint16_t SAMPLE_BUFFER_SIZE = 2048;
 static constexpr uint16_t SAMPLE_RATE = 16000;
 
-struct SpeakerSample {
-  int8_t left{0};
-  int8_t right{0};
-};
-
 inline double deg2rad(double degrees) {
   static constexpr double PI_ON_180 = M_PI / 180.0;
   return degrees * PI_ON_180;
@@ -108,6 +103,9 @@ void Rtttl::loop() {
       }
     } else if (this->state_ == State::INIT) {
       if (this->speaker_->is_stopped()) {
+        audio::AudioStreamInfo audio_stream_info = audio::AudioStreamInfo(16, 1, SAMPLE_RATE);
+        this->speaker_->set_audio_stream_info(audio_stream_info);
+        this->speaker_->set_volume(this->gain_);
         this->speaker_->start();
         this->set_state_(State::STARTING);
       }
@@ -120,35 +118,27 @@ void Rtttl::loop() {
       return;
     }
     if (this->samples_sent_ != this->samples_count_) {
-      SpeakerSample sample[SAMPLE_BUFFER_SIZE + 2];
+      int16_t sample[SAMPLE_BUFFER_SIZE];
       uint16_t sample_index = 0;
       double rem = 0.0;
 
-      while (true) {
+      while (sample_index < SAMPLE_BUFFER_SIZE && this->samples_sent_ < this->samples_count_) {
         // Try and send out the remainder of the existing note, one per `loop()`
         if (this->samples_per_wave_ != 0 && this->samples_sent_ >= this->samples_gap_) {  // Play note
           rem = ((this->samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
-
-          int8_t val = (127 * this->gain_) * sin(deg2rad(rem));
-
-          sample[sample_index].left = val;
-          sample[sample_index].right = val;
+          sample[sample_index] = INT16_MAX * sin(deg2rad(rem));
         } else {
-          sample[sample_index].left = 0;
-          sample[sample_index].right = 0;
-        }
-
-        if (sample_index >= SAMPLE_BUFFER_SIZE || this->samples_sent_ >= this->samples_count_) {
-          break;
+          sample[sample_index] = 0;
         }
         this->samples_sent_++;
         sample_index++;
       }
       if (sample_index > 0) {
-        size_t bytes_to_send = sample_index * sizeof(SpeakerSample);
-        size_t send = this->speaker_->play((uint8_t *) (&sample), bytes_to_send);
-        if (send != bytes_to_send) {
-          this->samples_sent_ -= (sample_index - (send / sizeof(SpeakerSample)));
+        size_t bytes = sample_index * sizeof(int16_t);
+        size_t sent_bytes = this->speaker_->play((uint8_t *) (&sample), bytes);
+        size_t samples_sent = sent_bytes / sizeof(int16_t);
+        if (samples_sent != sample_index) {
+          this->samples_sent_ -= (sample_index - samples_sent);
         }
         return;
       }
@@ -156,14 +146,17 @@ void Rtttl::loop() {
   }
 #endif  // USE_SPEAKER
 
+  // Align to note: most rtttl's out there does not add any space after the ',' separator but just in case
+  while (this->position_ < this->rtttl_.length()) {
+    char c = this->rtttl_[this->position_];
+    if (c != ',' && c != ' ')
+      break;
+    this->position_++;
+  }
+
   if (this->position_ >= this->rtttl_.length()) {
     this->finish_();
     return;
-  }
-
-  // Align to note: most rtttl's out there does not add any space after the ',' separator but just in case
-  while (this->rtttl_[this->position_] == ',' || this->rtttl_[this->position_] == ' ') {
-    this->position_++;
   }
 
   // First, get note duration, if available
@@ -301,57 +294,59 @@ void Rtttl::play(std::string rtttl) {
   }
   ESP_LOGD(TAG, "Playing song %.*s", (int) this->position_, this->rtttl_.c_str());
 
-  // Get default duration
-  this->position_ = this->rtttl_.find("d=", this->position_);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing 'd='");
-    return;
-  }
-  this->position_ += 2;
-  num = this->get_integer_();
-  if (num == 1 || num == 2 || num == 4 || num == 8 || num == 16 || num == 32) {
-    this->default_note_denominator_ = num;
-  } else {
-    ESP_LOGE(TAG, "Invalid default duration: %d", num);
-    return;
-  }
-
-  // Get default octave
-  this->position_ = this->rtttl_.find("o=", this->position_);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing 'o=");
-    return;
-  }
-  this->position_ += 2;
-  num = this->get_integer_();
-  if (num >= MIN_OCTAVE && num <= MAX_OCTAVE) {
-    this->default_octave_ = num;
-  } else {
-    ESP_LOGE(TAG, "Invalid default octave: %d", num);
-    return;
-  }
-
-  // Get BPM
-  this->position_ = this->rtttl_.find("b=", this->position_);
-  if (this->position_ == std::string::npos) {
-    ESP_LOGE(TAG, "Missing b=");
-    return;
-  }
-  this->position_ += 2;
-  num = this->get_integer_();
-  if (num >= 4) {  // Below 4 is not realistic and would cause a integer overflow
-    bpm = num;
-  } else {
-    ESP_LOGE(TAG, "Invalid BPM: %d", num);
-    return;
-  }
-
-  this->position_ = this->rtttl_.find(':', this->position_);
-  if (this->position_ == std::string::npos) {
+  size_t name_end_position = this->position_;
+  size_t control_end = this->rtttl_.find(':', name_end_position + 1);
+  if (control_end == std::string::npos) {
     ESP_LOGE(TAG, "Missing second ':'");
     return;
   }
-  this->position_++;
+
+  // Get default duration
+  size_t pos = this->rtttl_.find("d=", name_end_position);
+  if (pos == std::string::npos || pos >= control_end) {
+    ESP_LOGW(TAG, "Missing 'd='; use default duration %d", this->default_note_denominator_);
+  } else {
+    this->position_ = pos + 2;
+    num = this->get_integer_();
+    if (num == 1 || num == 2 || num == 4 || num == 8 || num == 16 || num == 32) {
+      this->default_note_denominator_ = num;
+    } else {
+      ESP_LOGE(TAG, "Invalid default duration: %d", num);
+      return;
+    }
+  }
+
+  // Get default octave
+  pos = this->rtttl_.find("o=", name_end_position);
+  if (pos == std::string::npos || pos >= control_end) {
+    ESP_LOGW(TAG, "Missing 'o='; use default octave %d", this->default_octave_);
+  } else {
+    this->position_ = pos + 2;
+    num = this->get_integer_();
+    if (num >= MIN_OCTAVE && num <= MAX_OCTAVE) {
+      this->default_octave_ = num;
+    } else {
+      ESP_LOGE(TAG, "Invalid default octave: %d", num);
+      return;
+    }
+  }
+
+  // Get BPM
+  pos = this->rtttl_.find("b=", name_end_position);
+  if (pos == std::string::npos || pos >= control_end) {
+    ESP_LOGW(TAG, "Missing 'b='; use default BPM %d", bpm);
+  } else {
+    this->position_ = pos + 2;
+    num = this->get_integer_();
+    if (num >= 4) {  // Below 4 is not realistic and would cause a integer overflow
+      bpm = num;
+    } else {
+      ESP_LOGE(TAG, "Invalid BPM: %d", num);
+      return;
+    }
+  }
+
+  this->position_ = control_end + 1;
 
   // BPM usually expresses the number of quarter notes per minute
   this->wholenote_duration_ = 60 * 1000L * 4 / bpm;  // This is the time for whole note (in milliseconds)
@@ -408,11 +403,7 @@ void Rtttl::finish_() {
 
 #ifdef USE_SPEAKER
   if (this->speaker_ != nullptr) {
-    SpeakerSample sample[2];
-    sample[0].left = 0;
-    sample[0].right = 0;
-    sample[1].left = 0;
-    sample[1].right = 0;
+    int16_t sample[2] = {0, 0};
     this->speaker_->play((uint8_t *) (&sample), sizeof(sample));
     this->speaker_->finish();
     this->set_state_(State::STOPPING);

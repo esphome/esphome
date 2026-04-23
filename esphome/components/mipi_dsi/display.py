@@ -192,10 +192,9 @@ async def to_code(config):
     width, height, _offset_width, _offset_height = model.get_dimensions(config)
     var = cg.new_Pvariable(config[CONF_ID], width, height, color_depth, pixel_mode)
 
-    sequence, madctl = model.get_sequence(config)
+    sequence = model.get_sequence(config)
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_init_sequence(sequence))
-    cg.add(var.set_madctl(madctl))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
     cg.add(var.set_hsync_pulse_width(config[CONF_HSYNC_PULSE_WIDTH]))
     cg.add(var.set_hsync_back_porch(config[CONF_HSYNC_BACK_PORCH]))

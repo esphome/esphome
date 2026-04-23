@@ -4,8 +4,8 @@
 #include "../nextion_component.h"
 #include "../nextion_base.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
+
 class NextionTextSensor;
 
 class NextionTextSensor : public NextionComponent, public text_sensor::TextSensor, public PollingComponent {
@@ -22,11 +22,10 @@ class NextionTextSensor : public NextionComponent, public text_sensor::TextSenso
   void set_state(const std::string &state, bool publish, bool send_to_nextion) override;
 
   void send_state_to_nextion() override { this->set_state(this->state, false, true); };
-  NextionQueueType get_queue_type() override { return NextionQueueType::TEXT_SENSOR; }
+  NextionQueueType get_queue_type() const override { return NextionQueueType::TEXT_SENSOR; }
   void set_state_from_int(int state_value, bool publish, bool send_to_nextion) override {}
   void set_state_from_string(const std::string &state_value, bool publish, bool send_to_nextion) override {
     this->set_state(state_value, publish, send_to_nextion);
   }
 };
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

@@ -3,6 +3,7 @@ esphome:
 
 host:
 api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
 logger:
   level: VERBOSE
 
@@ -19,6 +20,7 @@ uart:
 uart_mock:
   id: mock_uart
   baud_rate: 256000
+  auto_start: false
   injections:
     # Phase 1 (t=100ms): Valid LD2410 engineering mode data frame
     # Captured from a real Screek Human Presence Sensor 1U with LD2410 firmware 2.4.x
@@ -154,3 +156,10 @@ binary_sensor:
       name: "Has Still Target"
     out_pin_presence_status:
       name: "Out Pin Presence"
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'
