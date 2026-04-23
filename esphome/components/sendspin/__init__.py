@@ -17,6 +17,23 @@ DOMAIN = "sendspin"
 
 CONF_SENDSPIN_ID = "sendspin_id"
 
+CONF_INITIAL_STATIC_DELAY = "initial_static_delay"
+CONF_FIXED_DELAY = "fixed_delay"
+
+# sendspin-cpp library lives in the global `sendspin` namespace.
+sendspin_libray_ns = cg.esphome_ns.namespace("sendspin")
+
+# Library Enums
+SendspinCodecFormat = sendspin_libray_ns.enum("SendspinCodecFormat", is_class=True)
+CODEC_FORMAT_FLAC = SendspinCodecFormat.enum("FLAC")
+CODEC_FORMAT_OPUS = SendspinCodecFormat.enum("OPUS")
+CODEC_FORMAT_PCM = SendspinCodecFormat.enum("PCM")
+CODEC_FORMAT_UNSUPPORTED = SendspinCodecFormat.enum("UNSUPPORTED")
+
+# Library Structs
+AudioSupportedFormatObject = sendspin_libray_ns.struct("AudioSupportedFormatObject")
+PlayerRoleConfig = sendspin_libray_ns.struct("PlayerRoleConfig")
+
 # Trailing underscore avoids clashing with sendspin-cpp's global `sendspin` namespace.
 # Analysis tools strip the trailing underscore (same pattern as `template_`).
 sendspin_ns = cg.esphome_ns.namespace("sendspin_")
@@ -40,6 +57,8 @@ class SendspinConfiguration:
     metadata_support: bool = False
     player_support: bool = False
     visualizer_support: bool = False
+
+    player_config: ConfigType | None = None
 
 
 def _get_data() -> SendspinConfiguration:
@@ -71,6 +90,12 @@ def request_player_support() -> None:
 def request_visualizer_support() -> None:
     """Request visualizer role support for Sendspin."""
     _get_data().visualizer_support = True
+
+
+def register_player_config(config: ConfigType) -> None:
+    """Register the player role config from the media source subcomponent."""
+    request_player_support()
+    _get_data().player_config = config
 
 
 def _validate_task_stack_in_psram(value):
@@ -183,6 +208,55 @@ async def to_code(config: ConfigType) -> None:
 
     if data.player_support:
         cg.add_define("USE_SENDSPIN_PLAYER", True)
+
+        # Configures the player role. We always assume support for 16 bits per sample mono and stereo FLAC, Opus, and PCM at the configured sample rate
+        # (with Opus only supported at 48 kHz since that's the only sample rate it supports). Users can configure the specific formats via the Sendspin server
+        player_cfg = data.player_config
+        sample_rate = player_cfg[CONF_SAMPLE_RATE]
+
+        # OPUS only supports 48 kHz audio
+        codecs = [CODEC_FORMAT_FLAC]
+        if sample_rate == 48000:
+            codecs.append(CODEC_FORMAT_OPUS)
+        codecs.append(CODEC_FORMAT_PCM)
+
+        audio_format_structs = []
+        for codec in codecs:
+            audio_format_structs.extend(
+                [
+                    cg.StructInitializer(
+                        AudioSupportedFormatObject,
+                        ("codec", codec),
+                        ("channels", 2),
+                        ("sample_rate", sample_rate),
+                        ("bit_depth", 16),
+                    ),
+                    cg.StructInitializer(
+                        AudioSupportedFormatObject,
+                        ("codec", codec),
+                        ("channels", 1),
+                        ("sample_rate", sample_rate),
+                        ("bit_depth", 16),
+                    ),
+                ]
+            )
+
+        psram_stack = player_cfg.get(CONF_TASK_STACK_IN_PSRAM, False)
+        if psram_stack:
+            esp32.add_idf_sdkconfig_option(
+                "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
+            )
+
+        player_config_struct = cg.StructInitializer(
+            PlayerRoleConfig,
+            ("audio_formats", audio_format_structs),
+            ("audio_buffer_capacity", player_cfg[CONF_BUFFER_SIZE]),
+            ("fixed_delay_us", player_cfg[CONF_FIXED_DELAY]),
+            ("initial_static_delay_ms", player_cfg[CONF_INITIAL_STATIC_DELAY]),
+            ("psram_stack", psram_stack),
+            ("priority", 2),
+        )
+        cg.add(var.set_player_config(player_config_struct))
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_PLAYER", False)
 
