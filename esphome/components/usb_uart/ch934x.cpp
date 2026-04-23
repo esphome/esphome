@@ -450,6 +450,18 @@ void USBUartTypeCH934X::start_rx_reader_() {
 }
 
 void USBUartTypeCH934X::handle_rx_data_(const uint8_t *data, size_t len) {
+  // Copy raw transfer buffer once; demux runs on main loop via defer to avoid
+  // per-block chunk pool pressure when up to 16 blocks arrive per 512-byte transfer.
+  auto *buf = new uint8_t[len];
+  memcpy(buf, data, len);
+  this->defer([this, buf, len]() {
+    this->demux_rx_data_(buf, len);
+    delete[] buf;
+  });
+  App.wake_loop_threadsafe();
+}
+
+void USBUartTypeCH934X::demux_rx_data_(const uint8_t *data, size_t len) {
   for (size_t i = 0; i < len; i += RX_BLOCK_SIZE) {
     if (i + RX_HEADER_SIZE > len)
       break;
@@ -481,22 +493,22 @@ void USBUartTypeCH934X::handle_rx_data_(const uint8_t *data, size_t len) {
     if (channel == nullptr || !channel->initialised_.load())
       continue;
 
-    UsbDataChunk *chunk = this->chunk_pool_.allocate();
-    if (chunk == nullptr) {
-      this->usb_data_queue_.increment_dropped_count();
-      continue;
+#ifdef USE_UART_DEBUGGER
+    if (channel->debug_) {
+      constexpr size_t BATCH = 16;
+      char buf[4 + format_hex_pretty_size(BATCH)];
+      for (size_t off = 0; off < data_len; off += BATCH) {
+        size_t n = std::min((size_t) data_len - off, BATCH);
+        memcpy(buf, "<<< ", 4);
+        format_hex_pretty_to(buf + 4, sizeof(buf) - 4, data + i + RX_HEADER_SIZE + off, n, ',');
+        ESP_LOGD(TAG, "%s%s", channel->debug_prefix_.c_str(), buf);
+      }
     }
+#endif
 
-    memcpy(chunk->data, data + i + RX_HEADER_SIZE, data_len);
-    chunk->length = data_len;
-    chunk->channel = channel;
-
-    if (!this->usb_data_queue_.push(chunk)) {
-      this->chunk_pool_.release(chunk);
-    } else {
-      this->enable_loop_soon_any_context();
-      App.wake_loop_threadsafe();
-    }
+    channel->input_buffer_.push(data + i + RX_HEADER_SIZE, data_len);
+    if (channel->rx_callback_)
+      channel->rx_callback_();
   }
 }
 
