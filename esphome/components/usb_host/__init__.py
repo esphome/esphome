@@ -46,7 +46,9 @@ def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Sch
 
 
 def add_usb_mps(mps_value: int):
-    CORE.data.get(DOMAIN, {})[CONF_MAX_PACKET_SIZE] = mps_value
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = {}
+    CORE.data[DOMAIN][CONF_MAX_PACKET_SIZE] = mps_value
 
 
 CONFIG_SCHEMA = cv.All(

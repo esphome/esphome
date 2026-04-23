@@ -125,7 +125,7 @@ async def to_code(config):
     # Await usb_host to_code completion before reading MPS from CORE.data.
     # usb_host is a mandatory singleton dependency, so its ID is always present.
     await cg.get_variable(CORE.config[USB_HOST_DOMAIN][CONF_ID])
-    mps = CORE.data[USB_HOST_DOMAIN][CONF_MAX_PACKET_SIZE]
+    mps = CORE.data.get(USB_HOST_DOMAIN, {}).get(CONF_MAX_PACKET_SIZE, 64)
 
     # The output chunk pool/queue are compile-time-sized templates shared by all
     # USBUartChannel instances, so use the largest buffer_size across every channel
