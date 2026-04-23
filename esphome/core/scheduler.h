@@ -626,7 +626,7 @@ class Scheduler {
 
   // Lock-free check if there are items to remove (for fast-path in cleanup_)
   bool to_remove_empty_() const {
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+#if defined(ESPHOME_THREAD_MULTI_ATOMICS)
     return this->to_remove_.load(std::memory_order_relaxed) == 0;
 #elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
     return __atomic_load_n(&this->to_remove_, __ATOMIC_RELAXED) == 0;
@@ -660,7 +660,7 @@ class Scheduler {
   }
 
   uint32_t to_remove_count_() const {
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+#if defined(ESPHOME_THREAD_MULTI_ATOMICS)
     return this->to_remove_.load(std::memory_order_relaxed);
 #elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
     return __atomic_load_n(&this->to_remove_, __ATOMIC_RELAXED);
