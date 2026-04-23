@@ -68,7 +68,7 @@ class RadioFrequencyCall {
   void perform();
 
   /// Get the frequency in Hz
-  uint32_t get_frequency() const { return this->frequency_hz_; }
+  const optional<uint32_t> &get_frequency() const { return this->frequency_hz_; }
   /// Get the modulation type
   RadioFrequencyModulation get_modulation() const { return this->modulation_; }
   /// Get the raw timings (only valid if set via set_raw_timings)
@@ -91,7 +91,7 @@ class RadioFrequencyCall {
   uint32_t get_repeat_count() const { return this->repeat_count_; }
 
  protected:
-  uint32_t frequency_hz_{0};
+  optional<uint32_t> frequency_hz_{};
   uint32_t repeat_count_{1};
   RadioFrequency *parent_;
   // Pointer to vector-based timings (caller-owned, must outlive perform())

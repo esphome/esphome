@@ -2185,7 +2185,7 @@ json::SerializationBuffer<> WebServer::radio_frequency_json_(radio_frequency::Ra
 
   set_json_icon_state_value(root, obj, "radio_frequency", "", 0, start_config);
 
-  auto traits = obj->get_traits();
+  const auto &traits = obj->get_traits();
   auto caps = obj->get_capability_flags();
 
   root[ESPHOME_F("supports_transmitter")] = bool(caps & radio_frequency::CAPABILITY_TRANSMITTER);
