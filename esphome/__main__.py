@@ -223,6 +223,49 @@ def _populate_mdns_cache(hosts_to_addresses: dict[str, list[str]]) -> None:
         CORE.address_cache.add_mdns_addresses(host, addresses)
 
 
+def _discover_mac_suffix_devices() -> list[str] | None:
+    """Discover ``<name>-<mac>.local`` devices and cache their IPs.
+
+    Returns:
+        - ``None`` when discovery isn't applicable (``name_add_mac_suffix`` off,
+          mDNS disabled, or ``CORE.address`` is already an IP). Callers should
+          then fall back to whatever default OTA address they normally use.
+        - ``[]`` when discovery ran but found nothing. Callers should NOT fall
+          back to the base name: with ``name_add_mac_suffix`` enabled, the base
+          name by definition doesn't exist on the network.
+        - A non-empty sorted list of ``.local`` hostnames on success.
+
+    Populates ``CORE.address_cache`` so downstream resolution (``espota2`` or
+    ``aioesphomeapi`` via :func:`_resolve_network_devices`) reuses the IPs we
+    already have without opening a second Zeroconf client.
+    """
+    if not (has_name_add_mac_suffix() and has_mdns() and has_non_ip_address()):
+        return None
+    _LOGGER.info("Discovering devices...")
+    discovered = discover_mdns_devices(CORE.name)
+    if not discovered:
+        _LOGGER.warning(
+            "No devices matching '%s-<mac>.local' were discovered.", CORE.name
+        )
+        return []
+    _populate_mdns_cache(discovered)
+    return list(discovered)
+
+
+def _ota_hostnames_for_default(purpose: Purpose) -> list[str]:
+    """Return OTA hostname(s) for the ``--device OTA`` / default-resolve path.
+
+    When ``name_add_mac_suffix`` is enabled, returns discovered
+    ``<name>-<mac>.local`` hostnames (possibly empty — in which case the
+    caller should not fall back to the base name). Otherwise falls back to
+    the cache-resolved ``CORE.address``.
+    """
+    discovered = _discover_mac_suffix_devices()
+    if discovered is not None:
+        return discovered
+    return _resolve_with_cache(CORE.address, purpose)
+
+
 def choose_upload_log_host(
     default: list[str] | str | None,
     check_default: str | None,
@@ -261,14 +304,14 @@ def choose_upload_log_host(
                         resolved.append("MQTT")
 
                     if has_api() and has_non_ip_address() and has_resolvable_address():
-                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
+                        resolved.extend(_ota_hostnames_for_default(purpose))
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
                     if has_ota() and has_non_ip_address() and has_resolvable_address():
-                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
+                        resolved.extend(_ota_hostnames_for_default(purpose))
             else:
                 resolved.append(device)
         if not resolved:
@@ -302,26 +345,13 @@ def choose_upload_log_host(
 
     def add_ota_options() -> None:
         """Add OTA options, using mDNS discovery if name_add_mac_suffix is enabled."""
-        if has_name_add_mac_suffix() and has_mdns() and has_non_ip_address():
-            # Discover devices via mDNS when name_add_mac_suffix is enabled. The
-            # discovery call uses a single Zeroconf lifecycle for both the
-            # service browse and the subsequent address resolution, and we
-            # stash the results in CORE.address_cache so downstream resolution
-            # (OTA/API client) doesn't need to open a second Zeroconf.
-            _LOGGER.info("Discovering devices...")
-            discovered = discover_mdns_devices(CORE.name)
-            if discovered:
-                _populate_mdns_cache(discovered)
-                for host in discovered:
-                    options.append((f"Over The Air ({host})", host))
-            elif has_resolvable_address():
-                # Nothing answered to our browse; the base name without the
-                # MAC suffix won't resolve either, so skip the OTA option
-                # entirely and let the user re-run once the device is online.
-                _LOGGER.warning(
-                    "No devices matching '%s-<mac>.local' were discovered.",
-                    CORE.name,
-                )
+        discovered = _discover_mac_suffix_devices()
+        if discovered is not None:
+            # Discovery was applicable. Use whatever we found — on empty,
+            # intentionally skip the base-name fallback since with
+            # name_add_mac_suffix on, the base name doesn't exist on the net.
+            for host in discovered:
+                options.append((f"Over The Air ({host})", host))
         elif has_resolvable_address():
             options.append((f"Over The Air ({CORE.address})", CORE.address))
         if has_mqtt_ip_lookup():

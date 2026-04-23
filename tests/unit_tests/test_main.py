@@ -2666,6 +2666,67 @@ def test_choose_upload_log_host_mac_suffix_no_devices_found(
     assert "No devices matching 'mydevice-<mac>.local'" in caplog.text
 
 
+def test_choose_upload_log_host_default_ota_discovers_mac_suffix(
+    tmp_path: Path,
+) -> None:
+    """``--device OTA`` also runs mDNS discovery when name_add_mac_suffix is on."""
+    setup_core(
+        config={
+            CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: True},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+        },
+        address="mydevice.local",
+        tmp_path=tmp_path,
+        name="mydevice",
+    )
+    CORE.address_cache = None
+
+    discovered = {
+        "mydevice-abc123.local": ["10.0.0.1"],
+        "mydevice-def456.local": ["10.0.0.2"],
+    }
+    with patch(
+        "esphome.__main__.discover_mdns_devices", return_value=discovered
+    ) as mock_discover:
+        result = choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    # Both discovered hostnames are returned so aioesphomeapi / espota2 can
+    # try each in turn with the cached IPs.
+    assert result == ["mydevice-abc123.local", "mydevice-def456.local"]
+    mock_discover.assert_called_once_with("mydevice")
+    assert CORE.address_cache is not None
+    assert CORE.address_cache.get_mdns_addresses("mydevice-abc123.local") == [
+        "10.0.0.1"
+    ]
+
+
+def test_choose_upload_log_host_default_ota_no_suffix_discovery(
+    tmp_path: Path,
+) -> None:
+    """``--device OTA`` without name_add_mac_suffix uses CORE.address as-is."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+        tmp_path=tmp_path,
+        name="mydevice",
+    )
+
+    with patch("esphome.__main__.discover_mdns_devices") as mock_discover:
+        result = choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert result == ["192.168.1.100"]
+    # Discovery must NOT run when name_add_mac_suffix is disabled.
+    mock_discover.assert_not_called()
+
+
 def test_command_wizard(tmp_path: Path) -> None:
     """Test command_wizard function."""
     config_file = tmp_path / "test.yaml"
