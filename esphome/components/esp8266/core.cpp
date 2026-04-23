@@ -21,21 +21,16 @@ void HOT yield() { ::yield(); }
 // system_get_time() deltas using pure 32-bit ops. Installed as __wrap_millis
 // (via -Wl,--wrap=millis) so Arduino libs and IRAM_ATTR ISR handlers (e.g.
 // Wiegand, ZyAura) also get the fast version. xt_rsil(15) guards the static
-// state against ISR re-entry; the critical section is bounded (≤9 while-loop
+// state against ISR re-entry; the critical section is bounded (≤10 while-loop
 // iterations, ~100 ns on the common path, or a constant-time /1000 ~2.5 μs on
 // the rare path — well under WiFi's ~10 μs ISR latency budget). NMIs (level
 // >15) are not masked, but the ESP8266 SDK's NMI handlers don't call millis().
 //
-// Overflow: system_get_time() wraps every ~71.6 min; unsigned now_us - last_us
-// handles one wrap. Both the ESPHome main loop (1+N millis() calls per
-// iteration at 60+ Hz) and esphome::delay() (which polls millis() in its wait
-// loop) keep state.last_us fresh well inside the 71-minute window.
+// system_get_time() wraps every ~71.6 min; unsigned (now_us - last_us) handles
+// one wrap. The main loop calls millis() at 60+ Hz, so delta stays tiny — a
+// >71 min block would trip the watchdog long before it could matter here.
 static constexpr uint32_t MILLIS_RARE_PATH_THRESHOLD_US = 10000;
 static constexpr uint32_t US_PER_MS = 1000;
-// Guarantees state.remainder + delta cannot wrap uint32_t: the threshold caps
-// remainder on entry, and delta ≤ UINT32_MAX (one system_get_time() wrap).
-static_assert(MILLIS_RARE_PATH_THRESHOLD_US < UINT32_MAX / 2,
-              "threshold must leave headroom so remainder + delta cannot overflow uint32_t");
 
 uint32_t IRAM_ATTR HOT millis() {
   // Struct packs the three statics so the compiler loads one base address
@@ -55,9 +50,13 @@ uint32_t IRAM_ATTR HOT millis() {
     // conversion keeps the critical section bounded.
     uint32_t ms = state.remainder / US_PER_MS;
     state.cache += ms;
+    // Reuse ms instead of `remainder %= US_PER_MS` — `%` would compile to a
+    // second __umodsi3 call on the LX106 (no hardware divide).
     state.remainder -= ms * US_PER_MS;
   } else {
-    // Common path: small gap.
+    // Common path: small gap. At most ~10 iterations since remainder was
+    // < threshold (10 ms) on entry and delta adds at most one more threshold
+    // before exiting this branch.
     while (state.remainder >= US_PER_MS) {
       state.cache++;
       state.remainder -= US_PER_MS;
