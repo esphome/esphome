@@ -91,5 +91,7 @@ dependencies:
       - if: "idf_version >=6.0.0 && target in [esp32s2, esp32s3, esp32p4]"
   esp32async/asynctcp:
     version: 3.4.91
+  sendspin/sendspin-cpp:
+    version: 0.3.0
   lvgl/lvgl:
     version: 9.5.0
