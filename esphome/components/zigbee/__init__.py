@@ -205,6 +205,8 @@ async def setup_number(
 
 
 def consume_endpoint(config: ConfigType) -> ConfigType:
+    if not config.get(CONF_ZIGBEE_ID):
+        return config
     if CONF_NAME in config and " " in config[CONF_NAME]:
         _LOGGER.warning(
             "Spaces in '%s' requires ZHA or at least Zigbee2MQTT 2.8.0. For older version of Zigbee2MQTT use '%s'",
