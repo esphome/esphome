@@ -118,7 +118,7 @@ void APIServer::loop() {
     this->accept_new_connections_();
   }
 
-  if (this->clients_.empty()) {
+  if (this->api_connection_count_ == 0) {
     // Check reboot timeout - done in loop to avoid scheduler heap churn
     // (cancelled scheduler items sit in heap memory until their scheduled time)
     if (this->reboot_timeout_ != 0) {
@@ -135,15 +135,15 @@ void APIServer::loop() {
   // Check network connectivity once for all clients
   if (!network::is_connected()) {
     // Network is down - disconnect all clients
-    for (auto &client : this->clients_) {
+    for (auto &client : this->active_clients()) {
       client->on_fatal_error();
       client->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Network down; disconnect"));
     }
     // Continue to process and clean up the clients below
   }
 
-  size_t client_index = 0;
-  while (client_index < this->clients_.size()) {
+  uint8_t client_index = 0;
+  while (client_index < this->api_connection_count_) {
     auto &client = this->clients_[client_index];
 
     // Common case: process active client
@@ -161,7 +161,7 @@ void APIServer::loop() {
   }
 }
 
-void APIServer::remove_client_(size_t client_index) {
+void APIServer::remove_client_(uint8_t client_index) {
   auto &client = this->clients_[client_index];
 
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
@@ -179,14 +179,17 @@ void APIServer::remove_client_(size_t client_index) {
   // Close socket now (was deferred from on_fatal_error to allow getpeername)
   client->helper_->close();
 
-  // Swap with the last element and pop (avoids expensive vector shifts)
-  if (client_index < this->clients_.size() - 1) {
-    std::swap(this->clients_[client_index], this->clients_.back());
+  // Swap-and-reset: move the removed client to the trailing slot and null it out so slots
+  // [api_connection_count_, N) remain nullptr.
+  const uint8_t last_index = this->api_connection_count_ - 1;
+  if (client_index < last_index) {
+    std::swap(this->clients_[client_index], this->clients_[last_index]);
   }
-  this->clients_.pop_back();
+  this->clients_[last_index].reset();
+  this->api_connection_count_--;
 
   // Last client disconnected - set warning and start tracking for reboot timeout
-  if (this->clients_.empty() && this->reboot_timeout_ != 0) {
+  if (this->api_connection_count_ == 0 && this->reboot_timeout_ != 0) {
     this->status_set_warning(LOG_STR("waiting for client connection"));
     this->last_connected_ = App.get_loop_component_start_time();
   }
@@ -210,8 +213,8 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
     sock->getpeername_to(peername);
 
     // Check if we're at the connection limit
-    if (this->clients_.size() >= this->max_connections_) {
-      ESP_LOGW(TAG, "Max connections (%d), rejecting %s", this->max_connections_, peername);
+    if (this->api_connection_count_ >= MAX_API_CONNECTIONS) {
+      ESP_LOGW(TAG, "Max connections (%d), rejecting %s", MAX_API_CONNECTIONS, peername);
       // Immediately close - socket destructor will handle cleanup
       sock.reset();
       continue;
@@ -220,11 +223,11 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
     ESP_LOGD(TAG, "Accept %s", peername);
 
     auto *conn = new APIConnection(std::move(sock), this);
-    this->clients_.emplace_back(conn);
+    this->clients_[this->api_connection_count_++].reset(conn);
     conn->start();
 
     // First client connected - clear warning and update timestamp
-    if (this->clients_.size() == 1 && this->reboot_timeout_ != 0) {
+    if (this->api_connection_count_ == 1 && this->reboot_timeout_ != 0) {
       this->status_clear_warning();
       this->last_connected_ = App.get_loop_component_start_time();
     }
@@ -237,7 +240,7 @@ void APIServer::dump_config() {
                 "  Address: %s:%u\n"
                 "  Listen backlog: %u\n"
                 "  Max connections: %u",
-                network::get_use_address(), this->port_, this->listen_backlog_, this->max_connections_);
+                network::get_use_address(), this->port_, this->listen_backlog_, MAX_API_CONNECTIONS);
 #ifdef USE_API_NOISE
   ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_.has_psk()));
   if (!this->noise_ctx_.has_psk()) {
@@ -255,7 +258,7 @@ void APIServer::handle_disconnect(APIConnection *conn) {}
   void APIServer::on_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
     if (obj->is_internal()) \
       return; \
-    for (auto &c : this->clients_) { \
+    for (auto &c : this->active_clients()) { \
       if (c->flags_.state_subscription) \
         c->send_##entity_name##_state(obj); \
     } \
@@ -337,7 +340,7 @@ API_DISPATCH_UPDATE(water_heater::WaterHeater, water_heater)
 void APIServer::on_event(event::Event *obj) {
   if (obj->is_internal())
     return;
-  for (auto &c : this->clients_) {
+  for (auto &c : this->active_clients()) {
     if (c->flags_.state_subscription)
       c->send_event(obj);
   }
@@ -349,7 +352,7 @@ void APIServer::on_event(event::Event *obj) {
 void APIServer::on_update(update::UpdateEntity *obj) {
   if (obj->is_internal())
     return;
-  for (auto &c : this->clients_) {
+  for (auto &c : this->active_clients()) {
     if (c->flags_.state_subscription)
       c->send_update_state(obj);
   }
@@ -360,7 +363,7 @@ void APIServer::on_update(update::UpdateEntity *obj) {
 void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
   // We could add code to manage a second subscription type, but, since this message type is
   //  very infrequent and small, we simply send it to all clients
-  for (auto &c : this->clients_)
+  for (auto &c : this->active_clients())
     c->send_message(msg);
 }
 #endif
@@ -375,7 +378,7 @@ void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_
   resp.key = key;
   resp.timings = timings;
 
-  for (auto &c : this->clients_)
+  for (auto &c : this->active_clients())
     c->send_infrared_rf_receive_event(resp);
 }
 #endif
@@ -392,7 +395,7 @@ void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = bat
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call) {
-  for (auto &client : this->clients_) {
+  for (auto &client : this->active_clients()) {
     client->send_homeassistant_action(call);
   }
 }
@@ -532,7 +535,7 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
         return;
       }
       ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
-      for (auto &c : this->clients_) {
+      for (auto &c : this->active_clients()) {
         DisconnectRequest req;
         c->send_message(req);
       }
@@ -583,7 +586,7 @@ bool APIServer::clear_noise_psk(bool make_active) {
 
 #ifdef USE_HOMEASSISTANT_TIME
 void APIServer::request_time() {
-  for (auto &client : this->clients_) {
+  for (auto &client : this->active_clients()) {
     if (!client->flags_.remove && client->is_authenticated()) {
       client->send_time_request();
       return;  // Only request from one client to avoid clock conflicts
@@ -593,8 +596,8 @@ void APIServer::request_time() {
 #endif
 
 bool APIServer::is_connected_with_state_subscription() const {
-  for (const auto &client : this->clients_) {
-    if (client->flags_.state_subscription) {
+  for (uint8_t i = 0; i < this->api_connection_count_; i++) {
+    if (this->clients_[i]->flags_.state_subscription) {
       return true;
     }
   }
@@ -609,7 +612,7 @@ void APIServer::on_log(uint8_t level, const char *tag, const char *message, size
     // we would be filling a buffer we are trying to clear
     return;
   }
-  for (auto &c : this->clients_) {
+  for (auto &c : this->active_clients()) {
     if (!c->flags_.remove && c->get_log_subscription_level() >= level)
       c->try_send_log_message(level, tag, message, message_len);
   }
@@ -618,7 +621,7 @@ void APIServer::on_log(uint8_t level, const char *tag, const char *message, size
 
 #ifdef USE_CAMERA
 void APIServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
-  for (auto &c : this->clients_) {
+  for (auto &c : this->active_clients()) {
     if (!c->flags_.remove)
       c->set_camera_state(image);
   }
@@ -635,7 +638,7 @@ void APIServer::on_shutdown() {
   this->batch_delay_ = 5;
 
   // Send disconnect requests to all connected clients
-  for (auto &c : this->clients_) {
+  for (auto &c : this->active_clients()) {
     DisconnectRequest req;
     if (!c->send_message(req)) {
       // If we can't send the disconnect request directly (tx_buffer full),
@@ -653,7 +656,7 @@ bool APIServer::teardown() {
   this->loop();
 
   // Return true only when all clients have been torn down
-  return this->clients_.empty();
+  return this->api_connection_count_ == 0;
 }
 
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
