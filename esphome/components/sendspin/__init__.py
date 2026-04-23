@@ -118,7 +118,8 @@ async def to_code(config: ConfigType) -> None:
 
     data = _get_data()
 
-    # Configure Sendspin roles based on requested features and disable building unused code paths in the library
+    # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
+    # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
     if data.artwork_support:
         cg.add_define("USE_SENDSPIN_ARTWORK", True)
     else:
