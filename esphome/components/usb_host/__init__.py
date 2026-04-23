@@ -43,10 +43,10 @@ def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Sch
         schema = schema.extend({cv.Required(CONF_PID): cv.hex_uint16_t})
     return schema
 
+
 def add_usb_mps(mps_value: int):
-    if not hasattr(CORE.data, DOMAIN):
-        CORE.data.DOMAIN = {}
-    CORE.data.DOMAIN[CONF_MAX_PACKET_SIZE] = mps_value
+    CORE.data.setdefault(DOMAIN, {}).setdefault(CONF_MAX_PACKET_SIZE, mps_value)
+
 
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
