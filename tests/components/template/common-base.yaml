@@ -202,6 +202,11 @@ sensor:
           value: last
       - timeout:
           timeout: 1d
+      - to_ntc_temperature:
+          calibration:
+            b_constant: 3950
+            reference_temperature: 25.0°C
+            reference_resistance: 10kOhm
       - to_ntc_resistance:
           calibration:
             - 10.0kOhm -> 25°C
@@ -270,8 +275,6 @@ cover:
     stop_action:
       - logger.log: stop_action
     optimistic: true
-    on_open:
-      - logger.log: "Cover on_open (deprecated)"
     on_opened:
       - logger.log: "Cover fully opened"
     on_closed:
