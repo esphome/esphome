@@ -13,7 +13,7 @@ AudioHTTPMediaSource = audio_http_ns.class_(
 )
 
 
-def _request_micro_decoder(config):
+def _request_micro_decoder(config: ConfigType) -> ConfigType:
     audio.request_micro_decoder_support()
     return config
 
