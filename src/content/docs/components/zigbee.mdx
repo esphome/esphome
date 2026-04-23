@@ -1,35 +1,69 @@
 ---
-description: "Zigbee End Device for Zigbee2MQTT and ZHA."
-title: "Zigbee End Device"
+description: "Instructions for setting up Zigbee component."
+title: "Zigbee Component"
 ---
 
-The `zigbee` component allows exposing supported ESPHome components over a Zigbee network to Home Assistant
-via **Zigbee2MQTT** or **ZHA**. Due to the limitations of the Zigbee protocol, only basic properties are exposed.
-Additional properties must be configured manually in Home Assistant. Each ESPHome entity consumes one Zigbee endpoint.
-Single endpoint requires ZHA or at least Zigbee2MQTT 2.8.0. For older versions of Zigbee2MQTT use multiple endpoints.
-Spaces in names require ZHA or at least Zigbee2MQTT 2.8.0. For older versions of Zigbee2MQTT do not use spaces.
-The maximum number of supported endpoints is eight.
+Zigbee is a low-power, mesh-based networking standard designed for IoT devices. Its low energy consumption makes
+it well-suited for battery-powered smart-home devices, while its limited bandwidth is ideal for devices that exchange
+only small amounts of data, such as switches, sensors, and motion detectors.
 
-Zigbee support is currently available only on `nRF52` platforms.
+Zigbee uses the same RF technology as Thread (IEEE 802.15.4) but also defines multiple application standards.
+The `zigbee` component, however, supports only the Home Automation profile.
+It allows exposing supported ESPHome components over a Zigbee network to Home Assistant via
+**Zigbee2MQTT** or **ZHA**. Due to the limitations of the Zigbee protocol, only basic properties are exposed.
+Additional properties must be configured manually in Home Assistant. Each ESPHome entity consumes one Zigbee endpoint.
+
+> [!NOTE]
+> You will need a Zigbee coordinator like **Zigbee2MQTT** or **ZHA**. Other commercial Zigbee hubs most likely do not
+> support ESPHome components and might have issues with changing firmware.
+> When using Zigbee2MQTT, make sure to use at least version 2.8.0. Otherwise, names cannot contain spaces.
+> You also need to set up at least 2 endpoints in this case.
+
+## Supported Hardware
+
+Zigbee is only supported on `nRF52` platforms and on `ESP32` with IEEE 802.15.4 connectivity (`ESP32-C5`, `ESP32-C6`, or `ESP32-H2` 
+and in the future `ESP32-H4` and `ESP32-H21`). Both platforms support different features and have different limitations:
+- On `nRF52` a maximum of 8 endpoints is supported.
+- `ESP32-H2` seems to work more reliably than `ESP32-C6`. There are reports of `ESP32-C6` boards that work only if placed next 
+to the coordinator.
+- On `ESP32` Zigbee can be used together with [WiFi](/components/wifi) with some limitations:
+  - WiFi station mode + Zigbee end device is working fine.
+  - WiFi station mode + Zigbee router leads to an unstable Zigbee network. Still can be used if WiFi is only enabled for short times (e.g. OTA)
+  - WiFi access point + Zigbee end device could lead to an unstable access point with increased packet loss. If the AP is only used as fallback there should be no issues.
+  - WiFi access point + Zigbee router is not supported
+
+> [!CAUTION]
+> Whenever the configuration is changed, the device should be removed and re-added to the Zigbee network.
+> For Zigbee2MQTT, the device must also be re-interviewed. This is especially important if components are added or removed or if names change.
+> Sometimes a changed configuration can lead to boot loops. In this case use `wipe_on_boot` or erase the flash manually.
+
+<span id="config-zigbee"></span>
 
 ## Full Configuration
 
 ```yaml
-# Example configuration entry
+# Example configuration entry on ESP32
+zigbee:
+  id: my_zigbee
+  router: true
+```
+```yaml
+# Example configuration entry on nRF52
 zigbee:
   id: my_zigbee
   on_join:
     then:
       - logger.log: "Joined network"
-
-binary_sensor:
-  - platform: template
-    name: "Door 1"
-  - platform: template
-    name: "Door 2"
+  power_source: BATTERY
 ```
 
 ## Configuration variables
+
+- **model** (*Optional*, string): Model Identifier of the Zigbee device. Defaults to the ESPHome node name.
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID to use for this `zigbee` component.
+
+Only on `nRF52`:
 
 - **wipe_on_boot** (*Optional*): Erases all non-volatile memory data on boot, including
   Zigbee network pairing and preferences (e.g., last switch state). One of:
@@ -39,8 +73,6 @@ binary_sensor:
   - `once`: Erase data only on first boot after flashing new firmware, then preserve.
 
 - **on_join** (*Optional*, [Automation](/automations#automation)): Automation to run when the device joins the network.
-
-- **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID to use for this `zigbee` component.
 
 - **power_source** (*Optional*, enum): Indicates what kind of power the device uses. Affects
   sleep behavior. One of `UNKNOWN`, `MAINS_SINGLE_PHASE`, `MAINS_THREE_PHASE`, `BATTERY`,
@@ -56,6 +88,12 @@ binary_sensor:
 > [!WARNING]
 > Overusing `random` may exhaust memory in the Zigbee coordinator by creating many "ghost" devices.
 
+Only on `ESP32`:
+
+- **router** (*Optional*, boolean): If true the Zigbee role will be `router` instead of `end device` and it will
+  forward Zigbee packets from other devices. Don't use this for battery-powered devices. Defaults to `false`.
+
+
 ## Actions
 
 ### `zigbee.factory_reset` Action
@@ -69,115 +107,88 @@ on_...:
     - zigbee.factory_reset
 ```
 
+
+## Zigbee Component Base Configuration
+
+All components in ESPHome that do some sort of communication through
+Zigbee can have some overrides for specific options.
+
+### Configuration variables
+
+- **name** (**Required**, string): The name for the component. This is exposed as the Zigbee description attribute.
+- **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
+  not be exposed over Zigbee. Only specifying an `id` without a `name` will implicitly set this to true.
+  Use this if you run out of Zigbee endpoints.
+
+Only on `ESP32`:
+
+- **report** (*Optional*, enum): Report the state. One of `coordinator`, `enable`, `force`. `coordinator` uses the configuration from
+  the coordinator, `enable` activates reporting with default settings and uses the configuration from the coordinator if possible.
+  `force` ignores the coordinator configuration and reports every change. On `nRF52` the coordinator configuration is always used.
+  Defaults to `coordinator`.
+
+> [!NOTE]
+> ZHA sets the minimum reporting interval to 30 seconds for most sensor devices. If you need faster responses set `report` to `force`.
+
+
 ## Supported Components
 
-### Binary Sensor Configuration
+The following components are exposed over Zigbee if they have a name and if they are not marked as internal:
 
-All binary sensors with a `name` are automatically exposed over Zigbee.
+- [Binary Sensor](/components/binary_sensor#config-binary_sensor): only **state** and **name** are exposed over Zigbee.
 
-```yaml
-binary_sensor:
-  - platform: template
-    name: "Door 1"
-  - platform: template
-    name: "Door 2"
-  - platform: template
-    id: internal_sensor
-  - platform: template
-    name: "Another internal sensor"
-    internal: true
-```
+Only on `nRF52`:
 
-#### Configuration variables
+- [Sensor](/components/sensor#config-sensor): **state**, **name** and **unit_of_measurement** are exposed
+  over Zigbee. If no unit is given or if it is not supported it will fall back to unitless.
 
-- **name** (**Required**, string): The name for the binary sensor. This is exposed as the
-  Zigbee endpoint description.
-- **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
-  not be exposed over Zigbee. Only specifying an `id` without a `name` will implicitly set this to true.
-  Use this if you run out of Zigbee endpoints.
+- [Switch](/components/switch#config-switch): only **state** and **name** are exposed over Zigbee.
 
-### Sensor Configuration
+- [Number](/components/number#config-number): **state**, **name**, **unit_of_measurement**, **min_value**, **max_value**, and **step** are exposed
+  over Zigbee. If no unit is given or if it is not supported it will fall back to unitless.
 
-All sensors with a `name` are automatically exposed over Zigbee.
 
-```yaml
-sensor:
-  - platform: template
-    name: "Analog 1"
-    lambda: return 10.0;
-    unit_of_measurement: "°C"
-  - platform: template
-    name: "Analog 2"
-    lambda: return 11.0;
-  - platform: template
-    id: internal_sensor
-    lambda: return 9.0;
-  - platform: template
-    name: "Another internal sensor"
-    internal: true
-    lambda: return 8.0;
-```
+## Component Implementation Details
 
-#### Configuration variables
+### Binary Sensor
 
-- **name** (**Required**, string): The name for the sensor. This is exposed as the
-  Zigbee endpoint description.
-- **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
-  not be exposed over Zigbee. Only specifying an `id` without a `name` will implicitly set this to true.
-  Use this if you run out of Zigbee endpoints.
+[Binary Sensors](/components/binary_sensor#config-binary_sensor) are implemented as binary input clusters with description and present_value attributes.
+
+
+### Sensor
+
+[Sensors](/components/sensor#config-sensor) are implemented as analog input clusters with description, engineering_units,
+and present_value attributes. Available only on `nRF52` platforms.
+
+#### Additional configuration variables
+
+- **unit_of_measurement** (*Optional*, string): Manually set or overwrite the unit. By default
+  the unit of the component is used and if the component does not set a unit, values are unitless.
+  Only a limited set of units is supported. Unsupported units will revert to unitless.
+  This is exposed as the Zigbee engineering units attribute.
+
+### Switch
+
+[Switches](/components/switch#config-switch) are implemented as binary output clusters with description and present_value attributes.
+Available only on `nRF52` platforms.
+
+
+### Number
+
+[Numbers](/components/number#config-number) are implemented as analog output clusters with description, engineering_units,
+and present_value attributes. Available only on `nRF52` platforms.
+
+#### Additional configuration variables
+
 - **unit_of_measurement** (*Optional*, string): Manually set the unit. By default, values are unitless.
   Only a limited set of units is supported. Unsupported units will revert to unitless.
-  This is exposed as the Zigbee endpoint engineering units.
-
-### Switch Configuration
-
-All switches with a `name` are automatically exposed over Zigbee.
-
-```yaml
-switch:
-  - platform: template
-    name: "Template Switch"
-    optimistic: true
-```
-
-#### Configuration variables
-
-- **name** (**Required**, string): The name for the switch. This is exposed as the
-  Zigbee endpoint description.
-- **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
-  not be exposed over Zigbee. Only specifying an `id` without a `name` will implicitly set this to true.
-  Use this if you run out of Zigbee endpoints.
-
-### Number Configuration
-
-All numbers with a `name` are automatically exposed over Zigbee.
-
-```yaml
-number:
-  - platform: template
-    name: "Template Number"
-    optimistic: true
-    min_value: 2
-    max_value: 100
-    step: 1
-```
-
-#### Configuration variables
-
-- **name** (**Required**, string): The name for the number. This is exposed as the
-  Zigbee endpoint description.
-- **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
-  not be exposed over Zigbee. Only specifying an `id` without a `name` will implicitly set this to true.
-  Use this if you run out of Zigbee endpoints.
-- **unit_of_measurement** (*Optional*, string): Manually set the unit. By default, values are unitless.
-  Only a limited set of units is supported. Unsupported units will revert to unitless.
-  This is exposed as the Zigbee endpoint engineering units.
+  This is exposed as the Zigbee engineering units attribute.
 - **min_value** (*Optional*, float): The minimum value this number can be. This is exposed as the
-  Zigbee endpoint min present value.
+  Zigbee min present value attribute.
 - **max_value** (*Optional*, float): The maximum value this number can be. This is exposed as the
-  Zigbee endpoint max present value.
+  Zigbee max present value attribute.
 - **step** (*Optional*, float): The granularity with which the number can be set. This is exposed
-  as the Zigbee endpoint resolution.
+  as the Zigbee resolution attribute.
 
 ## See Also
 
