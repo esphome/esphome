@@ -50,8 +50,10 @@ void IRAM_ATTR PCA9554Component::gpio_intr(PCA9554Component *arg) { arg->enable_
 void PCA9554Component::loop() {
   // Invalidate the cache so the next digital_read() triggers a fresh I2C read
   this->reset_pin_cache_();
-  if (this->interrupt_pin_ != nullptr) {
-    // Interrupt-driven: disable loop until next interrupt fires
+  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
+  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
+  // stale state forever; keep looping until the line is released so we self-heal.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
     this->disable_loop();
   }
 }

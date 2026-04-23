@@ -48,6 +48,7 @@ class AcDimmer : public output::FloatOutput, public Component {
   void dump_config() override;
   void set_gate_pin(InternalGPIOPin *gate_pin) { gate_pin_ = gate_pin; }
   void set_zero_cross_pin(InternalGPIOPin *zero_cross_pin) { zero_cross_pin_ = zero_cross_pin; }
+  void set_zero_cross_interrupt_type(gpio::InterruptType type) { zero_cross_interrupt_type_ = type; }
   void set_init_with_half_cycle(bool init_with_half_cycle) { init_with_half_cycle_ = init_with_half_cycle; }
   void set_method(DimMethod method) { method_ = method; }
 
@@ -56,6 +57,7 @@ class AcDimmer : public output::FloatOutput, public Component {
 
   InternalGPIOPin *gate_pin_;
   InternalGPIOPin *zero_cross_pin_;
+  gpio::InterruptType zero_cross_interrupt_type_;
   AcDimmerDataStore store_;
   bool init_with_half_cycle_;
   DimMethod method_;

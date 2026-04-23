@@ -325,7 +325,7 @@ def download_gfont(value):
             raise cv.Invalid(
                 f"Could not download font at {url}, please check the fonts exists "
                 f"at google fonts ({e})"
-            )
+            ) from e
         match = re.search(r"src:\s+url\((.+)\)\s+format\('truetype'\);", req.text)
         if match is None:
             raise cv.Invalid(

@@ -6,13 +6,13 @@ colorama==0.4.6
 icmplib==3.0.4
 tornado==6.5.5
 tzlocal==5.3.1    # from time
-tzdata>=2021.1  # from time
+tzdata>=2026.1  # from time
 pyserial==3.5
 platformio==6.1.19
 esptool==5.2.0
-click==8.3.2
+click==8.3.3
 esphome-dashboard==20260408.1
-aioesphomeapi==44.15.0
+aioesphomeapi==44.20.0
 zeroconf==0.148.0
 puremagic==1.30
 ruamel.yaml==0.19.1 # dashboard_import
@@ -27,7 +27,7 @@ smpclient==6.0.0
 requests==2.33.1
 
 # esp-idf >= 5.0 requires this
-pyparsing >= 3.0
+pyparsing >= 3.3.2
 
 # For autocompletion
-argcomplete>=2.0.0
+argcomplete>=3.6.3

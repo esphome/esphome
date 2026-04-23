@@ -118,6 +118,7 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
+
 DEVICE_CLASSES = [
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
@@ -275,6 +276,9 @@ ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
 ThrottleWithPriorityFilter = sensor_ns.class_(
     "ThrottleWithPriorityFilter", ValueListFilter
 )
+ThrottleWithPriorityNanFilter = sensor_ns.class_(
+    "ThrottleWithPriorityNanFilter", Filter
+)
 TimeoutFilterBase = sensor_ns.class_("TimeoutFilterBase", Filter, cg.Component)
 TimeoutFilterLast = sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
 TimeoutFilterConfigured = sensor_ns.class_("TimeoutFilterConfigured", TimeoutFilterBase)
@@ -290,6 +294,7 @@ SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
+RoundSignificantDigitsFilter = sensor_ns.class_("RoundSignificantDigitsFilter", Filter)
 
 validate_unit_of_measurement = cv.All(
     cv.string_strict,
@@ -656,9 +661,18 @@ THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
     THROTTLE_WITH_PRIORITY_SCHEMA,
 )
 async def throttle_with_priority_filter_to_code(config, filter_id):
-    if not isinstance(config[CONF_VALUE], list):
-        config[CONF_VALUE] = [config[CONF_VALUE]]
-    template_ = [await cg.templatable(x, [], cg.float_) for x in config[CONF_VALUE]]
+    values = config[CONF_VALUE]
+    if not isinstance(values, list):
+        values = [values]
+    # Specialize the common "NaN-only" case (the schema default when the user
+    # omits `value:`) to avoid the TemplatableFn<float> array + NaN lambda the
+    # generic ValueListFilter path requires. Behavior is identical: NaN sensor
+    # readings always bypass the throttle.
+    if values and all(isinstance(v, float) and math.isnan(v) for v in values):
+        filter_id = filter_id.copy()
+        filter_id.type = ThrottleWithPriorityNanFilter
+        return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
+    template_ = [await cg.templatable(x, [], cg.float_) for x in values]
     return cg.new_Pvariable(
         filter_id, cg.TemplateArguments(len(template_)), config[CONF_TIMEOUT], template_
     )
@@ -885,6 +899,18 @@ async def round_multiple_filter_to_code(config, filter_id):
     return cg.new_Pvariable(
         filter_id,
         config[CONF_MULTIPLE],
+    )
+
+
+@FILTER_REGISTRY.register(
+    "round_to_significant_digits",
+    RoundSignificantDigitsFilter,
+    cv.int_range(min=1, max=6),
+)
+async def round_significant_digits_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        cg.TemplateArguments(config),
     )
 
 
