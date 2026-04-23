@@ -1098,9 +1098,16 @@ def ntc_process_calibration(value):
         if CONF_B_CONSTANT in value:
             value = cv.Schema(
                 {
-                    cv.Required(CONF_B_CONSTANT): cv.float_,
-                    cv.Required(CONF_REFERENCE_TEMPERATURE): cv.temperature,
-                    cv.Required(CONF_REFERENCE_RESISTANCE): cv.resistance,
+                    cv.Required(CONF_B_CONSTANT): cv.All(
+                        cv.float_, cv.Range(min=0, min_included=False)
+                    ),
+                    cv.Required(CONF_REFERENCE_TEMPERATURE): cv.All(
+                        cv.temperature,
+                        cv.Range(min=-ZERO_POINT, min_included=False),
+                    ),
+                    cv.Required(CONF_REFERENCE_RESISTANCE): cv.All(
+                        cv.resistance, cv.Range(min=0, min_included=False)
+                    ),
                 }
             )(value)
             a, b, c = ntc_calc_b_constant(value)
