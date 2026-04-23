@@ -1,6 +1,0 @@
-usb_host:
-  max_packet_size: 512  # ESP32-P4 USB High Speed
-  devices:
-    - id: device_1
-      vid: 0x1234
-      pid: 0x1234
