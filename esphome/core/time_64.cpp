@@ -74,8 +74,8 @@ uint64_t Millis64Impl::compute(uint32_t now) {
   // 2. Always locks when detecting a large backwards jump
   // 3. Updates without lock in normal forward progression (accepting minor races)
   // This is less efficient but necessary without atomic operations.
-  uint16_t major = millis_major;
-  uint32_t last = last_millis;
+  uint16_t major = __atomic_load_n(&millis_major, __ATOMIC_RELAXED);
+  uint32_t last = __atomic_load_n(&last_millis, __ATOMIC_RELAXED);
 
   // Define a safe window around the rollover point (10 seconds)
   // This covers any reasonable scheduler delays or thread preemption
@@ -87,19 +87,26 @@ uint64_t Millis64Impl::compute(uint32_t now) {
   if (near_rollover || (now < last && (last - now) > HALF_MAX_UINT32)) {
     // Near rollover or detected a rollover - need lock for safety
     LockGuard guard{lock};
-    // Re-read with lock held
-    last = last_millis;
+    // Re-read both values with lock held. last_millis can be updated
+    // unlocked from the forward-progression branch below, so use an atomic
+    // load. millis_major can only be updated under this lock, but another
+    // thread may have completed a rollover between our unlocked loads above
+    // and the lock acquisition — reload or we'd return a stale high word.
+    last = __atomic_load_n(&last_millis, __ATOMIC_RELAXED);
+    major = __atomic_load_n(&millis_major, __ATOMIC_RELAXED);
 
     if (now < last && (last - now) > HALF_MAX_UINT32) {
-      // True rollover detected (happens every ~49.7 days)
-      millis_major++;
+      // True rollover detected (happens every ~49.7 days).
+      // Use the already-loaded `major` local; avoids a second read of the
+      // global (equivalent under the held lock).
       major++;
+      __atomic_store_n(&millis_major, major, __ATOMIC_RELAXED);
 #ifdef ESPHOME_DEBUG_SCHEDULER
       ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
     }
     // Update last_millis while holding lock
-    last_millis = now;
+    __atomic_store_n(&last_millis, now, __ATOMIC_RELAXED);
   } else if (now > last) {
     // Normal case: Not near rollover and time moved forward
     // Update without lock. While this may cause minor races (microseconds of
@@ -107,7 +114,7 @@ uint64_t Millis64Impl::compute(uint32_t now) {
     // 1. The scheduler operates at millisecond resolution, not microsecond
     // 2. We've already prevented the critical rollover race condition
     // 3. Any backwards movement is orders of magnitude smaller than scheduler delays
-    last_millis = now;
+    __atomic_store_n(&last_millis, now, __ATOMIC_RELAXED);
   }
   // If now <= last and we're not near rollover, don't update
   // This minimizes backwards time movement
