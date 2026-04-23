@@ -10,6 +10,7 @@ import { remarkAlert } from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import componentsJson from "./src/integrations/components-json.ts";
+import routeIndex from "./src/integrations/route-index.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -278,5 +279,6 @@ export default defineConfig({
     }),
     sitemap(),
     componentsJson(),
+    routeIndex(),
   ],
 });

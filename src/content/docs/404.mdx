@@ -1,10 +1,92 @@
 ---
-title: '404'
+title: "Page Not Found"
+description: "The page you're looking for couldn't be reached."
 template: splash
 editUrl: false
-hero:
-  tagline: The page you're looking for doesn't exist.
-  actions:
-    - text: Go home
-      link: /
+tableOfContents: false
+pagefind: false
+head:
+  - tag: title
+    content: "404 - Page Not Found | ESPHome"
 ---
+
+import { allRoutes } from "virtual:esphome-route-index";
+
+<div class="error-404 not-content">
+  <div class="error-404__glyph" aria-hidden="true">
+    <span class="error-404__digit">4</span>
+    <span class="error-404__led">
+      <span class="error-404__led-core"></span>
+    </span>
+    <span class="error-404__digit">4</span>
+  </div>
+
+  <h1 class="error-404__title">Connection Lost</h1>
+  <p class="error-404__subtitle">
+    We couldn't find the page you were looking for — but your ESP's still
+    blinking. Follow a suggestion below, or head back home.
+  </p>
+
+  <div class="error-404__terminal">
+    <div class="error-404__terminal-header">
+      <span class="error-404__terminal-indicator" aria-hidden="true"></span>
+      <span class="error-404__terminal-title">esphome serial monitor</span>
+      <span class="error-404__terminal-baud">115200 8N1</span>
+    </div>
+    <div class="error-404__terminal-body" role="log" aria-label="ESPHome log and interactive shell">
+      <div class="error-404__output" data-output>
+        <div><span class="error-404__log-info">[I]</span> <span class="error-404__log-tag">[app:029]</span> <span class="error-404__log-text">Booting esphome.io...</span></div>
+        <div><span class="error-404__log-info">[I]</span> <span class="error-404__log-tag">[wifi:311]</span> <span class="error-404__log-text">Connecting to network...</span></div>
+        <div><span class="error-404__log-info">[I]</span> <span class="error-404__log-tag">[wifi:428]</span> <span class="error-404__log-text">WiFi connected.</span></div>
+        <div><span class="error-404__log-info">[I]</span> <span class="error-404__log-tag">[router:092]</span> <span class="error-404__log-text">GET <span class="error-404__log-path" data-path>/unknown</span></span></div>
+        <div><span class="error-404__log-warn">[W]</span> <span class="error-404__log-tag">[router:153]</span> <span class="error-404__log-text">Route not defined in configuration.yaml</span></div>
+        <div><span class="error-404__log-err">[E]</span> <span class="error-404__log-tag">[http:404]</span> <span class="error-404__log-text">Requested page could not be located.</span></div>
+      </div>
+      <form class="error-404__prompt-form" data-prompt autocomplete="off" onsubmit="return false;">
+        <label class="error-404__prompt-label">
+          <span class="error-404__log-info">esphome</span><span class="error-404__prompt-arrow">&gt;</span>
+        </label>
+        <input
+          class="error-404__prompt-input"
+          type="text"
+          data-input
+          aria-label="Command prompt"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+        />
+      </form>
+    </div>
+  </div>
+
+  <div class="error-404__suggestions" data-suggestions hidden></div>
+
+  <h2 class="error-404__heading">Popular destinations</h2>
+  <div class="error-404__grid">
+    <a href="/" class="error-404__card">
+      <div class="error-404__card-title">Home</div>
+      <p>Back to the ESPHome homepage.</p>
+    </a>
+    <a href="/components/" class="error-404__card">
+      <div class="error-404__card-title">Components</div>
+      <p>Browse every supported sensor, display, and peripheral.</p>
+    </a>
+    <a href="/guides/faq/" class="error-404__card">
+      <div class="error-404__card-title">FAQ &amp; Tips</div>
+      <p>Common questions and troubleshooting advice.</p>
+    </a>
+    <a href="/changelog/" class="error-404__card">
+      <div class="error-404__card-title">Changelog</div>
+      <p>See what's new in recent ESPHome releases.</p>
+    </a>
+  </div>
+
+  <p class="error-404__hint">
+    Press <kbd>/</kbd> to search the docs.
+  </p>
+</div>
+
+<script id="esphome-404-routes" type="application/json" is:inline>{JSON.stringify(allRoutes)}</script>
+
+<script src="/scripts/404.js" is:inline></script>
