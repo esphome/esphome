@@ -93,7 +93,20 @@ async def async_run_logs(
                     config, raw_line, backtrace_state=backtrace_state
                 )
 
-    stop = await async_run(cli, on_log, name=name, subscribe_states=subscribe_states)
+    # Safe to fall back to plaintext here: the log stream is strictly
+    # one-way from device to client, and this code never accepts commands
+    # or acts on any message the device sends. The worst an on-path
+    # attacker can do is show fabricated log lines, which is why
+    # aioesphomeapi logs a warning that the device's identity cannot be
+    # verified. Never mirror this opt-in for any connection that sends
+    # data to the device or uses Home Assistant actions.
+    stop = await async_run(
+        cli,
+        on_log,
+        name=name,
+        subscribe_states=subscribe_states,
+        allow_plaintext_fallback=True,
+    )
     try:
         await asyncio.Event().wait()
     finally:
