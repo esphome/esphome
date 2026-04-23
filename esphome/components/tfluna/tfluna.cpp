@@ -106,7 +106,9 @@ bool TFLuna::read_data_() {
 }
 
 void TFLuna::read_data_timeout_() {
-  if (!this->read_data_()) {
+  if (this->read_data_()) {
+    this->attempt_ = 0;
+  } else {
     if (this->attempt_ < 5) {
       this->attempt_++;
       this->set_timeout("read_data_timeout_", 5, [this]() { this->read_data_timeout_(); });
@@ -122,7 +124,6 @@ void TFLuna::update() {
     this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
-  this->attempt_ = 0;
   this->read_data_timeout_();
 }
 
