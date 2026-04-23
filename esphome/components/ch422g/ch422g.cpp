@@ -124,16 +124,12 @@ bool CH422GComponent::write_outputs_() {
 
 float CH422GComponent::get_setup_priority() const { return setup_priority::IO; }
 
-// Run our loop() method very early in the loop, so that we cache read values
-// before other components call our digital_read() method.
-float CH422GComponent::get_loop_priority() const { return 9.0f; }  // Just after WIFI
-
 void CH422GGPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool CH422GGPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) ^ this->inverted_; }
 
 void CH422GGPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value ^ this->inverted_); }
 size_t CH422GGPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "EXIO%u via CH422G", this->pin_);
+  return buf_append_printf(buffer, len, 0, "EXIO%u via CH422G", this->pin_);
 }
 void CH422GGPIOPin::set_flags(gpio::Flags flags) {
   flags_ = flags;

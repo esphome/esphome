@@ -15,7 +15,7 @@ class APIConnection;
     return this->client_->schedule_message_(entity, ResponseType::MESSAGE_TYPE, ResponseType::ESTIMATED_SIZE); \
   }
 
-class ListEntitiesIterator : public ComponentIterator {
+class ListEntitiesIterator final : public ComponentIterator {
  public:
   ListEntitiesIterator(APIConnection *client);
 #ifdef USE_BINARY_SENSOR
@@ -87,6 +87,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_INFRARED
   bool on_infrared(infrared::Infrared *entity) override;
 #endif
+#ifdef USE_RADIO_FREQUENCY
+  bool on_radio_frequency(radio_frequency::RadioFrequency *entity) override;
+#endif
 #ifdef USE_EVENT
   bool on_event(event::Event *entity) override;
 #endif
@@ -94,7 +97,6 @@ class ListEntitiesIterator : public ComponentIterator {
   bool on_update(update::UpdateEntity *entity) override;
 #endif
   bool on_end() override;
-  bool completed() { return this->state_ == IteratorState::NONE; }
 
  protected:
   APIConnection *client_;

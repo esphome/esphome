@@ -79,6 +79,11 @@ async def to_code(config):
 @pins.PIN_SCHEMA_REGISTRY.register("{COMPONENT_LOWER}", PIN_SCHEMA)
 async def pin_to_code(config):
     return await libretiny.gpio.component_pin_to_code(config)
+
+
+# Called by writer.py; delegates to the shared libretiny implementation.
+def copy_files() -> None:
+    libretiny.copy_files()
 '''
 
 BASE_CODE_BOARDS = '''

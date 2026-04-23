@@ -16,7 +16,8 @@ def test_gpio_binary_sensor_basic_setup(
     """
     main_cpp = generate_main("tests/component_tests/gpio/test_gpio_binary_sensor.yaml")
 
-    assert "new gpio::GPIOBinarySensor();" in main_cpp
+    assert "static gpio::GPIOBinarySensor *const" in main_cpp
+    assert ") gpio::GPIOBinarySensor();" in main_cpp
     assert "App.register_binary_sensor" in main_cpp
     # set_use_interrupt(true) should NOT be generated (uses C++ default)
     assert "bs_gpio->set_use_interrupt(true);" not in main_cpp

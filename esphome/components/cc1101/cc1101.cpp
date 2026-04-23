@@ -102,8 +102,34 @@ CC1101Component::CC1101Component() {
   memset(this->pa_table_, 0, sizeof(this->pa_table_));
 }
 
+void IRAM_ATTR CC1101Component::gpio_intr(CC1101Component *arg) { arg->enable_loop_soon_any_context(); }
+
 void CC1101Component::setup() {
   this->spi_setup();
+
+  if (this->gdo0_pin_ != nullptr) {
+    this->gdo0_pin_->setup();
+  }
+
+  this->configure();
+  if (this->is_failed()) {
+    return;
+  }
+
+  // Defer pin mode setup until after all components have completed setup()
+  // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
+  if (this->gdo0_pin_ != nullptr) {
+    this->defer([this]() {
+      this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
+      if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+        this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
+      }
+    });
+  }
+}
+
+void CC1101Component::configure() {
+  // Manual reset sequence per CC1101 datasheet section 19.1.2
   this->cs_->digital_write(true);
   delayMicroseconds(1);
   this->cs_->digital_write(false);
@@ -126,11 +152,6 @@ void CC1101Component::setup() {
     return;
   }
 
-  // Setup GDO0 pin if configured
-  if (this->gdo0_pin_ != nullptr) {
-    this->gdo0_pin_->setup();
-  }
-
   this->initialized_ = true;
 
   for (uint8_t i = 0; i <= static_cast<uint8_t>(Register::TEST0); i++) {
@@ -140,19 +161,22 @@ void CC1101Component::setup() {
     this->write_(static_cast<Register>(i));
   }
   this->set_output_power(this->output_power_requested_);
+
   if (!this->enter_rx_()) {
     this->mark_failed();
     return;
   }
+}
 
-  // Defer pin mode setup until after all components have completed setup()
-  // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
-  if (this->gdo0_pin_ != nullptr) {
-    this->defer([this]() { this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT); });
+void CC1101Component::call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi) {
+  for (auto &listener : this->listeners_) {
+    listener->on_packet(packet, freq_offset, rssi, lqi);
   }
+  this->packet_trigger_.trigger(packet, freq_offset, rssi, lqi);
 }
 
 void CC1101Component::loop() {
+  this->disable_loop();
   if (this->state_.PKT_FORMAT != static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO) || this->gdo0_pin_ == nullptr ||
       !this->gdo0_pin_->digital_read()) {
     return;
@@ -198,7 +222,7 @@ void CC1101Component::loop() {
   bool crc_ok = (this->state_.LQI & STATUS_CRC_OK_MASK) != 0;
   uint8_t lqi = this->state_.LQI & STATUS_LQI_MASK;
   if (this->state_.CRC_EN == 0 || crc_ok) {
-    this->packet_trigger_->trigger(this->packet_, freq_offset, rssi, lqi);
+    this->call_listeners_(this->packet_, freq_offset, rssi, lqi);
   }
 
   // Return to rx
@@ -233,8 +257,12 @@ void CC1101Component::begin_tx() {
   this->write_(Register::PKTCTRL0, 0x32);
   ESP_LOGV(TAG, "Beginning TX sequence");
   if (this->gdo0_pin_ != nullptr) {
+    this->gdo0_pin_->detach_interrupt();
     this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
+  // Transition through IDLE to bypass CCA (Clear Channel Assessment) which can
+  // block TX entry when strobing from RX, and to ensure FS_AUTOCAL calibration
+  this->enter_idle_();
   if (!this->enter_tx_()) {
     ESP_LOGW(TAG, "Failed to enter TX state!");
   }
@@ -245,6 +273,8 @@ void CC1101Component::begin_rx() {
   if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
   }
+  // Transition through IDLE to ensure FS_AUTOCAL calibration occurs
+  this->enter_idle_();
   if (!this->enter_rx_()) {
     ESP_LOGW(TAG, "Failed to enter RX state!");
   }
@@ -252,7 +282,7 @@ void CC1101Component::begin_rx() {
 
 void CC1101Component::reset() {
   this->strobe_(Command::RES);
-  this->setup();
+  this->configure();
 }
 
 void CC1101Component::set_idle() {
@@ -657,6 +687,13 @@ void CC1101Component::set_packet_mode(bool value) {
     this->state_.GDO0_CFG = 0x0D;
   }
   if (this->initialized_) {
+    if (this->gdo0_pin_ != nullptr) {
+      if (value) {
+        this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
+      } else {
+        this->gdo0_pin_->detach_interrupt();
+      }
+    }
     this->write_(Register::PKTCTRL0);
     this->write_(Register::PKTCTRL1);
     this->write_(Register::IOCFG0);
