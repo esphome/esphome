@@ -5,7 +5,8 @@ import esphome.codegen as cg
 from esphome.components import esp32, network, psram, socket, wifi
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TASK_STACK_IN_PSRAM
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.cpp_generator import TemplateArgsType
 from esphome.types import ConfigType
 
 # mdns for autodiscovery
@@ -133,7 +134,12 @@ SENDSPIN_SIMPLE_ACTION_SCHEMA = cv.All(
     SENDSPIN_SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def sendspin_switch_to_code(config: ConfigType, action_id, template_arg, args):
+async def sendspin_switch_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
