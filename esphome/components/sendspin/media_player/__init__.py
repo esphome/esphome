@@ -1,5 +1,3 @@
-"""Sendspin Media Player Setup."""
-
 import esphome.codegen as cg
 from esphome.components import media_player
 from esphome.components.const import CONF_VOLUME_INCREMENT
