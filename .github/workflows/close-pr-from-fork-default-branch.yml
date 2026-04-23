@@ -33,7 +33,7 @@ jobs:
               ``,
               `- Your fork's \`${defaultBranch}\` branch will permanently diverge from \`esphome/esphome:${defaultBranch}\`, making it hard to keep your fork up to date.`,
               `- Any additional commits you push to \`${defaultBranch}\` will be added to this PR, so you can't easily work on multiple changes at once.`,
-              `- Maintainers can't push fixes to your branch.`,
+              `- Pushing maintainer fixes to your branch is awkward, since it means committing directly to your fork's default branch.`,
               ``,
               `Please re-open this as a new PR from a dedicated feature branch. The usual flow looks like:`,
               ``,
