@@ -87,8 +87,13 @@ uint64_t Millis64Impl::compute(uint32_t now) {
   if (near_rollover || (now < last && (last - now) > HALF_MAX_UINT32)) {
     // Near rollover or detected a rollover - need lock for safety
     LockGuard guard{lock};
-    // Re-read with lock held
-    last = last_millis;
+    // Re-read both values with lock held. last_millis can be updated
+    // unlocked from the forward-progression branch below, so use an atomic
+    // load. millis_major can only be updated under this lock, but another
+    // thread may have completed a rollover between our unlocked loads above
+    // and the lock acquisition — reload or we'd return a stale high word.
+    last = __atomic_load_n(&last_millis, __ATOMIC_RELAXED);
+    major = __atomic_load_n(&millis_major, __ATOMIC_RELAXED);
 
     if (now < last && (last - now) > HALF_MAX_UINT32) {
       // True rollover detected (happens every ~49.7 days)
