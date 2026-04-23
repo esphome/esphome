@@ -1,4 +1,4 @@
-<<: !include common.yaml
+<<: !include common_nrf52.yaml
 
 zigbee:
   wipe_on_boot: once

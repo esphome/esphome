@@ -600,6 +600,6 @@ esphome/components/xxtea/* @clydebarrow
 esphome/components/zephyr/* @tomaszduda23
 esphome/components/zephyr_mcumgr/ota/* @tomaszduda23
 esphome/components/zhlt01/* @cfeenstra1024
-esphome/components/zigbee/* @tomaszduda23
+esphome/components/zigbee/* @luar123 @tomaszduda23
 esphome/components/zio_ultrasonic/* @kahrendt
 esphome/components/zwave_proxy/* @kbx81

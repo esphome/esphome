@@ -1,4 +1,4 @@
-from datetime import datetime
+import datetime
 import random
 
 from esphome import automation
@@ -7,6 +7,7 @@ from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_MODEL,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
     UNIT_AMPERE,
@@ -48,19 +49,26 @@ from esphome.cpp_generator import (
 )
 from esphome.types import ConfigType
 
-from .const_zephyr import (
-    CONF_IEEE802154_VENDOR_OUI,
+from .const import (
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
     CONF_WIPE_ON_BOOT,
+    KEY_ZIGBEE,
+    POWER_SOURCE,
+    AnalogAttrs,
+    AnalogAttrsOutput,
+    BinaryAttrs,
+    ZigbeeComponent,
+    zigbee_ns,
+)
+from .const_zephyr import (
+    CONF_IEEE802154_VENDOR_OUI,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
     CONF_ZIGBEE_NUMBER,
     CONF_ZIGBEE_SENSOR,
     CONF_ZIGBEE_SWITCH,
     KEY_EP_NUMBER,
-    KEY_ZIGBEE,
-    POWER_SOURCE,
     ZB_ZCL_BASIC_ATTRS_EXT_T,
     ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
     ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT,
@@ -69,11 +77,6 @@ from .const_zephyr import (
     ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
     ZB_ZCL_IDENTIFY_ATTRS_T,
-    AnalogAttrs,
-    AnalogAttrsOutput,
-    BinaryAttrs,
-    ZigbeeComponent,
-    zigbee_ns,
 )
 
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
@@ -209,9 +212,9 @@ async def _attr_to_code(config: ConfigType) -> None:
         zigbee_assign(basic_attrs.stack_version, 0),
         zigbee_assign(basic_attrs.hw_version, 0),
         zigbee_set_string(basic_attrs.mf_name, "esphome"),
-        zigbee_set_string(basic_attrs.model_id, CORE.name),
+        zigbee_set_string(basic_attrs.model_id, config[CONF_MODEL]),
         zigbee_set_string(
-            basic_attrs.date_code, datetime.now().strftime("%d/%m/%y %H:%M")
+            basic_attrs.date_code, datetime.datetime.now().strftime("%Y%m%d %H%M%S")
         ),
         zigbee_assign(
             basic_attrs.power_source,

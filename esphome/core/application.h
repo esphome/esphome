@@ -222,14 +222,9 @@ class Application {
   ///   - ESP8266 HW WDT (~6 s):         ~20x
   ///   - BK72xx HW WDT (10 s):          ~5x  <-- platform override below
 #ifdef USE_BK72XX
-  /// BK72xx silicon requires a ~200 µs busy-wait between two watchdog register
-  /// key writes on every reload, making each arch_feed_wdt() ~300 µs. The
-  /// sctrl_dpll_delay200us() call lives in BDK's wdt_ctrl (WCMD_RELOAD_PERIOD):
-  /// https://github.com/libretiny-eu/framework-beken-bdk/blob/44800e7451ea30fbcbd3bb6e905315de59349fee/beken378/driver/wdt/wdt.c#L75-L87
-  /// LibreTiny initialises the HW WDT at 10 s, so 2000 ms keeps a 5x safety
-  /// margin — matching the ESP8266 ratio that motivated the generic 300 ms
-  /// value — while cutting feed frequency ~6x and recovering ~50 ms/min of
-  /// main-loop overhead on typical configs.
+  // BDK busy-waits 200us per WDT reload (sctrl_dpll_delay200us). LibreTiny
+  // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:
+  // https://github.com/libretiny-eu/framework-beken-bdk/blob/44800e7451ea30fbcbd3bb6e905315de59349fee/beken378/driver/wdt/wdt.c#L75-L87
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 2000;
 #else
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;

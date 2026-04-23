@@ -550,17 +550,18 @@ class Scheduler {
   }
 
   // Increment to_add_count_ (no-op on single-threaded platforms).
-  // On NO_ATOMICS the caller must hold lock_; the atomic store pairs with
-  // the reader's __atomic_load_n in to_add_empty_(). The input-value read is
-  // plain — safe because only writers (serialised by lock_) modify the
-  // counter, and concurrent readers only atomic-load (no conflicting write).
+  // On NO_ATOMICS the caller must hold lock_; both load and store go through
+  // __atomic_*_n with __ATOMIC_RELAXED to keep every access to the counter
+  // explicitly atomic in the C++ memory model (same ARMv5TE codegen as
+  // plain LDR+STR).
   void to_add_count_increment_locked_() {
 #if defined(ESPHOME_THREAD_SINGLE)
     // No counter needed — to_add_empty_() checks the vector directly
 #elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
     this->to_add_count_.fetch_add(1, std::memory_order_relaxed);
 #else
-  __atomic_store_n(&this->to_add_count_, this->to_add_count_ + 1, __ATOMIC_RELAXED);
+  uint32_t v = __atomic_load_n(&this->to_add_count_, __ATOMIC_RELAXED);
+  __atomic_store_n(&this->to_add_count_, v + 1, __ATOMIC_RELAXED);
 #endif
   }
 
@@ -603,7 +604,8 @@ class Scheduler {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->defer_count_.fetch_add(1, std::memory_order_relaxed);
 #else
-    __atomic_store_n(&this->defer_count_, this->defer_count_ + 1, __ATOMIC_RELAXED);
+    uint32_t v = __atomic_load_n(&this->defer_count_, __ATOMIC_RELAXED);
+    __atomic_store_n(&this->defer_count_, v + 1, __ATOMIC_RELAXED);
 #endif
   }
 
@@ -641,7 +643,8 @@ class Scheduler {
 #if defined(ESPHOME_THREAD_MULTI_ATOMICS)
     this->to_remove_.fetch_add(count, std::memory_order_relaxed);
 #elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
-    __atomic_store_n(&this->to_remove_, this->to_remove_ + count, __ATOMIC_RELAXED);
+    uint32_t v = __atomic_load_n(&this->to_remove_, __ATOMIC_RELAXED);
+    __atomic_store_n(&this->to_remove_, v + count, __ATOMIC_RELAXED);
 #else
   this->to_remove_ += count;
 #endif
@@ -651,7 +654,8 @@ class Scheduler {
 #if defined(ESPHOME_THREAD_MULTI_ATOMICS)
     this->to_remove_.fetch_sub(1, std::memory_order_relaxed);
 #elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
-    __atomic_store_n(&this->to_remove_, this->to_remove_ - 1, __ATOMIC_RELAXED);
+    uint32_t v = __atomic_load_n(&this->to_remove_, __ATOMIC_RELAXED);
+    __atomic_store_n(&this->to_remove_, v - 1, __ATOMIC_RELAXED);
 #else
   this->to_remove_--;
 #endif
