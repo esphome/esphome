@@ -555,7 +555,8 @@ void CH934XChannel::write_array(const uint8_t *data, size_t len) {
     }
     size_t data_len = std::min(len, TX_MAX_DATA);
     // Pre-build the TX header into the chunk: [port, len_lo, len_hi, data...]
-    chunk->data[0] = static_cast<uint8_t>(static_cast<USBUartTypeCH934X *>(this->parent_)->get_port_offset() + this->index_);
+    chunk->data[0] =
+        static_cast<uint8_t>(static_cast<USBUartTypeCH934X *>(this->parent_)->get_port_offset() + this->index_);
     chunk->data[1] = data_len & 0xFF;
     chunk->data[2] = (data_len >> 8) & 0xFF;
     memcpy(chunk->data + TX_HEADER_SIZE, data, data_len);
