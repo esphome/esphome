@@ -24,9 +24,6 @@
 #include "esphome/core/area.h"
 #endif
 
-#ifdef USE_LWIP_FAST_SELECT
-#include "esphome/core/lwip_fast_select.h"
-#endif
 #ifdef USE_RUNTIME_STATS
 #include "esphome/components/runtime_stats/runtime_stats.h"
 #endif
@@ -436,10 +433,6 @@ class Application {
   void service_status_led_slow_(uint32_t time);
 #endif
 
-  /// Sleep for up to delay_ms, returning early if a wake event arrives.
-  /// Thin wrapper over the platform wake primitive in wake.h.
-  inline void ESPHOME_ALWAYS_INLINE yield_with_select_(uint32_t delay_ms);
-
   // === Member variables ordered by size to minimize padding ===
 
   // Pointer-sized members first
@@ -701,18 +694,14 @@ inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::l
     const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
     delay_time = std::min(until_phase, until_sched);
   }
-  this->yield_with_select_(delay_time);
+  // All platforms route loop yields through the platform wake primitive.
+  // On host this drains the loopback wake socket via select(); on FreeRTOS
+  // targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
+  esphome::internal::wakeable_delay(delay_time);
 
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
   }
-}
-
-// All platforms route loop yields through the platform wake primitive.
-// On host this drains the loopback wake socket via select(); on FreeRTOS
-// targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
-inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
-  esphome::internal::wakeable_delay(delay_ms);
 }
 
 }  // namespace esphome
