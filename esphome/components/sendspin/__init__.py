@@ -99,12 +99,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _request_controller_role(config: ConfigType) -> ConfigType:
-    """Request the controller role for the sendspin.switch action."""
-    request_controller_support()
-    return config
-
-
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
