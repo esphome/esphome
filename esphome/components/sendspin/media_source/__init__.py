@@ -1,8 +1,6 @@
-"""Sendspin media source component for ESPHome."""
-
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import media_source, psram
+from esphome.components import media_source
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -17,6 +15,7 @@ from .. import (
     CONF_INITIAL_STATIC_DELAY,
     CONF_SENDSPIN_ID,
     SendspinHub,
+    _validate_task_stack_in_psram,
     register_player_config,
     request_controller_support,
     sendspin_ns,
@@ -60,13 +59,6 @@ def _register(config: ConfigType) -> ConfigType:
         }
     )
     return config
-
-
-def _validate_task_stack_in_psram(value):
-    value = cv.boolean(value)
-    if value:
-        cv.requires_component(psram.DOMAIN)(value)
-    return value
 
 
 CONFIG_SCHEMA = cv.All(
