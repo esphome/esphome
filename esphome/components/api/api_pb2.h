@@ -3054,11 +3054,11 @@ class ListEntitiesInfraredResponse final : public InfoResponseProtoMessage {
  protected:
 };
 #endif
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 class InfraredRFTransmitRawTimingsRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 136;
-  static constexpr uint8_t ESTIMATED_SIZE = 220;
+  static constexpr uint8_t ESTIMATED_SIZE = 224;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("infrared_rf_transmit_raw_timings_request"); }
 #endif
@@ -3071,6 +3071,7 @@ class InfraredRFTransmitRawTimingsRequest final : public ProtoDecodableMessage {
   const uint8_t *timings_data_{nullptr};
   uint16_t timings_length_{0};
   uint16_t timings_count_{0};
+  uint32_t modulation{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
@@ -3092,6 +3093,27 @@ class InfraredRFReceiveEvent final : public ProtoMessage {
 #endif
   uint32_t key{0};
   const std::vector<int32_t> *timings{};
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
+  uint32_t calculate_size() const;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
+#ifdef USE_RADIO_FREQUENCY
+class ListEntitiesRadioFrequencyResponse final : public InfoResponseProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 148;
+  static constexpr uint8_t ESTIMATED_SIZE = 56;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("list_entities_radio_frequency_response"); }
+#endif
+  uint32_t capabilities{0};
+  uint32_t frequency_min{0};
+  uint32_t frequency_max{0};
+  uint32_t supported_modulations{0};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
