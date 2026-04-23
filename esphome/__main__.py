@@ -667,9 +667,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     return 0
 
 
-def wrap_to_code(name, comp):
-    from esphome import yaml_util
-
+def _wrap_to_code(name, comp, yaml_util):
     coro = coroutine(comp.to_code)
 
     @functools.wraps(comp.to_code)
@@ -702,11 +700,13 @@ def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
+    from esphome import yaml_util
+
     _LOGGER.info("Generating C++ source...")
 
     for name, component, conf in iter_component_configs(CORE.config):
         if component.to_code is not None:
-            coro = wrap_to_code(name, component)
+            coro = _wrap_to_code(name, component, yaml_util)
             CORE.add_job(coro, conf)
 
     CORE.flush_tasks()
