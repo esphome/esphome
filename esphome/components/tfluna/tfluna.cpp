@@ -8,9 +8,6 @@ namespace esphome::tfluna {
 // see https://files.waveshare.com/upload/a/ac/SJ-PM-TF-Luna_A05_Product_Manual.pdf
 static const uint8_t SAVE_REGISTER = 0x20;
 static const uint8_t VERSION_REVISION_REGISTER = 0x0A;
-static const uint8_t AMP_LOW_REGISTER = 0x02;
-static const uint8_t TIMESTAMP_LOW_REGISTER = 0x06;
-static const uint8_t TIMESTAMP_HIGH_REGISTER = 0x07;
 static const uint8_t DISTANCE_LOW_REGISTER = 0x00;
 static const uint8_t RESTORE_FACTORY_DEFAULTS_REGISTER = 0x29;
 static const uint8_t SHUTDOWN_REBOOT_REGISTER = 0x21;
