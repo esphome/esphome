@@ -62,15 +62,20 @@ def _register(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_task_stack_in_psram(value):
+    value = cv.boolean(value)
+    if value:
+        cv.requires_component(psram.DOMAIN)(value)
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     media_source.media_source_schema(
         SendspinMediaSource,
     ).extend(
         {
             cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub),
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
-                cv.boolean, cv.requires_component(psram.DOMAIN)
-            ),
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): _validate_task_stack_in_psram,
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(min=25000),
             cv.Optional(CONF_INITIAL_STATIC_DELAY, default="0ms"): cv.All(
                 cv.positive_time_period_milliseconds,
