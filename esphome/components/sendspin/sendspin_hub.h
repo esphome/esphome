@@ -49,10 +49,10 @@ struct LastPlayedServerPref {
 ///    `setup()`: listener interfaces (for events the library pushes; e.g., group updates) and provider interfaces
 ///    (for services the library pulls; e.g., persistence, network readiness).
 ///  - User -> library communication uses exposed functions on the client and role objects that the user calls.
-class SendspinHub : public Component,
-                    public sendspin::SendspinClientListener,
-                    public sendspin::SendspinNetworkProvider,
-                    public sendspin::SendspinPersistenceProvider {
+class SendspinHub final : public Component,
+                          public sendspin::SendspinClientListener,
+                          public sendspin::SendspinNetworkProvider,
+                          public sendspin::SendspinPersistenceProvider {
  public:
   float get_setup_priority() const override { return sendspin_priority::HUB; }
   void setup() override;
