@@ -26,16 +26,9 @@ void HOT yield() { ::yield(); }
 // the rare path — well under WiFi's ~10 μs ISR latency budget). NMIs (level
 // >15) are not masked, but the ESP8266 SDK's NMI handlers don't call millis().
 //
-// Correctness rests on a frequency invariant, not arithmetic bounds:
-// system_get_time() wraps every ~71.6 min, and unsigned (now_us - last_us)
-// handles exactly one wrap. The ESPHome main loop calls millis() 1+N times
-// per iteration at 60+ Hz, and esphome::delay() polls millis() in its wait
-// loop — last_us is refreshed thousands of times per second, so delta stays
-// tiny (typically <1 ms). No ESPHome caller blocks >71 min without yielding
-// through the main loop or delay(). If that invariant were ever violated, a
-// near-UINT32_MAX delta could overflow remainder += delta; the clock would
-// glitch for one call and self-correct on the next. Not worth guarding
-// against in the hot path.
+// system_get_time() wraps every ~71.6 min; unsigned (now_us - last_us) handles
+// one wrap. The main loop calls millis() at 60+ Hz, so delta stays tiny — a
+// >71 min block would trip the watchdog long before it could matter here.
 static constexpr uint32_t MILLIS_RARE_PATH_THRESHOLD_US = 10000;
 static constexpr uint32_t US_PER_MS = 1000;
 
