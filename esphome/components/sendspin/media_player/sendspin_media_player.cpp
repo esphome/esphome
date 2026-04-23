@@ -77,7 +77,7 @@ media_player::MediaPlayerTraits SendspinMediaPlayer::get_traits() {
 
 // THREAD CONTEXT: Main loop (invoked by the media_player framework)
 void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
-  if (!this->is_ready() || this->is_failed()) {
+  if (!this->is_ready()) {
     // Ignore any commands sent before the media player is setup
     return;
   }
