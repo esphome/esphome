@@ -395,34 +395,50 @@ esp32:
 
 - **signed_ota_verification** (*Optional*, mapping): Enable
   [Signed App Verification Without Hardware Secure Boot](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/security/secure-boot-v2.html#signed-app-verification-without-hardware-secure-boot).
-  When configured, OTA firmware updates are verified using a cryptographic signature. The public key is embedded in
-  the running firmware's signature block and used to verify the signature of any incoming OTA update. This protects
+  When configured, OTA firmware updates are verified using a cryptographic signature. This protects
   against tampered firmware from network-based attacks without requiring hardware Secure Boot (eFuse).
+  Both Secure Boot V2 (RSA-3072 or ECDSA-V2) and Secure Boot V1 (ECDSA) signing schemes are supported.
   Contains the following options:
 
   - **signing_key** (*Optional*, filename): Path to a PEM-encoded private signing key. When provided, the firmware
     is **automatically signed during build** using `espsecure`. This is the simplest workflow — the public key is
     derived automatically and embedded in the signature block. **Mutually exclusive with `verification_key`.**
-  - **verification_key** (*Optional*, filename): Path to a PEM-encoded public verification key. When provided, the
+  - **verification_key** (*Optional*, filename): Path to a public verification key. When provided, the
     public key is embedded for verification but the binary is **not signed during build**. You must sign the firmware
-    externally (typically by way of `espsecure.py sign-data --version 2 --keyfile private.pem firmware.bin`) before
-    flashing. This is useful for CI/CD pipelines where the private key is stored in a secure vault.
+    externally before flashing. This is useful for CI/CD pipelines where the private key is stored in a secure vault.
     **Mutually exclusive with `signing_key`.**
-  - **signing_scheme** (*Optional*, string): The signing algorithm. One of `rsa3072` or `ecdsa256`. Defaults to
-    `rsa3072`. **Not all schemes are supported on all variants** — see the table below.
 
-    | Variant | `rsa3072` | `ecdsa256` |
-    |---------|-----------|------------|
-    | ESP32 (rev 3+) | yes | no |
-    | ESP32-S2 | yes | no |
-    | ESP32-S3 | yes | no |
-    | ESP32-C2 | no | yes |
-    | ESP32-C3 | yes | no |
-    | ESP32-C5 | yes | yes |
-    | ESP32-C6 | yes | yes |
-    | ESP32-C61 | no | yes |
-    | ESP32-H2 | yes | yes |
-    | ESP32-P4 | yes | yes |
+    > [!NOTE]
+    > The verification key format depends on the signing scheme:
+    > - For `rsa3072` and `ecdsa256` (Secure Boot V2): PEM-encoded public key.
+    > - For `ecdsa_v1` (Secure Boot V1): Raw binary format (`.bin`). Extract from a PEM private key using:
+    >   `espsecure.py extract_public_key --keyfile private.pem public_key.bin`
+
+  - **signing_scheme** (*Optional*, string): The signing algorithm. One of `rsa3072`, `ecdsa256`, or `ecdsa_v1`.
+    Defaults to `rsa3072`. **Not all schemes are supported on all variants** — see the table below.
+
+    - `rsa3072`: RSA-3072 (Secure Boot V2). Recommended for most variants.
+    - `ecdsa256`: ECDSA with NIST P-256 (Secure Boot V2). For variants without RSA support.
+    - `ecdsa_v1`: ECDSA with NIST P-256 (Secure Boot V1). **Only for the original ESP32** — use this for
+      chips prior to revision 3.0 that do not support Secure Boot V2.
+
+    | Variant | `rsa3072` | `ecdsa256` | `ecdsa_v1` |
+    |---------|-----------|------------|------------|
+    | ESP32 (rev 3.0+) | yes | no | yes |
+    | ESP32 (rev < 3.0) | no | no | yes |
+    | ESP32-S2 | yes | no | no |
+    | ESP32-S3 | yes | no | no |
+    | ESP32-C2 | no | yes | no |
+    | ESP32-C3 | yes | no | no |
+    | ESP32-C5 | yes | yes | no |
+    | ESP32-C6 | yes | yes | no |
+    | ESP32-C61 | no | yes | no |
+    | ESP32-H2 | yes | yes | no |
+    | ESP32-P4 | yes | yes | no |
+
+    > [!NOTE]
+    > Using `rsa3072` on the original ESP32 requires setting `minimum_chip_revision: "3.0"` or higher
+    > (Secure Boot V2 RSA is only available on ESP32 chip revision 3.0+). For older chip revisions, use `ecdsa_v1`.
 
   > [!WARNING]
   > **Keep your signing key safe!** If you lose the private signing key, you will **not be able to OTA update** any
@@ -436,8 +452,11 @@ esp32:
   To generate a signing key, use the `espsecure.py` tool from ESP-IDF:
 
   ```bash
-  # Generate an RSA-3072 signing key
-  espsecure.py generate_signing_key --version 2 --scheme rsa3072 secure_boot_signing_key.pem
+  # Generate an RSA-3072 signing key (Secure Boot V2 — most variants)
+  espsecure.py generate-signing-key --version 2 --scheme rsa3072 secure_boot_signing_key.pem
+
+  # Generate an ECDSA signing key (Secure Boot V1 — original ESP32 pre-rev 3.0)
+  espsecure.py generate-signing-key --version 1 secure_boot_signing_key.pem
 
   # Extract the public verification key (for the verification_key workflow)
   espsecure.py extract_public_key --keyfile secure_boot_signing_key.pem secure_boot_verification_key.pem
