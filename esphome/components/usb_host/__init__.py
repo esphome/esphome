@@ -49,6 +49,7 @@ def add_usb_mps(mps_value: int):
     CORE.data.get(DOMAIN, {})[CONF_MAX_PACKET_SIZE] = mps_value
 
 
+
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
