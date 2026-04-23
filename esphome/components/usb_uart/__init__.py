@@ -2,8 +2,8 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
 from esphome.components.usb_host import (
-    DOMAIN as USB_HOST_DOMAIN,
     CONF_MAX_PACKET_SIZE,
+    DOMAIN as USB_HOST_DOMAIN,
     register_usb_client,
     usb_device_schema,
 )
