@@ -15,6 +15,8 @@ CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["network"]
 DOMAIN = "sendspin"
 
+CONF_SENDSPIN_ID = "sendspin_id"
+
 # Trailing underscore avoids clashing with sendspin-cpp's global `sendspin` namespace.
 # Analysis tools strip the trailing underscore (same pattern as `template_`).
 sendspin_ns = cg.esphome_ns.namespace("sendspin_")
