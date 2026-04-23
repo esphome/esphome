@@ -153,6 +153,8 @@ void AudioHTTPMediaSource::on_state_change(micro_decoder::DecoderState state) {
     case micro_decoder::DecoderState::FAILED:
       this->set_state_(media_source::MediaSourceState::ERROR);
       break;
+    default:
+      break;
   }
 }
 
