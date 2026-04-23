@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
-from esphome.components.usb_host import register_usb_client, usb_device_schema
+from esphome.components.usb_host import CONF_MAX_PACKET_SIZE, register_usb_client, usb_device_schema
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -61,8 +61,7 @@ uart_types = (
 
 
 def get_usb_mps() -> int:
-    return CORE.data.get("usb_host", {}).get("max_packet_size", 64)
-
+    return CORE.data.get(USB_HOST_DOMAIN, {}).get(CONF_MAX_PACKET_SIZE, 64)
 
 def channel_schema(channels, baud_rate_required):
     return cv.Schema(
