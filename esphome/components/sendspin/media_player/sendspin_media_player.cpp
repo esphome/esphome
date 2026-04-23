@@ -70,8 +70,7 @@ media_player::MediaPlayerTraits SendspinMediaPlayer::get_traits() {
   traits.add_feature_flags(
       media_player::MediaPlayerEntityFeature::PLAY | media_player::MediaPlayerEntityFeature::PAUSE |
       media_player::MediaPlayerEntityFeature::STOP | media_player::MediaPlayerEntityFeature::VOLUME_STEP |
-      media_player::MediaPlayerEntityFeature::VOLUME_SET |
-      media_player::MediaPlayerEntityFeature::VOLUME_MUTE);
+      media_player::MediaPlayerEntityFeature::VOLUME_SET | media_player::MediaPlayerEntityFeature::VOLUME_MUTE);
 
   return traits;
 }
