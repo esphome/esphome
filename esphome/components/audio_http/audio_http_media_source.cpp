@@ -27,9 +27,11 @@ static constexpr const char *const HTTP_URI_PREFIX = "http://";
 static constexpr const char *const HTTPS_URI_PREFIX = "https://";
 
 void AudioHTTPMediaSource::dump_config() {
-  ESP_LOGCONFIG(TAG, "Audio HTTP Media Source:");
-  ESP_LOGCONFIG(TAG, "  Buffer Size: %zu bytes", this->buffer_size_);
-  ESP_LOGCONFIG(TAG, "  Decoder Task Stack in PSRAM: %s", this->decoder_task_stack_in_psram_ ? "Yes" : "No");
+  ESP_LOGCONFIG(TAG,
+                "Audio HTTP Media Source:\n"
+                "  Buffer Size: %zu bytes\n"
+                "  Decoder Task Stack in PSRAM: %s",
+                this->buffer_size_, YESNO(this->decoder_task_stack_in_psram_));
 }
 
 void AudioHTTPMediaSource::setup() {
