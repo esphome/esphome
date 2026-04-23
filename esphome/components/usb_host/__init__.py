@@ -9,8 +9,8 @@ from esphome.components.esp32 import (
     only_on_variant,
 )
 import esphome.config_validation as cv
-from esphome.core import CORE
 from esphome.const import CONF_DEVICES, CONF_ID
+from esphome.core import CORE
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
 
@@ -47,7 +47,6 @@ def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Sch
 
 def add_usb_mps(mps_value: int):
     CORE.data.get(DOMAIN, {})[CONF_MAX_PACKET_SIZE] = mps_value
-
 
 
 CONFIG_SCHEMA = cv.All(
