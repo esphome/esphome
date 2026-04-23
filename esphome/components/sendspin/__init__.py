@@ -21,7 +21,7 @@ CONF_INITIAL_STATIC_DELAY = "initial_static_delay"
 CONF_FIXED_DELAY = "fixed_delay"
 
 # sendspin-cpp library lives in the global `sendspin` namespace.
-sendspin_library_ns = cg.esphome_ns.namespace("sendspin")
+sendspin_library_ns = cg.global_ns.namespace("sendspin")
 
 # Library Enums
 SendspinCodecFormat = sendspin_library_ns.enum("SendspinCodecFormat", is_class=True)
