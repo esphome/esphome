@@ -96,9 +96,11 @@ uint64_t Millis64Impl::compute(uint32_t now) {
     major = __atomic_load_n(&millis_major, __ATOMIC_RELAXED);
 
     if (now < last && (last - now) > HALF_MAX_UINT32) {
-      // True rollover detected (happens every ~49.7 days)
-      __atomic_store_n(&millis_major, static_cast<uint16_t>(millis_major + 1), __ATOMIC_RELAXED);
+      // True rollover detected (happens every ~49.7 days).
+      // Use the already-loaded `major` local; avoids a second read of the
+      // global (equivalent under the held lock).
       major++;
+      __atomic_store_n(&millis_major, major, __ATOMIC_RELAXED);
 #ifdef ESPHOME_DEBUG_SCHEDULER
       ESP_LOGD(TAG, "Detected true 32-bit rollover at %" PRIu32 "ms (was %" PRIu32 ")", now, last);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
