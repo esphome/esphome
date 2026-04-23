@@ -24,7 +24,7 @@ void SendspinHub::setup() {
 
   // Set up persistence (preferences must be initialized before providers are added to the client)
   this->last_played_server_pref_ =
-      global_preferences->make_preference<LastPlayedServerPref>(fnv1_hash("sendspin_last_played"));
+      global_preferences->make_preference<LastPlayedServerPref>(fnv1a_hash("sendspin_last_played"));
 
   // Wire providers and client listener
   this->client_->set_listener(this);
