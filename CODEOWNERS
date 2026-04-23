@@ -56,6 +56,7 @@ esphome/components/audio_adc/* @kbx81
 esphome/components/audio_dac/* @kbx81
 esphome/components/audio_file/* @kahrendt
 esphome/components/audio_file/media_source/* @kahrendt
+esphome/components/audio_http/* @kahrendt
 esphome/components/axs15231/* @clydebarrow
 esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
