@@ -32,6 +32,8 @@ from esphome.const import (
     CONF_OPTIMISTIC,
     CONF_PERIOD,
     CONF_QUANTILE,
+    CONF_REFERENCE_RESISTANCE,
+    CONF_REFERENCE_TEMPERATURE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
     CONF_STATE_CLASS,
@@ -1044,6 +1046,7 @@ def validate_ntc_calibration_parameter(value):
 CONF_A = "a"
 CONF_B = "b"
 CONF_C = "c"
+CONF_B_CONSTANT = "b_constant"
 ZERO_POINT = 273.15
 
 
@@ -1079,16 +1082,37 @@ def ntc_get_abc(value):
     return a, b, c
 
 
+def ntc_calc_b_constant(value):
+    beta = value[CONF_B_CONSTANT]
+    t0 = value[CONF_REFERENCE_TEMPERATURE] + ZERO_POINT
+    r0 = value[CONF_REFERENCE_RESISTANCE]
+
+    a = (1 / t0) - (1 / beta) * math.log(r0)
+    b = 1 / beta
+    c = 0
+    return a, b, c
+
+
 def ntc_process_calibration(value):
     if isinstance(value, dict):
-        value = cv.Schema(
-            {
-                cv.Required(CONF_A): cv.float_,
-                cv.Required(CONF_B): cv.float_,
-                cv.Required(CONF_C): cv.float_,
-            }
-        )(value)
-        a, b, c = ntc_get_abc(value)
+        if CONF_B_CONSTANT in value:
+            value = cv.Schema(
+                {
+                    cv.Required(CONF_B_CONSTANT): cv.float_,
+                    cv.Required(CONF_REFERENCE_TEMPERATURE): cv.temperature,
+                    cv.Required(CONF_REFERENCE_RESISTANCE): cv.resistance,
+                }
+            )(value)
+            a, b, c = ntc_calc_b_constant(value)
+        else:
+            value = cv.Schema(
+                {
+                    cv.Required(CONF_A): cv.float_,
+                    cv.Required(CONF_B): cv.float_,
+                    cv.Required(CONF_C): cv.float_,
+                }
+            )(value)
+            a, b, c = ntc_get_abc(value)
     elif isinstance(value, list):
         if len(value) != 3:
             raise cv.Invalid(
@@ -1098,7 +1122,7 @@ def ntc_process_calibration(value):
         a, b, c = ntc_calc_steinhart_hart(value)
     else:
         raise cv.Invalid(
-            f"Calibration parameter accepts either a list for steinhart-hart calibration, or mapping for b-constant calibration, not {type(value)}"
+            f"Calibration parameter accepts either a list for steinhart-hart calibration, or mapping for b-constant or precomputed (a, b, c) calibration, not {type(value)}"
         )
     _LOGGER.info("Coefficient: a:%s, b:%s, c:%s", a, b, c)
     return {
