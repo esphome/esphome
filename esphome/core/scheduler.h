@@ -552,7 +552,7 @@ class Scheduler {
   }
 
   // Increment to_add_count_ (no-op on single-threaded platforms)
-  void to_add_count_increment_() {
+  void to_add_count_increment_locked_() {
 #ifdef ESPHOME_THREAD_SINGLE
     // No counter needed — to_add_empty_() checks the vector directly
 #elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
@@ -563,7 +563,7 @@ class Scheduler {
   }
 
   // Reset to_add_count_ (no-op on single-threaded platforms)
-  void to_add_count_clear_() {
+  void to_add_count_clear_locked_() {
 #ifdef ESPHOME_THREAD_SINGLE
     // No counter needed — to_add_empty_() checks the vector directly
 #elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
@@ -597,7 +597,7 @@ class Scheduler {
 #endif
   }
 
-  void defer_count_increment_() {
+  void defer_count_increment_locked_() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->defer_count_.fetch_add(1, std::memory_order_relaxed);
 #else
@@ -605,7 +605,7 @@ class Scheduler {
 #endif
   }
 
-  void defer_count_clear_() {
+  void defer_count_clear_locked_() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->defer_count_.store(0, std::memory_order_relaxed);
 #else
@@ -635,7 +635,7 @@ uint32_t to_remove_{0};
 #endif
   }
 
-  void to_remove_add_(uint32_t count) {
+  void to_remove_add_locked_(uint32_t count) {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->to_remove_.fetch_add(count, std::memory_order_relaxed);
 #else
@@ -643,7 +643,7 @@ uint32_t to_remove_{0};
 #endif
   }
 
-  void to_remove_decrement_() {
+  void to_remove_decrement_locked_() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->to_remove_.fetch_sub(1, std::memory_order_relaxed);
 #else
@@ -651,7 +651,7 @@ uint32_t to_remove_{0};
 #endif
   }
 
-  void to_remove_clear_() {
+  void to_remove_clear_locked_() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     this->to_remove_.store(0, std::memory_order_relaxed);
 #else
