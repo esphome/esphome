@@ -77,7 +77,7 @@ bool AudioHTTPMediaSource::play_uri(const std::string &uri) {
     return true;
   }
 
-  ESP_LOGE(TAG, "Failed to start playback");
+  ESP_LOGE(TAG, "Failed to start playback of '%s'", uri.c_str());
   return false;
 }
 
