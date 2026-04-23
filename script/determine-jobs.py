@@ -356,6 +356,7 @@ IMPORT_TIME_TRIGGER_FILES = frozenset(
     {
         "requirements.txt",
         "requirements_dev.txt",
+        "requirements_test.txt",
         "pyproject.toml",
         "script/check_import_time.py",
         "script/import_time_budget.json",

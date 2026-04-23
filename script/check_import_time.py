@@ -42,9 +42,16 @@ def run_waterfall(module: str) -> str:
     return result.stdout
 
 
-def measure(module: str) -> dict[str, Any]:
-    """Return the parsed HAR for importing `module`."""
-    return json.loads(run_waterfall(module))
+def measure(module: str, har_path: Path | None = None) -> dict[str, Any]:
+    """Return the parsed HAR for importing `module`.
+
+    When `har_path` is given, also write the raw HAR JSON to that path so
+    callers can combine `--check` with `--har` without measuring twice.
+    """
+    har_text = run_waterfall(module)
+    if har_path is not None:
+        har_path.write_text(har_text)
+    return json.loads(har_text)
 
 
 def _entries(har: dict[str, Any]) -> list[dict[str, Any]]:
@@ -135,7 +142,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         )
         return 2
 
-    har = measure(TARGET_MODULE)
+    har = measure(TARGET_MODULE, har_path=Path(args.har) if args.har else None)
     measured = root_cumulative_us(har, TARGET_MODULE)
 
     baseline = budget["cumulative_us"]
@@ -175,7 +182,7 @@ def cmd_check(args: argparse.Namespace) -> int:
 
 
 def cmd_update(args: argparse.Namespace) -> int:
-    har = measure(TARGET_MODULE)
+    har = measure(TARGET_MODULE, har_path=Path(args.har) if args.har else None)
     measured = root_cumulative_us(har, TARGET_MODULE)
     write_budget(measured, args.margin_pct)
     print(
@@ -186,7 +193,7 @@ def cmd_update(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_har(args: argparse.Namespace) -> int:
+def cmd_har_only(args: argparse.Namespace) -> int:
     Path(args.har).write_text(run_waterfall(TARGET_MODULE))
     print(f"Wrote waterfall HAR to {args.har}")
     return 0
@@ -200,7 +207,16 @@ def main() -> int:
         default=DEFAULT_MARGIN_PCT,
         help=(f"Margin over baseline for --update (default: {DEFAULT_MARGIN_PCT}%%)."),
     )
-    mode = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument(
+        "--har",
+        metavar="PATH",
+        help=(
+            "Write a waterfall HAR file at PATH. Can be combined with "
+            "--check or --update to reuse that run's measurement (avoids "
+            "measuring twice)."
+        ),
+    )
+    mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--check", action="store_true", help="Fail if measured time exceeds budget."
     )
@@ -209,11 +225,6 @@ def main() -> int:
         action="store_true",
         help="Rewrite the budget from a fresh measurement.",
     )
-    mode.add_argument(
-        "--har",
-        metavar="PATH",
-        help="Write a waterfall HAR file via `importtime_waterfall --har`.",
-    )
     args = parser.parse_args()
 
     if args.check:
@@ -221,8 +232,9 @@ def main() -> int:
     if args.update:
         return cmd_update(args)
     if args.har:
-        return cmd_har(args)
-    return 2
+        return cmd_har_only(args)
+    parser.error("Specify at least one of --check, --update, or --har PATH.")
+    return 2  # unreachable; parser.error exits. Here to satisfy ruff RET503.
 
 
 if __name__ == "__main__":

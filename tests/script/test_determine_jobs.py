@@ -625,6 +625,7 @@ def test_should_run_python_linters_with_branch() -> None:
         # Dependency declarations and the check's own files trigger
         (["requirements.txt"], True),
         (["requirements_dev.txt"], True),
+        (["requirements_test.txt"], True),
         (["pyproject.toml"], True),
         (["script/check_import_time.py"], True),
         (["script/import_time_budget.json"], True),
