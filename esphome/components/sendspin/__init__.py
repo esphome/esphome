@@ -80,7 +80,10 @@ def _request_high_performance_networking(config: ConfigType) -> ConfigType:
     # Socket consumption varies by mode:
     # - Server mode: 1 listening socket + 2 client connections (for handoff)
     # - Client mode: 1 outbound connection
-    socket.consume_sockets(3, "sendspin_websocket_server")(config)
+    socket.consume_sockets(
+        1, "sendspin_websocket_server", socket.SocketType.TCP_LISTEN
+    )(config)
+    socket.consume_sockets(2, "sendspin_websocket_server")(config)
     socket.consume_sockets(1, "sendspin_websocket_client")(config)
 
     wifi.enable_runtime_power_save_control()
