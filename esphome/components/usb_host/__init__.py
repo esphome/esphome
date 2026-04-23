@@ -19,7 +19,7 @@ DEPENDENCIES = ["esp32"]
 usb_host_ns = cg.esphome_ns.namespace("usb_host")
 USBHost = usb_host_ns.class_("USBHost", Component)
 USBClient = usb_host_ns.class_("USBClient", Component)
-
+DOMAIN = "usb_host"
 CONF_VID = "vid"
 CONF_PID = "pid"
 CONF_ENABLE_HUBS = "enable_hubs"
@@ -43,6 +43,10 @@ def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Sch
         schema = schema.extend({cv.Required(CONF_PID): cv.hex_uint16_t})
     return schema
 
+def add_usb_mps(mps_value: int):
+    if not hasattr(CORE, DOMAIN):
+        CORE.DOMAIN = {}
+    CORE.DOMAIN[CONF_MAX_PACKET_SIZE] = mps_value
 
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
@@ -78,7 +82,9 @@ async def to_code(config: ConfigType) -> None:
 
     max_requests = config[CONF_MAX_TRANSFER_REQUESTS]
     cg.add_define("USB_HOST_MAX_REQUESTS", max_requests)
-    cg.add_define("USB_HOST_MAX_PACKET_SIZE", config[CONF_MAX_PACKET_SIZE])
+    max_packet_size = config.get(CONF_MAX_PACKET_SIZE)
+    cg.add_define("USB_HOST_MAX_PACKET_SIZE", max_packet_size)
+    add_usb_mps(max_packet_size)
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

@@ -37,7 +37,7 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
-
+CONF_USB_HOST_DOMAIN = "usb_host"
 
 class Type:
     def __init__(self, name, vid, pid, cls, max_channels=1, baud_rate_required=True):
@@ -59,6 +59,9 @@ uart_types = (
     Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
 )
 
+def get_usb_mps() -> int:
+    """Get usb max packet size."""
+    return CORE.data.get(CONF_USB_HOST_DOMAIN, {}).get("max_packet_size", 64)
 
 def channel_schema(channels, baud_rate_required):
     return cv.Schema(
@@ -125,7 +128,7 @@ async def to_code(config):
         for device in config
         for channel in device[CONF_CHANNELS]
     )
-    output_chunk_count = max_buffer_size // 64 + 1
+    output_chunk_count = max_buffer_size // get_usb_mps() + 1
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
     for device in config:
