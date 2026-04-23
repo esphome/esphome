@@ -2605,7 +2605,7 @@ def test_choose_upload_log_host_discovers_mac_suffix_devices(tmp_path: Path) -> 
     }
     with (
         patch(
-            "esphome.__main__.discover_mdns_devices", return_value=discovered
+            "esphome.zeroconf.discover_mdns_devices", return_value=discovered
         ) as mock_discover,
         patch(
             "esphome.__main__.choose_prompt", return_value="mydevice-abc123.local"
@@ -2653,7 +2653,7 @@ def test_choose_upload_log_host_mac_suffix_no_devices_found(
     )
 
     with (
-        patch("esphome.__main__.discover_mdns_devices", return_value={}),
+        patch("esphome.zeroconf.discover_mdns_devices", return_value={}),
         caplog.at_level(logging.WARNING, logger="esphome.__main__"),
         pytest.raises(EsphomeError),
     ):
@@ -2686,7 +2686,7 @@ def test_choose_upload_log_host_default_ota_discovers_mac_suffix(
         "mydevice-def456.local": ["10.0.0.2"],
     }
     with patch(
-        "esphome.__main__.discover_mdns_devices", return_value=discovered
+        "esphome.zeroconf.discover_mdns_devices", return_value=discovered
     ) as mock_discover:
         result = choose_upload_log_host(
             default="OTA",
@@ -2715,7 +2715,7 @@ def test_choose_upload_log_host_default_ota_no_suffix_discovery(
         name="mydevice",
     )
 
-    with patch("esphome.__main__.discover_mdns_devices") as mock_discover:
+    with patch("esphome.zeroconf.discover_mdns_devices") as mock_discover:
         result = choose_upload_log_host(
             default="OTA",
             check_default=None,
