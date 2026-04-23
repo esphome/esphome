@@ -1,4 +1,3 @@
----
 binary_sensor:
   - platform: template
     name: "Garage Door Open 1"
@@ -22,21 +21,12 @@ sensor:
     lambda: return 12.0;
     internal: True
 
-zigbee:
-  wipe_on_boot: true
-  on_join:
-    then:
-      - logger.log: "Joined network"
-
 output:
   - platform: template
     id: output_factory
     type: binary
     write_action:
       - zigbee.factory_reset
-
-time:
-  - platform: zigbee
 
 switch:
   - platform: template
