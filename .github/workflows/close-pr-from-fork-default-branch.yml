@@ -1,0 +1,73 @@
+name: Close PR From Fork Default Branch
+
+on:
+  # pull_request_target is required so we have permission to comment and close PRs from forks.
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  close:
+    name: Close PR opened from fork's current/next branch
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
+      && (github.event.pull_request.head.ref == 'current' || github.event.pull_request.head.ref == 'next')
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request.number;
+            const author = context.payload.pull_request.user.login;
+            const headRef = context.payload.pull_request.head.ref;
+            const baseRef = context.payload.pull_request.base.ref;
+            const headRepo = context.payload.pull_request.head.repo.full_name;
+
+            const body = [
+              `Hi @${author}, thanks for opening a pull request! :tada:`,
+              ``,
+              `It looks like this PR was opened from the \`${headRef}\` branch of your fork (\`${headRepo}\`), which is a protected upstream branch (\`current\` = live docs, \`next\` = docs for the upcoming release). Working directly on \`${headRef}\` in your fork causes a few problems:`,
+              ``,
+              `- Your fork's \`${headRef}\` branch will permanently diverge from \`esphome/esphome-docs:${headRef}\`, making it hard to keep your fork in sync.`,
+              `- Any additional commits you push to \`${headRef}\` will be added to this PR, so you can't easily work on multiple changes at once.`,
+              `- Pushing maintainer fixes to your branch is awkward, since it means committing directly to your fork's \`${headRef}\` branch.`,
+              `- Local collaboration becomes painful — \`${headRef}\` in a checkout is ambiguous between upstream and your fork, and maintainers end up with naming collisions when fetching the branch.`,
+              ``,
+              `Please re-open this as a new PR from a dedicated feature branch. The usual flow looks like:`,
+              ``,
+              `\`\`\`bash`,
+              `# Make sure your fork's ${headRef} is up to date with upstream`,
+              `git remote add upstream https://github.com/${owner}/${repo}.git  # if you haven't already`,
+              `git fetch upstream`,
+              `git checkout ${headRef}`,
+              `git reset --hard upstream/${headRef}`,
+              `git push --force-with-lease origin ${headRef}`,
+              ``,
+              `# Create a new branch for your change and cherry-pick / re-apply your commits there`,
+              `git checkout -b my-docs-branch upstream/${baseRef}`,
+              `# ...re-apply your changes, then:`,
+              `git push origin my-docs-branch`,
+              `\`\`\``,
+              ``,
+              `Then open a new pull request from \`my-docs-branch\` into \`${owner}/${repo}:${baseRef}\`.`,
+              ``,
+              `Closing this PR for now — sorry for the friction, and thanks again for contributing! :heart:`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: prNumber,
+              body,
+            });
+
+            await github.rest.pulls.update({
+              owner,
+              repo,
+              pull_number: prNumber,
+              state: 'closed',
+            });
