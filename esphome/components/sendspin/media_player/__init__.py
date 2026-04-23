@@ -30,7 +30,7 @@ CONFIG_SCHEMA = cv.All(
     media_player.media_player_schema(SendspinMediaPlayer).extend(
         {
             cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub),
-            cv.Optional(CONF_VOLUME_INCREMENT, default=5): cv.int_range(min=1, max=50),
+            cv.Optional(CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,
         }
     ),
     cv.only_on_esp32,

@@ -16,7 +16,7 @@ class SendspinMediaPlayer : public SendspinChild, public media_player::MediaPlay
   // MediaPlayer implementations
   media_player::MediaPlayerTraits get_traits() override;
 
-  void set_volume_increment(uint8_t volume_increment) { this->volume_increment_ = volume_increment; }
+  void set_volume_increment(float volume_increment) { this->volume_increment_ = volume_increment; }
 
   bool is_muted() const override { return this->muted_; }
 
@@ -24,7 +24,7 @@ class SendspinMediaPlayer : public SendspinChild, public media_player::MediaPlay
   // Receives commands from HA
   void control(const media_player::MediaPlayerCall &call) override;
 
-  uint8_t volume_increment_{5};
+  float volume_increment_{0.05f};
   bool muted_{false};
 };
 

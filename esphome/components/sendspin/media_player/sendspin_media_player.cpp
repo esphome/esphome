@@ -134,13 +134,14 @@ void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP:
         this->parent_->send_client_command(
             sendspin::SendspinControllerCommand::VOLUME,
-            std::min(100, static_cast<int>(std::roundf(this->volume * 100.0f)) + this->volume_increment_),
+            static_cast<uint8_t>(std::roundf(std::min(1.0f, this->volume + this->volume_increment_) * 100.0f)),
             std::nullopt);
         break;
       case media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
         this->parent_->send_client_command(
             sendspin::SendspinControllerCommand::VOLUME,
-            std::max(0, static_cast<int>(std::roundf(this->volume * 100.0f)) - this->volume_increment_), std::nullopt);
+            static_cast<uint8_t>(std::roundf(std::max(0.0f, this->volume - this->volume_increment_) * 100.0f)),
+            std::nullopt);
         break;
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
         this->parent_->send_client_command(sendspin::SendspinControllerCommand::MUTE, std::nullopt, true);
