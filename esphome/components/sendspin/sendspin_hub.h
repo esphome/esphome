@@ -16,6 +16,9 @@
 #ifdef USE_SENDSPIN_CONTROLLER
 #include <sendspin/controller_role.h>
 #endif
+#ifdef USE_SENDSPIN_METADATA
+#include <sendspin/metadata_role.h>
+#endif
 #ifdef USE_SENDSPIN_PLAYER
 #include <sendspin/player_role.h>
 #endif
@@ -66,6 +69,9 @@ struct StaticDelayPref {
 class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_CONTROLLER
                           public sendspin::ControllerRoleListener,
+#endif
+#ifdef USE_SENDSPIN_METADATA
+                          public sendspin::MetadataRoleListener,
 #endif
                           public sendspin::SendspinClientListener,
                           public sendspin::SendspinNetworkProvider,
@@ -122,6 +128,12 @@ class SendspinHub final : public Component,
   }
 #endif
 
+#ifdef USE_SENDSPIN_METADATA
+  template<typename F> void add_metadata_update_callback(F &&callback) {
+    this->metadata_update_callbacks_.add(std::forward<F>(callback));
+  }
+#endif
+
 #ifdef USE_SENDSPIN_PLAYER
   void set_listener(sendspin::PlayerRoleListener *listener) { this->player_listener_ = listener; }
   void set_player_config(const sendspin::PlayerRoleConfig &config) { this->player_config_ = config; }
@@ -157,6 +169,13 @@ class SendspinHub final : public Component,
 
   // Callback fan-out to child components; they filter as needed
   CallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
+#endif
+
+#ifdef USE_SENDSPIN_METADATA
+  void on_metadata(const sendspin::ServerMetadataStateObject &metadata) override;
+
+  // Callback fan-out to child components; they filter as needed
+  CallbackManager<void(const sendspin::ServerMetadataStateObject &)> metadata_update_callbacks_{};
 #endif
 
 #ifdef USE_SENDSPIN_PLAYER
