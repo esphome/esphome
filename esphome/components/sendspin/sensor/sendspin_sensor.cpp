@@ -10,7 +10,10 @@ static const char *const TAG = "sendspin.sensor";
 
 // --- SendspinTrackProgressSensor ---
 
-void SendspinTrackProgressSensor::dump_config() { LOG_SENSOR("", "Sendspin Track Progress", this); }
+void SendspinTrackProgressSensor::dump_config() {
+  LOG_SENSOR("", "Sendspin Track Progress", this);
+  LOG_UPDATE_INTERVAL(this);
+}
 
 // THREAD CONTEXT: Main loop. The registered metadata callback also fires on the main loop
 // (SendspinHub dispatches metadata from client_->loop()).
