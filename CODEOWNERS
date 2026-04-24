@@ -443,6 +443,7 @@ esphome/components/sen6x/* @martgras @mebner86 @mikelawrence @tuct
 esphome/components/sendspin/* @kahrendt
 esphome/components/sendspin/media_player/* @kahrendt
 esphome/components/sendspin/media_source/* @kahrendt
+esphome/components/sendspin/sensor/* @kahrendt
 esphome/components/sendspin/text_sensor/* @kahrendt
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core

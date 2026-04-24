@@ -132,6 +132,9 @@ class SendspinHub final : public Component,
   template<typename F> void add_metadata_update_callback(F &&callback) {
     this->metadata_update_callbacks_.add(std::forward<F>(callback));
   }
+
+  /// @brief Returns the interpolated track progress in milliseconds, or 0 if the hub is not yet ready.
+  uint32_t get_track_progress_ms();
 #endif
 
 #ifdef USE_SENDSPIN_PLAYER
@@ -172,6 +175,8 @@ class SendspinHub final : public Component,
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
+  sendspin::MetadataRole *metadata_role_{nullptr};
+
   void on_metadata(const sendspin::ServerMetadataStateObject &metadata) override;
 
   // Callback fan-out to child components; they filter as needed
