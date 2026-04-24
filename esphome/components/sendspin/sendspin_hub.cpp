@@ -179,7 +179,7 @@ void SendspinHub::on_metadata(const sendspin::ServerMetadataStateObject &metadat
 }
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
-uint32_t SendspinHub::get_track_progress_ms() {
+uint32_t SendspinHub::get_track_progress_ms() const {
   if (this->is_ready()) {
     return this->metadata_role_->get_track_progress_ms();
   }
