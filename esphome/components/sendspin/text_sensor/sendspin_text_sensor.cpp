@@ -72,6 +72,7 @@ void SendspinTextSensor::setup() {
   }
 }
 
+// Dedup to avoid frontend churn; TextSensor::publish_state already dedups the string assign but still notifies.
 void SendspinTextSensor::publish_if_changed_(const std::string &value) {
   if (this->get_raw_state() != value) {
     this->publish_state(value);
