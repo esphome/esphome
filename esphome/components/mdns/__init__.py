@@ -169,15 +169,9 @@ async def to_code(config):
         elif CORE.is_rp2040:
             cg.add_library("LEAmDNS", None)
 
-        # ESP8266 and RP2040 use a network IP state listener to arm a bounded
-        # MDNS.update() polling window only while the library is in its probe+announce
-        # phase. This eliminates the steady-state 50ms interval that ran forever
-        # (1200+ dispatches per minute) and its scheduler overhead.
-        #
-        # We subscribe to any listener interface that's configured (WiFi and/or
-        # Ethernet); the same on_ip_state() override satisfies both because the
-        # listener signatures match. If neither is available the component falls
-        # back to the legacy polling loop at MDNS_UPDATE_INTERVAL_MS.
+        # Subscribe to the network IP state listener(s) so MDNS.update() is only
+        # scheduled during the probe+announce phase. Same on_ip_state() override
+        # serves both WiFi and Ethernet (signatures match).
         if CORE.is_esp8266 or CORE.is_rp2040:
             if "wifi" in CORE.config:
                 from esphome.components import wifi

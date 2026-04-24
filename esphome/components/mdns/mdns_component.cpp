@@ -192,9 +192,8 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 void MDNSComponent::start_polling_window_() {
-  // Re-arming replaces the previous window. The scheduler's set_interval/set_timeout
-  // with a uint32_t ID already does atomic cancel-and-add for items sharing that ID
-  // (see Scheduler::set_timer_common_), so no explicit cancel is needed.
+  // uint32_t-ID set_interval/set_timeout already does atomic cancel-and-add, so
+  // re-arming replaces the previous window implicitly.
   this->set_interval(MDNS_POLL_ID, MDNS_UPDATE_INTERVAL_MS, mdns_pump_update);
   this->set_timeout(MDNS_POLL_STOP_ID, MDNS_POLL_WINDOW_MS, [this]() { this->cancel_interval(MDNS_POLL_ID); });
 }

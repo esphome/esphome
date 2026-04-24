@@ -5,12 +5,8 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-// Event-driven polling replaces the legacy set_interval() loop on platforms that need
-// scheduler-backed MDNS.update() (ESP8266, RP2040). It's enabled when at least one
-// compatible network IP state listener slot is available — the mdns Python to_code()
-// requests a WiFi slot when WiFi is in the config and an Ethernet slot when Ethernet
-// is in the config. If neither is available (e.g. clang-tidy running without full
-// codegen), the component falls back to the legacy polling loop.
+// On ESP8266 and RP2040 the scheduler-backed MDNS.update() polling window is armed by
+// IP state listener events on whichever network interface is configured.
 #if (defined(USE_ESP8266) || defined(USE_RP2040)) && \
     ((defined(USE_WIFI) && defined(USE_WIFI_IP_STATE_LISTENERS)) || \
      (defined(USE_ETHERNET) && defined(USE_ETHERNET_IP_STATE_LISTENERS)))
@@ -29,9 +25,8 @@
 namespace esphome::mdns {
 
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
-/// Call MDNS.update() on the target platform. Defined in the per-platform cpp file so
-/// the shared component code can drive the polling window without pulling in
-/// platform-specific mDNS headers.
+/// Platform-specific MDNS.update() trampoline. Defined in mdns_<platform>.cpp so the
+/// shared code can schedule it without including the platform's mDNS header.
 void mdns_pump_update();
 #endif
 
@@ -81,28 +76,13 @@ class MDNSComponent final : public Component
   void setup() override;
   void dump_config() override;
 
-  // On ESP8266 and RP2040, MDNS.update() calls _process(true) which only manages
-  // timer-driven state machines (probe/announce timeouts and service query cache TTLs).
-  // Incoming mDNS packets are handled independently via the lwIP onRx UDP callback and
-  // are NOT affected by how often update() is called.
-  //
-  // The work has a bounded lifetime: after MDNS.begin() (or _restart() triggered by a
-  // network interface change) the library sends 3 probes 250ms apart followed by 8
-  // announcements 1000ms apart, after which all internal timeouts are set to
-  // resetToNeverExpires(). ESPHome does not issue mDNS service queries, so the service
-  // query cache is always empty. Every subsequent update() call is pure overhead.
-  //
-  // When USE_MDNS_EVENT_DRIVEN_POLLING is defined we arm a bounded polling window from
-  // WiFiIPStateListener events so update() only runs during the probe+announce phase;
-  // outside that window no update() calls occur. Otherwise (fallback), we poll at
-  // MDNS_UPDATE_INTERVAL_MS forever.
-  static constexpr uint32_t MDNS_UPDATE_INTERVAL_MS = 50;
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
-  // Boot probe+announce phase is ~9.0s (3*250ms probes + 8*1000ms announces). Window
-  // includes margin for the initial `rand() % MDNS_PROBE_DELAY` jitter and for the
-  // debounced internal restart triggered by netif status changes on ESP8266.
-  static constexpr uint32_t MDNS_POLL_WINDOW_MS = 12000;
-  // Scheduler IDs (uint32_t variants avoid name hashing/strcmp on cancel paths)
+  // LEAmDNS has meaningful work only during the probe+announce phase (3×250ms probes +
+  // 8×1000ms announces, ~9s). Afterwards every internal timer is resetToNeverExpires()
+  // and update() becomes pure overhead. We arm a bounded polling window from IP state
+  // listener events so update() runs only during that phase.
+  static constexpr uint32_t MDNS_UPDATE_INTERVAL_MS = 50;
+  static constexpr uint32_t MDNS_POLL_WINDOW_MS = 12000;  // ~9s phase + jitter/restart margin
   static constexpr uint32_t MDNS_POLL_ID = 0;
   static constexpr uint32_t MDNS_POLL_STOP_ID = 1;
 #endif
@@ -133,8 +113,8 @@ class MDNSComponent final : public Component
 
  protected:
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
-  /// Arm a bounded polling window so MDNS.update() runs at MDNS_UPDATE_INTERVAL_MS
-  /// for MDNS_POLL_WINDOW_MS. A subsequent call replaces the previous window.
+  /// Arm a fresh MDNS_POLL_WINDOW_MS polling window. Idempotent — re-arming replaces
+  /// the previous window via the scheduler's atomic cancel-and-add on matching IDs.
   void start_polling_window_();
 #endif
   /// Helper to set up services and MAC buffers, then call platform-specific registration
@@ -181,9 +161,6 @@ class MDNSComponent final : public Component
 #endif
 #ifdef USE_RP2040
   bool initialized_{false};
-#if !defined(USE_MDNS_EVENT_DRIVEN_POLLING)
-  bool was_connected_{false};
-#endif
 #endif
   void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf);
 };
