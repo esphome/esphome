@@ -25,6 +25,9 @@ void SendspinTrackProgressSensor::setup() {
       this->stop_poller();
       this->publish_state(progress.track_progress);
     } else {
+      // Resumed: publish the fresh interpolated position immediately so the frontend doesn't show a stale
+      // paused value until the next poll tick.
+      this->publish_state(this->parent_->get_track_progress_ms());
       this->start_poller();
     }
   });
