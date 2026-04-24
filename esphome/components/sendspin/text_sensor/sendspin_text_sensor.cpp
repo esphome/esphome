@@ -4,6 +4,7 @@
 
 #include <sendspin/metadata_role.h>
 
+#include <cstdio>
 #include <string>
 
 namespace esphome::sendspin_ {
