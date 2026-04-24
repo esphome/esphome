@@ -2,6 +2,8 @@
 #include <string>
 #include <cstdint>
 #include "gpio.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/time_64.h"
 #include "esphome/core/time_conversion.h"
 
 #if defined(USE_ESP32)
@@ -63,6 +65,12 @@
 #include <freertos/task.h>
 #endif
 
+#ifdef USE_LIBRETINY
+// For the inline millis() fast paths (xTaskGetTickCount, portTICK_PERIOD_MS).
+#include <FreeRTOS.h>
+#include <task.h>
+#endif
+
 #ifdef USE_BK72XX
 // Declared in the Beken FreeRTOS port (portmacro.h) and built in ARM mode so
 // it is callable from Thumb code via interworking. The MRS CPSR instruction
@@ -71,17 +79,19 @@
 extern "C" uint32_t platform_is_in_interrupt_context(void);
 #endif
 
-#ifdef USE_ESP8266
-// Forward-declared from <Arduino.h> (esp8266 core) so the inline esphome::micros()
-// wrapper below can call it without pulling Arduino.h into every TU. The
-// redundant-declaration NOLINT covers TUs that also include Arduino.h directly.
-// NOLINTNEXTLINE(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
+// Forward decls from Arduino's <Arduino.h> for the inline wrappers below.
+// NOLINT covers TUs that also include Arduino.h.
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
+// NOLINTBEGIN(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
+extern "C" void yield(void);
+extern "C" void delay(unsigned long ms);
 extern "C" unsigned long micros(void);
+extern "C" unsigned long millis(void);
+// NOLINTEND(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
 #endif
 
 #ifdef USE_RP2040
-// Forward-declared from <pico/time.h> so the inline esphome::millis()/millis_64()
-// wrappers below can call it without pulling pico/time.h into every TU.
+// Forward decl from <pico/time.h>.
 extern "C" uint64_t time_us_64(void);
 #endif
 
@@ -117,41 +127,52 @@ __attribute__((always_inline)) inline bool in_isr_context() {
 #endif
 }
 
-void yield();
+// yield()/delay()/micros()/millis()/millis_64() are inlined per platform to
+// drop the wrapper call/return — most relevant to runtime_stats and the main
+// loop. ESP8266/LibreTiny/RP2040 share Arduino's ::yield/::delay/::micros.
 #if defined(USE_ESP32)
-// Forward-declared from <esp_timer.h> to avoid pulling the full header (and its
-// transitive IDF deps) into every translation unit that includes hal.h. Signature
-// is stable IDF public API.
+// Forward decl from <esp_timer.h>.
 extern "C" int64_t esp_timer_get_time(void);
-
-uint32_t millis();
-// Inlined so callers (especially the main loop via runtime_stats) collapse the
-// wrapper: ``call micros → call esp_timer_get_time`` becomes a single
-// ``call esp_timer_get_time``. Inlining into an IRAM_ATTR ISR is safe because
-// ``esp_timer_get_time`` itself lives in IRAM (IDF marks it so).
+__attribute__((always_inline)) inline void yield() { vPortYield(); }
+__attribute__((always_inline)) inline void delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(esp_timer_get_time()); }
+uint32_t millis();
 __attribute__((always_inline)) inline uint64_t millis_64() {
   return micros_to_millis<uint64_t>(static_cast<uint64_t>(esp_timer_get_time()));
 }
-#elif defined(USE_ESP8266)
-// Arduino's ::micros() (esp8266 core) is itself in IRAM, so inlining our wrapper
-// into IRAM_ATTR ISRs is safe. Forward-declared at global scope below to avoid
-// pulling Arduino.h into every TU that includes hal.h.
+#elif defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
+__attribute__((always_inline)) inline void yield() { ::yield(); }
+__attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }
-uint32_t millis();
-uint64_t millis_64();
-#elif defined(USE_RP2040)
-uint32_t micros();
-// Pico SDK clock used by ::millis()/time_us_64() under the hood; forward-declared
-// at global scope below.
+#if defined(USE_ESP8266)
+__attribute__((always_inline)) inline uint32_t millis() { return static_cast<uint32_t>(::millis()); }
+__attribute__((always_inline)) inline uint64_t millis_64() { return Millis64Impl::compute(millis()); }
+#elif defined(USE_LIBRETINY)
+// Per-variant millis() fast path — matches MillisInternal::get().
+#if defined(USE_RTL87XX) || defined(USE_LN882X)
+static_assert(configTICK_RATE_HZ == 1000, "millis() fast path requires 1 kHz FreeRTOS tick");
+__attribute__((always_inline)) inline uint32_t millis() {
+  // xTaskGetTickCountFromISR is mandatory in interrupt context per the FreeRTOS API contract.
+  return in_isr_context() ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
+}
+#elif defined(USE_BK72XX)
+static_assert(configTICK_RATE_HZ == 500, "BK72xx millis() fast path assumes 500 Hz FreeRTOS tick");
+__attribute__((always_inline)) inline uint32_t millis() { return xTaskGetTickCount() * portTICK_PERIOD_MS; }
+#else
+__attribute__((always_inline)) inline uint32_t millis() { return static_cast<uint32_t>(::millis()); }
+#endif
+__attribute__((always_inline)) inline uint64_t millis_64() { return Millis64Impl::compute(millis()); }
+#else  // USE_RP2040
 __attribute__((always_inline)) inline uint32_t millis() { return micros_to_millis(::time_us_64()); }
 __attribute__((always_inline)) inline uint64_t millis_64() { return micros_to_millis<uint64_t>(::time_us_64()); }
+#endif
 #else
-uint32_t millis();
+void yield();
+void delay(uint32_t ms);
 uint32_t micros();
+uint32_t millis();
 uint64_t millis_64();
 #endif
-void delay(uint32_t ms);
 void delayMicroseconds(uint32_t us);  // NOLINT(readability-identifier-naming)
 void __attribute__((noreturn)) arch_restart();
 void arch_init();

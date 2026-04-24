@@ -15,12 +15,7 @@ extern "C" {
 
 namespace esphome {
 
-void HOT yield() { ::yield(); }
-uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
-uint64_t millis_64() { return Millis64Impl::compute(::millis()); }
-void HOT delay(uint32_t ms) { ::delay(ms); }
-// micros() is defined inline in hal.h on ESP8266 so callers collapse the
-// wrapper down to a direct ::micros() call.
+// yield(), delay(), micros(), millis(), millis_64() inlined in hal.h.
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
   system_restart();

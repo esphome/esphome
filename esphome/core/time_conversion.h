@@ -25,10 +25,6 @@ namespace esphome {
 ///
 /// Safe for us up to ~3.2e18 (~101,700 years of microseconds).
 ///
-/// Lives in its own header (rather than helpers.h) so hal.h can include it
-/// for inline millis_64() definitions without dragging the rest of helpers.h
-/// into every translation unit.
-///
 /// See: https://en.wikipedia.org/wiki/Euclidean_division
 /// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
 template<typename ReturnT = uint32_t>
