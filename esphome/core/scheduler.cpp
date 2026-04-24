@@ -423,6 +423,12 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // iteration has work to do right now -- don't let the caller sleep.
   if (!this->defer_empty_())
     return 0;
+#else
+  // On single-threaded builds, defer() routes through set_timeout(..., 0) which
+  // stages in to_add_. process_to_add() runs at the top of every scheduler.call(),
+  // so anything in to_add_ becomes runnable on the next iteration; don't sleep.
+  if (!this->to_add_empty_())
+    return 0;
 #endif
 
   // If no items, return empty optional
