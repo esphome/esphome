@@ -589,6 +589,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
   httpd_sess_set_send_override(this->hd_, this->fd_.load(), nonblocking_send);
 }
 
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 void AsyncEventSourceResponse::start_session_main_loop_() {
   auto *ws = this->web_server_;
 
@@ -598,13 +599,11 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
 
 #ifdef USE_WEBSERVER_SORTING
   for (auto &group : ws->sorting_groups_) {
-    // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     json::JsonBuilder builder;
     JsonObject root = builder.root();
     root["name"] = group.second.name;
     root["sorting_weight"] = group.second.weight;
     message = builder.serialize();
-    // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
     // a (very) large number of these should be able to be queued initially without defer
     // since the only thing in the send buffer at this point is the initial ping/config
@@ -614,6 +613,7 @@ void AsyncEventSourceResponse::start_session_main_loop_() {
 
   this->entities_iterator_.begin(ws->include_internal_);
 }
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void AsyncEventSourceResponse::destroy(void *ptr) {
   auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
