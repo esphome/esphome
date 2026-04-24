@@ -122,15 +122,32 @@ class Scheduler {
 
   // Calculate when the next scheduled item should run.
   // @param now On ESP32, unused for 64-bit extension (native); on other platforms, extended to 64-bit via rollover.
+  // @param now_64 Optional pre-computed 64-bit timestamp from a recent call() (see CallResult).
+  //        Pass 0 (sentinel) to have this method compute now_64 freshly. Non-zero values are trusted and
+  //        used directly, saving a millis_64() / esp_timer_get_time() MMIO read when the caller already
+  //        has a fresh value from the same loop iteration.
   // Returns the time in milliseconds until the next scheduled item, or nullopt if no items.
   // This method performs cleanup of removed items before checking the schedule.
   // IMPORTANT: This method should only be called from the main thread (loop task).
-  optional<uint32_t> next_schedule_in(uint32_t now);
+  optional<uint32_t> next_schedule_in(uint32_t now, uint64_t now_64 = 0);
+
+  // Result of Scheduler::call().
+  //   now    – advanced uint32 millis timestamp (monotonic with the caller's wdt feed).
+  //   now_64 – 64-bit millis value Scheduler used for item dispatch, OR 0 if any item
+  //            fired (in that case now_64 is stale because execute_item_ only advances
+  //            the uint32 `now`). A subsequent next_schedule_in() treats 0 as "compute
+  //            fresh" and non-zero as "reuse this value", saving a second millis_64()
+  //            / esp_timer_get_time() call per main-loop iteration.
+  struct CallResult {
+    uint32_t now;
+    uint64_t now_64;
+  };
 
   // Execute all scheduled items that are ready
   // @param now Fresh timestamp from millis() - must not be stale/cached
-  // @return Timestamp of the last item that ran, or `now` unchanged if none ran.
-  uint32_t call(uint32_t now);
+  // @return Both advanced `now` (for wdt monotonicity) and `now_64` (for pipe-through
+  //         to next_schedule_in()). See CallResult.
+  CallResult call(uint32_t now);
 
   // Move items from to_add_ into the main heap.
   // IMPORTANT: This method should only be called from the main thread (loop task).
