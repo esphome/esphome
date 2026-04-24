@@ -132,6 +132,7 @@ __attribute__((always_inline)) inline bool in_isr_context() {
 // loop. ESP8266/LibreTiny/RP2040 share Arduino's ::yield/::delay/::micros.
 #if defined(USE_ESP32)
 // Forward decl from <esp_timer.h>.
+// NOLINTNEXTLINE(readability-redundant-declaration)
 extern "C" int64_t esp_timer_get_time(void);
 __attribute__((always_inline)) inline void yield() { vPortYield(); }
 __attribute__((always_inline)) inline void delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
