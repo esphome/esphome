@@ -156,18 +156,21 @@ size_t SendspinMediaSource::on_audio_write(uint8_t *data, size_t length, uint32_
     vTaskDelay(pdMS_TO_TICKS(timeout_ms));
     return 0;
   }
-  return this->write_output(data, length, timeout_ms, this->stream_info_);
+
+  // PlayerRole::get_current_stream_params() is safe to call from the sync task.
+  auto &params = this->player_role_->get_current_stream_params();
+  if (!params.bit_depth.has_value() || !params.channels.has_value() || !params.sample_rate.has_value()) {
+    vTaskDelay(pdMS_TO_TICKS(timeout_ms));
+    return 0;
+  }
+  audio::AudioStreamInfo stream_info(*params.bit_depth, *params.channels, *params.sample_rate);
+
+  return this->write_output(data, length, timeout_ms, stream_info);
 }
 
 // THREAD CONTEXT: Main loop (PlayerRoleListener lifecycle callback)
 void SendspinMediaSource::on_stream_start() {
   this->parent_->update_state(sendspin::SendspinClientState::SYNCHRONIZED);
-
-  // Cache stream parameters for use in on_audio_write()
-  auto &params = this->player_role_->get_current_stream_params();
-  if (params.bit_depth.has_value() && params.channels.has_value() && params.sample_rate.has_value()) {
-    this->stream_info_ = audio::AudioStreamInfo(*params.bit_depth, *params.channels, *params.sample_rate);
-  }
 
   if (!this->pending_start_) {
     // Dedup rapid on_stream_start() calls
