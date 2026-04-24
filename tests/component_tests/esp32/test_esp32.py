@@ -5,6 +5,7 @@ Test ESP32 configuration
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -16,10 +17,59 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_IGNORE_PIN_VALIDATION_ERROR,
     CONF_NUMBER,
+    KEY_NATIVE_IDF,
+    PLATFORMIO_ENV_NAME,
     PlatformFramework,
 )
 from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
+
+
+def test_write_sdkconfig_uses_platformio_env_name(
+    tmp_path: Path,
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Test PlatformIO ESP32 builds write sdkconfig under the stable env name."""
+    from esphome.components.esp32 import _write_sdkconfig
+
+    set_core_config(PlatformFramework.ESP32_ARDUINO)
+    CORE.name = "kitchen-panel"
+    CORE.build_path = tmp_path
+    CORE.data[KEY_ESP32] = {
+        KEY_SDKCONFIG_OPTIONS: {"CONFIG_FREERTOS_HZ": 1000},
+    }
+
+    with patch("esphome.components.esp32.clean_build"):
+        _write_sdkconfig()
+
+    assert (tmp_path / f"sdkconfig.{PLATFORMIO_ENV_NAME}").read_text() == (
+        "CONFIG_FREERTOS_HZ=1000\n"
+    )
+    assert not (tmp_path / "sdkconfig.kitchen-panel").exists()
+
+
+def test_write_sdkconfig_native_idf_uses_device_name(
+    tmp_path: Path,
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Test native ESP-IDF keeps sdkconfig named after the device."""
+    from esphome.components.esp32 import _write_sdkconfig
+
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.name = "kitchen-panel"
+    CORE.build_path = tmp_path
+    CORE.data[KEY_NATIVE_IDF] = True
+    CORE.data[KEY_ESP32] = {
+        KEY_SDKCONFIG_OPTIONS: {"CONFIG_FREERTOS_HZ": 1000},
+    }
+
+    with patch("esphome.components.esp32.clean_build"):
+        _write_sdkconfig()
+
+    assert (tmp_path / "sdkconfig.kitchen-panel").read_text() == (
+        "CONFIG_FREERTOS_HZ=1000\n"
+    )
+    assert not (tmp_path / f"sdkconfig.{PLATFORMIO_ENV_NAME}").exists()
 
 
 def test_esp32_config(

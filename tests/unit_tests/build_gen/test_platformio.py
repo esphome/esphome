@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.build_gen import platformio
+from esphome.const import PLATFORMIO_ENV_NAME
 from esphome.core import CORE
 
 
@@ -186,3 +187,14 @@ def test_write_ini_calls_update_storage_json(
 
     platformio.write_ini(content)
     mock_update_storage_json.assert_called_once()
+
+
+def test_get_ini_content_uses_stable_platformio_env_name() -> None:
+    """Test generated PlatformIO env name is independent from the device name."""
+    CORE.reset()
+    CORE.name = "kitchen-switch"
+
+    content = platformio.get_ini_content()
+
+    assert f"[env:{PLATFORMIO_ENV_NAME}]" in content
+    assert "[env:kitchen-switch]" not in content

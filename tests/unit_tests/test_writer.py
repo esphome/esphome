@@ -19,6 +19,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
+    PLATFORMIO_ENV_NAME,
 )
 from esphome.core import EsphomeError
 from esphome.storage_json import StorageJSON
@@ -349,7 +350,7 @@ def test_clean_cmake_cache(
     # Create directory structure
     pioenvs_dir = tmp_path / ".pioenvs"
     pioenvs_dir.mkdir()
-    device_dir = pioenvs_dir / "test_device"
+    device_dir = pioenvs_dir / PLATFORMIO_ENV_NAME
     device_dir.mkdir()
     cmake_cache_file = device_dir / "CMakeCache.txt"
     cmake_cache_file.write_text("# CMake cache file")
@@ -357,6 +358,7 @@ def test_clean_cmake_cache(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.name = "test_device"
+    mock_core.pioenv_name = PLATFORMIO_ENV_NAME
 
     # Verify file exists before
     assert cmake_cache_file.exists()
@@ -449,16 +451,22 @@ def test_clean_build(
     (platformio_cache_dir / "tmp").mkdir()
     (platformio_cache_dir / "downloads" / "package.tar.gz").write_text("package")
 
+    platformio_build_cache_dir = tmp_path / ".esphome" / "platformio" / "build-cache"
+    platformio_build_cache_dir.mkdir(parents=True)
+    (platformio_build_cache_dir / "object.o").write_text("object")
+
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.return_value = dependencies_lock
+    mock_core.relative_internal_path.return_value = platformio_build_cache_dir
 
     # Verify all exist before
     assert pioenvs_dir.exists()
     assert piolibdeps_dir.exists()
     assert dependencies_lock.exists()
     assert platformio_cache_dir.exists()
+    assert platformio_build_cache_dir.exists()
 
     # Mock PlatformIO's ProjectConfig cache_dir
     with patch(
@@ -481,13 +489,62 @@ def test_clean_build(
     assert not piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
     assert not platformio_cache_dir.exists()
+    assert not platformio_build_cache_dir.exists()
 
     # Verify logging
     assert "Deleting" in caplog.text
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" in caplog.text
     assert "dependencies.lock" in caplog.text
-    assert "PlatformIO cache" in caplog.text
+    assert "PlatformIO cache_dir" in caplog.text
+    assert "PlatformIO build_cache_dir" in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_build_can_be_skipped(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test clean_build can be skipped for integration tests."""
+    pioenvs_dir = tmp_path / ".pioenvs"
+    pioenvs_dir.mkdir()
+
+    monkeypatch.setenv("ESPHOME_SKIP_CLEAN_BUILD", "1")
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+
+    with caplog.at_level("WARNING"):
+        clean_build()
+
+    assert pioenvs_dir.exists()
+    assert "Skipping build cleaning" in caplog.text
+    mock_core.relative_pioenvs_path.assert_not_called()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_build_can_skip_platformio_cache(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_build can leave PlatformIO caches in place."""
+    pioenvs_dir = tmp_path / ".pioenvs"
+    pioenvs_dir.mkdir()
+    platformio_build_cache_dir = tmp_path / ".esphome" / "platformio" / "build-cache"
+    platformio_build_cache_dir.mkdir(parents=True)
+
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
+    mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
+
+    with caplog.at_level("INFO"):
+        clean_build(clear_pio_cache=False)
+
+    assert not pioenvs_dir.exists()
+    assert platformio_build_cache_dir.exists()
+    assert "PlatformIO" not in caplog.text
+    mock_core.relative_internal_path.assert_not_called()
 
 
 @patch("esphome.writer.CORE")
@@ -606,6 +663,34 @@ def test_clean_build_platformio_not_available(
 
 
 @patch("esphome.writer.CORE")
+def test_clean_build_platformio_config_not_initialized(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_build when PlatformIO config cannot initialize."""
+    pioenvs_dir = tmp_path / ".pioenvs"
+    pioenvs_dir.mkdir()
+
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
+    mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
+    mock_core.relative_internal_path.return_value = tmp_path / "build-cache"
+
+    with (
+        patch(
+            "platformio.project.config.ProjectConfig.get_instance",
+            side_effect=ImportError,
+        ),
+        caplog.at_level("INFO"),
+    ):
+        clean_build()
+
+    assert not pioenvs_dir.exists()
+    assert "PlatformIO cache" not in caplog.text
+
+
+@patch("esphome.writer.CORE")
 def test_clean_build_empty_cache_dir(
     mock_core: MagicMock,
     tmp_path: Path,
@@ -620,6 +705,7 @@ def test_clean_build_empty_cache_dir(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
     mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
+    mock_core.relative_internal_path.return_value = tmp_path / "build-cache"
 
     # Verify pioenvs exists before
     assert pioenvs_dir.exists()

@@ -401,10 +401,41 @@ def write_cpp(code_s):
 def clean_cmake_cache():
     pioenvs = CORE.relative_pioenvs_path()
     if pioenvs.is_dir():
-        pioenvs_cmake_path = pioenvs / CORE.name / "CMakeCache.txt"
+        pioenvs_cmake_path = pioenvs / CORE.pioenv_name / "CMakeCache.txt"
         if pioenvs_cmake_path.is_file():
             _LOGGER.info("Deleting %s", pioenvs_cmake_path)
             pioenvs_cmake_path.unlink()
+
+
+def _clean_platformio_dir(path: str | Path | None, label: str) -> None:
+    if path is None:
+        return
+    path_str = str(path).strip()
+    if not path_str:
+        return
+    path = Path(path_str)
+    if not path.is_absolute():
+        return
+    if path.is_dir():
+        _LOGGER.info("Deleting PlatformIO %s %s", label, path)
+        rmtree(path)
+
+
+def _clean_platformio_config_dirs(dirs: list[str]) -> None:
+    try:
+        from platformio.project.config import ProjectConfig
+    except ImportError:
+        # PlatformIO is not available, skip cache cleaning
+        return
+
+    try:
+        config = ProjectConfig.get_instance()
+    except ImportError:
+        # PlatformIO may be importable in tests without a fully initialized app.
+        return
+
+    for pio_dir in dirs:
+        _clean_platformio_dir(config.get("platformio", pio_dir), pio_dir)
 
 
 def clean_build(clear_pio_cache: bool = True):
@@ -429,19 +460,13 @@ def clean_build(clear_pio_cache: bool = True):
     if not clear_pio_cache:
         return
 
-    # Clean PlatformIO cache to resolve CMake compiler detection issues
-    # This helps when toolchain paths change or get corrupted
-    try:
-        from platformio.project.config import ProjectConfig
-    except ImportError:
-        # PlatformIO is not available, skip cache cleaning
-        pass
-    else:
-        config = ProjectConfig.get_instance()
-        cache_dir = Path(config.get("platformio", "cache_dir"))
-        if cache_dir.is_dir():
-            _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
-            rmtree(cache_dir)
+    # Clean PlatformIO caches to resolve CMake compiler detection issues
+    # and allow users to recover from corrupted shared build objects.
+    _clean_platformio_config_dirs(["cache_dir", "build_cache_dir"])
+    _clean_platformio_dir(
+        CORE.relative_internal_path("platformio", "build-cache"),
+        "build_cache_dir",
+    )
 
 
 def _get_custom_build_dir(item: Path, data_dir: Path) -> Path | None:
@@ -503,18 +528,9 @@ def clean_all(configuration: list[str]):
                     rmtree(item)
 
     # Clean PlatformIO project files
-    try:
-        from platformio.project.config import ProjectConfig
-    except ImportError:
-        # PlatformIO is not available, skip cleaning
-        pass
-    else:
-        config = ProjectConfig.get_instance()
-        for pio_dir in ["cache_dir", "packages_dir", "platforms_dir", "core_dir"]:
-            path = Path(config.get("platformio", pio_dir))
-            if path.is_dir():
-                _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
-                rmtree(path)
+    _clean_platformio_config_dirs(
+        ["cache_dir", "build_cache_dir", "packages_dir", "platforms_dir", "core_dir"]
+    )
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome

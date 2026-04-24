@@ -591,6 +591,36 @@ class TestEsphomeCore:
         assert target.is_esp32 is False
         assert target.is_esp8266 is True
 
+    def test_pioenv_name__embedded_platforms_use_stable_name(self, target):
+        """Test embedded PlatformIO builds use a stable env name for cache reuse."""
+        target.name = "kitchen-switch"
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: "esp32",
+            const.KEY_TARGET_FRAMEWORK: "arduino",
+        }
+
+        assert target.pioenv_name == const.PLATFORMIO_ENV_NAME
+
+    def test_pioenv_name__host_uses_device_name(self, target):
+        """Test host builds keep separate envs for shared integration libdeps."""
+        target.name = "host-noise-test"
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: const.PLATFORM_HOST,
+            const.KEY_TARGET_FRAMEWORK: "host",
+        }
+
+        assert target.pioenv_name == "host-noise-test"
+
+    def test_pioenv_name__nrf52_uses_device_name(self, target):
+        """Test Zephyr builds keep their existing device-scoped env layout."""
+        target.name = "nrf52-sensor"
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: const.PLATFORM_NRF52,
+            const.KEY_TARGET_FRAMEWORK: "zephyr",
+        }
+
+        assert target.pioenv_name == "nrf52-sensor"
+
     @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
     def test_data_dir_default_unix(self, target):
         """Test data_dir returns .esphome in config directory by default on Unix."""

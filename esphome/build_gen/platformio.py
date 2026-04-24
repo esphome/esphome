@@ -51,7 +51,7 @@ def get_ini_content():
     content = "[platformio]\n"
     content += f"description = ESPHome {__version__}\n"
 
-    content += f"[env:{CORE.name}]\n"
+    content += f"[env:{CORE.pioenv_name}]\n"
     content += format_ini(CORE.platformio_options)
 
     return content

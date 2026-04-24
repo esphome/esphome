@@ -7,11 +7,28 @@ import re
 import subprocess
 import sys
 
-from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
+from esphome.const import (
+    CONF_COMPILE_PROCESS_LIMIT,
+    CONF_ESPHOME,
+    ENV_NO_PLATFORMIO_BUILD_CACHE,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+)
 from esphome.core import CORE, EsphomeError
+from esphome.helpers import get_bool_env
 from esphome.util import run_external_process
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _platformio_build_cache_dir() -> Path:
+    """Return a cache path shared by equivalent PlatformIO toolchains only."""
+    core_data = CORE.data.get(KEY_CORE, {})
+    platform = core_data.get(KEY_TARGET_PLATFORM) or "unknown"
+    framework = core_data.get(KEY_TARGET_FRAMEWORK) or "unknown"
+    cache_key = re.sub(r"[^a-zA-Z0-9_.-]", "_", f"{platform}-{framework}")
+    return CORE.relative_internal_path("platformio", "build-cache", cache_key)
 
 
 def run_platformio_cli(*args, **kwargs) -> str | int:
@@ -20,6 +37,11 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ.setdefault(
         "PLATFORMIO_LIBDEPS_DIR", str(CORE.relative_piolibdeps_path().absolute())
     )
+    if not get_bool_env(ENV_NO_PLATFORMIO_BUILD_CACHE):
+        os.environ.setdefault(
+            "PLATFORMIO_BUILD_CACHE_DIR",
+            str(_platformio_build_cache_dir().absolute()),
+        )
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)

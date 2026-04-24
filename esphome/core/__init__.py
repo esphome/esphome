@@ -28,6 +28,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
+    PLATFORMIO_ENV_NAME,
 )
 
 # pylint: disable=unused-import
@@ -767,13 +768,26 @@ class EsphomeCore:
         return self.relative_build_path(".piolibdeps", *path)
 
     @property
+    def pioenv_name(self) -> str:
+        target_platform = self.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM)
+        if target_platform in (PLATFORM_HOST, PLATFORM_NRF52):
+            return self.name
+        return PLATFORMIO_ENV_NAME
+
+    @property
+    def sdkconfig_name(self) -> str:
+        if self.data.get(KEY_NATIVE_IDF, False):
+            return self.name
+        return self.pioenv_name
+
+    @property
     def firmware_bin(self) -> Path:
         # Check if using native ESP-IDF build (--native-idf)
         if self.data.get(KEY_NATIVE_IDF, False):
             return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
-            return self.relative_pioenvs_path(self.name, "firmware.uf2")
-        return self.relative_pioenvs_path(self.name, "firmware.bin")
+            return self.relative_pioenvs_path(self.pioenv_name, "firmware.uf2")
+        return self.relative_pioenvs_path(self.pioenv_name, "firmware.bin")
 
     @property
     def target_platform(self):

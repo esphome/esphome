@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, Mock, call, patch
 import pytest
 
 from esphome import platformio_api, platformio_runner
+from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 from esphome.core import CORE, EsphomeError
 
 
@@ -286,6 +287,10 @@ def test_run_platformio_cli_sets_environment_variables(
 ) -> None:
     """Test run_platformio_cli sets correct environment variables."""
     CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
 
     with patch.dict(os.environ, {}, clear=False):
         mock_run_external_process.return_value = 0
@@ -299,6 +304,9 @@ def test_run_platformio_cli_sets_environment_variables(
             or Path(os.environ["PLATFORMIO_BUILD_DIR"]) == setup_core / "build" / "test"
         )
         assert "PLATFORMIO_LIBDEPS_DIR" in os.environ
+        assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(
+            setup_core / ".esphome" / "platformio" / "build-cache" / "esp8266-arduino"
+        )
         assert "PYTHONWARNINGS" in os.environ
 
         # Check command was called correctly — runs PlatformIO as a subprocess
@@ -309,6 +317,90 @@ def test_run_platformio_cli_sets_environment_variables(
         assert "esphome.platformio_runner" in args
         assert "test" in args
         assert "arg" in args
+
+
+def test_run_platformio_cli_scopes_default_build_cache_by_toolchain(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Test default build cache reuse stays within a platform/framework pair."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+
+    with patch.dict(os.environ, {}, clear=True):
+        mock_run_external_process.return_value = 0
+        platformio_api.run_platformio_cli("test")
+
+        assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(
+            setup_core / ".esphome" / "platformio" / "build-cache" / "esp32-esp-idf"
+        )
+
+
+@pytest.mark.parametrize(
+    ("target_platform", "target_framework", "cache_key"),
+    [
+        ("host", "host", "host-host"),
+        ("nrf52", "zephyr", "nrf52-zephyr"),
+    ],
+)
+def test_run_platformio_cli_scopes_special_platform_build_caches_by_toolchain(
+    setup_core: Path,
+    mock_run_external_process: Mock,
+    target_platform: str,
+    target_framework: str,
+    cache_key: str,
+) -> None:
+    """Test host and Zephyr keep separate build caches despite device env names."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: target_platform,
+        KEY_TARGET_FRAMEWORK: target_framework,
+    }
+
+    with patch.dict(os.environ, {}, clear=True):
+        mock_run_external_process.return_value = 0
+        platformio_api.run_platformio_cli("test")
+
+        assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(
+            setup_core / ".esphome" / "platformio" / "build-cache" / cache_key
+        )
+
+
+def test_run_platformio_cli_preserves_build_cache_override(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Test run_platformio_cli keeps an explicitly configured build cache."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    custom_cache = setup_core / "custom-cache"
+
+    with patch.dict(
+        os.environ, {"PLATFORMIO_BUILD_CACHE_DIR": str(custom_cache)}, clear=False
+    ):
+        mock_run_external_process.return_value = 0
+        platformio_api.run_platformio_cli("test")
+
+        assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(custom_cache)
+
+
+def test_run_platformio_cli_can_disable_default_build_cache(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Test ESPHome can skip setting PlatformIO's cross-project build cache."""
+    CORE.build_path = str(setup_core / "build" / "test")
+
+    with patch.dict(
+        os.environ,
+        {
+            "ESPHOME_NO_PLATFORMIO_BUILD_CACHE": "1",
+        },
+        clear=True,
+    ):
+        mock_run_external_process.return_value = 0
+        platformio_api.run_platformio_cli("test")
+
+        assert "PLATFORMIO_BUILD_CACHE_DIR" not in os.environ
 
 
 def test_run_platformio_cli_run_builds_command(
