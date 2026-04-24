@@ -31,8 +31,9 @@ class FileResource:
 
 
 class ComponentManifest:
-    def __init__(self, module: ModuleType):
+    def __init__(self, module: ModuleType, recursive_sources: bool = False):
         self.module = module
+        self.recursive_sources = recursive_sources
 
     @property
     def package(self) -> str:
@@ -108,8 +109,10 @@ class ComponentManifest:
     def resources(self) -> list[FileResource]:
         """Return a list of all file resources defined in the package of this component.
 
-        This will return all cpp source files that are located in the same folder as the
-        loaded .py file (does not look through subdirectories)
+        By default only files directly in the package directory are returned. Manifests
+        constructed with ``recursive_sources=True`` also descend into non-subpackage
+        subdirectories (subdirectories without an ``__init__.py``), so core code can
+        live under ``esphome/core/<group>/`` without every component paying the cost.
         """
         ret: list[FileResource] = []
 
@@ -121,23 +124,30 @@ class ComponentManifest:
             set(filter_source_files_func()) if filter_source_files_func else set()
         )
 
-        # Process all resources
-        for resource in (
-            r.name
-            for r in importlib.resources.files(self.package).iterdir()
-            if r.is_file()
-        ):
-            if Path(resource).suffix not in SOURCE_FILE_EXTENSIONS:
-                continue
-            if not importlib.resources.files(self.package).joinpath(resource).is_file():
-                # Not a resource = this is a directory (yeah this is confusing)
-                continue
+        root = importlib.resources.files(self.package)
 
-            # Skip excluded files
-            if resource in excluded_files:
-                continue
+        for child in root.iterdir():
+            name = child.name
+            if child.is_file():
+                if Path(name).suffix not in SOURCE_FILE_EXTENSIONS:
+                    continue
+                if name in excluded_files:
+                    continue
+                ret.append(FileResource(self.package, name))
+            elif self.recursive_sources and child.is_dir() and name != "__pycache__":
+                # Skip Python subpackages — they load as their own components.
+                if child.joinpath("__init__.py").is_file():
+                    continue
+                for sub in child.iterdir():
+                    if not sub.is_file():
+                        continue
+                    if Path(sub.name).suffix not in SOURCE_FILE_EXTENSIONS:
+                        continue
+                    resource = f"{name}/{sub.name}"
+                    if resource in excluded_files:
+                        continue
+                    ret.append(FileResource(self.package, resource))
 
-            ret.append(FileResource(self.package, resource))
         return ret
 
 
@@ -237,7 +247,9 @@ def get_platform(domain: str, platform: str) -> ComponentManifest | None:
 
 _COMPONENT_CACHE: dict[str, ComponentManifest] = {}
 CORE_COMPONENTS_PATH = (Path(__file__).parent / "components").resolve()
-_COMPONENT_CACHE["esphome"] = ComponentManifest(esphome.core.config)
+_COMPONENT_CACHE["esphome"] = ComponentManifest(
+    esphome.core.config, recursive_sources=True
+)
 
 
 def _replace_component_manifest(domain: str, manifest: ComponentManifest) -> None:
