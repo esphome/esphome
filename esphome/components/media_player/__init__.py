@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_SAMPLE_RATE,
-    CONF_TRIGGER_ID,
     CONF_VOLUME,
 )
 from esphome.core import CORE
