@@ -230,26 +230,18 @@ async def to_code(config: ConfigType) -> None:
             codecs.append(CODEC_FORMAT_OPUS)
         codecs.append(CODEC_FORMAT_PCM)
 
-        audio_format_structs = []
-        for codec in codecs:
-            audio_format_structs.extend(
-                [
-                    cg.StructInitializer(
-                        AudioSupportedFormatObject,
-                        ("codec", codec),
-                        ("channels", 2),
-                        ("sample_rate", sample_rate),
-                        ("bit_depth", 16),
-                    ),
-                    cg.StructInitializer(
-                        AudioSupportedFormatObject,
-                        ("codec", codec),
-                        ("channels", 1),
-                        ("sample_rate", sample_rate),
-                        ("bit_depth", 16),
-                    ),
-                ]
+        def _audio_format(codec, channels):
+            return cg.StructInitializer(
+                AudioSupportedFormatObject,
+                ("codec", codec),
+                ("channels", channels),
+                ("sample_rate", sample_rate),
+                ("bit_depth", 16),
             )
+
+        audio_format_structs = [
+            _audio_format(codec, channels) for codec in codecs for channels in (2, 1)
+        ]
 
         psram_stack = player_cfg.get(CONF_TASK_STACK_IN_PSRAM, False)
         if psram_stack:
