@@ -1311,6 +1311,29 @@ inline char *int8_to_str(char *buf, int8_t val) {
   return buf;
 }
 
+/// Append a separator char and a string to a buffer, respecting remaining space.
+/// Returns pointer past last char written. The buffer is always null-terminated
+/// when remaining >= 1 (even on the no-room early-return), so callers always get
+/// a valid C string.
+inline char *buf_append_sep_str(char *buf, size_t remaining, char separator, const char *str, size_t str_len) {
+  if (remaining < 2) {
+    if (remaining >= 1) {
+      *buf = '\0';
+    }
+    return buf;
+  }
+  *buf++ = separator;
+  remaining--;
+  size_t copy_len = std::min(str_len, remaining - 1);
+  memcpy(buf, str, copy_len);
+  buf += copy_len;
+  *buf = '\0';
+  return buf;
+}
+
+/// Return 10^n for small non-negative n (0-3) as uint32_t, avoiding float.
+inline uint32_t small_pow10(int8_t n) { return n == 3 ? 1000 : n == 2 ? 100 : n == 1 ? 10 : 1; }
+
 /// Minimum buffer size for uint32_to_str: 10 digits + null terminator.
 static constexpr size_t UINT32_MAX_STR_SIZE = 11;
 
@@ -1324,6 +1347,18 @@ inline size_t uint32_to_str(std::span<char, UINT32_MAX_STR_SIZE> buf, uint32_t v
   char *end = uint32_to_str_unchecked(buf.data(), val);
   *end = '\0';
   return static_cast<size_t>(end - buf.data());
+}
+
+/// Write fractional digits with leading zeros to buffer (internal, no size check).
+/// frac is the fractional value, divisor is the highest place value (e.g. 100 for 3 digits).
+/// Returns pointer past last char written.
+inline char *frac_to_str_unchecked(char *buf, uint32_t frac, uint32_t divisor) {
+  while (divisor > 0) {
+    *buf++ = '0' + static_cast<char>(frac / divisor);
+    frac %= divisor;
+    divisor /= 10;
+  }
+  return buf;
 }
 
 /// Format byte array as lowercase hex to buffer (base implementation).

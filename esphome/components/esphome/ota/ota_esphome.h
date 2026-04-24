@@ -28,6 +28,14 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   };
 #ifdef USE_OTA_PASSWORD
   void set_auth_password(const std::string &password) { password_ = password; }
+#else
+  // Stub so lambdas referencing set_auth_password() produce a clear error instead of
+  // a cryptic "no member" diagnostic. Only fires if the stub is actually instantiated.
+  template<bool B = false> void set_auth_password(const std::string &) {
+    static_assert(B, "set_auth_password() requires the OTA auth path to be compiled. "
+                     "Add 'password: \"\"' (empty string) to your 'ota: - platform: esphome' "
+                     "config to enable runtime password rotation.");
+  }
 #endif  // USE_OTA_PASSWORD
 
   /// Manually set the port OTA should listen on

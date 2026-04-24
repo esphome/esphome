@@ -18,6 +18,8 @@ void DeepSleepComponent::deep_sleep_() {
   ESP.deepSleep(this->sleep_duration_.value_or(0));  // NOLINT(readability-static-accessed-through-instance)
 }
 
+bool DeepSleepComponent::should_teardown_() { return true; }
+
 }  // namespace deep_sleep
 }  // namespace esphome
 #endif
