@@ -32,7 +32,11 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_run_logs(config: dict[str, Any], addresses: list[str]) -> None:
+async def async_run_logs(
+    config: dict[str, Any],
+    addresses: list[str],
+    subscribe_states: bool = True,
+) -> None:
     """Run the logs command in the event loop."""
     conf = config["api"]
     name = config["esphome"]["name"]
@@ -89,14 +93,37 @@ async def async_run_logs(config: dict[str, Any], addresses: list[str]) -> None:
                     config, raw_line, backtrace_state=backtrace_state
                 )
 
-    stop = await async_run(cli, on_log, name=name)
+    # Safe to fall back to plaintext here only for this diagnostics use
+    # case: the stream is one-way from device to client, and this code
+    # never accepts commands or acts on any message the device sends.
+    # An on-path attacker could still both inject fabricated log lines
+    # and passively read the device's log output (and any state data
+    # delivered when subscribe_states is enabled), so this does lose
+    # confidentiality as well as authentication/integrity. That tradeoff
+    # is acceptable for operator-visible logs, which aioesphomeapi also
+    # warns may come from an unverified device. Never mirror this opt-in
+    # for any connection that sends data to the device or uses Home
+    # Assistant actions.
+    stop = await async_run(
+        cli,
+        on_log,
+        name=name,
+        subscribe_states=subscribe_states,
+        allow_plaintext_fallback=True,
+    )
     try:
         await asyncio.Event().wait()
     finally:
         await stop()
 
 
-def run_logs(config: dict[str, Any], addresses: list[str]) -> None:
+def run_logs(
+    config: dict[str, Any],
+    addresses: list[str],
+    subscribe_states: bool = True,
+) -> None:
     """Run the logs command."""
     with contextlib.suppress(KeyboardInterrupt):
-        asyncio.run(async_run_logs(config, addresses))
+        asyncio.run(
+            async_run_logs(config, addresses, subscribe_states=subscribe_states)
+        )

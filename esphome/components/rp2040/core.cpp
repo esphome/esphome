@@ -37,13 +37,6 @@ void arch_init() {
 
 void HOT arch_feed_wdt() { watchdog_update(); }
 
-uint8_t progmem_read_byte(const uint8_t *addr) {
-  return pgm_read_byte(addr);  // NOLINT
-}
-const char *progmem_read_ptr(const char *const *addr) {
-  return reinterpret_cast<const char *>(pgm_read_ptr(addr));  // NOLINT
-}
-uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
 uint32_t HOT arch_get_cpu_cycle_count() { return ulMainGetRunTimeCounterValue(); }
 uint32_t arch_get_cpu_freq_hz() { return RP2040::f_cpu(); }
 

@@ -8,7 +8,28 @@
 
 namespace esphome::sha256 {
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_SHA256_PSA)
+
+// ESP-IDF 6.0 ships mbedtls 4.0 which removed the legacy mbedtls_sha256_* API.
+// Use the PSA Crypto API instead. PSA crypto is auto-initialized by ESP-IDF
+// at startup, so no psa_crypto_init() call is needed.
+
+SHA256::~SHA256() { psa_hash_abort(&this->op_); }
+
+void SHA256::init() {
+  psa_hash_abort(&this->op_);
+  this->op_ = PSA_HASH_OPERATION_INIT;
+  psa_hash_setup(&this->op_, PSA_ALG_SHA_256);
+}
+
+void SHA256::add(const uint8_t *data, size_t len) { psa_hash_update(&this->op_, data, len); }
+
+void SHA256::calculate() {
+  size_t hash_length;
+  psa_hash_finish(&this->op_, this->digest_, sizeof(this->digest_), &hash_length);
+}
+
+#elif defined(USE_SHA256_MBEDTLS)
 
 // CRITICAL ESP32 HARDWARE SHA ACCELERATION REQUIREMENTS (IDF 5.5.x):
 //

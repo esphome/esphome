@@ -35,7 +35,7 @@ class Am43 : public esphome::ble_client::BLEClientNode, public PollingComponent 
   uint8_t current_sensor_;
   // The AM43 often gets into a state where it spams loads of battery update
   // notifications. Here we will limit to no more than every 10s.
-  uint8_t last_battery_update_;
+  uint32_t last_battery_update_;
 };
 
 }  // namespace am43

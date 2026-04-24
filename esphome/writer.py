@@ -18,7 +18,6 @@ from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
-    get_str_env,
     is_ha_addon,
     read_file,
     rmtree,
@@ -172,6 +171,7 @@ VERSION_H_FORMAT = """\
 DEFINES_H_TARGET = "esphome/core/defines.h"
 VERSION_H_TARGET = "esphome/core/version.h"
 BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
+ENTITY_TYPES_H_TARGET = "esphome/core/entity_types.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -197,9 +197,12 @@ def copy_src_tree():
     source_files_l.sort()
 
     # Build #include list for esphome.h
+    # X-macro files are included multiple times with different macro definitions
+    # and must not be included bare in esphome.h
+    esphome_h_exclude = {Path(ENTITY_TYPES_H_TARGET)}
     include_l = []
     for target, _ in source_files_l:
-        if target.suffix in HEADER_FILE_EXTENSIONS:
+        if target.suffix in HEADER_FILE_EXTENSIONS and target not in esphome_h_exclude:
             include_l.append(f'#include "{target}"')
     include_l.append("")
     include_s = "\n".join(include_l)
@@ -381,7 +384,10 @@ def write_cpp(code_s):
         code_format = CPP_BASE_FORMAT
 
     copy_src_tree()
+    # using namespace esphome must precede all variable declarations since
+    # codegen types assume this namespace is in scope (esphome_ns = global_ns).
     global_s = '#include "esphome.h"\n'
+    global_s += "using namespace esphome;\n"
     global_s += CORE.cpp_global_section
 
     full_file = f"{code_format[0] + CPP_INCLUDE_BEGIN}\n{global_s}{CPP_INCLUDE_END}"
@@ -438,18 +444,52 @@ def clean_build(clear_pio_cache: bool = True):
             rmtree(cache_dir)
 
 
+def _get_custom_build_dir(item: Path, data_dir: Path) -> Path | None:
+    """Parse a YAML config to find a custom build directory."""
+    from esphome import yaml_util
+
+    try:
+        raw = yaml_util.load_yaml(item)
+    except (EsphomeError, OSError) as e:
+        _LOGGER.debug("Could not parse %s to find build_path: %s", item, e)
+        return None
+    if not isinstance(raw, dict):
+        return None
+    esphome_conf = raw.get("esphome", {})
+    if not isinstance(esphome_conf, dict):
+        return None
+    if build_path := esphome_conf.get("build_path"):
+        return data_dir / build_path
+    return None
+
+
 def clean_all(configuration: list[str]):
     data_dirs = []
     for config in configuration:
         item = Path(config)
         if item.is_file() and item.suffix in (".yaml", ".yml"):
-            data_dirs.append(item.parent / ".esphome")
+            data_dir = item.parent / ".esphome"
+            data_dirs.append(data_dir)
+            if custom := _get_custom_build_dir(item, data_dir):
+                data_dirs.append(custom)
         else:
             data_dirs.append(item / ".esphome")
     if is_ha_addon():
         data_dirs.append(Path("/data"))
-    if "ESPHOME_DATA_DIR" in os.environ:
-        data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
+    if env_data_dir := os.environ.get("ESPHOME_DATA_DIR"):
+        data_dirs.append(Path(env_data_dir))
+    if env_build_path := os.environ.get("ESPHOME_BUILD_PATH"):
+        data_dirs.append(Path(env_build_path))
+    if not data_dirs:
+        # No config files or known data dirs, check current directory
+        cwd_esphome = Path.cwd() / ".esphome"
+        if cwd_esphome.is_dir():
+            data_dirs.append(cwd_esphome)
+        else:
+            _LOGGER.warning(
+                "No configuration files specified and no .esphome directory found in current directory. "
+                "Pass YAML files or a configuration directory to clean build artifacts."
+            )
 
     # Clean build dir
     for dir in data_dirs:

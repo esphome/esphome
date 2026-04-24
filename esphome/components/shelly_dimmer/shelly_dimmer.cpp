@@ -402,7 +402,7 @@ bool ShellyDimmer::handle_frame_() {
   // Handle response.
   switch (cmd) {
     case SHELLY_DIMMER_PROTO_CMD_POLL: {
-      if (payload_len < 16) {
+      if (payload_len < 17) {
         return false;
       }
 

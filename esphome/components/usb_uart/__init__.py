@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-from esphome.components import socket
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
 from esphome.components.usb_host import register_usb_client, usb_device_schema
@@ -14,7 +13,7 @@ from esphome.const import (
 )
 from esphome.cpp_types import Component
 
-AUTO_LOAD = ["uart", "usb_host", "bytebuffer", "socket"]
+AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
 
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
@@ -117,16 +116,23 @@ CONFIG_SCHEMA = cv.ensure_list(
 
 
 async def to_code(config):
-    # Enable wake_loop_threadsafe for low-latency USB data processing
-    # The USB task queues data events that need immediate processing
-    socket.require_wake_loop_threadsafe()
+    # The output chunk pool/queue are compile-time-sized templates shared by all
+    # USBUartChannel instances, so use the largest buffer_size across every channel
+    # of every device.  Each chunk is 64 bytes (USB FS MPS); add one extra slot
+    # because LockFreeQueue<T,N> is a ring buffer that wastes one entry.
+    max_buffer_size = max(
+        channel[CONF_BUFFER_SIZE]
+        for device in config
+        for channel in device[CONF_CHANNELS]
+    )
+    output_chunk_count = max_buffer_size // 64 + 1
+    cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
     for device in config:
         var = await register_usb_client(device)
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
-            cg.add(chvar.set_rx_buffer_size(channel[CONF_BUFFER_SIZE]))
             cg.add(chvar.set_stop_bits(channel[CONF_STOP_BITS]))
             cg.add(chvar.set_data_bits(channel[CONF_DATA_BITS]))
             cg.add(chvar.set_parity(channel[CONF_PARITY]))

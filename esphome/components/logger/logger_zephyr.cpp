@@ -65,10 +65,12 @@ void Logger::pre_setup() {
         break;
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
+#ifdef CONFIG_USB_DEVICE_STACK
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
         if (device_is_ready(uart_dev)) {
           usb_enable(nullptr);
         }
+#endif
         break;
 #endif
     }

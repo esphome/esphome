@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 import json
 import logging
@@ -12,18 +12,21 @@ import re
 import sys
 import time
 from typing import Any
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from pytest import CaptureFixture
+from zeroconf import ServiceStateChange
 
 from esphome import platformio_api
 from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
+    _resolve_network_devices,
     choose_upload_log_host,
     command_analyze_memory,
+    command_bundle,
     command_clean_all,
     command_rename,
     command_update_all,
@@ -35,6 +38,7 @@ from esphome.__main__ import (
     has_mqtt,
     has_mqtt_ip_lookup,
     has_mqtt_logging,
+    has_name_add_mac_suffix,
     has_non_ip_address,
     has_ota,
     has_resolvable_address,
@@ -47,6 +51,8 @@ from esphome.__main__ import (
     upload_using_picotool,
     upload_using_platformio,
 )
+from esphome.address_cache import AddressCache
+from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
@@ -60,6 +66,7 @@ from esphome.const import (
     CONF_MDNS,
     CONF_MQTT,
     CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PLATFORM,
@@ -77,6 +84,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.util import BootselResult
+from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
 
 def strip_ansi_codes(text: str) -> str:
@@ -164,6 +172,13 @@ def mock_check_permissions() -> Generator[Mock]:
 def mock_run_miniterm() -> Generator[Mock]:
     """Mock run_miniterm for testing."""
     with patch("esphome.__main__.run_miniterm") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_wait_for_serial_port() -> Generator[Mock]:
+    """Mock _wait_for_serial_port for testing."""
+    with patch("esphome.__main__._wait_for_serial_port") as mock:
         yield mock
 
 
@@ -1094,6 +1109,8 @@ class MockArgs:
     name: str | None = None
     dashboard: bool = False
     reset: bool = False
+    list_only: bool = False
+    output: str | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -1218,6 +1235,48 @@ def test_upload_using_esptool_path_conversion(
     partitions_path = cmd_list[partitions_offset_idx + 1]
     assert isinstance(partitions_path, str)
     assert partitions_path.endswith("partitions.bin")
+
+
+def test_upload_using_esptool_skips_missing_extra_flash_images(
+    tmp_path: Path,
+    mock_run_external_command_main: Mock,
+    mock_get_idedata: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A non-existent path in extra_flash_images must be filtered out with a
+    warning, and must not appear in the esptool command line. Only the valid
+    images are flashed. Regression test for
+    https://github.com/esphome/esphome/issues/15634.
+    """
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    missing_path = tmp_path / "variants" / "tasmota" / "tinyuf2.bin"
+
+    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = [
+        platformio_api.FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        platformio_api.FlashImage(path=missing_path, offset="0x2d0000"),
+    ]
+    mock_get_idedata.return_value = mock_idedata
+
+    (tmp_path / "firmware.bin").touch()
+    (tmp_path / "bootloader.bin").touch()
+    # Intentionally do NOT create missing_path
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    assert result == 0
+    assert "Skipping missing flash image" in caplog.text
+    assert str(missing_path) in caplog.text
+
+    cmd_list = list(mock_run_external_command_main.call_args[0][1:])
+    assert str(missing_path) not in cmd_list
+    assert "0x2d0000" not in cmd_list
 
 
 def test_upload_using_esptool_with_file_path(
@@ -1706,6 +1765,7 @@ def test_show_logs_serial(
     mock_get_port_type: Mock,
     mock_check_permissions: Mock,
     mock_run_miniterm: Mock,
+    mock_wait_for_serial_port: Mock,
 ) -> None:
     """Test show_logs with serial port."""
     setup_core(config={"logger": {}}, platform=PLATFORM_ESP32)
@@ -1754,7 +1814,34 @@ def test_show_logs_api(
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100", "192.168.1.101"]
+        CORE.config, ["192.168.1.100", "192.168.1.101"], subscribe_states=True
+    )
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_show_logs_api_no_states(
+    mock_run_logs: Mock,
+) -> None:
+    """Test show_logs with --no-states flag."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MDNS: {CONF_DISABLED: False},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    args = MockArgs()
+    args.no_states = True
+    devices = ["192.168.1.100"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100"], subscribe_states=False
     )
 
 
@@ -1780,7 +1867,9 @@ def test_show_logs_api_with_fqdn_mdns_disabled(
 
     assert result == 0
     # Should use the FQDN directly, not try MQTT lookup
-    mock_run_logs.assert_called_once_with(CORE.config, ["device.example.com"])
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["device.example.com"], subscribe_states=True
+    )
 
 
 @patch("esphome.components.api.client.run_logs")
@@ -1808,7 +1897,9 @@ def test_show_logs_api_with_mqtt_fallback(
 
     assert result == 0
     mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
-    mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.200"])
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.200"], subscribe_states=True
+    )
 
 
 @patch("esphome.mqtt.show_logs")
@@ -2131,6 +2222,509 @@ def test_has_resolvable_address() -> None:
     # Test with no address and mDNS disabled
     setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address=None)
     assert has_resolvable_address() is False
+
+
+def test_has_name_add_mac_suffix() -> None:
+    """Test has_name_add_mac_suffix function."""
+
+    # Test with name_add_mac_suffix enabled
+    setup_core(config={CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: True}})
+    assert has_name_add_mac_suffix() is True
+
+    # Test with name_add_mac_suffix disabled
+    setup_core(config={CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: False}})
+    assert has_name_add_mac_suffix() is False
+
+    # Test with name_add_mac_suffix not set (defaults to False)
+    setup_core(config={CONF_ESPHOME: {}})
+    assert has_name_add_mac_suffix() is False
+
+    # Test with no esphome config
+    setup_core(config={})
+    assert has_name_add_mac_suffix() is False
+
+    # Test with no config at all
+    CORE.config = None
+    assert has_name_add_mac_suffix() is False
+
+
+@pytest.fixture
+def mock_mdns_discovery() -> Generator[MagicMock]:
+    """Fixture to mock the async mDNS discovery infrastructure.
+
+    Patches ``AsyncEsphomeZeroconf``, ``AsyncServiceBrowser`` and
+    ``AddressResolver`` in ``esphome.zeroconf`` and exposes hooks for tests to
+    stage browser events and control resolution results. The default
+    ``AddressResolver`` stub simulates a cache hit returning no addresses, so
+    matched hosts appear in the discovery output with empty address lists
+    unless the test overrides ``_resolver_setup``.
+    """
+    with (
+        patch("esphome.zeroconf.AsyncEsphomeZeroconf") as mock_aiozc_class,
+        patch("esphome.zeroconf.AsyncServiceBrowser") as mock_browser_class,
+        patch("esphome.zeroconf.AddressResolver") as mock_resolver_class,
+    ):
+        mock_aiozc = MagicMock()
+        mock_aiozc.zeroconf = MagicMock()
+        mock_aiozc.async_close = AsyncMock(return_value=None)
+        mock_aiozc_class.return_value = mock_aiozc
+
+        mock_browser = MagicMock()
+        mock_browser.async_cancel = AsyncMock(return_value=None)
+
+        # Default: each host gets a fresh resolver that hits the cache and
+        # returns no addresses. Tests can override via ``_resolver_setup``.
+        def default_resolver_factory(name: str) -> MagicMock:
+            resolver = MagicMock()
+            resolver._name = name
+            resolver.load_from_cache.return_value = True
+            resolver.async_request = AsyncMock(return_value=True)
+            resolver.parsed_scoped_addresses.return_value = []
+            return resolver
+
+        mock_resolver_class.side_effect = default_resolver_factory
+
+        # Store references for test access
+        mock_aiozc._mock_browser_class = mock_browser_class
+        mock_aiozc._mock_browser = mock_browser
+        mock_aiozc._mock_class = mock_aiozc_class
+        mock_aiozc._mock_resolver_class = mock_resolver_class
+        yield mock_aiozc
+
+
+@pytest.mark.parametrize(
+    ("discovered_services", "base_name", "expected_hosts"),
+    [
+        # Matching devices; different-prefix device is filtered out
+        (
+            [
+                ("mydevice-abc123._esphomelib._tcp.local.", ServiceStateChange.Added),
+                ("mydevice-def456._esphomelib._tcp.local.", ServiceStateChange.Added),
+                (
+                    "otherdevice-abcdef._esphomelib._tcp.local.",
+                    ServiceStateChange.Added,
+                ),
+            ],
+            "mydevice",
+            ["mydevice-abc123.local", "mydevice-def456.local"],
+        ),
+        # No matches at all
+        (
+            [
+                (
+                    "otherdevice-abcdef._esphomelib._tcp.local.",
+                    ServiceStateChange.Added,
+                ),
+            ],
+            "mydevice",
+            [],
+        ),
+        # Deduplication (same device Added then Updated)
+        (
+            [
+                ("mydevice-abc123._esphomelib._tcp.local.", ServiceStateChange.Added),
+                ("mydevice-abc123._esphomelib._tcp.local.", ServiceStateChange.Updated),
+            ],
+            "mydevice",
+            ["mydevice-abc123.local"],
+        ),
+        # Suffix must be exactly 6 hex chars: wrong length and non-hex are rejected
+        (
+            [
+                # too short
+                ("mydevice-abcd._esphomelib._tcp.local.", ServiceStateChange.Added),
+                # too long
+                (
+                    "mydevice-abcdef1._esphomelib._tcp.local.",
+                    ServiceStateChange.Added,
+                ),
+                # non-hex
+                ("mydevice-xyz123._esphomelib._tcp.local.", ServiceStateChange.Added),
+                # valid
+                ("mydevice-012345._esphomelib._tcp.local.", ServiceStateChange.Added),
+            ],
+            "mydevice",
+            ["mydevice-012345.local"],
+        ),
+        # Prefix-collision: base "foo" must not match "foo-bar-abc123"
+        (
+            [
+                ("foo-abcdef._esphomelib._tcp.local.", ServiceStateChange.Added),
+                ("foo-bar-abcdef._esphomelib._tcp.local.", ServiceStateChange.Added),
+            ],
+            "foo",
+            ["foo-abcdef.local"],
+        ),
+    ],
+    ids=[
+        "matching_with_filter",
+        "no_matches",
+        "deduplication",
+        "hex_suffix_filter",
+        "prefix_collision",
+    ],
+)
+def test_discover_mdns_devices(
+    mock_mdns_discovery: MagicMock,
+    discovered_services: list[tuple[str, ServiceStateChange]],
+    base_name: str,
+    expected_hosts: list[str],
+) -> None:
+    """Test discover_mdns_devices filtering and deduplication."""
+    mock_browser = mock_mdns_discovery._mock_browser
+
+    def capture_callback(
+        zc: MagicMock,
+        service_type: str,
+        handlers: list[Callable[..., None]],
+    ) -> MagicMock:
+        callback = handlers[0]
+        for service_name, state_change in discovered_services:
+            callback(
+                mock_mdns_discovery.zeroconf, service_type, service_name, state_change
+            )
+        return mock_browser
+
+    mock_mdns_discovery._mock_browser_class.side_effect = capture_callback
+
+    # Each discovered host gets a resolver that returns a unique IP string
+    # derived from its server name so we can assert per-host.
+    def resolver_factory(name: str) -> MagicMock:
+        resolver = MagicMock()
+        resolver._name = name
+        resolver.load_from_cache.return_value = True
+        resolver.async_request = AsyncMock(return_value=True)
+        resolver.parsed_scoped_addresses.return_value = [f"10.0.0.1#{name}"]
+        return resolver
+
+    mock_mdns_discovery._mock_resolver_class.side_effect = resolver_factory
+
+    result = discover_mdns_devices(base_name, timeout=0)
+
+    assert sorted(result) == expected_hosts
+    # Resolved addresses should be stored for matched hosts. AddressResolver
+    # receives the fully-qualified name (``<device>.local.``).
+    for host in expected_hosts:
+        short = host.partition(".")[0]
+        assert result[host] == [f"10.0.0.1#{short}.local."]
+    mock_browser.async_cancel.assert_awaited_once()
+    mock_mdns_discovery.async_close.assert_awaited_once()
+
+
+def test_discover_mdns_devices_init_failure(caplog: pytest.LogCaptureFixture) -> None:
+    """If AsyncEsphomeZeroconf fails to init, return empty dict and log warning."""
+    with (
+        patch(
+            "esphome.zeroconf.AsyncEsphomeZeroconf",
+            side_effect=OSError("no network"),
+        ),
+        caplog.at_level(logging.WARNING, logger="esphome.zeroconf"),
+    ):
+        result = discover_mdns_devices("mydevice", timeout=0)
+
+    assert result == {}
+    assert "mDNS discovery failed to initialize" in caplog.text
+
+
+def test_discover_mdns_devices_resolution_failure(
+    mock_mdns_discovery: MagicMock,
+) -> None:
+    """If resolution raises, the host is still listed with an empty address list."""
+    mock_browser = mock_mdns_discovery._mock_browser
+
+    def capture_callback(
+        zc: MagicMock,
+        service_type: str,
+        handlers: list[Callable[..., None]],
+    ) -> MagicMock:
+        handlers[0](
+            mock_mdns_discovery.zeroconf,
+            service_type,
+            "mydevice-abc123._esphomelib._tcp.local.",
+            ServiceStateChange.Added,
+        )
+        return mock_browser
+
+    mock_mdns_discovery._mock_browser_class.side_effect = capture_callback
+
+    # Resolver misses the cache, then async_request raises.
+    def failing_resolver_factory(name: str) -> MagicMock:
+        resolver = MagicMock()
+        resolver.load_from_cache.return_value = False
+        resolver.async_request = AsyncMock(side_effect=OSError("boom"))
+        resolver.parsed_scoped_addresses.return_value = []
+        return resolver
+
+    mock_mdns_discovery._mock_resolver_class.side_effect = failing_resolver_factory
+
+    result = discover_mdns_devices("mydevice", timeout=0)
+
+    assert result == {"mydevice-abc123.local": []}
+
+
+def test_discover_mdns_devices_ignores_removed_state(
+    mock_mdns_discovery: MagicMock,
+) -> None:
+    """``Removed`` state changes are ignored and do not appear in the result."""
+    mock_browser = mock_mdns_discovery._mock_browser
+
+    def capture_callback(
+        zc: MagicMock,
+        service_type: str,
+        handlers: list[Callable[..., None]],
+    ) -> MagicMock:
+        handlers[0](
+            mock_mdns_discovery.zeroconf,
+            service_type,
+            "mydevice-abc123._esphomelib._tcp.local.",
+            ServiceStateChange.Removed,
+        )
+        return mock_browser
+
+    mock_mdns_discovery._mock_browser_class.side_effect = capture_callback
+
+    result = discover_mdns_devices("mydevice", timeout=0)
+
+    assert result == {}
+    # No AddressResolver should have been constructed since no host matched.
+    mock_mdns_discovery._mock_resolver_class.assert_not_called()
+
+
+def test_discover_mdns_devices_empty_resolution(
+    mock_mdns_discovery: MagicMock,
+) -> None:
+    """Host is listed with empty addresses when resolver returns no addresses."""
+    mock_browser = mock_mdns_discovery._mock_browser
+
+    def capture_callback(
+        zc: MagicMock,
+        service_type: str,
+        handlers: list[Callable[..., None]],
+    ) -> MagicMock:
+        handlers[0](
+            mock_mdns_discovery.zeroconf,
+            service_type,
+            "mydevice-abc123._esphomelib._tcp.local.",
+            ServiceStateChange.Added,
+        )
+        return mock_browser
+
+    mock_mdns_discovery._mock_browser_class.side_effect = capture_callback
+    # Default fixture resolver is a cache-hit with no addresses — simulates
+    # the "browse found it but no A/AAAA records are available" case.
+
+    result = discover_mdns_devices("mydevice", timeout=0)
+
+    assert result == {"mydevice-abc123.local": []}
+
+
+def test_resolve_network_devices_expands_cached_mdns_hosts(tmp_path: Path) -> None:
+    """Hostnames in ``CORE.address_cache`` are expanded to their cached IPs."""
+    setup_core(tmp_path=tmp_path)
+    CORE.address_cache = AddressCache(
+        mdns_cache={
+            "device-abc123.local": ["10.0.0.1", "10.0.0.2"],
+        }
+    )
+
+    result = _resolve_network_devices(
+        ["device-abc123.local", "192.168.1.50", "device-abc123.local"],
+        CORE.config,
+        MockArgs(),
+    )
+
+    # Cached hostname is replaced with its IPs (deduplicated across repeats)
+    # and the literal IP is preserved after.
+    assert result == ["10.0.0.1", "10.0.0.2", "192.168.1.50"]
+
+
+def test_resolve_network_devices_keeps_uncached_hosts(tmp_path: Path) -> None:
+    """Hostnames not in the cache pass through unchanged."""
+    setup_core(tmp_path=tmp_path)
+    CORE.address_cache = AddressCache()
+
+    result = _resolve_network_devices(
+        ["unknown.local", "192.168.1.50"],
+        CORE.config,
+        MockArgs(),
+    )
+
+    assert result == ["unknown.local", "192.168.1.50"]
+
+
+def test_await_discovery_timeout_returns_empty(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """If the discovery runner never sets its event, return {} and warn."""
+    stub = MagicMock()
+    stub.event.wait.return_value = False
+    stub.exception = None
+    stub.result = {"should_not_be_read": ["1.2.3.4"]}
+
+    with caplog.at_level(logging.WARNING, logger="esphome.zeroconf"):
+        result = _await_discovery(stub, timeout=0.01)
+
+    assert result == {}
+    assert "mDNS discovery timed out after 0.0s" in caplog.text
+    stub.event.wait.assert_called_once_with(timeout=pytest.approx(2.01))
+
+
+def test_await_discovery_propagates_exception_as_empty(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """If the coroutine raised, log and return {} rather than re-raise."""
+    stub = MagicMock()
+    stub.event.wait.return_value = True
+    stub.exception = RuntimeError("boom")
+    stub.result = None
+
+    with caplog.at_level(logging.WARNING, logger="esphome.zeroconf"):
+        result = _await_discovery(stub, timeout=5.0)
+
+    assert result == {}
+    assert "mDNS discovery failed: boom" in caplog.text
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_discovers_mac_suffix_devices(tmp_path: Path) -> None:
+    """Interactive mode discovers MAC-suffixed devices and populates the cache."""
+    setup_core(
+        config={
+            CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: True},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+        },
+        address="mydevice.local",
+        tmp_path=tmp_path,
+        name="mydevice",
+    )
+    CORE.address_cache = None
+
+    discovered = {
+        "mydevice-abc123.local": ["10.0.0.1"],
+        "mydevice-def456.local": ["10.0.0.2"],
+    }
+    with (
+        patch(
+            "esphome.__main__.discover_mdns_devices", return_value=discovered
+        ) as mock_discover,
+        patch(
+            "esphome.__main__.choose_prompt", return_value="mydevice-abc123.local"
+        ) as mock_prompt,
+    ):
+        result = choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert result == ["mydevice-abc123.local"]
+    mock_discover.assert_called_once_with("mydevice")
+    mock_prompt.assert_called_once_with(
+        [
+            ("Over The Air (mydevice-abc123.local)", "mydevice-abc123.local"),
+            ("Over The Air (mydevice-def456.local)", "mydevice-def456.local"),
+        ],
+        purpose=Purpose.UPLOADING,
+    )
+    # Resolved IPs should be cached so downstream resolution skips a second
+    # Zeroconf lookup.
+    assert CORE.address_cache is not None
+    assert CORE.address_cache.get_mdns_addresses("mydevice-abc123.local") == [
+        "10.0.0.1"
+    ]
+    assert CORE.address_cache.get_mdns_addresses("mydevice-def456.local") == [
+        "10.0.0.2"
+    ]
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_mac_suffix_no_devices_found(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """When discovery finds nothing, no OTA option is offered and a warning logs."""
+    setup_core(
+        config={
+            CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: True},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+        },
+        address="mydevice.local",
+        tmp_path=tmp_path,
+        name="mydevice",
+    )
+
+    with (
+        patch("esphome.__main__.discover_mdns_devices", return_value={}),
+        caplog.at_level(logging.WARNING, logger="esphome.__main__"),
+        pytest.raises(EsphomeError),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert "No devices matching 'mydevice-<mac>.local'" in caplog.text
+
+
+def test_choose_upload_log_host_default_ota_discovers_mac_suffix(
+    tmp_path: Path,
+) -> None:
+    """``--device OTA`` also runs mDNS discovery when name_add_mac_suffix is on."""
+    setup_core(
+        config={
+            CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: True},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+        },
+        address="mydevice.local",
+        tmp_path=tmp_path,
+        name="mydevice",
+    )
+    CORE.address_cache = None
+
+    discovered = {
+        "mydevice-abc123.local": ["10.0.0.1"],
+        "mydevice-def456.local": ["10.0.0.2"],
+    }
+    with patch(
+        "esphome.__main__.discover_mdns_devices", return_value=discovered
+    ) as mock_discover:
+        result = choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    # Both discovered hostnames are returned so aioesphomeapi / espota2 can
+    # try each in turn with the cached IPs.
+    assert result == ["mydevice-abc123.local", "mydevice-def456.local"]
+    mock_discover.assert_called_once_with("mydevice")
+    assert CORE.address_cache is not None
+    assert CORE.address_cache.get_mdns_addresses("mydevice-abc123.local") == [
+        "10.0.0.1"
+    ]
+
+
+def test_choose_upload_log_host_default_ota_no_suffix_discovery(
+    tmp_path: Path,
+) -> None:
+    """``--device OTA`` without name_add_mac_suffix uses CORE.address as-is."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+        tmp_path=tmp_path,
+        name="mydevice",
+    )
+
+    with patch("esphome.__main__.discover_mdns_devices") as mock_discover:
+        result = choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert result == ["192.168.1.100"]
+    # Discovery must NOT run when name_add_mac_suffix is disabled.
+    mock_discover.assert_not_called()
 
 
 def test_command_wizard(tmp_path: Path) -> None:
@@ -2738,7 +3332,7 @@ def test_show_logs_api_static_ip_with_mqttip(
 
     # Verify run_logs was called with both IPs
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100", "192.168.2.50"]
+        CORE.config, ["192.168.1.100", "192.168.2.50"], subscribe_states=True
     )
 
 
@@ -2774,7 +3368,9 @@ def test_show_logs_api_multiple_mqttip_resolves_once(
     # Note: "MQTT" is a different magic string from "MQTTIP", but both trigger MQTT resolution
     # The _resolve_network_devices helper filters out both after first resolution
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.2.50", "192.168.2.51", "192.168.1.100"]
+        CORE.config,
+        ["192.168.2.50", "192.168.2.51", "192.168.1.100"],
+        subscribe_states=True,
     )
 
 
@@ -2854,7 +3450,9 @@ def test_show_logs_api_mqtt_timeout_fallback(
     mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
 
     # Verify run_logs was called with only the static IP (MQTT failed)
-    mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.100"])
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100"], subscribe_states=True
+    )
 
 
 def test_detect_external_components_no_external(
@@ -3720,6 +4318,198 @@ esp32:
         clean_output.split("SUMMARY")[1] if "SUMMARY" in clean_output else ""
     )
     assert "secrets.yaml" not in summary_section
+
+
+# --- command_bundle tests ---
+
+
+def test_command_bundle_list_only(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+) -> None:
+    """Test command_bundle with --list-only prints files and returns 0."""
+    mock_files = [
+        BundleFile(path="device.yaml", source=tmp_path / "device.yaml"),
+        BundleFile(path="secrets.yaml", source=tmp_path / "secrets.yaml"),
+        BundleFile(path="common/base.yaml", source=tmp_path / "common" / "base.yaml"),
+    ]
+
+    args = MockArgs(list_only=True)
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.discover_files.return_value = mock_files
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    captured = capsys.readouterr()
+    # Files should be printed in sorted order
+    assert "common/base.yaml" in captured.out
+    assert "device.yaml" in captured.out
+    assert "secrets.yaml" in captured.out
+
+
+def test_command_bundle_list_only_empty(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+) -> None:
+    """Test command_bundle --list-only with no files discovered."""
+    args = MockArgs(list_only=True)
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.discover_files.return_value = []
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+
+
+def test_command_bundle_creates_archive(tmp_path: Path) -> None:
+    """Test command_bundle creates archive at default output path."""
+    CORE.config_path = tmp_path / "mydevice.yaml"
+
+    mock_result = BundleResult(
+        data=b"fake-tar-gz-data",
+        manifest={"manifest_version": 1},
+        files=[BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml")],
+    )
+
+    args = MockArgs()
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    output_path = tmp_path / f"mydevice{BUNDLE_EXTENSION}"
+    assert output_path.exists()
+    assert output_path.read_bytes() == b"fake-tar-gz-data"
+
+
+def test_command_bundle_custom_output(tmp_path: Path) -> None:
+    """Test command_bundle with -o custom output path."""
+    custom_output = tmp_path / "output" / "custom.esphomebundle.tar.gz"
+    mock_result = BundleResult(
+        data=b"custom-output-data",
+        manifest={"manifest_version": 1},
+        files=[BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml")],
+    )
+
+    args = MockArgs(output=str(custom_output))
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    assert custom_output.exists()
+    assert custom_output.read_bytes() == b"custom-output-data"
+
+
+def test_command_bundle_creates_parent_dirs(tmp_path: Path) -> None:
+    """Test command_bundle creates parent directories for output path."""
+    nested_output = tmp_path / "deep" / "nested" / "dir" / "out.tar.gz"
+    mock_result = BundleResult(
+        data=b"data",
+        manifest={"manifest_version": 1},
+        files=[BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml")],
+    )
+
+    args = MockArgs(output=str(nested_output))
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    assert nested_output.exists()
+
+
+def test_command_bundle_logs_info(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_bundle logs bundle creation info."""
+    CORE.config_path = tmp_path / "mydevice.yaml"
+
+    mock_result = BundleResult(
+        data=b"x" * 2048,
+        manifest={"manifest_version": 1},
+        files=[
+            BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml"),
+            BundleFile(path="secrets.yaml", source=tmp_path / "secrets.yaml"),
+        ],
+    )
+
+    args = MockArgs()
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with (
+        patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator),
+        caplog.at_level(logging.INFO),
+    ):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    assert "Bundle created" in caplog.text
+    assert "2 files" in caplog.text
+    assert "2.0 KB" in caplog.text
+
+
+def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
+    """Test run_esphome detects .esphomebundle.tar.gz and extracts it."""
+    bundle_path = tmp_path / f"device{BUNDLE_EXTENSION}"
+    bundle_path.write_bytes(b"fake-bundle")
+
+    extracted_yaml = tmp_path / "extracted" / "device.yaml"
+
+    with (
+        patch("esphome.bundle.is_bundle_path", return_value=True) as mock_is_bundle,
+        patch(
+            "esphome.bundle.prepare_bundle_for_compile",
+            return_value=extracted_yaml,
+        ) as mock_prepare,
+        patch("esphome.__main__.read_config", return_value=None),
+    ):
+        result = run_esphome(["esphome", "compile", str(bundle_path)])
+
+    mock_is_bundle.assert_called_once()
+    mock_prepare.assert_called_once_with(bundle_path)
+    # read_config returns None → exit code 2
+    assert result == 2
+
+
+def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
+    """Test run_esphome does not extract for regular .yaml files."""
+    yaml_file = tmp_path / "device.yaml"
+    yaml_file.write_text("esphome:\n  name: test\n")
+
+    with (
+        patch("esphome.bundle.is_bundle_path", return_value=False) as mock_is_bundle,
+        patch("esphome.bundle.prepare_bundle_for_compile") as mock_prepare,
+        patch("esphome.__main__.read_config", return_value=None),
+    ):
+        result = run_esphome(["esphome", "compile", str(yaml_file)])
+
+    mock_is_bundle.assert_called_once()
+    mock_prepare.assert_not_called()
+    assert result == 2
 
 
 def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
