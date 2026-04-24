@@ -118,7 +118,7 @@ class Scheduler {
   bool cancel_retry(Component *component, uint32_t id);
 
   /// Get 64-bit millisecond timestamp (handles 32-bit millis() rollover)
-  uint64_t ESPHOME_ALWAYS_INLINE millis_64() { return esphome::millis_64(); }
+  uint64_t millis_64() { return esphome::millis_64(); }
 
   // Calculate when the next scheduled item should run.
   // @param now On ESP32, unused for 64-bit extension (native); on other platforms, extended to 64-bit via rollover.
