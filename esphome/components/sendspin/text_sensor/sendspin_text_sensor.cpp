@@ -20,7 +20,7 @@ void SendspinTextSensor::setup() {
     case SendspinTextMetadataTypes::TITLE: {
       this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
         if (metadata.title.has_value()) {
-          this->publish_if_changed_(metadata.title.value());
+          this->publish_if_changed_(metadata.title.value().c_str());
         }
       });
       break;
@@ -28,7 +28,7 @@ void SendspinTextSensor::setup() {
     case SendspinTextMetadataTypes::ARTIST: {
       this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
         if (metadata.artist.has_value()) {
-          this->publish_if_changed_(metadata.artist.value());
+          this->publish_if_changed_(metadata.artist.value().c_str());
         }
       });
       break;
@@ -36,7 +36,7 @@ void SendspinTextSensor::setup() {
     case SendspinTextMetadataTypes::ALBUM: {
       this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
         if (metadata.album.has_value()) {
-          this->publish_if_changed_(metadata.album.value());
+          this->publish_if_changed_(metadata.album.value().c_str());
         }
       });
       break;
@@ -44,7 +44,7 @@ void SendspinTextSensor::setup() {
     case SendspinTextMetadataTypes::ALBUM_ARTIST: {
       this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
         if (metadata.album_artist.has_value()) {
-          this->publish_if_changed_(metadata.album_artist.value());
+          this->publish_if_changed_(metadata.album_artist.value().c_str());
         }
       });
       break;
@@ -79,7 +79,7 @@ void SendspinTextSensor::setup() {
 }
 
 // Dedup to avoid frontend churn; TextSensor::publish_state already dedups the string assign but still notifies.
-void SendspinTextSensor::publish_if_changed_(const std::string &value) {
+void SendspinTextSensor::publish_if_changed_(const char *value) {
   if (this->get_raw_state() != value) {
     this->publish_state(value);
   }
