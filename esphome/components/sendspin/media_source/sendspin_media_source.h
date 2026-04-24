@@ -30,7 +30,7 @@ class SendspinMediaSource : public SendspinChild,
   // MediaSource interface implementation
   bool play_uri(const std::string &uri) override;
   void handle_command(media_source::MediaSourceCommand command) override;
-  bool can_handle(const std::string &uri) const override { return uri.starts_with("sendspin://"); }
+  bool can_handle(const std::string &uri) const override;
   bool has_internal_playlist() const override { return true; }
 
   void notify_volume_changed(float volume) override;

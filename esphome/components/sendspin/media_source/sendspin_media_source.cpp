@@ -11,6 +11,8 @@ namespace esphome::sendspin_ {
 
 static const char *const TAG = "sendspin.media_source";
 
+static constexpr char URI_PREFIX[] = "sendspin://";
+
 void SendspinMediaSource::setup() {
   this->player_role_ = this->parent_->get_player_role();
   if (!this->player_role_) {
@@ -39,6 +41,8 @@ void SendspinMediaSource::set_static_delay_adjustable(bool adjustable) {
 
 // --- MediaSource interface ---
 
+bool SendspinMediaSource::can_handle(const std::string &uri) const { return uri.starts_with(URI_PREFIX); }
+
 // THREAD CONTEXT: Main loop (media_source.h documents play_uri as main-loop only)
 bool SendspinMediaSource::play_uri(const std::string &uri) {
   if (!this->is_ready() || this->is_failed() || !this->has_listener()) {
@@ -50,12 +54,12 @@ bool SendspinMediaSource::play_uri(const std::string &uri) {
     return false;
   }
 
-  if (!uri.starts_with("sendspin://")) {
+  if (!uri.starts_with(URI_PREFIX)) {
     ESP_LOGE(TAG, "Invalid URI: '%s'", uri.c_str());
     return false;
   }
 
-  std::string sendspin_id = uri.substr(11);  // "sendspin://" is 11 characters
+  std::string sendspin_id = uri.substr(sizeof(URI_PREFIX) - 1);
 
   if (sendspin_id.empty()) {
     ESP_LOGE(TAG, "Invalid URI: '%s'", uri.c_str());
