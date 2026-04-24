@@ -25,6 +25,9 @@ void SendspinHub::setup() {
   // Set up persistence (preferences must be initialized before providers are added to the client)
   this->last_played_server_pref_ =
       global_preferences->make_preference<LastPlayedServerPref>(fnv1a_hash("sendspin_last_played"));
+#ifdef USE_SENDSPIN_PLAYER
+  this->static_delay_pref_ = global_preferences->make_preference<StaticDelayPref>(fnv1a_hash("sendspin_static_delay"));
+#endif
 
   // Wire providers and client listener
   this->client_->set_listener(this);
@@ -34,6 +37,10 @@ void SendspinHub::setup() {
 #ifdef USE_SENDSPIN_CONTROLLER
   this->controller_role_ = &this->client_->add_controller();
   this->controller_role_->set_listener(this);
+#endif
+
+#ifdef USE_SENDSPIN_PLAYER
+  this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
 
   if (!this->client_->start_server()) {
@@ -158,6 +165,39 @@ void SendspinHub::send_client_command(sendspin::SendspinControllerCommand comman
 void SendspinHub::on_controller_state(const sendspin::ServerStateControllerObject &state) {
   this->controller_state_callbacks_.call(state);
 }
+#endif
+
+#ifdef USE_SENDSPIN_PLAYER
+// THREAD CONTEXT: Main loop, called from child component setup() after player role is created and configured
+sendspin::PlayerRole *SendspinHub::get_player_role() {
+  if (this->is_ready()) {
+    return this->client_->player();
+  }
+  return nullptr;
+}
+
+// THREAD CONTEXT: Main loop (SendspinPersistenceProvider override)
+bool SendspinHub::save_static_delay(uint16_t delay_ms) {
+  StaticDelayPref pref{.delay_ms = delay_ms};
+  bool ok = this->static_delay_pref_.save(&pref);
+  if (ok) {
+    ESP_LOGD(TAG, "Persisted static delay: %u ms", delay_ms);
+  } else {
+    ESP_LOGW(TAG, "Failed to persist static delay");
+  }
+  return ok;
+}
+
+// THREAD CONTEXT: Main loop (SendspinPersistenceProvider override)
+std::optional<uint16_t> SendspinHub::load_static_delay() {
+  StaticDelayPref pref{};
+  if (this->static_delay_pref_.load(&pref)) {
+    ESP_LOGI(TAG, "Loaded static delay: %u ms", pref.delay_ms);
+    return pref.delay_ms;
+  }
+  return std::nullopt;
+}
+
 #endif
 
 }  // namespace esphome::sendspin_

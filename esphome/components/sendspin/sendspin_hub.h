@@ -16,6 +16,9 @@
 #ifdef USE_SENDSPIN_CONTROLLER
 #include <sendspin/controller_role.h>
 #endif
+#ifdef USE_SENDSPIN_PLAYER
+#include <sendspin/player_role.h>
+#endif
 
 #include <functional>
 #include <memory>
@@ -37,6 +40,13 @@ inline constexpr float CHILD = HUB - 1.0f;
 struct LastPlayedServerPref {
   uint32_t server_id_hash;
 };
+
+#ifdef USE_SENDSPIN_PLAYER
+/// @brief Persistent storage structure for player static delay.
+struct StaticDelayPref {
+  uint16_t delay_ms;
+};
+#endif
 
 /// @brief Thin adapter over sendspin::SendspinClient.
 ///
@@ -112,6 +122,14 @@ class SendspinHub final : public Component,
   }
 #endif
 
+#ifdef USE_SENDSPIN_PLAYER
+  void set_listener(sendspin::PlayerRoleListener *listener) { this->player_listener_ = listener; }
+  void set_player_config(const sendspin::PlayerRoleConfig &config) { this->player_config_ = config; }
+
+  /// @brief Child components call this to get the PlayerRole instance after setup, so they can push updates to it.
+  sendspin::PlayerRole *get_player_role();
+#endif
+
  protected:
   /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
   sendspin::SendspinClientConfig build_client_config_();
@@ -139,6 +157,16 @@ class SendspinHub final : public Component,
 
   // Callback fan-out to child components; they filter as needed
   CallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
+#endif
+
+#ifdef USE_SENDSPIN_PLAYER
+  sendspin::PlayerRoleListener *player_listener_{nullptr};
+  sendspin::PlayerRoleConfig player_config_{};
+
+  // Part of SendspinPersistenceProvider overrides
+  ESPPreferenceObject static_delay_pref_;
+  std::optional<uint16_t> load_static_delay() override;
+  bool save_static_delay(uint16_t delay_ms) override;
 #endif
 
   // --- Core member variables ---
