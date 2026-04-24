@@ -134,9 +134,6 @@ void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     case media_player::MEDIA_PLAYER_COMMAND_PREVIOUS:
       this->parent_->send_client_command(sendspin::SendspinControllerCommand::PREVIOUS);
       break;
-    case media_player::MEDIA_PLAYER_COMMAND_GROUP_JOIN:
-      this->parent_->send_client_command(sendspin::SendspinControllerCommand::SWITCH);
-      break;
     case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP:
       this->parent_->send_client_command(
           sendspin::SendspinControllerCommand::VOLUME,
