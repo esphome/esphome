@@ -142,12 +142,13 @@ __attribute__((always_inline)) inline uint64_t millis_64() {
 }
 #elif defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040)
 __attribute__((always_inline)) inline void yield() { ::yield(); }
-__attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }
 #if defined(USE_ESP8266)
-__attribute__((always_inline)) inline uint32_t millis() { return static_cast<uint32_t>(::millis()); }
+void delay(uint32_t ms);
+uint32_t millis();
 __attribute__((always_inline)) inline uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 #elif defined(USE_LIBRETINY)
+__attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }
 // Per-variant millis() fast path — matches MillisInternal::get().
 #if defined(USE_RTL87XX) || defined(USE_LN882X)
 static_assert(configTICK_RATE_HZ == 1000, "millis() fast path requires 1 kHz FreeRTOS tick");

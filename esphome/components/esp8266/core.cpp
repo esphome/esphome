@@ -15,7 +15,9 @@ extern "C" {
 
 namespace esphome {
 
-// yield(), delay(), micros(), millis(), millis_64() inlined in hal.h.
+// yield(), micros(), millis_64() inlined in hal.h.
+uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
+void HOT delay(uint32_t ms) { ::delay(ms); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
   system_restart();
