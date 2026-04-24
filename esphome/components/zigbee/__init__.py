@@ -32,6 +32,7 @@ from .const import (
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
     CONF_MAX_EP_NUMBER,
+    CONF_SLEEPY,
     CONF_ZIGBEE_ID,
     KEY_EP_NUMBER,
 )
@@ -106,6 +107,9 @@ CONFIG_SCHEMA = cv.All(
                     cv.one_of(*["random"], lower=True),
                 ),
                 cv.requires_component("nrf52"),
+            ),
+            cv.OnlyWith(CONF_SLEEPY, "nrf52", default=False): cv.All(
+                cv.boolean,
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),

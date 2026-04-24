@@ -4,6 +4,7 @@ CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
 CONF_ZIGBEE_SENSOR = "zigbee_sensor"
 CONF_ZIGBEE_SWITCH = "zigbee_switch"
 CONF_ZIGBEE_NUMBER = "zigbee_number"
+CONF_SLEEPY = "sleepy"
 CONF_IEEE802154_VENDOR_OUI = "ieee802154_vendor_oui"
 
 # Keys for CORE.data storage
