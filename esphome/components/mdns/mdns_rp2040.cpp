@@ -6,9 +6,10 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
+// wifi_component.h / ethernet_component.h are pulled in transitively by
+// mdns_component.h when their respective listener defines are active.
 
 // Arduino-Pico's PolledTimeout.h (pulled in by ESP8266mDNS.h) redefines IRAM_ATTR to empty.
-// Save and restore our definition around the include to avoid a redefinition warning.
 #pragma push_macro("IRAM_ATTR")
 #undef IRAM_ATTR
 #include <ESP8266mDNS.h>
@@ -20,10 +21,7 @@ static void register_rp2040(MDNSComponent *, StaticVector<MDNSService, MDNS_SERV
   MDNS.begin(App.get_name().c_str());
 
   for (const auto &service : services) {
-    // Strip the leading underscore from the proto and service_type. While it is
-    // part of the wire protocol to have an underscore, and for example ESP-IDF
-    // expects the underscore to be there, the ESP8266 implementation always adds
-    // the underscore itself.
+    // ESP8266mDNS always adds the leading underscore itself, so strip it here.
     auto *proto = MDNS_STR_ARG(service.proto);
     while (*proto == '_') {
       proto++;
@@ -40,34 +38,58 @@ static void register_rp2040(MDNSComponent *, StaticVector<MDNSService, MDNS_SERV
   }
 }
 
-void MDNSComponent::setup() {
-  // RP2040's LEAmDNS library registers a LwipIntf::stateUpCB() callback to restart
-  // mDNS when the network interface reconnects. However, stateUpCB() is stubbed out
-  // in arduino-pico's LwipIntfCB.cpp because the original ESP8266 implementation used
-  // schedule_function() which doesn't exist in arduino-pico, and the callback can't
-  // safely run directly since netif status callbacks fire from IRQ context
-  // (PICO_CYW43_ARCH_THREADSAFE_BACKGROUND) while _restart() allocates UDP sockets.
-  //
-  // Workaround: defer MDNS.begin() and service registration until the network is
-  // connected (has an IP), then call notifyAPChange() on subsequent reconnects to
-  // restart mDNS probing and announcing — all from main loop context so it's
-  // thread-safe.
-  this->set_interval(MDNS_UPDATE_INTERVAL_MS, [this]() {
-    bool connected = network::is_connected();
-    if (connected && !this->was_connected_) {
-      if (!this->initialized_) {
-        this->setup_buffers_and_register_(register_rp2040);
-        this->initialized_ = true;
-      } else {
-        MDNS.notifyAPChange();
-      }
-    }
-    this->was_connected_ = connected;
-    if (this->initialized_) {
-      MDNS.update();
-    }
-  });
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+void MDNSComponent::start_polling_window_() {
+  // uint32_t-ID set_interval/set_timeout already does atomic cancel-and-add.
+  this->set_interval(MDNS_POLL_ID, MDNS_UPDATE_INTERVAL_MS, []() { MDNS.update(); });
+  this->set_timeout(MDNS_POLL_STOP_ID, MDNS_POLL_WINDOW_MS, [this]() { this->cancel_interval(MDNS_POLL_ID); });
 }
+#endif
+
+void MDNSComponent::setup() {
+  // arduino-pico stubs out LwipIntf::stateUpCB (the netif status callback LEAmDNS uses
+  // on ESP8266 for auto-restart), so we must drive begin()/notifyAPChange() from our
+  // own IP state listener. Both WiFi and Ethernet have the same listener signature —
+  // one on_ip_state() override serves both.
+#ifdef USE_MDNS_WIFI_LISTENER
+  wifi::global_wifi_component->add_ip_state_listener(this);
+  // AFTER_CONNECTION priority means the network may already be up; the listener only
+  // fires on subsequent changes, so seed the current state.
+  {
+    const auto ips = wifi::global_wifi_component->wifi_sta_ip_addresses();
+    if (ips[0].is_set()) {
+      this->on_ip_state(ips, wifi::global_wifi_component->get_dns_address(0),
+                        wifi::global_wifi_component->get_dns_address(1));
+    }
+  }
+#endif
+#ifdef USE_MDNS_ETHERNET_LISTENER
+  ethernet::global_eth_component->add_ip_state_listener(this);
+  if (ethernet::global_eth_component->is_connected()) {
+    const auto ips = ethernet::global_eth_component->get_ip_addresses();
+    if (ips[0].is_set()) {
+      this->on_ip_state(ips, network::IPAddress{}, network::IPAddress{});
+    }
+  }
+#endif
+}
+
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &,
+                                const network::IPAddress &) {
+  // Listener only fires on IP acquisition (not loss); every event is a fresh IP.
+  if (!ips[0].is_set()) {
+    return;
+  }
+  if (!this->initialized_) {
+    this->setup_buffers_and_register_(register_rp2040);
+    this->initialized_ = true;
+  } else {
+    MDNS.notifyAPChange();
+  }
+  this->start_polling_window_();
+}
+#endif
 
 void MDNSComponent::on_shutdown() {
   MDNS.close();
