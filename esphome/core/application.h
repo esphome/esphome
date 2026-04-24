@@ -216,7 +216,7 @@ class Application {
   /// loops and scheduler items still feed after every op, so any op exceeding
   /// this threshold triggers a real feed naturally.
   /// Safety margins vs. platform watchdog timeouts:
-  ///   - ESP32 task WDT default (5 s):  ~16x
+  ///   - ESP32 task WDT default (5 s):  ~5x  <-- platform override below
   ///   - ESP8266 soft WDT (~1.6 s):     ~5x  <-- floor case; any future change
   ///                                              must keep comfortable margin here
   ///   - ESP8266 HW WDT (~6 s):         ~20x
@@ -226,6 +226,14 @@ class Application {
   // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:
   // https://github.com/libretiny-eu/framework-beken-bdk/blob/44800e7451ea30fbcbd3bb6e905315de59349fee/beken378/driver/wdt/wdt.c#L75-L87
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 2000;
+#elif defined(USE_ESP32)
+  // ESP32 task WDT default timeout is 5 s (CONFIG_ESP_TASK_WDT_TIMEOUT_S).
+  // 1000ms keeps a comfortable ~5x margin — matching the bk72xx safety factor —
+  // while cutting the per-hit feed overhead to ~1/3 of the old 300ms cadence.
+  // esp_task_wdt_reset() takes a spinlock and walks the WDT task list, so
+  // each call costs tens of microseconds; feeding less often materially
+  // reduces the main-loop's wdt bucket.
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 1000;
 #else
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;
 #endif
