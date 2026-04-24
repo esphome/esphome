@@ -472,10 +472,10 @@ void AsyncResponseStream::printf(const char *fmt, ...) {
 
 #ifdef USE_WEBSERVER
 AsyncEventSource::~AsyncEventSource() {
+  LockGuard guard{this->pending_mutex_};
   for (auto *ses : this->sessions_) {
     delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
   }
-  LockGuard guard{this->pending_mutex_};
   for (auto *ses : this->pending_sessions_) {
     delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
   }
