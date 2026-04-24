@@ -7,7 +7,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 #include "esphome/components/wifi/wifi_component.h"
+#endif
 #include "mdns_component.h"
 
 namespace esphome::mdns {
@@ -37,18 +39,27 @@ static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SER
   }
 }
 
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 void mdns_pump_update() { MDNS.update(); }
+#endif
 
 void MDNSComponent::setup() {
   this->setup_buffers_and_register_(register_esp8266);
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
   // Arduino LEAmDNS registers its own LwipIntf::statusChangeCB that calls _restart()
   // on every netif status change (link up, IP up, etc.), so we don't trigger begin()
   // or restart here — we just cover the probe+announce window with a bounded polling
   // schedule. The listener catches subsequent reconnects and re-arms the window.
   wifi::global_wifi_component->add_ip_state_listener(this);
   this->start_polling_window_();
+#else
+  // Fallback for builds without a WiFi IP state listener (e.g. clang-tidy without
+  // codegen defines). Matches the pre-PR behaviour: poll forever at 50ms.
+  this->set_interval(MDNS_UPDATE_INTERVAL_MS, []() { MDNS.update(); });
+#endif
 }
 
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &,
                                 const network::IPAddress &) {
   // ESPHome's WiFiIPStateListener only notifies on IP acquisition (GOT_IP events on
@@ -60,6 +71,7 @@ void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::
     this->start_polling_window_();
   }
 }
+#endif
 
 void MDNSComponent::on_shutdown() {
   MDNS.close();

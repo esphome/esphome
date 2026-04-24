@@ -5,13 +5,12 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-// Event-driven polling is used whenever the scheduler-backed MDNS.update() interval
-// needs to be gated on network state (ESP8266, or RP2040 with WiFi). ESP8266 mDNS
-// always runs over WiFi — there is no ethernet driver for ESP8266 in the Arduino
-// build — so this path is unconditional on ESP8266. RP2040 can run mDNS over the
-// W5500 ethernet shield without WiFi, so it falls back to the legacy polling loop
-// when WiFi is absent.
-#if defined(USE_ESP8266) || (defined(USE_RP2040) && defined(USE_WIFI) && defined(USE_WIFI_IP_STATE_LISTENERS))
+// Event-driven polling replaces the legacy set_interval() loop on platforms that need
+// scheduler-backed MDNS.update() (ESP8266, RP2040). It's enabled when a WiFi IP state
+// listener slot is available — the mdns Python to_code() requests one when WiFi is in
+// the config. If it's not (e.g. clang-tidy running without full codegen, or an
+// ethernet-only RP2040 build), the component falls back to the legacy polling loop.
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_WIFI) && defined(USE_WIFI_IP_STATE_LISTENERS)
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/wifi/wifi_component.h"
 #define USE_MDNS_EVENT_DRIVEN_POLLING
@@ -68,7 +67,6 @@ class MDNSComponent final : public Component
   void setup() override;
   void dump_config() override;
 
-#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
   // On ESP8266 and RP2040, MDNS.update() calls _process(true) which only manages
   // timer-driven state machines (probe/announce timeouts and service query cache TTLs).
   // Incoming mDNS packets are handled independently via the lwIP onRx UDP callback and
@@ -80,10 +78,12 @@ class MDNSComponent final : public Component
   // resetToNeverExpires(). ESPHome does not issue mDNS service queries, so the service
   // query cache is always empty. Every subsequent update() call is pure overhead.
   //
-  // Instead of polling forever, we arm a bounded polling window driven by
-  // WiFiIPStateListener events. A fresh window covers each probe/announce cycle that
-  // follows initial connect or reconnect; outside the window no update() calls occur.
+  // When USE_MDNS_EVENT_DRIVEN_POLLING is defined we arm a bounded polling window from
+  // WiFiIPStateListener events so update() only runs during the probe+announce phase;
+  // outside that window no update() calls occur. Otherwise (fallback), we poll at
+  // MDNS_UPDATE_INTERVAL_MS forever.
   static constexpr uint32_t MDNS_UPDATE_INTERVAL_MS = 50;
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
   // Boot probe+announce phase is ~9.0s (3*250ms probes + 8*1000ms announces). Window
   // includes margin for the initial `rand() % MDNS_PROBE_DELAY` jitter and for the
   // debounced internal restart triggered by netif status changes on ESP8266.

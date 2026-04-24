@@ -172,13 +172,10 @@ async def to_code(config):
         # ESP8266 and RP2040 use a WiFi IP state listener to arm a bounded MDNS.update()
         # polling window only while the library is in its probe+announce phase. This
         # eliminates the steady-state 50ms interval that ran forever (1200+ dispatches
-        # per minute) and its scheduler overhead.
-        #
-        # ESP8266 has no ethernet driver in the Arduino build, so it's always a WiFi
-        # device — the listener is unconditional. RP2040 supports the W5500 ethernet
-        # shield without WiFi, so the listener is requested only when WiFi is present;
-        # ethernet-only RP2040 builds fall back to the legacy polling loop.
-        if CORE.is_esp8266 or (CORE.is_rp2040 and "wifi" in CORE.config):
+        # per minute) and its scheduler overhead. When WiFi is absent (e.g. an
+        # ethernet-only RP2040 build) the component falls back to the legacy polling
+        # loop at MDNS_UPDATE_INTERVAL_MS.
+        if (CORE.is_esp8266 or CORE.is_rp2040) and "wifi" in CORE.config:
             from esphome.components import wifi
 
             wifi.request_wifi_ip_state_listener()
