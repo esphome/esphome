@@ -9,6 +9,8 @@ namespace esphome::ir_rf_proxy {
 static const char *const TAG = "ir_rf_proxy";
 
 // ========== Shared transmit helper ==========
+// Template defined here (not in header) because ESP_LOG* macros are
+// not allowed in headers.  All instantiations occur in this translation unit.
 
 template<typename CallT>
 void transmit_raw_timings(remote_base::RemoteTransmitterBase *transmitter, uint32_t carrier_frequency,
