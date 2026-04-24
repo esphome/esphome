@@ -837,3 +837,27 @@ def test_perform_ota_successful_partition_table(
     assert mock_socket.sendall.call_args_list[2] == call(
         bytes([espota2.OTA_TYPE_UPDATE_PARTITION_TABLE])
     )
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_extended_protocol_unsupported(
+    mock_socket: Mock, mock_file: io.BytesIO
+) -> None:
+    """Test OTA fails when extended protocol is required but unsupported."""
+    # Setup socket responses for recv calls
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+    ]
+
+    mock_socket.recv.side_effect = recv_responses
+
+    with pytest.raises(espota2.OTAError, match="Device only supports app updates"):
+        espota2.perform_ota(
+            mock_socket,
+            "testpass",
+            mock_file,
+            "partitions.bin",
+            espota2.OTA_TYPE_UPDATE_PARTITION_TABLE,
+        )

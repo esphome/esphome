@@ -83,6 +83,7 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.espota2 import OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE
 from esphome.util import BootselResult
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
@@ -1111,6 +1112,7 @@ class MockArgs:
     reset: bool = False
     list_only: bool = False
     output: str | None = None
+    partition_table: bool = False
 
 
 def test_upload_program_serial_esp32(
@@ -1593,7 +1595,7 @@ def test_upload_program_ota_success(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, "secret", expected_firmware, 0
+        ["192.168.1.100"], 3232, "secret", expected_firmware, OTA_TYPE_UPDATE_APP
     )
 
 
@@ -1624,7 +1626,38 @@ def test_upload_program_ota_with_file_arg(
     assert exit_code == 0
     assert host == "192.168.1.100"
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, Path("custom.bin"), 0
+        ["192.168.1.100"], 3232, None, Path("custom.bin"), OTA_TYPE_UPDATE_APP
+    )
+
+
+def test_upload_program_ota_partition_table_with_file_arg(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with OTA and partition table."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ]
+    }
+    args = MockArgs(file="partitions.bin", partition_table=True)
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"], 3232, None, Path("partitions.bin"), OTA_TYPE_UPDATE_PARTITION_TABLE
     )
 
 
@@ -1682,7 +1715,7 @@ def test_upload_program_ota_with_mqtt_resolution(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware, 0
+        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
     )
 
 
@@ -1730,7 +1763,7 @@ def test_upload_program_ota_with_mqtt_empty_broker(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.50"], 3232, None, expected_firmware, 0
+        ["192.168.1.50"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
     )
     # Verify warning was logged
     assert "MQTT IP discovery failed" in caplog.text
@@ -3207,7 +3240,7 @@ def test_upload_program_ota_static_ip_with_mqttip(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100", "192.168.2.50"], 3232, None, expected_firmware, 0
+        ["192.168.1.100", "192.168.2.50"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
     )
 
 
@@ -3254,7 +3287,7 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
         3232,
         None,
         expected_firmware,
-        0,
+        OTA_TYPE_UPDATE_APP,
     )
 
 
@@ -3419,7 +3452,7 @@ def test_upload_program_ota_mqtt_timeout_fallback(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware, 0
+        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
     )
 
 
