@@ -45,7 +45,7 @@ void setup() {
   App.setup();
 }
 
-void __attribute__((optimize("O2"))) loop() {
+void loop() {
   App.loop();
 }
 """,
