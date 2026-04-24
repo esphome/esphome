@@ -503,14 +503,16 @@ bool AsyncEventSource::loop() {
       this->has_pending_sessions_.store(false, std::memory_order_relaxed);
     }
     for (auto *rsp : incoming) {
+      // Already disconnected? Drop it; skip on_connect_/prime on a dead session.
+      if (rsp->fd_.load() == 0) {
+        delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
+        continue;
+      }
       this->sessions_.push_back(rsp);
       if (this->on_connect_) {
         this->on_connect_(rsp);
       }
-      // Already disconnected? Cleanup pass below will delete it.
-      if (rsp->fd_.load() != 0) {
-        rsp->prime_();
-      }
+      rsp->prime_();
     }
   }
 
