@@ -78,7 +78,8 @@ def _require_network_interface(config: ConfigType) -> ConfigType:
     if not (has_wifi or has_ethernet):
         options = "'wifi'" if CORE.is_esp8266 else "'wifi' or 'ethernet'"
         raise cv.Invalid(
-            f"mdns on this platform requires a network interface — add a {options} component to your configuration."
+            "mdns on this platform requires a network interface — "
+            f"add a {options} component to your configuration."
         )
     return config
 
