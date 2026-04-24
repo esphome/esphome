@@ -76,7 +76,17 @@ class MDNSComponent final : public Component
   // and update() becomes pure overhead. We arm a bounded polling window from IP state
   // listener events so update() runs only during that phase.
   static constexpr uint32_t MDNS_UPDATE_INTERVAL_MS = 50;
-  static constexpr uint32_t MDNS_POLL_WINDOW_MS = 12000;  // ~9s phase + jitter/restart margin
+  // Must exceed LEAmDNS's longest restart-to-announce-complete path:
+  //   MDNS_PROBE_DELAY (250ms) × MDNS_PROBE_COUNT (3) = 750ms probing
+  // + MDNS_ANNOUNCE_DELAY (1000ms) × MDNS_ANNOUNCE_COUNT (8) = 8000ms announcing
+  // + rand() % MDNS_PROBE_DELAY jitter on first probe (0–250ms)
+  // + debounced schedule_function() hop when statusChangeCB fires on ESP8266
+  // ≈ 9s nominal. 15s gives ~6s margin to absorb main-loop blocking (long
+  // component setup, WiFi scan, flash writes) that could stretch the deadlines
+  // between our polls. If LEAmDNS ever extends its phase (upstream library
+  // update) this constant needs to grow. Constants defined in LEAmDNS_Priv.h
+  // (ESP8266 core 3.1.2 / arduino-pico 5.5.1).
+  static constexpr uint32_t MDNS_POLL_WINDOW_MS = 15000;
   static constexpr uint32_t MDNS_POLL_ID = 0;
   static constexpr uint32_t MDNS_POLL_STOP_ID = 1;
 #endif
