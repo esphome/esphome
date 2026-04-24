@@ -2,9 +2,10 @@
 
 #if defined(USE_ESP32) && defined(USE_SENDSPIN_METADATA) && defined(USE_TEXT_SENSOR)
 
+#include "esphome/core/helpers.h"
+
 #include <sendspin/metadata_role.h>
 
-#include <cstdio>
 #include <string>
 
 namespace esphome::sendspin_ {
@@ -51,26 +52,20 @@ void SendspinTextSensor::setup() {
     }
     case SendspinTextMetadataTypes::YEAR: {
       this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
-        if (metadata.year.has_value()) {
-          int year = metadata.year.value();
-          if (year >= 0 && year <= 9999) {
-            char buf[5];
-            snprintf(buf, sizeof(buf), "%d", year);
-            this->publish_if_changed_(buf);
-          }
+        if (metadata.year.has_value() && metadata.year.value() <= 9999) {
+          char buf[UINT32_MAX_STR_SIZE];
+          uint32_to_str(buf, metadata.year.value());
+          this->publish_if_changed_(buf);
         }
       });
       break;
     }
     case SendspinTextMetadataTypes::TRACK: {
       this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
-        if (metadata.track.has_value()) {
-          int track = metadata.track.value();
-          if (track >= 0 && track <= 9999) {
-            char buf[5];
-            snprintf(buf, sizeof(buf), "%d", track);
-            this->publish_if_changed_(buf);
-          }
+        if (metadata.track.has_value() && metadata.track.value() <= 9999) {
+          char buf[UINT32_MAX_STR_SIZE];
+          uint32_to_str(buf, metadata.track.value());
+          this->publish_if_changed_(buf);
         }
       });
       break;
