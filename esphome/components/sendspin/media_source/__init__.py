@@ -8,6 +8,8 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TASK_STACK_IN_PSRAM,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 from .. import (
@@ -122,8 +124,11 @@ SENDSPIN_MEDIA_SOURCE_ACTION_SCHEMA = automation.maybe_simple_id(
     synchronous=True,
 )
 async def sendspin_static_delay_adjustment_to_code(
-    config: ConfigType, action_id, template_arg, args
-):
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
