@@ -16,6 +16,9 @@
 #ifdef USE_SENDSPIN_CONTROLLER
 #include <sendspin/controller_role.h>
 #endif
+#ifdef USE_SENDSPIN_METADATA
+#include <sendspin/metadata_role.h>
+#endif
 #ifdef USE_SENDSPIN_PLAYER
 #include <sendspin/player_role.h>
 #endif
@@ -66,6 +69,9 @@ struct StaticDelayPref {
 class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_CONTROLLER
                           public sendspin::ControllerRoleListener,
+#endif
+#ifdef USE_SENDSPIN_METADATA
+                          public sendspin::MetadataRoleListener,
 #endif
                           public sendspin::SendspinClientListener,
                           public sendspin::SendspinNetworkProvider,
@@ -122,6 +128,15 @@ class SendspinHub final : public Component,
   }
 #endif
 
+#ifdef USE_SENDSPIN_METADATA
+  template<typename F> void add_metadata_update_callback(F &&callback) {
+    this->metadata_update_callbacks_.add(std::forward<F>(callback));
+  }
+
+  /// @brief Returns the interpolated track progress in milliseconds, or 0 if the hub is not yet ready.
+  uint32_t get_track_progress_ms() const;
+#endif
+
 #ifdef USE_SENDSPIN_PLAYER
   void set_listener(sendspin::PlayerRoleListener *listener) { this->player_listener_ = listener; }
   void set_player_config(const sendspin::PlayerRoleConfig &config) { this->player_config_ = config; }
@@ -159,6 +174,15 @@ class SendspinHub final : public Component,
   CallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
 #endif
 
+#ifdef USE_SENDSPIN_METADATA
+  sendspin::MetadataRole *metadata_role_{nullptr};
+
+  void on_metadata(const sendspin::ServerMetadataStateObject &metadata) override;
+
+  // Callback fan-out to child components; they filter as needed
+  CallbackManager<void(const sendspin::ServerMetadataStateObject &)> metadata_update_callbacks_{};
+#endif
+
 #ifdef USE_SENDSPIN_PLAYER
   sendspin::PlayerRoleListener *player_listener_{nullptr};
   sendspin::PlayerRoleConfig player_config_{};
@@ -188,6 +212,16 @@ class SendspinHub final : public Component,
 /// inherit from this instead of listing Component/Parented individually and must not
 /// override get_setup_priority().
 class SendspinChild : public Component, public Parented<SendspinHub> {
+ public:
+  float get_setup_priority() const override { return sendspin_priority::CHILD; }
+};
+
+/// @brief Base class for sendspin subcomponents that need polling behavior.
+///
+/// Same purpose as SendspinChild but inherits from PollingComponent for subcomponents
+/// that poll on a fixed interval. Subcomponents should inherit from this instead of
+/// listing PollingComponent/Parented individually and must not override get_setup_priority().
+class SendspinPollingChild : public PollingComponent, public Parented<SendspinHub> {
  public:
   float get_setup_priority() const override { return sendspin_priority::CHILD; }
 };

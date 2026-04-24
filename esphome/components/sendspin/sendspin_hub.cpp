@@ -39,6 +39,11 @@ void SendspinHub::setup() {
   this->controller_role_->set_listener(this);
 #endif
 
+#ifdef USE_SENDSPIN_METADATA
+  this->metadata_role_ = &this->client_->add_metadata();
+  this->metadata_role_->set_listener(this);
+#endif
+
 #ifdef USE_SENDSPIN_PLAYER
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
@@ -164,6 +169,21 @@ void SendspinHub::send_client_command(sendspin::SendspinControllerCommand comman
 // THREAD CONTEXT: Main loop (ControllerRoleListener override, fired from client_->loop())
 void SendspinHub::on_controller_state(const sendspin::ServerStateControllerObject &state) {
   this->controller_state_callbacks_.call(state);
+}
+#endif
+
+#ifdef USE_SENDSPIN_METADATA
+// THREAD CONTEXT: Main loop (MetadataRoleListener override, fired from client_->loop())
+void SendspinHub::on_metadata(const sendspin::ServerMetadataStateObject &metadata) {
+  this->metadata_update_callbacks_.call(metadata);
+}
+
+// THREAD CONTEXT: Main loop (invoked from Sendspin components)
+uint32_t SendspinHub::get_track_progress_ms() const {
+  if (this->is_ready()) {
+    return this->metadata_role_->get_track_progress_ms();
+  }
+  return 0;
 }
 #endif
 
