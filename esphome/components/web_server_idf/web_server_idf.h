@@ -350,7 +350,6 @@ class AsyncEventSource : public AsyncWebHandler {
   size_t count() const { return this->sessions_.size(); }
 
  protected:
-  // Ordered to minimize padding on 32-bit: atomic<bool> last consumes trailing pad.
   std::string url_;
   // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
   std::vector<AsyncEventSourceResponse *> sessions_;
