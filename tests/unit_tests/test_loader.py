@@ -158,3 +158,167 @@ def test_component_manifest_resources_with_filter_source_files() -> None:
 
         # Verify the correct number of resources
         assert len(resources) == 3  # test.cpp, test.h, common.cpp
+
+
+# ---------------------------------------------------------------------------
+# recursive_sources — used only by the core "esphome" manifest so that files
+# in esphome/core/<subdir>/*.cpp (e.g. esphome/core/wake/wake_host.cpp) are
+# discovered without promoting <subdir>/ to a Python subpackage.
+# ---------------------------------------------------------------------------
+
+
+def _mock_file(filename: str) -> MagicMock:
+    m = MagicMock()
+    m.name = filename
+    m.is_file.return_value = True
+    m.is_dir.return_value = False
+    return m
+
+
+def _mock_dir(dirname: str, children: list, has_init: bool = False) -> MagicMock:
+    """Mock a directory entry with an iterdir() and joinpath('__init__.py')."""
+    d = MagicMock()
+    d.name = dirname
+    d.is_file.return_value = False
+    d.is_dir.return_value = True
+    d.iterdir.return_value = children
+    init_marker = MagicMock()
+    init_marker.is_file.return_value = has_init
+    d.joinpath.return_value = init_marker
+    return d
+
+
+def test_component_manifest_resources_non_recursive_skips_subdirs() -> None:
+    """Default (recursive_sources=False) does not descend into subdirectories."""
+    mock_module = MagicMock()
+    mock_module.__package__ = "esphome.components.test_component"
+    # No FILTER_SOURCE_FILES.
+    del mock_module.FILTER_SOURCE_FILES
+
+    manifest = ComponentManifest(mock_module)  # recursive_sources defaults to False
+
+    top_level = [
+        _mock_file("top.cpp"),
+        _mock_dir("subdir", [_mock_file("nested.cpp")]),
+    ]
+    with patch("importlib.resources.files") as mock_files_func:
+        pkg = MagicMock()
+        pkg.iterdir.return_value = top_level
+        mock_files_func.return_value = pkg
+
+        names = [r.resource for r in manifest.resources]
+
+    assert names == ["top.cpp"]
+
+
+def test_component_manifest_resources_recursive_walks_non_subpackage_subdirs() -> None:
+    """With recursive_sources=True, a subdir without __init__.py is walked."""
+    mock_module = MagicMock()
+    mock_module.__package__ = "esphome.core"
+    del mock_module.FILTER_SOURCE_FILES
+
+    manifest = ComponentManifest(mock_module, recursive_sources=True)
+
+    wake_dir = _mock_dir(
+        "wake",
+        [
+            _mock_file("wake_host.cpp"),
+            _mock_file("wake_host.h"),
+            _mock_file("README.md"),  # wrong suffix, excluded
+        ],
+        has_init=False,
+    )
+    top_level = [
+        _mock_file("wake.h"),
+        wake_dir,
+    ]
+    with patch("importlib.resources.files") as mock_files_func:
+        pkg = MagicMock()
+        pkg.iterdir.return_value = top_level
+        mock_files_func.return_value = pkg
+
+        names = sorted(r.resource for r in manifest.resources)
+
+    assert names == ["wake.h", "wake/wake_host.cpp", "wake/wake_host.h"]
+
+
+def test_component_manifest_resources_recursive_skips_subpackages() -> None:
+    """Subdirectories that ARE Python subpackages (contain __init__.py) are
+    skipped even with recursive_sources=True — those load as their own
+    ComponentManifest and would otherwise be double-counted."""
+    mock_module = MagicMock()
+    mock_module.__package__ = "esphome.components.haier"
+    del mock_module.FILTER_SOURCE_FILES
+
+    manifest = ComponentManifest(mock_module, recursive_sources=True)
+
+    button_pkg = _mock_dir(
+        "button",
+        [_mock_file("self_cleaning.cpp")],
+        has_init=True,  # Python subpackage — must be skipped.
+    )
+    top_level = [
+        _mock_file("haier.cpp"),
+        button_pkg,
+    ]
+    with patch("importlib.resources.files") as mock_files_func:
+        pkg = MagicMock()
+        pkg.iterdir.return_value = top_level
+        mock_files_func.return_value = pkg
+
+        names = [r.resource for r in manifest.resources]
+
+    assert names == ["haier.cpp"]
+
+
+def test_component_manifest_resources_recursive_skips_pycache() -> None:
+    """__pycache__ inside a recursive walk must never be descended into."""
+    mock_module = MagicMock()
+    mock_module.__package__ = "esphome.core"
+    del mock_module.FILTER_SOURCE_FILES
+
+    manifest = ComponentManifest(mock_module, recursive_sources=True)
+
+    # __pycache__ is_dir=True but must be skipped without checking __init__.py
+    # or calling iterdir (would yield compiled artifacts).
+    pycache = _mock_dir("__pycache__", [_mock_file("wake.cpython-314.pyc")])
+    top_level = [
+        _mock_file("wake.h"),
+        pycache,
+    ]
+    with patch("importlib.resources.files") as mock_files_func:
+        pkg = MagicMock()
+        pkg.iterdir.return_value = top_level
+        mock_files_func.return_value = pkg
+
+        names = [r.resource for r in manifest.resources]
+
+    assert names == ["wake.h"]
+
+
+def test_component_manifest_resources_recursive_filter_source_files_supports_subpaths() -> (
+    None
+):
+    """FILTER_SOURCE_FILES entries using '/'-joined subpaths exclude files
+    inside a recursively-walked subdir."""
+    mock_module = MagicMock()
+    mock_module.__package__ = "esphome.core"
+    mock_module.FILTER_SOURCE_FILES = lambda: ["wake/wake_host.cpp"]
+
+    manifest = ComponentManifest(mock_module, recursive_sources=True)
+
+    wake_dir = _mock_dir(
+        "wake",
+        [
+            _mock_file("wake_host.cpp"),  # excluded
+            _mock_file("wake_freertos.cpp"),  # kept
+        ],
+    )
+    with patch("importlib.resources.files") as mock_files_func:
+        pkg = MagicMock()
+        pkg.iterdir.return_value = [wake_dir]
+        mock_files_func.return_value = pkg
+
+        names = [r.resource for r in manifest.resources]
+
+    assert names == ["wake/wake_freertos.cpp"]
