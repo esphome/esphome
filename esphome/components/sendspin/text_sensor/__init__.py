@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TYPE, PLATFORM_ESP32
+from esphome.const import CONF_ID, CONF_TYPE
 from esphome.types import ConfigType
 
 from .. import CONF_SENDSPIN_ID, SendspinHub, request_metadata_support, sendspin_ns
@@ -41,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_TYPE): cv.enum(SENDSPIN_TEXT_METADATA_TYPES),
         }
     ),
-    cv.only_on([PLATFORM_ESP32]),
+    cv.only_on_esp32,
     _request_roles,
 )
 
