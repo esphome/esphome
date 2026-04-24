@@ -835,5 +835,5 @@ def test_perform_ota_successful_partition_table(
 
     # Verify ota type was sent
     assert mock_socket.sendall.call_args_list[2] == call(
-        bytes(espota2.OTA_TYPE_UPDATE_PARTITION_TABLE)
+        bytes([espota2.OTA_TYPE_UPDATE_PARTITION_TABLE])
     )
