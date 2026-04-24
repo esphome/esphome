@@ -7,3 +7,9 @@ sensor:
   - platform: sendspin
     name: "Sendspin Track Duration"
     type: track_duration
+  - platform: sendspin
+    name: "Sendspin Year"
+    type: year
+  - platform: sendspin
+    name: "Sendspin Track"
+    type: track

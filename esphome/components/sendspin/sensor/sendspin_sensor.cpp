@@ -11,7 +11,7 @@ static const char *const TAG = "sendspin.sensor";
 // --- SendspinTrackProgressSensor ---
 
 void SendspinTrackProgressSensor::dump_config() {
-  LOG_SENSOR("", "Sendspin Track Progress", this);
+  LOG_SENSOR("", "Track Progress", this);
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -42,22 +42,55 @@ void SendspinTrackProgressSensor::setup() {
 // speed, giving us a fresh value on every poll.
 void SendspinTrackProgressSensor::update() { this->publish_state(this->parent_->get_track_progress_ms()); }
 
-// --- SendspinTrackDurationSensor ---
+// --- SendspinMetadataSensor ---
 
-void SendspinTrackDurationSensor::dump_config() { LOG_SENSOR("", "Sendspin Track Duration", this); }
+void SendspinMetadataSensor::dump_config() {
+  switch (this->metadata_type_) {
+    case SendspinNumericMetadataTypes::TRACK_DURATION:
+      LOG_SENSOR("", "Track Duration", this);
+      break;
+    case SendspinNumericMetadataTypes::YEAR:
+      LOG_SENSOR("", "Year", this);
+      break;
+    case SendspinNumericMetadataTypes::TRACK:
+      LOG_SENSOR("", "Track", this);
+      break;
+  }
+}
 
 // THREAD CONTEXT: Main loop. The registered metadata callback also fires on the main loop
 // (SendspinHub dispatches metadata from client_->loop()).
-void SendspinTrackDurationSensor::setup() {
-  this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
-    if (metadata.progress.has_value()) {
-      this->publish_if_changed_(metadata.progress.value().track_duration);
+void SendspinMetadataSensor::setup() {
+  switch (this->metadata_type_) {
+    case SendspinNumericMetadataTypes::TRACK_DURATION: {
+      this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
+        if (metadata.progress.has_value()) {
+          this->publish_if_changed_(metadata.progress.value().track_duration);
+        }
+      });
+      break;
     }
-  });
+    case SendspinNumericMetadataTypes::YEAR: {
+      this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
+        if (metadata.year.has_value() && metadata.year.value() <= 9999) {
+          this->publish_if_changed_(metadata.year.value());
+        }
+      });
+      break;
+    }
+    case SendspinNumericMetadataTypes::TRACK: {
+      this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
+        if (metadata.track.has_value() && metadata.track.value() <= 9999) {
+          this->publish_if_changed_(metadata.track.value());
+        }
+      });
+      break;
+    }
+  }
 }
 
 // Dedup to avoid frontend churn; Sensor::publish_state always notifies without checking for changes.
-void SendspinTrackDurationSensor::publish_if_changed_(float value) {
+void SendspinMetadataSensor::publish_if_changed_(float value) {
   if (this->get_raw_state() != value) {
     this->publish_state(value);
   }

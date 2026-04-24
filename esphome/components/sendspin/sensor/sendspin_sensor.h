@@ -16,13 +16,23 @@ class SendspinTrackProgressSensor : public sensor::Sensor, public SendspinPollin
   void update() override;
 };
 
-class SendspinTrackDurationSensor : public sensor::Sensor, public SendspinChild {
+enum class SendspinNumericMetadataTypes {
+  TRACK_DURATION,
+  YEAR,
+  TRACK,
+};
+
+class SendspinMetadataSensor : public sensor::Sensor, public SendspinChild {
  public:
   void dump_config() override;
   void setup() override;
 
+  void set_metadata_type(SendspinNumericMetadataTypes metadata_type) { this->metadata_type_ = metadata_type; }
+
  protected:
   void publish_if_changed_(float value);
+
+  SendspinNumericMetadataTypes metadata_type_;
 };
 
 }  // namespace esphome::sendspin_
