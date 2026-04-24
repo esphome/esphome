@@ -56,8 +56,25 @@
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
 #define ESPHOME_ALWAYS_INLINE __attribute__((always_inline))
 #define PACKED __attribute__((packed))
+#ifdef USE_ZEPHYR
+#define ESPHOME_PRId64 "s"
+#define ESPHOME_PRIu64 "s"
+#define WRAP64(n) (to_str(n).p)
+#else
+#define ESPHOME_PRId64 PRId64
+#define ESPHOME_PRIu64 PRIu64
+#define WRAP64(n) (n)
+#endif
 
 namespace esphome {
+
+struct Str64 {
+  char buf[21];  // 20 digits + NUL  (covers both signed and unsigned)
+  const char *p;
+};
+
+Str64 to_str(uint64_t n);
+Str64 to_str(int64_t n);
 
 // Forward declaration to avoid circular dependency with string_ref.h
 class StringRef;

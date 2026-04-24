@@ -90,6 +90,35 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   mac[5] = NRF_FICR->DEVICEADDR[0];
 }
 #endif
+
+Str64 to_str(uint64_t n) {
+  Str64 s;
+  char *p = s.buf + sizeof s.buf - 1;
+  *p = '\0';
+  do {
+    *--p = '0' + (n % 10);
+    n /= 10;
+  } while (n);
+  s.p = p;
+  return s;
+}
+
+Str64 to_str(int64_t n) {
+  Str64 s;
+  char *p = s.buf + sizeof s.buf - 1;
+  *p = '\0';
+  bool neg = (n < 0);
+  uint64_t u = neg ? (uint64_t(-(n + 1)) + 1u) : uint64_t(n);
+  do {
+    *--p = '0' + (u % 10);
+    u /= 10;
+  } while (u);
+  if (neg)
+    *--p = '-';
+  s.p = p;
+  return s;
+}
+
 }  // namespace esphome
 
 void setup();

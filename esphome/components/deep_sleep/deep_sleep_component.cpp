@@ -67,7 +67,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 
   ESP_LOGI(TAG, "Beginning sleep");
   if (this->sleep_duration_.has_value()) {
-    ESP_LOGI(TAG, "Sleeping for %" PRId64 "us", *this->sleep_duration_);
+    ESP_LOGI(TAG, "Sleeping for %" ESPHOME_PRId64 "us", WRAP64(*this->sleep_duration_));
   }
 
   if (this->should_teardown_()) {
