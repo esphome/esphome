@@ -190,9 +190,9 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   get_running_app_position(running_app_offset, running_app_size);
 
   // Get partition table partition
-  esp_err_t err = esp_partition_register_external(nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE,
-                                        "PrimaryPrtTable", ESP_PARTITION_TYPE_PARTITION_TABLE,
-                                        ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY, &this->partition_table_part_);
+  esp_err_t err = esp_partition_register_external(
+      nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE, "PrimaryPrtTable",
+      ESP_PARTITION_TYPE_PARTITION_TABLE, ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY, &this->partition_table_part_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_register_external failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;

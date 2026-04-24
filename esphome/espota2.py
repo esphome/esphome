@@ -210,9 +210,7 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
             "the firmware currently running on the device."
         )
     if dat == RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE:
-        raise OTAError(
-            "Error: The requested OTA type is not supported by the device."
-        )
+        raise OTAError("Error: The requested OTA type is not supported by the device.")
     if dat == RESPONSE_ERROR_PARTITION_TABLE_VERIFY:
         raise OTAError(
             "Error: The partition table update could not be verified. No changes were "
