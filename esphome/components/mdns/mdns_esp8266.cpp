@@ -48,7 +48,7 @@ void MDNSComponent::start_polling_window_() {
 
 void MDNSComponent::setup() {
   this->setup_buffers_and_register_(register_esp8266);
-#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+#ifdef USE_MDNS_WIFI_LISTENER
   // LEAmDNS's own LwipIntf::statusChangeCB drives _restart() on netif changes; we just
   // arm the window around the initial probe/announce and each reconnect. Unconditional
   // here is safe: setup_priority::AFTER_CONNECTION guarantees the network is up.
@@ -57,7 +57,7 @@ void MDNSComponent::setup() {
 #endif
 }
 
-#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+#ifdef USE_MDNS_WIFI_LISTENER
 void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &,
                                 const network::IPAddress &) {
   // IP listener only fires on acquisition (not loss), so any notification is a fresh
