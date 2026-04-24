@@ -475,21 +475,54 @@ AsyncEventSource::~AsyncEventSource() {
   for (auto *ses : this->sessions_) {
     delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
   }
+  LockGuard guard{this->pending_mutex_};
+  for (auto *ses : this->pending_sessions_) {
+    delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
+  // Runs on the httpd task. Do only the HTTP-level setup that needs the live httpd_req_t,
+  // then hand the session off to the main loop for adoption and priming. This keeps
+  // sessions_, event_buffer_, and deferred_queue_ mutated exclusively from the main loop.
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
   auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);
-  if (this->on_connect_) {
-    this->on_connect_(rsp);
+  {
+    LockGuard guard{this->pending_mutex_};
+    this->pending_sessions_.push_back(rsp);
+    // Release-store so the main loop's acquire-load sees the push_back above.
+    this->has_pending_sessions_.store(true, std::memory_order_release);
   }
-  this->sessions_.push_back(rsp);
-  // Wake up WebServer::loop() to drain deferred event queues for this client.
+  // Wake up WebServer::loop() to adopt and prime this client.
   // Safe from httpd task context via the pending_enable_loop_ flag.
   this->web_server_->enable_loop_soon_any_context();
 }
 
 bool AsyncEventSource::loop() {
+  // Adopt sessions handed off from the httpd task. Fast path: one atomic load per tick
+  // when nothing is pending. Only take the lock / touch the vector on a real connect.
+  // Swap under the lock and do the heavy work (on_connect_ callback, initial sends,
+  // entity iterator start) outside it so they cannot race with httpd handlers.
+  if (this->has_pending_sessions_.load(std::memory_order_acquire)) {
+    std::vector<AsyncEventSourceResponse *> incoming;
+    {
+      LockGuard guard{this->pending_mutex_};
+      incoming.swap(this->pending_sessions_);
+      this->has_pending_sessions_.store(false, std::memory_order_relaxed);
+    }
+    for (auto *rsp : incoming) {
+      this->sessions_.push_back(rsp);
+      if (this->on_connect_) {
+        this->on_connect_(rsp);
+      }
+      // Skip priming if the client disconnected before we got here; the cleanup pass below
+      // will delete it.
+      if (rsp->fd_.load() != 0) {
+        rsp->prime_();
+      }
+    }
+  }
+
   // Clean up dead sessions safely
   // This follows the ESP-IDF pattern where free_ctx marks resources as dead
   // and the main loop handles the actual cleanup to avoid race conditions
@@ -534,6 +567,9 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
                                                    esphome::web_server_idf::AsyncEventSource *server,
                                                    esphome::web_server::WebServer *ws)
     : server_(server), web_server_(ws), entities_iterator_(ws, server) {
+  // Runs on the httpd task. Only touch state tied to the live httpd_req_t here; the
+  // main loop will call prime_() later to do the initial sends and start the iterator.
+  // Writing to event_buffer_ / deferred_queue_ from this task would race with the main loop.
   httpd_req_t *req = *request;
 
   httpd_resp_set_status(req, HTTPD_200);
@@ -555,6 +591,11 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
   // Use non-blocking send to prevent watchdog timeouts when TCP buffers are full
   httpd_sess_set_send_override(this->hd_, this->fd_.load(), nonblocking_send);
+}
+
+void AsyncEventSourceResponse::prime_() {
+  // Runs on the main loop after AsyncEventSource::loop() adopts this session.
+  auto *ws = this->web_server_;
 
   // Configure reconnect timeout and send config
   // this should always go through since the tcp send buffer is empty on connect
@@ -578,12 +619,6 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 #endif
 
   this->entities_iterator_.begin(ws->include_internal_);
-
-  // just dump them all up-front and take advantage of the deferred queue
-  //     on second thought that takes too long, but leaving the commented code here for debug purposes
-  // while(!this->entities_iterator_.completed()) {
-  //  this->entities_iterator_.advance();
-  //}
 }
 
 void AsyncEventSourceResponse::destroy(void *ptr) {

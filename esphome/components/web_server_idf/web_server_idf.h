@@ -299,6 +299,10 @@ class AsyncEventSourceResponse {
   AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server,
                            esphome::web_server::WebServer *ws);
 
+  // Sends the initial ping/config/sorting_groups and starts the entity iterator.
+  // Must be called from the main loop (writes event_buffer_ and touches entities_iterator_).
+  void prime_();
+
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
   void process_buffer_();
@@ -351,7 +355,14 @@ class AsyncEventSource : public AsyncWebHandler {
   // Use vector instead of set: SSE sessions are typically 1-5 connections (browsers, dashboards).
   // Linear search is faster than red-black tree overhead for this small dataset.
   // Only operations needed: add session, remove session, iterate sessions - no need for sorted order.
+  // Mutated only from the main loop.
   std::vector<AsyncEventSourceResponse *> sessions_;
+  // Sessions constructed on the httpd task wait here until the main loop adopts them.
+  // All mutations are guarded by pending_mutex_. has_pending_sessions_ is a fast-path
+  // gate so the per-tick cost in loop() when no connect is pending is one atomic load.
+  std::vector<AsyncEventSourceResponse *> pending_sessions_;
+  Mutex pending_mutex_;
+  std::atomic<bool> has_pending_sessions_{false};
   connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
 };
