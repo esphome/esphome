@@ -1,6 +1,6 @@
 #include "sendspin_text_sensor.h"
 
-#if defined(USE_ESP32) && defined(USE_SENDSPIN_METADATA)
+#if defined(USE_ESP32) && defined(USE_SENDSPIN_METADATA) && defined(USE_TEXT_SENSOR)
 
 #include <sendspin/metadata_role.h>
 
