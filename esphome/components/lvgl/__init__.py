@@ -44,6 +44,7 @@ from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
+from esphome.writer import clean_build
 from esphome.yaml_util import load_yaml
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
@@ -451,7 +452,8 @@ async def to_code(configs):
         df.add_define(f"LV_DRAW_SW_SUPPORT_{fmt}", "1")
 
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
-    write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
+    if write_file_if_changed(lv_conf_h_file, generate_lv_conf_h()):
+        clean_build(clear_pio_cache=False)
     cg.add_build_flag("-DLV_CONF_H=1")
     # handle windows paths in a way that doesn't break the generated C++
     lv_conf_h_path = Path(lv_conf_h_file).as_posix()
