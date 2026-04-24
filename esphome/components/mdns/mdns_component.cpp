@@ -190,15 +190,6 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
 #endif
 }
 
-#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
-void MDNSComponent::start_polling_window_() {
-  // uint32_t-ID set_interval/set_timeout already does atomic cancel-and-add, so
-  // re-arming replaces the previous window implicitly.
-  this->set_interval(MDNS_POLL_ID, MDNS_UPDATE_INTERVAL_MS, mdns_pump_update);
-  this->set_timeout(MDNS_POLL_STOP_ID, MDNS_POLL_WINDOW_MS, [this]() { this->cancel_interval(MDNS_POLL_ID); });
-}
-#endif
-
 void MDNSComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "mDNS:\n"

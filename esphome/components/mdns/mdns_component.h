@@ -24,12 +24,6 @@
 
 namespace esphome::mdns {
 
-#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
-/// MDNS.update() trampoline. Defined in exactly one mdns_<platform>.cpp per build
-/// (FILTER_SOURCE_FILES in __init__.py enforces this), so ODR is preserved.
-void mdns_pump_update();
-#endif
-
 // Helper struct that identifies strings that may be stored in flash storage (similar to LogString)
 struct MDNSString;
 

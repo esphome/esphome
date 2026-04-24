@@ -39,7 +39,11 @@ static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SER
 }
 
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
-void mdns_pump_update() { MDNS.update(); }
+void MDNSComponent::start_polling_window_() {
+  // uint32_t-ID set_interval/set_timeout already does atomic cancel-and-add.
+  this->set_interval(MDNS_POLL_ID, MDNS_UPDATE_INTERVAL_MS, []() { MDNS.update(); });
+  this->set_timeout(MDNS_POLL_STOP_ID, MDNS_POLL_WINDOW_MS, [this]() { this->cancel_interval(MDNS_POLL_ID); });
+}
 #endif
 
 void MDNSComponent::setup() {
