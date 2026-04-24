@@ -8,7 +8,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 #include "esphome/components/wifi/wifi_component.h"
+#endif
 
 namespace esphome::mdns {
 
@@ -37,16 +39,21 @@ static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SER
   }
 }
 
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 void mdns_pump_update() { MDNS.update(); }
+#endif
 
 void MDNSComponent::setup() {
   this->setup_buffers_and_register_(register_esp8266);
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
   // LEAmDNS's own LwipIntf::statusChangeCB drives _restart() on netif changes; we only
   // need to arm the polling window around the initial probe/announce and each reconnect.
   wifi::global_wifi_component->add_ip_state_listener(this);
   this->start_polling_window_();
+#endif
 }
 
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &,
                                 const network::IPAddress &) {
   // IP listener only fires on acquisition (not loss), so any notification is a fresh
@@ -55,6 +62,7 @@ void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::
     this->start_polling_window_();
   }
 }
+#endif
 
 void MDNSComponent::on_shutdown() {
   MDNS.close();
