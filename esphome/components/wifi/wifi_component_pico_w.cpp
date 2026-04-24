@@ -342,6 +342,8 @@ bool WiFiComponent::wifi_loop_() {
     s_sta_was_connected = false;
     s_sta_had_ip = false;
     ESP_LOGV(TAG, "Disconnected");
+    // Refresh is_connected() cache; driver link status reports disconnected.
+    this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     this->notify_disconnect_state_listeners_();
 #endif

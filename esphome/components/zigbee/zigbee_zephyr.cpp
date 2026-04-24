@@ -4,6 +4,9 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
 #include "esphome/core/hal.h"
+#ifdef USE_DEEP_SLEEP
+#include "esphome/components/deep_sleep/deep_sleep_component.h"
+#endif
 
 extern "C" {
 #include <zboss_api.h>
@@ -116,6 +119,12 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   /* Set default response value. */
   p_device_cb_param->status = RET_OK;
 
+#ifdef USE_DEEP_SLEEP
+  if (auto *ds = deep_sleep::global_deep_sleep.load()) {
+    ds->wakeup();
+  }
+#endif
+
   // endpoints are enumerated from 1
   if (global_zigbee->callbacks_.size() >= endpoint) {
     const auto &cb = global_zigbee->callbacks_[endpoint - 1];
@@ -181,9 +190,11 @@ void ZigbeeComponent::setup() {
     ESP_LOGE(TAG, "Cannot load settings, err: %d", err);
     return;
   }
+  zigbee_configure_sleepy_behavior(this->sleepy_);
   zigbee_enable();
 }
 
+#ifdef ESPHOME_LOG_HAS_CONFIG
 static const char *role() {
   switch (zb_get_network_role()) {
     case ZB_NWK_DEVICE_TYPE_COORDINATOR:
@@ -207,6 +218,7 @@ static const char *get_wipe_on_boot() {
   return "NO";
 #endif
 }
+#endif
 
 void ZigbeeComponent::dump_config() {
   char ieee_addr_buf[IEEE_ADDR_BUF_SIZE] = {0};
@@ -222,6 +234,7 @@ void ZigbeeComponent::dump_config() {
                 "  Wipe on boot: %s\n"
                 "  Device is joined to the network: %s\n"
                 "  Sleep time: %us\n"
+                "  RX ON when idle: %s\n"
                 "  Current channel: %d\n"
                 "  Current page: %d\n"
                 "  Sleep threshold: %ums\n"
@@ -230,9 +243,9 @@ void ZigbeeComponent::dump_config() {
                 "  Short addr: 0x%04X\n"
                 "  Long pan id: 0x%s\n"
                 "  Short pan id: 0x%04X",
-                get_wipe_on_boot(), YESNO(zb_zdo_joined()), this->sleep_time_, zb_get_current_channel(),
-                zb_get_current_page(), zb_get_sleep_threshold(), role(), ieee_addr_buf, zb_get_short_address(),
-                extended_pan_id_buf, zb_get_pan_id());
+                get_wipe_on_boot(), YESNO(zb_zdo_joined()), this->sleep_time_, YESNO(zb_get_rx_on_when_idle()),
+                zb_get_current_channel(), zb_get_current_page(), zb_get_sleep_threshold(), role(), ieee_addr_buf,
+                zb_get_short_address(), extended_pan_id_buf, zb_get_pan_id());
   dump_reporting_();
 }
 
@@ -302,6 +315,12 @@ void ZigbeeComponent::after_reporting_info(zb_zcl_configure_reporting_req_t *con
 
 extern "C" {
 void zboss_signal_handler(zb_uint8_t param) { esphome::zigbee::global_zigbee->zboss_signal_handler_esphome(param); }
+void zb_osif_serial_put_bytes(const zb_uint8_t *buf, zb_short_t len) {
+  (void) buf;
+  (void) len;
+}
+void zb_osif_serial_flush() {}
+void zb_osif_serial_init() {}
 
 // NOLINTBEGIN(readability-identifier-naming,bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 extern zb_ret_t __real_zb_zcl_put_reporting_info_from_req(zb_zcl_configure_reporting_req_t *config_rep_req,
