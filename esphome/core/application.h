@@ -410,7 +410,7 @@ class Application {
   void enable_component_loop_(Component *component);
   void enable_pending_loops_();
   void activate_looping_component_(uint16_t index);
-  inline Scheduler::CallResult ESPHOME_ALWAYS_INLINE scheduler_tick_(uint32_t now);
+  inline uint32_t ESPHOME_ALWAYS_INLINE scheduler_tick_(uint32_t now);
 
   // RAII guard for a component loop phase. Constructor processes any pending
   // enable_loop requests from ISRs and marks in_loop_ so reentrant
@@ -531,11 +531,10 @@ extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-vari
 // Application::loop() tick regardless of whether a component phase runs, so
 // scheduler items fire at their requested cadence even when the caller has
 // raised loop_interval_ for power savings (see Application::loop()).
-// Returns the advanced `now` (for monotonic wdt feed) alongside the Scheduler's
-// 64-bit `now_64` (or 0 if any item fired — then stale). The main loop forwards
-// now_64 to next_schedule_in() to avoid a second esp_timer_get_time() MMIO read
-// per iteration; 0 means "compute fresh".
-inline Scheduler::CallResult ESPHOME_ALWAYS_INLINE Application::scheduler_tick_(uint32_t now) {
+// Returns the timestamp of the last scheduler item that ran (or `now`
+// unchanged if none ran), so the caller's WDT feed stays monotonic with the
+// per-item feeds inside scheduler.call() without an extra millis().
+inline uint32_t ESPHOME_ALWAYS_INLINE Application::scheduler_tick_(uint32_t now) {
 #ifdef USE_HOST
   // Drain wake notifications first to clear socket for next wake.
   wake_drain_notifications();
@@ -580,12 +579,11 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // Phase A: always service the scheduler. Decouples scheduler cadence from
   // loop_interval_ so raised intervals (for power savings) don't drag scheduled
   // items forward. A tick that only runs the scheduler is cheap.
-  // scheduler_tick_ returns the advanced `now` (for wdt monotonicity) plus the
-  // 64-bit `now_64` Scheduler::call() already computed — forward that to the
-  // next_schedule_in() call below so we don't re-read esp_timer_get_time() a
-  // second time per iteration. 0 means "stale, recompute".
-  const Scheduler::CallResult sched_result = this->scheduler_tick_(MillisInternal::get());
-  uint32_t now = sched_result.now;
+  // scheduler_tick_ returns the timestamp of the last scheduler item that ran
+  // (advanced by its per-item feeds) or `now` unchanged. We adopt it as `now`
+  // so the gate check and WDT feed both reflect actual elapsed time after
+  // scheduler dispatch, without an extra millis() call.
+  uint32_t now = this->scheduler_tick_(MillisInternal::get());
 #ifdef USE_RUNTIME_STATS
   // Capture immediately after scheduler_tick_ returns so the post-scheduler
   // feed_wdt_with_time slice can be separated from the scheduler slice in
@@ -705,7 +703,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
     const uint32_t elapsed_since_phase = now - this->last_loop_;
     const uint32_t until_phase =
         (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
-    const uint32_t until_sched = this->scheduler.next_schedule_in(now, sched_result.now_64).value_or(until_phase);
+    const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
     delay_time = std::min(until_phase, until_sched);
   }
   // All platforms route loop yields through the platform wake primitive.

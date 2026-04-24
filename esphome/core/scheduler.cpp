@@ -412,7 +412,7 @@ bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
 
 #pragma GCC diagnostic pop  // End suppression of deprecated RetryResult warnings
 
-optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now, uint64_t now_64) {
+optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // IMPORTANT: This method should only be called from the main thread (loop task).
   // Accesses items_[0] and the fast-path empty checks without holding a lock, which
   // is only safe from the main thread. Other threads must not call this method.
@@ -455,12 +455,7 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now, uint64_t now_64
     return {};
 
   SchedulerItem *item = this->items_[0];
-  // If the caller did not pass a pre-computed now_64 (or passed the 0
-  // sentinel, meaning call() advanced past it by firing items), read the
-  // clock fresh. Otherwise reuse the passed value to avoid a second
-  // esp_timer_get_time() MMIO read per main-loop iteration.
-  if (now_64 == 0)
-    now_64 = this->millis_64_from_(now);
+  const auto now_64 = this->millis_64_from_(now);
   const uint64_t next_exec = item->get_next_execution();
   if (next_exec < now_64)
     return 0;
@@ -571,7 +566,7 @@ void HOT Scheduler::process_defer_queue_slow_path_(uint32_t &now) {
 }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
-Scheduler::CallResult HOT Scheduler::call(uint32_t now) {
+uint32_t HOT Scheduler::call(uint32_t now) {
 #ifndef ESPHOME_THREAD_SINGLE
   this->process_defer_queue_(now);
 #endif /* not ESPHOME_THREAD_SINGLE */
@@ -582,10 +577,6 @@ Scheduler::CallResult HOT Scheduler::call(uint32_t now) {
 
   // Track if any items were added to to_add_ during callbacks
   bool has_added_items = false;
-  // Track whether we advanced `now` via execute_item_(). If we did, `now_64`
-  // is stale by the time we return and next_schedule_in() must recompute —
-  // signal that by writing 0 to *now_64_out.
-  bool executed_any_item = false;
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   static uint64_t last_print = 0;
@@ -698,7 +689,6 @@ Scheduler::CallResult HOT Scheduler::call(uint32_t now) {
     //  - timeouts/intervals get added, potentially invalidating vector pointers
     //  - timeouts/intervals get cancelled
     now = this->execute_item_(item, now);
-    executed_any_item = true;
 
     LockGuard guard{this->lock_};
 
@@ -755,10 +745,7 @@ Scheduler::CallResult HOT Scheduler::call(uint32_t now) {
 #endif
   // execute_item_() advances `now` as items fire; return it so the caller
   // stays monotonic with last_wdt_feed_.
-  // The returned now_64 is only usable if NO items fired — execute_item_ only
-  // advances the uint32 `now`, leaving our local now_64 stale. Signal stale
-  // with the 0 sentinel so next_schedule_in() reads the clock fresh.
-  return CallResult{now, executed_any_item ? 0 : now_64};
+  return now;
 }
 void HOT Scheduler::process_to_add_slow_path_() {
   LockGuard guard{this->lock_};
