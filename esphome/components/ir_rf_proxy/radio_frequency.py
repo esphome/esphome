@@ -3,7 +3,8 @@
 import esphome.codegen as cg
 from esphome.components import radio_frequency, remote_receiver, remote_transmitter
 import esphome.config_validation as cv
-from esphome.const import CONF_FREQUENCY
+from esphome.const import CONF_CARRIER_DUTY_PERCENT, CONF_FREQUENCY
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from . import CONF_REMOTE_RECEIVER_ID, CONF_REMOTE_TRANSMITTER_ID, ir_rf_proxy_ns
@@ -27,6 +28,28 @@ CONFIG_SCHEMA = cv.All(
     ),
     cv.has_at_least_one_key(CONF_REMOTE_RECEIVER_ID, CONF_REMOTE_TRANSMITTER_ID),
 )
+
+
+def _final_validate(config: ConfigType) -> None:
+    """Validate that RF transmitters have carrier duty set to 100%."""
+    if CONF_REMOTE_TRANSMITTER_ID not in config:
+        return
+
+    transmitter_id = config[CONF_REMOTE_TRANSMITTER_ID]
+    full_config = fv.full_config.get()
+    transmitter_path = full_config.get_path_for_id(transmitter_id)[:-1]
+    transmitter_config = full_config.get_config_for_path(transmitter_path)
+
+    duty_percent = transmitter_config.get(CONF_CARRIER_DUTY_PERCENT)
+    if duty_percent is not None and duty_percent != 100:
+        raise cv.Invalid(
+            f"Transmitter '{transmitter_id}' must have '{CONF_CARRIER_DUTY_PERCENT}' "
+            "set to 100% for RF transmission. Dedicated RF hardware handles modulation; "
+            "applying a carrier duty cycle would corrupt the signal"
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
