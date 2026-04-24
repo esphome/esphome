@@ -45,6 +45,7 @@ MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = {
     "announcement": MediaPlayerFormatPurpose.PURPOSE_ANNOUNCEMENT,
 }
 
+# Public API for external components. Do not remove.
 FORMAT_MAPPING = {
     "FLAC": "flac",
     "MP3": "mp3",
@@ -56,7 +57,10 @@ FORMAT_MAPPING = {
 def build_supported_format_struct(
     format_config: ConfigType, purpose: MockObj
 ) -> cg.StructInitializer:
-    """Build a MediaPlayerSupportedFormat struct from a format config and purpose."""
+    """Build a MediaPlayerSupportedFormat struct from a format config and purpose.
+
+    Public API for external components. Do not remove.
+    """
     args = [
         MediaPlayerSupportedFormat,
         ("format", FORMAT_MAPPING[format_config[CONF_FORMAT]]),
@@ -76,7 +80,10 @@ def build_supported_format_struct(
 def validate_preferred_format(
     component_name: str, audio_device_key: str
 ) -> Callable[[ConfigType], ConfigType]:
-    """Return a validator that inherits audio device settings and validates format constraints."""
+    """Return a validator that inherits audio device settings and validates format constraints.
+
+    Public API for external components. Do not remove.
+    """
 
     def validator(config: ConfigType) -> ConfigType:
         # Inherit settings from audio device if not manually set
@@ -107,6 +114,8 @@ def request_codecs_for_format_configs(
     """Scan format configs for configured formats and request the needed codec support.
 
     If any config uses "NONE" (accepts any format), all codecs are requested.
+
+    Public API for external components. Do not remove.
     """
     needed_formats: set[str] = set()
     need_all = False
