@@ -107,7 +107,7 @@ def download_content(url: str, path: Path, timeout=NETWORK_TIMEOUT) -> bytes:
                 e,
             )
             return path.read_bytes()
-        raise cv.Invalid(f"Could not download from {url}: {e}")
+        raise cv.Invalid(f"Could not download from {url}: {e}") from e
 
     path.parent.mkdir(parents=True, exist_ok=True)
     data = req.content

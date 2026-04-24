@@ -20,8 +20,6 @@ void InternalTemperatureSensor::update() {
   success = (result == 0);
 #if defined(USE_LIBRETINY_VARIANT_BK7231N)
   temperature = raw * -0.38f + 156.0f;
-#elif defined(USE_LIBRETINY_VARIANT_BK7231T)
-  temperature = raw * 0.04f;
 #else   // USE_LIBRETINY_VARIANT
   temperature = raw * 0.128f;
 #endif  // USE_LIBRETINY_VARIANT
