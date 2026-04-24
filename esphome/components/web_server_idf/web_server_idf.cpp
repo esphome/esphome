@@ -492,6 +492,10 @@ void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
   this->web_server_->enable_loop_soon_any_context();
 }
 
+// clang-analyzer traces a false-positive leak path from loop() through
+// adopt_pending_sessions_main_loop_() into start_session_main_loop_() and
+// finally ArduinoJson. Suppress along the entire in-our-code call chain.
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks)
 bool AsyncEventSource::loop() {
   // Fast path: one atomic load per tick. Slow path is out-of-line on connect.
   if (this->has_pending_sessions_.load(std::memory_order_acquire)) {
@@ -534,13 +538,13 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
     this->sessions_.push_back(rsp);
     // Prime first so on_connect_ observes a session that has already sent its
     // initial ping/config/sorting_groups, matching the pre-refactor ordering.
-    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     rsp->start_session_main_loop_();
     if (this->on_connect_) {
       this->on_connect_(rsp);
     }
   }
 }
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void AsyncEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
   for (auto *ses : this->sessions_) {
