@@ -13,9 +13,3 @@ text_sensor:
   - platform: sendspin
     name: "Album Artist"
     type: album_artist
-  - platform: sendspin
-    name: "Year"
-    type: year
-  - platform: sendspin
-    name: "Track Number"
-    type: track

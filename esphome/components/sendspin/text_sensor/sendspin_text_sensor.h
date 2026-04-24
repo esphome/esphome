@@ -7,6 +7,8 @@
 #include "esphome/components/sendspin/sendspin_hub.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
+#include <sendspin/metadata_role.h>
+
 namespace esphome::sendspin_ {
 
 enum class SendspinTextMetadataTypes {
@@ -14,8 +16,6 @@ enum class SendspinTextMetadataTypes {
   ARTIST,
   ALBUM,
   ALBUM_ARTIST,
-  YEAR,
-  TRACK,
 };
 
 class SendspinTextSensor : public SendspinChild, public text_sensor::TextSensor {
@@ -26,6 +26,7 @@ class SendspinTextSensor : public SendspinChild, public text_sensor::TextSensor 
   void set_metadata_type(SendspinTextMetadataTypes metadata_type) { this->metadata_type_ = metadata_type; }
 
  protected:
+  const char *extract_value_(const sendspin::ServerMetadataStateObject &metadata) const;
   void publish_if_changed_(const char *value);
 
   SendspinTextMetadataTypes metadata_type_;
