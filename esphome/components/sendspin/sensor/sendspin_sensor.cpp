@@ -72,7 +72,7 @@ void SendspinMetadataSensor::setup() {
     }
     case SendspinNumericMetadataTypes::YEAR: {
       this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
-        if (metadata.year.has_value() && metadata.year.value() <= 9999) {
+        if (metadata.year.has_value()) {
           this->publish_if_changed_(metadata.year.value());
         }
       });
@@ -80,7 +80,7 @@ void SendspinMetadataSensor::setup() {
     }
     case SendspinNumericMetadataTypes::TRACK: {
       this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
-        if (metadata.track.has_value() && metadata.track.value() <= 9999) {
+        if (metadata.track.has_value()) {
           this->publish_if_changed_(metadata.track.value());
         }
       });
