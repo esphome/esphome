@@ -16,14 +16,6 @@
 
 namespace esphome::ir_rf_proxy {
 
-/// Transmit raw timings via a remote_transmitter backend.
-/// Works with any call type that exposes the raw-timings interface
-/// (InfraredCall, RadioFrequencyCall, or any future call type with the same methods).
-/// Defined in ir_rf_proxy.cpp; all instantiations occur in that translation unit.
-template<typename CallT>
-void transmit_raw_timings(remote_base::RemoteTransmitterBase *transmitter, uint32_t carrier_frequency,
-                          const CallT &call);
-
 #ifdef USE_IR_RF
 /// IrRfProxy - Infrared platform implementation using remote_transmitter/receiver as backend
 class IrRfProxy : public infrared::Infrared {
