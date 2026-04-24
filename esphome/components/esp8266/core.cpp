@@ -15,7 +15,7 @@ extern "C" {
 
 namespace esphome {
 
-// yield() and micros() inlined in hal.h.
+// yield(), micros(), millis_64() inlined in hal.h.
 // Fast accumulator replacement for Arduino's millis() (~3.3 μs via 4× 64-bit
 // multiplies on the LX106). Tracks a running ms counter from 32-bit
 // system_get_time() deltas using pure 32-bit ops. Installed as __wrap_millis
@@ -66,7 +66,6 @@ uint32_t IRAM_ATTR HOT millis() {
   xt_wsr_ps(ps);
   return result;
 }
-uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 // Poll-based delay that avoids ::delay() — Arduino's __delay has an intra-object
 // call to the original millis() that --wrap can't intercept, so calling ::delay()
 // would keep the slow Arduino millis body alive in IRAM. optimistic_yield still

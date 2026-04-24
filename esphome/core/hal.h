@@ -144,13 +144,9 @@ __attribute__((always_inline)) inline uint64_t millis_64() {
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }
 #if defined(USE_ESP8266)
-// delay(), millis(), millis_64() stay out-of-line on this branch (integration):
-// esphome::millis() is the body of __wrap_millis (-Wl,--wrap=millis), so it must
-// remain a real symbol to avoid infinite recursion. delay() has a custom
-// optimistic_yield-based body that intentionally avoids Arduino's __delay path.
 void delay(uint32_t ms);
 uint32_t millis();
-uint64_t millis_64();
+__attribute__((always_inline)) inline uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 #elif defined(USE_LIBRETINY)
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }
 // Per-variant millis() fast path — matches MillisInternal::get().
