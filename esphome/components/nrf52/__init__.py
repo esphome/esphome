@@ -9,6 +9,7 @@ import subprocess
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.zephyr import (
+    add_extra_build_file,
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
     zephyr_add_pm_static,
@@ -247,6 +248,15 @@ async def to_code(config: ConfigType) -> None:
 
     if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
+        if config[CONF_BOARD] == "xiao_ble":
+            add_extra_build_file(
+                "zephyr/child_image/mcuboot.conf",
+                Path(__file__).parent / "xiao_ble_mcuboot.conf",
+            )
+            add_extra_build_file(
+                "zephyr/child_image/mcuboot/boards/xiao_ble.overlay",
+                Path(__file__).parent / "xiao_ble_mcuboot.overlay",
+            )
     else:
         if "_sd" in config[KEY_BOOTLOADER]:
             bootloader = config[KEY_BOOTLOADER].split("_")

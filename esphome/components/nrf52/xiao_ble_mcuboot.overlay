@@ -1,0 +1,11 @@
+&zephyr_udc0 {
+	status = "disabled";
+};
+
+&usb_cdc_acm_uart {
+	status = "disabled";
+};
+
+&cdc_acm_uart0 {
+	status = "disabled";
+};

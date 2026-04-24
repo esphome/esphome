@@ -1,5 +1,5 @@
 from esphome.components.zephyr import Section
-from esphome.components.zephyr.const import KEY_BOOTLOADER
+from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
 
 from .const import (
     BOOTLOADER_ADAFRUIT,
@@ -23,6 +23,7 @@ BOARDS_ZEPHYR = {
             BOOTLOADER_ADAFRUIT,
             BOOTLOADER_ADAFRUIT_NRF52_SD132,
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+            BOOTLOADER_MCUBOOT,
         ]
     },
 }
