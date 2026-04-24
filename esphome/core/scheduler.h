@@ -120,16 +120,21 @@ class Scheduler {
   /// Get 64-bit millisecond timestamp (handles 32-bit millis() rollover)
   uint64_t ESPHOME_ALWAYS_INLINE millis_64() { return esphome::millis_64(); }
 
+  // Extend a 32-bit `now` timestamp to a 64-bit one. Public wrapper so callers that need to
+  // materialize a valid now_64 for next_schedule_in() (after call() returned the 0 sentinel)
+  // can do so without knowing the platform-specific 64-bit extension strategy.
+  // See millis_64_from_ for platform notes.
+  uint64_t ESPHOME_ALWAYS_INLINE millis_64_from(uint32_t now) { return this->millis_64_from_(now); }
+
   // Calculate when the next scheduled item should run.
-  // @param now On ESP32, unused for 64-bit extension (native); on other platforms, extended to 64-bit via rollover.
-  // @param now_64 Optional pre-computed 64-bit timestamp from a recent call() (see CallResult).
-  //        Pass 0 (sentinel) to have this method compute now_64 freshly. Non-zero values are trusted and
-  //        used directly, saving a millis_64() / esp_timer_get_time() MMIO read when the caller already
-  //        has a fresh value from the same loop iteration.
+  // @param now_64 64-bit millisecond timestamp. Must be non-zero and fresh — the caller is responsible
+  //        for resolving the 0 sentinel that Scheduler::call() may return (via millis_64_from above).
+  //        Hoisting the zero-check out of this function keeps the cold clock-read path out of the
+  //        hot-path's icache line and simplifies register allocation.
   // Returns the time in milliseconds until the next scheduled item, or nullopt if no items.
   // This method performs cleanup of removed items before checking the schedule.
   // IMPORTANT: This method should only be called from the main thread (loop task).
-  optional<uint32_t> next_schedule_in(uint32_t now, uint64_t now_64 = 0);
+  optional<uint32_t> next_schedule_in(uint64_t now_64);
 
   // Result of Scheduler::call().
   //   now    – advanced uint32 millis timestamp (monotonic with the caller's wdt feed).
