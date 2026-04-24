@@ -1,0 +1,99 @@
+---
+description: "Instructions for setting up the Sendspin media source in ESPHome."
+title: "Sendspin Media Source"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The `sendspin` media source platform plays synchronized audio from a [Sendspin](/components/sendspin/)
+group through a [Speaker Source Media Player](/components/media_player/speaker_source/). The Sendspin
+[hub](/components/sendspin/) must be configured on the same device.
+
+This platform only works on ESP32-based chips using the [ESP-IDF framework](/components/esp32#esp32-framework).
+
+```yaml
+# Example configuration entry
+sendspin:
+
+media_source:
+  - platform: sendspin
+    id: sendspin_media_source
+
+media_player:
+  - platform: speaker_source
+    id: external_media_player
+    name: Media Player
+    media_pipeline:
+      speaker: my_speaker_id
+      sources:
+        - sendspin_media_source
+```
+
+<span id="config-sendspin_media_source"></span>
+
+## Configuration variables
+
+- **sample_rate** (*Optional*, positive integer): The sample rate, in Hz, advertised to the Sendspin
+  server. Must be between `16000` and `96000`. Defaults to `48000`.
+- **buffer_size** (*Optional*, positive integer): The size of the audio buffer in bytes. Must be at
+  least `25000`. Defaults to `1000000`.
+- **fixed_delay** (*Optional*, [Time](/guides/configuration-types#time)): A constant, known playback
+  delay to compensate for; for example, the processing time introduced by the on-board DAC. Must be
+  no greater than `10ms`. Defaults to `0us`.
+- **initial_static_delay** (*Optional*, [Time](/guides/configuration-types#time)): An initial static
+  delay that is tunable at runtime from the Sendspin server. Used to compensate for delays that are
+  not known at configuration time and that may change with the device's runtime setup. Updates made
+  from the Sendspin server are persisted to flash. Must be no greater than `5000ms`. Defaults to
+  `0ms`.
+- **static_delay_adjustable** (*Optional*, boolean): Whether the static delay is enabled by default.
+  When `false`, the Sendspin server cannot tune the static delay and the configured value is not
+  added to the playback delay. This can be toggled at runtime with the
+  [`sendspin.media_source.enable_static_delay_adjustment`](#sendspin-media_source-enable-action)
+  and [`sendspin.media_source.disable_static_delay_adjustment`](#sendspin-media_source-disable-action)
+  actions. Defaults to `false`.
+- **task_stack_in_psram** (*Optional*, boolean): If `true`, the FreeRTOS playback task stack is
+  allocated in PSRAM instead of internal RAM. Requires the [psram](/components/psram/) component.
+  Defaults to `false`.
+- All other options from [Media Source](/components/media_source/).
+
+> [!TIP]
+> The `fixed_delay` and `initial_static_delay` options serve different purposes. Use `fixed_delay`
+> for delays that are known and constant for the device (for example, the DAC's processing delay).
+> Use `initial_static_delay` together with `static_delay_adjustable` when the overall delay depends
+> on downstream equipment that can change between installations. For example, when an auxiliary
+> cable is connected to external speakers. The delay can be fine-tuned from the Sendspin
+> server at runtime.
+
+## Actions
+
+<span id="sendspin-media_source-enable-action"></span>
+
+### `sendspin.media_source.enable_static_delay_adjustment` Action
+
+This [action](/automations/actions#all-actions) enables runtime adjustment of the static delay from
+the Sendspin server and applies the currently configured static delay value to playback.
+
+```yaml
+on_...:
+  - sendspin.media_source.enable_static_delay_adjustment:
+```
+
+<span id="sendspin-media_source-disable-action"></span>
+
+### `sendspin.media_source.disable_static_delay_adjustment` Action
+
+This [action](/automations/actions#all-actions) disables runtime adjustment of the static delay.
+The configured static delay is no longer applied to playback, and the Sendspin server cannot tune
+it.
+
+```yaml
+on_...:
+  - sendspin.media_source.disable_static_delay_adjustment:
+```
+
+## See Also
+
+- [Sendspin](/components/sendspin/)
+- [Speaker Source Media Player](/components/media_player/speaker_source/)
+- [Media Source Components](/components/media_source/)
+- <APIRef text="sendspin_media_source.h" path="esphome/components/sendspin/media_source/sendspin_media_source.h" />
