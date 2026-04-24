@@ -6,8 +6,11 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
-#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+#ifdef USE_MDNS_WIFI_LISTENER
 #include "esphome/components/wifi/wifi_component.h"
+#endif
+#ifdef USE_MDNS_ETHERNET_LISTENER
+#include "esphome/components/ethernet/ethernet_component.h"
 #endif
 
 // Arduino-Pico's PolledTimeout.h (pulled in by ESP8266mDNS.h) redefines IRAM_ATTR to empty.
@@ -57,19 +60,36 @@ void MDNSComponent::setup() {
   //
   // Workaround: defer MDNS.begin() and service registration until the network has an IP,
   // then call notifyAPChange() on subsequent reconnects to restart mDNS probing and
-  // announcing — all from main loop context via the WiFiIPStateListener callback so it's
-  // thread-safe.
+  // announcing — all from main loop context via the IP state listener callback(s) so
+  // it's thread-safe. We subscribe to any listener interface that's active (WiFi and/or
+  // Ethernet); the same on_ip_state() override serves both because the signatures match.
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+#ifdef USE_MDNS_WIFI_LISTENER
   wifi::global_wifi_component->add_ip_state_listener(this);
   // AFTER_CONNECTION priority means the network may already be up when setup() runs;
   // the listener only fires on subsequent state changes, so seed the current state.
-  const auto ips = wifi::global_wifi_component->wifi_sta_ip_addresses();
-  if (ips[0].is_set()) {
-    this->on_ip_state(ips, wifi::global_wifi_component->get_dns_address(0),
-                      wifi::global_wifi_component->get_dns_address(1));
+  {
+    const auto ips = wifi::global_wifi_component->wifi_sta_ip_addresses();
+    if (ips[0].is_set()) {
+      this->on_ip_state(ips, wifi::global_wifi_component->get_dns_address(0),
+                        wifi::global_wifi_component->get_dns_address(1));
+    }
   }
+#endif
+#ifdef USE_MDNS_ETHERNET_LISTENER
+  ethernet::global_eth_component->add_ip_state_listener(this);
+  // Seed current Ethernet state for the same reason — if the interface is already up
+  // when mdns setup() runs, we need to kick off begin() + polling here.
+  if (ethernet::global_eth_component->is_connected()) {
+    const auto ips = ethernet::global_eth_component->get_ip_addresses();
+    if (ips[0].is_set()) {
+      this->on_ip_state(ips, network::IPAddress{}, network::IPAddress{});
+    }
+  }
+#endif
 #else
-  // Fallback (non-WiFi build): poll forever, checking connection state each tick.
+  // Fallback (no IP state listener available): poll forever, checking connection state
+  // each tick.
   this->set_interval(MDNS_UPDATE_INTERVAL_MS, [this]() {
     bool connected = network::is_connected();
     if (connected && !this->was_connected_) {
@@ -91,11 +111,11 @@ void MDNSComponent::setup() {
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &,
                                 const network::IPAddress &) {
-  // ESPHome's WiFiIPStateListener only notifies on IP acquisition (see
-  // wifi_component_pico_w.cpp), not on IP loss, so every notification represents a
-  // fresh IP that needs a probe/announce cycle. The library's internal
-  // LwipIntf::stateUpCB is stubbed out on arduino-pico (see setup()), so we drive
-  // begin/restart ourselves from this callback.
+  // Both WiFi and Ethernet IP state listeners only notify on IP acquisition (see
+  // wifi_component_pico_w.cpp and ethernet_component.cpp), not on IP loss, so every
+  // notification represents a fresh IP that needs a probe/announce cycle. The library's
+  // internal LwipIntf::stateUpCB is stubbed out on arduino-pico (see setup()), so we
+  // drive begin/restart ourselves from this callback.
   if (!ips[0].is_set()) {
     return;
   }

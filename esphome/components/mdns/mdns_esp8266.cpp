@@ -7,10 +7,10 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+#include "mdns_component.h"
+#ifdef USE_MDNS_WIFI_LISTENER
 #include "esphome/components/wifi/wifi_component.h"
 #endif
-#include "mdns_component.h"
 
 namespace esphome::mdns {
 
@@ -50,6 +50,8 @@ void MDNSComponent::setup() {
   // on every netif status change (link up, IP up, etc.), so we don't trigger begin()
   // or restart here — we just cover the probe+announce window with a bounded polling
   // schedule. The listener catches subsequent reconnects and re-arms the window.
+  // ESP8266 has no ethernet driver in the Arduino build so only the WiFi listener
+  // branch is reachable here.
   wifi::global_wifi_component->add_ip_state_listener(this);
   this->start_polling_window_();
 #else

@@ -6,14 +6,24 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 // Event-driven polling replaces the legacy set_interval() loop on platforms that need
-// scheduler-backed MDNS.update() (ESP8266, RP2040). It's enabled when a WiFi IP state
-// listener slot is available — the mdns Python to_code() requests one when WiFi is in
-// the config. If it's not (e.g. clang-tidy running without full codegen, or an
-// ethernet-only RP2040 build), the component falls back to the legacy polling loop.
-#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_WIFI) && defined(USE_WIFI_IP_STATE_LISTENERS)
+// scheduler-backed MDNS.update() (ESP8266, RP2040). It's enabled when at least one
+// compatible network IP state listener slot is available — the mdns Python to_code()
+// requests a WiFi slot when WiFi is in the config and an Ethernet slot when Ethernet
+// is in the config. If neither is available (e.g. clang-tidy running without full
+// codegen), the component falls back to the legacy polling loop.
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && \
+    ((defined(USE_WIFI) && defined(USE_WIFI_IP_STATE_LISTENERS)) || \
+     (defined(USE_ETHERNET) && defined(USE_ETHERNET_IP_STATE_LISTENERS)))
 #include "esphome/components/network/ip_address.h"
-#include "esphome/components/wifi/wifi_component.h"
 #define USE_MDNS_EVENT_DRIVEN_POLLING
+#if defined(USE_WIFI) && defined(USE_WIFI_IP_STATE_LISTENERS)
+#include "esphome/components/wifi/wifi_component.h"
+#define USE_MDNS_WIFI_LISTENER
+#endif
+#if defined(USE_ETHERNET) && defined(USE_ETHERNET_IP_STATE_LISTENERS)
+#include "esphome/components/ethernet/ethernet_component.h"
+#define USE_MDNS_ETHERNET_LISTENER
+#endif
 #endif
 
 namespace esphome::mdns {
@@ -58,9 +68,13 @@ struct MDNSService {
 };
 
 class MDNSComponent final : public Component
-#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+#ifdef USE_MDNS_WIFI_LISTENER
     ,
                             public wifi::WiFiIPStateListener
+#endif
+#ifdef USE_MDNS_ETHERNET_LISTENER
+    ,
+                            public ethernet::EthernetIPStateListener
 #endif
 {
  public:
