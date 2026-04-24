@@ -14,8 +14,8 @@
 namespace esphome {
 
 void HOT yield() { ::yield(); }
-uint64_t millis_64() { return micros_to_millis<uint64_t>(time_us_64()); }
-uint32_t HOT millis() { return micros_to_millis(time_us_64()); }
+// millis() and millis_64() are defined inline in hal.h on RP2040 so callers
+// collapse the wrapper down to a direct time_us_64() call.
 void HOT delay(uint32_t ms) { ::delay(ms); }
 uint32_t HOT micros() { return ::micros(); }
 void HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }

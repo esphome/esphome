@@ -2,6 +2,7 @@
 #include <string>
 #include <cstdint>
 #include "gpio.h"
+#include "esphome/core/time_conversion.h"
 
 #if defined(USE_ESP32)
 #include <esp_attr.h>
@@ -70,6 +71,18 @@
 extern "C" uint32_t platform_is_in_interrupt_context(void);
 #endif
 
+#ifdef USE_ESP8266
+// Forward-declared from <Arduino.h> (esp8266 core) so the inline esphome::micros()
+// wrapper below can call it without pulling Arduino.h into every TU.
+extern "C" unsigned long micros(void);  // NOLINT(google-runtime-int,readability-identifier-naming)
+#endif
+
+#ifdef USE_RP2040
+// Forward-declared from <pico/time.h> so the inline esphome::millis()/millis_64()
+// wrappers below can call it without pulling pico/time.h into every TU.
+extern "C" uint64_t time_us_64(void);
+#endif
+
 namespace esphome {
 
 /// Returns true when executing inside an interrupt handler.
@@ -103,9 +116,39 @@ __attribute__((always_inline)) inline bool in_isr_context() {
 }
 
 void yield();
+#if defined(USE_ESP32)
+// Forward-declared from <esp_timer.h> to avoid pulling the full header (and its
+// transitive IDF deps) into every translation unit that includes hal.h. Signature
+// is stable IDF public API.
+extern "C" int64_t esp_timer_get_time(void);
+
+uint32_t millis();
+// Inlined so callers (especially the main loop via runtime_stats) collapse the
+// wrapper: ``call micros → call esp_timer_get_time`` becomes a single
+// ``call esp_timer_get_time``. Inlining into an IRAM_ATTR ISR is safe because
+// ``esp_timer_get_time`` itself lives in IRAM (IDF marks it so).
+__attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(esp_timer_get_time()); }
+__attribute__((always_inline)) inline uint64_t millis_64() {
+  return micros_to_millis<uint64_t>(static_cast<uint64_t>(esp_timer_get_time()));
+}
+#elif defined(USE_ESP8266)
+// Arduino's ::micros() (esp8266 core) is itself in IRAM, so inlining our wrapper
+// into IRAM_ATTR ISRs is safe. Forward-declared at global scope below to avoid
+// pulling Arduino.h into every TU that includes hal.h.
+__attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }
 uint32_t millis();
 uint64_t millis_64();
+#elif defined(USE_RP2040)
 uint32_t micros();
+// Pico SDK clock used by ::millis()/time_us_64() under the hood; forward-declared
+// at global scope below.
+__attribute__((always_inline)) inline uint32_t millis() { return micros_to_millis(::time_us_64()); }
+__attribute__((always_inline)) inline uint64_t millis_64() { return micros_to_millis<uint64_t>(::time_us_64()); }
+#else
+uint32_t millis();
+uint32_t micros();
+uint64_t millis_64();
+#endif
 void delay(uint32_t ms);
 void delayMicroseconds(uint32_t us);  // NOLINT(readability-identifier-naming)
 void __attribute__((noreturn)) arch_restart();
