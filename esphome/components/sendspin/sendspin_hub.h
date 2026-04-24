@@ -16,6 +16,12 @@
 #ifdef USE_SENDSPIN_CONTROLLER
 #include <sendspin/controller_role.h>
 #endif
+#ifdef USE_SENDSPIN_METADATA
+#include <sendspin/metadata_role.h>
+#endif
+#ifdef USE_SENDSPIN_PLAYER
+#include <sendspin/player_role.h>
+#endif
 
 #include <functional>
 #include <memory>
@@ -38,6 +44,13 @@ struct LastPlayedServerPref {
   uint32_t server_id_hash;
 };
 
+#ifdef USE_SENDSPIN_PLAYER
+/// @brief Persistent storage structure for player static delay.
+struct StaticDelayPref {
+  uint16_t delay_ms;
+};
+#endif
+
 /// @brief Thin adapter over sendspin::SendspinClient.
 ///
 /// The hub owns a SendspinClient instance and bridges its listener/provider interfaces to ESPHome's CallbackManager for
@@ -56,6 +69,9 @@ struct LastPlayedServerPref {
 class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_CONTROLLER
                           public sendspin::ControllerRoleListener,
+#endif
+#ifdef USE_SENDSPIN_METADATA
+                          public sendspin::MetadataRoleListener,
 #endif
                           public sendspin::SendspinClientListener,
                           public sendspin::SendspinNetworkProvider,
@@ -112,6 +128,20 @@ class SendspinHub final : public Component,
   }
 #endif
 
+#ifdef USE_SENDSPIN_METADATA
+  template<typename F> void add_metadata_update_callback(F &&callback) {
+    this->metadata_update_callbacks_.add(std::forward<F>(callback));
+  }
+#endif
+
+#ifdef USE_SENDSPIN_PLAYER
+  void set_listener(sendspin::PlayerRoleListener *listener) { this->player_listener_ = listener; }
+  void set_player_config(const sendspin::PlayerRoleConfig &config) { this->player_config_ = config; }
+
+  /// @brief Child components call this to get the PlayerRole instance after setup, so they can push updates to it.
+  sendspin::PlayerRole *get_player_role();
+#endif
+
  protected:
   /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
   sendspin::SendspinClientConfig build_client_config_();
@@ -139,6 +169,23 @@ class SendspinHub final : public Component,
 
   // Callback fan-out to child components; they filter as needed
   CallbackManager<void(const sendspin::ServerStateControllerObject &)> controller_state_callbacks_{};
+#endif
+
+#ifdef USE_SENDSPIN_METADATA
+  void on_metadata(const sendspin::ServerMetadataStateObject &metadata) override;
+
+  // Callback fan-out to child components; they filter as needed
+  CallbackManager<void(const sendspin::ServerMetadataStateObject &)> metadata_update_callbacks_{};
+#endif
+
+#ifdef USE_SENDSPIN_PLAYER
+  sendspin::PlayerRoleListener *player_listener_{nullptr};
+  sendspin::PlayerRoleConfig player_config_{};
+
+  // Part of SendspinPersistenceProvider overrides
+  ESPPreferenceObject static_delay_pref_;
+  std::optional<uint16_t> load_static_delay() override;
+  bool save_static_delay(uint16_t delay_ms) override;
 #endif
 
   // --- Core member variables ---
