@@ -13,11 +13,7 @@
 
 namespace esphome {
 
-void HOT yield() { ::yield(); }
-uint64_t millis_64() { return micros_to_millis<uint64_t>(time_us_64()); }
-uint32_t HOT millis() { return micros_to_millis(time_us_64()); }
-void HOT delay(uint32_t ms) { ::delay(ms); }
-uint32_t HOT micros() { return ::micros(); }
+// yield(), delay(), micros(), millis(), millis_64() inlined in hal.h.
 void HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
   watchdog_reboot(0, 0, 10);

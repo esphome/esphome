@@ -15,7 +15,7 @@ extern "C" {
 
 namespace esphome {
 
-void HOT yield() { ::yield(); }
+// yield() and micros() inlined in hal.h.
 // Fast accumulator replacement for Arduino's millis() (~3.3 μs via 4× 64-bit
 // multiplies on the LX106). Tracks a running ms counter from 32-bit
 // system_get_time() deltas using pure 32-bit ops. Installed as __wrap_millis
@@ -85,7 +85,6 @@ void HOT delay(uint32_t ms) {
     optimistic_yield(1000);
   }
 }
-uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
   system_restart();
