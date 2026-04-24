@@ -300,7 +300,7 @@ class AsyncEventSourceResponse {
                            esphome::web_server::WebServer *ws);
 
   // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
-  void prime_();
+  void start_session_main_loop_();
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
@@ -350,7 +350,6 @@ class AsyncEventSource : public AsyncWebHandler {
   size_t count() const { return this->sessions_.size(); }
 
  protected:
-  // Ordered to minimize padding on 32-bit: atomic<bool> last consumes trailing pad.
   std::string url_;
   // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
   std::vector<AsyncEventSourceResponse *> sessions_;
