@@ -705,11 +705,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
     const uint32_t elapsed_since_phase = now - this->last_loop_;
     const uint32_t until_phase =
         (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
-    // Resolve the sched_result.now_64 sentinel here so next_schedule_in() can assume a valid
-    // non-zero input and keep the cold clock-read path out of its body. When call() fired items
-    // sched_result.now_64 is 0 (stale) and we read the clock fresh; otherwise we reuse it.
-    const uint64_t sched_now_64 = sched_result.now_64 != 0 ? sched_result.now_64 : this->scheduler.millis_64_from(now);
-    const uint32_t until_sched = this->scheduler.next_schedule_in(sched_now_64).value_or(until_phase);
+    const uint32_t until_sched = this->scheduler.next_schedule_in(now, sched_result.now_64).value_or(until_phase);
     delay_time = std::min(until_phase, until_sched);
   }
   // All platforms route loop yields through the platform wake primitive.

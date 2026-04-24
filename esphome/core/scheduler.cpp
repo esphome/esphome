@@ -412,7 +412,7 @@ bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
 
 #pragma GCC diagnostic pop  // End suppression of deprecated RetryResult warnings
 
-optional<uint32_t> HOT Scheduler::next_schedule_in(uint64_t now_64) {
+optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now, uint64_t now_64) {
   // IMPORTANT: This method should only be called from the main thread (loop task).
   // Accesses items_[0] and the fast-path empty checks without holding a lock, which
   // is only safe from the main thread. Other threads must not call this method.
@@ -455,9 +455,12 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint64_t now_64) {
     return {};
 
   SchedulerItem *item = this->items_[0];
-  // Caller is responsible for passing a fresh non-zero now_64 (see header doc).
-  // Hoisting the 0-sentinel resolution to the caller keeps the cold fallback
-  // clock-read out of this function's fast path.
+  // If the caller did not pass a pre-computed now_64 (or passed the 0
+  // sentinel, meaning call() advanced past it by firing items), read the
+  // clock fresh. Otherwise reuse the passed value to avoid a second
+  // esp_timer_get_time() MMIO read per main-loop iteration.
+  if (now_64 == 0)
+    now_64 = this->millis_64_from_(now);
   const uint64_t next_exec = item->get_next_execution();
   if (next_exec < now_64)
     return 0;
