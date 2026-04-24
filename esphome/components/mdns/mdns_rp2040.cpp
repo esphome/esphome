@@ -6,12 +6,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
-#ifdef USE_MDNS_WIFI_LISTENER
-#include "esphome/components/wifi/wifi_component.h"
-#endif
-#ifdef USE_MDNS_ETHERNET_LISTENER
-#include "esphome/components/ethernet/ethernet_component.h"
-#endif
+// wifi_component.h / ethernet_component.h are pulled in transitively by
+// mdns_component.h when their respective listener defines are active.
 
 // Arduino-Pico's PolledTimeout.h (pulled in by ESP8266mDNS.h) redefines IRAM_ATTR to empty.
 #pragma push_macro("IRAM_ATTR")

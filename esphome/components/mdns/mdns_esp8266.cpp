@@ -8,9 +8,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
-#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
-#include "esphome/components/wifi/wifi_component.h"
-#endif
+// wifi_component.h is pulled in transitively by mdns_component.h when
+// USE_MDNS_WIFI_LISTENER is defined.
 
 namespace esphome::mdns {
 
@@ -46,8 +45,9 @@ void mdns_pump_update() { MDNS.update(); }
 void MDNSComponent::setup() {
   this->setup_buffers_and_register_(register_esp8266);
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
-  // LEAmDNS's own LwipIntf::statusChangeCB drives _restart() on netif changes; we only
-  // need to arm the polling window around the initial probe/announce and each reconnect.
+  // LEAmDNS's own LwipIntf::statusChangeCB drives _restart() on netif changes; we just
+  // arm the window around the initial probe/announce and each reconnect. Unconditional
+  // here is safe: setup_priority::AFTER_CONNECTION guarantees the network is up.
   wifi::global_wifi_component->add_ip_state_listener(this);
   this->start_polling_window_();
 #endif

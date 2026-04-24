@@ -25,8 +25,8 @@
 namespace esphome::mdns {
 
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
-/// Platform-specific MDNS.update() trampoline. Defined in mdns_<platform>.cpp so the
-/// shared code can schedule it without including the platform's mDNS header.
+/// MDNS.update() trampoline. Defined in exactly one mdns_<platform>.cpp per build
+/// (FILTER_SOURCE_FILES in __init__.py enforces this), so ODR is preserved.
 void mdns_pump_update();
 #endif
 
@@ -159,7 +159,8 @@ class MDNSComponent final : public Component
 #ifdef USE_MDNS_STORE_SERVICES
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_{};
 #endif
-#ifdef USE_RP2040
+#if defined(USE_RP2040) && defined(USE_MDNS_EVENT_DRIVEN_POLLING)
+  // RP2040 defers MDNS.begin() until the first IP-up event; this tracks that.
   bool initialized_{false};
 #endif
   void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf);

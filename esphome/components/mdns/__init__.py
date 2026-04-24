@@ -70,9 +70,7 @@ def _require_network_interface(config: ConfigType) -> ConfigType:
     window. Reject at config time rather than silently producing a component
     that never initializes.
     """
-    if config.get(CONF_DISABLED):
-        return config
-    if not CORE.using_arduino or not (CORE.is_esp8266 or CORE.is_rp2040):
+    if config.get(CONF_DISABLED) or not (CORE.is_esp8266 or CORE.is_rp2040):
         return config
     full_config = fv.full_config.get()
     has_wifi = "wifi" in full_config
