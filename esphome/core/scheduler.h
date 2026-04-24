@@ -316,6 +316,11 @@ class Scheduler {
   }
   // Slow path for cleanup_() when there are items to remove - defined in scheduler.cpp
   bool cleanup_slow_path_();
+  // Combined slow path for Scheduler::call: runs cleanup_slow_path_ then, if
+  // cancelled items are still stuck below the heap top, full_cleanup_removed_items_.
+  // Outlined (noinline, cold) so the Scheduler::call fast path stays one atomic
+  // load + branch — keeping the I-cache hot for the common zero-to-remove case.
+  void __attribute__((noinline, cold)) cleanup_slow_combined_();
   // Slow path for process_to_add() when there are items to merge - defined in scheduler.cpp
   void process_to_add_slow_path_();
   // Remove and return the front item from the heap as a raw pointer.
