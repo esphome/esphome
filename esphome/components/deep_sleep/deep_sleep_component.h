@@ -24,7 +24,7 @@
 namespace esphome {
 namespace deep_sleep {
 
-#if defined(USE_ESP32) || defined(USE_BK72XX)
+#if defined(USE_ESP32) || defined(USE_BK72XX) || defined(USE_NRF52)
 
 /** The values of this enum define what should be done if deep sleep is set up with a wakeup pin on the ESP32
  * and the scenario occurs that the wakeup pin is already in the wakeup state.
@@ -81,14 +81,14 @@ class DeepSleepComponent : public Component {
  public:
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
   void set_sleep_duration(uint32_t time_ms);
-#if defined(USE_ESP32)
-  /** Set the pin to wake up to on the ESP32 once it's in deep sleep mode.
+#if defined(USE_ESP32) || defined(USE_NRF52)
+  /** Set the pin to wake up to on the ESP32/nRF52 once it's in deep sleep mode.
    * Use the inverted property to set the wakeup level.
    */
   void set_wakeup_pin(InternalGPIOPin *pin) { this->wakeup_pin_ = pin; }
 
   void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
-#endif  // USE_ESP32
+#endif  // USE_ESP32 || USE_NRF52
 
 #if defined(USE_BK72XX)
   void init_wakeup_pins_(size_t capacity) { this->wakeup_pins_.init(capacity); }
@@ -151,10 +151,12 @@ class DeepSleepComponent : public Component {
   FixedVector<WakeUpPinItem> wakeup_pins_;
 #endif  // USE_BK72XX
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_NRF52)
   InternalGPIOPin *wakeup_pin_{nullptr};
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
+#endif
 
+#ifdef USE_ESP32
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
   optional<Ext1Wakeup> ext1_wakeup_;
 #endif

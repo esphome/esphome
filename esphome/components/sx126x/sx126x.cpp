@@ -164,9 +164,11 @@ void SX126x::configure() {
   this->read_register_(REG_VERSION_STRING, (uint8_t *) this->version_, sizeof(this->version_));
   this->version_[sizeof(this->version_) - 1] = '\0';
   if (strncmp(this->version_, "SX126", 5) != 0 && strncmp(this->version_, "LLCC68", 6) != 0) {
+    ESP_LOGE(TAG, "Version check failed, got: %s", this->version_);
     this->mark_failed();
     return;
   }
+  ESP_LOGI(TAG, "SX126x init OK, version: %s", this->version_);
 
   // setup packet type
   buf[0] = this->modulation_;
@@ -477,7 +479,7 @@ void SX126x::wait_busy_() {
   uint32_t start = millis();
   while (this->busy_pin_->digital_read()) {
     if (millis() - start > BUSY_TIMEOUT_MS) {
-      ESP_LOGE(TAG, "Wait busy timeout");
+      ESP_LOGE(TAG, "Wait busy timeout after %u ms", (unsigned) (millis() - start));
       this->mark_failed();
       break;
     }

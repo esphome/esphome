@@ -3,6 +3,7 @@
 #ifdef USE_ZEPHYR
 #include "esphome/core/hal.h"
 #include <zephyr/device.h>
+#include <zephyr/drivers/gpio.h>
 namespace esphome::zephyr {
 
 class ZephyrGPIOPin : public InternalGPIOPin {
@@ -27,6 +28,8 @@ class ZephyrGPIOPin : public InternalGPIOPin {
   bool is_inverted() const override { return this->inverted_; }
   gpio::Flags get_flags() const override { return flags_; }
 
+  static void zephyr_gpio_callback(const struct device *dev, struct gpio_callback *cb, uint32_t pins);
+
  protected:
   void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
   const device *gpio_{nullptr};
@@ -36,6 +39,10 @@ class ZephyrGPIOPin : public InternalGPIOPin {
   uint8_t gpio_size_{};
   bool inverted_{};
   bool value_{false};
+
+  mutable gpio_callback callback_{};
+  mutable void (*isr_func_)(void *) = nullptr;
+  mutable void *isr_arg_ = nullptr;
 };
 
 }  // namespace esphome::zephyr

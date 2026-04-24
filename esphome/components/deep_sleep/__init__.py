@@ -267,7 +267,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_WAKEUP_PIN): validate_wakeup_pin,
             cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(
-                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX]),
+                cv.only_on([PLATFORM_ESP32, PLATFORM_BK72XX, PLATFORM_NRF52]),
                 cv.enum(WAKEUP_PIN_MODES, upper=True),
             ),
             cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(
@@ -373,6 +373,10 @@ async def to_code(config):
         cg.add(var.set_touch_wakeup(config[CONF_TOUCH_WAKEUP]))
     if CORE.using_zephyr and "zigbee" not in CORE.loaded_integrations:
         zephyr_add_prj_conf("POWEROFF", True)
+    if CORE.is_nrf52:
+        zephyr_add_prj_conf("REBOOT", True)
+        zephyr_add_prj_conf("PM", True)
+        zephyr_add_prj_conf("PM_DEVICE", True)
 
     cg.add_define("USE_DEEP_SLEEP")
 

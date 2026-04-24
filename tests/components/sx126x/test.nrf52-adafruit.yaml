@@ -1,0 +1,13 @@
+substitutions:
+  clk_pin: P0.14
+  mosi_pin: P0.13
+  miso_pin: P0.15
+  cs_pin: P0.27
+  rst_pin: P0.28
+  busy_pin: P0.03
+  dio1_pin: P0.02
+
+packages:
+  spi: !include ../../test_build_components/common/spi/nrf52.yaml
+
+<<: !include common.yaml
