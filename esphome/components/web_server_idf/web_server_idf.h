@@ -350,6 +350,9 @@ class AsyncEventSource : public AsyncWebHandler {
   size_t count() const { return this->sessions_.size(); }
 
  protected:
+  // Cold path: move sessions from pending_sessions_ into sessions_ and greet each one.
+  void __attribute__((noinline, cold)) adopt_pending_sessions_main_loop_();
+
   std::string url_;
   // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
   std::vector<AsyncEventSourceResponse *> sessions_;

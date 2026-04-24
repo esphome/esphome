@@ -493,26 +493,9 @@ void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
 }
 
 bool AsyncEventSource::loop() {
-  // Fast path: one atomic load per tick. Lock only on a real connect.
+  // Fast path: one atomic load per tick. Slow path is out-of-line on connect.
   if (this->has_pending_sessions_.load(std::memory_order_acquire)) {
-    std::vector<AsyncEventSourceResponse *> incoming;
-    {
-      LockGuard guard{this->pending_mutex_};
-      incoming.swap(this->pending_sessions_);
-      this->has_pending_sessions_.store(false, std::memory_order_relaxed);
-    }
-    for (auto *rsp : incoming) {
-      // Already disconnected? Drop it; skip on_connect_/prime on a dead session.
-      if (rsp->fd_.load() == 0) {
-        delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
-        continue;
-      }
-      this->sessions_.push_back(rsp);
-      if (this->on_connect_) {
-        this->on_connect_(rsp);
-      }
-      rsp->start_session_main_loop_();
-    }
+    this->adopt_pending_sessions_main_loop_();
   }
 
   // Clean up dead sessions safely
@@ -533,6 +516,27 @@ bool AsyncEventSource::loop() {
     }
   }
   return !this->sessions_.empty();
+}
+
+void AsyncEventSource::adopt_pending_sessions_main_loop_() {
+  std::vector<AsyncEventSourceResponse *> incoming;
+  {
+    LockGuard guard{this->pending_mutex_};
+    incoming.swap(this->pending_sessions_);
+    this->has_pending_sessions_.store(false, std::memory_order_relaxed);
+  }
+  for (auto *rsp : incoming) {
+    // Already disconnected? Drop it; skip on_connect_/session start on a dead session.
+    if (rsp->fd_.load() == 0) {
+      delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
+      continue;
+    }
+    this->sessions_.push_back(rsp);
+    if (this->on_connect_) {
+      this->on_connect_(rsp);
+    }
+    rsp->start_session_main_loop_();
+  }
 }
 
 void AsyncEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
