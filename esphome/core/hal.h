@@ -73,8 +73,10 @@ extern "C" uint32_t platform_is_in_interrupt_context(void);
 
 #ifdef USE_ESP8266
 // Forward-declared from <Arduino.h> (esp8266 core) so the inline esphome::micros()
-// wrapper below can call it without pulling Arduino.h into every TU.
-extern "C" unsigned long micros(void);  // NOLINT(google-runtime-int,readability-identifier-naming)
+// wrapper below can call it without pulling Arduino.h into every TU. The
+// redundant-declaration NOLINT covers TUs that also include Arduino.h directly.
+// NOLINTNEXTLINE(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
+extern "C" unsigned long micros(void);
 #endif
 
 #ifdef USE_RP2040
