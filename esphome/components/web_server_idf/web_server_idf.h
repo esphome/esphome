@@ -299,8 +299,7 @@ class AsyncEventSourceResponse {
   AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server,
                            esphome::web_server::WebServer *ws);
 
-  // Sends the initial ping/config/sorting_groups and starts the entity iterator.
-  // Must be called from the main loop (writes event_buffer_ and touches entities_iterator_).
+  // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
   void prime_();
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
@@ -351,19 +350,11 @@ class AsyncEventSource : public AsyncWebHandler {
   size_t count() const { return this->sessions_.size(); }
 
  protected:
-  // Members are ordered to minimize padding on 32-bit: all 4-byte-aligned members
-  // first, then the single-byte atomic at the end to consume what would otherwise
-  // be trailing padding.
+  // Ordered to minimize padding on 32-bit: atomic<bool> last consumes trailing pad.
   std::string url_;
-  // Use vector instead of set: SSE sessions are typically 1-5 connections (browsers, dashboards).
-  // Linear search is faster than red-black tree overhead for this small dataset.
-  // Only operations needed: add session, remove session, iterate sessions - no need for sorted order.
-  // Mutated only from the main loop.
+  // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
   std::vector<AsyncEventSourceResponse *> sessions_;
-  // Sessions constructed on the httpd task wait here until the main loop adopts them.
-  // All mutations are guarded by pending_mutex_. has_pending_sessions_ (below) is a
-  // fast-path gate so the per-tick cost in loop() when no connect is pending is one
-  // atomic load.
+  // Httpd-task intake; guarded by pending_mutex_, gated by has_pending_sessions_.
   std::vector<AsyncEventSourceResponse *> pending_sessions_;
   Mutex pending_mutex_;
   connect_handler_t on_connect_{};

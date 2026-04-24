@@ -482,27 +482,19 @@ AsyncEventSource::~AsyncEventSource() {
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
-  // Runs on the httpd task. Do only the HTTP-level setup that needs the live httpd_req_t,
-  // then hand the session off to the main loop for adoption and priming. This keeps
-  // sessions_, event_buffer_, and deferred_queue_ mutated exclusively from the main loop.
+  // Httpd task: set up the live httpd_req_t and park the session; main loop does the rest.
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
   auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);
   {
     LockGuard guard{this->pending_mutex_};
     this->pending_sessions_.push_back(rsp);
-    // Release-store so the main loop's acquire-load sees the push_back above.
     this->has_pending_sessions_.store(true, std::memory_order_release);
   }
-  // Wake up WebServer::loop() to adopt and prime this client.
-  // Safe from httpd task context via the pending_enable_loop_ flag.
   this->web_server_->enable_loop_soon_any_context();
 }
 
 bool AsyncEventSource::loop() {
-  // Adopt sessions handed off from the httpd task. Fast path: one atomic load per tick
-  // when nothing is pending. Only take the lock / touch the vector on a real connect.
-  // Swap under the lock and do the heavy work (on_connect_ callback, initial sends,
-  // entity iterator start) outside it so they cannot race with httpd handlers.
+  // Fast path: one atomic load per tick. Lock only on a real connect.
   if (this->has_pending_sessions_.load(std::memory_order_acquire)) {
     std::vector<AsyncEventSourceResponse *> incoming;
     {
@@ -515,8 +507,7 @@ bool AsyncEventSource::loop() {
       if (this->on_connect_) {
         this->on_connect_(rsp);
       }
-      // Skip priming if the client disconnected before we got here; the cleanup pass below
-      // will delete it.
+      // Already disconnected? Cleanup pass below will delete it.
       if (rsp->fd_.load() != 0) {
         rsp->prime_();
       }
@@ -567,9 +558,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
                                                    esphome::web_server_idf::AsyncEventSource *server,
                                                    esphome::web_server::WebServer *ws)
     : server_(server), web_server_(ws), entities_iterator_(ws, server) {
-  // Runs on the httpd task. Only touch state tied to the live httpd_req_t here; the
-  // main loop will call prime_() later to do the initial sends and start the iterator.
-  // Writing to event_buffer_ / deferred_queue_ from this task would race with the main loop.
+  // Httpd task only. prime_() on the main loop handles event_buffer_ / iterator setup.
   httpd_req_t *req = *request;
 
   httpd_resp_set_status(req, HTTPD_200);
@@ -594,11 +583,9 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 }
 
 void AsyncEventSourceResponse::prime_() {
-  // Runs on the main loop after AsyncEventSource::loop() adopts this session.
   auto *ws = this->web_server_;
 
-  // Configure reconnect timeout and send config
-  // this should always go through since the tcp send buffer is empty on connect
+  // tcp send buffer is empty on connect, so these should always go through
   auto message = ws->get_config_json();
   this->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
