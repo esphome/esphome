@@ -136,17 +136,23 @@ class Scheduler {
   // IMPORTANT: This method should only be called from the main thread (loop task).
   optional<uint32_t> next_schedule_in(uint64_t now_64);
 
-  // Execute all scheduled items that are ready.
+  // Result of Scheduler::call().
+  //   now    – advanced uint32 millis timestamp (monotonic with the caller's wdt feed).
+  //   now_64 – 64-bit millis value Scheduler used for item dispatch, OR 0 if any item
+  //            fired (in that case now_64 is stale because execute_item_ only advances
+  //            the uint32 `now`). A subsequent next_schedule_in() treats 0 as "compute
+  //            fresh" and non-zero as "reuse this value", saving a second millis_64()
+  //            / esp_timer_get_time() call per main-loop iteration.
+  struct CallResult {
+    uint32_t now;
+    uint64_t now_64;
+  };
+
+  // Execute all scheduled items that are ready
   // @param now Fresh timestamp from millis() - must not be stale/cached
-  // @param now_64_out Out-param set to the 64-bit `now` that Scheduler used for item
-  //        dispatch, OR 0 if any item fired (in that case the value is stale because
-  //        execute_item_ only advances the uint32 `now`). A subsequent next_schedule_in()
-  //        treats 0 as "compute fresh" and non-zero as "reuse this value", saving a
-  //        second millis_64() / esp_timer_get_time() call per main-loop iteration.
-  //        Out-param (rather than struct return) keeps the return path in a single
-  //        register and avoids a 16-byte struct-copy on the loop caller's stack.
-  // @return Advanced `now` (monotonic with the caller's wdt feed).
-  uint32_t call(uint32_t now, uint64_t &now_64_out);
+  // @return Both advanced `now` (for wdt monotonicity) and `now_64` (for pipe-through
+  //         to next_schedule_in()). See CallResult.
+  CallResult call(uint32_t now);
 
   // Move items from to_add_ into the main heap.
   // IMPORTANT: This method should only be called from the main thread (loop task).

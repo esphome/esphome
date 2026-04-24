@@ -568,7 +568,7 @@ void HOT Scheduler::process_defer_queue_slow_path_(uint32_t &now) {
 }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
-uint32_t HOT Scheduler::call(uint32_t now, uint64_t &now_64_out) {
+Scheduler::CallResult HOT Scheduler::call(uint32_t now) {
 #ifndef ESPHOME_THREAD_SINGLE
   this->process_defer_queue_(now);
 #endif /* not ESPHOME_THREAD_SINGLE */
@@ -752,11 +752,10 @@ uint32_t HOT Scheduler::call(uint32_t now, uint64_t &now_64_out) {
 #endif
   // execute_item_() advances `now` as items fire; return it so the caller
   // stays monotonic with last_wdt_feed_.
-  // The now_64 we pass back is only usable if NO items fired — execute_item_
-  // only advances the uint32 `now`, leaving our local now_64 stale. Signal
-  // stale with the 0 sentinel so next_schedule_in() reads the clock fresh.
-  now_64_out = executed_any_item ? 0 : now_64;
-  return now;
+  // The returned now_64 is only usable if NO items fired — execute_item_ only
+  // advances the uint32 `now`, leaving our local now_64 stale. Signal stale
+  // with the 0 sentinel so next_schedule_in() reads the clock fresh.
+  return CallResult{now, executed_any_item ? 0 : now_64};
 }
 void HOT Scheduler::process_to_add_slow_path_() {
   LockGuard guard{this->lock_};

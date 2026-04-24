@@ -83,8 +83,7 @@ void Application::setup() {
       // Service scheduler and process pending loop enables to handle GPIO
       // interrupts during setup. During setup we always run the component
       // phase (no loop_interval_ gate), so call both helpers unconditionally.
-      uint64_t setup_sched_now_64_unused;
-      this->scheduler_tick_(MillisInternal::get(), setup_sched_now_64_unused);
+      this->scheduler_tick_(MillisInternal::get());
       {
         ComponentPhaseGuard phase_guard{*this};
 
