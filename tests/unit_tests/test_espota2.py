@@ -185,10 +185,22 @@ def test_receive_exactly_socket_error(mock_socket: Mock) -> None:
             "Error: The OTA partition on the ESP couldn't be found",
         ),
         (espota2.RESPONSE_ERROR_MD5_MISMATCH, "Error: Application MD5 code mismatch"),
-        (espota2.RESPONSE_ERROR_SIGNATURE_INVALID, "Error: Firmware signature verification failed"),
-        (espota2.RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE, "Error: The requested OTA type is not supported by the device"),
-        (espota2.RESPONSE_ERROR_PARTITION_TABLE_VERIFY, "Error: The partition table update could not be verified"),
-        (espota2.RESPONSE_ERROR_PARTITION_TABLE_UPDATE, "Error: An error occurred while updating the partition table"),
+        (
+            espota2.RESPONSE_ERROR_SIGNATURE_INVALID,
+            "Error: Firmware signature verification failed",
+        ),
+        (
+            espota2.RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE,
+            "Error: The requested OTA type is not supported by the device",
+        ),
+        (
+            espota2.RESPONSE_ERROR_PARTITION_TABLE_VERIFY,
+            "Error: The partition table update could not be verified",
+        ),
+        (
+            espota2.RESPONSE_ERROR_PARTITION_TABLE_UPDATE,
+            "Error: An error occurred while updating the partition table",
+        ),
         (espota2.RESPONSE_ERROR_UNKNOWN, "Unknown error from ESP"),
     ],
 )
@@ -775,13 +787,20 @@ def test_perform_ota_version_differences(
 
 
 @pytest.mark.usefixtures("mock_time")
-def test_perform_ota_successful_partition_table(mock_socket: Mock, mock_file: io.BytesIO) -> None:
+def test_perform_ota_successful_partition_table(
+    mock_socket: Mock, mock_file: io.BytesIO
+) -> None:
     """Test OTA partition table update."""
     recv_responses = [
         bytes([espota2.RESPONSE_OK]),  # First byte of version response
         bytes([espota2.OTA_VERSION_2_0]),  # Version number
         bytes([espota2.RESPONSE_FEATURE_FLAGS]),  # Device supports extended protocol
-        bytes([espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION | espota2.SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS]),  # Device feature flags
+        bytes(
+            [
+                espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION
+                | espota2.SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS
+            ]
+        ),  # Device feature flags
         bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
         bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
         bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
@@ -792,7 +811,13 @@ def test_perform_ota_successful_partition_table(mock_socket: Mock, mock_file: io
 
     mock_socket.recv.side_effect = recv_responses
 
-    espota2.perform_ota(mock_socket, "testpass", mock_file, "partitions.bin", espota2.OTA_TYPE_UPDATE_PARTITION_TABLE)
+    espota2.perform_ota(
+        mock_socket,
+        "testpass",
+        mock_file,
+        "partitions.bin",
+        espota2.OTA_TYPE_UPDATE_PARTITION_TABLE,
+    )
 
     # Verify magic bytes were sent
     assert mock_socket.sendall.call_args_list[0] == call(bytes(espota2.MAGIC_BYTES))
@@ -809,4 +834,6 @@ def test_perform_ota_successful_partition_table(mock_socket: Mock, mock_file: io
     )
 
     # Verify ota type was sent
-    assert mock_socket.sendall.call_args_list[2] == call(bytes(espota2.OTA_TYPE_UPDATE_PARTITION_TABLE))
+    assert mock_socket.sendall.call_args_list[2] == call(
+        bytes(espota2.OTA_TYPE_UPDATE_PARTITION_TABLE)
+    )
