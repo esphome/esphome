@@ -417,6 +417,14 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // It performs cleanup and accesses items_[0] without holding a lock, which is only
   // safe when called from the main thread. Other threads must not call this method.
 
+#ifndef ESPHOME_THREAD_SINGLE
+  // defer() items live in a separate queue that is drained at the top of every
+  // loop tick via process_defer_queue_(). If any are pending, the next loop
+  // iteration has work to do right now -- don't let the caller sleep.
+  if (!this->defer_empty_())
+    return 0;
+#endif
+
   // If no items, return empty optional
   if (!this->cleanup_())
     return {};
