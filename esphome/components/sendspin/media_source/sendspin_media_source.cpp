@@ -25,6 +25,10 @@ void SendspinMediaSource::setup() {
   this->player_role_->set_static_delay_adjustable(this->static_delay_adjustable_);
 }
 
+void SendspinMediaSource::dump_config() {
+  ESP_LOGCONFIG(TAG, "Sendspin Media Source: static_delay_adjustable=%s", YESNO(this->static_delay_adjustable_));
+}
+
 // THREAD CONTEXT: Main loop (invoked from ESPHome actions / config)
 void SendspinMediaSource::set_static_delay_adjustable(bool adjustable) {
   this->static_delay_adjustable_ = adjustable;

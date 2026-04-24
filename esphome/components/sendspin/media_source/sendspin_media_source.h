@@ -23,6 +23,7 @@ class SendspinMediaSource : public SendspinChild,
                             public sendspin::PlayerRoleListener {
  public:
   void setup() override;
+  void dump_config() override;
 
   void set_static_delay_adjustable(bool adjustable);
 
