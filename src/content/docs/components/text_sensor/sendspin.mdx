@@ -1,0 +1,49 @@
+---
+description: "Instructions for setting up Sendspin metadata text sensors in ESPHome."
+title: "Sendspin Text Sensor"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The `sendspin` text sensor platform exposes metadata about the currently playing
+audio from a [Sendspin](/components/sendspin/) group. The Sendspin
+[hub](/components/sendspin/) must be configured on the same device.
+
+Each text sensor reports a single metadata field. Configure one text sensor per
+field you want to expose.
+
+This platform only works on ESP32-based chips.
+
+```yaml
+# Example configuration entry
+sendspin:
+
+text_sensor:
+  - platform: sendspin
+    name: "Title"
+    type: title
+  - platform: sendspin
+    name: "Artist"
+    type: artist
+  - platform: sendspin
+    name: "Album"
+    type: album
+  - platform: sendspin
+    name: "Album Artist"
+    type: album_artist
+```
+
+## Configuration variables
+
+- **type** (**Required**, string): The metadata field to report. One of:
+  - `title`: The title of the currently playing track.
+  - `artist`: The track's artist.
+  - `album`: The album the track belongs to.
+  - `album_artist`: The album's artist.
+- All other options from [Text Sensor](/components/text_sensor/#config-text_sensor).
+
+## See Also
+
+- [Sendspin](/components/sendspin/)
+- [Text Sensor Components](/components/text_sensor/)
+- <APIRef text="sendspin_text_sensor.h" path="esphome/components/sendspin/text_sensor/sendspin_text_sensor.h" />
