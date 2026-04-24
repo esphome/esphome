@@ -546,8 +546,7 @@ inline ESPHOME_ALWAYS_INLINE Application::ComponentPhaseGuard::ComponentPhaseGua
   this->app_.in_loop_ = true;
 }
 
-// NOLINTNEXTLINE(clang-diagnostic-unknown-attributes)
-inline void ESPHOME_ALWAYS_INLINE __attribute__((optimize("O2"))) Application::loop() {
+inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #ifdef USE_RUNTIME_STATS
   // Capture the start of the active (non-sleeping) portion of this iteration.
   // Used to derive main-loop overhead = active time − Σ(component time) −
