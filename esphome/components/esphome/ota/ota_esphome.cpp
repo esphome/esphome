@@ -100,6 +100,25 @@ void ESPHomeOTAComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Password configured");
   }
 #endif
+#ifdef USE_OTA_PARTITIONS
+  ESP_LOGCONFIG(TAG, "  Partition access allowed");
+  uint32_t running_app_offset;
+  size_t running_app_size;
+  ota::get_running_app_position(running_app_offset, running_app_size);
+  ESP_LOGCONFIG(TAG, "  Running app:\n    Partition address: 0x%X\n    Used size: %d bytes",
+                running_app_offset, running_app_size);
+#ifdef USE_ESP32
+  ESP_LOGCONFIG(TAG, "  Partition table:");
+  esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
+  while (it != NULL) {
+    const esp_partition_t *p = esp_partition_get(it);
+    ESP_LOGCONFIG(TAG, "    %s: type=0x%X, subtype=0x%X, address=0x%X, size=0x%X",
+             p->label, p->type, p->subtype, p->address, p->size);
+    it = esp_partition_next(it);
+  }
+  esp_partition_iterator_release(it);
+#endif
+#endif
 }
 
 void ESPHomeOTAComponent::loop() {
@@ -214,7 +233,6 @@ void ESPHomeOTAComponent::handle_handshake_() {
           this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_COMPRESSION;
         }
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;
-
       } else {
 #endif
         this->handshake_buf_[0] =

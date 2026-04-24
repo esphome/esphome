@@ -46,6 +46,9 @@ RESPONSE_ERROR_NO_UPDATE_PARTITION = 0x8A
 RESPONSE_ERROR_MD5_MISMATCH = 0x8B
 RESPONSE_ERROR_RP2040_NOT_ENOUGH_SPACE = 0x8C
 RESPONSE_ERROR_SIGNATURE_INVALID = 0x8D
+RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE = 0x8E
+RESPONSE_ERROR_PARTITION_TABLE_VERIFY = 0x8F
+RESPONSE_ERROR_PARTITION_TABLE_UPDATE = 0x90
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -205,6 +208,21 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
             "Error: Firmware signature verification failed. The firmware was not signed "
             "with the correct key. Ensure the signing key matches the one used to build "
             "the firmware currently running on the device."
+        )
+    if dat == RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE:
+        raise OTAError(
+            "Error: The requested OTA type is not supported by the device."
+        )
+    if dat == RESPONSE_ERROR_PARTITION_TABLE_VERIFY:
+        raise OTAError(
+            "Error: The partition table update could not be verified. No changes were "
+            "made to the flash content. Check the logs for more information and retry."
+        )
+    if dat == RESPONSE_ERROR_PARTITION_TABLE_UPDATE:
+        raise OTAError(
+            "Error: An error occurred while updating the partition table. The device may not "
+            "be able to reboot to a working application. Check the logs and retry the update "
+            "without rebooting the device."
         )
     if dat == RESPONSE_ERROR_UNKNOWN:
         raise OTAError("Unknown error from ESP")

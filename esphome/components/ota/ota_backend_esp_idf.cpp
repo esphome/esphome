@@ -26,7 +26,8 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
     if (image_size > ESP_PARTITION_TABLE_SIZE || image_size > ESP_PARTITION_TABLE_MAX_LEN ||
         image_size > OTA_BUFFER_SIZE) {
-      return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
+      ESP_LOGE(TAG, "Wrong partition table size");
+      return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
     }
     memset(this->buf_, 0xFF, sizeof this->buf_);
     this->buf_written_ = 0;
@@ -98,7 +99,8 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
 #ifdef USE_OTA_PARTITIONS
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
     if (len > OTA_BUFFER_SIZE - this->buf_written_) {
-      return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
+      ESP_LOGE(TAG, "Wrong partition table size");
+      return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
     }
     memcpy(this->buf_ + this->buf_written_, data, len);
     this->buf_written_ += len;
@@ -176,49 +178,26 @@ void IDFOTABackend::abort() {
 
 #ifdef USE_OTA_PARTITIONS
 OTAResponseTypes IDFOTABackend::update_partition_table() {
-  esp_err_t err;
   int num_partitions;
   if (this->buf_written_ == 0 || this->image_size_ != this->buf_written_) {
-    ESP_LOGE(TAG, "not enough data received (%d/%d bytes)", this->buf_written_, this->image_size_);
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    ESP_LOGE(TAG, "Not enough data received");
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
   // Get running app partition and used size
-  static uint32_t running_app_offset = 0;
-  static size_t running_app_size = 0;
-  const esp_partition_t *running_app_part = nullptr;
-  if (running_app_size == 0) {
-    running_app_part = esp_ota_get_running_partition();
-    // esp_ota_get_running_partition() returns a pointer to invalid data after esp_partition_unload_all() was called on
-    // a previous run. Cache the running app offset and size.
-    running_app_size = ((running_app_size + running_app_part->erase_size - 1) / running_app_part->erase_size) *
-                       running_app_part->erase_size;
-    running_app_offset = running_app_part->address;
-    const esp_partition_pos_t running_app_pos = {
-        .offset = running_app_part->address,
-        .size = running_app_part->size,
-    };
-    esp_image_metadata_t image_metadata;
-    image_metadata.start_addr = running_app_part->address;
-    err = esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &running_app_pos, &image_metadata);
-    if (err == ESP_OK && image_metadata.image_len < running_app_part->size) {
-      running_app_size = image_metadata.image_len;
-    }
-    // Align running_app_size to flash sectors
-    running_app_size = ((running_app_size + running_app_part->erase_size - 1) / running_app_part->erase_size) *
-                       running_app_part->erase_size;
-    ESP_LOGD(TAG, "Running app: address=0x%X partition_size=0x%X used_size=0x%X, aligned_size=0x%X",
-             running_app_part->address, running_app_part->size, image_metadata.image_len, running_app_size);
-  }
+  uint32_t running_app_offset;
+  size_t running_app_size;
+  get_running_app_position(running_app_offset, running_app_size);
 
   // Get partition table partition
-  err = esp_partition_register_external(nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE,
+  esp_err_t err = esp_partition_register_external(nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE,
                                         "PrimaryPrtTable", ESP_PARTITION_TYPE_PARTITION_TABLE,
                                         ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY, &this->partition_table_part_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_register_external failed (err=0x%X) ", err);
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
+
   // Verify existing partition table
   const esp_partition_info_t *existing_partition_table = NULL;
   esp_partition_mmap_handle_t partition_table_map;
@@ -226,13 +205,13 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
                            (const void **) &existing_partition_table, &partition_table_map);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_mmap failed (err=0x%X) ", err);
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   err = esp_partition_table_verify(existing_partition_table, true, &num_partitions);
   esp_partition_munmap(partition_table_map);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_table_verify failed (existing partition table) (err=0x%X) ", err);
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
   // Verify new partition table
@@ -241,7 +220,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   err = esp_partition_table_verify(new_partition_table, true, &num_partitions);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_table_verify failed (new partition table) (err=0x%X) ", err);
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
   // Check if the required app and otadata partitions exist in the new partition table
@@ -283,15 +262,15 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   }
   if (app_index == -1 && app_index_with_copy == -1) {
     ESP_LOGE(TAG, "No compatible app partition found in the new partition table");
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   if (app_partitions_found < 2 || otadata_index == -1) {
     ESP_LOGE(TAG, "New partition table is missing the required app or otadata partitions");
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   if (!otadata_no_overlap) {
     ESP_LOGE(TAG, "New otadata partition overlaps with running app");
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
   ESP_LOGD(TAG, "Checks passed, starting partition table update");
@@ -301,18 +280,17 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
 
   // Copy the running app partition to new position if needed
   if (app_index == -1) {
-    if (running_app_part == nullptr) {
-      esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
-      while (it != NULL) {
-        const esp_partition_t *p = esp_partition_get(it);
-        const esp_partition_info_t *new_part = &new_partition_table[app_index == -1 ? app_index_with_copy : app_index];
-        if (p->address == running_app_offset && p->size >= running_app_size) {
-          running_app_part = p;
-        }
-        it = esp_partition_next(it);
+    const esp_partition_t *running_app_part = nullptr;
+    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
+    while (it != NULL) {
+      const esp_partition_t *p = esp_partition_get(it);
+      const esp_partition_info_t *new_part = &new_partition_table[app_index == -1 ? app_index_with_copy : app_index];
+      if (p->address == running_app_offset && p->size >= running_app_size) {
+        running_app_part = p;
       }
-      esp_partition_iterator_release(it);
+      it = esp_partition_next(it);
     }
+    esp_partition_iterator_release(it);
     ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,
              app_copy_target_part->address, running_app_size);
 
@@ -341,7 +319,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
 
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_partition_copy failed (err=0x%X) ", err);
-      return OTA_RESPONSE_ERROR_UNKNOWN;
+      return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
     }
   }
 
@@ -351,18 +329,18 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
     ESP_LOGE(TAG, "esp_ota_begin failed (err=0x%X) ", err);
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   err = esp_ota_write(this->update_handle_, this->buf_, this->image_size_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X) ", err);
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   err = esp_ota_end(this->update_handle_);
   this->update_handle_ = 0;
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X) ", err);
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   esp_partition_unload_all();
 
@@ -382,9 +360,39 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   err = esp_ota_set_boot_partition(new_boot_partition);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (err=0x%X) ", err);
-    return OTA_RESPONSE_ERROR_UNKNOWN;
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   return OTA_RESPONSE_OK;
+}
+
+void get_running_app_position(uint32_t &offset, size_t &size) {
+  // Gets the start address and the used length aligned to sectors of the running app.
+  // This function needs to be called once before calling esp_partition_unload_all().
+  // The results are stored using static variables because esp_ota_get_running_partition()
+  // does not return valid data after calling esp_partition_unload_all().
+  static uint32_t running_app_offset = 0;
+  static size_t running_app_size = 0;
+  if (running_app_size == 0) {
+    const esp_partition_t *running_app_part = esp_ota_get_running_partition();
+    running_app_size = ((running_app_size + running_app_part->erase_size - 1) / running_app_part->erase_size) *
+                       running_app_part->erase_size;
+    running_app_offset = running_app_part->address;
+    const esp_partition_pos_t running_app_pos = {
+        .offset = running_app_part->address,
+        .size = running_app_part->size,
+    };
+    esp_image_metadata_t image_metadata;
+    image_metadata.start_addr = running_app_part->address;
+    esp_err_t err = esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &running_app_pos, &image_metadata);
+    if (err == ESP_OK && image_metadata.image_len < running_app_part->size) {
+      running_app_size = image_metadata.image_len;
+    }
+    // Align running_app_size to flash sectors
+    running_app_size = ((running_app_size + running_app_part->erase_size - 1) / running_app_part->erase_size) *
+                       running_app_part->erase_size;
+  }
+  offset = running_app_offset;
+  size = running_app_size;
 }
 #endif
 
