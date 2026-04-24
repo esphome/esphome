@@ -85,6 +85,9 @@ Only on `nRF52`:
   This is useful during development to force the coordinator (ZHA/Z2M) to recognize the device
   as new after firmware updates.
 
+- **sleepy** (*Optional*, boolean): Disable RX during idle to reduce power consumption for battery-powered devices.
+  It may cause stability problems with the Zigbee connection. Defaults to `false`.
+
 > [!WARNING]
 > Overusing `random` may exhaust memory in the Zigbee coordinator by creating many "ghost" devices.
 
