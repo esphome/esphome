@@ -22,8 +22,8 @@ static const char *const TAG = "time_64";
 
 #ifdef ESPHOME_THREAD_SINGLE
 // Storage for Millis64Impl inline compute() — defined here so all TUs share one copy.
-uint32_t Millis64Impl::last_millis_{0};
-uint16_t Millis64Impl::millis_major_{0};
+uint32_t Millis64Impl::last_millis{0};
+uint16_t Millis64Impl::millis_major{0};
 #else
 
 uint64_t Millis64Impl::compute(uint32_t now) {
