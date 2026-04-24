@@ -300,7 +300,7 @@ class AsyncEventSourceResponse {
                            esphome::web_server::WebServer *ws);
 
   // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
-  void prime_();
+  void start_session_main_loop_();
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
