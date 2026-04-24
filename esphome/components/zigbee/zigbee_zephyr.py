@@ -63,6 +63,7 @@ from .const import (
 )
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
+    CONF_SLEEPY,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
     CONF_ZIGBEE_NUMBER,
@@ -169,6 +170,11 @@ async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("NET_IP_ADDR_CHECK", False)
     zephyr_add_prj_conf("NET_UDP", False)
 
+    # disable all extra to reduce power and save flash
+    zephyr_add_prj_conf("ZIGBEE_HAVE_SERIAL", False)
+    zephyr_add_prj_conf("ZBOSS_ERROR_PRINT_TO_LOG", False)
+    zephyr_add_prj_conf("DK_LIBRARY", False)
+
     cg.add_build_flag("-Wl,--wrap=zb_zcl_put_reporting_info_from_req")
 
     if CONF_IEEE802154_VENDOR_OUI in config:
@@ -199,6 +205,8 @@ async def zephyr_to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     CORE.add_job(_ctx_to_code, config)
+
+    cg.add(var.set_sleepy(config[CONF_SLEEPY]))
 
 
 async def _attr_to_code(config: ConfigType) -> None:
