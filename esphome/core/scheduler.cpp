@@ -615,14 +615,24 @@ uint32_t HOT Scheduler::call(uint32_t now) {
   }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
-  // Cleanup removed items before processing
-  // First try to clean items from the top of the heap (fast path)
-  this->cleanup_();
+  // Cleanup removed items before processing. Read the counter once so the
+  // common zero-case is a single atomic load + branch; the old code called
+  // cleanup_() (which loads to_remove_) and then to_remove_count_() again for
+  // the MAX check, producing a redundant memw+load pair on the fast path.
+  // GCC cannot CSE across the memw barriers that std::atomic<uint32_t>::load
+  // emits on Xtensa, so the duplicate load was unavoidable without manual
+  // restructuring.
+  if (this->to_remove_count_() != 0) {
+    // First try to clean items from the top of the heap (fast path).
+    this->cleanup_slow_path_();
 
-  // If we still have too many cancelled items, do a full cleanup
-  // This only happens if cancelled items are stuck in the middle/bottom of the heap
-  if (this->to_remove_count_() >= MAX_LOGICALLY_DELETED_ITEMS) {
-    this->full_cleanup_removed_items_();
+    // If we still have too many cancelled items, do a full cleanup.
+    // This only happens if cancelled items are stuck in the middle/bottom
+    // of the heap. Re-read to_remove_ because cleanup_slow_path_ may have
+    // decremented it.
+    if (this->to_remove_count_() >= MAX_LOGICALLY_DELETED_ITEMS) {
+      this->full_cleanup_removed_items_();
+    }
   }
   // IMPORTANT: This loop uses index-based access (items_[0]), NOT iterators.
   // This is intentional — fired intervals are pushed back into items_ via
