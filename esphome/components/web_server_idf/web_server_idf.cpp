@@ -532,10 +532,12 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
       continue;
     }
     this->sessions_.push_back(rsp);
+    // Prime first so on_connect_ observes a session that has already sent its
+    // initial ping/config/sorting_groups, matching the pre-refactor ordering.
+    rsp->start_session_main_loop_();
     if (this->on_connect_) {
       this->on_connect_(rsp);
     }
-    rsp->start_session_main_loop_();
   }
 }
 

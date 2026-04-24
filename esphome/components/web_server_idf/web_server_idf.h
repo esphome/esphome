@@ -339,6 +339,8 @@ class AsyncEventSource : public AsyncWebHandler {
   // NOLINTNEXTLINE(readability-identifier-naming)
   void handleRequest(AsyncWebServerRequest *request) override;
   // NOLINTNEXTLINE(readability-identifier-naming)
+  // Callback runs on the main loop (not the httpd task) after the session's
+  // initial ping/config/sorting_groups have been sent.
   void onConnect(connect_handler_t &&cb) { this->on_connect_ = std::move(cb); }
 
   void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
