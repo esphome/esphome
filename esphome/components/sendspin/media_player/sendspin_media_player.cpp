@@ -93,70 +93,75 @@ void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   }
 
   auto command = call.get_command();
-  if (command.has_value()) {
-    switch (command.value()) {
-      case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
-        if (this->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING) {
-          this->parent_->send_client_command(sendspin::SendspinControllerCommand::PAUSE);
-        } else {
-          this->parent_->send_client_command(sendspin::SendspinControllerCommand::PLAY);
-        }
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_PLAY:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::PLAY);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_PAUSE:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::PAUSE);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_STOP:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::STOP);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::REPEAT_OFF);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::REPEAT_ONE);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ALL:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::REPEAT_ALL);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_SHUFFLE:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::SHUFFLE);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_UNSHUFFLE:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::UNSHUFFLE);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_NEXT:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::NEXT);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_PREVIOUS:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::PREVIOUS);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_GROUP_JOIN:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::SWITCH);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP:
-        this->parent_->send_client_command(
-            sendspin::SendspinControllerCommand::VOLUME,
-            static_cast<uint8_t>(std::roundf(std::min(1.0f, this->volume + this->volume_increment_) * 100.0f)),
-            std::nullopt);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
-        this->parent_->send_client_command(
-            sendspin::SendspinControllerCommand::VOLUME,
-            static_cast<uint8_t>(std::roundf(std::max(0.0f, this->volume - this->volume_increment_) * 100.0f)),
-            std::nullopt);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_MUTE:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::MUTE, std::nullopt, true);
-        break;
-      case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
-        this->parent_->send_client_command(sendspin::SendspinControllerCommand::MUTE, std::nullopt, false);
-        break;
-      default:
-        break;
-    }
+  if (!command.has_value()) {
+    return;
   }
+  switch (command.value()) {
+    case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
+      if (this->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING) {
+        this->parent_->send_client_command(sendspin::SendspinControllerCommand::PAUSE);
+      } else {
+        this->parent_->send_client_command(sendspin::SendspinControllerCommand::PLAY);
+      }
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_PLAY:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::PLAY);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_PAUSE:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::PAUSE);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_STOP:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::STOP);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::REPEAT_OFF);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::REPEAT_ONE);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ALL:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::REPEAT_ALL);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_SHUFFLE:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::SHUFFLE);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_UNSHUFFLE:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::UNSHUFFLE);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_NEXT:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::NEXT);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_PREVIOUS:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::PREVIOUS);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_GROUP_JOIN:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::SWITCH);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP:
+      this->parent_->send_client_command(
+          sendspin::SendspinControllerCommand::VOLUME,
+          static_cast<uint8_t>(std::roundf(std::min(1.0f, this->volume + this->volume_increment_) * 100.0f)),
+          std::nullopt);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
+      this->parent_->send_client_command(
+          sendspin::SendspinControllerCommand::VOLUME,
+          static_cast<uint8_t>(std::roundf(std::max(0.0f, this->volume - this->volume_increment_) * 100.0f)),
+          std::nullopt);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_MUTE:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::MUTE, std::nullopt, true);
+      break;
+    case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
+      this->parent_->send_client_command(sendspin::SendspinControllerCommand::MUTE, std::nullopt, false);
+      break;
+    default:
+      break;
+  }
+}
+
+void SendspinMediaPlayer::dump_config() {
+  ESP_LOGCONFIG(TAG, "Sendspin Media Player: volume_increment=%.2f", this->volume_increment_);
 }
 
 }  // namespace esphome::sendspin_

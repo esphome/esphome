@@ -12,6 +12,7 @@ namespace esphome::sendspin_ {
 class SendspinMediaPlayer : public SendspinChild, public media_player::MediaPlayer {
  public:
   void setup() override;
+  void dump_config() override;
 
   // MediaPlayer implementations
   media_player::MediaPlayerTraits get_traits() override;
