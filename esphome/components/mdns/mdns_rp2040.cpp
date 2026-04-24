@@ -6,6 +6,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+#include "esphome/components/wifi/wifi_component.h"
+#endif
 
 // Arduino-Pico's PolledTimeout.h (pulled in by ESP8266mDNS.h) redefines IRAM_ATTR to empty.
 // Save and restore our definition around the include to avoid a redefinition warning.
@@ -40,6 +43,10 @@ static void register_rp2040(MDNSComponent *, StaticVector<MDNSService, MDNS_SERV
   }
 }
 
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+void mdns_pump_update() { MDNS.update(); }
+#endif
+
 void MDNSComponent::setup() {
   // RP2040's LEAmDNS library registers a LwipIntf::stateUpCB() callback to restart
   // mDNS when the network interface reconnects. However, stateUpCB() is stubbed out
@@ -48,10 +55,21 @@ void MDNSComponent::setup() {
   // safely run directly since netif status callbacks fire from IRQ context
   // (PICO_CYW43_ARCH_THREADSAFE_BACKGROUND) while _restart() allocates UDP sockets.
   //
-  // Workaround: defer MDNS.begin() and service registration until the network is
-  // connected (has an IP), then call notifyAPChange() on subsequent reconnects to
-  // restart mDNS probing and announcing — all from main loop context so it's
+  // Workaround: defer MDNS.begin() and service registration until the network has an IP,
+  // then call notifyAPChange() on subsequent reconnects to restart mDNS probing and
+  // announcing — all from main loop context via the WiFiIPStateListener callback so it's
   // thread-safe.
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+  wifi::global_wifi_component->add_ip_state_listener(this);
+  // AFTER_CONNECTION priority means the network may already be up when setup() runs;
+  // the listener only fires on subsequent state changes, so seed the current state.
+  const auto ips = wifi::global_wifi_component->wifi_sta_ip_addresses();
+  if (ips[0].is_set()) {
+    this->on_ip_state(ips, wifi::global_wifi_component->get_dns_address(0),
+                      wifi::global_wifi_component->get_dns_address(1));
+  }
+#else
+  // Fallback (non-WiFi build): poll forever, checking connection state each tick.
   this->set_interval(MDNS_UPDATE_INTERVAL_MS, [this]() {
     bool connected = network::is_connected();
     if (connected && !this->was_connected_) {
@@ -67,7 +85,27 @@ void MDNSComponent::setup() {
       MDNS.update();
     }
   });
+#endif
 }
+
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &,
+                                const network::IPAddress &) {
+  const bool has_ip = ips[0].is_set();
+  if (has_ip && !this->ip_was_up_) {
+    if (!this->initialized_) {
+      this->setup_buffers_and_register_(register_rp2040);
+      this->initialized_ = true;
+    } else {
+      MDNS.notifyAPChange();
+    }
+    this->start_polling_window_();
+  } else if (!has_ip && this->ip_was_up_) {
+    this->cancel_polling_window_();
+  }
+  this->ip_was_up_ = has_ip;
+}
+#endif
 
 void MDNSComponent::on_shutdown() {
   MDNS.close();
