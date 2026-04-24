@@ -351,6 +351,9 @@ class AsyncEventSource : public AsyncWebHandler {
   size_t count() const { return this->sessions_.size(); }
 
  protected:
+  // Members are ordered to minimize padding on 32-bit: all 4-byte-aligned members
+  // first, then the single-byte atomic at the end to consume what would otherwise
+  // be trailing padding.
   std::string url_;
   // Use vector instead of set: SSE sessions are typically 1-5 connections (browsers, dashboards).
   // Linear search is faster than red-black tree overhead for this small dataset.
@@ -358,13 +361,14 @@ class AsyncEventSource : public AsyncWebHandler {
   // Mutated only from the main loop.
   std::vector<AsyncEventSourceResponse *> sessions_;
   // Sessions constructed on the httpd task wait here until the main loop adopts them.
-  // All mutations are guarded by pending_mutex_. has_pending_sessions_ is a fast-path
-  // gate so the per-tick cost in loop() when no connect is pending is one atomic load.
+  // All mutations are guarded by pending_mutex_. has_pending_sessions_ (below) is a
+  // fast-path gate so the per-tick cost in loop() when no connect is pending is one
+  // atomic load.
   std::vector<AsyncEventSourceResponse *> pending_sessions_;
   Mutex pending_mutex_;
-  std::atomic<bool> has_pending_sessions_{false};
   connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
+  std::atomic<bool> has_pending_sessions_{false};
 };
 #endif  // USE_WEBSERVER
 
