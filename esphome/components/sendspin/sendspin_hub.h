@@ -216,6 +216,16 @@ class SendspinChild : public Component, public Parented<SendspinHub> {
   float get_setup_priority() const override { return sendspin_priority::CHILD; }
 };
 
+/// @brief Base class for sendspin subcomponents that need polling behavior.
+///
+/// Same purpose as SendspinChild but inherits from PollingComponent for subcomponents
+/// that poll on a fixed interval. Subcomponents should inherit from this instead of
+/// listing PollingComponent/Parented individually and must not override get_setup_priority().
+class SendspinPollingChild : public PollingComponent, public Parented<SendspinHub> {
+ public:
+  float get_setup_priority() const override { return sendspin_priority::CHILD; }
+};
+
 }  // namespace esphome::sendspin_
 
 #endif  // USE_ESP32
