@@ -26,7 +26,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
-    cv.has_at_least_one_key(CONF_REMOTE_RECEIVER_ID, CONF_REMOTE_TRANSMITTER_ID),
+    cv.has_exactly_one_key(CONF_REMOTE_RECEIVER_ID, CONF_REMOTE_TRANSMITTER_ID),
 )
 
 
