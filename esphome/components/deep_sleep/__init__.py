@@ -417,7 +417,7 @@ async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_SLEEP_DURATION in config:
-        template_ = await cg.templatable(config[CONF_SLEEP_DURATION], args, cg.int32)
+        template_ = await cg.templatable(config[CONF_SLEEP_DURATION], args, cg.uint32)
         cg.add(var.set_sleep_duration(template_))
 
     if CONF_UNTIL in config:
