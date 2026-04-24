@@ -61,6 +61,18 @@ class SendspinMediaSource : public SendspinChild,
 
   sendspin::PlayerRole *player_role_{nullptr};
 
+  /// @brief Stream parameters cached for use in the sync task's on_audio_write().
+  ///
+  /// Written on the main loop in on_stream_start(), read on the sync task in on_audio_write().
+  /// This is not guarded by an atomic/lock, which is accepted for the following reasons:
+  ///   - The field is written once per stream (typically once per boot for a fixed speaker config)
+  ///     and the sample rate / channel count rarely change at runtime.
+  ///   - The write in on_stream_start() completes before the media source transitions to PLAYING
+  ///     (via an orchestrator round-trip through request_play_uri_ -> play_uri), and on_audio_write()
+  ///     early-returns unless the state is PLAYING. The FreeRTOS queue primitives used by that
+  ///     round-trip inject the memory barriers that publish the write.
+  ///   - A torn read at a rare parameter change would at worst produce one distorted output buffer
+  ///     of audio before the speaker reconfigures itself.
   audio::AudioStreamInfo stream_info_{};
 
   float cached_volume_{0.0f};
