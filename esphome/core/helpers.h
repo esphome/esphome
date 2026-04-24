@@ -68,6 +68,7 @@
 
 namespace esphome {
 
+#ifdef USE_ZEPHYR
 struct Str64 {
   char buf[21];  // 20 digits + NUL  (covers both signed and unsigned)
   const char *p;
@@ -75,6 +76,7 @@ struct Str64 {
 
 Str64 to_str(uint64_t n);
 Str64 to_str(int64_t n);
+#endif
 
 // Forward declaration to avoid circular dependency with string_ref.h
 class StringRef;
