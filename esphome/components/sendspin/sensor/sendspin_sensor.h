@@ -7,6 +7,8 @@
 #include "esphome/components/sendspin/sendspin_hub.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include <optional>
+
 namespace esphome::sendspin_ {
 
 class SendspinTrackProgressSensor : public sensor::Sensor, public SendspinPollingChild {
@@ -30,6 +32,7 @@ class SendspinMetadataSensor : public sensor::Sensor, public SendspinChild {
   void set_metadata_type(SendspinNumericMetadataTypes metadata_type) { this->metadata_type_ = metadata_type; }
 
  protected:
+  std::optional<float> extract_value_(const sendspin::ServerMetadataStateObject &metadata) const;
   void publish_if_changed_(float value);
 
   SendspinNumericMetadataTypes metadata_type_;

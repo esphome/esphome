@@ -58,35 +58,32 @@ void SendspinMetadataSensor::dump_config() {
   }
 }
 
+std::optional<float> SendspinMetadataSensor::extract_value_(const sendspin::ServerMetadataStateObject &metadata) const {
+  switch (this->metadata_type_) {
+    case SendspinNumericMetadataTypes::TRACK_DURATION:
+      if (metadata.progress.has_value())
+        return metadata.progress.value().track_duration;
+      return std::nullopt;
+    case SendspinNumericMetadataTypes::YEAR:
+      if (metadata.year.has_value())
+        return metadata.year.value();
+      return std::nullopt;
+    case SendspinNumericMetadataTypes::TRACK:
+      if (metadata.track.has_value())
+        return metadata.track.value();
+      return std::nullopt;
+  }
+  return std::nullopt;
+}
+
 // THREAD CONTEXT: Main loop. The registered metadata callback also fires on the main loop
 // (SendspinHub dispatches metadata from client_->loop()).
 void SendspinMetadataSensor::setup() {
-  switch (this->metadata_type_) {
-    case SendspinNumericMetadataTypes::TRACK_DURATION: {
-      this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
-        if (metadata.progress.has_value()) {
-          this->publish_if_changed_(metadata.progress.value().track_duration);
-        }
-      });
-      break;
+  this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
+    if (auto value = this->extract_value_(metadata)) {
+      this->publish_if_changed_(*value);
     }
-    case SendspinNumericMetadataTypes::YEAR: {
-      this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
-        if (metadata.year.has_value()) {
-          this->publish_if_changed_(metadata.year.value());
-        }
-      });
-      break;
-    }
-    case SendspinNumericMetadataTypes::TRACK: {
-      this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
-        if (metadata.track.has_value()) {
-          this->publish_if_changed_(metadata.track.value());
-        }
-      });
-      break;
-    }
-  }
+  });
 }
 
 // Dedup to avoid frontend churn; Sensor::publish_state always notifies without checking for changes.
