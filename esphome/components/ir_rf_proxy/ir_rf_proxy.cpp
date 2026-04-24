@@ -66,7 +66,7 @@ void transmit_raw_timings(remote_base::RemoteTransmitterBase *transmitter, uint3
 
 void IrRfProxy::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "IR/RF Proxy '%s'\n"
+                "IR Proxy '%s'\n"
                 "  Supports Transmitter: %s\n"
                 "  Supports Receiver: %s",
                 this->get_name().c_str(), YESNO(this->traits_.get_supports_transmitter()),

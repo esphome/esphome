@@ -1,11 +1,10 @@
 """Radio Frequency platform implementation using remote_base (remote_transmitter/receiver)."""
 
-from typing import Any
-
 import esphome.codegen as cg
 from esphome.components import radio_frequency, remote_receiver, remote_transmitter
 import esphome.config_validation as cv
 from esphome.const import CONF_FREQUENCY
+from esphome.types import ConfigType
 
 from . import CONF_REMOTE_RECEIVER_ID, CONF_REMOTE_TRANSMITTER_ID, ir_rf_proxy_ns
 
@@ -30,7 +29,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config: dict[str, Any]) -> None:
+async def to_code(config: ConfigType) -> None:
     """Code generation for remote_base radio frequency platform."""
     var = await radio_frequency.new_radio_frequency(config)
 
