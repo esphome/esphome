@@ -951,6 +951,8 @@ void WiFiComponent::process_pending_callbacks_() {
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
   if (this->pending_.disconnect) {
     this->pending_.disconnect = false;
+    // Refresh is_connected() cache here, not in the SDK callback (sys context).
+    this->update_connected_state_();
     this->notify_disconnect_state_listeners_();
   }
 #endif
