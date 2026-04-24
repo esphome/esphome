@@ -505,7 +505,7 @@ bool AsyncEventSource::loop() {
     auto *ses = this->sessions_[i];
     // If the session has a dead socket (marked by destroy callback)
     if (ses->fd_.load() == 0) {
-      ESP_LOGD(TAG, "Removing dead event source session");
+      // destroy() already logged the close with the fd; don't double-log here.
       delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
       // Remove by swapping with last element (O(1) removal, order doesn't matter for sessions)
       this->sessions_[i] = this->sessions_.back();
