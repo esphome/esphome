@@ -38,13 +38,11 @@ static void register_rp2040(MDNSComponent *, StaticVector<MDNSService, MDNS_SERV
   }
 }
 
-#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 void MDNSComponent::start_polling_window_() {
   // uint32_t-ID set_interval/set_timeout already does atomic cancel-and-add.
   this->set_interval(MDNS_POLL_ID, MDNS_UPDATE_INTERVAL_MS, []() { MDNS.update(); });
   this->set_timeout(MDNS_POLL_STOP_ID, MDNS_POLL_WINDOW_MS, [this]() { this->cancel_interval(MDNS_POLL_ID); });
 }
-#endif
 
 void MDNSComponent::setup() {
   // arduino-pico stubs out LwipIntf::stateUpCB (the netif status callback LEAmDNS uses
@@ -74,7 +72,6 @@ void MDNSComponent::setup() {
 #endif
 }
 
-#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &,
                                 const network::IPAddress &) {
   // Listener only fires on IP acquisition (not loss); every event is a fresh IP.
@@ -89,7 +86,6 @@ void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::
   }
   this->start_polling_window_();
 }
-#endif
 
 void MDNSComponent::on_shutdown() {
   MDNS.close();
