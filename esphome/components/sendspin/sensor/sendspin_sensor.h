@@ -9,17 +9,15 @@
 
 namespace esphome::sendspin_ {
 
-class SendspinTrackProgressSensor : public sensor::Sensor, public PollingComponent, public Parented<SendspinHub> {
+class SendspinTrackProgressSensor : public sensor::Sensor, public SendspinPollingChild {
  public:
-  float get_setup_priority() const override { return sendspin_priority::CHILD; }
   void dump_config() override;
   void setup() override;
   void update() override;
 };
 
-class SendspinTrackDurationSensor : public sensor::Sensor, public Component, public Parented<SendspinHub> {
+class SendspinTrackDurationSensor : public sensor::Sensor, public SendspinChild {
  public:
-  float get_setup_priority() const override { return sendspin_priority::CHILD; }
   void dump_config() override;
   void setup() override;
 
