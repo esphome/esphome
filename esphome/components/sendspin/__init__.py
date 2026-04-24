@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32, network, psram, socket, wifi
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TASK_STACK_IN_PSRAM
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.cpp_generator import TemplateArgsType
 from esphome.types import ConfigType
 
 # mdns for autodiscovery
@@ -19,6 +21,13 @@ sendspin_ns = cg.esphome_ns.namespace("sendspin_")
 SendspinHub = sendspin_ns.class_(
     "SendspinHub",
     cg.Component,
+)
+
+
+SendspinSwitchCommandAction = sendspin_ns.class_(
+    "SendspinSwitchCommandAction",
+    automation.Action,
+    cg.Parented.template(SendspinHub),
 )
 
 
@@ -99,6 +108,41 @@ CONFIG_SCHEMA = cv.All(
     cv.only_on_esp32,
     _request_high_performance_networking,
 )
+
+
+def _request_controller_role(config: ConfigType) -> ConfigType:
+    """Request the controller role for the sendspin.switch action."""
+    request_controller_support()
+    return config
+
+
+SENDSPIN_SIMPLE_ACTION_SCHEMA = cv.All(
+    automation.maybe_simple_id(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(SendspinHub),
+            }
+        )
+    ),
+    _request_controller_role,
+)
+
+
+@automation.register_action(
+    "sendspin.switch",
+    SendspinSwitchCommandAction,
+    SENDSPIN_SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def sendspin_switch_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
 
 
 async def to_code(config: ConfigType) -> None:

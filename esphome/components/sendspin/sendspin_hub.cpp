@@ -31,6 +31,11 @@ void SendspinHub::setup() {
   this->client_->set_network_provider(this);
   this->client_->set_persistence_provider(this);
 
+#ifdef USE_SENDSPIN_CONTROLLER
+  this->controller_role_ = &this->client_->add_controller();
+  this->controller_role_->set_listener(this);
+#endif
+
   if (!this->client_->start_server()) {
     ESP_LOGE(TAG, "Failed to start Sendspin server");
     this->mark_failed();
@@ -137,6 +142,23 @@ std::optional<uint32_t> SendspinHub::load_last_server_hash() {
   }
   return std::nullopt;
 }
+
+// --- Sendspin role specific methods/overrides ---
+
+#ifdef USE_SENDSPIN_CONTROLLER
+// THREAD CONTEXT: Main loop (invoked from ESPHome actions / other components)
+void SendspinHub::send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume,
+                                      std::optional<bool> mute) {
+  if (this->is_ready()) {
+    this->controller_role_->send_command(command, volume, mute);
+  }
+}
+
+// THREAD CONTEXT: Main loop (ControllerRoleListener override, fired from client_->loop())
+void SendspinHub::on_controller_state(const sendspin::ServerStateControllerObject &state) {
+  this->controller_state_callbacks_.call(state);
+}
+#endif
 
 }  // namespace esphome::sendspin_
 
