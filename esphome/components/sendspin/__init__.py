@@ -4,7 +4,12 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32, network, psram, socket, wifi
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TASK_STACK_IN_PSRAM
+from esphome.const import (
+    CONF_BUFFER_SIZE,
+    CONF_ID,
+    CONF_SAMPLE_RATE,
+    CONF_TASK_STACK_IN_PSRAM,
+)
 from esphome.core import CORE, ID
 from esphome.cpp_generator import TemplateArgsType
 from esphome.types import ConfigType
