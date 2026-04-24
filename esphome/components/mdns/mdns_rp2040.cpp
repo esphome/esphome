@@ -91,19 +91,21 @@ void MDNSComponent::setup() {
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &,
                                 const network::IPAddress &) {
-  const bool has_ip = ips[0].is_set();
-  if (has_ip && !this->ip_was_up_) {
-    if (!this->initialized_) {
-      this->setup_buffers_and_register_(register_rp2040);
-      this->initialized_ = true;
-    } else {
-      MDNS.notifyAPChange();
-    }
-    this->start_polling_window_();
-  } else if (!has_ip && this->ip_was_up_) {
-    this->cancel_polling_window_();
+  // ESPHome's WiFiIPStateListener only notifies on IP acquisition (see
+  // wifi_component_pico_w.cpp), not on IP loss, so every notification represents a
+  // fresh IP that needs a probe/announce cycle. The library's internal
+  // LwipIntf::stateUpCB is stubbed out on arduino-pico (see setup()), so we drive
+  // begin/restart ourselves from this callback.
+  if (!ips[0].is_set()) {
+    return;
   }
-  this->ip_was_up_ = has_ip;
+  if (!this->initialized_) {
+    this->setup_buffers_and_register_(register_rp2040);
+    this->initialized_ = true;
+  } else {
+    MDNS.notifyAPChange();
+  }
+  this->start_polling_window_();
 }
 #endif
 

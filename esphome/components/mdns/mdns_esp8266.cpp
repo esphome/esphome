@@ -51,16 +51,14 @@ void MDNSComponent::setup() {
 
 void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &,
                                 const network::IPAddress &) {
-  const bool has_ip = ips[0].is_set();
-  if (has_ip && !this->ip_was_up_) {
-    // IP came up. LEAmDNS's internal lwIP callback will call _restart() shortly after
-    // (if it hasn't already) — arm the polling window so the probe/announce phase is
-    // serviced regardless of our relative timing vs the library's callback.
+  // ESPHome's WiFiIPStateListener only notifies on IP acquisition (GOT_IP events on
+  // ESP8266 — see wifi_component_esp8266.cpp), not on IP loss, so every notification
+  // represents a fresh IP that the LEAmDNS library's lwIP callback will trigger a
+  // _restart() for. Always re-arm the polling window — start_polling_window_() is
+  // idempotent (scheduler does atomic cancel-and-add on matching IDs).
+  if (ips[0].is_set()) {
     this->start_polling_window_();
-  } else if (!has_ip && this->ip_was_up_) {
-    this->cancel_polling_window_();
   }
-  this->ip_was_up_ = has_ip;
 }
 
 void MDNSComponent::on_shutdown() {

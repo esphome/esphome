@@ -122,9 +122,6 @@ class MDNSComponent final : public Component
   /// Arm a bounded polling window so MDNS.update() runs at MDNS_UPDATE_INTERVAL_MS
   /// for MDNS_POLL_WINDOW_MS. A subsequent call replaces the previous window.
   void start_polling_window_();
-  /// Cancel any active polling window.
-  void cancel_polling_window_();
-  bool ip_was_up_{false};
 #endif
   /// Helper to set up services and MAC buffers, then call platform-specific registration
   using PlatformRegisterFn = void (*)(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &);
