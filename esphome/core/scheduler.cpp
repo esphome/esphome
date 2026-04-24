@@ -601,14 +601,16 @@ uint32_t HOT Scheduler::call(uint32_t now) {
   }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
-  // Cleanup removed items before processing
-  // First try to clean items from the top of the heap (fast path)
-  this->cleanup_();
-
-  // If we still have too many cancelled items, do a full cleanup
-  // This only happens if cancelled items are stuck in the middle/bottom of the heap
-  if (this->to_remove_count_() >= MAX_LOGICALLY_DELETED_ITEMS) {
-    this->full_cleanup_removed_items_();
+  // Cleanup removed items before processing. Fast path: one atomic load +
+  // branch; when nothing is pending, skip both slow-path calls entirely.
+  // Previously the equivalent logic was split across cleanup_() (inline,
+  // loads to_remove_) and a separate to_remove_count_() check for the MAX
+  // threshold, which produced two memw+l32i pairs on Xtensa (GCC can't CSE
+  // across std::atomic's memw barriers). Folding the slow work into one
+  // outlined cold function keeps Scheduler::call's hot-path footprint small
+  // and the I-cache happy.
+  if (this->to_remove_count_() != 0) [[unlikely]] {
+    this->cleanup_slow_combined_();
   }
   // IMPORTANT: This loop uses index-based access (items_[0]), NOT iterators.
   // This is intentional — fired intervals are pushed back into items_ via
@@ -760,6 +762,21 @@ bool HOT Scheduler::cleanup_slow_path_() {
     this->recycle_item_main_loop_(this->pop_raw_locked_());
   }
   return !this->items_.empty();
+}
+// Combined cold path for Scheduler::call. Only called when to_remove_ is
+// non-zero. Noinline + cold keeps the two calls and the re-read of
+// to_remove_ out of the main loop's hot path; the attribute also lets the
+// compiler push this code out to a rarely-touched flash region so the
+// scheduler's hot instructions stay in cache.
+void Scheduler::cleanup_slow_combined_() {
+  // First sweep: drop cancelled items from the heap top.
+  this->cleanup_slow_path_();
+  // Re-read to_remove_ because cleanup_slow_path_ may have decremented it.
+  // If cancelled items remain stuck below the top and the count crossed
+  // the threshold, do a full sweep.
+  if (this->to_remove_count_() >= MAX_LOGICALLY_DELETED_ITEMS) {
+    this->full_cleanup_removed_items_();
+  }
 }
 Scheduler::SchedulerItem *HOT Scheduler::pop_raw_locked_() {
   std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
