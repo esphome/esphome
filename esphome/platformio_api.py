@@ -5,6 +5,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 
@@ -26,6 +27,14 @@ _LOGGER = logging.getLogger(__name__)
 _PLATFORMIO_ENV_DEFAULTS: dict[str, str] = {}
 # Bump when ESPHome changes what may be stored in the managed build cache.
 _PLATFORMIO_BUILD_CACHE_VERSION = "3"
+_ZEPHYR_CCACHE_ENV_DEFAULTS = (
+    "CMAKE_C_COMPILER_LAUNCHER",
+    "CMAKE_CXX_COMPILER_LAUNCHER",
+    "CCACHE_DIR",
+    "CCACHE_BASEDIR",
+    "CCACHE_NOHASHDIR",
+    "CCACHE_MAXSIZE",
+)
 
 
 def _set_platformio_env_default(name: str, value: str) -> None:
@@ -135,9 +144,39 @@ def _platformio_libdeps_dir() -> Path:
     )
 
 
+def _configure_zephyr_ccache() -> None:
+    """Use ccache for Zephyr's CMake/Ninja builds when it is available."""
+    core_data = CORE.data.get(KEY_CORE, {})
+    if core_data.get(KEY_TARGET_FRAMEWORK) != "zephyr":
+        for name in _ZEPHYR_CCACHE_ENV_DEFAULTS:
+            _unset_platformio_env_default(name)
+        return
+
+    ccache = shutil.which("ccache")
+    if ccache is None:
+        for name in _ZEPHYR_CCACHE_ENV_DEFAULTS:
+            _unset_platformio_env_default(name)
+        return
+
+    _set_platformio_env_default("CMAKE_C_COMPILER_LAUNCHER", ccache)
+    _set_platformio_env_default("CMAKE_CXX_COMPILER_LAUNCHER", ccache)
+    _set_platformio_env_default(
+        "CCACHE_DIR",
+        str(
+            CORE.relative_internal_path(
+                "platformio", "ccache", _platformio_toolchain_cache_key()
+            ).absolute()
+        ),
+    )
+    _set_platformio_env_default("CCACHE_BASEDIR", str(Path(CORE.build_path).absolute()))
+    _set_platformio_env_default("CCACHE_NOHASHDIR", "true")
+    _set_platformio_env_default("CCACHE_MAXSIZE", "512M")
+
+
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
+    _configure_zephyr_ccache()
     _set_platformio_env_default(
         "PLATFORMIO_LIBDEPS_DIR", str(_platformio_libdeps_dir().absolute())
     )
