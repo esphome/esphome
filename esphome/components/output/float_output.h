@@ -1,11 +1,13 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "binary_output.h"
 
 namespace esphome {
 namespace output {
 
+#ifdef USE_OUTPUT_FLOAT_POWER_SCALING
 #define LOG_FLOAT_OUTPUT(this) \
   LOG_BINARY_OUTPUT(this) \
   if (this->max_power_ != 1.0f) { \
@@ -14,6 +16,9 @@ namespace output {
   if (this->min_power_ != 0.0f) { \
     ESP_LOGCONFIG(TAG, "  Min Power: %.1f%%", this->min_power_ * 100.0f); \
   }
+#else
+#define LOG_FLOAT_OUTPUT(this) LOG_BINARY_OUTPUT(this)
+#endif
 
 /** Base class for all output components that can output a variable level, like PWM.
  *
@@ -30,6 +35,7 @@ namespace output {
  */
 class FloatOutput : public BinaryOutput {
  public:
+#ifdef USE_OUTPUT_FLOAT_POWER_SCALING
   /** Set the maximum power output of this component.
    *
    * All values are multiplied by max_power - min_power and offset to min_power to get the adjusted value.
@@ -51,6 +57,7 @@ class FloatOutput : public BinaryOutput {
    * @param zero_means_zero True if a 0 state should mean 0 and not min_power.
    */
   void set_zero_means_zero(bool zero_means_zero) { this->zero_means_zero_ = zero_means_zero; }
+#endif
 
   /** Set the level of this float output, this is called from the front-end.
    *
@@ -69,20 +76,30 @@ class FloatOutput : public BinaryOutput {
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
 
+#ifdef USE_OUTPUT_FLOAT_POWER_SCALING
   /// Get the maximum power output.
   float get_max_power() const { return this->max_power_; }
 
   /// Get the minimum power output.
   float get_min_power() const { return this->min_power_; }
+#else
+  /// Get the maximum power output.
+  float get_max_power() const { return 1.0f; }
+
+  /// Get the minimum power output.
+  float get_min_power() const { return 0.0f; }
+#endif
 
  protected:
   /// Implement BinarySensor's write_enabled; this should never be called.
   void write_state(bool state) override;
   virtual void write_state(float state) = 0;
 
+#ifdef USE_OUTPUT_FLOAT_POWER_SCALING
   float max_power_{1.0f};
   float min_power_{0.0f};
-  bool zero_means_zero_;
+  bool zero_means_zero_{false};
+#endif
 };
 
 }  // namespace output
