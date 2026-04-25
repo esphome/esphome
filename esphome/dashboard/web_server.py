@@ -437,7 +437,10 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
-        return await self.build_device_command(["logs"], json_message)
+        cmd = await self.build_device_command(["logs"], json_message)
+        if json_message.get("no_states"):
+            cmd.append("--no-states")
+        return cmd
 
 
 class EsphomeRenameHandler(EsphomeCommandWebSocket):
