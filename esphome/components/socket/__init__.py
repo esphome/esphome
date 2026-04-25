@@ -177,7 +177,14 @@ async def to_code(config):
 
 def FILTER_SOURCE_FILES() -> list[str]:
     """Return list of socket implementation files that aren't selected by the user."""
-    impl = CORE.config["socket"][CONF_IMPLEMENTATION]
+    socket_config = CORE.config.get("socket")
+    if not isinstance(socket_config, dict):
+        # Config has not been validated yet (or socket isn't configured as a
+        # mapping for this build, e.g. a C++ unit test build that skips config
+        # validation). Don't filter -- all impl files are guarded by USE_*
+        # defines so only the selected implementation contributes code anyway.
+        return []
+    impl = socket_config[CONF_IMPLEMENTATION]
 
     # Build list of files to exclude based on selected implementation
     excluded = []

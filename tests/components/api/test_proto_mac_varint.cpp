@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <ios>
 #include <random>
 
 #include "esphome/components/api/api_buffer.h"
@@ -55,7 +56,9 @@ static void verify_mac(uint64_t mac, size_t expected_bytes) {
   APIBuffer api_buf;
   api_buf.resize(16);
   uint8_t *pos = api_buf.data();
-  PROTO_ENCODE_DEBUG_INIT(&api_buf);
+#ifdef ESPHOME_DEBUG_API
+  uint8_t *proto_debug_end_ = api_buf.data() + api_buf.size();
+#endif
   ProtoEncode::encode_varint_raw_48bit(pos PROTO_ENCODE_DEBUG_ARG, mac);
   size_t new_len = pos - api_buf.data();
 
@@ -109,6 +112,7 @@ TEST(ProtoMacVarint, AllOnes) { verify_mac(0xFFFFFFFFFFFFULL, 7); }         // F
 
 // 100 deterministic-random 48-bit MACs to catch regressions across the space.
 TEST(ProtoMacVarint, RandomSample) {
+  // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp) -- intentional fixed seed for reproducibility.
   std::mt19937_64 rng(0xC0FFEE);
   for (int i = 0; i < 100; i++) {
     uint64_t mac = rng() & 0xFFFFFFFFFFFFULL;
