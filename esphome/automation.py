@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import logging
 
 import esphome.codegen as cg
@@ -198,11 +199,10 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
                     return cv.Schema([schema])(value)
                 except cv.Invalid as err2:
                     if "extra keys not allowed" in str(err2) and len(err2.path) == 2:
-                        # pylint: disable=raise-missing-from
-                        raise err
+                        raise err from None
                     if "Unable to find action" in str(err):
-                        raise err2
-                    raise cv.MultipleInvalid([err, err2])
+                        raise err2 from None
+                    raise cv.MultipleInvalid([err, err2]) from None
         elif isinstance(value, dict):
             if CONF_THEN in value:
                 return [schema(value)]
@@ -250,7 +250,9 @@ async def and_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(condition_id, template_arg, conditions)
+    return cg.new_Pvariable(
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+    )
 
 
 @register_condition("or", OrCondition, validate_condition_list)
@@ -261,7 +263,9 @@ async def or_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(condition_id, template_arg, conditions)
+    return cg.new_Pvariable(
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+    )
 
 
 @register_condition("all", AndCondition, validate_condition_list)
@@ -272,7 +276,9 @@ async def all_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(condition_id, template_arg, conditions)
+    return cg.new_Pvariable(
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+    )
 
 
 @register_condition("any", OrCondition, validate_condition_list)
@@ -283,7 +289,9 @@ async def any_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(condition_id, template_arg, conditions)
+    return cg.new_Pvariable(
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+    )
 
 
 @register_condition("not", NotCondition, validate_potentially_and_condition)
@@ -305,7 +313,9 @@ async def xor_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(condition_id, template_arg, conditions)
+    return cg.new_Pvariable(
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+    )
 
 
 @register_condition("lambda", LambdaCondition, cv.returning_lambda)
@@ -705,3 +715,35 @@ async def build_callback_automation(
     # MockObjs (not user input), and there's no Expression type for positional
     # aggregate initialization (StructInitializer uses named fields).
     cg.add(getattr(parent, callback_method)(cg.RawExpression(f"{forwarder}{{{obj}}}")))
+
+
+@dataclass(frozen=True, slots=True)
+class CallbackAutomation:
+    """A single callback automation entry for build_callback_automations."""
+
+    conf_key: str
+    callback_method: str
+    args: TemplateArgsType = field(default_factory=list)
+    forwarder: MockObj | MockObjClass | None = None
+
+
+async def build_callback_automations(
+    parent: MockObj,
+    config: ConfigType,
+    entries: tuple[CallbackAutomation, ...],
+) -> None:
+    """Build multiple callback automations from a tuple of entries.
+
+    :param parent: The component object (e.g., button, sensor).
+    :param config: The full component config dict.
+    :param entries: Tuple of CallbackAutomation entries to process.
+    """
+    for entry in entries:
+        for conf in config.get(entry.conf_key, []):
+            await build_callback_automation(
+                parent,
+                entry.callback_method,
+                entry.args,
+                conf,
+                forwarder=entry.forwarder,
+            )

@@ -308,6 +308,7 @@ bool CompactString::operator==(const StringRef &other) const {
 /// │  - Roaming fail (RECONNECTING on other AP): counter preserved        │
 /// └──────────────────────────────────────────────────────────────────────┘
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
 // Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   if (phase == WiFiRetryPhase::INITIAL_CONNECT)
@@ -326,6 +327,7 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
     return LOG_STR("RESTARTING");
   return LOG_STR("UNKNOWN");
 }
+#endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
 
 bool WiFiComponent::went_through_explicit_hidden_phase_() const {
   // If first configured network is marked hidden, we went through EXPLICIT_HIDDEN phase
@@ -730,9 +732,16 @@ void WiFiComponent::restart_adapter() {
 }
 
 void WiFiComponent::loop() {
-  this->wifi_loop_();
+  bool events_processed = this->wifi_loop_();
   const uint32_t now = App.get_loop_component_start_time();
-  this->update_connected_state_();
+  // Connection state can only change when events are processed (ESP-IDF/LibreTiny)
+  // or polled (ESP8266/Pico W). Skip the expensive wifi_sta_connect_status_() call
+  // when no events arrived and we're already in steady state.
+  // Must also run when connected_ is false — after state transitions to STA_CONNECTED,
+  // connected_ won't be set until update_connected_state_() runs.
+  if (events_processed || !this->connected_) {
+    this->update_connected_state_();
+  }
 
   if (this->has_sta()) {
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
@@ -784,7 +793,8 @@ void WiFiComponent::loop() {
       }
 
       case WIFI_COMPONENT_STATE_STA_CONNECTED: {
-        if (!this->is_connected_()) {
+        // Use cached connected_ set unconditionally at the top of loop()
+        if (!this->connected_) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
@@ -969,12 +979,6 @@ void WiFiComponent::set_ap(const WiFiAP &ap) {
   this->has_ap_ = true;
 }
 #endif  // USE_WIFI_AP
-
-#ifdef USE_LOOP_PRIORITY
-float WiFiComponent::get_loop_priority() const {
-  return 10.0f;  // before other loop components
-}
-#endif
 
 void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
@@ -1575,6 +1579,8 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 #endif
 
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
+    // Refresh is_connected() cache; loop()'s refresh ran before this transition.
+    this->update_connected_state_();
     this->num_retried_ = 0;
     this->print_connect_params_();
 
@@ -2135,11 +2141,6 @@ void WiFiComponent::retry_connect() {
 }
 
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
-bool WiFiComponent::is_connected_() const {
-  return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
-         this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
-}
-void WiFiComponent::update_connected_state_() { this->connected_ = this->is_connected_(); }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
   this->power_save_ = power_save;
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)

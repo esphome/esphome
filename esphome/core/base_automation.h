@@ -9,14 +9,17 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
+#include <array>
 #include <list>
 #include <vector>
 
 namespace esphome {
 
-template<typename... Ts> class AndCondition : public Condition<Ts...> {
+template<size_t N, typename... Ts> class AndCondition : public Condition<Ts...> {
  public:
-  explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
+  explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) {
+    init_array_from(this->conditions_, conditions);
+  }
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (!condition->check(x...))
@@ -27,12 +30,14 @@ template<typename... Ts> class AndCondition : public Condition<Ts...> {
   }
 
  protected:
-  FixedVector<Condition<Ts...> *> conditions_;
+  std::array<Condition<Ts...> *, N> conditions_{};
 };
 
-template<typename... Ts> class OrCondition : public Condition<Ts...> {
+template<size_t N, typename... Ts> class OrCondition : public Condition<Ts...> {
  public:
-  explicit OrCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
+  explicit OrCondition(std::initializer_list<Condition<Ts...> *> conditions) {
+    init_array_from(this->conditions_, conditions);
+  }
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (condition->check(x...))
@@ -43,7 +48,7 @@ template<typename... Ts> class OrCondition : public Condition<Ts...> {
   }
 
  protected:
-  FixedVector<Condition<Ts...> *> conditions_;
+  std::array<Condition<Ts...> *, N> conditions_{};
 };
 
 template<typename... Ts> class NotCondition : public Condition<Ts...> {
@@ -55,9 +60,11 @@ template<typename... Ts> class NotCondition : public Condition<Ts...> {
   Condition<Ts...> *condition_;
 };
 
-template<typename... Ts> class XorCondition : public Condition<Ts...> {
+template<size_t N, typename... Ts> class XorCondition : public Condition<Ts...> {
  public:
-  explicit XorCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
+  explicit XorCondition(std::initializer_list<Condition<Ts...> *> conditions) {
+    init_array_from(this->conditions_, conditions);
+  }
   bool check(const Ts &...x) override {
     size_t result = 0;
     for (auto *condition : this->conditions_) {
@@ -68,7 +75,7 @@ template<typename... Ts> class XorCondition : public Condition<Ts...> {
   }
 
  protected:
-  FixedVector<Condition<Ts...> *> conditions_;
+  std::array<Condition<Ts...> *, N> conditions_{};
 };
 
 template<typename... Ts> class LambdaCondition : public Condition<Ts...> {
@@ -198,7 +205,9 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
     } else {
       // For delays with arguments, capture by value to preserve argument values
       // Arguments must be copied because original references may be invalid after delay
-      auto f = [this, x...]() { this->play_next_(x...); };
+      // `mutable` is required so captured copies of non-const reference args (e.g. std::string&)
+      // are passed as non-const lvalues to play_next_(const Ts&...) where Ts may be `T&`
+      auto f = [this, x...]() mutable { this->play_next_(x...); };
       App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL,
                                       nullptr, static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION),
                                       this->delay_.value(x...), std::move(f),

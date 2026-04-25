@@ -39,6 +39,7 @@ from esphome.const import (
     CONF_MDNS,
     CONF_MQTT,
     CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PLATFORM,
@@ -71,6 +72,7 @@ from esphome.util import (
     run_external_process,
     safe_print,
 )
+from esphome.zeroconf import discover_mdns_devices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -204,6 +206,64 @@ def _resolve_with_cache(address: str, purpose: Purpose) -> list[str]:
     return [address]
 
 
+def _populate_mdns_cache(hosts_to_addresses: dict[str, list[str]]) -> None:
+    """Store discovered ``host -> [ips]`` entries in ``CORE.address_cache``.
+
+    Ensures ``CORE.address_cache`` exists, then records each mDNS hostname so
+    the downstream resolution path (``resolve_ip_address``) can skip opening a
+    second Zeroconf client.
+    """
+    from esphome.address_cache import AddressCache
+
+    if CORE.address_cache is None:
+        CORE.address_cache = AddressCache()
+    for host, addresses in hosts_to_addresses.items():
+        if addresses:
+            _LOGGER.debug("Caching mDNS result %s -> %s", host, addresses)
+        CORE.address_cache.add_mdns_addresses(host, addresses)
+
+
+def _discover_mac_suffix_devices() -> list[str] | None:
+    """Discover ``<name>-<mac>.local`` devices and cache their IPs.
+
+    Returns:
+        - ``None`` when discovery isn't applicable (``name_add_mac_suffix`` off,
+          mDNS disabled, or ``CORE.address`` is already an IP). Callers should
+          then fall back to whatever default OTA address they normally use.
+        - ``[]`` when discovery ran but found nothing. Callers should NOT fall
+          back to the base name: with ``name_add_mac_suffix`` enabled, the base
+          name by definition doesn't exist on the network.
+        - A non-empty sorted list of ``.local`` hostnames on success.
+
+    Populates ``CORE.address_cache`` so downstream resolution (``espota2`` or
+    ``aioesphomeapi`` via :func:`_resolve_network_devices`) reuses the IPs we
+    already have without opening a second Zeroconf client.
+    """
+    if not (has_name_add_mac_suffix() and has_mdns() and has_non_ip_address()):
+        return None
+    _LOGGER.info("Discovering devices...")
+    if not (discovered := discover_mdns_devices(CORE.name)):
+        _LOGGER.warning(
+            "No devices matching '%s-<mac>.local' were discovered.", CORE.name
+        )
+        return []
+    _populate_mdns_cache(discovered)
+    return list(discovered)
+
+
+def _ota_hostnames_for_default(purpose: Purpose) -> list[str]:
+    """Return OTA hostname(s) for the ``--device OTA`` / default-resolve path.
+
+    When ``name_add_mac_suffix`` is enabled, returns discovered
+    ``<name>-<mac>.local`` hostnames (possibly empty — in which case the
+    caller should not fall back to the base name). Otherwise falls back to
+    the cache-resolved ``CORE.address``.
+    """
+    if (discovered := _discover_mac_suffix_devices()) is not None:
+        return discovered
+    return _resolve_with_cache(CORE.address, purpose)
+
+
 def choose_upload_log_host(
     default: list[str] | str | None,
     check_default: str | None,
@@ -242,14 +302,14 @@ def choose_upload_log_host(
                         resolved.append("MQTT")
 
                     if has_api() and has_non_ip_address() and has_resolvable_address():
-                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
+                        resolved.extend(_ota_hostnames_for_default(purpose))
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
                     if has_ota() and has_non_ip_address() and has_resolvable_address():
-                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
+                        resolved.extend(_ota_hostnames_for_default(purpose))
             else:
                 resolved.append(device)
         if not resolved:
@@ -281,22 +341,29 @@ def choose_upload_log_host(
         elif bootsel.permission_error:
             bootsel_permission_error = True
 
+    def add_ota_options() -> None:
+        """Add OTA options, using mDNS discovery if name_add_mac_suffix is enabled."""
+        if (discovered := _discover_mac_suffix_devices()) is not None:
+            # Discovery was applicable. Use whatever we found — on empty,
+            # intentionally skip the base-name fallback since with
+            # name_add_mac_suffix on, the base name doesn't exist on the net.
+            for host in discovered:
+                options.append((f"Over The Air ({host})", host))
+        elif has_resolvable_address():
+            options.append((f"Over The Air ({CORE.address})", CORE.address))
+        if has_mqtt_ip_lookup():
+            options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
             mqtt_config = CORE.config[CONF_MQTT]
             options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
 
         if has_api():
-            if has_resolvable_address():
-                options.append((f"Over The Air ({CORE.address})", CORE.address))
-            if has_mqtt_ip_lookup():
-                options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+            add_ota_options()
 
     elif purpose == Purpose.UPLOADING and has_ota():
-        if has_resolvable_address():
-            options.append((f"Over The Air ({CORE.address})", CORE.address))
-        if has_mqtt_ip_lookup():
-            options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+        add_ota_options()
 
     # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
@@ -407,7 +474,17 @@ def has_resolvable_address() -> bool:
     return not CORE.address.endswith(".local")
 
 
-def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
+def has_name_add_mac_suffix() -> bool:
+    """Check if name_add_mac_suffix is enabled in the config."""
+    if CORE.config is None:
+        return False
+    esphome_config = CORE.config.get(CONF_ESPHOME, {})
+    return esphome_config.get(CONF_NAME_ADD_MAC_SUFFIX, False)
+
+
+def mqtt_get_ip(
+    config: ConfigType, username: str, password: str, client_id: str
+) -> list[str]:
     from esphome import mqtt
 
     return mqtt.get_esphome_device_ip(config, username, password, client_id)
@@ -420,6 +497,9 @@ def _resolve_network_devices(
 
     This function filters the devices list to:
     - Replace MQTT/MQTTIP magic strings with actual IP addresses via MQTT lookup
+    - Expand hostnames that are already in ``CORE.address_cache`` to their
+      cached IPs so downstream code (e.g. aioesphomeapi) doesn't open a second
+      Zeroconf client to resolve them
     - Deduplicate addresses while preserving order
     - Only resolve MQTT once even if multiple MQTT strings are present
     - If MQTT resolution fails, log a warning and continue with other devices
@@ -444,13 +524,29 @@ def _resolve_network_devices(
                     mqtt_ips = mqtt_get_ip(
                         config, args.username, args.password, args.client_id
                     )
-                    network_devices.extend(mqtt_ips)
+                    # pylint can't infer mqtt_get_ip's return through its
+                    # lazy ``from esphome import mqtt`` import, so it flags
+                    # the genexpr below.
+                    network_devices.extend(
+                        addr
+                        for addr in mqtt_ips  # pylint: disable=not-an-iterable
+                        if addr not in network_devices
+                    )
                 except EsphomeError as err:
                     _LOGGER.warning(
                         "MQTT IP discovery failed (%s), will try other devices if available",
                         err,
                     )
                 mqtt_resolved = True
+            continue
+
+        # If the hostname is already in the address cache (e.g. populated by
+        # mDNS discovery), substitute the cached IPs so aioesphomeapi doesn't
+        # open its own Zeroconf to re-resolve it.
+        if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
+            network_devices.extend(
+                addr for addr in cached if addr not in network_devices
+            )
         elif device not in network_devices:
             # Regular network address or IP - add if not already present
             network_devices.append(device)
@@ -750,8 +846,15 @@ def upload_using_esptool(
             platformio_api.FlashImage(
                 path=idedata.firmware_bin_path, offset=firmware_offset
             ),
-            *idedata.extra_flash_images,
         ]
+        for image in idedata.extra_flash_images:
+            if not image.path.is_file():
+                _LOGGER.warning(
+                    "Skipping missing flash image declared by platform: %s",
+                    image.path,
+                )
+                continue
+            flash_images.append(image)
 
     mcu = "esp8266"
     if CORE.is_esp32:
@@ -1083,7 +1186,7 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     # add the console decoration so the front-end can hide the secrets
     if not args.show_secrets:
         output = re.sub(
-            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[5m\2\\033[6m", output
+            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[8m\2\\033[28m", output
         )
     if not CORE.quiet:
         safe_print(output)
@@ -1239,6 +1342,38 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
         _LOGGER.error("Error deleting build files: %s", err)
         return 1
     _LOGGER.info("Done!")
+    return 0
+
+
+def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome.bundle import BUNDLE_EXTENSION, ConfigBundleCreator
+
+    creator = ConfigBundleCreator(config)
+
+    if args.list_only:
+        files = creator.discover_files()
+        for bf in sorted(files, key=lambda f: f.path):
+            safe_print(f"  {bf.path}")
+        _LOGGER.info("Found %d files", len(files))
+        return 0
+
+    result = creator.create_bundle()
+
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        stem = CORE.config_path.stem
+        output_path = CORE.config_dir / f"{stem}{BUNDLE_EXTENSION}"
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(result.data)
+
+    _LOGGER.info(
+        "Bundle created: %s (%d files, %.1f KB)",
+        output_path,
+        len(result.files),
+        len(result.data) / 1024,
+    )
     return 0
 
 
@@ -1517,6 +1652,7 @@ POST_CONFIG_ACTIONS = {
     "rename": command_rename,
     "discover": command_discover,
     "analyze-memory": command_analyze_memory,
+    "bundle": command_bundle,
 }
 
 SIMPLE_CONFIG_ACTIONS = [
@@ -1818,6 +1954,24 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
+    parser_bundle = subparsers.add_parser(
+        "bundle",
+        help="Create a self-contained config bundle for remote compilation.",
+    )
+    parser_bundle.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
+    parser_bundle.add_argument(
+        "-o",
+        "--output",
+        help="Output path for the bundle archive.",
+    )
+    parser_bundle.add_argument(
+        "--list-only",
+        help="List discovered files without creating the archive.",
+        action="store_true",
+    )
+
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.
     #
@@ -1895,6 +2049,16 @@ def run_esphome(argv):
     if any(conf_path.name == x for x in SECRETS_FILES):
         _LOGGER.warning("Skipping secrets file %s", conf_path)
         return 0
+
+    # Bundle support: if the configuration is a .esphomebundle, extract it
+    # and rewrite conf_path to the extracted YAML config.
+    from esphome.bundle import is_bundle_path, prepare_bundle_for_compile
+
+    if is_bundle_path(conf_path):
+        _LOGGER.info("Extracting config bundle %s...", conf_path)
+        conf_path = prepare_bundle_for_compile(conf_path)
+        # Update the argument so downstream code sees the extracted path
+        args.configuration[0] = str(conf_path)
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard

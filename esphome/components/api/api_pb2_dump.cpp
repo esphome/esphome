@@ -2576,7 +2576,7 @@ const char *ListEntitiesInfraredResponse::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 const char *InfraredRFTransmitRawTimingsRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("InfraredRFTransmitRawTimingsRequest"));
 #ifdef USE_DEVICES
@@ -2591,6 +2591,7 @@ const char *InfraredRFTransmitRawTimingsRequest::dump_to(DumpBuffer &out) const 
   out.append_p(ESPHOME_PSTR(" values, "));
   append_uint(out, this->timings_length_);
   out.append_p(ESPHOME_PSTR(" bytes]\n"));
+  dump_field(out, ESPHOME_PSTR("modulation"), this->modulation);
   return out.c_str();
 }
 const char *InfraredRFReceiveEvent::dump_to(DumpBuffer &out) const {
@@ -2602,6 +2603,27 @@ const char *InfraredRFReceiveEvent::dump_to(DumpBuffer &out) const {
   for (const auto &it : *this->timings) {
     dump_field(out, ESPHOME_PSTR("timings"), it, 4);
   }
+  return out.c_str();
+}
+#endif
+#ifdef USE_RADIO_FREQUENCY
+const char *ListEntitiesRadioFrequencyResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesRadioFrequencyResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("capabilities"), this->capabilities);
+  dump_field(out, ESPHOME_PSTR("frequency_min"), this->frequency_min);
+  dump_field(out, ESPHOME_PSTR("frequency_max"), this->frequency_max);
+  dump_field(out, ESPHOME_PSTR("supported_modulations"), this->supported_modulations);
   return out.c_str();
 }
 #endif

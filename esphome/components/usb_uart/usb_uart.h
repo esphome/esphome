@@ -132,14 +132,16 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCH34X;
 
  public:
-  // Number of output chunk slots per channel (8 × 64 bytes = 512 bytes peak, lazily allocated)
-  static constexpr uint8_t USB_OUTPUT_CHUNK_COUNT = 8;
+  // Number of output chunk slots per channel, derived from buffer_size config.
+  // Computed as ceil(buffer_size / 64) + 1 in Python codegen; defaults to 5 (256 / 64 + 1).
+  static constexpr uint8_t USB_OUTPUT_CHUNK_COUNT = USB_UART_OUTPUT_CHUNK_COUNT;
 
   USBUartChannel(uint8_t index, uint16_t buffer_size) : index_(index), input_buffer_(RingBuffer(buffer_size)) {}
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override { return this->input_buffer_.get_available(); }
+  bool is_connected() override { return this->initialised_.load(); }
   uart::UARTFlushResult flush() override;
   void check_logger_conflict() override {}
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }

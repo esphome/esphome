@@ -9,9 +9,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#ifdef USE_RUNTIME_STATS
-#include "esphome/components/runtime_stats/runtime_stats.h"
-#endif
 
 namespace esphome {
 
@@ -84,10 +81,8 @@ void store_component_error_message(const Component *component, const char *messa
 
 static constexpr uint16_t WARN_IF_BLOCKING_INCREMENT_MS =
     10U;  ///< How long the blocking time must be larger to warn again
-
-#ifdef USE_LOOP_PRIORITY
-float Component::get_loop_priority() const { return 0.0f; }
-#endif
+// Threshold in ms (computed from centiseconds constant in component.h)
+static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
 
 float Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -273,14 +268,14 @@ void Component::call() {
   }
 }
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
-  if (blocking_time > this->warn_if_blocking_over_) {
-    // Prevent overflow when adding increment - if we're about to overflow, just max out
-    if (blocking_time + WARN_IF_BLOCKING_INCREMENT_MS < blocking_time ||
-        blocking_time + WARN_IF_BLOCKING_INCREMENT_MS > std::numeric_limits<uint16_t>::max()) {
-      this->warn_if_blocking_over_ = std::numeric_limits<uint16_t>::max();
-    } else {
-      this->warn_if_blocking_over_ = static_cast<uint16_t>(blocking_time + WARN_IF_BLOCKING_INCREMENT_MS);
-    }
+  // Convert centisecond threshold to milliseconds for comparison
+  uint32_t threshold_ms = static_cast<uint32_t>(this->warn_if_blocking_over_) * 10U;
+  if (blocking_time > threshold_ms) {
+    // Set new threshold: blocking_time + increment, converted back to centiseconds
+    uint32_t new_threshold_ms = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
+    uint32_t new_cs = new_threshold_ms / 10U;
+    // Saturate at uint8_t max (255 = 2550ms)
+    this->warn_if_blocking_over_ = static_cast<uint8_t>(new_cs > 255U ? 255U : new_cs);
     return true;
   }
   return false;
@@ -299,14 +294,12 @@ void Component::disable_loop() {
     App.disable_component_loop_(this);
   }
 }
-void Component::enable_loop() {
-  if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
-    ESP_LOGVV(TAG, "%s loop enabled", LOG_STR_ARG(this->get_component_log_str()));
-    this->set_component_state_(COMPONENT_STATE_LOOP);
-    App.enable_component_loop_(this);
-  }
+void Component::enable_loop_slow_path_() {
+  ESP_LOGVV(TAG, "%s loop enabled", LOG_STR_ARG(this->get_component_log_str()));
+  this->set_component_state_(COMPONENT_STATE_LOOP);
+  App.enable_component_loop_(this);
 }
-void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
+void IRAM_ATTR Component::enable_loop_soon_any_context() {
   // This method is thread and ISR-safe because:
   // 1. Only performs simple assignments to volatile variables (atomic on all platforms)
   // 2. No read-modify-write operations that could be interrupted
@@ -318,15 +311,9 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // 8. Race condition with main loop is handled by clearing flag before processing
   this->pending_enable_loop_ = true;
   App.has_pending_enable_loop_requests_ = true;
-#if (defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)) || \
-    ((defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP))
   // Wake the main loop from sleep. Without this, the main loop would not
   // wake until the select/delay timeout expires (~16ms).
-  // ESP32: uses xPortInIsrContext() to choose the correct FreeRTOS notify API.
-  // ESP8266: sets socket wake flag and calls esp_schedule() to exit esp_delay() early.
-  // RP2040: sets socket wake flag and calls __sev() to exit __wfe() early.
-  Application::wake_loop_any_context();
-#endif
+  wake_loop_any_context();
 }
 void Component::reset_to_construction_state() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {
@@ -424,10 +411,23 @@ void Component::status_set_error(const LogString *message) {
 }
 void Component::status_clear_warning_slow_path_() {
   this->component_state_ &= ~STATUS_LED_WARNING;
+  // Clear the app-wide STATUS_LED_WARNING bit only if setup has finished
+  // AND no other component still has it set. During setup the forced
+  // STATUS_LED_WARNING (from the slow-setup busy-wait) must not be wiped
+  // by a transient component clear — Application::setup() reconciles
+  // the warning bit once at the end before setting APP_STATE_SETUP_COMPLETE.
+  // The set path is unchanged (set_status_flag_ still writes directly).
+  if (App.is_setup_complete() && !App.any_component_has_status_flag_(STATUS_LED_WARNING))
+    App.app_state_ &= ~STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s cleared Warning flag", LOG_STR_ARG(this->get_component_log_str()));
 }
 void Component::status_clear_error_slow_path_() {
   this->component_state_ &= ~STATUS_LED_ERROR;
+  // STATUS_LED_ERROR is never artificially forced — it only ever lands
+  // in app_state_ via a real set_status_flag_ call. So the walk-and-clear
+  // path is always safe, including during setup.
+  if (!App.any_component_has_status_flag_(STATUS_LED_ERROR))
+    App.app_state_ &= ~STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s cleared Error flag", LOG_STR_ARG(this->get_component_log_str()));
 }
 void Component::status_momentary_warning(const char *name, uint32_t length) {
@@ -506,6 +506,10 @@ void PollingComponent::stop_poller() {
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
 
+#ifdef USE_RUNTIME_STATS
+uint64_t ComponentRuntimeStats::global_recorded_us = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
+
 void __attribute__((noinline, cold))
 WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t blocking_time) {
   bool should_warn;
@@ -521,18 +525,6 @@ WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t block
   }
 }
 
-#ifdef USE_RUNTIME_STATS
-void WarnIfComponentBlockingGuard::record_runtime_stats_() {
-  // Use micros() for accurate sub-millisecond timing. millis() has insufficient
-  // resolution — most components complete in microseconds but millis() only has
-  // 1ms granularity, so results were essentially random noise.
-  if (global_runtime_stats != nullptr) {
-    uint32_t duration_us = micros() - this->started_us_;
-    global_runtime_stats->record_component_time(this->component_, duration_us);
-  }
-}
-#endif
-
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {
   // Free the setup priority map completely
@@ -540,5 +532,8 @@ void clear_setup_priority_overrides() {
   setup_priority_overrides = nullptr;
 }
 #endif
+
+// Weak default for component_source_lookup - overridden by generated code
+__attribute__((weak)) const LogString *component_source_lookup(uint8_t) { return LOG_STR("<unknown>"); }
 
 }  // namespace esphome

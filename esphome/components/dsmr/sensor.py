@@ -10,6 +10,7 @@ from esphome.const import (
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_WATER,
@@ -119,45 +120,91 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_ENERGY,
             state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
+        cv.Optional("energy_delivered_tariff1_il"): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOWATT_HOURS,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
+        cv.Optional("energy_delivered_tariff2_il"): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOWATT_HOURS,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
+        cv.Optional("energy_delivered_tariff3_il"): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOWATT_HOURS,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
+        cv.Optional("energy_returned_tariff1_il"): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOWATT_HOURS,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
+        cv.Optional("energy_returned_tariff2_il"): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOWATT_HOURS,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
+        cv.Optional("energy_returned_tariff3_il"): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOWATT_HOURS,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
         cv.Optional("total_imported_energy"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
             accuracy_decimals=3,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("reactive_energy_delivered_tariff1"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
             accuracy_decimals=3,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("reactive_energy_delivered_tariff2"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
             accuracy_decimals=3,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("reactive_energy_delivered_tariff3"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
             accuracy_decimals=3,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("reactive_energy_delivered_tariff4"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
             accuracy_decimals=3,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("total_exported_energy"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
             accuracy_decimals=3,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("reactive_energy_returned_tariff1"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
             accuracy_decimals=3,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("reactive_energy_returned_tariff2"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
             accuracy_decimals=3,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("reactive_energy_returned_tariff3"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
             accuracy_decimals=3,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("reactive_energy_returned_tariff4"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
             accuracy_decimals=3,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional("power_delivered"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOWATT,
@@ -501,6 +548,12 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_GAS,
             state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
+        cv.Optional("gas_delivered_gj"): sensor.sensor_schema(
+            unit_of_measurement=UNIT_GIGA_JOULE,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_ENERGY,
+            state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
         cv.Optional("water_delivered"): sensor.sensor_schema(
             unit_of_measurement=UNIT_CUBIC_METER,
             accuracy_decimals=3,
@@ -599,6 +652,12 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional("active_demand_power"): sensor.sensor_schema(
+            unit_of_measurement=UNIT_KILOWATT,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_POWER,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional("active_demand_net"): sensor.sensor_schema(
             unit_of_measurement=UNIT_KILOWATT,
             accuracy_decimals=3,
             device_class=DEVICE_CLASS_POWER,
@@ -718,6 +777,37 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_POWER,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
+        cv.Optional("power_factor"): sensor.sensor_schema(
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_POWER_FACTOR,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional("power_factor_l1"): sensor.sensor_schema(
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_POWER_FACTOR,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional("power_factor_l2"): sensor.sensor_schema(
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_POWER_FACTOR,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional("power_factor_l3"): sensor.sensor_schema(
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_POWER_FACTOR,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional("min_power_factor"): sensor.sensor_schema(
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_POWER_FACTOR,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional("period_3_for_instantaneous_values"): sensor.sensor_schema(
+            unit_of_measurement=UNIT_SECOND,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_DURATION,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -736,6 +826,7 @@ async def to_code(config):
             sensors.append(f"F({key})")
 
     if sensors:
+        cg.add_define("DSMR_SENSOR_LIST_DEFINED")
         cg.add_define(
             "DSMR_SENSOR_LIST(F, sep)", cg.RawExpression(" sep ".join(sensors))
         )
