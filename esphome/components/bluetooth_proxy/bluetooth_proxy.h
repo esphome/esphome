@@ -66,7 +66,6 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
   void dump_config() override;
   void setup() override;
   void loop() override;
-  void flush_pending_advertisements();
   esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
 
   void register_connection(BluetoothConnection *connection) {
@@ -149,6 +148,18 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
 
  protected:
   void send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state);
+
+  /// Caller must ensure api_connection_ is non-null and API server is connected.
+  void flush_pending_advertisements_() {
+    if (this->response_.advertisements_len == 0)
+      return;
+    this->api_connection_->send_message(this->response_);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    this->log_advertisement_flush_();
+#endif
+    this->response_.advertisements_len = 0;
+  }
+  void log_advertisement_flush_();
 
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
   void log_connection_request_ignored_(BluetoothConnection *connection, espbt::ClientState state);
