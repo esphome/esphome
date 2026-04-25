@@ -342,6 +342,26 @@ class ProtoEncode {
     }
     encode_varint_raw_loop(pos PROTO_ENCODE_DEBUG_ARG, value);
   }
+  /// Encode a 48-bit MAC address (stored in a uint64) as varint.
+  /// Real MAC addresses occupy the full 48 bits (OUI in upper 24), so the
+  /// fast path -- any non-zero bit in bits [42..47] -- emits exactly 7 bytes
+  /// with no per-byte branch. Falls back to the general loop otherwise.
+  static inline void ESPHOME_ALWAYS_INLINE encode_varint_raw_48bit(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
+                                                                   uint64_t value) {
+    if (value >= (1ULL << 42)) [[likely]] {
+      PROTO_ENCODE_CHECK_BOUNDS(pos, 7);
+      pos[0] = static_cast<uint8_t>(value | 0x80);
+      pos[1] = static_cast<uint8_t>((value >> 7) | 0x80);
+      pos[2] = static_cast<uint8_t>((value >> 14) | 0x80);
+      pos[3] = static_cast<uint8_t>((value >> 21) | 0x80);
+      pos[4] = static_cast<uint8_t>((value >> 28) | 0x80);
+      pos[5] = static_cast<uint8_t>((value >> 35) | 0x80);
+      pos[6] = static_cast<uint8_t>(value >> 42);
+      pos += 7;
+      return;
+    }
+    encode_varint_raw_64(pos PROTO_ENCODE_DEBUG_ARG, value);
+  }
   static inline void ESPHOME_ALWAYS_INLINE encode_field_raw(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
                                                             uint32_t field_id, uint32_t type) {
     encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, (field_id << 3) | type);
@@ -816,6 +836,13 @@ class ProtoSize {
   }
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_uint64_force(uint32_t field_id_size, uint64_t value) {
     return field_id_size + varint(value);
+  }
+  /// 48-bit MAC address variant: matches encode_varint_raw_48bit's fast path.
+  /// When value uses any of bits [42..47] the encoded varint is 7 bytes;
+  /// otherwise fall back to the general size calculation.
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_uint64_48bit_force(uint32_t field_id_size,
+                                                                                 uint64_t value) {
+    return field_id_size + (value >= (1ULL << 42) ? 7 : varint(value));
   }
   static constexpr uint32_t calc_length(uint32_t field_id_size, size_t len) {
     return len ? field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len) : 0;
