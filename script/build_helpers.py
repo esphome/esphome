@@ -324,8 +324,23 @@ def compile_and_get_binary(
             domain_list.append({CONF_PLATFORM: component})
         # Skip "core" — it's a pseudo-component handled by the build
         # system, not a real loadable component (get_component returns None)
-        elif get_component(component_name) is not None:
-            config.setdefault(component_name, [])
+        elif (component := get_component(component_name)) is not None:
+            # MULTI_CONF components store their config as a list of dicts,
+            # everything else stores a single dict. Run the component's
+            # schema with {} so defaults get populated -- code paths like
+            # socket.FILTER_SOURCE_FILES expect a fully-populated mapping.
+            if component.multi_conf:
+                config.setdefault(component_name, [])
+            elif component_name not in config:
+                schema = component.config_schema
+                try:
+                    config[component_name] = schema({}) if schema is not None else {}
+                except Exception:  # noqa: BLE001
+                    # Schema requires explicit input we can't synthesize; fall
+                    # back to an empty mapping so subscripting at least returns
+                    # KeyError on missing keys rather than crashing on the
+                    # wrong type.
+                    config[component_name] = {}
 
     # Register platforms from the extra config (benchmark.yaml) so
     # USE_SENSOR, USE_LIGHT, etc. defines are emitted without needing

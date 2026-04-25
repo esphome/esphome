@@ -185,6 +185,11 @@ class TypeInfo(ABC):
         return get_field_opt(self._field, pb.force, False)
 
     @property
+    def mac_address(self) -> bool:
+        """Check if this uint64 field is a 48-bit MAC address (use 7-byte fast path)."""
+        return get_field_opt(self._field, pb.mac_address, False)
+
+    @property
     def max_value(self) -> int | None:
         """Get the max_value option for this field, or None if not set."""
         return get_field_opt(self._field, pb.max_value, None)
@@ -665,7 +670,21 @@ class UInt64Type(VarintTypeMixin, TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
+        if self.mac_address and force:
+            field_id_size = self.calculate_field_id_size()
+            return (
+                f"size += ProtoSize::calc_uint64_48bit_force({field_id_size}, {name});"
+            )
         return self._get_simple_size_calculation(name, force, "uint64")
+
+    @property
+    def RAW_ENCODE_MAP(self) -> dict[str, str]:  # noqa: N802
+        if self.mac_address:
+            return {
+                **TypeInfo.RAW_ENCODE_MAP,
+                "encode_uint64": "ProtoEncode::encode_varint_raw_48bit(pos, {value});",
+            }
+        return TypeInfo.RAW_ENCODE_MAP
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
@@ -3558,8 +3577,13 @@ static const char *const TAG = "api.service";
     # Generate read_message_ as APIConnection method (not base class) so the compiler
     # can devirtualize and inline the on_* handler calls within the same class.
     # APIConnection declares this method in api_connection.h.
+    # Guard with #ifdef USE_API since APIConnection itself is only defined when
+    # USE_API is set; without this, builds that compile this .cpp without
+    # USE_API (e.g. C++ unit tests for api dependencies) fail to find the
+    # class declaration.
 
-    out = "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
+    out = "#ifdef USE_API\n"
+    out += "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
 
     # Auth check block before dispatch switch
     out += "  // Check authentication/connection requirements\n"
@@ -3604,6 +3628,7 @@ static const char *const TAG = "api.service";
     out += "      break;\n"
     out += "  }\n"
     out += "}\n"
+    out += "#endif  // USE_API\n"
     cpp += out
     hpp += "};\n"
 
