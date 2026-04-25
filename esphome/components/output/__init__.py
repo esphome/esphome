@@ -54,10 +54,15 @@ async def setup_output_platform_(obj, config):
         power_supply_ = await cg.get_variable(config[CONF_POWER_SUPPLY])
         cg.add(obj.set_power_supply(power_supply_))
     if CONF_MAX_POWER in config:
+        cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
         cg.add(obj.set_max_power(config[CONF_MAX_POWER]))
     if CONF_MIN_POWER in config:
+        cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
         cg.add(obj.set_min_power(config[CONF_MIN_POWER]))
-    if CONF_ZERO_MEANS_ZERO in config:
+    # Only emit (and pull in the scaling field) when explicitly enabled — the
+    # C++ default initializer covers the False case, saving 4 B per instance.
+    if config.get(CONF_ZERO_MEANS_ZERO):
+        cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
         cg.add(obj.set_zero_means_zero(config[CONF_ZERO_MEANS_ZERO]))
 
 
@@ -121,6 +126,7 @@ async def output_set_level_to_code(config, action_id, template_arg, args):
     synchronous=True,
 )
 async def output_set_min_power_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_MIN_POWER], args, cg.float_)
@@ -140,6 +146,7 @@ async def output_set_min_power_to_code(config, action_id, template_arg, args):
     synchronous=True,
 )
 async def output_set_max_power_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_MAX_POWER], args, cg.float_)
