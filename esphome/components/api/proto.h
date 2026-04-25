@@ -844,12 +844,11 @@ class ProtoSize {
     return field_id_size + varint(value);
   }
   /// 48-bit MAC address variant: matches encode_varint_raw_48bit's fast path.
-  /// When any of the top 6 of 48 bits is set the encoded varint is 7 bytes;
+  /// When value uses any of bits [42..47] the encoded varint is 7 bytes;
   /// otherwise fall back to the general size calculation.
-  /// Caller must guarantee value fits in 48 bits (encoder asserts in debug).
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_uint64_48bit_force(uint32_t field_id_size,
                                                                                  uint64_t value) {
-    return field_id_size + (value >= (1ULL << (MAC_ADDRESS_SIZE * 8 - 6)) ? 7 : varint(value));
+    return field_id_size + (value >= (1ULL << 42) ? 7 : varint(value));
   }
   static constexpr uint32_t calc_length(uint32_t field_id_size, size_t len) {
     return len ? field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len) : 0;

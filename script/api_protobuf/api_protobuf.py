@@ -681,10 +681,10 @@ class UInt64Type(VarintTypeMixin, TypeInfo):
     def RAW_ENCODE_MAP(self) -> dict[str, str]:  # noqa: N802
         if self.mac_address:
             return {
-                **TypeInfo.RAW_ENCODE_MAP,
+                **super().RAW_ENCODE_MAP,
                 "encode_uint64": "ProtoEncode::encode_varint_raw_48bit(pos, {value});",
             }
-        return TypeInfo.RAW_ENCODE_MAP
+        return super().RAW_ENCODE_MAP
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
