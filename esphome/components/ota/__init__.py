@@ -24,6 +24,8 @@ def AUTO_LOAD() -> list[str]:
     components = ["safe_mode"]
     if not CORE.using_zephyr:
         components.extend(["md5"])
+    if CORE.is_esp32:
+        components.extend(["watchdog"])
     return components
 
 

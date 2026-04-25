@@ -10,6 +10,7 @@
 #include <spi_flash_mmap.h>
 
 #ifdef USE_OTA_PARTITIONS
+#include "esphome/components/watchdog/watchdog.h"
 #include <esp_image_format.h>
 #include <nvs_flash.h>
 #endif
@@ -222,6 +223,18 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGE(TAG, "esp_partition_table_verify failed (new partition table) (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
+  // Check for missing checksum
+  // esp_partition_table_verify does not fail in this case and the ESP would not boot after the update
+  bool checksum_found = false;
+  for (size_t i = 0; i < ESP_PARTITION_TABLE_MAX_ENTRIES; i++) {
+    if (((const esp_partition_info_t *)&new_partition_table[i])->magic == ESP_PARTITION_MAGIC_MD5) {
+      checksum_found = true;
+    }
+  }
+  if (!checksum_found) {
+    ESP_LOGE(TAG, "New partition table has no checksum", err);
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+  }
 
   // Check if the required app and otadata partitions exist in the new partition table
   // Check which app slot to boot from in the new partition table
@@ -284,7 +297,6 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
     while (it != NULL) {
       const esp_partition_t *p = esp_partition_get(it);
-      const esp_partition_info_t *new_part = &new_partition_table[app_index == -1 ? app_index_with_copy : app_index];
       if (p->address == running_app_offset && p->size >= running_app_size) {
         running_app_part = p;
       }
@@ -294,28 +306,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,
              app_copy_target_part->address, running_app_size);
 
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-    // The following function takes longer than the 5 seconds timeout of WDT
-    esp_task_wdt_config_t wdtc;
-    wdtc.idle_core_mask = 0;
-#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0
-    wdtc.idle_core_mask |= (1 << 0);
-#endif
-#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1
-    wdtc.idle_core_mask |= (1 << 1);
-#endif
-    wdtc.timeout_ms = 15000;
-    wdtc.trigger_panic = false;
-    esp_task_wdt_reconfigure(&wdtc);
-#endif
-
+    watchdog::WatchdogManager watchdog(15000);
     err = esp_partition_copy(app_copy_target_part, 0, running_app_part, 0, running_app_size);
-
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-    // Set the WDT back to the configured timeout
-    wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
-    esp_task_wdt_reconfigure(&wdtc);
-#endif
 
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_partition_copy failed (err=0x%X) ", err);
