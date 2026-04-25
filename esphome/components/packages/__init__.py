@@ -1,4 +1,4 @@
-from collections import OrderedDict, UserDict
+from collections import UserDict
 from collections.abc import Callable
 from functools import reduce
 import logging
@@ -399,21 +399,15 @@ def _substitute_package_definition(
         return do_substitute(package_config)
 
     if isinstance(package_config, dict) and is_remote_package(package_config):
-        # Remove and re-add vars to avoid substituting variables in the vars block itself, since they are meant to be
+        # Mark vars as literal to avoid substituting variables in the vars block itself, since they are meant to be
         # passed as-is to the package YAML and may contain their own substitution expressions that should not
         # be prematurely evaluated here.
-        save_vars: OrderedDict[int, dict[str, Any]] = OrderedDict()
         if CONF_FILES in package_config:
-            for idx, file_def in enumerate(package_config[CONF_FILES]):
+            for file_def in package_config[CONF_FILES]:
                 if isinstance(file_def, dict) and CONF_VARS in file_def:
-                    save_vars[idx] = file_def.pop(CONF_VARS)
+                    file_def[CONF_VARS] = yaml_util.make_literal(file_def[CONF_VARS])
 
         package_config = do_substitute(package_config)
-
-        # re-add vars after substitution
-        files = package_config.get(CONF_FILES, [])
-        for idx, v in save_vars.items():
-            files[idx][CONF_VARS] = v
 
     return package_config
 
