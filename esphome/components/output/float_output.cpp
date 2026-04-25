@@ -9,11 +9,11 @@ static const char *const TAG = "output.float";
 
 #ifdef USE_OUTPUT_FLOAT_POWER_SCALING
 void FloatOutput::set_max_power(float max_power) {
-  this->max_power_ = clamp(max_power, this->min_power_, 1.0f);  // Clamp to MIN>=MAX>=1.0
+  this->max_power_ = clamp(max_power, this->min_power_, 1.0f);  // Clamp to min_power <= max <= 1.0
 }
 
 void FloatOutput::set_min_power(float min_power) {
-  this->min_power_ = clamp(min_power, 0.0f, this->max_power_);  // Clamp to 0.0>=MIN>=MAX
+  this->min_power_ = clamp(min_power, 0.0f, this->max_power_);  // Clamp to 0.0 <= min <= max_power
 }
 #endif
 
