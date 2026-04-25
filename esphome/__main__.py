@@ -63,6 +63,7 @@ from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
+from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 from esphome.util import (
     PICOTOOL_PACKAGE,
@@ -1692,8 +1693,59 @@ def run_multiple_configs(
     return failed
 
 
+def _update_all_version_sort_key(
+    version: str | None,
+) -> tuple[int, int, int, int, str]:
+    """Return a sortable key for ESPHome versions stored by prior builds."""
+    if version is None:
+        return (-1, -1, -1, 0, "")
+
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)(?:[-.]?(.+))?$", version)
+    if match is None:
+        return (-1, -1, -1, 0, version)
+
+    prerelease = match[4] or ""
+    release_rank = 0 if prerelease else 1
+    return (int(match[1]), int(match[2]), int(match[3]), release_rank, prerelease)
+
+
+def _update_all_touched_time(storage_path_: Path) -> float:
+    """Return the best available mtime for prioritizing stale configs."""
+    with suppress(OSError):
+        return storage_path_.stat().st_mtime
+    return 0.0
+
+
+def _update_all_storage_path(config_file: Path) -> Path:
+    """Return the dashboard storage sidecar path for a config file."""
+    if get_bool_env("ESPHOME_IS_HA_ADDON"):
+        data_dir = Path("/data")
+    elif "ESPHOME_DATA_DIR" in os.environ:
+        data_dir = Path(os.environ["ESPHOME_DATA_DIR"])
+    else:
+        data_dir = config_file.parent / ".esphome"
+    return data_dir / "storage" / f"{config_file.name}.json"
+
+
+def _update_all_sort_key(
+    config_file: Path,
+) -> tuple[int, tuple[int, int, int, int, str], float, str]:
+    """Sort update-all so stale and older configs are attempted first."""
+    storage_path_ = _update_all_storage_path(config_file)
+    storage = StorageJSON.load(storage_path_)
+    deployed_version = storage.esphome_version if storage else None
+    update_priority = 0 if deployed_version != const.__version__ else 1
+
+    return (
+        update_priority,
+        _update_all_version_sort_key(deployed_version),
+        _update_all_touched_time(storage_path_),
+        str(config_file),
+    )
+
+
 def command_update_all(args: ArgsProtocol) -> int | None:
-    files = list_yaml_files(args.configuration)
+    files = sorted(list_yaml_files(args.configuration), key=_update_all_sort_key)
 
     def build_command(f):
         dashboard = ["--dashboard"] if CORE.dashboard else []

@@ -18,12 +18,14 @@ import pytest
 from pytest import CaptureFixture
 from zeroconf import ServiceStateChange
 
-from esphome import platformio_api
+from esphome import const, platformio_api
 from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
     _resolve_network_devices,
+    _update_all_storage_path,
+    _update_all_version_sort_key,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
     choose_upload_log_host,
@@ -154,7 +156,7 @@ def setup_core(
         CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = platform
 
     if tmp_path is not None:
-        CORE.config_path = str(tmp_path / f"{name}.yaml")
+        CORE.config_path = tmp_path / f"{name}.yaml"
         CORE.name = name
         CORE.build_path = str(tmp_path / ".esphome" / "build" / name)
 
@@ -3636,6 +3638,139 @@ esp8266:
 
     # Verify run_external_process was called for each file
     assert mock_run_external_process.call_count == 2
+
+
+def _write_update_all_storage(
+    tmp_path: Path, filename: str, version: str, mtime: float
+) -> None:
+    """Write dashboard storage metadata for update-all ordering tests."""
+    storage_dir = tmp_path / ".esphome" / "storage"
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    storage_path = storage_dir / f"{filename}.json"
+    storage_path.write_text(
+        json.dumps(
+            {
+                "storage_version": 1,
+                "name": filename.removesuffix(".yaml"),
+                "friendly_name": filename.removesuffix(".yaml"),
+                "comment": None,
+                "esphome_version": version,
+                "src_version": 1,
+                "address": f"{filename}.local",
+                "web_port": None,
+                "esp_platform": "ESP8266",
+                "build_path": str(tmp_path / ".esphome" / "build" / filename),
+                "firmware_bin_path": str(tmp_path / "firmware.bin"),
+                "loaded_integrations": [],
+                "loaded_platforms": [],
+                "no_mdns": False,
+                "framework": "arduino",
+                "core_platform": "esp8266",
+            }
+        )
+    )
+    os.utime(storage_path, (mtime, mtime))
+
+
+def test_update_all_version_sort_key_handles_missing_extra_and_invalid() -> None:
+    """Test update-all version sorting covers stored metadata edge cases."""
+    assert _update_all_version_sort_key(None) == (-1, -1, -1, 0, "")
+    assert _update_all_version_sort_key("2025.1.0") == (2025, 1, 0, 1, "")
+    assert _update_all_version_sort_key("2025.1.0-dev") == (2025, 1, 0, 0, "dev")
+    assert _update_all_version_sort_key("2025.1.0b1") == (2025, 1, 0, 0, "b1")
+    assert _update_all_version_sort_key("legacy") == (-1, -1, -1, 0, "legacy")
+
+
+def test_update_all_storage_path_does_not_require_core_config_path(
+    tmp_path: Path,
+) -> None:
+    """Test update-all can locate storage before pre-config commands set CORE paths."""
+    CORE.config_path = None
+    config_file = tmp_path / "device.yaml"
+
+    assert _update_all_storage_path(config_file) == (
+        tmp_path / ".esphome" / "storage" / "device.yaml.json"
+    )
+
+
+def test_update_all_storage_path_uses_configured_data_dir(
+    tmp_path: Path,
+) -> None:
+    """Test update-all follows the same data-dir override as StorageJSON sidecars."""
+    CORE.config_path = None
+    config_file = tmp_path / "device.yaml"
+    data_dir = tmp_path / "data"
+
+    with patch.dict(os.environ, {"ESPHOME_DATA_DIR": str(data_dir)}):
+        assert _update_all_storage_path(config_file) == (
+            data_dir / "storage" / "device.yaml.json"
+        )
+
+
+def test_update_all_storage_path_uses_ha_addon_data_dir(
+    tmp_path: Path,
+) -> None:
+    """Test update-all follows HA add-on storage sidecar placement."""
+    CORE.config_path = None
+    config_file = tmp_path / "device.yaml"
+
+    with patch.dict(os.environ, {"ESPHOME_IS_HA_ADDON": "true"}, clear=False):
+        assert _update_all_storage_path(config_file) == (
+            Path("/data") / "storage" / "device.yaml.json"
+        )
+
+
+def test_command_update_all_prioritizes_stale_versions(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    """Test update-all starts with configs that are not on the current version."""
+    current_yaml = tmp_path / "current.yaml"
+    old_yaml = tmp_path / "old.yaml"
+    current_yaml.write_text("esphome:\n  name: current\n")
+    old_yaml.write_text("esphome:\n  name: old\n")
+    _write_update_all_storage(tmp_path, "current.yaml", const.__version__, 1)
+    _write_update_all_storage(tmp_path, "old.yaml", "2025.12.0", 2)
+
+    CORE.config_path = None
+    mock_run_external_process.return_value = 0
+
+    assert command_update_all(MockArgs(configuration=[str(tmp_path)])) == 0
+
+    first_command = mock_run_external_process.call_args_list[0].args
+    assert str(first_command[4]).endswith("old.yaml")
+
+
+def test_command_update_all_sorts_outdated_by_version_then_age(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    """Test update-all handles the oldest deployed versions first."""
+    newest_old = tmp_path / "newest-old.yaml"
+    oldest = tmp_path / "oldest.yaml"
+    same_version_older = tmp_path / "same-version-older.yaml"
+    same_version_newer = tmp_path / "same-version-newer.yaml"
+    for path in (newest_old, oldest, same_version_older, same_version_newer):
+        path.write_text(f"esphome:\n  name: {path.stem}\n")
+    _write_update_all_storage(tmp_path, newest_old.name, "2025.12.0", 1)
+    _write_update_all_storage(tmp_path, oldest.name, "2024.1.0", 4)
+    _write_update_all_storage(tmp_path, same_version_older.name, "2025.1.0", 2)
+    _write_update_all_storage(tmp_path, same_version_newer.name, "2025.1.0", 3)
+
+    CORE.config_path = None
+    mock_run_external_process.return_value = 0
+
+    assert command_update_all(MockArgs(configuration=[str(tmp_path)])) == 0
+
+    processed = [
+        Path(call.args[4]).name for call in mock_run_external_process.call_args_list
+    ]
+    assert processed == [
+        "oldest.yaml",
+        "same-version-older.yaml",
+        "same-version-newer.yaml",
+        "newest-old.yaml",
+    ]
 
 
 def test_command_update_all_with_failures(
