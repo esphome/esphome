@@ -108,6 +108,6 @@ async def to_code(config):
     await setup_conf(config, CONF_CHANNEL)
     await setup_conf(config, CONF_NETWORK_NAME)
     await setup_conf(config, CONF_NETWORK_KEY)
-    await setup_conf(config, CONF_MESH_LOCAL_EID)
     await setup_conf(config, CONF_PAN_ID)
+    await setup_conf(config, CONF_MESH_LOCAL_EID)
     await setup_conf(config, CONF_EXT_PAN_ID)

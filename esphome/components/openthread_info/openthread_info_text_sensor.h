@@ -134,7 +134,7 @@ class ChannelOpenThreadInfo final : public OpenThreadInstancePollingComponent, p
   uint8_t last_channel_;
 };
 
-class MeshLocalEidOpenThreadInfo : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
+class MeshLocalEidOpenThreadInfo final : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
  public:
   void update_instance(otInstance *instance) override {
     const otIp6Address *addr = otThreadGetMeshLocalEid(instance);
@@ -150,7 +150,6 @@ class MeshLocalEidOpenThreadInfo : public OpenThreadInstancePollingComponent, pu
       this->publish_state(buf);
     }
   }
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void dump_config() override;
 
  protected:
