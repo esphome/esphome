@@ -344,11 +344,13 @@ class ProtoEncode {
   }
   /// Encode a 48-bit MAC address (stored in a uint64) as varint.
   /// Real MAC addresses occupy the full 48 bits (OUI in upper 24), so the
-  /// fast path -- any non-zero bit in bits [42..47] -- emits exactly 7 bytes
-  /// with no per-byte branch. Falls back to the general loop otherwise.
+  /// fast path -- any non-zero bit in bits [42..47] with value fitting in
+  /// 48 bits -- emits exactly 7 bytes with no per-byte branch. Values outside
+  /// [1<<42, 1<<48) fall back to the general encoder to preserve correctness
+  /// if this helper is ever misapplied to a non-MAC uint64.
   static inline void ESPHOME_ALWAYS_INLINE encode_varint_raw_48bit(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
                                                                    uint64_t value) {
-    if (value >= (1ULL << 42)) [[likely]] {
+    if (value >= (1ULL << 42) && value < (1ULL << 48)) [[likely]] {
       PROTO_ENCODE_CHECK_BOUNDS(pos, 7);
       pos[0] = static_cast<uint8_t>(value | 0x80);
       pos[1] = static_cast<uint8_t>((value >> 7) | 0x80);
@@ -838,11 +840,12 @@ class ProtoSize {
     return field_id_size + varint(value);
   }
   /// 48-bit MAC address variant: matches encode_varint_raw_48bit's fast path.
-  /// When value uses any of bits [42..47] the encoded varint is 7 bytes;
-  /// otherwise fall back to the general size calculation.
+  /// When value is in [1<<42, 1<<48) the encoded varint is 7 bytes; values
+  /// outside that range fall back to the general size calculation so the
+  /// result stays correct if this helper is ever misapplied.
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_uint64_48bit_force(uint32_t field_id_size,
                                                                                  uint64_t value) {
-    return field_id_size + (value >= (1ULL << 42) ? 7 : varint(value));
+    return field_id_size + ((value >= (1ULL << 42) && value < (1ULL << 48)) ? 7 : varint(value));
   }
   static constexpr uint32_t calc_length(uint32_t field_id_size, size_t len) {
     return len ? field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len) : 0;
