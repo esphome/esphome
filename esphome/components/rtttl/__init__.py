@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 
 from esphome import automation
@@ -6,6 +7,7 @@ from esphome.components.output import FloatOutput
 from esphome.components.speaker import Speaker
 import esphome.config_validation as cv
 from esphome.const import CONF_GAIN, CONF_ID, CONF_OUTPUT, CONF_PLATFORM, CONF_SPEAKER
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
@@ -13,6 +15,23 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@glmnet", "@ximex"]
 CONF_RTTTL = "rtttl"
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
+
+DOMAIN = "rtttl"
+
+
+@dataclass
+class RtttlData:
+    # Maximum number of on_finished_playback callbacks across all rtttl instances.
+    # StaticCallbackManager reserves N slots per instance, so size to the largest.
+    max_finished_playback_callbacks: int = 0
+    final_job_scheduled: bool = False
+
+
+def _get_data() -> RtttlData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = RtttlData()
+    return CORE.data[DOMAIN]
+
 
 rtttl_ns = cg.esphome_ns.namespace("rtttl")
 
@@ -93,7 +112,26 @@ async def to_code(config):
 
     cg.add(var.set_gain(config[CONF_GAIN]))
 
-    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+    if finished_playback := config.get(CONF_ON_FINISHED_PLAYBACK):
+        cg.add_define("USE_RTTTL_FINISHED_PLAYBACK_CALLBACK")
+        data = _get_data()
+        data.max_finished_playback_callbacks = max(
+            data.max_finished_playback_callbacks, len(finished_playback)
+        )
+        if not data.final_job_scheduled:
+            data.final_job_scheduled = True
+            CORE.add_job(_add_callback_count_define)
+        await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_callback_count_define() -> None:
+    data = _get_data()
+    if data.max_finished_playback_callbacks > 0:
+        cg.add_define(
+            "ESPHOME_RTTTL_FINISHED_PLAYBACK_CALLBACK_COUNT",
+            data.max_finished_playback_callbacks,
+        )
 
 
 @automation.register_action(
