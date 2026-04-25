@@ -114,7 +114,7 @@ def make_data_base(
 
 
 def make_literal(value: Any) -> ESPLiteralValue | Any:
-    """Wrap a value in a ESPLiteralValue object."""
+    """Wrap a value in an ESPLiteralValue object."""
     try:
         return add_class_to_obj(value, ESPLiteralValue)
     except TypeError:
