@@ -224,23 +224,23 @@ void ESPHomeOTAComponent::handle_handshake_() {
       ESP_LOGV(TAG, "Features: 0x%02X", this->ota_features_);
       this->transition_ota_state_(OTAState::FEATURE_ACK);
 
-      const bool supports_compression = ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 &&
-                                        this->backend_->supports_compression());
+      const bool supports_compression =
+          ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression());
 #ifdef USE_OTA_PARTITIONS
       this->extended_proto_ = this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
       if (this->extended_proto_) {
         // If the client supports the extended protocol, send 2 bytes: response type and server feature flags
-        this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS; // indicates the following byte contains feature flags
-        this->handshake_buf_[1] = SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS; // supported if USE_OTA_PARTITIONS
+        this->handshake_buf_[0] =
+            ota::OTA_RESPONSE_FEATURE_FLAGS;  // indicates the following byte contains feature flags
+        this->handshake_buf_[1] = SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;  // supported if USE_OTA_PARTITIONS
         if (supports_compression) {
           this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_COMPRESSION;
         }
       } else {
 #endif
         // Standard protocol without server feature flags
-        this->handshake_buf_[0] = (supports_compression)
-                ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION
-                : ota::OTA_RESPONSE_HEADER_OK;
+        this->handshake_buf_[0] =
+            (supports_compression) ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION : ota::OTA_RESPONSE_HEADER_OK;
 #ifdef USE_OTA_PARTITIONS
       }
 #endif

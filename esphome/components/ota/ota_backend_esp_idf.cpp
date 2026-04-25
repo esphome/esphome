@@ -179,7 +179,7 @@ void IDFOTABackend::abort() {
 
 #ifdef USE_OTA_PARTITIONS
 static inline bool check_overlap(uint32_t a_offset, size_t a_size, uint32_t b_offset, size_t b_size) {
-    return (a_offset + a_size > b_offset && b_offset + b_size > a_offset);
+  return (a_offset + a_size > b_offset && b_offset + b_size > a_offset);
 }
 
 OTAResponseTypes IDFOTABackend::update_partition_table() {
@@ -268,7 +268,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
             if (p->address == new_part->pos.offset && p->size >= running_app_size) {
               // Found a suitable pair of partitions in the old and new partition table to copy the running app to
               new_app_part_index_with_copy = i;  // The partition index in the new partition table
-              app_copy_target_part = p;  // The partition in the old partition table
+              app_copy_target_part = p;          // The partition in the old partition table
             }
             it = esp_partition_next(it);
           }
@@ -349,7 +349,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
   while (it != NULL) {
     const esp_partition_t *p = esp_partition_get(it);
-    const esp_partition_info_t *new_part = &new_partition_table[new_app_part_index == -1 ? new_app_part_index_with_copy : new_app_part_index];
+    const esp_partition_info_t *new_part =
+        &new_partition_table[new_app_part_index == -1 ? new_app_part_index_with_copy : new_app_part_index];
     if (p->address == new_part->pos.offset) {
       new_boot_partition = p;
     }
