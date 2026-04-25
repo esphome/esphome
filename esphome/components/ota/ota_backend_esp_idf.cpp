@@ -227,7 +227,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   // esp_partition_table_verify does not fail in this case and the ESP would not boot after the update
   bool checksum_found = false;
   for (size_t i = 0; i < ESP_PARTITION_TABLE_MAX_ENTRIES; i++) {
-    if (((const esp_partition_info_t *)&new_partition_table[i])->magic == ESP_PARTITION_MAGIC_MD5) {
+    if (((const esp_partition_info_t *) &new_partition_table[i])->magic == ESP_PARTITION_MAGIC_MD5) {
       checksum_found = true;
     }
   }
