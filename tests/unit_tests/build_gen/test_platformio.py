@@ -9,7 +9,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.build_gen import platformio
-from esphome.const import PLATFORMIO_ENV_NAME
+from esphome.const import (
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_HOST,
+    PLATFORM_NRF52,
+    PLATFORMIO_ENV_NAME,
+)
 from esphome.core import CORE
 
 
@@ -198,3 +204,66 @@ def test_get_ini_content_uses_stable_platformio_env_name() -> None:
 
     assert f"[env:{PLATFORMIO_ENV_NAME}]" in content
     assert "[env:kitchen-switch]" not in content
+    assert "pre:cxx_flags.py" in content
+    assert "post:no_cache.py" in content
+
+
+@pytest.mark.parametrize("target_platform", ["rp2040", "bk72xx", "rtl87xx", "ln882x"])
+def test_get_ini_content_uses_stable_env_name_for_embedded_platforms(
+    target_platform: str,
+) -> None:
+    """Test embedded PlatformIO builds share stable target paths."""
+    CORE.reset()
+    CORE.name = f"{target_platform}-device"
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: target_platform}
+
+    content = platformio.get_ini_content()
+
+    assert f"[env:{PLATFORMIO_ENV_NAME}]" in content
+    assert f"[env:{target_platform}-device]" not in content
+
+
+@pytest.mark.parametrize("target_platform", [PLATFORM_HOST, PLATFORM_NRF52])
+def test_get_ini_content_keeps_special_platform_env_name_device_scoped(
+    target_platform: str,
+) -> None:
+    """Test host and Zephyr builds keep their historical env layout."""
+    CORE.reset()
+    CORE.name = f"{target_platform}-device"
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: target_platform}
+
+    content = platformio.get_ini_content()
+
+    assert f"[env:{target_platform}-device]" in content
+    assert f"[env:{PLATFORMIO_ENV_NAME}]" not in content
+
+
+def test_write_cxx_flags_script_adds_non_host_flags(tmp_path: Path) -> None:
+    """Test generated PlatformIO script adds C++ flags before build setup."""
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.build_path = str(tmp_path)
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
+
+    platformio.write_cxx_flags_script()
+
+    content = (tmp_path / platformio.CXX_FLAGS_FILE_NAME).read_text()
+    assert 'env.Append(CXXFLAGS=["-Wno-volatile"])' in content
+
+
+def test_write_no_cache_script_marks_project_outputs_no_cache(tmp_path: Path) -> None:
+    """Test generated post script skips per-device outputs in SCons cache."""
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.build_path = str(tmp_path)
+
+    platformio.write_no_cache_script()
+
+    content = (tmp_path / platformio.NO_CACHE_FILE_NAME).read_text()
+    assert "env.NoCache(env.File(env.subst(path)))" in content
+    assert "$BUILD_DIR/${PROGNAME}.elf" in content
+    assert "$BUILD_DIR/${PROGNAME}.factory.bin" in content
+    assert "$BUILD_DIR/${PROGNAME}.uf2" in content
+    assert "$BUILD_DIR/${PROGNAME}.hex" in content
+    assert "$BUILD_DIR/raw_firmware.elf" in content
+    assert "$BUILD_DIR/firmware.uf2" in content
+    assert "$BUILD_DIR/src/esphome/core/build_info_data.cpp.o" in content
+    assert "$BUILD_DIR/src/main.cpp.o" in content

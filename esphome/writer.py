@@ -512,6 +512,10 @@ def clean_build(clear_pio_cache: bool = True):
         CORE.relative_internal_path("platformio", "build-cache"),
         "build_cache_dir",
     )
+    _clean_platformio_dir(
+        CORE.relative_internal_path("platformio", "libdeps"),
+        "libdeps_dir",
+    )
 
 
 def _get_custom_build_dir(item: Path, data_dir: Path) -> Path | None:

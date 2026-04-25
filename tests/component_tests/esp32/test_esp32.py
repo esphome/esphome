@@ -2,6 +2,7 @@
 Test ESP32 configuration
 """
 
+import asyncio
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -102,6 +103,90 @@ def test_esp32_config(
             }
         )
         assert VARIANT_FRIENDLY[variant].lower() in config["board"]
+
+
+def test_platformio_idf_enables_reproducible_build(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Test PlatformIO ESP-IDF builds strip volatile path/time metadata."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA, to_code
+
+    config = CONFIG_SCHEMA(
+        {
+            "board": "esp32dev",
+            "variant": VARIANT_ESP32,
+            "framework": {"type": "esp-idf"},
+        }
+    )
+
+    with (
+        patch("esphome.codegen.add_platformio_option"),
+        patch("esphome.codegen.add_build_flag"),
+        patch("esphome.codegen.add_define"),
+    ):
+        asyncio.run(to_code(config))
+        CORE.flush_tasks()
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig["CONFIG_APP_REPRODUCIBLE_BUILD"] is True
+
+
+def test_platformio_idf_respects_reproducible_build_override(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Test user sdkconfig_options keep precedence over ESPHome defaults."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA, to_code
+
+    config = CONFIG_SCHEMA(
+        {
+            "board": "esp32dev",
+            "variant": VARIANT_ESP32,
+            "framework": {
+                "type": "esp-idf",
+                "sdkconfig_options": {"CONFIG_APP_REPRODUCIBLE_BUILD": "n"},
+            },
+        }
+    )
+
+    with (
+        patch("esphome.codegen.add_platformio_option"),
+        patch("esphome.codegen.add_build_flag"),
+        patch("esphome.codegen.add_define"),
+    ):
+        asyncio.run(to_code(config))
+        CORE.flush_tasks()
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig["CONFIG_APP_REPRODUCIBLE_BUILD"].value == "n"
+
+
+def test_native_idf_does_not_force_reproducible_build(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Test native ESP-IDF builds keep sdkconfig semantics unchanged."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_NATIVE_IDF] = True
+
+    from esphome.components.esp32 import CONFIG_SCHEMA, to_code
+
+    config = CONFIG_SCHEMA(
+        {
+            "board": "esp32dev",
+            "variant": VARIANT_ESP32,
+            "framework": {"type": "esp-idf"},
+        }
+    )
+
+    with patch("esphome.codegen.add_build_flag"), patch("esphome.codegen.add_define"):
+        asyncio.run(to_code(config))
+        CORE.flush_tasks()
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert "CONFIG_APP_REPRODUCIBLE_BUILD" not in sdkconfig
 
 
 @pytest.mark.parametrize(
