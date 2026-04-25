@@ -207,7 +207,6 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
         this->log_connection_info_(connection, "v3 without cache");
       }
-      uint64_to_bd_addr(msg.address, connection->remote_bda_);
       connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
       connection->set_state(espbt::ClientState::DISCOVERED);
       this->send_connections_free();
