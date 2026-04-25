@@ -158,7 +158,7 @@ async def modem_disable_to_code(config, action_id, template_arg, args):
 )
 async def modem_send_at_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    template_ = await cg.templatable(config, args, str)
+    template_ = await cg.templatable(config, args, cg.std_string)
     cg.add(var.set_command(template_))
     return var
 
