@@ -1,6 +1,7 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import datetime
 import functools
 import getpass
@@ -9,6 +10,8 @@ import logging
 import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import time
 from typing import Protocol
@@ -23,6 +26,7 @@ import esphome.codegen as cg
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
+    ARGUMENT_HELP_DEVICE,
     CONF_API,
     CONF_BAUD_RATE,
     CONF_BROKER,
@@ -35,6 +39,7 @@ from esphome.const import (
     CONF_MDNS,
     CONF_MQTT,
     CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PLATFORM,
@@ -43,7 +48,9 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     ENV_NOGITIGNORE,
+    KEY_CORE,
     KEY_NATIVE_IDF,
+    KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -55,17 +62,39 @@ from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
 from esphome.util import (
+    PICOTOOL_PACKAGE,
+    detect_rp2040_bootsel,
+    get_picotool_path,
     get_serial_ports,
+    is_picotool_usb_permission_error,
     list_yaml_files,
     run_external_command,
     run_external_process,
     safe_print,
 )
+from esphome.zeroconf import discover_mdns_devices
 
 _LOGGER = logging.getLogger(__name__)
 
+ESPHOME_COMMAND = [sys.executable, "-m", "esphome"]
+
 # Maximum buffer size for serial log reading to prevent unbounded memory growth
 SERIAL_BUFFER_MAX_SIZE = 65536
+
+_RP2040_BOOTSEL_INSTRUCTIONS = (
+    "To enter BOOTSEL mode:\n"
+    "  1. Unplug the device\n"
+    "  2. Hold the BOOT/BOOTSEL button\n"
+    "  3. Plug in the USB cable while holding the button\n"
+    "  4. Release the button - the device should appear as a USB drive (RPI-RP2)\n"
+    "Then run the upload command again."
+)
+
+_RP2040_UDEV_HINT = (
+    "You may need to add a udev rule for RP2040 devices. "
+    "See: https://github.com/raspberrypi/picotool"
+    "/blob/master/udev/60-picotool.rules"
+)
 
 # Special non-component keys that appear in configs
 _NON_COMPONENT_KEYS = frozenset(
@@ -162,6 +191,7 @@ class PortType(StrEnum):
     NETWORK = "NETWORK"
     MQTT = "MQTT"
     MQTTIP = "MQTTIP"
+    BOOTSEL = "BOOTSEL"
 
 
 # Magic MQTT port types that require special handling
@@ -174,6 +204,64 @@ def _resolve_with_cache(address: str, purpose: Purpose) -> list[str]:
         _LOGGER.debug("Using cached addresses for %s: %s", purpose.value, cached)
         return cached
     return [address]
+
+
+def _populate_mdns_cache(hosts_to_addresses: dict[str, list[str]]) -> None:
+    """Store discovered ``host -> [ips]`` entries in ``CORE.address_cache``.
+
+    Ensures ``CORE.address_cache`` exists, then records each mDNS hostname so
+    the downstream resolution path (``resolve_ip_address``) can skip opening a
+    second Zeroconf client.
+    """
+    from esphome.address_cache import AddressCache
+
+    if CORE.address_cache is None:
+        CORE.address_cache = AddressCache()
+    for host, addresses in hosts_to_addresses.items():
+        if addresses:
+            _LOGGER.debug("Caching mDNS result %s -> %s", host, addresses)
+        CORE.address_cache.add_mdns_addresses(host, addresses)
+
+
+def _discover_mac_suffix_devices() -> list[str] | None:
+    """Discover ``<name>-<mac>.local`` devices and cache their IPs.
+
+    Returns:
+        - ``None`` when discovery isn't applicable (``name_add_mac_suffix`` off,
+          mDNS disabled, or ``CORE.address`` is already an IP). Callers should
+          then fall back to whatever default OTA address they normally use.
+        - ``[]`` when discovery ran but found nothing. Callers should NOT fall
+          back to the base name: with ``name_add_mac_suffix`` enabled, the base
+          name by definition doesn't exist on the network.
+        - A non-empty sorted list of ``.local`` hostnames on success.
+
+    Populates ``CORE.address_cache`` so downstream resolution (``espota2`` or
+    ``aioesphomeapi`` via :func:`_resolve_network_devices`) reuses the IPs we
+    already have without opening a second Zeroconf client.
+    """
+    if not (has_name_add_mac_suffix() and has_mdns() and has_non_ip_address()):
+        return None
+    _LOGGER.info("Discovering devices...")
+    if not (discovered := discover_mdns_devices(CORE.name)):
+        _LOGGER.warning(
+            "No devices matching '%s-<mac>.local' were discovered.", CORE.name
+        )
+        return []
+    _populate_mdns_cache(discovered)
+    return list(discovered)
+
+
+def _ota_hostnames_for_default(purpose: Purpose) -> list[str]:
+    """Return OTA hostname(s) for the ``--device OTA`` / default-resolve path.
+
+    When ``name_add_mac_suffix`` is enabled, returns discovered
+    ``<name>-<mac>.local`` hostnames (possibly empty — in which case the
+    caller should not fall back to the base name). Otherwise falls back to
+    the cache-resolved ``CORE.address``.
+    """
+    if (discovered := _discover_mac_suffix_devices()) is not None:
+        return discovered
+    return _resolve_with_cache(CORE.address, purpose)
 
 
 def choose_upload_log_host(
@@ -214,14 +302,14 @@ def choose_upload_log_host(
                         resolved.append("MQTT")
 
                     if has_api() and has_non_ip_address() and has_resolvable_address():
-                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
+                        resolved.extend(_ota_hostnames_for_default(purpose))
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
                     if has_ota() and has_non_ip_address() and has_resolvable_address():
-                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
+                        resolved.extend(_ota_hostnames_for_default(purpose))
             else:
                 resolved.append(device)
         if not resolved:
@@ -240,22 +328,61 @@ def choose_upload_log_host(
         (f"{port.path} ({port.description})", port.path) for port in get_serial_ports()
     ]
 
+    # Add RP2040 BOOTSEL device option when uploading
+    bootsel_permission_error = False
+    if (
+        purpose == Purpose.UPLOADING
+        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and (picotool := _find_picotool()) is not None
+    ):
+        bootsel = detect_rp2040_bootsel(picotool)
+        if bootsel.device_count > 0:
+            options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
+        elif bootsel.permission_error:
+            bootsel_permission_error = True
+
+    def add_ota_options() -> None:
+        """Add OTA options, using mDNS discovery if name_add_mac_suffix is enabled."""
+        if (discovered := _discover_mac_suffix_devices()) is not None:
+            # Discovery was applicable. Use whatever we found — on empty,
+            # intentionally skip the base-name fallback since with
+            # name_add_mac_suffix on, the base name doesn't exist on the net.
+            for host in discovered:
+                options.append((f"Over The Air ({host})", host))
+        elif has_resolvable_address():
+            options.append((f"Over The Air ({CORE.address})", CORE.address))
+        if has_mqtt_ip_lookup():
+            options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
             mqtt_config = CORE.config[CONF_MQTT]
             options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
 
         if has_api():
-            if has_resolvable_address():
-                options.append((f"Over The Air ({CORE.address})", CORE.address))
-            if has_mqtt_ip_lookup():
-                options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+            add_ota_options()
 
     elif purpose == Purpose.UPLOADING and has_ota():
-        if has_resolvable_address():
-            options.append((f"Over The Air ({CORE.address})", CORE.address))
-        if has_mqtt_ip_lookup():
-            options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+        add_ota_options()
+
+    # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
+    if (
+        purpose == Purpose.UPLOADING
+        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
+    ):
+        if bootsel_permission_error:
+            _LOGGER.warning(
+                "An RP2040 device in BOOTSEL mode was detected but could "
+                "not be accessed due to USB permissions."
+            )
+            if sys.platform.startswith("linux"):
+                _LOGGER.warning(_RP2040_UDEV_HINT)
+        if not options:
+            raise EsphomeError(
+                f"No RP2040 device found. {_RP2040_BOOTSEL_INSTRUCTIONS}"
+            )
+        _LOGGER.info("Tip: %s", _RP2040_BOOTSEL_INSTRUCTIONS)
 
     if check_default is not None and check_default in [opt[1] for opt in options]:
         return [check_default]
@@ -347,7 +474,17 @@ def has_resolvable_address() -> bool:
     return not CORE.address.endswith(".local")
 
 
-def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
+def has_name_add_mac_suffix() -> bool:
+    """Check if name_add_mac_suffix is enabled in the config."""
+    if CORE.config is None:
+        return False
+    esphome_config = CORE.config.get(CONF_ESPHOME, {})
+    return esphome_config.get(CONF_NAME_ADD_MAC_SUFFIX, False)
+
+
+def mqtt_get_ip(
+    config: ConfigType, username: str, password: str, client_id: str
+) -> list[str]:
     from esphome import mqtt
 
     return mqtt.get_esphome_device_ip(config, username, password, client_id)
@@ -360,6 +497,9 @@ def _resolve_network_devices(
 
     This function filters the devices list to:
     - Replace MQTT/MQTTIP magic strings with actual IP addresses via MQTT lookup
+    - Expand hostnames that are already in ``CORE.address_cache`` to their
+      cached IPs so downstream code (e.g. aioesphomeapi) doesn't open a second
+      Zeroconf client to resolve them
     - Deduplicate addresses while preserving order
     - Only resolve MQTT once even if multiple MQTT strings are present
     - If MQTT resolution fails, log a warning and continue with other devices
@@ -384,13 +524,29 @@ def _resolve_network_devices(
                     mqtt_ips = mqtt_get_ip(
                         config, args.username, args.password, args.client_id
                     )
-                    network_devices.extend(mqtt_ips)
+                    # pylint can't infer mqtt_get_ip's return through its
+                    # lazy ``from esphome import mqtt`` import, so it flags
+                    # the genexpr below.
+                    network_devices.extend(
+                        addr
+                        for addr in mqtt_ips  # pylint: disable=not-an-iterable
+                        if addr not in network_devices
+                    )
                 except EsphomeError as err:
                     _LOGGER.warning(
                         "MQTT IP discovery failed (%s), will try other devices if available",
                         err,
                     )
                 mqtt_resolved = True
+            continue
+
+        # If the hostname is already in the address cache (e.g. populated by
+        # mDNS discovery), substitute the cached IPs so aioesphomeapi doesn't
+        # open its own Zeroconf to re-resolve it.
+        if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
+            network_devices.extend(
+                addr for addr in cached if addr not in network_devices
+            )
         elif device not in network_devices:
             # Regular network address or IP - add if not already present
             network_devices.append(device)
@@ -403,10 +559,13 @@ def get_port_type(port: str) -> PortType:
 
     Returns:
         PortType.SERIAL for serial ports (/dev/ttyUSB0, COM1, etc.)
+        PortType.BOOTSEL for RP2040 BOOTSEL upload via picotool
         PortType.MQTT for MQTT logging
         PortType.MQTTIP for MQTT IP lookup
         PortType.NETWORK for IP addresses, hostnames, or mDNS names
     """
+    if port == "BOOTSEL":
+        return PortType.BOOTSEL
     if port.startswith("/") or port.startswith("COM"):
         return PortType.SERIAL
     if port == "MQTT":
@@ -627,6 +786,47 @@ def _check_and_emit_build_info() -> None:
     )
 
 
+def _get_configured_xtal_freq() -> int | None:
+    """Read the configured crystal frequency from the sdkconfig file."""
+    sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
+    if not sdkconfig_path.is_file():
+        return None
+    with suppress(OSError, ValueError):
+        content = sdkconfig_path.read_text()
+        for line in content.splitlines():
+            if line.startswith("CONFIG_XTAL_FREQ="):
+                return int(line.split("=", 1)[1])
+    return None
+
+
+def _make_crystal_freq_callback(
+    configured_freq: int,
+) -> Callable[[str], str | None]:
+    """Create a callback that checks esptool crystal frequency output."""
+    crystal_re = re.compile(r"Crystal frequency:\s+(\d+)\s*MHz")
+
+    def check_crystal_line(line: str) -> str | None:
+        if not (match := crystal_re.search(line)):
+            return None
+        detected = int(match.group(1))
+        if detected == configured_freq:
+            return None
+        return (
+            f"\n\033[33mWARNING: Crystal frequency mismatch! "
+            f"Device reports {detected}MHz but firmware is configured "
+            f"for {configured_freq}MHz.\n"
+            f"UART logging and other clock-dependent features will not "
+            f"work correctly.\n"
+            f"Set the correct crystal frequency with sdkconfig_options:\n"
+            f"  esp32:\n"
+            f"    framework:\n"
+            f"      sdkconfig_options:\n"
+            f"        CONFIG_XTAL_FREQ_{detected}: 'y'\033[0m\n\n"
+        )
+
+    return check_crystal_line
+
+
 def upload_using_esptool(
     config: ConfigType, port: str, file: str, speed: int
 ) -> str | int:
@@ -646,14 +846,29 @@ def upload_using_esptool(
             platformio_api.FlashImage(
                 path=idedata.firmware_bin_path, offset=firmware_offset
             ),
-            *idedata.extra_flash_images,
         ]
+        for image in idedata.extra_flash_images:
+            if not image.path.is_file():
+                _LOGGER.warning(
+                    "Skipping missing flash image declared by platform: %s",
+                    image.path,
+                )
+                continue
+            flash_images.append(image)
 
     mcu = "esp8266"
     if CORE.is_esp32:
         from esphome.components.esp32 import get_esp32_variant
 
         mcu = get_esp32_variant().lower()
+
+    line_callbacks: list[Callable[[str], str | None]] = []
+    if (
+        CORE.is_esp32
+        and file is None
+        and (configured_freq := _get_configured_xtal_freq()) is not None
+    ):
+        line_callbacks.append(_make_crystal_freq_callback(configured_freq))
 
     def run_esptool(baud_rate):
         cmd = [
@@ -679,9 +894,13 @@ def upload_using_esptool(
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
 
-            return run_external_command(esptool.main, *cmd)  # pylint: disable=no-member
+            return run_external_command(
+                esptool.main,  # pylint: disable=no-member
+                *cmd,
+                line_callbacks=line_callbacks,
+            )
 
-        return run_external_process(*cmd)
+        return run_external_process(*cmd, line_callbacks=line_callbacks)
 
     rc = run_esptool(first_baudrate)
     if rc == 0 or first_baudrate == 115200:
@@ -694,13 +913,138 @@ def upload_using_esptool(
     return run_esptool(115200)
 
 
-def upload_using_platformio(config: ConfigType, port: str):
+def upload_using_platformio(config: ConfigType, port: str) -> int:
     from esphome import platformio_api
+
+    # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
+    # the upload target, but 'nobuild' skips the build phase that creates it.
+    # Create it here so the upload doesn't fail.
+    if CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040:
+        idedata = platformio_api.get_idedata(config)
+        build_dir = Path(idedata.firmware_elf_path).parent
+        firmware_bin = build_dir / "firmware.bin"
+        signed_bin = build_dir / "firmware.bin.signed"
+        if firmware_bin.is_file() and not signed_bin.is_file():
+            shutil.copy2(firmware_bin, signed_bin)
 
     upload_args = ["-t", "upload", "-t", "nobuild"]
     if port is not None:
         upload_args += ["--upload-port", port]
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+
+
+def _find_picotool() -> Path | None:
+    """Find the picotool binary from PlatformIO packages."""
+    from esphome import platformio_api
+
+    try:
+        idedata = platformio_api.get_idedata(CORE.config)
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
+        return None
+    return get_picotool_path(idedata.cc_path)
+
+
+def upload_using_picotool(config: ConfigType) -> int:
+    """Upload firmware to RP2040 in BOOTSEL mode using picotool.
+
+    Uses picotool to load the ELF firmware directly via USB, avoiding
+    the mass storage copy approach that causes "disk not ejected properly"
+    warnings on macOS.
+    """
+    from esphome import platformio_api
+
+    idedata = platformio_api.get_idedata(config)
+    firmware_elf = Path(idedata.firmware_elf_path)
+
+    if not firmware_elf.is_file():
+        _LOGGER.error(
+            "Firmware ELF file not found at %s. "
+            "Make sure the project has been compiled first.",
+            firmware_elf,
+        )
+        return 1
+
+    picotool = get_picotool_path(idedata.cc_path)
+    if picotool is None:
+        _LOGGER.error(
+            "picotool not found. Ensure the RP2040 PlatformIO platform "
+            "is installed (%s).",
+            PICOTOOL_PACKAGE,
+        )
+        return 1
+
+    _LOGGER.info("Uploading firmware to RP2040 via picotool...")
+    try:
+        # Don't capture stdout — let picotool write directly to the terminal
+        # so progress bars display in real-time with \r updates.
+        # Capture stderr only so we can detect permission errors.
+        result = subprocess.run(
+            [str(picotool), "load", "-v", "-x", str(firmware_elf)],
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        _LOGGER.error("picotool upload timed out after 60 seconds.")
+        return 1
+    except OSError as err:
+        _LOGGER.error("Failed to run picotool: %s", err)
+        return 1
+
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        if stderr:
+            for line in stderr.splitlines():
+                safe_print(line)
+        if is_picotool_usb_permission_error(stderr):
+            msg = "Permission denied accessing USB device."
+            if sys.platform.startswith("linux"):
+                msg += f" {_RP2040_UDEV_HINT}"
+            _LOGGER.error(msg)
+        else:
+            _LOGGER.error("picotool upload failed (exit code %d).", result.returncode)
+        return 1
+
+    return 0
+
+
+def _wait_for_serial_port(
+    port: str | None = None,
+    timeout: float = 30.0,
+    known_ports: set[str] | None = None,
+) -> None:
+    """Wait for a serial port to appear, e.g. after a device reboot.
+
+    USB-CDC devices disappear briefly after flashing while the device
+    reboots and re-enumerates on the USB bus.
+
+    If port is given, wait for that specific path. If known_ports is
+    given, wait for a new port that wasn't in the set. Otherwise wait
+    for any serial port to appear.
+    """
+
+    def _port_found() -> bool:
+        if port is not None:
+            if os.name == "posix":
+                return os.path.exists(port)
+            return any(p.path == port for p in get_serial_ports())
+        ports = get_serial_ports()
+        if known_ports is not None:
+            return any(p.path not in known_ports for p in ports)
+        return bool(ports)
+
+    if _port_found():
+        return
+    if port is not None:
+        _LOGGER.info("Waiting for %s to come online...", port)
+    else:
+        _LOGGER.info("Waiting for device to reboot...")
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
+        time.sleep(0.05)
+        if _port_found():
+            time.sleep(0.05)
+            return
 
 
 def check_permissions(port: str):
@@ -732,7 +1076,15 @@ def upload_program(
     except AttributeError:
         pass
 
-    if get_port_type(host) == PortType.SERIAL:
+    port_type = get_port_type(host)
+
+    if port_type == PortType.BOOTSEL:
+        exit_code = upload_using_picotool(config)
+        # Return None for device - BOOTSEL can't be used for logging,
+        # so command_run will show the interactive chooser for log source
+        return exit_code, None
+
+    if port_type == PortType.SERIAL:
         check_permissions(host)
 
         exit_code = 1
@@ -786,6 +1138,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     port_type = get_port_type(port)
 
     if port_type == PortType.SERIAL:
+        _wait_for_serial_port(port)
         check_permissions(port)
         return run_miniterm(config, port, args)
 
@@ -796,7 +1149,11 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     ):
         from esphome.components.api.client import run_logs
 
-        return run_logs(config, network_devices)
+        return run_logs(
+            config,
+            network_devices,
+            subscribe_states=not getattr(args, "no_states", False),
+        )
 
     if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
         from esphome import mqtt
@@ -829,7 +1186,7 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     # add the console decoration so the front-end can hide the secrets
     if not args.show_secrets:
         output = re.sub(
-            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[5m\2\\033[6m", output
+            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[8m\2\\033[28m", output
         )
     if not CORE.quiet:
         safe_print(output)
@@ -924,6 +1281,9 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         purpose=Purpose.UPLOADING,
     )
 
+    # Snapshot current serial ports before upload so we can detect new ones
+    pre_upload_ports = {p.path for p in get_serial_ports()}
+
     exit_code, successful_device = upload_program(config, args, devices)
     if exit_code == 0:
         _LOGGER.info("Successfully uploaded program.")
@@ -933,6 +1293,19 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     if args.no_logs:
         return 0
+
+    # After BOOTSEL upload, wait for a new serial port to appear
+    # so it shows up in the log chooser
+    if (
+        successful_device is None
+        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+    ):
+        _wait_for_serial_port(known_ports=pre_upload_ports)
+        # If exactly one new serial port appeared, use it directly
+        serial_ports = get_serial_ports()
+        new_ports = [p for p in serial_ports if p.path not in pre_upload_ports]
+        if len(new_ports) == 1:
+            successful_device = new_ports[0].path
 
     # For logs, prefer the device we successfully uploaded to
     devices = choose_upload_log_host(
@@ -969,6 +1342,38 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
         _LOGGER.error("Error deleting build files: %s", err)
         return 1
     _LOGGER.info("Done!")
+    return 0
+
+
+def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome.bundle import BUNDLE_EXTENSION, ConfigBundleCreator
+
+    creator = ConfigBundleCreator(config)
+
+    if args.list_only:
+        files = creator.discover_files()
+        for bf in sorted(files, key=lambda f: f.path):
+            safe_print(f"  {bf.path}")
+        _LOGGER.info("Found %d files", len(files))
+        return 0
+
+    result = creator.create_bundle()
+
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        stem = CORE.config_path.stem
+        output_path = CORE.config_dir / f"{stem}{BUNDLE_EXTENSION}"
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(result.data)
+
+    _LOGGER.info(
+        "Bundle created: %s (%d files, %.1f KB)",
+        output_path,
+        len(result.files),
+        len(result.data) / 1024,
+    )
     return 0
 
 
@@ -1043,9 +1448,8 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     files = list_yaml_files(args.configuration)
 
     def build_command(f):
-        if CORE.dashboard:
-            return ["esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"]
-        return ["esphome", "run", f, "--no-logs", "--device", "OTA"]
+        dashboard = ["--dashboard"] if CORE.dashboard else []
+        return [*ESPHOME_COMMAND, *dashboard, "run", f, "--no-logs", "--device", "OTA"]
 
     return run_multiple_configs(files, build_command)
 
@@ -1194,7 +1598,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     new_path.write_text(new_raw, encoding="utf-8")
 
-    rc = run_external_process("esphome", "config", str(new_path))
+    rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
     if rc != 0:
         print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
         new_path.unlink()
@@ -1212,7 +1616,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
         cli_args.insert(0, "--dashboard")
 
     try:
-        rc = run_external_process("esphome", *cli_args)
+        rc = run_external_process(*ESPHOME_COMMAND, *cli_args)
     except KeyboardInterrupt:
         rc = 1
     if rc != 0:
@@ -1248,6 +1652,7 @@ POST_CONFIG_ACTIONS = {
     "rename": command_rename,
     "discover": command_discover,
     "analyze-memory": command_analyze_memory,
+    "bundle": command_bundle,
 }
 
 SIMPLE_CONFIG_ACTIONS = [
@@ -1367,7 +1772,7 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help=ARGUMENT_HELP_DEVICE,
     )
     parser_upload.add_argument(
         "--upload_speed",
@@ -1390,7 +1795,7 @@ def parse_args(argv):
     parser_logs.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help=ARGUMENT_HELP_DEVICE,
     )
     parser_logs.add_argument(
         "--reset",
@@ -1398,6 +1803,11 @@ def parse_args(argv):
         action="store_true",
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
+    )
+    parser_logs.add_argument(
+        "--no-states",
+        action="store_true",
+        help="Do not show entity state changes in log output.",
     )
 
     parser_discover = subparsers.add_parser(
@@ -1420,7 +1830,7 @@ def parse_args(argv):
     parser_run.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help=ARGUMENT_HELP_DEVICE,
     )
     parser_run.add_argument(
         "--upload_speed",
@@ -1544,6 +1954,24 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
+    parser_bundle = subparsers.add_parser(
+        "bundle",
+        help="Create a self-contained config bundle for remote compilation.",
+    )
+    parser_bundle.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
+    parser_bundle.add_argument(
+        "-o",
+        "--output",
+        help="Output path for the bundle archive.",
+    )
+    parser_bundle.add_argument(
+        "--list-only",
+        help="List discovered files without creating the archive.",
+        action="store_true",
+    )
+
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.
     #
@@ -1609,7 +2037,7 @@ def run_esphome(argv):
         # argv[0] is the program path, skip it since we prefix with "esphome"
         def build_command(f):
             return (
-                ["esphome"]
+                [*ESPHOME_COMMAND]
                 + [arg for arg in argv[1:] if arg not in args.configuration]
                 + [str(f)]
             )
@@ -1621,6 +2049,16 @@ def run_esphome(argv):
     if any(conf_path.name == x for x in SECRETS_FILES):
         _LOGGER.warning("Skipping secrets file %s", conf_path)
         return 0
+
+    # Bundle support: if the configuration is a .esphomebundle, extract it
+    # and rewrite conf_path to the extracted YAML config.
+    from esphome.bundle import is_bundle_path, prepare_bundle_for_compile
+
+    if is_bundle_path(conf_path):
+        _LOGGER.info("Extracting config bundle %s...", conf_path)
+        conf_path = prepare_bundle_for_compile(conf_path)
+        # Update the argument so downstream code sees the extracted path
+        args.configuration[0] = str(conf_path)
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard

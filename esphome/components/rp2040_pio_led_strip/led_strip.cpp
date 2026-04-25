@@ -70,7 +70,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
   // but there are only 4 state machines on each PIO so we can only have 4 strips per PIO
   uint offset = 0;
 
-  if (RP2040PIOLEDStripLightOutput::num_instance_[this->pio_ == pio0 ? 0 : 1] > 4) {
+  if (RP2040PIOLEDStripLightOutput::num_instance_[this->pio_ == pio0 ? 0 : 1] >= 4) {
     ESP_LOGE(TAG, "Too many instances of PIO program");
     this->mark_failed();
     return;

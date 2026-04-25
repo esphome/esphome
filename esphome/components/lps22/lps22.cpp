@@ -8,6 +8,7 @@ static constexpr const char *const TAG = "lps22";
 static constexpr uint8_t WHO_AM_I = 0x0F;
 static constexpr uint8_t LPS22HB_ID = 0xB1;
 static constexpr uint8_t LPS22HH_ID = 0xB3;
+static constexpr uint8_t LPS22DF_ID = 0xB4;
 static constexpr uint8_t CTRL_REG2 = 0x11;
 static constexpr uint8_t CTRL_REG2_ONE_SHOT_MASK = 0b1;
 static constexpr uint8_t STATUS = 0x27;
@@ -24,8 +25,8 @@ static constexpr float TEMPERATURE_SCALE = 0.01f;
 void LPS22Component::setup() {
   uint8_t value = 0x00;
   this->read_register(WHO_AM_I, &value, 1);
-  if (value != LPS22HB_ID && value != LPS22HH_ID) {
-    ESP_LOGW(TAG, "device IDs as %02x, which isn't a known LPS22HB or LPS22HH ID", value);
+  if (value != LPS22HB_ID && value != LPS22HH_ID && value != LPS22DF_ID) {
+    ESP_LOGW(TAG, "device IDs as %02x, which isn't a known LPS22HB/HH/DF ID", value);
     this->mark_failed();
   }
 }

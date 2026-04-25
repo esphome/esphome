@@ -211,7 +211,7 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
  public:
   ScriptExecuteAction(Script<As...> *script) : script_(script) {}
 
-  using Args = std::tuple<TemplatableValue<As, Ts...>...>;
+  using Args = std::tuple<TemplatableFn<As, Ts...>...>;
 
   template<typename... F> void set_args(F... x) { args_ = Args{x...}; }
 

@@ -4,6 +4,9 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
 #include "esphome/core/hal.h"
+#ifdef USE_DEEP_SLEEP
+#include "esphome/components/deep_sleep/deep_sleep_component.h"
+#endif
 
 extern "C" {
 #include <zboss_api.h>
@@ -116,6 +119,12 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   /* Set default response value. */
   p_device_cb_param->status = RET_OK;
 
+#ifdef USE_DEEP_SLEEP
+  if (auto *ds = deep_sleep::global_deep_sleep.load()) {
+    ds->wakeup();
+  }
+#endif
+
   // endpoints are enumerated from 1
   if (global_zigbee->callbacks_.size() >= endpoint) {
     const auto &cb = global_zigbee->callbacks_[endpoint - 1];
@@ -181,9 +190,11 @@ void ZigbeeComponent::setup() {
     ESP_LOGE(TAG, "Cannot load settings, err: %d", err);
     return;
   }
+  zigbee_configure_sleepy_behavior(this->sleepy_);
   zigbee_enable();
 }
 
+#ifdef ESPHOME_LOG_HAS_CONFIG
 static const char *role() {
   switch (zb_get_network_role()) {
     case ZB_NWK_DEVICE_TYPE_COORDINATOR:
@@ -207,6 +218,7 @@ static const char *get_wipe_on_boot() {
   return "NO";
 #endif
 }
+#endif
 
 void ZigbeeComponent::dump_config() {
   char ieee_addr_buf[IEEE_ADDR_BUF_SIZE] = {0};
@@ -222,6 +234,7 @@ void ZigbeeComponent::dump_config() {
                 "  Wipe on boot: %s\n"
                 "  Device is joined to the network: %s\n"
                 "  Sleep time: %us\n"
+                "  RX ON when idle: %s\n"
                 "  Current channel: %d\n"
                 "  Current page: %d\n"
                 "  Sleep threshold: %ums\n"
@@ -230,9 +243,9 @@ void ZigbeeComponent::dump_config() {
                 "  Short addr: 0x%04X\n"
                 "  Long pan id: 0x%s\n"
                 "  Short pan id: 0x%04X",
-                get_wipe_on_boot(), YESNO(zb_zdo_joined()), this->sleep_time_, zb_get_current_channel(),
-                zb_get_current_page(), zb_get_sleep_threshold(), role(), ieee_addr_buf, zb_get_short_address(),
-                extended_pan_id_buf, zb_get_pan_id());
+                get_wipe_on_boot(), YESNO(zb_zdo_joined()), this->sleep_time_, YESNO(zb_get_rx_on_when_idle()),
+                zb_get_current_channel(), zb_get_current_page(), zb_get_sleep_threshold(), role(), ieee_addr_buf,
+                zb_get_short_address(), extended_pan_id_buf, zb_get_pan_id());
   dump_reporting_();
 }
 
@@ -255,26 +268,25 @@ void ZigbeeComponent::factory_reset() {
   ZB_SCHEDULE_APP_CALLBACK(zb_bdb_reset_via_local_action, 0);
 }
 
+static void log_reporting_info(zb_zcl_reporting_info_t *rep_info) {
+  auto now = millis();
+  ESP_LOGD(TAG, "Reporting: endpoint %d, cluster_id 0x%04X, attr_id 0x%04X, flags 0x%02X, report in %ums", rep_info->ep,
+           rep_info->cluster_id, rep_info->attr_id, rep_info->flags,
+           ZB_ZCL_GET_REPORTING_FLAG(rep_info, ZB_ZCL_REPORT_TIMER_STARTED)
+               ? ZB_TIME_BEACON_INTERVAL_TO_MSEC(rep_info->run_time) - now
+               : 0);
+  ESP_LOGD(TAG, "  min_interval %ds, max_interval %ds, def_min_interval %ds, def_max_interval %ds",
+           rep_info->u.send_info.min_interval, rep_info->u.send_info.max_interval,
+           rep_info->u.send_info.def_min_interval, rep_info->u.send_info.def_max_interval);
+}
+
 void ZigbeeComponent::dump_reporting_() {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
-  auto now = millis();
-  bool first = true;
   for (zb_uint8_t j = 0; j < ZCL_CTX().device_ctx->ep_count; j++) {
     if (ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info) {
       zb_zcl_reporting_info_t *rep_info = ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info;
       for (zb_uint8_t i = 0; i < ZCL_CTX().device_ctx->ep_desc_list[j]->rep_info_count; i++) {
-        if (!first) {
-          ESP_LOGV(TAG, "");
-        }
-        first = false;
-        ESP_LOGV(TAG, "Endpoint: %d, cluster_id %d, attr_id %d, flags %d, report in %ums", rep_info->ep,
-                 rep_info->cluster_id, rep_info->attr_id, rep_info->flags,
-                 ZB_ZCL_GET_REPORTING_FLAG(rep_info, ZB_ZCL_REPORT_TIMER_STARTED)
-                     ? ZB_TIME_BEACON_INTERVAL_TO_MSEC(rep_info->run_time) - now
-                     : 0);
-        ESP_LOGV(TAG, "Min_interval %ds, max_interval %ds, def_min_interval %ds, def_max_interval %ds",
-                 rep_info->u.send_info.min_interval, rep_info->u.send_info.max_interval,
-                 rep_info->u.send_info.def_min_interval, rep_info->u.send_info.def_max_interval);
+        log_reporting_info(rep_info);
         rep_info++;
       }
     }
@@ -282,9 +294,44 @@ void ZigbeeComponent::dump_reporting_() {
 #endif
 }
 
+void ZigbeeComponent::after_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req,
+                                           zb_zcl_attr_addr_info_t *attr_addr_info) {
+#ifdef ESPHOME_LOG_HAS_DEBUG
+  auto *rep_info =
+      zb_zcl_find_reporting_info_manuf(attr_addr_info->src_ep, attr_addr_info->cluster_id, attr_addr_info->cluster_role,
+                                       config_rep_req->attr_id, attr_addr_info->manuf_code);
+  if (rep_info == nullptr) {
+    ESP_LOGE(TAG,
+             "Failed to resolve reporting info (src_ep=%u cluster_id=0x%04x role=%u attr_id=0x%04x manuf_code=0x%04x)",
+             attr_addr_info->src_ep, attr_addr_info->cluster_id, attr_addr_info->cluster_role, config_rep_req->attr_id,
+             attr_addr_info->manuf_code);
+    return;
+  }
+  log_reporting_info(rep_info);
+#endif
+}
+
 }  // namespace esphome::zigbee
 
-extern "C" void zboss_signal_handler(zb_uint8_t param) {
-  esphome::zigbee::global_zigbee->zboss_signal_handler_esphome(param);
+extern "C" {
+void zboss_signal_handler(zb_uint8_t param) { esphome::zigbee::global_zigbee->zboss_signal_handler_esphome(param); }
+void zb_osif_serial_put_bytes(const zb_uint8_t *buf, zb_short_t len) {
+  (void) buf;
+  (void) len;
+}
+void zb_osif_serial_flush() {}
+void zb_osif_serial_init() {}
+
+// NOLINTBEGIN(readability-identifier-naming,bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+extern zb_ret_t __real_zb_zcl_put_reporting_info_from_req(zb_zcl_configure_reporting_req_t *config_rep_req,
+                                                          zb_zcl_attr_addr_info_t *attr_addr_info);
+
+zb_ret_t __wrap_zb_zcl_put_reporting_info_from_req(zb_zcl_configure_reporting_req_t *config_rep_req,
+                                                   zb_zcl_attr_addr_info_t *attr_addr_info) {
+  zb_ret_t ret = __real_zb_zcl_put_reporting_info_from_req(config_rep_req, attr_addr_info);
+  esphome::zigbee::global_zigbee->after_reporting_info(config_rep_req, attr_addr_info);
+  return ret;
+}
+// NOLINTEND(readability-identifier-naming,bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 }
 #endif

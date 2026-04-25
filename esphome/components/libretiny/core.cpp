@@ -3,8 +3,12 @@
 #include "core.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/time_64.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
+
+#include <FreeRTOS.h>
+#include <task.h>
 
 void setup();
 void loop();
@@ -12,7 +16,29 @@ void loop();
 namespace esphome {
 
 void HOT yield() { ::yield(); }
+// Inline the tick read so esphome::millis() matches MillisInternal::get()'s fast
+// path instead of going through the Arduino core's out-of-line ::millis() wrapper.
+//
+// RTL87xx / LN882x (1 kHz): xTaskGetTickCount() is already ms. IRAM_ATTR + ISR
+// dispatch are needed because ISR handlers (e.g. rotary_encoder) call millis().
+//
+// BK72xx (500 Hz): ticks * portTICK_PERIOD_MS (== 2). IRAM_ATTR and ISR dispatch
+// are both unnecessary — the SDK masks FIQ + IRQ during flash writes (see hal.h),
+// so no ISR runs while flash is stalled.
+#if defined(USE_RTL87XX) || defined(USE_LN882X)
+uint32_t IRAM_ATTR HOT millis() {
+  static_assert(configTICK_RATE_HZ == 1000, "millis() fast path requires 1 kHz FreeRTOS tick");
+  return in_isr_context() ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
+}
+#elif defined(USE_BK72XX)
+uint32_t HOT millis() {
+  static_assert(configTICK_RATE_HZ == 500, "BK72xx millis() fast path assumes 500 Hz FreeRTOS tick");
+  return xTaskGetTickCount() * portTICK_PERIOD_MS;
+}
+#else
 uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
+#endif
+uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
 void HOT delay(uint32_t ms) { ::delay(ms); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
@@ -20,6 +46,22 @@ void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
 void arch_init() {
   libretiny::setup_preferences();
   lt_wdt_enable(10000L);
+#ifdef USE_BK72XX
+  // BK72xx SDK creates the main Arduino task at priority 3, which is lower than
+  // all WiFi (4-5), LwIP (4), and TCP/IP (7) tasks. This causes ~100ms loop
+  // stalls whenever WiFi background processing runs, because the main task
+  // cannot resume until every higher-priority task finishes.
+  //
+  // By contrast, RTL87xx creates the main task at osPriorityRealtime (highest).
+  //
+  // Raise to priority 6: above WiFi/LwIP tasks (4-5) so they don't preempt the
+  // main loop, but below the TCP/IP thread (7) so packet processing keeps priority.
+  // This is safe because ESPHome yields voluntarily via wakeable_delay() and
+  // the Arduino mainTask yield() after each loop() iteration.
+  static constexpr UBaseType_t MAIN_TASK_PRIORITY = 6;
+  static_assert(MAIN_TASK_PRIORITY < configMAX_PRIORITIES, "MAIN_TASK_PRIORITY must be less than configMAX_PRIORITIES");
+  vTaskPrioritySet(nullptr, MAIN_TASK_PRIORITY);
+#endif
 #if LT_GPIO_RECOVER
   lt_gpio_recover();
 #endif
@@ -33,7 +75,6 @@ void arch_restart() {
 void HOT arch_feed_wdt() { lt_wdt_feed(); }
 uint32_t arch_get_cpu_cycle_count() { return lt_cpu_get_cycle_count(); }
 uint32_t arch_get_cpu_freq_hz() { return lt_cpu_get_freq(); }
-uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 
 }  // namespace esphome
 

@@ -72,6 +72,7 @@ ignore_types = (
     ".gif",
     ".webp",
     ".bin",
+    ".wav",
 )
 
 LINT_FILE_CHECKS = []
@@ -518,10 +519,33 @@ def lint_constants_usage():
             continue
         errs.append(
             f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
-            f"constant to const.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
+            f"constant to esphome/components/const/__init__.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
             "See https://developers.esphome.io/contributing/code/#python"
         )
     return errs
+
+
+# Maximum allowed CONF_ constants in esphome/const.py.
+# This file is frozen — new constants go in esphome/components/const/__init__.py.
+# Decrease this number when constants are moved out of const.py.
+CONST_PY_MAX_CONF = 1011
+
+
+@lint_content_check(include=["esphome/const.py"])
+def lint_const_py_frozen(fname, content):
+    """Block new CONF_ constants from being added to esphome/const.py.
+
+    New constants should go in esphome/components/const/__init__.py instead.
+    """
+    count = sum(1 for line in content.splitlines() if line.startswith("CONF_"))
+    if count > CONST_PY_MAX_CONF:
+        return (
+            "esphome/const.py is frozen. "
+            "Add new constants to esphome/components/const/__init__.py instead."
+        )
+    if count < CONST_PY_MAX_CONF:
+        return f"CONST_PY_MAX_CONF in ci-custom.py should be updated to {count}."
+    return None
 
 
 def relative_cpp_search_text(fname: Path, content) -> str:
@@ -648,7 +672,7 @@ def lint_using_esp_idf_deprecated(fname, line, col, content):
     )
 
 
-@lint_content_check(include=["*.h"])
+@lint_content_check(include=["*.h"], exclude=["esphome/core/entity_types.h"])
 def lint_pragma_once(fname, content):
     if "#pragma once" not in content:
         return (
@@ -698,18 +722,22 @@ def lint_trailing_whitespace(fname, match):
 # Heap-allocating helpers that cause fragmentation on long-running embedded devices.
 # These return std::string and should be replaced with stack-based alternatives.
 HEAP_ALLOCATING_HELPERS = {
+    "base64_encode": "base64_encode_to() with a pre-allocated buffer",
     "format_bin": "format_bin_to() with a stack buffer",
     "format_hex": "format_hex_to() with a stack buffer",
     "format_hex_pretty": "format_hex_pretty_to() with a stack buffer",
     "format_mac_address_pretty": "format_mac_addr_upper() with a stack buffer",
     "get_mac_address": "get_mac_address_into_buffer() with a stack buffer",
     "get_mac_address_pretty": "get_mac_address_pretty_into_buffer() with a stack buffer",
+    "str_lower_case": "manual tolower() with a stack buffer",
     "str_sanitize": "str_sanitize_to() with a stack buffer",
     "str_truncate": "removal (function is unused)",
+    "str_until": "manual strchr()/find() with a StringRef or stack buffer",
     "str_upper_case": "removal (function is unused)",
     "str_snake_case": "removal (function is unused)",
     "str_sprintf": "snprintf() with a stack buffer",
     "str_snprintf": "snprintf() with a stack buffer",
+    "value_accuracy_to_string": "value_accuracy_to_buf() with a stack buffer",
 }
 
 
@@ -719,24 +747,33 @@ HEAP_ALLOCATING_HELPERS = {
     # get_mac_address(?!_) ensures we don't match get_mac_address_into_buffer, etc.
     # CPP_RE_EOL captures rest of line so NOLINT comments are detected
     r"[^\w]("
+    r"base64_encode(?!_)|"
     r"format_bin(?!_)|"
     r"format_hex(?!_)|"
     r"format_hex_pretty(?!_)|"
     r"format_mac_address_pretty|"
     r"get_mac_address_pretty(?!_)|"
     r"get_mac_address(?!_)|"
+    r"str_lower_case|"
     r"str_sanitize(?!_)|"
     r"str_truncate|"
+    r"str_until|"
     r"str_upper_case|"
     r"str_snake_case|"
     r"str_sprintf|"
-    r"str_snprintf"
+    r"str_snprintf|"
+    r"value_accuracy_to_string"
     r")\s*\(" + CPP_RE_EOL,
     include=cpp_include,
     exclude=[
         # The definitions themselves
+        "esphome/core/alloc_helpers.h",
+        "esphome/core/alloc_helpers.cpp",
+        # Backward compatibility re-exports (remove before 2026.11.0)
         "esphome/core/helpers.h",
         "esphome/core/helpers.cpp",
+        # Vendored third-party library
+        "esphome/components/http_request/httplib.h",
     ],
 )
 def lint_no_heap_allocating_helpers(fname, match):
@@ -788,6 +825,7 @@ def lint_no_sprintf(fname, match):
         "esphome/components/http_request/httplib.h",
         # Deprecated helpers that return std::string
         "esphome/core/helpers.cpp",
+        "esphome/core/alloc_helpers.cpp",
         # The using declaration itself
         "esphome/core/helpers.h",
         # Test fixtures - not production embedded code
@@ -837,6 +875,70 @@ def lint_no_scanf(fname, match):
         f"  - {highlight('strtol()/strtof()')} for C-style number parsing with error checking\n"
         f"  - {highlight('parse_hex()')} for hex string parsing\n"
         f"  - Manual parsing for simple fixed formats\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+# Base entity platforms - these are linked into most builds and should not
+# pull in powf/__ieee754_powf (~2.3KB flash).
+BASE_ENTITY_PLATFORMS = [
+    "alarm_control_panel",
+    "binary_sensor",
+    "button",
+    "climate",
+    "cover",
+    "datetime",
+    "event",
+    "fan",
+    "light",
+    "lock",
+    "media_player",
+    "number",
+    "select",
+    "sensor",
+    "switch",
+    "text",
+    "text_sensor",
+    "update",
+    "valve",
+    "water_heater",
+]
+
+# Directories protected from powf: core + all base entity platforms
+POWF_PROTECTED_DIRS = ["esphome/core"] + [
+    f"esphome/components/{p}" for p in BASE_ENTITY_PLATFORMS
+]
+
+
+@lint_re_check(
+    r"[^\w]powf\s*\(" + CPP_RE_EOL,
+    include=[
+        f"{d}/*.{ext}" for d in POWF_PROTECTED_DIRS for ext in ["h", "cpp", "tcc"]
+    ],
+)
+def lint_no_powf_in_core(fname, match):
+    return (
+        f"{highlight('powf()')} pulls in __ieee754_powf (~2.3KB flash) and is not allowed in "
+        f"core or base entity platform code. These files are linked into every build.\n"
+        f"Please use alternatives:\n"
+        f"  - {highlight('pow10_int(exp)')} for integer powers of 10 (from helpers.h)\n"
+        f"  - Precomputed lookup tables for gamma/non-integer exponents\n"
+        f"(If powf is strictly necessary, add `// NOLINT` to the line)"
+    )
+
+
+@lint_re_check(
+    r"[^\w]std\s*::\s*bind\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_std_bind(fname, match):
+    return (
+        f"{highlight('std::bind()')} is not allowed in new ESPHome code. "
+        f"Lambdas are clearer, produce smaller binaries, and are more likely to fit within "
+        f"the {highlight('std::function')} small-buffer optimization (avoiding heap allocation).\n"
+        f"Please use a lambda instead.\n"
+        f"  Before: {highlight('std::bind(&Class::method, this, std::placeholders::_1)')}\n"
+        f"  After:  {highlight('[this](auto arg) { this->method(arg); }')}\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
     )
 
@@ -898,6 +1000,7 @@ def lint_log_multiline_continuation(fname, content):
         "esphome/components/nextion/nextion_base.h",
         "esphome/components/select/select.h",
         "esphome/components/sensor/sensor.h",
+        "esphome/components/spi/spi.h",
         "esphome/components/stepper/stepper.h",
         "esphome/components/switch/switch.h",
         "esphome/components/text/text.h",
@@ -914,6 +1017,50 @@ def lint_log_in_header(fname, line, col, content):
     return (
         "Found reference to ESP_LOG in header file. Using ESP_LOG* in header files "
         "is currently not possible - please move the definition to a source file (.cpp)"
+    )
+
+
+PACKAGE_BUS_RE = re.compile(
+    r"^\s+(\w+):\s*!include\s+\S*test_build_components/common/(\w+)/",
+    re.MULTILINE,
+)
+
+
+@lint_content_check(include=["tests/components/*/test.*.yaml"])
+def lint_test_package_key_matches_bus(fname, content):
+    """Ensure package keys match the common bus directory name.
+
+    For example, a package using uart_115200 includes must use
+    'uart_115200' as the key, not 'uart'.
+    """
+    errs: list[tuple[int, int, str]] = []
+    for match in PACKAGE_BUS_RE.finditer(content):
+        pkg_key = match.group(1)
+        bus_dir = match.group(2)
+        if pkg_key != bus_dir:
+            lineno = content.count("\n", 0, match.start()) + 1
+            errs.append(
+                (
+                    lineno,
+                    1,
+                    f"Package key {highlight(pkg_key)} does not match bus directory "
+                    f"{highlight(bus_dir)}. The package key must match the directory "
+                    f"name under tests/test_build_components/common/. "
+                    f"Change {highlight(pkg_key)} to {highlight(bus_dir)}.",
+                )
+            )
+    return errs
+
+
+@lint_content_find_check(
+    "FINAL_VALIDATE_SCHEMA",
+    include=["esphome/core/*.py"],
+    exclude=["esphome/core/entity_helpers.py"],
+)
+def lint_final_validate_in_core(fname, line, col, content):
+    return (
+        "FINAL_VALIDATE_SCHEMA in esphome/core/ is not picked up by the component loader. "
+        "Use CoreFinalValidateStep in esphome/config.py instead."
     )
 
 
@@ -959,7 +1106,7 @@ def main():
             continue
         run_checks(LINT_CONTENT_CHECKS, fname, fname, content)
 
-    run_checks(LINT_POST_CHECKS, "POST")
+    run_checks(LINT_POST_CHECKS, Path("POST"))
 
     for f, errs in sorted(errors.items()):
         bold = functools.partial(styled, colorama.Style.BRIGHT)

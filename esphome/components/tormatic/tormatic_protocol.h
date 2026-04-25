@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cinttypes>
+
 #include "esphome/components/cover/cover.h"
 
 /**
@@ -86,7 +88,7 @@ struct MessageHeader {
   std::string print() {
     // 64 bytes: "MessageHeader: seq " + uint16 + ", len " + uint32 + ", type " + type + safety margin
     char buf[64];
-    buf_append_printf(buf, sizeof(buf), 0, "MessageHeader: seq %d, len %d, type %s", this->seq, this->len,
+    buf_append_printf(buf, sizeof(buf), 0, "MessageHeader: seq %d, len %" PRIu32 ", type %s", this->seq, this->len,
                       message_type_to_str(this->type));
     return buf;
   }
@@ -99,7 +101,7 @@ struct MessageHeader {
 
   // payload_size returns the amount of payload bytes to be read from the uart
   // buffer after reading the header.
-  uint32_t payload_size() { return this->len - sizeof(this->type); }
+  uint32_t payload_size() { return this->len > sizeof(this->type) ? this->len - sizeof(this->type) : 0; }
 } __attribute__((packed));
 
 // StatusType denotes which 'page' of information needs to be retrieved.
