@@ -324,8 +324,13 @@ def compile_and_get_binary(
             domain_list.append({CONF_PLATFORM: component})
         # Skip "core" — it's a pseudo-component handled by the build
         # system, not a real loadable component (get_component returns None)
-        elif get_component(component_name) is not None:
-            config.setdefault(component_name, [])
+        elif (component := get_component(component_name)) is not None:
+            # MULTI_CONF components store their config as a list of dicts,
+            # everything else stores a single dict. Using the wrong shape
+            # breaks code paths that subscript CORE.config[component] with
+            # a string key (e.g. socket.FILTER_SOURCE_FILES).
+            default = [] if component.multi_conf else {}
+            config.setdefault(component_name, default)
 
     # Register platforms from the extra config (benchmark.yaml) so
     # USE_SENSOR, USE_LIGHT, etc. defines are emitted without needing

@@ -3577,8 +3577,13 @@ static const char *const TAG = "api.service";
     # Generate read_message_ as APIConnection method (not base class) so the compiler
     # can devirtualize and inline the on_* handler calls within the same class.
     # APIConnection declares this method in api_connection.h.
+    # Guard with #ifdef USE_API since APIConnection itself is only defined when
+    # USE_API is set; without this, builds that compile this .cpp without
+    # USE_API (e.g. C++ unit tests for api dependencies) fail to find the
+    # class declaration.
 
-    out = "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
+    out = "#ifdef USE_API\n"
+    out += "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
 
     # Auth check block before dispatch switch
     out += "  // Check authentication/connection requirements\n"
@@ -3623,6 +3628,7 @@ static const char *const TAG = "api.service";
     out += "      break;\n"
     out += "  }\n"
     out += "}\n"
+    out += "#endif  // USE_API\n"
     cpp += out
     hpp += "};\n"
 
