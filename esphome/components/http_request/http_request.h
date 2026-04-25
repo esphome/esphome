@@ -11,6 +11,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/alloc_helpers.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -400,7 +401,7 @@ class HttpRequestComponent : public Component {
     std::vector<std::string> lower;
     lower.reserve(collect_headers.size());
     for (const auto &h : collect_headers) {
-      lower.push_back(str_lower_case(h));
+      lower.push_back(str_lower_case(h));  // NOLINT
     }
     return this->perform(url, method, body, request_headers, lower);
   }
@@ -415,7 +416,7 @@ class HttpRequestComponent : public Component {
     std::vector<std::string> lower;
     lower.reserve(collect_headers.size());
     for (const auto &h : collect_headers) {
-      lower.push_back(str_lower_case(h));
+      lower.push_back(str_lower_case(h));  // NOLINT
     }
     return this->perform(url, method, body, std::vector<Header>(request_headers.begin(), request_headers.end()), lower);
   }
@@ -457,7 +458,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
 #endif
 
   void init_request_headers(size_t count) { this->request_headers_.init(count); }
-  void add_request_header(const char *key, TemplatableValue<const char *, Ts...> value) {
+  void add_request_header(const char *key, TemplatableFn<const char *, Ts...> value) {
     this->request_headers_.push_back({key, value});
   }
 
@@ -560,7 +561,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     }
   }
   HttpRequestComponent *parent_;
-  FixedVector<std::pair<const char *, TemplatableValue<const char *, Ts...>>> request_headers_{};
+  FixedVector<std::pair<const char *, TemplatableFn<const char *, Ts...>>> request_headers_{};
   std::vector<std::string> lower_case_collect_headers_{"content-type", "content-length"};
   FixedVector<std::pair<const char *, TemplatableValue<std::string, Ts...>>> json_{};
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};

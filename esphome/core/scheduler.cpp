@@ -144,6 +144,19 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     return;
   }
 
+  // An interval of 0 means "fire every tick forever," which is misuse: the
+  // item would always be due, causing Scheduler::call() to spin and starve
+  // the main loop (WDT reset in the field). Coerce to 1ms so existing code
+  // using update_interval=0ms as a pseudo-loop() continues to work at ~1kHz,
+  // and warn so authors can migrate to HighFrequencyLoopRequester which is
+  // the intended mechanism for running fast in the main loop. Zero-delay
+  // timeouts (defer) remain legitimate one-shots and are not affected.
+  if (type == SchedulerItem::INTERVAL && delay == 0) [[unlikely]] {
+    ESP_LOGE(TAG, "[%s] set_interval(0) would spin main loop - coercing to 1ms (use HighFrequencyLoopRequester)",
+             component ? LOG_STR_ARG(component->get_component_log_str()) : LOG_STR_LITERAL("?"));
+    delay = 1;
+  }
+
   // Take lock early to protect scheduler_item_pool_ access and retry-cancelled check
   LockGuard guard{this->lock_};
 
@@ -214,18 +227,19 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 #endif /* ESPHOME_DEBUG_SCHEDULER */
   }
 
-  // Common epilogue: atomic cancel-and-add (unless skip_cancel is true)
-  if (!skip_cancel) {
+  // Common epilogue: atomic cancel-and-add (unless skip_cancel is true or anonymous)
+  // Anonymous items (STATIC_STRING with nullptr) can never match anything, so skip the scan.
+  if (!skip_cancel && (name_type != NameType::STATIC_STRING || static_name != nullptr)) {
     this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* match_retry= */ false,
                               /* find_first= */ true);
   }
   target->push_back(item);
   if (target == &this->to_add_) {
-    this->to_add_count_increment_();
+    this->to_add_count_increment_locked_();
   }
 #ifndef ESPHOME_THREAD_SINGLE
   else {
-    this->defer_count_increment_();
+    this->defer_count_increment_locked_();
   }
 #endif
 }
@@ -400,8 +414,27 @@ bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
 
 optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // IMPORTANT: This method should only be called from the main thread (loop task).
-  // It performs cleanup and accesses items_[0] without holding a lock, which is only
-  // safe when called from the main thread. Other threads must not call this method.
+  // Accesses items_[0] and the fast-path empty checks without holding a lock, which
+  // is only safe from the main thread. Other threads must not call this method.
+  //
+  // Note: cleanup_() is only invoked on the items_[0] path below. The early returns
+  // skip it because they don't read items_[0], and Scheduler::call() at the top of
+  // every loop iteration already performs its own cleanup before the next sleep-
+  // duration computation happens.
+
+#ifndef ESPHOME_THREAD_SINGLE
+  // defer() items live in a separate queue that is drained at the top of every
+  // loop tick via process_defer_queue_(). If any are pending, the next loop
+  // iteration has work to do right now -- don't let the caller sleep.
+  if (!this->defer_empty_())
+    return 0;
+#else
+  // On single-threaded builds, defer() routes through set_timeout(..., 0) which
+  // stages in to_add_. process_to_add() runs at the top of every scheduler.call(),
+  // so anything in to_add_ becomes runnable on the next iteration; don't sleep.
+  if (!this->to_add_empty_())
+    return 0;
+#endif
 
   // If no items, return empty optional
   if (!this->cleanup_())
@@ -438,7 +471,7 @@ void Scheduler::full_cleanup_removed_items_() {
   this->items_.erase(this->items_.begin() + write, this->items_.end());
   // Rebuild the heap structure since items are no longer in heap order
   std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
-  this->to_remove_clear_();
+  this->to_remove_clear_locked_();
 }
 
 #ifndef ESPHOME_THREAD_SINGLE
@@ -487,7 +520,7 @@ void HOT Scheduler::process_defer_queue_slow_path_(uint32_t &now) {
 
   this->lock_.lock();
   // Reset counter and snapshot queue end under lock
-  this->defer_count_clear_();
+  this->defer_count_clear_locked_();
   size_t defer_queue_end = this->defer_queue_.size();
   if (this->defer_queue_front_ >= defer_queue_end) {
     this->lock_.unlock();
@@ -519,7 +552,7 @@ void HOT Scheduler::process_defer_queue_slow_path_(uint32_t &now) {
 }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
-void HOT Scheduler::call(uint32_t now) {
+uint32_t HOT Scheduler::call(uint32_t now) {
 #ifndef ESPHOME_THREAD_SINGLE
   this->process_defer_queue_(now);
 #endif /* not ESPHOME_THREAD_SINGLE */
@@ -528,7 +561,7 @@ void HOT Scheduler::call(uint32_t now) {
   const auto now_64 = this->millis_64_from_(now);
   this->process_to_add();
 
-  // Track if any items were added to to_add_ during this call (intervals or from callbacks)
+  // Track if any items were added to to_add_ during callbacks
   bool has_added_items = false;
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
@@ -577,6 +610,12 @@ void HOT Scheduler::call(uint32_t now) {
   if (this->to_remove_count_() >= MAX_LOGICALLY_DELETED_ITEMS) {
     this->full_cleanup_removed_items_();
   }
+  // IMPORTANT: This loop uses index-based access (items_[0]), NOT iterators.
+  // This is intentional — fired intervals are pushed back into items_ via
+  // push_back() + push_heap() below, which may reallocate the vector's storage.
+  // Index-based access is safe across reallocations because we re-read items_[0]
+  // at the top of each iteration. Do NOT convert this to a range-based for loop
+  // or iterator-based loop, as that would break when items are added.
   while (!this->items_.empty()) {
     // Don't copy-by value yet
     SchedulerItem *item = this->items_[0];
@@ -601,7 +640,7 @@ void HOT Scheduler::call(uint32_t now) {
       LockGuard guard{this->lock_};
       if (is_item_removed_locked_(item)) {
         this->recycle_item_main_loop_(this->pop_raw_locked_());
-        this->to_remove_decrement_();
+        this->to_remove_decrement_locked_();
         continue;
       }
     }
@@ -610,7 +649,7 @@ void HOT Scheduler::call(uint32_t now) {
     if (is_item_removed_(item)) {
       LockGuard guard{this->lock_};
       this->recycle_item_main_loop_(this->pop_raw_locked_());
-      this->to_remove_decrement_();
+      this->to_remove_decrement_locked_();
       continue;
     }
 #endif
@@ -638,17 +677,25 @@ void HOT Scheduler::call(uint32_t now) {
 
     if (this->is_item_removed_locked_(executed_item)) {
       // We were removed/cancelled in the function call, recycle and continue
-      this->to_remove_decrement_();
+      this->to_remove_decrement_locked_();
       this->recycle_item_main_loop_(executed_item);
       continue;
     }
 
     if (executed_item->type == SchedulerItem::INTERVAL) {
       executed_item->set_next_execution(now_64 + executed_item->interval);
-      // Add new item directly to to_add_
-      // since we have the lock held
-      this->to_add_.push_back(executed_item);
-      this->to_add_count_increment_();
+      // Push directly back into the heap instead of routing through to_add_.
+      // This is safe because:
+      // 1. We're on the main loop and already hold the lock
+      // 2. The item was already popped from items_ via pop_raw_locked_() above
+      // 3. The while loop uses index-based access (items_[0]), not iterators,
+      //    so push_back() reallocation cannot invalidate our iteration
+      // 4. push_heap() restores the heap invariant before the next iteration
+      //    peeks at items_[0]
+      // This avoids the to_add_ detour and the overhead of
+      // process_to_add_slow_path_() (lock acquisition, vector iteration, clear).
+      this->items_.push_back(executed_item);
+      std::push_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
     } else {
       // Timeout completed - recycle it
       this->recycle_item_main_loop_(executed_item);
@@ -675,6 +722,9 @@ void HOT Scheduler::call(uint32_t now) {
     this->debug_verify_no_leak_();
   }
 #endif
+  // execute_item_() advances `now` as items fire; return it so the caller
+  // stays monotonic with last_wdt_feed_.
+  return now;
 }
 void HOT Scheduler::process_to_add_slow_path_() {
   LockGuard guard{this->lock_};
@@ -690,7 +740,7 @@ void HOT Scheduler::process_to_add_slow_path_() {
     std::push_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   }
   this->to_add_.clear();
-  this->to_add_count_clear_();
+  this->to_add_count_clear_locked_();
 }
 bool HOT Scheduler::cleanup_slow_path_() {
   // We must hold the lock for the entire cleanup operation because:
@@ -706,7 +756,7 @@ bool HOT Scheduler::cleanup_slow_path_() {
     SchedulerItem *item = this->items_[0];
     if (!this->is_item_removed_locked_(item))
       break;
-    this->to_remove_decrement_();
+    this->to_remove_decrement_locked_();
     this->recycle_item_main_loop_(this->pop_raw_locked_());
   }
   return !this->items_.empty();
@@ -724,7 +774,13 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   App.set_current_component(item->component);
   WarnIfComponentBlockingGuard guard{item->component, now};
   item->callback();
-  return guard.finish();
+  uint32_t end = guard.finish();
+  // Feed the watchdog after each scheduled item (both main heap and defer
+  // queue paths go through here). A run of back-to-back callbacks cannot
+  // starve the wdt. The inline fast path is a load + sub + branch — nearly
+  // free when the 3 ms rate limit hasn't elapsed.
+  App.feed_wdt_with_time(end);
+  return end;
 }
 
 // Common implementation for cancel operations - handles locking
@@ -742,6 +798,23 @@ bool HOT Scheduler::cancel_item_(Component *component, NameType name_type, const
 // When find_first=false, cancels ALL matches across all containers (needed for
 // public cancel path where DelayAction parallel mode can create duplicates).
 // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
+size_t Scheduler::mark_matching_items_removed_slow_locked_(std::vector<SchedulerItem *> &container,
+                                                           Component *component, NameType name_type,
+                                                           const char *static_name, uint32_t hash_or_id,
+                                                           SchedulerItem::Type type, bool match_retry,
+                                                           bool find_first) {
+  size_t count = 0;
+  for (auto *item : container) {
+    if (this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type, match_retry)) {
+      this->set_item_removed_(item, true);
+      if (find_first)
+        return 1;
+      count++;
+    }
+  }
+  return count;
+}
+
 bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type, const char *static_name,
                                         uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry,
                                         bool find_first) {
@@ -767,11 +840,11 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   // The main loop may be executing an item's callback right now, and recycling
   // would destroy the callback while it's running (use-after-free).
   // Only the main loop in call() should recycle items after execution completes.
-  if (!this->items_.empty()) {
+  {
     size_t heap_cancelled = this->mark_matching_items_removed_locked_(this->items_, component, name_type, static_name,
                                                                       hash_or_id, type, match_retry, find_first);
     total_cancelled += heap_cancelled;
-    this->to_remove_add_(heap_cancelled);
+    this->to_remove_add_locked_(heap_cancelled);
     if (find_first && total_cancelled > 0)
       return true;
   }

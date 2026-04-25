@@ -257,11 +257,9 @@ bool ESP32BLE::ble_setup_() {
 
   if (this->name_ != nullptr) {
     if (App.is_name_add_mac_suffix_enabled()) {
-      // MAC address length: 12 hex chars + null terminator
-      constexpr size_t mac_address_len = 13;
       // MAC address suffix length (last 6 characters of 12-char MAC address string)
       constexpr size_t mac_address_suffix_len = 6;
-      char mac_addr[mac_address_len];
+      char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
       get_mac_address_into_buffer(mac_addr);
       const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
       make_name_with_suffix_to(name_buffer, sizeof(name_buffer), this->name_, strlen(this->name_), '-', mac_suffix_ptr,
@@ -599,9 +597,7 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     GAP_SECURITY_EVENTS:
       enqueue_ble_event(event, param);
       // Wake up main loop to process security event immediately
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
       App.wake_loop_threadsafe();
-#endif
       return;
 
     // Ignore these GAP events as they are not relevant for our use case
@@ -622,9 +618,7 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
                                    esp_ble_gatts_cb_param_t *param) {
   enqueue_ble_event(event, gatts_if, param);
   // Wake up main loop to process GATT event immediately
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
-#endif
 }
 #endif
 
@@ -633,9 +627,7 @@ void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
                                    esp_ble_gattc_cb_param_t *param) {
   enqueue_ble_event(event, gattc_if, param);
   // Wake up main loop to process GATT event immediately
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
-#endif
 }
 #endif
 
@@ -673,6 +665,9 @@ void ESP32BLE::dump_config() {
                   "  MAC address: %s\n"
                   "  IO Capability: %s",
                   mac_s, io_capability_s);
+#ifdef USE_ESP32_BLE_PSRAM
+    ESP_LOGCONFIG(TAG, "  PSRAM BLE allocation: enabled");
+#endif
 
 #ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
     const char *auth_req_mode_s = "<default>";
