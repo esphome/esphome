@@ -379,7 +379,7 @@ def _substitute_package_definition(
     later during the main substitution pass.
     """
 
-    if isinstance(package_config, str):
+    def do_substitute(package_config: dict | str) -> dict | str:
         # Collect undefined-variable errors (rather than raising strict) so the
         # path walked through a remote-package dict is preserved and the user
         # sees which field (url / path / ref / ...) referenced the undefined
@@ -392,41 +392,29 @@ def _substitute_package_definition(
             strict_undefined=False,
             errors=errors,
         )
-
         raise_first_undefined(errors, "package definition")
         return package_config
 
+    if isinstance(package_config, str):
+        return do_substitute(package_config)
+
     if isinstance(package_config, dict) and is_remote_package(package_config):
-        # Collect undefined-variable errors (rather than raising strict) so the
-        # path walked through a remote-package dict is preserved and the user
-        # sees which field (url / path / ref / ...) referenced the undefined
-        # variable.
-
-        errors: ErrList = []
-        # Note: we intentionally do not substitute vars in CONF_VARS since they are meant to be passed as-is to the
-        # package YAML and may contain their own substitution expressions that should not be prematurely evaluated here.
-
-        # remove and re-add vars to avoid substituting variables in the vars block itself
+        # Remove and re-add vars to avoid substituting variables in the vars block itself, since they are meant to be
+        # passed as-is to the package YAML and may contain their own substitution expressions that should not
+        # be prematurely evaluated here.
         save_vars: OrderedDict[int, dict[str, Any]] = OrderedDict()
         if CONF_FILES in package_config:
             for idx, file_def in enumerate(package_config[CONF_FILES]):
                 if isinstance(file_def, dict) and CONF_VARS in file_def:
                     save_vars[idx] = file_def.pop(CONF_VARS)
 
-        package_config = substitute(
-            item=package_config,
-            path=path or [],
-            parent_context=context_vars or ContextVars(),
-            strict_undefined=False,
-            errors=errors,
-        )
+        package_config = do_substitute(package_config)
 
         # re-add vars after substitution
         files = package_config.get(CONF_FILES, [])
         for idx, v in save_vars.items():
             files[idx][CONF_VARS] = v
 
-        raise_first_undefined(errors, "package definition")
     return package_config
 
 
