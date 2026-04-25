@@ -101,25 +101,15 @@ bool BluetoothProxy::parse_devices(const esp32_ble::BLEScanResult *scan_results,
 
     // Flush if we have reached BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE
     if (this->response_.advertisements_len >= BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE) {
-      this->flush_pending_advertisements();
+      this->flush_pending_advertisements_();
     }
   }
 
   return true;
 }
 
-void BluetoothProxy::flush_pending_advertisements() {
-  if (this->response_.advertisements_len == 0 || !api::global_api_server->is_connected() ||
-      this->api_connection_ == nullptr)
-    return;
-
-  // Send the message
-  this->api_connection_->send_message(this->response_);
-
+void BluetoothProxy::log_advertisement_flush_() {
   ESP_LOGV(TAG, "Sent batch of %u BLE advertisements", this->response_.advertisements_len);
-
-  // Reset the length for the next batch
-  this->response_.advertisements_len = 0;
 }
 
 void BluetoothProxy::dump_config() {
@@ -131,23 +121,21 @@ void BluetoothProxy::dump_config() {
 }
 
 void BluetoothProxy::loop() {
-  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
-    for (uint8_t i = 0; i < this->connection_count_; i++) {
-      auto *connection = this->connections_[i];
-      if (connection->get_address() != 0 && !connection->disconnect_pending()) {
-        connection->disconnect();
-      }
-    }
+  // Run advertisement flush / connection cleanup every 100ms
+  uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_advertisement_flush_time_ < 100)
+    return;
+  this->last_advertisement_flush_time_ = now;
+
+  if (api::global_api_server->is_connected() && this->api_connection_ != nullptr) {
+    this->flush_pending_advertisements_();
     return;
   }
-
-  // Flush any pending BLE advertisements that have been accumulated but not yet sent
-  uint32_t now = App.get_loop_component_start_time();
-
-  // Flush accumulated advertisements every 100ms
-  if (now - this->last_advertisement_flush_time_ >= 100) {
-    this->flush_pending_advertisements();
-    this->last_advertisement_flush_time_ = now;
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
+    auto *connection = this->connections_[i];
+    if (connection->get_address() != 0 && !connection->disconnect_pending()) {
+      connection->disconnect();
+    }
   }
 }
 
