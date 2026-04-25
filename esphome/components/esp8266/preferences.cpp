@@ -19,12 +19,13 @@ static constexpr uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
 static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;
 static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WORDS * 4;
 
-// RTC memory layout for preferences:
-// - Eboot region: RTC words 0-31 (reserved, mapped from preference offset 96-127)
-// - Normal region: RTC words 32-127 (mapped from preference offset 0-95)
+// RTC memory layout:
+// - Eboot region:  RTC words 0-31   (reserved, mapped from preference offset 78-109)
+// - Normal region: RTC words 32-109 (mapped from preference offset 0-77)
+// - Crash handler: RTC words 110-127 (reserved for crash_handler.cpp backtrace data)
 static constexpr uint32_t RTC_EBOOT_REGION_WORDS = 32;   // Words 0-31 reserved for eboot
-static constexpr uint32_t RTC_NORMAL_REGION_WORDS = 96;  // Words 32-127 for normal prefs
-static constexpr uint32_t PREF_TOTAL_WORDS = RTC_EBOOT_REGION_WORDS + RTC_NORMAL_REGION_WORDS;  // 128
+static constexpr uint32_t RTC_NORMAL_REGION_WORDS = 78;  // Words 32-109 for normal prefs
+static constexpr uint32_t PREF_TOTAL_WORDS = RTC_EBOOT_REGION_WORDS + RTC_NORMAL_REGION_WORDS;  // 110
 
 // Maximum preference size in words (limited by uint8_t length_words field)
 static constexpr uint32_t MAX_PREFERENCE_WORDS = 255;

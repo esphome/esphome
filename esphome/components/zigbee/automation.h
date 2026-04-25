@@ -1,6 +1,9 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_ZIGBEE
+#ifdef USE_ESP32
+#include "zigbee_esp32.h"
+#endif
 #ifdef USE_NRF52
 #include "zigbee_zephyr.h"
 #endif

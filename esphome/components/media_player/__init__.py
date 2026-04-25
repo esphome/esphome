@@ -1,20 +1,31 @@
+from collections.abc import Callable
+
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components import audio
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
+    CONF_FORMAT,
     CONF_ICON,
     CONF_ID,
+    CONF_NUM_CHANNELS,
     CONF_ON_IDLE,
     CONF_ON_STATE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
+    CONF_SAMPLE_RATE,
     CONF_VOLUME,
 )
 from esphome.core import CORE
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    inherit_property_from,
+    setup_entity,
+)
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 
@@ -33,6 +44,102 @@ MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = {
     "default": MediaPlayerFormatPurpose.PURPOSE_DEFAULT,
     "announcement": MediaPlayerFormatPurpose.PURPOSE_ANNOUNCEMENT,
 }
+
+# Public API for external components. Do not remove.
+FORMAT_MAPPING = {
+    "FLAC": "flac",
+    "MP3": "mp3",
+    "OPUS": "opus",
+    "WAV": "wav",
+}
+
+
+def build_supported_format_struct(
+    format_config: ConfigType, purpose: MockObj
+) -> cg.StructInitializer:
+    """Build a MediaPlayerSupportedFormat struct from a format config and purpose.
+
+    Public API for external components. Do not remove.
+    """
+    args = [
+        MediaPlayerSupportedFormat,
+        ("format", FORMAT_MAPPING[format_config[CONF_FORMAT]]),
+        ("sample_rate", format_config[CONF_SAMPLE_RATE]),
+        ("num_channels", format_config[CONF_NUM_CHANNELS]),
+        ("purpose", purpose),
+    ]
+
+    # Omit sample_bytes for MP3: ffmpeg transcoding in Home Assistant fails
+    # if the number of bytes per sample is specified for MP3.
+    if format_config[CONF_FORMAT] != "MP3":
+        args.append(("sample_bytes", 2))
+
+    return cg.StructInitializer(*args)
+
+
+def validate_preferred_format(
+    component_name: str, audio_device_key: str
+) -> Callable[[ConfigType], ConfigType]:
+    """Return a validator that inherits audio device settings and validates format constraints.
+
+    Public API for external components. Do not remove.
+    """
+
+    def validator(config: ConfigType) -> ConfigType:
+        # Inherit settings from audio device if not manually set
+        inherit_property_from(CONF_NUM_CHANNELS, audio_device_key)(config)
+        inherit_property_from(CONF_SAMPLE_RATE, audio_device_key)(config)
+
+        # Opus only supports 48 kHz
+        if config.get(CONF_FORMAT) == "OPUS" and config.get(CONF_SAMPLE_RATE) != 48000:
+            raise cv.Invalid("Opus only supports a sample rate of 48000 Hz")
+
+        # Validate the settings are compatible with the audio device
+        audio.final_validate_audio_schema(
+            component_name,
+            audio_device=audio_device_key,
+            bits_per_sample=16,
+            channels=config.get(CONF_NUM_CHANNELS),
+            sample_rate=config.get(CONF_SAMPLE_RATE),
+        )(config)
+
+        return config
+
+    return validator
+
+
+def request_codecs_for_format_configs(
+    config: ConfigType, format_config_keys: list[str]
+) -> None:
+    """Scan format configs for configured formats and request the needed codec support.
+
+    If any config uses "NONE" (accepts any format), all codecs are requested.
+
+    Public API for external components. Do not remove.
+    """
+    needed_formats: set[str] = set()
+    need_all = False
+
+    for key in format_config_keys:
+        if format_config := config.get(key):
+            fmt = format_config[CONF_FORMAT]
+            if fmt == "NONE":
+                need_all = True
+            else:
+                needed_formats.add(fmt)
+
+    if need_all:
+        audio.request_flac_support()
+        audio.request_mp3_support()
+        audio.request_opus_support()
+    else:
+        if "FLAC" in needed_formats:
+            audio.request_flac_support()
+        if "MP3" in needed_formats:
+            audio.request_mp3_support()
+        if "OPUS" in needed_formats:
+            audio.request_opus_support()
+
 
 # Local config key constants
 CONF_ANNOUNCEMENT = "announcement"
@@ -69,7 +176,7 @@ StateEnterForwarder = media_player_ns.class_("StateEnterForwarder")
 MediaPlayerState = media_player_ns.enum("MediaPlayerState")
 
 # State triggers: (config_key, state enum or None for any-state)
-_STATE_TRIGGERS = [
+_STATE_TRIGGERS = (
     (CONF_ON_STATE, None),
     (CONF_ON_IDLE, MediaPlayerState.MEDIA_PLAYER_STATE_IDLE),
     (CONF_ON_PLAY, MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING),
@@ -77,7 +184,7 @@ _STATE_TRIGGERS = [
     (CONF_ON_ANNOUNCEMENT, MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING),
     (CONF_ON_TURN_ON, MediaPlayerState.MEDIA_PLAYER_STATE_ON),
     (CONF_ON_TURN_OFF, MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
-]
+)
 
 # State conditions that all share the same schema and codegen handler
 _STATE_CONDITIONS = [
@@ -102,17 +209,54 @@ VolumeSetAction = media_player_ns.class_(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", forwarder=StateAnyForwarder
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_IDLE,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            MediaPlayerState.MEDIA_PLAYER_STATE_IDLE
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PLAY,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PAUSE,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            MediaPlayerState.MEDIA_PLAYER_STATE_PAUSED
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ANNOUNCEMENT,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_TURN_ON,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(MediaPlayerState.MEDIA_PLAYER_STATE_ON),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_TURN_OFF,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
+    ),
+)
+
+
 @setup_entity("media_player")
 async def setup_media_player_core_(var, config):
-    for conf_key, state_enum in _STATE_TRIGGERS:
-        for conf in config.get(conf_key, []):
-            if state_enum is None:
-                forwarder = StateAnyForwarder
-            else:
-                forwarder = StateEnterForwarder.template(state_enum)
-            await automation.build_callback_automation(
-                var, "add_on_state_callback", [], conf, forwarder=forwarder
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 async def register_media_player(var, config):
@@ -268,7 +412,7 @@ _register_state_conditions()
 async def media_player_volume_set_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    volume = await cg.templatable(config[CONF_VOLUME], args, float)
+    volume = await cg.templatable(config[CONF_VOLUME], args, cg.float_)
     cg.add(var.set_volume(volume))
     return var
 
