@@ -501,6 +501,10 @@ def clean_build(clear_pio_cache: bool = True):
     if piolibdeps.is_dir():
         _LOGGER.info("Deleting %s", piolibdeps)
         rmtree(piolibdeps)
+    shared_piolibdeps = CORE.relative_internal_path("platformio", "libdeps")
+    if shared_piolibdeps.is_dir():
+        _LOGGER.info("Deleting %s", shared_piolibdeps)
+        rmtree(shared_piolibdeps)
     dependencies_lock = CORE.relative_build_path("dependencies.lock")
     if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)

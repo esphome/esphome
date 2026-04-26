@@ -3,6 +3,7 @@
 # pylint: disable=protected-access
 
 from contextlib import contextmanager
+import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -289,7 +290,13 @@ def test_run_platformio_cli_sets_environment_variables(
     setup_core: Path, mock_run_external_process: Mock
 ) -> None:
     """Test run_platformio_cli sets correct environment variables."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
     CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
 
     with patch.dict(os.environ, {}, clear=False):
         mock_run_external_process.return_value = 0
@@ -302,7 +309,15 @@ def test_run_platformio_cli_sets_environment_variables(
             in Path(os.environ["PLATFORMIO_BUILD_DIR"]).parents
             or Path(os.environ["PLATFORMIO_BUILD_DIR"]) == setup_core / "build" / "test"
         )
-        assert "PLATFORMIO_LIBDEPS_DIR" in os.environ
+        fingerprint = hashlib.sha256(json.dumps([]).encode()).hexdigest()[:16]
+        assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == str(
+            setup_core
+            / ".esphome"
+            / "platformio"
+            / "libdeps"
+            / "esp8266-arduino"
+            / fingerprint
+        )
         assert "PYTHONWARNINGS" in os.environ
 
         # Check command was called correctly — runs PlatformIO as a subprocess
@@ -412,6 +427,78 @@ def test_run_platformio_cli_does_not_set_pythonexepath_without_strip(
         args = mock_run_external_process.call_args[0]
         assert args[0] == plain_exe
         assert "PYTHONEXEPATH" not in os.environ
+
+
+def test_run_platformio_cli_scopes_libdeps_by_toolchain_and_dependencies(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Equivalent embedded PlatformIO configs should share one libdeps dir."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.add_platformio_option(
+        "lib_deps",
+        [
+            "ESP32Async/ESPAsyncWebServer @ 3.9.6",
+            "${common.lib_deps}",
+            "ESP32Async/ESPAsyncTCP @ 2.0.0",
+            "ESP32Async/ESPAsyncWebServer @ 3.9.6",
+        ],
+    )
+
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            [
+                "ESP32Async/ESPAsyncTCP @ 2.0.0",
+                "ESP32Async/ESPAsyncWebServer @ 3.9.6",
+            ]
+        ).encode()
+    ).hexdigest()[:16]
+
+    with patch.dict(os.environ, {}, clear=True):
+        mock_run_external_process.return_value = 0
+        platformio_api.run_platformio_cli("test")
+
+        assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == str(
+            setup_core
+            / ".esphome"
+            / "platformio"
+            / "libdeps"
+            / "rp2040-arduino"
+            / fingerprint
+        )
+
+
+@pytest.mark.parametrize(
+    ("target_platform", "target_framework"),
+    [("host", "arduino"), ("nrf52", "zephyr")],
+)
+def test_run_platformio_cli_keeps_special_platform_libdeps_device_scoped(
+    setup_core: Path,
+    mock_run_external_process: Mock,
+    target_platform: str,
+    target_framework: str,
+) -> None:
+    """Host and Zephyr builds should keep historical device-scoped libdeps."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: target_platform,
+        KEY_TARGET_FRAMEWORK: target_framework,
+    }
+
+    with patch.dict(os.environ, {}, clear=True):
+        mock_run_external_process.return_value = 0
+        platformio_api.run_platformio_cli("test")
+
+        assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == str(
+            (setup_core / "build" / "test" / ".piolibdeps").absolute()
+        )
 
 
 def test_run_platformio_cli_run_builds_command(

@@ -440,6 +440,10 @@ def test_clean_build(
     piolibdeps_dir.mkdir()
     (piolibdeps_dir / "library").mkdir()
 
+    shared_piolibdeps_dir = tmp_path / ".esphome" / "platformio" / "libdeps"
+    shared_piolibdeps_dir.mkdir(parents=True)
+    (shared_piolibdeps_dir / "shared-library").mkdir()
+
     dependencies_lock = tmp_path / "dependencies.lock"
     dependencies_lock.write_text("lock file")
 
@@ -462,11 +466,13 @@ def test_clean_build(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
+    mock_core.relative_internal_path.return_value = shared_piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     # Verify all exist before
     assert pioenvs_dir.exists()
     assert piolibdeps_dir.exists()
+    assert shared_piolibdeps_dir.exists()
     assert dependencies_lock.exists()
     assert idf_build_dir.exists()
     assert managed_components_dir.exists()
@@ -491,6 +497,7 @@ def test_clean_build(
     # Verify all were removed
     assert not pioenvs_dir.exists()
     assert not piolibdeps_dir.exists()
+    assert not shared_piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
     assert not idf_build_dir.exists()
     assert not managed_components_dir.exists()
@@ -500,6 +507,7 @@ def test_clean_build(
     assert "Deleting" in caplog.text
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" in caplog.text
+    assert "platformio/libdeps" in caplog.text
     assert "dependencies.lock" in caplog.text
     assert str(idf_build_dir) in caplog.text
     assert str(managed_components_dir) in caplog.text
@@ -524,6 +532,9 @@ def test_clean_build_partial_exists(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
+    mock_core.relative_internal_path.return_value = (
+        tmp_path / ".esphome" / "platformio" / "libdeps"
+    )
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     # Verify only pioenvs exists
@@ -561,6 +572,9 @@ def test_clean_build_nothing_exists(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
+    mock_core.relative_internal_path.return_value = (
+        tmp_path / ".esphome" / "platformio" / "libdeps"
+    )
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     # Verify nothing exists
@@ -597,6 +611,9 @@ def test_clean_build_platformio_not_available(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
+    mock_core.relative_internal_path.return_value = (
+        tmp_path / ".esphome" / "platformio" / "libdeps"
+    )
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     # Verify all exist before
@@ -635,6 +652,9 @@ def test_clean_build_empty_cache_dir(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
+    mock_core.relative_internal_path.return_value = (
+        tmp_path / ".esphome" / "platformio" / "libdeps"
+    )
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     # Verify pioenvs exists before
@@ -1363,6 +1383,9 @@ def test_clean_build_handles_readonly_files(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
+    mock_core.relative_internal_path.return_value = (
+        tmp_path / ".esphome" / "platformio" / "libdeps"
+    )
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     # Verify file is read-only

@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+import hashlib
 import json
 import logging
 import os
@@ -5,7 +7,15 @@ from pathlib import Path
 import re
 import sys
 
-from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
+from esphome.const import (
+    CONF_COMPILE_PROCESS_LIMIT,
+    CONF_ESPHOME,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_HOST,
+    PLATFORM_NRF52,
+)
 from esphome.core import CORE, EsphomeError
 from esphome.util import FlashImage, run_external_process
 
@@ -43,11 +53,43 @@ def _strip_win_long_path_prefix(path: str) -> str:
     return path
 
 
+def _platformio_toolchain_cache_key() -> str:
+    """Return the stable key used for toolchain-scoped PlatformIO state."""
+    core_data = CORE.data.get(KEY_CORE, {})
+    platform = core_data.get(KEY_TARGET_PLATFORM) or "unknown"
+    framework = core_data.get(KEY_TARGET_FRAMEWORK) or "unknown"
+    return re.sub(r"[^a-zA-Z0-9_.-]", "_", f"{platform}-{framework}")
+
+
+def _normalize_platformio_values(value: str | list[str] | None) -> list[str]:
+    """Return sorted PlatformIO values for stable fingerprints."""
+    if value is None:
+        return []
+    values = [value] if isinstance(value, str) else value
+    return sorted({item for item in values if item and item != "${common.lib_deps}"})
+
+
+def _platformio_libdeps_dir() -> Path:
+    """Return a libdeps path shared by equivalent embedded PlatformIO configs."""
+    target_platform = CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM)
+    if target_platform in (PLATFORM_HOST, PLATFORM_NRF52):
+        return CORE.relative_piolibdeps_path()
+
+    lib_deps = _normalize_platformio_values(CORE.platformio_options.get("lib_deps"))
+    if not lib_deps:
+        lib_deps = sorted(x.as_lib_dep for x in CORE.platformio_libraries.values())
+
+    fingerprint = hashlib.sha256(json.dumps(lib_deps).encode()).hexdigest()[:16]
+    return CORE.relative_internal_path(
+        "platformio", "libdeps", _platformio_toolchain_cache_key(), fingerprint
+    )
+
+
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
     os.environ.setdefault(
-        "PLATFORMIO_LIBDEPS_DIR", str(CORE.relative_piolibdeps_path().absolute())
+        "PLATFORMIO_LIBDEPS_DIR", str(_platformio_libdeps_dir().absolute())
     )
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
