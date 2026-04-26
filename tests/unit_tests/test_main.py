@@ -90,6 +90,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    PLATFORMIO_ENV_NAME,
     Toolchain,
 )
 from esphome.core import CORE, EsphomeError
@@ -1617,7 +1618,13 @@ def test_upload_program_ota_success(
     assert exit_code == 0
     assert host == "192.168.1.100"
     expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+        tmp_path
+        / ".esphome"
+        / "build"
+        / "test"
+        / ".pioenvs"
+        / PLATFORMIO_ENV_NAME
+        / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
         ["192.168.1.100"], 3232, "secret", expected_firmware, OTA_TYPE_UPDATE_APP
@@ -2377,7 +2384,13 @@ def test_upload_program_ota_with_mqtt_resolution(
     assert host == "192.168.1.100"
     mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
     expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+        tmp_path
+        / ".esphome"
+        / "build"
+        / "test"
+        / ".pioenvs"
+        / PLATFORMIO_ENV_NAME
+        / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
         ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
@@ -2425,7 +2438,13 @@ def test_upload_program_ota_with_mqtt_empty_broker(
     mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
     # Verify we fell back to the IP address
     expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+        tmp_path
+        / ".esphome"
+        / "build"
+        / "test"
+        / ".pioenvs"
+        / PLATFORMIO_ENV_NAME
+        / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
         ["192.168.1.50"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
@@ -4390,7 +4409,13 @@ def test_upload_program_ota_static_ip_with_mqttip(
 
     # Verify espota2.run_ota was called with both IPs
     expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+        tmp_path
+        / ".esphome"
+        / "build"
+        / "test"
+        / ".pioenvs"
+        / PLATFORMIO_ENV_NAME
+        / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
         ["192.168.1.100", "192.168.2.50"],
@@ -4437,7 +4462,13 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
 
     # Verify espota2.run_ota was called with all unique IPs
     expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+        tmp_path
+        / ".esphome"
+        / "build"
+        / "test"
+        / ".pioenvs"
+        / PLATFORMIO_ENV_NAME
+        / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
         ["192.168.2.50", "192.168.2.51", "192.168.1.100"],
@@ -4606,7 +4637,13 @@ def test_upload_program_ota_mqtt_timeout_fallback(
 
     # Verify espota2.run_ota was called with only the static IP (MQTT failed)
     expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+        tmp_path
+        / ".esphome"
+        / "build"
+        / "test"
+        / ".pioenvs"
+        / PLATFORMIO_ENV_NAME
+        / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
         ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
@@ -4719,7 +4756,12 @@ def test_command_analyze_memory_success(
 
     # Create firmware.elf file
     firmware_path = (
-        tmp_path / ".esphome" / "build" / "test_device" / ".pioenvs" / "test_device"
+        tmp_path
+        / ".esphome"
+        / "build"
+        / "test_device"
+        / ".pioenvs"
+        / PLATFORMIO_ENV_NAME
     )
     firmware_path.mkdir(parents=True, exist_ok=True)
     firmware_elf = firmware_path / "firmware.elf"
@@ -4791,7 +4833,12 @@ def test_command_analyze_memory_with_external_components(
 
     # Create firmware.elf file
     firmware_path = (
-        tmp_path / ".esphome" / "build" / "test_device" / ".pioenvs" / "test_device"
+        tmp_path
+        / ".esphome"
+        / "build"
+        / "test_device"
+        / ".pioenvs"
+        / PLATFORMIO_ENV_NAME
     )
     firmware_path.mkdir(parents=True, exist_ok=True)
     firmware_elf = firmware_path / "firmware.elf"
@@ -4927,7 +4974,7 @@ def _setup_build_info_test(
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
 
     build_path = tmp_path / ".esphome" / "build" / "test_device"
-    pioenvs_path = build_path / ".pioenvs" / "test_device"
+    pioenvs_path = build_path / ".pioenvs" / PLATFORMIO_ENV_NAME
     pioenvs_path.mkdir(parents=True, exist_ok=True)
 
     build_info_path = build_path / "build_info.json"

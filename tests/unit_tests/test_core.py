@@ -592,11 +592,11 @@ class TestEsphomeCore:
         assert target.is_esp8266 is True
 
     def test_firmware_bin__default(self, target):
-        """Default platforms produce <pioenvs>/<name>/firmware.bin."""
+        """Default platforms produce <pioenvs>/<stable env>/firmware.bin."""
         target.name = "test-device"
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
         assert target.firmware_bin == Path(
-            "foo/build/.pioenvs/test-device/firmware.bin"
+            f"foo/build/.pioenvs/{const.PLATFORMIO_ENV_NAME}/firmware.bin"
         )
 
     def test_firmware_bin__libretiny(self, target):
@@ -604,7 +604,7 @@ class TestEsphomeCore:
         target.name = "test-device"
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "bk72xx"}
         assert target.firmware_bin == Path(
-            "foo/build/.pioenvs/test-device/firmware.uf2"
+            f"foo/build/.pioenvs/{const.PLATFORMIO_ENV_NAME}/firmware.uf2"
         )
 
     def test_firmware_bin__host(self, target):
@@ -614,6 +614,36 @@ class TestEsphomeCore:
         target.name = "test-device"
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "host"}
         assert target.firmware_bin == Path("foo/build/.pioenvs/test-device/program")
+
+    def test_pioenv_name__embedded_platforms_use_stable_name(self, target):
+        """Embedded PlatformIO builds should share a stable env name."""
+        target.name = "kitchen-switch"
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: "esp32",
+            const.KEY_TARGET_FRAMEWORK: "arduino",
+        }
+
+        assert target.pioenv_name == const.PLATFORMIO_ENV_NAME
+
+    def test_pioenv_name__host_uses_device_name(self, target):
+        """Host builds should keep separate envs for device-scoped state."""
+        target.name = "host-noise-test"
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: const.PLATFORM_HOST,
+            const.KEY_TARGET_FRAMEWORK: "host",
+        }
+
+        assert target.pioenv_name == "host-noise-test"
+
+    def test_pioenv_name__nrf52_uses_device_name(self, target):
+        """Zephyr builds should keep their existing device-scoped env layout."""
+        target.name = "nrf52-sensor"
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: const.PLATFORM_NRF52,
+            const.KEY_TARGET_FRAMEWORK: "zephyr",
+        }
+
+        assert target.pioenv_name == "nrf52-sensor"
 
     @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
     def test_data_dir_default_unix(self, target):
