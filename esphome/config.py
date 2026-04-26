@@ -997,6 +997,8 @@ def validate_config(
 ) -> Config:
     result = Config()
 
+    CORE.skip_external_update = skip_external_update
+
     loader.clear_component_meta_finders()
     loader.install_custom_components_meta_finder()
 
