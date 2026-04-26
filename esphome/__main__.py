@@ -1078,6 +1078,11 @@ def upload_program(
 
     port_type = get_port_type(host)
 
+    if port_type != PortType.NETWORK and getattr(args, "partition_table", False):
+        raise EsphomeError(
+            f"The option --partition-table can only be used for Over The Air updates."
+        )
+
     if port_type == PortType.BOOTSEL:
         exit_code = upload_using_picotool(config)
         # Return None for device - BOOTSEL can't be used for logging,
@@ -1788,7 +1793,7 @@ def parse_args(argv):
     )
     parser_upload.add_argument(
         "--partition-table",
-        help="Upload as partition table",
+        help="Upload as partition table (OTA).",
         action="store_true",
     )
 

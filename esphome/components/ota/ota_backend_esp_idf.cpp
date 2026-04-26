@@ -245,9 +245,10 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   int app_partitions_found = 0;
   int new_app_part_index = -1;
   int new_app_part_index_with_copy = -1;
-  int new_otadata_part_index = -1;
-  bool otadata_overlap = true;
-  const esp_partition_t *app_copy_target_part{nullptr};
+  const esp_partition_t *app_copy_target_part = nullptr;
+  bool otadata_partition_found = false;
+  bool otadata_overlap = false;
+  bool nvs_partition_found = false;
   for (int i = 0; i < num_partitions; i++) {  // Iterate over new partition table
     const esp_partition_info_t *new_part = &new_partition_table[i];
     if (new_part->type == ESP_PARTITION_TYPE_APP) {
@@ -275,18 +276,23 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
           esp_partition_iterator_release(it);
         }
       }
-    } else if (new_part->type == ESP_PARTITION_TYPE_DATA && new_part->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA) {
-      // Found the otadata partition in the new partition table
-      new_otadata_part_index = i;
-      otadata_overlap = check_overlap(running_app_offset, running_app_size, new_part->pos.offset, new_part->pos.size);
+    } else if (new_part->type == ESP_PARTITION_TYPE_DATA) {
+      if (new_part->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA) {
+        // Found the otadata partition in the new partition table
+        otadata_partition_found = true;
+        otadata_overlap = check_overlap(running_app_offset, running_app_size, new_part->pos.offset, new_part->pos.size);
+      } else if (new_part->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS && strcmp((char*)new_part->label, "nvs") == 0) {
+        // Found the nvs partition in the new partition table
+        nvs_partition_found = true;
+      }
     }
   }
   if (new_app_part_index == -1 && new_app_part_index_with_copy == -1) {
     ESP_LOGE(TAG, "No compatible app partition found in the new partition table");
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
-  if (app_partitions_found < 2 || new_otadata_part_index == -1) {
-    ESP_LOGE(TAG, "New partition table is missing the required app or otadata partitions");
+  if (app_partitions_found < 2 || !otadata_partition_found || !nvs_partition_found) {
+    ESP_LOGE(TAG, "New partition table is missing the required app, otadata or nvs partitions");
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   if (otadata_overlap) {

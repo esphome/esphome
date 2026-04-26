@@ -230,8 +230,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
       this->extended_proto_ = this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
       if (this->extended_proto_) {
         // If the client supports the extended protocol, send 2 bytes: response type and server feature flags
-        this->handshake_buf_[0] =
-            ota::OTA_RESPONSE_FEATURE_FLAGS;  // indicates the following byte contains feature flags
+        this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
         this->handshake_buf_[1] = SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;  // supported if USE_OTA_PARTITIONS
         if (supports_compression) {
           this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_COMPRESSION;
