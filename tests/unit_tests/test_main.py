@@ -1665,6 +1665,23 @@ def test_upload_program_ota_partition_table_with_file_arg(
     )
 
 
+def test_upload_program_serial_partition_table(
+    mock_upload_using_esptool: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test serial upload with partition table option (unsupported)."""
+    setup_core(platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_upload_using_esptool.return_value = 0
+
+    config = {}
+    args = MockArgs(partition_table=True)
+    devices = ["/dev/ttyUSB0"]
+
+    with pytest.raises(EsphomeError, match="The option --partition-table can only be used for Over The Air updates"):
+        upload_program(config, args, devices)
+
+
 def test_upload_program_ota_no_config(
     mock_get_port_type: Mock,
 ) -> None:
