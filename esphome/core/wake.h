@@ -169,7 +169,21 @@ namespace internal {
 void wakeable_delay(uint32_t ms);
 }  // namespace internal
 
-// === Host / Zephyr / other ===
+// === Zephyr ===
+#elif defined(USE_ZEPHYR)
+
+/// Zephyr: wakes the main loop via k_sem_give(). Thread- and ISR-safe.
+/// Defined in wake.cpp.
+void wake_loop_threadsafe();
+
+inline void wake_loop_any_context() { wake_loop_threadsafe(); }
+
+namespace internal {
+/// Zephyr wakeable_delay uses k_sem_take() with a timeout — defined in wake.cpp.
+void wakeable_delay(uint32_t ms);
+}  // namespace internal
+
+// === Host / other ===
 #else
 
 #ifdef USE_HOST
@@ -191,10 +205,7 @@ void wake_setup();
 // bottom of this file — they need internal::g_read_fds / g_wake_socket_fd in
 // scope, which depend on USE_HOST-only includes pulled in above.
 #else
-/// Zephyr is currently the only platform without a wake mechanism.
-/// wake_loop_threadsafe() is a no-op and wakeable_delay() falls back to delay().
-/// TODO: implement proper Zephyr wake using k_poll / k_sem or similar.
-inline void wake_loop_threadsafe() {}
+#error "wake.h: wake_loop_threadsafe() is not implemented for this platform"
 #endif
 
 inline void wake_loop_any_context() { wake_loop_threadsafe(); }

@@ -16,6 +16,17 @@
 #include <unistd.h>
 #include <vector>
 #endif
+#ifdef USE_ZEPHYR
+#include <zephyr/kernel.h>
+#endif
+
+// Placed at file scope so Zephyr's linker-section kernel-object tracking can see it.
+// Semaphore count=0 initially; limit=1 so repeated wakes before the loop drains
+// them do not stack up.
+#ifdef USE_ZEPHYR
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+K_SEM_DEFINE(esphome_wake_sem, 0, 1);
+#endif
 
 namespace esphome {
 
@@ -88,6 +99,24 @@ void wakeable_delay(uint32_t ms) {
 }
 }  // namespace internal
 #endif  // USE_RP2040
+
+// === Zephyr — k_sem based wake ===
+#ifdef USE_ZEPHYR
+void wake_loop_threadsafe() {
+  wake_request_set();
+  k_sem_give(&esphome_wake_sem);
+}
+
+namespace internal {
+void wakeable_delay(uint32_t ms) {
+  if (ms == 0) [[unlikely]] {
+    yield();
+    return;
+  }
+  k_sem_take(&esphome_wake_sem, ms == UINT32_MAX ? K_FOREVER : K_MSEC(ms));
+}
+}  // namespace internal
+#endif  // USE_ZEPHYR
 
 // === Host (UDP loopback socket + select() based fd watcher) ===
 #ifdef USE_HOST
