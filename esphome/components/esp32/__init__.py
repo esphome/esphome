@@ -2505,14 +2505,21 @@ def _format_sdkconfig_val(value: SdkconfigValueType) -> str:
     raise ValueError
 
 
+def _sdkconfig_name() -> str:
+    if CORE.using_toolchain_platformio:
+        return CORE.pioenv_name
+    return CORE.name
+
+
 def _write_sdkconfig():
-    # sdkconfig.{name} stores the real sdkconfig (modified by esp-idf with default)
-    # sdkconfig.{name}.esphomeinternal stores what esphome last wrote
+    sdkconfig_name = _sdkconfig_name()
+    # sdkconfig.{env} stores the real sdkconfig (modified by esp-idf with default)
+    # sdkconfig.{env}.esphomeinternal stores what esphome last wrote
     # we use the internal one to detect if there were any changes, and if so write them to the
     # real sdkconfig
-    sdk_path = Path(CORE.relative_build_path(f"sdkconfig.{CORE.name}"))
+    sdk_path = Path(CORE.relative_build_path(f"sdkconfig.{sdkconfig_name}"))
     internal_path = Path(
-        CORE.relative_build_path(f"sdkconfig.{CORE.name}.esphomeinternal")
+        CORE.relative_build_path(f"sdkconfig.{sdkconfig_name}.esphomeinternal")
     )
 
     want_opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]

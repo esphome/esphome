@@ -481,7 +481,7 @@ def write_cpp(code_s):
 def clean_cmake_cache():
     pioenvs = CORE.relative_pioenvs_path()
     if pioenvs.is_dir():
-        pioenvs_cmake_path = pioenvs / CORE.name / "CMakeCache.txt"
+        pioenvs_cmake_path = pioenvs / CORE.pioenv_name / "CMakeCache.txt"
         if pioenvs_cmake_path.is_file():
             _LOGGER.info("Deleting %s", pioenvs_cmake_path)
             pioenvs_cmake_path.unlink()

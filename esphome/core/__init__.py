@@ -27,6 +27,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
+    PLATFORMIO_ENV_NAME,
     Toolchain,
 )
 
@@ -783,16 +784,23 @@ class EsphomeCore:
         return self.relative_build_path(".piolibdeps", *path)
 
     @property
+    def pioenv_name(self) -> str:
+        target_platform = self.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM)
+        if target_platform in (PLATFORM_HOST, PLATFORM_NRF52):
+            return self.name
+        return PLATFORMIO_ENV_NAME
+
+    @property
     def firmware_bin(self) -> Path:
         # Check if using ESP-IDF toolchain
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
-            return self.relative_pioenvs_path(self.name, "firmware.uf2")
+            return self.relative_pioenvs_path(self.pioenv_name, "firmware.uf2")
         if self.is_host:
             # Host builds produce a native ELF/Mach-O named `program`.
-            return self.relative_pioenvs_path(self.name, "program")
-        return self.relative_pioenvs_path(self.name, "firmware.bin")
+            return self.relative_pioenvs_path(self.pioenv_name, "program")
+        return self.relative_pioenvs_path(self.pioenv_name, "firmware.bin")
 
     @property
     def partition_table_bin(self) -> Path:
@@ -803,13 +811,13 @@ class EsphomeCore:
             return self.relative_build_path(
                 "build", "partition_table", "partition-table.bin"
             )
-        return self.relative_pioenvs_path(self.name, "partitions.bin")
+        return self.relative_pioenvs_path(self.pioenv_name, "partitions.bin")
 
     @property
     def bootloader_bin(self) -> Path:
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", "bootloader", "bootloader.bin")
-        return self.relative_pioenvs_path(self.name, "bootloader.bin")
+        return self.relative_pioenvs_path(self.pioenv_name, "bootloader.bin")
 
     @property
     def target_platform(self):

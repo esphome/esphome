@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_IGNORE_PIN_VALIDATION_ERROR,
     CONF_NUMBER,
+    PLATFORMIO_ENV_NAME,
     PlatformFramework,
     Toolchain,
 )
@@ -255,6 +256,38 @@ def test_platformio_arduino_enables_reproducible_build(
 
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
+
+
+def test_platformio_sdkconfig_uses_stable_env_name(tmp_path: Path) -> None:
+    """The PlatformIO ESP-IDF bridge reads sdkconfig.<PIOENV>."""
+    from esphome.components.esp32 import _write_sdkconfig
+
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    CORE.toolchain = Toolchain.PLATFORMIO
+    CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: {"CONFIG_TEST": True}}
+
+    _write_sdkconfig()
+
+    assert (tmp_path / f"sdkconfig.{PLATFORMIO_ENV_NAME}").read_text() == (
+        "CONFIG_TEST=y\n"
+    )
+    assert not (tmp_path / "sdkconfig.test-device").exists()
+
+
+def test_native_idf_sdkconfig_keeps_device_name(tmp_path: Path) -> None:
+    """The native ESP-IDF builds keep the device-name sdkconfig convention."""
+    from esphome.components.esp32 import _write_sdkconfig
+
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: {"CONFIG_TEST": True}}
+
+    _write_sdkconfig()
+
+    assert (tmp_path / "sdkconfig.test-device").read_text() == "CONFIG_TEST=y\n"
+    assert not (tmp_path / f"sdkconfig.{PLATFORMIO_ENV_NAME}").exists()
 
 
 def test_native_idf_enables_reproducible_build(
