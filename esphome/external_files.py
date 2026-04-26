@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime
 import logging
 from pathlib import Path
@@ -8,7 +9,8 @@ import requests
 
 import esphome.config_validation as cv
 from esphome.const import __version__
-from esphome.core import CORE, TimePeriodSeconds
+from esphome.core import CORE, EsphomeError, TimePeriodSeconds
+from esphome.helpers import write_file
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@landonr"]
@@ -16,10 +18,36 @@ CODEOWNERS = ["@landonr"]
 NETWORK_TIMEOUT = 30
 
 IF_MODIFIED_SINCE = "If-Modified-Since"
+IF_NONE_MATCH = "If-None-Match"
+ETAG = "ETag"
 CACHE_CONTROL = "Cache-Control"
 CACHE_CONTROL_MAX_AGE = "max-age="
 CONTENT_DISPOSITION = "content-disposition"
 TEMP_DIR = "temp"
+
+
+def _etag_sidecar_path(local_file_path: Path) -> Path:
+    return local_file_path.parent / f".{local_file_path.name}.etag"
+
+
+def _read_etag(local_file_path: Path) -> str | None:
+    try:
+        etag = _etag_sidecar_path(local_file_path).read_text().strip()
+    except OSError:
+        return None
+    return etag or None
+
+
+def _write_etag(local_file_path: Path, etag: str | None) -> None:
+    etag_path = _etag_sidecar_path(local_file_path)
+    if not etag:
+        with contextlib.suppress(FileNotFoundError):
+            etag_path.unlink()
+        return
+    try:
+        write_file(etag_path, etag)
+    except EsphomeError as e:
+        _LOGGER.debug("Could not save ETag for %s: %s", local_file_path, e)
 
 
 def has_remote_file_changed(url: str, local_file_path: Path) -> bool:
@@ -35,14 +63,18 @@ def has_remote_file_changed(url: str, local_file_path: Path) -> bool:
                 IF_MODIFIED_SINCE: local_modification_time_str,
                 CACHE_CONTROL: CACHE_CONTROL_MAX_AGE + "3600",
             }
+            etag = _read_etag(local_file_path)
+            if etag:
+                headers[IF_NONE_MATCH] = etag
             response = requests.head(
                 url, headers=headers, timeout=NETWORK_TIMEOUT, allow_redirects=True
             )
 
             _LOGGER.debug(
-                "has_remote_file_changed: File %s, Local modified %s, response code %d",
+                "has_remote_file_changed: File %s, Local modified %s, ETag %s, response code %d",
                 local_file_path,
                 local_modification_time_str,
+                etag or "<none>",
                 response.status_code,
             )
 
@@ -51,6 +83,9 @@ def has_remote_file_changed(url: str, local_file_path: Path) -> bool:
                     "has_remote_file_changed: File not modified since %s",
                     local_modification_time_str,
                 )
+                new_etag = response.headers.get(ETAG)
+                if new_etag and new_etag != etag:
+                    _write_etag(local_file_path, new_etag)
                 return False
             _LOGGER.debug("has_remote_file_changed: File modified")
             return True
@@ -112,7 +147,7 @@ def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> by
             return path.read_bytes()
         raise cv.Invalid(f"Could not download from {url}: {e}") from e
 
-    path.parent.mkdir(parents=True, exist_ok=True)
     data = req.content
-    path.write_bytes(data)
+    write_file(path, data)
+    _write_etag(path, req.headers.get(ETAG))
     return data
