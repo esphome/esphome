@@ -137,8 +137,10 @@ def download_content_many(
     """Run `download_content` for each (url, path) pair concurrently.
 
     Wall time drops from `sum(latency)` to roughly `max(latency)` for cached
-    files where the HEAD round-trip dominates. The first exception raised by
-    any worker is propagated; remaining workers complete before this returns.
+    files where the HEAD round-trip dominates. Worker exceptions propagate
+    when iteration reaches the corresponding input item (`ex.map` yields
+    results in input order), and remaining workers complete before this
+    returns.
 
     Items are de-duplicated by `path` -- two callers asking for the same
     cache file (e.g. the same URL referenced twice in a config) would
@@ -166,8 +168,9 @@ def download_content_many(
         )
 
 
-# String constant rather than `from .const import TYPE_WEB` because each
-# component defines its own `TYPE_WEB = "web"` literal in its module scope.
+# Each component that uses external_files defines its own local
+# `TYPE_WEB = "web"`; the string is repeated here rather than imported
+# because there is no canonical `TYPE_WEB` in `esphome.const` to share.
 WEB_TYPE = "web"
 
 
