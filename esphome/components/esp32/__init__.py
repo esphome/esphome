@@ -1729,6 +1729,10 @@ async def to_code(config):
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
         if use_platformio:
             cg.add_platformio_option("framework", "espidf")
+            # Strip volatile build path/time metadata from PlatformIO-managed
+            # ESP-IDF builds so equivalent projects can produce reproducible
+            # outputs and downstream tooling can safely reuse artifacts.
+            add_idf_sdkconfig_option("CONFIG_APP_REPRODUCIBLE_BUILD", True)
 
         # Wrap std::__throw_* functions to abort immediately, eliminating ~3KB of
         # exception class overhead. See throw_stubs.cpp for implementation.
