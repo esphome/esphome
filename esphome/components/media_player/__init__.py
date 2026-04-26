@@ -21,6 +21,7 @@ from esphome.core import CORE
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     inherit_property_from,
+    queue_entity_register,
     setup_entity,
 )
 from esphome.coroutine import CoroPriority, coroutine_with_priority
@@ -262,7 +263,7 @@ async def setup_media_player_core_(var, config):
 async def register_media_player(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_media_player(var))
+    queue_entity_register("media_player", config)
     CORE.register_platform_component("media_player", var)
     await setup_media_player_core_(var, config)
 
