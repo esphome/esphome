@@ -1,5 +1,6 @@
 """Speaker Media Player Setup."""
 
+from functools import partial
 import hashlib
 import logging
 from pathlib import Path
@@ -277,7 +278,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.Any(cv.boolean, cv.string),
             cv.Optional(CONF_FILES): cv.All(
                 cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
-                lambda c: download_web_files_in_config(c, _compute_local_file_path),
+                partial(
+                    download_web_files_in_config, path_for=_compute_local_file_path
+                ),
             ),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
                 cv.boolean, cv.requires_component(psram.DOMAIN)
