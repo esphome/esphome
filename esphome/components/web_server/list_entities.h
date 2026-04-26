@@ -87,6 +87,9 @@ class ListEntitiesIterator final : public ComponentIterator {
 #ifdef USE_INFRARED
   bool on_infrared(infrared::Infrared *obj) override;
 #endif
+#ifdef USE_RADIO_FREQUENCY
+  bool on_radio_frequency(radio_frequency::RadioFrequency *obj) override;
+#endif
 #ifdef USE_EVENT
   bool on_event(event::Event *obj) override;
 #endif
