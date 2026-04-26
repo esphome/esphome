@@ -20,23 +20,61 @@ The IR/RF proxy enables runtime signal transmission without recompiling and/or r
 making it ideal for learning and replaying IR/RF commands, creating universal remote controls, and integrating with
 Home Assistant's remote control features.
 
+The IR/RF proxy provides two platform implementations:
+
+- **[Infrared platform](#infrared-platform)** — creates an [infrared](/components/infrared) entity for IR use cases
+- **[Radio Frequency platform](#radio-frequency-platform)** — creates a [radio_frequency](/components/radio_frequency)
+  entity with RF-specific metadata such as carrier frequency range and modulation type
+
 ```yaml
 # Example configuration entry
+remote_receiver:
+  id: ir_rx
+  pin: GPIOXX
+
+remote_transmitter:
+  - id: ir_tx
+    pin: GPIOXX
+    carrier_duty_percent: 50%
+  - id: rf_tx
+    pin: GPIOXX
+    carrier_duty_percent: 100%
+
+# Infrared platform — creates infrared entities
 infrared:
-  # IR transmitter instance
+  - platform: ir_rf_proxy
+    name: IR Transmitter
+    remote_transmitter_id: ir_tx
+  - platform: ir_rf_proxy
+    name: IR Receiver
+    receiver_frequency: 38kHz
+    remote_receiver_id: ir_rx
+
+# Radio Frequency platform — creates radio_frequency entities
+radio_frequency:
+  - platform: ir_rf_proxy
+    name: 433MHz RF Transmitter
+    frequency: 433.92MHz
+    remote_transmitter_id: rf_tx
+```
+
+## Infrared Platform
+
+The infrared platform creates an [infrared](/components/infrared) entity backed by a `remote_transmitter` or
+`remote_receiver`. Each instance must be configured as either a transmitter or receiver — not both.
+
+```yaml
+infrared:
   - platform: ir_rf_proxy
     name: IR Proxy Transmitter
-    id: ir_proxy_tx
     remote_transmitter_id: ir_tx
-  # IR receiver instance
   - platform: ir_rf_proxy
     name: IR Proxy Receiver
-    id: ir_proxy_rx
     receiver_frequency: 38kHz
     remote_receiver_id: ir_rx
 ```
 
-## Configuration variables
+### Infrared Configuration Variables
 
 - **remote_transmitter_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the
   [remote_transmitter](/components/remote_transmitter) component to use for sending signals. Exactly one of
@@ -62,6 +100,44 @@ infrared:
 > transmission. If `carrier_duty_percent` is set to 0% or 100% and `frequency` is not set or is set to zero, a
 > validation error will occur.
 
+## Radio Frequency Platform
+
+The radio frequency platform creates a [radio_frequency](/components/radio_frequency) entity backed by a
+`remote_transmitter` or `remote_receiver`. Each instance must be configured as either a transmitter or receiver —
+create separate instances if you need both.
+
+```yaml
+radio_frequency:
+  - platform: ir_rf_proxy
+    name: 433MHz RF Transmitter
+    frequency: 433.92MHz
+    remote_transmitter_id: rf_tx
+  - platform: ir_rf_proxy
+    name: 433MHz RF Receiver
+    frequency: 433.92MHz
+    remote_receiver_id: rf_rx
+```
+
+### Radio Frequency Configuration Variables
+
+- **remote_transmitter_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the
+  [remote_transmitter](/components/remote_transmitter) component to use for sending signals. Exactly one of
+  `remote_transmitter_id` or `remote_receiver_id` must be specified.
+- **remote_receiver_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the
+  [remote_receiver](/components/remote_receiver) component to use for receiving signals. Exactly one of
+  `remote_transmitter_id` or `remote_receiver_id` must be specified.
+- **frequency** (*Optional*, frequency): The carrier frequency of the RF hardware (for example, `433.92MHz`,
+  `315MHz`, `868MHz`). This is metadata reported to API clients — it does not tune the hardware. If the hardware
+  operates at a fixed frequency, set this to declare it. When set, both `frequency_min` and `frequency_max` traits
+  are populated with this value.
+
+  All other configuration variables from [radio_frequency](/components/radio_frequency).
+
+> [!NOTE]
+> When configuring a transmitter for RF, the linked `remote_transmitter` must have `carrier_duty_percent` set to
+> `100%`. RF hardware handles its own modulation; applying a carrier duty cycle would corrupt the signal. A validation
+> error will occur if `carrier_duty_percent` is set to any other value.
+
 ## How It Works
 
 The IR/RF proxy component creates API-accessible entities that can be controlled from Home Assistant or other API
@@ -70,7 +146,7 @@ component ID.
 
 ### Transmitting Signals
 
-The IR/RF proxy transmits signals using raw timings, which provides full remote control over the exact waveform sent
+Both platforms transmit signals using raw timings, which provides full remote control over the exact waveform sent
 to the hardware. When configured with a `remote_transmitter_id`, the component can transmit IR/RF signals by accepting
 an [array of microsecond timing values](/components/remote_transmitter#remote_transmittertransmit_raw-action)
 representing alternating mark (LED on) and space (LED off) periods.
@@ -79,8 +155,11 @@ representing alternating mark (LED on) and space (LED off) periods.
 
 - **Raw timings array**: Alternating mark/space durations in microseconds (just as the
   [remote_transmitter.transmit_raw](/components/remote_transmitter#remote_transmittertransmit_raw-action) action uses)
-- **Carrier frequency**: Optional carrier frequency in Hz (0 = no carrier modulation, typical for RF)
+- **Carrier frequency** (infrared platform): Optional carrier frequency in Hz (0 = no carrier modulation)
 - **Repeat count**: Number of times to transmit the signal (defaults to 1)
+
+For the radio frequency platform, carrier frequency is always set to 0 (no IR carrier modulation) since dedicated RF
+hardware handles modulation at the physical layer.
 
 The raw timings format allows for maximum flexibility and can support more or less any protocol, whether implemented in
 ESPHome or not. Home Assistant integrations can encode protocol-specific commands into raw timings and transmit them
@@ -95,16 +174,21 @@ decoding or analysis. This enables:
 - Analyzing unknown protocols
 - Creating universal remote controls
 
+Both platforms share the same receive event stream — received signals include the entity key so API clients can
+identify which specific entity (infrared or radio frequency) produced the event.
+
 Reception is non-blocking, allowing other listeners to also process signals simultaneously.
 
 ## Hardware Support
 
 The IR/RF proxy can work with both infrared and RF hardware:
 
-- **Infrared**: Do not set `frequency` (or set `frequency: 0`, which is the default) and use standard IR LEDs/receivers.
-  For receivers, you can set `receiver_frequency` to declare the demodulation frequency of the hardware (for example,
-  `38kHz` for a TSOP38238).
-- **RF**: Set `frequency` to match your RF hardware (for example, `315 MHz` for 315 MHz or `433 MHz` for 433.92 MHz)
+- **Infrared** (`infrared` platform): Do not set `frequency` (or set `frequency: 0`, which is the default) and use
+  standard IR LEDs/receivers. For receivers, you can set `receiver_frequency` to declare the demodulation frequency
+  of the hardware (for example, `38kHz` for a TSOP38238).
+- **RF** (`radio_frequency` platform): Use the radio frequency platform for RF configurations. Set `frequency` to match
+  your RF hardware (for example, `433.92MHz`). The radio frequency platform reports RF-specific metadata
+  (supported modulations, frequency range) to API clients.
 
 You can create separate instances for different purposes:
 
@@ -115,6 +199,8 @@ You can create separate instances for different purposes:
 
 ## See Also
 
+- [Infrared Component](/components/infrared)
+- [Radio Frequency Component](/components/radio_frequency)
 - [Remote Transmitter](/components/remote_transmitter)
 - [Remote Receiver](/components/remote_receiver)
 - <APIRef text="ir_rf_proxy.h" path="ir_rf_proxy/ir_rf_proxy.h" />
