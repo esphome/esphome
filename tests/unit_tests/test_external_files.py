@@ -469,6 +469,59 @@ def test_download_content_with_network_error_no_cache_fails(
         external_files.download_content(url, test_file)
 
 
+def test_download_content_with_body_read_error_uses_cache(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """Body-read errors (chunked-decode/gzip-decode/mid-stream connection
+    drop) raise RequestException subclasses on `.content` access, not from
+    `requests.get` itself. They must follow the same fall-back-to-cache
+    path as a connect-time failure.
+    """
+    test_file = setup_core / "cached.txt"
+    cached_content = b"cached content"
+    test_file.write_bytes(cached_content)
+
+    mock_has_remote_file_changed.return_value = True
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    type(mock_response).content = property(
+        lambda self: (_ for _ in ()).throw(
+            requests.exceptions.ChunkedEncodingError("body truncated")
+        )
+    )
+    mock_requests_get.return_value = mock_response
+
+    result = external_files.download_content("https://example.com/file.txt", test_file)
+
+    assert result == cached_content
+
+
+def test_download_content_with_body_read_error_no_cache_fails(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """A body-read failure with no cache available must surface as a
+    cv.Invalid, same as a connect-time failure with no cache.
+    """
+    test_file = setup_core / "nonexistent.txt"
+
+    mock_has_remote_file_changed.return_value = True
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    type(mock_response).content = property(
+        lambda self: (_ for _ in ()).throw(
+            requests.exceptions.ChunkedEncodingError("body truncated")
+        )
+    )
+    mock_requests_get.return_value = mock_response
+
+    with pytest.raises(Invalid, match="Could not download from.*body truncated"):
+        external_files.download_content("https://example.com/file.txt", test_file)
+
+
 def test_download_content_skip_external_update_uses_cache(
     mock_has_remote_file_changed: MagicMock,
     mock_requests_get: MagicMock,
