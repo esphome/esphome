@@ -507,7 +507,7 @@ def test_clean_build(
     assert "Deleting" in caplog.text
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" in caplog.text
-    assert "platformio/libdeps" in caplog.text
+    assert str(shared_piolibdeps_dir) in caplog.text
     assert "dependencies.lock" in caplog.text
     assert str(idf_build_dir) in caplog.text
     assert str(managed_components_dir) in caplog.text
