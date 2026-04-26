@@ -791,6 +791,12 @@ class EsphomeCore:
         return PLATFORMIO_ENV_NAME
 
     @property
+    def sdkconfig_name(self) -> str:
+        if self.data.get(KEY_NATIVE_IDF, False):
+            return self.name
+        return self.pioenv_name
+
+    @property
     def firmware_bin(self) -> Path:
         # Check if using ESP-IDF toolchain
         if self.using_toolchain_esp_idf:
