@@ -58,6 +58,131 @@ display:
     lambda: |-
       it.circle(64, 64, 50, Color::BLACK);
 
+  # E Ink Spectra 6 3.6inch 400x600 panel and aliases
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: Spectra6-3.6in
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rotation: 0
+    update_interval: 60s
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: Waveshare-3.6in-E
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rotation: 0
+    update_interval: 60s
+
+  # E Ink Spectra 6 4.0inch 400x600 panel and aliases
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: Spectra6-4.0in
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rotation: 0
+    update_interval: 60s
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: Waveshare-4in-E
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rotation: 0
+    update_interval: 60s
+
+  # E Ink Spectra 6 7.3inch 800x480 panel and aliases
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: Spectra6-7.3in
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rotation: 0
+    update_interval: 60s
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: Waveshare-7.3in-E
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rotation: 0
+    update_interval: 60s
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: 7.3in-Spectra-E6
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    rotation: 0
+    update_interval: 60s
+
   - platform: epaper_spi
     spi_id: spi_bus
     model: waveshare-1.54in-G
