@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 from datetime import UTC, datetime
 import logging
+import os
 from pathlib import Path
 
 import requests
@@ -31,8 +32,33 @@ def _etag_sidecar_path(local_file_path: Path) -> Path:
 
 
 def _read_etag(local_file_path: Path) -> str | None:
+    """Return the cached ETag if it still describes the current cached file.
+
+    The sidecar's mtime is kept in sync with the cache file's mtime by
+    `_write_etag`. If they disagree, the cache file was modified out-of-band
+    (manual edit, restored from backup, replaced by another tool) and the
+    ETag no longer corresponds to its contents, so treat the sidecar as
+    stale and delete it.
+    """
+    etag_path = _etag_sidecar_path(local_file_path)
     try:
-        etag = _etag_sidecar_path(local_file_path).read_text().strip()
+        etag_mtime_ns = etag_path.stat().st_mtime_ns
+        file_mtime_ns = local_file_path.stat().st_mtime_ns
+    except OSError:
+        return None
+    if etag_mtime_ns != file_mtime_ns:
+        _LOGGER.debug(
+            "ETag sidecar mtime (%d) does not match cached file mtime (%d) at %s; "
+            "treating ETag as stale",
+            etag_mtime_ns,
+            file_mtime_ns,
+            local_file_path,
+        )
+        with contextlib.suppress(OSError):
+            etag_path.unlink()
+        return None
+    try:
+        etag = etag_path.read_text().strip()
     except OSError:
         return None
     return etag or None
@@ -48,6 +74,16 @@ def _write_etag(local_file_path: Path, etag: str | None) -> None:
         write_file(etag_path, etag)
     except EsphomeError as e:
         _LOGGER.debug("Could not save ETag for %s: %s", local_file_path, e)
+        return
+    # Pin the sidecar's mtime to the cache file's mtime. _read_etag relies on
+    # this match to detect out-of-band edits to the cache file.
+    try:
+        file_mtime_ns = local_file_path.stat().st_mtime_ns
+        os.utime(etag_path, ns=(file_mtime_ns, file_mtime_ns))
+    except OSError as e:
+        _LOGGER.debug(
+            "Could not sync ETag sidecar mtime for %s: %s", local_file_path, e
+        )
 
 
 def has_remote_file_changed(url: str, local_file_path: Path) -> bool:
