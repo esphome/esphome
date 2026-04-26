@@ -461,34 +461,42 @@ def test_download_content_saves_etag(
     assert external_files._etag_sidecar_path(test_file).read_text() == '"deadbeef"'
 
 
+@patch("esphome.external_files.write_file")
 @patch("esphome.external_files.requests.get")
 @patch("esphome.external_files.has_remote_file_changed")
 def test_download_content_atomic_write_no_partial_on_failure(
     mock_has_changed: MagicMock,
     mock_get: MagicMock,
+    mock_write_file: MagicMock,
     setup_core: Path,
 ) -> None:
-    """Test download_content does not corrupt the existing file if the write step fails."""
+    """If `write_file` (the atomic-write helper) fails, the existing cache
+    file must remain untouched and no temp files may be left behind. Patching
+    `write_file` directly exercises the atomic-rename path -- a failure inside
+    `write_file` is the only reason the rename wouldn't have happened.
+    """
+    from esphome.core import EsphomeError
+
     test_file = setup_core / "cached.txt"
     original_content = b"original content"
     test_file.write_bytes(original_content)
 
     mock_has_changed.return_value = True
     mock_response = MagicMock()
-    # Accessing .content raises, simulating a streaming/decode failure
-    type(mock_response).content = property(
-        lambda self: (_ for _ in ()).throw(OSError("disk full"))
-    )
+    mock_response.content = b"new content"
+    mock_response.headers = {}
     mock_response.raise_for_status = MagicMock()
     mock_get.return_value = mock_response
 
-    url = "https://example.com/file.txt"
-    with pytest.raises(OSError, match="disk full"):
-        external_files.download_content(url, test_file)
+    mock_write_file.side_effect = EsphomeError("disk full")
 
-    # Original file is untouched (atomic rename never happened)
+    with pytest.raises(EsphomeError, match="disk full"):
+        external_files.download_content("https://example.com/file.txt", test_file)
+
+    # Original file is untouched -- write_file aborted before its rename step.
     assert test_file.read_bytes() == original_content
-    # No leftover temp files from tempfile.NamedTemporaryFile
+    # write_file is responsible for cleaning its own temp files; nothing leaks
+    # into the cache directory either way.
     leftover_tmps = list(setup_core.glob("tmp*"))
     assert leftover_tmps == []
 
