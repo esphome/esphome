@@ -4,10 +4,7 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
 #include "esphome/core/hal.h"
-#ifdef USE_DEEP_SLEEP
 #include "esphome/core/wake.h"
-#include "esphome/components/deep_sleep/deep_sleep_component.h"
-#endif
 
 extern "C" {
 #include <zboss_api.h>
