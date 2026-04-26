@@ -70,17 +70,13 @@ bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
 }
 
 void ESP32Preferences::open() {
-  esp_err_t err = nvs_flash_init();
-  if (err != 0) {
-    this->nvs_handle = 0;
-    return;
-  }
-
-  err = nvs_open("esphome", NVS_READWRITE, &this->nvs_handle);
+  // Can't use ESP_LOG... in this function because it is called before the logger is initialized
+  nvs_flash_init();
+  esp_err_t err = nvs_open("esphome", NVS_READWRITE, &this->nvs_handle);
   if (err == 0)
     return;
 
-  ESP_LOGW(TAG, "nvs_open failed: %s - erasing NVS", esp_err_to_name(err));
+  // nvs_open failed, erasing NVS
   nvs_flash_deinit();
   nvs_flash_erase();
   nvs_flash_init();
