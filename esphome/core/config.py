@@ -242,6 +242,10 @@ PROJECT_MAX_LENGTH = 127
 # Max board/model string length (must fit in single-byte varint for proto encoding)
 BOARD_MAX_LENGTH = 127
 
+# Keep in sync with ESPHOME_COMMENT_SIZE_MAX in esphome/core/application.h
+# (C++ side includes the null terminator).
+COMMENT_MAX_LEN = 255
+
 AREA_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Area),
@@ -275,10 +279,9 @@ CONFIG_SCHEMA = cv.All(
                 cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
             ),
             cv.Optional(CONF_AREA): validate_area_config,
-            # 255 bytes (not chars) so the encoded comment + NUL fits the
-            # 256-byte Application::ESPHOME_COMMENT_SIZE_MAX reader buffer
-            # regardless of UTF-8 multi-byte character expansion.
-            cv.Optional(CONF_COMMENT): cv.All(cv.string, cv.ByteLength(max=255)),
+            cv.Optional(CONF_COMMENT): cv.All(
+                cv.string, cv.ByteLength(max=COMMENT_MAX_LEN)
+            ),
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
                 {

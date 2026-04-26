@@ -1701,47 +1701,28 @@ def test_generate_build_info_data_cpp_empty_comment() -> None:
 
 
 def test_generate_build_info_data_cpp_comment_size_counts_utf8_bytes() -> None:
-    """Comment size must reflect encoded UTF-8 bytes, not character count.
-
-    Otherwise a non-ASCII comment would undercount the buffer length and
-    Application::get_comment_string() could truncate mid-multi-byte sequence.
-    """
-    # "héllo" -> h(1) + é(2) + l(1) + l(1) + o(1) = 6 bytes; +1 NUL = 7
+    """Comment size is in encoded UTF-8 bytes, not characters."""
+    # "héllo" = 6 UTF-8 bytes + NUL.
     result = generate_build_info_data_cpp(0, 0, "test", "héllo")
     assert "const size_t ESPHOME_COMMENT_SIZE = 7;" in result
 
 
 def test_generate_build_info_data_cpp_comment_clamped_to_buffer() -> None:
-    """Encoded comment + NUL must fit Application::ESPHOME_COMMENT_SIZE_MAX (256).
-
-    cv.Length(max=255) only bounds character count; with UTF-8 a 255-char
-    comment can be up to 1020 bytes and would overflow the reader's fixed
-    256-byte buffer. The generator clamps at the byte level and drops any
-    trailing partial multi-byte sequence.
-    """
-    # 100 thermometer-with-VS-16 sequences = 700 bytes -- well past 256.
+    """Generator clamps at byte level and never truncates mid-codepoint."""
+    # 100 thermometer-with-VS-16 sequences = 700 bytes, past the 256 buffer.
     result = generate_build_info_data_cpp(0, 0, "test", "🌡️" * 100)
 
-    # Pull the declared size out of the generated source.
     match = re.search(r"ESPHOME_COMMENT_SIZE = (\d+);", result)
     assert match is not None
     size = int(match.group(1))
-    assert size <= 256
-    # Must include room for at least one full codepoint plus NUL.
-    assert size > 1
+    assert 1 < size <= 256
 
-    # The string literal that's actually emitted must round-trip as valid
-    # UTF-8 -- never end mid multi-byte sequence.
     lit_match = re.search(r'ESPHOME_COMMENT_STR\[\] = "([^"]*)"', result)
     assert lit_match is not None
-    literal = lit_match.group(1)
-    # cpp_string_escape emits non-printable / non-ASCII bytes as \NNN octal.
-    # Decode them back to raw bytes, then verify UTF-8 validity.
-    raw = re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), literal).encode(
-        "latin-1"
-    )
-    raw.decode("utf-8")  # raises UnicodeDecodeError if truncation was unsafe
-    # Encoded byte length (without NUL) must equal size - 1.
+    raw = re.sub(
+        r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), lit_match.group(1)
+    ).encode("latin-1")
+    raw.decode("utf-8")  # raises if truncation left a partial UTF-8 sequence
     assert len(raw) == size - 1
 
 

@@ -172,8 +172,6 @@ VERSION_H_TARGET = "esphome/core/version.h"
 BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
 BUILD_INFO_DATA_CPP_TARGET = "esphome/core/build_info_data.cpp"
 ENTITY_TYPES_H_TARGET = "esphome/core/entity_types.h"
-# Must match Application::ESPHOME_COMMENT_SIZE_MAX in core/application.h
-COMMENT_SIZE_MAX = 256
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -302,9 +300,8 @@ def copy_src_tree():
 
     # Write build_info header and JSON metadata
     if sources_changed:
-        # Use write_file_if_changed so identical content does not bump mtime
-        # and trigger downstream recompiles; this is essential for the stable
-        # declaration-only header to actually isolate metadata churn.
+        # write_file_if_changed avoids bumping mtime on identical content,
+        # which is what makes the stable header actually isolate metadata churn.
         write_file_if_changed(
             build_info_data_h_path,
             generate_build_info_data_h(),
@@ -396,19 +393,15 @@ def generate_build_info_data_cpp(
     config_hash: int, build_time: int, build_time_str: str, comment: str
 ) -> str:
     """Generate build_info_data.cpp with config hash, build time, and comment."""
-    # The reader-side buffer is fixed at Application::ESPHOME_COMMENT_SIZE_MAX
-    # (256 bytes), so the encoded comment plus NUL must fit. cv.Length(max=255)
-    # bounds character count, but UTF-8 chars can be up to 4 bytes each, so we
-    # also have to clamp byte length here. errors="ignore" drops any partial
-    # trailing multi-byte sequence so we never emit a truncated codepoint.
-    encoded = comment.encode("utf-8")[: COMMENT_SIZE_MAX - 1]
+    from esphome.core.config import COMMENT_MAX_LEN
+
+    # Defense-in-depth clamp; errors="ignore" drops a partial trailing UTF-8
+    # sequence so the literal never decodes to a truncated codepoint.
+    encoded = comment.encode("utf-8")[:COMMENT_MAX_LEN]
     comment = encoded.decode("utf-8", errors="ignore")
-    # cpp_string_escape returns '"escaped"', slice off the quotes since template has them
+    # cpp_string_escape wraps in quotes; strip them since the template has them.
     escaped_comment = cpp_string_escape(comment)[1:-1]
-    # Size is in encoded bytes (UTF-8), not characters, so non-ASCII comments
-    # don't get truncated mid-multi-byte sequence by get_comment_string().
-    # +1 for null terminator
-    comment_size = len(comment.encode("utf-8")) + 1
+    comment_size = len(comment.encode("utf-8")) + 1  # +1 for NUL
     return f"""// Auto-generated build_info data
 #include "esphome/core/build_info_data.h"
 
