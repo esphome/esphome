@@ -5797,7 +5797,7 @@ def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
     """Test reading XTAL_FREQ from sdkconfig."""
     CORE.name = "test-device"
     CORE.build_path = tmp_path
-    sdkconfig = tmp_path / "sdkconfig.test-device"
+    sdkconfig = tmp_path / f"sdkconfig.{PLATFORMIO_ENV_NAME}"
     sdkconfig.write_text(
         "CONFIG_SOC_XTAL_SUPPORT_26M=y\nCONFIG_XTAL_FREQ=26\nCONFIG_XTAL_FREQ_26=y\n"
     )
@@ -5808,7 +5808,7 @@ def test_get_configured_xtal_freq_default_40(tmp_path: Path) -> None:
     """Test reading default 40MHz XTAL_FREQ from sdkconfig."""
     CORE.name = "test-device"
     CORE.build_path = tmp_path
-    sdkconfig = tmp_path / "sdkconfig.test-device"
+    sdkconfig = tmp_path / f"sdkconfig.{PLATFORMIO_ENV_NAME}"
     sdkconfig.write_text("CONFIG_XTAL_FREQ=40\nCONFIG_XTAL_FREQ_40=y\n")
     assert _get_configured_xtal_freq() == 40
 
@@ -5824,7 +5824,7 @@ def test_get_configured_xtal_freq_no_xtal_line(tmp_path: Path) -> None:
     """Test that sdkconfig without XTAL_FREQ returns None."""
     CORE.name = "test-device"
     CORE.build_path = tmp_path
-    sdkconfig = tmp_path / "sdkconfig.test-device"
+    sdkconfig = tmp_path / f"sdkconfig.{PLATFORMIO_ENV_NAME}"
     sdkconfig.write_text("CONFIG_OTHER=123\n")
     assert _get_configured_xtal_freq() is None
 
@@ -5882,7 +5882,7 @@ def test_upload_using_esptool_passes_crystal_callback(
     # Create sdkconfig with XTAL_FREQ
     build_dir = Path(CORE.build_path)
     build_dir.mkdir(parents=True, exist_ok=True)
-    sdkconfig = build_dir / "sdkconfig.test"
+    sdkconfig = build_dir / f"sdkconfig.{PLATFORMIO_ENV_NAME}"
     sdkconfig.write_text("CONFIG_XTAL_FREQ=40\n")
 
     mock_idedata = MagicMock(spec=toolchain.IDEData)
@@ -5912,7 +5912,7 @@ def test_upload_using_esptool_subprocess_passes_crystal_callback(
     # Create sdkconfig with XTAL_FREQ
     build_dir = Path(CORE.build_path)
     build_dir.mkdir(parents=True, exist_ok=True)
-    sdkconfig = build_dir / "sdkconfig.test"
+    sdkconfig = build_dir / f"sdkconfig.{PLATFORMIO_ENV_NAME}"
     sdkconfig.write_text("CONFIG_XTAL_FREQ=40\n")
 
     mock_idedata = MagicMock(spec=toolchain.IDEData)
