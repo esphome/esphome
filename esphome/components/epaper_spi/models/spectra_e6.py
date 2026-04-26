@@ -19,6 +19,7 @@ class SpectraE6(EpaperModel):
     def get_default(self, key, fallback: Any = False) -> Any:
         return self.defaults.get(key, fallback)
 
+
 # No documentation for the Spectra E6 controller is available, but it appears
 # to use a similar command set to the Solomon SPD1656 or Jadard JD79660.
 spectra_e6 = SpectraE6(
@@ -28,30 +29,79 @@ spectra_e6 = SpectraE6(
     # Common values adapted from Waveshare example code (MIT license)
     initsequence=(
         # CMDH
-        (0xAA, 0x49, 0x55, 0x20, 0x08, 0x09, 0x18,),
+        (
+            0xAA,
+            0x49,
+            0x55,
+            0x20,
+            0x08,
+            0x09,
+            0x18,
+        ),
         # PSR
-        (0x00, 0x5F, 0x69,),
+        (
+            0x00,
+            0x5F,
+            0x69,
+        ),
         # PWR
-        (0x01, 0x3F,),
+        (
+            0x01,
+            0x3F,
+        ),
         # PFS
-        (0x03, 0x00, 0x54, 0x00, 0x44,),
+        (
+            0x03,
+            0x00,
+            0x54,
+            0x00,
+            0x44,
+        ),
         # BTST1
-        (0x05, 0x40, 0x1F, 0x1F, 0x2C,),
+        (
+            0x05,
+            0x40,
+            0x1F,
+            0x1F,
+            0x2C,
+        ),
         # BTST2 value is display specific.
         # The controller has a default which works but won't be optimal.
         # BTST3
-        (0x08, 0x6F, 0x1F, 0x1F, 0x22,),
+        (
+            0x08,
+            0x6F,
+            0x1F,
+            0x1F,
+            0x22,
+        ),
         # PLL
-        (0x30, 0x08,),
+        (
+            0x30,
+            0x08,
+        ),
         # CDI
-        (0x50, 0x3F,),
+        (
+            0x50,
+            0x3F,
+        ),
         # TCON
-        (0x60, 0x02, 0x00,),
+        (
+            0x60,
+            0x02,
+            0x00,
+        ),
         # T_VDCS
-        (0x84, 0x01,),
+        (
+            0x84,
+            0x01,
+        ),
         # PWS
-        (0xE3, 0x2F,),
-    )
+        (
+            0xE3,
+            0x2F,
+        ),
+    ),
 )
 
 spectra_e6_4 = spectra_e6.extend(
@@ -66,8 +116,14 @@ spectra_e6_4 = spectra_e6.extend(
         # but updated to (0x6F, 0x1F, 0x17, 0x27) before doing a refresh.
         # I believe this allows for the power on to run faster.
         # Since there's no way to do this right now, set the final value here.
-        (0x06, 0x6F, 0x1F, 0x17, 0x27,),
-    )
+        (
+            0x06,
+            0x6F,
+            0x1F,
+            0x17,
+            0x27,
+        ),
+    ),
 )
 
 spectra_e6_7p3 = spectra_e6.extend(
@@ -78,8 +134,14 @@ spectra_e6_7p3 = spectra_e6.extend(
         # Values from Waveshare "7.3inch e-Paper (E)" example code (MIT license)
         # https://github.com/waveshareteam/e-Paper/blob/master/RaspberryPi_JetsonNano/c/lib/e-Paper/EPD_7in3e.c
         # BTST2
-        (0x06, 0x6F, 0x1F, 0x17, 0x49,),
-    )
+        (
+            0x06,
+            0x6F,
+            0x1F,
+            0x17,
+            0x49,
+        ),
+    ),
 )
 
 spectra_e6_7p3.extend(
