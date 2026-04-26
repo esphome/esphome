@@ -372,8 +372,7 @@ def test_download_web_files_in_config_filters_and_dispatches(
 
     assert result is config
     mock_many.assert_called_once()
-    items = mock_many.call_args[0][0]
-    assert items == [
+    assert list(mock_many.call_args[0][0]) == [
         ("https://example.com/a", setup_core / "a"),
         ("https://example.com/c", setup_core / "c"),
     ]
@@ -390,4 +389,4 @@ def test_download_web_files_in_config_no_web_entries(
     config = [{"file": {"type": "local", "path": "/tmp/a"}}]
     external_files.download_web_files_in_config(config, lambda _: setup_core / "x")
     mock_many.assert_called_once()
-    assert mock_many.call_args[0][0] == []
+    assert list(mock_many.call_args[0][0]) == []
