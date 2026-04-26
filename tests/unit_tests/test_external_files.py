@@ -12,6 +12,24 @@ from esphome.config_validation import Invalid
 from esphome.core import CORE, TimePeriod
 
 
+@pytest.fixture
+def mock_download_content() -> MagicMock:
+    """Patch `external_files.download_content` for tests that exercise the
+    parallel batch helper without doing real I/O.
+    """
+    with patch("esphome.external_files.download_content") as m:
+        yield m
+
+
+@pytest.fixture
+def mock_download_content_many() -> MagicMock:
+    """Patch `external_files.download_content_many` for tests that exercise
+    the URL-collection helper without dispatching to the thread pool.
+    """
+    with patch("esphome.external_files.download_content_many") as m:
+        yield m
+
+
 def test_compute_local_file_dir(setup_core: Path) -> None:
     """Test compute_local_file_dir creates and returns correct path."""
     domain = "font"
@@ -284,30 +302,27 @@ def test_download_content_skip_external_update_downloads_when_missing(
     assert test_file.read_bytes() == new_content
 
 
-@patch("esphome.external_files.download_content")
 def test_download_content_many_empty_is_noop(
-    mock_download: MagicMock, setup_core: Path
+    mock_download_content: MagicMock, setup_core: Path
 ) -> None:
     """Empty input shouldn't spin up a thread pool or call download_content."""
     external_files.download_content_many([])
-    mock_download.assert_not_called()
+    mock_download_content.assert_not_called()
 
 
-@patch("esphome.external_files.download_content")
 def test_download_content_many_single_item_avoids_pool(
-    mock_download: MagicMock, setup_core: Path
+    mock_download_content: MagicMock, setup_core: Path
 ) -> None:
     """A single item should be downloaded inline (no thread pool overhead)."""
     item = ("https://example.com/file.txt", setup_core / "f.txt")
     external_files.download_content_many([item])
-    mock_download.assert_called_once_with(
+    mock_download_content.assert_called_once_with(
         item[0], item[1], external_files.NETWORK_TIMEOUT
     )
 
 
-@patch("esphome.external_files.download_content")
 def test_download_content_many_runs_in_parallel(
-    mock_download: MagicMock, setup_core: Path
+    mock_download_content: MagicMock, setup_core: Path
 ) -> None:
     """Multiple items should run concurrently — total wall time ≈ max latency."""
     import threading
@@ -320,19 +335,18 @@ def test_download_content_many_runs_in_parallel(
         barrier.wait(timeout=2.0)
         return b""
 
-    mock_download.side_effect = slow_download
+    mock_download_content.side_effect = slow_download
     items = [
         ("https://example.com/a", setup_core / "a"),
         ("https://example.com/b", setup_core / "b"),
         ("https://example.com/c", setup_core / "c"),
     ]
     external_files.download_content_many(items, max_workers=4)
-    assert mock_download.call_count == 3
+    assert mock_download_content.call_count == 3
 
 
-@patch("esphome.external_files.download_content")
 def test_download_content_many_propagates_errors(
-    mock_download: MagicMock, setup_core: Path
+    mock_download_content: MagicMock, setup_core: Path
 ) -> None:
     """An exception from any worker must propagate out of download_content_many."""
 
@@ -341,7 +355,7 @@ def test_download_content_many_propagates_errors(
             raise Invalid(f"could not download {url}")
         return b""
 
-    mock_download.side_effect = fake_download
+    mock_download_content.side_effect = fake_download
     items = [
         ("https://example.com/ok", setup_core / "ok"),
         ("https://example.com/bad", setup_core / "bad"),
@@ -350,9 +364,8 @@ def test_download_content_many_propagates_errors(
         external_files.download_content_many(items)
 
 
-@patch("esphome.external_files.download_content")
 def test_download_content_many_dedupes_by_path(
-    mock_download: MagicMock, setup_core: Path
+    mock_download_content: MagicMock, setup_core: Path
 ) -> None:
     """Two items pointing at the same cache path must collapse to one
     download -- otherwise concurrent writes race on the same file.
@@ -364,16 +377,15 @@ def test_download_content_many_dedupes_by_path(
         ("https://example.com/a", path),
     ]
     external_files.download_content_many(items)
-    assert mock_download.call_count == 1
+    assert mock_download_content.call_count == 1
     # First-seen URL wins, matching dict-insertion order.
-    args, _ = mock_download.call_args
+    args, _ = mock_download_content.call_args
     assert args[0] == "https://example.com/a"
     assert args[1] == path
 
 
-@patch("esphome.external_files.download_content")
 def test_download_content_many_clamps_invalid_max_workers(
-    mock_download: MagicMock, setup_core: Path
+    mock_download_content: MagicMock, setup_core: Path
 ) -> None:
     """`max_workers <= 0` must not raise from ThreadPoolExecutor; it should
     be clamped up to at least 1 worker.
@@ -383,12 +395,11 @@ def test_download_content_many_clamps_invalid_max_workers(
         ("https://example.com/b", setup_core / "b"),
     ]
     external_files.download_content_many(items, max_workers=0)
-    assert mock_download.call_count == 2
+    assert mock_download_content.call_count == 2
 
 
-@patch("esphome.external_files.download_content_many")
 def test_download_web_files_in_config_filters_and_dispatches(
-    mock_many: MagicMock, setup_core: Path
+    mock_download_content_many: MagicMock, setup_core: Path
 ) -> None:
     """Only `file.type == "web"` entries should be forwarded to
     download_content_many, and the unmodified config should be returned so
@@ -407,16 +418,15 @@ def test_download_web_files_in_config_filters_and_dispatches(
     result = external_files.download_web_files_in_config(config, path_for)
 
     assert result is config
-    mock_many.assert_called_once()
-    assert list(mock_many.call_args[0][0]) == [
+    mock_download_content_many.assert_called_once()
+    assert list(mock_download_content_many.call_args[0][0]) == [
         ("https://example.com/a", setup_core / "a"),
         ("https://example.com/c", setup_core / "c"),
     ]
 
 
-@patch("esphome.external_files.download_content_many")
 def test_download_web_files_in_config_no_web_entries(
-    mock_many: MagicMock, setup_core: Path
+    mock_download_content_many: MagicMock, setup_core: Path
 ) -> None:
     """A config with no web entries should still call through to
     download_content_many (which is itself a no-op for empty input) so the
@@ -424,5 +434,5 @@ def test_download_web_files_in_config_no_web_entries(
     """
     config = [{"file": {"type": "local", "path": "/tmp/a"}}]
     external_files.download_web_files_in_config(config, lambda _: setup_core / "x")
-    mock_many.assert_called_once()
-    assert list(mock_many.call_args[0][0]) == []
+    mock_download_content_many.assert_called_once()
+    assert list(mock_download_content_many.call_args[0][0]) == []
