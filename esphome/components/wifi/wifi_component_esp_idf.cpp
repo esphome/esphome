@@ -180,7 +180,7 @@ void WiFiComponent::wifi_pre_setup_() {
 
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   if (global_preferences->nvs_handle == 0) {
-    ESP_LOGW(TAG, "NVS failed to initialize, starting WiFi with NVS disabled");
+    ESP_LOGW(TAG, "starting wifi without nvs");
     cfg.nvs_enable = false;
   }
   err = esp_wifi_init(&cfg);
