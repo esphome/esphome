@@ -241,7 +241,9 @@ def test_download_content_with_network_error_no_cache_fails(
 @patch("esphome.external_files.requests.get")
 @patch("esphome.external_files.has_remote_file_changed")
 def test_download_content_skip_external_update_uses_cache(
-    mock_has_changed: MagicMock, mock_get: MagicMock, setup_core: Path
+    mock_has_changed: MagicMock,
+    mock_get: MagicMock,
+    setup_core: Path,
 ) -> None:
     """Test download_content skips network checks when CORE.skip_external_update is set."""
     test_file = setup_core / "cached.txt"
@@ -249,11 +251,8 @@ def test_download_content_skip_external_update_uses_cache(
     test_file.write_bytes(cached_content)
 
     CORE.skip_external_update = True
-    try:
-        url = "https://example.com/file.txt"
-        result = external_files.download_content(url, test_file)
-    finally:
-        CORE.skip_external_update = False
+    url = "https://example.com/file.txt"
+    result = external_files.download_content(url, test_file)
 
     assert result == cached_content
     mock_has_changed.assert_not_called()
@@ -263,7 +262,9 @@ def test_download_content_skip_external_update_uses_cache(
 @patch("esphome.external_files.requests.get")
 @patch("esphome.external_files.has_remote_file_changed")
 def test_download_content_skip_external_update_downloads_when_missing(
-    mock_has_changed: MagicMock, mock_get: MagicMock, setup_core: Path
+    mock_has_changed: MagicMock,
+    mock_get: MagicMock,
+    setup_core: Path,
 ) -> None:
     """Test download_content still downloads when file is missing, even with skip_external_update."""
     test_file = setup_core / "missing.txt"
@@ -276,11 +277,8 @@ def test_download_content_skip_external_update_downloads_when_missing(
     mock_get.return_value = mock_response
 
     CORE.skip_external_update = True
-    try:
-        url = "https://example.com/file.txt"
-        result = external_files.download_content(url, test_file)
-    finally:
-        CORE.skip_external_update = False
+    url = "https://example.com/file.txt"
+    result = external_files.download_content(url, test_file)
 
     assert result == new_content
     assert test_file.read_bytes() == new_content

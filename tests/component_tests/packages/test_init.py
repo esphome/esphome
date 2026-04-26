@@ -4,8 +4,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
-
 from esphome.components.packages import do_packages_pass
 from esphome.const import CONF_FILES, CONF_PACKAGES, CONF_REFRESH, CONF_URL
 from esphome.core import CORE, TimePeriodSeconds
@@ -24,18 +22,10 @@ def _make_config() -> dict[str, Any]:
     }
 
 
-@pytest.fixture
-def reset_skip_external_update() -> None:
-    """Ensure CORE.skip_external_update is restored between tests."""
-    yield
-    CORE.skip_external_update = False
-
-
 def test_packages_skip_update_via_core_flag(
     tmp_path: Path,
     mock_clone_or_update: MagicMock,
     mock_load_yaml: MagicMock,
-    reset_skip_external_update: None,
 ) -> None:
     """When CORE.skip_external_update is True, refresh is still passed through;
     git.clone_or_update itself short-circuits the actual fetch."""
@@ -60,7 +50,6 @@ def test_packages_normal_refresh(
     tmp_path: Path,
     mock_clone_or_update: MagicMock,
     mock_load_yaml: MagicMock,
-    reset_skip_external_update: None,
 ) -> None:
     """When CORE.skip_external_update is False, the configured refresh value is used."""
     mock_clone_or_update.return_value = (tmp_path, None)

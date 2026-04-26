@@ -4,8 +4,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
-
 from esphome.components.external_components import do_external_components_pass
 from esphome.const import (
     CONF_EXTERNAL_COMPONENTS,
@@ -38,18 +36,10 @@ def _make_config(tmp_path: Path) -> dict[str, Any]:
     }
 
 
-@pytest.fixture
-def reset_skip_external_update() -> None:
-    """Ensure CORE.skip_external_update is restored between tests."""
-    yield
-    CORE.skip_external_update = False
-
-
 def test_external_components_skip_update_via_core_flag(
     tmp_path: Path,
     mock_clone_or_update: MagicMock,
     mock_install_meta_finder: MagicMock,
-    reset_skip_external_update: None,
 ) -> None:
     """When CORE.skip_external_update is True, refresh is still passed through;
     git.clone_or_update itself short-circuits the actual fetch."""
@@ -69,7 +59,6 @@ def test_external_components_normal_refresh(
     tmp_path: Path,
     mock_clone_or_update: MagicMock,
     mock_install_meta_finder: MagicMock,
-    reset_skip_external_update: None,
 ) -> None:
     """When CORE.skip_external_update is False, the configured refresh value is used."""
     mock_clone_or_update.return_value = (tmp_path, None)
