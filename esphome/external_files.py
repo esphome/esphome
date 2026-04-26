@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 import logging
@@ -9,8 +9,9 @@ from pathlib import Path
 import requests
 
 import esphome.config_validation as cv
-from esphome.const import __version__
+from esphome.const import CONF_FILE, CONF_TYPE, CONF_URL, __version__
 from esphome.core import CORE, TimePeriodSeconds
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@landonr"]
@@ -150,3 +151,28 @@ def download_content_many(
     with ThreadPoolExecutor(max_workers=workers) as ex:
         # list() forces iteration so exceptions surface here, not silently.
         list(ex.map(lambda item: download_content(item[0], item[1], timeout), items))
+
+
+# String constant rather than `from .const import TYPE_WEB` because each
+# component defines its own `TYPE_WEB = "web"` literal in its module scope.
+WEB_TYPE = "web"
+
+
+def download_web_files_in_config(
+    config: list[ConfigType],
+    path_for: Callable[[ConfigType], Path],
+) -> list[ConfigType]:
+    """Voluptuous-friendly validator that downloads any web-sourced files in
+    `config` in parallel.
+
+    Each entry is expected to contain a `file` key whose value is a dict
+    that may be `{type: "web", url: ...}`; `path_for(file_dict)` returns
+    the cache path for that file. Returns `config` unchanged so it can be
+    slotted directly into a `cv.All(...)` chain.
+    """
+    download_content_many(
+        (conf_file[CONF_URL], path_for(conf_file))
+        for entry in config
+        if (conf_file := entry.get(CONF_FILE, {})).get(CONF_TYPE) == WEB_TYPE
+    )
+    return config
