@@ -102,6 +102,11 @@ def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> by
             headers={"User-agent": f"ESPHome/{__version__} (https://esphome.io)"},
         )
         req.raise_for_status()
+        # `.content` reads the body lazily; chunked-decode, gzip-decode,
+        # and mid-stream connection errors all surface here as
+        # RequestException subclasses, so this needs the same fall-back
+        # treatment as the request itself.
+        data = req.content
     except requests.exceptions.RequestException as e:
         if path.exists():
             _LOGGER.warning(
@@ -113,6 +118,5 @@ def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> by
         raise cv.Invalid(f"Could not download from {url}: {e}") from e
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    data = req.content
     path.write_bytes(data)
     return data
