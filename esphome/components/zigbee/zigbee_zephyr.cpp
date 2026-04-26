@@ -190,7 +190,9 @@ void ZigbeeComponent::setup() {
     ESP_LOGE(TAG, "Cannot load settings, err: %d", err);
     return;
   }
+#ifdef CONFIG_ZIGBEE_ROLE_END_DEVICE
   zigbee_configure_sleepy_behavior(this->sleepy_);
+#endif
   zigbee_enable();
 }
 
