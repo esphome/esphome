@@ -210,18 +210,31 @@ def download_content_many(
     Wall time drops from `sum(latency)` to roughly `max(latency)` for cached
     files where the HEAD round-trip dominates. The first exception raised by
     any worker is propagated; remaining workers complete before this returns.
+
+    Items are de-duplicated by `path` -- two callers asking for the same
+    cache file (e.g. the same URL referenced twice in a config) would
+    otherwise race on `download_content`'s non-atomic write.
     """
-    items = list(items)
-    if not items:
+    seen: dict[Path, str] = {}
+    for url, path in items:
+        if path in seen:
+            continue
+        seen[path] = url
+    if not seen:
         return
-    if len(items) == 1:
-        url, path = items[0]
+    if len(seen) == 1:
+        path, url = next(iter(seen.items()))
         download_content(url, path, timeout)
         return
-    workers = min(max_workers, len(items))
+    workers = max(1, min(max_workers, len(seen)))
     with ThreadPoolExecutor(max_workers=workers) as ex:
         # list() forces iteration so exceptions surface here, not silently.
-        list(ex.map(lambda item: download_content(item[0], item[1], timeout), items))
+        list(
+            ex.map(
+                lambda item: download_content(item[1], item[0], timeout),
+                seen.items(),
+            )
+        )
 
 
 # String constant rather than `from .const import TYPE_WEB` because each
