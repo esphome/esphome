@@ -192,10 +192,11 @@ def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> by
 
 
 # Cap concurrent connections so a config with hundreds of remote files doesn't
-# open hundreds of sockets at once. 16 is wide enough that wall time is
-# dominated by the slowest single request for normal configs (a couple dozen
-# files), and tight enough to be polite to the upstream host.
-DEFAULT_DOWNLOAD_WORKERS = 16
+# open hundreds of sockets at once. 8 matches the requests connection-pool
+# default and the per-host connection limit browsers use, which keeps us
+# polite to the upstream host while still cutting wall time roughly 8x for
+# typical configs (a couple dozen files).
+DEFAULT_DOWNLOAD_WORKERS = 8
 
 
 def download_content_many(
