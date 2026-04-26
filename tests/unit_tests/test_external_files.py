@@ -98,6 +98,7 @@ def test_has_remote_file_changed_not_modified(
 
     mock_response = MagicMock()
     mock_response.status_code = 304
+    mock_response.headers = {}
     mock_head.return_value = mock_response
 
     url = "https://example.com/file.txt"
@@ -122,6 +123,7 @@ def test_has_remote_file_changed_modified(
 
     mock_response = MagicMock()
     mock_response.status_code = 200
+    mock_response.headers = {}
     mock_head.return_value = mock_response
 
     url = "https://example.com/file.txt"
@@ -166,6 +168,7 @@ def test_has_remote_file_changed_timeout(
 
     mock_response = MagicMock()
     mock_response.status_code = 304
+    mock_response.headers = {}
     mock_head.return_value = mock_response
 
     url = "https://example.com/file.txt"
@@ -173,6 +176,68 @@ def test_has_remote_file_changed_timeout(
 
     call_args = mock_head.call_args
     assert call_args[1]["timeout"] == external_files.NETWORK_TIMEOUT
+
+
+@patch("esphome.external_files.requests.head")
+def test_has_remote_file_changed_uses_etag(
+    mock_head: MagicMock, setup_core: Path
+) -> None:
+    """Test has_remote_file_changed sends If-None-Match when ETag is cached."""
+    test_file = setup_core / "cached.txt"
+    test_file.write_text("cached content")
+    external_files._etag_sidecar_path(test_file).write_text('"abc123"')
+
+    mock_response = MagicMock()
+    mock_response.status_code = 304
+    mock_response.headers = {}
+    mock_head.return_value = mock_response
+
+    url = "https://example.com/file.txt"
+    result = external_files.has_remote_file_changed(url, test_file)
+
+    assert result is False
+    headers = mock_head.call_args[1]["headers"]
+    assert headers[external_files.IF_NONE_MATCH] == '"abc123"'
+
+
+@patch("esphome.external_files.requests.head")
+def test_has_remote_file_changed_no_etag_no_if_none_match(
+    mock_head: MagicMock, setup_core: Path
+) -> None:
+    """Test has_remote_file_changed omits If-None-Match when no ETag is cached."""
+    test_file = setup_core / "cached.txt"
+    test_file.write_text("cached content")
+
+    mock_response = MagicMock()
+    mock_response.status_code = 304
+    mock_response.headers = {}
+    mock_head.return_value = mock_response
+
+    url = "https://example.com/file.txt"
+    external_files.has_remote_file_changed(url, test_file)
+
+    headers = mock_head.call_args[1]["headers"]
+    assert external_files.IF_NONE_MATCH not in headers
+
+
+@patch("esphome.external_files.requests.head")
+def test_has_remote_file_changed_refreshes_etag_on_304(
+    mock_head: MagicMock, setup_core: Path
+) -> None:
+    """Test has_remote_file_changed updates the cached ETag when the 304 sends a new one."""
+    test_file = setup_core / "cached.txt"
+    test_file.write_text("cached content")
+    external_files._etag_sidecar_path(test_file).write_text('"old"')
+
+    mock_response = MagicMock()
+    mock_response.status_code = 304
+    mock_response.headers = {external_files.ETAG: '"new"'}
+    mock_head.return_value = mock_response
+
+    url = "https://example.com/file.txt"
+    external_files.has_remote_file_changed(url, test_file)
+
+    assert external_files._etag_sidecar_path(test_file).read_text() == '"new"'
 
 
 def test_compute_local_file_dir_creates_parent_dirs(setup_core: Path) -> None:
@@ -273,6 +338,7 @@ def test_download_content_skip_external_update_downloads_when_missing(
     mock_has_changed.return_value = True
     mock_response = MagicMock()
     mock_response.content = new_content
+    mock_response.headers = {}
     mock_response.raise_for_status = MagicMock()
     mock_get.return_value = mock_response
 
@@ -282,3 +348,59 @@ def test_download_content_skip_external_update_downloads_when_missing(
 
     assert result == new_content
     assert test_file.read_bytes() == new_content
+
+
+@patch("esphome.external_files.requests.get")
+@patch("esphome.external_files.has_remote_file_changed")
+def test_download_content_saves_etag(
+    mock_has_changed: MagicMock,
+    mock_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """Test download_content writes the ETag sidecar after a successful download."""
+    test_file = setup_core / "fresh.txt"
+    new_content = b"fresh content"
+
+    mock_has_changed.return_value = True
+    mock_response = MagicMock()
+    mock_response.content = new_content
+    mock_response.headers = {external_files.ETAG: '"deadbeef"'}
+    mock_response.raise_for_status = MagicMock()
+    mock_get.return_value = mock_response
+
+    url = "https://example.com/file.txt"
+    external_files.download_content(url, test_file)
+
+    assert external_files._etag_sidecar_path(test_file).read_text() == '"deadbeef"'
+
+
+@patch("esphome.external_files.requests.get")
+@patch("esphome.external_files.has_remote_file_changed")
+def test_download_content_atomic_write_no_partial_on_failure(
+    mock_has_changed: MagicMock,
+    mock_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """Test download_content does not corrupt the existing file if the write step fails."""
+    test_file = setup_core / "cached.txt"
+    original_content = b"original content"
+    test_file.write_bytes(original_content)
+
+    mock_has_changed.return_value = True
+    mock_response = MagicMock()
+    # Accessing .content raises, simulating a streaming/decode failure
+    type(mock_response).content = property(
+        lambda self: (_ for _ in ()).throw(OSError("disk full"))
+    )
+    mock_response.raise_for_status = MagicMock()
+    mock_get.return_value = mock_response
+
+    url = "https://example.com/file.txt"
+    with pytest.raises(OSError, match="disk full"):
+        external_files.download_content(url, test_file)
+
+    # Original file is untouched (atomic rename never happened)
+    assert test_file.read_bytes() == original_content
+    # No leftover temp files from tempfile.NamedTemporaryFile
+    leftover_tmps = list(setup_core.glob("tmp*"))
+    assert leftover_tmps == []
