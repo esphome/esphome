@@ -646,7 +646,7 @@ class TestEsphomeCore:
         assert target.pioenv_name == "nrf52-sensor"
 
     def test_sdkconfig_name__platformio_uses_stable_env_name(self, target):
-        """PlatformIO ESP32 builds should align sdkconfig with the stable env."""
+        """Test PlatformIO ESP32 builds align sdkconfig with the stable env."""
         target.name = "test-device"
         target.data[const.KEY_CORE] = {
             const.KEY_TARGET_PLATFORM: "esp32",
