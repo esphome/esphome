@@ -55,8 +55,8 @@ async def register_radio_frequency(var: cg.Pvariable, config: ConfigType) -> Non
     """Register a radio frequency device with the core."""
     cg.add_define("USE_RADIO_FREQUENCY")
     await cg.register_component(var, config)
-    await setup_radio_frequency_core_(var, config)
     queue_entity_register("radio_frequency", config)
+    await setup_radio_frequency_core_(var, config)
     CORE.register_platform_component("radio_frequency", var)
 
 
