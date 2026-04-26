@@ -1699,6 +1699,22 @@ def test_generate_build_info_data_cpp_empty_comment() -> None:
     assert 'ESPHOME_COMMENT_STR[] = ""' in result
 
 
+def test_generate_build_info_data_cpp_comment_size_counts_utf8_bytes() -> None:
+    """Comment size must reflect encoded UTF-8 bytes, not character count.
+
+    Otherwise a non-ASCII comment would undercount the buffer length and
+    Application::get_comment_string() could truncate mid–multi-byte sequence.
+    """
+    # "héllo" -> h(1) + é(2) + l(1) + l(1) + o(1) = 6 bytes; +1 NUL = 7
+    result = generate_build_info_data_cpp(0, 0, "test", "héllo")
+    assert "const size_t ESPHOME_COMMENT_SIZE = 7;" in result
+
+    # 3 emoji * 4 bytes each = 12 bytes; +1 NUL = 13
+    result = generate_build_info_data_cpp(0, 0, "test", "🌡️🌡️🌡️"[:6])
+    expected = len("🌡️🌡️🌡️"[:6].encode("utf-8")) + 1
+    assert f"const size_t ESPHOME_COMMENT_SIZE = {expected};" in result
+
+
 @patch("esphome.writer.CORE")
 @patch("esphome.writer.iter_components")
 @patch("esphome.writer.walk_files")

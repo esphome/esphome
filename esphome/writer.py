@@ -22,7 +22,6 @@ from esphome.helpers import (
     read_file,
     rmtree,
     walk_files,
-    write_file,
     write_file_if_changed,
 )
 from esphome.storage_json import StorageJSON, storage_path
@@ -301,17 +300,20 @@ def copy_src_tree():
 
     # Write build_info header and JSON metadata
     if sources_changed:
-        write_file(
+        # Use write_file_if_changed so identical content does not bump mtime
+        # and trigger downstream recompiles; this is essential for the stable
+        # declaration-only header to actually isolate metadata churn.
+        write_file_if_changed(
             build_info_data_h_path,
             generate_build_info_data_h(),
         )
-        write_file(
+        write_file_if_changed(
             build_info_data_cpp_path,
             generate_build_info_data_cpp(
                 config_hash, build_time, build_time_str, comment
             ),
         )
-        write_file(
+        write_file_if_changed(
             build_info_json_path,
             json.dumps(
                 {
@@ -394,8 +396,10 @@ def generate_build_info_data_cpp(
     """Generate build_info_data.cpp with config hash, build time, and comment."""
     # cpp_string_escape returns '"escaped"', slice off the quotes since template has them
     escaped_comment = cpp_string_escape(comment)[1:-1]
+    # Size is in encoded bytes (UTF-8), not characters, so non-ASCII comments
+    # don't get truncated mid–multi-byte sequence by get_comment_string().
     # +1 for null terminator
-    comment_size = len(comment) + 1
+    comment_size = len(comment.encode("utf-8")) + 1
     return f"""// Auto-generated build_info data
 #include "esphome/core/build_info_data.h"
 
