@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 import logging
 from pathlib import Path
@@ -116,3 +118,34 @@ def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> by
     data = req.content
     path.write_bytes(data)
     return data
+
+
+# Cap concurrent connections so a config with hundreds of remote files doesn't
+# open hundreds of sockets at once. 16 is wide enough that wall time is
+# dominated by the slowest single request for normal configs (a couple dozen
+# files), and tight enough to be polite to the upstream host.
+DEFAULT_DOWNLOAD_WORKERS = 16
+
+
+def download_content_many(
+    items: Iterable[tuple[str, Path]],
+    timeout: int = NETWORK_TIMEOUT,
+    max_workers: int = DEFAULT_DOWNLOAD_WORKERS,
+) -> None:
+    """Run `download_content` for each (url, path) pair concurrently.
+
+    Wall time drops from `sum(latency)` to roughly `max(latency)` for cached
+    files where the HEAD round-trip dominates. The first exception raised by
+    any worker is propagated; remaining workers complete before this returns.
+    """
+    items = list(items)
+    if not items:
+        return
+    if len(items) == 1:
+        url, path = items[0]
+        download_content(url, path, timeout)
+        return
+    workers = min(max_workers, len(items))
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        # list() forces iteration so exceptions surface here, not silently.
+        list(ex.map(lambda item: download_content(item[0], item[1], timeout), items))

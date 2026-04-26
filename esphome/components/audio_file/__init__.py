@@ -19,7 +19,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, HexInt
 from esphome.cpp_generator import MockObj
-from esphome.external_files import download_content
+from esphome.external_files import download_content_many
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,13 +63,21 @@ def _compute_local_file_path(value: ConfigType) -> Path:
     return base_dir / key
 
 
-def _download_web_file(value: ConfigType) -> ConfigType:
-    url = value[CONF_URL]
-    path = _compute_local_file_path(value)
-
-    download_content(url, path)
-    _LOGGER.debug("download_web_file: path=%s", path)
-    return value
+def _download_all_web_files(config: list[ConfigType]) -> list[ConfigType]:
+    """Validate that all web-sourced files are cached, fetching missing/changed
+    ones in parallel before per-item validators read them off disk.
+    """
+    items: list[tuple[str, Path]] = []
+    for file_config in config:
+        conf_file = file_config.get(CONF_FILE, {})
+        if conf_file.get(CONF_TYPE) != TYPE_WEB:
+            continue
+        url = conf_file[CONF_URL]
+        path = _compute_local_file_path(conf_file)
+        items.append((url, path))
+        _LOGGER.debug("download_web_file: path=%s", path)
+    download_content_many(items)
+    return config
 
 
 def _file_schema(value: ConfigType | str) -> ConfigType:
@@ -142,11 +150,10 @@ LOCAL_SCHEMA = cv.Schema(
     }
 )
 
-WEB_SCHEMA = cv.All(
+WEB_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_URL): cv.url,
-    },
-    _download_web_file,
+    }
 )
 
 
@@ -209,6 +216,7 @@ def _validate_supported_local_file(config: list[ConfigType]) -> list[ConfigType]
 CONFIG_SCHEMA = cv.All(
     cv.only_on_esp32,
     cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
+    _download_all_web_files,
     _validate_supported_local_file,
 )
 
