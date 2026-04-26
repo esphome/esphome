@@ -625,7 +625,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
     case InfraredRFTransmitRawTimingsRequest::MESSAGE_TYPE: {
       InfraredRFTransmitRawTimingsRequest msg;
       msg.decode(msg_data, msg_size);

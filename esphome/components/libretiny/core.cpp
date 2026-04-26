@@ -56,7 +56,7 @@ void arch_init() {
   //
   // Raise to priority 6: above WiFi/LwIP tasks (4-5) so they don't preempt the
   // main loop, but below the TCP/IP thread (7) so packet processing keeps priority.
-  // This is safe because ESPHome yields voluntarily via yield_with_select_() and
+  // This is safe because ESPHome yields voluntarily via wakeable_delay() and
   // the Arduino mainTask yield() after each loop() iteration.
   static constexpr UBaseType_t MAIN_TASK_PRIORITY = 6;
   static_assert(MAIN_TASK_PRIORITY < configMAX_PRIORITIES, "MAIN_TASK_PRIORITY must be less than configMAX_PRIORITIES");
