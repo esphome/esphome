@@ -1678,7 +1678,10 @@ def test_upload_program_serial_partition_table(
     args = MockArgs(partition_table=True)
     devices = ["/dev/ttyUSB0"]
 
-    with pytest.raises(EsphomeError, match="The option --partition-table can only be used for Over The Air updates"):
+    with pytest.raises(
+        EsphomeError,
+        match="The option --partition-table can only be used for Over The Air updates",
+    ):
         upload_program(config, args, devices)
 
 
