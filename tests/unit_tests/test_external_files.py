@@ -404,3 +404,69 @@ def test_download_content_atomic_write_no_partial_on_failure(
     # No leftover temp files from tempfile.NamedTemporaryFile
     leftover_tmps = list(setup_core.glob("tmp*"))
     assert leftover_tmps == []
+
+
+@patch("esphome.external_files.download_content")
+def test_download_content_many_empty_is_noop(
+    mock_download: MagicMock, setup_core: Path
+) -> None:
+    """Empty input shouldn't spin up a thread pool or call download_content."""
+    external_files.download_content_many([])
+    mock_download.assert_not_called()
+
+
+@patch("esphome.external_files.download_content")
+def test_download_content_many_single_item_avoids_pool(
+    mock_download: MagicMock, setup_core: Path
+) -> None:
+    """A single item should be downloaded inline (no thread pool overhead)."""
+    item = ("https://example.com/file.txt", setup_core / "f.txt")
+    external_files.download_content_many([item])
+    mock_download.assert_called_once_with(
+        item[0], item[1], external_files.NETWORK_TIMEOUT
+    )
+
+
+@patch("esphome.external_files.download_content")
+def test_download_content_many_runs_in_parallel(
+    mock_download: MagicMock, setup_core: Path
+) -> None:
+    """Multiple items should run concurrently — total wall time ≈ max latency."""
+    import threading
+
+    barrier = threading.Barrier(3)
+
+    def slow_download(url: str, path: Path, timeout: int) -> bytes:
+        # If calls were serial this would deadlock (third caller never arrives
+        # while the first is blocked at the barrier).
+        barrier.wait(timeout=2.0)
+        return b""
+
+    mock_download.side_effect = slow_download
+    items = [
+        ("https://example.com/a", setup_core / "a"),
+        ("https://example.com/b", setup_core / "b"),
+        ("https://example.com/c", setup_core / "c"),
+    ]
+    external_files.download_content_many(items, max_workers=4)
+    assert mock_download.call_count == 3
+
+
+@patch("esphome.external_files.download_content")
+def test_download_content_many_propagates_errors(
+    mock_download: MagicMock, setup_core: Path
+) -> None:
+    """An exception from any worker must propagate out of download_content_many."""
+
+    def fake_download(url: str, path: Path, timeout: int) -> bytes:
+        if url.endswith("bad"):
+            raise Invalid(f"could not download {url}")
+        return b""
+
+    mock_download.side_effect = fake_download
+    items = [
+        ("https://example.com/ok", setup_core / "ok"),
+        ("https://example.com/bad", setup_core / "bad"),
+    ]
+    with pytest.raises(Invalid, match="could not download"):
+        external_files.download_content_many(items)
