@@ -34,6 +34,12 @@ void DeepSleepComponent::deep_sleep_() {
     esphome::internal::wakeable_delay(UINT32_MAX);
 #endif
   }
+  const bool woke = esphome::wake_request_take();
+  if (woke) {
+    ESP_LOGD(TAG, "Woken up by another thread");
+  } else {
+    ESP_LOGD(TAG, "Timeout expired (normal sleep)");
+  }
 }
 
 bool DeepSleepComponent::should_teardown_() {
