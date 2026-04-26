@@ -10,7 +10,7 @@ import requests
 
 from esphome import external_files
 from esphome.config_validation import Invalid
-from esphome.core import CORE, TimePeriod
+from esphome.core import CORE, EsphomeError, TimePeriod
 
 
 def _seed_etag(cache_file: Path, etag: str) -> Path:
@@ -334,6 +334,54 @@ def test_download_content_pins_etag_mtime_to_file_mtime(
 
     sidecar = external_files._etag_sidecar_path(test_file)
     assert int(sidecar.stat().st_mtime) == int(test_file.stat().st_mtime)
+
+
+def test_write_etag_swallows_write_file_failure(
+    mock_write_file: MagicMock, setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """If `write_file` raises, _write_etag must not propagate -- ETag
+    persistence is best-effort and a failure here must not abort the
+    surrounding download.
+    """
+    cache_file = setup_core / "cached.txt"
+    cache_file.write_text("cached content")
+    mock_write_file.side_effect = EsphomeError("disk full")
+
+    with caplog.at_level("DEBUG", logger="esphome.external_files"):
+        external_files._write_etag(cache_file, '"abc123"')
+
+    assert "Could not save ETag" in caplog.text
+    # Sidecar wasn't created, since write_file was mocked to fail before
+    # reaching the os.utime step.
+    assert not external_files._etag_sidecar_path(cache_file).exists()
+
+
+def test_write_etag_swallows_utime_failure(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """If `os.utime` raises while pinning the sidecar's mtime, _write_etag
+    must not propagate. The sidecar is still written; if its mtime later
+    fails to match the cache file, `_read_etag` will discard it on next
+    read.
+    """
+    cache_file = setup_core / "cached.txt"
+    cache_file.write_text("cached content")
+
+    with (
+        patch(
+            "esphome.external_files.os.utime",
+            side_effect=PermissionError("nope"),
+        ),
+        caplog.at_level("DEBUG", logger="esphome.external_files"),
+    ):
+        external_files._write_etag(cache_file, '"abc123"')
+
+    assert "Could not sync ETag sidecar mtime" in caplog.text
+    # write_file succeeded, so the sidecar exists with the new value even
+    # though we couldn't pin its mtime.
+    sidecar = external_files._etag_sidecar_path(cache_file)
+    assert sidecar.exists()
+    assert sidecar.read_text() == '"abc123"'
 
 
 def test_compute_local_file_dir_creates_parent_dirs(setup_core: Path) -> None:
