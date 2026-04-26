@@ -14,7 +14,7 @@ class DeviceFirmwareUpdate : public Component {
   void dump_config() override;
 
  protected:
-  GPIOPin *reset_pin_;
+  GPIOPin *reset_pin_{nullptr};
 };
 
 }  // namespace nrf52
