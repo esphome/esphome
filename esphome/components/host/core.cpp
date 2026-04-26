@@ -21,7 +21,7 @@ void HOT yield() { ::sched_yield(); }
 uint32_t IRAM_ATTR HOT millis() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
-  return static_cast<uint32_t>(spec.tv_sec) * 1000U + static_cast<uint32_t>(spec.tv_nsec / 1000000);
+  return static_cast<uint32_t>(spec.tv_sec * 1000ULL + spec.tv_nsec / 1000000);
 }
 uint64_t millis_64() {
   struct timespec spec;
@@ -40,7 +40,7 @@ void HOT delay(uint32_t ms) {
 uint32_t IRAM_ATTR HOT micros() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
-  return static_cast<uint32_t>(spec.tv_sec) * 1000000U + static_cast<uint32_t>(spec.tv_nsec / 1000);
+  return static_cast<uint32_t>(spec.tv_sec * 1000000ULL + spec.tv_nsec / 1000);
 }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
   struct timespec ts;
