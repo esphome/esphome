@@ -67,7 +67,8 @@ def _read_etag(local_file_path: Path) -> str | None:
 def _write_etag(local_file_path: Path, etag: str | None) -> None:
     etag_path = _etag_sidecar_path(local_file_path)
     if not etag:
-        with contextlib.suppress(FileNotFoundError):
+        # ETag persistence is best-effort; matches `_read_etag`'s tolerance.
+        with contextlib.suppress(OSError):
             etag_path.unlink()
         return
     try:
