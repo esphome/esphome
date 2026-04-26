@@ -216,13 +216,12 @@ def download_content_many(
 
     Items are de-duplicated by `path` -- two callers asking for the same
     cache file (e.g. the same URL referenced twice in a config) would
-    otherwise race on `download_content`'s non-atomic write.
+    otherwise race on `download_content`'s non-atomic write. When the
+    same `path` appears more than once, the last URL wins (standard dict
+    comprehension semantics); in practice duplicate paths only arise when
+    the URL is duplicated, so the choice doesn't matter.
     """
-    seen: dict[Path, str] = {}
-    for url, path in items:
-        if path in seen:
-            continue
-        seen[path] = url
+    seen: dict[Path, str] = {path: url for url, path in items}
     if not seen:
         return
     if len(seen) == 1:

@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from functools import partial
 import hashlib
 import logging
 from pathlib import Path
@@ -199,7 +200,7 @@ def _validate_supported_local_file(config: list[ConfigType]) -> list[ConfigType]
 CONFIG_SCHEMA = cv.All(
     cv.only_on_esp32,
     cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
-    lambda c: download_web_files_in_config(c, _compute_local_file_path),
+    partial(download_web_files_in_config, path_for=_compute_local_file_path),
     _validate_supported_local_file,
 )
 

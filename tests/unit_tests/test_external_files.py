@@ -567,7 +567,9 @@ def test_download_content_many_dedupes_by_path(
     mock_download_content: MagicMock, setup_core: Path
 ) -> None:
     """Two items pointing at the same cache path must collapse to one
-    download -- otherwise concurrent writes race on the same file.
+    download -- otherwise concurrent writes race on the same file. Which
+    URL wins doesn't matter (in practice duplicate paths only arise when
+    the URL is duplicated), so we only assert the call count and path.
     """
     path = setup_core / "shared"
     items = [
@@ -577,9 +579,7 @@ def test_download_content_many_dedupes_by_path(
     ]
     external_files.download_content_many(items)
     assert mock_download_content.call_count == 1
-    # First-seen URL wins, matching dict-insertion order.
     args, _ = mock_download_content.call_args
-    assert args[0] == "https://example.com/a"
     assert args[1] == path
 
 
