@@ -1744,6 +1744,64 @@ def test_proc_on_exit_skips_when_already_closed() -> None:
     handler.close.assert_not_called()
 
 
+@pytest.mark.asyncio
+async def test_esphome_logs_handler_appends_no_states_when_set() -> None:
+    """Test --no-states is appended when no_states is truthy in the message."""
+    handler = Mock(spec=web_server.EsphomeLogsHandler)
+    handler.build_device_command = AsyncMock(
+        return_value=["esphome", "logs", "device.yaml", "--device", "OTA"]
+    )
+
+    json_message = {
+        "configuration": "device.yaml",
+        "port": "OTA",
+        "no_states": True,
+    }
+    cmd = await web_server.EsphomeLogsHandler.build_command(handler, json_message)
+
+    assert cmd == [
+        "esphome",
+        "logs",
+        "device.yaml",
+        "--device",
+        "OTA",
+        "--no-states",
+    ]
+    handler.build_device_command.assert_awaited_once_with(["logs"], json_message)
+
+
+@pytest.mark.asyncio
+async def test_esphome_logs_handler_omits_no_states_when_missing() -> None:
+    """Test --no-states is not added when no_states is absent from the message."""
+    handler = Mock(spec=web_server.EsphomeLogsHandler)
+    handler.build_device_command = AsyncMock(
+        return_value=["esphome", "logs", "device.yaml", "--device", "OTA"]
+    )
+
+    cmd = await web_server.EsphomeLogsHandler.build_command(
+        handler, {"configuration": "device.yaml", "port": "OTA"}
+    )
+
+    assert "--no-states" not in cmd
+    assert cmd == ["esphome", "logs", "device.yaml", "--device", "OTA"]
+
+
+@pytest.mark.asyncio
+async def test_esphome_logs_handler_omits_no_states_when_false() -> None:
+    """Test --no-states is not added when no_states is explicitly False."""
+    handler = Mock(spec=web_server.EsphomeLogsHandler)
+    handler.build_device_command = AsyncMock(
+        return_value=["esphome", "logs", "device.yaml", "--device", "OTA"]
+    )
+
+    cmd = await web_server.EsphomeLogsHandler.build_command(
+        handler,
+        {"configuration": "device.yaml", "port": "OTA", "no_states": False},
+    )
+
+    assert "--no-states" not in cmd
+
+
 def _make_auth_handler(auth_header: str | None = None) -> Mock:
     """Create a mock handler with the given Authorization header."""
     handler = Mock()

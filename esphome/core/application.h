@@ -17,6 +17,10 @@
 #include "esphome/core/string_ref.h"
 #include "esphome/core/version.h"
 
+#ifdef USE_ESP32
+#include <sdkconfig.h>  // for CONFIG_ESP_TASK_WDT_TIMEOUT_S (drives WDT_FEED_INTERVAL_MS)
+#endif
+
 #ifdef USE_DEVICES
 #include "esphome/core/device.h"
 #endif
@@ -216,16 +220,30 @@ class Application {
   /// loops and scheduler items still feed after every op, so any op exceeding
   /// this threshold triggers a real feed naturally.
   /// Safety margins vs. platform watchdog timeouts:
-  ///   - ESP32 task WDT default (5 s):  ~16x
-  ///   - ESP8266 soft WDT (~1.6 s):     ~5x  <-- floor case; any future change
-  ///                                              must keep comfortable margin here
-  ///   - ESP8266 HW WDT (~6 s):         ~20x
-  ///   - BK72xx HW WDT (10 s):          ~5x  <-- platform override below
+  ///   - ESP32 task WDT (user-configurable):  ~5x  <-- auto-scaled below
+  ///   - ESP8266 soft WDT (~1.6 s):           ~5x  <-- floor case; any future change
+  ///                                                   must keep comfortable margin here
+  ///   - ESP8266 HW WDT (~6 s):               ~20x
+  ///   - BK72xx HW WDT (10 s):                ~5x  <-- platform override below
 #ifdef USE_BK72XX
   // BDK busy-waits 200us per WDT reload (sctrl_dpll_delay200us). LibreTiny
   // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:
   // https://github.com/libretiny-eu/framework-beken-bdk/blob/44800e7451ea30fbcbd3bb6e905315de59349fee/beken378/driver/wdt/wdt.c#L75-L87
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 2000;
+#elif defined(USE_ESP32)
+  // Auto-scale to 1/5 of the configured ESP32 task WDT timeout so the safety
+  // margin stays constant when the user raises esp32.watchdog_timeout (default
+  // 5 s → 1000 ms feed; 10 s → 2000 ms; 60 s → 12000 ms). The esp32 component
+  // writes CONFIG_ESP_TASK_WDT_TIMEOUT_S into sdkconfig (range is validated
+  // to ≥ 5 s in esp32/__init__.py), giving us the value at compile time.
+  // esp_task_wdt_reset() takes a spinlock and walks the WDT task list, so
+  // each call costs tens of microseconds; longer intervals materially reduce
+  // the main-loop's wdt bucket. Component loops and scheduler items still
+  // feed after every op, so any op exceeding this threshold triggers a real
+  // feed naturally regardless of the rate-limit.
+  static_assert(CONFIG_ESP_TASK_WDT_TIMEOUT_S >= 5,
+                "CONFIG_ESP_TASK_WDT_TIMEOUT_S must be at least 5s for a safe WDT feed interval");
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000U) / 5U;
 #else
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;
 #endif
