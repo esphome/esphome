@@ -198,3 +198,24 @@ def test_get_ini_content_uses_stable_platformio_env_name() -> None:
 
     assert f"[env:{PLATFORMIO_ENV_NAME}]" in content
     assert "[env:kitchen-switch]" not in content
+    assert "pre:cxx_flags.py" in content
+    assert "post:no_cache.py" in content
+
+
+def test_write_no_cache_script_marks_project_outputs_no_cache(tmp_path: Path) -> None:
+    """The post script should keep per-device outputs out of the shared cache."""
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.build_path = str(tmp_path)
+
+    platformio.write_no_cache_script()
+
+    content = (tmp_path / platformio.NO_CACHE_FILE_NAME).read_text()
+    assert "env.NoCache(env.File(env.subst(path)))" in content
+    assert "$BUILD_DIR/${PROGNAME}.elf" in content
+    assert "$BUILD_DIR/${PROGNAME}.factory.bin" in content
+    assert "$BUILD_DIR/${PROGNAME}.uf2" in content
+    assert "$BUILD_DIR/${PROGNAME}.hex" in content
+    assert "$BUILD_DIR/raw_firmware.elf" in content
+    assert "$BUILD_DIR/firmware.uf2" in content
+    assert "$BUILD_DIR/src/esphome/core/build_info_data.cpp.o" in content
+    assert "$BUILD_DIR/src/main.cpp.o" in content

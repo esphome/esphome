@@ -359,6 +359,7 @@ def test_clean_cmake_cache(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.name = "test_device"
+    mock_core.pioenv_name = "test_device"
 
     # Verify file exists before
     assert cmake_cache_file.exists()
@@ -459,10 +460,15 @@ def test_clean_build(
     (platformio_cache_dir / "tmp").mkdir()
     (platformio_cache_dir / "downloads" / "package.tar.gz").write_text("package")
 
+    shared_build_cache_dir = tmp_path / ".esphome" / "platformio" / "build-cache"
+    shared_build_cache_dir.mkdir(parents=True)
+    (shared_build_cache_dir / "object").write_text("cache object")
+
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.return_value = shared_build_cache_dir
 
     # Verify all exist before
     assert pioenvs_dir.exists()
@@ -471,6 +477,7 @@ def test_clean_build(
     assert idf_build_dir.exists()
     assert managed_components_dir.exists()
     assert platformio_cache_dir.exists()
+    assert shared_build_cache_dir.exists()
 
     # Mock PlatformIO's ProjectConfig cache_dir
     with patch(
@@ -481,6 +488,8 @@ def test_clean_build(
         mock_config.get.side_effect = lambda section, option: (
             str(platformio_cache_dir)
             if (section, option) == ("platformio", "cache_dir")
+            else str(shared_build_cache_dir)
+            if (section, option) == ("platformio", "build_cache_dir")
             else ""
         )
 
@@ -495,6 +504,7 @@ def test_clean_build(
     assert not idf_build_dir.exists()
     assert not managed_components_dir.exists()
     assert not platformio_cache_dir.exists()
+    assert not shared_build_cache_dir.exists()
 
     # Verify logging
     assert "Deleting" in caplog.text
@@ -503,7 +513,8 @@ def test_clean_build(
     assert "dependencies.lock" in caplog.text
     assert str(idf_build_dir) in caplog.text
     assert str(managed_components_dir) in caplog.text
-    assert "PlatformIO cache" in caplog.text
+    assert "PlatformIO cache_dir" in caplog.text
+    assert "PlatformIO build_cache_dir" in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -525,6 +536,9 @@ def test_clean_build_partial_exists(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.return_value = (
+        tmp_path / ".esphome" / "platformio" / "build-cache"
+    )
 
     # Verify only pioenvs exists
     assert pioenvs_dir.exists()
@@ -562,6 +576,9 @@ def test_clean_build_nothing_exists(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.return_value = (
+        tmp_path / ".esphome" / "platformio" / "build-cache"
+    )
 
     # Verify nothing exists
     assert not pioenvs_dir.exists()
@@ -598,6 +615,9 @@ def test_clean_build_platformio_not_available(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.return_value = (
+        tmp_path / ".esphome" / "platformio" / "build-cache"
+    )
 
     # Verify all exist before
     assert pioenvs_dir.exists()
@@ -636,6 +656,9 @@ def test_clean_build_empty_cache_dir(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.return_value = (
+        tmp_path / ".esphome" / "platformio" / "build-cache"
+    )
 
     # Verify pioenvs exists before
     assert pioenvs_dir.exists()
@@ -648,7 +671,11 @@ def test_clean_build_empty_cache_dir(
         mock_get_instance.return_value = mock_config
         mock_config.get.side_effect = lambda section, option: (
             "   "  # Whitespace only
-            if (section, option) == ("platformio", "cache_dir")
+            if (section, option)
+            in (
+                ("platformio", "cache_dir"),
+                ("platformio", "build_cache_dir"),
+            )
             else ""
         )
 
@@ -660,7 +687,8 @@ def test_clean_build_empty_cache_dir(
     assert not pioenvs_dir.exists()
 
     # Verify no cache cleaning was attempted due to empty string
-    assert "PlatformIO cache" not in caplog.text
+    assert "PlatformIO cache_dir" not in caplog.text
+    assert "PlatformIO build_cache_dir" not in caplog.text
 
 
 @patch("esphome.writer.CORE")

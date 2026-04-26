@@ -289,7 +289,13 @@ def test_run_platformio_cli_sets_environment_variables(
     setup_core: Path, mock_run_external_process: Mock
 ) -> None:
     """Test run_platformio_cli sets correct environment variables."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
     CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
 
     with patch.dict(os.environ, {}, clear=False):
         mock_run_external_process.return_value = 0
@@ -303,6 +309,9 @@ def test_run_platformio_cli_sets_environment_variables(
             or Path(os.environ["PLATFORMIO_BUILD_DIR"]) == setup_core / "build" / "test"
         )
         assert "PLATFORMIO_LIBDEPS_DIR" in os.environ
+        assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(
+            setup_core / ".esphome" / "platformio" / "build-cache" / "esp8266-arduino"
+        )
         assert "PYTHONWARNINGS" in os.environ
 
         # Check command was called correctly — runs PlatformIO as a subprocess
@@ -412,6 +421,180 @@ def test_run_platformio_cli_does_not_set_pythonexepath_without_strip(
         args = mock_run_external_process.call_args[0]
         assert args[0] == plain_exe
         assert "PYTHONEXEPATH" not in os.environ
+
+
+def test_run_platformio_cli_scopes_default_build_cache_by_toolchain(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Default build-cache reuse should stay within a platform/framework pair."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    with patch.dict(os.environ, {}, clear=True):
+        mock_run_external_process.return_value = 0
+        platformio_api._PLATFORMIO_ENV_DEFAULTS.clear()
+        platformio_api.run_platformio_cli("test")
+
+        assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(
+            setup_core / ".esphome" / "platformio" / "build-cache" / "rp2040-arduino"
+        )
+
+
+def test_run_platformio_cli_retargets_managed_cache_defaults_between_configs(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Update-all style runs should not keep the first cache scope forever."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = str(setup_core / "build" / "esp32")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+
+    with patch.dict(os.environ, {}, clear=True):
+        mock_run_external_process.return_value = 0
+        platformio_api._PLATFORMIO_ENV_DEFAULTS.clear()
+        platformio_api.run_platformio_cli("test")
+
+        assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(
+            setup_core / ".esphome" / "platformio" / "build-cache" / "esp32-esp-idf"
+        )
+
+        CORE.build_path = str(setup_core / "build" / "esp8266")
+        CORE.data[KEY_CORE] = {
+            KEY_TARGET_PLATFORM: "esp8266",
+            KEY_TARGET_FRAMEWORK: "arduino",
+        }
+        platformio_api.run_platformio_cli("test")
+
+        assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(
+            setup_core / ".esphome" / "platformio" / "build-cache" / "esp8266-arduino"
+        )
+
+
+def test_run_platformio_cli_removes_legacy_flat_build_cache_shards(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Upgrades should clean old unscoped SCons cache shards."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    build_cache = setup_core / ".esphome" / "platformio" / "build-cache"
+    legacy_shard = build_cache / "0A"
+    scoped_cache = build_cache / "esp8266-arduino"
+    lowercase_user_dir = build_cache / "aa"
+    legacy_shard.mkdir(parents=True)
+    scoped_cache.mkdir()
+    lowercase_user_dir.mkdir()
+    (legacy_shard / "object").write_text("old")
+    (scoped_cache / "object").write_text("keep")
+    (lowercase_user_dir / "object").write_text("keep")
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    with patch.dict(os.environ, {}, clear=True):
+        mock_run_external_process.return_value = 0
+        platformio_api._PLATFORMIO_ENV_DEFAULTS.clear()
+        platformio_api.run_platformio_cli("test")
+
+        assert not legacy_shard.exists()
+        assert scoped_cache.exists()
+        assert lowercase_user_dir.exists()
+
+
+def test_run_platformio_cli_removes_unversioned_managed_build_cache_scope(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Managed cache scopes should reset when cache semantics change."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    build_cache = setup_core / ".esphome" / "platformio" / "build-cache"
+    scoped_cache = build_cache / "esp32-esp-idf"
+    other_scope = build_cache / "esp8266-arduino"
+    scoped_cache.mkdir(parents=True)
+    other_scope.mkdir()
+    stale_object = scoped_cache / "stale-object"
+    other_object = other_scope / "object"
+    stale_object.write_text("old path-sensitive cache entry")
+    other_object.write_text("keep")
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+
+    with patch.dict(os.environ, {}, clear=True):
+        mock_run_external_process.return_value = 0
+        platformio_api._PLATFORMIO_ENV_DEFAULTS.clear()
+        platformio_api.run_platformio_cli("test")
+
+        assert not stale_object.exists()
+        assert scoped_cache.exists()
+        assert other_object.exists()
+        assert (build_cache / ".esp32-esp-idf.version").read_text() == "3\n"
+
+
+def test_run_platformio_cli_leaves_managed_cache_when_build_cache_is_overridden(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Explicit build-cache overrides should avoid managed cleanup."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    build_cache = setup_core / ".esphome" / "platformio" / "build-cache"
+    scoped_cache = build_cache / "esp32-esp-idf"
+    scoped_cache.mkdir(parents=True)
+    stale_object = scoped_cache / "stale-object"
+    stale_object.write_text("user may still want this")
+    custom_cache = setup_core / "custom-cache"
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+
+    with patch.dict(
+        os.environ, {"PLATFORMIO_BUILD_CACHE_DIR": str(custom_cache)}, clear=True
+    ):
+        mock_run_external_process.return_value = 0
+        platformio_api._PLATFORMIO_ENV_DEFAULTS.clear()
+        platformio_api.run_platformio_cli("test")
+
+        assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(custom_cache)
+        assert stale_object.exists()
+        assert not (build_cache / ".esp32-esp-idf.version").exists()
+
+
+def test_run_platformio_cli_honors_build_cache_opt_out(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """The build-cache opt-out should remove managed defaults."""
+    from esphome.const import (
+        ENV_NO_PLATFORMIO_BUILD_CACHE,
+        KEY_CORE,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+    )
+
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    with patch.dict(os.environ, {ENV_NO_PLATFORMIO_BUILD_CACHE: "1"}, clear=True):
+        mock_run_external_process.return_value = 0
+        platformio_api._PLATFORMIO_ENV_DEFAULTS.clear()
+        platformio_api.run_platformio_cli("test")
+
+        assert "PLATFORMIO_BUILD_CACHE_DIR" not in os.environ
 
 
 def test_run_platformio_cli_run_builds_command(

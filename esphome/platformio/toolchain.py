@@ -5,11 +5,101 @@ from pathlib import Path
 import re
 import sys
 
-from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
+from esphome.const import (
+    CONF_COMPILE_PROCESS_LIMIT,
+    CONF_ESPHOME,
+    ENV_NO_PLATFORMIO_BUILD_CACHE,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+)
 from esphome.core import CORE, EsphomeError
+from esphome.helpers import get_bool_env, rmtree
 from esphome.util import FlashImage, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
+
+_PLATFORMIO_ENV_DEFAULTS: dict[str, str] = {}
+# Bump when ESPHome changes what may be stored in the managed build cache.
+_PLATFORMIO_BUILD_CACHE_VERSION = "3"
+
+
+def _set_platformio_env_default(name: str, value: str) -> None:
+    """Set a PlatformIO env default while preserving user-provided overrides."""
+    current = os.environ.get(name)
+    if current is not None and _PLATFORMIO_ENV_DEFAULTS.get(name) != current:
+        return
+
+    os.environ[name] = value
+    _PLATFORMIO_ENV_DEFAULTS[name] = value
+
+
+def _unset_platformio_env_default(name: str) -> None:
+    """Remove a PlatformIO env value only when ESPHome set that default."""
+    current = os.environ.get(name)
+    if current is not None and _PLATFORMIO_ENV_DEFAULTS.get(name) == current:
+        os.environ.pop(name, None)
+
+    _PLATFORMIO_ENV_DEFAULTS.pop(name, None)
+
+
+def _platformio_env_default_is_managed(name: str) -> bool:
+    """Return true when ESPHome can update the variable as its own default."""
+    current = os.environ.get(name)
+    return current is None or _PLATFORMIO_ENV_DEFAULTS.get(name) == current
+
+
+def _platformio_toolchain_cache_key() -> str:
+    """Return the stable key used for PlatformIO cache scopes."""
+    core_data = CORE.data.get(KEY_CORE, {})
+    platform = core_data.get(KEY_TARGET_PLATFORM) or "unknown"
+    framework = core_data.get(KEY_TARGET_FRAMEWORK) or "unknown"
+    return re.sub(r"[^a-zA-Z0-9_.-]", "_", f"{platform}-{framework}")
+
+
+def _platformio_build_cache_dir() -> Path:
+    """Return a cache path shared by equivalent PlatformIO toolchains only."""
+    return CORE.relative_internal_path(
+        "platformio", "build-cache", _platformio_toolchain_cache_key()
+    )
+
+
+def _clean_legacy_build_cache_dir() -> None:
+    """Remove pre-scoped PlatformIO build-cache shards after upgrading ESPHome."""
+    build_cache_root = CORE.relative_internal_path("platformio", "build-cache")
+    if not build_cache_root.is_dir():
+        return
+
+    legacy_shards = [
+        child
+        for child in build_cache_root.iterdir()
+        if child.is_dir() and re.fullmatch(r"[0-9A-F]{2}", child.name)
+    ]
+    if legacy_shards:
+        _LOGGER.info(
+            "Deleting %d legacy PlatformIO build cache shards from %s",
+            len(legacy_shards),
+            build_cache_root,
+        )
+    for child in legacy_shards:
+        _LOGGER.debug("Deleting legacy PlatformIO build cache shard %s", child)
+        rmtree(child)
+
+
+def _ensure_managed_build_cache_version(cache_dir: Path) -> None:
+    """Drop stale managed cache scopes when ESPHome changes cache semantics."""
+    marker = cache_dir.parent / f".{cache_dir.name}.version"
+    current_version = None
+    if marker.is_file():
+        current_version = marker.read_text(encoding="utf-8").strip()
+
+    if cache_dir.exists() and current_version != _PLATFORMIO_BUILD_CACHE_VERSION:
+        _LOGGER.info("Deleting stale PlatformIO build cache scope %s", cache_dir)
+        rmtree(cache_dir)
+
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    marker.write_text(_PLATFORMIO_BUILD_CACHE_VERSION + "\n", encoding="utf-8")
 
 
 def _strip_win_long_path_prefix(path: str) -> str:
@@ -49,6 +139,17 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ.setdefault(
         "PLATFORMIO_LIBDEPS_DIR", str(CORE.relative_piolibdeps_path().absolute())
     )
+    if not get_bool_env(ENV_NO_PLATFORMIO_BUILD_CACHE):
+        if _platformio_env_default_is_managed("PLATFORMIO_BUILD_CACHE_DIR"):
+            _clean_legacy_build_cache_dir()
+            build_cache_dir = _platformio_build_cache_dir()
+            _ensure_managed_build_cache_version(build_cache_dir)
+        _set_platformio_env_default(
+            "PLATFORMIO_BUILD_CACHE_DIR",
+            str(_platformio_build_cache_dir().absolute()),
+        )
+    else:
+        _unset_platformio_env_default("PLATFORMIO_BUILD_CACHE_DIR")
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
