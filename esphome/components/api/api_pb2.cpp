@@ -1439,6 +1439,7 @@ uint8_t *ListEntitiesClimateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCO
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 26, this->device_id);
 #endif
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 27, this->feature_flags);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 28, static_cast<uint32_t>(this->temperature_unit));
   return pos;
 }
 uint32_t ListEntitiesClimateResponse::calculate_size() const {
@@ -1488,6 +1489,7 @@ uint32_t ListEntitiesClimateResponse::calculate_size() const {
   size += ProtoSize::calc_uint32(2, this->device_id);
 #endif
   size += ProtoSize::calc_uint32(2, this->feature_flags);
+  size += this->temperature_unit ? 3 : 0;
   return size;
 }
 uint8_t *ClimateStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -1645,6 +1647,7 @@ uint8_t *ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer &buffer PROTO_
     ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 11, static_cast<uint32_t>(it), true);
   }
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, this->supported_features);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, static_cast<uint32_t>(this->temperature_unit));
   return pos;
 }
 uint32_t ListEntitiesWaterHeaterResponse::calculate_size() const {
@@ -1667,6 +1670,7 @@ uint32_t ListEntitiesWaterHeaterResponse::calculate_size() const {
     size += this->supported_modes->size() * 2;
   }
   size += ProtoSize::calc_uint32(1, this->supported_features);
+  size += this->temperature_unit ? 2 : 0;
   return size;
 }
 uint8_t *WaterHeaterStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
