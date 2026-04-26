@@ -382,7 +382,11 @@ class Application {
 
   /// Register a component, detecting loop() override at compile time.
   /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.
-  template<typename T> void register_component_(T *comp) {
+  /// Optionally sets the component source index in the same call to avoid emitting
+  /// a separate set_component_source_() line in generated code.
+  template<typename T> void register_component_(T *comp, uint8_t source_index = 0) {
+    if (source_index != 0)
+      comp->set_component_source_(source_index);
     this->register_component_impl_(comp, HasLoopOverride<T>::value);
   }
 
