@@ -539,3 +539,45 @@ def test_download_content_many_propagates_errors(
     ]
     with pytest.raises(Invalid, match="could not download"):
         external_files.download_content_many(items)
+
+
+@patch("esphome.external_files.download_content_many")
+def test_download_web_files_in_config_filters_and_dispatches(
+    mock_many: MagicMock, setup_core: Path
+) -> None:
+    """Only `file.type == "web"` entries should be forwarded to
+    download_content_many, and the unmodified config should be returned so
+    the helper can sit in a `cv.All(...)` chain.
+    """
+
+    def path_for(file_dict: dict) -> Path:
+        return setup_core / file_dict["url"].rsplit("/", 1)[-1]
+
+    config = [
+        {"file": {"type": "web", "url": "https://example.com/a"}},
+        {"file": {"type": "local", "path": "/tmp/b"}},
+        {"file": {"type": "web", "url": "https://example.com/c"}},
+        {},  # no `file` key at all
+    ]
+    result = external_files.download_web_files_in_config(config, path_for)
+
+    assert result is config
+    mock_many.assert_called_once()
+    assert list(mock_many.call_args[0][0]) == [
+        ("https://example.com/a", setup_core / "a"),
+        ("https://example.com/c", setup_core / "c"),
+    ]
+
+
+@patch("esphome.external_files.download_content_many")
+def test_download_web_files_in_config_no_web_entries(
+    mock_many: MagicMock, setup_core: Path
+) -> None:
+    """A config with no web entries should still call through to
+    download_content_many (which is itself a no-op for empty input) so the
+    behavior stays consistent.
+    """
+    config = [{"file": {"type": "local", "path": "/tmp/a"}}]
+    external_files.download_web_files_in_config(config, lambda _: setup_core / "x")
+    mock_many.assert_called_once()
+    assert list(mock_many.call_args[0][0]) == []
