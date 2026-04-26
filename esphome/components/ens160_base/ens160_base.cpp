@@ -9,10 +9,10 @@
 // (typical: 25°C); relative humidity: 20 to 80%RH (typical: 50%RH), non-condensing with no aggressive
 // or poisonous gases present. Prolonged exposure to environments outside these conditions can affect
 // performance and lifetime of the sensor.
-// The sensor is designed for indoor use and is not waterproof or dustproof. It should be protected
-// 24 Note that the status will only be stored in the non-volatile memory after an initial 24h of continuous
-// operation.  If unpowered before conclusion of said period, the ENS160 will resume „Initial Start-up” mode
-// after re-powering.
+// The sensor is designed for indoor use and is not waterproof or dustproof. It should be protected from
+// water, condensation, dust, and aggressive gases. Note that the status will only be stored in non-volatile
+// memory after an initial 24 h of continuous operation. If unpowered before the conclusion of that period,
+// the ENS160 will resume "Initial Start-up" mode after re-powering.
 
 #include "ens160_base.h"
 #include "esphome/core/log.h"
