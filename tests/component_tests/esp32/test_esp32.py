@@ -238,7 +238,7 @@ def test_platformio_idf_enables_reproducible_build(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """PlatformIO ESP-IDF builds should enable reproducible app metadata."""
+    """Test PlatformIO ESP-IDF builds enable reproducible app metadata."""
     generate_main(component_config_path("reproducible_build.yaml"))
 
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
