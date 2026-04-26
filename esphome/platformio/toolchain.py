@@ -3,13 +3,85 @@ import logging
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
 
-from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
+from esphome.const import (
+    CONF_COMPILE_PROCESS_LIMIT,
+    CONF_ESPHOME,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+)
 from esphome.core import CORE, EsphomeError
 from esphome.util import FlashImage, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
+
+_PLATFORMIO_ENV_DEFAULTS: dict[str, str] = {}
+_ZEPHYR_CCACHE_ENV_DEFAULTS = (
+    "CMAKE_C_COMPILER_LAUNCHER",
+    "CMAKE_CXX_COMPILER_LAUNCHER",
+    "CCACHE_DIR",
+    "CCACHE_BASEDIR",
+    "CCACHE_NOHASHDIR",
+    "CCACHE_MAXSIZE",
+)
+
+
+def _set_platformio_env_default(name: str, value: str) -> None:
+    """Set an env default while preserving user-provided overrides."""
+    current = os.environ.get(name)
+    if current is not None and _PLATFORMIO_ENV_DEFAULTS.get(name) != current:
+        return
+
+    os.environ[name] = value
+    _PLATFORMIO_ENV_DEFAULTS[name] = value
+
+
+def _unset_platformio_env_default(name: str) -> None:
+    """Remove an env value only when ESPHome set that default."""
+    current = os.environ.get(name)
+    if current is not None and _PLATFORMIO_ENV_DEFAULTS.get(name) == current:
+        os.environ.pop(name, None)
+    _PLATFORMIO_ENV_DEFAULTS.pop(name, None)
+
+
+def _platformio_toolchain_cache_key() -> str:
+    """Return the stable key used for toolchain-scoped PlatformIO state."""
+    core_data = CORE.data.get(KEY_CORE, {})
+    platform = core_data.get(KEY_TARGET_PLATFORM) or "unknown"
+    framework = core_data.get(KEY_TARGET_FRAMEWORK) or "unknown"
+    return re.sub(r"[^a-zA-Z0-9_.-]", "_", f"{platform}-{framework}")
+
+
+def _configure_zephyr_ccache() -> None:
+    """Use ccache for Zephyr's CMake/Ninja builds when it is available."""
+    core_data = CORE.data.get(KEY_CORE, {})
+    if core_data.get(KEY_TARGET_FRAMEWORK) != "zephyr":
+        for name in _ZEPHYR_CCACHE_ENV_DEFAULTS:
+            _unset_platformio_env_default(name)
+        return
+
+    ccache = shutil.which("ccache")
+    if ccache is None:
+        for name in _ZEPHYR_CCACHE_ENV_DEFAULTS:
+            _unset_platformio_env_default(name)
+        return
+
+    _set_platformio_env_default("CMAKE_C_COMPILER_LAUNCHER", ccache)
+    _set_platformio_env_default("CMAKE_CXX_COMPILER_LAUNCHER", ccache)
+    _set_platformio_env_default(
+        "CCACHE_DIR",
+        str(
+            CORE.relative_internal_path(
+                "platformio", "ccache", _platformio_toolchain_cache_key()
+            ).absolute()
+        ),
+    )
+    _set_platformio_env_default("CCACHE_BASEDIR", str(Path(CORE.build_path).absolute()))
+    _set_platformio_env_default("CCACHE_NOHASHDIR", "true")
+    _set_platformio_env_default("CCACHE_MAXSIZE", "512M")
 
 
 def _strip_win_long_path_prefix(path: str) -> str:
@@ -46,6 +118,7 @@ def _strip_win_long_path_prefix(path: str) -> str:
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
+    _configure_zephyr_ccache()
     os.environ.setdefault(
         "PLATFORMIO_LIBDEPS_DIR", str(CORE.relative_piolibdeps_path().absolute())
     )
