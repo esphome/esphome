@@ -1,0 +1,16 @@
+esphome:
+  name: sanitizer-ub-test
+
+host:
+api:
+logger:
+
+sensor:
+  - platform: template
+    name: "UB Sensor"
+    id: ub_sensor
+    lambda: |-
+      int x = 2147483647; // INT_MAX
+      x = x + 1; // Signed integer overflow (UB)
+      return (float)x;
+    update_interval: 0.1s

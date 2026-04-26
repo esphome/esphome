@@ -63,6 +63,12 @@ def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
     env["PLATFORMIO_LIBDEPS_DIR"] = str(cache_dir / "libdeps")
     # Prevent cache cleaning during integration tests
     env["ESPHOME_SKIP_CLEAN_BUILD"] = "1"
+    # Ensure AddressSanitizer detects leaks and halts on error
+    # detect_leaks=1: Enable leak detection (standard for ASan)
+    # halt_on_error=1: Exit on first error (useful for CI)
+    env["ASAN_OPTIONS"] = "detect_leaks=1:halt_on_error=1"
+    # Ensure UndefinedBehaviorSanitizer halts on error so we catch it in tests
+    env["UBSAN_OPTIONS"] = "halt_on_error=1:print_stacktrace=1"
     return env
 
 
@@ -183,19 +189,23 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
         # Add port configuration after api:
         content = content.replace("api:", f"api:\n  port: {unused_tcp_port}")
 
-    # Add debug build flags for integration tests to enable assertions
+    # Add debug build flags for integration tests to enable assertions and sanitizers
     if "esphome:" in content and "platformio_options:" not in content:
         # Add platformio_options with debug flags after esphome:
         content = content.replace(
             "esphome:",
             "esphome:\n"
-            "  # Enable assertions for integration tests\n"
+            "  # Enable assertions and sanitizers for integration tests\n"
             "  platformio_options:\n"
             "    build_flags:\n"
             '      - "-DDEBUG"  # Enable assert() statements\n'
             '      - "-DESPHOME_DEBUG"  # Enable ESPHOME_DEBUG_ASSERT checks\n'
             '      - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts\n'
-            '      - "-g"       # Add debug symbols',
+            '      - "-g"       # Add debug symbols\n'
+            '      - "-fsanitize=address"  # Enable AddressSanitizer\n'
+            '      - "-fsanitize=undefined"  # Enable UndefinedBehaviorSanitizer\n'
+            '      - "-fno-sanitize-recover=all"  # Exit on any sanitizer error\n'
+            '      - "-fno-omit-frame-pointer"  # Better stack traces for sanitizers',
         )
 
     # Replace external component path placeholder if present
@@ -514,6 +524,11 @@ async def run_binary_and_wait_for_port(
     controller_fd, device_fd = pty.openpty()
 
     # Run the compiled binary with PTY
+    # Pass ASAN/UBSAN options to the subprocess environment
+    env = os.environ.copy()
+    env["ASAN_OPTIONS"] = "detect_leaks=1:halt_on_error=1"
+    env["UBSAN_OPTIONS"] = "halt_on_error=1:print_stacktrace=1"
+
     process = await asyncio.create_subprocess_exec(
         str(binary_path),
         stdout=device_fd,
@@ -522,6 +537,7 @@ async def run_binary_and_wait_for_port(
         # Start in a new process group to isolate signal handling
         start_new_session=True,
         pass_fds=(device_fd,),
+        env=env,
         close_fds=False,
     )
 
@@ -550,13 +566,20 @@ async def run_binary_and_wait_for_port(
     # Start collecting output
     stdout_lines: list[str] = []
     output_tasks: list[asyncio.Task] = []
+    sanitizer_error_event = asyncio.Event()
+
+    def _line_callback(line: str) -> None:
+        if "runtime error:" in line or "AddressSanitizer:" in line:
+            sanitizer_error_event.set()
+        if line_callback:
+            line_callback(line)
 
     try:
         # Read from output stream
         output_tasks = [
             asyncio.create_task(
                 _read_stream_lines(
-                    output_reader, stdout_lines, sys.stdout, line_callback
+                    output_reader, stdout_lines, sys.stdout, _line_callback
                 )
             )
         ]
@@ -565,6 +588,9 @@ async def run_binary_and_wait_for_port(
         await asyncio.sleep(0)
 
         while loop.time() - start_time < timeout:
+            if sanitizer_error_event.is_set():
+                break
+
             try:
                 # Try to connect to the port
                 _, writer = await asyncio.open_connection(host, port)
@@ -580,8 +606,11 @@ async def run_binary_and_wait_for_port(
                 # Port not open yet, wait a bit and try again
                 await asyncio.sleep(PORT_POLL_INTERVAL)
 
-        # Timeout or process died - build error message
-        error_msg = f"Port {port} on {host} did not open within {timeout} seconds"
+        # Timeout, sanitizer error, or process died - build error message
+        if sanitizer_error_event.is_set():
+            error_msg = "Sanitizer error detected in ESPHome output"
+        else:
+            error_msg = f"Port {port} on {host} did not open within {timeout} seconds"
 
         if process.returncode is not None:
             error_msg += f"\nProcess exited with code: {process.returncode}"
@@ -627,6 +656,27 @@ async def run_binary_and_wait_for_port(
                     # Last resort: SIGKILL
                     process.kill()
                     await process.wait()
+
+        # Final check of the exit code. If it's not 0, and not one of the expected
+        # termination signals, then the process crashed or a sanitizer triggered.
+        # Note: SIGINT is -2, SIGTERM is -15, SIGKILL is -9.
+        # Sanitizers usually exit with 1 or a similar non-zero code.
+        if process.returncode not in (
+            0,
+            -signal.SIGINT,
+            -signal.SIGTERM,
+            -signal.SIGKILL,
+        ):
+            if sanitizer_error_event.is_set():
+                error_prefix = "Sanitizer error detected in ESPHome output"
+            else:
+                error_prefix = "ESPHome process exited with unexpected code"
+
+            error_msg = f"{error_prefix}: {process.returncode}"
+            if stdout_lines:
+                error_msg += "\n\n--- Process Output ---\n"
+                error_msg += "\n".join(stdout_lines[-100:])  # Last 100 lines
+            raise RuntimeError(error_msg)
 
 
 @asynccontextmanager

@@ -1,0 +1,18 @@
+esphome:
+  name: sanitizer-leak-test
+
+host:
+api:
+logger:
+
+sensor:
+  - platform: template
+    name: "Leak Sensor"
+    id: leak_sensor
+    lambda: |-
+      // Use-after-free for AddressSanitizer to catch immediately
+      char *buf = new char[10];
+      delete[] buf;
+      buf[0] = 'x'; // ASan should catch this
+      return 42.0;
+    update_interval: 0.1s
