@@ -1080,7 +1080,7 @@ def upload_program(
 
     if port_type != PortType.NETWORK and getattr(args, "partition_table", False):
         raise EsphomeError(
-            f"The option --partition-table can only be used for Over The Air updates."
+            "The option --partition-table can only be used for Over The Air updates."
         )
 
     if port_type == PortType.BOOTSEL:

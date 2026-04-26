@@ -281,7 +281,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
         // Found the otadata partition in the new partition table
         otadata_partition_found = true;
         otadata_overlap = check_overlap(running_app_offset, running_app_size, new_part->pos.offset, new_part->pos.size);
-      } else if (new_part->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS && strcmp((char*)new_part->label, "nvs") == 0) {
+      } else if (new_part->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS && strcmp((char *) new_part->label, "nvs") == 0) {
         // Found the nvs partition in the new partition table
         nvs_partition_found = true;
       }
