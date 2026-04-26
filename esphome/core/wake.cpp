@@ -20,15 +20,12 @@
 #include <zephyr/kernel.h>
 #endif
 
-// Placed at file scope so Zephyr's linker-section kernel-object tracking can see it.
-// Semaphore count=0 initially; limit=1 so repeated wakes before the loop drains
-// them do not stack up.
+namespace esphome {
+
 #ifdef USE_ZEPHYR
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 K_SEM_DEFINE(esphome_wake_sem, 0, 1);
 #endif
-
-namespace esphome {
 
 // === Wake-requested flag storage ===
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
