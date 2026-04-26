@@ -1,5 +1,6 @@
 """Tests for external_files.py functions."""
 
+import os
 from pathlib import Path
 import time
 from unittest.mock import MagicMock, patch
@@ -10,6 +11,17 @@ import requests
 from esphome import external_files
 from esphome.config_validation import Invalid
 from esphome.core import CORE, TimePeriod
+
+
+def _seed_etag(cache_file: Path, etag: str) -> Path:
+    """Write an ETag sidecar with its mtime synced to the cache file's mtime,
+    matching the invariant that `_write_etag` enforces in production.
+    """
+    sidecar = external_files._etag_sidecar_path(cache_file)
+    sidecar.write_text(etag)
+    file_mtime_ns = cache_file.stat().st_mtime_ns
+    os.utime(sidecar, ns=(file_mtime_ns, file_mtime_ns))
+    return sidecar
 
 
 def test_compute_local_file_dir(setup_core: Path) -> None:
@@ -185,7 +197,7 @@ def test_has_remote_file_changed_uses_etag(
     """Test has_remote_file_changed sends If-None-Match when ETag is cached."""
     test_file = setup_core / "cached.txt"
     test_file.write_text("cached content")
-    external_files._etag_sidecar_path(test_file).write_text('"abc123"')
+    _seed_etag(test_file, '"abc123"')
 
     mock_response = MagicMock()
     mock_response.status_code = 304
@@ -227,7 +239,7 @@ def test_has_remote_file_changed_refreshes_etag_on_304(
     """Test has_remote_file_changed updates the cached ETag when the 304 sends a new one."""
     test_file = setup_core / "cached.txt"
     test_file.write_text("cached content")
-    external_files._etag_sidecar_path(test_file).write_text('"old"')
+    _seed_etag(test_file, '"old"')
 
     mock_response = MagicMock()
     mock_response.status_code = 304
@@ -238,6 +250,63 @@ def test_has_remote_file_changed_refreshes_etag_on_304(
     external_files.has_remote_file_changed(url, test_file)
 
     assert external_files._etag_sidecar_path(test_file).read_text() == '"new"'
+
+
+@patch("esphome.external_files.requests.head")
+def test_has_remote_file_changed_ignores_etag_when_mtime_diverges(
+    mock_head: MagicMock, setup_core: Path
+) -> None:
+    """If the cache file was edited out-of-band (mtime no longer matches the
+    sidecar's), the cached ETag must not be used -- it no longer describes the
+    bytes on disk.
+    """
+    test_file = setup_core / "cached.txt"
+    test_file.write_text("cached content")
+    sidecar = _seed_etag(test_file, '"abc123"')
+
+    # Simulate an out-of-band edit to the cache file -- mtime advances but the
+    # sidecar is left untouched, so the recorded ETag is now stale.
+    file_stat = test_file.stat()
+    os.utime(
+        test_file, ns=(file_stat.st_atime_ns, file_stat.st_mtime_ns + 1_000_000_000)
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 304
+    mock_response.headers = {}
+    mock_head.return_value = mock_response
+
+    external_files.has_remote_file_changed("https://example.com/file.txt", test_file)
+
+    headers = mock_head.call_args[1]["headers"]
+    assert external_files.IF_NONE_MATCH not in headers
+    # Stale sidecar should be removed so future calls don't keep paying the
+    # mtime-comparison cost on a known-bad sidecar.
+    assert not sidecar.exists()
+
+
+@patch("esphome.external_files.requests.get")
+@patch("esphome.external_files.has_remote_file_changed")
+def test_download_content_pins_etag_mtime_to_file_mtime(
+    mock_has_changed: MagicMock,
+    mock_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """After a successful download, the sidecar's mtime must equal the cache
+    file's mtime so `_read_etag` accepts it on the next call.
+    """
+    test_file = setup_core / "fresh.txt"
+    mock_has_changed.return_value = True
+    mock_response = MagicMock()
+    mock_response.content = b"fresh content"
+    mock_response.headers = {external_files.ETAG: '"deadbeef"'}
+    mock_response.raise_for_status = MagicMock()
+    mock_get.return_value = mock_response
+
+    external_files.download_content("https://example.com/file.txt", test_file)
+
+    sidecar = external_files._etag_sidecar_path(test_file)
+    assert sidecar.stat().st_mtime_ns == test_file.stat().st_mtime_ns
 
 
 def test_compute_local_file_dir_creates_parent_dirs(setup_core: Path) -> None:
