@@ -172,6 +172,8 @@ VERSION_H_TARGET = "esphome/core/version.h"
 BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
 BUILD_INFO_DATA_CPP_TARGET = "esphome/core/build_info_data.cpp"
 ENTITY_TYPES_H_TARGET = "esphome/core/entity_types.h"
+# Must match Application::ESPHOME_COMMENT_SIZE_MAX in core/application.h
+COMMENT_SIZE_MAX = 256
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -394,10 +396,17 @@ def generate_build_info_data_cpp(
     config_hash: int, build_time: int, build_time_str: str, comment: str
 ) -> str:
     """Generate build_info_data.cpp with config hash, build time, and comment."""
+    # The reader-side buffer is fixed at Application::ESPHOME_COMMENT_SIZE_MAX
+    # (256 bytes), so the encoded comment plus NUL must fit. cv.Length(max=255)
+    # bounds character count, but UTF-8 chars can be up to 4 bytes each, so we
+    # also have to clamp byte length here. errors="ignore" drops any partial
+    # trailing multi-byte sequence so we never emit a truncated codepoint.
+    encoded = comment.encode("utf-8")[: COMMENT_SIZE_MAX - 1]
+    comment = encoded.decode("utf-8", errors="ignore")
     # cpp_string_escape returns '"escaped"', slice off the quotes since template has them
     escaped_comment = cpp_string_escape(comment)[1:-1]
     # Size is in encoded bytes (UTF-8), not characters, so non-ASCII comments
-    # don't get truncated mid–multi-byte sequence by get_comment_string().
+    # don't get truncated mid-multi-byte sequence by get_comment_string().
     # +1 for null terminator
     comment_size = len(comment.encode("utf-8")) + 1
     return f"""// Auto-generated build_info data
