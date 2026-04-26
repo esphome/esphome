@@ -22,6 +22,7 @@ cluster_id = cg.esphome_ns.enum("esp_zb_zcl_cluster_id_t")
 CLUSTER_ID = {
     "BASIC": cluster_id.ESP_ZB_ZCL_CLUSTER_ID_BASIC,
     "BINARY_INPUT": cluster_id.ESP_ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
+    "ANALOG_INPUT": cluster_id.ESP_ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
 }
 cluster_role = cg.esphome_ns.enum("esp_zb_zcl_cluster_role_t")
 CLUSTER_ROLE = {
@@ -32,4 +33,6 @@ ATTR_TYPE = {
     "BOOL": attr_type.ESP_ZB_ZCL_ATTR_TYPE_BOOL,
     "8BITMAP": attr_type.ESP_ZB_ZCL_ATTR_TYPE_8BITMAP,
     "CHAR_STRING": attr_type.ESP_ZB_ZCL_ATTR_TYPE_CHAR_STRING,
+    "SINGLE": attr_type.ESP_ZB_ZCL_ATTR_TYPE_SINGLE,
+    "DOUBLE": attr_type.ESP_ZB_ZCL_ATTR_TYPE_DOUBLE,
 }
