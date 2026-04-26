@@ -54,8 +54,8 @@ async def register_infrared(var: cg.Pvariable, config: ConfigType) -> None:
     """Register an infrared device with the core."""
     cg.add_define("USE_IR_RF")
     await cg.register_component(var, config)
-    await setup_infrared_core_(var, config)
     queue_entity_register("infrared", config)
+    await setup_infrared_core_(var, config)
     CORE.register_platform_component("infrared", var)
 
 
