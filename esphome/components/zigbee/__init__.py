@@ -89,9 +89,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MODEL, default=CORE.name): cv.All(
                 cv.string, cv.Length(max=31)
             ),
-            cv.Optional(CONF_ROUTER, default=False): cv.All(
-                cv.boolean,
-            ),
+            cv.Optional(CONF_ROUTER, default=False): cv.boolean,
             cv.Optional(CONF_ON_JOIN): cv.All(
                 cv.requires_component("nrf52"),
                 automation.validate_automation(single=True),
