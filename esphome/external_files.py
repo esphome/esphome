@@ -25,7 +25,9 @@ CONTENT_DISPOSITION = "content-disposition"
 TEMP_DIR = "temp"
 
 
-def has_remote_file_changed(url: str, local_file_path: Path) -> bool:
+def has_remote_file_changed(
+    url: str, local_file_path: Path, timeout: int = NETWORK_TIMEOUT
+) -> bool:
     if local_file_path.exists():
         _LOGGER.debug("has_remote_file_changed: File exists at %s", local_file_path)
         try:
@@ -39,7 +41,7 @@ def has_remote_file_changed(url: str, local_file_path: Path) -> bool:
                 CACHE_CONTROL: CACHE_CONTROL_MAX_AGE + "3600",
             }
             response = requests.head(
-                url, headers=headers, timeout=NETWORK_TIMEOUT, allow_redirects=True
+                url, headers=headers, timeout=timeout, allow_redirects=True
             )
 
             _LOGGER.debug(
@@ -88,7 +90,7 @@ def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> by
     if CORE.skip_external_update and path.exists():
         _LOGGER.debug("Skipping update for %s (refresh disabled)", url)
         return path.read_bytes()
-    if not has_remote_file_changed(url, path):
+    if not has_remote_file_changed(url, path, timeout):
         _LOGGER.debug("Remote file has not changed %s", url)
         return path.read_bytes()
 
@@ -156,15 +158,17 @@ def download_content_many(
         path, url = next(iter(seen.items()))
         download_content(url, path, timeout)
         return
+
+    def _download_one(path_url: tuple[Path, str]) -> None:
+        # `seen` stores entries as (path, url) so the dict can dedupe by
+        # path; flip them back to download_content's (url, path) order.
+        path, url = path_url
+        download_content(url, path, timeout)
+
     workers = max(1, min(max_workers, len(seen)))
     with ThreadPoolExecutor(max_workers=workers) as ex:
         # list() forces iteration so exceptions surface here, not silently.
-        list(
-            ex.map(
-                lambda item: download_content(item[1], item[0], timeout),
-                seen.items(),
-            )
-        )
+        list(ex.map(_download_one, seen.items()))
 
 
 # Each component that uses external_files defines its own local
