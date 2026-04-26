@@ -48,9 +48,9 @@ class FloatOutput : public BinaryOutput {
 
   /** Sets this output to ignore min_power for a 0 state
    *
-   * @param zero True if a 0 state should mean 0 and not min_power.
+   * @param zero_means_zero True if a 0 state should mean 0 and not min_power.
    */
-  void set_zero_means_zero(bool zero_means_zero);
+  void set_zero_means_zero(bool zero_means_zero) { this->zero_means_zero_ = zero_means_zero; }
 
   /** Set the level of this float output, this is called from the front-end.
    *
@@ -70,10 +70,10 @@ class FloatOutput : public BinaryOutput {
   // (In most use cases you won't need these)
 
   /// Get the maximum power output.
-  float get_max_power() const;
+  float get_max_power() const { return this->max_power_; }
 
   /// Get the minimum power output.
-  float get_min_power() const;
+  float get_min_power() const { return this->min_power_; }
 
  protected:
   /// Implement BinarySensor's write_enabled; this should never be called.

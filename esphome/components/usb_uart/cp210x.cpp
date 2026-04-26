@@ -5,8 +5,7 @@
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
-namespace esphome {
-namespace usb_uart {
+namespace esphome::usb_uart {
 
 using namespace bytebuffer;
 /**
@@ -66,7 +65,7 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
   }
 
   for (uint8_t i = 0; i != config_desc->bNumInterfaces; i++) {
-    auto data_desc = usb_parse_interface_descriptor(config_desc, 0, 0, &conf_offset);
+    auto data_desc = usb_parse_interface_descriptor(config_desc, i, 0, &conf_offset);
     if (!data_desc) {
       ESP_LOGE(TAG, "data_desc: usb_parse_interface_descriptor failed");
       break;
@@ -119,8 +118,8 @@ void USBUartTypeCP210X::enable_channels() {
     this->control_transfer(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_BAUDRATE, 0, channel->index_, callback,
                            baud.get_data());
   }
-  USBUartTypeCdcAcm::enable_channels();
+  this->start_channels();
 }
-}  // namespace usb_uart
-}  // namespace esphome
+}  // namespace esphome::usb_uart
+
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

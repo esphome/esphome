@@ -60,6 +60,12 @@ esphome:
             }
           }
 
+      # Test set_effect with const char* doesn't cause ambiguous overload (issue #14728)
+      - lambda: |-
+          auto call = id(test_monochromatic_light).turn_on();
+          call.set_effect("None");
+          call.perform();
+
       - light.toggle: test_binary_light
       - light.turn_off: test_rgb_light
       - light.turn_on:
@@ -71,6 +77,32 @@ esphome:
       - light.control:
           id: test_monochromatic_light
           state: on
+      # Test static effect name resolution at codegen time
+      - light.turn_on:
+          id: test_monochromatic_light
+          effect: Strobe
+      - light.turn_on:
+          id: test_monochromatic_light
+          effect: none
+      # Test resolving a different effect on the same light
+      - light.control:
+          id: test_monochromatic_light
+          effect: My Flicker
+      # Test effect: None (capitalized)
+      - light.control:
+          id: test_monochromatic_light
+          effect: None
+      # Test effect lambda with no args (on_boot has empty Ts...)
+      - light.turn_on:
+          id: test_monochromatic_light
+          effect: !lambda 'return "Strobe";'
+      # Test effect lambda with non-empty args (repeat passes uint32_t iteration)
+      - repeat:
+          count: 3
+          then:
+            - light.turn_on:
+                id: test_monochromatic_light
+                effect: !lambda 'return iteration > 1 ? "Strobe" : "none";'
       - light.dim_relative:
           id: test_monochromatic_light
           relative_brightness: 5%

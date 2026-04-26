@@ -17,22 +17,21 @@ class PCF8574Component : public Component,
   PCF8574Component() = default;
 
   void set_pcf8575(bool pcf8575) { pcf8575_ = pcf8575; }
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
   /// Check i2c availability and setup masks
   void setup() override;
-  /// Invalidate cache at start of each loop
   void loop() override;
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
   float get_setup_priority() const override;
-#ifdef USE_LOOP_PRIORITY
-  float get_loop_priority() const override;
-#endif
 
   void dump_config() override;
 
  protected:
+  static void IRAM_ATTR gpio_intr(PCF8574Component *arg);
+
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
@@ -47,6 +46,7 @@ class PCF8574Component : public Component,
   /// The state read in read_gpio_ - 1 means HIGH, 0 means LOW
   uint16_t input_mask_{0x00};
   bool pcf8575_;  ///< TRUE->16-channel PCF8575, FALSE->8-channel PCF8574
+  InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
 /// Helper class to expose a PCF8574 pin as an internal input GPIO pin.

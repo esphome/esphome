@@ -3,6 +3,9 @@
 #include "esphome/core/defines.h"
 #ifdef USE_RUNTIME_IMAGE_BMP
 
+#include <algorithm>
+#include <memory>
+
 #include "image_decoder.h"
 #include "runtime_image.h"
 
@@ -23,6 +26,10 @@ class BmpDecoder : public ImageDecoder {
   int HOT decode(uint8_t *buffer, size_t size) override;
 
   bool is_finished() const override {
+    if (this->bits_per_pixel_ == 0) {
+      // header not yet received, so dimensions not yet determined
+      return false;
+    }
     // BMP is finished when we've decoded all pixel data
     return this->paint_index_ >= static_cast<size_t>(this->width_ * this->height_);
   }
@@ -36,6 +43,7 @@ class BmpDecoder : public ImageDecoder {
   uint32_t compression_method_{0};
   uint32_t image_data_size_{0};
   uint32_t color_table_entries_{0};
+  std::unique_ptr<uint32_t[]> color_table_;
   size_t width_bytes_{0};
   size_t data_offset_{0};
   uint8_t padding_bytes_{0};

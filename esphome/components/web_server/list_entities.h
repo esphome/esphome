@@ -17,14 +17,13 @@ class DeferredUpdateEventSource;
 #endif
 class WebServer;
 
-class ListEntitiesIterator : public ComponentIterator {
+class ListEntitiesIterator final : public ComponentIterator {
  public:
 #ifdef USE_ESP32
   ListEntitiesIterator(const WebServer *ws, esphome::web_server_idf::AsyncEventSource *es);
 #elif defined(USE_ARDUINO)
   ListEntitiesIterator(const WebServer *ws, DeferredUpdateEventSource *es);
 #endif
-  virtual ~ListEntitiesIterator();
 #ifdef USE_BINARY_SENSOR
   bool on_binary_sensor(binary_sensor::BinarySensor *obj) override;
 #endif
@@ -76,6 +75,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_VALVE
   bool on_valve(valve::Valve *obj) override;
 #endif
+#ifdef USE_MEDIA_PLAYER
+  bool on_media_player(media_player::MediaPlayer *obj) override { return true; }
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *obj) override;
 #endif
@@ -84,6 +86,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #endif
 #ifdef USE_INFRARED
   bool on_infrared(infrared::Infrared *obj) override;
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  bool on_radio_frequency(radio_frequency::RadioFrequency *obj) override;
 #endif
 #ifdef USE_EVENT
   bool on_event(event::Event *obj) override;

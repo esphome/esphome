@@ -28,7 +28,7 @@ uint8_t EmmetiClimate::set_mode_() {
 }
 
 uint8_t EmmetiClimate::set_fan_speed_() {
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       return EMMETI_FAN_1;
     case climate::CLIMATE_FAN_MEDIUM:

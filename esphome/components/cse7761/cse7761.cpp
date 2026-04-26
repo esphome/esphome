@@ -147,13 +147,17 @@ uint32_t CSE7761Component::read_(uint8_t reg, uint8_t size) {
 }
 
 uint32_t CSE7761Component::coefficient_by_unit_(uint32_t unit) {
+  uint32_t coeff = 0;
   switch (unit) {
     case RMS_UC:
-      return 0x400000 * 100 / this->data_.coefficient[RMS_UC];
+      coeff = this->data_.coefficient[RMS_UC];
+      return coeff ? 0x400000 * 100 / coeff : 0;
     case RMS_IAC:
-      return (0x800000 * 100 / this->data_.coefficient[RMS_IAC]) * 10;  // Stay within 32 bits
+      coeff = this->data_.coefficient[RMS_IAC];
+      return coeff ? (0x800000 * 100 / coeff) * 10 : 0;  // Stay within 32 bits
     case POWER_PAC:
-      return 0x80000000 / this->data_.coefficient[POWER_PAC];
+      coeff = this->data_.coefficient[POWER_PAC];
+      return coeff ? 0x80000000 / coeff : 0;
   }
   return 0;
 }
@@ -200,24 +204,27 @@ void CSE7761Component::get_data_() {
   value = this->read_(CSE7761_REG_RMSIA, 3);
   this->data_.current_rms[0] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;  // No load threshold of 10mA
   value = this->read_(CSE7761_REG_POWERPA, 4);
-  this->data_.active_power[0] = (0 == this->data_.current_rms[0]) ? 0 : ((uint32_t) abs((int) value));
+  // PowerPA is two's complement signed 32-bit per datasheet
+  this->data_.active_power[0] = (0 == this->data_.current_rms[0]) ? 0 : static_cast<int32_t>(value);
 
   value = this->read_(CSE7761_REG_RMSIB, 3);
   this->data_.current_rms[1] = ((value >= 0x800000) || (value < 1600)) ? 0 : value;  // No load threshold of 10mA
   value = this->read_(CSE7761_REG_POWERPB, 4);
-  this->data_.active_power[1] = (0 == this->data_.current_rms[1]) ? 0 : ((uint32_t) abs((int) value));
+  // PowerPB is two's complement signed 32-bit per datasheet
+  this->data_.active_power[1] = (0 == this->data_.current_rms[1]) ? 0 : static_cast<int32_t>(value);
 
   // convert values and publish to sensors
 
-  float voltage = (float) this->data_.voltage_rms / this->coefficient_by_unit_(RMS_UC);
+  float voltage = static_cast<float>(this->data_.voltage_rms) / this->coefficient_by_unit_(RMS_UC);
   if (this->voltage_sensor_ != nullptr) {
     this->voltage_sensor_->publish_state(voltage);
   }
 
   for (uint8_t channel = 0; channel < 2; channel++) {
     // Active power = PowerPA * PowerPAC * 1000 / 0x80000000
-    float active_power = (float) this->data_.active_power[channel] / this->coefficient_by_unit_(POWER_PAC);  // W
-    float amps = (float) this->data_.current_rms[channel] / this->coefficient_by_unit_(RMS_IAC);             // A
+    float active_power =
+        static_cast<float>(this->data_.active_power[channel]) / this->coefficient_by_unit_(POWER_PAC);        // W
+    float amps = static_cast<float>(this->data_.current_rms[channel]) / this->coefficient_by_unit_(RMS_IAC);  // A
     ESP_LOGD(TAG, "Channel %d power %f W, current %f A", channel + 1, active_power, amps);
     if (channel == 0) {
       if (this->power_sensor_1_ != nullptr) {

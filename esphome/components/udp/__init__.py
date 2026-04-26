@@ -130,12 +130,9 @@ async def to_code(config):
     if (listen_address := str(config[CONF_LISTEN_ADDRESS])) != "255.255.255.255":
         cg.add(var.set_listen_address(listen_address))
     cg.add(var.set_addresses([str(addr) for addr in config[CONF_ADDRESSES]]))
-    if on_receive := config.get(CONF_ON_RECEIVE):
-        on_receive = on_receive[0]
-        trigger_id = cg.new_Pvariable(on_receive[CONF_TRIGGER_ID])
-        trigger = await automation.build_automation(
-            trigger_id, trigger_argtype, on_receive
-        )
+    for conf in config.get(CONF_ON_RECEIVE, []):
+        trigger_id = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+        trigger = await automation.build_automation(trigger_id, trigger_argtype, conf)
         trigger_lambda = await cg.process_lambda(
             trigger.trigger(
                 cg.std_vector.template(cg.uint8)(
@@ -146,6 +143,7 @@ async def to_code(config):
             listener_argtype,
         )
         cg.add(var.add_listener(trigger_lambda))
+    if config.get(CONF_ON_RECEIVE):
         cg.add(var.set_should_listen())
 
 
@@ -171,6 +169,7 @@ def validate_raw_data(value):
         },
         key=CONF_DATA,
     ),
+    synchronous=True,
 )
 async def udp_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

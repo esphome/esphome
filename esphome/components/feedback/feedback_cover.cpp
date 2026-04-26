@@ -269,9 +269,12 @@ void FeedbackCover::control(const CoverCall &call) {
         this->start_direction_(COVER_OPERATION_CLOSING);
       }
     }
-  } else if (call.get_position().has_value()) {
+  } else {
+    auto pos_opt = call.get_position();
+    if (!pos_opt.has_value())
+      return;
     // go to position action
-    auto pos = *call.get_position();
+    auto pos = *pos_opt;
     if (pos == this->position) {
       // already at target,
 
@@ -434,10 +437,15 @@ void FeedbackCover::recompute_position_() {
   }
 
   // check if we have an acceleration_wait_time, and remove from position computation
-  if (now > (this->start_dir_time_ + this->acceleration_wait_time_)) {
-    this->position +=
-        dir * (now - std::max(this->start_dir_time_ + this->acceleration_wait_time_, this->last_recompute_time_)) /
-        (action_dur - this->acceleration_wait_time_);
+  if (now - this->start_dir_time_ > this->acceleration_wait_time_) {
+    uint32_t accel_end_time = this->start_dir_time_ + this->acceleration_wait_time_;
+    uint32_t effective_start;
+    if (static_cast<int32_t>(accel_end_time - this->last_recompute_time_) >= 0) {
+      effective_start = accel_end_time;
+    } else {
+      effective_start = this->last_recompute_time_;
+    }
+    this->position += dir * (now - effective_start) / (action_dur - this->acceleration_wait_time_);
     this->position = clamp(this->position, min_pos, max_pos);
   }
   this->last_recompute_time_ = now;

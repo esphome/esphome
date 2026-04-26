@@ -1,7 +1,8 @@
 """Tests for platformio_api.py path functions."""
 
+# pylint: disable=protected-access
+
 import json
-import logging
 import os
 from pathlib import Path
 import shutil
@@ -10,7 +11,7 @@ from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 
-from esphome import platformio_api
+from esphome import platformio_api, platformio_runner
 from esphome.core import CORE, EsphomeError
 
 
@@ -281,13 +282,13 @@ def test_run_idedata_raises_on_invalid_json(
 
 
 def test_run_platformio_cli_sets_environment_variables(
-    setup_core: Path, mock_run_external_command: Mock
+    setup_core: Path, mock_run_external_process: Mock
 ) -> None:
     """Test run_platformio_cli sets correct environment variables."""
     CORE.build_path = str(setup_core / "build" / "test")
 
     with patch.dict(os.environ, {}, clear=False):
-        mock_run_external_command.return_value = 0
+        mock_run_external_process.return_value = 0
         platformio_api.run_platformio_cli("test", "arg")
 
         # Check environment variables were set
@@ -300,10 +301,12 @@ def test_run_platformio_cli_sets_environment_variables(
         assert "PLATFORMIO_LIBDEPS_DIR" in os.environ
         assert "PYTHONWARNINGS" in os.environ
 
-        # Check command was called correctly
-        mock_run_external_command.assert_called_once()
-        args = mock_run_external_command.call_args[0]
-        assert "platformio" in args
+        # Check command was called correctly — runs PlatformIO as a subprocess
+        # via the esphome.platformio_runner entry point.
+        mock_run_external_process.assert_called_once()
+        args = mock_run_external_process.call_args[0]
+        assert "-m" in args
+        assert "esphome.platformio_runner" in args
         assert "test" in args
         assert "arg" in args
 
@@ -444,7 +447,7 @@ def test_patch_structhash(setup_core: Path) -> None:
         },
     ):
         # Call patch_structhash
-        platformio_api.patch_structhash()
+        platformio_runner.patch_structhash()
 
         # Verify both modules had clean_build_dir patched
         # Check that clean_build_dir was set on both modules
@@ -496,7 +499,7 @@ def test_patched_clean_build_dir_removes_outdated(setup_core: Path) -> None:
         },
     ):
         # Call patch_structhash to install the patched function
-        platformio_api.patch_structhash()
+        platformio_runner.patch_structhash()
 
         # Call the patched function
         mock_helpers.clean_build_dir(str(build_dir), [])
@@ -546,7 +549,7 @@ def test_patched_clean_build_dir_keeps_updated(setup_core: Path) -> None:
         },
     ):
         # Call patch_structhash to install the patched function
-        platformio_api.patch_structhash()
+        platformio_runner.patch_structhash()
 
         # Call the patched function
         mock_helpers.clean_build_dir(str(build_dir), [])
@@ -594,7 +597,7 @@ def test_patched_clean_build_dir_creates_missing(setup_core: Path) -> None:
         },
     ):
         # Call patch_structhash to install the patched function
-        platformio_api.patch_structhash()
+        platformio_runner.patch_structhash()
 
         # Call the patched function
         mock_helpers.clean_build_dir(str(build_dir), [])
@@ -673,6 +676,34 @@ def test_process_stacktrace_bad_alloc(
     assert state is False
 
 
+def test_process_stacktrace_esp32_crash_handler(
+    setup_core: Path, mock_decode_pc: Mock
+) -> None:
+    """Test process_stacktrace handles ESP32 crash handler backtrace lines."""
+    config = {"name": "test"}
+
+    # Simulate crash handler log lines as they appear from the API/serial
+    line_pc = "[E][esp32.crash:078]:   PC:  0x400D1234  (fault location)"
+    state = platformio_api.process_stacktrace(config, line_pc, False)
+    # PC line is matched by existing STACKTRACE_ESP32_PC_RE
+    mock_decode_pc.assert_called_with(config, "400D1234")
+    assert state is False
+
+    mock_decode_pc.reset_mock()
+
+    line_bt0 = "[E][esp32.crash:080]:   BT0: 0x400D5678  (backtrace)"
+    state = platformio_api.process_stacktrace(config, line_bt0, False)
+    mock_decode_pc.assert_called_once_with(config, "400D5678")
+    assert state is False
+
+    mock_decode_pc.reset_mock()
+
+    line_bt1 = "[E][esp32.crash:080]:   BT1: 0x42005ABC  (backtrace)"
+    state = platformio_api.process_stacktrace(config, line_bt1, False)
+    mock_decode_pc.assert_called_once_with(config, "42005ABC")
+    assert state is False
+
+
 def test_patch_file_downloader_succeeds_first_try() -> None:
     """Test patch_file_downloader succeeds on first attempt."""
     mock_exception_cls = type("PackageException", (Exception,), {})
@@ -691,7 +722,7 @@ def test_patch_file_downloader_succeeds_first_try() -> None:
             ),
         },
     ):
-        platformio_api.patch_file_downloader()
+        platformio_runner.patch_file_downloader()
 
         from platformio.package.download import FileDownloader
 
@@ -730,7 +761,7 @@ def test_patch_file_downloader_retries_on_failure() -> None:
         ),
         patch("time.sleep") as mock_sleep,
     ):
-        platformio_api.patch_file_downloader()
+        platformio_runner.patch_file_downloader()
 
         from platformio.package.download import FileDownloader
 
@@ -771,7 +802,7 @@ def test_patch_file_downloader_raises_after_max_retries() -> None:
         ),
         patch("time.sleep") as mock_sleep,
     ):
-        platformio_api.patch_file_downloader()
+        platformio_runner.patch_file_downloader()
 
         from platformio.package.download import FileDownloader
 
@@ -819,7 +850,7 @@ def test_patch_file_downloader_closes_session_and_response_between_retries() -> 
         ),
         patch("time.sleep"),
     ):
-        platformio_api.patch_file_downloader()
+        platformio_runner.patch_file_downloader()
 
         from platformio.package.download import FileDownloader
 
@@ -854,9 +885,9 @@ def test_patch_file_downloader_idempotent() -> None:
         },
     ):
         # Patch multiple times
-        platformio_api.patch_file_downloader()
-        platformio_api.patch_file_downloader()
-        platformio_api.patch_file_downloader()
+        platformio_runner.patch_file_downloader()
+        platformio_runner.patch_file_downloader()
+        platformio_runner.patch_file_downloader()
 
         from platformio.package.download import FileDownloader
 
@@ -867,19 +898,18 @@ def test_patch_file_downloader_idempotent() -> None:
         assert call_count == 1
 
 
-def test_platformio_log_filter_allows_non_platformio_messages() -> None:
-    """Test that non-platformio logger messages are allowed through."""
-    log_filter = platformio_api.PlatformioLogFilter()
-    record = logging.LogRecord(
-        name="esphome.core",
-        level=logging.INFO,
-        pathname="",
-        lineno=0,
-        msg="Some esphome message",
-        args=(),
-        exc_info=None,
+def _filter_through_redirect(line: str) -> str:
+    """Write a line through RedirectText with FILTER_PLATFORMIO_LINES and return what passes."""
+    import io
+
+    from esphome.util import RedirectText
+
+    captured = io.StringIO()
+    redirect = RedirectText(
+        captured, filter_lines=platformio_runner.FILTER_PLATFORMIO_LINES
     )
-    assert log_filter.filter(record) is True
+    redirect.write(line + "\n")
+    return captured.getvalue()
 
 
 @pytest.mark.parametrize(
@@ -902,19 +932,9 @@ def test_platformio_log_filter_allows_non_platformio_messages() -> None:
         "Memory Usage -> https://bit.ly/pio-memory-usage",
     ],
 )
-def test_platformio_log_filter_blocks_noisy_messages(msg: str) -> None:
-    """Test that noisy platformio messages are filtered out."""
-    log_filter = platformio_api.PlatformioLogFilter()
-    record = logging.LogRecord(
-        name="platformio.builder",
-        level=logging.INFO,
-        pathname="",
-        lineno=0,
-        msg=msg,
-        args=(),
-        exc_info=None,
-    )
-    assert log_filter.filter(record) is False
+def test_filter_platformio_lines_blocks_noisy_messages(msg: str) -> None:
+    """Test that noisy platformio output lines are filtered out by RedirectText."""
+    assert _filter_through_redirect(msg) == ""
 
 
 @pytest.mark.parametrize(
@@ -926,39 +946,6 @@ def test_platformio_log_filter_blocks_noisy_messages(msg: str) -> None:
         "warning: unused variable",
     ],
 )
-def test_platformio_log_filter_allows_other_platformio_messages(msg: str) -> None:
-    """Test that non-noisy platformio messages are allowed through."""
-    log_filter = platformio_api.PlatformioLogFilter()
-    record = logging.LogRecord(
-        name="platformio.builder",
-        level=logging.INFO,
-        pathname="",
-        lineno=0,
-        msg=msg,
-        args=(),
-        exc_info=None,
-    )
-    assert log_filter.filter(record) is True
-
-
-@pytest.mark.parametrize(
-    "logger_name",
-    [
-        "PLATFORMIO.builder",
-        "PlatformIO.core",
-        "platformio.run",
-    ],
-)
-def test_platformio_log_filter_case_insensitive_logger_name(logger_name: str) -> None:
-    """Test that platformio logger name matching is case insensitive."""
-    log_filter = platformio_api.PlatformioLogFilter()
-    record = logging.LogRecord(
-        name=logger_name,
-        level=logging.INFO,
-        pathname="",
-        lineno=0,
-        msg="Found 5 compatible libraries",
-        args=(),
-        exc_info=None,
-    )
-    assert log_filter.filter(record) is False
+def test_filter_platformio_lines_allows_other_messages(msg: str) -> None:
+    """Test that non-noisy platformio output lines pass through RedirectText."""
+    assert _filter_through_redirect(msg) == msg + "\n"
