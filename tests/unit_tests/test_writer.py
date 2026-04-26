@@ -359,6 +359,7 @@ def test_clean_cmake_cache(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.name = "test_device"
+    mock_core.pioenv_name = "test_device"
 
     # Verify file exists before
     assert cmake_cache_file.exists()
