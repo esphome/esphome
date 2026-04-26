@@ -41,8 +41,6 @@ async def to_code(config: dict[str, Any]) -> None:
 
 
 def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> Path:
-    # CORE.skip_external_update (set by `esphome logs`) is honored inside
-    # git.clone_or_update; no need to translate to NEVER_REFRESH here.
     repo_dir, _ = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),

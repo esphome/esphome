@@ -253,15 +253,12 @@ def test_clone_or_update_skips_when_core_skip_external_update(
     (git_dir / "FETCH_HEAD").write_text("test")
 
     CORE.skip_external_update = True
-    try:
-        result_dir, revert = git.clone_or_update(
-            url=url,
-            ref=ref,
-            refresh=TimePeriodSeconds(days=1),
-            domain=domain,
-        )
-    finally:
-        CORE.skip_external_update = False
+    result_dir, revert = git.clone_or_update(
+        url=url,
+        ref=ref,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+    )
 
     mock_run_git_command.assert_not_called()
     assert result_dir == repo_dir

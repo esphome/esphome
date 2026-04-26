@@ -150,9 +150,6 @@ def clone_or_update(
             raise
 
     else:
-        # Check refresh needed
-        # Skip refresh if NEVER_REFRESH is specified or external updates are
-        # globally disabled for this run (e.g. `esphome logs`).
         if refresh == NEVER_REFRESH or CORE.skip_external_update:
             _LOGGER.debug("Skipping update for %s (refresh disabled)", key)
             return repo_dir, None

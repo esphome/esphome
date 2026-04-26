@@ -214,9 +214,6 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
 
     If loading fails after cloning, attempts a revert and retry in case
     a prior cached checkout is stale.
-
-    CORE.skip_external_update (set by `esphome logs`) is honored inside
-    git.clone_or_update; no need to translate to NEVER_REFRESH here.
     """
     repo_dir, revert = git.clone_or_update(
         url=config[CONF_URL],
@@ -560,9 +557,6 @@ def do_packages_pass(
 
     Returns the config with all packages loaded in-place (but not yet merged)
     and a consolidated ``substitutions:`` block restored at the front.
-
-    CORE.skip_external_update (set by `esphome logs`) is honored inside
-    git.clone_or_update via _process_remote_package.
     """
     if CONF_PACKAGES not in config:
         return config
