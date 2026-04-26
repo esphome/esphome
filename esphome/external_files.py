@@ -31,37 +31,35 @@ def _etag_sidecar_path(local_file_path: Path) -> Path:
     return local_file_path.parent / f".{local_file_path.name}.etag"
 
 
-def _read_etag(local_file_path: Path) -> str | None:
-    """Return the cached ETag if it still describes the current cached file.
+def _mtime_seconds(path: Path) -> int:
+    """Return `path`'s mtime as integer seconds.
 
-    The sidecar's mtime is kept in sync with the cache file's mtime by
-    `_write_etag`. If they disagree, the cache file was modified out-of-band
-    (manual edit, restored from backup, replaced by another tool) and the
-    ETag no longer corresponds to its contents, so treat the sidecar as
-    stale and delete it.
+    Whole seconds is the common-denominator resolution across all
+    filesystems we run on (FAT/exFAT 2s, NTFS 100ns, APFS/ext4 ns), so
+    comparisons survive setting+reading round-trips that would lose
+    sub-second precision on lower-resolution filesystems.
+    """
+    return int(path.stat().st_mtime)
+
+
+def _read_etag(local_file_path: Path) -> str | None:
+    """Return the cached ETag if its sidecar's mtime still matches the cache
+    file's. A mismatch means the cache file was modified out-of-band, so the
+    ETag no longer describes its contents -- delete the stale sidecar and
+    return None.
     """
     etag_path = _etag_sidecar_path(local_file_path)
     try:
-        etag_mtime_ns = etag_path.stat().st_mtime_ns
-        file_mtime_ns = local_file_path.stat().st_mtime_ns
-    except OSError:
-        return None
-    if etag_mtime_ns != file_mtime_ns:
-        _LOGGER.debug(
-            "ETag sidecar mtime (%d) does not match cached file mtime (%d) at %s; "
-            "treating ETag as stale",
-            etag_mtime_ns,
-            file_mtime_ns,
-            local_file_path,
-        )
-        with contextlib.suppress(OSError):
+        if _mtime_seconds(etag_path) != _mtime_seconds(local_file_path):
+            _LOGGER.debug(
+                "ETag sidecar mtime mismatch at %s; treating as stale",
+                local_file_path,
+            )
             etag_path.unlink()
-        return None
-    try:
-        etag = etag_path.read_text().strip()
+            return None
+        return etag_path.read_text().strip() or None
     except OSError:
         return None
-    return etag or None
 
 
 def _write_etag(local_file_path: Path, etag: str | None) -> None:
@@ -79,8 +77,8 @@ def _write_etag(local_file_path: Path, etag: str | None) -> None:
     # Pin the sidecar's mtime to the cache file's mtime. _read_etag relies on
     # this match to detect out-of-band edits to the cache file.
     try:
-        file_mtime_ns = local_file_path.stat().st_mtime_ns
-        os.utime(etag_path, ns=(file_mtime_ns, file_mtime_ns))
+        file_mtime = _mtime_seconds(local_file_path)
+        os.utime(etag_path, (file_mtime, file_mtime))
     except OSError as e:
         _LOGGER.debug(
             "Could not sync ETag sidecar mtime for %s: %s", local_file_path, e
@@ -100,8 +98,7 @@ def has_remote_file_changed(url: str, local_file_path: Path) -> bool:
                 IF_MODIFIED_SINCE: local_modification_time_str,
                 CACHE_CONTROL: CACHE_CONTROL_MAX_AGE + "3600",
             }
-            etag = _read_etag(local_file_path)
-            if etag:
+            if etag := _read_etag(local_file_path):
                 headers[IF_NONE_MATCH] = etag
             response = requests.head(
                 url, headers=headers, timeout=NETWORK_TIMEOUT, allow_redirects=True
@@ -120,8 +117,7 @@ def has_remote_file_changed(url: str, local_file_path: Path) -> bool:
                     "has_remote_file_changed: File not modified since %s",
                     local_modification_time_str,
                 )
-                new_etag = response.headers.get(ETAG)
-                if new_etag and new_etag != etag:
+                if (new_etag := response.headers.get(ETAG)) and new_etag != etag:
                     _write_etag(local_file_path, new_etag)
                 return False
             _LOGGER.debug("has_remote_file_changed: File modified")
