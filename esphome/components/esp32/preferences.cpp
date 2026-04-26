@@ -70,8 +70,13 @@ bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
 }
 
 void ESP32Preferences::open() {
-  nvs_flash_init();
-  esp_err_t err = nvs_open("esphome", NVS_READWRITE, &this->nvs_handle);
+  esp_err_t err = nvs_flash_init();
+  if (err != 0) {
+    this->nvs_handle = 0;
+    return;
+  }
+
+  err = nvs_open("esphome", NVS_READWRITE, &this->nvs_handle);
   if (err == 0)
     return;
 
