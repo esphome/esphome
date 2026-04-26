@@ -1,6 +1,13 @@
+esphome:
+  name: nrf52xiaomcuboot
+
 nrf52:
   board: xiao_ble
   bootloader: mcuboot
+  mcuboot:
+    usb_cdc_recovery: true
+
+logger:
 
 zephyr_ble_server:
 

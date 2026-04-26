@@ -1,0 +1,65 @@
+/ {
+	chosen {
+		zephyr,cdc-acm-uart = &cdc_acm_uart0;
+	};
+
+	leds {
+		status = "disabled";
+	};
+
+	pwmleds {
+		status = "disabled";
+	};
+};
+
+&zephyr_udc0 {
+	status = "okay";
+
+	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+};
+
+&adc {
+	status = "disabled";
+};
+
+&gpiote {
+	status = "disabled";
+};
+
+&gpio0 {
+	status = "disabled";
+};
+
+&gpio1 {
+	status = "disabled";
+};
+
+&i2c1 {
+	status = "disabled";
+};
+
+&ieee802154 {
+	status = "disabled";
+};
+
+&pwm0 {
+	status = "disabled";
+};
+
+&qspi {
+	status = "disabled";
+};
+
+&p25q16h {
+	status = "disabled";
+};
+
+&spi2 {
+	status = "disabled";
+};
+
+&uart0 {
+	status = "disabled";
+};

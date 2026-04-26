@@ -1,0 +1,221 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+
+BOOTLOADER_START = 0x000F4000
+BOOTLOADER_END = 0x000FF000
+UICR_START = 0x10001014
+UICR_END = 0x1000101C
+UICR_EXPECTED = {
+    0x10001014: 0x000F4000,
+    0x10001018: 0x000FF000,
+}
+OUTPUT_NAME = "xiao_ble_mcuboot_updater_input.hex"
+EXPECTED_PARTITIONS = {
+    "mcuboot": (BOOTLOADER_START, BOOTLOADER_END),
+    "empty_mbr_params_page": (0x000FF000, 0x00100000),
+}
+
+
+class IntelHexError(ValueError):
+    pass
+
+
+def _checksum(record: bytes) -> int:
+    return (-sum(record)) & 0xFF
+
+
+def _parse_record(line: str, line_number: int) -> tuple[int, int, bytes]:
+    line = line.strip()
+    if not line:
+        raise IntelHexError(f"Line {line_number}: empty Intel HEX record")
+    if not line.startswith(":"):
+        raise IntelHexError(f"Line {line_number}: missing ':' prefix")
+    try:
+        raw = bytes.fromhex(line[1:])
+    except ValueError as err:
+        raise IntelHexError(f"Line {line_number}: invalid hex data") from err
+    if len(raw) < 5:
+        raise IntelHexError(f"Line {line_number}: record is too short")
+    length = raw[0]
+    expected_length = length + 5
+    if len(raw) != expected_length:
+        raise IntelHexError(
+            f"Line {line_number}: expected {expected_length} bytes, got {len(raw)}"
+        )
+    if sum(raw) & 0xFF:
+        raise IntelHexError(f"Line {line_number}: invalid checksum")
+    address = (raw[1] << 8) | raw[2]
+    record_type = raw[3]
+    return address, record_type, raw[4:-1]
+
+
+def read_intel_hex(path: Path) -> dict[int, int]:
+    data: dict[int, int] = {}
+    upper_address = 0
+    saw_eof = False
+
+    with path.open("r", encoding="utf-8") as file:
+        for line_number, line in enumerate(file, start=1):
+            address, record_type, payload = _parse_record(line, line_number)
+            if record_type == 0x00:
+                absolute_address = upper_address + address
+                for offset, byte in enumerate(payload):
+                    data[absolute_address + offset] = byte
+            elif record_type == 0x01:
+                saw_eof = True
+                break
+            elif record_type == 0x04:
+                if len(payload) != 2:
+                    raise IntelHexError(
+                        f"Line {line_number}: extended linear address record must contain 2 bytes"
+                    )
+                upper_address = ((payload[0] << 8) | payload[1]) << 16
+            elif record_type in (0x02, 0x03, 0x05):
+                continue
+            else:
+                raise IntelHexError(
+                    f"Line {line_number}: unsupported Intel HEX record type {record_type}"
+                )
+
+    if not saw_eof:
+        raise IntelHexError(f"{path}: missing EOF record")
+    return data
+
+
+def _record(address: int, record_type: int, payload: bytes = b"") -> str:
+    body = (
+        bytes([len(payload), (address >> 8) & 0xFF, address & 0xFF, record_type])
+        + payload
+    )
+    return ":" + (body + bytes([_checksum(body)])).hex().upper()
+
+
+def write_intel_hex(path: Path, data: dict[int, int]) -> None:
+    lines: list[str] = []
+    current_upper = None
+    addresses = sorted(data)
+    index = 0
+
+    while index < len(addresses):
+        address = addresses[index]
+        upper = address >> 16
+        if upper != current_upper:
+            lines.append(_record(0, 0x04, upper.to_bytes(2, "big")))
+            current_upper = upper
+
+        chunk = bytearray()
+        chunk_start = address
+        while index < len(addresses) and len(chunk) < 16:
+            next_address = addresses[index]
+            if next_address != chunk_start + len(chunk) or next_address >> 16 != upper:
+                break
+            chunk.append(data[next_address])
+            index += 1
+
+        lines.append(_record(chunk_start & 0xFFFF, 0x00, bytes(chunk)))
+
+    lines.append(_record(0, 0x01))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _read_u32_le(data: dict[int, int], address: int) -> int:
+    missing = [addr for addr in range(address, address + 4) if addr not in data]
+    if missing:
+        missing_list = ", ".join(f"0x{addr:08X}" for addr in missing)
+        raise IntelHexError(f"Missing UICR bytes at {missing_list}")
+    return sum(data[address + offset] << (8 * offset) for offset in range(4))
+
+
+def _add_expected_uicr(data: dict[int, int]) -> None:
+    for address, expected_value in UICR_EXPECTED.items():
+        present = [addr in data for addr in range(address, address + 4)]
+        if any(present):
+            actual_value = _read_u32_le(data, address)
+            if actual_value != expected_value:
+                raise IntelHexError(
+                    f"UICR 0x{address:08X} is 0x{actual_value:08X}, expected 0x{expected_value:08X}"
+                )
+        else:
+            for offset, byte in enumerate(expected_value.to_bytes(4, "little")):
+                data[address + offset] = byte
+
+
+def _validate_partitions(path: Path) -> None:
+    with path.open("r", encoding="utf-8") as file:
+        partitions = yaml.safe_load(file)
+    if not isinstance(partitions, dict):
+        raise IntelHexError(f"{path}: invalid partition map")
+
+    for name, (expected_start, expected_end) in EXPECTED_PARTITIONS.items():
+        partition = partitions.get(name)
+        if not isinstance(partition, dict):
+            raise IntelHexError(f"{path}: missing {name} partition")
+        actual_start = partition.get("address")
+        actual_end = partition.get("end_address")
+        if not isinstance(actual_start, int) or not isinstance(actual_end, int):
+            raise IntelHexError(f"{path}: invalid {name} partition")
+        if actual_start != expected_start or actual_end != expected_end:
+            raise IntelHexError(
+                f"{path}: {name} is 0x{actual_start:08X}..0x{actual_end - 1:08X}, expected "
+                f"0x{expected_start:08X}..0x{expected_end - 1:08X}"
+            )
+
+
+def filter_xiao_ble_mcuboot_updater_input(
+    input_path: Path, output_path: Path, *, inject_uicr: bool = False
+) -> None:
+    source_data = read_intel_hex(input_path)
+
+    if inject_uicr:
+        _add_expected_uicr(source_data)
+    else:
+        for address, expected_value in UICR_EXPECTED.items():
+            actual_value = _read_u32_le(source_data, address)
+            if actual_value != expected_value:
+                raise IntelHexError(
+                    f"UICR 0x{address:08X} is 0x{actual_value:08X}, expected 0x{expected_value:08X}"
+                )
+
+    filtered = {
+        address: byte
+        for address, byte in source_data.items()
+        if BOOTLOADER_START <= address < BOOTLOADER_END
+        or UICR_START <= address < UICR_END
+    }
+    if not any(BOOTLOADER_START <= address < BOOTLOADER_END for address in filtered):
+        raise IntelHexError(
+            f"No MCUboot bytes found in 0x{BOOTLOADER_START:08X}..0x{BOOTLOADER_END - 1:08X}"
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    write_intel_hex(output_path, filtered)
+
+
+def _platformio_generate_artifact(source, target, env) -> None:
+    build_dir = Path(env.subst("$BUILD_DIR"))
+    zephyr_dir = build_dir / "zephyr"
+    _validate_partitions(build_dir / "partitions.yml")
+    for input_name in ("merged.hex", "zephyr.hex"):
+        input_path = zephyr_dir / input_name
+        if input_path.is_file():
+            filter_xiao_ble_mcuboot_updater_input(
+                input_path, zephyr_dir / OUTPUT_NAME, inject_uicr=True
+            )
+            return
+    raise IntelHexError(
+        f"Could not find Zephyr HEX input at {zephyr_dir / 'merged.hex'} or {zephyr_dir / 'zephyr.hex'}"
+    )
+
+
+try:
+    Import("env")  # noqa: F821
+except NameError:
+    env = None
+
+if env is not None:
+    env.AddPostAction("$BUILD_DIR/firmware.hex", _platformio_generate_artifact)
+    env.AddPostAction("$BUILD_DIR/zephyr/merged.hex", _platformio_generate_artifact)
+    env.AddPostAction("$BUILD_DIR/zephyr/zephyr.hex", _platformio_generate_artifact)

@@ -9,7 +9,9 @@ import subprocess
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.zephyr import (
+    Section,
     add_extra_build_file,
+    add_extra_script,
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
     zephyr_add_pm_static,
@@ -136,10 +138,27 @@ DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 
 CONF_DFU = "dfu"
 CONF_DCDC = "dcdc"
+CONF_MCUBOOT = "mcuboot"
 CONF_REG0 = "reg0"
 CONF_UICR_ERASE = "uicr_erase"
+CONF_USB_CDC_RECOVERY = "usb_cdc_recovery"
 
 VOLTAGE_LEVELS = [1.8, 2.1, 2.4, 2.7, 3.0, 3.3]
+
+
+def _validate_mcuboot(config: ConfigType) -> ConfigType:
+    if CONF_MCUBOOT not in config:
+        return config
+    if config[KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT:
+        raise cv.Invalid("mcuboot: is only valid with bootloader: mcuboot")
+    if config[CONF_MCUBOOT][CONF_USB_CDC_RECOVERY] and config[CONF_BOARD] != "xiao_ble":
+        raise cv.Invalid("mcuboot.usb_cdc_recovery is only supported on xiao_ble")
+    return config
+
+
+def _mcuboot_usb_cdc_recovery_enabled(config: ConfigType) -> bool:
+    mcuboot_config = config.get(CONF_MCUBOOT, {})
+    return mcuboot_config.get(CONF_USB_CDC_RECOVERY, False)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -155,6 +174,11 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.GenerateID(): cv.declare_id(DeviceFirmwareUpdate),
                     cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+                }
+            ),
+            cv.Optional(CONF_MCUBOOT): cv.Schema(
+                {
+                    cv.Optional(CONF_USB_CDC_RECOVERY, default=False): cv.boolean,
                 }
             ),
             cv.Optional(CONF_DCDC, default=True): cv.boolean,
@@ -185,6 +209,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
         }
     ),
+    _validate_mcuboot,
     set_framework,
 )
 
@@ -249,13 +274,34 @@ async def to_code(config: ConfigType) -> None:
     if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
         if config[CONF_BOARD] == "xiao_ble":
+            if _mcuboot_usb_cdc_recovery_enabled(config):
+                mcuboot_conf = "xiao_ble_mcuboot_usb_cdc_recovery.conf"
+                mcuboot_overlay = "xiao_ble_mcuboot_usb_cdc_recovery.overlay"
+                add_extra_script(
+                    "post",
+                    "xiao_ble_mcuboot_artifact.py",
+                    Path(__file__).parent / "xiao_ble_mcuboot_artifact.py.script",
+                )
+                zephyr_add_pm_static(
+                    [
+                        Section("mcuboot_secondary", 0x79000, 0x79000, "flash_primary"),
+                        Section("settings_storage", 0xF2000, 0x2000, "flash_primary"),
+                        Section("mcuboot", 0xF4000, 0xB000, "flash_primary"),
+                        Section(
+                            "empty_mbr_params_page", 0xFF000, 0x1000, "flash_primary"
+                        ),
+                    ]
+                )
+            else:
+                mcuboot_conf = "xiao_ble_mcuboot.conf"
+                mcuboot_overlay = "xiao_ble_mcuboot.overlay"
             add_extra_build_file(
                 "zephyr/child_image/mcuboot.conf",
-                Path(__file__).parent / "xiao_ble_mcuboot.conf",
+                Path(__file__).parent / mcuboot_conf,
             )
             add_extra_build_file(
                 "zephyr/child_image/mcuboot/boards/xiao_ble.overlay",
-                Path(__file__).parent / "xiao_ble_mcuboot.overlay",
+                Path(__file__).parent / mcuboot_overlay,
             )
     else:
         if "_sd" in config[KEY_BOOTLOADER]:
