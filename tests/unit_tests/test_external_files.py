@@ -469,6 +469,25 @@ def test_download_content_with_network_error_no_cache_fails(
         external_files.download_content(url, test_file)
 
 
+class _BodyReadErrorResponse:
+    """Stand-in for `requests.Response` whose `.content` raises on access.
+
+    A small dedicated stub avoids mutating `MagicMock`'s class with a
+    `property` (which would leak across every other MagicMock-based test
+    in this file).
+    """
+
+    def __init__(self, exc: Exception) -> None:
+        self._exc = exc
+
+    def raise_for_status(self) -> None:
+        return None
+
+    @property
+    def content(self) -> bytes:
+        raise self._exc
+
+
 def test_download_content_with_body_read_error_uses_cache(
     mock_has_remote_file_changed: MagicMock,
     mock_requests_get: MagicMock,
@@ -484,14 +503,9 @@ def test_download_content_with_body_read_error_uses_cache(
     test_file.write_bytes(cached_content)
 
     mock_has_remote_file_changed.return_value = True
-    mock_response = MagicMock()
-    mock_response.raise_for_status = MagicMock()
-    type(mock_response).content = property(
-        lambda self: (_ for _ in ()).throw(
-            requests.exceptions.ChunkedEncodingError("body truncated")
-        )
+    mock_requests_get.return_value = _BodyReadErrorResponse(
+        requests.exceptions.ChunkedEncodingError("body truncated")
     )
-    mock_requests_get.return_value = mock_response
 
     result = external_files.download_content("https://example.com/file.txt", test_file)
 
@@ -509,14 +523,9 @@ def test_download_content_with_body_read_error_no_cache_fails(
     test_file = setup_core / "nonexistent.txt"
 
     mock_has_remote_file_changed.return_value = True
-    mock_response = MagicMock()
-    mock_response.raise_for_status = MagicMock()
-    type(mock_response).content = property(
-        lambda self: (_ for _ in ()).throw(
-            requests.exceptions.ChunkedEncodingError("body truncated")
-        )
+    mock_requests_get.return_value = _BodyReadErrorResponse(
+        requests.exceptions.ChunkedEncodingError("body truncated")
     )
-    mock_requests_get.return_value = mock_response
 
     with pytest.raises(Invalid, match="Could not download from.*body truncated"):
         external_files.download_content("https://example.com/file.txt", test_file)
