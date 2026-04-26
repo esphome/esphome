@@ -103,10 +103,19 @@ class Application {
   void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
 
-// Entity register methods (generated from entity_types.h)
+// Entity register methods (generated from entity_types.h).
+// Each entity type gets two overloads:
+//   - register_<entity>(obj)                              — bare push_back
+//   - register_<entity>(obj, name, hash, fields)          — configure_entity_ + push_back
+// The 4-arg form lets codegen collapse `App.register_<entity>(obj); obj->configure_entity_(...);`
+// into a single call site, saving flash and a `main.cpp` line per entity.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  void register_##singular(type *obj) { this->plural##_.push_back(obj); }
+  void register_##singular(type *obj) { this->plural##_.push_back(obj); } \
+  void register_##singular(type *obj, const char *name, uint32_t object_id_hash, uint32_t entity_fields) { \
+    obj->configure_entity_(name, object_id_hash, entity_fields); \
+    this->plural##_.push_back(obj); \
+  }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
 #include "esphome/core/entity_types.h"
