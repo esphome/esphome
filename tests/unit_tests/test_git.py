@@ -855,6 +855,9 @@ def test_clone_with_submodules_uses_shallow_submodule_update(
     cmd = submodule_calls[0][0][0]
     assert "--depth=1" in cmd
     assert "components/foo" in cmd
+    # The `--` terminator must precede the submodule paths so a path
+    # beginning with `-` cannot be parsed as an option.
+    assert cmd.index("--") < cmd.index("components/foo")
 
 
 def test_refresh_fetch_is_shallow(tmp_path: Path, mock_run_git_command: Mock) -> None:
@@ -909,6 +912,7 @@ def test_refresh_submodule_update_is_shallow(
     cmd = submodule_calls[0][0][0]
     assert "--depth=1" in cmd
     assert "components/foo" in cmd
+    assert cmd.index("--") < cmd.index("components/foo")
 
 
 def test_refresh_picks_up_new_remote_commits(

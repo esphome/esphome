@@ -141,7 +141,8 @@ def clone_or_update(
                     "Initializing submodules (%s) for %s", ", ".join(submodules), key
                 )
                 run_git_command(
-                    ["git", "submodule", "update", "--init", "--depth=1"] + submodules,
+                    ["git", "submodule", "update", "--init", "--depth=1", "--"]
+                    + submodules,
                     git_dir=repo_dir,
                 )
         except GitException:
@@ -184,10 +185,11 @@ def clone_or_update(
                     git_dir=repo_dir,
                 )
 
-                # Fetch remote ref. --depth=1 keeps the clone shallow while
-                # still picking up new commits when the remote tip moves: a
-                # shallow fetch always retrieves the current tip of the
-                # requested ref, then reset --hard FETCH_HEAD updates the
+                # Fetch from the remote. --depth=1 keeps the clone shallow
+                # while still picking up new commits when the remote tip
+                # moves: a shallow fetch retrieves the current tip being
+                # fetched, whether that's an explicit ref or the remote's
+                # default branch, then reset --hard FETCH_HEAD updates the
                 # working tree to it.
                 cmd = ["git", "fetch", "--depth=1", "--", "origin"]
                 if ref is not None:
@@ -238,7 +240,8 @@ def clone_or_update(
                     "Updating submodules (%s) for %s", ", ".join(submodules), key
                 )
                 run_git_command(
-                    ["git", "submodule", "update", "--init", "--depth=1"] + submodules,
+                    ["git", "submodule", "update", "--init", "--depth=1", "--"]
+                    + submodules,
                     git_dir=repo_dir,
                 )
 
