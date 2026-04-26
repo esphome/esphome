@@ -350,6 +350,42 @@ def test_download_content_many_propagates_errors(
         external_files.download_content_many(items)
 
 
+@patch("esphome.external_files.download_content")
+def test_download_content_many_dedupes_by_path(
+    mock_download: MagicMock, setup_core: Path
+) -> None:
+    """Two items pointing at the same cache path must collapse to one
+    download -- otherwise concurrent writes race on the same file.
+    """
+    path = setup_core / "shared"
+    items = [
+        ("https://example.com/a", path),
+        ("https://example.com/b", path),
+        ("https://example.com/a", path),
+    ]
+    external_files.download_content_many(items)
+    assert mock_download.call_count == 1
+    # First-seen URL wins, matching dict-insertion order.
+    args, _ = mock_download.call_args
+    assert args[0] == "https://example.com/a"
+    assert args[1] == path
+
+
+@patch("esphome.external_files.download_content")
+def test_download_content_many_clamps_invalid_max_workers(
+    mock_download: MagicMock, setup_core: Path
+) -> None:
+    """`max_workers <= 0` must not raise from ThreadPoolExecutor; it should
+    be clamped up to at least 1 worker.
+    """
+    items = [
+        ("https://example.com/a", setup_core / "a"),
+        ("https://example.com/b", setup_core / "b"),
+    ]
+    external_files.download_content_many(items, max_workers=0)
+    assert mock_download.call_count == 2
+
+
 @patch("esphome.external_files.download_content_many")
 def test_download_web_files_in_config_filters_and_dispatches(
     mock_many: MagicMock, setup_core: Path
