@@ -183,19 +183,19 @@ async def at581x_settings_to_code(config, action_id, template_arg, args):
         cg.add(var.set_sensing_distance(template_))
 
     if selfcheck := config.get(CONF_POWERON_SELFCHECK_TIME):
-        template_ = await cg.templatable(selfcheck, args, cg.int32)
+        template_ = await cg.templatable(selfcheck, args, cg.int_)
         cg.add(var.set_poweron_selfcheck_time(template_))
 
     if protect := config.get(CONF_PROTECT_TIME):
-        template_ = await cg.templatable(protect, args, cg.int32)
+        template_ = await cg.templatable(protect, args, cg.int_)
         cg.add(var.set_protect_time(template_))
 
     if trig_base := config.get(CONF_TRIGGER_BASE):
-        template_ = await cg.templatable(trig_base, args, cg.int32)
+        template_ = await cg.templatable(trig_base, args, cg.int_)
         cg.add(var.set_trigger_base(template_))
 
     if trig_keep := config.get(CONF_TRIGGER_KEEP):
-        template_ = await cg.templatable(trig_keep, args, cg.int32)
+        template_ = await cg.templatable(trig_keep, args, cg.int_)
         cg.add(var.set_trigger_keep(template_))
 
     if (stage_gain := config.get(CONF_STAGE_GAIN)) is not None:

@@ -30,19 +30,6 @@ void BluetoothProxy::setup() {
   this->configured_scan_active_ = this->parent_->get_scan_active();
 
   this->parent_->add_scanner_state_listener(this);
-
-  this->set_interval(100, [this]() {
-    if (api::global_api_server->is_connected() && this->api_connection_ != nullptr) {
-      this->flush_pending_advertisements_();
-      return;
-    }
-    for (uint8_t i = 0; i < this->connection_count_; i++) {
-      auto *connection = this->connections_[i];
-      if (connection->get_address() != 0 && !connection->disconnect_pending()) {
-        connection->disconnect();
-      }
-    }
-  });
 }
 
 void BluetoothProxy::on_scanner_state(esp32_ble_tracker::ScannerState state) {
@@ -133,6 +120,25 @@ void BluetoothProxy::dump_config() {
                 YESNO(this->active_), this->connection_count_);
 }
 
+void BluetoothProxy::loop() {
+  // Run advertisement flush / connection cleanup every 100ms
+  uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_advertisement_flush_time_ < 100)
+    return;
+  this->last_advertisement_flush_time_ = now;
+
+  if (api::global_api_server->is_connected() && this->api_connection_ != nullptr) {
+    this->flush_pending_advertisements_();
+    return;
+  }
+  for (uint8_t i = 0; i < this->connection_count_; i++) {
+    auto *connection = this->connections_[i];
+    if (connection->get_address() != 0 && !connection->disconnect_pending()) {
+      connection->disconnect();
+    }
+  }
+}
+
 esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_parser_type() {
   return esp32_ble_tracker::AdvertisementParserType::RAW_ADVERTISEMENTS;
 }
@@ -201,7 +207,6 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
         this->log_connection_info_(connection, "v3 without cache");
       }
-      uint64_to_bd_addr(msg.address, connection->remote_bda_);
       connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
       connection->set_state(espbt::ClientState::DISCOVERED);
       this->send_connections_free();
