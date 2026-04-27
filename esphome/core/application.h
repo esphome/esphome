@@ -103,6 +103,12 @@ class Application {
   void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
 
+  /// Update the cached loop component start time. Used by the scheduler before
+  /// dispatching a queued callback so callers reading
+  /// get_loop_component_start_time() inside the callback observe a fresh value
+  /// instead of one inherited from the prior loop iteration's last component.
+  void set_loop_component_start_time(uint32_t now) { this->loop_component_start_time_ = now; }
+
 // Entity register methods (generated from entity_types.h).
 // Each entity type gets two overloads:
 //   - register_<entity>(obj)                              — bare push_back
