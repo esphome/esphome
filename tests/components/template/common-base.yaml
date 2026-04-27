@@ -293,6 +293,56 @@ cover:
             cover.is_closed: template_cover_with_triggers
           then:
             logger.log: Cover is closed
+  # Exercise cover.control / cover.template.publish action variants so the
+  # ControlAction / CoverPublishAction templates are instantiated for the
+  # bitmask combinations seen in real configs.
+  - platform: template
+    name: "Template Cover Bitmask"
+    id: template_cover_bitmask
+    has_position: true
+    optimistic: true
+    open_action:
+      - cover.template.publish:
+          id: template_cover_bitmask
+          position: 1.0
+      - cover.template.publish:
+          id: template_cover_bitmask
+          current_operation: IDLE
+    close_action:
+      - cover.template.publish:
+          id: template_cover_bitmask
+          position: 0.0
+          tilt: 0.0
+    stop_action:
+      - cover.template.publish:
+          id: template_cover_bitmask
+          current_operation: IDLE
+    tilt_action:
+      - lambda: |-
+          id(template_cover_bitmask).tilt = tilt;
+          id(template_cover_bitmask).publish_state();
+    on_idle:
+      # mask = position only
+      - cover.control:
+          id: template_cover_bitmask
+          position: 50%
+      # mask = tilt only
+      - cover.control:
+          id: template_cover_bitmask
+          tilt: 75%
+      # mask = position + tilt
+      - cover.control:
+          id: template_cover_bitmask
+          position: 25%
+          tilt: 30%
+      # mask = stop
+      - cover.control:
+          id: template_cover_bitmask
+          stop: true
+      # CONF_STATE alias for position bit
+      - cover.control:
+          id: template_cover_bitmask
+          state: OPEN
 
 number:
   - platform: template
