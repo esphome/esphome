@@ -166,9 +166,9 @@ void ESP32BLETracker::loop() {
   ClientStateCounts counts = this->count_client_states_();
   if (counts != this->client_state_counts_) {
     this->client_state_counts_ = counts;
-    ESP_LOGD(TAG, "connecting: %d, discovered: %d, disconnecting: %d, active: %d", this->client_state_counts_.connecting,
-             this->client_state_counts_.discovered, this->client_state_counts_.disconnecting,
-             this->client_state_counts_.active);
+    ESP_LOGD(TAG, "connecting: %d, discovered: %d, disconnecting: %d, active: %d",
+             this->client_state_counts_.connecting, this->client_state_counts_.discovered,
+             this->client_state_counts_.disconnecting, this->client_state_counts_.active);
   }
 
   // Scanner failure: reached when set_scanner_state_(FAILED) or scan_set_param_failed_ set
