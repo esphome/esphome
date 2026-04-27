@@ -4,6 +4,9 @@ from esphome.components import display, esp32, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_BRIGHTNESS, CONF_ID, CONF_LAMBDA, CONF_ON_TOUCH
 from esphome.core import CORE, TimePeriod
+import logging
+
+_LOGGER = logging.getLogger(__name__)
 
 from . import (  # noqa: F401  pylint: disable=unused-import
     FILTER_SOURCE_FILES,
@@ -54,6 +57,14 @@ NextionSetBrightnessAction = nextion_ns.class_(
     "NextionSetBrightnessAction", automation.Action
 )
 
+def _validate_dump_device_info(config):
+    if CONF_DUMP_DEVICE_INFO in config:
+        _LOGGER.warning(
+            "'dump_device_info' is deprecated and will be removed in ESPHome 2026.11.0. "
+            "Device info is now always logged at connection time. "
+            "Please remove this option from your configuration."
+        )
+    return config
 
 def _validate_tft_upload(config):
     has_tft_url = CONF_TFT_URL in config
@@ -81,7 +92,8 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=TimePeriod(milliseconds=255)),
             ),
-            cv.Optional(CONF_DUMP_DEVICE_INFO, default=False): cv.boolean,
+            # Deprecated — device info is now always logged. Remove before 2026.11.0.
+            cv.Optional(CONF_DUMP_DEVICE_INFO): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
             cv.Optional(CONF_MAX_QUEUE_AGE, default="8000ms"): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -128,6 +140,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("5s"))
     .extend(uart.UART_DEVICE_SCHEMA),
+    _validate_dump_device_info,
     _validate_tft_upload,
 )
 
@@ -276,9 +289,6 @@ async def to_code(config):
         cg.add(var.set_start_up_page(config[CONF_START_UP_PAGE]))
 
     cg.add(var.set_auto_wake_on_touch(config[CONF_AUTO_WAKE_ON_TOUCH]))
-
-    if config[CONF_DUMP_DEVICE_INFO]:
-        cg.add_define("USE_NEXTION_CONFIG_DUMP_DEVICE_INFO")
 
     if config[CONF_EXIT_REPARSE_ON_START]:
         cg.add_define("USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START")
