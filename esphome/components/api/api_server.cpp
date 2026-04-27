@@ -30,6 +30,11 @@ APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 APIServer::APIServer() { global_api_server = this; }
 
+// Custom deleter defined here so `delete` sees the complete APIConnection type.
+// This prevents libc++ from emitting an "incomplete type" error when other
+// translation units only have the forward declaration of APIConnection.
+void APIServer::APIConnectionDeleter::operator()(APIConnection *p) const { delete p; }
+
 void APIServer::socket_failed_(const LogString *msg) {
   ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
   this->destroy_socket_();
