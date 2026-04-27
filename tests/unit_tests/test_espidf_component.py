@@ -12,8 +12,8 @@ from esphome.const import (
     Platform,
 )
 from esphome.core import CORE, Library
-import esphome.espidf_component
-from esphome.espidf_component import (
+import esphome.esp32.espidf_component
+from esphome.esp32.espidf_component import (
     GitSource,
     IDFComponent,
     InvalidIDFComponent,
@@ -274,7 +274,7 @@ def test_convert_library_registry(monkeypatch):
     lib = Library("foo/bar", "^1.0.0", None)
 
     monkeypatch.setattr(
-        esphome.espidf_component,
+        esphome.esp32.espidf_component,
         "_get_package_from_pio_registry",
         lambda o, n, r: ("foo", "bar", "1.2.3", "http://example.com/pkg.zip"),
     )
@@ -297,14 +297,16 @@ def test_process_dependencies_adds_valid_dependency(tmp_component, monkeypatch):
     }
 
     monkeypatch.setattr(
-        esphome.espidf_component,
+        esphome.esp32.espidf_component,
         "_generate_idf_component",
-        lambda lib: esphome.espidf_component.IDFComponent(
+        lambda lib: esphome.esp32.espidf_component.IDFComponent(
             lib.name, lib.version, source=URLSource("http://dummy.com")
         ),
     )
 
-    monkeypatch.setattr(esphome.espidf_component, "_check_library_data", lambda x: None)
+    monkeypatch.setattr(
+        esphome.esp32.espidf_component, "_check_library_data", lambda x: None
+    )
 
     _process_dependencies(tmp_component)
 

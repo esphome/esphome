@@ -720,7 +720,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
 
     if CORE.using_native_idf:
-        from esphome import espidf_api
+        from esphome.esp32 import espidf_api
 
         rc = espidf_api.run_compile(config, CORE.verbose)
         if rc != 0:
@@ -835,7 +835,7 @@ def upload_using_esptool(
     if file is not None:
         flash_images = [platformio_api.FlashImage(path=file, offset="0x0")]
     elif CORE.using_native_idf:
-        from esphome import espidf_api
+        from esphome.esp32 import espidf_api
 
         flash_images = [
             platformio_api.FlashImage(

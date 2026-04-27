@@ -10,7 +10,7 @@ import subprocess
 
 from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE, KEY_IDF_VERSION
 from esphome.core import CORE, EsphomeError
-from esphome.espidf_framework import check_esp_idf_install, get_framework_env
+from esphome.esp32.espidf_framework import check_esp_idf_install, get_framework_env
 
 _LOGGER = logging.getLogger(__name__)
 

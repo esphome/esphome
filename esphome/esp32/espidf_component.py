@@ -15,7 +15,7 @@ from esphome import git, yaml_util
 from esphome.components.const import CONF_GENERATED
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, Library
-from esphome.espidf_framework import (
+from esphome.esp32.espidf_framework import (
     archive_extract_all,
     auto_cleanup_dir,
     download_from_mirrors,
