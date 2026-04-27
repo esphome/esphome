@@ -19,6 +19,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -82,12 +83,16 @@ def event_schema(
     return _EVENT_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_EVENT, "add_on_event_callback", [(cg.StringRef, "event_type")]
+    ),
+)
+
+
 @setup_entity("event")
 async def setup_event_core_(var, config, *, event_types: list[str]):
-    for conf in config.get(CONF_ON_EVENT, []):
-        await automation.build_callback_automation(
-            var, "add_on_event_callback", [(cg.StringRef, "event_type")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     cg.add(var.set_event_types(event_types))
 
@@ -104,7 +109,7 @@ async def setup_event_core_(var, config, *, event_types: list[str]):
 async def register_event(var, config, *, event_types: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_event(var))
+    queue_entity_register("event", config)
     CORE.register_platform_component("event", var)
     await setup_event_core_(var, config, event_types=event_types)
 

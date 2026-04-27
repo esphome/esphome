@@ -33,6 +33,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VARIANT,
     CONF_VERSION,
+    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_NAME,
@@ -44,6 +45,7 @@ from esphome.const import (
     __version__,
 )
 from esphome.core import CORE, HexInt
+from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
@@ -127,22 +129,29 @@ ASSERTION_LEVELS = {
 SIGNING_SCHEMES = {
     "rsa3072": "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME",
     "ecdsa256": "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME",
+    "ecdsa_v1": "CONFIG_SECURE_SIGNED_APPS_ECDSA_SCHEME",
 }
 
-# Chip variants that only support one signing scheme for Secure Boot V2.
+# Chip variants that only support one V2 signing scheme.
 # Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h.
-# Variants not listed in either set support both RSA and ECDSA
+# Variants not listed in either set support both RSA and ECDSA V2
 # (e.g. C5, C6, H2, P4). New variants should be added to the
 # appropriate set if they only support one scheme.
-SIGNED_OTA_RSA_ONLY_VARIANTS = {
-    VARIANT_ESP32,
+# Note: VARIANT_ESP32 is not listed here because it supports V2 RSA only
+# when minimum_chip_revision >= 3.0, which requires special handling.
+SIGNED_OTA_V2_RSA_ONLY_VARIANTS = {
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     VARIANT_ESP32C3,
 }
-SIGNED_OTA_ECC_ONLY_VARIANTS = {
+SIGNED_OTA_V2_ECC_ONLY_VARIANTS = {
     VARIANT_ESP32C2,
     VARIANT_ESP32C61,
+}
+# V1 ECDSA (Secure Boot V1) is only supported on the original ESP32.
+# Based on SOC_SECURE_BOOT_V1 in soc_caps.h.
+SIGNED_OTA_V1_ECDSA_VARIANTS = {
+    VARIANT_ESP32,
 }
 
 COMPILER_OPTIMIZATIONS = {
@@ -670,11 +679,12 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 7),
-    "latest": cv.Version(3, 3, 7),
-    "dev": cv.Version(3, 3, 7),
+    "recommended": cv.Version(3, 3, 8),
+    "latest": cv.Version(3, 3, 8),
+    "dev": cv.Version(3, 3, 8),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(3, 3, 8): cv.Version(55, 3, 38, "1"),
     cv.Version(3, 3, 7): cv.Version(55, 3, 37),
     cv.Version(3, 3, 6): cv.Version(55, 3, 36),
     cv.Version(3, 3, 5): cv.Version(55, 3, 35),
@@ -694,6 +704,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(3, 3, 8): cv.Version(5, 5, 4),
     cv.Version(3, 3, 7): cv.Version(5, 5, 3, "1"),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
     cv.Version(3, 3, 5): cv.Version(5, 5, 2),
@@ -713,17 +724,15 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 3, "1"),
-    "latest": cv.Version(5, 5, 3, "1"),
+    "recommended": cv.Version(5, 5, 4),
+    "latest": cv.Version(5, 5, 4),
     "dev": cv.Version(5, 5, 4),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
-    cv.Version(
-        5, 5, 4
-    ): "https://github.com/pioarduino/platform-espressif32.git#develop",
+    cv.Version(5, 5, 4): cv.Version(55, 3, 38, "1"),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),
@@ -743,8 +752,8 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 37),
-    "latest": cv.Version(55, 3, 37),
+    "recommended": cv.Version(55, 3, 38, "1"),
+    "latest": cv.Version(55, 3, 38, "1"),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
@@ -990,25 +999,73 @@ def final_validate(config):
     if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
         scheme = signed_ota[CONF_SIGNING_SCHEME]
         variant = config[CONF_VARIANT]
-        scheme_variant_conflicts = {
-            "ecdsa256": (SIGNED_OTA_RSA_ONLY_VARIANTS, "rsa3072"),
-            "rsa3072": (SIGNED_OTA_ECC_ONLY_VARIANTS, "ecdsa256"),
-        }
-        if (conflict := scheme_variant_conflicts.get(scheme)) and variant in conflict[
-            0
-        ]:
+        min_rev = advanced.get(CONF_MINIMUM_CHIP_REVISION)
+        scheme_path = [
+            CONF_FRAMEWORK,
+            CONF_ADVANCED,
+            CONF_SIGNED_OTA_VERIFICATION,
+            CONF_SIGNING_SCHEME,
+        ]
+
+        # V1 ECDSA is only available on the original ESP32
+        if scheme == "ecdsa_v1" and variant not in SIGNED_OTA_V1_ECDSA_VARIANTS:
             errs.append(
                 cv.Invalid(
-                    f"Signing scheme '{scheme}' is not supported on "
-                    f"{VARIANT_FRIENDLY[variant]}. Use '{conflict[1]}' instead.",
-                    path=[
-                        CONF_FRAMEWORK,
-                        CONF_ADVANCED,
-                        CONF_SIGNED_OTA_VERIFICATION,
-                        CONF_SIGNING_SCHEME,
-                    ],
+                    f"Signing scheme 'ecdsa_v1' is only supported on "
+                    f"{VARIANT_FRIENDLY[VARIANT_ESP32]}. "
+                    f"Use 'rsa3072' or 'ecdsa256' instead.",
+                    path=scheme_path,
                 )
             )
+        elif variant == VARIANT_ESP32:
+            # On ESP32, V2 RSA requires minimum_chip_revision >= 3.0
+            # Note: string comparison works here because cv.one_of constrains
+            # min_rev to known ESP32_CHIP_REVISIONS values ("0.0".."3.1").
+            if scheme == "rsa3072" and (min_rev is None or min_rev < "3.0"):
+                errs.append(
+                    cv.Invalid(
+                        f"Signing scheme 'rsa3072' on {VARIANT_FRIENDLY[variant]} "
+                        f"requires minimum_chip_revision: '3.0' or higher "
+                        f"(Secure Boot V2 RSA needs chip revision 3.0+). "
+                        f"For older chip revisions, use 'ecdsa_v1' instead.",
+                        path=scheme_path,
+                    )
+                )
+            # ESP32 does not support V2 ECDSA (no SOC_SECURE_BOOT_V2_ECC)
+            elif scheme == "ecdsa256":
+                errs.append(
+                    cv.Invalid(
+                        f"Signing scheme 'ecdsa256' is not supported on "
+                        f"{VARIANT_FRIENDLY[variant]}. Use 'rsa3072' (with "
+                        f"minimum_chip_revision: '3.0') or 'ecdsa_v1' instead.",
+                        path=scheme_path,
+                    )
+                )
+            # V1 on rev 3.0+ -- suggest V2 RSA for stronger security
+            elif scheme == "ecdsa_v1" and min_rev is not None and min_rev >= "3.0":
+                _LOGGER.info(
+                    "Using Secure Boot V1 ECDSA on %s rev %s. "
+                    "Consider using 'rsa3072' (Secure Boot V2 RSA) for "
+                    "stronger security on chip revision 3.0+.",
+                    VARIANT_FRIENDLY[variant],
+                    min_rev,
+                )
+        else:
+            # Non-ESP32 variants: check V2 scheme-variant compatibility
+            scheme_variant_conflicts = {
+                "ecdsa256": (SIGNED_OTA_V2_RSA_ONLY_VARIANTS, "rsa3072"),
+                "rsa3072": (SIGNED_OTA_V2_ECC_ONLY_VARIANTS, "ecdsa256"),
+            }
+            if (
+                conflict := scheme_variant_conflicts.get(scheme)
+            ) and variant in conflict[0]:
+                errs.append(
+                    cv.Invalid(
+                        f"Signing scheme '{scheme}' is not supported on "
+                        f"{VARIANT_FRIENDLY[variant]}. Use '{conflict[1]}' instead.",
+                        path=scheme_path,
+                    )
+                )
         if CONF_OTA not in full_config:
             _LOGGER.warning(
                 "Signed OTA verification is enabled but no OTA component is configured. "
@@ -1057,6 +1114,7 @@ CONF_DISABLE_MBEDTLS_PEER_CERT = "disable_mbedtls_peer_cert"
 CONF_DISABLE_MBEDTLS_PKCS7 = "disable_mbedtls_pkcs7"
 CONF_DISABLE_REGI2C_IN_IRAM = "disable_regi2c_in_iram"
 CONF_DISABLE_FATFS = "disable_fatfs"
+CONF_ADC_ONESHOT_IN_IRAM = "adc_oneshot_in_iram"
 
 # VFS requirement tracking
 # Components that need VFS features can call require_vfs_*() functions
@@ -1070,6 +1128,7 @@ KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
 KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
 KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
+KEY_ADC_ONESHOT_IRAM_REQUIRED = "adc_oneshot_iram_required"
 
 
 def require_vfs_select() -> None:
@@ -1167,6 +1226,17 @@ def require_fatfs() -> None:
     CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
 
 
+def require_adc_oneshot_iram() -> None:
+    """Mark that ADC oneshot IRAM safety is required by a component.
+
+    Call this from components that use the ADC oneshot driver. When flash cache is
+    disabled (e.g., during NVS writes by WiFi, BLE, Zigbee, or power management),
+    the ADC oneshot read function must be in IRAM to avoid crashes.
+    This sets CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM.
+    """
+    CORE.data[KEY_ESP32][KEY_ADC_ONESHOT_IRAM_REQUIRED] = True
+
+
 def _parse_idf_component(value: str) -> ConfigType:
     """Parse IDF component shorthand syntax like 'owner/component^version'"""
     # Match operator followed by version-like string (digit or *)
@@ -1208,7 +1278,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False): cv.boolean,
                 cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
                 cv.Optional(CONF_MINIMUM_CHIP_REVISION): cv.one_of(
-                    *ESP32_CHIP_REVISIONS
+                    *ESP32_CHIP_REVISIONS, string=True
                 ),
                 cv.Optional(CONF_SRAM1_AS_IRAM, default=False): cv.boolean,
                 # DHCP server is needed for WiFi AP mode. When WiFi component is used,
@@ -1267,6 +1337,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_MBEDTLS_PEER_CERT, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_PKCS7, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_REGI2C_IN_IRAM, default=True): cv.boolean,
+                cv.Optional(CONF_ADC_ONESHOT_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_DISABLE_FATFS, default=True): cv.boolean,
             }
         ),
@@ -1403,7 +1474,9 @@ CONF_PARTITIONS = "partitions"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_BOARD): cv.string_strict,
+            cv.Optional(CONF_BOARD): cv.All(
+                cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
+            ),
             cv.Optional(CONF_CPU_FREQUENCY): cv.one_of(
                 *FULL_CPU_FREQUENCIES, upper=True
             ),
@@ -1435,6 +1508,10 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
+            cv.Optional(CONF_WATCHDOG_TIMEOUT, default="5s"): cv.All(
+                cv.positive_time_period_seconds,
+                cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
+            ),
         }
     ),
     _detect_variant,
@@ -1652,6 +1729,10 @@ async def to_code(config):
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
         if use_platformio:
             cg.add_platformio_option("framework", "espidf")
+            # Strip volatile build path/time metadata from PlatformIO-managed
+            # ESP-IDF builds so equivalent projects can produce reproducible
+            # outputs and downstream tooling can safely reuse artifacts.
+            add_idf_sdkconfig_option("CONFIG_APP_REPRODUCIBLE_BUILD", True)
 
         # Wrap std::__throw_* functions to abort immediately, eliminating ~3KB of
         # exception class overhead. See throw_stubs.cpp for implementation.
@@ -1802,6 +1883,10 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
+    add_idf_sdkconfig_option(
+        "CONFIG_ESP_TASK_WDT_TIMEOUT_S",
+        config[CONF_WATCHDOG_TIMEOUT].total_seconds,
+    )
 
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
@@ -2064,6 +2149,16 @@ async def to_code(config):
     # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
     if advanced[CONF_DISABLE_REGI2C_IN_IRAM]:
         add_idf_sdkconfig_option("CONFIG_ESP_REGI2C_CTRL_FUNC_IN_IRAM", False)
+
+    # Place ADC oneshot control functions in IRAM for cache safety
+    # When flash cache is disabled (during NVS writes by WiFi, BLE, Zigbee, Thread,
+    # power management, etc.), ADC reads will crash if these functions are in flash.
+    # Components using ADC call require_adc_oneshot_iram() to force this.
+    if (
+        CORE.data[KEY_ESP32].get(KEY_ADC_ONESHOT_IRAM_REQUIRED, False)
+        or advanced[CONF_ADC_ONESHOT_IN_IRAM]
+    ):
+        add_idf_sdkconfig_option("CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM", True)
 
     # Disable FATFS support
     # Components that need FATFS (SD card, etc.) can call require_fatfs()

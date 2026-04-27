@@ -161,7 +161,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   container->response_headers_.clear();
   auto header_count = container->client_.headers();
   for (int i = 0; i < header_count; i++) {
-    const std::string header_name = str_lower_case(container->client_.headerName(i).c_str());
+    const std::string header_name = str_lower_case(container->client_.headerName(i).c_str());  // NOLINT
     if (should_collect_header(lower_case_collect_headers, header_name)) {
       std::string header_value = container->client_.header(i).c_str();
       ESP_LOGD(TAG, "Received response header, name: %s, value: %s", header_name.c_str(), header_value.c_str());

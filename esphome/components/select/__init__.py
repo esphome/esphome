@@ -19,7 +19,11 @@ from esphome.const import (
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass, TemplateArguments
 from esphome.cpp_types import global_ns
 
@@ -113,7 +117,7 @@ async def setup_select_core_(var, config, *, options: list[str]):
 async def register_select(var, config, *, options: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_select(var))
+    queue_entity_register("select", config)
     CORE.register_platform_component("select", var)
     await setup_select_core_(var, config, options=options)
 
@@ -279,10 +283,14 @@ async def select_operation_to_code(config, action_id, template_arg, args):
         op_ = await cg.templatable(operation, args, SelectOperation)
         cg.add(var.set_operation(op_))
         if (cycle := config.get(CONF_CYCLE)) is not None:
-            template_ = await cg.templatable(cycle, args, bool)
+            template_ = await cg.templatable(cycle, args, cg.bool_)
             cg.add(var.set_cycle(template_))
     if (mode := config.get(CONF_MODE)) is not None:
-        cg.add(var.set_operation(SELECT_OPERATION_OPTIONS[mode]))
+        template_ = await cg.templatable(
+            SELECT_OPERATION_OPTIONS[mode], args, SelectOperation
+        )
+        cg.add(var.set_operation(template_))
         if (cycle := config.get(CONF_CYCLE)) is not None:
-            cg.add(var.set_cycle(cycle))
+            template_ = await cg.templatable(cycle, args, cg.bool_)
+            cg.add(var.set_cycle(template_))
     return var

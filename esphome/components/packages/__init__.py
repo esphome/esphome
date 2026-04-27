@@ -6,7 +6,15 @@ from pathlib import Path
 from typing import Any
 
 from esphome import git, yaml_util
-from esphome.components.substitutions import ContextVars, push_context, substitute
+from esphome.components.substitutions import (
+    ContextVars,
+    ErrList,
+    push_context,
+    raise_first_undefined,
+    resolve_include,
+    resolve_substitutions_block,
+    substitute,
+)
 from esphome.components.substitutions.jinja import has_jinja
 from esphome.config_helpers import Remove, merge_config
 import esphome.config_validation as cv
@@ -31,11 +39,30 @@ from esphome.core import EsphomeError
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = CONF_PACKAGES
+# Guard against infinite include chains (e.g. A includes B includes A).
+MAX_INCLUDE_DEPTH = 20
+
+PackageCallback = Callable[
+    [dict | str | yaml_util.IncludeFile, ContextVars | None, yaml_util.DocumentPath],
+    dict,
+]
 
 
 def is_remote_package(package_config: dict) -> bool:
     """Returns True if the package_config is a remote package definition."""
     return CONF_URL in package_config
+
+
+def is_package_definition(value: object) -> bool:
+    """Returns True if the value looks like a package definition rather than a config fragment.
+
+    Package definitions are IncludeFile objects, git URL shorthand strings, or
+    remote package dicts (containing a ``url:`` key).  Config fragments are
+    plain dicts that represent component configuration.
+    """
+    return isinstance(value, (yaml_util.IncludeFile, str)) or (
+        isinstance(value, dict) and is_remote_package(value)
+    )
 
 
 def valid_package_contents(package_config: dict) -> dict:
@@ -59,8 +86,8 @@ def valid_package_contents(package_config: dict) -> dict:
     for k, v in package_config.items():
         if not isinstance(k, str):
             raise cv.Invalid("Package content keys must be strings")
-        if isinstance(v, (dict, list, Remove)):
-            continue  # e.g. script: [], psram: !remove, logger: {level: debug}
+        if isinstance(v, (dict, list, Remove, yaml_util.IncludeFile)):
+            continue  # e.g. script: [], psram: !remove, logger: {level: debug}, switch: !include switches.yaml
         if v is None:
             continue  # e.g. web_server:
         if isinstance(v, str) and has_jinja(v):
@@ -160,6 +187,7 @@ REMOTE_PACKAGE_SCHEMA = cv.All(
 PACKAGE_SCHEMA = cv.Any(  # A package definition is either:
     validate_source_shorthand,  # A git URL shorthand string that expands to a remote package schema, or
     REMOTE_PACKAGE_SCHEMA,  # a valid remote package schema, or
+    yaml_util.IncludeFile,  # isinstance check — passes IncludeFile objects through unchanged, or:
     valid_package_contents,  # Something that at least looks like an actual package, e.g. {wifi:{ssid: xxx}}
     # which will have to be fully validated later as per each component's schema.
 )
@@ -177,7 +205,7 @@ CONFIG_SCHEMA = cv.Any(  # under `packages:` we can have either:
 )
 
 
-def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
+def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     """Clone/update a git repo and load the YAML files listed in the package definition.
 
     Returns ``{"packages": {<filename>: <loaded_yaml>, ...}}`` so the caller
@@ -187,11 +215,10 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     If loading fails after cloning, attempts a revert and retry in case
     a prior cached checkout is stale.
     """
-    actual_refresh = git.NEVER_REFRESH if skip_update else config[CONF_REFRESH]
     repo_dir, revert = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
-        refresh=actual_refresh,
+        refresh=config[CONF_REFRESH],
         domain=DOMAIN,
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
@@ -258,8 +285,9 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
 
 def _walk_package_dict(
     packages: dict,
-    callback: Callable[[dict, ContextVars | None], dict],
+    callback: PackageCallback,
     context: ContextVars | None,
+    path: yaml_util.DocumentPath,
 ) -> cv.Invalid | None:
     """Iterate a packages dict in reverse priority order, invoking callback on each entry.
 
@@ -268,7 +296,9 @@ def _walk_package_dict(
     for package_name, package_config in reversed(packages.items()):
         with cv.prepend_path(package_name):
             try:
-                packages[package_name] = callback(package_config, context)
+                packages[package_name] = callback(
+                    package_config, context, path + [package_name]
+                )
             except cv.Invalid as err:
                 return err
     return None
@@ -276,20 +306,22 @@ def _walk_package_dict(
 
 def _walk_package_list(
     packages: list,
-    callback: Callable[[dict, ContextVars | None], dict],
+    callback: PackageCallback,
     context: ContextVars | None,
+    path: yaml_util.DocumentPath,
 ) -> None:
     """Iterate a packages list in reverse priority order, invoking callback on each entry."""
     for idx in reversed(range(len(packages))):
         with cv.prepend_path(idx):
-            packages[idx] = callback(packages[idx], context)
+            packages[idx] = callback(packages[idx], context, path + [idx])
 
 
 def _walk_packages(
     config: dict,
-    callback: Callable[[dict, ContextVars | None], dict],
+    callback: PackageCallback,
     context: ContextVars | None = None,
     validate_deprecated: bool = True,
+    path: yaml_util.DocumentPath | None = None,
 ) -> dict:
     """Walks the packages structure in priority order, invoking ``callback`` on each package definition found.
 
@@ -300,32 +332,44 @@ def _walk_packages(
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
-
-    if not isinstance(packages, (dict, list)):
-        raise cv.Invalid(
-            f"Packages must be a key to value mapping or list, got {type(packages)} instead"
-        )
+    packages_path = (path or []) + [CONF_PACKAGES]
 
     with cv.prepend_path(CONF_PACKAGES):
+        if isinstance(packages, yaml_util.IncludeFile):
+            # If the packages key is an IncludeFile, resolve it first before processing.
+            packages = resolve_include(
+                packages, packages_path, context, strict_undefined=False
+            )
+        if not isinstance(packages, (dict, list)):
+            raise cv.Invalid(
+                f"Packages must be a key to value mapping or list, got {type(packages)} instead"
+            )
+
         if not isinstance(packages, dict):
-            _walk_package_list(packages, callback, context)
-        elif (result := _walk_package_dict(packages, callback, context)) is not None:
-            if not validate_deprecated:
+            _walk_package_list(packages, callback, context, packages_path)
+        elif (
+            result := _walk_package_dict(packages, callback, context, packages_path)
+        ) is not None:
+            if not validate_deprecated or any(
+                is_package_definition(v) for v in packages.values()
+            ):
                 raise result
             # Fallback: treat the dict as a single deprecated package.
-            # Note: this catches *any* cv.Invalid from the callback, which may
-            # mask real validation errors in named package dicts.
             # This block can be removed once the single-package
             # deprecation period (2026.7.0) is over.
             config[CONF_PACKAGES] = [packages]
-            return _walk_packages(deprecate_single_package(config), callback, context)
+            return _walk_packages(
+                deprecate_single_package(config), callback, context, path=path
+            )
 
     config[CONF_PACKAGES] = packages
     return config
 
 
 def _substitute_package_definition(
-    package_config: dict | str, context_vars: ContextVars | None
+    package_config: dict | str,
+    context_vars: ContextVars | None,
+    path: yaml_util.DocumentPath | None = None,
 ) -> dict | str:
     """Substitute variables in a package definition string or remote package dict.
 
@@ -333,15 +377,37 @@ def _substitute_package_definition(
     Local package contents are left untouched — they will be substituted
     later during the main substitution pass.
     """
-    if isinstance(package_config, str) or (
-        isinstance(package_config, dict) and is_remote_package(package_config)
-    ):
+
+    def do_substitute(package_config: dict | str) -> dict | str:
+        # Collect undefined-variable errors (rather than raising strict) so the
+        # path walked through a remote-package dict is preserved and the user
+        # sees which field (url / path / ref / ...) referenced the undefined
+        # variable.
+        errors: ErrList = []
         package_config = substitute(
             item=package_config,
-            path=[],
+            path=path or [],
             parent_context=context_vars or ContextVars(),
             strict_undefined=False,
+            errors=errors,
         )
+        raise_first_undefined(errors, "package definition")
+        return package_config
+
+    if isinstance(package_config, str):
+        return do_substitute(package_config)
+
+    if isinstance(package_config, dict) and is_remote_package(package_config):
+        # Mark vars as literal to avoid substituting variables in the vars block itself, since they are meant to be
+        # passed as-is to the package YAML and may contain their own substitution expressions that should not
+        # be prematurely evaluated here.
+        if CONF_FILES in package_config:
+            for file_def in package_config[CONF_FILES]:
+                if isinstance(file_def, dict) and CONF_VARS in file_def:
+                    file_def[CONF_VARS] = yaml_util.make_literal(file_def[CONF_VARS])
+
+        package_config = do_substitute(package_config)
+
     return package_config
 
 
@@ -389,25 +455,57 @@ class _PackageProcessor:
         self,
         substitutions: UserDict,
         command_line_substitutions: dict[str, Any] | None,
-        skip_update: bool,
     ) -> None:
         self.substitutions = substitutions
         self.parent_context = UserDict(command_line_substitutions or {})
-        self.skip_update = skip_update
 
     def resolve_package(
-        self, package_config: dict | str, context_vars: ContextVars | None
+        self,
+        package_config: dict | str | yaml_util.IncludeFile,
+        context_vars: ContextVars | None,
+        path: yaml_util.DocumentPath,
     ) -> dict:
-        """Substitute variables in the definition and fetch remote packages.
+        """Resolve a package definition to a concrete ``dict`` and fetch remote packages.
 
-        The input may be a ``str`` (git shorthand or Jinja expression) or a
-        ``dict`` (remote or local package).  After ``PACKAGE_SCHEMA`` validation
-        the result is always a ``dict``.
+        The input may be a ``str`` (git shorthand or Jinja expression), a
+        ``dict`` (remote or local package), or an ``IncludeFile`` whose filename
+        may itself contain substitution expressions.
+
+        The loop handles the case where loading an ``IncludeFile`` yields another
+        ``IncludeFile`` (e.g. a chain of deferred includes).  Each iteration:
+
+        1. If the current value is an ``IncludeFile``, load it — resolving any
+           substitutions in its filename first.
+        2. Substitute variables in the resulting value (for strings and remote
+           package dicts).
+        3. Validate against ``PACKAGE_SCHEMA``.  If the result is a ``dict``,
+           the loop exits; otherwise another iteration is needed.
+
+        Raises ``cv.Invalid`` if the chain has not resolved to a ``dict`` after
+        ``MAX_INCLUDE_DEPTH`` iterations.
         """
-        package_config = _substitute_package_definition(package_config, context_vars)
-        package_config = PACKAGE_SCHEMA(package_config)
+        for _ in range(MAX_INCLUDE_DEPTH):
+            if isinstance(package_config, yaml_util.IncludeFile):
+                package_config = resolve_include(
+                    package_config,
+                    path,
+                    context_vars or ContextVars(),
+                    strict_undefined=False,
+                )
+
+            package_config = _substitute_package_definition(
+                package_config, context_vars, path
+            )
+            package_config = PACKAGE_SCHEMA(package_config)
+            if isinstance(package_config, dict):
+                break
+        else:
+            raise cv.Invalid(
+                f"Maximum include nesting depth ({MAX_INCLUDE_DEPTH}) exceeded"
+            )
+
         if is_remote_package(package_config):
-            package_config = _process_remote_package(package_config, self.skip_update)
+            package_config = _process_remote_package(package_config)
         return package_config
 
     def collect_substitutions(self, package_config: dict) -> None:
@@ -417,10 +515,16 @@ class _PackageProcessor:
             _update_substitutions_context(self.parent_context, subs)
 
     def process_package(
-        self, package_config: dict | str, context_vars: ContextVars | None
+        self,
+        package_config: dict | str,
+        context_vars: ContextVars | None,
+        path: yaml_util.DocumentPath,
     ) -> dict:
         """Resolve a single package and recurse into any nested packages."""
-        package_config = self.resolve_package(package_config, context_vars)
+        from_remote = isinstance(package_config, dict) and is_remote_package(
+            package_config
+        )
+        package_config = self.resolve_package(package_config, context_vars, path)
         self.collect_substitutions(package_config)
 
         if CONF_PACKAGES not in package_config:
@@ -429,15 +533,26 @@ class _PackageProcessor:
         # Push context from !include vars on the package root and on the packages key
         context_vars = push_context(package_config, context_vars)
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
-        return _walk_packages(package_config, self.process_package, context_vars)
+        # Disable the deprecated single-package fallback for remote
+        # packages.  _process_remote_package returns dicts with
+        # already-resolved values that is_package_definition cannot
+        # distinguish from config fragments, so the fallback would
+        # always fire and mask real errors with wrong paths
+        # (packages->0 instead of packages-><name>).
+        return _walk_packages(
+            package_config,
+            self.process_package,
+            context_vars,
+            validate_deprecated=not from_remote,
+            path=path,
+        )
 
 
 def do_packages_pass(
-    config: dict,
+    config: dict[str, Any],
     *,
     command_line_substitutions: dict[str, Any] | None = None,
-    skip_update: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Load, validate, and flatten all packages in the config.
 
     Returns the config with all packages loaded in-place (but not yet merged)
@@ -446,10 +561,13 @@ def do_packages_pass(
     if CONF_PACKAGES not in config:
         return config
 
-    substitutions = UserDict(config.pop(CONF_SUBSTITUTIONS, {}))
-    processor = _PackageProcessor(
-        substitutions, command_line_substitutions, skip_update
-    )
+    with cv.prepend_path(CONF_SUBSTITUTIONS):
+        substitutions = UserDict(
+            resolve_substitutions_block(
+                config.pop(CONF_SUBSTITUTIONS, {}), command_line_substitutions
+            )
+        )
+    processor = _PackageProcessor(substitutions, command_line_substitutions)
     _update_substitutions_context(processor.parent_context, substitutions)
 
     context_vars = push_context(
@@ -480,11 +598,13 @@ def merge_packages(config: dict) -> dict:
     merge_list: list[dict] = []
 
     def process_package_callback(
-        package_config: dict, context: ContextVars | None
+        package_config: dict,
+        context: ContextVars | None,
+        path: yaml_util.DocumentPath | None = None,
     ) -> dict:
         """This will be called for each package found in the config."""
         merge_list.append(package_config)
-        return _walk_packages(package_config, process_package_callback)
+        return _walk_packages(package_config, process_package_callback, path=path)
 
     _walk_packages(config, process_package_callback, validate_deprecated=False)
     # Merge all packages into the main config:

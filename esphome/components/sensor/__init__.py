@@ -106,8 +106,10 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
     setup_unit_of_measurement,
@@ -117,6 +119,7 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
+
 DEVICE_CLASSES = [
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
@@ -274,6 +277,9 @@ ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
 ThrottleWithPriorityFilter = sensor_ns.class_(
     "ThrottleWithPriorityFilter", ValueListFilter
 )
+ThrottleWithPriorityNanFilter = sensor_ns.class_(
+    "ThrottleWithPriorityNanFilter", Filter
+)
 TimeoutFilterBase = sensor_ns.class_("TimeoutFilterBase", Filter, cg.Component)
 TimeoutFilterLast = sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
 TimeoutFilterConfigured = sensor_ns.class_("TimeoutFilterConfigured", TimeoutFilterBase)
@@ -289,8 +295,13 @@ SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
+RoundSignificantDigitsFilter = sensor_ns.class_("RoundSignificantDigitsFilter", Filter)
 
-validate_unit_of_measurement = cv.string_strict
+validate_unit_of_measurement = cv.All(
+    cv.string_strict,
+    # Keep in sync with max_data_length in api.proto
+    cv.ByteLength(max=UNIT_OF_MEASUREMENT_MAX_LENGTH),
+)
 validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
@@ -366,13 +377,13 @@ def sensor_schema(
 
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.templatable(cv.float_))
 async def offset_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config, [], float)
+    template_ = await cg.templatable(config, [], cg.float_)
     return cg.new_Pvariable(filter_id, template_)
 
 
 @FILTER_REGISTRY.register("multiply", MultiplyFilter, cv.templatable(cv.float_))
 async def multiply_filter_to_code(config, filter_id):
-    template_ = await cg.templatable(config, [], float)
+    template_ = await cg.templatable(config, [], cg.float_)
     return cg.new_Pvariable(filter_id, template_)
 
 
@@ -384,7 +395,7 @@ async def multiply_filter_to_code(config, filter_id):
 async def filter_out_filter_to_code(config, filter_id):
     if not isinstance(config, list):
         config = [config]
-    template_ = [await cg.templatable(x, [], float) for x in config]
+    template_ = [await cg.templatable(x, [], cg.float_) for x in config]
     return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(template_)), template_)
 
 
@@ -651,9 +662,18 @@ THROTTLE_WITH_PRIORITY_SCHEMA = cv.maybe_simple_value(
     THROTTLE_WITH_PRIORITY_SCHEMA,
 )
 async def throttle_with_priority_filter_to_code(config, filter_id):
-    if not isinstance(config[CONF_VALUE], list):
-        config[CONF_VALUE] = [config[CONF_VALUE]]
-    template_ = [await cg.templatable(x, [], float) for x in config[CONF_VALUE]]
+    values = config[CONF_VALUE]
+    if not isinstance(values, list):
+        values = [values]
+    # Specialize the common "NaN-only" case (the schema default when the user
+    # omits `value:`) to avoid the TemplatableFn<float> array + NaN lambda the
+    # generic ValueListFilter path requires. Behavior is identical: NaN sensor
+    # readings always bypass the throttle.
+    if values and all(isinstance(v, float) and math.isnan(v) for v in values):
+        filter_id = filter_id.copy()
+        filter_id.type = ThrottleWithPriorityNanFilter
+        return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT])
+    template_ = [await cg.templatable(x, [], cg.float_) for x in values]
     return cg.new_Pvariable(
         filter_id, cg.TemplateArguments(len(template_)), config[CONF_TIMEOUT], template_
     )
@@ -708,7 +728,7 @@ async def timeout_filter_to_code(config, filter_id):
     else:
         # Use TimeoutFilterConfigured for configured value mode
         filter_id.type = TimeoutFilterConfigured
-        template_ = await cg.templatable(config[CONF_VALUE], [], float)
+        template_ = await cg.templatable(config[CONF_VALUE], [], cg.float_)
         var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
     await cg.register_component(var, {})
     return var
@@ -883,28 +903,43 @@ async def round_multiple_filter_to_code(config, filter_id):
     )
 
 
+@FILTER_REGISTRY.register(
+    "round_to_significant_digits",
+    RoundSignificantDigitsFilter,
+    cv.int_range(min=1, max=6),
+)
+async def round_significant_digits_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        cg.TemplateArguments(config),
+    )
+
+
 async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_VALUE, "add_on_state_callback", [(float, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_RAW_VALUE, "add_on_raw_state_callback", [(float, "x")]
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_sensor_automations(var, config):
-    for conf_key, callback in (
-        (CONF_ON_VALUE, "add_on_state_callback"),
-        (CONF_ON_RAW_VALUE, "add_on_raw_state_callback"),
-    ):
-        for conf in config.get(conf_key, []):
-            await automation.build_callback_automation(
-                var, callback, [(float, "x")], conf
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await cg.register_component(trigger, conf)
         if (above := conf.get(CONF_ABOVE)) is not None:
-            template_ = await cg.templatable(above, [(float, "x")], float)
+            template_ = await cg.templatable(above, [(float, "x")], cg.float_)
             cg.add(trigger.set_min(template_))
         if (below := conf.get(CONF_BELOW)) is not None:
-            template_ = await cg.templatable(below, [(float, "x")], float)
+            template_ = await cg.templatable(below, [(float, "x")], cg.float_)
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
@@ -948,7 +983,7 @@ async def setup_sensor_core_(var, config):
 async def register_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_sensor(var))
+    queue_entity_register("sensor", config)
     CORE.register_platform_component("sensor", var)
     await setup_sensor_core_(var, config)
 

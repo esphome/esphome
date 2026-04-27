@@ -7,7 +7,7 @@ namespace esphome::mitsubishi_cn105 {
 static const char *const TAG = "mitsubishi_cn105.climate";
 
 static constexpr std::array MODE_MAP{
-    std::pair{MitsubishiCN105::Mode::AUTO, climate::CLIMATE_MODE_AUTO},
+    std::pair{MitsubishiCN105::Mode::AUTO, climate::CLIMATE_MODE_HEAT_COOL},
     std::pair{MitsubishiCN105::Mode::HEAT, climate::CLIMATE_MODE_HEAT},
     std::pair{MitsubishiCN105::Mode::DRY, climate::CLIMATE_MODE_DRY},
     std::pair{MitsubishiCN105::Mode::COOL, climate::CLIMATE_MODE_COOL},
@@ -32,6 +32,22 @@ static bool map_lookup(const std::array<std::pair<A, B>, N> &map, A key, B &out)
     }
   }
   return false;
+}
+
+template<typename Left, typename Right, std::size_t N>
+static constexpr std::optional<Left> reverse_map_lookup(const std::array<std::pair<Left, Right>, N> &map, Right key) {
+  for (const auto &entry : map) {
+    if (entry.second == key) {
+      return entry.first;
+    }
+  }
+  return std::nullopt;
+}
+
+template<typename Left, typename Right, std::size_t N>
+static constexpr std::optional<Left> reverse_map_lookup(const std::array<std::pair<Left, Right>, N> &map,
+                                                        const std::optional<Right> &key) {
+  return key.has_value() ? reverse_map_lookup(map, *key) : std::nullopt;
 }
 
 void MitsubishiCN105Climate::dump_config() {
@@ -60,23 +76,13 @@ void MitsubishiCN105Climate::loop() {
 climate::ClimateTraits MitsubishiCN105Climate::traits() {
   climate::ClimateTraits traits;
 
-  traits.set_supported_modes({
-      climate::CLIMATE_MODE_OFF,
-      climate::CLIMATE_MODE_COOL,
-      climate::CLIMATE_MODE_HEAT,
-      climate::CLIMATE_MODE_DRY,
-      climate::CLIMATE_MODE_FAN_ONLY,
-      climate::CLIMATE_MODE_AUTO,
-  });
+  for (const auto &p : MODE_MAP) {
+    traits.add_supported_mode(p.second);
+  }
 
-  traits.set_supported_fan_modes({
-      climate::CLIMATE_FAN_AUTO,
-      climate::CLIMATE_FAN_QUIET,
-      climate::CLIMATE_FAN_LOW,
-      climate::CLIMATE_FAN_MEDIUM,
-      climate::CLIMATE_FAN_MIDDLE,
-      climate::CLIMATE_FAN_HIGH,
-  });
+  for (const auto &p : FAN_MODE_MAP) {
+    traits.add_supported_fan_mode(p.second);
+  }
 
   traits.set_visual_min_temperature(16.0f);
   traits.set_visual_max_temperature(31.0f);
@@ -90,7 +96,28 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
   return traits;
 }
 
-void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {}
+void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {
+  if (const auto target_temperature = call.get_target_temperature()) {
+    this->hp_.set_target_temperature(*target_temperature);
+  }
+
+  if (const auto mode = call.get_mode()) {
+    if (*mode == climate::CLIMATE_MODE_OFF) {
+      this->hp_.set_power(false);
+    } else if (const auto mapped = reverse_map_lookup(MODE_MAP, *mode)) {
+      this->hp_.set_power(true);
+      this->hp_.set_mode(*mapped);
+    }
+  }
+
+  if (const auto fan_mode = reverse_map_lookup(FAN_MODE_MAP, call.get_fan_mode())) {
+    this->hp_.set_fan_mode(*fan_mode);
+  }
+
+  if (this->hp_.is_status_initialized()) {
+    this->apply_values_();
+  }
+}
 
 void MitsubishiCN105Climate::apply_values_() {
   const auto &status = this->hp_.status();
