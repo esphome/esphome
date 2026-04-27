@@ -179,9 +179,8 @@ def _resolve_effect_index(config: ConfigType) -> int:
 async def light_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
 
-    # (config_key, setter_name, c++ type) — order and bit position must match
-    # LIGHT_CONTROL_FIELDS in automation.h. CONF_EFFECT has special-case
-    # handling below (lambda or static name resolution), so its setter is None.
+    # Order/bits must match LIGHT_CONTROL_FIELDS in automation.h.
+    # EFFECT has special handling below; setter=None skips the generic loop.
     FIELDS = (
         (CONF_COLOR_MODE, "set_color_mode", ColorMode),
         (CONF_STATE, "set_state", cg.bool_),
