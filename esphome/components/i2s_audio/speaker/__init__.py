@@ -33,12 +33,15 @@ AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
 DEPENDENCIES = ["i2s_audio"]
 
-I2SAudioSpeaker = i2s_audio_ns.class_(
-    "I2SAudioSpeaker", cg.Component, speaker.Speaker, I2SAudioOut
+I2SAudioSpeakerBase = i2s_audio_ns.class_(
+    "I2SAudioSpeakerBase", cg.Component, speaker.Speaker, I2SAudioOut
 )
+I2SAudioSpeaker = i2s_audio_ns.class_("I2SAudioSpeaker", I2SAudioSpeakerBase)
 
 CONF_DAC_TYPE = "dac_type"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
+
+I2SCommFmt = i2s_audio_ns.enum("I2SCommFmt", is_class=True)
 
 i2s_dac_mode_t = cg.global_ns.enum("i2s_dac_mode_t")
 INTERNAL_DAC_OPTIONS = {
@@ -183,11 +186,11 @@ async def to_code(config):
     await speaker.register_speaker(var, config)
 
     cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
-    fmt = "std"  # equals stand_i2s, stand_pcm_long, i2s_msb, pcm_long
+    fmt = I2SCommFmt.STANDARD  # equals stand_i2s, stand_pcm_long, i2s_msb, pcm_long
     if config[CONF_I2S_COMM_FMT] in ["stand_msb", "i2s_lsb"]:
-        fmt = "msb"
+        fmt = I2SCommFmt.MSB
     elif config[CONF_I2S_COMM_FMT] in ["stand_pcm_short", "pcm_short", "pcm"]:
-        fmt = "pcm"
+        fmt = I2SCommFmt.PCM
     cg.add(var.set_i2s_comm_fmt(fmt))
     if config[CONF_TIMEOUT] != CONF_NEVER:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
