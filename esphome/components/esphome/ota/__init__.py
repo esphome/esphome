@@ -16,7 +16,7 @@ from esphome.const import (
     CONF_SAFE_MODE,
     CONF_VERSION,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import coroutine_with_priority
 from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -28,17 +28,7 @@ CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["network"]
 
 
-def supports_sha256() -> bool:
-    """Check if the current platform supports SHA256 for OTA authentication."""
-    return bool(CORE.is_esp32 or CORE.is_esp8266 or CORE.is_rp2040 or CORE.is_libretiny)
-
-
-def AUTO_LOAD() -> list[str]:
-    """Conditionally auto-load sha256 only on platforms that support it."""
-    base_components = ["md5", "socket"]
-    if supports_sha256():
-        return base_components + ["sha256"]
-    return base_components
+AUTO_LOAD = ["sha256", "socket"]
 
 
 esphome = cg.esphome_ns.namespace("esphome")
@@ -88,6 +78,14 @@ def ota_esphome_final_validate(config):
         else:
             new_ota_conf.append(ota_conf)
 
+    if len(merged_ota_esphome_configs_by_port) > 1:
+        raise cv.Invalid(
+            f"Only a single port is supported for '{CONF_OTA}' "
+            f"'{CONF_PLATFORM}: {CONF_ESPHOME}'. Got ports "
+            f"{sorted(merged_ota_esphome_configs_by_port.keys())}. Consolidate "
+            f"onto a single port; configs sharing a port are merged automatically."
+        )
+
     new_ota_conf.extend(merged_ota_esphome_configs_by_port.values())
 
     full_conf[CONF_OTA] = new_ota_conf
@@ -107,8 +105,9 @@ def _consume_ota_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for OTA component."""
     from esphome.components import socket
 
-    # OTA needs 1 listening socket (client connections are temporary during updates)
-    socket.consume_sockets(1, "ota")(config)
+    # OTA needs 1 listening socket. The active transfer connection during an update
+    # uses a TCP PCB from the general pool, covered by MIN_TCP_SOCKETS headroom.
+    socket.consume_sockets(1, "ota", socket.SocketType.TCP_LISTEN)(config)
     return config
 
 
@@ -151,16 +150,17 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
 
-    # Password could be set to an empty string and we can assume that means no password
-    if config.get(CONF_PASSWORD):
-        cg.add(var.set_auth_password(config[CONF_PASSWORD]))
+    # Compile the auth path whenever `password:` is present in YAML, even if empty.
+    # An empty password opts in to the auth code path so set_auth_password() can be
+    # called at runtime (e.g. to rotate the password from a lambda). When `password:`
+    # is omitted entirely, the auth path is excluded to save flash on small devices.
+    if CONF_PASSWORD in config:
         cg.add_define("USE_OTA_PASSWORD")
-        # Only include hash algorithms when password is configured
-        cg.add_define("USE_OTA_MD5")
-        # Only include SHA256 support on platforms that have it
-        if supports_sha256():
-            cg.add_define("USE_OTA_SHA256")
+        if config[CONF_PASSWORD]:
+            cg.add(var.set_auth_password(config[CONF_PASSWORD]))
     cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
+    # Build flag so lwip_fast_select.c (a .c file that can't include defines.h) sees it.
+    cg.add_build_flag("-DUSE_OTA_PLATFORM_ESPHOME")
 
     await cg.register_component(var, config)
     await ota_to_code(var, config)

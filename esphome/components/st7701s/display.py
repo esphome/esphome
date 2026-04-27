@@ -138,7 +138,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(CONF_INIT_SEQUENCE, default=1): cv.ensure_list(
                     map_sequence
                 ),
-                cv.Optional(CONF_COLOR_ORDER): cv.one_of(
+                cv.Optional(CONF_COLOR_ORDER, default="BGR"): cv.one_of(
                     *COLOR_ORDERS.keys(), upper=True
                 ),
                 cv.Optional(CONF_PCLK_FREQUENCY, default="16MHz"): cv.All(
@@ -161,8 +161,8 @@ CONFIG_SCHEMA = cv.All(
             }
         ).extend(spi.spi_device_schema(cs_pin_required=False, default_data_rate=1e6))
     ),
+    cv.only_on_esp32,
     only_on_variant(supported=[VARIANT_ESP32S3]),
-    cv.only_with_esp_idf,
 )
 
 FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
@@ -173,7 +173,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     sequence = []
     for seq in config[CONF_INIT_SEQUENCE]:

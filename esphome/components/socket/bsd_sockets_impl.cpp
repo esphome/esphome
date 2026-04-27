@@ -1,186 +1,89 @@
-#include "socket.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "socket.h"
 
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 
 #include <cstring>
 #include "esphome/core/application.h"
-
-#ifdef USE_ESP32
-#include <esp_idf_version.h>
-#include <lwip/sockets.h>
+#ifdef USE_HOST
+#include "esphome/core/wake.h"
 #endif
 
 namespace esphome::socket {
 
-std::string format_sockaddr(const struct sockaddr_storage &storage) {
-  if (storage.ss_family == AF_INET) {
-    const struct sockaddr_in *addr = reinterpret_cast<const struct sockaddr_in *>(&storage);
-    char buf[INET_ADDRSTRLEN];
-    if (inet_ntop(AF_INET, &addr->sin_addr, buf, sizeof(buf)) != nullptr)
-      return std::string{buf};
-  }
-#if LWIP_IPV6
-  else if (storage.ss_family == AF_INET6) {
-    const struct sockaddr_in6 *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
-    char buf[INET6_ADDRSTRLEN];
-    // Format IPv4-mapped IPv6 addresses as regular IPv4 addresses
-    if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
-        addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
-        inet_ntop(AF_INET, &addr->sin6_addr.un.u32_addr[3], buf, sizeof(buf)) != nullptr) {
-      return std::string{buf};
-    }
-    if (inet_ntop(AF_INET6, &addr->sin6_addr, buf, sizeof(buf)) != nullptr)
-      return std::string{buf};
-  }
+BSDSocketImpl::BSDSocketImpl(int fd, bool monitor_loop) {
+  this->fd_ = fd;
+  if (!monitor_loop || this->fd_ < 0)
+    return;
+#ifdef USE_LWIP_FAST_SELECT
+  this->cached_sock_ = hook_fd_for_fast_select(this->fd_);
+#else
+  this->loop_monitored_ = wake_register_fd(this->fd_);
 #endif
-  return {};
 }
 
-class BSDSocketImpl : public Socket {
- public:
-  BSDSocketImpl(int fd, bool monitor_loop = false) : fd_(fd) {
-#ifdef USE_SOCKET_SELECT_SUPPORT
-    // Register new socket with the application for select() if monitoring requested
-    if (monitor_loop && this->fd_ >= 0) {
-      // Only set loop_monitored_ to true if registration succeeds
-      this->loop_monitored_ = App.register_socket_fd(this->fd_);
-    } else {
-      this->loop_monitored_ = false;
-    }
-#else
-    // Without select support, ignore monitor_loop parameter
-    (void) monitor_loop;
-#endif
-  }
-  ~BSDSocketImpl() override {
-    if (!this->closed_) {
-      this->close();  // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
-    }
-  }
-  int connect(const struct sockaddr *addr, socklen_t addrlen) override { return ::connect(this->fd_, addr, addrlen); }
-  std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
-    int fd = ::accept(this->fd_, addr, addrlen);
-    if (fd == -1)
-      return {};
-    return make_unique<BSDSocketImpl>(fd, false);
-  }
-  std::unique_ptr<Socket> accept_loop_monitored(struct sockaddr *addr, socklen_t *addrlen) override {
-    int fd = ::accept(this->fd_, addr, addrlen);
-    if (fd == -1)
-      return {};
-    return make_unique<BSDSocketImpl>(fd, true);
-  }
+BSDSocketImpl::~BSDSocketImpl() { this->close(); }
 
-  int bind(const struct sockaddr *addr, socklen_t addrlen) override { return ::bind(this->fd_, addr, addrlen); }
-  int close() override {
-    if (!this->closed_) {
-#ifdef USE_SOCKET_SELECT_SUPPORT
-      // Unregister from select() before closing if monitored
-      if (this->loop_monitored_) {
-        App.unregister_socket_fd(this->fd_);
-      }
-#endif
-      int ret = ::close(this->fd_);
-      this->closed_ = true;
-      return ret;
-    }
+int BSDSocketImpl::close() {
+  if (this->fd_ < 0) {
+    // Already closed, or never opened.
     return 0;
   }
-  int shutdown(int how) override { return ::shutdown(this->fd_, how); }
-
-  int getpeername(struct sockaddr *addr, socklen_t *addrlen) override {
-    return ::getpeername(this->fd_, addr, addrlen);
-  }
-  std::string getpeername() override {
-    struct sockaddr_storage storage;
-    socklen_t len = sizeof(storage);
-    if (::getpeername(this->fd_, (struct sockaddr *) &storage, &len) != 0)
-      return {};
-    return format_sockaddr(storage);
-  }
-  int getsockname(struct sockaddr *addr, socklen_t *addrlen) override {
-    return ::getsockname(this->fd_, addr, addrlen);
-  }
-  std::string getsockname() override {
-    struct sockaddr_storage storage;
-    socklen_t len = sizeof(storage);
-    if (::getsockname(this->fd_, (struct sockaddr *) &storage, &len) != 0)
-      return {};
-    return format_sockaddr(storage);
-  }
-  int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override {
-    return ::getsockopt(this->fd_, level, optname, optval, optlen);
-  }
-  int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override {
-    return ::setsockopt(this->fd_, level, optname, optval, optlen);
-  }
-  int listen(int backlog) override { return ::listen(this->fd_, backlog); }
-  ssize_t read(void *buf, size_t len) override { return ::read(this->fd_, buf, len); }
-  ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) override {
-#if defined(USE_ESP32) || defined(USE_HOST)
-    return ::recvfrom(this->fd_, buf, len, 0, addr, addr_len);
+#ifdef USE_LWIP_FAST_SELECT
+  // Null the cached lwip_sock pointer before closing. The underlying lwip slot can be
+  // recycled for a new connection as soon as ::close() returns, so anything that might
+  // dereference cached_sock_ post-close (e.g. setsockopt(TCP_NODELAY)) would otherwise
+  // touch an unrelated socket's pcb. No per-socket callback unhook is needed —
+  // all LwIP sockets share the same static event_callback.
+  this->cached_sock_ = nullptr;
 #else
-    return ::lwip_recvfrom(this->fd_, buf, len, 0, addr, addr_len);
-#endif
+  if (this->loop_monitored_) {
+    wake_unregister_fd(this->fd_);
   }
-  ssize_t readv(const struct iovec *iov, int iovcnt) override {
-#if defined(USE_ESP32)
-    return ::lwip_readv(this->fd_, iov, iovcnt);
-#else
-    return ::readv(this->fd_, iov, iovcnt);
 #endif
-  }
-  ssize_t write(const void *buf, size_t len) override { return ::write(this->fd_, buf, len); }
-  ssize_t send(void *buf, size_t len, int flags) { return ::send(this->fd_, buf, len, flags); }
-  ssize_t writev(const struct iovec *iov, int iovcnt) override {
-#if defined(USE_ESP32)
-    return ::lwip_writev(this->fd_, iov, iovcnt);
-#else
-    return ::writev(this->fd_, iov, iovcnt);
-#endif
-  }
+  int ret = ::close(this->fd_);
+  this->fd_ = -1;  // Sentinel for "closed" — prevents double-close and makes use-after-close visible.
+  return ret;
+}
 
-  ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) override {
-    return ::sendto(this->fd_, buf, len, flags, to, tolen);  // NOLINT(readability-suspicious-call-argument)
+int BSDSocketImpl::setblocking(bool blocking) {
+  int fl = ::fcntl(this->fd_, F_GETFL, 0);
+  if (blocking) {
+    fl &= ~O_NONBLOCK;
+  } else {
+    fl |= O_NONBLOCK;
   }
+  ::fcntl(this->fd_, F_SETFL, fl);
+  return 0;
+}
 
-  int setblocking(bool blocking) override {
-    int fl = ::fcntl(this->fd_, F_GETFL, 0);
-    if (blocking) {
-      fl &= ~O_NONBLOCK;
-    } else {
-      fl |= O_NONBLOCK;
-    }
-    ::fcntl(this->fd_, F_SETFL, fl);
+size_t BSDSocketImpl::getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf) {
+  struct sockaddr_storage storage;
+  socklen_t len = sizeof(storage);
+  if (this->getpeername(reinterpret_cast<struct sockaddr *>(&storage), &len) != 0) {
+    buf[0] = '\0';
     return 0;
   }
+  return format_sockaddr_to(reinterpret_cast<struct sockaddr *>(&storage), len, buf);
+}
 
-  int get_fd() const override { return this->fd_; }
-
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  bool ready() const override {
-    if (!this->loop_monitored_)
-      return true;
-    return App.is_socket_ready(this->fd_);
+size_t BSDSocketImpl::getsockname_to(std::span<char, SOCKADDR_STR_LEN> buf) {
+  struct sockaddr_storage storage;
+  socklen_t len = sizeof(storage);
+  if (this->getsockname(reinterpret_cast<struct sockaddr *>(&storage), &len) != 0) {
+    buf[0] = '\0';
+    return 0;
   }
-#endif
-
- protected:
-  int fd_;
-  bool closed_{false};
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  bool loop_monitored_{false};
-#endif
-};
+  return format_sockaddr_to(reinterpret_cast<struct sockaddr *>(&storage), len, buf);
+}
 
 // Helper to create a socket with optional monitoring
-static std::unique_ptr<Socket> create_socket(int domain, int type, int protocol, bool loop_monitored = false) {
+static std::unique_ptr<BSDSocketImpl> create_socket(int domain, int type, int protocol, bool loop_monitored = false) {
   int ret = ::socket(domain, type, protocol);
   if (ret == -1)
     return nullptr;
-  return std::unique_ptr<Socket>{new BSDSocketImpl(ret, loop_monitored)};
+  return make_unique<BSDSocketImpl>(ret, loop_monitored);
 }
 
 std::unique_ptr<Socket> socket(int domain, int type, int protocol) {

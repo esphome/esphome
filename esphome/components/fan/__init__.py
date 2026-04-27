@@ -32,7 +32,11 @@ from esphome.const import (
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
 
 IS_PLATFORM_COMPONENT = True
 
@@ -77,7 +81,7 @@ FanSpeedSetTrigger = fan_ns.class_(
     "FanSpeedSetTrigger", automation.Trigger.template(cg.int_)
 )
 FanPresetSetTrigger = fan_ns.class_(
-    "FanPresetSetTrigger", automation.Trigger.template(cg.std_string)
+    "FanPresetSetTrigger", automation.Trigger.template(cg.StringRef)
 )
 
 FanIsOnCondition = fan_ns.class_("FanIsOnCondition", automation.Condition.template())
@@ -222,9 +226,8 @@ def validate_preset_modes(value):
     return value
 
 
+@setup_entity("fan")
 async def setup_fan_core_(var, config):
-    await setup_entity(var, config, "fan")
-
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
@@ -287,13 +290,13 @@ async def setup_fan_core_(var, config):
         await automation.build_automation(trigger, [(cg.int_, "x")], conf)
     for conf in config.get(CONF_ON_PRESET_SET, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(trigger, [(cg.StringRef, "x")], conf)
 
 
 async def register_fan(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_fan(var))
+    queue_entity_register("fan", config)
     CORE.register_platform_component("fan", var)
     await setup_fan_core_(var, config)
 
@@ -311,13 +314,17 @@ FAN_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("fan.toggle", ToggleAction, FAN_ACTION_SCHEMA)
+@automation.register_action(
+    "fan.toggle", ToggleAction, FAN_ACTION_SCHEMA, synchronous=True
+)
 async def fan_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA)
+@automation.register_action(
+    "fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA, synchronous=True
+)
 async def fan_turn_off_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
@@ -336,15 +343,16 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
             ),
         }
     ),
+    synchronous=True,
 )
 async def fan_turn_on_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if (oscillating := config.get(CONF_OSCILLATING)) is not None:
-        template_ = await cg.templatable(oscillating, args, bool)
+        template_ = await cg.templatable(oscillating, args, cg.bool_)
         cg.add(var.set_oscillating(template_))
     if (speed := config.get(CONF_SPEED)) is not None:
-        template_ = await cg.templatable(speed, args, int)
+        template_ = await cg.templatable(speed, args, cg.int_)
         cg.add(var.set_speed(template_))
     if (direction := config.get(CONF_DIRECTION)) is not None:
         template_ = await cg.templatable(direction, args, FanDirection)
@@ -361,11 +369,12 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_OFF_SPEED_CYCLE, default=True): cv.boolean,
         }
     ),
+    synchronous=True,
 )
 async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_OFF_SPEED_CYCLE], args, bool)
+    template_ = await cg.templatable(config[CONF_OFF_SPEED_CYCLE], args, cg.bool_)
     cg.add(var.set_no_off_cycle(template_))
     return var
 

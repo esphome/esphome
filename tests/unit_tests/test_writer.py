@@ -7,12 +7,20 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
+import re
 import stat
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.const import (
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
+)
 from esphome.core import EsphomeError
 from esphome.storage_json import StorageJSON
 from esphome.writer import (
@@ -25,9 +33,11 @@ from esphome.writer import (
     clean_build,
     clean_cmake_cache,
     copy_src_tree,
+    generate_build_info_data_cpp,
     generate_build_info_data_h,
     get_build_info,
     storage_should_clean,
+    storage_should_update_cmake_cache,
     update_storage_json,
     write_cpp,
     write_gitignore,
@@ -169,6 +179,86 @@ def test_storage_edge_case_from_empty_integrations(
     old = create_storage(loaded_integrations=[])
     new = create_storage(loaded_integrations=["api", "wifi"])
     assert storage_should_clean(old, new) is False
+
+
+# Tests for storage_should_update_cmake_cache
+
+
+@pytest.mark.parametrize("framework", ["arduino", "esp-idf"])
+def test_storage_should_update_cmake_cache_when_integration_added_esp32(
+    create_storage: Callable[..., StorageJSON],
+    framework: str,
+) -> None:
+    """Test cmake cache update triggered when integration added on ESP32."""
+    old = create_storage(
+        loaded_integrations=["api", "wifi"],
+        core_platform=PLATFORM_ESP32,
+        framework=framework,
+    )
+    new = create_storage(
+        loaded_integrations=["api", "wifi", "restart"],
+        core_platform=PLATFORM_ESP32,
+        framework=framework,
+    )
+    assert storage_should_update_cmake_cache(old, new) is True
+
+
+def test_storage_should_update_cmake_cache_when_platform_changed_esp32(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test cmake cache update triggered when platforms change on ESP32."""
+    old = create_storage(
+        loaded_integrations=["api", "wifi"],
+        loaded_platforms={"sensor"},
+        core_platform=PLATFORM_ESP32,
+        framework="arduino",
+    )
+    new = create_storage(
+        loaded_integrations=["api", "wifi"],
+        loaded_platforms={"sensor", "binary_sensor"},
+        core_platform=PLATFORM_ESP32,
+        framework="arduino",
+    )
+    assert storage_should_update_cmake_cache(old, new) is True
+
+
+def test_storage_should_not_update_cmake_cache_when_nothing_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test cmake cache not updated when nothing changes."""
+    old = create_storage(
+        loaded_integrations=["api", "wifi"],
+        core_platform=PLATFORM_ESP32,
+        framework="arduino",
+    )
+    new = create_storage(
+        loaded_integrations=["api", "wifi"],
+        core_platform=PLATFORM_ESP32,
+        framework="arduino",
+    )
+    assert storage_should_update_cmake_cache(old, new) is False
+
+
+@pytest.mark.parametrize(
+    "core_platform",
+    [PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_BK72XX, PLATFORM_RTL87XX],
+)
+def test_storage_should_not_update_cmake_cache_for_non_esp32(
+    create_storage: Callable[..., StorageJSON],
+    core_platform: str,
+) -> None:
+    """Test cmake cache not updated for non-ESP32 platforms."""
+    old = create_storage(
+        loaded_integrations=["api", "wifi"],
+        core_platform=core_platform,
+        framework="arduino",
+    )
+    new = create_storage(
+        loaded_integrations=["api", "wifi", "restart"],
+        core_platform=core_platform,
+        framework="arduino",
+    )
+    assert storage_should_update_cmake_cache(old, new) is False
 
 
 @patch("esphome.writer.clean_build")
@@ -378,8 +468,8 @@ def test_clean_build(
     ) as mock_get_instance:
         mock_config = MagicMock()
         mock_get_instance.return_value = mock_config
-        mock_config.get.side_effect = (
-            lambda section, option: str(platformio_cache_dir)
+        mock_config.get.side_effect = lambda section, option: (
+            str(platformio_cache_dir)
             if (section, option) == ("platformio", "cache_dir")
             else ""
         )
@@ -542,8 +632,8 @@ def test_clean_build_empty_cache_dir(
     ) as mock_get_instance:
         mock_config = MagicMock()
         mock_get_instance.return_value = mock_config
-        mock_config.get.side_effect = (
-            lambda section, option: "   "  # Whitespace only
+        mock_config.get.side_effect = lambda section, option: (
+            "   "  # Whitespace only
             if (section, option) == ("platformio", "cache_dir")
             else ""
         )
@@ -776,6 +866,171 @@ def test_clean_all_with_yaml_file(
     # Verify logging mentions the build dir
     assert "Cleaning" in caplog.text
     assert str(build_dir) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_with_yaml_build_path(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all cleans absolute build_path specified in YAML config."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    # Create an absolute custom build path directory with contents
+    custom_build = tmp_path / "custom_build"
+    custom_build.mkdir()
+    (custom_build / "firmware.bin").write_text("x")
+    sub = custom_build / "subdir"
+    sub.mkdir()
+    (sub / "file.txt").write_text("x")
+
+    yaml_file = config_dir / "test.yaml"
+    # Absolute build_path: data_dir / absolute = absolute (Python Path behavior)
+    yaml_file.write_text(f"esphome:\n  name: test\n  build_path: {custom_build}\n")
+
+    # Also create the normal .esphome dir
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+    (build_dir / "dummy.txt").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(yaml_file)])
+
+    # Both .esphome and custom build_path should be cleaned
+    assert build_dir.exists()
+    assert not (build_dir / "dummy.txt").exists()
+    assert custom_build.exists()
+    assert not (custom_build / "firmware.bin").exists()
+    assert not sub.exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_with_yaml_parse_error(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all still cleans .esphome when YAML parse fails."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    yaml_file = config_dir / "test.yaml"
+    yaml_file.write_text("invalid: yaml: content: [")
+
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+    (build_dir / "dummy.txt").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(yaml_file)])
+
+    # .esphome should still be cleaned despite YAML parse failure
+    assert build_dir.exists()
+    assert not (build_dir / "dummy.txt").exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_with_env_build_path(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all cleans ESPHOME_BUILD_PATH directory."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+    (build_dir / "dummy.txt").write_text("x")
+
+    # Create env build path directory
+    env_build = tmp_path / "env_build"
+    env_build.mkdir()
+    (env_build / "firmware.bin").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with (
+        caplog.at_level("INFO"),
+        patch.dict(os.environ, {"ESPHOME_BUILD_PATH": str(env_build)}),
+    ):
+        clean_all([str(config_dir)])
+
+    # Both should be cleaned
+    assert not (build_dir / "dummy.txt").exists()
+    assert env_build.exists()
+    assert not (env_build / "firmware.bin").exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_ignores_empty_env_vars(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test clean_all ignores empty ESPHOME_BUILD_PATH/ESPHOME_DATA_DIR."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    # Create a file in cwd that must NOT be cleaned
+    marker = tmp_path / "important.txt"
+    marker.write_text("do not delete")
+
+    from esphome.writer import clean_all
+
+    with patch.dict(
+        os.environ,
+        {"ESPHOME_BUILD_PATH": "", "ESPHOME_DATA_DIR": ""},
+    ):
+        clean_all([str(config_dir)])
+
+    # Empty env vars must not cause cwd to be cleaned
+    assert marker.exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_no_args_with_esphome_dir(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all with no args cleans .esphome in cwd."""
+    esphome_dir = tmp_path / ".esphome"
+    esphome_dir.mkdir()
+    (esphome_dir / "dummy.txt").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with (
+        caplog.at_level("INFO"),
+        patch("esphome.writer.Path.cwd", return_value=tmp_path),
+    ):
+        clean_all([])
+
+    assert esphome_dir.exists()
+    assert not (esphome_dir / "dummy.txt").exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_no_args_no_esphome_dir(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all with no args and no .esphome dir warns."""
+    from esphome.writer import clean_all
+
+    with (
+        caplog.at_level("WARNING"),
+        patch("esphome.writer.Path.cwd", return_value=tmp_path),
+    ):
+        clean_all([])
+
+    assert "No configuration files specified" in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -1186,8 +1441,9 @@ def test_get_build_info_new_build(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
+    mock_core.comment = "Test comment"
 
-    config_hash, build_time, build_time_str = get_build_info()
+    config_hash, build_time, build_time_str, comment = get_build_info()
 
     assert config_hash == 0x12345678
     assert isinstance(build_time, int)
@@ -1195,6 +1451,7 @@ def test_get_build_info_new_build(
     assert isinstance(build_time_str, str)
     # Verify build_time_str format matches expected pattern
     assert len(build_time_str) >= 19  # e.g., "2025-12-15 16:27:44 +0000"
+    assert comment == "Test comment"
 
 
 @patch("esphome.writer.CORE")
@@ -1206,6 +1463,7 @@ def test_get_build_info_always_returns_current_time(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
+    mock_core.comment = ""
 
     # Create existing build_info.json with matching config_hash and version
     existing_build_time = 1700000000
@@ -1222,7 +1480,7 @@ def test_get_build_info_always_returns_current_time(
     )
 
     with patch("esphome.writer.__version__", "2025.1.0-dev"):
-        config_hash, build_time, build_time_str = get_build_info()
+        config_hash, build_time, build_time_str, comment = get_build_info()
 
     assert config_hash == 0x12345678
     # get_build_info now always returns current time
@@ -1240,6 +1498,7 @@ def test_get_build_info_config_changed(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0xABCDEF00  # Different from existing
+    mock_core.comment = ""
 
     # Create existing build_info.json with different config_hash
     existing_build_time = 1700000000
@@ -1255,7 +1514,7 @@ def test_get_build_info_config_changed(
     )
 
     with patch("esphome.writer.__version__", "2025.1.0-dev"):
-        config_hash, build_time, build_time_str = get_build_info()
+        config_hash, build_time, build_time_str, comment = get_build_info()
 
     assert config_hash == 0xABCDEF00
     assert build_time != existing_build_time  # New time generated
@@ -1271,6 +1530,7 @@ def test_get_build_info_version_changed(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
+    mock_core.comment = ""
 
     # Create existing build_info.json with different version
     existing_build_time = 1700000000
@@ -1286,7 +1546,7 @@ def test_get_build_info_version_changed(
     )
 
     with patch("esphome.writer.__version__", "2025.1.0-dev"):  # New version
-        config_hash, build_time, build_time_str = get_build_info()
+        config_hash, build_time, build_time_str, comment = get_build_info()
 
     assert config_hash == 0x12345678
     assert build_time != existing_build_time  # New time generated
@@ -1302,11 +1562,12 @@ def test_get_build_info_invalid_json(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
+    mock_core.comment = ""
 
     # Create invalid JSON file
     build_info_path.write_text("not valid json {{{")
 
-    config_hash, build_time, build_time_str = get_build_info()
+    config_hash, build_time, build_time_str, comment = get_build_info()
 
     assert config_hash == 0x12345678
     assert isinstance(build_time, int)
@@ -1322,12 +1583,13 @@ def test_get_build_info_missing_keys(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
+    mock_core.comment = ""
 
     # Create JSON with missing keys
     build_info_path.write_text(json.dumps({"config_hash": 0x12345678}))
 
     with patch("esphome.writer.__version__", "2025.1.0-dev"):
-        config_hash, build_time, build_time_str = get_build_info()
+        config_hash, build_time, build_time_str, comment = get_build_info()
 
     assert config_hash == 0x12345678
     assert isinstance(build_time, int)
@@ -1343,8 +1605,9 @@ def test_get_build_info_build_time_str_format(
     build_info_path = tmp_path / "build_info.json"
     mock_core.relative_build_path.return_value = build_info_path
     mock_core.config_hash = 0x12345678
+    mock_core.comment = ""
 
-    config_hash, build_time, build_time_str = get_build_info()
+    config_hash, build_time, build_time_str, comment = get_build_info()
 
     # Verify the format matches "%Y-%m-%d %H:%M:%S %z"
     # e.g., "2025-12-15 16:27:44 +0000"
@@ -1354,21 +1617,19 @@ def test_get_build_info_build_time_str_format(
 
 def test_generate_build_info_data_h_format() -> None:
     """Test generate_build_info_data_h produces correct header content."""
-    config_hash = 0x12345678
-    build_time = 1700000000
-    build_time_str = "2023-11-14 22:13:20 +0000"
-
-    result = generate_build_info_data_h(config_hash, build_time, build_time_str)
+    result = generate_build_info_data_h()
 
     assert "#pragma once" in result
-    assert "#define ESPHOME_CONFIG_HASH 0x12345678U" in result
-    assert "#define ESPHOME_BUILD_TIME 1700000000" in result
-    assert 'ESPHOME_BUILD_TIME_STR[] = "2023-11-14 22:13:20 +0000"' in result
+    assert "extern const uint32_t ESPHOME_CONFIG_HASH;" in result
+    assert "extern const time_t ESPHOME_BUILD_TIME;" in result
+    assert "extern const size_t ESPHOME_COMMENT_SIZE;" in result
+    assert "extern const char ESPHOME_BUILD_TIME_STR[]" in result
+    assert "extern const char ESPHOME_COMMENT_STR[]" in result
 
 
 def test_generate_build_info_data_h_esp8266_progmem() -> None:
     """Test generate_build_info_data_h includes PROGMEM for ESP8266."""
-    result = generate_build_info_data_h(0xABCDEF01, 1700000000, "test")
+    result = generate_build_info_data_h()
 
     # Should have ESP8266 PROGMEM conditional
     assert "#ifdef USE_ESP8266" in result
@@ -1376,15 +1637,93 @@ def test_generate_build_info_data_h_esp8266_progmem() -> None:
     assert "PROGMEM" in result
 
 
-def test_generate_build_info_data_h_hash_formatting() -> None:
-    """Test generate_build_info_data_h formats hash with leading zeros."""
+def test_generate_build_info_data_cpp_format() -> None:
+    """Test generate_build_info_data_cpp produces correct data definitions."""
+    result = generate_build_info_data_cpp(
+        0x12345678, 1700000000, "2023-11-14 22:13:20 +0000", "Test comment"
+    )
+
+    assert '#include "esphome/core/build_info_data.h"' in result
+    assert "const uint32_t ESPHOME_CONFIG_HASH = 0x12345678U;" in result
+    assert "const time_t ESPHOME_BUILD_TIME = 1700000000;" in result
+    assert "const size_t ESPHOME_COMMENT_SIZE = 13;" in result
+    assert 'ESPHOME_BUILD_TIME_STR[] = "2023-11-14 22:13:20 +0000"' in result
+    assert 'ESPHOME_COMMENT_STR[] = "Test comment"' in result
+
+
+def test_generate_build_info_data_cpp_esp8266_progmem() -> None:
+    """Test generate_build_info_data_cpp includes PROGMEM definitions."""
+    result = generate_build_info_data_cpp(0xABCDEF01, 1700000000, "test", "comment")
+
+    assert "#ifdef USE_ESP8266" in result
+    assert 'ESPHOME_BUILD_TIME_STR[] PROGMEM = "test"' in result
+    assert 'ESPHOME_COMMENT_STR[] PROGMEM = "comment"' in result
+
+
+def test_generate_build_info_data_cpp_hash_formatting() -> None:
+    """Test generate_build_info_data_cpp formats hash with leading zeros."""
     # Test with small hash value that needs leading zeros
-    result = generate_build_info_data_h(0x00000001, 0, "test")
-    assert "#define ESPHOME_CONFIG_HASH 0x00000001U" in result
+    result = generate_build_info_data_cpp(0x00000001, 0, "test", "")
+    assert "const uint32_t ESPHOME_CONFIG_HASH = 0x00000001U;" in result
 
     # Test with larger hash value
-    result = generate_build_info_data_h(0xFFFFFFFF, 0, "test")
-    assert "#define ESPHOME_CONFIG_HASH 0xffffffffU" in result
+    result = generate_build_info_data_cpp(0xFFFFFFFF, 0, "test", "")
+    assert "const uint32_t ESPHOME_CONFIG_HASH = 0xffffffffU;" in result
+
+
+def test_generate_build_info_data_cpp_comment_escaping() -> None:
+    r"""Test generate_build_info_data_cpp properly escapes special characters in comment.
+
+    Uses cpp_string_escape which outputs octal escapes for special characters:
+    - backslash (ASCII 92) -> \134
+    - double quote (ASCII 34) -> \042
+    - newline (ASCII 10) -> \012
+    """
+    # Test backslash escaping (ASCII 92 = octal 134)
+    result = generate_build_info_data_cpp(0, 0, "test", "backslash\\here")
+    assert 'ESPHOME_COMMENT_STR[] = "backslash\\134here"' in result
+
+    # Test quote escaping (ASCII 34 = octal 042)
+    result = generate_build_info_data_cpp(0, 0, "test", 'has "quotes"')
+    assert 'ESPHOME_COMMENT_STR[] = "has \\042quotes\\042"' in result
+
+    # Test newline escaping (ASCII 10 = octal 012)
+    result = generate_build_info_data_cpp(0, 0, "test", "line1\nline2")
+    assert 'ESPHOME_COMMENT_STR[] = "line1\\012line2"' in result
+
+
+def test_generate_build_info_data_cpp_empty_comment() -> None:
+    """Test generate_build_info_data_cpp handles empty comment."""
+    result = generate_build_info_data_cpp(0, 0, "test", "")
+
+    assert "const size_t ESPHOME_COMMENT_SIZE = 1;" in result  # Just null terminator
+    assert 'ESPHOME_COMMENT_STR[] = ""' in result
+
+
+def test_generate_build_info_data_cpp_comment_size_counts_utf8_bytes() -> None:
+    """Comment size is in encoded UTF-8 bytes, not characters."""
+    # "héllo" = 6 UTF-8 bytes + NUL.
+    result = generate_build_info_data_cpp(0, 0, "test", "héllo")
+    assert "const size_t ESPHOME_COMMENT_SIZE = 7;" in result
+
+
+def test_generate_build_info_data_cpp_comment_clamped_to_buffer() -> None:
+    """Generator clamps at byte level and never truncates mid-codepoint."""
+    # 100 thermometer-with-VS-16 sequences = 700 bytes, past the 256 buffer.
+    result = generate_build_info_data_cpp(0, 0, "test", "🌡️" * 100)
+
+    match = re.search(r"ESPHOME_COMMENT_SIZE = (\d+);", result)
+    assert match is not None
+    size = int(match.group(1))
+    assert 1 < size <= 256
+
+    lit_match = re.search(r'ESPHOME_COMMENT_STR\[\] = "([^"]*)"', result)
+    assert lit_match is not None
+    raw = re.sub(
+        r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), lit_match.group(1)
+    ).encode("latin-1")
+    raw.decode("utf-8")  # raises if truncation left a partial UTF-8 sequence
+    assert len(raw) == size - 1
 
 
 @patch("esphome.writer.CORE")
@@ -1441,10 +1780,11 @@ def test_copy_src_tree_writes_build_info_files(
     mock_component.resources = mock_resources
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
+    mock_core.comment = "Test comment"
     mock_core.target_platform = "test_platform"
     mock_core.config = {}
     mock_iter_components.return_value = [("core", mock_component)]
@@ -1459,13 +1799,21 @@ def test_copy_src_tree_writes_build_info_files(
     ):
         copy_src_tree()
 
-    # Verify build_info_data.h was written
+    # Verify build_info_data.h declarations and build_info_data.cpp values were written
     build_info_h_path = esphome_core_path / "build_info_data.h"
     assert build_info_h_path.exists()
     build_info_h_content = build_info_h_path.read_text()
-    assert "#define ESPHOME_CONFIG_HASH 0xdeadbeefU" in build_info_h_content
-    assert "#define ESPHOME_BUILD_TIME" in build_info_h_content
+    assert "extern const uint32_t ESPHOME_CONFIG_HASH;" in build_info_h_content
     assert "ESPHOME_BUILD_TIME_STR" in build_info_h_content
+    assert "extern const size_t ESPHOME_COMMENT_SIZE;" in build_info_h_content
+    assert "ESPHOME_COMMENT_STR" in build_info_h_content
+    build_info_cpp_path = esphome_core_path / "build_info_data.cpp"
+    assert build_info_cpp_path.exists()
+    build_info_cpp_content = build_info_cpp_path.read_text()
+    assert "const uint32_t ESPHOME_CONFIG_HASH = 0xdeadbeefU;" in build_info_cpp_content
+    assert "const time_t ESPHOME_BUILD_TIME" in build_info_cpp_content
+    assert "const size_t ESPHOME_COMMENT_SIZE" in build_info_cpp_content
+    assert "ESPHOME_COMMENT_STR" in build_info_cpp_content
 
     # Verify build_info.json was written
     build_info_json_path = build_path / "build_info.json"
@@ -1513,10 +1861,11 @@ def test_copy_src_tree_detects_config_hash_change(
     build_info_h_path.write_text("// old build_info_data.h")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF  # Different from existing
+    mock_core.comment = ""
     mock_core.target_platform = "test_platform"
     mock_core.config = {}
     mock_iter_components.return_value = []
@@ -1531,7 +1880,9 @@ def test_copy_src_tree_detects_config_hash_change(
 
     # Verify build_info files were updated due to config_hash change
     assert build_info_h_path.exists()
-    new_content = build_info_h_path.read_text()
+    build_info_cpp_path = esphome_core_path / "build_info_data.cpp"
+    assert build_info_cpp_path.exists()
+    new_content = build_info_cpp_path.read_text()
     assert "0xdeadbeef" in new_content.lower()
 
     new_json = json.loads(build_info_json_path.read_text())
@@ -1574,10 +1925,11 @@ def test_copy_src_tree_detects_version_change(
     build_info_h_path.write_text("// old build_info_data.h")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
+    mock_core.comment = ""
     mock_core.target_platform = "test_platform"
     mock_core.config = {}
     mock_iter_components.return_value = []
@@ -1623,10 +1975,11 @@ def test_copy_src_tree_handles_invalid_build_info_json(
     build_info_h_path.write_text("// old build_info_data.h")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
+    mock_core.comment = ""
     mock_core.target_platform = "test_platform"
     mock_core.config = {}
     mock_iter_components.return_value = []
@@ -1696,10 +2049,11 @@ def test_copy_src_tree_build_info_timestamp_behavior(
     mock_component.resources = mock_resources
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
+    mock_core.comment = ""
     mock_core.target_platform = "test_platform"
     mock_core.config = {}
     mock_iter_components.return_value = [("test", mock_component)]
@@ -1790,10 +2144,11 @@ def test_copy_src_tree_detects_removed_source_file(
     existing_file.write_text("// test file")
 
     # Setup mocks - no components, so the file should be removed
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
+    mock_core.comment = ""
     mock_core.target_platform = "test_platform"
     mock_core.config = {}
     mock_iter_components.return_value = []  # No components = file should be removed
@@ -1851,10 +2206,11 @@ def test_copy_src_tree_ignores_removed_generated_file(
     build_info_h.write_text("// old generated file")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
+    mock_core.comment = ""
     mock_core.target_platform = "test_platform"
     mock_core.config = {}
     mock_iter_components.return_value = []

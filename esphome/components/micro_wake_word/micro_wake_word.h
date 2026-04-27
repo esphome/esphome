@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "preprocessor_settings.h"
 #include "streaming_model.h"
@@ -60,7 +60,7 @@ class MicroWakeWord : public Component
 
   void set_stop_after_detection(bool stop_after_detection) { this->stop_after_detection_ = stop_after_detection; }
 
-  Trigger<std::string> *get_wake_word_detected_trigger() const { return this->wake_word_detected_trigger_; }
+  Trigger<std::string> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
 
   void add_wake_word_model(WakeWordModel *model);
 
@@ -78,7 +78,7 @@ class MicroWakeWord : public Component
 
  protected:
   microphone::MicrophoneSource *microphone_source_{nullptr};
-  Trigger<std::string> *wake_word_detected_trigger_ = new Trigger<std::string>();
+  Trigger<std::string> wake_word_detected_trigger_;
   State state_{State::STOPPED};
 
   std::weak_ptr<RingBuffer> ring_buffer_;
@@ -140,4 +140,4 @@ class MicroWakeWord : public Component
 }  // namespace micro_wake_word
 }  // namespace esphome
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

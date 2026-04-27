@@ -1,11 +1,13 @@
 #pragma once
 
+#include <span>
 #include <unordered_map>
 #include "atm90e32_reg.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
@@ -109,14 +111,14 @@ class ATM90E32Component : public PollingComponent,
 #endif
   float get_reference_voltage(uint8_t phase) {
 #ifdef USE_NUMBER
-    return (phase >= 0 && phase < 3 && ref_voltages_[phase]) ? ref_voltages_[phase]->state : 120.0;  // Default voltage
+    return (phase < 3 && ref_voltages_[phase]) ? ref_voltages_[phase]->state : 120.0;  // Default voltage
 #else
     return 120.0;  // Default voltage
 #endif
   }
   float get_reference_current(uint8_t phase) {
 #ifdef USE_NUMBER
-    return (phase >= 0 && phase < 3 && ref_currents_[phase]) ? ref_currents_[phase]->state : 5.0f;  // Default current
+    return (phase < 3 && ref_currents_[phase]) ? ref_currents_[phase]->state : 5.0f;  // Default current
 #else
     return 5.0f;   // Default current
 #endif
@@ -132,7 +134,6 @@ class ATM90E32Component : public PollingComponent,
   void set_freq_status_text_sensor(text_sensor::TextSensor *sensor) { this->freq_status_text_sensor_ = sensor; }
 #endif
   uint16_t calculate_voltage_threshold(int line_freq, uint16_t ugain, float multiplier);
-  int32_t last_periodic_millis = millis();
 
  protected:
 #ifdef USE_NUMBER
@@ -182,6 +183,7 @@ class ATM90E32Component : public PollingComponent,
   bool verify_gain_writes_();
   bool validate_spi_read_(uint16_t expected, const char *context = nullptr);
   void log_calibration_status_();
+  void get_cs_summary_(std::span<char, GPIO_SUMMARY_MAX_LEN> buffer);
 
   struct ATM90E32Phase {
     uint16_t voltage_gain_{0};
@@ -247,7 +249,6 @@ class ATM90E32Component : public PollingComponent,
   ESPPreferenceObject offset_pref_;
   ESPPreferenceObject power_offset_pref_;
   ESPPreferenceObject gain_calibration_pref_;
-  std::string cs_summary_;
 
   sensor::Sensor *freq_sensor_{nullptr};
 #ifdef USE_TEXT_SENSOR

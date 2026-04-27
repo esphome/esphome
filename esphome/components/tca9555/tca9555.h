@@ -24,7 +24,10 @@ class TCA9555Component : public Component,
 
   void loop() override;
 
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
+
  protected:
+  static void IRAM_ATTR gpio_intr(TCA9555Component *arg);
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
@@ -39,6 +42,8 @@ class TCA9555Component : public Component,
   bool read_gpio_modes_();
   bool write_gpio_modes_();
   bool read_gpio_outputs_();
+
+  InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
 /// Helper class to expose a TCA9555 pin as an internal input GPIO pin.
@@ -48,7 +53,7 @@ class TCA9555GPIOPin : public GPIOPin, public Parented<TCA9555Component> {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }

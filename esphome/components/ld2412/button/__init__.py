@@ -3,6 +3,7 @@ from esphome.components import button
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FACTORY_RESET,
+    CONF_ID,
     CONF_RESTART,
     DEVICE_CLASS_RESTART,
     ENTITY_CATEGORY_CONFIG,
@@ -26,6 +27,7 @@ CONF_QUERY_PARAMS = "query_params"
 CONF_START_DYNAMIC_BACKGROUND_CORRECTION = "start_dynamic_background_correction"
 
 CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
     cv.Optional(CONF_FACTORY_RESET): button.button_schema(
         FactoryResetButton,

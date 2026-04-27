@@ -52,7 +52,7 @@ from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
 from ..helpers import write_file
-from .const import DASHBOARD_COMMAND, DashboardEvent
+from .const import DASHBOARD_COMMAND, ESPHOME_COMMAND, DashboardEvent
 from .core import DASHBOARD, ESPHomeDashboard, Event
 from .entries import UNKNOWN_STATE, DashboardEntry, entry_state_to_bool
 from .models import build_device_list_response
@@ -120,8 +120,11 @@ def is_authenticated(handler: BaseHandler) -> bool:
         if auth_header := handler.request.headers.get("Authorization"):
             assert isinstance(auth_header, str)
             if auth_header.startswith("Basic "):
-                auth_decoded = base64.b64decode(auth_header[6:]).decode()
-                username, password = auth_decoded.split(":", 1)
+                try:
+                    auth_decoded = base64.b64decode(auth_header[6:]).decode()
+                    username, password = auth_decoded.split(":", 1)
+                except (binascii.Error, ValueError, UnicodeDecodeError):
+                    return False
                 return settings.check_password(username, password)
         return handler.get_secure_cookie(AUTH_COOKIE_NAME) == COOKIE_AUTHENTICATED_YES
 
@@ -317,6 +320,7 @@ class EsphomeCommandWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHandl
             # Check if the proc was not forcibly closed
             _LOGGER.info("Process exited with return code %s", returncode)
             self.write_message({"event": "exit", "code": returncode})
+            self.close()
 
     def on_close(self) -> None:
         # Check if proc exists (if 'start' has been run)
@@ -433,7 +437,11 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
-        return await self.build_device_command(["logs"], json_message)
+        cmd = await self.build_device_command(["logs"], json_message)
+        if json_message.get("no_states"):
+            cmd.append("--no-states")
+            _LOGGER.debug("Built command: %s", cmd)
+        return cmd
 
 
 class EsphomeRenameHandler(EsphomeCommandWebSocket):
@@ -1053,20 +1061,29 @@ class DownloadBinaryRequestHandler(BaseHandler):
         # fallback to type=, but prioritize file=
         file_name = self.get_argument("type", None)
         file_name = self.get_argument("file", file_name)
-        if file_name is None:
+        if file_name is None or not file_name.strip():
             self.send_error(400)
             return
-        file_name = file_name.replace("..", "").lstrip("/")
         # get requested download name, or build it based on filename
         download_name = self.get_argument(
             "download",
             f"{storage_json.name}-{file_name}",
         )
 
-        path = storage_json.firmware_bin_path.parent.joinpath(file_name)
+        if storage_json.firmware_bin_path is None:
+            self.send_error(404)
+            return
+
+        base_dir = storage_json.firmware_bin_path.parent.resolve()
+        path = base_dir.joinpath(file_name).resolve()
+        try:
+            path.relative_to(base_dir)
+        except ValueError:
+            self.send_error(403)
+            return
 
         if not path.is_file():
-            args = ["esphome", "idedata", settings.rel_path(configuration)]
+            args = [*ESPHOME_COMMAND, "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = await async_run_system_command(args)
 
             if rc != 0:
@@ -1077,7 +1094,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
             found = False
             for image in idedata.extra_flash_images:
-                if image.path.endswith(file_name):
+                if image.path.as_posix().endswith(file_name):
                     path = image.path
                     download_name = file_name
                     found = True
@@ -1449,7 +1466,7 @@ class JsonConfigRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        args = ["esphome", "config", str(filename), "--show-secrets"]
+        args = [*ESPHOME_COMMAND, "config", str(filename), "--show-secrets"]
 
         rc, stdout, stderr = await async_run_system_command(args)
 

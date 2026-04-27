@@ -7,6 +7,12 @@ from pathlib import Path
 from esphome import automation, external_files
 import esphome.codegen as cg
 from esphome.components import audio, esp32, media_player, network, ota, psram, speaker
+from esphome.components.const import (
+    CONF_VOLUME_INCREMENT,
+    CONF_VOLUME_INITIAL,
+    CONF_VOLUME_MAX,
+    CONF_VOLUME_MIN,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -15,6 +21,8 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_ID,
     CONF_NUM_CHANNELS,
+    CONF_ON_TURN_OFF,
+    CONF_ON_TURN_ON,
     CONF_PATH,
     CONF_RAW_DATA_ID,
     CONF_SAMPLE_RATE,
@@ -24,9 +32,7 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import CORE, HexInt
-from esphome.core.entity_helpers import inherit_property_from
 from esphome.external_files import download_content
-from esphome.final_validate import full_config
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +48,7 @@ TYPE_WEB = "web"
 
 CONF_ANNOUNCEMENT = "announcement"
 CONF_ANNOUNCEMENT_PIPELINE = "announcement_pipeline"
-CONF_CODEC_SUPPORT_ENABLED = "codec_support_enabled"
+CONF_CODEC_SUPPORT_ENABLED = "codec_support_enabled"  # Remove before 2026.10.0
 CONF_ENQUEUE = "enqueue"
 CONF_MEDIA_FILE = "media_file"
 CONF_MEDIA_PIPELINE = "media_pipeline"
@@ -50,10 +56,6 @@ CONF_ON_MUTE = "on_mute"
 CONF_ON_UNMUTE = "on_unmute"
 CONF_ON_VOLUME = "on_volume"
 CONF_STREAM = "stream"
-CONF_VOLUME_INCREMENT = "volume_increment"
-CONF_VOLUME_INITIAL = "volume_initial"
-CONF_VOLUME_MIN = "volume_min"
-CONF_VOLUME_MAX = "volume_max"
 
 
 speaker_ns = cg.esphome_ns.namespace("speaker")
@@ -99,41 +101,10 @@ def _download_web_file(value):
     return value
 
 
-# Returns a media_player.MediaPlayerSupportedFormat struct with the configured
-# format, sample rate, number of channels, purpose, and bytes per sample
-def _get_supported_format_struct(pipeline, type):
-    args = [
-        media_player.MediaPlayerSupportedFormat,
-    ]
-
-    if pipeline[CONF_FORMAT] == "FLAC":
-        args.append(("format", "flac"))
-    elif pipeline[CONF_FORMAT] == "MP3":
-        args.append(("format", "mp3"))
-    elif pipeline[CONF_FORMAT] == "WAV":
-        args.append(("format", "wav"))
-
-    args.append(("sample_rate", pipeline[CONF_SAMPLE_RATE]))
-    args.append(("num_channels", pipeline[CONF_NUM_CHANNELS]))
-
-    if type == "MEDIA":
-        args.append(
-            (
-                "purpose",
-                media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["default"],
-            )
-        )
-    elif type == "ANNOUNCEMENT":
-        args.append(
-            (
-                "purpose",
-                media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["announcement"],
-            )
-        )
-    if pipeline[CONF_FORMAT] != "MP3":
-        args.append(("sample_bytes", 2))
-
-    return cg.StructInitializer(*args)
+_PURPOSE_MAP = {
+    "MEDIA": media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["default"],
+    "ANNOUNCEMENT": media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["announcement"],
+}
 
 
 def _file_schema(value):
@@ -157,8 +128,14 @@ def _read_audio_file_and_type(file_config):
 
     import puremagic
 
-    file_type: str = puremagic.from_string(data)
-    file_type = file_type.removeprefix(".")
+    try:
+        file_type: str = puremagic.from_string(data)
+        file_type = file_type.removeprefix(".")
+    except puremagic.PureError as e:
+        raise cv.Invalid(
+            f"Unable to determine audio file type of '{path}'. "
+            f"Try re-encoding the file into a supported format. Details: {e}"
+        ) from e
 
     media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
     if file_type in ("wav"):
@@ -167,6 +144,13 @@ def _read_audio_file_and_type(file_config):
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["MP3"]
     elif file_type in ("flac"):
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["FLAC"]
+    elif (
+        file_type in ("ogg")
+        and len(data) >= 36
+        and data.startswith(b"OggS")
+        and data[28:36] == b"OpusHead"
+    ):
+        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["OPUS"]
 
     return data, media_file_type
 
@@ -188,21 +172,9 @@ def _validate_file_shorthand(value):
     )
 
 
-def _validate_pipeline(config):
-    # Inherit transcoder settings from speaker if not manually set
-    inherit_property_from(CONF_NUM_CHANNELS, CONF_SPEAKER)(config)
-    inherit_property_from(CONF_SAMPLE_RATE, CONF_SPEAKER)(config)
-
-    # Validate the transcoder settings is compatible with the speaker
-    audio.final_validate_audio_schema(
-        "speaker media_player",
-        audio_device=CONF_SPEAKER,
-        bits_per_sample=16,
-        channels=config.get(CONF_NUM_CHANNELS),
-        sample_rate=config.get(CONF_SAMPLE_RATE),
-    )(config)
-
-    return config
+_validate_pipeline = media_player.validate_preferred_format(
+    "speaker media_player", CONF_SPEAKER
+)
 
 
 def _validate_repeated_speaker(config):
@@ -219,24 +191,34 @@ def _validate_repeated_speaker(config):
 
 
 def _final_validate(config):
-    # Default to using codec if psram is enabled
-    if (use_codec := config.get(CONF_CODEC_SUPPORT_ENABLED)) is None:
-        use_codec = psram.DOMAIN in full_config.get()
-    conf_id = config[CONF_ID].id
-    core_data = CORE.data.setdefault(DOMAIN, {conf_id: {}})
-    core_data[conf_id][CONF_CODEC_SUPPORT_ENABLED] = use_codec
+    # Remove before 2026.10.0
+    if CONF_CODEC_SUPPORT_ENABLED in config:
+        _LOGGER.warning(
+            "'%s' is deprecated and will be removed in 2026.10.0. "
+            "Codec support is now automatically determined from the pipeline "
+            "'format' setting. Set format to 'NONE' to enable all codecs.",
+            CONF_CODEC_SUPPORT_ENABLED,
+        )
 
+    # Request codecs based on pipeline formats
+    media_player.request_codecs_for_format_configs(
+        config, [CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE]
+    )
+
+    # Validate local files and request any additional codecs they need
     for file_config in config.get(CONF_FILES, []):
         _, media_file_type = _read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
             raise cv.Invalid("Unsupported local media file")
-        if not use_codec and str(media_file_type) != str(
-            audio.AUDIO_FILE_TYPE_ENUM["WAV"]
-        ):
-            # Only wav files are supported
-            raise cv.Invalid(
-                f"Unsupported local media file type, set {CONF_CODEC_SUPPORT_ENABLED} to true or convert the media file to wav"
-            )
+        for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
+            if str(media_file_type) == str(fmt_enum):
+                if fmt_name == "FLAC":
+                    audio.request_flac_support()
+                elif fmt_name == "MP3":
+                    audio.request_mp3_support()
+                elif fmt_name == "OPUS":
+                    audio.request_opus_support()
+                break
 
     return config
 
@@ -301,7 +283,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
                 min=4000, max=4000000
             ),
-            cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.boolean,
+            # Remove before 2026.10.0
+            cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.Any(cv.boolean, cv.string),
             cv.Optional(CONF_FILES): cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
                 cv.boolean, cv.requires_component(psram.DOMAIN)
@@ -315,7 +298,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_VOLUME): automation.validate_automation(single=True),
         }
     ),
-    cv.only_with_esp_idf,
+    cv.only_on_esp32,
     _validate_repeated_speaker,
     _request_high_performance_networking,
 )
@@ -334,10 +317,8 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    if CORE.data[DOMAIN][config[CONF_ID].id][CONF_CODEC_SUPPORT_ENABLED]:
-        # Compile all supported audio codecs
-        cg.add_define("USE_AUDIO_FLAC_SUPPORT", True)
-        cg.add_define("USE_AUDIO_MP3_SUPPORT", True)
+    if CONF_ON_TURN_OFF in config or CONF_ON_TURN_ON in config:
+        cg.add_define("USE_SPEAKER_MEDIA_PLAYER_ON_OFF", True)
 
     var = await media_player.new_media_player(config)
     await cg.register_component(var, config)
@@ -363,8 +344,8 @@ async def to_code(config):
     if announcement_pipeline_config[CONF_FORMAT] != "NONE":
         cg.add(
             var.set_announcement_format(
-                _get_supported_format_struct(
-                    announcement_pipeline_config, "ANNOUNCEMENT"
+                media_player.build_supported_format_struct(
+                    announcement_pipeline_config, _PURPOSE_MAP["ANNOUNCEMENT"]
                 )
             )
         )
@@ -375,7 +356,9 @@ async def to_code(config):
         if media_pipeline_config[CONF_FORMAT] != "NONE":
             cg.add(
                 var.set_media_format(
-                    _get_supported_format_struct(media_pipeline_config, "MEDIA")
+                    media_player.build_supported_format_struct(
+                        media_pipeline_config, _PURPOSE_MAP["MEDIA"]
+                    )
                 )
             )
 
@@ -438,6 +421,7 @@ async def to_code(config):
         },
         key=CONF_MEDIA_FILE,
     ),
+    synchronous=True,
 )
 async def play_on_device_media_media_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -446,7 +430,8 @@ async def play_on_device_media_media_action(config, action_id, template_arg, arg
     announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
     enqueue = await cg.templatable(config[CONF_ENQUEUE], args, cg.bool_)
 
-    cg.add(var.set_audio_file(media_file))
+    template_ = await cg.templatable(media_file, args, audio.AudioFile.operator("ptr"))
+    cg.add(var.set_audio_file(template_))
     cg.add(var.set_announcement(announcement))
     cg.add(var.set_enqueue(enqueue))
     return var

@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_SPEED,
     DEVICE_CLASS_SPEED,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_MEASUREMENT_ANGLE,
     UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,
     UNIT_METER,
@@ -21,6 +22,7 @@ CONF_HDOP = "hdop"
 
 ICON_ALTIMETER = "mdi:altimeter"
 ICON_COMPASS = "mdi:compass"
+ICON_CIRCLE_DOUBLE = "mdi:circle-double"
 ICON_LATITUDE = "mdi:latitude"
 ICON_LONGITUDE = "mdi:longitude"
 ICON_SATELLITE = "mdi:satellite-variant"
@@ -32,7 +34,7 @@ AUTO_LOAD = ["sensor"]
 CODEOWNERS = ["@coogle", "@ximex"]
 
 gps_ns = cg.esphome_ns.namespace("gps")
-GPS = gps_ns.class_("GPS", cg.Component, uart.UARTDevice)
+GPS = gps_ns.class_("GPS", cg.PollingComponent, uart.UARTDevice)
 GPSListener = gps_ns.class_("GPSListener")
 
 MULTI_CONF = True
@@ -50,7 +52,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_DEGREES,
                 icon=ICON_LONGITUDE,
                 accuracy_decimals=6,
-                state_class=STATE_CLASS_MEASUREMENT,
+                state_class=STATE_CLASS_MEASUREMENT_ANGLE,
             ),
             cv.Optional(CONF_SPEED): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOMETER_PER_HOUR,
@@ -63,7 +65,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_DEGREES,
                 icon=ICON_COMPASS,
                 accuracy_decimals=2,
-                state_class=STATE_CLASS_MEASUREMENT,
+                state_class=STATE_CLASS_MEASUREMENT_ANGLE,
             ),
             cv.Optional(CONF_ALTITUDE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_METER,
@@ -72,11 +74,14 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_SATELLITES): sensor.sensor_schema(
+                # no unit_of_measurement
                 icon=ICON_SATELLITE,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_HDOP): sensor.sensor_schema(
+                # no unit_of_measurement
+                icon=ICON_CIRCLE_DOUBLE,
                 accuracy_decimals=3,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
@@ -93,33 +98,25 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if latitude_config := config.get(CONF_LATITUDE):
-        sens = await sensor.new_sensor(latitude_config)
-        cg.add(var.set_latitude_sensor(sens))
+    # Pre-create all sensor variables so automations that reference
+    # sibling sensors don't deadlock waiting for unregistered IDs.
+    sensors = [
+        (cg.new_Pvariable(conf[CONF_ID]), conf, setter)
+        for key, setter in (
+            (CONF_LATITUDE, "set_latitude_sensor"),
+            (CONF_LONGITUDE, "set_longitude_sensor"),
+            (CONF_SPEED, "set_speed_sensor"),
+            (CONF_COURSE, "set_course_sensor"),
+            (CONF_ALTITUDE, "set_altitude_sensor"),
+            (CONF_SATELLITES, "set_satellites_sensor"),
+            (CONF_HDOP, "set_hdop_sensor"),
+        )
+        if (conf := config.get(key))
+    ]
 
-    if longitude_config := config.get(CONF_LONGITUDE):
-        sens = await sensor.new_sensor(longitude_config)
-        cg.add(var.set_longitude_sensor(sens))
-
-    if speed_config := config.get(CONF_SPEED):
-        sens = await sensor.new_sensor(speed_config)
-        cg.add(var.set_speed_sensor(sens))
-
-    if course_config := config.get(CONF_COURSE):
-        sens = await sensor.new_sensor(course_config)
-        cg.add(var.set_course_sensor(sens))
-
-    if altitude_config := config.get(CONF_ALTITUDE):
-        sens = await sensor.new_sensor(altitude_config)
-        cg.add(var.set_altitude_sensor(sens))
-
-    if satellites_config := config.get(CONF_SATELLITES):
-        sens = await sensor.new_sensor(satellites_config)
-        cg.add(var.set_satellites_sensor(sens))
-
-    if hdop_config := config.get(CONF_HDOP):
-        sens = await sensor.new_sensor(hdop_config)
-        cg.add(var.set_hdop_sensor(sens))
+    for sens, conf, setter in sensors:
+        await sensor.register_sensor(sens, conf)
+        cg.add(getattr(var, setter)(sens))
 
     # https://platformio.org/lib/show/1655/TinyGPSPlus
     # Using fork of TinyGPSPlus patched to build on ESP-IDF

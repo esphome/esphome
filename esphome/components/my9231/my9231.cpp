@@ -58,14 +58,14 @@ void MY9231OutputComponent::setup() {
   }
 }
 void MY9231OutputComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MY9231:");
-  LOG_PIN("  DI Pin: ", this->pin_di_);
-  LOG_PIN("  DCKI Pin: ", this->pin_dcki_);
   ESP_LOGCONFIG(TAG,
+                "MY9231:\n"
                 "  Total number of channels: %u\n"
                 "  Number of chips: %u\n"
                 "  Bit depth: %u",
                 this->num_channels_, this->num_chips_, this->bit_depth_);
+  LOG_PIN("  DI Pin: ", this->pin_di_);
+  LOG_PIN("  DCKI Pin: ", this->pin_dcki_);
 }
 void MY9231OutputComponent::loop() {
   if (!this->update_)
@@ -81,9 +81,9 @@ void MY9231OutputComponent::loop() {
   }
   this->update_ = false;
 }
-void MY9231OutputComponent::set_channel_value_(uint8_t channel, uint16_t value) {
+void MY9231OutputComponent::set_channel_value_(uint16_t channel, uint16_t value) {
   ESP_LOGV(TAG, "set channels %u to %u", channel, value);
-  uint8_t index = this->num_channels_ - channel - 1;
+  uint16_t index = this->num_channels_ - channel - 1;
   if (this->pwm_amounts_[index] != value) {
     this->update_ = true;
   }

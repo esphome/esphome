@@ -5,12 +5,12 @@ import hashlib
 import logging
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import urllib.parse
 
 import esphome.config_validation as cv
 from esphome.core import CORE, TimePeriodSeconds
+from esphome.helpers import rmtree
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -102,6 +102,7 @@ def clone_or_update(
     username: str = None,
     password: str = None,
     submodules: list[str] | None = None,
+    subpath: Path | None = None,
     _recover_broken: bool = True,
 ) -> tuple[Path, Callable[[], None] | None]:
     key = f"{url}@{ref}"
@@ -112,32 +113,44 @@ def clone_or_update(
         )
 
     repo_dir = _compute_destination_path(key, domain)
+    if subpath:
+        repo_dir = repo_dir / subpath
+
     if not repo_dir.is_dir():
         _LOGGER.info("Cloning %s", key)
         _LOGGER.debug("Location: %s", repo_dir)
-        cmd = ["git", "clone", "--depth=1"]
-        cmd += ["--", url, str(repo_dir)]
-        run_git_command(cmd)
+        try:
+            cmd = ["git", "clone", "--depth=1"]
+            cmd += ["--", url, str(repo_dir)]
+            run_git_command(cmd)
 
-        if ref is not None:
-            # We need to fetch the PR branch first, otherwise git will complain
-            # about missing objects
-            _LOGGER.info("Fetching %s", ref)
-            run_git_command(["git", "fetch", "--", "origin", ref], git_dir=repo_dir)
-            run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], git_dir=repo_dir)
+            if ref is not None:
+                # We need to fetch the PR branch first, otherwise git will complain
+                # about missing objects
+                _LOGGER.info("Fetching %s", ref)
+                run_git_command(["git", "fetch", "--", "origin", ref], git_dir=repo_dir)
+                run_git_command(
+                    ["git", "reset", "--hard", "FETCH_HEAD"], git_dir=repo_dir
+                )
 
-        if submodules is not None:
-            _LOGGER.info(
-                "Initializing submodules (%s) for %s", ", ".join(submodules), key
-            )
-            run_git_command(
-                ["git", "submodule", "update", "--init"] + submodules, git_dir=repo_dir
-            )
+            if submodules is not None:
+                _LOGGER.info(
+                    "Initializing submodules (%s) for %s", ", ".join(submodules), key
+                )
+                run_git_command(
+                    ["git", "submodule", "update", "--init"] + submodules,
+                    git_dir=repo_dir,
+                )
+        except GitException:
+            # Remove incomplete clone to prevent stale state. Without this,
+            # a failed ref fetch leaves a clone on the default branch, and
+            # subsequent calls skip the update due to the refresh window.
+            if repo_dir.is_dir():
+                rmtree(repo_dir)
+            raise
 
     else:
-        # Check refresh needed
-        # Skip refresh if NEVER_REFRESH is specified
-        if refresh == NEVER_REFRESH:
+        if refresh == NEVER_REFRESH or CORE.skip_external_update:
             _LOGGER.debug("Skipping update for %s (refresh disabled)", key)
             return repo_dir, None
 
@@ -193,7 +206,7 @@ def clone_or_update(
                     err,
                 )
                 _LOGGER.info("Removing broken repository at %s", repo_dir)
-                shutil.rmtree(repo_dir)
+                rmtree(repo_dir)
                 _LOGGER.info("Successfully removed broken repository, re-cloning...")
 
                 # Recursively call clone_or_update to re-clone

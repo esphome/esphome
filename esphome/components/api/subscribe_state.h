@@ -16,7 +16,7 @@ class APIConnection;
     return this->client_->send_##entity_type##_state(entity); \
   }
 
-class InitialStateIterator : public ComponentIterator {
+class InitialStateIterator final : public ComponentIterator {
  public:
   InitialStateIterator(APIConnection *client);
 #ifdef USE_BINARY_SENSOR
@@ -76,13 +76,21 @@ class InitialStateIterator : public ComponentIterator {
 #ifdef USE_ALARM_CONTROL_PANEL
   bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *entity) override;
 #endif
+#ifdef USE_WATER_HEATER
+  bool on_water_heater(water_heater::WaterHeater *entity) override;
+#endif
+#ifdef USE_INFRARED
+  bool on_infrared(infrared::Infrared *infrared) override { return true; };
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  bool on_radio_frequency(radio_frequency::RadioFrequency *radio_frequency) override { return true; };
+#endif
 #ifdef USE_EVENT
   bool on_event(event::Event *event) override { return true; };
 #endif
 #ifdef USE_UPDATE
   bool on_update(update::UpdateEntity *entity) override;
 #endif
-  bool completed() { return this->state_ == IteratorState::NONE; }
 
  protected:
   APIConnection *client_;

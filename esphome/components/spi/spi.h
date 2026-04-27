@@ -23,9 +23,9 @@ using SPIInterface = SPIClassRP2040 *;
 using SPIInterface = SPIClass *;
 #endif
 
-#elif defined(CLANG_TIDY)
+#elif defined(USE_HOST) || defined(CLANG_TIDY)
 
-using SPIInterface = void *;  // Stub for platforms without SPI (e.g., Zephyr)
+using SPIInterface = void *;  // Stub for platforms without SPI (e.g., host, Zephyr)
 
 #endif  // USE_ESP32 / USE_ARDUINO
 
@@ -33,6 +33,8 @@ using SPIInterface = void *;  // Stub for platforms without SPI (e.g., Zephyr)
  * Implementation of SPI Controller mode.
  */
 namespace esphome::spi {
+
+#define LOG_SPI_DEVICE(this) ESP_LOGCONFIG(TAG, "  CS Pin: %d", esphome::spi::Utility::get_pin_no(this->cs_));
 
 /// The bit-order for SPI devices. This defines how the data read from and written to the device is interpreted.
 enum SPIBitOrder {
@@ -120,7 +122,11 @@ class NullPin : public GPIOPin {
 
   void digital_write(bool value) override {}
 
-  std::string dump_summary() const override { return std::string(); }
+  size_t dump_summary(char *buffer, size_t len) const override {
+    if (len > 0)
+      buffer[0] = '\0';
+    return 0;
+  }
 
  protected:
   static GPIOPin *const NULL_PIN;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

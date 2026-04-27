@@ -1,10 +1,17 @@
 <<: !include common.yaml
 
+wifi:
+  ap:
+
+psram:
+  mode: quad
+
 media_player:
   - platform: speaker
     id: speaker_media_player_id
     announcement_pipeline:
       speaker: speaker_id
+      format: NONE
     buffer_size: 1000000
     volume_increment: 0.02
     volume_max: 0.95

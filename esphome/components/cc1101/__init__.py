@@ -9,6 +9,8 @@ from esphome.const import (
     CONF_DATA,
     CONF_FREQUENCY,
     CONF_ID,
+    CONF_OUTPUT_POWER,
+    CONF_VALUE,
     CONF_WAIT_TIME,
 )
 from esphome.core import ID
@@ -21,7 +23,6 @@ ns = cg.esphome_ns.namespace("cc1101")
 CC1101Component = ns.class_("CC1101Component", cg.Component, spi.SPIDevice)
 
 # Config keys
-CONF_OUTPUT_POWER = "output_power"
 CONF_RX_ATTENUATION = "rx_attenuation"
 CONF_DC_BLOCKING_FILTER = "dc_blocking_filter"
 CONF_IF_FREQUENCY = "if_frequency"
@@ -160,41 +161,63 @@ HYST_LEVEL = {
     "High": HystLevel.HYST_LEVEL_HIGH,
 }
 
-# Config key -> Validator mapping
+# Optional settings to generate setter calls for
 CONFIG_MAP = {
-    CONF_OUTPUT_POWER: cv.float_range(min=-30.0, max=11.0),
-    CONF_RX_ATTENUATION: cv.enum(RX_ATTENUATION, upper=False),
-    CONF_DC_BLOCKING_FILTER: cv.boolean,
-    CONF_FREQUENCY: cv.All(cv.frequency, cv.float_range(min=300.0e6, max=928.0e6)),
-    CONF_IF_FREQUENCY: cv.All(cv.frequency, cv.float_range(min=25000, max=788000)),
-    CONF_FILTER_BANDWIDTH: cv.All(cv.frequency, cv.float_range(min=58000, max=812000)),
-    CONF_CHANNEL: cv.uint8_t,
-    CONF_CHANNEL_SPACING: cv.All(cv.frequency, cv.float_range(min=25000, max=405000)),
-    CONF_FSK_DEVIATION: cv.All(cv.frequency, cv.float_range(min=1500, max=381000)),
-    CONF_MSK_DEVIATION: cv.int_range(min=1, max=8),
-    CONF_SYMBOL_RATE: cv.float_range(min=600, max=500000),
-    CONF_SYNC_MODE: cv.enum(SYNC_MODE, upper=False),
-    CONF_CARRIER_SENSE_ABOVE_THRESHOLD: cv.boolean,
-    CONF_MODULATION_TYPE: cv.enum(MODULATION, upper=False),
-    CONF_MANCHESTER: cv.boolean,
-    CONF_NUM_PREAMBLE: cv.int_range(min=0, max=7),
-    CONF_SYNC1: cv.hex_uint8_t,
-    CONF_SYNC0: cv.hex_uint8_t,
-    CONF_MAGN_TARGET: cv.enum(MAGN_TARGET, upper=False),
-    CONF_MAX_LNA_GAIN: cv.enum(MAX_LNA_GAIN, upper=False),
-    CONF_MAX_DVGA_GAIN: cv.enum(MAX_DVGA_GAIN, upper=False),
-    CONF_CARRIER_SENSE_ABS_THR: cv.int_range(min=-8, max=7),
-    CONF_CARRIER_SENSE_REL_THR: cv.enum(CARRIER_SENSE_REL_THR, upper=False),
-    CONF_LNA_PRIORITY: cv.boolean,
-    CONF_FILTER_LENGTH_FSK_MSK: cv.enum(FILTER_LENGTH_FSK_MSK, upper=False),
-    CONF_FILTER_LENGTH_ASK_OOK: cv.enum(FILTER_LENGTH_ASK_OOK, upper=False),
-    CONF_FREEZE: cv.enum(FREEZE, upper=False),
-    CONF_WAIT_TIME: cv.enum(WAIT_TIME, upper=False),
-    CONF_HYST_LEVEL: cv.enum(HYST_LEVEL, upper=False),
-    CONF_PACKET_MODE: cv.boolean,
-    CONF_PACKET_LENGTH: cv.uint8_t,
-    CONF_CRC_ENABLE: cv.boolean,
-    CONF_WHITENING: cv.boolean,
+    cv.Optional(CONF_OUTPUT_POWER, default=10): cv.float_range(min=-30.0, max=11.0),
+    cv.Optional(CONF_RX_ATTENUATION, default="0dB"): cv.enum(
+        RX_ATTENUATION, upper=False
+    ),
+    cv.Optional(CONF_DC_BLOCKING_FILTER, default=True): cv.boolean,
+    cv.Optional(CONF_FREQUENCY, default="433.92MHz"): cv.All(
+        cv.frequency, cv.float_range(min=300.0e6, max=928.0e6)
+    ),
+    cv.Optional(CONF_IF_FREQUENCY, default="153kHz"): cv.All(
+        cv.frequency, cv.float_range(min=25000, max=788000)
+    ),
+    cv.Optional(CONF_FILTER_BANDWIDTH, default="203kHz"): cv.All(
+        cv.frequency, cv.float_range(min=58000, max=812000)
+    ),
+    cv.Optional(CONF_CHANNEL, default=0): cv.uint8_t,
+    cv.Optional(CONF_CHANNEL_SPACING, default="200kHz"): cv.All(
+        cv.frequency, cv.float_range(min=25000, max=405000)
+    ),
+    cv.Optional(CONF_FSK_DEVIATION): cv.All(
+        cv.frequency, cv.float_range(min=1500, max=381000)
+    ),
+    cv.Optional(CONF_MSK_DEVIATION): cv.int_range(min=1, max=8),
+    cv.Optional(CONF_SYMBOL_RATE, default=5000): cv.float_range(min=600, max=500000),
+    cv.Optional(CONF_SYNC_MODE, default="16/16"): cv.enum(SYNC_MODE, upper=False),
+    cv.Optional(CONF_CARRIER_SENSE_ABOVE_THRESHOLD, default=False): cv.boolean,
+    cv.Optional(CONF_MODULATION_TYPE, default="ASK/OOK"): cv.enum(
+        MODULATION, upper=False
+    ),
+    cv.Optional(CONF_MANCHESTER, default=False): cv.boolean,
+    cv.Optional(CONF_NUM_PREAMBLE, default=2): cv.int_range(min=0, max=7),
+    cv.Optional(CONF_SYNC1, default=0xD3): cv.hex_uint8_t,
+    cv.Optional(CONF_SYNC0, default=0x91): cv.hex_uint8_t,
+    cv.Optional(CONF_MAGN_TARGET, default="42dB"): cv.enum(MAGN_TARGET, upper=False),
+    cv.Optional(CONF_MAX_LNA_GAIN, default="Default"): cv.enum(
+        MAX_LNA_GAIN, upper=False
+    ),
+    cv.Optional(CONF_MAX_DVGA_GAIN, default="-3"): cv.enum(MAX_DVGA_GAIN, upper=False),
+    cv.Optional(CONF_CARRIER_SENSE_ABS_THR): cv.int_range(min=-8, max=7),
+    cv.Optional(CONF_CARRIER_SENSE_REL_THR): cv.enum(
+        CARRIER_SENSE_REL_THR, upper=False
+    ),
+    cv.Optional(CONF_LNA_PRIORITY, default=False): cv.boolean,
+    cv.Optional(CONF_FILTER_LENGTH_FSK_MSK): cv.enum(
+        FILTER_LENGTH_FSK_MSK, upper=False
+    ),
+    cv.Optional(CONF_FILTER_LENGTH_ASK_OOK): cv.enum(
+        FILTER_LENGTH_ASK_OOK, upper=False
+    ),
+    cv.Optional(CONF_FREEZE): cv.enum(FREEZE, upper=False),
+    cv.Optional(CONF_WAIT_TIME, default="32"): cv.enum(WAIT_TIME, upper=False),
+    cv.Optional(CONF_HYST_LEVEL): cv.enum(HYST_LEVEL, upper=False),
+    cv.Optional(CONF_PACKET_MODE, default=False): cv.boolean,
+    cv.Optional(CONF_PACKET_LENGTH): cv.uint8_t,
+    cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
+    cv.Optional(CONF_WHITENING, default=False): cv.boolean,
 }
 
 
@@ -217,7 +240,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
         }
     )
-    .extend({cv.Optional(key): validator for key, validator in CONFIG_MAP.items()})
+    .extend(CONFIG_MAP)
     .extend(cv.COMPONENT_SCHEMA)
     .extend(spi.spi_device_schema(cs_pin_required=True)),
     _validate_packet_mode,
@@ -229,7 +252,8 @@ async def to_code(config):
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
 
-    for key in CONFIG_MAP:
+    for opt in CONFIG_MAP:
+        key = opt.schema
         if key in config:
             cg.add(getattr(var, f"set_{key}")(config[key]))
 
@@ -241,6 +265,7 @@ async def to_code(config):
             var.get_packet_trigger(),
             [
                 (cg.std_vector.template(cg.uint8), "x"),
+                (cg.float_, "freq_offset"),
                 (cg.float_, "rssi"),
                 (cg.uint8, "lqi"),
             ],
@@ -262,10 +287,18 @@ CC1101_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action("cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.begin_rx", BeginRxAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.reset", ResetAction, CC1101_ACTION_SCHEMA)
-@automation.register_action("cc1101.set_idle", SetIdleAction, CC1101_ACTION_SCHEMA)
+@automation.register_action(
+    "cc1101.begin_tx", BeginTxAction, CC1101_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "cc1101.begin_rx", BeginRxAction, CC1101_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "cc1101.reset", ResetAction, CC1101_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "cc1101.set_idle", SetIdleAction, CC1101_ACTION_SCHEMA, synchronous=True
+)
 async def cc1101_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
@@ -292,7 +325,10 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 
 
 @automation.register_action(
-    "cc1101.send_packet", SendPacketAction, SEND_PACKET_ACTION_SCHEMA
+    "cc1101.send_packet",
+    SendPacketAction,
+    SEND_PACKET_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def send_packet_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -309,3 +345,93 @@ async def send_packet_action_to_code(config, action_id, template_arg, args):
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
         cg.add(var.set_data_static(arr, len(data)))
     return var
+
+
+# Setter action definitions: (setter_name, validator, template_type, enum_map)
+_SETTER_ACTIONS = [
+    (
+        "set_frequency",
+        cv.All(cv.frequency, cv.float_range(min=300.0e6, max=928.0e6)),
+        float,
+        None,
+    ),
+    ("set_output_power", cv.float_range(min=-30.0, max=11.0), float, None),
+    ("set_modulation_type", cv.enum(MODULATION, upper=False), Modulation, MODULATION),
+    ("set_symbol_rate", cv.float_range(min=600, max=500000), float, None),
+    (
+        "set_rx_attenuation",
+        cv.enum(RX_ATTENUATION, upper=False),
+        RxAttenuation,
+        RX_ATTENUATION,
+    ),
+    ("set_dc_blocking_filter", cv.boolean, bool, None),
+    ("set_manchester", cv.boolean, bool, None),
+    (
+        "set_filter_bandwidth",
+        cv.All(cv.frequency, cv.float_range(min=58000, max=812000)),
+        float,
+        None,
+    ),
+    (
+        "set_fsk_deviation",
+        cv.All(cv.frequency, cv.float_range(min=1500, max=381000)),
+        float,
+        None,
+    ),
+    ("set_msk_deviation", cv.int_range(min=1, max=8), cg.uint8, None),
+    ("set_channel", cv.uint8_t, cg.uint8, None),
+    (
+        "set_channel_spacing",
+        cv.All(cv.frequency, cv.float_range(min=25000, max=405000)),
+        float,
+        None,
+    ),
+    (
+        "set_if_frequency",
+        cv.All(cv.frequency, cv.float_range(min=25000, max=788000)),
+        float,
+        None,
+    ),
+]
+
+
+def _register_setter_actions():
+    for setter_name, validator, templ_type, enum_map in _SETTER_ACTIONS:
+        class_name = (
+            "".join(word.capitalize() for word in setter_name.split("_")) + "Action"
+        )
+        action_cls = ns.class_(
+            class_name, automation.Action, cg.Parented.template(CC1101Component)
+        )
+        schema = cv.maybe_simple_value(
+            {
+                cv.GenerateID(): cv.use_id(CC1101Component),
+                cv.Required(CONF_VALUE): cv.templatable(validator),
+            },
+            key=CONF_VALUE,
+        )
+
+        async def _setter_action_to_code(
+            config,
+            action_id,
+            template_arg,
+            args,
+            _setter=setter_name,
+            _type=templ_type,
+            _map=enum_map,
+        ):
+            var = cg.new_Pvariable(action_id, template_arg)
+            await cg.register_parented(var, config[CONF_ID])
+            data = config[CONF_VALUE]
+            if _map and not cg.is_template(data):
+                data = _map[data]
+            templ_ = await cg.templatable(data, args, _type)
+            cg.add(getattr(var, _setter)(templ_))
+            return var
+
+        automation.register_action(
+            f"cc1101.{setter_name}", action_cls, schema, synchronous=True
+        )(_setter_action_to_code)
+
+
+_register_setter_actions()
