@@ -146,7 +146,7 @@ def test_load_idedata_uses_cache_when_valid(
     setup_core: Path, mock_run_platformio_cli_run: Mock
 ) -> None:
     """Test _load_idedata uses cached data when unchanged."""
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
 
     # Create platformio.ini
@@ -176,7 +176,7 @@ def test_load_idedata_regenerates_when_platformio_ini_newer(
     setup_core: Path, mock_run_platformio_cli_run: Mock
 ) -> None:
     """Test _load_idedata regenerates when platformio.ini is newer."""
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
 
     # Create idedata cache file first
@@ -209,7 +209,7 @@ def test_load_idedata_regenerates_on_corrupted_cache(
     setup_core: Path, mock_run_platformio_cli_run: Mock
 ) -> None:
     """Test _load_idedata regenerates when cache file is corrupted."""
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
 
     # Create platformio.ini
@@ -291,7 +291,7 @@ def test_run_platformio_cli_sets_environment_variables(
     """Test run_platformio_cli sets correct environment variables."""
     from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: "esp8266",
         KEY_TARGET_FRAMEWORK: "arduino",
@@ -426,7 +426,7 @@ def test_run_platformio_cli_enables_zephyr_ccache_when_available(
     """Zephyr CMake/Ninja builds should use a scoped ccache when available."""
     from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 
-    CORE.build_path = str(setup_core / "build" / "nrf52-test")
+    CORE.build_path = setup_core / "build" / "nrf52-test"
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: "nrf52",
         KEY_TARGET_FRAMEWORK: "zephyr",
@@ -455,7 +455,7 @@ def test_run_platformio_cli_skips_zephyr_ccache_when_unavailable(
     """Zephyr builds should still work normally on systems without ccache."""
     from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 
-    CORE.build_path = str(setup_core / "build" / "nrf52-test")
+    CORE.build_path = setup_core / "build" / "nrf52-test"
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: "nrf52",
         KEY_TARGET_FRAMEWORK: "zephyr",
@@ -479,7 +479,7 @@ def test_run_platformio_cli_clears_managed_zephyr_ccache_for_non_zephyr(
     """Update-all style runs should not leak Zephyr ccache settings."""
     from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 
-    CORE.build_path = str(setup_core / "build" / "nrf52-test")
+    CORE.build_path = setup_core / "build" / "nrf52-test"
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: "nrf52",
         KEY_TARGET_FRAMEWORK: "zephyr",
@@ -493,7 +493,7 @@ def test_run_platformio_cli_clears_managed_zephyr_ccache_for_non_zephyr(
         platformio_api.run_platformio_cli("test")
         assert os.environ["CCACHE_DIR"].endswith("nrf52-zephyr")
 
-        CORE.build_path = str(setup_core / "build" / "esp32-test")
+        CORE.build_path = setup_core / "build" / "esp32-test"
         CORE.data[KEY_CORE] = {
             KEY_TARGET_PLATFORM: "esp32",
             KEY_TARGET_FRAMEWORK: "arduino",
@@ -509,14 +509,14 @@ def test_run_platformio_cli_run_builds_command(
     setup_core: Path, mock_run_platformio_cli: Mock
 ) -> None:
     """Test run_platformio_cli_run builds correct command."""
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     mock_run_platformio_cli.return_value = 0
 
     config = {"name": "test"}
     toolchain.run_platformio_cli_run(config, True, "extra", "args")
 
     mock_run_platformio_cli.assert_called_once_with(
-        "run", "-d", CORE.build_path, "-v", "extra", "args"
+        "run", "-d", str(CORE.build_path), "-v", "extra", "args"
     )
 
 
@@ -524,7 +524,7 @@ def test_run_compile(setup_core: Path, mock_run_platformio_cli_run: Mock) -> Non
     """Test run_compile with process limit."""
     from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME
 
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     config = {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 4}}
     mock_run_platformio_cli_run.return_value = 0
 
@@ -554,7 +554,7 @@ def test_get_idedata_caches_result(
     """Test get_idedata caches result in CORE.data."""
     from esphome.const import KEY_CORE
 
-    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
     CORE.data[KEY_CORE] = {}
 
