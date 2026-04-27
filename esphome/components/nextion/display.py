@@ -1,10 +1,11 @@
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import display, esp32, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_BRIGHTNESS, CONF_ID, CONF_LAMBDA, CONF_ON_TOUCH
 from esphome.core import CORE, TimePeriod
-import logging
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ NextionSetBrightnessAction = nextion_ns.class_(
     "NextionSetBrightnessAction", automation.Action
 )
 
+
 def _validate_dump_device_info(config):
     if CONF_DUMP_DEVICE_INFO in config:
         _LOGGER.warning(
@@ -65,6 +67,7 @@ def _validate_dump_device_info(config):
             "Please remove this option from your configuration."
         )
     return config
+
 
 def _validate_tft_upload(config):
     has_tft_url = CONF_TFT_URL in config
