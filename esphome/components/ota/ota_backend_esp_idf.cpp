@@ -347,6 +347,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
+  esp_partition_deregister_external(this->partition_table_part_);
   this->partition_table_part_ = nullptr;
   esp_partition_unload_all();
 
@@ -358,12 +359,12 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     const esp_partition_info_t *new_part =
         &new_partition_table[new_app_part_index == -1 ? new_app_part_index_with_copy : new_app_part_index];
     if (p->address == new_part->pos.offset) {
+      ESP_LOGD(TAG, "Setting next boot partition to 0x%X", p->address);
       new_boot_partition = p;
     }
     it = esp_partition_next(it);
   }
   esp_partition_iterator_release(it);
-  ESP_LOGD(TAG, "Setting next boot partition to 0x%X", new_boot_partition->address);
   err = esp_ota_set_boot_partition(new_boot_partition);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (err=0x%X) ", err);

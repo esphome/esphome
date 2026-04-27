@@ -77,7 +77,7 @@ def ota_esphome_final_validate(config):
                 merged_ota_esphome_configs_by_port[conf_port] = merge_config(
                     merged_ota_esphome_configs_by_port[conf_port], ota_conf
                 )
-            if config.get(CONF_ALLOW_PARTITION_ACCESS, False) and not CORE.is_esp32:
+            if ota_conf.get(CONF_ALLOW_PARTITION_ACCESS, False) and not CORE.is_esp32:
                 raise cv.Invalid(
                     f"{CONF_ALLOW_PARTITION_ACCESS} is only supported on the esp32"
                 )
