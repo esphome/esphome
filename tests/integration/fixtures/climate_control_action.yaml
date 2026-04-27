@@ -33,8 +33,8 @@ climate:
       - logger.log: idle
     cool_action:
       - logger.log: cooling
-    auto_mode:
-      - logger.log: auto
+    heat_cool_mode:
+      - logger.log: heat_cool
     preset:
       - name: Default
         default_target_temperature_low: 18 °C
