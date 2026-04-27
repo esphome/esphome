@@ -40,12 +40,12 @@ from .base_component import (
     CONF_TOUCH_SLEEP_TIMEOUT,
     CONF_WAKE_UP_PAGE,
 )
-import logging
 
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
 DEPENDENCIES = ["uart"]
+
 
 def AUTO_LOAD() -> list[str]:
     base = ["binary_sensor", "switch", "sensor", "text_sensor"]
