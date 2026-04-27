@@ -487,37 +487,40 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 async def climate_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if (mode := config.get(CONF_MODE)) is not None:
-        template_ = await cg.templatable(mode, args, ClimateMode)
-        cg.add(var.set_mode(template_))
-    if (target_temp := config.get(CONF_TARGET_TEMPERATURE)) is not None:
-        template_ = await cg.templatable(target_temp, args, cg.float_)
-        cg.add(var.set_target_temperature(template_))
-    if (target_temp_low := config.get(CONF_TARGET_TEMPERATURE_LOW)) is not None:
-        template_ = await cg.templatable(target_temp_low, args, cg.float_)
-        cg.add(var.set_target_temperature_low(template_))
-    if (target_temp_high := config.get(CONF_TARGET_TEMPERATURE_HIGH)) is not None:
-        template_ = await cg.templatable(target_temp_high, args, cg.float_)
-        cg.add(var.set_target_temperature_high(template_))
-    if (target_humidity := config.get(CONF_TARGET_HUMIDITY)) is not None:
-        template_ = await cg.templatable(target_humidity, args, cg.float_)
-        cg.add(var.set_target_humidity(template_))
-    if (fan_mode := config.get(CONF_FAN_MODE)) is not None:
-        template_ = await cg.templatable(fan_mode, args, ClimateFanMode)
-        cg.add(var.set_fan_mode(template_))
-    if (custom_fan_mode := config.get(CONF_CUSTOM_FAN_MODE)) is not None:
-        template_ = await cg.templatable(custom_fan_mode, args, cg.std_string)
-        cg.add(var.set_custom_fan_mode(template_))
-    if (preset := config.get(CONF_PRESET)) is not None:
-        template_ = await cg.templatable(preset, args, ClimatePreset)
-        cg.add(var.set_preset(template_))
-    if (custom_preset := config.get(CONF_CUSTOM_PRESET)) is not None:
-        template_ = await cg.templatable(custom_preset, args, cg.std_string)
-        cg.add(var.set_custom_preset(template_))
-    if (swing_mode := config.get(CONF_SWING_MODE)) is not None:
-        template_ = await cg.templatable(swing_mode, args, ClimateSwingMode)
-        cg.add(var.set_swing_mode(template_))
+
+    # Order/bits must match CLIMATE_CONTROL_FIELDS in automation.h.
+    FIELDS = (
+        (CONF_MODE, "set_mode", ClimateMode),
+        (CONF_TARGET_TEMPERATURE, "set_target_temperature", cg.float_),
+        (CONF_TARGET_TEMPERATURE_LOW, "set_target_temperature_low", cg.float_),
+        (CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high", cg.float_),
+        (CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
+        (CONF_FAN_MODE, "set_fan_mode", ClimateFanMode),
+        (
+            CONF_CUSTOM_FAN_MODE,
+            "set_custom_fan_mode",
+            cg.std_string,
+        ),  # internal setter name
+        (CONF_PRESET, "set_preset", ClimatePreset),
+        (
+            CONF_CUSTOM_PRESET,
+            "set_custom_preset",
+            cg.std_string,
+        ),  # internal setter name
+        (CONF_SWING_MODE, "set_swing_mode", ClimateSwingMode),
+    )
+    assert len(FIELDS) <= 16, "ControlAction Fields bitmask exceeds uint16_t"
+
+    field_mask = sum(1 << i for i, (k, _, _) in enumerate(FIELDS) if k in config)
+    control_template_arg = cg.TemplateArguments(
+        cg.RawExpression(f"static_cast<uint16_t>({field_mask})"), *template_arg
+    )
+    var = cg.new_Pvariable(action_id, control_template_arg, paren)
+
+    for conf_key, setter, type_ in FIELDS:
+        if (value := config.get(conf_key)) is not None:
+            template_ = await cg.templatable(value, args, type_)
+            cg.add(getattr(var, setter)(template_))
     return var
 
 
