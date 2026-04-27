@@ -4,11 +4,14 @@ Tests both ToggleAction<HasTransitionLength=false> and
 ToggleAction<HasTransitionLength=true> instantiations.
 """
 
-import asyncio
-from typing import Any
+from __future__ import annotations
 
+import asyncio
+
+from aioesphomeapi import ButtonInfo, EntityState, LightInfo, LightState
 import pytest
 
+from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -19,31 +22,37 @@ async def test_light_toggle_action(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test light.toggle with and without transition_length."""
+    loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
-        state_futures: dict[int, asyncio.Future[Any]] = {}
+        light_state_future: asyncio.Future[LightState] | None = None
 
-        def on_state(state: Any) -> None:
-            if state.key in state_futures and not state_futures[state.key].done():
-                state_futures[state.key].set_result(state)
+        def on_state(state: EntityState) -> None:
+            if (
+                isinstance(state, LightState)
+                and light_state_future is not None
+                and not light_state_future.done()
+            ):
+                light_state_future.set_result(state)
 
-        client.subscribe_states(on_state)
-
-        entities = await client.list_entities_services()
-        light = next(e for e in entities[0] if e.object_id == "test_light")
-        buttons = {e.name: e for e in entities[0] if hasattr(e, "name")}
-
-        async def wait_for_state(key: int, timeout: float = 5.0) -> Any:
-            loop = asyncio.get_running_loop()
-            state_futures[key] = loop.create_future()
+        async def wait_for_light_state(timeout: float = 5.0) -> LightState:
+            nonlocal light_state_future
+            light_state_future = loop.create_future()
             try:
-                return await asyncio.wait_for(state_futures[key], timeout)
+                return await asyncio.wait_for(light_state_future, timeout)
             finally:
-                state_futures.pop(key, None)
+                light_state_future = None
 
-        async def press_and_wait(button_name: str) -> Any:
-            btn = buttons[button_name]
+        entities, _ = await client.list_entities_services()
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+        await initial_state_helper.wait_for_initial_states()
+
+        require_entity(entities, "test_light", LightInfo)
+
+        async def press_and_wait(name: str) -> LightState:
+            btn = require_entity(entities, name.lower().replace(" ", "_"), ButtonInfo)
             client.button_command(btn.key)
-            return await wait_for_state(light.key)
+            return await wait_for_light_state()
 
         # Test 1: toggle without transition_length flips off->on
         state = await press_and_wait("Toggle")
