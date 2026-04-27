@@ -292,6 +292,7 @@ void ESPHomeOTAComponent::handle_data_() {
   bool update_started = false;
   size_t total = 0;
   uint32_t last_progress = 0;
+  uint32_t last_data_ms = 0;
   uint8_t buf[OTA_BUFFER_SIZE];
   char *sbuf = reinterpret_cast<char *>(buf);
   size_t ota_size;
@@ -355,10 +356,11 @@ void ESPHomeOTAComponent::handle_data_() {
   // can't wedge the device indefinitely. Without this, the loop only exits
   // on actual data, EOF, or a non-EWOULDBLOCK error from read(), and lwIP
   // TCP keepalive isn't enabled here.
-  uint32_t last_data_ms = millis();
+  last_data_ms = millis();
   while (total < ota_size) {
     if (millis() - last_data_ms > OTA_SOCKET_TIMEOUT_DATA) {
       ESP_LOGW(TAG, "No data received for %u ms", (unsigned) OTA_SOCKET_TIMEOUT_DATA);
+      error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     size_t remaining = ota_size - total;
