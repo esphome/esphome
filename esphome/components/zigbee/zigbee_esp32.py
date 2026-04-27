@@ -28,7 +28,15 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .const import CONF_REPORT, CONF_ROUTER, KEY_ZIGBEE, REPORT, ZigbeeAttribute
+from .const import (
+    CONF_POWER_SOURCE,
+    CONF_REPORT,
+    CONF_ROUTER,
+    KEY_ZIGBEE,
+    POWER_SOURCE,
+    REPORT,
+    ZigbeeAttribute,
+)
 from .const_esp32 import (
     ATTR_TYPE,
     CLUSTER_ID,
@@ -259,6 +267,7 @@ async def esp32_to_code(config: ConfigType) -> None:
         var.set_basic_cluster(
             config[CONF_MODEL],
             "esphome",
+            cg.RawExpression(POWER_SOURCE[config[CONF_POWER_SOURCE]]),
         )
     )
     for ep in ep_list:
