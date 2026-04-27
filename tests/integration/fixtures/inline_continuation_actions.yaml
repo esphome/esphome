@@ -1,0 +1,91 @@
+esphome:
+  name: inline-continuation-test
+host:
+api:
+logger:
+  level: DEBUG
+
+globals:
+  - id: counter
+    type: int
+    initial_value: "0"
+  - id: enabled
+    type: bool
+    initial_value: "true"
+
+button:
+  # Test 1: if/then (HasElse=false) — increments counter when enabled is true
+  - platform: template
+    id: btn_if_then
+    name: "If Then"
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(enabled);'
+          then:
+            - lambda: 'id(counter) += 1;'
+
+  # Test 2: if/then/else (HasElse=true) — increments by 10 when enabled, else by 100
+  - platform: template
+    id: btn_if_then_else
+    name: "If Then Else"
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(enabled);'
+          then:
+            - lambda: 'id(counter) += 10;'
+          else:
+            - lambda: 'id(counter) += 100;'
+
+  # Test 3: while loop — increments counter 5 times via inline check
+  - platform: template
+    id: btn_while
+    name: "While"
+    on_press:
+      - while:
+          condition:
+            lambda: 'return id(counter) % 5 != 0;'
+          then:
+            - lambda: 'id(counter) += 1;'
+
+  # Test 4: repeat loop — increments by 7 over 3 iterations
+  - platform: template
+    id: btn_repeat
+    name: "Repeat"
+    on_press:
+      - repeat:
+          count: 3
+          then:
+            - lambda: 'id(counter) += 7;'
+
+  # Test 5: toggle enabled flag (used to test the else branch later)
+  - platform: template
+    id: btn_disable
+    name: "Disable"
+    on_press:
+      - lambda: 'id(enabled) = false;'
+
+  # Test 6: reset counter
+  - platform: template
+    id: btn_reset
+    name: "Reset"
+    on_press:
+      - lambda: 'id(counter) = 0;'
+
+  # Helper: trigger an update of the counter_value text sensor
+  - platform: template
+    id: btn_update_counter
+    name: "Update Counter"
+    on_press:
+      - component.update: counter_value
+
+text_sensor:
+  - platform: template
+    id: counter_value
+    name: "Counter"
+    update_interval: never
+    lambda: |-
+      char buf[16];
+      snprintf(buf, sizeof(buf), "%d", id(counter));
+      return std::string(buf);
