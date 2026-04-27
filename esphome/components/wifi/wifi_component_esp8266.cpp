@@ -633,6 +633,8 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
 
 #ifdef USE_WIFI_PHY_MODE
 bool WiFiComponent::wifi_apply_phy_mode_() {
+  if (this->phy_mode_ == WIFI_8266_PHY_MODE_AUTO)
+    return true;
   // Values of WiFi8266PhyMode are aligned with the SDK's phy_mode_t enum.
   return wifi_set_phy_mode(static_cast<phy_mode_t>(this->phy_mode_));
 }

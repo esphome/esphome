@@ -346,8 +346,10 @@ enum WifiMinAuthMode : uint8_t {
 };
 
 #ifdef USE_WIFI_PHY_MODE
-// Values match ESP8266 SDK phy_mode_t (PHY_MODE_11B=1, PHY_MODE_11G=2, PHY_MODE_11N=3).
+// Values 1-3 match ESP8266 SDK phy_mode_t (PHY_MODE_11B=1, PHY_MODE_11G=2, PHY_MODE_11N=3).
+// AUTO leaves the SDK at its default (no wifi_set_phy_mode() call).
 enum WiFi8266PhyMode : uint8_t {
+  WIFI_8266_PHY_MODE_AUTO = 0,
   WIFI_8266_PHY_MODE_11B = 1,
   WIFI_8266_PHY_MODE_11G = 2,
   WIFI_8266_PHY_MODE_11N = 3,
@@ -827,7 +829,7 @@ class WiFiComponent final : public Component {
   wifi_band_mode_t band_mode_{WIFI_BAND_MODE_AUTO};
 #endif
 #ifdef USE_WIFI_PHY_MODE
-  WiFi8266PhyMode phy_mode_{WIFI_8266_PHY_MODE_11N};
+  WiFi8266PhyMode phy_mode_{WIFI_8266_PHY_MODE_AUTO};
 #endif
   WifiMinAuthMode min_auth_mode_{WIFI_MIN_AUTH_MODE_WPA2};
   WiFiRetryPhase retry_phase_{WiFiRetryPhase::INITIAL_CONNECT};
