@@ -117,7 +117,6 @@ bool Nextion::check_connect_() {
 
   ESP_LOGN(TAG, "connect: %s", response.c_str());
 
-
   // Parse comok response fields directly
   // Format: comok <touch>,<reserved>,<model>,<fw>,<mcu_code>,<serial>,<flash>
   size_t field_count = 0;
@@ -132,14 +131,20 @@ bool Nextion::check_connect_() {
   while ((start = response.find_first_not_of(',', end)) != std::string::npos) {
     end = response.find(',', start);
     switch (field_count) {
-      case 2: copy_field(this->device_model_,     this->NEXTION_MODEL_MAX_);  break;
-      case 3: copy_field(this->firmware_version_, this->NEXTION_FW_MAX_);     break;
-      case 5: copy_field(this->serial_number_,    this->NEXTION_SERIAL_MAX_); break;
-      case 6:
-        this->flash_size_ = static_cast<uint32_t>(
-            std::strtoul(response.data() + start, nullptr, 10));
+      case 2:
+        copy_field(this->device_model_, this->NEXTION_MODEL_MAX_);
         break;
-      default: break;
+      case 3:
+        copy_field(this->firmware_version_, this->NEXTION_FW_MAX_);
+        break;
+      case 5:
+        copy_field(this->serial_number_, this->NEXTION_SERIAL_MAX_);
+        break;
+      case 6:
+        this->flash_size_ = static_cast<uint32_t>(std::strtoul(response.data() + start, nullptr, 10));
+        break;
+      default:
+        break;
     }
     ++field_count;
   }
@@ -191,8 +196,8 @@ void Nextion::dump_config() {
                 "  Flash Size: %" PRIu32 " bytes\n"
                 "  Max queue age: %u ms\n"
                 "  Startup override: %u ms\n",
-                this->device_model_, this->firmware_version_, this->serial_number_,
-                this->flash_size_, this->max_q_age_ms_, this->startup_override_ms_);
+                this->device_model_, this->firmware_version_, this->serial_number_, this->flash_size_,
+                this->max_q_age_ms_, this->startup_override_ms_);
 #ifdef USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
   ESP_LOGCONFIG(TAG, "  Exit reparse: YES\n");
 #endif  // USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
