@@ -77,6 +77,7 @@ template<uint16_t Fields, typename... Ts> class LightControlAction : public Acti
 #undef LIGHT_FIELD_APPLY_
 #undef LIGHT_FIELD_SETTER_
 };
+#undef LIGHT_CONTROL_FIELDS
 
 template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
  public:
