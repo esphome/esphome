@@ -8,20 +8,27 @@ namespace esphome::light {
 
 enum class LimitMode { CLAMP, DO_NOTHING };
 
-template<typename... Ts> class ToggleAction : public Action<Ts...> {
+template<bool HasTransitionLength, typename... Ts> class ToggleAction : public Action<Ts...> {
  public:
   explicit ToggleAction(LightState *state) : state_(state) {}
 
-  TEMPLATABLE_VALUE(uint32_t, transition_length)
+  template<typename V> void set_transition_length(V value) requires(HasTransitionLength) {
+    this->transition_length_ = value;
+  }
 
   void play(const Ts &...x) override {
     auto call = this->state_->toggle();
-    call.set_transition_length(this->transition_length_.optional_value(x...));
+    if constexpr (HasTransitionLength) {
+      call.set_transition_length(this->transition_length_.optional_value(x...));
+    }
     call.perform();
   }
 
  protected:
   LightState *state_;
+  struct NoTransition {};
+  [[no_unique_address]] std::conditional_t<HasTransitionLength, TemplatableFn<uint32_t, Ts...>, NoTransition>
+      transition_length_{};
 };
 
 template<typename... Ts> class LightControlAction : public Action<Ts...> {

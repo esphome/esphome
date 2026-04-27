@@ -60,8 +60,10 @@ from .types import (
 )
 async def light_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_TRANSITION_LENGTH in config:
+    has_transition_length = CONF_TRANSITION_LENGTH in config
+    toggle_template_arg = cg.TemplateArguments(has_transition_length, *template_arg)
+    var = cg.new_Pvariable(action_id, toggle_template_arg, paren)
+    if has_transition_length:
         template_ = await cg.templatable(
             config[CONF_TRANSITION_LENGTH], args, cg.uint32
         )
