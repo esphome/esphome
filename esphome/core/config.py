@@ -792,6 +792,29 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
+        # Per-platform wake implementations — wake.h dispatches to exactly one of
+        # these based on USE_*, so the others can be skipped at the source level
+        # too. Header files next to each .cpp are always copied (the dispatcher
+        # #include's them) but compile to empty TUs on the wrong platform anyway.
+        "wake/wake_freertos.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "wake/wake_esp8266.cpp": {
+            PlatformFramework.ESP8266_ARDUINO,
+        },
+        "wake/wake_rp2040.cpp": {
+            PlatformFramework.RP2040_ARDUINO,
+        },
+        "wake/wake_host.cpp": {
+            PlatformFramework.HOST_NATIVE,
+        },
+        "wake/wake_generic.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
+        },
         # Note: lock_free_queue.h and event_pool.h are header files and don't need to be filtered
         # as they are only included when needed by the preprocessor
     }
