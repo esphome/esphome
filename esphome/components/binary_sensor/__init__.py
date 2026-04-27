@@ -62,6 +62,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -624,7 +625,7 @@ async def setup_binary_sensor_core_(var, config):
 async def register_binary_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_binary_sensor(var))
+    queue_entity_register("binary_sensor", config)
     CORE.register_platform_component("binary_sensor", var)
     await setup_binary_sensor_core_(var, config)
 
