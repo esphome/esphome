@@ -420,10 +420,10 @@ def test_run_platformio_cli_does_not_set_pythonexepath_without_strip(
         assert "PYTHONEXEPATH" not in os.environ
 
 
-def test_run_platformio_cli_enables_zephyr_ccache_when_available(
+def test_run_platformio_cli_scopes_zephyr_ccache_when_available(
     setup_core: Path, mock_run_external_process: Mock
 ) -> None:
-    """Zephyr CMake/Ninja builds should use a scoped ccache when available."""
+    """Zephyr CMake/Ninja builds should use ESPHome-scoped ccache state."""
     from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 
     CORE.build_path = setup_core / "build" / "nrf52-test"
@@ -471,6 +471,47 @@ def test_run_platformio_cli_skips_zephyr_ccache_when_unavailable(
         assert "CMAKE_C_COMPILER_LAUNCHER" not in os.environ
         assert "CMAKE_CXX_COMPILER_LAUNCHER" not in os.environ
         assert "CCACHE_DIR" not in os.environ
+
+
+def test_run_platformio_cli_preserves_user_zephyr_ccache_overrides(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """User-provided ccache settings should survive mixed-framework runs."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = setup_core / "build" / "nrf52-test"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "nrf52",
+        KEY_TARGET_FRAMEWORK: "zephyr",
+    }
+
+    user_env = {
+        "CMAKE_C_COMPILER_LAUNCHER": "/opt/custom/ccache",
+        "CCACHE_DIR": "/opt/custom/cache",
+    }
+    with (
+        patch.dict(os.environ, user_env, clear=True),
+        patch("esphome.platformio_api.shutil.which", return_value="/usr/bin/ccache"),
+    ):
+        mock_run_external_process.return_value = 0
+        platformio_api.run_platformio_cli("test")
+
+        assert os.environ["CMAKE_C_COMPILER_LAUNCHER"] == "/opt/custom/ccache"
+        assert os.environ["CCACHE_DIR"] == "/opt/custom/cache"
+        assert os.environ["CMAKE_CXX_COMPILER_LAUNCHER"] == "/usr/bin/ccache"
+        assert os.environ["CCACHE_BASEDIR"] == str(setup_core / "build" / "nrf52-test")
+
+        CORE.build_path = setup_core / "build" / "esp32-test"
+        CORE.data[KEY_CORE] = {
+            KEY_TARGET_PLATFORM: "esp32",
+            KEY_TARGET_FRAMEWORK: "arduino",
+        }
+        platformio_api.run_platformio_cli("test")
+
+        assert os.environ["CMAKE_C_COMPILER_LAUNCHER"] == "/opt/custom/ccache"
+        assert os.environ["CCACHE_DIR"] == "/opt/custom/cache"
+        assert "CMAKE_CXX_COMPILER_LAUNCHER" not in os.environ
+        assert "CCACHE_BASEDIR" not in os.environ
 
 
 def test_run_platformio_cli_clears_managed_zephyr_ccache_for_non_zephyr(

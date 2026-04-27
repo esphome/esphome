@@ -56,7 +56,7 @@ def _platformio_toolchain_cache_key() -> str:
 
 
 def _configure_zephyr_ccache() -> None:
-    """Use ccache for Zephyr's CMake/Ninja builds when it is available."""
+    """Scope Zephyr's CMake/Ninja ccache state when it is available."""
     core_data = CORE.data.get(KEY_CORE, {})
     if core_data.get(KEY_TARGET_FRAMEWORK) != "zephyr":
         for name in _ZEPHYR_CCACHE_ENV_DEFAULTS:
@@ -69,6 +69,10 @@ def _configure_zephyr_ccache() -> None:
             _unset_platformio_env_default(name)
         return
 
+    # The Nordic Zephyr PlatformIO framework already exposes ccache on PATH.
+    # ESPHome still owns these defaults so update-all style runs use an
+    # ESPHome-scoped cache and do not leak managed Zephyr settings into the next
+    # framework built in the same Python process.
     _set_platformio_env_default("CMAKE_C_COMPILER_LAUNCHER", ccache)
     _set_platformio_env_default("CMAKE_CXX_COMPILER_LAUNCHER", ccache)
     _set_platformio_env_default(
