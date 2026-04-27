@@ -60,7 +60,7 @@ async def gradients_to_code(config):
     for gradient in config.get(CONF_GRADIENTS, ()):
         var = MockObj(cg.new_Pvariable(gradient[CONF_ID]), "->")
         idbase = gradient[CONF_ID].id
-        stops = gradient[CONF_STOPS]
+        stops = sorted(gradient[CONF_STOPS], key=lambda x: x[CONF_POSITION])
         max_stops = max(max_stops, len(stops))
         if gradient[CONF_DIRECTION].startswith("VER"):
             lv.grad_vertical_init(var)
