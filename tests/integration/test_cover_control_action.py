@@ -84,3 +84,9 @@ async def test_cover_control_action(
         state = await press_and_wait("Publish Op")
         # CoverOperation.OPENING == 1
         assert state.current_operation == 1
+
+        # Test 8: cover.control stop only (mask 1)
+        # The template cover's stop_action publishes current_operation: IDLE
+        state = await press_and_wait("Stop Cover")
+        # CoverOperation.IDLE == 0
+        assert state.current_operation == 0

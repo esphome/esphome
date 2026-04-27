@@ -64,16 +64,7 @@ button:
           position: 25%
           tilt: 30%
 
-  # Test 4: cover.control with stop only (mask 0b001 = 1)
-  - platform: template
-    id: btn_stop
-    name: "Stop Cover"
-    on_press:
-      - cover.control:
-          id: test_cover
-          stop: true
-
-  # Test 5: cover.control with state alias (sets position bit via CONF_STATE)
+  # Test 4: cover.control with state alias (sets position bit via CONF_STATE)
   - platform: template
     id: btn_open_state
     name: "Open State"
@@ -82,7 +73,7 @@ button:
           id: test_cover
           state: OPEN
 
-  # Test 6: cover.control with lambda position (exercises lambda path)
+  # Test 5: cover.control with lambda position (exercises lambda path)
   - platform: template
     id: btn_lambda_position
     name: "Lambda Position"
@@ -91,7 +82,7 @@ button:
           id: test_cover
           position: !lambda "return id(test_position);"
 
-  # Test 7: cover.template.publish position only (mask 0b001)
+  # Test 6: cover.template.publish position only (mask 0b001)
   - platform: template
     id: btn_publish_pos
     name: "Publish Pos"
@@ -100,7 +91,7 @@ button:
           id: test_cover
           position: 0.6
 
-  # Test 8: cover.template.publish current_operation only (mask 0b100)
+  # Test 7: cover.template.publish current_operation only (mask 0b100)
   - platform: template
     id: btn_publish_op
     name: "Publish Op"
@@ -108,3 +99,13 @@ button:
       - cover.template.publish:
           id: test_cover
           current_operation: OPENING
+
+  # Test 8: cover.control with stop only (mask 0b001 = 1) — runs after
+  # Publish Op so we can verify current_operation transitions OPENING -> IDLE
+  - platform: template
+    id: btn_stop
+    name: "Stop Cover"
+    on_press:
+      - cover.control:
+          id: test_cover
+          stop: true

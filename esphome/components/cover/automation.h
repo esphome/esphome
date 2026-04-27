@@ -51,8 +51,9 @@ namespace cover_action_detail {
 template<int Tag> struct Empty {};
 }  // namespace cover_action_detail
 
-// X-macro: (type, field_name, bit_index). Order/bits must match
-// cover_control_to_code's FIELDS table in __init__.py.
+// X-macro: (type, field_name, bit_index). Order/bits must match the
+// inline field-mask computation in cover_control_to_code in __init__.py:
+// stop=bit 0, position=bit 1 (also set by CONF_STATE), tilt=bit 2.
 #define COVER_CONTROL_FIELDS(X) \
   X(bool, stop, 0) \
   X(float, position, 1) \
@@ -86,8 +87,10 @@ template<uint16_t Fields, typename... Ts> class ControlAction : public Action<Ts
 };
 #undef COVER_CONTROL_FIELDS
 
-// X-macro: (type, field_name, bit_index). Order/bits must match
-// cover_template_publish_to_code's FIELDS table in template/cover/__init__.py.
+// X-macro: (type, field_name, bit_index). Order/bits must match the
+// inline bitmask built in cover_template_publish_to_code in
+// template/cover/__init__.py: position=bit 0 (also set by CONF_STATE),
+// tilt=bit 1, current_operation=bit 2.
 #define COVER_PUBLISH_FIELDS(X) \
   X(float, position, 0) \
   X(float, tilt, 1) \
