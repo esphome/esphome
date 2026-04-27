@@ -56,6 +56,12 @@ def test_grid_dimension_invalid_string_rejected() -> None:
         grid_dimension("not a list")
 
 
+def test_grid_dimension_empty_list_rejected() -> None:
+    """An empty list of grid specs must be rejected."""
+    with pytest.raises(Invalid, match="at least one entry"):
+        grid_dimension([])
+
+
 # ---------------------------------------------------------------------------
 # Shorthand string layouts
 # ---------------------------------------------------------------------------
@@ -123,6 +129,23 @@ def test_shorthand_bare_x_rejected() -> None:
     """Pure `x` (no digits at all) is not a valid shorthand."""
     config = {CONF_LAYOUT: "x", CONF_WIDGETS: _widgets(2)}
     with pytest.raises(Invalid):
+        GridLayout().validate(config)
+
+
+@pytest.mark.parametrize(
+    "layout,bad_label",
+    [
+        ("0x3", "row"),
+        ("3x0", "column"),
+        ("0x", "row"),
+        ("x0", "column"),
+        ("0x0", "row"),
+    ],
+)
+def test_shorthand_zero_dimension_rejected(layout: str, bad_label: str) -> None:
+    """Shorthand row/column counts must be >= 1."""
+    config = {CONF_LAYOUT: layout, CONF_WIDGETS: _widgets(2)}
+    with pytest.raises(Invalid, match=f"{bad_label} count must be at least 1"):
         GridLayout().validate(config)
 
 

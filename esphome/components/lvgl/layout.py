@@ -91,12 +91,15 @@ def grid_dimension(value):
     """
     Validator for a grid `rows` or `columns` value.
     Accepts either a positive integer (interpreted as that many cells of equal
-    `LV_GRID_FR(1)` size) or a list of grid specs.
+    `LV_GRID_FR(1)` size) or a non-empty list of grid specs.
     """
     if isinstance(value, int):
         value = cv.int_range(min=1)(value)
         return ["LV_GRID_FR(1)"] * value
-    return cv.Schema([grid_spec])(value)
+    result = cv.Schema([grid_spec])(value)
+    if not result:
+        raise cv.Invalid("Grid dimension list must contain at least one entry")
+    return result
 
 
 GRID_CELL_SCHEMA = {
@@ -294,15 +297,23 @@ class GridLayout(Layout):
                     "'<rows>x<columns>', '<rows>x' or 'x<columns>'",
                     [CONF_LAYOUT],
                 )
-            rows_str, cols_str = match.group(1), match.group(2)
-            if rows_str is not None and cols_str is not None:
-                rows = int(rows_str)
-                cols = int(cols_str)
-            elif rows_str is not None:
-                rows = int(rows_str)
+            rows_int = int(match.group(1)) if match.group(1) is not None else None
+            cols_int = int(match.group(2)) if match.group(2) is not None else None
+            for label, val in (("row", rows_int), ("column", cols_int)):
+                if val is not None and val < 1:
+                    raise cv.Invalid(
+                        f"Invalid grid layout {layout!r}: {label} count must be "
+                        "at least 1",
+                        [CONF_LAYOUT],
+                    )
+            if rows_int is not None and cols_int is not None:
+                rows = rows_int
+                cols = cols_int
+            elif rows_int is not None:
+                rows = rows_int
                 cols = max(1, math.ceil(num_widgets / rows)) if num_widgets else 1
             else:
-                cols = int(cols_str)
+                cols = cols_int
                 rows = max(1, math.ceil(num_widgets / cols)) if num_widgets else 1
             layout = {
                 CONF_TYPE: TYPE_GRID,
