@@ -293,6 +293,60 @@ cover:
             cover.is_closed: template_cover_with_triggers
           then:
             logger.log: Cover is closed
+  # Exercise cover.control / cover.template.publish action variants so they
+  # get build coverage in CI (and so memory-impact analysis on PRs that
+  # touch ControlAction / CoverPublishAction sees real instances).
+  - platform: template
+    name: "Template Cover Actions"
+    id: template_cover_actions
+    has_position: true
+    optimistic: true
+    open_action:
+      # CONF_STATE alias for the position bit
+      - cover.template.publish:
+          id: template_cover_actions
+          state: OPEN
+      - cover.template.publish:
+          id: template_cover_actions
+          position: 1.0
+      - cover.template.publish:
+          id: template_cover_actions
+          current_operation: IDLE
+    close_action:
+      - cover.template.publish:
+          id: template_cover_actions
+          position: 0.0
+          tilt: 0.0
+    stop_action:
+      - cover.template.publish:
+          id: template_cover_actions
+          current_operation: IDLE
+    tilt_action:
+      - lambda: |-
+          id(template_cover_actions).tilt = tilt;
+          id(template_cover_actions).publish_state();
+    on_idle:
+      # position only
+      - cover.control:
+          id: template_cover_actions
+          position: 50%
+      # tilt only
+      - cover.control:
+          id: template_cover_actions
+          tilt: 75%
+      # position + tilt
+      - cover.control:
+          id: template_cover_actions
+          position: 25%
+          tilt: 30%
+      # stop
+      - cover.control:
+          id: template_cover_actions
+          stop: true
+      # CONF_STATE alias for position
+      - cover.control:
+          id: template_cover_actions
+          state: OPEN
 
 number:
   - platform: template
