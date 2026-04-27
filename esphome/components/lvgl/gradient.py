@@ -11,6 +11,7 @@ from esphome.core import ID
 from esphome.cpp_generator import MockObj
 
 from .defines import CONF_GRADIENTS, CONF_OPA, LV_DITHER, add_define, add_warning
+from .helpers import add_lv_use
 from .lv_validation import lv_color, lv_percentage, opacity
 from .lvcode import lv
 from .types import lv_color_t, lv_gradient_t, lv_opa_t
@@ -50,6 +51,7 @@ GRADIENT_SCHEMA = cv.ensure_list(
 
 
 async def gradients_to_code(config):
+    add_lv_use("gradient")
     max_stops = 2
     if any(CONF_DITHER in x for x in config.get(CONF_GRADIENTS, ())):
         add_warning(
