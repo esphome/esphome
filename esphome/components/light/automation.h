@@ -24,8 +24,7 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   LightState *state_;
 };
 
-// Distinct empty types per field tag so [[no_unique_address]] always coalesces
-// (the same empty type used multiple times is not guaranteed to share an address).
+// Unique Empty<Tag> per field so [[no_unique_address]] is guaranteed to coalesce.
 namespace light_control_detail {
 template<int Tag> struct Empty {};
 }  // namespace light_control_detail
