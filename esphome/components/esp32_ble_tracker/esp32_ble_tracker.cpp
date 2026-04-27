@@ -166,8 +166,9 @@ void ESP32BLETracker::loop() {
   ClientStateCounts counts = this->count_client_states_();
   if (counts != this->client_state_counts_) {
     this->client_state_counts_ = counts;
-    ESP_LOGD(TAG, "connecting: %d, discovered: %d, disconnecting: %d", this->client_state_counts_.connecting,
-             this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
+    ESP_LOGD(TAG, "connecting: %d, discovered: %d, disconnecting: %d, active: %d", this->client_state_counts_.connecting,
+             this->client_state_counts_.discovered, this->client_state_counts_.disconnecting,
+             this->client_state_counts_.active);
   }
 
   // Scanner failure: reached when set_scanner_state_(FAILED) or scan_set_param_failed_ set
@@ -193,7 +194,13 @@ void ESP32BLETracker::loop() {
   // all clients are idle (their state changes increment version when they finish)
   if (this->scanner_state_ == ScannerState::IDLE && !counts.connecting && !counts.disconnecting && !counts.discovered) {
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-    this->update_coex_preference_(false);
+    // Only revert to BALANCE when no connections are active. Established connections
+    // continue to need PREFER_BT so the lock's GATT Write Response can reach us while
+    // WiFi traffic (advertisement upload, log streaming) competes for the shared radio.
+    // Reverting too early causes Bluedroid to time out at ~20s and synthesize status=133.
+    if (!counts.active) {
+      this->update_coex_preference_(false);
+    }
 #endif
     if (this->scan_continuous_) {
       this->start_scan_(false);  // first = false
@@ -701,9 +708,10 @@ void ESP32BLETracker::dump_config() {
                 this->scan_active_ ? "ACTIVE" : "PASSIVE", YESNO(this->scan_continuous_));
   ESP_LOGCONFIG(TAG,
                 "  Scanner State: %s\n"
-                "  Connecting: %d, discovered: %d, disconnecting: %d",
+                "  Connecting: %d, discovered: %d, disconnecting: %d, active: %d",
                 this->scanner_state_to_string_(this->scanner_state_), this->client_state_counts_.connecting,
-                this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
+                this->client_state_counts_.discovered, this->client_state_counts_.disconnecting,
+                this->client_state_counts_.active);
   if (this->scan_start_fail_count_) {
     ESP_LOGCONFIG(TAG, "  Scan Start Fail Count: %d", this->scan_start_fail_count_);
   }
