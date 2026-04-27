@@ -180,7 +180,8 @@ async def light_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
 
     # (config_key, setter_name, c++ type) — order and bit position must match
-    # LIGHT_CONTROL_FIELDS in automation.h. CONF_EFFECT is the last bit.
+    # LIGHT_CONTROL_FIELDS in automation.h. CONF_EFFECT has special-case
+    # handling below (lambda or static name resolution), so its setter is None.
     FIELDS = (
         (CONF_COLOR_MODE, "set_color_mode", ColorMode),
         (CONF_STATE, "set_state", cg.bool_),
@@ -195,20 +196,17 @@ async def light_control_to_code(config, action_id, template_arg, args):
         (CONF_COLOR_TEMPERATURE, "set_color_temperature", cg.float_),
         (CONF_COLD_WHITE, "set_cold_white", cg.float_),
         (CONF_WARM_WHITE, "set_warm_white", cg.float_),
+        (CONF_EFFECT, None, cg.uint32),
     )
-    EFFECT_BIT = len(FIELDS)
 
     field_mask = sum(1 << i for i, (k, _, _) in enumerate(FIELDS) if k in config)
-    if CONF_EFFECT in config:
-        field_mask |= 1 << EFFECT_BIT
-
     control_template_arg = cg.TemplateArguments(
         cg.RawExpression(f"static_cast<uint16_t>({field_mask})"), *template_arg
     )
     var = cg.new_Pvariable(action_id, control_template_arg, paren)
 
     for conf_key, setter, type_ in FIELDS:
-        if conf_key in config:
+        if conf_key in config and setter is not None:
             template_ = await cg.templatable(config[conf_key], args, type_)
             cg.add(getattr(var, setter)(template_))
 
