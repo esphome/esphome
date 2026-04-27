@@ -95,6 +95,8 @@ def get_default_by_type(attr_type: str) -> str | bool | int:
         return ""
     if attr_type == "BOOL":
         return False
+    if attr_type in ["SINGLE", "DOUBLE"]:
+        return "nan"
     return 0
 
 

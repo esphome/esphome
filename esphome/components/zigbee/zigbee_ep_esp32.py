@@ -56,7 +56,7 @@ ep_configs: dict[str, dict[str, Any]] = {
                     {
                         CONF_ATTRIBUTE_ID: 0x55,
                         CONF_TYPE: "SINGLE",
-                        CONF_REPORT: True,
+                        CONF_REPORT: REPORT["enable"],
                         CONF_DEVICE: None,
                     },
                     {
