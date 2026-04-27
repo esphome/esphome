@@ -1612,10 +1612,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   // Device info populated from comok response (fixed-size, no heap allocation).
   // Sizes derived from Nextion Upload Protocol documentation and observed hardware.
-  char device_model_[25]{};     ///< Max observed ~18 chars from product numbering rules
-  char firmware_version_[8]{};  ///< 'S' prefix + integer (e.g. 'S99' or `123`)
-  char serial_number_[21]{};    ///< Consistently 16 hex chars across all documented examples
-  uint32_t flash_size_ = 0;     ///< Flash size in bytes — plain integer, no string needed
+  static constexpr size_t NEXTION_MODEL_MAX = 24;   ///< Max observed ~18 chars from product numbering rules
+  static constexpr size_t NEXTION_FW_MAX = 7;       ///< 'S' prefix + integer (e.g. 'S99' or `123`)
+  static constexpr size_t NEXTION_SERIAL_MAX = 20;  ///< Consistently 16 hex chars across all documented examples
+  char device_model_[NEXTION_MODEL_MAX + 1]{};
+  char firmware_version_[NEXTION_FW_MAX + 1]{};
+  char serial_number_[NEXTION_SERIAL_MAX + 1]{};
+  uint32_t flash_size_ = 0;  ///< Flash size in bytes — plain integer, no string needed
 
   void remove_front_no_sensors_();
 

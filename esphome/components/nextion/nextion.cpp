@@ -132,13 +132,13 @@ bool Nextion::check_connect_() {
     end = response.find(',', start);
     switch (field_count) {
       case 2:
-        copy_field(this->device_model_, this->NEXTION_MODEL_MAX_);
+        copy_field(this->device_model_, this->NEXTION_MODEL_MAX);
         break;
       case 3:
-        copy_field(this->firmware_version_, this->NEXTION_FW_MAX_);
+        copy_field(this->firmware_version_, this->NEXTION_FW_MAX);
         break;
       case 5:
-        copy_field(this->serial_number_, this->NEXTION_SERIAL_MAX_);
+        copy_field(this->serial_number_, this->NEXTION_SERIAL_MAX);
         break;
       case 6:
         this->flash_size_ = static_cast<uint32_t>(std::strtoul(response.data() + start, nullptr, 10));
