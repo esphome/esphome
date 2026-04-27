@@ -293,55 +293,55 @@ cover:
             cover.is_closed: template_cover_with_triggers
           then:
             logger.log: Cover is closed
-  # Exercise cover.control / cover.template.publish action variants so the
-  # ControlAction / CoverPublishAction templates are instantiated for the
-  # bitmask combinations seen in real configs.
+  # Exercise cover.control / cover.template.publish action variants so they
+  # get build coverage in CI (and so memory-impact analysis on PRs that
+  # touch ControlAction / CoverPublishAction sees real instances).
   - platform: template
-    name: "Template Cover Bitmask"
-    id: template_cover_bitmask
+    name: "Template Cover Actions"
+    id: template_cover_actions
     has_position: true
     optimistic: true
     open_action:
       - cover.template.publish:
-          id: template_cover_bitmask
+          id: template_cover_actions
           position: 1.0
       - cover.template.publish:
-          id: template_cover_bitmask
+          id: template_cover_actions
           current_operation: IDLE
     close_action:
       - cover.template.publish:
-          id: template_cover_bitmask
+          id: template_cover_actions
           position: 0.0
           tilt: 0.0
     stop_action:
       - cover.template.publish:
-          id: template_cover_bitmask
+          id: template_cover_actions
           current_operation: IDLE
     tilt_action:
       - lambda: |-
-          id(template_cover_bitmask).tilt = tilt;
-          id(template_cover_bitmask).publish_state();
+          id(template_cover_actions).tilt = tilt;
+          id(template_cover_actions).publish_state();
     on_idle:
-      # mask = position only
+      # position only
       - cover.control:
-          id: template_cover_bitmask
+          id: template_cover_actions
           position: 50%
-      # mask = tilt only
+      # tilt only
       - cover.control:
-          id: template_cover_bitmask
+          id: template_cover_actions
           tilt: 75%
-      # mask = position + tilt
+      # position + tilt
       - cover.control:
-          id: template_cover_bitmask
+          id: template_cover_actions
           position: 25%
           tilt: 30%
-      # mask = stop
+      # stop
       - cover.control:
-          id: template_cover_bitmask
+          id: template_cover_actions
           stop: true
-      # CONF_STATE alias for position bit
+      # CONF_STATE alias for position
       - cover.control:
-          id: template_cover_bitmask
+          id: template_cover_actions
           state: OPEN
 
 number:
