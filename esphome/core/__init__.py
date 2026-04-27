@@ -780,7 +780,8 @@ class EsphomeCore:
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property
-    def partition_table_bin(self):
+    def partition_table_bin(self) -> Path:
+        # native ESP-IDF: self.relative_build_path("build", "partition_table", "partition-table.bin")
         return self.relative_pioenvs_path(self.name, "partitions.bin")
 
     @property
