@@ -191,13 +191,15 @@ void ESP32BLETracker::loop() {
   */
 
   // Start scan: reached when scanner_state_ becomes IDLE (via set_scanner_state_()) and
-  // all clients are idle (their state changes increment version when they finish)
+  // no clients are in the transient CONNECTING / DISCOVERED / DISCONNECTING states
+  // (their state changes increment version when they finish). CONNECTED / ESTABLISHED
+  // clients do NOT block this branch — the coex revert below has its own active-count gate.
   if (this->scanner_state_ == ScannerState::IDLE && !counts.connecting && !counts.disconnecting && !counts.discovered) {
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
     // Only revert to BALANCE when no connections are active. Established connections
-    // continue to need PREFER_BT so the lock's GATT Write Response can reach us while
-    // WiFi traffic (advertisement upload, log streaming) competes for the shared radio.
-    // Reverting too early causes Bluedroid to time out at ~20s and synthesize status=133.
+    // continue to need PREFER_BT so peer GATT responses can reach us while WiFi traffic
+    // (advertisement upload, log streaming) competes for the shared radio. Reverting too
+    // early causes Bluedroid to time out at ~20s and synthesize status=133.
     if (!counts.active) {
       this->update_coex_preference_(false);
     }
