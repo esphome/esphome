@@ -776,7 +776,7 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   // App.get_loop_component_start_time() observe the dispatch time of this
   // item rather than a stale value from the prior loop iteration's last
   // component phase.
-  App.set_loop_component_start_time(now);
+  App.set_loop_component_start_time_(now);
   WarnIfComponentBlockingGuard guard{item->component, now};
   item->callback();
   uint32_t end = guard.finish();
