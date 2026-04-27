@@ -350,8 +350,17 @@ void ESPHomeOTAComponent::handle_data_() {
   // Acknowledge MD5 OK - 1 byte
   this->write_byte_(ota::OTA_RESPONSE_BIN_MD5_OK);
 
+  // Track when we last received data so a silently-vanished peer (no FIN/RST
+  // delivered, e.g. uploader killed mid-transfer or NAT/router dropped state)
+  // can't wedge the device indefinitely. Without this, the loop only exits
+  // on actual data, EOF, or a non-EWOULDBLOCK error from read(), and lwIP
+  // TCP keepalive isn't enabled here.
+  uint32_t last_data_ms = millis();
   while (total < ota_size) {
-    // TODO: timeout check
+    if (millis() - last_data_ms > OTA_SOCKET_TIMEOUT_DATA) {
+      ESP_LOGW(TAG, "No data received for %u ms", (unsigned) OTA_SOCKET_TIMEOUT_DATA);
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
     size_t remaining = ota_size - total;
     size_t requested = remaining < OTA_BUFFER_SIZE ? remaining : OTA_BUFFER_SIZE;
     ssize_t read = this->client_->read(buf, requested);
@@ -369,6 +378,7 @@ void ESPHomeOTAComponent::handle_data_() {
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
 
+    last_data_ms = millis();
     error_code = this->backend_->write(buf, read);
     if (error_code != ota::OTA_RESPONSE_OK) {
       ESP_LOGW(TAG, "Flash write err %d", error_code);
