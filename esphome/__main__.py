@@ -720,16 +720,16 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
 
     if CORE.using_native_idf:
-        from esphome.esp32 import espidf_api
+        from esphome.espidf import api
 
-        rc = espidf_api.run_compile(config, CORE.verbose)
+        rc = api.run_compile(config, CORE.verbose)
         if rc != 0:
             return rc
 
         # Create factory.bin, ota.bin, and firmware.elf copy
-        espidf_api.create_factory_bin()
-        espidf_api.create_ota_bin()
-        espidf_api.create_elf_copy()
+        api.create_factory_bin()
+        api.create_ota_bin()
+        api.create_elf_copy()
     else:
         from esphome import platformio_api
 
@@ -835,11 +835,11 @@ def upload_using_esptool(
     if file is not None:
         flash_images = [platformio_api.FlashImage(path=file, offset="0x0")]
     elif CORE.using_native_idf:
-        from esphome.esp32 import espidf_api
+        from esphome.espidf import api
 
         flash_images = [
             platformio_api.FlashImage(
-                path=espidf_api.get_factory_firmware_path(), offset="0x0"
+                path=api.get_factory_firmware_path(), offset="0x0"
             )
         ]
     else:

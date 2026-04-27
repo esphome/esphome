@@ -48,7 +48,7 @@ from esphome.const import (
 from esphome.core import CORE, HexInt, Library
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.esp32.espidf_component import generate_idf_component
+from esphome.espidf.component import generate_idf_component
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
