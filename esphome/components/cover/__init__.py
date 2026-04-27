@@ -299,7 +299,21 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 async def cover_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    # Bit positions must match COVER_CONTROL_FIELDS in automation.h.
+    # CONF_STATE and CONF_POSITION both map to set_position (bit 1).
+    field_mask = 0
+    if CONF_STOP in config:
+        field_mask |= 1 << 0
+    if CONF_STATE in config or CONF_POSITION in config:
+        field_mask |= 1 << 1
+    if CONF_TILT in config:
+        field_mask |= 1 << 2
+
+    control_template_arg = cg.TemplateArguments(
+        cg.RawExpression(f"static_cast<uint16_t>({field_mask})"), *template_arg
+    )
+    var = cg.new_Pvariable(action_id, control_template_arg, paren)
     if (stop := config.get(CONF_STOP)) is not None:
         template_ = await cg.templatable(stop, args, cg.bool_)
         cg.add(var.set_stop(template_))
