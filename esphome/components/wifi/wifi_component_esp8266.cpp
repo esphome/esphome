@@ -621,9 +621,24 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
     ESP_LOGV(TAG, "Disabling Auto-Connect failed");
   }
 
+#ifdef USE_WIFI_PHY_MODE
+  if (!this->wifi_apply_phy_mode_()) {
+    ESP_LOGV(TAG, "Setting PHY Mode failed");
+  }
+#endif
+
   delay(10);
   return true;
 }
+
+#ifdef USE_WIFI_PHY_MODE
+bool WiFiComponent::wifi_apply_phy_mode_() {
+  if (this->phy_mode_ == WIFI_8266_PHY_MODE_AUTO)
+    return true;
+  // Values of WiFi8266PhyMode are aligned with the SDK's phy_mode_t enum.
+  return wifi_set_phy_mode(static_cast<phy_mode_t>(this->phy_mode_));
+}
+#endif
 
 void WiFiComponent::wifi_pre_setup_() {
   wifi_set_event_handler_cb(&WiFiComponent::wifi_event_callback);
