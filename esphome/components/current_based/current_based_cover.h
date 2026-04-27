@@ -67,21 +67,21 @@ class CurrentBasedCover : public cover::Cover, public Component {
 
   sensor::Sensor *open_sensor_{nullptr};
   Trigger<> open_trigger_;
-  float open_moving_current_threshold_;
+  float open_moving_current_threshold_{0.0f};
   float open_obstacle_current_threshold_{FLT_MAX};
-  uint32_t open_duration_;
+  uint32_t open_duration_{0};
 
   sensor::Sensor *close_sensor_{nullptr};
   Trigger<> close_trigger_;
-  float close_moving_current_threshold_;
+  float close_moving_current_threshold_{0.0f};
   float close_obstacle_current_threshold_{FLT_MAX};
-  uint32_t close_duration_;
+  uint32_t close_duration_{0};
 
   uint32_t max_duration_{UINT32_MAX};
   bool malfunction_detection_{true};
   Trigger<> malfunction_trigger_;
-  uint32_t start_sensing_delay_;
-  float obstacle_rollback_;
+  uint32_t start_sensing_delay_{0};
+  float obstacle_rollback_{0.0f};
 
   Trigger<> *prev_command_trigger_{nullptr};
   uint32_t last_recompute_time_{0};

@@ -38,21 +38,17 @@ void BLEServer::loop() {
     case RUNNING: {
       // Start all services that are pending to start
       if (!this->services_to_start_.empty()) {
-        uint16_t index_to_remove = 0;
-        // Iterate over the services to start
-        for (unsigned i = 0; i < this->services_to_start_.size(); i++) {
-          BLEService *service = this->services_to_start_[i];
+        size_t write_idx = 0;
+        for (auto *service : this->services_to_start_) {
           if (service->is_created()) {
             service->start();  // Needs to be called once per characteristic in the service
-          } else {
-            index_to_remove = i + 1;
+          }
+          // Remove services that have started or are starting
+          if (!service->is_starting() && !service->is_running()) {
+            this->services_to_start_[write_idx++] = service;
           }
         }
-        // Remove the services that have been started
-        if (index_to_remove > 0) {
-          this->services_to_start_.erase(this->services_to_start_.begin(),
-                                         this->services_to_start_.begin() + index_to_remove - 1);
-        }
+        this->services_to_start_.erase(this->services_to_start_.begin() + write_idx, this->services_to_start_.end());
       }
       break;
     }
@@ -94,8 +90,6 @@ void BLEServer::loop() {
     }
   }
 }
-
-bool BLEServer::is_running() { return this->parent_->is_active() && this->state_ == RUNNING; }
 
 bool BLEServer::can_proceed() { return this->is_running() || !this->parent_->is_active(); }
 

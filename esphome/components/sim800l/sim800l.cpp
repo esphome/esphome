@@ -196,7 +196,8 @@ void Sim800LComponent::parse_cmd_(std::string message) {
     case STATE_CREG_WAIT: {
       // Response: "+CREG: 0,1" -- the one there means registered ok
       //           "+CREG: -,-" means not registered ok
-      bool registered = message.compare(0, 6, "+CREG:") == 0 && (message[9] == '1' || message[9] == '5');
+      bool registered =
+          message.size() > 9 && message.compare(0, 6, "+CREG:") == 0 && (message[9] == '1' || message[9] == '5');
       if (registered) {
         if (!this->registered_) {
           ESP_LOGD(TAG, "Registered OK");
@@ -205,7 +206,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->expect_ack_ = true;
       } else {
         ESP_LOGW(TAG, "Registration Fail");
-        if (message[7] == '0') {  // Network registration is disable, enable it
+        if (message.size() > 7 && message[7] == '0') {  // Network registration is disabled, enable it
           send_cmd_("AT+CREG=1");
           this->expect_ack_ = true;
           this->state_ = STATE_SETUP_CMGF;

@@ -615,6 +615,9 @@ class EsphomeCore:
         self.address_cache: AddressCache | None = None
         # Cached config hash (computed lazily)
         self._config_hash: int | None = None
+        # When True, skip network freshness checks for cached external files
+        # (e.g. for `esphome logs`, where remote downloads aren't needed)
+        self.skip_external_update: bool = False
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -644,6 +647,7 @@ class EsphomeCore:
         self.current_component = None
         self.address_cache = None
         self._config_hash = None
+        self.skip_external_update = False
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -986,6 +990,15 @@ class EsphomeCore:
         :param var: The variable (component) being registered (currently unused but kept for future use)
         """
         self.platform_counts[platform_name] += 1
+
+    def testing_ensure_platform_registered(self, platform_name: str) -> None:
+        """Ensure a platform has at least one entity registered for testing.
+
+        Used during C++ test builds to guarantee USE_* defines are emitted
+        without needing a real component variable.
+        """
+        if not self.platform_counts[platform_name]:
+            self.platform_counts[platform_name] = 1
 
     def register_controller(self) -> None:
         """Track registration of a Controller for ControllerRegistry StaticVector sizing."""

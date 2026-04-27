@@ -75,7 +75,6 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
-    VALID_SUBSTITUTIONS_CHARACTERS,
     Framework,
     __version__ as ESPHOME_VERSION,
 )
@@ -90,6 +89,7 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
+from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
 from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
@@ -103,11 +103,6 @@ from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
 _LOGGER = logging.getLogger(__name__)
-
-# pylint: disable=consider-using-f-string
-VARIABLE_PROG = re.compile(
-    f"\\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+|\\{{[{VALID_SUBSTITUTIONS_CHARACTERS}]*\\}})"
-)
 
 # pylint: disable=invalid-name
 
@@ -129,6 +124,26 @@ RequiredFieldInvalid = vol.RequiredFieldInvalid
 # this sentinel object can be placed in an 'Invalid' path to say
 # the rest of the error path is relative to the root config path
 ROOT_CONFIG_PATH = object()
+
+
+def ByteLength(*, max: int) -> Callable[[str], str]:
+    """Validate that the UTF-8 byte length of a string does not exceed max.
+
+    Use instead of Length() when the limit must apply to encoded bytes,
+    not characters (e.g. for protobuf length-varint constraints).
+    """
+
+    def validator(value: str) -> str:
+        byte_len = len(str(value).encode("utf-8"))
+        if byte_len > max:
+            raise Invalid(
+                f"String is too long ({byte_len} bytes, max {max}). "
+                f"Multibyte characters count as multiple bytes."
+            )
+        return value
+
+    return validator
+
 
 RESERVED_IDS = [
     # C++ keywords https://en.cppreference.com/w/cpp/keyword
@@ -244,6 +259,8 @@ RESERVED_IDS = [
     "open",
     "setup",
     "loop",
+    "spi0",
+    "spi1",
     "uart0",
     "uart1",
     "uart2",
@@ -314,7 +331,7 @@ class Version:
 
     @classmethod
     def parse(cls, value: str) -> Version:
-        match = re.match(r"^(\d+).(\d+).(\d+)-?(\w*)$", value)
+        match = re.match(r"^(\d+).(\d+).(\d+)[-.]?(\w*)$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")
         major = int(match[1])
@@ -400,19 +417,31 @@ def string_strict(value):
 
 def icon(value):
     """Validate that a given config value is a valid icon."""
+    from esphome.core.config import ICON_MAX_LENGTH
+
     value = string_strict(value)
     if not value:
         return value
-    if re.match("^[\\w\\-]+:[\\w\\-]+$", value):
-        return value
-    raise Invalid(
-        'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
-    )
+    if not re.match("^[\\w\\-]+:[\\w\\-]+$", value):
+        raise Invalid(
+            'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
+        )
+    byte_len = len(value.encode("utf-8"))
+    if byte_len > ICON_MAX_LENGTH:
+        raise Invalid(
+            f"Icon string is too long ({byte_len} bytes, max {ICON_MAX_LENGTH}). "
+            "Icons are stored in PROGMEM with a 64-byte buffer limit."
+        )
+    return value
 
 
+@schema_extractor("use_id")
 def sub_device_id(value: str | None) -> core.ID | None:
     # Lazy import to avoid circular imports
     from esphome.core.config import Device
+
+    if value == SCHEMA_EXTRACT:
+        return Device
 
     if not value:
         return None
@@ -487,6 +516,13 @@ def hex_int(value):
     return HexInt(int_(value))
 
 
+def int_to_hex_string(value: int | str) -> str:
+    """Convert an integer to a hex string (e.g. 64 -> '0x40'). Pass-through strings."""
+    if isinstance(value, int):
+        return f"0x{value:X}"
+    return value
+
+
 def int_(value):
     """Validate that the config option is an integer.
 
@@ -508,8 +544,9 @@ def int_(value):
     try:
         return int(value, base)
     except ValueError:
-        # pylint: disable=raise-missing-from
-        raise Invalid(f"Expected integer, but cannot parse {value} as an integer")
+        raise Invalid(
+            f"Expected integer, but cannot parse {value} as an integer"
+        ) from None
 
 
 def int_range(min=None, max=None, min_included=True, max_included=True):
@@ -808,8 +845,7 @@ def time_period_str_colon(value):
     try:
         parsed = [int(x) for x in value.split(":")]
     except ValueError:
-        # pylint: disable=raise-missing-from
-        raise Invalid(TIME_PERIOD_ERROR.format(value))
+        raise Invalid(TIME_PERIOD_ERROR.format(value)) from None
 
     if len(parsed) == 2:
         hour, minute = parsed
@@ -907,7 +943,26 @@ def time_period_in_minutes_(value):
 def update_interval(value):
     if value == "never":
         return TimePeriodMilliseconds(milliseconds=SCHEDULER_DONT_RUN)
-    return positive_time_period_milliseconds(value)
+    result = positive_time_period_milliseconds(value)
+    # 0ms was historically (mis)used as a pseudo-loop() mechanism for
+    # PollingComponents. Under the hood it calls set_interval(0), which
+    # causes Scheduler::call() to spin (WDT reset in the field). Coerce
+    # to 1ms so existing configs keep working at ~1kHz instead of
+    # spinning. Don't hard-fail so configs don't break on upgrade;
+    # authors should migrate to HighFrequencyLoopRequester (C++) for
+    # true run-every-loop behaviour.
+    if result.total_milliseconds == 0:
+        _LOGGER.warning(
+            "update_interval of 0ms is not supported - coercing to 1ms. "
+            "A literal 0ms schedule would spin the main loop (the scheduled "
+            "item would always be due, so the scheduler would never yield "
+            "back) and trigger a watchdog reset. Set update_interval to a "
+            "non-zero value such as 1ms or higher. (Custom C++ components "
+            "that need true run-every-loop behaviour should override loop() "
+            "with HighFrequencyLoopRequester instead.)"
+        )
+        return TimePeriodMilliseconds(milliseconds=1)
+    return result
 
 
 time_period = Any(time_period_str_unit, time_period_str_colon, time_period_dict)
@@ -1011,8 +1066,7 @@ def date_time(date: bool, time: bool):
         try:
             date_obj = datetime.strptime(value, format)
         except ValueError as err:
-            # pylint: disable=raise-missing-from
-            raise Invalid(f"Invalid {exc_message}: {err}")
+            raise Invalid(f"Invalid {exc_message}: {err}") from err
 
         return_value = {}
         if date:
@@ -1042,8 +1096,9 @@ def mac_address(value):
         try:
             parts_int.append(int(part, 16))
         except ValueError:
-            # pylint: disable=raise-missing-from
-            raise Invalid("MAC Address parts must be hexadecimal values from 00 to FF")
+            raise Invalid(
+                "MAC Address parts must be hexadecimal values from 00 to FF"
+            ) from None
 
     return core.MACAddress(*parts_int)
 
@@ -1060,8 +1115,7 @@ def bind_key(value, *, name="Bind key"):
         try:
             parts_int.append(int(part, 16))
         except ValueError:
-            # pylint: disable=raise-missing-from
-            raise Invalid(f"{name} must be hex values from 00 to FF")
+            raise Invalid(f"{name} must be hex values from 00 to FF") from None
 
     return "".join(f"{part:02X}" for part in parts_int)
 
@@ -1389,8 +1443,7 @@ def mqtt_qos(value):
     try:
         value = int(value)
     except (TypeError, ValueError):
-        # pylint: disable=raise-missing-from
-        raise Invalid(f"MQTT Quality of Service must be integer, got {value}")
+        raise Invalid(f"MQTT Quality of Service must be integer, got {value}") from None
     return one_of(0, 1, 2)(value)
 
 
@@ -1427,17 +1480,53 @@ hex_uint64_t = hex_int_range(min=0, max=18446744073709551615)
 i2c_address = hex_uint8_t
 
 
-def percentage(value):
+def percentage(value: object) -> float:
     """Validate that the value is a percentage.
 
-    The resulting value is an integer in the range 0.0 to 1.0.
+    The resulting value is a float in the range 0.0 to 1.0.
     """
-    value = possibly_negative_percentage(value)
+    value = _parse_percentage(value)
     return zero_to_one_float(value)
 
 
-def possibly_negative_percentage(value):
-    has_percent_sign = False
+def possibly_negative_percentage(value: object) -> float:
+    """Validate that the value is a possibly negative percentage.
+
+    The resulting value is a float in the range -1.0 to 1.0.
+    """
+    value = _parse_percentage(value)
+    return negative_one_to_one_float(value)
+
+
+def unbounded_percentage(value: object) -> float:
+    """Validate that the value is a percentage, allowing values above 100%.
+
+    The resulting value is a non-negative float with no upper bound.
+    For example, "150%" returns 1.5 and "50%" returns 0.5.
+    """
+    value = _parse_percentage(value)
+    if value < 0:
+        raise Invalid("Percentage must not be negative")
+    return value
+
+
+def unbounded_possibly_negative_percentage(value: object) -> float:
+    """Validate that the value is a possibly negative percentage without bounds.
+
+    The resulting value is an unbounded float.
+    For example, "200%" returns 2.0 and "-150%" returns -1.5.
+    """
+    return _parse_percentage(value)
+
+
+def _parse_percentage(value: object) -> float:
+    """Parse a percentage string or number into a float.
+
+    Handles both "50%" style strings and raw float values.
+    Values without a percent sign above 1.0 or below -1.0 are rejected
+    to prevent user mistakes (e.g. writing 50 instead of 50%).
+    """
+    has_percent_sign: bool = False
     if isinstance(value, str):
         try:
             if value.endswith("%"):
@@ -1446,24 +1535,16 @@ def possibly_negative_percentage(value):
             else:
                 value = float(value)
         except ValueError:
-            # pylint: disable=raise-missing-from
-            raise Invalid("invalid number")
+            raise Invalid("invalid number") from None
     try:
-        if value > 1:
-            msg = "Percentage must not be higher than 100%."
-            if not has_percent_sign:
-                msg += " Please put a percent sign after the number!"
-            raise Invalid(msg)
-        if value < -1:
-            msg = "Percentage must not be smaller than -100%."
-            if not has_percent_sign:
-                msg += " Please put a percent sign after the number!"
-            raise Invalid(msg)
+        if not has_percent_sign and (value > 1 or value < -1):
+            raise Invalid(
+                "Percentage value must use a percent sign for values "
+                "outside -1.0 to 1.0. Please put a percent sign after the number!"
+            )
     except TypeError:
-        raise Invalid(  # pylint: disable=raise-missing-from
-            "Expected percentage or float between -1.0 and 1.0"
-        )
-    return negative_one_to_one_float(value)
+        raise Invalid("Expected percentage or float") from None
+    return float(value)
 
 
 def percentage_int(value):
@@ -1635,8 +1716,7 @@ def dimensions(value):
         try:
             width, height = int(value[0]), int(value[1])
         except ValueError:
-            # pylint: disable=raise-missing-from
-            raise Invalid("Width and height dimensions must be integers")
+            raise Invalid("Width and height dimensions must be integers") from None
         if width <= 0 or height <= 0:
             raise Invalid("Width and height must at least be 1")
         return [width, height]
@@ -1647,7 +1727,7 @@ def dimensions(value):
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
         raise Invalid(
-            "Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed."
+            f"Invalid value '{value}' for dimensions. Only WIDTHxHEIGHT is allowed."
         )
     return dimensions([match.group(1), match.group(2)])
 
@@ -2047,11 +2127,12 @@ def _validate_entity_name(value):
             "Name cannot be None when esphome->friendly_name is not set!"
         )(value)
     if value is not None:
-        # Validate length for web server URL compatibility
-        if len(value) > NAME_MAX_LENGTH:
+        # Validate byte length for web server URL and proto encoding compatibility
+        byte_len = len(value.encode("utf-8"))
+        if byte_len > NAME_MAX_LENGTH:
             raise Invalid(
-                f"Name is too long ({len(value)} chars). "
-                f"Maximum length is {NAME_MAX_LENGTH} characters."
+                f"Name is too long ({byte_len} bytes). "
+                f"Maximum length is {NAME_MAX_LENGTH} bytes."
             )
         # Validate no '/' in name for web server URL compatibility
         value = _validate_no_slash(value)

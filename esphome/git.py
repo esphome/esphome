@@ -102,6 +102,7 @@ def clone_or_update(
     username: str = None,
     password: str = None,
     submodules: list[str] | None = None,
+    subpath: Path | None = None,
     _recover_broken: bool = True,
 ) -> tuple[Path, Callable[[], None] | None]:
     key = f"{url}@{ref}"
@@ -112,6 +113,9 @@ def clone_or_update(
         )
 
     repo_dir = _compute_destination_path(key, domain)
+    if subpath:
+        repo_dir = repo_dir / subpath
+
     if not repo_dir.is_dir():
         _LOGGER.info("Cloning %s", key)
         _LOGGER.debug("Location: %s", repo_dir)
@@ -146,9 +150,7 @@ def clone_or_update(
             raise
 
     else:
-        # Check refresh needed
-        # Skip refresh if NEVER_REFRESH is specified
-        if refresh == NEVER_REFRESH:
+        if refresh == NEVER_REFRESH or CORE.skip_external_update:
             _LOGGER.debug("Skipping update for %s (refresh disabled)", key)
             return repo_dir, None
 

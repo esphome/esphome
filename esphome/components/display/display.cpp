@@ -661,6 +661,9 @@ void Display::printf(int x, int y, BaseFont *font, const char *format, ...) {
 void Display::set_writer(display_writer_t &&writer) { this->writer_ = writer; }
 
 void Display::set_pages(std::vector<DisplayPage *> pages) {
+  if (pages.empty())
+    return;
+
   for (auto *page : pages)
     page->set_parent(this);
 

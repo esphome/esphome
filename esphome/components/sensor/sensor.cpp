@@ -40,7 +40,10 @@ const LogString *state_class_to_string(StateClass state_class) {
   return StateClassStrings::get_log_str(static_cast<uint8_t>(state_class), 0);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 Sensor::Sensor() : state(NAN), raw_state(NAN) {}
+#pragma GCC diagnostic pop
 
 int8_t Sensor::get_accuracy_decimals() {
   if (this->sensor_flags_.has_accuracy_override)
@@ -63,8 +66,13 @@ StateClass Sensor::get_state_class() {
 }
 
 void Sensor::publish_state(float state) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   this->raw_state = state;
+#pragma GCC diagnostic pop
+#ifdef USE_SENSOR_FILTER
   this->raw_callback_.call(state);
+#endif
 
   ESP_LOGV(TAG, "'%s': Received new state %f", this->name_.c_str(), state);
 
@@ -77,11 +85,6 @@ void Sensor::publish_state(float state) {
     this->filter_list_->input(state);
   }
 #endif
-}
-
-void Sensor::add_on_state_callback(std::function<void(float)> &&callback) { this->callback_.add(std::move(callback)); }
-void Sensor::add_on_raw_state_callback(std::function<void(float)> &&callback) {
-  this->raw_callback_.add(std::move(callback));
 }
 
 #ifdef USE_SENSOR_FILTER
@@ -115,13 +118,11 @@ void Sensor::clear_filters() {
   this->filter_list_ = nullptr;
 }
 #endif  // USE_SENSOR_FILTER
-float Sensor::get_state() const { return this->state; }
-float Sensor::get_raw_state() const { return this->raw_state; }
 
 void Sensor::internal_send_state_to_frontend(float state) {
   this->set_has_state(true);
   this->state = state;
-  ESP_LOGD(TAG, "'%s' >> %.*f %s", this->get_name().c_str(), std::max(0, (int) this->get_accuracy_decimals()), state,
+  ESP_LOGV(TAG, "'%s' >> %.*f %s", this->get_name().c_str(), std::max(0, (int) this->get_accuracy_decimals()), state,
            this->get_unit_of_measurement_ref().c_str());
   this->callback_.call(state);
 #if defined(USE_SENSOR) && defined(USE_CONTROLLER_REGISTRY)

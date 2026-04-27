@@ -27,8 +27,14 @@
 #include <esp_coexist.h>
 #endif
 
+#ifdef USE_ESP32_BLE_DEVICE
+#ifdef USE_BLE_TRACKER_PSA_AES
+#include <psa/crypto.h>
+#else
 #define MBEDTLS_AES_ALT
 #include <aes_alt.h>
+#endif
+#endif  // USE_ESP32_BLE_DEVICE
 
 // bt_trace.h
 #undef TAG
@@ -82,12 +88,18 @@ void ESP32BLETracker::setup() {
 #ifdef USE_OTA_STATE_LISTENER
 void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
   if (state == ota::OTA_STARTED) {
+    this->scan_continuous_before_ota_ = this->scan_continuous_;
     this->stop_scan();
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
     for (auto *client : this->clients_) {
       client->disconnect();
     }
 #endif
+  } else if ((state == ota::OTA_ERROR || state == ota::OTA_ABORT) && this->scan_continuous_before_ota_) {
+    this->scan_continuous_before_ota_ = false;
+    this->scan_continuous_ = true;
+    // Do not restart scanning immediately here; allow loop() to
+    // safely restart scanning once the scanner and all clients are idle.
   }
 }
 #endif
@@ -154,8 +166,9 @@ void ESP32BLETracker::loop() {
   ClientStateCounts counts = this->count_client_states_();
   if (counts != this->client_state_counts_) {
     this->client_state_counts_ = counts;
-    ESP_LOGD(TAG, "connecting: %d, discovered: %d, disconnecting: %d", this->client_state_counts_.connecting,
-             this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
+    ESP_LOGD(TAG, "connecting: %d, discovered: %d, disconnecting: %d, active: %d",
+             this->client_state_counts_.connecting, this->client_state_counts_.discovered,
+             this->client_state_counts_.disconnecting, this->client_state_counts_.active);
   }
 
   // Scanner failure: reached when set_scanner_state_(FAILED) or scan_set_param_failed_ set
@@ -178,10 +191,18 @@ void ESP32BLETracker::loop() {
   */
 
   // Start scan: reached when scanner_state_ becomes IDLE (via set_scanner_state_()) and
-  // all clients are idle (their state changes increment version when they finish)
+  // no clients are in the transient CONNECTING / DISCOVERED / DISCONNECTING states
+  // (their state changes increment version when they finish). CONNECTED / ESTABLISHED
+  // clients do NOT block this branch — the coex revert below has its own active-count gate.
   if (this->scanner_state_ == ScannerState::IDLE && !counts.connecting && !counts.disconnecting && !counts.discovered) {
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-    this->update_coex_preference_(false);
+    // Only revert to BALANCE when no connections are active. Established connections
+    // continue to need PREFER_BT so peer GATT responses can reach us while WiFi traffic
+    // (advertisement upload, log streaming) competes for the shared radio. Reverting too
+    // early causes Bluedroid to time out at ~20s and synthesize status=133.
+    if (!counts.active) {
+      this->update_coex_preference_(false);
+    }
 #endif
     if (this->scan_continuous_) {
       this->start_scan_(false);  // first = false
@@ -237,7 +258,7 @@ void ESP32BLETracker::start_scan_(bool first) {
     return;
   }
   this->set_scanner_state_(ScannerState::STARTING);
-  ESP_LOGD(TAG, "Starting scan, set scanner state to STARTING.");
+  ESP_LOGV(TAG, "Starting scan, set scanner state to STARTING.");
   if (!first) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
     for (auto *listener : this->listeners_)
@@ -514,6 +535,11 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint8_t len) {
       continue;  // Possible zero padded advertisement data
     }
 
+    // Validate field fits in remaining payload
+    if (offset + field_length > len) {
+      break;
+    }
+
     // first byte of adv record is adv record type
     const uint8_t record_type = payload[offset++];
     const uint8_t *record = &payload[offset];
@@ -544,7 +570,7 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint8_t len) {
         // CSS 1.5 TX POWER LEVEL
         // "The TX Power Level data type indicates the transmitted power level of the packet containing the data type."
         // CSS 1: Optional in this context (may appear more than once in a block).
-        this->tx_powers_.push_back(*payload);
+        this->tx_powers_.push_back(*record);
         break;
       }
       case ESP_BLE_AD_TYPE_APPEARANCE: {
@@ -684,9 +710,10 @@ void ESP32BLETracker::dump_config() {
                 this->scan_active_ ? "ACTIVE" : "PASSIVE", YESNO(this->scan_continuous_));
   ESP_LOGCONFIG(TAG,
                 "  Scanner State: %s\n"
-                "  Connecting: %d, discovered: %d, disconnecting: %d",
+                "  Connecting: %d, discovered: %d, disconnecting: %d, active: %d",
                 this->scanner_state_to_string_(this->scanner_state_), this->client_state_counts_.connecting,
-                this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
+                this->client_state_counts_.discovered, this->client_state_counts_.disconnecting,
+                this->client_state_counts_.active);
   if (this->scan_start_fail_count_) {
     ESP_LOGCONFIG(TAG, "  Scan Start Fail Count: %d", this->scan_start_fail_count_);
   }
@@ -733,23 +760,48 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
 }
 
 bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
-  uint8_t ecb_key[16];
-  uint8_t ecb_plaintext[16];
-  uint8_t ecb_ciphertext[16];
+  static constexpr size_t AES_BLOCK_SIZE = 16;
+  static constexpr size_t AES_KEY_BITS = 128;
+
+  uint8_t ecb_key[AES_BLOCK_SIZE];
+  uint8_t ecb_plaintext[AES_BLOCK_SIZE];
+  uint8_t ecb_ciphertext[AES_BLOCK_SIZE];
 
   uint64_t addr64 = esp32_ble::ble_addr_to_uint64(this->address_);
 
-  memcpy(&ecb_key, irk, 16);
-  memset(&ecb_plaintext, 0, 16);
+  memcpy(&ecb_key, irk, AES_BLOCK_SIZE);
+  memset(&ecb_plaintext, 0, AES_BLOCK_SIZE);
 
   ecb_plaintext[13] = (addr64 >> 40) & 0xff;
   ecb_plaintext[14] = (addr64 >> 32) & 0xff;
   ecb_plaintext[15] = (addr64 >> 24) & 0xff;
 
+#ifdef USE_BLE_TRACKER_PSA_AES
+  // Use PSA Crypto API (mbedtls 4.0 / IDF 6.0+)
+  psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+  psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
+  psa_set_key_bits(&attributes, AES_KEY_BITS);
+  psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_ENCRYPT);
+  psa_set_key_algorithm(&attributes, PSA_ALG_ECB_NO_PADDING);
+
+  mbedtls_svc_key_id_t key_id;
+  if (psa_import_key(&attributes, ecb_key, AES_BLOCK_SIZE, &key_id) != PSA_SUCCESS) {
+    return false;
+  }
+
+  size_t output_length;
+  psa_status_t status = psa_cipher_encrypt(key_id, PSA_ALG_ECB_NO_PADDING, ecb_plaintext, AES_BLOCK_SIZE,
+                                           ecb_ciphertext, AES_BLOCK_SIZE, &output_length);
+  psa_destroy_key(key_id);
+  if (status != PSA_SUCCESS || output_length != AES_BLOCK_SIZE) {
+    return false;
+  }
+#else
+  // Use legacy mbedtls AES API (IDF < 6.0)
   mbedtls_aes_context ctx = {0, 0, {0}};
   mbedtls_aes_init(&ctx);
 
-  if (mbedtls_aes_setkey_enc(&ctx, ecb_key, 128) != 0) {
+  if (mbedtls_aes_setkey_enc(&ctx, ecb_key, AES_KEY_BITS) != 0) {
     mbedtls_aes_free(&ctx);
     return false;
   }
@@ -760,6 +812,7 @@ bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
   }
 
   mbedtls_aes_free(&ctx);
+#endif
 
   return ecb_ciphertext[15] == (addr64 & 0xff) && ecb_ciphertext[14] == ((addr64 >> 8) & 0xff) &&
          ecb_ciphertext[13] == ((addr64 >> 16) & 0xff);
@@ -812,7 +865,7 @@ void ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
 }
 
 void ESP32BLETracker::cleanup_scan_state_(bool is_stop_complete) {
-  ESP_LOGD(TAG, "Scan %scomplete, set scanner state to IDLE.", is_stop_complete ? "stop " : "");
+  ESP_LOGV(TAG, "Scan %scomplete, set scanner state to IDLE.", is_stop_complete ? "stop " : "");
 #ifdef USE_ESP32_BLE_DEVICE
   this->already_discovered_.clear();
 #endif

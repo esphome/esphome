@@ -15,7 +15,12 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@jesserockz"]
@@ -87,11 +92,9 @@ def update_schema(
     return _UPDATE_SCHEMA.extend(schema)
 
 
+@setup_entity("update")
 async def setup_update_core_(var, config):
-    await setup_entity(var, config, "update")
-
-    if device_class_config := config.get(CONF_DEVICE_CLASS):
-        cg.add(var.set_device_class(device_class_config))
+    setup_device_class(config)
 
     if on_update_available := config.get(CONF_ON_UPDATE_AVAILABLE):
         await automation.build_automation(
@@ -111,7 +114,7 @@ async def setup_update_core_(var, config):
 async def register_update(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_update(var))
+    queue_entity_register("update", config)
     CORE.register_platform_component("update", var)
     await setup_update_core_(var, config)
 
@@ -136,6 +139,7 @@ async def to_code(config):
             cv.Optional(CONF_FORCE_UPDATE, default=False): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 async def update_perform_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -154,6 +158,7 @@ async def update_perform_action_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(UpdateEntity),
         }
     ),
+    synchronous=True,
 )
 async def update_check_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

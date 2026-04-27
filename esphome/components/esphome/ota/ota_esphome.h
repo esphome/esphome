@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_OTA
-#include "esphome/components/ota/ota_backend.h"
+#include "esphome/components/ota/ota_backend_factory.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -28,6 +28,14 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   };
 #ifdef USE_OTA_PASSWORD
   void set_auth_password(const std::string &password) { password_ = password; }
+#else
+  // Stub so lambdas referencing set_auth_password() produce a clear error instead of
+  // a cryptic "no member" diagnostic. Only fires if the stub is actually instantiated.
+  template<bool B = false> void set_auth_password(const std::string &) {
+    static_assert(B, "set_auth_password() requires the OTA auth path to be compiled. "
+                     "Add 'password: \"\"' (empty string) to your 'ota: - platform: esphome' "
+                     "config to enable runtime password rotation.");
+  }
 #endif  // USE_OTA_PASSWORD
 
   /// Manually set the port OTA should listen on
@@ -84,9 +92,9 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   std::unique_ptr<uint8_t[]> auth_buf_;
 #endif  // USE_OTA_PASSWORD
 
-  socket::Socket *server_{nullptr};
+  socket::ListenSocket *server_{nullptr};
   std::unique_ptr<socket::Socket> client_;
-  std::unique_ptr<ota::OTABackend> backend_;
+  ota::OTABackendPtr backend_;
 
   uint32_t client_connect_time_{0};
   uint16_t port_;

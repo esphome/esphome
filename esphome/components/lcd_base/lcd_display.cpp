@@ -99,7 +99,7 @@ void HOT LCDDisplay::display() {
       this->send(this->buffer_[this->columns_ * 2 + i], true);
   }
 
-  if (this->rows_ >= 1) {
+  if (this->rows_ >= 2) {
     this->command_(LCD_DISPLAY_COMMAND_SET_DDRAM_ADDR | 0x40);
 
     for (uint8_t i = 0; i < this->columns_; i++)

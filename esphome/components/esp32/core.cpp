@@ -1,6 +1,8 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/defines.h"
+#include "crash_handler.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -14,7 +16,6 @@
 #include <freertos/task.h>
 
 void setup();  // NOLINT(readability-redundant-declaration)
-void loop();   // NOLINT(readability-redundant-declaration)
 
 // Weak stub for initArduino - overridden when the Arduino component is present
 extern "C" __attribute__((weak)) void initArduino() {}
@@ -22,8 +23,27 @@ extern "C" __attribute__((weak)) void initArduino() {}
 namespace esphome {
 
 void HOT yield() { vPortYield(); }
-uint32_t IRAM_ATTR HOT millis() { return (uint32_t) (esp_timer_get_time() / 1000ULL); }
-uint64_t HOT millis_64() { return static_cast<uint64_t>(esp_timer_get_time()) / 1000ULL; }
+// Use xTaskGetTickCount() when tick rate is 1 kHz (ESPHome's default via sdkconfig),
+// falling back to esp_timer for non-standard rates. IRAM_ATTR is required because
+// Wiegand and ZyAura call millis() from IRAM_ATTR ISR handlers on ESP32.
+// xTaskGetTickCountFromISR() is used in ISR context to satisfy the FreeRTOS API contract.
+uint32_t IRAM_ATTR HOT millis() {
+#if CONFIG_FREERTOS_HZ == 1000
+  if (xPortInIsrContext()) [[unlikely]] {
+    return xTaskGetTickCountFromISR();
+  }
+  return xTaskGetTickCount();
+#else
+  return micros_to_millis(static_cast<uint64_t>(esp_timer_get_time()));
+#endif
+}
+// millis_64() stays on esp_timer — a different clock from xTaskGetTickCount(). This is
+// safe because the two are never cross-compared: millis() values are only used for
+// millis()-vs-millis() deltas (feed_wdt, warn_blocking, component start time), while
+// millis_64() is used by the Scheduler and uptime sensors. On ESP32 (USE_NATIVE_64BIT_TIME),
+// Scheduler::millis_64_from_(now) discards the 32-bit now and calls millis_64() directly,
+// so the Scheduler is internally consistent on the esp_timer clock.
+uint64_t HOT millis_64() { return micros_to_millis<uint64_t>(static_cast<uint64_t>(esp_timer_get_time())); }
 void HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
 uint32_t IRAM_ATTR HOT micros() { return (uint32_t) esp_timer_get_time(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
@@ -36,6 +56,11 @@ void arch_restart() {
 }
 
 void arch_init() {
+#ifdef USE_ESP32_CRASH_HANDLER
+  // Read crash data from previous boot before anything else
+  esp32::crash_handler_read_and_clear();
+#endif
+
   // Enable the task watchdog only on the loop task (from which we're currently running)
   esp_task_wdt_add(nullptr);
 
@@ -47,7 +72,6 @@ void arch_init() {
 }
 void HOT arch_feed_wdt() { esp_task_wdt_reset(); }
 
-uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }
 uint32_t arch_get_cpu_freq_hz() {
   uint32_t freq = 0;
@@ -56,11 +80,14 @@ uint32_t arch_get_cpu_freq_hz() {
 }
 
 TaskHandle_t loop_task_handle = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static StaticTask_t loop_task_tcb;        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static StackType_t
+    loop_task_stack[ESPHOME_LOOP_TASK_STACK_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void loop_task(void *pv_params) {
   setup();
   while (true) {
-    loop();
+    App.loop();
   }
 }
 
@@ -68,9 +95,11 @@ extern "C" void app_main() {
   initArduino();
   esp32::setup_preferences();
 #if CONFIG_FREERTOS_UNICORE
-  xTaskCreate(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, 1, &loop_task_handle);
+  loop_task_handle = xTaskCreateStatic(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, 1, loop_task_stack,
+                                       &loop_task_tcb);
 #else
-  xTaskCreatePinnedToCore(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, 1, &loop_task_handle, 1);
+  loop_task_handle = xTaskCreateStaticPinnedToCore(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, 1,
+                                                   loop_task_stack, &loop_task_tcb, 1);
 #endif
 }
 

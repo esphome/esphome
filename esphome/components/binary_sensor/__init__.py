@@ -60,7 +60,12 @@ from esphome.const import (
     DEVICE_CLASS_WINDOW,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 from esphome.util import Registry
 
@@ -116,25 +121,15 @@ BinarySensorInitiallyOff = binary_sensor_ns.class_(
 BinarySensorPtr = BinarySensor.operator("ptr")
 
 # Triggers
-PressTrigger = binary_sensor_ns.class_("PressTrigger", automation.Trigger.template())
-ReleaseTrigger = binary_sensor_ns.class_(
-    "ReleaseTrigger", automation.Trigger.template()
-)
 ClickTrigger = binary_sensor_ns.class_("ClickTrigger", automation.Trigger.template())
 DoubleClickTrigger = binary_sensor_ns.class_(
     "DoubleClickTrigger", automation.Trigger.template()
 )
-MultiClickTrigger = binary_sensor_ns.class_(
-    "MultiClickTrigger", automation.Trigger.template(), cg.Component
+MultiClickTriggerBase = binary_sensor_ns.class_(
+    "MultiClickTriggerBase", automation.Trigger.template(), cg.Component
 )
+MultiClickTrigger = binary_sensor_ns.class_("MultiClickTrigger", MultiClickTriggerBase)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
-StateTrigger = binary_sensor_ns.class_(
-    "StateTrigger", automation.Trigger.template(bool)
-)
-StateChangeTrigger = binary_sensor_ns.class_(
-    "StateChangeTrigger",
-    automation.Trigger.template(cg.optional.template(bool), cg.optional.template(bool)),
-)
 
 BinarySensorPublishAction = binary_sensor_ns.class_(
     "BinarySensorPublishAction", automation.Action
@@ -262,6 +257,7 @@ async def delayed_off_filter_to_code(config, filter_id):
                 ): cv.positive_time_period_milliseconds,
             }
         ),
+        cv.Length(max=254),
     ),
 )
 async def autorepeat_filter_to_code(config, filter_id):
@@ -290,7 +286,7 @@ async def autorepeat_filter_to_code(config, filter_id):
                 ),
             )
         ]
-    var = cg.new_Pvariable(filter_id, timings)
+    var = cg.new_Pvariable(filter_id, cg.TemplateArguments(len(timings)), timings)
     await cg.register_component(var, {})
     return var
 
@@ -337,8 +333,9 @@ def parse_multi_click_timing_str(value):
     try:
         state = cv.boolean(parts[0])
     except cv.Invalid:
-        # pylint: disable=raise-missing-from
-        raise cv.Invalid(f"First word must either be ON or OFF, not {parts[0]}")
+        raise cv.Invalid(
+            f"First word must either be ON or OFF, not {parts[0]}"
+        ) from None
 
     if parts[1] != "for":
         raise cv.Invalid(f"Second word must be 'for', got {parts[1]}")
@@ -355,7 +352,9 @@ def parse_multi_click_timing_str(value):
         try:
             length = cv.positive_time_period_milliseconds(parts[4])
         except cv.Invalid as err:
-            raise cv.Invalid(f"Multi Click Grammar Parsing length failed: {err}")
+            raise cv.Invalid(
+                f"Multi Click Grammar Parsing length failed: {err}"
+            ) from err
         return {CONF_STATE: state, key: str(length)}
 
     if parts[3] != "to":
@@ -364,12 +363,16 @@ def parse_multi_click_timing_str(value):
     try:
         min_length = cv.positive_time_period_milliseconds(parts[2])
     except cv.Invalid as err:
-        raise cv.Invalid(f"Multi Click Grammar Parsing minimum length failed: {err}")
+        raise cv.Invalid(
+            f"Multi Click Grammar Parsing minimum length failed: {err}"
+        ) from err
 
     try:
         max_length = cv.positive_time_period_milliseconds(parts[4])
     except cv.Invalid as err:
-        raise cv.Invalid(f"Multi Click Grammar Parsing minimum length failed: {err}")
+        raise cv.Invalid(
+            f"Multi Click Grammar Parsing maximum length failed: {err}"
+        ) from err
 
     return {
         CONF_STATE: state,
@@ -395,7 +398,7 @@ def validate_multi_click_timing(value):
         new_state = v_.get(CONF_STATE, not state)
         if new_state == state:
             raise cv.Invalid(
-                f"Timings must have alternating state. Indices {i} and {i + 1} have the same state {state}"
+                f"Timings must have alternating state. Indices {i - 1} and {i} have the same state {state}"
             )
         if max_length is not None and max_length < min_length:
             raise cv.Invalid(
@@ -454,16 +457,8 @@ _BINARY_SENSOR_SCHEMA = (
             ): cv.boolean,
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
             cv.Optional(CONF_FILTERS): validate_filters,
-            cv.Optional(CONF_ON_PRESS): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PressTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_RELEASE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReleaseTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_PRESS): automation.validate_automation({}),
+            cv.Optional(CONF_ON_RELEASE): automation.validate_automation({}),
             cv.Optional(CONF_ON_CLICK): cv.All(
                 automation.validate_automation(
                     {
@@ -498,23 +493,17 @@ _BINARY_SENSOR_SCHEMA = (
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
                     cv.Required(CONF_TIMING): cv.All(
-                        [parse_multi_click_timing_str], validate_multi_click_timing
+                        [parse_multi_click_timing_str],
+                        validate_multi_click_timing,
+                        cv.Length(min=1, max=255),
                     ),
                     cv.Optional(
                         CONF_INVALID_COOLDOWN, default="1s"
                     ): cv.positive_time_period_milliseconds,
                 }
             ),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateChangeTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation({}),
         }
     )
 )
@@ -550,15 +539,31 @@ def binary_sensor_schema(
     return _BINARY_SENSOR_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_PRESS,
+        "add_on_state_callback",
+        forwarder=automation.TriggerOnTrueForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_RELEASE,
+        "add_on_state_callback",
+        forwarder=automation.TriggerOnFalseForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", [(bool, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STATE_CHANGE,
+        "add_full_state_callback",
+        [(cg.optional.template(bool), "x_previous"), (cg.optional.template(bool), "x")],
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_binary_sensor_automations(var, config):
-    for conf in config.get(CONF_ON_PRESS, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_RELEASE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     for conf in config.get(CONF_ON_CLICK, []):
         trigger = cg.new_Pvariable(
@@ -582,33 +587,18 @@ async def _build_binary_sensor_automations(var, config):
             )
             for tim in conf[CONF_TIMING]
         ]
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, timings)
+        trigger = cg.new_Pvariable(
+            conf[CONF_TRIGGER_ID], cg.TemplateArguments(len(timings)), var, timings
+        )
         if CONF_INVALID_COOLDOWN in conf:
             cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
 
-    for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(bool, "x")], conf)
 
-    for conf in config.get(CONF_ON_STATE_CHANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger,
-            [
-                (cg.optional.template(bool), "x_previous"),
-                (cg.optional.template(bool), "x"),
-            ],
-            conf,
-        )
-
-
+@setup_entity("binary_sensor")
 async def setup_binary_sensor_core_(var, config):
-    await setup_entity(var, config, "binary_sensor")
-
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
+    setup_device_class(config)
     trigger = config.get(CONF_TRIGGER_ON_INITIAL_STATE, False) or config.get(
         CONF_PUBLISH_INITIAL_STATE, False
     )
@@ -635,7 +625,7 @@ async def setup_binary_sensor_core_(var, config):
 async def register_binary_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_binary_sensor(var))
+    queue_entity_register("binary_sensor", config)
     CORE.register_platform_component("binary_sensor", var)
     await setup_binary_sensor_core_(var, config)
 
@@ -683,6 +673,7 @@ async def to_code(config):
         },
         key=CONF_ID,
     ),
+    synchronous=True,
 )
 async def binary_sensor_invalidate_state_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

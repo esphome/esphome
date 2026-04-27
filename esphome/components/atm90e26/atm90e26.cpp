@@ -197,7 +197,7 @@ float ATM90E26Component::get_reactive_power_() {
 float ATM90E26Component::get_power_factor_() {
   const uint16_t val = this->read16_(ATM90E26_REGISTER_POWERF);  // signed
   if (val & 0x8000) {
-    return -(val & 0x7FF) / 1000.0f;
+    return -(val & 0x7FFF) / 1000.0f;
   } else {
     return val / 1000.0f;
   }

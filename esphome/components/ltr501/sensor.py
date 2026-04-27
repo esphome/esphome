@@ -14,7 +14,6 @@ from esphome.const import (
     CONF_INTEGRATION_TIME,
     CONF_NAME,
     CONF_REPEAT,
-    CONF_TRIGGER_ID,
     CONF_TYPE,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_ILLUMINANCE,
@@ -87,9 +86,6 @@ PS_GAINS = {
     "16X": PsGain.PS_GAIN_16,
 }
 
-LTRPsHighTrigger = ltr501_ns.class_("LTRPsHighTrigger", automation.Trigger.template())
-LTRPsLowTrigger = ltr501_ns.class_("LTRPsLowTrigger", automation.Trigger.template())
-
 
 def validate_integration_time(value):
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
@@ -146,16 +142,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PS_LOW_THRESHOLD, default=0): cv.int_range(
                 min=0, max=65535
             ),
-            cv.Optional(CONF_ON_PS_HIGH_THRESHOLD): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LTRPsHighTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_PS_LOW_THRESHOLD): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LTRPsLowTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_PS_HIGH_THRESHOLD): automation.validate_automation({}),
+            cv.Optional(CONF_ON_PS_LOW_THRESHOLD): automation.validate_automation({}),
             cv.Optional(CONF_AMBIENT_LIGHT): cv.maybe_simple_value(
                 sensor.sensor_schema(
                     unit_of_measurement=UNIT_LUX,
@@ -223,6 +211,16 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_PS_HIGH_THRESHOLD, "add_on_ps_high_trigger_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PS_LOW_THRESHOLD, "add_on_ps_low_trigger_callback"
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -252,13 +250,7 @@ async def to_code(config):
         sens = await sensor.new_sensor(prox_cnt_config)
         cg.add(var.set_proximity_counts_sensor(sens))
 
-    for prox_high_tr in config.get(CONF_ON_PS_HIGH_THRESHOLD, []):
-        trigger = cg.new_Pvariable(prox_high_tr[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], prox_high_tr)
-
-    for prox_low_tr in config.get(CONF_ON_PS_LOW_THRESHOLD, []):
-        trigger = cg.new_Pvariable(prox_low_tr[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], prox_low_tr)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     cg.add(var.set_ltr_type(config[CONF_TYPE]))
 

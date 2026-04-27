@@ -65,7 +65,7 @@ std::vector<CdcEps> USBUartTypeCP210X::parse_descriptors(usb_device_handle_t dev
   }
 
   for (uint8_t i = 0; i != config_desc->bNumInterfaces; i++) {
-    auto data_desc = usb_parse_interface_descriptor(config_desc, 0, 0, &conf_offset);
+    auto data_desc = usb_parse_interface_descriptor(config_desc, i, 0, &conf_offset);
     if (!data_desc) {
       ESP_LOGE(TAG, "data_desc: usb_parse_interface_descriptor failed");
       break;

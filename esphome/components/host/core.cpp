@@ -5,10 +5,15 @@
 #include "esphome/core/helpers.h"
 #include "preferences.h"
 
+#include <csignal>
 #include <sched.h>
 #include <time.h>
-#include <cmath>
 #include <cstdlib>
+
+namespace {
+volatile sig_atomic_t s_signal_received = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+void signal_handler(int signal) { s_signal_received = signal; }
+}  // namespace
 
 namespace esphome {
 
@@ -16,9 +21,7 @@ void HOT yield() { ::sched_yield(); }
 uint32_t IRAM_ATTR HOT millis() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
-  time_t seconds = spec.tv_sec;
-  uint32_t ms = round(spec.tv_nsec / 1e6);
-  return ((uint32_t) seconds) * 1000U + ms;
+  return static_cast<uint32_t>(spec.tv_sec * 1000ULL + spec.tv_nsec / 1000000);
 }
 uint64_t millis_64() {
   struct timespec spec;
@@ -37,9 +40,7 @@ void HOT delay(uint32_t ms) {
 uint32_t IRAM_ATTR HOT micros() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
-  time_t seconds = spec.tv_sec;
-  uint32_t us = round(spec.tv_nsec / 1e3);
-  return ((uint32_t) seconds) * 1000000U + us;
+  return static_cast<uint32_t>(spec.tv_sec * 1000000ULL + spec.tv_nsec / 1000);
 }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
   struct timespec ts;
@@ -58,7 +59,6 @@ void HOT arch_feed_wdt() {
   // pass
 }
 
-uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 uint32_t arch_get_cpu_cycle_count() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
@@ -73,11 +73,17 @@ uint32_t arch_get_cpu_freq_hz() { return 1000000000U; }
 void setup();
 void loop();
 int main() {
+  // Install signal handlers for graceful shutdown (flushes preferences to disk)
+  std::signal(SIGINT, signal_handler);
+  std::signal(SIGTERM, signal_handler);
+
   esphome::host::setup_preferences();
   setup();
-  while (true) {
+  while (s_signal_received == 0) {
     loop();
   }
+  esphome::App.run_safe_shutdown_hooks();
+  return 0;
 }
 
 #endif  // USE_HOST
