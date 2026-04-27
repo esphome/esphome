@@ -93,6 +93,8 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
 #endif  // USE_OTA_PASSWORD
 #ifdef USE_OTA_PARTITIONS
   bool extended_proto_{false};
+  uint32_t running_app_offset_{0};
+  size_t running_app_size_{0};
 #endif
 
   socket::ListenSocket *server_{nullptr};

@@ -25,8 +25,7 @@ std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABac
 OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) {
   this->ota_type_ = ota_type;
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
-    if (image_size > ESP_PARTITION_TABLE_SIZE || image_size > ESP_PARTITION_TABLE_MAX_LEN ||
-        image_size > OTA_BUFFER_SIZE) {
+    if (image_size > ESP_PARTITION_TABLE_MAX_LEN) {
       ESP_LOGE(TAG, "Wrong partition table size");
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
     }
@@ -236,7 +235,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     }
   }
   if (!checksum_found) {
-    ESP_LOGE(TAG, "New partition table has no checksum", err);
+    ESP_LOGE(TAG, "New partition table has no checksum");
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
@@ -300,7 +299,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
-  ESP_LOGD(TAG, "Checks passed, starting partition table update");
+  ESP_LOGW(TAG, "Checks passed, starting partition table update. Don't remove power until it is completed!");
 
   // Deinitialize NVS to prevent unwanted flash writes
   nvs_flash_deinit();
@@ -330,14 +329,14 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   }
 
   // Update the partition table
-  err = esp_ota_begin(this->partition_table_part_, this->image_size_, &this->update_handle_);
+  err = esp_ota_begin(this->partition_table_part_, ESP_PARTITION_TABLE_MAX_LEN, &this->update_handle_);
   if (err != ESP_OK) {
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
     ESP_LOGE(TAG, "esp_ota_begin failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
-  err = esp_ota_write(this->update_handle_, this->buf_, this->image_size_);
+  err = esp_ota_write(this->update_handle_, this->buf_, ESP_PARTITION_TABLE_MAX_LEN);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
@@ -348,6 +347,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
+  this->partition_table_part_ = nullptr;
   esp_partition_unload_all();
 
   // Write otadata to set the new boot partition
@@ -381,8 +381,7 @@ void get_running_app_position(uint32_t &offset, size_t &size) {
   static size_t running_app_size = 0;
   if (running_app_size == 0) {
     const esp_partition_t *running_app_part = esp_ota_get_running_partition();
-    running_app_size = ((running_app_size + running_app_part->erase_size - 1) / running_app_part->erase_size) *
-                       running_app_part->erase_size;
+    running_app_size = running_app_part->size;
     running_app_offset = running_app_part->address;
     const esp_partition_pos_t running_app_pos = {
         .offset = running_app_part->address,
