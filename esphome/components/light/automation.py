@@ -199,6 +199,8 @@ async def light_control_to_code(config, action_id, template_arg, args):
         (CONF_WARM_WHITE, "set_warm_white", cg.float_),
         (CONF_EFFECT, None, cg.uint32),
     )
+    # Bitmask is passed as uint16_t in C++ — must stay within 16 bits.
+    assert len(FIELDS) <= 16, "LightControlAction Fields bitmask exceeds uint16_t"
 
     field_mask = sum(1 << i for i, (k, _, _) in enumerate(FIELDS) if k in config)
     control_template_arg = cg.TemplateArguments(
