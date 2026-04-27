@@ -5,11 +5,20 @@ per-instance bitmask field storage. Exercises multiple field combinations
 to cover different bitmask variants and the lambda path.
 """
 
-import asyncio
-from typing import Any
+from __future__ import annotations
 
+import asyncio
+
+from aioesphomeapi import (
+    ButtonInfo,
+    ClimateInfo,
+    ClimateMode,
+    ClimateState,
+    EntityState,
+)
 import pytest
 
+from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -20,41 +29,45 @@ async def test_climate_control_action(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test climate ControlAction with constants and lambdas."""
+    loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
-        state_futures: dict[int, asyncio.Future[Any]] = {}
+        climate_state_future: asyncio.Future[ClimateState] | None = None
 
-        def on_state(state: Any) -> None:
-            if state.key in state_futures and not state_futures[state.key].done():
-                state_futures[state.key].set_result(state)
+        def on_state(state: EntityState) -> None:
+            if (
+                isinstance(state, ClimateState)
+                and climate_state_future is not None
+                and not climate_state_future.done()
+            ):
+                climate_state_future.set_result(state)
 
-        client.subscribe_states(on_state)
-
-        entities = await client.list_entities_services()
-        climate = next(e for e in entities[0] if e.object_id == "test_climate")
-        buttons = {e.name: e for e in entities[0] if hasattr(e, "name")}
-
-        async def wait_for_state(key: int, timeout: float = 5.0) -> Any:
-            loop = asyncio.get_running_loop()
-            state_futures[key] = loop.create_future()
+        async def wait_for_climate_state(timeout: float = 5.0) -> ClimateState:
+            nonlocal climate_state_future
+            climate_state_future = loop.create_future()
             try:
-                return await asyncio.wait_for(state_futures[key], timeout)
+                return await asyncio.wait_for(climate_state_future, timeout)
             finally:
-                state_futures.pop(key, None)
+                climate_state_future = None
 
-        async def press_and_wait(button_name: str) -> Any:
-            btn = buttons[button_name]
+        entities, _ = await client.list_entities_services()
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+        await initial_state_helper.wait_for_initial_states()
+
+        require_entity(entities, "test_climate", ClimateInfo)
+
+        async def press_and_wait(name: str) -> ClimateState:
+            btn = require_entity(entities, name.lower().replace(" ", "_"), ButtonInfo)
             client.button_command(btn.key)
-            return await wait_for_state(climate.key)
+            return await wait_for_climate_state()
 
         # Test 1: mode only (mask 1) — set HEAT
         state = await press_and_wait("Set Mode Heat")
-        # ClimateMode.CLIMATE_MODE_HEAT == 3
-        assert state.mode == 3
+        assert state.mode == ClimateMode.HEAT
 
         # Test 2: mode + low + high (mask 13) — HEAT_COOL with both temps
         state = await press_and_wait("Set Mode Temps")
-        # CLIMATE_MODE_HEAT_COOL == 1
-        assert state.mode == 1
+        assert state.mode == ClimateMode.HEAT_COOL
         assert state.target_temperature_low == pytest.approx(19.0, abs=0.5)
         assert state.target_temperature_high == pytest.approx(23.0, abs=0.5)
 
@@ -68,5 +81,4 @@ async def test_climate_control_action(
 
         # Test 5: turn off via mode (mask 1)
         state = await press_and_wait("Set Off")
-        # CLIMATE_MODE_OFF == 0
-        assert state.mode == 0
+        assert state.mode == ClimateMode.OFF
