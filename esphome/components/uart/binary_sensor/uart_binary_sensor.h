@@ -2,22 +2,30 @@
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::uart {
-class UARTBinarySensor : public uart::UARTDevice, public binary_sensor::BinarySensor, public Component {
+
+class UARTBinarySensor : public UARTDevice, public Component {
  public:
-  void set_data(std::vector<uint8_t> &&data) { this->data_ = std::move(data); }
-  void set_data(std::initializer_list<uint8_t> data) { this->data_ = std::vector<uint8_t>(data); }
   void setup() override;
   void loop() override;
   void dump_config() override;
 
+  void add_event_matcher(binary_sensor::BinarySensor *sensor, const uint8_t *data, size_t data_len);
+  void setup_buffer(size_t max_matcher_len) { this->buffer_.init(max_matcher_len); }
+
  protected:
+  struct EventMatcher {
+    binary_sensor::BinarySensor *sensor;
+    const uint8_t *data;
+    size_t data_len;
+    bool triggered{false};
+  };
+
   void read_data_();
-  std::vector<uint8_t> data_;
-  static size_t max_data_size;
-  static std::vector<uint8_t> buffer;
-  bool first_entity_{};
+  FixedVector<EventMatcher> matchers_;
+  FixedRingBuffer<uint8_t> buffer_;
 };
 
 }  // namespace esphome::uart

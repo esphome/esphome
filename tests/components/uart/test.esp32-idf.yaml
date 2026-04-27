@@ -117,4 +117,9 @@ event:
 binary_sensor:
   - platform: uart
     id: up
+    uart_id: uart_id
     data: [0x1B, 0x5B, 0x41]
+  - platform: uart
+    id: down
+    uart_id: uart_id
+    data: [0x1B, 0x5B, 0x42]

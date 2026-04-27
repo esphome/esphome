@@ -496,6 +496,10 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   ConstIterator begin() const { return ConstIterator(this, 0); }
   ConstIterator end() const { return ConstIterator(this, this->count_); }
 
+  T &operator[](index_type pos) { return this->data_[(this->head_ + pos) % this->capacity_]; }
+
+  const T &operator[](index_type pos) const { return this->data_[(this->head_ + pos) % this->capacity_]; }
+
  protected:
   T *data_{nullptr};
   index_type head_{0};
