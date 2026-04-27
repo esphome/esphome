@@ -8,7 +8,6 @@ import re
 
 from esphome import yaml_util
 import esphome.codegen as cg
-from esphome.components.const import CONF_NATIVE_IDF
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
@@ -23,6 +22,7 @@ from esphome.const import (
     CONF_IGNORE_EFUSE_MAC_CRC,
     CONF_LOG_LEVEL,
     CONF_NAME,
+    CONF_NATIVE_IDF,
     CONF_OTA,
     CONF_PATH,
     CONF_PLATFORM_VERSION,
