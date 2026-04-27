@@ -263,10 +263,12 @@ LIGHT_DIM_RELATIVE_ACTION_SCHEMA = cv.Schema(
 )
 async def light_dim_relative_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    has_transition_length = CONF_TRANSITION_LENGTH in config
+    dim_template_arg = cg.TemplateArguments(has_transition_length, *template_arg)
+    var = cg.new_Pvariable(action_id, dim_template_arg, paren)
     templ = await cg.templatable(config[CONF_RELATIVE_BRIGHTNESS], args, cg.float_)
     cg.add(var.set_relative_brightness(templ))
-    if CONF_TRANSITION_LENGTH in config:
+    if has_transition_length:
         templ = await cg.templatable(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
         cg.add(var.set_transition_length(templ))
     if conf := config.get(CONF_BRIGHTNESS_LIMITS):
