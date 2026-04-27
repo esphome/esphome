@@ -128,7 +128,21 @@ async def to_code(config):
 )
 async def cover_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    # Bit positions must match COVER_PUBLISH_FIELDS in cover/automation.h.
+    # CONF_STATE and CONF_POSITION both map to set_position (bit 0).
+    field_mask = 0
+    if CONF_STATE in config or CONF_POSITION in config:
+        field_mask |= 1 << 0
+    if CONF_TILT in config:
+        field_mask |= 1 << 1
+    if CONF_CURRENT_OPERATION in config:
+        field_mask |= 1 << 2
+
+    publish_template_arg = cg.TemplateArguments(
+        cg.RawExpression(f"static_cast<uint16_t>({field_mask})"), *template_arg
+    )
+    var = cg.new_Pvariable(action_id, publish_template_arg, paren)
     if CONF_STATE in config:
         template_ = await cg.templatable(config[CONF_STATE], args, cg.float_)
         cg.add(var.set_position(template_))
