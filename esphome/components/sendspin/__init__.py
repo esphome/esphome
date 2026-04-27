@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from esphome import automation
 import esphome.codegen as cg
@@ -6,9 +6,13 @@ from esphome.components import esp32, network, psram, socket, wifi
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
+    CONF_FORMAT,
+    CONF_HEIGHT,
     CONF_ID,
     CONF_SAMPLE_RATE,
+    CONF_SOURCE,
     CONF_TASK_STACK_IN_PSRAM,
+    CONF_WIDTH,
 )
 from esphome.core import CORE, ID
 from esphome.cpp_generator import TemplateArgsType
@@ -21,6 +25,7 @@ DEPENDENCIES = ["network"]
 DOMAIN = "sendspin"
 
 CONF_SENDSPIN_ID = "sendspin_id"
+CONF_SLOT = "slot"
 
 CONF_INITIAL_STATIC_DELAY = "initial_static_delay"
 CONF_FIXED_DELAY = "fixed_delay"
@@ -35,9 +40,21 @@ CODEC_FORMAT_OPUS = SendspinCodecFormat.enum("OPUS")
 CODEC_FORMAT_PCM = SendspinCodecFormat.enum("PCM")
 CODEC_FORMAT_UNSUPPORTED = SendspinCodecFormat.enum("UNSUPPORTED")
 
+SendspinImageFormat = sendspin_library_ns.enum("SendspinImageFormat", is_class=True)
+IMAGE_FORMAT_JPEG = SendspinImageFormat.enum("JPEG")
+IMAGE_FORMAT_PNG = SendspinImageFormat.enum("PNG")
+IMAGE_FORMAT_BMP = SendspinImageFormat.enum("BMP")
+
+SendspinImageSource = sendspin_library_ns.enum("SendspinImageSource", is_class=True)
+IMAGE_SOURCE_ALBUM = SendspinImageSource.enum("ALBUM")
+IMAGE_SOURCE_ARTIST = SendspinImageSource.enum("ARTIST")
+IMAGE_SOURCE_NONE = SendspinImageSource.enum("NONE")
+
 # Library Structs
 AudioSupportedFormatObject = sendspin_library_ns.struct("AudioSupportedFormatObject")
 PlayerRoleConfig = sendspin_library_ns.struct("PlayerRoleConfig")
+ArtworkRoleConfig = sendspin_library_ns.struct("ArtworkRoleConfig")
+ImageSlotPreference = sendspin_library_ns.struct("ImageSlotPreference")
 
 # Trailing underscore avoids clashing with sendspin-cpp's global `sendspin` namespace.
 # Analysis tools strip the trailing underscore (same pattern as `template_`).
@@ -63,6 +80,7 @@ class SendspinConfiguration:
     player_support: bool = False
     visualizer_support: bool = False
 
+    artwork_preferences: list[ConfigType] = field(default_factory=list)
     player_config: ConfigType | None = None
 
 
@@ -95,6 +113,12 @@ def request_player_support() -> None:
 def request_visualizer_support() -> None:
     """Request visualizer role support for Sendspin."""
     _get_data().visualizer_support = True
+
+
+def register_artwork_preference(config: ConfigType) -> None:
+    """Register an artwork slot preference from an image subcomponent."""
+    request_artwork_support()
+    _get_data().artwork_preferences.append(config)
 
 
 def register_player_config(config: ConfigType) -> None:
@@ -203,6 +227,27 @@ async def to_code(config: ConfigType) -> None:
     # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
     if data.artwork_support:
         cg.add_define("USE_SENDSPIN_ARTWORK", True)
+
+        preference_structs = [
+            cg.StructInitializer(
+                ImageSlotPreference,
+                ("slot", pref[CONF_SLOT]),
+                ("source", pref[CONF_SOURCE]),
+                ("format", pref[CONF_FORMAT]),
+                ("width", pref[CONF_WIDTH]),
+                ("height", pref[CONF_HEIGHT]),
+            )
+            for pref in data.artwork_preferences
+        ]
+
+        artwork_psram_stack = bool(config.get(CONF_TASK_STACK_IN_PSRAM))
+        artwork_config = cg.StructInitializer(
+            ArtworkRoleConfig,
+            ("preferred_formats", preference_structs),
+            ("psram_stack", artwork_psram_stack),
+            ("priority", 2),
+        )
+        cg.add(var.set_artwork_config(artwork_config))
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_ARTWORK", False)
 

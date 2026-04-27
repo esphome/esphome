@@ -1,0 +1,35 @@
+<<: !include common.yaml
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+display:
+  - platform: ili9xxx
+    spi_id: spi_bus
+    id: main_lcd
+    model: ili9342
+    cs_pin: 20
+    dc_pin: 13
+    reset_pin: 21
+    invert_colors: true
+    lambda: |-
+      it.fill(Color(0, 0, 0));
+      it.image(0, 0, id(album_art));
+
+generic_image:
+  - platform: sendspin
+    id: album_art
+    format: JPEG
+    type: RGB565
+    resize: 240x240
+    source: ALBUM
+    on_image_display:
+      - logger.log: "Album art displayed"
+    on_image_error:
+      - logger.log: "Album art error"
+  - platform: sendspin
+    id: artist_art
+    format: PNG
+    type: RGB565
+    resize: 96x96
+    source: ARTIST

@@ -13,6 +13,9 @@
 #include <sendspin/config.h>
 #include <sendspin/types.h>
 
+#ifdef USE_SENDSPIN_ARTWORK
+#include <sendspin/artwork_role.h>
+#endif
 #ifdef USE_SENDSPIN_CONTROLLER
 #include <sendspin/controller_role.h>
 #endif
@@ -67,6 +70,9 @@ struct StaticDelayPref {
 ///    (for services the library pulls; e.g., persistence, network readiness).
 ///  - User -> library communication uses exposed functions on the client and role objects that the user calls.
 class SendspinHub final : public Component,
+#ifdef USE_SENDSPIN_ARTWORK
+                          public sendspin::ArtworkRoleListener,
+#endif
 #ifdef USE_SENDSPIN_CONTROLLER
                           public sendspin::ControllerRoleListener,
 #endif
@@ -119,6 +125,20 @@ class SendspinHub final : public Component,
 
   // --- Sendspin role specific methods ---
 
+#ifdef USE_SENDSPIN_ARTWORK
+  void set_artwork_config(const sendspin::ArtworkRoleConfig &config) { this->artwork_config_ = config; }
+
+  template<typename F> void add_image_decode_callback(F &&callback) {
+    this->artwork_image_decode_callbacks_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_image_display_callback(F &&callback) {
+    this->artwork_image_display_callbacks_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_image_clear_callback(F &&callback) {
+    this->artwork_image_clear_callbacks_.add(std::forward<F>(callback));
+  }
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
   void send_client_command(sendspin::SendspinControllerCommand command, std::optional<uint8_t> volume = std::nullopt,
                            std::optional<bool> mute = std::nullopt);
@@ -164,6 +184,23 @@ class SendspinHub final : public Component,
   std::optional<uint32_t> load_last_server_hash() override;
 
   // --- Sendspin role specific methods/overrides/member variables ---
+
+#ifdef USE_SENDSPIN_ARTWORK
+  void on_image_decode(uint8_t slot, const uint8_t *data, size_t length, sendspin::SendspinImageFormat format) override;
+
+  void on_image_display(uint8_t slot) override;
+
+  void on_image_clear(uint8_t slot) override;
+
+  sendspin::ArtworkRoleConfig artwork_config_{};
+
+  // Callback fan-out to child components; they filter by slot as needed.
+  // decode and display fire from the library's artwork thread; clear fires from the main loop.
+  CallbackManager<void(uint8_t, const uint8_t *, size_t, sendspin::SendspinImageFormat)>
+      artwork_image_decode_callbacks_{};
+  CallbackManager<void(uint8_t)> artwork_image_display_callbacks_{};
+  CallbackManager<void(uint8_t)> artwork_image_clear_callbacks_{};
+#endif
 
 #ifdef USE_SENDSPIN_CONTROLLER
   sendspin::ControllerRole *controller_role_{nullptr};
