@@ -63,6 +63,9 @@ zigbee:
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID to use for this `zigbee` component.
 
+- **router** (*Optional*, boolean): If true the Zigbee role will be `router` instead of `end device` and it will
+  forward Zigbee packets from other devices. Don't use this for battery-powered devices. Defaults to `false`.
+
 Only on `nRF52`:
 
 - **wipe_on_boot** (*Optional*): Erases all non-volatile memory data on boot, including
@@ -90,12 +93,6 @@ Only on `nRF52`:
 
 > [!WARNING]
 > Overusing `random` may exhaust memory in the Zigbee coordinator by creating many "ghost" devices.
-
-Only on `ESP32`:
-
-- **router** (*Optional*, boolean): If true the Zigbee role will be `router` instead of `end device` and it will
-  forward Zigbee packets from other devices. Don't use this for battery-powered devices. Defaults to `false`.
-
 
 ## Actions
 
