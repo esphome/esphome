@@ -179,7 +179,10 @@ void WiFiComponent::wifi_pre_setup_() {
 #endif  // USE_WIFI_AP
 
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  // cfg.nvs_enable = false;
+  if (global_preferences->nvs_handle == 0) {
+    ESP_LOGW(TAG, "starting wifi without nvs");
+    cfg.nvs_enable = false;
+  }
   err = esp_wifi_init(&cfg);
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_wifi_init failed: %s", esp_err_to_name(err));
