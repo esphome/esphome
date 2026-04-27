@@ -40,7 +40,11 @@ from esphome.const import (
     CONF_WHITE,
 )
 from esphome.core import CORE, ID, CoroPriority, HexInt, Lambda, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -405,7 +409,7 @@ async def setup_light_core_(light_var, config, output_var):
 
 async def register_light(output_var, config):
     light_var = cg.new_Pvariable(config[CONF_ID], output_var)
-    cg.add(cg.App.register_light(light_var))
+    queue_entity_register("light", config)
     CORE.register_platform_component("light", light_var)
     await cg.register_component(light_var, config)
     await setup_light_core_(light_var, config, output_var)

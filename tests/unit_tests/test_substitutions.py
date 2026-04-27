@@ -654,7 +654,7 @@ def test_resolve_package_max_depth_exceeded(tmp_path: Path) -> None:
     package_config = yaml_util.IncludeFile(
         parent, "test.yaml", None, always_returns_include
     )
-    processor = _PackageProcessor({}, None, False)
+    processor = _PackageProcessor({}, None)
     with pytest.raises(
         cv.Invalid,
         match=f"Maximum include nesting depth \\({MAX_INCLUDE_DEPTH}\\) exceeded",
@@ -776,7 +776,7 @@ def test_resolve_package_undefined_var_in_include_filename(tmp_path: Path) -> No
     package_config = yaml_util.IncludeFile(
         parent, "${undefined_var}.yaml", None, loader
     )
-    processor = _PackageProcessor({}, None, False)
+    processor = _PackageProcessor({}, None)
     with pytest.raises(cv.Invalid, match="unresolved substitutions"):
         processor.resolve_package(package_config, substitutions.ContextVars(), [])
 
