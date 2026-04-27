@@ -302,6 +302,10 @@ cover:
     has_position: true
     optimistic: true
     open_action:
+      # CONF_STATE alias for the position bit
+      - cover.template.publish:
+          id: template_cover_actions
+          state: OPEN
       - cover.template.publish:
           id: template_cover_actions
           position: 1.0
