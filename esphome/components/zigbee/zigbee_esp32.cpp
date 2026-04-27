@@ -190,9 +190,7 @@ static void esp_zb_task_(void *pvParameters) {
     ESP_LOGE(TAG, "Could not setup Zigbee");
     vTaskDelete(NULL);
   }
-
   bool battery_powered = *(bool *) pvParameters;
-
   if (battery_powered) {
     ESP_LOGD(TAG, "Battery powered!");
     esp_zb_set_node_descriptor_power_source(0);
@@ -291,9 +289,7 @@ void ZigbeeComponent::setup() {
       }
     }
   }
-
   bool battery_powered = this->basic_cluster_data_.power_source == 0x03;
-
   xTaskCreate(esp_zb_task_, "Zigbee_main", 4096, &battery_powered, 24, NULL);
 }
 
