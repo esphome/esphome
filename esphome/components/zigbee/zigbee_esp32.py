@@ -25,6 +25,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -230,7 +231,7 @@ async def attributes_to_code(
             cg.add(attr_var.connect(template_arg, device))
 
 
-async def esp32_to_code(config: ConfigType) -> None:
+async def esp32_to_code(config: ConfigType) -> "MockObj":
     add_idf_component(
         name="espressif/esp-zboss-lib",
         ref="1.6.4",
@@ -272,3 +273,4 @@ async def esp32_to_code(config: ConfigType) -> None:
                 )
             )
             await attributes_to_code(var, ep[CONF_NUM], cl)
+    return var

@@ -139,7 +139,6 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
 void ZigbeeComponent::on_join_() {
   this->defer([this]() {
     ESP_LOGD(TAG, "Joined the network");
-    this->join_trigger_.trigger();
     this->join_cb_.call();
   });
 }

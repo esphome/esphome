@@ -78,7 +78,8 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
         steering_retry_count = 0;
         ESP_LOGI(TAG, "Joined network successfully (PAN ID: 0x%04hx, Channel:%d)", esp_zb_get_pan_id(),
                  esp_zb_get_current_channel());
-        global_zigbee->connected = true;
+        global_zigbee->joined = true;
+        global_zigbee->enable_loop_soon_any_context();
       } else {
         ESP_LOGI(TAG, "Network steering was not successful (status: %s)", esp_err_to_name(err_status));
         if (steering_retry_count < 10) {
@@ -283,6 +284,18 @@ void ZigbeeComponent::setup() {
     }
   }
   xTaskCreate(esp_zb_task_, "Zigbee_main", 4096, NULL, 24, NULL);
+  this->disable_loop();  // loop is only needed for processing events, so disable until we join a network
+}
+
+void ZigbeeComponent::loop() {
+  if (this->joined) {
+    this->join_cb_.call();
+    this->joined = false;  // only call once
+    this->connected = true;
+  }
+  if (this->connected) {
+    this->disable_loop();  // only disable once connected
+  }
 }
 
 void ZigbeeComponent::dump_config() {

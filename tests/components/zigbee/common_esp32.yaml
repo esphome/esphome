@@ -12,3 +12,6 @@ binary_sensor:
 zigbee:
   model: zigbee_test
   router: true
+  on_join:
+    then:
+      - logger.log: "Joined network"
