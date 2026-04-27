@@ -4,9 +4,6 @@ from esphome.components import display, esp32, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_BRIGHTNESS, CONF_ID, CONF_LAMBDA, CONF_ON_TOUCH
 from esphome.core import CORE, TimePeriod
-import logging
-
-_LOGGER = logging.getLogger(__name__)
 
 from . import (  # noqa: F401  pylint: disable=unused-import
     FILTER_SOURCE_FILES,
@@ -41,10 +38,12 @@ from .base_component import (
     CONF_TOUCH_SLEEP_TIMEOUT,
     CONF_WAKE_UP_PAGE,
 )
+import logging
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
 DEPENDENCIES = ["uart"]
-
 
 def AUTO_LOAD() -> list[str]:
     base = ["binary_sensor", "switch", "sensor", "text_sensor"]
