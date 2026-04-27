@@ -96,7 +96,11 @@ void ESP32Preferences::open() {
 
 ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t type) {
   if (s_open_err != ESP_OK) {
-    ESP_LOGW(TAG, "nvs_open failed: %s - erased NVS", esp_err_to_name(s_open_err));
+    if (this->nvs_handle == 0) {
+      ESP_LOGW(TAG, "nvs_open failed: %s - NVS unavailable", esp_err_to_name(s_open_err));
+    } else {
+      ESP_LOGW(TAG, "nvs_open failed: %s - erased NVS", esp_err_to_name(s_open_err));
+    }
     s_open_err = ESP_OK;
   }
   auto *pref = new ESP32PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
