@@ -512,6 +512,7 @@ def test_clean_build(
     assert str(idf_build_dir) in caplog.text
     assert str(managed_components_dir) in caplog.text
     assert "PlatformIO cache" in caplog.text
+    mock_core.relative_internal_path.assert_called_once_with("platformio", "libdeps")
 
 
 @patch("esphome.writer.CORE")
