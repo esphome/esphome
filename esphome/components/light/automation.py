@@ -178,25 +178,36 @@ def _resolve_effect_index(config: ConfigType) -> int:
 )
 async def light_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    # (config_key, setter_name, c++ type)
+    # (config_key, setter_name, c++ type, field bit)
+    # Bit values must match LightControlField in automation.h
     FIELDS = (
-        (CONF_COLOR_MODE, "set_color_mode", ColorMode),
-        (CONF_STATE, "set_state", cg.bool_),
-        (CONF_TRANSITION_LENGTH, "set_transition_length", cg.uint32),
-        (CONF_FLASH_LENGTH, "set_flash_length", cg.uint32),
-        (CONF_BRIGHTNESS, "set_brightness", cg.float_),
-        (CONF_COLOR_BRIGHTNESS, "set_color_brightness", cg.float_),
-        (CONF_RED, "set_red", cg.float_),
-        (CONF_GREEN, "set_green", cg.float_),
-        (CONF_BLUE, "set_blue", cg.float_),
-        (CONF_WHITE, "set_white", cg.float_),
-        (CONF_COLOR_TEMPERATURE, "set_color_temperature", cg.float_),
-        (CONF_COLD_WHITE, "set_cold_white", cg.float_),
-        (CONF_WARM_WHITE, "set_warm_white", cg.float_),
+        (CONF_COLOR_MODE, "set_color_mode", ColorMode, 1 << 0),
+        (CONF_STATE, "set_state", cg.bool_, 1 << 1),
+        (CONF_TRANSITION_LENGTH, "set_transition_length", cg.uint32, 1 << 2),
+        (CONF_FLASH_LENGTH, "set_flash_length", cg.uint32, 1 << 3),
+        (CONF_BRIGHTNESS, "set_brightness", cg.float_, 1 << 4),
+        (CONF_COLOR_BRIGHTNESS, "set_color_brightness", cg.float_, 1 << 5),
+        (CONF_RED, "set_red", cg.float_, 1 << 6),
+        (CONF_GREEN, "set_green", cg.float_, 1 << 7),
+        (CONF_BLUE, "set_blue", cg.float_, 1 << 8),
+        (CONF_WHITE, "set_white", cg.float_, 1 << 9),
+        (CONF_COLOR_TEMPERATURE, "set_color_temperature", cg.float_, 1 << 10),
+        (CONF_COLD_WHITE, "set_cold_white", cg.float_, 1 << 11),
+        (CONF_WARM_WHITE, "set_warm_white", cg.float_, 1 << 12),
     )
-    for conf_key, setter, type_ in FIELDS:
+    field_mask = 0
+    for conf_key, _, _, bit in FIELDS:
+        if conf_key in config:
+            field_mask |= bit
+    if CONF_EFFECT in config:
+        field_mask |= 1 << 13  # EFFECT bit
+
+    fields_arg = cg.RawExpression(f"static_cast<uint16_t>({field_mask})")
+    control_template_arg = cg.TemplateArguments(fields_arg, *template_arg)
+    var = cg.new_Pvariable(action_id, control_template_arg, paren)
+
+    for conf_key, setter, type_, _ in FIELDS:
         if conf_key in config:
             template_ = await cg.templatable(config[conf_key], args, type_)
             cg.add(getattr(var, setter)(template_))

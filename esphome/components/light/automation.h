@@ -24,60 +24,113 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   LightState *state_;
 };
 
-template<typename... Ts> class LightControlAction : public Action<Ts...> {
+// Bitmask of fields configured on a LightControlAction. Used as a non-type
+// template parameter so unset fields can be elided via [[no_unique_address]]
+// and skipped at compile time via if constexpr in play().
+namespace LightControlField {
+constexpr uint16_t COLOR_MODE = 1 << 0;
+constexpr uint16_t STATE = 1 << 1;
+constexpr uint16_t TRANSITION_LENGTH = 1 << 2;
+constexpr uint16_t FLASH_LENGTH = 1 << 3;
+constexpr uint16_t BRIGHTNESS = 1 << 4;
+constexpr uint16_t COLOR_BRIGHTNESS = 1 << 5;
+constexpr uint16_t RED = 1 << 6;
+constexpr uint16_t GREEN = 1 << 7;
+constexpr uint16_t BLUE = 1 << 8;
+constexpr uint16_t WHITE = 1 << 9;
+constexpr uint16_t COLOR_TEMPERATURE = 1 << 10;
+constexpr uint16_t COLD_WHITE = 1 << 11;
+constexpr uint16_t WARM_WHITE = 1 << 12;
+constexpr uint16_t EFFECT = 1 << 13;
+}  // namespace LightControlField
+
+namespace light_control_detail {
+// Distinct empty types per field so [[no_unique_address]] always coalesces
+// (same empty type used multiple times is not guaranteed to share an address).
+template<int Tag> struct Empty {};
+}  // namespace light_control_detail
+
+template<uint16_t Fields, typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
   explicit LightControlAction(LightState *parent) : parent_(parent) {}
 
-  TEMPLATABLE_VALUE(ColorMode, color_mode)
-  TEMPLATABLE_VALUE(bool, state)
-  TEMPLATABLE_VALUE(uint32_t, transition_length)
-  TEMPLATABLE_VALUE(uint32_t, flash_length)
-  TEMPLATABLE_VALUE(float, brightness)
-  TEMPLATABLE_VALUE(float, color_brightness)
-  TEMPLATABLE_VALUE(float, red)
-  TEMPLATABLE_VALUE(float, green)
-  TEMPLATABLE_VALUE(float, blue)
-  TEMPLATABLE_VALUE(float, white)
-  TEMPLATABLE_VALUE(float, color_temperature)
-  TEMPLATABLE_VALUE(float, cold_white)
-  TEMPLATABLE_VALUE(float, warm_white)
-  TEMPLATABLE_VALUE(uint32_t, effect)
+#define LIGHT_CONTROL_FIELD(field_bit, type, name, tag) \
+  template<typename V> void set_##name(V value) requires((Fields & LightControlField::field_bit) != 0) { \
+    this->name##_ = value; \
+  }
+
+  LIGHT_CONTROL_FIELD(COLOR_MODE, ColorMode, color_mode, 0)
+  LIGHT_CONTROL_FIELD(STATE, bool, state, 1)
+  LIGHT_CONTROL_FIELD(TRANSITION_LENGTH, uint32_t, transition_length, 2)
+  LIGHT_CONTROL_FIELD(FLASH_LENGTH, uint32_t, flash_length, 3)
+  LIGHT_CONTROL_FIELD(BRIGHTNESS, float, brightness, 4)
+  LIGHT_CONTROL_FIELD(COLOR_BRIGHTNESS, float, color_brightness, 5)
+  LIGHT_CONTROL_FIELD(RED, float, red, 6)
+  LIGHT_CONTROL_FIELD(GREEN, float, green, 7)
+  LIGHT_CONTROL_FIELD(BLUE, float, blue, 8)
+  LIGHT_CONTROL_FIELD(WHITE, float, white, 9)
+  LIGHT_CONTROL_FIELD(COLOR_TEMPERATURE, float, color_temperature, 10)
+  LIGHT_CONTROL_FIELD(COLD_WHITE, float, cold_white, 11)
+  LIGHT_CONTROL_FIELD(WARM_WHITE, float, warm_white, 12)
+  LIGHT_CONTROL_FIELD(EFFECT, uint32_t, effect, 13)
+#undef LIGHT_CONTROL_FIELD
 
   void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
-    if (this->color_mode_.has_value())
+    if constexpr ((Fields & LightControlField::COLOR_MODE) != 0)
       call.set_color_mode(this->color_mode_.value(x...));
-    if (this->state_.has_value())
+    if constexpr ((Fields & LightControlField::STATE) != 0)
       call.set_state(this->state_.value(x...));
-    if (this->transition_length_.has_value())
+    if constexpr ((Fields & LightControlField::TRANSITION_LENGTH) != 0)
       call.set_transition_length(this->transition_length_.value(x...));
-    if (this->flash_length_.has_value())
+    if constexpr ((Fields & LightControlField::FLASH_LENGTH) != 0)
       call.set_flash_length(this->flash_length_.value(x...));
-    if (this->brightness_.has_value())
+    if constexpr ((Fields & LightControlField::BRIGHTNESS) != 0)
       call.set_brightness(this->brightness_.value(x...));
-    if (this->color_brightness_.has_value())
+    if constexpr ((Fields & LightControlField::COLOR_BRIGHTNESS) != 0)
       call.set_color_brightness(this->color_brightness_.value(x...));
-    if (this->red_.has_value())
+    if constexpr ((Fields & LightControlField::RED) != 0)
       call.set_red(this->red_.value(x...));
-    if (this->green_.has_value())
+    if constexpr ((Fields & LightControlField::GREEN) != 0)
       call.set_green(this->green_.value(x...));
-    if (this->blue_.has_value())
+    if constexpr ((Fields & LightControlField::BLUE) != 0)
       call.set_blue(this->blue_.value(x...));
-    if (this->white_.has_value())
+    if constexpr ((Fields & LightControlField::WHITE) != 0)
       call.set_white(this->white_.value(x...));
-    if (this->color_temperature_.has_value())
+    if constexpr ((Fields & LightControlField::COLOR_TEMPERATURE) != 0)
       call.set_color_temperature(this->color_temperature_.value(x...));
-    if (this->cold_white_.has_value())
+    if constexpr ((Fields & LightControlField::COLD_WHITE) != 0)
       call.set_cold_white(this->cold_white_.value(x...));
-    if (this->warm_white_.has_value())
+    if constexpr ((Fields & LightControlField::WARM_WHITE) != 0)
       call.set_warm_white(this->warm_white_.value(x...));
-    if (this->effect_.has_value())
+    if constexpr ((Fields & LightControlField::EFFECT) != 0)
       call.set_effect(this->effect_.value(x...));
     call.perform();
   }
 
  protected:
   LightState *parent_;
+
+#define LIGHT_CONTROL_STORAGE(field_bit, type, name, tag) \
+  [[no_unique_address]] std::conditional_t<(Fields & LightControlField::field_bit) != 0, TemplatableFn<type, Ts...>, \
+                                           light_control_detail::Empty<tag>> \
+      name##_{};
+
+  LIGHT_CONTROL_STORAGE(COLOR_MODE, ColorMode, color_mode, 0)
+  LIGHT_CONTROL_STORAGE(STATE, bool, state, 1)
+  LIGHT_CONTROL_STORAGE(TRANSITION_LENGTH, uint32_t, transition_length, 2)
+  LIGHT_CONTROL_STORAGE(FLASH_LENGTH, uint32_t, flash_length, 3)
+  LIGHT_CONTROL_STORAGE(BRIGHTNESS, float, brightness, 4)
+  LIGHT_CONTROL_STORAGE(COLOR_BRIGHTNESS, float, color_brightness, 5)
+  LIGHT_CONTROL_STORAGE(RED, float, red, 6)
+  LIGHT_CONTROL_STORAGE(GREEN, float, green, 7)
+  LIGHT_CONTROL_STORAGE(BLUE, float, blue, 8)
+  LIGHT_CONTROL_STORAGE(WHITE, float, white, 9)
+  LIGHT_CONTROL_STORAGE(COLOR_TEMPERATURE, float, color_temperature, 10)
+  LIGHT_CONTROL_STORAGE(COLD_WHITE, float, cold_white, 11)
+  LIGHT_CONTROL_STORAGE(WARM_WHITE, float, warm_white, 12)
+  LIGHT_CONTROL_STORAGE(EFFECT, uint32_t, effect, 13)
+#undef LIGHT_CONTROL_STORAGE
 };
 
 template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
