@@ -7,6 +7,7 @@
     "dev": "astro dev --host",
     "build": "astro build",
     "preview": "astro preview",
+    "serve": "astro build && astro preview --host",
     "lint": "node lint.mjs"
   },
   "dependencies": {

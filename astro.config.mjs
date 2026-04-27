@@ -248,9 +248,23 @@ export default defineConfig({
         {
           tag: "script",
           content: `document.addEventListener('keydown', function(e) {
+            // 1. Existing '/' shortcut to open search
             if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
               e.preventDefault();
               document.querySelector('button[data-open-modal]')?.click();
+              return;
+            }
+          
+            // 2. New 'Enter' shortcut for first search result
+            if (e.key === 'Enter' && e.target.classList.contains('pagefind-ui__search-input')) {
+              const firstResult = document.querySelector('.pagefind-ui__result-link');
+              
+              if (firstResult) {
+                // Prevent the default form submission or modal close behavior
+                e.preventDefault(); 
+                e.stopImmediatePropagation();
+                firstResult.click();
+              }
             }
           });`,
         },
