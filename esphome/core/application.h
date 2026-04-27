@@ -384,10 +384,7 @@ class Application {
   friend void ::setup();
   friend void ::original_setup();
 
-  /// Update the cached loop component start time. Used by the scheduler before
-  /// dispatching a queued callback so callers reading
-  /// get_loop_component_start_time() inside the callback observe a fresh value
-  /// instead of one inherited from the prior loop iteration's last component.
+  /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
   void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
 
   /// Walk all registered components looking for any whose component_state_
