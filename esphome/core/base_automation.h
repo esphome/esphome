@@ -273,18 +273,28 @@ template<typename... Ts> class WhileLoopContinuation : public Action<Ts...> {
   WhileAction<Ts...> *parent_;
 };
 
+// Wraps a ContinuationAction when Enabled, empty otherwise.
+// Lets IfAction elide the else continuation when HasElse is false.
+template<bool Enabled, typename... Ts> struct OptionalContinuation {
+  ContinuationAction<Ts...> action;
+  explicit OptionalContinuation(Action<Ts...> *parent) : action(parent) {}
+};
+template<typename... Ts> struct OptionalContinuation<false, Ts...> {
+  explicit OptionalContinuation(Action<Ts...> * /*parent*/) {}
+};
+
 template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  public:
   explicit IfAction(Condition<Ts...> *condition) : condition_(condition) {}
 
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new ContinuationAction<Ts...>(this));
+    this->then_.add_action(&this->then_continuation_);
   }
 
   void add_else(const std::initializer_list<Action<Ts...> *> &actions) requires(HasElse) {
     this->else_.add_actions(actions);
-    this->else_.add_action(new ContinuationAction<Ts...>(this));
+    this->else_.add_action(&this->else_continuation_.action);
   }
 
   void play_complex(const Ts &...x) override {
@@ -316,8 +326,10 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
+  ContinuationAction<Ts...> then_continuation_{this};
   struct NoElse {};
   [[no_unique_address]] std::conditional_t<HasElse, ActionList<Ts...>, NoElse> else_;
+  [[no_unique_address]] OptionalContinuation<HasElse, Ts...> else_continuation_{this};
 };
 
 template<typename... Ts> class WhileAction : public Action<Ts...> {
@@ -326,7 +338,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new WhileLoopContinuation<Ts...>(this));
+    this->then_.add_action(&this->loop_continuation_);
   }
 
   friend class WhileLoopContinuation<Ts...>;
@@ -354,6 +366,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
+  WhileLoopContinuation<Ts...> loop_continuation_{this};
 };
 
 // Implementation of WhileLoopContinuation::play
@@ -388,7 +401,7 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
 
   void add_then(const std::initializer_list<Action<uint32_t, Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new RepeatLoopContinuation<Ts...>(this));
+    this->then_.add_action(&this->loop_continuation_);
   }
 
   friend class RepeatLoopContinuation<Ts...>;
@@ -409,6 +422,7 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
 
  protected:
   ActionList<uint32_t, Ts...> then_;
+  RepeatLoopContinuation<Ts...> loop_continuation_{this};
 };
 
 // Implementation of RepeatLoopContinuation::play
