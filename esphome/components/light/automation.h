@@ -31,60 +31,58 @@ template<bool HasTransitionLength, typename... Ts> class ToggleAction : public A
       transition_length_{};
 };
 
-template<typename... Ts> class LightControlAction : public Action<Ts...> {
+// Unique Empty<Tag> per field so [[no_unique_address]] is guaranteed to coalesce.
+namespace light_control_detail {
+template<int Tag> struct Empty {};
+}  // namespace light_control_detail
+
+// X-macro: (type, field_name, bit_index). Order and bit values must match
+// the FIELDS table in automation.py.
+#define LIGHT_CONTROL_FIELDS(X) \
+  X(ColorMode, color_mode, 0) \
+  X(bool, state, 1) \
+  X(uint32_t, transition_length, 2) \
+  X(uint32_t, flash_length, 3) \
+  X(float, brightness, 4) \
+  X(float, color_brightness, 5) \
+  X(float, red, 6) \
+  X(float, green, 7) \
+  X(float, blue, 8) \
+  X(float, white, 9) \
+  X(float, color_temperature, 10) \
+  X(float, cold_white, 11) \
+  X(float, warm_white, 12) \
+  X(uint32_t, effect, 13)
+
+template<uint16_t Fields, typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
   explicit LightControlAction(LightState *parent) : parent_(parent) {}
 
-  TEMPLATABLE_VALUE(ColorMode, color_mode)
-  TEMPLATABLE_VALUE(bool, state)
-  TEMPLATABLE_VALUE(uint32_t, transition_length)
-  TEMPLATABLE_VALUE(uint32_t, flash_length)
-  TEMPLATABLE_VALUE(float, brightness)
-  TEMPLATABLE_VALUE(float, color_brightness)
-  TEMPLATABLE_VALUE(float, red)
-  TEMPLATABLE_VALUE(float, green)
-  TEMPLATABLE_VALUE(float, blue)
-  TEMPLATABLE_VALUE(float, white)
-  TEMPLATABLE_VALUE(float, color_temperature)
-  TEMPLATABLE_VALUE(float, cold_white)
-  TEMPLATABLE_VALUE(float, warm_white)
-  TEMPLATABLE_VALUE(uint32_t, effect)
+#define LIGHT_FIELD_SETTER_(type, name, idx) \
+  template<typename V> void set_##name(V value) requires((Fields & (1 << (idx))) != 0) { this->name##_ = value; }
+#define LIGHT_FIELD_APPLY_(type, name, idx) \
+  if constexpr ((Fields & (1 << (idx))) != 0) \
+    call.set_##name(this->name##_.value(x...));
+#define LIGHT_FIELD_DECL_(type, name, idx) \
+  [[no_unique_address]] std::conditional_t<(Fields & (1 << (idx))) != 0, TemplatableFn<type, Ts...>, \
+                                           light_control_detail::Empty<(idx)>> \
+      name##_{};
+
+  LIGHT_CONTROL_FIELDS(LIGHT_FIELD_SETTER_)
 
   void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
-    if (this->color_mode_.has_value())
-      call.set_color_mode(this->color_mode_.value(x...));
-    if (this->state_.has_value())
-      call.set_state(this->state_.value(x...));
-    if (this->transition_length_.has_value())
-      call.set_transition_length(this->transition_length_.value(x...));
-    if (this->flash_length_.has_value())
-      call.set_flash_length(this->flash_length_.value(x...));
-    if (this->brightness_.has_value())
-      call.set_brightness(this->brightness_.value(x...));
-    if (this->color_brightness_.has_value())
-      call.set_color_brightness(this->color_brightness_.value(x...));
-    if (this->red_.has_value())
-      call.set_red(this->red_.value(x...));
-    if (this->green_.has_value())
-      call.set_green(this->green_.value(x...));
-    if (this->blue_.has_value())
-      call.set_blue(this->blue_.value(x...));
-    if (this->white_.has_value())
-      call.set_white(this->white_.value(x...));
-    if (this->color_temperature_.has_value())
-      call.set_color_temperature(this->color_temperature_.value(x...));
-    if (this->cold_white_.has_value())
-      call.set_cold_white(this->cold_white_.value(x...));
-    if (this->warm_white_.has_value())
-      call.set_warm_white(this->warm_white_.value(x...));
-    if (this->effect_.has_value())
-      call.set_effect(this->effect_.value(x...));
+    LIGHT_CONTROL_FIELDS(LIGHT_FIELD_APPLY_)
     call.perform();
   }
 
  protected:
   LightState *parent_;
+  LIGHT_CONTROL_FIELDS(LIGHT_FIELD_DECL_)
+
+#undef LIGHT_FIELD_DECL_
+#undef LIGHT_FIELD_APPLY_
+#undef LIGHT_FIELD_SETTER_
 };
 
 template<bool HasTransitionLength, typename... Ts> class DimRelativeAction : public Action<Ts...> {
