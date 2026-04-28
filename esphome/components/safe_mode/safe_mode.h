@@ -57,7 +57,7 @@ class SafeModeComponent final : public Component {
   // Larger objects at the end
   ESPPreferenceObject rtc_;
 #ifdef USE_SAFE_MODE_CALLBACK
-  CallbackManager<void()> safe_mode_callback_{};
+  StaticCallbackManager<ESPHOME_SAFE_MODE_CALLBACK_COUNT, void()> safe_mode_callback_{};
 #endif
 
   static const uint32_t ENTER_SAFE_MODE_MAGIC =

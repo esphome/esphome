@@ -18,6 +18,12 @@ struct NVSData {
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// open() runs from app_main() before the logger is initialized, so any failure
+// must be deferred until after global_logger is set. This is emitted from the
+// first make_preference() call, which runs from the generated setup() after
+// log->pre_setup() has run at EARLY_INIT priority.
+static esp_err_t s_open_err = ESP_OK;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 bool ESP32PreferenceBackend::save(const uint8_t *data, size_t len) {
   // try find in pending saves and update that
   for (auto &obj : s_pending_save) {
@@ -70,12 +76,14 @@ bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
 }
 
 void ESP32Preferences::open() {
+  // Runs from app_main() before the logger is initialized; any logging here
+  // must be deferred. See s_open_err and make_preference() below.
   nvs_flash_init();
   esp_err_t err = nvs_open("esphome", NVS_READWRITE, &this->nvs_handle);
   if (err == 0)
     return;
 
-  ESP_LOGW(TAG, "nvs_open failed: %s - erasing NVS", esp_err_to_name(err));
+  s_open_err = err;
   nvs_flash_deinit();
   nvs_flash_erase();
   nvs_flash_init();
@@ -87,6 +95,14 @@ void ESP32Preferences::open() {
 }
 
 ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t type) {
+  if (s_open_err != ESP_OK) {
+    if (this->nvs_handle == 0) {
+      ESP_LOGW(TAG, "nvs_open failed: %s - NVS unavailable", esp_err_to_name(s_open_err));
+    } else {
+      ESP_LOGW(TAG, "nvs_open failed: %s - erased NVS", esp_err_to_name(s_open_err));
+    }
+    s_open_err = ESP_OK;
+  }
   auto *pref = new ESP32PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
   pref->nvs_handle = this->nvs_handle;
   pref->key = type;

@@ -12,9 +12,6 @@
 #include <esp_ota_ops.h>
 #include <esp_bootloader_desc.h>
 #endif
-#ifdef USE_LWIP_FAST_SELECT
-#include "esphome/core/lwip_fast_select.h"
-#endif  // USE_LWIP_FAST_SELECT
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
@@ -22,10 +19,6 @@
 
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
-#endif
-
-#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-#include "esphome/components/socket/socket.h"
 #endif
 
 namespace esphome {
@@ -208,16 +201,8 @@ void Application::process_dump_config_() {
 
 void Application::feed_wdt() {
   // Cold entry: callers without a millis() timestamp in hand. Fetches the
-  // time and takes the same rate-limit paths as feed_wdt_with_time().
-  uint32_t now = MillisInternal::get();
-  if (now - this->last_wdt_feed_ > WDT_FEED_INTERVAL_MS) {
-    this->feed_wdt_slow_(now);
-  }
-#ifdef USE_STATUS_LED
-  if (now - this->last_status_led_service_ > STATUS_LED_DISPATCH_INTERVAL_MS) {
-    this->service_status_led_slow_(now);
-  }
-#endif
+  // time and defers to the hot path.
+  this->feed_wdt_with_time(MillisInternal::get());
 }
 
 void HOT Application::feed_wdt_slow_(uint32_t time) {
@@ -374,7 +359,7 @@ void Application::teardown_components(uint32_t timeout_ms) {
 
     // Give some time for I/O operations if components are still pending
     if (pending_count > 0) {
-      this->yield_with_select_(1);
+      esphome::internal::wakeable_delay(1);
     }
 
     // Update time for next iteration

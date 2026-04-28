@@ -236,6 +236,35 @@ def test_clone_or_update_with_never_refresh(
     assert revert is None
 
 
+def test_clone_or_update_skips_when_core_skip_external_update(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """CORE.skip_external_update short-circuits the refresh for existing repos."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = None
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    repo_dir.mkdir(parents=True)
+    git_dir = repo_dir / ".git"
+    git_dir.mkdir()
+    (git_dir / "FETCH_HEAD").write_text("test")
+
+    CORE.skip_external_update = True
+    result_dir, revert = git.clone_or_update(
+        url=url,
+        ref=ref,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+    )
+
+    mock_run_git_command.assert_not_called()
+    assert result_dir == repo_dir
+    assert revert is None
+
+
 def test_clone_or_update_with_refresh_updates_old_repo(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
