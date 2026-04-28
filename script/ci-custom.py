@@ -538,12 +538,10 @@ def lint_no_components_const_outside_components(fname, match):
         f"to be shared only between components in {highlight('esphome/components/')}. "
         f"Code outside this folder must not import from "
         f"{highlight('esphome.components.const')}.\n"
-        f"For core code, use {highlight('esphome/const.py')} instead. Note that "
-        f"{highlight('esphome/const.py')} is frozen against new {highlight('CONF_')} "
-        f"constants (see {highlight('CONST_PY_MAX_CONF')} / "
-        f"{highlight('lint_const_py_frozen')}) — non-CONF_ core constants can be added "
-        f"there directly; CONF_ constants used only by components belong in "
-        f"{highlight('esphome/components/const/__init__.py')}."
+        f"For core code (used outside {highlight('esphome/components/')}), define the "
+        f"constant in {highlight('esphome/const.py')} instead. When adding a new "
+        f"{highlight('CONF_')} constant there, bump {highlight('CONST_PY_MAX_CONF')} "
+        f"in this file accordingly (see {highlight('lint_const_py_frozen')})."
     )
 
 
