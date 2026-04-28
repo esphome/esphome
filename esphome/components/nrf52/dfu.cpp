@@ -2,18 +2,18 @@
 
 #ifdef USE_NRF52_DFU
 
-#include <hal/nrf_power.h>
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/components/zephyr/cdc_acm.h"
 
-namespace esphome {
-namespace nrf52 {
+#include <hal/nrf_power.h>
+
+namespace esphome::nrf52 {
 
 static const char *const TAG = "dfu";
 
 static const uint32_t DFU_DBL_RESET_MAGIC = 0x5A1AD5;  // SALADS
-static const uint8_t DFU_MAGIC_UF2_RESET = 0x57;
+static const uint8_t DFU_MAGIC_UF2_RESET = 0x57;       // Adafruit nRF52 bootloader UF2 magic
 
 void DeviceFirmwareUpdate::setup() {
   if (this->reset_pin_ != nullptr) {
@@ -39,10 +39,11 @@ void DeviceFirmwareUpdate::dump_config() {
   ESP_LOGCONFIG(TAG, "DFU:");
   if (this->reset_pin_ != nullptr) {
     LOG_PIN("  RESET Pin: ", this->reset_pin_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Method: GPREGRET");
   }
 }
 
-}  // namespace nrf52
-}  // namespace esphome
+}  // namespace esphome::nrf52
 
 #endif

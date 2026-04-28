@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 
-namespace esphome {
-namespace nrf52 {
+namespace esphome::nrf52 {
 class DeviceFirmwareUpdate : public Component {
  public:
   void setup() override;
@@ -17,7 +16,6 @@ class DeviceFirmwareUpdate : public Component {
   GPIOPin *reset_pin_{nullptr};
 };
 
-}  // namespace nrf52
-}  // namespace esphome
+}  // namespace esphome::nrf52
 
 #endif
