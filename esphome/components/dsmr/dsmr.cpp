@@ -1,315 +1,183 @@
-#include "dsmr.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/log.h"
+// Ignore Zephyr. It doesn't have any encryption library.
+#if defined(USE_ESP32) || defined(USE_ARDUINO) || defined(USE_HOST)
 
-#include <AES.h>
-#include <Crypto.h>
-#include <GCM.h>
+#include "dsmr.h"
+#include "esphome/core/log.h"
+#include <dsmr_parser/util.h>
 
 namespace esphome::dsmr {
 
-static const char *const TAG = "dsmr";
+static constexpr auto &TAG = "dsmr";
+
+static void log_callback(dsmr_parser::LogLevel level, const char *fmt, va_list args) {
+  std::array<char, 256> buf;
+  vsnprintf(buf.data(), buf.size(), fmt, args);
+  switch (level) {
+    case dsmr_parser::LogLevel::ERROR:
+      ESP_LOGE(TAG, "%s", buf.data());
+      break;
+    case dsmr_parser::LogLevel::WARNING:
+      ESP_LOGW(TAG, "%s", buf.data());
+      break;
+    case dsmr_parser::LogLevel::INFO:
+      ESP_LOGI(TAG, "%s", buf.data());
+      break;
+    case dsmr_parser::LogLevel::VERBOSE:
+      ESP_LOGV(TAG, "%s", buf.data());
+      break;
+    case dsmr_parser::LogLevel::VERY_VERBOSE:
+      ESP_LOGVV(TAG, "%s", buf.data());
+      break;
+    case dsmr_parser::LogLevel::DEBUG:
+      ESP_LOGD(TAG, "%s", buf.data());
+      break;
+  }
+}
 
 void Dsmr::setup() {
-  this->telegram_ = new char[this->max_telegram_len_];  // NOLINT
+  dsmr_parser::Logger::set_log_function(log_callback);
   if (this->request_pin_ != nullptr) {
     this->request_pin_->setup();
   }
 }
 
 void Dsmr::loop() {
-  if (this->ready_to_request_data_()) {
-    if (this->decryption_key_.empty()) {
-      this->receive_telegram_();
-    } else {
-      this->receive_encrypted_telegram_();
-    }
+  if (!this->ready_to_request_data_()) {
+    return;
+  }
+
+  if (this->encryption_enabled_) {
+    this->receive_encrypted_telegram_();
+  } else {
+    this->receive_telegram_();
   }
 }
 
 bool Dsmr::ready_to_request_data_() {
-  // When using a request pin, then wait for the next request interval.
-  if (this->request_pin_ != nullptr) {
-    if (!this->requesting_data_ && this->request_interval_reached_()) {
-      this->start_requesting_data_();
-    }
-  }
-  // Otherwise, sink serial data until next request interval.
-  else {
-    if (this->request_interval_reached_()) {
-      this->start_requesting_data_();
-    }
-    if (!this->requesting_data_) {
-      this->drain_rx_buffer_();
-    }
+  if (!this->requesting_data_ && this->request_interval_reached_()) {
+    this->start_requesting_data_();
   }
   return this->requesting_data_;
 }
 
-bool Dsmr::request_interval_reached_() {
+bool Dsmr::request_interval_reached_() const {
   if (this->last_request_time_ == 0) {
     return true;
   }
   return millis() - this->last_request_time_ > this->request_interval_;
 }
 
-bool Dsmr::receive_timeout_reached_() { return millis() - this->last_read_time_ > this->receive_timeout_; }
-
-bool Dsmr::available_within_timeout_() {
-  // Data are available for reading on the UART bus?
-  // Then we can start reading right away.
-  if (this->available()) {
-    this->last_read_time_ = millis();
-    return true;
-  }
-  // When we're not in the process of reading a telegram, then there is
-  // no need to actively wait for new data to come in.
-  if (!header_found_) {
-    return false;
-  }
-  // A telegram is being read. The smart meter might not deliver a telegram
-  // in one go, but instead send it in chunks with small pauses in between.
-  // When the UART RX buffer cannot hold a full telegram, then make sure
-  // that the UART read buffer does not overflow while other components
-  // perform their work in their loop. Do this by not returning control to
-  // the main loop, until the read timeout is reached.
-  if (this->parent_->get_rx_buffer_size() < this->max_telegram_len_) {
-    while (!this->receive_timeout_reached_()) {
-      delay(5);
-      if (this->available()) {
-        this->last_read_time_ = millis();
-        return true;
-      }
-    }
-  }
-  // No new data has come in during the read timeout? Then stop reading the
-  // telegram and start waiting for the next one to arrive.
-  if (this->receive_timeout_reached_()) {
-    ESP_LOGW(TAG, "Timeout while reading data for telegram");
-    this->reset_telegram_();
-  }
-
-  return false;
-}
-
 void Dsmr::start_requesting_data_() {
-  if (!this->requesting_data_) {
-    if (this->request_pin_ != nullptr) {
-      ESP_LOGV(TAG, "Start requesting data from P1 port");
-      this->request_pin_->digital_write(true);
-    } else {
-      ESP_LOGV(TAG, "Start reading data from P1 port");
-    }
-    this->requesting_data_ = true;
-    this->last_request_time_ = millis();
+  if (this->requesting_data_) {
+    return;
   }
+
+  ESP_LOGV(TAG, "Start reading data from P1 port");
+  this->flush_rx_buffer_();
+
+  if (this->request_pin_ != nullptr) {
+    ESP_LOGV(TAG, "Set request pin to 1");
+    this->request_pin_->digital_write(true);
+  }
+
+  this->requesting_data_ = true;
+  this->last_request_time_ = millis();
 }
 
 void Dsmr::stop_requesting_data_() {
-  if (this->requesting_data_) {
-    if (this->request_pin_ != nullptr) {
-      ESP_LOGV(TAG, "Stop requesting data from P1 port");
-      this->request_pin_->digital_write(false);
-    } else {
-      ESP_LOGV(TAG, "Stop reading data from P1 port");
-    }
-    this->drain_rx_buffer_();
-    this->requesting_data_ = false;
+  if (!this->requesting_data_) {
+    return;
   }
+
+  ESP_LOGV(TAG, "Stop reading data from P1 port");
+  if (this->request_pin_ != nullptr) {
+    ESP_LOGV(TAG, "Set request pin to 0");
+    this->request_pin_->digital_write(false);
+  }
+  this->requesting_data_ = false;
 }
 
-void Dsmr::drain_rx_buffer_() {
-  uint8_t buf[64];
-  size_t avail;
-  while ((avail = this->available()) > 0) {
-    if (!this->read_array(buf, std::min(avail, sizeof(buf)))) {
-      break;
-    }
+void Dsmr::flush_rx_buffer_() {
+  ESP_LOGV(TAG, "Flush UART RX buffer");
+  while (!this->uart_read_chunk_().empty()) {
   }
-}
-
-void Dsmr::reset_telegram_() {
-  this->header_found_ = false;
-  this->footer_found_ = false;
-  this->bytes_read_ = 0;
-  this->crypt_bytes_read_ = 0;
-  this->crypt_telegram_len_ = 0;
 }
 
 void Dsmr::receive_telegram_() {
-  while (this->available_within_timeout_()) {
-    // Read all available bytes in batches to reduce UART call overhead.
-    uint8_t buf[64];
-    size_t avail = this->available();
-    while (avail > 0) {
-      size_t to_read = std::min(avail, sizeof(buf));
-      if (!this->read_array(buf, to_read))
+  for (auto data = this->uart_read_chunk_(); !data.empty(); data = this->uart_read_chunk_()) {
+    for (uint8_t byte : data) {
+      const auto telegram = this->packet_accumulator_.process_byte(byte);
+      if (!telegram) {  // No full packet received yet
+        continue;
+      }
+      if (this->parse_telegram_(telegram.value())) {
         return;
-      avail -= to_read;
-
-      for (size_t i = 0; i < to_read; i++) {
-        const char c = static_cast<char>(buf[i]);
-
-        // Find a new telegram header, i.e. forward slash.
-        if (c == '/') {
-          ESP_LOGV(TAG, "Header of telegram found");
-          this->reset_telegram_();
-          this->header_found_ = true;
-        }
-        if (!this->header_found_)
-          continue;
-
-        // Check for buffer overflow.
-        if (this->bytes_read_ >= this->max_telegram_len_) {
-          this->reset_telegram_();
-          ESP_LOGE(TAG, "Error: telegram larger than buffer (%d bytes)", this->max_telegram_len_);
-          return;
-        }
-
-        // Some v2.2 or v3 meters will send a new value which starts with '('
-        // in a new line, while the value belongs to the previous ObisId. For
-        // proper parsing, remove these new line characters.
-        if (c == '(') {
-          while (true) {
-            auto previous_char = this->telegram_[this->bytes_read_ - 1];
-            if (previous_char == '\n' || previous_char == '\r') {
-              this->bytes_read_--;
-            } else {
-              break;
-            }
-          }
-        }
-
-        // Store the byte in the buffer.
-        this->telegram_[this->bytes_read_] = c;
-        this->bytes_read_++;
-
-        // Check for a footer, i.e. exclamation mark, followed by a hex checksum.
-        if (c == '!') {
-          ESP_LOGV(TAG, "Footer of telegram found");
-          this->footer_found_ = true;
-          continue;
-        }
-        // Check for the end of the hex checksum, i.e. a newline.
-        if (this->footer_found_ && c == '\n') {
-          // Parse the telegram and publish sensor values.
-          this->parse_telegram();
-          this->reset_telegram_();
-          return;
-        }
       }
     }
   }
 }
 
 void Dsmr::receive_encrypted_telegram_() {
-  while (this->available_within_timeout_()) {
-    // Read all available bytes in batches to reduce UART call overhead.
-    uint8_t buf[64];
-    size_t avail = this->available();
-    while (avail > 0) {
-      size_t to_read = std::min(avail, sizeof(buf));
-      if (!this->read_array(buf, to_read))
-        return;
-      avail -= to_read;
-
-      for (size_t i = 0; i < to_read; i++) {
-        const char c = static_cast<char>(buf[i]);
-
-        // Find a new telegram start byte.
-        if (!this->header_found_) {
-          if ((uint8_t) c != 0xDB) {
-            continue;
-          }
-          ESP_LOGV(TAG, "Start byte 0xDB of encrypted telegram found");
-          this->reset_telegram_();
-          this->header_found_ = true;
-        }
-
-        // Check for buffer overflow.
-        if (this->crypt_bytes_read_ >= this->max_telegram_len_) {
-          this->reset_telegram_();
-          ESP_LOGE(TAG, "Error: encrypted telegram larger than buffer (%d bytes)", this->max_telegram_len_);
-          return;
-        }
-
-        // Store the byte in the buffer.
-        this->crypt_telegram_[this->crypt_bytes_read_] = c;
-        this->crypt_bytes_read_++;
-
-        // Read the length of the incoming encrypted telegram.
-        if (this->crypt_telegram_len_ == 0 && this->crypt_bytes_read_ > 20) {
-          // Complete header + data bytes
-          this->crypt_telegram_len_ = 13 + (this->crypt_telegram_[11] << 8 | this->crypt_telegram_[12]);
-          ESP_LOGV(TAG, "Encrypted telegram length: %d bytes", this->crypt_telegram_len_);
-        }
-
-        // Check for the end of the encrypted telegram.
-        if (this->crypt_telegram_len_ == 0 || this->crypt_bytes_read_ != this->crypt_telegram_len_) {
-          continue;
-        }
-        ESP_LOGV(TAG, "End of encrypted telegram found");
-
-        // Decrypt the encrypted telegram.
-        GCM<AES128> *gcmaes128{new GCM<AES128>()};
-        gcmaes128->setKey(this->decryption_key_.data(), gcmaes128->keySize());
-        // the iv is 8 bytes of the system title + 4 bytes frame counter
-        // system title is at byte 2 and frame counter at byte 15
-        for (int i = 10; i < 14; i++)
-          this->crypt_telegram_[i] = this->crypt_telegram_[i + 4];
-        constexpr uint16_t iv_size{12};
-        gcmaes128->setIV(&this->crypt_telegram_[2], iv_size);
-        gcmaes128->decrypt(reinterpret_cast<uint8_t *>(this->telegram_),
-                           // the ciphertext start at byte 18
-                           &this->crypt_telegram_[18],
-                           // cipher size
-                           this->crypt_bytes_read_ - 17);
-        delete gcmaes128;  // NOLINT(cppcoreguidelines-owning-memory)
-
-        this->bytes_read_ = strnlen(this->telegram_, this->max_telegram_len_);
-        ESP_LOGV(TAG, "Decrypted telegram size: %d bytes", this->bytes_read_);
-        ESP_LOGVV(TAG, "Decrypted telegram: %s", this->telegram_);
-
-        // Parse the decrypted telegram and publish sensor values.
-        this->parse_telegram();
-        this->reset_telegram_();
-        return;
+  for (auto data = this->uart_read_chunk_(); !data.empty(); data = this->uart_read_chunk_()) {
+    for (uint8_t byte : data) {
+      if (this->buffer_pos_ >= this->buffer_.size()) {  // Reset buffer if overflow
+        ESP_LOGW(TAG, "Encrypted buffer overflow, resetting");
+        this->buffer_pos_ = 0;
       }
+
+      this->buffer_[this->buffer_pos_] = byte;
+      this->buffer_pos_++;
     }
+    this->last_read_time_ = millis();
+  }
+
+  // Detect inter-frame delay. If no byte is received for more than receive_timeout, then the packet is complete.
+  if (millis() - this->last_read_time_ > this->receive_timeout_ && this->buffer_pos_ > 0) {
+    ESP_LOGV(TAG, "Encrypted telegram received (%zu bytes)", this->buffer_pos_);
+
+    const auto telegram = this->dlms_decryptor_.decrypt_inplace({this->buffer_.data(), this->buffer_pos_});
+
+    // Reset buffer position for the next packet
+    this->buffer_pos_ = 0;
+    this->last_read_time_ = 0;
+
+    if (!telegram) {  // decryption failed
+      return;
+    }
+
+    // Parse and publish the telegram
+    this->parse_telegram_(telegram.value());
   }
 }
 
-bool Dsmr::parse_telegram() {
-  MyData data;
-  ESP_LOGV(TAG, "Trying to parse telegram");
+bool Dsmr::parse_telegram_(const dsmr_parser::DsmrUnencryptedTelegram &telegram) {
   this->stop_requesting_data_();
 
-  const auto &res = dsmr_parser::P1Parser::parse(
-      data, this->telegram_, this->bytes_read_, false,
-      this->crc_check_);  // Parse telegram according to data definition. Ignore unknown values.
-  if (res.err) {
-    // Parsing error, show it
-    auto err_str = res.fullError(this->telegram_, this->telegram_ + this->bytes_read_);
-    ESP_LOGE(TAG, "%s", err_str.c_str());
-    return false;
-  } else {
-    this->status_clear_warning();
-    this->publish_sensors(data);
+  ESP_LOGV(TAG, "Trying to parse telegram (%zu bytes)", telegram.content().size());
+  ESP_LOGVV(TAG, "Telegram content:\n %.*s", static_cast<int>(telegram.content().size()), telegram.content().data());
 
-    // publish the telegram, after publishing the sensors so it can also trigger action based on latest values
-    if (this->s_telegram_ != nullptr) {
-      this->s_telegram_->publish_state(this->telegram_, this->bytes_read_);
-    }
-    return true;
+  MyData data;
+  if (const bool res = dsmr_parser::DsmrParser::parse(data, telegram); !res) {
+    ESP_LOGE(TAG, "Failed to parse telegram");
+    return false;
   }
+
+  this->status_clear_warning();
+  this->publish_sensors(data);
+
+  // Publish the telegram, after publishing the sensors so it can also trigger action based on latest values
+  if (this->s_telegram_ != nullptr) {
+    this->s_telegram_->publish_state(telegram.content().data(), telegram.content().size());
+  }
+  return true;
 }
 
 void Dsmr::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "DSMR:\n"
-                "  Max telegram length: %d\n"
+                "  Max telegram length: %zu\n"
                 "  Receive timeout: %.1fs",
-                this->max_telegram_len_, this->receive_timeout_ / 1e3f);
+                this->buffer_.size(), this->receive_timeout_ / 1e3f);
   if (this->request_pin_ != nullptr) {
     LOG_PIN("  Request Pin: ", this->request_pin_);
   }
@@ -324,30 +192,37 @@ void Dsmr::dump_config() {
   DSMR_TEXT_SENSOR_LIST(DSMR_LOG_TEXT_SENSOR, )
 }
 
-void Dsmr::set_decryption_key(const char *decryption_key) {
+void Dsmr::set_decryption_key_(const char *decryption_key) {
   if (decryption_key == nullptr || decryption_key[0] == '\0') {
-    ESP_LOGI(TAG, "Disabling decryption");
-    this->decryption_key_.clear();
-    if (this->crypt_telegram_ != nullptr) {
-      delete[] this->crypt_telegram_;
-      this->crypt_telegram_ = nullptr;
-    }
+    this->encryption_enabled_ = false;
     return;
   }
 
-  if (!parse_hex(decryption_key, this->decryption_key_, 16)) {
-    ESP_LOGE(TAG, "Error, decryption key must be 32 hex characters");
-    this->decryption_key_.clear();
+  auto key = dsmr_parser::Aes128GcmDecryptionKey::from_hex(decryption_key);
+  if (!key) {
+    ESP_LOGE(TAG, "Error, decryption key has incorrect format");
+    this->encryption_enabled_ = false;
     return;
   }
 
   ESP_LOGI(TAG, "Decryption key is set");
-  // Verbose level prints decryption key
-  ESP_LOGV(TAG, "Using decryption key: %s", decryption_key);
 
-  if (this->crypt_telegram_ == nullptr) {
-    this->crypt_telegram_ = new uint8_t[this->max_telegram_len_];  // NOLINT
+  this->gcm_decryptor_.set_encryption_key(key.value());
+  this->encryption_enabled_ = true;
+}
+
+std::span<uint8_t> Dsmr::uart_read_chunk_() {
+  const auto avail = this->available();
+  if (avail == 0) {
+    return {};
   }
+  size_t to_read = std::min(avail, uart_chunk_reading_buf_.size());
+  if (!this->read_array(uart_chunk_reading_buf_.data(), to_read)) {
+    return {};
+  }
+  return {uart_chunk_reading_buf_.data(), to_read};
 }
 
 }  // namespace esphome::dsmr
+
+#endif

@@ -297,6 +297,18 @@ template<> const char *proto_enum_to_string<enums::SupportsResponseType>(enums::
   }
 }
 #endif
+template<> const char *proto_enum_to_string<enums::TemperatureUnit>(enums::TemperatureUnit value) {
+  switch (value) {
+    case enums::TEMPERATURE_UNIT_CELSIUS:
+      return ESPHOME_PSTR("TEMPERATURE_UNIT_CELSIUS");
+    case enums::TEMPERATURE_UNIT_FAHRENHEIT:
+      return ESPHOME_PSTR("TEMPERATURE_UNIT_FAHRENHEIT");
+    case enums::TEMPERATURE_UNIT_KELVIN:
+      return ESPHOME_PSTR("TEMPERATURE_UNIT_KELVIN");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 #ifdef USE_CLIMATE
 template<> const char *proto_enum_to_string<enums::ClimateMode>(enums::ClimateMode value) {
   switch (value) {
@@ -1539,6 +1551,7 @@ const char *ListEntitiesClimateResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
   dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  dump_field(out, ESPHOME_PSTR("temperature_unit"), static_cast<enums::TemperatureUnit>(this->temperature_unit));
   return out.c_str();
 }
 const char *ClimateStateResponse::dump_to(DumpBuffer &out) const {
@@ -1612,6 +1625,7 @@ const char *ListEntitiesWaterHeaterResponse::dump_to(DumpBuffer &out) const {
     dump_field(out, ESPHOME_PSTR("supported_modes"), static_cast<enums::WaterHeaterMode>(it), 4);
   }
   dump_field(out, ESPHOME_PSTR("supported_features"), this->supported_features);
+  dump_field(out, ESPHOME_PSTR("temperature_unit"), static_cast<enums::TemperatureUnit>(this->temperature_unit));
   return out.c_str();
 }
 const char *WaterHeaterStateResponse::dump_to(DumpBuffer &out) const {
@@ -2576,7 +2590,7 @@ const char *ListEntitiesInfraredResponse::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 const char *InfraredRFTransmitRawTimingsRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("InfraredRFTransmitRawTimingsRequest"));
 #ifdef USE_DEVICES
@@ -2591,6 +2605,7 @@ const char *InfraredRFTransmitRawTimingsRequest::dump_to(DumpBuffer &out) const 
   out.append_p(ESPHOME_PSTR(" values, "));
   append_uint(out, this->timings_length_);
   out.append_p(ESPHOME_PSTR(" bytes]\n"));
+  dump_field(out, ESPHOME_PSTR("modulation"), this->modulation);
   return out.c_str();
 }
 const char *InfraredRFReceiveEvent::dump_to(DumpBuffer &out) const {
@@ -2602,6 +2617,27 @@ const char *InfraredRFReceiveEvent::dump_to(DumpBuffer &out) const {
   for (const auto &it : *this->timings) {
     dump_field(out, ESPHOME_PSTR("timings"), it, 4);
   }
+  return out.c_str();
+}
+#endif
+#ifdef USE_RADIO_FREQUENCY
+const char *ListEntitiesRadioFrequencyResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesRadioFrequencyResponse"));
+  dump_field(out, ESPHOME_PSTR("object_id"), this->object_id);
+  dump_field(out, ESPHOME_PSTR("key"), this->key);
+  dump_field(out, ESPHOME_PSTR("name"), this->name);
+#ifdef USE_ENTITY_ICON
+  dump_field(out, ESPHOME_PSTR("icon"), this->icon);
+#endif
+  dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
+  dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
+#ifdef USE_DEVICES
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+#endif
+  dump_field(out, ESPHOME_PSTR("capabilities"), this->capabilities);
+  dump_field(out, ESPHOME_PSTR("frequency_min"), this->frequency_min);
+  dump_field(out, ESPHOME_PSTR("frequency_max"), this->frequency_max);
+  dump_field(out, ESPHOME_PSTR("supported_modulations"), this->supported_modulations);
   return out.c_str();
 }
 #endif

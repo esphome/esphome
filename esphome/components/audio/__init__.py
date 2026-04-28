@@ -220,7 +220,7 @@ async def to_code(config):
     data = _get_data()
 
     if data.micro_decoder_support:
-        add_idf_component(name="esphome/micro-decoder", ref="0.1.1")
+        add_idf_component(name="esphome/micro-decoder", ref="0.2.0")
 
         # All codecs are enabled by default in micro-decoder, so disable the ones that aren't requested to save flash
         if not data.flac_support:

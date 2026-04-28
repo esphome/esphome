@@ -116,12 +116,23 @@ CONFIG_SCHEMA = cv.ensure_list(
 
 
 async def to_code(config):
+    # The output chunk pool/queue are compile-time-sized templates shared by all
+    # USBUartChannel instances, so use the largest buffer_size across every channel
+    # of every device.  Each chunk is 64 bytes (USB FS MPS); add one extra slot
+    # because LockFreeQueue<T,N> is a ring buffer that wastes one entry.
+    max_buffer_size = max(
+        channel[CONF_BUFFER_SIZE]
+        for device in config
+        for channel in device[CONF_CHANNELS]
+    )
+    output_chunk_count = max_buffer_size // 64 + 1
+    cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
+
     for device in config:
         var = await register_usb_client(device)
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
-            cg.add(chvar.set_rx_buffer_size(channel[CONF_BUFFER_SIZE]))
             cg.add(chvar.set_stop_bits(channel[CONF_STOP_BITS]))
             cg.add(chvar.set_data_bits(channel[CONF_DATA_BITS]))
             cg.add(chvar.set_parity(channel[CONF_PARITY]))
