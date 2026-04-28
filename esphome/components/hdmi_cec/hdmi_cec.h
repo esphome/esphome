@@ -200,7 +200,7 @@ class CECTransmit {
   std::atomic<bool> eom_received_{false};
   std::atomic<bool> receiver_is_busy_{false};
   uint32_t confirm_received_us_{0};
-  uint32_t allow_xmit_message_us_{0};
+  uint32_t required_idle_period_{0};
   uart::UARTComponent *uart_{nullptr};
   InternalGPIOPin *pin_{nullptr};
 };

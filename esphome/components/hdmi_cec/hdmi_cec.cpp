@@ -287,9 +287,7 @@ void CECTransmit::transmit_message() {
     return;
   }
 
-  int32_t time_to_expiration = (int32_t) (confirm_received_us_ + 15 * TOTAL_BIT_US - micros());
-  // be careful with wrap-around of uint32 time values.
-  if (ATOMIC_GET(receiver_is_busy_) && (time_to_expiration <= 0)) {
+  if (ATOMIC_GET(receiver_is_busy_) && (micros() - confirm_received_us_) > 15 * TOTAL_BIT_US) {
     // protocol error on the bus between receiver and transmitter, this should never occur!
     // The Receiver has stopped giving byte_eom_ack confirmations, which should occur after
     // every received byte, which is 10x bit-period. So, >=15 bit periods is an error.
@@ -332,18 +330,18 @@ void CECTransmit::transmit_message() {
 
     // terminate working on the current frame?
     if (sent_ok) {
-      allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
+      required_idle_period_ = SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
       transmit_attempts_ = 0;
       send_queue_.pop_front();
     } else {
-      allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
+      required_idle_period_ = SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
     }
   }
 
   transmit_state_ = TransmitState::IDLE;
   if (transmit_attempts_ >= MAX_ATTEMPTS) {
     ESP_LOGD(TAG, "frame was NOT sent correctly after %d attempts, drop frame", transmit_attempts_);
-    allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
+    required_idle_period_ = SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS;
     transmit_attempts_ = 0;
     send_queue_.pop_front();
   }
@@ -354,9 +352,7 @@ void CECTransmit::transmit_message() {
     return;
   }
 
-  int32_t time_to_deadline = (int32_t) (allow_xmit_message_us_ - micros());
-  // be careful with wrap-around of uint32 time values.
-  if (time_to_deadline > 0) {
+  if (micros() - confirm_received_us_ < required_idle_period_) {
     // It is too early for a transmit, to satisfy the CEC standard bus idle time
     return;
   }
@@ -378,7 +374,7 @@ void CECTransmit::transmit_message() {
   if (!send_start_bit_() || !transmit_my_address_(frame->initiator_addr())) {
     // sending these first bits caused a bus-collision with another initiator.
     // further transmission is stopped immediatly, as the other initiator might not see the collision,
-    allow_xmit_message_us_ = micros() + SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
+    required_idle_period_ = SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
     transmit_state_ = TransmitState::IDLE;
     return;
   }
@@ -480,11 +476,17 @@ bool IRAM_ATTR CECTransmit::send_high_and_test_() {
 
   // ...then wait up to the middle of the "Safe sample period" (CEC spec -> Signaling and Bit Timing -> Figure 5)
   static constexpr uint32_t SAFE_SAMPLE_US = 1050;
-  delay_microseconds_safe(SAFE_SAMPLE_US - (micros() - start_us));
+  uint32_t elapsed = micros() - start_us;
+  if (elapsed < SAFE_SAMPLE_US) {
+    delay_microseconds_safe(SAFE_SAMPLE_US - elapsed);
+  }
   bool value = pin_->digital_read();
 
-  // sleep for the rest of the bit period
-  delay_microseconds_safe(TOTAL_BIT_US - (micros() - start_us));
+  // ... and sleep for the rest of the bit period
+  elapsed = micros() - start_us;
+  if (elapsed < TOTAL_BIT_US) {
+    delay_microseconds_safe(TOTAL_BIT_US - elapsed);
+  }
 
   // If a 'high' value was read, the 'low' pulse was short, not lengthened by another driver.
   // Such short pulse represents a 'high' bit.
@@ -554,7 +556,7 @@ void IRAM_ATTR CECTransmit::got_start_of_activity() {
 }
 
 void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
-  confirm_received_us_ = micros();
+  confirm_received_us_ = micros();  // timepoint after receiving most recent byte
   if (transmit_state_ == TransmitState::BUSY) {
     // this received message was sent by myself, handle this confirmation to check acknowledgement
     n_bytes_received_++;
@@ -567,7 +569,7 @@ void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
   }
   if (eom) {
     // some bus transfer ended. When the bus is free for a little while, we are allowed to transmit.
-    allow_xmit_message_us_ = confirm_received_us_ + SIGNAL_FREE_TIME_AFTER_RECEIVE;
+    required_idle_period_ = SIGNAL_FREE_TIME_AFTER_RECEIVE;
     ATOMIC_SET(receiver_is_busy_, false);
     ATOMIC_SET(eom_received_, true);  // atomic write to synchronize/commit above increments to the transmitter thread
   }
@@ -601,7 +603,7 @@ void IRAM_ATTR CECReceive::gpio_isr_() {
   // on falling edge, store current time as the start of the low pulse
   if (!level) {
     if (now - last_falling_edge_us_ > START_BIT_NOM_US + TOTAL_BIT_US) {
-      // there was a very long period of silence on the bus: reset state
+      // there was a long period of silence on the bus: reset state for the start of a new message
       reset_state_variables_();
     }
 
