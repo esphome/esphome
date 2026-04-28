@@ -21,6 +21,11 @@
 #include <pico/time.h>
 #endif
 
+#ifdef USE_HOST
+#include <sys/select.h>
+#include <sys/socket.h>
+#endif
+
 namespace esphome {
 
 // === Wake flag for ESP8266/RP2040 ===
@@ -96,8 +101,14 @@ inline void wake_loop_threadsafe() {
 }
 
 namespace internal {
-inline void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
+inline void ESPHOME_ALWAYS_INLINE wakeable_delay(uint32_t ms) {
+  // Fast path (with USE_LWIP_FAST_SELECT): FreeRTOS task notifications posted by the lwip
+  // event_callback wrapper (see lwip_fast_select.c) are the single source of truth for
+  // socket wake-ups. Every NETCONN_EVT_RCVPLUS posts an xTaskNotifyGive, so any notification
+  // that lands between wakes keeps the counter non-zero (next ulTaskNotifyTake returns
+  // immediately) or wakes a blocked Take directly. Additional wake sources:
+  // wake_loop_threadsafe() from background tasks, and the ms timeout.
+  if (ms == 0) [[unlikely]] {
     yield();
     return;
   }
@@ -127,8 +138,8 @@ inline void wake_loop_threadsafe() { wake_loop_impl(); }
 inline void ESPHOME_ALWAYS_INLINE wake_loop_isrsafe() { wake_loop_impl(); }
 
 namespace internal {
-inline void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
+inline void ESPHOME_ALWAYS_INLINE wakeable_delay(uint32_t ms) {
+  if (ms == 0) [[unlikely]] {
     delay(0);
     return;
   }
@@ -164,6 +175,21 @@ void wakeable_delay(uint32_t ms);
 #ifdef USE_HOST
 /// Host: wakes select() via UDP loopback socket. Defined in wake.cpp.
 void wake_loop_threadsafe();
+
+/// Register a socket file descriptor with the host select() loop. Not
+/// thread-safe — main loop only. Returns false if fd is invalid or
+/// >= FD_SETSIZE.
+bool wake_register_fd(int fd);
+
+/// Unregister a socket file descriptor. Not thread-safe — main loop only.
+void wake_unregister_fd(int fd);
+
+/// One-time setup of the loopback wake socket. Called from Application::setup().
+void wake_setup();
+
+// wake_fd_ready() and wake_drain_notifications() are defined inline at the
+// bottom of this file — they need internal::g_read_fds / g_wake_socket_fd in
+// scope, which depend on USE_HOST-only includes pulled in above.
 #else
 /// Zephyr is currently the only platform without a wake mechanism.
 /// wake_loop_threadsafe() is a no-op and wakeable_delay() falls back to delay().
@@ -174,15 +200,51 @@ inline void wake_loop_threadsafe() {}
 inline void wake_loop_any_context() { wake_loop_threadsafe(); }
 
 namespace internal {
-inline void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
+#ifdef USE_HOST
+/// Host wakeable_delay uses select() over the registered fds — defined in wake.cpp.
+void wakeable_delay(uint32_t ms);
+#else
+inline void ESPHOME_ALWAYS_INLINE wakeable_delay(uint32_t ms) {
+  if (ms == 0) [[unlikely]] {
     yield();
     return;
   }
   delay(ms);
 }
+#endif
 }  // namespace internal
 
 #endif
+
+#ifdef USE_HOST
+namespace internal {
+// File-scope state owned by wake.cpp. Accessed inline by wake_drain_notifications()
+// and wake_fd_ready() so the hot path stays in the header.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+extern int g_wake_socket_fd;
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+extern fd_set g_read_fds;
+}  // namespace internal
+
+inline bool ESPHOME_ALWAYS_INLINE wake_fd_ready(int fd) { return FD_ISSET(fd, &internal::g_read_fds); }
+
+// Small buffer for draining wake notification bytes (1 byte sent per wake).
+// Sized to drain multiple notifications per recvfrom() without wasting stack.
+inline constexpr size_t WAKE_NOTIFY_DRAIN_BUFFER_SIZE = 16;
+
+inline void ESPHOME_ALWAYS_INLINE wake_drain_notifications() {
+  // Called from main loop to drain any pending wake notifications.
+  // Must check wake_fd_ready() to avoid blocking on empty socket.
+  if (internal::g_wake_socket_fd >= 0 && wake_fd_ready(internal::g_wake_socket_fd)) {
+    char buffer[WAKE_NOTIFY_DRAIN_BUFFER_SIZE];
+    // Drain all pending notifications with non-blocking reads. Multiple wake events
+    // may have triggered multiple writes, so drain until EWOULDBLOCK. We control
+    // both ends of this loopback socket (always 1 byte per wake), so no error
+    // checking — any error indicates catastrophic system failure.
+    while (::recvfrom(internal::g_wake_socket_fd, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
+    }
+  }
+}
+#endif  // USE_HOST
 
 }  // namespace esphome

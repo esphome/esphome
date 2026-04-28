@@ -205,7 +205,7 @@ CONFIG_SCHEMA = cv.Any(  # under `packages:` we can have either:
 )
 
 
-def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
+def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     """Clone/update a git repo and load the YAML files listed in the package definition.
 
     Returns ``{"packages": {<filename>: <loaded_yaml>, ...}}`` so the caller
@@ -215,11 +215,10 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     If loading fails after cloning, attempts a revert and retry in case
     a prior cached checkout is stale.
     """
-    actual_refresh = git.NEVER_REFRESH if skip_update else config[CONF_REFRESH]
     repo_dir, revert = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
-        refresh=actual_refresh,
+        refresh=config[CONF_REFRESH],
         domain=DOMAIN,
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
@@ -378,9 +377,8 @@ def _substitute_package_definition(
     Local package contents are left untouched — they will be substituted
     later during the main substitution pass.
     """
-    if isinstance(package_config, str) or (
-        isinstance(package_config, dict) and is_remote_package(package_config)
-    ):
+
+    def do_substitute(package_config: dict | str) -> dict | str:
         # Collect undefined-variable errors (rather than raising strict) so the
         # path walked through a remote-package dict is preserved and the user
         # sees which field (url / path / ref / ...) referenced the undefined
@@ -394,6 +392,22 @@ def _substitute_package_definition(
             errors=errors,
         )
         raise_first_undefined(errors, "package definition")
+        return package_config
+
+    if isinstance(package_config, str):
+        return do_substitute(package_config)
+
+    if isinstance(package_config, dict) and is_remote_package(package_config):
+        # Mark vars as literal to avoid substituting variables in the vars block itself, since they are meant to be
+        # passed as-is to the package YAML and may contain their own substitution expressions that should not
+        # be prematurely evaluated here.
+        if CONF_FILES in package_config:
+            for file_def in package_config[CONF_FILES]:
+                if isinstance(file_def, dict) and CONF_VARS in file_def:
+                    file_def[CONF_VARS] = yaml_util.make_literal(file_def[CONF_VARS])
+
+        package_config = do_substitute(package_config)
+
     return package_config
 
 
@@ -441,11 +455,9 @@ class _PackageProcessor:
         self,
         substitutions: UserDict,
         command_line_substitutions: dict[str, Any] | None,
-        skip_update: bool,
     ) -> None:
         self.substitutions = substitutions
         self.parent_context = UserDict(command_line_substitutions or {})
-        self.skip_update = skip_update
 
     def resolve_package(
         self,
@@ -493,7 +505,7 @@ class _PackageProcessor:
             )
 
         if is_remote_package(package_config):
-            package_config = _process_remote_package(package_config, self.skip_update)
+            package_config = _process_remote_package(package_config)
         return package_config
 
     def collect_substitutions(self, package_config: dict) -> None:
@@ -537,11 +549,10 @@ class _PackageProcessor:
 
 
 def do_packages_pass(
-    config: dict,
+    config: dict[str, Any],
     *,
     command_line_substitutions: dict[str, Any] | None = None,
-    skip_update: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Load, validate, and flatten all packages in the config.
 
     Returns the config with all packages loaded in-place (but not yet merged)
@@ -556,9 +567,7 @@ def do_packages_pass(
                 config.pop(CONF_SUBSTITUTIONS, {}), command_line_substitutions
             )
         )
-    processor = _PackageProcessor(
-        substitutions, command_line_substitutions, skip_update
-    )
+    processor = _PackageProcessor(substitutions, command_line_substitutions)
     _update_substitutions_context(processor.parent_context, substitutions)
 
     context_vars = push_context(

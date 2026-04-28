@@ -1,4 +1,4 @@
-cryptography==46.0.7
+cryptography==47.0.0
 voluptuous==0.16.0
 PyYAML==6.0.3
 paho-mqtt==1.6.1
@@ -6,13 +6,13 @@ colorama==0.4.6
 icmplib==3.0.4
 tornado==6.5.5
 tzlocal==5.3.1    # from time
-tzdata>=2026.1  # from time
+tzdata>=2026.2  # from time
 pyserial==3.5
 platformio==6.1.19
 esptool==5.2.0
-click==8.3.2
-esphome-dashboard==20260408.1
-aioesphomeapi==44.18.0
+click==8.3.3
+esphome-dashboard==20260425.0
+aioesphomeapi==44.22.0
 zeroconf==0.148.0
 puremagic==1.30
 ruamel.yaml==0.19.1 # dashboard_import
@@ -30,4 +30,4 @@ requests==2.33.1
 pyparsing >= 3.3.2
 
 # For autocompletion
-argcomplete>=2.0.0
+argcomplete>=3.6.3

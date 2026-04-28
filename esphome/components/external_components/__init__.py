@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Any
 
 from esphome import git, loader
 import esphome.config_validation as cv
@@ -17,7 +18,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
 )
-from esphome.core import CORE
+from esphome.core import CORE, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,17 +36,15 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
-async def to_code(config):
+async def to_code(config: dict[str, Any]) -> None:
     pass
 
 
-def _process_git_config(config: dict, refresh, skip_update: bool = False) -> str:
-    # When skip_update is True, use NEVER_REFRESH to prevent updates
-    actual_refresh = git.NEVER_REFRESH if skip_update else refresh
+def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> Path:
     repo_dir, _ = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
-        refresh=actual_refresh,
+        refresh=refresh,
         domain=DOMAIN,
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
@@ -72,12 +71,12 @@ def _process_git_config(config: dict, refresh, skip_update: bool = False) -> str
     return components_dir
 
 
-def _process_single_config(config: dict, skip_update: bool = False):
+def _process_single_config(config: dict[str, Any]) -> None:
     conf = config[CONF_SOURCE]
     if conf[CONF_TYPE] == TYPE_GIT:
         with cv.prepend_path([CONF_SOURCE]):
             components_dir = _process_git_config(
-                config[CONF_SOURCE], config[CONF_REFRESH], skip_update
+                config[CONF_SOURCE], config[CONF_REFRESH]
             )
     elif conf[CONF_TYPE] == TYPE_LOCAL:
         components_dir = Path(CORE.relative_config_path(conf[CONF_PATH]))
@@ -107,7 +106,7 @@ def _process_single_config(config: dict, skip_update: bool = False):
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)
 
 
-def do_external_components_pass(config: dict, skip_update: bool = False) -> None:
+def do_external_components_pass(config: dict[str, Any]) -> None:
     conf = config.get(DOMAIN)
     if conf is None:
         return
@@ -115,4 +114,4 @@ def do_external_components_pass(config: dict, skip_update: bool = False) -> None
         conf = CONFIG_SCHEMA(conf)
         for i, c in enumerate(conf):
             with cv.prepend_path(i):
-                _process_single_config(c, skip_update)
+                _process_single_config(c)
