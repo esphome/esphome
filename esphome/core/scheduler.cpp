@@ -772,6 +772,8 @@ Scheduler::SchedulerItem *HOT Scheduler::pop_raw_locked_() {
 // Helper to execute a scheduler item
 uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   App.set_current_component(item->component);
+  // Freshen so callbacks reading App.get_loop_component_start_time() see this item's dispatch time.
+  App.set_loop_component_start_time_(now);
   WarnIfComponentBlockingGuard guard{item->component, now};
   item->callback();
   uint32_t end = guard.finish();
