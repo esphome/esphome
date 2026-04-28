@@ -32,7 +32,11 @@ from esphome.const import (
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
 
 IS_PLATFORM_COMPONENT = True
 
@@ -292,7 +296,7 @@ async def setup_fan_core_(var, config):
 async def register_fan(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_fan(var))
+    queue_entity_register("fan", config)
     CORE.register_platform_component("fan", var)
     await setup_fan_core_(var, config)
 
