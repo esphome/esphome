@@ -2026,6 +2026,7 @@ message VoiceAssistantAudio {
 
   bytes data = 1 [(pointer_to_buffer) = true];
   bool end = 2;
+  bytes data2 = 3 [(pointer_to_buffer) = true];
 }
 
 enum VoiceAssistantTimerEvent {
@@ -2083,6 +2084,12 @@ message VoiceAssistantExternalWakeWord {
   string url = 7;
 }
 
+enum VoiceAssistantAudioEnhancements {
+  AUDIO_ENHANCEMENTS_NONE = 0;
+  AUDIO_ENHANCEMENTS_AUTO_GAIN = 1;
+  AUDIO_ENHANCEMENTS_NOISE_SUPPRESSION = 2;
+}
+
 message VoiceAssistantConfigurationRequest {
   option (id) = 121;
   option (source) = SOURCE_CLIENT;
@@ -2099,6 +2106,9 @@ message VoiceAssistantConfigurationResponse {
   repeated VoiceAssistantWakeWord available_wake_words = 1;
   repeated string active_wake_words = 2 [(container_pointer) = "std::vector"];
   uint32 max_active_wake_words = 3;
+
+  uint32 audio_enhancements = 4;
+  uint32 audio2_enhancements = 5;
 }
 
 message VoiceAssistantSetConfiguration {

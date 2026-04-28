@@ -121,6 +121,7 @@ class VoiceAssistant : public Component {
   void failed_to_start();
 
   void set_microphone_source(microphone::MicrophoneSource *mic_source) { this->mic_source_ = mic_source; }
+  void set_microphone2_source(microphone::MicrophoneSource *mic_source) { this->mic2_source_ = mic_source; }
 #ifdef USE_MICRO_WAKE_WORD
   void set_micro_wake_word(micro_wake_word::MicroWakeWord *mww) { this->micro_wake_word_ = mww; }
 #endif
@@ -277,6 +278,7 @@ class VoiceAssistant : public Component {
   bool timer_tick_running_{false};
 
   microphone::MicrophoneSource *mic_source_{nullptr};
+  microphone::MicrophoneSource *mic2_source_{nullptr};
 #ifdef USE_SPEAKER
   void write_speaker_();
   speaker::Speaker *speaker_{nullptr};
@@ -302,6 +304,7 @@ class VoiceAssistant : public Component {
   std::string wake_word_{""};
 
   std::shared_ptr<RingBuffer> ring_buffer_;
+  std::shared_ptr<RingBuffer> ring_buffer2_;
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
@@ -310,6 +313,7 @@ class VoiceAssistant : public Component {
   uint32_t conversation_timeout_;
 
   uint8_t *send_buffer_{nullptr};
+  uint8_t *send_buffer2_{nullptr};
 
   bool continuous_{false};
   bool silence_detection_;

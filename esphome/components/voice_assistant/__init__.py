@@ -53,6 +53,8 @@ CONF_ON_TIMER_CANCELLED = "on_timer_cancelled"
 CONF_ON_TIMER_FINISHED = "on_timer_finished"
 CONF_ON_TIMER_TICK = "on_timer_tick"
 
+CONF_MICROPHONE2 = "microphone2"
+
 
 voice_assistant_ns = cg.esphome_ns.namespace("voice_assistant")
 VoiceAssistant = voice_assistant_ns.class_("VoiceAssistant", cg.Component)
@@ -93,6 +95,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_MICROPHONE, default={}
             ): microphone.microphone_source_schema(
+                min_bits_per_sample=16,
+                max_bits_per_sample=16,
+                min_channels=1,
+                max_channels=1,
+            ),
+            cv.Optional(CONF_MICROPHONE2): microphone.microphone_source_schema(
                 min_bits_per_sample=16,
                 max_bits_per_sample=16,
                 min_channels=1,
@@ -184,6 +192,11 @@ FINAL_VALIDATE_SCHEMA = cv.All(
             ): microphone.final_validate_microphone_source_schema(
                 "voice_assistant", sample_rate=16000
             ),
+            cv.Optional(
+                CONF_MICROPHONE2
+            ): microphone.final_validate_microphone_source_schema(
+                "voice_assistant", sample_rate=16000
+            ),
         },
         extra=cv.ALLOW_EXTRA,
     ),
@@ -196,6 +209,12 @@ async def to_code(config):
 
     mic_source = await microphone.microphone_source_to_code(config[CONF_MICROPHONE])
     cg.add(var.set_microphone_source(mic_source))
+
+    if CONF_MICROPHONE2 in config:
+        mic2_source = await microphone.microphone_source_to_code(
+            config[CONF_MICROPHONE2]
+        )
+        cg.add(var.set_microphone2_source(mic2_source))
 
     if CONF_MICRO_WAKE_WORD in config:
         mww = await cg.get_variable(config[CONF_MICRO_WAKE_WORD])
