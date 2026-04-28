@@ -124,7 +124,7 @@ void DlmsMeterComponent::dump_config() {
 
 void DlmsMeterComponent::loop() {
   this->read_rx_buffer_();
-  if (this->bytes_accumulated_ > 0 && millis() - this->last_rx_char_time_ > this->receive_timeout_ms_) {
+  if (this->bytes_accumulated_ > 0 && App.get_loop_component_start_time() - this->last_rx_char_time_ > this->receive_timeout_ms_) {
     this->process_frame_();
   }
 }
