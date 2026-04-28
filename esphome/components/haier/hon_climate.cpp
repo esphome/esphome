@@ -138,25 +138,24 @@ haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(haie
     tmp[8] = 0;
     strncpy(tmp, answr->protocol_version, 8);
     this->hvac_hardware_info_ = HardwareInfo();
-    this->hvac_hardware_info_.value().protocol_version_ = std::string(tmp);
+    auto &hardware_info = this->hvac_hardware_info_.value();
+    hardware_info.protocol_version_ = std::string(tmp);
     strncpy(tmp, answr->software_version, 8);
-    this->hvac_hardware_info_.value().software_version_ = std::string(tmp);
+    hardware_info.software_version_ = std::string(tmp);
     strncpy(tmp, answr->hardware_version, 8);
-    this->hvac_hardware_info_.value().hardware_version_ = std::string(tmp);
+    hardware_info.hardware_version_ = std::string(tmp);
     strncpy(tmp, answr->device_name, 8);
-    this->hvac_hardware_info_.value().device_name_ = std::string(tmp);
+    hardware_info.device_name_ = std::string(tmp);
 #ifdef USE_TEXT_SENSOR
-    this->update_sub_text_sensor_(SubTextSensorType::APPLIANCE_NAME, this->hvac_hardware_info_.value().device_name_);
-    this->update_sub_text_sensor_(SubTextSensorType::PROTOCOL_VERSION,
-                                  this->hvac_hardware_info_.value().protocol_version_);
+    this->update_sub_text_sensor_(SubTextSensorType::APPLIANCE_NAME, hardware_info.device_name_);
+    this->update_sub_text_sensor_(SubTextSensorType::PROTOCOL_VERSION, hardware_info.protocol_version_);
 #endif
-    this->hvac_hardware_info_.value().functions_[0] = (answr->functions[1] & 0x01) != 0;  // interactive mode support
-    this->hvac_hardware_info_.value().functions_[1] =
-        (answr->functions[1] & 0x02) != 0;  // controller-device mode support
-    this->hvac_hardware_info_.value().functions_[2] = (answr->functions[1] & 0x04) != 0;  // crc support
-    this->hvac_hardware_info_.value().functions_[3] = (answr->functions[1] & 0x08) != 0;  // multiple AC support
-    this->hvac_hardware_info_.value().functions_[4] = (answr->functions[1] & 0x20) != 0;  // roles support
-    this->use_crc_ = this->hvac_hardware_info_.value().functions_[2];
+    hardware_info.functions_[0] = (answr->functions[1] & 0x01) != 0;  // interactive mode support
+    hardware_info.functions_[1] = (answr->functions[1] & 0x02) != 0;  // controller-device mode support
+    hardware_info.functions_[2] = (answr->functions[1] & 0x04) != 0;  // crc support
+    hardware_info.functions_[3] = (answr->functions[1] & 0x08) != 0;  // multiple AC support
+    hardware_info.functions_[4] = (answr->functions[1] & 0x20) != 0;  // roles support
+    this->use_crc_ = hardware_info.functions_[2];
     this->set_phase(ProtocolPhases::SENDING_INIT_2);
     return result;
   } else {
@@ -458,9 +457,10 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
       break;
     case ProtocolPhases::SENDING_ACTION_COMMAND:
       if (this->action_request_.has_value()) {
-        if (this->action_request_.value().message.has_value()) {
-          this->send_message_(this->action_request_.value().message.value(), this->use_crc_);
-          this->action_request_.value().message.reset();
+        auto &action_request = this->action_request_.value();
+        if (action_request.message.has_value()) {
+          this->send_message_(action_request.message.value(), this->use_crc_);
+          action_request.message.reset();
         } else {
           // Message already sent, reseting request and return to idle
           this->action_request_.reset();

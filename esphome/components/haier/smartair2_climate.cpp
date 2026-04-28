@@ -189,9 +189,10 @@ void Smartair2Climate::process_phase(std::chrono::steady_clock::time_point now) 
       break;
     case ProtocolPhases::SENDING_ACTION_COMMAND:
       if (this->action_request_.has_value()) {
-        if (this->action_request_.value().message.has_value()) {
-          this->send_message_(this->action_request_.value().message.value(), this->use_crc_);
-          this->action_request_.value().message.reset();
+        auto &action_request = this->action_request_.value();
+        if (action_request.message.has_value()) {
+          this->send_message_(action_request.message.value(), this->use_crc_);
+          action_request.message.reset();
         } else {
           // Message already sent, reseting request and return to idle
           this->action_request_.reset();

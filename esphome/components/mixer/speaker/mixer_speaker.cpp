@@ -594,8 +594,11 @@ void MixerSpeaker::audio_mixer_task(void *params) {
   xEventGroupSetBits(this_mixer->event_group_, MIXER_TASK_STATE_STARTING);
 
   {  // Ensure C++ objects fall out of scope to ensure proper cleanup before stopping the task
-    std::unique_ptr<audio::AudioSinkTransferBuffer> output_transfer_buffer = audio::AudioSinkTransferBuffer::create(
-        this_mixer->audio_stream_info_.value().ms_to_bytes(TRANSFER_BUFFER_DURATION_MS));
+    // audio_stream_info_ is set by the caller before launching this task and is only reassigned
+    // (never reset) below, so this reference stays valid for the lifetime of the task.
+    auto &audio_stream_info = this_mixer->audio_stream_info_.value();
+    std::unique_ptr<audio::AudioSinkTransferBuffer> output_transfer_buffer =
+        audio::AudioSinkTransferBuffer::create(audio_stream_info.ms_to_bytes(TRANSFER_BUFFER_DURATION_MS));
 
     if (output_transfer_buffer == nullptr) {
       xEventGroupSetBits(this_mixer->event_group_, MIXER_TASK_STATE_STOPPED | MIXER_TASK_ERR_ESP_NO_MEM);
@@ -624,8 +627,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
       // Never shift the data in the output transfer buffer to avoid unnecessary, slow data moves
       output_transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(TASK_DELAY_MS), false);
 
-      const uint32_t output_frames_free =
-          this_mixer->audio_stream_info_.value().bytes_to_frames(output_transfer_buffer->free());
+      const uint32_t output_frames_free = audio_stream_info.bytes_to_frames(output_transfer_buffer->free());
 
       speakers_with_data.clear();
       transfer_buffers_with_data.clear();
@@ -670,7 +672,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
           frames_to_mix = std::min(frames_to_mix, frames_available_in_buffer);
           copy_frames(reinterpret_cast<int16_t *>(transfer_buffers_with_data[0]->get_buffer_start()),
                       active_stream_info, reinterpret_cast<int16_t *>(output_transfer_buffer->get_buffer_end()),
-                      this_mixer->audio_stream_info_.value(), frames_to_mix);
+                      audio_stream_info, frames_to_mix);
 
           // Set playback delay for newly contributing source
           if (!speakers_with_data[0]->has_contributed_.load(std::memory_order_acquire)) {
@@ -684,8 +686,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
           transfer_buffers_with_data[0]->decrease_buffer_length(active_stream_info.frames_to_bytes(frames_to_mix));
 
           // Update output transfer buffer length and pipeline frame count
-          output_transfer_buffer->increase_buffer_length(
-              this_mixer->audio_stream_info_.value().frames_to_bytes(frames_to_mix));
+          output_transfer_buffer->increase_buffer_length(audio_stream_info.frames_to_bytes(frames_to_mix));
           this_mixer->frames_in_pipeline_.fetch_add(frames_to_mix, std::memory_order_release);
         } else {
           // Speaker's stream info doesn't match the output speaker's, so it's a new source speaker
@@ -699,7 +700,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
             this_mixer->audio_stream_info_ =
                 audio::AudioStreamInfo(active_stream_info.get_bits_per_sample(), this_mixer->output_channels_,
                                        active_stream_info.get_sample_rate());
-            this_mixer->output_speaker_->set_audio_stream_info(this_mixer->audio_stream_info_.value());
+            this_mixer->output_speaker_->set_audio_stream_info(audio_stream_info);
             this_mixer->output_speaker_->start();
             // Reset pipeline frame count since we're starting fresh with a new sample rate
             this_mixer->frames_in_pipeline_.store(0, std::memory_order_release);
@@ -721,13 +722,13 @@ void MixerSpeaker::audio_mixer_task(void *params) {
           mix_audio_samples(primary_buffer, primary_stream_info,
                             reinterpret_cast<int16_t *>(transfer_buffers_with_data[i]->get_buffer_start()),
                             speakers_with_data[i]->get_audio_stream_info(),
-                            reinterpret_cast<int16_t *>(output_transfer_buffer->get_buffer_end()),
-                            this_mixer->audio_stream_info_.value(), frames_to_mix);
+                            reinterpret_cast<int16_t *>(output_transfer_buffer->get_buffer_end()), audio_stream_info,
+                            frames_to_mix);
 
           if (i != transfer_buffers_with_data.size() - 1) {
             // Need to mix more streams together, point primary buffer and stream info to the already mixed output
             primary_buffer = reinterpret_cast<int16_t *>(output_transfer_buffer->get_buffer_end());
-            primary_stream_info = this_mixer->audio_stream_info_.value();
+            primary_stream_info = audio_stream_info;
           }
         }
 
@@ -748,8 +749,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
         }
 
         // Update output transfer buffer length and pipeline frame count (once, not per source)
-        output_transfer_buffer->increase_buffer_length(
-            this_mixer->audio_stream_info_.value().frames_to_bytes(frames_to_mix));
+        output_transfer_buffer->increase_buffer_length(audio_stream_info.frames_to_bytes(frames_to_mix));
         this_mixer->frames_in_pipeline_.fetch_add(frames_to_mix, std::memory_order_release);
       }
     }

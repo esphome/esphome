@@ -282,12 +282,15 @@ optional<GateStatus> Tormatic::read_gate_status_() {
     }
   }
 
+  // pending_hdr_ has a value here: either it was already set on entry, or we
+  // populated it in the block above and bailed out on every error path.
+  auto hdr = *this->pending_hdr_;
+
   // Wait for all payload bytes to arrive before processing.
-  if (this->available() < this->pending_hdr_->payload_size()) {
+  if (this->available() < hdr.payload_size()) {
     return {};
   }
 
-  auto hdr = *this->pending_hdr_;
   this->pending_hdr_.reset();
 
   switch (hdr.type) {

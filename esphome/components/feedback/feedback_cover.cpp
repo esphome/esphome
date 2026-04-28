@@ -378,8 +378,8 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
     ESP_LOGD(TAG, "'%s' - Reversing direction.", this->name_.c_str());
     this->start_direction_(COVER_OPERATION_IDLE);
 
-    this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, *this->direction_change_waittime_,
-                      [this, dir]() { this->start_direction_(dir); });
+    const uint32_t waittime = *this->direction_change_waittime_;
+    this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, waittime, [this, dir]() { this->start_direction_(dir); });
 
   } else {
     this->set_current_operation_(dir, true);
