@@ -242,6 +242,10 @@ PROJECT_MAX_LENGTH = 127
 # Max board/model string length (must fit in single-byte varint for proto encoding)
 BOARD_MAX_LENGTH = 127
 
+# Keep in sync with ESPHOME_COMMENT_SIZE_MAX in esphome/core/application.h
+# (C++ side includes the null terminator).
+COMMENT_MAX_LEN = 255
+
 AREA_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Area),
@@ -275,7 +279,9 @@ CONFIG_SCHEMA = cv.All(
                 cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
             ),
             cv.Optional(CONF_AREA): validate_area_config,
-            cv.Optional(CONF_COMMENT): cv.All(cv.string, cv.Length(max=255)),
+            cv.Optional(CONF_COMMENT): cv.All(
+                cv.string, cv.ByteLength(max=COMMENT_MAX_LEN)
+            ),
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
                 {
@@ -785,6 +791,29 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
+        },
+        # Per-platform wake implementations — wake.h dispatches to exactly one of
+        # these based on USE_*, so the others can be skipped at the source level
+        # too. Header files next to each .cpp are always copied (the dispatcher
+        # #include's them) but compile to empty TUs on the wrong platform anyway.
+        "wake/wake_freertos.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "wake/wake_esp8266.cpp": {
+            PlatformFramework.ESP8266_ARDUINO,
+        },
+        "wake/wake_rp2040.cpp": {
+            PlatformFramework.RP2040_ARDUINO,
+        },
+        "wake/wake_host.cpp": {
+            PlatformFramework.HOST_NATIVE,
+        },
+        "wake/wake_generic.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
         },
         # Note: lock_free_queue.h and event_pool.h are header files and don't need to be filtered
         # as they are only included when needed by the preprocessor

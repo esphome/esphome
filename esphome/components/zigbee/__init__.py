@@ -32,6 +32,7 @@ from .const import (
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
     CONF_MAX_EP_NUMBER,
+    CONF_SLEEPY,
     CONF_ZIGBEE_ID,
     KEY_EP_NUMBER,
 )
@@ -74,6 +75,13 @@ SENSOR_SCHEMA = cv.Schema({}).extend(zephyr_sensor)
 SWITCH_SCHEMA = cv.Schema({}).extend(zephyr_switch)
 NUMBER_SCHEMA = cv.Schema({}).extend(zephyr_number)
 
+
+def _validate_router_sleepy(config: ConfigType) -> ConfigType:
+    if config.get(CONF_ROUTER) and config.get(CONF_SLEEPY):
+        raise cv.Invalid("router and sleepy are mutually exclusive")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -81,10 +89,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MODEL, default=CORE.name): cv.All(
                 cv.string, cv.Length(max=31)
             ),
-            cv.OnlyWith(CONF_ROUTER, "esp32", default=False): cv.All(
-                cv.requires_component("esp32"),
-                cv.boolean,
-            ),
+            cv.Optional(CONF_ROUTER, default=False): cv.boolean,
             cv.Optional(CONF_ON_JOIN): cv.All(
                 cv.requires_component("nrf52"),
                 automation.validate_automation(single=True),
@@ -107,8 +112,12 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 cv.requires_component("nrf52"),
             ),
+            cv.OnlyWith(CONF_SLEEPY, "nrf52", default=False): cv.All(
+                cv.boolean,
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    _validate_router_sleepy,
     zigbee_require_vfs_select,
     zigbee_set_core_data,
     cv.Any(

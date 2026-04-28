@@ -1724,6 +1724,11 @@ async def to_code(config):
         CORE.relative_internal_path(".espressif")
     )
 
+    # Both ESP-IDF and ESP32 Arduino builds generate IDF app metadata. Keep
+    # volatile build path/time data out of the binary so equivalent projects can
+    # produce reproducible outputs and downstream tooling can reuse artifacts.
+    add_idf_sdkconfig_option("CONFIG_APP_REPRODUCIBLE_BUILD", True)
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
