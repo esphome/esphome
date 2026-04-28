@@ -17,6 +17,14 @@ binary_sensor:
   - id: left_sensor
     platform: template
   - platform: lvgl
+    name: Button A pressed
+    widget: button_a
+    state: checked
+  - platform: lvgl
+    name: Button A checked
+    widget: button_a
+    state: checked
+  - platform: lvgl
     id: button_checker
     name: LVGL button
     widget: button_button
