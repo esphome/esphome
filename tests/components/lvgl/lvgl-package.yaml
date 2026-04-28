@@ -19,7 +19,7 @@ binary_sensor:
   - platform: lvgl
     name: Button A pressed
     widget: button_a
-    state: checked
+    state: pressed
   - platform: lvgl
     name: Button A checked
     widget: button_a
