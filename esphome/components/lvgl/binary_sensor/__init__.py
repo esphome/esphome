@@ -40,7 +40,7 @@ async def to_code(config):
         test_ctx.add(sensor.publish_state(test_expr))
     async with LvContext() as ctx:
         ctx.add(sensor.publish_initial_state(test_expr))
-        if str(state) == str(LV_STATE.PRESSED):
+        if is_pressed:
             events = [LV_EVENT.PRESSED, LV_EVENT.RELEASED]
             widget.add_flag(LV_OBJ_FLAG.CLICKABLE)
         else:
