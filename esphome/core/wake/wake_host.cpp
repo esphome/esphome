@@ -1,12 +1,11 @@
-#include "esphome/core/wake.h"
-#include "esphome/core/hal.h"
-#include "esphome/core/log.h"
-
-#ifdef USE_ESP8266
-#include <coredecls.h>
-#endif
+#include "esphome/core/defines.h"
 
 #ifdef USE_HOST
+
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "esphome/core/wake.h"
+
 #include <arpa/inet.h>
 #include <cerrno>
 #include <fcntl.h>
@@ -15,88 +14,19 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <vector>
-#endif
 
 namespace esphome {
 
 // === Wake-requested flag storage ===
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+// Host is always ESPHOME_THREAD_MULTI_ATOMICS.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::atomic<uint8_t> g_wake_requested{0};
-#else
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-volatile uint8_t g_wake_requested = 0;
-#endif
-
-// === ESP32 / LibreTiny — IRAM_ATTR entry points ===
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-void IRAM_ATTR wake_loop_isrsafe(BaseType_t *px_higher_priority_task_woken) {
-  // ISR-safe: set flag before notify so the wake is visible on the next gate
-  // check. wake_request_set() is just an aligned 8-bit store / atomic store
-  // and is safe from IRAM.
-  wake_request_set();
-  esphome_main_task_notify_from_isr(px_higher_priority_task_woken);
-}
-void IRAM_ATTR wake_loop_any_context() { wake_main_task_any_context(); }
-#endif
-
-// === ESP8266 / RP2040 ===
-#if defined(USE_ESP8266) || defined(USE_RP2040)
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-volatile bool g_main_loop_woke = false;
-#endif
-
-#ifdef USE_ESP8266
-void IRAM_ATTR wake_loop_any_context() { wake_loop_impl(); }
-#endif
-
-// === RP2040 — wakeable_delay (needs file-scope state for alarm callback) ===
-#ifdef USE_RP2040
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static volatile bool s_delay_expired = false;
-
-static int64_t alarm_callback_(alarm_id_t id, void *user_data) {
-  (void) id;
-  (void) user_data;
-  s_delay_expired = true;
-  __sev();
-  return 0;
-}
-
-namespace internal {
-void wakeable_delay(uint32_t ms) {
-  if (ms == 0) [[unlikely]] {
-    yield();
-    return;
-  }
-  if (g_main_loop_woke) {
-    g_main_loop_woke = false;
-    return;
-  }
-  s_delay_expired = false;
-  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback_, nullptr, true);
-  if (alarm <= 0) {
-    delay(ms);
-    return;
-  }
-  while (!g_main_loop_woke && !s_delay_expired) {
-    __wfe();
-  }
-  if (!s_delay_expired)
-    cancel_alarm(alarm);
-  g_main_loop_woke = false;
-}
-}  // namespace internal
-#endif  // USE_RP2040
-
-// === Host (UDP loopback socket + select() based fd watcher) ===
-#ifdef USE_HOST
 
 static const char *const TAG = "wake";
 
 namespace internal {
 // File-scope state — referenced inline by wake_drain_notifications() and
-// wake_fd_ready() in wake.h, and by the bodies in this file.
+// wake_fd_ready() in wake_host.h, and by the bodies in this file.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 int g_wake_socket_fd = -1;
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -271,6 +201,7 @@ void wake_setup() {
     return;
   }
 }
-#endif  // USE_HOST
 
 }  // namespace esphome
+
+#endif  // USE_HOST
