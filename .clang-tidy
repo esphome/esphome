@@ -122,6 +122,7 @@ Checks: >-
   -readability-container-data-pointer,
   -readability-convert-member-functions-to-static,
   -readability-else-after-return,
+  -readability-enum-initial-value,
   -readability-function-cognitive-complexity,
   -readability-implicit-bool-conversion,
   -readability-inconsistent-ifelse-braces,
