@@ -722,18 +722,22 @@ def lint_trailing_whitespace(fname, match):
 # Heap-allocating helpers that cause fragmentation on long-running embedded devices.
 # These return std::string and should be replaced with stack-based alternatives.
 HEAP_ALLOCATING_HELPERS = {
+    "base64_encode": "base64_encode_to() with a pre-allocated buffer",
     "format_bin": "format_bin_to() with a stack buffer",
     "format_hex": "format_hex_to() with a stack buffer",
     "format_hex_pretty": "format_hex_pretty_to() with a stack buffer",
     "format_mac_address_pretty": "format_mac_addr_upper() with a stack buffer",
     "get_mac_address": "get_mac_address_into_buffer() with a stack buffer",
     "get_mac_address_pretty": "get_mac_address_pretty_into_buffer() with a stack buffer",
+    "str_lower_case": "manual tolower() with a stack buffer",
     "str_sanitize": "str_sanitize_to() with a stack buffer",
     "str_truncate": "removal (function is unused)",
+    "str_until": "manual strchr()/find() with a StringRef or stack buffer",
     "str_upper_case": "removal (function is unused)",
     "str_snake_case": "removal (function is unused)",
     "str_sprintf": "snprintf() with a stack buffer",
     "str_snprintf": "snprintf() with a stack buffer",
+    "value_accuracy_to_string": "value_accuracy_to_buf() with a stack buffer",
 }
 
 
@@ -743,24 +747,33 @@ HEAP_ALLOCATING_HELPERS = {
     # get_mac_address(?!_) ensures we don't match get_mac_address_into_buffer, etc.
     # CPP_RE_EOL captures rest of line so NOLINT comments are detected
     r"[^\w]("
+    r"base64_encode(?!_)|"
     r"format_bin(?!_)|"
     r"format_hex(?!_)|"
     r"format_hex_pretty(?!_)|"
     r"format_mac_address_pretty|"
     r"get_mac_address_pretty(?!_)|"
     r"get_mac_address(?!_)|"
+    r"str_lower_case|"
     r"str_sanitize(?!_)|"
     r"str_truncate|"
+    r"str_until|"
     r"str_upper_case|"
     r"str_snake_case|"
     r"str_sprintf|"
-    r"str_snprintf"
+    r"str_snprintf|"
+    r"value_accuracy_to_string"
     r")\s*\(" + CPP_RE_EOL,
     include=cpp_include,
     exclude=[
         # The definitions themselves
+        "esphome/core/alloc_helpers.h",
+        "esphome/core/alloc_helpers.cpp",
+        # Backward compatibility re-exports (remove before 2026.11.0)
         "esphome/core/helpers.h",
         "esphome/core/helpers.cpp",
+        # Vendored third-party library
+        "esphome/components/http_request/httplib.h",
     ],
 )
 def lint_no_heap_allocating_helpers(fname, match):
@@ -812,6 +825,7 @@ def lint_no_sprintf(fname, match):
         "esphome/components/http_request/httplib.h",
         # Deprecated helpers that return std::string
         "esphome/core/helpers.cpp",
+        "esphome/core/alloc_helpers.cpp",
         # The using declaration itself
         "esphome/core/helpers.h",
         # Test fixtures - not production embedded code
@@ -823,7 +837,16 @@ def lint_no_std_to_string(fname, match):
         f"{highlight('std::to_string()')} (including unqualified {highlight('to_string()')}) "
         f"allocates heap memory. On long-running embedded devices, repeated heap allocations "
         f"fragment memory over time.\n"
-        f"Please use {highlight('snprintf()')} with a stack buffer instead.\n"
+        f"\n"
+        f"For plain integer formatting, prefer the dedicated helpers in helpers.h over "
+        f"{highlight('snprintf()')} — they avoid pulling in printf formatting code and are "
+        f"smaller and faster:\n"
+        f"  int8_t:                       {highlight('int8_to_str(buf, val)')}      (buf >= 5 bytes)\n"
+        f"  uint8_t/uint16_t/uint32_t:    {highlight('uint32_to_str(buf, val)')}    (buf = UINT32_MAX_STR_SIZE; smaller types auto-widen)\n"
+        f"Example: {highlight('char buf[UINT32_MAX_STR_SIZE]; uint32_to_str(buf, value);')}\n"
+        f"For sensor values, use {highlight('value_accuracy_to_buf()')} from helpers.h.\n"
+        f"\n"
+        f"Otherwise use {highlight('snprintf()')} with a stack buffer.\n"
         f"\n"
         f"Buffer sizes and format specifiers (sizes include sign and null terminator):\n"
         f"  uint8_t:          4 chars   - %u (or PRIu8)\n"
@@ -837,7 +860,6 @@ def lint_no_std_to_string(fname, match):
         f"  float/double:     24 chars  - %.8g (15 digits + sign + decimal + e+XXX)\n"
         f"                    317 chars - %f (for DBL_MAX: 309 int digits + decimal + 6 frac + sign)\n"
         f"\n"
-        f"For sensor values, use value_accuracy_to_buf() from helpers.h.\n"
         f'Example: char buf[11]; snprintf(buf, sizeof(buf), "%" PRIu32, value);\n'
         f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
     )

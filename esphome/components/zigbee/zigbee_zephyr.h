@@ -81,6 +81,7 @@ class ZigbeeComponent : public Component {
   Trigger<> *get_join_trigger() { return &this->join_trigger_; };
   void force_report();
   void loop() override;
+  void set_sleepy(bool sleepy) { this->sleepy_ = sleepy; }
 
  protected:
   static void zcl_device_cb(zb_bufid_t bufid);
@@ -95,6 +96,7 @@ class ZigbeeComponent : public Component {
   bool force_report_{false};
   uint32_t sleep_time_{};
   uint32_t sleep_remainder_{};
+  bool sleepy_{};
 };
 
 class ZigbeeEntity {
@@ -106,6 +108,8 @@ class ZigbeeEntity {
   zb_uint8_t endpoint_{0};
   ZigbeeComponent *parent_{nullptr};
 };
+
+extern ZigbeeComponent *global_zigbee;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::zigbee
 #endif

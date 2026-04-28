@@ -41,16 +41,36 @@ function generateReviewMessages(finalLabels, originalLabelCount, deprecatedInfo,
 
     let message = `${TOO_BIG_MARKER}\n### 📦 Pull Request Size\n\n`;
 
+    message +=
+      `Hey @${prAuthor}, thanks for the contribution! Just a heads up, ` +
+      `this PR is on the large side `;
+
     if (tooManyLabels && tooManyChanges) {
-      message += `This PR is too large with ${nonTestChanges} line changes (excluding tests) and affects ${originalLabelCount} different components/areas.`;
+      message +=
+        `(${nonTestChanges} line changes excluding tests, across ` +
+        `${originalLabelCount} different components/areas)`;
     } else if (tooManyLabels) {
-      message += `This PR affects ${originalLabelCount} different components/areas.`;
+      message +=
+        `(it touches ${originalLabelCount} different components/areas)`;
     } else {
-      message += `This PR is too large with ${nonTestChanges} line changes (excluding tests).`;
+      message += `(${nonTestChanges} line changes excluding tests)`;
     }
 
-    message += ` Please consider breaking it down into smaller, focused PRs to make review easier and reduce the risk of conflicts.\n\n`;
-    message += `For guidance on breaking down large PRs, see: https://developers.esphome.io/contributing/submitting-your-work/#how-to-approach-large-submissions`;
+    message += `, which makes it harder for maintainers to review.\n\n`;
+    message +=
+      `Smaller, focused PRs tend to be reviewed much faster since they ` +
+      `fit into the short gaps between other maintainer work; large ones ` +
+      `often have to wait for a rare long uninterrupted block of time. ` +
+      `If you can break this up into smaller pieces that can be reviewed ` +
+      `independently, it will almost certainly land faster overall.\n\n`;
+    message +=
+      `Before putting more time in, it's also worth popping into ` +
+      `\`#devs\` on [Discord](https://esphome.io/chat) so we can help ` +
+      `you scope things and flag anything already in flight.\n\n`;
+    message +=
+      `For more details (including how to split the work up), see: ` +
+      `https://developers.esphome.io/contributing/submitting-your-work/` +
+      `#how-to-approach-large-submissions`;
 
     messages.push(message);
   }

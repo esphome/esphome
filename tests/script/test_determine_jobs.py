@@ -1842,6 +1842,22 @@ def test_should_run_benchmarks_core_header_change() -> None:
         assert determine_jobs.should_run_benchmarks() is True
 
 
+def test_should_run_benchmarks_host_platform_change() -> None:
+    """Test benchmarks trigger on host platform changes.
+
+    Benchmarks build and run on the host platform, so changes to its
+    millis()/micros()/etc. implementations affect every benchmark.
+    """
+    for host_file in [
+        "esphome/components/host/core.cpp",
+        "esphome/components/host/__init__.py",
+    ]:
+        with patch.object(determine_jobs, "changed_files", return_value=[host_file]):
+            assert determine_jobs.should_run_benchmarks() is True, (
+                f"Expected benchmarks to run for {host_file}"
+            )
+
+
 def test_should_run_benchmarks_benchmark_infra_change() -> None:
     """Test benchmarks trigger on benchmark infrastructure changes."""
     for infra_file in [

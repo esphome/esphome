@@ -2,18 +2,20 @@
 
 import logging
 from pathlib import Path
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from esphome.components.packages import (
     CONFIG_SCHEMA,
+    _substitute_package_definition,
     _walk_packages,
     do_packages_pass,
     is_package_definition,
     merge_packages,
 )
-from esphome.components.substitutions import do_substitution_pass
+from esphome.components.substitutions import ContextVars, do_substitution_pass
 import esphome.config as config_module
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, Remove
@@ -44,7 +46,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.util import OrderedDict
-from esphome.yaml_util import IncludeFile, add_context
+from esphome.yaml_util import DocumentPath, IncludeFile, add_context, load_yaml
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -1111,7 +1113,7 @@ def test_packages_include_file_resolves_to_list(mock_resolve_include) -> None:
     """When packages: is an IncludeFile that resolves to a list, it is processed correctly."""
     include_file = MagicMock(spec=IncludeFile)
     package_content = {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
-    mock_resolve_include.return_value = ([package_content], None)
+    mock_resolve_include.return_value = [package_content]
 
     config = {CONF_PACKAGES: include_file}
     result = do_packages_pass(config)
@@ -1125,7 +1127,7 @@ def test_packages_include_file_resolves_to_dict(mock_resolve_include) -> None:
     """When packages: is an IncludeFile that resolves to a dict, it is processed correctly."""
     include_file = MagicMock(spec=IncludeFile)
     package_content = {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
-    mock_resolve_include.return_value = ({"network": package_content}, None)
+    mock_resolve_include.return_value = {"network": package_content}
 
     config = {CONF_PACKAGES: include_file}
     result = do_packages_pass(config)
@@ -1140,7 +1142,7 @@ def test_packages_include_file_resolves_to_invalid_type_raises(
 ) -> None:
     """When packages: is an IncludeFile that resolves to an invalid type, cv.Invalid is raised."""
     include_file = MagicMock(spec=IncludeFile)
-    mock_resolve_include.return_value = ("not_a_dict_or_list", None)
+    mock_resolve_include.return_value = "not_a_dict_or_list"
 
     config = {CONF_PACKAGES: include_file}
     with pytest.raises(
@@ -1213,7 +1215,9 @@ def test_named_dict_with_include_files_no_false_deprecation_warning(
 
     call_count = 0
 
-    def failing_callback(package_config: dict, context: object) -> dict:
+    def failing_callback(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -1249,7 +1253,9 @@ def test_validate_deprecated_false_raises_directly(
 
     call_count = 0
 
-    def failing_callback(package_config: dict, context: object) -> dict:
+    def failing_callback(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -1281,7 +1287,9 @@ def test_error_on_first_declared_package_still_detected() -> None:
 
     call_count = 0
 
-    def fail_on_last(package_config: dict, context: object) -> dict:
+    def fail_on_last(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal call_count
         call_count += 1
         # Reverse iteration: third_pkg (1), second_pkg (2), first_pkg (3)
@@ -1310,7 +1318,9 @@ def test_deprecated_single_package_fallback_still_works(
 
     attempt = 0
 
-    def fail_then_succeed(package_config: dict, context: object) -> dict:
+    def fail_then_succeed(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal attempt
         attempt += 1
         if attempt == 1:
@@ -1399,3 +1409,215 @@ def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:
         "CORE.raw_config should contain esphome section after package merge"
     )
     assert CORE.raw_config[CONF_ESPHOME][CONF_NAME] == TEST_DEVICE_NAME
+
+
+# ---------------------------------------------------------------------------
+# _substitute_package_definition
+# ---------------------------------------------------------------------------
+
+
+def test_substitute_package_definition_local_dict_returned_unchanged() -> None:
+    """A plain local config dict is not substituted and is returned as-is."""
+    pkg = {CONF_WIFI: {CONF_SSID: "test"}}
+    result = _substitute_package_definition(pkg, ContextVars())
+    assert result is pkg
+
+
+def test_substitute_package_definition_string_resolved_with_context() -> None:
+    """A string package definition has its variables substituted."""
+    ctx = ContextVars({"variant": "esp32"})
+    result = _substitute_package_definition("device-${variant}.yaml", ctx)
+    assert result == "device-esp32.yaml"
+
+
+def test_substitute_package_definition_undefined_in_string() -> None:
+    """An undefined variable in a package URL string raises cv.Invalid."""
+    with pytest.raises(cv.Invalid, match="Undefined variable in package definition"):
+        _substitute_package_definition(
+            "github://org/repo/${undefined_var}/pkg.yaml", ContextVars()
+        )
+
+
+def test_substitute_package_definition_undefined_in_remote_dict_field() -> None:
+    """An undefined variable inside a remote-dict field names the offending field."""
+    with pytest.raises(cv.Invalid) as exc_info:
+        _substitute_package_definition(
+            {CONF_URL: "github://${typo}/repo"}, ContextVars()
+        )
+    err = str(exc_info.value)
+    assert "'typo' is undefined" in err
+    assert CONF_URL in err
+
+
+def test_substitute_package_definition_undefined_in_remote_dict_non_first_field() -> (
+    None
+):
+    """The field path joins correctly for non-first dict fields (e.g. ``ref``)."""
+    with pytest.raises(cv.Invalid) as exc_info:
+        _substitute_package_definition(
+            {
+                CONF_URL: "github://org/repo",
+                CONF_REF: "branch-${branch_typo}",
+            },
+            ContextVars(),
+        )
+    err = str(exc_info.value)
+    assert "'branch_typo' is undefined" in err
+    assert CONF_REF in err
+
+
+def test_substitute_package_definition_includes_source_location(tmp_path: Path) -> None:
+    """A package loaded from YAML surfaces file/line/col in the cv.Invalid message.
+
+    Line/column are rendered 1-based (matching config.line_info() and editor
+    line numbering) and point at the offending scalar, not the enclosing dict.
+    """
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "packages:\n  broken: github://org/repo/${undefined_var}/pkg.yaml\n"
+    )
+    config = load_yaml(yaml_file)
+    package_config = config[CONF_PACKAGES]["broken"]
+
+    with pytest.raises(cv.Invalid) as exc_info:
+        _substitute_package_definition(package_config, ContextVars())
+
+    err = str(exc_info.value)
+    assert "main.yaml" in err
+    # The offending value lives on line 2 (1-based). Column depends on the YAML
+    # loader, so we only pin line and check that a 1-based column is present.
+    match = re.search(r"main\.yaml (\d+):(\d+)", err)
+    assert match, err
+    line, col = int(match.group(1)), int(match.group(2))
+    assert line == 2, f"expected 1-based line 2, got {line} (err={err!r})"
+    assert col >= 1, f"expected 1-based column ≥ 1, got {col} (err={err!r})"
+
+
+def test_substitute_package_definition_vars_preserved_literally() -> None:
+    """``vars:`` blocks in remote-package files are not substituted prematurely.
+
+    Variable references inside ``vars:`` may resolve to substitutions
+    contributed by sibling packages that have not yet been loaded, so they
+    must be passed through untouched and resolved later by the package YAML.
+    """
+    pkg = {
+        CONF_URL: "https://github.com/esphome/non-existant-repo",
+        CONF_REF: "main",
+        CONF_FILES: [
+            {
+                CONF_PATH: "common/somefile.yaml",
+                CONF_VARS: {"pin": "${PIN}"},
+            },
+        ],
+    }
+    # Note: PIN is intentionally NOT in the context — it is meant to
+    # be resolved later, when the package YAML is processed.
+    result = _substitute_package_definition(pkg, ContextVars())
+
+    assert result[CONF_FILES][0][CONF_VARS] == {"pin": "${PIN}"}
+
+
+def test_substitute_package_definition_other_fields_still_substituted() -> None:
+    """Marking ``vars:`` literal does not stop substitution of url/ref/path."""
+    ctx = ContextVars({"branch": "release", "org": "esphome"})
+    pkg = {
+        CONF_URL: "https://github.com/${org}/firmware",
+        CONF_REF: "${branch}",
+        CONF_FILES: [
+            {
+                CONF_PATH: "common/sensor.yaml",
+                CONF_VARS: {"pin": "${PIN}"},
+            },
+        ],
+    }
+    result = _substitute_package_definition(pkg, ctx)
+
+    assert result[CONF_URL] == "https://github.com/esphome/firmware"
+    assert result[CONF_REF] == "release"
+    # vars passed through unchanged
+    assert result[CONF_FILES][0][CONF_VARS] == {"pin": "${PIN}"}
+
+
+def test_substitute_package_definition_without_vars_unaffected() -> None:
+    """Files entries without a ``vars:`` block continue to work."""
+    ctx = ContextVars({"branch": "main"})
+    pkg = {
+        CONF_URL: "https://github.com/esphome/firmware",
+        CONF_REF: "${branch}",
+        CONF_FILES: [
+            {CONF_PATH: "file1.yaml"},
+            "file2.yaml",
+        ],
+    }
+    result = _substitute_package_definition(pkg, ctx)
+
+    assert result[CONF_REF] == "main"
+    assert result[CONF_FILES][0] == {CONF_PATH: "file1.yaml"}
+    assert result[CONF_FILES][1] == "file2.yaml"
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_package_vars_resolved_against_sibling_package_substitutions(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """A ``vars:`` reference in one remote package can resolve to a
+    substitution defined in a sibling remote package.
+
+    A higher-priority package declares ``substitutions:`` (e.g. ``SENSOR_PIN: 5``) and a
+    lower-priority package's ``files: -> vars:`` references that substitution.
+    Because packages are processed highest-priority first and ``vars:`` is now
+    preserved literally during package-definition processing, the substitution
+    is resolved correctly when the package YAML itself is loaded.
+    """
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), MagicMock())
+    mock_is_file.return_value = True
+
+    # Two YAML files mocked from the "remote" repo:
+    #   - platform.yaml exports a substitution ``SENSOR_PIN``
+    #   - sensor.yaml uses ``${pin}`` (which is bound from ``vars:`` to
+    #     ``${SENSOR_PIN}`` and resolved against the merged substitutions).
+    mock_load_yaml.side_effect = [
+        # Order matches reverse-priority traversal (highest priority first).
+        OrderedDict(
+            {
+                CONF_SUBSTITUTIONS: {"SENSOR_PIN": "GPIO5"},
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_1,
+                        "pin": "${pin}",
+                    }
+                ],
+            }
+        ),
+    ]
+
+    config = {
+        CONF_PACKAGES: {
+            "special_sensor": {
+                CONF_URL: "https://github.com/esphome/non-existant-repo",
+                CONF_FILES: [
+                    {
+                        CONF_PATH: "sensor.yaml",
+                        CONF_VARS: {"pin": "${SENSOR_PIN}"},
+                    },
+                ],
+                CONF_REFRESH: "1d",
+            },
+            "platform": {
+                CONF_URL: "https://github.com/esphome/non-existant-repo",
+                CONF_FILES: ["platform.yaml"],
+                CONF_REFRESH: "1d",
+            },
+        }
+    }
+
+    actual = packages_pass(config)
+
+    assert actual[CONF_SENSOR][0]["pin"] == "GPIO5"
