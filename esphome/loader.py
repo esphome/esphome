@@ -14,6 +14,7 @@ from typing import Any
 from esphome.const import SOURCE_FILE_EXTENSIONS
 from esphome.core import CORE
 import esphome.core.config
+from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -93,7 +94,7 @@ class ComponentManifest:
         return getattr(self.module, "CODEOWNERS", [])
 
     @property
-    def instance_type(self) -> list[str]:
+    def instance_type(self) -> MockObjClass | None:
         return getattr(self.module, "INSTANCE_TYPE", None)
 
     @property
