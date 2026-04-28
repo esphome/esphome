@@ -17,9 +17,18 @@ binary_sensor:
   - id: left_sensor
     platform: template
   - platform: lvgl
+    name: Button A pressed
+    widget: button_a
+    state: pressed
+  - platform: lvgl
+    name: Button A checked
+    widget: button_a
+    state: checked
+  - platform: lvgl
     id: button_checker
     name: LVGL button
     widget: button_button
+    state: checked
     on_state:
       then:
         - lvgl.checkbox.update:
@@ -28,6 +37,12 @@ binary_sensor:
               checked: !lambda |-
                   auto y = x; // block inlining of one line return
                   return y;
+
+  - platform: lvgl
+    id: button_presser
+    name: Button pressed
+    widget: button_button
+    state: pressed
 
 lvgl:
   id: lvgl_id
