@@ -487,6 +487,10 @@ template<> const char *proto_enum_to_string<enums::LockState>(enums::LockState v
       return ESPHOME_PSTR("LOCK_STATE_LOCKING");
     case enums::LOCK_STATE_UNLOCKING:
       return ESPHOME_PSTR("LOCK_STATE_UNLOCKING");
+    case enums::LOCK_STATE_OPENING:
+      return ESPHOME_PSTR("LOCK_STATE_OPENING");
+    case enums::LOCK_STATE_OPEN:
+      return ESPHOME_PSTR("LOCK_STATE_OPEN");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }

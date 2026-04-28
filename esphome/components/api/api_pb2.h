@@ -181,6 +181,8 @@ enum LockState : uint32_t {
   LOCK_STATE_JAMMED = 3,
   LOCK_STATE_LOCKING = 4,
   LOCK_STATE_UNLOCKING = 5,
+  LOCK_STATE_OPENING = 6,
+  LOCK_STATE_OPEN = 7,
 };
 enum LockCommand : uint32_t {
   LOCK_UNLOCK = 0,
