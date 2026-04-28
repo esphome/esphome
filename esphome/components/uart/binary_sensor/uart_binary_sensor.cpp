@@ -5,8 +5,6 @@ namespace esphome::uart {
 
 static const char *const TAG = "uart.binary_sensor";
 
-void UARTBinarySensor::setup() {}
-
 void UARTBinarySensor::loop() {
   for (auto &matcher : this->matchers_) {
     if (matcher.triggered) {
@@ -18,10 +16,6 @@ void UARTBinarySensor::loop() {
 }
 
 void UARTBinarySensor::dump_config() { ESP_LOGCONFIG(TAG, "UART Binary Sensor:"); }
-
-void UARTBinarySensor::add_event_matcher(binary_sensor::BinarySensor *sensor, const uint8_t *data, size_t data_len) {
-  this->matchers_.push_back({sensor, data, data_len, false});
-}
 
 void UARTBinarySensor::read_data_() {
   while (this->available()) {

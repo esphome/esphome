@@ -1,6 +1,3 @@
-from collections import defaultdict
-from dataclasses import dataclass, field
-
 import esphome.codegen as cg
 from esphome.components import binary_sensor, uart
 import esphome.config_validation as cv
@@ -17,17 +14,8 @@ CONF_HUB_ID = "hub_id"
 UARTBinarySensor = uart_ns.class_("UARTBinarySensor", uart.UARTDevice, cg.Component)
 
 
-@dataclass
-class UARTBinarySensorData:
-    hub_by_uart: dict = field(default_factory=dict)
-    matcher_count_by_uart: defaultdict = field(default_factory=lambda: defaultdict(int))
-    max_matcher_len_by_uart: defaultdict = field(
-        default_factory=lambda: defaultdict(int)
-    )
-
-
-def _get_data() -> UARTBinarySensorData:
-    return CORE.data.setdefault(DOMAIN, UARTBinarySensorData())
+def _get_hubs() -> dict:  # uart_id -> (hub, matchers)
+    return CORE.data.setdefault(DOMAIN, {})
 
 
 CONFIG_SCHEMA = (
@@ -43,29 +31,22 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    component_data = _get_data()
+    hubs = _get_hubs()
     uart_id = config[CONF_UART_ID]
 
-    component_data.matcher_count_by_uart[uart_id] += 1
-
-    if uart_id not in component_data.hub_by_uart:
+    if uart_id not in hubs:
         hub = cg.new_Pvariable(config[CONF_HUB_ID])
         await cg.register_component(hub, config)
         await uart.register_uart_device(hub, config)
-        component_data.hub_by_uart[uart_id] = hub
-    else:
-        hub = component_data.hub_by_uart[uart_id]
+        hubs[uart_id] = (hub, [])
+        CORE.add_job(_finalize_hubs)
 
+    _, matchers = hubs[uart_id]
     var = await binary_sensor.new_binary_sensor(config)
 
     raw_data = config[CONF_DATA]
     if isinstance(raw_data, bytes):
         raw_data = [HexInt(x) for x in raw_data]
-
-    data_len = len(raw_data)
-    component_data.max_matcher_len_by_uart[uart_id] = max(
-        component_data.max_matcher_len_by_uart[uart_id], data_len
-    )
 
     data_var_id = ID(
         f"uart_binary_sensor_data_{config[CONF_ID].id}",
@@ -73,14 +54,14 @@ async def to_code(config):
         type=cg.uint8,
     )
     data_var = cg.static_const_array(data_var_id, cg.ArrayInitializer(*raw_data))
-    cg.add(hub.add_event_matcher(var, data_var, data_len))
+    matchers.append((var, data_var, len(raw_data)))
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def to_code_(config):
-    component_data = _get_data()
-    for uart_id, hub in component_data.hub_by_uart.items():
-        matcher_count = component_data.matcher_count_by_uart[uart_id]
-        max_matcher_len = component_data.max_matcher_len_by_uart[uart_id]
-        cg.add(hub.matchers_.init(matcher_count))
+async def _finalize_hubs():
+    for hub, matchers in _get_hubs().values():
+        max_matcher_len = max(data_len for _, _, data_len in matchers)
+        cg.add(hub.setup_matchers(len(matchers)))
+        for sensor_var, data_var, data_len in matchers:
+            cg.add(hub.add_event_matcher(sensor_var, data_var, data_len))
         cg.add(hub.setup_buffer(max_matcher_len))

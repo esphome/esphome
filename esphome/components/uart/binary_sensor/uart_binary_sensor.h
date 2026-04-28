@@ -8,11 +8,13 @@ namespace esphome::uart {
 
 class UARTBinarySensor : public UARTDevice, public Component {
  public:
-  void setup() override;
   void loop() override;
   void dump_config() override;
 
-  void add_event_matcher(binary_sensor::BinarySensor *sensor, const uint8_t *data, size_t data_len);
+  void add_event_matcher(binary_sensor::BinarySensor *sensor, const uint8_t *data, size_t data_len) {
+    this->matchers_.push_back({sensor, data, data_len, false});
+  }
+  void setup_matchers(size_t count) { this->matchers_.init(count); }
   void setup_buffer(size_t max_matcher_len) { this->buffer_.init(max_matcher_len); }
 
  protected:
