@@ -62,6 +62,18 @@ template<typename T, typename... X> class TemplatableFn {
                                                 !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
                                                 !std::default_initializable<F>) = delete;
 
+  // Reject raw (non-callable) values with a helpful diagnostic pointing at the Python-side fix.
+  // TemplatableFn stores only a function pointer (4 bytes), so constants must be wrapped in a
+  // stateless lambda by codegen. External components hitting this error should use
+  // `cg.templatable(value, args, type)` in their Python __init__.py before passing to the setter.
+  template<typename V> TemplatableFn(V) requires(!std::invocable<V, X...>) && (!std::convertible_to<V, T (*)(X...)>) {
+    static_assert(sizeof(V) == 0, "Missing cg.templatable(...) in Python codegen for this TEMPLATABLE_VALUE "
+                                  "field. The wrapper was always required; it worked by accident because the old "
+                                  "TemplatableValue implicitly converted raw constants. TemplatableFn cannot. See "
+                                  "https://developers.esphome.io/blog/2026/04/09/"
+                                  "templatablefn-4-byte-templatable-storage-for-trivially-copyable-types/");
+  }
+
   bool has_value() const { return this->f_ != nullptr; }
 
   T value(X... x) const { return this->f_ ? this->f_(x...) : T{}; }

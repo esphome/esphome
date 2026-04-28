@@ -24,6 +24,7 @@ from esphome.const import (
     PLATFORM_LN882X,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
+    SCHEDULER_DONT_RUN,
 )
 from esphome.core import CORE, HexInt, Lambda
 
@@ -765,3 +766,30 @@ def test_percentage_validators__raw_number_above_one_without_percent_sign(
         config_validation.unbounded_percentage(value)
     with pytest.raises(Invalid, match="percent sign"):
         config_validation.unbounded_possibly_negative_percentage(value)
+
+
+def test_update_interval__coerces_zero_to_one_ms(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """update_interval: 0ms must be coerced to 1ms (not rejected) because a
+    literal 0ms schedule causes Scheduler::call() to spin. Coercion keeps
+    existing configs compiling on upgrade while emitting a user-facing
+    warning that directs them to set a non-zero value."""
+    with caplog.at_level("WARNING"):
+        result = config_validation.update_interval("0ms")
+    assert result.total_milliseconds == 1
+    assert "update_interval of 0ms is not supported" in caplog.text
+    assert "1ms" in caplog.text
+
+
+def test_update_interval__preserves_nonzero_values() -> None:
+    """Non-zero update_interval values must pass through unchanged."""
+    assert config_validation.update_interval("1ms").total_milliseconds == 1
+    assert config_validation.update_interval("50ms").total_milliseconds == 50
+    assert config_validation.update_interval("60s").total_milliseconds == 60000
+
+
+def test_update_interval__never_passes_through() -> None:
+    """update_interval: never must still map to SCHEDULER_DONT_RUN."""
+    result = config_validation.update_interval("never")
+    assert result.total_milliseconds == SCHEDULER_DONT_RUN

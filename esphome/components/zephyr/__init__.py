@@ -15,6 +15,7 @@ from .const import (
     KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
+    KEY_KCONFIG,
     KEY_OVERLAY,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
@@ -54,6 +55,7 @@ class ZephyrData(TypedDict):
     extra_build_files: dict[str, Path]
     pm_static: list[Section]
     user: dict[str, list[str]]
+    kconfig: str
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -65,6 +67,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         extra_build_files={},
         pm_static=[],
         user={},
+        kconfig="",
     )
 
 
@@ -185,8 +188,12 @@ def zephyr_add_cdc_acm(config: ConfigType, id: int) -> None:
     )
 
 
-def zephyr_add_pm_static(section: Section):
-    CORE.data[KEY_ZEPHYR][KEY_PM_STATIC].extend(section)
+def zephyr_add_kconfig(kconfig: str) -> None:
+    zephyr_data()[KEY_KCONFIG] += textwrap.dedent(kconfig) + "\n"
+
+
+def zephyr_add_pm_static(sections: list[Section]) -> None:
+    zephyr_data()[KEY_PM_STATIC].extend(sections)
 
 
 def zephyr_add_user(key, value):
@@ -273,3 +280,18 @@ def copy_files():
         write_file_if_changed(
             CORE.relative_build_path("zephyr/pm_static.yml"), pm_static
         )
+
+    kconfig = zephyr_data()[KEY_KCONFIG]
+    if kconfig:
+        kconfig = (
+            textwrap.dedent(
+                """
+                menu "Zephyr"
+                source "Kconfig.zephyr"
+                endmenu
+                """
+            )
+            + "\n"
+            + kconfig
+        )
+        write_file_if_changed(CORE.relative_build_path("zephyr/Kconfig"), kconfig)

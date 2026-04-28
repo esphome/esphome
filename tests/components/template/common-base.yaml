@@ -171,6 +171,7 @@ sensor:
               quantile: .9
           - round: 1
       - round_to_multiple_of: 0.25
+      - round_to_significant_digits: 3
       - skip_initial: 3
       - sliding_window_moving_average:
           window_size: 15
