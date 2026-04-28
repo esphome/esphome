@@ -295,7 +295,7 @@ def main():
 
     failed_files = []
     try:
-        executable = get_binary("clang-tidy", 18)
+        executable = get_binary("clang-tidy", 22)
         task_queue = queue.Queue(args.jobs)
         lock = threading.Lock()
         for _ in range(args.jobs):
