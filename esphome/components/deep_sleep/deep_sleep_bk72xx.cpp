@@ -59,6 +59,8 @@ void DeepSleepComponent::deep_sleep_() {
   lt_deep_sleep_enter();
 }
 
+bool DeepSleepComponent::should_teardown_() { return true; }
+
 }  // namespace esphome::deep_sleep
 
 #endif  // USE_BK72XX

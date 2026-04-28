@@ -81,7 +81,10 @@ def compute_local_file_dir(domain: str) -> Path:
     return base_directory
 
 
-def download_content(url: str, path: Path, timeout=NETWORK_TIMEOUT) -> bytes:
+def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> bytes:
+    if CORE.skip_external_update and path.exists():
+        _LOGGER.debug("Skipping update for %s (refresh disabled)", url)
+        return path.read_bytes()
     if not has_remote_file_changed(url, path):
         _LOGGER.debug("Remote file has not changed %s", url)
         return path.read_bytes()

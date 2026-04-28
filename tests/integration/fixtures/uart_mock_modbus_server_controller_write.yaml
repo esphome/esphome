@@ -97,6 +97,7 @@ modbus_controller:
 modbus_server:
   - address: 1
     modbus_id: virtual_modbus_server
+    id: modbus_server_1
     registers:
       - address: 0x1
         value_type: U_WORD

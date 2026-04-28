@@ -21,6 +21,11 @@ namespace infrared {
 class Infrared;
 }  // namespace infrared
 #endif
+#ifdef USE_RADIO_FREQUENCY
+namespace radio_frequency {
+class RadioFrequency;
+}  // namespace radio_frequency
+#endif
 
 class ComponentIterator {
  public:

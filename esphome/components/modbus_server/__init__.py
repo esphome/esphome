@@ -8,7 +8,6 @@ from esphome.components.modbus.helpers import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID
-from esphome.cpp_helpers import logging
 
 from .const import (
     CONF_COURTESY_RESPONSE,
@@ -33,8 +32,6 @@ ModbusServer = modbus_server_ns.class_(
 
 ServerCourtesyResponse = modbus_server_ns.struct("ServerCourtesyResponse")
 ServerRegister = modbus_server_ns.struct("ServerRegister")
-
-_LOGGER = logging.getLogger(__name__)
 
 SERVER_COURTESY_RESPONSE_SCHEMA = cv.Schema(
     {
@@ -122,10 +119,6 @@ async def to_code(config):
                     )
                 )
             cg.add(var.add_server_register(server_register_var))
-    await register_modbus_device(var, config)
-
-
-async def register_modbus_device(var, config):
     cg.add(var.set_address(config[CONF_ADDRESS]))
     await cg.register_component(var, config)
     return await modbus.register_modbus_device(var, config, True)

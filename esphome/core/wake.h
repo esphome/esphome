@@ -3,22 +3,16 @@
 /// @file wake.h
 /// Platform-specific main loop wake primitives.
 /// Always available on all platforms — no opt-in needed.
+///
+/// The public API for callers lives here; the per-platform implementations
+/// live under esphome/core/wake/ and are included at the bottom of this file
+/// based on the active USE_* platform define.
 
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
 #include <atomic>
-#endif
-
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-#include "esphome/core/main_task.h"
-#endif
-#ifdef USE_ESP8266
-#include <coredecls.h>
-#elif defined(USE_RP2040)
-#include <hardware/sync.h>
-#include <pico/time.h>
 #endif
 
 namespace esphome {
@@ -62,127 +56,19 @@ __attribute__((always_inline)) inline bool wake_request_take() {
 }
 #endif
 
-// === ESP32 / LibreTiny (FreeRTOS) ===
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-
-/// Wake the main loop from any context (ISR or task).
-/// always_inline so callers placed in IRAM keep the whole wake path in IRAM.
-__attribute__((always_inline)) inline void wake_main_task_any_context() {
-  // Set the wake-requested flag BEFORE the task notification so the consumer
-  // (Application::loop() gate) is guaranteed to see it on its next gate check.
-  wake_request_set();
-  if (in_isr_context()) {
-    BaseType_t px_higher_priority_task_woken = pdFALSE;
-    esphome_main_task_notify_from_isr(&px_higher_priority_task_woken);
-#ifdef portYIELD_FROM_ISR
-    portYIELD_FROM_ISR(px_higher_priority_task_woken);
-#else
-    // ARM9 FreeRTOS port (BK72xx) does not define portYIELD_FROM_ISR; the IRQ
-    // exit sequence performs the context switch if one was requested.
-    (void) px_higher_priority_task_woken;
-#endif
-  } else {
-    esphome_main_task_notify();
-  }
-}
-
-/// IRAM_ATTR entry points — defined in wake.cpp.
-void wake_loop_isrsafe(BaseType_t *px_higher_priority_task_woken);
-void wake_loop_any_context();
-
-inline void wake_loop_threadsafe() {
-  wake_request_set();
-  esphome_main_task_notify();
-}
-
-namespace internal {
-inline void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
-    yield();
-    return;
-  }
-  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ms));
-}
-}  // namespace internal
-
-// === ESP8266 ===
-#elif defined(USE_ESP8266)
-
-/// Inline implementation — IRAM callers inline this directly.
-inline void ESPHOME_ALWAYS_INLINE wake_loop_impl() {
-  // Set the wake-requested flag BEFORE esp_schedule so the consumer is
-  // guaranteed to see it on its next gate check.
-  wake_request_set();
-  g_main_loop_woke = true;
-  esp_schedule();
-}
-
-/// IRAM_ATTR entry point for ISR callers — defined in wake.cpp.
-void wake_loop_any_context();
-
-/// Non-ISR: always inline.
-inline void wake_loop_threadsafe() { wake_loop_impl(); }
-
-/// ISR-safe: no task_woken arg because ESP8266 has no FreeRTOS. Caller must be IRAM_ATTR.
-inline void ESPHOME_ALWAYS_INLINE wake_loop_isrsafe() { wake_loop_impl(); }
-
-namespace internal {
-inline void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
-    delay(0);
-    return;
-  }
-  if (g_main_loop_woke) {
-    g_main_loop_woke = false;
-    return;
-  }
-  esp_delay(ms, []() { return !g_main_loop_woke; });
-}
-}  // namespace internal
-
-// === RP2040 ===
-#elif defined(USE_RP2040)
-
-inline void wake_loop_any_context() {
-  // Set the wake-requested flag BEFORE the SEV so the consumer is guaranteed
-  // to see it on its next gate check.
-  wake_request_set();
-  g_main_loop_woke = true;
-  __sev();
-}
-
-inline void wake_loop_threadsafe() { wake_loop_any_context(); }
-
-/// RP2040 wakeable delay uses file-scope state (alarm callback + flag) — defined in wake.cpp.
-namespace internal {
-void wakeable_delay(uint32_t ms);
-}  // namespace internal
-
-// === Host / Zephyr / other ===
-#else
-
-#ifdef USE_HOST
-/// Host: wakes select() via UDP loopback socket. Defined in wake.cpp.
-void wake_loop_threadsafe();
-#else
-/// Zephyr is currently the only platform without a wake mechanism.
-/// wake_loop_threadsafe() is a no-op and wakeable_delay() falls back to delay().
-/// TODO: implement proper Zephyr wake using k_poll / k_sem or similar.
-inline void wake_loop_threadsafe() {}
-#endif
-
-inline void wake_loop_any_context() { wake_loop_threadsafe(); }
-
-namespace internal {
-inline void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
-    yield();
-    return;
-  }
-  delay(ms);
-}
-}  // namespace internal
-
-#endif
-
 }  // namespace esphome
+
+// Per-platform implementations. Each header re-enters namespace esphome {} and
+// guards its body with the matching USE_* check, so only one contributes code
+// for the active target.
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#include "esphome/core/wake/wake_freertos.h"
+#elif defined(USE_ESP8266)
+#include "esphome/core/wake/wake_esp8266.h"
+#elif defined(USE_RP2040)
+#include "esphome/core/wake/wake_rp2040.h"
+#elif defined(USE_HOST)
+#include "esphome/core/wake/wake_host.h"
+#else
+#include "esphome/core/wake/wake_generic.h"
+#endif
