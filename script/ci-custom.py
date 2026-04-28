@@ -511,6 +511,27 @@ def lint_no_std_string_view(fname, match):
     )
 
 
+@lint_re_check(
+    r"(?:from\s+esphome\.components\.const\s+import|"
+    r"from\s+esphome\.components\s+import\s+(?:[^#\n]*[\s,])?const(?:[\s,]|$)|"
+    r"import\s+esphome\.components\.const)",
+    include=["*.py"],
+    exclude=[
+        "esphome/components/*",
+        "tests/*",
+    ],
+)
+def lint_no_components_const_outside_components(fname, match):
+    return (
+        f"Constants in {highlight('esphome/components/const/__init__.py')} are intended "
+        f"to be shared only between components in {highlight('esphome/components/')}. "
+        f"Code outside this folder must not import from "
+        f"{highlight('esphome.components.const')}.\n"
+        f"If the constant is needed outside of {highlight('esphome/components/')}, "
+        f"please move it to {highlight('esphome/const.py')} instead."
+    )
+
+
 @lint_post_check
 def lint_constants_usage():
     errs = []
