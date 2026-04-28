@@ -1,9 +1,10 @@
 import re
 
 import esphome.codegen as cg
-from esphome.components import uart
+from esphome.components import esp32, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME, CONF_PATTERN, CONF_PRIORITY
+from esphome.core import CORE
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
 DEPENDENCIES = ["uart"]
@@ -21,38 +22,6 @@ dlms_meter_component_ns = cg.esphome_ns.namespace("dlms_meter")
 DlmsMeterComponent = dlms_meter_component_ns.class_(
     "DlmsMeterComponent", cg.Component, uart.UARTDevice
 )
-
-# Maintain backwards compatibility mappings
-NUMERIC_KEYS = {
-    "voltage_l1": "1.0.32.7.0.255",
-    "voltage_l2": "1.0.52.7.0.255",
-    "voltage_l3": "1.0.72.7.0.255",
-    "current_l1": "1.0.31.7.0.255",
-    "current_l2": "1.0.51.7.0.255",
-    "current_l3": "1.0.71.7.0.255",
-    "active_power_plus": "1.0.1.7.0.255",
-    "active_power_minus": "1.0.2.7.0.255",
-    "active_energy_plus": "1.0.1.8.0.255",
-    "active_energy_minus": "1.0.2.8.0.255",
-    "reactive_energy_plus": "1.0.3.8.0.255",
-    "reactive_energy_minus": "1.0.4.8.0.255",
-    "power_factor": "1.0.13.7.0.255",
-}
-
-TEXT_KEYS = {
-    "timestamp": "0.0.1.0.0.255",
-    "meternumber": "0.0.96.1.0.255",
-}
-
-
-def validate_key(value):
-    value = cv.string_strict(value)
-    if len(value) != 32:
-        raise cv.Invalid("Decryption key must be 32 hex characters (16 bytes)")
-    try:
-        return [int(value[i : i + 2], 16) for i in range(0, 32, 2)]
-    except ValueError as exc:
-        raise cv.Invalid("Decryption key must be hex values from 00 to FF") from exc
 
 
 def obis_code(value):
@@ -108,8 +77,12 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DlmsMeterComponent),
-            cv.Optional(CONF_DECRYPTION_KEY): validate_key,
-            cv.Optional(CONF_AUTH_KEY): validate_key,
+            cv.Optional(CONF_DECRYPTION_KEY): lambda value: cv.bind_key(
+                value, name="Decryption key"
+            ),
+            cv.Optional(CONF_AUTH_KEY): lambda value: cv.bind_key(
+                value, name="Authentication key"
+            ),
             cv.Optional(CONF_CUSTOM_PATTERNS): cv.ensure_list(CUSTOM_PATTERN_SCHEMA),
             cv.Optional(CONF_SKIP_CRC, default=False): cv.boolean,
             cv.Optional(CONF_PROVIDER): cv.invalid(
@@ -126,25 +99,27 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("dlms_meter", require_
 
 async def to_code(config):
     dec_key_expr = cg.RawExpression("std::nullopt")
-    if CONF_DECRYPTION_KEY in config:
+    if dec_key := config.get(CONF_DECRYPTION_KEY):
+        key_bytes = [str(int(dec_key[i : i + 2], 16)) for i in range(0, 32, 2)]
         dec_key_expr = cg.RawExpression(
-            f"std::array<uint8_t, 16>{{{', '.join(str(x) for x in config[CONF_DECRYPTION_KEY])}}}"
+            f"std::array<uint8_t, 16>{{{', '.join(key_bytes)}}}"
         )
 
     auth_key_expr = cg.RawExpression("std::nullopt")
-    if CONF_AUTH_KEY in config:
+    if auth_key := config.get(CONF_AUTH_KEY):
+        key_bytes = [str(int(auth_key[i : i + 2], 16)) for i in range(0, 32, 2)]
         auth_key_expr = cg.RawExpression(
-            f"std::array<uint8_t, 16>{{{', '.join(str(x) for x in config[CONF_AUTH_KEY])}}}"
+            f"std::array<uint8_t, 16>{{{', '.join(key_bytes)}}}"
         )
 
     patterns = []
-    if CONF_CUSTOM_PATTERNS in config:
-        for p in config[CONF_CUSTOM_PATTERNS]:
-            name_expr = (
-                p[CONF_NAME] if CONF_NAME in p else cg.RawExpression("std::nullopt")
-            )
-            if CONF_DEFAULT_OBIS in p:
-                obis_vals = p[CONF_DEFAULT_OBIS]
+    if custom_patterns := config.get(CONF_CUSTOM_PATTERNS):
+        for p in custom_patterns:
+            name_expr = cg.RawExpression("std::nullopt")
+            if name_val := p.get(CONF_NAME):
+                name_expr = name_val
+
+            if obis_vals := p.get(CONF_DEFAULT_OBIS):
                 obis_expr = cg.RawExpression(
                     f"std::array<uint8_t, 6>{{{obis_vals[0]}, {obis_vals[1]}, {obis_vals[2]}, {obis_vals[3]}, {obis_vals[4]}, {obis_vals[5]}}}"
                 )

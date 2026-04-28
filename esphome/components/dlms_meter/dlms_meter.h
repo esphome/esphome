@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/components/uart/uart.h"
 
@@ -34,6 +35,11 @@
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_bearssl.h>
 #else
 #define DLMS_METER_NO_CRYPTO
+#endif
+
+namespace esphome::dlms_meter {
+
+#ifdef DLMS_METER_NO_CRYPTO
 // Fallback dummy decryptor for platforms without supported crypto (e.g., Zephyr during clang-tidy)
 class Aes128GcmDecryptorDummy : public dlms_parser::Aes128GcmDecryptor {
  public:
@@ -44,8 +50,6 @@ class Aes128GcmDecryptorDummy : public dlms_parser::Aes128GcmDecryptor {
   }
 };
 #endif
-
-namespace esphome::dlms_meter {
 
 #if __has_include(<psa/crypto.h>)
 using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorTfPsa;
