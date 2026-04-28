@@ -24,6 +24,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     # Ensure TinyUSB HID support is enabled in IDF sdkconfig so HID APIs/headers are available
     add_idf_sdkconfig_option("CONFIG_TINYUSB_HID_COUNT", 1)
+    cg.add_define("TINYUSB_KEYBOARD")
 
 
 # Action schemas
@@ -51,8 +52,8 @@ async def tinyusb_keyboard_press_to_code(config, action_id, template_arg, args):
     # Accept single-character strings or numeric HID keycodes
     key = config["key"]
     if isinstance(key, str) and len(key) == 1:
-        # single char -> pass as char template
-        key_template = await cg.templatable(key, args, str)
+        # single char -> pass as string template
+        key_template = await cg.templatable(key, args, cg.std_string)
         cg.add(var.set_key(key_template))
     else:
         # numeric
@@ -75,7 +76,7 @@ async def tinyusb_keyboard_release_to_code(config, action_id, template_arg, args
 
     key = config["key"]
     if isinstance(key, str) and len(key) == 1:
-        key_template = await cg.templatable(key, args, str)
+        key_template = await cg.templatable(key, args, cg.std_string)
         cg.add(var.set_key(key_template))
     else:
         key_template = await cg.templatable(key, args, int)

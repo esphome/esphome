@@ -26,11 +26,9 @@ void TinyUSB::setup() {
       .string_count = SIZE,
   };
 
-  // NOTE: Temporary/full-stop measure:
+#ifdef TINYUSB_KEYBOARD
   // esp_tinyusb requires a valid full-speed configuration descriptor when HID is enabled.
-  // For now we provide a minimal keyboard HID configuration descriptor here so the
-  // driver can be installed. This is a stop-gap; a proper descriptor-builder that
-  // aggregates interface fragments from components should replace this later.
+  // This is a minimal keyboard HID configuration descriptor written by AI.
   static const uint8_t fs_configuration_descriptor[] = {
       /* Configuration Descriptor (9) */
       0x09,       /* bLength */
@@ -71,7 +69,8 @@ void TinyUSB::setup() {
       0x0A        /* bInterval = 10 ms */
   };
 
-  this->tusb_cfg_.configuration_descriptor = fs_configuration_descriptor;
+  this->tusb_cfg_.descriptor.full_speed_config = fs_configuration_descriptor;
+#endif  // TINYUSB_KEYBOARD
 
   // Defense-in-depth: esp_tinyusb's tinyusb_descriptors_set() fails with
   // ESP_ERR_INVALID_ARG when no configuration descriptor is provided and
