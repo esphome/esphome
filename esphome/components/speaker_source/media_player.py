@@ -17,7 +17,6 @@ from esphome.const import (
     CONF_SPEAKER,
 )
 from esphome.core import ID
-from esphome.core.entity_helpers import inherit_property_from
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
@@ -65,53 +64,9 @@ SetPlaylistDelayAction = speaker_source_ns.class_(
 )
 
 
-FORMAT_MAPPING = {
-    "FLAC": "flac",
-    "MP3": "mp3",
-    "OPUS": "opus",
-    "WAV": "wav",
-}
-
-
-# Returns a media_player.MediaPlayerSupportedFormat struct with the configured
-# format, sample rate, number of channels, purpose, and bytes per sample
-def _get_supported_format_struct(pipeline: ConfigType, purpose: MockObj):
-    args = [
-        media_player.MediaPlayerSupportedFormat,
-    ]
-
-    args.append(("format", FORMAT_MAPPING[pipeline[CONF_FORMAT]]))
-
-    args.append(("sample_rate", pipeline[CONF_SAMPLE_RATE]))
-    args.append(("num_channels", pipeline[CONF_NUM_CHANNELS]))
-    args.append(("purpose", purpose))
-
-    # Omit sample_bytes for MP3: ffmpeg transcoding in Home Assistant fails
-    # if the number of bytes per sample is specified for MP3.
-    if pipeline[CONF_FORMAT] != "MP3":
-        args.append(("sample_bytes", 2))
-
-    return cg.StructInitializer(*args)
-
-
-def _validate_pipeline(config: ConfigType) -> ConfigType:
-    # Inherit settings from speaker if not manually set
-    inherit_property_from(CONF_NUM_CHANNELS, CONF_SPEAKER)(config)
-    inherit_property_from(CONF_SAMPLE_RATE, CONF_SPEAKER)(config)
-
-    # Opus only supports 48 kHz
-    if config.get(CONF_FORMAT) == "OPUS" and config.get(CONF_SAMPLE_RATE) != 48000:
-        raise cv.Invalid("Opus only supports a sample rate of 48000 Hz")
-
-    audio.final_validate_audio_schema(
-        "speaker_source media_player",
-        audio_device=CONF_SPEAKER,
-        bits_per_sample=16,
-        channels=config.get(CONF_NUM_CHANNELS),
-        sample_rate=config.get(CONF_SAMPLE_RATE),
-    )(config)
-
-    return config
+_validate_pipeline = media_player.validate_preferred_format(
+    "speaker_source media_player", CONF_SPEAKER
+)
 
 
 PIPELINE_SCHEMA = cv.Schema(
@@ -198,31 +153,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate_codecs(config: ConfigType) -> ConfigType:
-    # "NONE" means the pipeline accepts any format at runtime, so all optional codecs must be available.
-    # When a specific format is set, only that codec is requested.
-    needed_formats: set[str] = set()
-    need_all = False
-
-    for pipeline_key in (CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE):
-        if pipeline := config.get(pipeline_key):
-            fmt = pipeline[CONF_FORMAT]
-            if fmt == "NONE":
-                need_all = True
-            else:
-                needed_formats.add(fmt)
-
-    if need_all:
-        audio.request_flac_support()
-        audio.request_mp3_support()
-        audio.request_opus_support()
-    else:
-        if "FLAC" in needed_formats:
-            audio.request_flac_support()
-        if "MP3" in needed_formats:
-            audio.request_mp3_support()
-        if "OPUS" in needed_formats:
-            audio.request_opus_support()
-
+    media_player.request_codecs_for_format_configs(
+        config, [CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE]
+    )
     return config
 
 
@@ -264,7 +197,9 @@ async def to_code(config: ConfigType) -> None:
                 cg.add(
                     var.set_format(
                         pipeline_enum,
-                        _get_supported_format_struct(pipeline_config, purpose),
+                        media_player.build_supported_format_struct(
+                            pipeline_config, purpose
+                        ),
                     )
                 )
 

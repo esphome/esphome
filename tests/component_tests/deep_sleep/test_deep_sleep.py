@@ -12,7 +12,7 @@ def test_deep_sleep_setup(generate_main):
         in main_cpp
     )
     assert "new(deepsleep) deep_sleep::DeepSleepComponent();" in main_cpp
-    assert "App.register_component_(deepsleep);" in main_cpp
+    assert "App.register_component_(deepsleep, " in main_cpp
 
 
 def test_deep_sleep_sleep_duration(generate_main):
