@@ -5,6 +5,8 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_KEY
 
+CODEOWNERS = ["@frederikbolding"]
+
 CONF_MODIFIERS = "modifiers"
 CONF_USAGE = "usage"
 
