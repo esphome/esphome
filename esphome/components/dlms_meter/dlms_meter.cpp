@@ -5,7 +5,7 @@
 
 namespace esphome::dlms_meter {
 
-static constexpr auto &TAG = "dlms_meter";
+static const char *const TAG = "dlms_meter";
 static void log_callback(dlms_parser::LogLevel level, const char *fmt, va_list args) {
   std::array<char, 256> buf;
   vsnprintf(buf.data(), buf.size(), fmt, args);
