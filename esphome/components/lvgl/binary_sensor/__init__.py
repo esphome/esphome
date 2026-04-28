@@ -8,7 +8,7 @@ from esphome.const import CONF_STATE
 
 from ..defines import CONF_WIDGET, LvConstant
 from ..lvcode import EVENT_ARG, UPDATE_EVENT, LambdaContext, LvContext, lvgl_static
-from ..types import LV_EVENT, lv_pseudo_button_t
+from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t
 from ..widgets import Widget, get_widgets, wait_for_widgets
 
 STATE_PRESSED = "PRESSED"
@@ -37,7 +37,7 @@ async def to_code(config):
     check_expr = widget.has_state(state)
     events = (
         [LV_EVENT.PRESSED, LV_EVENT.RELEASED]
-        if str(state) == str(LV_EVENT.PRESSED)
+        if str(state) == str(LV_STATE.PRESSED)
         else [LV_EVENT.VALUE_CHANGED, UPDATE_EVENT]
     )
     async with LambdaContext(EVENT_ARG) as pressed_ctx:
