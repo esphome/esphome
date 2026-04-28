@@ -3,8 +3,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/wake.h"
 #include <zephyr/sys/poweroff.h>
-#include <zephyr/stats/stats.h>
-#include <zephyr/pm/pm.h>
 
 namespace esphome::deep_sleep {
 
