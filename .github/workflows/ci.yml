@@ -441,6 +441,11 @@ jobs:
           mkdir -p .temp
           pio run --list-targets -e esp32-idf-tidy
 
+      - name: Install clang-tidy
+        run: |
+          . venv/bin/activate
+          pip install "$(grep -E '^clang-tidy==' requirements_dev.txt | awk '{print $1}')"
+
       - name: Check if full clang-tidy scan needed
         id: check_full_scan
         run: |
@@ -512,6 +517,11 @@ jobs:
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
           echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+
+      - name: Install clang-tidy
+        run: |
+          . venv/bin/activate
+          pip install "$(grep -E '^clang-tidy==' requirements_dev.txt | awk '{print $1}')"
 
       - name: Check if full clang-tidy scan needed
         id: check_full_scan
@@ -601,6 +611,11 @@ jobs:
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
           echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+
+      - name: Install clang-tidy
+        run: |
+          . venv/bin/activate
+          pip install "$(grep -E '^clang-tidy==' requirements_dev.txt | awk '{print $1}')"
 
       - name: Check if full clang-tidy scan needed
         id: check_full_scan
