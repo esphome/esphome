@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import json
 import logging
 import os
@@ -9,7 +8,7 @@ import sys
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
-from esphome.util import run_external_process
+from esphome.util import FlashImage, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -236,12 +235,6 @@ def process_stacktrace(config, line, backtrace_state):
             _decode_pc(config, addr.group())
 
     return backtrace_state
-
-
-@dataclass
-class FlashImage:
-    path: Path
-    offset: str
 
 
 class IDEData:

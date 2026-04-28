@@ -63,6 +63,7 @@ from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
 from esphome.util import (
     PICOTOOL_PACKAGE,
+    FlashImage,
     detect_rp2040_bootsel,
     get_picotool_path,
     get_serial_ports,
@@ -833,23 +834,17 @@ def upload_using_esptool(
     )
 
     if file is not None:
-        flash_images = [platformio_api.FlashImage(path=file, offset="0x0")]
+        flash_images = [FlashImage(path=file, offset="0x0")]
     elif CORE.using_native_idf:
         from esphome.espidf import api
 
-        flash_images = [
-            platformio_api.FlashImage(
-                path=api.get_factory_firmware_path(), offset="0x0"
-            )
-        ]
+        flash_images = [FlashImage(path=api.get_factory_firmware_path(), offset="0x0")]
     else:
         idedata = platformio_api.get_idedata(config)
 
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
         flash_images = [
-            platformio_api.FlashImage(
-                path=idedata.firmware_bin_path, offset=firmware_offset
-            ),
+            FlashImage(path=idedata.firmware_bin_path, offset=firmware_offset),
         ]
         for image in idedata.extra_flash_images:
             if not image.path.is_file():
