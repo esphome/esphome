@@ -13,7 +13,7 @@ namespace esphome {
 K_SEM_DEFINE(esphome_wake_sem, 0, 1);
 
 // === Wake-requested flag storage ===
-// Zephyr/NRF52 is ESPHOME_THREAD_SINGLE.
+// NRF52/Zephyr is always ESPHOME_THREAD_SINGLE.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 volatile uint8_t g_wake_requested = 0;
 
