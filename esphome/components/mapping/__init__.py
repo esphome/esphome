@@ -1,11 +1,17 @@
+from collections.abc import Callable
 import difflib
 
 import esphome.codegen as cg
 from esphome.components.const import KEY_METADATA
 import esphome.config_validation as cv
 from esphome.const import CONF_FROM, CONF_ID, CONF_TO
-from esphome.core import CORE
-from esphome.cpp_generator import MockObj, VariableDeclarationExpression, add_global
+from esphome.core import CORE, ID
+from esphome.cpp_generator import (
+    MockObj,
+    MockObjClass,
+    VariableDeclarationExpression,
+    add_global,
+)
 from esphome.loader import get_component
 
 CODEOWNERS = ["@clydebarrow"]
@@ -25,7 +31,9 @@ class IndexType:
     Represents a type of index in a map.
     """
 
-    def __init__(self, validator, data_type, conversion=None):
+    def __init__(
+        self, validator: Callable, data_type: MockObj, conversion: Callable = None
+    ) -> None:
         self.validator = validator
         self.data_type = data_type
         self.conversion = conversion
@@ -47,7 +55,7 @@ INDEX_TYPES = {
 
 
 class MappingMetaData:
-    def __init__(self, from_: IndexType, to_: IndexType):
+    def __init__(self, from_: IndexType, to_: IndexType) -> None:
         self.from_ = from_
         self.to_ = to_
 
@@ -74,7 +82,7 @@ BASE_SCHEMA = cv.Schema(
 )
 
 
-def get_object_type(to_):
+def get_object_type(to_) -> MockObjClass | None:
     """
     Get the object type from a string. Possible formats:
        xxx The name of a component which defines INSTANCE_TYPE
@@ -106,11 +114,11 @@ def get_mapping_metadata(mapping_id: str) -> MappingMetaData:
 
 
 def add_metadata(
-    mapping_id: str | MockObj,
+    mapping_id: ID,
     from_: IndexType,
     to_: IndexType,
-):
-    get_all_mapping_metadata()[str(mapping_id)] = MappingMetaData(from_, to_)
+) -> None:
+    get_all_mapping_metadata()[mapping_id.id] = MappingMetaData(from_, to_)
 
 
 def map_schema(config):
