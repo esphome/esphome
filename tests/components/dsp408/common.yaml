@@ -1,0 +1,107 @@
+usb_host:
+
+dsp408:
+  id: my_dsp
+
+text_sensor:
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: MODEL
+    name: "DSP-408 Model"
+
+number:
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: MASTER_VOLUME
+    name: "Master Volume"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_VOLUME
+    channel: 0
+    name: "Ch1 Volume"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_DELAY
+    channel: 0
+    name: "Ch1 Delay"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_HPF_FREQ
+    channel: 0
+    name: "Ch1 HPF"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_LPF_FREQ
+    channel: 0
+    name: "Ch1 LPF"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_COMP_ATTACK
+    channel: 0
+    name: "Ch1 Comp Attack"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_COMP_RELEASE
+    channel: 0
+    name: "Ch1 Comp Release"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_COMP_THRESHOLD
+    channel: 0
+    name: "Ch1 Comp Threshold"
+
+switch:
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: MASTER_MUTE
+    name: "Master Mute"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_MUTE
+    channel: 0
+    name: "Ch1 Mute"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_POLAR
+    channel: 0
+    name: "Ch1 Polar"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: INPUT_POLAR
+    channel: 0
+    name: "Input 1 Polar"
+
+select:
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_HPF_FILTER
+    channel: 0
+    name: "Ch1 HPF Type"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_HPF_SLOPE
+    channel: 0
+    name: "Ch1 HPF Slope"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_LPF_FILTER
+    channel: 0
+    name: "Ch1 LPF Type"
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_LPF_SLOPE
+    channel: 0
+    name: "Ch1 LPF Slope"
+
+text:
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: PRESET_NAME
+    name: "Preset Name"
+    mode: text
+  - platform: dsp408
+    dsp408_id: my_dsp
+    kind: CHANNEL_NAME
+    channel: 0
+    name: "Ch1 Name"
+    mode: text
