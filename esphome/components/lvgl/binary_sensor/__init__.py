@@ -34,11 +34,12 @@ async def to_code(config):
     assert isinstance(widget, Widget)
     state = await BS_STATE.process(config[CONF_STATE])
     await wait_for_widgets()
-    check_expr = widget.has_state(state)
-    async with LambdaContext(EVENT_ARG) as pressed_ctx:
-        pressed_ctx.add(sensor.publish_state(check_expr))
+    is_pressed = str(state) == str(LV_STATE.PRESSED)
+    test_expr = widget.is_pressed() if is_pressed else widget.is_checked()
+    async with LambdaContext(EVENT_ARG) as test_ctx:
+        test_ctx.add(sensor.publish_state(test_expr))
     async with LvContext() as ctx:
-        ctx.add(sensor.publish_initial_state(check_expr))
+        ctx.add(sensor.publish_initial_state(test_expr))
         if str(state) == str(LV_STATE.PRESSED):
             events = [LV_EVENT.PRESSED, LV_EVENT.RELEASED]
             widget.add_flag(LV_OBJ_FLAG.CLICKABLE)
@@ -47,7 +48,7 @@ async def to_code(config):
         ctx.add(
             lvgl_static.add_event_cb(
                 widget.obj,
-                await pressed_ctx.get_lambda(),
+                await test_ctx.get_lambda(),
                 *events,
             )
         )
