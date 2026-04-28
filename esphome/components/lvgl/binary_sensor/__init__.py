@@ -11,18 +11,18 @@ from ..lvcode import EVENT_ARG, UPDATE_EVENT, LambdaContext, LvContext, lvgl_sta
 from ..types import LV_EVENT, lv_pseudo_button_t
 from ..widgets import Widget, get_widgets, wait_for_widgets
 
-CONF_PRESSED = "pressed"
-CONF_CHECKED = "checked"
+STATE_PRESSED = "PRESSED"
+STATE_CHECKED = "CHECKED"
 
 BS_STATE = LvConstant(
     "LV_STATE_",
-    CONF_PRESSED,
-    CONF_CHECKED,
+    STATE_PRESSED,
+    STATE_CHECKED,
 )
 CONFIG_SCHEMA = binary_sensor_schema(BinarySensor).extend(
     {
         cv.Required(CONF_WIDGET): cv.use_id(lv_pseudo_button_t),
-        cv.Optional(CONF_STATE, default=CONF_PRESSED): BS_STATE.one_of,
+        cv.Optional(CONF_STATE, default=STATE_PRESSED): BS_STATE.one_of,
     }
 )
 
@@ -32,7 +32,7 @@ async def to_code(config):
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
     assert isinstance(widget, Widget)
-    state = BS_STATE.process(config[CONF_STATE])
+    state = await BS_STATE.process(config[CONF_STATE])
     await wait_for_widgets()
     check_expr = widget.has_state(state)
     events = (
