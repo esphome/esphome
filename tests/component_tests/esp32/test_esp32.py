@@ -232,3 +232,14 @@ def test_execute_from_psram_disabled_sdkconfig(
     assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
     assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
     assert "CONFIG_SPIRAM_XIP_FROM_PSRAM" not in sdkconfig
+
+
+def test_platformio_idf_enables_reproducible_build(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test PlatformIO ESP-IDF builds enable reproducible app metadata."""
+    generate_main(component_config_path("reproducible_build.yaml"))
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True

@@ -109,6 +109,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
     setup_unit_of_measurement,
@@ -982,7 +983,7 @@ async def setup_sensor_core_(var, config):
 async def register_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_sensor(var))
+    queue_entity_register("sensor", config)
     CORE.register_platform_component("sensor", var)
     await setup_sensor_core_(var, config)
 
