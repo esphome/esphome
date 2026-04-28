@@ -175,4 +175,6 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    cg.add_library("dlms_parser", None, "https://github.com/esphome-libs/dlms_parser")
+    cg.add_library(
+        "dlms_parser", "v1.0.0", "https://github.com/esphome-libs/dlms_parser"
+    )
