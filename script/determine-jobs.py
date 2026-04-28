@@ -402,8 +402,11 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     Benchmarks run when any of the following conditions are met:
 
     1. Core C++ files changed (esphome/core/*)
-    2. A directly changed component has benchmark files (no dependency expansion)
-    3. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
+    2. The host platform changed (esphome/components/host/*) — benchmarks
+       are built and run on the host platform, so its implementations of
+       ``millis()``/``micros()``/etc. affect every benchmark
+    3. A directly changed component has benchmark files (no dependency expansion)
+    4. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
        script/build_helpers.py, script/setup_codspeed_lib.py)
 
     Unlike unit tests, benchmarks do NOT expand to dependent components.
@@ -418,6 +421,10 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     """
     files = changed_files(branch)
     if core_changed(files):
+        return True
+
+    # Host platform supplies the runtime that benchmarks execute on
+    if any(f.startswith("esphome/components/host/") for f in files):
         return True
 
     # Check if benchmark infrastructure changed

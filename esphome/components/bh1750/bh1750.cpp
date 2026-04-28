@@ -154,7 +154,7 @@ void BH1750Sensor::loop() {
         break;
       }
 
-      ESP_LOGD(TAG, "'%s': Illuminance=%.1flx", this->get_name().c_str(), lx);
+      ESP_LOGV(TAG, "'%s': Illuminance=%.1flx", this->get_name().c_str(), lx);
       this->status_clear_warning();
       this->publish_state(lx);
       this->state_ = IDLE;

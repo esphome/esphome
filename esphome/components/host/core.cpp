@@ -8,7 +8,6 @@
 #include <csignal>
 #include <sched.h>
 #include <time.h>
-#include <cmath>
 #include <cstdlib>
 
 namespace {
@@ -22,9 +21,7 @@ void HOT yield() { ::sched_yield(); }
 uint32_t IRAM_ATTR HOT millis() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
-  time_t seconds = spec.tv_sec;
-  uint32_t ms = round(spec.tv_nsec / 1e6);
-  return ((uint32_t) seconds) * 1000U + ms;
+  return static_cast<uint32_t>(spec.tv_sec * 1000ULL + spec.tv_nsec / 1000000);
 }
 uint64_t millis_64() {
   struct timespec spec;
@@ -43,9 +40,7 @@ void HOT delay(uint32_t ms) {
 uint32_t IRAM_ATTR HOT micros() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
-  time_t seconds = spec.tv_sec;
-  uint32_t us = round(spec.tv_nsec / 1e3);
-  return ((uint32_t) seconds) * 1000000U + us;
+  return static_cast<uint32_t>(spec.tv_sec * 1000000ULL + spec.tv_nsec / 1000);
 }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
   struct timespec ts;
