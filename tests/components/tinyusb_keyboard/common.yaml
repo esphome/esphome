@@ -1,0 +1,39 @@
+tinyusb:
+
+tinyusb_keyboard:
+  id: kb
+
+binary_sensor:
+  - platform: gpio
+    name: "Button"
+    pin: 12
+    on_press:
+      - tinyusb_keyboard.press:
+          id: kb
+          key: "a"
+    on_release:
+      - tinyusb_keyboard.release:
+          id: kb
+
+  - platform: gpio
+    pin: 13
+    name: "Shift + H Button"
+    on_press:
+      - tinyusb_keyboard.press:
+          id: kb
+          key: "h"
+          modifiers: 0x02  # Left Shift
+    on_release:
+      - tinyusb_keyboard.release:
+          id: kb
+
+  - platform: gpio
+    pin: 14
+    name: "Volume Up Button"
+    on_press:
+      - tinyusb_keyboard.media_press:
+          id: kb
+          usage: 0xE9  # Volume Up
+    on_release:
+      - tinyusb_keyboard.media_release:
+          id: kb
