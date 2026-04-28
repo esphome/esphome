@@ -40,7 +40,7 @@ void WatchdogManager::set_timeout_(uint32_t timeout_ms) {
 #ifdef USE_ESP32
   esp_task_wdt_config_t wdt_config = {
       .timeout_ms = timeout_ms,
-      .idle_core_mask = (1 << SOC_CPU_CORES_NUM) - 1,
+      .idle_core_mask = (1 << CONFIG_FREERTOS_NUMBER_OF_CORES) - 1,
       .trigger_panic = true,
   };
   esp_task_wdt_reconfigure(&wdt_config);
