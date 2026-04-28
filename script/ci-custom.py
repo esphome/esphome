@@ -512,13 +512,24 @@ def lint_no_std_string_view(fname, match):
 
 
 @lint_re_check(
-    r"(?:from\s+esphome\.components\.const\s+import|"
-    r"from\s+esphome\.components\s+import\s+(?:[^#\n]*[\s,])?const(?:[\s,]|$)|"
-    r"import\s+esphome\.components\.const)",
+    r"(?:"
+    # `from esphome.components.const import ...`
+    r"from\s+esphome\.components\.const\s+import"
+    r"|"
+    # `import esphome.components.const` (with optional `as` alias)
+    r"import\s+esphome\.components\.const\b"
+    r"|"
+    # `from esphome.components import [(] ... const ... [)]`
+    # Handles parenthesized + multiline import lists by allowing newlines inside
+    # the parens via [^)]*. Single-line form falls back to the [^#\n]* branch.
+    r"from\s+esphome\.components\s+import\s*"
+    r"(?:\([^)]*\bconst\b[^)]*\)|(?:[^#\n]*[\s,])?\bconst\b)"
+    r")",
     include=["*.py"],
     exclude=[
         "esphome/components/*",
         "tests/*",
+        "script/ci-custom.py",
     ],
 )
 def lint_no_components_const_outside_components(fname, match):
@@ -527,8 +538,12 @@ def lint_no_components_const_outside_components(fname, match):
         f"to be shared only between components in {highlight('esphome/components/')}. "
         f"Code outside this folder must not import from "
         f"{highlight('esphome.components.const')}.\n"
-        f"If the constant is needed outside of {highlight('esphome/components/')}, "
-        f"please move it to {highlight('esphome/const.py')} instead."
+        f"For core code, use {highlight('esphome/const.py')} instead. Note that "
+        f"{highlight('esphome/const.py')} is frozen against new {highlight('CONF_')} "
+        f"constants (see {highlight('CONST_PY_MAX_CONF')} / "
+        f"{highlight('lint_const_py_frozen')}) — non-CONF_ core constants can be added "
+        f"there directly; CONF_ constants used only by components belong in "
+        f"{highlight('esphome/components/const/__init__.py')}."
     )
 
 
