@@ -165,7 +165,7 @@ void DlmsMeterComponent::process_frame_() {
   if (this->bytes_accumulated_ == 0)
     return;
 
-  ESP_LOGD(TAG, "Processing frame of size: %zu bytes", this->bytes_accumulated_);
+  ESP_LOGV(TAG, "Processing frame of size: %zu bytes", this->bytes_accumulated_);
 
   auto callback = [this](const char *obis_code, float float_val, const char *str_val, bool is_numeric) {
     this->on_data_(obis_code, float_val, str_val, is_numeric);
