@@ -12,7 +12,6 @@ from typing import TypeVar
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
 from esphome import git, yaml_util
-from esphome.components.const import CONF_GENERATED
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, Library
 from esphome.espidf.framework import (
@@ -54,6 +53,7 @@ SRC_FILE_EXTENSIONS = [
 ]
 
 ESP32_PLATFORM = "espressif32"
+CONF_GENERATED = "generated"
 
 #
 # Constants for workarounds
