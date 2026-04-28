@@ -1666,7 +1666,7 @@ template<typename... Ts> struct Callback<void(Ts...)> {
   void *ctx_{nullptr};
 
   /// Invoke the callback. Only valid on Callbacks created via create(), never on default-constructed instances.
-  void call(Ts... args) const { this->fn_(this->ctx_, std::move(args)...); }
+  void call(Ts... args) const { this->fn_(this->ctx_, std::forward<Ts>(args)...); }
 
   /// Create from any callable. Small trivially-copyable callables (like [this] lambdas)
   /// are stored inline in the ctx pointer without heap allocation.
