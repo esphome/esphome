@@ -864,30 +864,6 @@ void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_en
 }
 #endif  // USE_LVGL_SCALE
 
-#ifdef USE_LVGL_GRADIENT
-/**
- *
- * @param dsc The gradient descriptor containing the color stopsT
- * @param pos The current position to calculate the color for
- * @return The color for the given position
- */
-
-lv_color_t lv_grad_calculate_color(lv_grad_dsc_t *dsc, int32_t pos) {
-  if (pos <= 0)
-    return dsc->stops[0].color;
-  if (pos >= 255)
-    return dsc->stops[dsc->stops_count - 1].color;
-  int i = 0;
-  while (i < dsc->stops_count && dsc->stops[i].frac < pos)
-    i++;
-  auto *stop1 = &dsc->stops[i - 1];
-  auto *stop2 = &dsc->stops[i];
-  int32_t range = stop2->frac - stop1->frac;
-  int32_t offset = pos - stop1->frac;
-  return lv_color_mix(stop2->color, stop1->color, range == 0 ? 0 : (offset * 255) / range);
-}
-#endif
-
 static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *obj) {
   LV_TRACE_OBJ_CREATE("begin");
   LV_UNUSED(class_p);
