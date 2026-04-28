@@ -205,7 +205,9 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
     } else {
       // For delays with arguments, capture by value to preserve argument values
       // Arguments must be copied because original references may be invalid after delay
-      auto f = [this, x...]() { this->play_next_(x...); };
+      // `mutable` is required so captured copies of non-const reference args (e.g. std::string&)
+      // are passed as non-const lvalues to play_next_(const Ts&...) where Ts may be `T&`
+      auto f = [this, x...]() mutable { this->play_next_(x...); };
       App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL,
                                       nullptr, static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION),
                                       this->delay_.value(x...), std::move(f),

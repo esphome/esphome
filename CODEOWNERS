@@ -56,6 +56,7 @@ esphome/components/audio_adc/* @kbx81
 esphome/components/audio_dac/* @kbx81
 esphome/components/audio_file/* @kahrendt
 esphome/components/audio_file/media_source/* @kahrendt
+esphome/components/audio_http/* @kahrendt
 esphome/components/axs15231/* @clydebarrow
 esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
@@ -404,6 +405,7 @@ esphome/components/qmp6988/* @andrewpc
 esphome/components/qr_code/* @wjtje
 esphome/components/qspi_dbi/* @clydebarrow
 esphome/components/qwiic_pir/* @kahrendt
+esphome/components/radio_frequency/* @kbx81
 esphome/components/radon_eye_ble/* @jeffeb3
 esphome/components/radon_eye_rd200/* @jeffeb3
 esphome/components/rc522/* @glmnet
@@ -439,6 +441,11 @@ esphome/components/sen0321/* @notjj
 esphome/components/sen21231/* @shreyaskarnik
 esphome/components/sen5x/* @martgras
 esphome/components/sen6x/* @martgras @mebner86 @mikelawrence @tuct
+esphome/components/sendspin/* @kahrendt
+esphome/components/sendspin/media_player/* @kahrendt
+esphome/components/sendspin/media_source/* @kahrendt
+esphome/components/sendspin/sensor/* @kahrendt
+esphome/components/sendspin/text_sensor/* @kahrendt
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
 esphome/components/serial_proxy/* @kbx81
@@ -600,6 +607,6 @@ esphome/components/xxtea/* @clydebarrow
 esphome/components/zephyr/* @tomaszduda23
 esphome/components/zephyr_mcumgr/ota/* @tomaszduda23
 esphome/components/zhlt01/* @cfeenstra1024
-esphome/components/zigbee/* @tomaszduda23
+esphome/components/zigbee/* @luar123 @tomaszduda23
 esphome/components/zio_ultrasonic/* @kahrendt
 esphome/components/zwave_proxy/* @kbx81

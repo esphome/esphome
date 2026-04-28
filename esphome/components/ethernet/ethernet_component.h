@@ -221,7 +221,7 @@ class EthernetComponent final : public Component {
   int reset_pin_{-1};
   int phy_addr_spi_{-1};
   int clock_speed_;
-  spi_host_device_t interface_{SPI3_HOST};
+  spi_host_device_t interface_{SPI2_HOST};
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   uint32_t polling_interval_{0};
 #endif
