@@ -4,15 +4,25 @@ from esphome.components.binary_sensor import (
     new_binary_sensor,
 )
 import esphome.config_validation as cv
+from esphome.const import CONF_STATE
 
-from ..defines import CONF_WIDGET
-from ..lvcode import EVENT_ARG, LambdaContext, LvContext, lvgl_static
+from ..defines import CONF_WIDGET, LvConstant
+from ..lvcode import EVENT_ARG, UPDATE_EVENT, LambdaContext, LvContext, lvgl_static
 from ..types import LV_EVENT, lv_pseudo_button_t
 from ..widgets import Widget, get_widgets, wait_for_widgets
 
+CONF_PRESSED = "pressed"
+CONF_CHECKED = "checked"
+
+BS_STATE = LvConstant(
+    "LV_STATE_",
+    CONF_PRESSED,
+    CONF_CHECKED,
+)
 CONFIG_SCHEMA = binary_sensor_schema(BinarySensor).extend(
     {
         cv.Required(CONF_WIDGET): cv.use_id(lv_pseudo_button_t),
+        cv.Optional(CONF_STATE, default=CONF_PRESSED): BS_STATE.one_of,
     }
 )
 
@@ -22,16 +32,22 @@ async def to_code(config):
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
     assert isinstance(widget, Widget)
+    state = BS_STATE.process(config[CONF_STATE])
     await wait_for_widgets()
+    check_expr = widget.has_state(state)
+    events = (
+        [LV_EVENT.PRESSED, LV_EVENT.RELEASED]
+        if str(state) == str(LV_EVENT.PRESSED)
+        else [LV_EVENT.VALUE_CHANGED, UPDATE_EVENT]
+    )
     async with LambdaContext(EVENT_ARG) as pressed_ctx:
-        pressed_ctx.add(sensor.publish_state(widget.is_pressed()))
+        pressed_ctx.add(sensor.publish_state(check_expr))
     async with LvContext() as ctx:
-        ctx.add(sensor.publish_initial_state(widget.is_pressed()))
+        ctx.add(sensor.publish_initial_state(check_expr))
         ctx.add(
             lvgl_static.add_event_cb(
                 widget.obj,
                 await pressed_ctx.get_lambda(),
-                LV_EVENT.PRESSED,
-                LV_EVENT.RELEASED,
+                *events,
             )
         )
