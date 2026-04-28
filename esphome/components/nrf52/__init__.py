@@ -149,7 +149,7 @@ _DFU_SCHEMA = cv.Schema(
 )
 
 
-def _dfu_schema(value):
+def _dfu_schema(value: bool | ConfigType) -> ConfigType:
     if isinstance(value, bool):
         if not value:
             raise cv.Invalid("Use 'dfu: true' or specify a configuration dict")
