@@ -1,3 +1,5 @@
+from typing import TypeAlias
+
 import esphome.codegen as cg
 from esphome.components import binary_sensor, uart
 import esphome.config_validation as cv
@@ -13,8 +15,11 @@ CONF_HUB_ID = "hub_id"
 
 UARTBinarySensor = uart_ns.class_("UARTBinarySensor", uart.UARTDevice, cg.Component)
 
+_Matcher: TypeAlias = tuple[cg.MockObj, cg.MockObj, int]
+_HubEntry: TypeAlias = tuple[cg.MockObj, list[_Matcher]]
 
-def _get_hubs() -> dict:  # uart_id -> (hub, matchers)
+
+def _get_hubs() -> dict[ID, _HubEntry]:
     return CORE.data.setdefault(DOMAIN, {})
 
 
