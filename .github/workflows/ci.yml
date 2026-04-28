@@ -108,6 +108,34 @@ jobs:
           script/generate-esp32-boards.py --check
           script/generate-rp2040-boards.py --check
 
+  import-time:
+    name: Check import esphome.__main__ time
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.import-time == 'true'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Check import time against budget and write waterfall HAR
+        run: |
+          . venv/bin/activate
+          script/check_import_time.py --check --har importtime.har
+      - name: Upload waterfall HAR
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: import-time-waterfall
+          path: importtime.har
+          if-no-files-found: ignore
+          retention-days: 14
+
   pytest:
     name: Run pytest
     strategy:
@@ -176,6 +204,7 @@ jobs:
       clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
       clang-tidy-mode: ${{ steps.determine.outputs.clang-tidy-mode }}
       python-linters: ${{ steps.determine.outputs.python-linters }}
+      import-time: ${{ steps.determine.outputs.import-time }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
@@ -219,6 +248,7 @@ jobs:
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
           echo "clang-tidy-mode=$(echo "$output" | jq -r '.clang_tidy_mode')" >> $GITHUB_OUTPUT
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
+          echo "import-time=$(echo "$output" | jq -r '.import_time')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
