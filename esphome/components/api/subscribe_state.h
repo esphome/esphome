@@ -82,6 +82,9 @@ class InitialStateIterator final : public ComponentIterator {
 #ifdef USE_INFRARED
   bool on_infrared(infrared::Infrared *infrared) override { return true; };
 #endif
+#ifdef USE_RADIO_FREQUENCY
+  bool on_radio_frequency(radio_frequency::RadioFrequency *radio_frequency) override { return true; };
+#endif
 #ifdef USE_EVENT
   bool on_event(event::Event *event) override { return true; };
 #endif

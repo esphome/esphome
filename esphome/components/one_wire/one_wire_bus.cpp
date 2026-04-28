@@ -57,8 +57,11 @@ void OneWireBus::search() {
   }
 }
 
-void OneWireBus::skip() {
+bool OneWireBus::skip() {
+  if (!this->reset_())
+    return false;
   this->write8(0xCC);  // skip ROM
+  return true;
 }
 
 const LogString *OneWireBus::get_model_str(uint8_t model) {

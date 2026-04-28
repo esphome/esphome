@@ -235,11 +235,11 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   }
   target->push_back(item);
   if (target == &this->to_add_) {
-    this->to_add_count_increment_();
+    this->to_add_count_increment_locked_();
   }
 #ifndef ESPHOME_THREAD_SINGLE
   else {
-    this->defer_count_increment_();
+    this->defer_count_increment_locked_();
   }
 #endif
 }
@@ -414,8 +414,27 @@ bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
 
 optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // IMPORTANT: This method should only be called from the main thread (loop task).
-  // It performs cleanup and accesses items_[0] without holding a lock, which is only
-  // safe when called from the main thread. Other threads must not call this method.
+  // Accesses items_[0] and the fast-path empty checks without holding a lock, which
+  // is only safe from the main thread. Other threads must not call this method.
+  //
+  // Note: cleanup_() is only invoked on the items_[0] path below. The early returns
+  // skip it because they don't read items_[0], and Scheduler::call() at the top of
+  // every loop iteration already performs its own cleanup before the next sleep-
+  // duration computation happens.
+
+#ifndef ESPHOME_THREAD_SINGLE
+  // defer() items live in a separate queue that is drained at the top of every
+  // loop tick via process_defer_queue_(). If any are pending, the next loop
+  // iteration has work to do right now -- don't let the caller sleep.
+  if (!this->defer_empty_())
+    return 0;
+#else
+  // On single-threaded builds, defer() routes through set_timeout(..., 0) which
+  // stages in to_add_. process_to_add() runs at the top of every scheduler.call(),
+  // so anything in to_add_ becomes runnable on the next iteration; don't sleep.
+  if (!this->to_add_empty_())
+    return 0;
+#endif
 
   // If no items, return empty optional
   if (!this->cleanup_())
@@ -452,7 +471,7 @@ void Scheduler::full_cleanup_removed_items_() {
   this->items_.erase(this->items_.begin() + write, this->items_.end());
   // Rebuild the heap structure since items are no longer in heap order
   std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
-  this->to_remove_clear_();
+  this->to_remove_clear_locked_();
 }
 
 #ifndef ESPHOME_THREAD_SINGLE
@@ -501,7 +520,7 @@ void HOT Scheduler::process_defer_queue_slow_path_(uint32_t &now) {
 
   this->lock_.lock();
   // Reset counter and snapshot queue end under lock
-  this->defer_count_clear_();
+  this->defer_count_clear_locked_();
   size_t defer_queue_end = this->defer_queue_.size();
   if (this->defer_queue_front_ >= defer_queue_end) {
     this->lock_.unlock();
@@ -621,7 +640,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       LockGuard guard{this->lock_};
       if (is_item_removed_locked_(item)) {
         this->recycle_item_main_loop_(this->pop_raw_locked_());
-        this->to_remove_decrement_();
+        this->to_remove_decrement_locked_();
         continue;
       }
     }
@@ -630,7 +649,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
     if (is_item_removed_(item)) {
       LockGuard guard{this->lock_};
       this->recycle_item_main_loop_(this->pop_raw_locked_());
-      this->to_remove_decrement_();
+      this->to_remove_decrement_locked_();
       continue;
     }
 #endif
@@ -658,7 +677,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
 
     if (this->is_item_removed_locked_(executed_item)) {
       // We were removed/cancelled in the function call, recycle and continue
-      this->to_remove_decrement_();
+      this->to_remove_decrement_locked_();
       this->recycle_item_main_loop_(executed_item);
       continue;
     }
@@ -721,7 +740,7 @@ void HOT Scheduler::process_to_add_slow_path_() {
     std::push_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   }
   this->to_add_.clear();
-  this->to_add_count_clear_();
+  this->to_add_count_clear_locked_();
 }
 bool HOT Scheduler::cleanup_slow_path_() {
   // We must hold the lock for the entire cleanup operation because:
@@ -737,7 +756,7 @@ bool HOT Scheduler::cleanup_slow_path_() {
     SchedulerItem *item = this->items_[0];
     if (!this->is_item_removed_locked_(item))
       break;
-    this->to_remove_decrement_();
+    this->to_remove_decrement_locked_();
     this->recycle_item_main_loop_(this->pop_raw_locked_());
   }
   return !this->items_.empty();
@@ -753,6 +772,8 @@ Scheduler::SchedulerItem *HOT Scheduler::pop_raw_locked_() {
 // Helper to execute a scheduler item
 uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   App.set_current_component(item->component);
+  // Freshen so callbacks reading App.get_loop_component_start_time() see this item's dispatch time.
+  App.set_loop_component_start_time_(now);
   WarnIfComponentBlockingGuard guard{item->component, now};
   item->callback();
   uint32_t end = guard.finish();
@@ -825,7 +846,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
     size_t heap_cancelled = this->mark_matching_items_removed_locked_(this->items_, component, name_type, static_name,
                                                                       hash_or_id, type, match_retry, find_first);
     total_cancelled += heap_cancelled;
-    this->to_remove_add_(heap_cancelled);
+    this->to_remove_add_locked_(heap_cancelled);
     if (find_first && total_cancelled > 0)
       return true;
   }
