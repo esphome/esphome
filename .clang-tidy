@@ -31,6 +31,7 @@ Checks: >-
   -clang-diagnostic-delete-non-abstract-non-virtual-dtor,
   -clang-diagnostic-deprecated-declarations,
   -clang-diagnostic-ignored-optimization-argument,
+  -clang-diagnostic-missing-designated-field-initializers,
   -clang-diagnostic-missing-field-initializers,
   -clang-diagnostic-shadow-field,
   -clang-diagnostic-unused-const-variable,
