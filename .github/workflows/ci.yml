@@ -794,8 +794,8 @@ jobs:
           echo ""
 
           # Run config validation with grouping and isolation
-          #python3 script/test_build_components.py -e config -t esp32-idf -c "$components_csv" -f --isolate "$directly_changed_csv" --native-idf
-          python3 script/test_build_components.py -e config -t esp32-idf -f --native-idf
+          #python3 script/test_build_components.py -e config -t esp32-idf -c "$components_csv" -f --isolate "$directly_changed_csv" --toolchain esp-idf
+          python3 script/test_build_components.py -e config -t esp32-idf -f --toolchain esp-idf
 
           echo ""
           echo "Config validation passed! Starting compilation..."
@@ -807,8 +807,8 @@ jobs:
           echo ""
 
           # Run compilation with grouping and isolation
-          #python3 script/test_build_components.py -e config -t esp32-idf -c "$components_csv" -f --isolate "$directly_changed_csv" --native-idf
-          python3 script/test_build_components.py -e compile -t esp32-idf -f --native-idf
+          #python3 script/test_build_components.py -e config -t esp32-idf -c "$components_csv" -f --isolate "$directly_changed_csv" --toolchain esp-idf
+          python3 script/test_build_components.py -e compile -t esp32-idf -f --toolchain esp-idf
 
       - name: Save ESPHome cache
         if: github.ref == 'refs/heads/dev'

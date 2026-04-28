@@ -17,7 +17,6 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
-    KEY_NATIVE_IDF,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
@@ -28,6 +27,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
+    Toolchain,
 )
 
 # pylint: disable=unused-import
@@ -618,6 +618,8 @@ class EsphomeCore:
         # When True, skip network freshness checks for cached external files
         # (e.g. for `esphome logs`, where remote downloads aren't needed)
         self.skip_external_update: bool = False
+        # Toolchain used for building the configuration.
+        self.toolchain: Toolchain = Toolchain.PLATFORMIO
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -772,8 +774,8 @@ class EsphomeCore:
 
     @property
     def firmware_bin(self) -> Path:
-        # Check if using native ESP-IDF build (--native-idf)
-        if self.using_native_idf:
+        # Check if using ESP-IDF toolchain
+        if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
@@ -837,8 +839,8 @@ class EsphomeCore:
         return self.target_framework == "esp-idf"
 
     @property
-    def using_native_idf(self):
-        return self.data.get(KEY_NATIVE_IDF, False) and self.is_esp32
+    def using_toolchain_esp_idf(self):
+        return self.toolchain == Toolchain.ESP_IDF
 
     @property
     def using_zephyr(self):

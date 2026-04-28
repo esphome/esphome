@@ -49,12 +49,12 @@ from esphome.const import (
     CONF_TOPIC,
     ENV_NOGITIGNORE,
     KEY_CORE,
-    KEY_NATIVE_IDF,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
     SECRETS_FILES,
+    Toolchain,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
@@ -703,7 +703,7 @@ def write_cpp_file() -> int:
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
 
-    if CORE.using_native_idf:
+    if CORE.using_toolchain_esp_idf:
         from esphome.build_gen import espidf
 
         espidf.write_project()
@@ -720,7 +720,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
 
-    if CORE.using_native_idf:
+    if CORE.using_toolchain_esp_idf:
         from esphome.espidf import api
 
         rc = api.run_compile(config, CORE.verbose)
@@ -835,7 +835,7 @@ def upload_using_esptool(
 
     if file is not None:
         flash_images = [FlashImage(path=file, offset="0x0")]
-    elif CORE.using_native_idf:
+    elif CORE.using_toolchain_esp_idf:
         from esphome.espidf import api
 
         flash_images = [FlashImage(path=api.get_factory_firmware_path(), offset="0x0")]
@@ -1753,9 +1753,12 @@ def parse_args(argv):
         action="store_true",
     )
     parser_compile.add_argument(
-        "--native-idf",
-        help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
-        action="store_true",
+        "--toolchain",
+        type=Toolchain,
+        default=Toolchain.PLATFORMIO,
+        choices=list(Toolchain),
+        metavar="{" + ",".join(t.value for t in Toolchain) + "}",
+        help=f"Select toolchain for compiling (default: {Toolchain.PLATFORMIO.value}).",
     )
 
     parser_upload = subparsers.add_parser(
@@ -1844,9 +1847,12 @@ def parse_args(argv):
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
     )
     parser_run.add_argument(
-        "--native-idf",
-        help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
-        action="store_true",
+        "--toolchain",
+        type=Toolchain,
+        default=Toolchain.PLATFORMIO,
+        choices=list(Toolchain),
+        metavar="{" + ",".join(t.value for t in Toolchain) + "}",
+        help=f"Select toolchain for compiling (default: {Toolchain.PLATFORMIO.value}).",
     )
 
     parser_clean = subparsers.add_parser(
@@ -2059,11 +2065,7 @@ def run_esphome(argv):
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
-
-    # Some components use final_validation to configure themselves.
-    # The --native-idf switch must be set before read_config.
-    if hasattr(args, "native_idf"):
-        CORE.data[KEY_NATIVE_IDF] = args.native_idf
+    CORE.toolchain = args.toolchain
 
     # For logs command, skip updating external components
     skip_external = args.command == "logs"

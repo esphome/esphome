@@ -38,11 +38,11 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_NAME,
-    KEY_NATIVE_IDF,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     ThreadModel,
+    Toolchain,
     __version__,
 )
 from esphome.core import CORE, HexInt, Library
@@ -466,7 +466,7 @@ def set_core_data(config):
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         CORE.data[KEY_ESP32][KEY_IDF_VERSION] = framework_ver
     elif (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
-        if CORE.using_native_idf:
+        if CORE.using_toolchain_esp_idf:
             # Official ESP-IDF frameworks don't use extra
             idf_ver = cv.Version(idf_ver.major, idf_ver.minor, idf_ver.patch)
         CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
@@ -832,13 +832,13 @@ def _check_pio_versions(config):
     return config
 
 
-def _check_native_idf_versions(config):
+def _check_esp_idf_versions(config):
     config = _check_pio_versions(config)
     value = config[CONF_FRAMEWORK]
 
     # Remove unwanted keys if present
     for key in (CONF_SOURCE, CONF_PLATFORM_VERSION):
-        value.pop(key, None)  # remove key if exists, do nothing otherwise
+        value.pop(key, None)
 
     # Official ESP-IDF frameworks don't use extra
     version = cv.Version.parse(value[CONF_VERSION])
@@ -854,10 +854,10 @@ def _check_versions(config):
 
     # Set the native IDF key if the configuration requires it.
     if conf[CONF_NATIVE_IDF]:
-        CORE.data[KEY_NATIVE_IDF] = True
+        CORE.toolchain = Toolchain.ESP_IDF
 
-    if CORE.data.get(KEY_NATIVE_IDF, False):
-        return _check_native_idf_versions(config)
+    if CORE.using_toolchain_esp_idf:
+        return _check_esp_idf_versions(config)
     return _check_pio_versions(config)
 
 
@@ -1692,11 +1692,11 @@ async def to_code(config):
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     conf = config[CONF_FRAMEWORK]
 
-    # Check if using native ESP-IDF build (--native-idf)
-    use_platformio = not CORE.using_native_idf
+    # Check if using ESP-IDF toolchain
+    use_platformio = not CORE.using_toolchain_esp_idf
     if use_platformio:
         # Clear IDF environment variables to avoid conflicts with PlatformIO's ESP-IDF
-        # but keep them when using --native-idf for native ESP-IDF builds
+        # but keep them when using ESP-IDF toolchain
         for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
             os.environ.pop(clean_var, None)
 
@@ -2484,14 +2484,14 @@ def _write_idf_component_yml():
             if stub_path.exists():
                 rmtree(stub_path)
 
-        if CORE.using_native_idf:
+        if CORE.using_toolchain_esp_idf:
             add_idf_component(
                 name="espressif/arduino-esp32",
                 repo="https://github.com/espressif/arduino-esp32.git",
                 ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             )
 
-    if CORE.using_native_idf:
+    if CORE.using_toolchain_esp_idf:
         # Try to convert PlatformIO library to ESP-IDF components
         for name, library in CORE.platformio_libraries.items():
             # Don't process arduino libraries

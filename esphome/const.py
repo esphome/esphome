@@ -15,6 +15,13 @@ VALID_SUBSTITUTIONS_CHARACTERS = (
 ARGUMENT_HELP_DEVICE = "Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses. Use 'OTA' for resolving from MQTT, DNS or mDNS and avoiding the interactive prompt."
 
 
+class Toolchain(StrEnum):
+    """Toolchain identifiers for ESPHome."""
+
+    PLATFORMIO = "platformio"
+    ESP_IDF = "esp-idf"
+
+
 class Platform(StrEnum):
     """Platform identifiers for ESPHome."""
 
@@ -1394,7 +1401,6 @@ KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
-KEY_NATIVE_IDF = "native_idf"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""
