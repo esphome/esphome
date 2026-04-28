@@ -2065,7 +2065,8 @@ def run_esphome(argv):
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
-    CORE.toolchain = args.toolchain
+    if hasattr(args, "toolchain"):
+        CORE.toolchain = args.toolchain
 
     # For logs command, skip updating external components
     skip_external = args.command == "logs"
