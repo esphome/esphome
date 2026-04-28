@@ -17,6 +17,10 @@
 #include "esphome/core/string_ref.h"
 #include "esphome/core/version.h"
 
+#ifdef USE_ESP32
+#include <sdkconfig.h>  // for CONFIG_ESP_TASK_WDT_TIMEOUT_S (drives WDT_FEED_INTERVAL_MS)
+#endif
+
 #ifdef USE_DEVICES
 #include "esphome/core/device.h"
 #endif
@@ -24,9 +28,6 @@
 #include "esphome/core/area.h"
 #endif
 
-#ifdef USE_LWIP_FAST_SELECT
-#include "esphome/core/lwip_fast_select.h"
-#endif
 #ifdef USE_RUNTIME_STATS
 #include "esphome/components/runtime_stats/runtime_stats.h"
 #endif
@@ -102,10 +103,19 @@ class Application {
   void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
 
-// Entity register methods (generated from entity_types.h)
+// Entity register methods (generated from entity_types.h).
+// Each entity type gets two overloads:
+//   - register_<entity>(obj)                              — bare push_back
+//   - register_<entity>(obj, name, hash, fields)          — configure_entity_ + push_back
+// The 4-arg form lets codegen collapse `App.register_<entity>(obj); obj->configure_entity_(...);`
+// into a single call site, saving flash and a `main.cpp` line per entity.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  void register_##singular(type *obj) { this->plural##_.push_back(obj); }
+  void register_##singular(type *obj) { this->plural##_.push_back(obj); } \
+  void register_##singular(type *obj, const char *name, uint32_t object_id_hash, uint32_t entity_fields) { \
+    obj->configure_entity_(name, object_id_hash, entity_fields); \
+    this->plural##_.push_back(obj); \
+  }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
 #include "esphome/core/entity_types.h"
@@ -219,11 +229,33 @@ class Application {
   /// loops and scheduler items still feed after every op, so any op exceeding
   /// this threshold triggers a real feed naturally.
   /// Safety margins vs. platform watchdog timeouts:
-  ///   - ESP32 task WDT default (5 s): ~16x
-  ///   - ESP8266 soft WDT (~1.6 s):    ~5x  <-- floor case; any future change
-  ///                                             must keep comfortable margin here
-  ///   - ESP8266 HW WDT (~6 s):        ~20x
+  ///   - ESP32 task WDT (user-configurable):  ~5x  <-- auto-scaled below
+  ///   - ESP8266 soft WDT (~1.6 s):           ~5x  <-- floor case; any future change
+  ///                                                   must keep comfortable margin here
+  ///   - ESP8266 HW WDT (~6 s):               ~20x
+  ///   - BK72xx HW WDT (10 s):                ~5x  <-- platform override below
+#ifdef USE_BK72XX
+  // BDK busy-waits 200us per WDT reload (sctrl_dpll_delay200us). LibreTiny
+  // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:
+  // https://github.com/libretiny-eu/framework-beken-bdk/blob/44800e7451ea30fbcbd3bb6e905315de59349fee/beken378/driver/wdt/wdt.c#L75-L87
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 2000;
+#elif defined(USE_ESP32)
+  // Auto-scale to 1/5 of the configured ESP32 task WDT timeout so the safety
+  // margin stays constant when the user raises esp32.watchdog_timeout (default
+  // 5 s → 1000 ms feed; 10 s → 2000 ms; 60 s → 12000 ms). The esp32 component
+  // writes CONFIG_ESP_TASK_WDT_TIMEOUT_S into sdkconfig (range is validated
+  // to ≥ 5 s in esp32/__init__.py), giving us the value at compile time.
+  // esp_task_wdt_reset() takes a spinlock and walks the WDT task list, so
+  // each call costs tens of microseconds; longer intervals materially reduce
+  // the main-loop's wdt bucket. Component loops and scheduler items still
+  // feed after every op, so any op exceeding this threshold triggers a real
+  // feed naturally regardless of the rate-limit.
+  static_assert(CONFIG_ESP_TASK_WDT_TIMEOUT_S >= 5,
+                "CONFIG_ESP_TASK_WDT_TIMEOUT_S must be at least 5s for a safe WDT feed interval");
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000U) / 5U;
+#else
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;
+#endif
 
   /// Feed the task watchdog. Cold entry — callers without a millis()
   /// timestamp in hand. Out of line to keep call sites tiny.
@@ -345,11 +377,15 @@ class Application {
 
  protected:
   friend Component;
+  friend class Scheduler;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
   friend void ::setup();
   friend void ::original_setup();
+
+  /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
+  void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
 
   /// Walk all registered components looking for any whose component_state_
   /// has the given flag set. Used by Component::status_clear_*_slow_path_()
@@ -359,7 +395,11 @@ class Application {
 
   /// Register a component, detecting loop() override at compile time.
   /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.
-  template<typename T> void register_component_(T *comp) {
+  /// Optionally sets the component source index in the same call to avoid emitting
+  /// a separate set_component_source_() line in generated code.
+  template<typename T> void register_component_(T *comp, uint8_t source_index = 0) {
+    if (source_index != 0)
+      comp->set_component_source_(source_index);
     this->register_component_impl_(comp, HasLoopOverride<T>::value);
   }
 
@@ -422,10 +462,6 @@ class Application {
   /// the feed_wdt_with_time hot path a couple of load+branch sequences.
   void service_status_led_slow_(uint32_t time);
 #endif
-
-  /// Sleep for up to delay_ms, returning early if a wake event arrives.
-  /// Thin wrapper over the platform wake primitive in wake.h.
-  inline void ESPHOME_ALWAYS_INLINE yield_with_select_(uint32_t delay_ms);
 
   // === Member variables ordered by size to minimize padding ===
 
@@ -664,18 +700,14 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
     const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
     delay_time = std::min(until_phase, until_sched);
   }
-  this->yield_with_select_(delay_time);
+  // All platforms route loop yields through the platform wake primitive.
+  // On host this drains the loopback wake socket via select(); on FreeRTOS
+  // targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
+  esphome::internal::wakeable_delay(delay_time);
 
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
   }
-}
-
-// All platforms route loop yields through the platform wake primitive.
-// On host this drains the loopback wake socket via select(); on FreeRTOS
-// targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
-inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
-  esphome::internal::wakeable_delay(delay_ms);
 }
 
 }  // namespace esphome

@@ -1579,6 +1579,8 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 #endif
 
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
+    // Refresh is_connected() cache; loop()'s refresh ran before this transition.
+    this->update_connected_state_();
     this->num_retried_ = 0;
     this->print_connect_params_();
 
