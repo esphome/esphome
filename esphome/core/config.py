@@ -812,7 +812,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "wake/wake_host.cpp": {
             PlatformFramework.HOST_NATIVE,
         },
-        "wake/wake_generic.cpp": {
+        "wake/wake_zephyr.cpp": {
             PlatformFramework.NRF52_ZEPHYR,
         },
         # Note: lock_free_queue.h and event_pool.h are header files and don't need to be filtered

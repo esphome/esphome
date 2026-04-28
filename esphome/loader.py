@@ -9,16 +9,22 @@ import logging
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from esphome.const import SOURCE_FILE_EXTENSIONS
 from esphome.core import CORE
 from esphome.types import ConfigType
 
+if TYPE_CHECKING:
+    from esphome.cpp_generator import MockObjClass
+
 # `esphome.core.config` is imported lazily in `_lookup_module` when the
 # "esphome" pseudo-component is first resolved. It pulls in
 # `esphome.automation` and `esphome.config_validation`, which together
 # dominate `esphome.__main__` startup cost when loaded eagerly.
+# `esphome.cpp_generator` is similarly avoided at module scope; it pulls
+# in `esphome.yaml_util` and is only needed for the `MockObjClass` type
+# annotation, which is resolved lazily via `TYPE_CHECKING`.
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,7 +103,7 @@ class ComponentManifest:
         return getattr(self.module, "CODEOWNERS", [])
 
     @property
-    def instance_type(self) -> list[str]:
+    def instance_type(self) -> "MockObjClass | None":
         return getattr(self.module, "INSTANCE_TYPE", None)
 
     @property

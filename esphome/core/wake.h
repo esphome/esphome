@@ -69,6 +69,8 @@ __attribute__((always_inline)) inline bool wake_request_take() {
 #include "esphome/core/wake/wake_rp2040.h"
 #elif defined(USE_HOST)
 #include "esphome/core/wake/wake_host.h"
+#elif defined(USE_ZEPHYR)
+#include "esphome/core/wake/wake_zephyr.h"
 #else
-#include "esphome/core/wake/wake_generic.h"
+#error "wake.h: wake_loop_threadsafe() is not implemented for this platform"
 #endif

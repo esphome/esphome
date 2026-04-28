@@ -36,6 +36,10 @@ inline void ESPHOME_ALWAYS_INLINE wakeable_delay(uint32_t ms) {
   }
   if (g_main_loop_woke) {
     g_main_loop_woke = false;
+    // Yield even on the already-woken fast path so callers in tight loops
+    // (e.g. lwIP raw TCP wait_for_data_) make forward progress when ISRs
+    // keep re-setting g_main_loop_woke between iterations.
+    delay(0);
     return;
   }
   esp_delay(ms, []() { return !g_main_loop_woke; });
