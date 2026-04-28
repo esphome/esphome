@@ -1,33 +1,31 @@
 #pragma once
 
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "keyboard.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tinyusb_keyboard {
-
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+namespace esphome::tinyusb_keyboard {
 
 template<typename... Ts> class PressAction : public Action<Ts...> {
  public:
   explicit PressAction(TinyUSBKeyboard *parent) : parent_(parent) {}
 
   TEMPLATABLE_VALUE(std::string, key)
-  TEMPLATABLE_VALUE(uint32_t, key_code)
-  TEMPLATABLE_VALUE(uint32_t, modifiers)
+  TEMPLATABLE_VALUE(uint8_t, key_code)
+  TEMPLATABLE_VALUE(uint8_t, modifiers)
 
   void play(const Ts &...x) override {
     if (this->key_code_.has_value()) {
-      uint32_t code = this->key_code_.value(x...);
-      uint32_t mods = this->modifiers_.value_or(x..., 0);
-      this->parent_->press_key((uint8_t) code, (uint8_t) mods);
+      uint8_t code = this->key_code_.value(x...);
+      uint8_t mods = this->modifiers_.value_or(x..., 0);
+      this->parent_->press_key(code, mods);
       return;
     }
     if (this->key_.has_value()) {
       auto s = this->key_.value(x...);
-      uint32_t mods = this->modifiers_.value_or(x..., 0);
+      uint8_t mods = this->modifiers_.value_or(x..., 0);
       if (!s.empty()) {
         this->parent_->press_key(0x04 + (s[0] - 'a'), mods);
       }
@@ -42,22 +40,7 @@ template<typename... Ts> class ReleaseAction : public Action<Ts...> {
  public:
   explicit ReleaseAction(TinyUSBKeyboard *parent) : parent_(parent) {}
 
-  TEMPLATABLE_VALUE(std::string, key)
-  TEMPLATABLE_VALUE(uint32_t, key_code)
-
-  void play(const Ts &...x) override {
-    if (this->key_code_.has_value()) {
-      uint32_t code = this->key_code_.value(x...);
-      this->parent_->release_key((uint8_t) code);
-      return;
-    }
-    if (this->key_.has_value()) {
-      auto s = this->key_.value(x...);
-      if (!s.empty()) {
-        this->parent_->release_key(0x04 + (s[0] - 'a'));
-      }
-    }
-  }
+  void play(const Ts &...x) override { this->parent_->release_keys(); }
 
  protected:
   TinyUSBKeyboard *parent_;
@@ -67,12 +50,12 @@ template<typename... Ts> class MediaPressAction : public Action<Ts...> {
  public:
   explicit MediaPressAction(TinyUSBKeyboard *parent) : parent_(parent) {}
 
-  TEMPLATABLE_VALUE(uint32_t, usage)
+  TEMPLATABLE_VALUE(uint16_t, usage)
 
   void play(const Ts &...x) override {
     if (this->usage_.has_value()) {
-      uint32_t u = this->usage_.value(x...);
-      this->parent_->press_media((uint16_t) u);
+      uint16_t usage = this->usage_.value(x...);
+      this->parent_->press_media(usage);
     }
   }
 
@@ -84,19 +67,12 @@ template<typename... Ts> class MediaReleaseAction : public Action<Ts...> {
  public:
   explicit MediaReleaseAction(TinyUSBKeyboard *parent) : parent_(parent) {}
 
-  TEMPLATABLE_VALUE(uint32_t, usage)
-
-  void play(const Ts &...x) override {
-    if (this->usage_.has_value()) {
-      this->parent_->release_media();
-    }
-  }
+  void play(const Ts &...x) override { this->parent_->release_media(); }
 
  protected:
   TinyUSBKeyboard *parent_;
 };
 
-#endif  // defined(USE_ESP32_VARIANT_...)
+}  // namespace esphome::tinyusb_keyboard
 
-}  // namespace tinyusb_keyboard
-}  // namespace esphome
+#endif  // defined(USE_ESP32_VARIANT_...)
