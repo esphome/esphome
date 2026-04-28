@@ -123,7 +123,7 @@ int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int value);
  * @return The color for the given position
  */
 
-lv_color_t lv_grad_calculate_color(lv_grad_dsc_t *dsc, int32_t pos);
+lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos);
 #endif
 // Parent class for things that wrap an LVGL object
 class LvCompound {

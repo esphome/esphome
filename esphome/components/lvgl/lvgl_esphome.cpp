@@ -872,7 +872,7 @@ void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_en
  * @return The color for the given position
  */
 
-lv_color_t lv_grad_calculate_color(lv_grad_dsc_t *dsc, int32_t pos) {
+lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos) {
   if (dsc->stops_count == 0)
     return lv_color_black();
   if (dsc->stops_count == 1 || pos <= dsc->stops[0].frac)
