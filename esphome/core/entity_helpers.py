@@ -23,6 +23,7 @@ from esphome.core.config import (
     UNIT_OF_MEASUREMENT_MAX_LENGTH,
 )
 from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
+from esphome.cpp_types import App
 import esphome.final_validate as fv
 from esphome.helpers import cpp_string_escape, fnv1_hash_object_id, sanitize, snake_case
 from esphome.types import ConfigType, EntityMetadata
@@ -51,6 +52,12 @@ _ENTITY_CATEGORY_SHIFT = 26
 _KEY_INTERNAL = "_entity_internal"
 _KEY_DISABLED_BY_DEFAULT = "_entity_disabled_by_default"
 _KEY_ENTITY_CATEGORY = "_entity_category"
+
+# Private config key for the App.register_<method> entry point.
+# When set, finalize_entity_strings() emits a single combined call
+# `App.register_<method>(var, name, hash, packed)` instead of separate
+# `App.register_<method>(var)` and `var->configure_entity_(...)` calls.
+_KEY_REGISTER_METHOD = "_entity_register_method"
 
 # Maximum unique strings per category (8-bit index, 0 = not set)
 _MAX_DEVICE_CLASSES = 0xFF  # 255
@@ -271,11 +278,26 @@ def _describe_packed_flags(config: ConfigType, entity_category: int) -> str:
     return ", ".join(parts)
 
 
+def queue_entity_register(method_name: str, config: ConfigType) -> None:
+    """Defer ``App.register_<method_name>(var)`` emission to ``finalize_entity_strings``.
+
+    When the deferred call is emitted, it is folded with ``configure_entity_`` into
+    a single ``App.register_<method_name>(var, name, hash, packed)`` call site,
+    which removes one statement and one method dispatch per entity from the
+    generated ``main.cpp``.
+    """
+    config[_KEY_REGISTER_METHOD] = method_name
+
+
 def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
-    """Emit a single configure_entity_() call with name, hash, packed string indices, and flags.
+    """Emit the entity-registration / configure_entity_ tail.
 
     Call this at the end of each component's setup function, after
     setup_entity() and any register_device_class/register_unit_of_measurement calls.
+
+    If queue_entity_register() was called for this entity, emits one combined call
+    ``App.register_<method>(var, name, hash, packed)``. Otherwise falls back to a
+    standalone ``var->configure_entity_(name, hash, packed)``.
     """
     entity_name = config[_KEY_ENTITY_NAME]
     object_id_hash = config[_KEY_OBJECT_ID_HASH]
@@ -295,7 +317,13 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     )
     # Build inline comment describing the packed flags for readability
     comment = _describe_packed_flags(config, entity_category)
-    expr = var.configure_entity_(entity_name, object_id_hash, packed)
+    register_method = config.get(_KEY_REGISTER_METHOD)
+    if register_method is not None:
+        expr = getattr(App, f"register_{register_method}")(
+            var, entity_name, object_id_hash, packed
+        )
+    else:
+        expr = var.configure_entity_(entity_name, object_id_hash, packed)
     if comment:
         add(RawStatement(f"{expr};  // {comment}"))
     else:

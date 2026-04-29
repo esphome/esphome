@@ -1,16 +1,12 @@
 #include "deep_sleep_component.h"
 #ifdef USE_ZEPHYR
 #include "esphome/core/log.h"
+#include "esphome/core/wake.h"
 #include <zephyr/sys/poweroff.h>
-#include <zephyr/kernel.h>
-#include <zephyr/stats/stats.h>
-#include <zephyr/pm/pm.h>
 
 namespace esphome::deep_sleep {
 
 static const char *const TAG = "deep_sleep";
-
-void DeepSleepComponent::wakeup() { k_sem_give(&this->wakeup_sem_); }
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 
@@ -19,9 +15,8 @@ void DeepSleepComponent::dump_config_platform_() {}
 bool DeepSleepComponent::prepare_to_sleep_() { return true; }
 
 void DeepSleepComponent::deep_sleep_() {
-  k_timeout_t sleep_duration = K_FOREVER;
   if (this->sleep_duration_.has_value()) {
-    sleep_duration = K_USEC(*this->sleep_duration_);
+    esphome::internal::wakeable_delay(static_cast<uint32_t>(*this->sleep_duration_ / 1000));
   } else {
 #ifndef USE_ZIGBEE
     // the device can be woken up through one of the following signals:
@@ -33,11 +28,12 @@ void DeepSleepComponent::deep_sleep_() {
     //
     // The system is reset when it wakes up from System OFF mode.
     sys_poweroff();
+#else
+    esphome::internal::wakeable_delay(UINT32_MAX);
 #endif
   }
-  // It might wake up immediately if k_sem_give was called again after wake up
-  int ret = k_sem_take(&this->wakeup_sem_, sleep_duration);
-  if (ret == 0) {
+  const bool woke = esphome::wake_request_take();
+  if (woke) {
     ESP_LOGD(TAG, "Woken up by another thread");
   } else {
     ESP_LOGD(TAG, "Timeout expired (normal sleep)");
