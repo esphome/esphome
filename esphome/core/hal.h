@@ -31,10 +31,9 @@
 namespace esphome {
 
 // Cross-platform declarations. delayMicroseconds(), arch_feed_wdt(),
-// arch_get_cpu_cycle_count() vary per platform (some inline, some
-// out-of-line) so they live in hal/hal_<platform>.h.
+// arch_get_cpu_cycle_count(), arch_init() vary per platform (some inline,
+// some out-of-line) so they live in hal/hal_<platform>.h.
 void __attribute__((noreturn)) arch_restart();
-void arch_init();
 uint32_t arch_get_cpu_freq_hz();
 
 #ifndef USE_ESP8266
