@@ -588,6 +588,7 @@ void MixerSpeaker::mix_audio_samples(const int16_t *primary_buffer, audio::Audio
   }
 }
 
+// NOLINTBEGIN(bugprone-unchecked-optional-access) -- audio_stream_info_ always set before this task is created
 void MixerSpeaker::audio_mixer_task(void *params) {
   MixerSpeaker *this_mixer = static_cast<MixerSpeaker *>(params);
 
@@ -764,6 +765,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
 
   vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
+// NOLINTEND(bugprone-unchecked-optional-access)
 
 }  // namespace esphome::mixer_speaker
 
