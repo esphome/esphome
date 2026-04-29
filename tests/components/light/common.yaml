@@ -108,6 +108,10 @@ esphome:
           relative_brightness: 5%
           brightness_limits:
             max_brightness: 90%
+      - light.dim_relative:
+          id: test_monochromatic_light
+          relative_brightness: -5%
+          transition_length: 250ms
       - light.turn_on:
           id: test_addressable_transition
           brightness: 50%

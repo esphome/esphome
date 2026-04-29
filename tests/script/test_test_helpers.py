@@ -258,3 +258,161 @@ def test_load_wraps_platform_component(tmp_path: Path) -> None:
     assert key == "bthome.sensor"
     assert isinstance(installed, ComponentManifestOverride)
     assert installed.to_code is None
+
+
+# ---------------------------------------------------------------------------
+# populate_dependency_config
+# ---------------------------------------------------------------------------
+
+
+def _make_component_stub(
+    *,
+    multi_conf: bool = False,
+    is_platform_component: bool = False,
+    config_schema=None,
+) -> MagicMock:
+    stub = MagicMock()
+    stub.multi_conf = multi_conf
+    stub.is_platform_component = is_platform_component
+    stub.config_schema = config_schema
+    return stub
+
+
+def test_populate_platform_component_listed_alone_uses_list() -> None:
+    """Regression: a platform component (sensor) with no `sensor.x` siblings
+    must land as `[]` in config. Previously it was populated as a dict via
+    `schema({})`, which then crashed the sibling `domain.platform` branch
+    when later dependencies tried `config.setdefault('sensor', []).append(...)`.
+    """
+    sensor = _make_component_stub(is_platform_component=True)
+    config: dict = {}
+
+    build_helpers.populate_dependency_config(
+        config,
+        ["sensor"],
+        get_component_fn=lambda name: sensor if name == "sensor" else None,
+        register_platform_fn=lambda _: None,
+    )
+
+    assert config["sensor"] == []
+
+
+def test_populate_platform_component_then_platform_entry() -> None:
+    """When `sensor` is processed before `sensor.gpio` (sorted order),
+    the bare-component branch must leave `config['sensor']` as a list so
+    the platform-entry branch can append into it.
+    """
+    sensor = _make_component_stub(is_platform_component=True)
+    gpio = _make_component_stub()  # the bare `gpio` component
+    components: dict[str, object] = {"sensor": sensor, "gpio": gpio}
+    config: dict = {}
+
+    build_helpers.populate_dependency_config(
+        config,
+        ["gpio", "sensor", "sensor.gpio"],
+        get_component_fn=components.get,
+        register_platform_fn=lambda _: None,
+    )
+
+    assert config["sensor"] == [{"platform": "gpio"}]
+
+
+def test_populate_multi_conf_component_uses_list() -> None:
+    multi = _make_component_stub(multi_conf=True)
+    config: dict = {}
+
+    build_helpers.populate_dependency_config(
+        config,
+        ["multi"],
+        get_component_fn=lambda name: multi if name == "multi" else None,
+        register_platform_fn=lambda _: None,
+    )
+
+    assert config["multi"] == []
+
+
+def test_populate_plain_component_uses_schema_defaults() -> None:
+    schema = MagicMock(return_value={"default_key": 42})
+    plain = _make_component_stub(config_schema=schema)
+    config: dict = {}
+
+    build_helpers.populate_dependency_config(
+        config,
+        ["plain"],
+        get_component_fn=lambda name: plain if name == "plain" else None,
+        register_platform_fn=lambda _: None,
+    )
+
+    schema.assert_called_once_with({})
+    assert config["plain"] == {"default_key": 42}
+
+
+def test_populate_plain_component_falls_back_when_schema_raises() -> None:
+    def picky_schema(_):
+        raise ValueError("required field missing")
+
+    plain = _make_component_stub(config_schema=picky_schema)
+    config: dict = {}
+
+    build_helpers.populate_dependency_config(
+        config,
+        ["plain"],
+        get_component_fn=lambda name: plain if name == "plain" else None,
+        register_platform_fn=lambda _: None,
+    )
+
+    assert config["plain"] == {}
+
+
+def test_populate_skips_unresolvable_pseudo_components() -> None:
+    """`core` and other names that get_component returns None for are skipped
+    silently without inserting anything into the config.
+    """
+    config: dict = {}
+
+    build_helpers.populate_dependency_config(
+        config,
+        ["core"],
+        get_component_fn=lambda _: None,
+        register_platform_fn=lambda _: None,
+    )
+
+    assert config == {}
+
+
+def test_populate_preserves_existing_plain_component_config() -> None:
+    """If a plain component already has a config entry (e.g. from the user's
+    YAML), the schema-defaults branch must not overwrite it.
+    """
+    schema = MagicMock()
+    plain = _make_component_stub(config_schema=schema)
+    config: dict = {"plain": {"user_key": "set_by_user"}}
+
+    build_helpers.populate_dependency_config(
+        config,
+        ["plain"],
+        get_component_fn=lambda name: plain if name == "plain" else None,
+        register_platform_fn=lambda _: None,
+    )
+
+    schema.assert_not_called()
+    assert config["plain"] == {"user_key": "set_by_user"}
+
+
+def test_populate_registers_platform_for_platform_entry() -> None:
+    """Each `domain.platform` entry triggers register_platform_fn(domain) so
+    USE_<DOMAIN> defines get emitted later in the build pipeline.
+    """
+    registered: list[str] = []
+    config: dict = {}
+
+    build_helpers.populate_dependency_config(
+        config,
+        ["sensor.gpio", "binary_sensor.gpio"],
+        get_component_fn=lambda _: None,
+        register_platform_fn=registered.append,
+    )
+
+    assert registered == ["sensor", "binary_sensor"]
+    assert config["sensor"] == [{"platform": "gpio"}]
+    assert config["binary_sensor"] == [{"platform": "gpio"}]

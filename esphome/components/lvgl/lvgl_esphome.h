@@ -88,6 +88,12 @@ inline void lv_obj_set_style_bitmap_mask_src(lv_obj_t *obj, image::Image *image,
 inline void lv_obj_set_style_bg_image_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
   ::lv_obj_set_style_bg_image_src(obj, image->get_lv_image_dsc(), selector);
 }
+inline void lv_style_set_bg_image_src(lv_style_t *style, image::Image *image) {
+  ::lv_style_set_bg_image_src(style, image->get_lv_image_dsc());
+}
+inline void lv_style_set_bitmap_mask_src(lv_style_t *style, image::Image *image) {
+  ::lv_style_set_bitmap_mask_src(style, image->get_lv_image_dsc());
+}
 #endif  // USE_LVGL_IMAGE
 #ifdef USE_LVGL_ANIMIMG
 inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images) {
@@ -109,6 +115,16 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
 int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int value);
 #endif
 
+#ifdef USE_LVGL_GRADIENT
+/**
+ *
+ * @param dsc The gradient descriptor containing the color stops
+ * @param pos The current position to calculate the color for
+ * @return The color for the given position
+ */
+
+lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos);
+#endif
 // Parent class for things that wrap an LVGL object
 class LvCompound {
  public:

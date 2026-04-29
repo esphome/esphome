@@ -162,14 +162,18 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   const char *supply_status =
       (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_NORMAL) ? "Normal voltage." : "High voltage.";
   ESP_LOGD(TAG, "Main supply status: %s", supply_status);
-  pos = buf_append_printf(buf, size, pos, "|Main supply status: %s", supply_status);
+  pos = buf_append_str(buf, size, pos, "|Main supply status: ");
+  pos = buf_append_str(buf, size, pos, supply_status);
 
   // Regulator stage 0
   if (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_HIGH) {
     const char *reg0_type = nrf_power_dcdcen_vddh_get(NRF_POWER) ? "DC/DC" : "LDO";
     const char *reg0_voltage = regout0_to_str((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) >> UICR_REGOUT0_VOUT_Pos);
     ESP_LOGD(TAG, "Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
-    pos = buf_append_printf(buf, size, pos, "|Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
+    pos = buf_append_str(buf, size, pos, "|Regulator stage 0: ");
+    pos = buf_append_str(buf, size, pos, reg0_type);
+    pos = buf_append_str(buf, size, pos, ", ");
+    pos = buf_append_str(buf, size, pos, reg0_voltage);
 #ifdef USE_NRF52_REG0_VOUT
     if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) >> UICR_REGOUT0_VOUT_Pos != USE_NRF52_REG0_VOUT) {
       ESP_LOGE(TAG, "Regulator stage 0: expected %s", regout0_to_str(USE_NRF52_REG0_VOUT));
@@ -177,13 +181,14 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #endif
   } else {
     ESP_LOGD(TAG, "Regulator stage 0: disabled");
-    pos = buf_append_printf(buf, size, pos, "|Regulator stage 0: disabled");
+    pos = buf_append_str(buf, size, pos, "|Regulator stage 0: disabled");
   }
 
   // Regulator stage 1
   const char *reg1_type = nrf_power_dcdcen_get(NRF_POWER) ? "DC/DC" : "LDO";
   ESP_LOGD(TAG, "Regulator stage 1: %s", reg1_type);
-  pos = buf_append_printf(buf, size, pos, "|Regulator stage 1: %s", reg1_type);
+  pos = buf_append_str(buf, size, pos, "|Regulator stage 1: ");
+  pos = buf_append_str(buf, size, pos, reg1_type);
 
   // USB power state
   const char *usb_state;
@@ -197,7 +202,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     usb_state = "disconnected";
   }
   ESP_LOGD(TAG, "USB power state: %s", usb_state);
-  pos = buf_append_printf(buf, size, pos, "|USB power state: %s", usb_state);
+  pos = buf_append_str(buf, size, pos, "|USB power state: ");
+  pos = buf_append_str(buf, size, pos, usb_state);
 
   // Power-fail comparator
   bool enabled;
@@ -302,14 +308,18 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
           break;
       }
       ESP_LOGD(TAG, "Power-fail comparator: %s, VDDH: %s", pof_voltage, vddh_voltage);
-      pos = buf_append_printf(buf, size, pos, "|Power-fail comparator: %s, VDDH: %s", pof_voltage, vddh_voltage);
+      pos = buf_append_str(buf, size, pos, "|Power-fail comparator: ");
+      pos = buf_append_str(buf, size, pos, pof_voltage);
+      pos = buf_append_str(buf, size, pos, ", VDDH: ");
+      pos = buf_append_str(buf, size, pos, vddh_voltage);
     } else {
       ESP_LOGD(TAG, "Power-fail comparator: %s", pof_voltage);
-      pos = buf_append_printf(buf, size, pos, "|Power-fail comparator: %s", pof_voltage);
+      pos = buf_append_str(buf, size, pos, "|Power-fail comparator: ");
+      pos = buf_append_str(buf, size, pos, pof_voltage);
     }
   } else {
     ESP_LOGD(TAG, "Power-fail comparator: disabled");
-    pos = buf_append_printf(buf, size, pos, "|Power-fail comparator: disabled");
+    pos = buf_append_str(buf, size, pos, "|Power-fail comparator: disabled");
   }
 
   auto package = [](uint32_t value) {

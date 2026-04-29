@@ -443,6 +443,13 @@ async def component_to_code(config):
         # 4-8KB flash). Even if linked, it would use locks, so explicit FreeRTOS
         # mutexes are simpler and equivalent.
         cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
+        # Enable FreeRTOS static allocation so FreeRTOSQueue can use
+        # xQueueCreateStatic (queue storage in BSS, no heap allocation).
+        # Also moves FreeRTOS internal structures (timer command queue) to BSS.
+        # BK72xx's FreeRTOSConfig.h doesn't define this, defaulting to 0.
+        # The -D wins over the #ifndef default in FreeRTOS.h.
+        # Not enabled on RTL87xx/LN882x — costs more heap than it saves there.
+        cg.add_build_flag("-DconfigSUPPORT_STATIC_ALLOCATION=1")
 
     # RTL8710B needs FreeRTOS 8.2.3+ for xTaskNotifyGive/ulTaskNotifyTake
     # required by AsyncTCP 3.4.3+ (https://github.com/esphome/esphome/issues/10220)

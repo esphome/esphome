@@ -41,7 +41,7 @@ template<typename K, typename V> class Mapping {
       return V{it->second};
     }
     if (this->default_value_.has_value()) {
-      return default_value_.value();
+      return this->default_value_.value();
     }
     if constexpr (std::is_pointer_v<K>) {
       esph_log_e(TAG, "Key '%p' not found in mapping", key);
@@ -71,6 +71,9 @@ template<typename K, typename V> class Mapping {
     auto it = this->map_.find(key_t{key});
     if (it != this->map_.end()) {
       return it->second.c_str();  // safe since value remains in map
+    }
+    if (this->default_value_.has_value()) {
+      return this->default_value_.value();
     }
     return "";
   }
