@@ -183,7 +183,7 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
   // Decode
   uint8_t msg[20] = {0};
   int msg_len = 0;
-  for (int i = 1; i < buffer_len - 1; i++) {
+  for (size_t i = 1; i < buffer_len - 1; i++) {
     if (buffer[i] == 0x1B) {
       msg[msg_len++] = buffer[i + 1] ^ 0xFF;
       i++;
