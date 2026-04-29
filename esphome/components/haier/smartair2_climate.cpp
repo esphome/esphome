@@ -210,8 +210,9 @@ void Smartair2Climate::process_phase(std::chrono::steady_clock::time_point now) 
 #ifdef USE_WIFI
       else if (this->send_wifi_signal_ &&
                (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_signal_request_).count() >
-                SIGNAL_LEVEL_UPDATE_INTERVAL_MS))
+                SIGNAL_LEVEL_UPDATE_INTERVAL_MS)) {
         this->set_phase(ProtocolPhases::SENDING_UPDATE_SIGNAL_REQUEST);
+      }
 #endif
     } break;
     default:

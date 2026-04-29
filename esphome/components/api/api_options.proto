@@ -110,4 +110,10 @@ extend google.protobuf.FieldOptions {
     // length varint calculations and direct byte writes, since the length
     // varint is guaranteed to be 1 byte.
     optional uint32 max_data_length = 50018;
+
+    // mac_address: Field is a 48-bit MAC address stored in a uint64.
+    // Emits encode_varint_raw_48bit which has a 7-byte fast path that avoids
+    // the per-byte loop when the upper bits are non-zero (the common case
+    // for real MAC addresses, since OUIs occupy the top 24 bits).
+    optional bool mac_address = 50019 [default=false];
 }
