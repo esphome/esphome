@@ -15,7 +15,7 @@ extern "C" {
 
 namespace esphome {
 
-void HOT yield() { ::yield(); }
+// yield(), micros(), millis_64() inlined in hal.h.
 // Fast accumulator replacement for Arduino's millis() (~3.3 μs via 4× 64-bit
 // multiplies on the LX106). Tracks a running ms counter from 32-bit
 // system_get_time() deltas using pure 32-bit ops. Installed as __wrap_millis
@@ -66,7 +66,6 @@ uint32_t IRAM_ATTR HOT millis() {
   xt_wsr_ps(ps);
   return result;
 }
-uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 // Poll-based delay that avoids ::delay() — Arduino's __delay has an intra-object
 // call to the original millis() that --wrap can't intercept, so calling ::delay()
 // would keep the slow Arduino millis body alive in IRAM. optimistic_yield still
@@ -85,8 +84,7 @@ void HOT delay(uint32_t ms) {
     optimistic_yield(1000);
   }
 }
-uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
-void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
+// delayMicroseconds(), arch_feed_wdt(), and progmem_read_*() are inlined in hal/hal_esp8266.h.
 void arch_restart() {
   system_restart();
   // restart() doesn't always end execution
@@ -95,17 +93,6 @@ void arch_restart() {
   }
 }
 void arch_init() {}
-void HOT arch_feed_wdt() { system_soft_wdt_feed(); }
-
-uint8_t progmem_read_byte(const uint8_t *addr) {
-  return pgm_read_byte(addr);  // NOLINT
-}
-const char *progmem_read_ptr(const char *const *addr) {
-  return reinterpret_cast<const char *>(pgm_read_ptr(addr));  // NOLINT
-}
-uint16_t progmem_read_uint16(const uint16_t *addr) {
-  return pgm_read_word(addr);  // NOLINT
-}
 uint32_t IRAM_ATTR HOT arch_get_cpu_cycle_count() { return esp_get_cycle_count(); }
 uint32_t arch_get_cpu_freq_hz() { return F_CPU; }
 
