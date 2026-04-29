@@ -18,15 +18,21 @@ from esphome.components.zephyr import (
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
+    KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_ZEPHYR,
 )
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
+    CONF_COMPONENTS,
     CONF_FRAMEWORK,
     CONF_ID,
+    CONF_NAME,
+    CONF_PLATFORM_VERSION,
     CONF_RESET_PIN,
+    CONF_SOURCE,
+    CONF_VARIANT,
     CONF_VERSION,
     CONF_VOLTAGE,
     KEY_CORE,
@@ -56,6 +62,96 @@ AUTO_LOAD = ["zephyr", "preferences"]
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 
+PLATFORM_RECOMMENDED_VERSION = "10.3.0-1"
+FRAMEWORK_RECOMMENDED_VERSION = "2.6.1-7"
+TOOLCHAIN_RECOMMENDED_VERSION = "0.17.4-0"
+
+PLATFORM_SOURCE_TEMPLATE = "https://github.com/tomaszduda23/platform-nordicnrf52/archive/refs/tags/v{release}.zip"
+FRAMEWORK_SOURCE_TEMPLATE = (
+    "https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{release}.zip"
+)
+TOOLCHAIN_SOURCE_TEMPLATE = (
+    "https://github.com/tomaszduda23/toolchain-sdk-ng/archive/refs/tags/v{release}.zip"
+)
+
+
+def _parse_package_version(value, url_template):
+    try:
+        ver = cv.Version.parse(cv.version_number(value))
+        release = f"{ver.major}.{ver.minor}.{ver.patch}"
+        if ver.extra:
+            release += f"-{ver.extra}"
+        return url_template.format(release=release)
+    except cv.Invalid:
+        return value
+
+
+def _parse_platform_version(value):
+    return _parse_package_version(value, PLATFORM_SOURCE_TEMPLATE)
+
+
+def _parse_framework_version(value):
+    return _parse_package_version(value, FRAMEWORK_SOURCE_TEMPLATE)
+
+
+def _parse_toolchain_version(value):
+    return _parse_package_version(value, TOOLCHAIN_SOURCE_TEMPLATE)
+
+
+CONF_TOOLCHAIN_VERSION = "toolchain_version"
+
+
+def _validate_framework_config(config):
+    config = config.copy()
+
+    if CONF_SOURCE in config:
+        if config[CONF_VERSION] == "recommended":
+            raise cv.Invalid("If source is set, version must be set too")
+    else:
+        if config[CONF_VERSION] == "recommended":
+            config[CONF_VERSION] = FRAMEWORK_RECOMMENDED_VERSION
+        config[CONF_SOURCE] = _parse_framework_version(config[CONF_VERSION])
+
+    components = {
+        "platformio/framework-zephyr": config[CONF_SOURCE],
+        "platformio/toolchain-gccarmnoneeabi": config[CONF_TOOLCHAIN_VERSION],
+    }
+
+    for c in config.get(CONF_COMPONENTS, []):
+        name = c[CONF_NAME]
+        if name in components:
+            raise cv.Invalid(f"Component {name} specified multiple times")
+        components[name] = c[CONF_VERSION]
+
+    config[CONF_COMPONENTS] = [f"{k}@{v}" for k, v in components.items() if v]
+
+    return config
+
+
+FRAMEWORK_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
+            cv.Optional(CONF_SOURCE): cv.Any(cv.boolean_false, cv.string_strict),
+            cv.Optional(
+                CONF_PLATFORM_VERSION, default=PLATFORM_RECOMMENDED_VERSION
+            ): _parse_platform_version,
+            cv.Optional(
+                CONF_TOOLCHAIN_VERSION, default=TOOLCHAIN_RECOMMENDED_VERSION
+            ): cv.Any(cv.boolean_false, _parse_toolchain_version),
+            cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
+                cv.Schema(
+                    {
+                        cv.Required(CONF_NAME): cv.string_strict,
+                        cv.Required(CONF_VERSION): cv.string_strict,
+                    }
+                )
+            ),
+        }
+    ),
+    _validate_framework_config,
+)
+
 
 def set_core_data(config: ConfigType) -> ConfigType:
     zephyr_set_core_data(config)
@@ -69,6 +165,12 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
 
 def set_framework(config: ConfigType) -> ConfigType:
+    config = config.copy()
+    zephyr_data()[CONF_VARIANT] = config[CONF_BOARD]
+    if "/" in config[CONF_BOARD]:
+        zephyr_data()[KEY_BOARD] = config[CONF_BOARD].split("/")[0]
+    if CONF_FRAMEWORK not in config:
+        config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
     version = cv.Version.parse(cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION]))
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = version
     return config
@@ -140,11 +242,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_UICR_ERASE, default=False): cv.boolean,
                 }
             ),
-            cv.Optional(CONF_FRAMEWORK, default={CONF_VERSION: "2.6.1-7"}): cv.Schema(
-                {
-                    cv.Required(CONF_VERSION): cv.string_strict,
-                }
-            ),
+            cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
         }
     ),
     set_framework,
@@ -172,23 +270,23 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
-    cg.add_platformio_option("board", config[CONF_BOARD])
+    cg.add_platformio_option("board", zephyr_data()[KEY_BOARD])
     cg.add_build_flag("-DUSE_NRF52")
-    cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
+    cg.add_define("ESPHOME_BOARD", zephyr_data()[KEY_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
     # nRF52 processors are single-core
     cg.add_define(ThreadModel.SINGLE)
+    cg.add_platformio_option(
+        "custom_framework_version", config[CONF_FRAMEWORK][CONF_VERSION]
+    )
     cg.add_platformio_option(CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK])
     cg.add_platformio_option(
         "platform",
-        "https://github.com/tomaszduda23/platform-nordicnrf52/archive/refs/tags/v10.3.0-1.zip",
+        config[CONF_FRAMEWORK][CONF_PLATFORM_VERSION],
     )
     cg.add_platformio_option(
         "platform_packages",
-        [
-            f"platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}.zip",
-            "platformio/toolchain-gccarmnoneeabi@https://github.com/tomaszduda23/toolchain-sdk-ng/archive/refs/tags/v0.17.4-0.zip",
-        ],
+        config[CONF_FRAMEWORK][CONF_COMPONENTS],
     )
 
     if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
@@ -238,12 +336,24 @@ async def to_code(config: ConfigType) -> None:
     else:
         zephyr_add_prj_conf("CPP", True)
         zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+    zephyr_add_prj_conf("PICOLIBC", True)
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
-    # disable console
-    zephyr_add_prj_conf("UART_CONSOLE", False)
-    zephyr_add_prj_conf("CONSOLE", False)
+    # console and serial logging
+    zephyr_add_prj_conf("UART_CONSOLE", True)
+    zephyr_add_prj_conf("CONSOLE", True)
+    zephyr_add_prj_conf("SERIAL", True)
+    zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
+    # Zephyr logging subsystem
+    zephyr_add_prj_conf("LOG", True)
+    zephyr_add_prj_conf("LOG_MODE_DEFERRED", True)
+    zephyr_add_prj_conf("LOG_BUFFER_SIZE", 16384)
+    zephyr_add_prj_conf("LOG_PRINTK", True)
+    zephyr_add_prj_conf("LOG_BACKEND_UART", True)
+    # USB CDC ACM for serial console
+    zephyr_add_prj_conf("USB_DEVICE_STACK", True)
+    zephyr_add_prj_conf("USB_CDC_ACM", True)
     # use NFC pins as GPIO
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
@@ -255,6 +365,15 @@ async def to_code(config: ConfigType) -> None:
                 };
             """
         )
+    zephyr_add_overlay(
+        """
+                / {
+                    chosen {
+                        zephyr,console = &cdc_acm_uart0;
+                    };
+                };
+            """
+    )
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
@@ -345,6 +464,10 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
     if host == "PYOCD":
         result = _upload_using_platformio(config, host, ["-t", "flash_pyocd"])
+        handled = True
+
+    if host == "JLINK":
+        result = _upload_using_platformio(config, host, ["-t", "flash_jlink"])
         handled = True
 
     if result != 0:

@@ -6,7 +6,7 @@
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
-#include <zephyr/sys/printk.h>
+#include <zephyr/logging/log.h>
 #include <zephyr/usb/usb_device.h>
 
 namespace esphome::logger {
@@ -21,12 +21,9 @@ void Logger::loop() {
   static bool opened = false;
   uint32_t dtr = 0;
   uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr);
-
-  /* Poll if the DTR flag was set, optional */
-  if (opened == dtr) {
+  if (opened == static_cast<bool>(dtr)) {
     return;
   }
-
   if (!opened) {
     App.schedule_dump_config();
   }
@@ -36,13 +33,10 @@ void Logger::loop() {
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
-    static const struct device *uart_dev = nullptr;
+    const struct device *uart_dev = nullptr;
     switch (this->uart_) {
       case UART_SELECTION_UART0:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart0));
-        break;
-      case UART_SELECTION_UART1:
-        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
         break;
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
@@ -52,6 +46,8 @@ void Logger::pre_setup() {
         }
         break;
 #endif
+      default:
+        break;
     }
     if (!device_is_ready(uart_dev)) {
       ESP_LOGE(TAG, "%s is not ready.", LOG_STR_ARG(get_uart_selection_()));
@@ -63,27 +59,12 @@ void Logger::pre_setup() {
   ESP_LOGI(TAG, "Log initialized");
 }
 
-void HOT Logger::write_msg_(const char *msg, size_t len) {
-  // Single write with newline already in buffer (added by caller)
-#ifdef CONFIG_PRINTK
-  // Requires the debug component and an active SWD connection.
-  // It is used for pyocd rtt -t nrf52840
-  k_str_out(const_cast<char *>(msg), len);
-#endif
-  if (this->uart_dev_ == nullptr) {
-    return;
-  }
-  for (size_t i = 0; i < len; ++i) {
-    uart_poll_out(this->uart_dev_, msg[i]);
-  }
-}
+void HOT Logger::write_msg_(const char *msg, size_t len) { LOG_RAW("%.*s", static_cast<int>(len), msg); }
 
 const LogString *Logger::get_uart_selection_() {
   switch (this->uart_) {
     case UART_SELECTION_UART0:
       return LOG_STR("UART0");
-    case UART_SELECTION_UART1:
-      return LOG_STR("UART1");
 #ifdef USE_LOGGER_USB_CDC
     case UART_SELECTION_USB_CDC:
       return LOG_STR("USB_CDC");

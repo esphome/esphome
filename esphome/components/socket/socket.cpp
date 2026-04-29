@@ -57,11 +57,19 @@ static size_t format_sockaddr_to(const struct sockaddr_storage &storage, std::sp
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
 #ifndef USE_SOCKET_IMPL_LWIP_TCP
     // Format IPv4-mapped IPv6 addresses as regular IPv4 (not supported on ESP8266 raw TCP)
+#if defined(USE_ZEPHYR)
+    if (addr->sin6_addr.s6_addr32[0] == 0 && addr->sin6_addr.s6_addr32[1] == 0 &&
+        addr->sin6_addr.s6_addr32[2] == htonl(0xFFFF) &&
+        esphome_inet_ntop4(&addr->sin6_addr.s6_addr32[3], buf.data(), buf.size()) != nullptr) {
+      return strlen(buf.data());
+    }
+#else
     if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
         addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
         esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
       return strlen(buf.data());
     }
+#endif
 #endif
     if (esphome_inet_ntop6(&addr->sin6_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());

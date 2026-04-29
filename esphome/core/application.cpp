@@ -608,7 +608,7 @@ bool Application::is_socket_ready(int fd) const {
   if (fd < 0 || fd >= FD_SETSIZE)
     return false;
 
-  return FD_ISSET(fd, &this->read_fds_);
+  return FD_ISSET(fd, const_cast<fd_set *>(&this->read_fds_));
 }
 #endif
 

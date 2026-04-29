@@ -1,11 +1,13 @@
 #include "esphome/core/defines.h"
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
+#ifdef USE_ESP32
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
 #include "esp_openthread.h"
 #endif
 
 #include <freertos/portmacro.h>
+#endif
 
 #include <openthread/cli.h>
 #include <openthread/instance.h>
@@ -99,7 +101,10 @@ void OpenThreadComponent::defer_factory_reset_external_callback() {
 void OpenThreadSrpComponent::srp_callback(otError err, const otSrpClientHostInfo *host_info,
                                           const otSrpClientService *services,
                                           const otSrpClientService *removed_services, void *context) {
-  if (err != 0) {
+  if (err == OT_ERROR_DUPLICATED) {
+    return;
+  }
+  if (err != OT_ERROR_NONE) {
     ESP_LOGW(TAG, "SRP client reported an error: %s", otThreadErrorToString(err));
     for (const otSrpClientHostInfo *host = host_info; host; host = nullptr) {
       ESP_LOGW(TAG, "  Host: %s", host->mName);
@@ -239,6 +244,7 @@ bool OpenThreadComponent::teardown() {
     otSrpClientClearHostAndServices(instance);
     otSrpClientBuffersFreeAllServices(instance);
     global_openthread_component = nullptr;
+#if defined(USE_ESP32)
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
     ESP_LOGD(TAG, "Exit main loop ");
     int error = esp_openthread_mainloop_exit();
@@ -246,6 +252,7 @@ bool OpenThreadComponent::teardown() {
       ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
       this->teardown_complete_ = true;
     }
+#endif
 #else
     this->teardown_complete_ = true;
 #endif

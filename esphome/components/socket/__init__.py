@@ -80,6 +80,7 @@ CONFIG_SCHEMA = cv.Schema(
             ln882x=IMPLEMENTATION_LWIP_SOCKETS,
             rtl87xx=IMPLEMENTATION_LWIP_SOCKETS,
             host=IMPLEMENTATION_BSD_SOCKETS,
+            nrf52=IMPLEMENTATION_BSD_SOCKETS,
         ): cv.one_of(
             IMPLEMENTATION_LWIP_TCP,
             IMPLEMENTATION_LWIP_SOCKETS,
@@ -101,6 +102,11 @@ async def to_code(config):
     elif impl == IMPLEMENTATION_BSD_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
         cg.add_define("USE_SOCKET_SELECT_SUPPORT")
+        if CORE.is_nrf52:
+            from esphome.components.zephyr import zephyr_add_prj_conf
+
+            zephyr_add_prj_conf("NET_SOCKETS", True)
+            zephyr_add_prj_conf("POSIX_API", True)
 
 
 def FILTER_SOURCE_FILES() -> list[str]:

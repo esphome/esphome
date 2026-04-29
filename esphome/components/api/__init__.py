@@ -287,6 +287,7 @@ CONFIG_SCHEMA = cv.All(
                 rtl87xx=4,  # Moderate RAM, BSD-style sockets
                 host=4,  # Abundant resources
                 ln882x=4,  # Moderate RAM
+                nrf52=4,  # Moderate RAM, BSD-style sockets
             ): cv.int_range(min=1, max=10),
             cv.SplitDefault(
                 CONF_MAX_CONNECTIONS,
@@ -297,6 +298,7 @@ CONFIG_SCHEMA = cv.All(
                 rtl87xx=8,  # Moderate RAM
                 host=8,  # Abundant resources
                 ln882x=8,  # Moderate RAM
+                nrf52=8,
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size

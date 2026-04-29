@@ -46,6 +46,7 @@ class Section:
 
 class ZephyrData(TypedDict):
     board: str
+    variant: str
     bootloader: str
     prj_conf: dict[str, tuple[PrjConfValueType, bool]]
     overlay: str
@@ -57,6 +58,7 @@ class ZephyrData(TypedDict):
 def zephyr_set_core_data(config):
     CORE.data[KEY_ZEPHYR] = ZephyrData(
         board=config[CONF_BOARD],
+        variant="",
         bootloader=config[KEY_BOOTLOADER],
         prj_conf={},
         overlay="",
@@ -123,7 +125,7 @@ def zephyr_to_code(config):
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
-    zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048)
+    zephyr_add_prj_conf("MAIN_STACK_SIZE", 16384)
 
     add_extra_script(
         "pre",
@@ -135,7 +137,8 @@ def zephyr_to_code(config):
 def zephyr_setup_preferences():
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
-    zephyr_add_prj_conf("NVS", True)
+    zephyr_add_prj_conf("SETTINGS_ZMS", True)
+    zephyr_add_prj_conf("ZMS", True)
     zephyr_add_prj_conf("FLASH_MAP", True)
     zephyr_add_prj_conf("FLASH", True)
 
@@ -216,28 +219,31 @@ def copy_files():
     if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT or zephyr_data()[
         KEY_BOARD
     ] in ["xiao_ble"]:
-        fake_board_manifest = """
-{
+        fake_board_manifest = f"""
+{{
     "frameworks": [
         "zephyr"
     ],
     "name": "esphome nrf52",
-    "upload": {
+    "upload": {{
         "maximum_ram_size": 248832,
         "maximum_size": 815104,
         "speed": 115200
-    },
+    }},
     "url": "https://esphome.io/",
     "vendor": "esphome",
-    "build": {
-        "bsp": {
+    "build": {{
+        "bsp": {{
             "name": "adafruit"
-        },
-        "softdevice": {
+        }},
+        "zephyr": {{
+            "variant": "{zephyr_data()["variant"]}"
+        }},
+        "softdevice": {{
             "sd_fwid": "0x00B6"
-        }
-    }
-}
+        }}
+    }}
+}}
 """
 
         write_file_if_changed(

@@ -87,7 +87,7 @@ class BSDSocketImpl final : public Socket {
 #endif
   }
   ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) override {
-#if defined(USE_ESP32) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR)
     return ::recvfrom(this->fd_, buf, len, 0, addr, addr_len);
 #else
     return ::lwip_recvfrom(this->fd_, buf, len, 0, addr, addr_len);
@@ -96,6 +96,12 @@ class BSDSocketImpl final : public Socket {
   ssize_t readv(const struct iovec *iov, int iovcnt) override {
 #if defined(USE_ESP32)
     return ::lwip_readv(this->fd_, iov, iovcnt);
+#elif defined(USE_ZEPHYR)
+    struct msghdr msg = {
+        .msg_iov = const_cast<struct iovec *>(iov),
+        .msg_iovlen = static_cast<size_t>(iovcnt),
+    };
+    return ::zsock_recvmsg(this->fd_, &msg, 0);
 #else
     return ::readv(this->fd_, iov, iovcnt);
 #endif
@@ -111,6 +117,12 @@ class BSDSocketImpl final : public Socket {
   ssize_t writev(const struct iovec *iov, int iovcnt) override {
 #if defined(USE_ESP32)
     return ::lwip_writev(this->fd_, iov, iovcnt);
+#elif defined(USE_ZEPHYR)
+    struct msghdr msg = {
+        .msg_iov = const_cast<struct iovec *>(iov),
+        .msg_iovlen = static_cast<size_t>(iovcnt),
+    };
+    return ::zsock_sendmsg(this->fd_, &msg, 0);
 #else
     return ::writev(this->fd_, iov, iovcnt);
 #endif

@@ -24,6 +24,14 @@ using ip4_addr_t = in_addr;
 #define ipaddr_aton(x, y) inet_aton((x), (y))
 #endif
 
+#ifdef USE_ZEPHYR
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/socket.h>
+#include <zephyr/posix/arpa/inet.h>
+using ip_addr_t = struct in6_addr;
+static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) { return inet_pton(AF_INET6, cp, addr) == 1 ? 1 : 0; }
+#endif
+
 #if USE_ESP32_FRAMEWORK_ARDUINO
 #define arduino_ns Arduino_h
 #elif USE_LIBRETINY
@@ -45,7 +53,41 @@ static constexpr size_t IP_ADDRESS_BUFFER_SIZE = 40;
 
 struct IPAddress {
  public:
-#ifdef USE_HOST
+#ifdef USE_ZEPHYR
+  IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
+  IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
+  IPAddress(const struct in6_addr *other_ip) { ip_addr_ = *other_ip; }
+  IPAddress(const struct sockaddr_in6 *addr) { ip_addr_ = addr->sin6_addr; }
+
+  operator struct in6_addr() const { return ip_addr_; }
+
+  bool is_set() const {
+    for (int i = 0; i < 16; i++) {
+      if (ip_addr_.s6_addr[i] != 0)
+        return true;
+    }
+    return false;
+  }
+  bool is_ip4() const { return false; }
+  bool is_ip6() const { return this->is_set(); }
+  bool is_multicast() const { return ip_addr_.s6_addr[0] == 0xff; }
+  std::string str() const {
+    char buffer[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, &ip_addr_, buffer, sizeof(buffer));
+    return str_lower_case(buffer);
+  }
+  char *str_to(char *buf) const {
+    inet_ntop(AF_INET6, &ip_addr_, buf, INET6_ADDRSTRLEN);
+    return buf;
+  }
+  bool operator==(const IPAddress &other) const { return memcmp(&ip_addr_, &other.ip_addr_, sizeof(ip_addr_)) == 0; }
+  bool operator!=(const IPAddress &other) const { return memcmp(&ip_addr_, &other.ip_addr_, sizeof(ip_addr_)) != 0; }
+  IPAddress &operator+=(uint8_t increase) {
+    ip_addr_.s6_addr[15] += increase;
+    return *this;
+  }
+
+#elif defined(USE_HOST)
   IPAddress() { ip_addr_.s_addr = 0; }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     this->ip_addr_.s_addr = htonl((first << 24) | (second << 16) | (third << 8) | fourth);

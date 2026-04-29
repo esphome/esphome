@@ -4,6 +4,7 @@ import logging
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
+from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -114,16 +115,18 @@ CONFIG_SCHEMA = cv.Schema(
             rp2040=False,
             bk72xx=False,
             host=False,
+            nrf52=True,
         ): cv.All(
             cv.boolean,
             cv.Any(
                 cv.require_framework_version(
+                    bk72xx_arduino=cv.Version(1, 7, 0),
                     esp_idf=cv.Version(0, 0, 0),
                     esp32_arduino=cv.Version(0, 0, 0),
                     esp8266_arduino=cv.Version(0, 0, 0),
-                    rp2040_arduino=cv.Version(0, 0, 0),
-                    bk72xx_arduino=cv.Version(1, 7, 0),
                     host=cv.Version(0, 0, 0),
+                    rp2040_arduino=cv.Version(0, 0, 0),
+                    nrf52_zephyr=cv.Version(0, 0, 0),
                 ),
                 cv.boolean_false,
             ),
@@ -202,6 +205,13 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 65534)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
+
+    if CORE.is_nrf52:
+        zephyr_add_prj_conf("NETWORKING", True)
+        zephyr_add_prj_conf("NET_IPV6", True)
+        zephyr_add_prj_conf("NET_IPV4", False)
+        zephyr_add_prj_conf("NET_TCP", True)
+        zephyr_add_prj_conf("NET_UDP", True)
 
     if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
