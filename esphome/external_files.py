@@ -211,10 +211,11 @@ def download_content_many(
     """Run `download_content` for each (url, path) pair concurrently.
 
     Wall time drops from `sum(latency)` to roughly `max(latency)` for cached
-    files where the HEAD round-trip dominates. Worker exceptions propagate
-    when iteration reaches the corresponding input item (`ex.map` yields
-    results in input order), and remaining workers complete before this
-    returns.
+    files where the HEAD round-trip dominates. All workers run to
+    completion before this returns; every `cv.Invalid` raised by a worker
+    is collected and surfaced together as `cv.MultipleInvalid` so the user
+    sees every broken file in a single validation pass instead of fixing
+    them one round-trip at a time.
 
     Items are de-duplicated by `path` -- two callers asking for the same
     cache file (e.g. the same URL referenced twice in a config) would
@@ -238,9 +239,19 @@ def download_content_many(
         download_content(url, path, timeout)
 
     workers = max(1, min(max_workers, len(seen)))
+    errors: list[cv.Invalid] = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        # list() forces iteration so exceptions surface here, not silently.
-        list(ex.map(_download_one, seen.items()))
+        futures = [ex.submit(_download_one, item) for item in seen.items()]
+        for future in futures:
+            try:
+                future.result()
+            except cv.Invalid as e:
+                errors.append(e)
+    if not errors:
+        return
+    if len(errors) == 1:
+        raise errors[0]
+    raise cv.MultipleInvalid(errors)
 
 
 # Each component that uses external_files defines its own local

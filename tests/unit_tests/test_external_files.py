@@ -9,7 +9,7 @@ import pytest
 import requests
 
 from esphome import external_files
-from esphome.config_validation import Invalid
+from esphome.config_validation import Invalid, MultipleInvalid
 from esphome.core import CORE, EsphomeError, TimePeriod
 
 
@@ -574,65 +574,6 @@ def test_download_content_skip_external_update_downloads_when_missing(
     assert test_file.read_bytes() == new_content
 
 
-def test_download_content_saves_etag(
-    mock_has_remote_file_changed: MagicMock,
-    mock_requests_get: MagicMock,
-    setup_core: Path,
-) -> None:
-    """Test download_content writes the ETag sidecar after a successful download."""
-    test_file = setup_core / "fresh.txt"
-    new_content = b"fresh content"
-
-    mock_has_remote_file_changed.return_value = True
-    mock_response = MagicMock()
-    mock_response.content = new_content
-    mock_response.headers = {external_files.ETAG: '"deadbeef"'}
-    mock_response.raise_for_status = MagicMock()
-    mock_requests_get.return_value = mock_response
-
-    url = "https://example.com/file.txt"
-    external_files.download_content(url, test_file)
-
-    assert external_files._etag_sidecar_path(test_file).read_text() == '"deadbeef"'
-
-
-def test_download_content_atomic_write_no_partial_on_failure(
-    mock_has_remote_file_changed: MagicMock,
-    mock_requests_get: MagicMock,
-    mock_write_file: MagicMock,
-    setup_core: Path,
-) -> None:
-    """If `write_file` (the atomic-write helper) fails, the existing cache
-    file must remain untouched and no temp files may be left behind. Patching
-    `write_file` directly exercises the atomic-rename path -- a failure inside
-    `write_file` is the only reason the rename wouldn't have happened.
-    """
-    from esphome.core import EsphomeError
-
-    test_file = setup_core / "cached.txt"
-    original_content = b"original content"
-    test_file.write_bytes(original_content)
-
-    mock_has_remote_file_changed.return_value = True
-    mock_response = MagicMock()
-    mock_response.content = b"new content"
-    mock_response.headers = {}
-    mock_response.raise_for_status = MagicMock()
-    mock_requests_get.return_value = mock_response
-
-    mock_write_file.side_effect = EsphomeError("disk full")
-
-    with pytest.raises(EsphomeError, match="disk full"):
-        external_files.download_content("https://example.com/file.txt", test_file)
-
-    # Original file is untouched -- write_file aborted before its rename step.
-    assert test_file.read_bytes() == original_content
-    # write_file is responsible for cleaning its own temp files; nothing leaks
-    # into the cache directory either way.
-    leftover_tmps = list(setup_core.glob("tmp*"))
-    assert leftover_tmps == []
-
-
 def test_download_content_many_empty_is_noop(
     mock_download_content: MagicMock, setup_core: Path
 ) -> None:
@@ -676,10 +617,12 @@ def test_download_content_many_runs_in_parallel(
     assert mock_download_content.call_count == 3
 
 
-def test_download_content_many_propagates_errors(
+def test_download_content_many_propagates_single_error(
     mock_download_content: MagicMock, setup_core: Path
 ) -> None:
-    """An exception from any worker must propagate out of download_content_many."""
+    """A single failing worker should raise its `Invalid` directly, not wrap
+    it in a `MultipleInvalid` that the caller would have to unpack.
+    """
 
     def fake_download(url: str, path: Path, timeout: int) -> bytes:
         if url.endswith("bad"):
@@ -691,8 +634,37 @@ def test_download_content_many_propagates_errors(
         ("https://example.com/ok", setup_core / "ok"),
         ("https://example.com/bad", setup_core / "bad"),
     ]
-    with pytest.raises(Invalid, match="could not download"):
+    with pytest.raises(Invalid, match="could not download") as exc_info:
         external_files.download_content_many(items)
+    assert not isinstance(exc_info.value, MultipleInvalid)
+
+
+def test_download_content_many_aggregates_multiple_errors(
+    mock_download_content: MagicMock, setup_core: Path
+) -> None:
+    """Every failing worker should be reported in a single MultipleInvalid so
+    the user sees all broken URLs in one validation pass instead of fixing
+    them one network round-trip at a time.
+    """
+
+    def fake_download(url: str, path: Path, timeout: int) -> bytes:
+        if url.endswith("ok"):
+            return b""
+        raise Invalid(f"could not download {url}")
+
+    mock_download_content.side_effect = fake_download
+    items = [
+        ("https://example.com/ok", setup_core / "ok"),
+        ("https://example.com/bad1", setup_core / "bad1"),
+        ("https://example.com/bad2", setup_core / "bad2"),
+    ]
+    with pytest.raises(MultipleInvalid) as exc_info:
+        external_files.download_content_many(items)
+    messages = {str(e) for e in exc_info.value.errors}
+    assert messages == {
+        "could not download https://example.com/bad1",
+        "could not download https://example.com/bad2",
+    }
 
 
 def test_download_content_many_dedupes_by_path(
@@ -767,3 +739,62 @@ def test_download_web_files_in_config_no_web_entries(
     external_files.download_web_files_in_config(config, lambda _: setup_core / "x")
     mock_download_content_many.assert_called_once()
     assert list(mock_download_content_many.call_args[0][0]) == []
+
+
+def test_download_content_saves_etag(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """Test download_content writes the ETag sidecar after a successful download."""
+    test_file = setup_core / "fresh.txt"
+    new_content = b"fresh content"
+
+    mock_has_remote_file_changed.return_value = True
+    mock_response = MagicMock()
+    mock_response.content = new_content
+    mock_response.headers = {external_files.ETAG: '"deadbeef"'}
+    mock_response.raise_for_status = MagicMock()
+    mock_requests_get.return_value = mock_response
+
+    url = "https://example.com/file.txt"
+    external_files.download_content(url, test_file)
+
+    assert external_files._etag_sidecar_path(test_file).read_text() == '"deadbeef"'
+
+
+def test_download_content_atomic_write_no_partial_on_failure(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    mock_write_file: MagicMock,
+    setup_core: Path,
+) -> None:
+    """If `write_file` (the atomic-write helper) fails, the existing cache
+    file must remain untouched and no temp files may be left behind. Patching
+    `write_file` directly exercises the atomic-rename path -- a failure inside
+    `write_file` is the only reason the rename wouldn't have happened.
+    """
+    from esphome.core import EsphomeError
+
+    test_file = setup_core / "cached.txt"
+    original_content = b"original content"
+    test_file.write_bytes(original_content)
+
+    mock_has_remote_file_changed.return_value = True
+    mock_response = MagicMock()
+    mock_response.content = b"new content"
+    mock_response.headers = {}
+    mock_response.raise_for_status = MagicMock()
+    mock_requests_get.return_value = mock_response
+
+    mock_write_file.side_effect = EsphomeError("disk full")
+
+    with pytest.raises(EsphomeError, match="disk full"):
+        external_files.download_content("https://example.com/file.txt", test_file)
+
+    # Original file is untouched -- write_file aborted before its rename step.
+    assert test_file.read_bytes() == original_content
+    # write_file is responsible for cleaning its own temp files; nothing leaks
+    # into the cache directory either way.
+    leftover_tmps = list(setup_core.glob("tmp*"))
+    assert leftover_tmps == []

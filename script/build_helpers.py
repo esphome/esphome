@@ -57,6 +57,59 @@ def hash_components(components: list[str]) -> str:
     return hashlib.sha256(key.encode()).hexdigest()[:16]
 
 
+def populate_dependency_config(
+    config: dict,
+    component_names: list[str],
+    *,
+    get_component_fn: Callable[[str], object | None] = get_component,
+    register_platform_fn: Callable[[str], None] | None = None,
+) -> None:
+    """Populate ``config`` with empty entries for transitive dependencies.
+
+    For every name in ``component_names``:
+
+    * ``domain.platform`` form (e.g. ``sensor.gpio``) appends
+      ``{platform: <name>}`` to ``config[domain]``, creating the list if needed.
+    * Bare components are looked up via ``get_component_fn``. Platform
+      components (``IS_PLATFORM_COMPONENT``) and ``MULTI_CONF`` components are
+      initialised as ``[]`` so the sibling ``domain.platform`` branch can
+      ``append`` into them. Everything else is populated by running the
+      component's schema with ``{}`` so defaults exist; if the schema requires
+      explicit input, an empty ``{}`` is used as a fallback.
+
+    Platform components must always be a list here even when no
+    ``domain.platform`` entry follows, because the ``domain.platform`` branch
+    does ``config.setdefault(domain, []).append(...)`` and would crash on a
+    leftover dict.
+    """
+    if register_platform_fn is None:
+        register_platform_fn = CORE.testing_ensure_platform_registered
+    for component_name in component_names:
+        if "." in component_name:
+            domain, component = component_name.split(".", maxsplit=1)
+            domain_list = config.setdefault(domain, [])
+            register_platform_fn(domain)
+            domain_list.append({CONF_PLATFORM: component})
+            continue
+        # Skip "core" — it's a pseudo-component handled by the build
+        # system, not a real loadable component (get_component returns None)
+        component = get_component_fn(component_name)
+        if component is None:
+            continue
+        if component.multi_conf or component.is_platform_component:
+            config.setdefault(component_name, [])
+        elif component_name not in config:
+            schema = component.config_schema
+            try:
+                config[component_name] = schema({}) if schema is not None else {}
+            except Exception:  # noqa: BLE001
+                # Schema requires explicit input we can't synthesize; fall
+                # back to an empty mapping so subscripting at least returns
+                # KeyError on missing keys rather than crashing on the
+                # wrong type.
+                config[component_name] = {}
+
+
 def filter_components_with_files(components: list[str], tests_dir: Path) -> list[str]:
     """Filter out components that do not have .cpp or .h files in the tests dir.
 
@@ -316,31 +369,7 @@ def compile_and_get_binary(
 
     # Add remaining components and dependencies to the configuration after
     # validation, so their source files are included in the build.
-    for component_name in components_with_dependencies:
-        if "." in component_name:
-            domain, component = component_name.split(".", maxsplit=1)
-            domain_list = config.setdefault(domain, [])
-            CORE.testing_ensure_platform_registered(domain)
-            domain_list.append({CONF_PLATFORM: component})
-        # Skip "core" — it's a pseudo-component handled by the build
-        # system, not a real loadable component (get_component returns None)
-        elif (component := get_component(component_name)) is not None:
-            # MULTI_CONF components store their config as a list of dicts,
-            # everything else stores a single dict. Run the component's
-            # schema with {} so defaults get populated -- code paths like
-            # socket.FILTER_SOURCE_FILES expect a fully-populated mapping.
-            if component.multi_conf:
-                config.setdefault(component_name, [])
-            elif component_name not in config:
-                schema = component.config_schema
-                try:
-                    config[component_name] = schema({}) if schema is not None else {}
-                except Exception:  # noqa: BLE001
-                    # Schema requires explicit input we can't synthesize; fall
-                    # back to an empty mapping so subscripting at least returns
-                    # KeyError on missing keys rather than crashing on the
-                    # wrong type.
-                    config[component_name] = {}
+    populate_dependency_config(config, components_with_dependencies)
 
     # Register platforms from the extra config (benchmark.yaml) so
     # USE_SENSOR, USE_LIGHT, etc. defines are emitted without needing
