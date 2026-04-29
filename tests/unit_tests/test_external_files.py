@@ -479,6 +479,7 @@ class _BodyReadErrorResponse:
 
     def __init__(self, exc: Exception) -> None:
         self._exc = exc
+        self.headers: dict[str, str] = {}
 
     def raise_for_status(self) -> None:
         return None
