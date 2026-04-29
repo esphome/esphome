@@ -47,7 +47,9 @@ __attribute__((always_inline)) inline uint64_t millis_64() { return micros_to_mi
 // NOLINTNEXTLINE(readability-identifier-naming)
 __attribute__((always_inline)) inline void delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 __attribute__((always_inline)) inline void arch_feed_wdt() { watchdog_update(); }
-__attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() { return ulMainGetRunTimeCounterValue(); }
+__attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() {
+  return static_cast<uint32_t>(ulMainGetRunTimeCounterValue());
+}
 
 void arch_init();
 uint32_t arch_get_cpu_freq_hz();

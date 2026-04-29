@@ -1,12 +1,12 @@
 #ifdef USE_RP2040
 
+#include "core.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #ifdef USE_RP2040_CRASH_HANDLER
 #include "crash_handler.h"
 #endif
 
-#include "hardware/timer.h"
 #include "hardware/watchdog.h"
 
 // Empty rp2040 namespace block to satisfy ci-custom's lint_namespace check.
