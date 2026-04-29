@@ -4,6 +4,7 @@
 
 #include <c_types.h>
 #include <cstdint>
+#include <pgmspace.h>
 
 #include "esphome/core/time_64.h"
 
@@ -19,7 +20,14 @@ extern "C" unsigned long micros(void);
 extern "C" unsigned long millis(void);
 // NOLINTEND(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
 
+// Forward decl from <user_interface.h> for arch_feed_wdt() inline below.
+extern "C" void system_soft_wdt_feed(void);
+
 namespace esphome {
+
+// Forward decl from helpers.h so this header stays cheap.
+// NOLINTNEXTLINE(readability-redundant-declaration)
+void delay_microseconds_safe(uint32_t us);
 
 /// Returns true when executing inside an interrupt handler.
 /// ESP8266 has no reliable single-register ISR detection: PS.INTLEVEL is
@@ -34,10 +42,22 @@ void delay(uint32_t ms);
 uint32_t millis();
 __attribute__((always_inline)) inline uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 
-// ESP8266: pgm_read_* does real flash reads on Harvard architecture
-uint8_t progmem_read_byte(const uint8_t *addr);
-const char *progmem_read_ptr(const char *const *addr);
-uint16_t progmem_read_uint16(const uint16_t *addr);
+// ESP8266: pgm_read_* does aligned 32-bit flash reads on Harvard architecture.
+// Inline-forward to the platform macros so the wrappers themselves don't
+// occupy IRAM/flash on every call site.
+__attribute__((always_inline)) inline uint8_t progmem_read_byte(const uint8_t *addr) {
+  return pgm_read_byte(addr);  // NOLINT
+}
+__attribute__((always_inline)) inline const char *progmem_read_ptr(const char *const *addr) {
+  return reinterpret_cast<const char *>(pgm_read_ptr(addr));  // NOLINT
+}
+__attribute__((always_inline)) inline uint16_t progmem_read_uint16(const uint16_t *addr) {
+  return pgm_read_word(addr);  // NOLINT
+}
+
+// NOLINTNEXTLINE(readability-identifier-naming)
+__attribute__((always_inline)) inline void delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
+__attribute__((always_inline)) inline void arch_feed_wdt() { system_soft_wdt_feed(); }
 
 }  // namespace esphome
 

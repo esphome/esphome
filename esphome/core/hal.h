@@ -30,10 +30,14 @@
 
 namespace esphome {
 
+// ESP8266 inlines delayMicroseconds() and arch_feed_wdt() in hal/hal_esp8266.h;
+// every other platform keeps them out-of-line in components/<platform>/core.cpp.
+#ifndef USE_ESP8266
 void delayMicroseconds(uint32_t us);  // NOLINT(readability-identifier-naming)
+void arch_feed_wdt();
+#endif
 void __attribute__((noreturn)) arch_restart();
 void arch_init();
-void arch_feed_wdt();
 uint32_t arch_get_cpu_cycle_count();
 uint32_t arch_get_cpu_freq_hz();
 
