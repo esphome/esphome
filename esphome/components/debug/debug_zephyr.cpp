@@ -17,13 +17,13 @@ constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
 constexpr std::uintptr_t MBR_BOOTLOADER_ADDR = 0xFF8;
 
 static inline uint32_t read_mem_u32(uintptr_t addr) {
-  return *reinterpret_cast<volatile uint32_t *>(
-      addr);  // NOLINT(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference)
+  // NOLINTNEXTLINE(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference)
+  return *reinterpret_cast<volatile uint32_t *>(addr);
 }
 
 static inline uint8_t read_mem_u8(uintptr_t addr) {
-  return *reinterpret_cast<volatile uint8_t *>(
-      addr);  // NOLINT(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference)
+  // NOLINTNEXTLINE(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference)
+  return *reinterpret_cast<volatile uint8_t *>(addr);
 }
 
 // defines from https://github.com/adafruit/Adafruit_nRF52_Bootloader which prints those information
