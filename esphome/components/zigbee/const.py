@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from enum import IntEnum
 
 import esphome.codegen as cg
 from esphome.const import (
@@ -109,8 +109,7 @@ BACNET_UNITS = {
 BACNET_UNIT_NO_UNITS = 95
 
 
-@dataclass
-class AnalogInputType:
+class AnalogInputType(IntEnum):
     Temp_Degrees_C = 0x00
     Relative_Humidity_Percent = 0x01
     Pressure_Pascal = 0x02

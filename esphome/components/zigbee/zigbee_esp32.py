@@ -50,6 +50,7 @@ from .const_esp32 import (
     DEVICE_ID,
     DEVICE_TYPE,
     KEY_BS_EP,
+    KEY_SENSOR_EP,
     ROLE,
     SCALE,
 )
@@ -207,7 +208,7 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
         )
     config, ep[CONF_CLUSTERS] = setup_attributes(config, ep[CONF_CLUSTERS])
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
-    sensor_ep: list[dict] = zb_data.setdefault("sensor_ep", [])
+    sensor_ep: list[dict] = zb_data.setdefault(KEY_SENSOR_EP, [])
     sensor_ep.append(ep)
     return config
 
@@ -306,7 +307,7 @@ async def esp32_to_code(config: ConfigType) -> None:
 
     # create endpoints
     zb_data = CORE.data.get(KEY_ZIGBEE, {})
-    sensor_ep: list[dict] = zb_data.get("sensor_ep", [])
+    sensor_ep: list[dict] = zb_data.get(KEY_SENSOR_EP, [])
     binary_sensor_ep: list[dict] = zb_data.get(KEY_BS_EP, [])
     ep_list = create_ep(sensor_ep + binary_sensor_ep, config.get(CONF_ROUTER))
 

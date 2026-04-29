@@ -11,6 +11,7 @@ CONF_CLUSTER = "cluster"
 SCALE = "scale"
 CONF_ATTRIBUTE_ID = "attribute_id"
 KEY_BS_EP = "binary_sensor_ep"
+KEY_SENSOR_EP = "sensor_ep"
 
 ha_standard_devices = cg.esphome_ns.enum("zb_ha_standard_devs_e")
 DEVICE_ID = {
