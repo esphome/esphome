@@ -1,5 +1,6 @@
 #pragma once
 
+// DNM: integration-test bucketing CI probe — do not merge.
 #include "esphome/core/defines.h"
 #ifdef USE_API
 #include "api_frame_helper.h"
