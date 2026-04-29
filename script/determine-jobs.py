@@ -6,7 +6,7 @@ what files have changed. It outputs JSON with the following structure:
 
 {
   "integration_tests": true/false,
-  "integration_test_buckets": [{"name": "1/3", "tests": "tests/integration/test_foo.py ..."}, ...],
+  "integration_test_buckets": [{"name": "1/3", "tests": ["tests/integration/test_foo.py", ...]}, ...],
   "clang_tidy": true/false,
   "clang_format": true/false,
   "python_linters": true/false,
@@ -840,9 +840,17 @@ def main() -> None:
     else:
         integration_test_files = sorted(integration_test_files)
 
+    # Guard: if expansion produced no files (shouldn't happen normally, but
+    # would cause the workflow to invoke pytest with no path argument and
+    # collect tests outside tests/integration/), treat as no integration run.
+    if not integration_test_files:
+        run_integration = False
+
     # Pre-bucket the test list so the CI matrix can consume it directly.
+    # `tests` is a JSON list of file paths so the workflow can build a bash
+    # array via jq, avoiding shell word-splitting / glob hazards.
     # Below threshold => 1 bucket; above threshold => INTEGRATION_TESTS_SPLIT_BUCKETS.
-    integration_test_buckets: list[dict[str, str]]
+    integration_test_buckets: list[dict[str, Any]]
     if not run_integration:
         integration_test_buckets = []
     elif len(integration_test_files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
@@ -854,13 +862,11 @@ def main() -> None:
             if part
         ]
         integration_test_buckets = [
-            {"name": f"{i + 1}/{len(parts)}", "tests": " ".join(part)}
+            {"name": f"{i + 1}/{len(parts)}", "tests": part}
             for i, part in enumerate(parts)
         ]
     else:
-        integration_test_buckets = [
-            {"name": "1/1", "tests": " ".join(integration_test_files)}
-        ]
+        integration_test_buckets = [{"name": "1/1", "tests": integration_test_files}]
     run_clang_tidy = should_run_clang_tidy(args.branch)
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
