@@ -220,10 +220,25 @@ class LvglComponent : public PollingComponent {
    * Initialize the LVGL library and register custom events.
    */
   static void esphome_lvgl_init();
+
+  //  Convenience overloads for adding a callback for one or more events
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event);
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
                            lv_event_code_t event3);
+
+  // change the checked state of a widget and fire an event if needed
+
+  static void lv_obj_set_checked(lv_obj_t *obj, bool checked) {
+    if (checked != lv_obj_has_state(obj, LV_STATE_CHECKED)) {
+      if (checked) {
+        lv_obj_add_state(obj, LV_STATE_CHECKED);
+      } else {
+        lv_obj_remove_state(obj, LV_STATE_CHECKED);
+      }
+      lv_obj_send_event(obj, lv_update_event, nullptr);
+    }
+  }
 
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time);

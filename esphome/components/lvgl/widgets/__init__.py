@@ -34,6 +34,7 @@ from ..defines import (
     CONF_WIDGETS,
     OBJ_FLAGS,
     PARTS,
+    STATE_CHECKED,
     STATES,
     TYPE_FLEX,
     TYPE_GRID,
@@ -52,6 +53,7 @@ from ..lvcode import (
     lv_expr,
     lv_obj,
     lv_Pvariable,
+    lvgl_static,
 )
 from ..types import (
     LV_STATE,
@@ -276,7 +278,7 @@ class Widget:
         return lv_obj.remove_state(self.obj, literal(state))
 
     def has_state(self, state):
-        return (lv_expr.obj_get_state(self.obj) & literal(state)) != 0
+        return lv_expr.obj_has_state(self.obj, literal(state))
 
     def is_pressed(self):
         return self.has_state(LV_STATE.PRESSED)
@@ -609,6 +611,18 @@ async def set_obj_properties(w: Widget, config):
             w.clear_flag(flag)
 
     if states := config.get(CONF_STATE):
+        states = states.copy()
+        # checked state handled specially since it requires an event to be sent
+        if checked := states.get(STATE_CHECKED):
+            if isinstance(checked, cv.Lambda):
+                checked = call_lambda(
+                    await cg.process_lambda(
+                        checked, [], capture="=", return_type=cg.bool_
+                    )
+                )
+            lv_add(lvgl_static.lv_obj_set_checked(w.obj, checked))
+            states.pop(STATE_CHECKED)
+
         adds = set()
         clears = set()
         lambs = {}
@@ -632,6 +646,7 @@ async def set_obj_properties(w: Widget, config):
                 w.add_state(state)
                 cond.else_()
                 w.clear_state(state)
+
     for property in OBJ_PROPERTIES:
         await w.set_property(property, config, lv_name="obj")
 
