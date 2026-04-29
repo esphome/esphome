@@ -25,7 +25,10 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
 )
 from esphome.core import CORE, DocumentRange, EsphomeError
-import esphome.core.config as core_config
+
+# `esphome.core.config` is imported lazily at its two use sites below.
+# It pulls in `esphome.automation` and `esphome.config_validation`, which
+# dominate `esphome.__main__` startup cost when loaded eagerly here.
 import esphome.final_validate as fv
 from esphome.helpers import indent
 from esphome.loader import ComponentManifest, get_component, get_platform
@@ -968,6 +971,8 @@ class CoreFinalValidateStep(ConfigValidationStep):
         if result.errors:
             return
 
+        import esphome.core.config as core_config
+
         token = fv.full_config.set(result)
         with result.catch_error([CONF_ESPHOME]):
             if CONF_ESPHOME in result:
@@ -1073,6 +1078,8 @@ def validate_config(
         return result
 
     # 2. Load partial core config
+    import esphome.core.config as core_config
+
     result[CONF_ESPHOME] = config[CONF_ESPHOME]
     result.add_output_path([CONF_ESPHOME], CONF_ESPHOME)
     try:
