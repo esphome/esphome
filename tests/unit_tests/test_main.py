@@ -1646,6 +1646,7 @@ def test_upload_program_ota_partition_table_with_file_arg(
             {
                 CONF_PLATFORM: CONF_ESPHOME,
                 CONF_PORT: 3232,
+                "allow_partition_access": True,
             }
         ]
     }
@@ -1683,6 +1684,35 @@ def test_upload_program_serial_partition_table(
         match="The option --partition-table can only be used for Over The Air updates",
     ):
         upload_program(config, args, devices)
+
+
+def test_upload_program_ota_partition_table_without_allow_flag(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table must fail fast when allow_partition_access is not enabled in YAML."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ]
+    }
+    args = MockArgs(file="partitions.bin", partition_table=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match="requires 'allow_partition_access: true'",
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
 
 
 def test_upload_program_ota_no_config(
