@@ -669,7 +669,7 @@ uint32_t Sprinkler::valve_run_duration_adjusted(const size_t valve_number) {
   // run_duration must not be less than any of these
   if ((run_duration < this->start_delay_) || (run_duration < this->stop_delay_) ||
       (run_duration < this->switching_delay_.value_or(0) * 2)) {
-    return std::max(this->switching_delay_.value_or(0) * 2, std::max(this->start_delay_, this->stop_delay_));
+    return std::max({this->switching_delay_.value_or(0) * 2, this->start_delay_, this->stop_delay_});
   }
   return run_duration;
 }
