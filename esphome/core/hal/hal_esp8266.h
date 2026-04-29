@@ -66,8 +66,6 @@ __attribute__((always_inline)) inline void arch_init() {}
 __attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() { return esp_get_cycle_count(); }
 __attribute__((always_inline)) inline uint32_t arch_get_cpu_freq_hz() { return F_CPU; }
 
-uint32_t arch_get_cpu_cycle_count();
-
 }  // namespace esphome
 
 #endif  // USE_ESP8266
