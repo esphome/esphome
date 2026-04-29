@@ -10,7 +10,8 @@ namespace haier {
 void VerticalAirflowSelect::control(const std::string &value) {
   hon_protocol::VerticalSwingMode state;
   const auto &options = this->traits.get_options();
-  const auto *item_it = std::find_if(options.begin(), options.end(), [&value](const char *opt) { return value == opt; });
+  const auto *item_it =
+      std::find_if(options.begin(), options.end(), [&value](const char *opt) { return value == opt; });
   if (item_it == options.end()) {
     ESP_LOGE("haier", "Invalid vertical airflow mode: %s", value.c_str());
     return;
