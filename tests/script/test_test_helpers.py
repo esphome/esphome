@@ -270,7 +270,7 @@ def _make_component_stub(
     multi_conf: bool = False,
     is_platform_component: bool = False,
     config_schema=None,
-):
+) -> MagicMock:
     stub = MagicMock()
     stub.multi_conf = multi_conf
     stub.is_platform_component = is_platform_component
