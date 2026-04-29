@@ -206,7 +206,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   const esp_partition_info_t *existing_partition_table = nullptr;
   esp_partition_mmap_handle_t partition_table_map;
   err = esp_partition_mmap(this->partition_table_part_, 0, ESP_PARTITION_TABLE_MAX_LEN, ESP_PARTITION_MMAP_DATA,
-                           (const void **) &existing_partition_table, &partition_table_map);
+                           reinterpret_cast<const void **>(&existing_partition_table), &partition_table_map);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_mmap failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
@@ -219,7 +219,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   }
 
   // Verify new partition table
-  const esp_partition_info_t *new_partition_table = (const esp_partition_info_t *) this->buf_;
+  const esp_partition_info_t *new_partition_table = reinterpret_cast<const esp_partition_info_t *>(this->buf_);
   // esp_partition_table_verify expects ESP_PARTITION_TABLE_MAX_LEN bytes of data
   err = esp_partition_table_verify(new_partition_table, true, &num_partitions);
   if (err != ESP_OK) {
@@ -230,7 +230,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   // esp_partition_table_verify does not fail in this case and the ESP would not boot after the update
   bool checksum_found = false;
   for (size_t i = 0; i < ESP_PARTITION_TABLE_MAX_ENTRIES; i++) {
-    if (((const esp_partition_info_t *) &new_partition_table[i])->magic == ESP_PARTITION_MAGIC_MD5) {
+    if (new_partition_table[i].magic == ESP_PARTITION_MAGIC_MD5) {
       checksum_found = true;
     }
   }
