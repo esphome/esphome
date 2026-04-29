@@ -129,7 +129,6 @@ Checks: >-
   -readability-redundant-member-init,
   -readability-redundant-parentheses,
   -readability-redundant-string-init,
-  -readability-redundant-typename,
   -readability-uppercase-literal-suffix,
   -readability-use-anyofallof,
   -readability-use-concise-preprocessor-directives,
