@@ -314,6 +314,11 @@ async def to_code(config):
         for symbol in ("vprintf", "printf", "fprintf"):
             cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
+    # Wrap Arduino's millis() so all callers (including Arduino libraries and ISR
+    # handlers) use our fast accumulator instead of the expensive 4x 64-bit multiply
+    # implementation in the Arduino ESP8266 core.
+    cg.add_build_flag("-Wl,--wrap=millis")
+
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
