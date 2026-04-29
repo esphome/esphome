@@ -14,6 +14,7 @@ from esphome.const import (
 from esphome.core import CORE, Lambda, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 from esphome.cpp_generator import LambdaExpression
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -61,6 +62,28 @@ def _consume_mdns_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
+def _require_network_interface(config: ConfigType) -> ConfigType:
+    """Require a network interface for mDNS on Arduino/LEAmDNS platforms.
+
+    On ESP8266 and RP2040 the C++ implementation needs at least one IP state
+    listener (WiFi on ESP8266; WiFi or Ethernet on RP2040) to arm its polling
+    window. Reject at config time rather than silently producing a component
+    that never initializes.
+    """
+    if config.get(CONF_DISABLED) or not (CORE.is_esp8266 or CORE.is_rp2040):
+        return config
+    full_config = fv.full_config.get()
+    has_wifi = "wifi" in full_config
+    has_ethernet = CORE.is_rp2040 and "ethernet" in full_config
+    if not (has_wifi or has_ethernet):
+        options = "'wifi'" if CORE.is_esp8266 else "'wifi' or 'ethernet'"
+        raise cv.Invalid(
+            "mdns on this platform requires a network interface — "
+            f"add a {options} component to your configuration."
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -72,6 +95,9 @@ CONFIG_SCHEMA = cv.All(
     _remove_id_if_disabled,
     _consume_mdns_sockets,
 )
+
+
+FINAL_VALIDATE_SCHEMA = _require_network_interface
 
 
 def mdns_txt_record(key: str, value: str) -> cg.RawExpression:
@@ -168,6 +194,19 @@ async def to_code(config):
             cg.add_library("ESP8266mDNS", None)
         elif CORE.is_rp2040:
             cg.add_library("LEAmDNS", None)
+
+        # Subscribe to the network IP state listener(s) so MDNS.update() is only
+        # scheduled during the probe+announce phase. Same on_ip_state() override
+        # serves both WiFi and Ethernet (signatures match).
+        if CORE.is_esp8266 or CORE.is_rp2040:
+            if "wifi" in CORE.config:
+                from esphome.components import wifi
+
+                wifi.request_wifi_ip_state_listener()
+            if CORE.is_rp2040 and "ethernet" in CORE.config:
+                from esphome.components import ethernet
+
+                ethernet.request_ethernet_ip_state_listener()
 
     if CORE.is_esp32:
         add_idf_component(name="espressif/mdns", ref="1.11.0")
