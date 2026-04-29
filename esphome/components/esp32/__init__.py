@@ -738,6 +738,9 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 1
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(
+        6, 0, 0
+    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
     cv.Version(5, 5, 4): cv.Version(55, 3, 38, "1"),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
