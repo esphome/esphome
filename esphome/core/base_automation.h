@@ -178,7 +178,7 @@ class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
 };
 #endif
 
-template<typename... Ts> class DelayAction : public Action<Ts...>, public Component {
+template<typename... Ts> class DelayAction : public Action<Ts...> {
  public:
   explicit DelayAction() = default;
 
@@ -198,8 +198,8 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
     // to avoid overhead from capturing arguments by value
     if constexpr (sizeof...(Ts) == 0) {
       App.scheduler.set_timer_common_(
-          this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL, nullptr,
-          static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION), this->delay_.value(),
+          /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
+          /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(),
           [this]() { this->play_next_(); },
           /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
     } else {
@@ -208,18 +208,18 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
       // `mutable` is required so captured copies of non-const reference args (e.g. std::string&)
       // are passed as non-const lvalues to play_next_(const Ts&...) where Ts may be `T&`
       auto f = [this, x...]() mutable { this->play_next_(x...); };
-      App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL,
-                                      nullptr, static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION),
-                                      this->delay_.value(x...), std::move(f),
-                                      /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+      App.scheduler.set_timer_common_(
+          /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
+          /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(x...),
+          std::move(f),
+          /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
     }
   }
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
-  void stop() override { this->cancel_timeout(InternalSchedulerID::DELAY_ACTION); }
+  void stop() override { App.scheduler.cancel_timeout(this); }
 };
 
 template<typename... Ts> class LambdaAction : public Action<Ts...> {
