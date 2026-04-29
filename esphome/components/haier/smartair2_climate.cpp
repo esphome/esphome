@@ -17,9 +17,9 @@ constexpr std::chrono::milliseconds CONTROL_MESSAGE_RETRIES_INTERVAL = std::chro
 constexpr uint8_t INIT_REQUESTS_RETRY = 2;
 constexpr std::chrono::milliseconds INIT_REQUESTS_RETRY_INTERVAL = std::chrono::milliseconds(2000);
 
-Smartair2Climate::Smartair2Climate() {
-  last_status_message_ = std::unique_ptr<uint8_t[]>(new uint8_t[sizeof(smartair2_protocol::HaierPacketControl)]);
-}
+Smartair2Climate::Smartair2Climate() {}
+
+Smartair2Climate::~Smartair2Climate() {}
 
 haier_protocol::HandlerError Smartair2Climate::status_handler_(haier_protocol::FrameType request_type,
                                                                haier_protocol::FrameType message_type,
@@ -35,6 +35,9 @@ haier_protocol::HandlerError Smartair2Climate::status_handler_(haier_protocol::F
       this->action_request_.reset();
       this->force_send_control_ = false;
     } else {
+      if (!this->last_status_message_) {
+        this->last_status_message_ = std::unique_ptr<uint8_t[]>(new uint8_t[sizeof(smartair2_protocol::HaierPacketControl)]);
+      }
       if (data_size >= sizeof(smartair2_protocol::HaierPacketControl) + 2) {
         memcpy(this->last_status_message_.get(), data + 2, sizeof(smartair2_protocol::HaierPacketControl));
         this->status_message_callback_.call((const char *) data, data_size);
@@ -464,7 +467,7 @@ haier_protocol::HandlerError Smartair2Climate::process_status_message_(const uin
       if (this->mode == CLIMATE_MODE_OFF) {
         // AC just turned on from remote need to turn off display
         this->force_send_control_ = true;
-      } else if ((((uint8_t) this->health_mode_) & 0b10) == 0) {
+      } else if ((((uint8_t) this->display_status_) & 0b10) == 0) {
         this->display_status_ = disp_status ? SwitchState::ON : SwitchState::OFF;
       }
     }
@@ -538,8 +541,6 @@ haier_protocol::HandlerError Smartair2Climate::process_status_message_(const uin
   this->last_valid_status_timestamp_ = std::chrono::steady_clock::now();
   if (should_publish) {
     this->publish_state();
-  }
-  if (should_publish) {
     ESP_LOGI(TAG, "HVAC values changed");
   }
   int log_level = should_publish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG;
