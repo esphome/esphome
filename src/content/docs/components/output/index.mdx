@@ -145,6 +145,13 @@ on_...:
 > // range is 0.0 (off) to 1.0 (on)
 > id(light_1).set_min_power(0.2);
 > ```
+>
+> Calling `set_min_power()` from a lambda requires that runtime power scaling be
+> compiled in. It is only compiled in when at least one output entry sets
+> `min_power`, `max_power`, or `zero_means_zero`, **or** when any
+> `output.set_min_power` / `output.set_max_power` action is registered. If your
+> config uses neither, add e.g. `min_power: 0%` to one output to opt in — the
+> build otherwise fails with a `static_assert` pointing at the lambda.
 
 <span id="output-set_max_power_action"></span>
 
@@ -173,6 +180,10 @@ on_...:
 > // range is 0.0 (off) to 1.0 (on)
 > id(light_1).set_max_power(0.8);
 > ```
+>
+> Calling `set_max_power()` from a lambda requires that runtime power scaling be
+> compiled in (see the note under `output.set_min_power` above). Adding e.g.
+> `max_power: 100%` to one output entry is enough to opt in.
 
 ## See Also
 
