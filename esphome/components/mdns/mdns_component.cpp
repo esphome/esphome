@@ -39,7 +39,8 @@ MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 // Wrap build-time defines into flash storage
 MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
 
-void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf) {
+void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf,
+                                     char *config_hash_buf) {
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
   // in mdns/__init__.py. If you add a new service here, update both locations.
 
@@ -47,6 +48,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   MDNS_STATIC_CONST_CHAR(SERVICE_ESPHOMELIB, "_esphomelib");
   MDNS_STATIC_CONST_CHAR(TXT_FRIENDLY_NAME, "friendly_name");
   MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
+  MDNS_STATIC_CONST_CHAR(TXT_CONFIG_HASH, "config_hash");
   MDNS_STATIC_CONST_CHAR(TXT_MAC, "mac");
   MDNS_STATIC_CONST_CHAR(TXT_PLATFORM, "platform");
   MDNS_STATIC_CONST_CHAR(TXT_BOARD, "board");
@@ -63,7 +65,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     bool friendly_name_empty = friendly_name.empty();
 
     // Calculate exact capacity for txt_records
-    size_t txt_count = 3;  // version, mac, board (always present)
+    size_t txt_count = 4;  // version, config_hash, mac, board (always present)
     if (!friendly_name_empty) {
       txt_count++;  // friendly_name
     }
@@ -90,6 +92,9 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
       txt_records.push_back({MDNS_STR(TXT_FRIENDLY_NAME), MDNS_STR(friendly_name.c_str())});
     }
     txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
+
+    // Config hash: passed from caller (either member buffer or stack buffer depending on USE_MDNS_STORE_SERVICES)
+    txt_records.push_back({MDNS_STR(TXT_CONFIG_HASH), MDNS_STR(config_hash_buf)});
 
     // MAC address: passed from caller (either member buffer or stack buffer depending on USE_MDNS_STORE_SERVICES)
     txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)});
