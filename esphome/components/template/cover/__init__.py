@@ -19,6 +19,8 @@ from esphome.const import (
     CONF_TILT_ACTION,
     CONF_TILT_LAMBDA,
 )
+from esphome.core import Lambda
+from esphome.cpp_generator import LambdaExpression
 
 from .. import template_ns
 
@@ -129,32 +131,36 @@ async def to_code(config):
 async def cover_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
 
-    # Bit positions must match COVER_PUBLISH_FIELDS in cover/automation.h.
-    # CONF_STATE and CONF_POSITION both map to set_position (bit 0).
-    field_mask = 0
-    if CONF_STATE in config or CONF_POSITION in config:
-        field_mask |= 1 << 0
+    # All configured fields are folded into a single stateless lambda whose
+    # constants live in flash; the action stores only a function pointer.
+    # The lambda mutates Cover fields directly (no CoverCall) since publish
+    # is a state push, not a control request.
+    # CONF_STATE and CONF_POSITION both map to position.
+    fields: list[tuple[object, str, object]] = []
+    position_value = config.get(CONF_STATE, config.get(CONF_POSITION))
+    if position_value is not None:
+        fields.append((position_value, "position", cg.float_))
     if CONF_TILT in config:
-        field_mask |= 1 << 1
+        fields.append((config[CONF_TILT], "tilt", cg.float_))
     if CONF_CURRENT_OPERATION in config:
-        field_mask |= 1 << 2
-
-    publish_template_arg = cg.TemplateArguments(
-        cg.RawExpression(f"static_cast<uint16_t>({field_mask})"), *template_arg
-    )
-    var = cg.new_Pvariable(action_id, publish_template_arg, paren)
-    if CONF_STATE in config:
-        template_ = await cg.templatable(config[CONF_STATE], args, cg.float_)
-        cg.add(var.set_position(template_))
-    if CONF_POSITION in config:
-        template_ = await cg.templatable(config[CONF_POSITION], args, cg.float_)
-        cg.add(var.set_position(template_))
-    if CONF_TILT in config:
-        template_ = await cg.templatable(config[CONF_TILT], args, cg.float_)
-        cg.add(var.set_tilt(template_))
-    if CONF_CURRENT_OPERATION in config:
-        template_ = await cg.templatable(
-            config[CONF_CURRENT_OPERATION], args, cover.CoverOperation
+        fields.append(
+            (config[CONF_CURRENT_OPERATION], "current_operation", cover.CoverOperation)
         )
-        cg.add(var.set_current_operation(template_))
-    return var
+
+    fwd_args = ", ".join(name for _, name in args)
+    body_lines: list[str] = []
+    for value, field, type_ in fields:
+        if isinstance(value, Lambda):
+            inner = await cg.process_lambda(value, args, return_type=type_)
+            body_lines.append(f"cover->{field} = ({inner})({fwd_args});")
+        else:
+            body_lines.append(f"cover->{field} = {cg.safe_exp(value)};")
+
+    apply_args = [(cover.Cover.operator("ptr"), "cover"), *args]
+    apply_lambda = LambdaExpression(
+        ["\n".join(body_lines)],
+        apply_args,
+        capture="",
+        return_type=cg.void,
+    )
+    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)

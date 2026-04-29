@@ -36,14 +36,14 @@ from esphome.const import (
     DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_WINDOW,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import LambdaExpression, MockObj, MockObjClass
 from esphome.types import ConfigType, TemplateArgsType
 
 IS_PLATFORM_COMPONENT = True
@@ -68,6 +68,7 @@ _LOGGER = logging.getLogger(__name__)
 cover_ns = cg.esphome_ns.namespace("cover")
 
 Cover = cover_ns.class_("Cover", cg.EntityBase)
+CoverCall = cover_ns.class_("CoverCall")
 
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED
@@ -300,33 +301,35 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
 async def cover_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
 
-    # Bit positions must match COVER_CONTROL_FIELDS in automation.h.
-    # CONF_STATE and CONF_POSITION both map to set_position (bit 1).
-    field_mask = 0
-    if CONF_STOP in config:
-        field_mask |= 1 << 0
-    if CONF_STATE in config or CONF_POSITION in config:
-        field_mask |= 1 << 1
-    if CONF_TILT in config:
-        field_mask |= 1 << 2
-
-    control_template_arg = cg.TemplateArguments(
-        cg.RawExpression(f"static_cast<uint16_t>({field_mask})"), *template_arg
-    )
-    var = cg.new_Pvariable(action_id, control_template_arg, paren)
+    # All configured fields are folded into a single stateless lambda whose
+    # constants live in flash; the action stores only a function pointer.
+    # CONF_STATE and CONF_POSITION are mutually exclusive in the schema and
+    # both map to set_position.
+    fields: list[tuple[object, str, object]] = []
     if (stop := config.get(CONF_STOP)) is not None:
-        template_ = await cg.templatable(stop, args, cg.bool_)
-        cg.add(var.set_stop(template_))
-    if (state := config.get(CONF_STATE)) is not None:
-        template_ = await cg.templatable(state, args, cg.float_)
-        cg.add(var.set_position(template_))
-    if (position := config.get(CONF_POSITION)) is not None:
-        template_ = await cg.templatable(position, args, cg.float_)
-        cg.add(var.set_position(template_))
+        fields.append((stop, "set_stop", cg.bool_))
+    if (position := config.get(CONF_STATE, config.get(CONF_POSITION))) is not None:
+        fields.append((position, "set_position", cg.float_))
     if (tilt := config.get(CONF_TILT)) is not None:
-        template_ = await cg.templatable(tilt, args, cg.float_)
-        cg.add(var.set_tilt(template_))
-    return var
+        fields.append((tilt, "set_tilt", cg.float_))
+
+    fwd_args = ", ".join(name for _, name in args)
+    body_lines: list[str] = []
+    for value, setter, type_ in fields:
+        if isinstance(value, Lambda):
+            inner = await cg.process_lambda(value, args, return_type=type_)
+            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
+        else:
+            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
+
+    apply_args = [(CoverCall.operator("ref"), "call"), *args]
+    apply_lambda = LambdaExpression(
+        ["\n".join(body_lines)],
+        apply_args,
+        capture="",
+        return_type=cg.void,
+    )
+    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
 
 
 COVER_CONDITION_SCHEMA = cv.maybe_simple_value(
