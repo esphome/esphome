@@ -1,12 +1,21 @@
 #ifdef USE_ESP32
 
+#include "crash_handler.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
 #include <esp_clk_tree.h>
+#include <esp_ota_ops.h>
 #include <esp_system.h>
+#include <esp_task_wdt.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+
+// Empty esp32 namespace block to satisfy ci-custom's lint_namespace check.
+// HAL functions live in namespace esphome (root) — they are not part of the
+// esp32 component's API.
+namespace esphome::esp32 {}  // namespace esphome::esp32
 
 namespace esphome {
 
@@ -31,6 +40,22 @@ void arch_restart() {
   while (true) {  // NOLINT(clang-diagnostic-unreachable-code)
     yield();
   }
+}
+
+void arch_init() {
+#ifdef USE_ESP32_CRASH_HANDLER
+  // Read crash data from previous boot before anything else
+  esp32::crash_handler_read_and_clear();
+#endif
+
+  // Enable the task watchdog only on the loop task (from which we're currently running)
+  esp_task_wdt_add(nullptr);
+
+  // Handle OTA rollback: mark partition valid immediately unless USE_OTA_ROLLBACK is enabled,
+  // in which case safe_mode will mark it valid after confirming successful boot.
+#ifndef USE_OTA_ROLLBACK
+  esp_ota_mark_app_valid_cancel_rollback();
+#endif
 }
 
 uint32_t arch_get_cpu_freq_hz() {

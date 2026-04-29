@@ -815,16 +815,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "wake/wake_zephyr.cpp": {
             PlatformFramework.NRF52_ZEPHYR,
         },
-        # Per-platform HAL out-of-line implementations — hal.h dispatches to
-        # exactly one platform header based on USE_*, and the matching .cpp
-        # provides the few HAL functions that stay out-of-line. Other
-        # platforms still keep their out-of-line bodies in
-        # components/<platform>/core.cpp until their per-platform follow-up
-        # PR moves them here.
-        "hal/hal_esp32.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
         # Note: lock_free_queue.h and event_pool.h are header files and don't need to be filtered
         # as they are only included when needed by the preprocessor
     }
