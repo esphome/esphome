@@ -14,7 +14,6 @@ from esphome.const import (
     CONF_OFFSET_WIDTH,
     CONF_POWER_SUPPLY,
     CONF_RESET_PIN,
-    CONF_ROTATION,
     CONF_WIDTH,
 )
 
@@ -91,7 +90,6 @@ MODELS = {
             CONF_WIDTH: 170,
             CONF_OFFSET_HEIGHT: 0,
             CONF_OFFSET_WIDTH: 35,
-            CONF_ROTATION: 270,
             CONF_CS_PIN: "GPIO10",
             CONF_DC_PIN: "GPIO13",
             CONF_RESET_PIN: "GPIO9",
@@ -104,7 +102,6 @@ MODELS = {
             CONF_WIDTH: 172,
             CONF_OFFSET_HEIGHT: 0,
             CONF_OFFSET_WIDTH: 34,
-            CONF_ROTATION: 90,
             CONF_CS_PIN: "GPIO21",
             CONF_DC_PIN: "GPIO22",
             CONF_RESET_PIN: "GPIO23",
