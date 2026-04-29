@@ -138,6 +138,7 @@ haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(haie
     tmp[8] = 0;
     strncpy(tmp, answr->protocol_version, 8);
     this->hvac_hardware_info_ = HardwareInfo();
+    // NOLINTBEGIN(bugprone-unchecked-optional-access)
     this->hvac_hardware_info_.value().protocol_version_ = std::string(tmp);
     strncpy(tmp, answr->software_version, 8);
     this->hvac_hardware_info_.value().software_version_ = std::string(tmp);
@@ -157,6 +158,7 @@ haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(haie
     this->hvac_hardware_info_.value().functions_[3] = (answr->functions[1] & 0x08) != 0;  // multiple AC support
     this->hvac_hardware_info_.value().functions_[4] = (answr->functions[1] & 0x20) != 0;  // roles support
     this->use_crc_ = this->hvac_hardware_info_.value().functions_[2];
+    // NOLINTEND(bugprone-unchecked-optional-access)
     this->set_phase(ProtocolPhases::SENDING_INIT_2);
     return result;
   } else {
@@ -460,6 +462,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
       if (this->action_request_.has_value()) {
         if (this->action_request_.value().message.has_value()) {
           this->send_message_(this->action_request_.value().message.value(), this->use_crc_);
+          // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
           this->action_request_.value().message.reset();
         } else {
           // Message already sent, reseting request and return to idle
