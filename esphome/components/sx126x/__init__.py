@@ -15,6 +15,7 @@ CONF_SX126X_ID = "sx126x_id"
 CONF_BANDWIDTH = "bandwidth"
 CONF_BITRATE = "bitrate"
 CONF_CODING_RATE = "coding_rate"
+CONF_COLD = "cold"
 CONF_CRC_INVERTED = "crc_inverted"
 CONF_CRC_SIZE = "crc_size"
 CONF_CRC_POLYNOMIAL = "crc_polynomial"
@@ -308,12 +309,6 @@ NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
     synchronous=True,
 )
 @automation.register_action(
-    "sx126x.set_mode_sleep",
-    SetModeSleepAction,
-    NO_ARGS_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
     "sx126x.set_mode_standby",
     SetModeStandbyAction,
     NO_ARGS_ACTION_SCHEMA,
@@ -322,6 +317,28 @@ NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
 async def no_args_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+SET_MODE_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(SX126x),
+        cv.Optional(CONF_COLD, default=False): cv.templatable(cv.boolean),
+    }
+)
+
+
+@automation.register_action(
+    "sx126x.set_mode_sleep",
+    SetModeSleepAction,
+    SET_MODE_SLEEP_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def set_mode_sleep_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_COLD], args, bool)
+    cg.add(var.set_cold(template_))
     return var
 
 
