@@ -135,21 +135,20 @@ async def cover_template_publish_to_code(config, action_id, template_arg, args):
     # constants live in flash; the action stores only a function pointer.
     # The lambda mutates Cover fields directly (no CoverCall) since publish
     # is a state push, not a control request.
-    # CONF_STATE and CONF_POSITION both map to position.
-    fields: list[tuple[object, str, object]] = []
-    position_value = config.get(CONF_STATE, config.get(CONF_POSITION))
-    if position_value is not None:
-        fields.append((position_value, "position", cg.float_))
-    if CONF_TILT in config:
-        fields.append((config[CONF_TILT], "tilt", cg.float_))
-    if CONF_CURRENT_OPERATION in config:
-        fields.append(
-            (config[CONF_CURRENT_OPERATION], "current_operation", cover.CoverOperation)
-        )
+    # CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
+    # one is present and both map to the position field.
+    FIELDS = (
+        (CONF_STATE, "position", cg.float_),
+        (CONF_POSITION, "position", cg.float_),
+        (CONF_TILT, "tilt", cg.float_),
+        (CONF_CURRENT_OPERATION, "current_operation", cover.CoverOperation),
+    )
 
     fwd_args = ", ".join(name for _, name in args)
     body_lines: list[str] = []
-    for value, field, type_ in fields:
+    for conf_key, field, type_ in FIELDS:
+        if (value := config.get(conf_key)) is None:
+            continue
         if isinstance(value, Lambda):
             inner = await cg.process_lambda(value, args, return_type=type_)
             body_lines.append(f"cover->{field} = ({inner})({fwd_args});")

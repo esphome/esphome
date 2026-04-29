@@ -303,19 +303,20 @@ async def cover_control_to_code(config, action_id, template_arg, args):
 
     # All configured fields are folded into a single stateless lambda whose
     # constants live in flash; the action stores only a function pointer.
-    # CONF_STATE and CONF_POSITION are mutually exclusive in the schema and
-    # both map to set_position.
-    fields: list[tuple[object, str, object]] = []
-    if (stop := config.get(CONF_STOP)) is not None:
-        fields.append((stop, "set_stop", cg.bool_))
-    if (position := config.get(CONF_STATE, config.get(CONF_POSITION))) is not None:
-        fields.append((position, "set_position", cg.float_))
-    if (tilt := config.get(CONF_TILT)) is not None:
-        fields.append((tilt, "set_tilt", cg.float_))
+    # CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
+    # one is present and both dispatch to set_position.
+    FIELDS = (
+        (CONF_STOP, "set_stop", cg.bool_),
+        (CONF_STATE, "set_position", cg.float_),
+        (CONF_POSITION, "set_position", cg.float_),
+        (CONF_TILT, "set_tilt", cg.float_),
+    )
 
     fwd_args = ", ".join(name for _, name in args)
     body_lines: list[str] = []
-    for value, setter, type_ in fields:
+    for conf_key, setter, type_ in FIELDS:
+        if (value := config.get(conf_key)) is None:
+            continue
         if isinstance(value, Lambda):
             inner = await cg.process_lambda(value, args, return_type=type_)
             body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
