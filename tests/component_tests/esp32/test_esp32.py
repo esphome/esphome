@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_IGNORE_PIN_VALIDATION_ERROR,
     CONF_NUMBER,
+    KEY_NATIVE_IDF,
     PlatformFramework,
 )
 from esphome.core import CORE
@@ -240,6 +241,33 @@ def test_platformio_idf_enables_reproducible_build(
 ) -> None:
     """Test PlatformIO ESP-IDF builds enable reproducible app metadata."""
     generate_main(component_config_path("reproducible_build.yaml"))
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
+
+
+def test_platformio_arduino_enables_reproducible_build(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test PlatformIO Arduino builds enable reproducible app metadata."""
+    generate_main(component_config_path("reproducible_build_arduino.yaml"))
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
+
+
+def test_native_idf_enables_reproducible_build(
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test native ESP-IDF builds enable reproducible app metadata."""
+    from esphome.__main__ import generate_cpp_contents
+    from esphome.config import read_config
+
+    CORE.config_path = component_config_path("reproducible_build.yaml")
+    CORE.config = read_config({})
+    CORE.data[KEY_NATIVE_IDF] = True
+    generate_cpp_contents(CORE.config)
 
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
