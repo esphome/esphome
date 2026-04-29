@@ -9,7 +9,7 @@ import pytest
 import requests
 
 from esphome import external_files
-from esphome.config_validation import Invalid
+from esphome.config_validation import Invalid, MultipleInvalid
 from esphome.core import CORE, EsphomeError, TimePeriod
 
 
@@ -57,6 +57,24 @@ def mock_write_file() -> MagicMock:
     injected without involving the real filesystem helper.
     """
     with patch("esphome.external_files.write_file") as m:
+        yield m
+
+
+@pytest.fixture
+def mock_download_content() -> MagicMock:
+    """Patch `external_files.download_content` for tests that exercise the
+    parallel batch helper without doing real I/O.
+    """
+    with patch("esphome.external_files.download_content") as m:
+        yield m
+
+
+@pytest.fixture
+def mock_download_content_many() -> MagicMock:
+    """Patch `external_files.download_content_many` for tests that exercise
+    the URL-collection helper without dispatching to the thread pool.
+    """
+    with patch("esphome.external_files.download_content_many") as m:
         yield m
 
 
@@ -492,6 +510,173 @@ def test_download_content_skip_external_update_downloads_when_missing(
 
     assert result == new_content
     assert test_file.read_bytes() == new_content
+
+
+def test_download_content_many_empty_is_noop(
+    mock_download_content: MagicMock, setup_core: Path
+) -> None:
+    """Empty input shouldn't spin up a thread pool or call download_content."""
+    external_files.download_content_many([])
+    mock_download_content.assert_not_called()
+
+
+def test_download_content_many_single_item_avoids_pool(
+    mock_download_content: MagicMock, setup_core: Path
+) -> None:
+    """A single item should be downloaded inline (no thread pool overhead)."""
+    item = ("https://example.com/file.txt", setup_core / "f.txt")
+    external_files.download_content_many([item])
+    mock_download_content.assert_called_once_with(
+        item[0], item[1], external_files.NETWORK_TIMEOUT
+    )
+
+
+def test_download_content_many_runs_in_parallel(
+    mock_download_content: MagicMock, setup_core: Path
+) -> None:
+    """Multiple items should run concurrently — total wall time ≈ max latency."""
+    import threading
+
+    barrier = threading.Barrier(3)
+
+    def slow_download(url: str, path: Path, timeout: int) -> bytes:
+        # If calls were serial this would deadlock (third caller never arrives
+        # while the first is blocked at the barrier).
+        barrier.wait(timeout=2.0)
+        return b""
+
+    mock_download_content.side_effect = slow_download
+    items = [
+        ("https://example.com/a", setup_core / "a"),
+        ("https://example.com/b", setup_core / "b"),
+        ("https://example.com/c", setup_core / "c"),
+    ]
+    external_files.download_content_many(items, max_workers=4)
+    assert mock_download_content.call_count == 3
+
+
+def test_download_content_many_propagates_single_error(
+    mock_download_content: MagicMock, setup_core: Path
+) -> None:
+    """A single failing worker should raise its `Invalid` directly, not wrap
+    it in a `MultipleInvalid` that the caller would have to unpack.
+    """
+
+    def fake_download(url: str, path: Path, timeout: int) -> bytes:
+        if url.endswith("bad"):
+            raise Invalid(f"could not download {url}")
+        return b""
+
+    mock_download_content.side_effect = fake_download
+    items = [
+        ("https://example.com/ok", setup_core / "ok"),
+        ("https://example.com/bad", setup_core / "bad"),
+    ]
+    with pytest.raises(Invalid, match="could not download") as exc_info:
+        external_files.download_content_many(items)
+    assert not isinstance(exc_info.value, MultipleInvalid)
+
+
+def test_download_content_many_aggregates_multiple_errors(
+    mock_download_content: MagicMock, setup_core: Path
+) -> None:
+    """Every failing worker should be reported in a single MultipleInvalid so
+    the user sees all broken URLs in one validation pass instead of fixing
+    them one network round-trip at a time.
+    """
+
+    def fake_download(url: str, path: Path, timeout: int) -> bytes:
+        if url.endswith("ok"):
+            return b""
+        raise Invalid(f"could not download {url}")
+
+    mock_download_content.side_effect = fake_download
+    items = [
+        ("https://example.com/ok", setup_core / "ok"),
+        ("https://example.com/bad1", setup_core / "bad1"),
+        ("https://example.com/bad2", setup_core / "bad2"),
+    ]
+    with pytest.raises(MultipleInvalid) as exc_info:
+        external_files.download_content_many(items)
+    messages = {str(e) for e in exc_info.value.errors}
+    assert messages == {
+        "could not download https://example.com/bad1",
+        "could not download https://example.com/bad2",
+    }
+
+
+def test_download_content_many_dedupes_by_path(
+    mock_download_content: MagicMock, setup_core: Path
+) -> None:
+    """Two items pointing at the same cache path must collapse to one
+    download -- otherwise concurrent writes race on the same file. Which
+    URL wins doesn't matter (in practice duplicate paths only arise when
+    the URL is duplicated), so we only assert the call count and path.
+    """
+    path = setup_core / "shared"
+    items = [
+        ("https://example.com/a", path),
+        ("https://example.com/b", path),
+        ("https://example.com/a", path),
+    ]
+    external_files.download_content_many(items)
+    assert mock_download_content.call_count == 1
+    args, _ = mock_download_content.call_args
+    assert args[1] == path
+
+
+def test_download_content_many_clamps_invalid_max_workers(
+    mock_download_content: MagicMock, setup_core: Path
+) -> None:
+    """`max_workers <= 0` must not raise from ThreadPoolExecutor; it should
+    be clamped up to at least 1 worker.
+    """
+    items = [
+        ("https://example.com/a", setup_core / "a"),
+        ("https://example.com/b", setup_core / "b"),
+    ]
+    external_files.download_content_many(items, max_workers=0)
+    assert mock_download_content.call_count == 2
+
+
+def test_download_web_files_in_config_filters_and_dispatches(
+    mock_download_content_many: MagicMock, setup_core: Path
+) -> None:
+    """Only `file.type == "web"` entries should be forwarded to
+    download_content_many, and the unmodified config should be returned so
+    the helper can sit in a `cv.All(...)` chain.
+    """
+
+    def path_for(file_dict: dict) -> Path:
+        return setup_core / file_dict["url"].rsplit("/", 1)[-1]
+
+    config = [
+        {"file": {"type": "web", "url": "https://example.com/a"}},
+        {"file": {"type": "local", "path": "/tmp/b"}},
+        {"file": {"type": "web", "url": "https://example.com/c"}},
+        {},  # no `file` key at all
+    ]
+    result = external_files.download_web_files_in_config(config, path_for)
+
+    assert result is config
+    mock_download_content_many.assert_called_once()
+    assert list(mock_download_content_many.call_args[0][0]) == [
+        ("https://example.com/a", setup_core / "a"),
+        ("https://example.com/c", setup_core / "c"),
+    ]
+
+
+def test_download_web_files_in_config_no_web_entries(
+    mock_download_content_many: MagicMock, setup_core: Path
+) -> None:
+    """A config with no web entries should still call through to
+    download_content_many (which is itself a no-op for empty input) so the
+    behavior stays consistent.
+    """
+    config = [{"file": {"type": "local", "path": "/tmp/a"}}]
+    external_files.download_web_files_in_config(config, lambda _: setup_core / "x")
+    mock_download_content_many.assert_called_once()
+    assert list(mock_download_content_many.call_args[0][0]) == []
 
 
 def test_download_content_saves_etag(
