@@ -1,6 +1,7 @@
 #ifdef USE_HOST
 
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 #include <time.h>
 #include <cerrno>
