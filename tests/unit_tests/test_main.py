@@ -81,6 +81,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    Toolchain,
 )
 from esphome.core import CORE, EsphomeError
 from esphome.util import BootselResult, FlashImage
@@ -136,6 +137,7 @@ def setup_core(
         config[CONF_WIFI] = {CONF_USE_ADDRESS: address}
 
     CORE.config = config
+    CORE.toolchain = Toolchain.PLATFORMIO
 
     if platform is not None:
         CORE.data[KEY_CORE] = {}
