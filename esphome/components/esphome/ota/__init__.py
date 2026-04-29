@@ -77,7 +77,7 @@ def ota_esphome_final_validate(config):
                 merged_ota_esphome_configs_by_port[conf_port] = merge_config(
                     merged_ota_esphome_configs_by_port[conf_port], ota_conf
                 )
-            if ota_conf.get(CONF_ALLOW_PARTITION_ACCESS, False) and not CORE.is_esp32:
+            if ota_conf.get(CONF_ALLOW_PARTITION_ACCESS) and not CORE.is_esp32:
                 raise cv.Invalid(
                     f"{CONF_ALLOW_PARTITION_ACCESS} is only supported on the esp32"
                 )
@@ -167,7 +167,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add(var.set_auth_password(config[CONF_PASSWORD]))
     cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
 
-    if config.get(CONF_ALLOW_PARTITION_ACCESS, False):
+    if config.get(CONF_ALLOW_PARTITION_ACCESS):
         cg.add_define("USE_OTA_PARTITIONS")
 
     # Build flag so lwip_fast_select.c (a .c file that can't include defines.h) sees it.
