@@ -1,5 +1,6 @@
 #ifdef USE_LIBRETINY
 
+#include "core.h"
 #include "esphome/core/hal.h"
 #include "preferences.h"
 
