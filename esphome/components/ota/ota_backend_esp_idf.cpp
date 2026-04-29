@@ -203,7 +203,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   }
 
   // Verify existing partition table
-  const esp_partition_info_t *existing_partition_table = NULL;
+  const esp_partition_info_t *existing_partition_table = nullptr;
   esp_partition_mmap_handle_t partition_table_map;
   err = esp_partition_mmap(this->partition_table_part_, 0, ESP_PARTITION_TABLE_MAX_LEN, ESP_PARTITION_MMAP_DATA,
                            (const void **) &existing_partition_table, &partition_table_map);
