@@ -28,7 +28,7 @@ void arch_init() {
     static wdt_timeout_cfg wdt_config{};
     wdt_config.flags = WDT_FLAG_RESET_SOC;
 #ifdef USE_ZIGBEE
-    // zboss thread use a lot of cpu cycles during start
+    // zboss thread uses a lot of CPU cycles during startup
     wdt_config.window.max = 10000;
 #else
     wdt_config.window.max = 2000;
