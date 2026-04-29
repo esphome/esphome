@@ -180,8 +180,8 @@ class Scheduler {
     Component *component;
     // Optimized name storage using tagged union - zero heap allocation
     union {
-      const char *static_name;  // For STATIC_STRING (string literals, no allocation)
-      uint32_t hash_or_id;      // For HASHED_STRING or NUMERIC_ID
+      const char *static_name;  // For STATIC_STRING (string literals) and SELF_POINTER (caller's `this`)
+      uint32_t hash_or_id;      // For HASHED_STRING, NUMERIC_ID, and NUMERIC_ID_INTERNAL
     } name_;
     uint32_t interval;
     // Split time to handle millis() rollover. The scheduler combines the 32-bit millis()
@@ -248,18 +248,16 @@ class Scheduler {
     SchedulerItem(SchedulerItem &&) = delete;
     SchedulerItem &operator=(SchedulerItem &&) = delete;
 
-    // Helper to get the static name (only valid for STATIC_STRING type)
-    const char *get_name() const { return (name_type_ == NameType::STATIC_STRING) ? name_.static_name : nullptr; }
+    // Helper to get the pointer-slot value (valid for STATIC_STRING and SELF_POINTER types).
+    // Both share the same union member, so callers (e.g. log formatters) can read either uniformly.
+    const char *get_name() const {
+      return (name_type_ == NameType::STATIC_STRING || name_type_ == NameType::SELF_POINTER) ? name_.static_name
+                                                                                             : nullptr;
+    }
 
     // Helper to get the hash or numeric ID (only valid for HASHED_STRING / NUMERIC_ID / NUMERIC_ID_INTERNAL types)
     uint32_t get_name_hash_or_id() const {
       return (name_type_ != NameType::STATIC_STRING && name_type_ != NameType::SELF_POINTER) ? name_.hash_or_id : 0;
-    }
-
-    // Helper to get the self pointer (only valid for SELF_POINTER type).
-    // The pointer is stored in the same union slot as `static_name` since both are pointer-width.
-    const void *get_self() const {
-      return (name_type_ == NameType::SELF_POINTER) ? static_cast<const void *>(name_.static_name) : nullptr;
     }
 
     // Helper to get the name type
