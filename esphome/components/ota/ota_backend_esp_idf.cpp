@@ -324,8 +324,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   // Copy the running app partition to new position if needed
   if (new_app_part_index == -1) {
     const esp_partition_t *running_app_part = nullptr;
-    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
-    while (it != NULL) {
+    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+    while (it != nullptr) {
       const esp_partition_t *p = esp_partition_get(it);
       if (p->address == running_app_offset && p->size >= running_app_size) {
         running_app_part = p;
