@@ -51,6 +51,7 @@ extern "C" void yield(void);
 extern "C" void delay(unsigned long ms);
 extern "C" unsigned long micros(void);
 extern "C" unsigned long millis(void);
+extern "C" void delayMicroseconds(unsigned int us);
 // NOLINTEND(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
 
 // Forward decls from libretiny's <lt_api.h> family for the inline arch_*
@@ -95,11 +96,12 @@ __attribute__((always_inline)) inline uint32_t millis() { return static_cast<uin
 #endif
 __attribute__((always_inline)) inline uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 
+// NOLINTNEXTLINE(readability-identifier-naming)
+__attribute__((always_inline)) inline void delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
 __attribute__((hot, always_inline)) inline void arch_feed_wdt() { lt_wdt_feed(); }
 __attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() { return lt_cpu_get_cycle_count(); }
 __attribute__((always_inline)) inline uint32_t arch_get_cpu_freq_hz() { return lt_cpu_get_freq(); }
 
-void delayMicroseconds(uint32_t us);  // NOLINT(readability-identifier-naming)
 void arch_init();
 
 }  // namespace esphome
