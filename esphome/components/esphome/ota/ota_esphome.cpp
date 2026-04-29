@@ -104,13 +104,19 @@ void ESPHomeOTAComponent::dump_config() {
   // Avoid running esp_image_verify here: it reads and checksums the entire app image, which is too
   // expensive for a config dump. The address comes from a cached lookup; the precise used size is
   // computed lazily by update_partition_table() the first time a partition-table OTA is requested.
+  // Guard against esp_ota_get_running_partition() returning nullptr (can happen after the partition
+  // cache has been unloaded) so dump_config never crashes.
+  // Single ESP_LOGCONFIG call so the lines stay together as one log message; on the (rare)
+  // nullptr path we surface zeros rather than dereferencing.
   const esp_partition_t *running_app_part = esp_ota_get_running_partition();
   ESP_LOGCONFIG(TAG,
                 "  Partition access allowed\n"
                 "  Running app:\n"
                 "    Partition address: 0x%X\n"
                 "    Partition size: 0x%X bytes",
-                running_app_part->address, running_app_part->size);
+                running_app_part != nullptr ? running_app_part->address : 0u,
+                running_app_part != nullptr ? running_app_part->size : 0u);
+
 #ifdef USE_ESP32
   ESP_LOGCONFIG(TAG, "  Partition table:");
   esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, nullptr);

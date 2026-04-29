@@ -1124,6 +1124,15 @@ def upload_program(
     binary = CORE.firmware_bin
     ota_type = espota2.OTA_TYPE_UPDATE_APP
     if getattr(args, "partition_table", False):
+        # Fail fast if the resolved ESPHome OTA config does not enable allow_partition_access.
+        # The device-side handshake also rejects this with "Device only supports app updates",
+        # but checking here surfaces the misconfiguration before opening a network connection.
+        if not ota_conf.get("allow_partition_access"):
+            raise EsphomeError(
+                "The option --partition-table requires 'allow_partition_access: true' on the "
+                "esphome OTA platform in the device's YAML configuration. Add it, recompile, "
+                "flash a build with the option enabled, and then retry --partition-table."
+            )
         binary = CORE.partition_table_bin
         ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
     if getattr(args, "file", None) is not None:

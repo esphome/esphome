@@ -25,8 +25,12 @@ std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABac
 OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) {
   this->ota_type_ = ota_type;
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
-    if (image_size > ESP_PARTITION_TABLE_MAX_LEN) {
-      ESP_LOGE(TAG, "Wrong partition table size");
+    // Partition table images produced by gen_esp32part.py are padded with 0xFF and an MD5 entry to
+    // exactly ESP_PARTITION_TABLE_MAX_LEN bytes. Reject anything else: an undersized image would
+    // leave trailing bytes from the previous table in place after the partial write, and an
+    // oversized image cannot fit in the reserved region. This is stricter than verify alone.
+    if (image_size != ESP_PARTITION_TABLE_MAX_LEN) {
+      ESP_LOGE(TAG, "Wrong partition table size: expected %u bytes, got %zu", ESP_PARTITION_TABLE_MAX_LEN, image_size);
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
     }
     memset(this->buf_, 0xFF, sizeof this->buf_);
@@ -207,10 +211,17 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
-  // Get running app partition and used size
+  // Get running app partition and used size. A zero size means we couldn't determine the running
+  // app (e.g., esp_ota_get_running_partition() returned nullptr after a previous aborted partition
+  // table OTA called esp_partition_unload_all()). Without a valid size we cannot safely compute
+  // overlap or copy bounds, so fail before any flash operation.
   uint32_t running_app_offset;
   size_t running_app_size;
   get_running_app_position(running_app_offset, running_app_size);
+  if (running_app_size == 0) {
+    ESP_LOGE(TAG, "Failed to determine running app position");
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+  }
 
   // Get partition table partition
   esp_err_t err = esp_partition_register_external(
@@ -328,9 +339,6 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
                 "  DO NOT REMOVE POWER until the device reboots successfully.\n"
                 "  Loss of power during this operation may permanently brick the device.");
 
-  // Deinitialize NVS to prevent unwanted flash writes
-  nvs_flash_deinit();
-
   // Hold the watchdog open for the entire critical section: optional app copy, partition-table
   // erase/write, and boot partition selection. None of the steps below should yield long enough
   // to require a refresh, but bundling them under a single guard avoids spurious resets if the
@@ -353,6 +361,11 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
     }
   }
+
+  // Deinitialize NVS just before the first destructive write to the partition-table region. Doing
+  // this here (instead of earlier) means that any failure path in the verify or copy phases above
+  // returns with NVS still functional, so other components on the device aren't broken until reboot.
+  nvs_flash_deinit();
 
   // Update the partition table
   err = esp_ota_begin(this->partition_table_part_, ESP_PARTITION_TABLE_MAX_LEN, &this->update_handle_);
