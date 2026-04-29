@@ -9,13 +9,22 @@ import logging
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from esphome.const import SOURCE_FILE_EXTENSIONS
 from esphome.core import CORE
-import esphome.core.config
-from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
+
+if TYPE_CHECKING:
+    from esphome.cpp_generator import MockObjClass
+
+# `esphome.core.config` is imported lazily in `_lookup_module` when the
+# "esphome" pseudo-component is first resolved. It pulls in
+# `esphome.automation` and `esphome.config_validation`, which together
+# dominate `esphome.__main__` startup cost when loaded eagerly.
+# `esphome.cpp_generator` is similarly avoided at module scope; it pulls
+# in `esphome.yaml_util` and is only needed for the `MockObjClass` type
+# annotation, which is resolved lazily via `TYPE_CHECKING`.
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -94,7 +103,7 @@ class ComponentManifest:
         return getattr(self.module, "CODEOWNERS", [])
 
     @property
-    def instance_type(self) -> MockObjClass | None:
+    def instance_type(self) -> "MockObjClass | None":
         return getattr(self.module, "INSTANCE_TYPE", None)
 
     @property
@@ -213,6 +222,13 @@ def _lookup_module(domain: str, exception: bool) -> ComponentManifest | None:
     if domain in _COMPONENT_CACHE:
         return _COMPONENT_CACHE[domain]
 
+    if domain == "esphome":
+        import esphome.core.config
+
+        manif = ComponentManifest(esphome.core.config, recursive_sources=True)
+        _COMPONENT_CACHE[domain] = manif
+        return manif
+
     try:
         module = importlib.import_module(f"esphome.components.{domain}")
     except ImportError as e:
@@ -248,9 +264,6 @@ def get_platform(domain: str, platform: str) -> ComponentManifest | None:
 
 _COMPONENT_CACHE: dict[str, ComponentManifest] = {}
 CORE_COMPONENTS_PATH = (Path(__file__).parent / "components").resolve()
-_COMPONENT_CACHE["esphome"] = ComponentManifest(
-    esphome.core.config, recursive_sources=True
-)
 
 
 def _replace_component_manifest(domain: str, manifest: ComponentManifest) -> None:
