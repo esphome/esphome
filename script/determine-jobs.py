@@ -100,6 +100,43 @@ def _all_integration_test_files() -> list[str]:
     )
 
 
+def _compute_integration_test_buckets(
+    integration_run_all: bool,
+    integration_test_files: list[str],
+) -> tuple[bool, list[dict[str, Any]]]:
+    """Compute (run_integration, buckets) from the determine_integration_tests result.
+
+    Pure function for unit testing — no I/O beyond `_all_integration_test_files`
+    when `integration_run_all` is set.
+
+    `buckets` is a list of `{name, tests}` dicts where `tests` is a JSON-friendly
+    list of file paths so the workflow can build a bash array via jq, avoiding
+    shell word-splitting / glob hazards.
+    """
+    if integration_run_all:
+        files = _all_integration_test_files()
+    else:
+        files = sorted(integration_test_files)
+
+    # Empty list (e.g. run_all expansion with no files on disk) would otherwise
+    # cause the workflow to invoke pytest with no path argument and collect
+    # tests outside tests/integration/. Suppress the run instead.
+    if not files:
+        return False, []
+
+    if len(files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
+        parts = [
+            part for part in _split_list(files, INTEGRATION_TESTS_SPLIT_BUCKETS) if part
+        ]
+        buckets = [
+            {"name": f"{i + 1}/{len(parts)}", "tests": part}
+            for i, part in enumerate(parts)
+        ]
+    else:
+        buckets = [{"name": "1/1", "tests": files}]
+    return True, buckets
+
+
 class Platform(StrEnum):
     """Platform identifiers for memory impact analysis."""
 
@@ -830,43 +867,9 @@ def main() -> None:
     integration_run_all, integration_test_files = determine_integration_tests(
         args.branch
     )
-    run_integration = integration_run_all or bool(integration_test_files)
-
-    # When run_all is set, expand to the full glob here so determine-jobs.py
-    # remains the single source of truth for which tests run. The workflow
-    # never re-globs the filesystem.
-    if integration_run_all:
-        integration_test_files = _all_integration_test_files()
-    else:
-        integration_test_files = sorted(integration_test_files)
-
-    # Guard: if expansion produced no files (shouldn't happen normally, but
-    # would cause the workflow to invoke pytest with no path argument and
-    # collect tests outside tests/integration/), treat as no integration run.
-    if not integration_test_files:
-        run_integration = False
-
-    # Pre-bucket the test list so the CI matrix can consume it directly.
-    # `tests` is a JSON list of file paths so the workflow can build a bash
-    # array via jq, avoiding shell word-splitting / glob hazards.
-    # Below threshold => 1 bucket; above threshold => INTEGRATION_TESTS_SPLIT_BUCKETS.
-    integration_test_buckets: list[dict[str, Any]]
-    if not run_integration:
-        integration_test_buckets = []
-    elif len(integration_test_files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
-        parts = [
-            part
-            for part in _split_list(
-                integration_test_files, INTEGRATION_TESTS_SPLIT_BUCKETS
-            )
-            if part
-        ]
-        integration_test_buckets = [
-            {"name": f"{i + 1}/{len(parts)}", "tests": part}
-            for i, part in enumerate(parts)
-        ]
-    else:
-        integration_test_buckets = [{"name": "1/1", "tests": integration_test_files}]
+    run_integration, integration_test_buckets = _compute_integration_test_buckets(
+        integration_run_all, integration_test_files
+    )
     run_clang_tidy = should_run_clang_tidy(args.branch)
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
