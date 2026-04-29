@@ -168,11 +168,11 @@ class Scheduler {
    *
    * If you need either of those, use the existing `(Component *, id)` overloads.
    */
-  void set_timeout(void *self, uint32_t timeout, std::function<void()> &&func);
-  /// Self-keyed interval. See set_timeout(void *, ...) for semantics.
-  void set_interval(void *self, uint32_t interval, std::function<void()> &&func);
-  bool cancel_timeout(void *self);
-  bool cancel_interval(void *self);
+  void set_timeout(const void *self, uint32_t timeout, std::function<void()> &&func);
+  /// Self-keyed interval. See set_timeout(const void *, ...) for semantics.
+  void set_interval(const void *self, uint32_t interval, std::function<void()> &&func);
+  bool cancel_timeout(const void *self);
+  bool cancel_interval(const void *self);
 
  protected:
   struct SchedulerItem {

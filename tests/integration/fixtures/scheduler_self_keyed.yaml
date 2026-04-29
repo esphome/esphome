@@ -21,8 +21,10 @@ script:
     then:
       - logger.log: "Testing self-keyed scheduler API"
       - lambda: |-
-          // Two distinct heap-allocated keys - they must not collide
-          // even though both are self-keyed and share no Component pointer.
+          // Two distinct keys backed by addresses of static markers — they
+          // must not collide even though both are self-keyed and share no
+          // Component pointer. Static storage gives them stable, unique
+          // addresses for the lifetime of the program.
           static int key_a_marker = 0;
           static int key_b_marker = 0;
           void *key_a = &key_a_marker;
