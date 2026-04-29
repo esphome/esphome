@@ -39,6 +39,37 @@ MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 // Wrap build-time defines into flash storage
 MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
 
+void MDNSComponent::setup_buffers_and_register_(PlatformRegisterFn platform_register) {
+#ifdef USE_MDNS_STORE_SERVICES
+  auto &services = this->services_;
+#else
+  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_storage;
+  auto &services = services_storage;
+#endif
+
+#ifdef USE_API
+#ifdef USE_MDNS_STORE_SERVICES
+  get_mac_address_into_buffer(this->mac_address_);
+  char *mac_ptr = this->mac_address_;
+  format_hex_to(this->config_hash_str_, App.get_config_hash());
+  char *cfg_ptr = this->config_hash_str_;
+#else
+  char mac_address[MAC_ADDRESS_BUFFER_SIZE];
+  char config_hash_str[CONFIG_HASH_STR_SIZE];
+  get_mac_address_into_buffer(mac_address);
+  format_hex_to(config_hash_str, App.get_config_hash());
+  char *mac_ptr = mac_address;
+  char *cfg_ptr = config_hash_str;
+#endif
+#else
+  char *mac_ptr = nullptr;
+  char *cfg_ptr = nullptr;
+#endif
+
+  this->compile_records_(services, mac_ptr, cfg_ptr);
+  platform_register(this, services);
+}
+
 void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf,
                                      char *config_hash_buf) {
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES

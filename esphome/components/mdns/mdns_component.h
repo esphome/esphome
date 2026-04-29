@@ -1,10 +1,7 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_MDNS
-#include <cinttypes>
-#include <cstdio>
 #include <string>
-#include "esphome/core/application.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -74,7 +71,7 @@ class MDNSComponent final : public Component
   void dump_config() override;
 
   /// Size of buffer required for config hash hex string (8 hex chars + null terminator)
-  static constexpr size_t CONFIG_HASH_STR_SIZE = 9;
+  static constexpr size_t CONFIG_HASH_STR_SIZE = format_hex_size(sizeof(uint32_t));
 
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
   // LEAmDNS has meaningful work only during the probe+announce phase (3×250ms probes +
@@ -130,35 +127,7 @@ class MDNSComponent final : public Component
   /// Helper to set up services and MAC buffers, then call platform-specific registration
   using PlatformRegisterFn = void (*)(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &);
 
-  void setup_buffers_and_register_(PlatformRegisterFn platform_register) {
-#ifdef USE_MDNS_STORE_SERVICES
-    auto &services = this->services_;
-#else
-    StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_storage;
-    auto &services = services_storage;
-#endif
-
-#ifdef USE_API
-#ifdef USE_MDNS_STORE_SERVICES
-    get_mac_address_into_buffer(this->mac_address_);
-    char *mac_ptr = this->mac_address_;
-    char *cfg_ptr = this->config_hash_str_;
-#else
-    char mac_address[MAC_ADDRESS_BUFFER_SIZE];
-    char config_hash_str[CONFIG_HASH_STR_SIZE];
-    get_mac_address_into_buffer(mac_address);
-    char *mac_ptr = mac_address;
-    char *cfg_ptr = config_hash_str;
-#endif
-    snprintf(cfg_ptr, CONFIG_HASH_STR_SIZE, "%08" PRIx32, App.get_config_hash());
-#else
-    char *mac_ptr = nullptr;
-    char *cfg_ptr = nullptr;
-#endif
-
-    this->compile_records_(services, mac_ptr, cfg_ptr);
-    platform_register(this, services);
-  }
+  void setup_buffers_and_register_(PlatformRegisterFn platform_register);
 
 #ifdef USE_MDNS_DYNAMIC_TXT
   /// Storage for runtime-generated TXT values from user lambdas
