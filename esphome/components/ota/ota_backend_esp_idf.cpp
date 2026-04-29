@@ -372,9 +372,12 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
-  esp_partition_deregister_external(this->partition_table_part_);
-  this->partition_table_part_ = nullptr;
+  // esp_partition_unload_all() invalidates every cached partition entry, including the externally
+  // registered `partition_table_part_`, so the explicit deregister call is redundant. Do the
+  // unload first, then null the member pointer so it never dangles past invalidation; if abort()
+  // were ever to observe an in-between state, it would see a non-null but freed pointer and crash.
   esp_partition_unload_all();
+  this->partition_table_part_ = nullptr;
 
   // Write otadata to set the new boot partition
   const esp_partition_info_t *new_part =
