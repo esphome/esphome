@@ -31,60 +31,26 @@ template<bool HasTransitionLength, typename... Ts> class ToggleAction : public A
       transition_length_{};
 };
 
-// Unique Empty<Tag> per field so [[no_unique_address]] is guaranteed to coalesce.
-namespace light_control_detail {
-template<int Tag> struct Empty {};
-}  // namespace light_control_detail
-
-// X-macro: (type, field_name, bit_index). Order and bit values must match
-// the FIELDS table in automation.py.
-#define LIGHT_CONTROL_FIELDS(X) \
-  X(ColorMode, color_mode, 0) \
-  X(bool, state, 1) \
-  X(uint32_t, transition_length, 2) \
-  X(uint32_t, flash_length, 3) \
-  X(float, brightness, 4) \
-  X(float, color_brightness, 5) \
-  X(float, red, 6) \
-  X(float, green, 7) \
-  X(float, blue, 8) \
-  X(float, white, 9) \
-  X(float, color_temperature, 10) \
-  X(float, cold_white, 11) \
-  X(float, warm_white, 12) \
-  X(uint32_t, effect, 13)
-
-template<uint16_t Fields, typename... Ts> class LightControlAction : public Action<Ts...> {
+// All configured fields are baked into a single stateless lambda whose
+// constants live in flash. The action only stores one function pointer
+// plus one parent pointer, regardless of how many fields the user set.
+// Trigger args are forwarded to the apply function so user lambdas
+// (e.g. `brightness: !lambda "return x;"`) keep working.
+template<typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
-  explicit LightControlAction(LightState *parent) : parent_(parent) {}
-
-#define LIGHT_FIELD_SETTER_(type, name, idx) \
-  template<typename V> void set_##name(V value) requires((Fields & (1 << (idx))) != 0) { this->name##_ = value; }
-#define LIGHT_FIELD_APPLY_(type, name, idx) \
-  if constexpr ((Fields & (1 << (idx))) != 0) \
-    call.set_##name(this->name##_.value(x...));
-#define LIGHT_FIELD_DECL_(type, name, idx) \
-  [[no_unique_address]] std::conditional_t<(Fields & (1 << (idx))) != 0, TemplatableFn<type, Ts...>, \
-                                           light_control_detail::Empty<(idx)>> \
-      name##_{};
-
-  LIGHT_CONTROL_FIELDS(LIGHT_FIELD_SETTER_)
+  using ApplyFn = void (*)(LightState *, LightCall &, const Ts &...);
+  LightControlAction(LightState *parent, ApplyFn apply) : parent_(parent), apply_(apply) {}
 
   void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
-    LIGHT_CONTROL_FIELDS(LIGHT_FIELD_APPLY_)
+    this->apply_(this->parent_, call, x...);
     call.perform();
   }
 
  protected:
   LightState *parent_;
-  LIGHT_CONTROL_FIELDS(LIGHT_FIELD_DECL_)
-
-#undef LIGHT_FIELD_DECL_
-#undef LIGHT_FIELD_APPLY_
-#undef LIGHT_FIELD_SETTER_
+  ApplyFn apply_;
 };
-#undef LIGHT_CONTROL_FIELDS
 
 template<bool HasTransitionLength, typename... Ts> class DimRelativeAction : public Action<Ts...> {
  public:
