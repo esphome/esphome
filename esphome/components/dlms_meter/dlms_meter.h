@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 
 #ifdef USE_SENSOR
@@ -35,6 +36,16 @@
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_bearssl.h>
 #else
 #define DLMS_METER_NO_CRYPTO
+#endif
+
+#ifndef DLMS_MAX_SENSORS
+static constexpr uint8_t DLMS_MAX_SENSORS = 0;
+#endif
+#ifndef DLMS_MAX_TEXT_SENSORS
+static constexpr uint8_t DLMS_MAX_TEXT_SENSORS = 0;
+#endif
+#ifndef DLMS_MAX_BINARY_SENSORS
+static constexpr uint8_t DLMS_MAX_BINARY_SENSORS = 0;
 #endif
 
 namespace esphome::dlms_meter {
@@ -126,13 +137,13 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   dlms_parser::DlmsParser parser_;
 
 #ifdef USE_SENSOR
-  std::vector<SensorItem> sensors_;
+  StaticVector<SensorItem, DLMS_MAX_SENSORS> sensors_;
 #endif
 #ifdef USE_TEXT_SENSOR
-  std::vector<TextSensorItem> text_sensors_;
+  StaticVector<TextSensorItem, DLMS_MAX_TEXT_SENSORS> text_sensors_;
 #endif
 #ifdef USE_BINARY_SENSOR
-  std::vector<BinarySensorItem> binary_sensors_;
+  StaticVector<BinarySensorItem, DLMS_MAX_BINARY_SENSORS> binary_sensors_;
 #endif
 };
 

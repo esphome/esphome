@@ -24,6 +24,16 @@ DlmsMeterComponent = dlms_meter_component_ns.class_(
 )
 
 
+def get_data() -> dict:
+    if "dlms_meter" not in CORE.data:
+        CORE.data["dlms_meter"] = {
+            "sensor_counts": {},
+            "text_sensor_counts": {},
+            "binary_sensor_counts": {},
+        }
+    return CORE.data["dlms_meter"]
+
+
 def obis_code(value):
     # Normalize the OBIS code to the strict A.B.C.D.E.F format
     bytes_list = parse_obis_code_bytes(value)
@@ -146,6 +156,21 @@ async def to_code(config):
         auth_key_expr,
         patterns_expr,
     )
+
+    data = get_data()
+    sensor_counts = data["sensor_counts"]
+    text_sensor_counts = data["text_sensor_counts"]
+    binary_sensor_counts = data["binary_sensor_counts"]
+
+    max_sensors = max(sensor_counts.values()) if sensor_counts else 0
+    max_text_sensors = max(text_sensor_counts.values()) if text_sensor_counts else 0
+    max_binary_sensors = (
+        max(binary_sensor_counts.values()) if binary_sensor_counts else 0
+    )
+
+    cg.add_define("DLMS_MAX_SENSORS", max_sensors)
+    cg.add_define("DLMS_MAX_TEXT_SENSORS", max_text_sensors)
+    cg.add_define("DLMS_MAX_BINARY_SENSORS", max_binary_sensors)
 
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
