@@ -316,6 +316,10 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
       it = esp_partition_next(it);
     }
     esp_partition_iterator_release(it);
+    if (running_app_part == nullptr) {
+      ESP_LOGE(TAG, "Running app partition not found in current partition table");
+      return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
+    }
     ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,
              app_copy_target_part->address, running_app_size);
 
@@ -365,6 +369,10 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     it = esp_partition_next(it);
   }
   esp_partition_iterator_release(it);
+  if (new_boot_partition == nullptr) {
+    ESP_LOGE(TAG, "Selected app partition not found after partition table update");
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
+  }
   err = esp_ota_set_boot_partition(new_boot_partition);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (err=0x%X) ", err);
