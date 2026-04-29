@@ -1099,9 +1099,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   }
 
 #ifdef USE_WIFI_WPA2_EAP
-  auto eap_opt = ap.get_eap();
+  const auto &eap_opt = ap.get_eap();
   if (eap_opt.has_value()) {
-    EAPAuth eap_config = *eap_opt;
+    const EAPAuth &eap_config = *eap_opt;
     // clang-format off
     ESP_LOGV(
         TAG,

@@ -19,8 +19,8 @@ class Millis64Impl {
 
 #ifdef ESPHOME_THREAD_SINGLE
   // Storage defined in time_64.cpp — declared here so the inline body can access them.
-  static uint32_t last_millis_;
-  static uint16_t millis_major_;
+  static uint32_t last_millis;
+  static uint16_t millis_major;
 
   // Raw __attribute__((always_inline)) (not ESPHOME_ALWAYS_INLINE) so this
   // header does not need to pull helpers.h.
@@ -30,17 +30,17 @@ class Millis64Impl {
 
     // Single-core platforms have no concurrency, so this is a simple implementation
     // that just tracks 32-bit rollover (every 49.7 days) without any locking or atomics.
-    uint16_t major = millis_major_;
-    uint32_t last = last_millis_;
+    uint16_t major = millis_major;
+    uint32_t last = last_millis;
 
     // Check for rollover
     if (now < last && (last - now) > HALF_MAX_UINT32) {
-      millis_major_++;
+      millis_major++;
       major++;
-      last_millis_ = now;
+      last_millis = now;
     } else if (now > last) {
       // Only update if time moved forward
-      last_millis_ = now;
+      last_millis = now;
     }
 
     // Combine major (high 32 bits) and now (low 32 bits) into 64-bit time

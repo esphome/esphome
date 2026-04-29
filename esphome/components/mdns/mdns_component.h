@@ -5,6 +5,22 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+// On ESP8266 and RP2040 the scheduler-backed MDNS.update() polling window is armed by
+// IP state listener events on whichever network interface is configured.
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && \
+    ((defined(USE_WIFI) && defined(USE_WIFI_IP_STATE_LISTENERS)) || \
+     (defined(USE_ETHERNET) && defined(USE_ETHERNET_IP_STATE_LISTENERS)))
+#include "esphome/components/network/ip_address.h"
+#define USE_MDNS_EVENT_DRIVEN_POLLING
+#if defined(USE_WIFI) && defined(USE_WIFI_IP_STATE_LISTENERS)
+#include "esphome/components/wifi/wifi_component.h"
+#define USE_MDNS_WIFI_LISTENER
+#endif
+#if defined(USE_ETHERNET) && defined(USE_ETHERNET_IP_STATE_LISTENERS)
+#include "esphome/components/ethernet/ethernet_component.h"
+#define USE_MDNS_ETHERNET_LISTENER
+#endif
+#endif
 
 namespace esphome::mdns {
 
@@ -40,33 +56,40 @@ struct MDNSService {
   FixedVector<MDNSTXTRecord> txt_records;
 };
 
-class MDNSComponent final : public Component {
+class MDNSComponent final : public Component
+#ifdef USE_MDNS_WIFI_LISTENER
+    ,
+                            public wifi::WiFiIPStateListener
+#endif
+#ifdef USE_MDNS_ETHERNET_LISTENER
+    ,
+                            public ethernet::EthernetIPStateListener
+#endif
+{
  public:
   void setup() override;
   void dump_config() override;
 
-  // Polling interval for MDNS.update() on platforms that require it (ESP8266, RP2040).
-  //
-  // On these platforms, MDNS.update() calls _process(true) which only manages timer-driven
-  // state machines (probe/announce timeouts and service query cache TTLs). Incoming mDNS
-  // packets are handled independently via the lwIP onRx UDP callback and are NOT affected
-  // by how often update() is called.
-  //
-  // The shortest internal timer is the 250ms probe interval (RFC 6762 Section 8.1).
-  // Announcement intervals are 1000ms and cache TTL checks are on the order of seconds
-  // to minutes. A 50ms polling interval provides sufficient resolution for all timers
-  // while completely removing mDNS from the per-iteration loop list.
-  //
-  // In steady state (after the ~8 second boot probe/announce phase completes), update()
-  // checks timers that are set to never expire, making every call pure overhead.
-  //
-  // Tasmota uses a 50ms main loop cycle with mDNS working correctly, confirming this
-  // interval is safe in production.
-  //
-  // By using set_interval() instead of overriding loop(), the component is excluded from
-  // the main loop list via has_overridden_loop(), eliminating all per-iteration overhead
-  // including virtual dispatch.
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+  // LEAmDNS has meaningful work only during the probe+announce phase (3×250ms probes +
+  // 8×1000ms announces, ~9s). Afterwards every internal timer is resetToNeverExpires()
+  // and update() becomes pure overhead. We arm a bounded polling window from IP state
+  // listener events so update() runs only during that phase.
   static constexpr uint32_t MDNS_UPDATE_INTERVAL_MS = 50;
+  // Must exceed LEAmDNS's longest restart-to-announce-complete path:
+  //   MDNS_PROBE_DELAY (250ms) × MDNS_PROBE_COUNT (3) = 750ms probing
+  // + MDNS_ANNOUNCE_DELAY (1000ms) × MDNS_ANNOUNCE_COUNT (8) = 8000ms announcing
+  // + rand() % MDNS_PROBE_DELAY jitter on first probe (0–250ms)
+  // + debounced schedule_function() hop when statusChangeCB fires on ESP8266
+  // ≈ 9s nominal. 15s gives ~6s margin to absorb main-loop blocking (long
+  // component setup, WiFi scan, flash writes) that could stretch the deadlines
+  // between our polls. If LEAmDNS ever extends its phase (upstream library
+  // update) this constant needs to grow. Constants defined in LEAmDNS_Priv.h
+  // (ESP8266 core 3.1.2 / arduino-pico 5.5.1).
+  static constexpr uint32_t MDNS_POLL_WINDOW_MS = 15000;
+  static constexpr uint32_t MDNS_POLL_ID = 0;
+  static constexpr uint32_t MDNS_POLL_STOP_ID = 1;
+#endif
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
 #ifdef USE_MDNS_EXTRA_SERVICES
@@ -87,7 +110,17 @@ class MDNSComponent final : public Component {
   }
 #endif
 
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+  void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                   const network::IPAddress &dns2) override;
+#endif
+
  protected:
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+  /// Arm a fresh MDNS_POLL_WINDOW_MS polling window. Idempotent — re-arming replaces
+  /// the previous window via the scheduler's atomic cancel-and-add on matching IDs.
+  void start_polling_window_();
+#endif
   /// Helper to set up services and MAC buffers, then call platform-specific registration
   using PlatformRegisterFn = void (*)(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &);
 
@@ -130,8 +163,8 @@ class MDNSComponent final : public Component {
 #ifdef USE_MDNS_STORE_SERVICES
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_{};
 #endif
-#ifdef USE_RP2040
-  bool was_connected_{false};
+#if defined(USE_RP2040) && defined(USE_MDNS_EVENT_DRIVEN_POLLING)
+  // RP2040 defers MDNS.begin() until the first IP-up event; this tracks that.
   bool initialized_{false};
 #endif
   void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf);
