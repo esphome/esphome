@@ -3,12 +3,10 @@
 #ifdef USE_HOST
 
 #include <cstdint>
+#include <sched.h>
 
 #define IRAM_ATTR
 #define PROGMEM
-
-// Forward decls from <sched.h> for the inline yield().
-extern "C" int sched_yield(void);
 
 namespace esphome {
 

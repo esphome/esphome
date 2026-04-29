@@ -55,8 +55,8 @@ uint32_t arch_get_cpu_cycle_count() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
   time_t seconds = spec.tv_sec;
-  uint32_t us = spec.tv_nsec;
-  return ((uint32_t) seconds) * 1000000000U + us;
+  uint32_t ns = static_cast<uint32_t>(spec.tv_nsec);
+  return static_cast<uint32_t>(seconds) * 1000000000U + ns;
 }
 
 }  // namespace esphome
