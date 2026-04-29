@@ -25,24 +25,19 @@ static bool horizontal_axis_is_auto_(climate::ClimateSwingMode swing_mode) {
 
 #ifdef USE_SELECT
 const std::vector<hon_protocol::VerticalSwingMode> VERTICAL_SWING_MODES_ORDER = {
-  hon_protocol::VerticalSwingMode::HEALTH_UP,
-  hon_protocol::VerticalSwingMode::MAX_UP,
-  hon_protocol::VerticalSwingMode::UP,
-  hon_protocol::VerticalSwingMode::CENTER,
-  hon_protocol::VerticalSwingMode::DOWN,
-  hon_protocol::VerticalSwingMode::MAX_DOWN,
-  hon_protocol::VerticalSwingMode::HEALTH_DOWN,
+    hon_protocol::VerticalSwingMode::HEALTH_UP,   hon_protocol::VerticalSwingMode::MAX_UP,
+    hon_protocol::VerticalSwingMode::UP,          hon_protocol::VerticalSwingMode::CENTER,
+    hon_protocol::VerticalSwingMode::DOWN,        hon_protocol::VerticalSwingMode::MAX_DOWN,
+    hon_protocol::VerticalSwingMode::HEALTH_DOWN,
 };
 
 const std::vector<hon_protocol::HorizontalSwingMode> HORIZONTAL_SWING_MODES_ORDER = {
-  hon_protocol::HorizontalSwingMode::MAX_LEFT,
-  hon_protocol::HorizontalSwingMode::LEFT,
-  hon_protocol::HorizontalSwingMode::CENTER,
-  hon_protocol::HorizontalSwingMode::RIGHT,
-  hon_protocol::HorizontalSwingMode::MAX_RIGHT,
+    hon_protocol::HorizontalSwingMode::MAX_LEFT,  hon_protocol::HorizontalSwingMode::LEFT,
+    hon_protocol::HorizontalSwingMode::CENTER,    hon_protocol::HorizontalSwingMode::RIGHT,
+    hon_protocol::HorizontalSwingMode::MAX_RIGHT,
 };
 
-#endif // USE_SELECT
+#endif  // USE_SELECT
 
 static const char *const TAG = "haier.climate";
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
@@ -1211,14 +1206,14 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     this->current_vertical_swing_ = (hon_protocol::VerticalSwingMode) packet.control.vertical_swing_mode;
     this->current_horizontal_swing_ = (hon_protocol::HorizontalSwingMode) packet.control.horizontal_swing_mode;
     auto now = std::chrono::steady_clock::now();
-    bool debounce_vertical = this->vertical_direction_set_time_.has_value() &&
-                             std::chrono::duration_cast<std::chrono::milliseconds>(
-                                 now - this->vertical_direction_set_time_.value())
-                                     .count() < AIRFLOW_SELECT_DEBOUNCE_MS;
-    bool debounce_horizontal = this->horizontal_direction_set_time_.has_value() &&
-                               std::chrono::duration_cast<std::chrono::milliseconds>(
-                                   now - this->horizontal_direction_set_time_.value())
-                                       .count() < AIRFLOW_SELECT_DEBOUNCE_MS;
+    bool debounce_vertical =
+        this->vertical_direction_set_time_.has_value() &&
+        std::chrono::duration_cast<std::chrono::milliseconds>(now - this->vertical_direction_set_time_.value())
+                .count() < AIRFLOW_SELECT_DEBOUNCE_MS;
+    bool debounce_horizontal =
+        this->horizontal_direction_set_time_.has_value() &&
+        std::chrono::duration_cast<std::chrono::milliseconds>(now - this->horizontal_direction_set_time_.value())
+                .count() < AIRFLOW_SELECT_DEBOUNCE_MS;
     bool save_vertical = !debounce_vertical &&
                          (this->current_vertical_swing_.value() != hon_protocol::VerticalSwingMode::AUTO) &&
                          (this->current_vertical_swing_.value() != hon_protocol::VerticalSwingMode::AUTO_SPECIAL) &&

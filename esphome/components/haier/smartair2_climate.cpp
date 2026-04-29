@@ -36,7 +36,8 @@ haier_protocol::HandlerError Smartair2Climate::status_handler_(haier_protocol::F
       this->force_send_control_ = false;
     } else {
       if (!this->last_status_message_) {
-        this->last_status_message_ = std::unique_ptr<uint8_t[]>(new uint8_t[sizeof(smartair2_protocol::HaierPacketControl)]);
+        this->last_status_message_ =
+            std::unique_ptr<uint8_t[]>(new uint8_t[sizeof(smartair2_protocol::HaierPacketControl)]);
       }
       if (data_size >= sizeof(smartair2_protocol::HaierPacketControl) + 2) {
         memcpy(this->last_status_message_.get(), data + 2, sizeof(smartair2_protocol::HaierPacketControl));
