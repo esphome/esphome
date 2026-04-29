@@ -1,9 +1,10 @@
 """Test the self-keyed scheduler API.
 
-Verifies that `Scheduler::set_timeout(void *, ...)` / `set_interval(void *, ...)` and the
-matching `cancel_*(void *)` overloads behave correctly: callbacks fire, distinct keys
-don't collide, self-keyed and component-keyed namespaces are independent, and
-re-registering the same key replaces the existing timer.
+Verifies that `Scheduler::set_timeout(const void *, ...)` /
+`set_interval(const void *, ...)` and the matching `cancel_*(const void *)`
+overloads behave correctly: callbacks fire, distinct keys don't collide,
+self-keyed and component-keyed namespaces are independent, and re-registering
+the same key replaces the existing timer.
 """
 
 import asyncio
