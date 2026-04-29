@@ -1,7 +1,9 @@
 """Unit tests for script/determine-jobs.py module."""
 
 from collections.abc import Generator
+import contextlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -430,8 +432,6 @@ def _run_main_for_integration_buckets(
                 return_value=glob_files,
             )
         )
-    import contextlib
-    import io
 
     buf = io.StringIO()
     with contextlib.ExitStack() as stack:
