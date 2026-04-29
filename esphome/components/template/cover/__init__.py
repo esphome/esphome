@@ -115,11 +115,11 @@ async def to_code(config):
 
 # CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
 # one is present and both map to the position field.
-_COVER_PUBLISH_FIELDS = (
-    (CONF_STATE, "position", cg.float_),
-    (CONF_POSITION, "position", cg.float_),
-    (CONF_TILT, "tilt", cg.float_),
-    (CONF_CURRENT_OPERATION, "current_operation", cover.CoverOperation),
+_COVER_PUBLISH_FIELDS: tuple[cover.ApplyField, ...] = (
+    cover.ApplyField(CONF_STATE, "position", cg.float_),
+    cover.ApplyField(CONF_POSITION, "position", cg.float_),
+    cover.ApplyField(CONF_TILT, "tilt", cg.float_),
+    cover.ApplyField(CONF_CURRENT_OPERATION, "current_operation", cover.CoverOperation),
 )
 
 

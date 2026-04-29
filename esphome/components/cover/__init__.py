@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from dataclasses import dataclass
 import logging
 
 from esphome import automation
@@ -295,14 +297,31 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
+@dataclass(frozen=True)
+class ApplyField:
+    """One field in a folded-lambda action.
+
+    `conf_key` is the YAML key looked up in `config`. When present, the
+    helper emits `statement_fn(target, value_expr)` into the lambda body.
+    `target` is whatever the statement function needs to identify the
+    field (typically a setter name like `"set_position"` or a struct
+    member like `"position"`). `type_` is the C++ return type for
+    `cg.process_lambda` when the value is a user lambda.
+    """
+
+    conf_key: str
+    target: str
+    type_: object
+
+
 async def build_apply_lambda_action(
     config: ConfigType,
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
-    fields: tuple[tuple[str, str, object], ...],
+    fields: tuple[ApplyField, ...],
     prefix_args: list[tuple[object, str]],
-    statement_fn,
+    statement_fn: Callable[[str, str], str],
 ) -> MockObj:
     """Fold configured fields into a single stateless apply lambda action.
 
@@ -315,15 +334,15 @@ async def build_apply_lambda_action(
     paren = await cg.get_variable(config[CONF_ID])
     fwd_args = ", ".join(name for _, name in args)
     body_lines: list[str] = []
-    for conf_key, target, type_ in fields:
-        if (value := config.get(conf_key)) is None:
+    for field in fields:
+        if (value := config.get(field.conf_key)) is None:
             continue
         if isinstance(value, Lambda):
-            inner = await cg.process_lambda(value, args, return_type=type_)
+            inner = await cg.process_lambda(value, args, return_type=field.type_)
             value_expr = f"({inner})({fwd_args})"
         else:
             value_expr = str(cg.safe_exp(value))
-        body_lines.append(statement_fn(target, value_expr))
+        body_lines.append(statement_fn(field.target, value_expr))
 
     apply_args = [
         *prefix_args,
@@ -340,11 +359,11 @@ async def build_apply_lambda_action(
 
 # CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
 # one is present and both dispatch to set_position.
-_COVER_CONTROL_FIELDS = (
-    (CONF_STOP, "set_stop", cg.bool_),
-    (CONF_STATE, "set_position", cg.float_),
-    (CONF_POSITION, "set_position", cg.float_),
-    (CONF_TILT, "set_tilt", cg.float_),
+_COVER_CONTROL_FIELDS: tuple[ApplyField, ...] = (
+    ApplyField(CONF_STOP, "set_stop", cg.bool_),
+    ApplyField(CONF_STATE, "set_position", cg.float_),
+    ApplyField(CONF_POSITION, "set_position", cg.float_),
+    ApplyField(CONF_TILT, "set_tilt", cg.float_),
 )
 
 
