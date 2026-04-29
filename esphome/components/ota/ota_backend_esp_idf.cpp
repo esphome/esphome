@@ -2,6 +2,7 @@
 #include "ota_backend_esp_idf.h"
 
 #include "esphome/components/md5/md5.h"
+#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
@@ -28,28 +29,8 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
     return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
   }
 
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-  // The following function takes longer than the 5 seconds timeout of WDT
-  esp_task_wdt_config_t wdtc;
-  wdtc.idle_core_mask = 0;
-#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0
-  wdtc.idle_core_mask |= (1 << 0);
-#endif
-#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1
-  wdtc.idle_core_mask |= (1 << 1);
-#endif
-  wdtc.timeout_ms = 15000;
-  wdtc.trigger_panic = false;
-  esp_task_wdt_reconfigure(&wdtc);
-#endif
-
+  watchdog::WatchdogManager watchdog(15000);
   esp_err_t err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
-
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-  // Set the WDT back to the configured timeout
-  wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
-  esp_task_wdt_reconfigure(&wdtc);
-#endif
 
   if (err != ESP_OK) {
     esp_ota_abort(this->update_handle_);
