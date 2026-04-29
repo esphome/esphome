@@ -295,37 +295,38 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action(
-    "cover.control", ControlAction, COVER_CONTROL_ACTION_SCHEMA, synchronous=True
-)
-async def cover_control_to_code(config, action_id, template_arg, args):
+async def build_apply_lambda_action(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+    fields: tuple[tuple[str, str, object], ...],
+    prefix_args: list[tuple[object, str]],
+    statement_fn,
+) -> MockObj:
+    """Fold configured fields into a single stateless apply lambda action.
+
+    Used by both `cover.control` and `cover.template.publish` (and shared
+    with the template/cover platform). Constants are emitted as flash
+    immediates; user lambdas are invoked inline so trigger args still flow.
+    The trigger arg types are wrapped as `const T &` to match the
+    `void (*)(..., const Ts &...)` ApplyFn signature.
+    """
     paren = await cg.get_variable(config[CONF_ID])
-
-    # All configured fields are folded into a single stateless lambda whose
-    # constants live in flash; the action stores only a function pointer.
-    # CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
-    # one is present and both dispatch to set_position.
-    FIELDS = (
-        (CONF_STOP, "set_stop", cg.bool_),
-        (CONF_STATE, "set_position", cg.float_),
-        (CONF_POSITION, "set_position", cg.float_),
-        (CONF_TILT, "set_tilt", cg.float_),
-    )
-
     fwd_args = ", ".join(name for _, name in args)
     body_lines: list[str] = []
-    for conf_key, setter, type_ in FIELDS:
+    for conf_key, target, type_ in fields:
         if (value := config.get(conf_key)) is None:
             continue
         if isinstance(value, Lambda):
             inner = await cg.process_lambda(value, args, return_type=type_)
-            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
+            value_expr = f"({inner})({fwd_args})"
         else:
-            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
+            value_expr = str(cg.safe_exp(value))
+        body_lines.append(statement_fn(target, value_expr))
 
-    # Match ControlAction::ApplyFn signature: const Ts &... for trigger args.
     apply_args = [
-        (CoverCall.operator("ref"), "call"),
+        *prefix_args,
         *((t.operator("const").operator("ref"), n) for t, n in args),
     ]
     apply_lambda = LambdaExpression(
@@ -335,6 +336,36 @@ async def cover_control_to_code(config, action_id, template_arg, args):
         return_type=cg.void,
     )
     return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
+
+
+# CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
+# one is present and both dispatch to set_position.
+_COVER_CONTROL_FIELDS = (
+    (CONF_STOP, "set_stop", cg.bool_),
+    (CONF_STATE, "set_position", cg.float_),
+    (CONF_POSITION, "set_position", cg.float_),
+    (CONF_TILT, "set_tilt", cg.float_),
+)
+
+
+@automation.register_action(
+    "cover.control", ControlAction, COVER_CONTROL_ACTION_SCHEMA, synchronous=True
+)
+async def cover_control_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    return await build_apply_lambda_action(
+        config=config,
+        action_id=action_id,
+        template_arg=template_arg,
+        args=args,
+        fields=_COVER_CONTROL_FIELDS,
+        prefix_args=[(CoverCall.operator("ref"), "call")],
+        statement_fn=lambda setter, expr: f"call.{setter}({expr});",
+    )
 
 
 COVER_CONDITION_SCHEMA = cv.maybe_simple_value(

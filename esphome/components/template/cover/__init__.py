@@ -19,8 +19,9 @@ from esphome.const import (
     CONF_TILT_ACTION,
     CONF_TILT_LAMBDA,
 )
-from esphome.core import Lambda
-from esphome.cpp_generator import LambdaExpression
+from esphome.core import ID
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType, TemplateArgsType
 
 from .. import template_ns
 
@@ -112,6 +113,16 @@ async def to_code(config):
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
 
+# CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
+# one is present and both map to the position field.
+_COVER_PUBLISH_FIELDS = (
+    (CONF_STATE, "position", cg.float_),
+    (CONF_POSITION, "position", cg.float_),
+    (CONF_TILT, "tilt", cg.float_),
+    (CONF_CURRENT_OPERATION, "current_operation", cover.CoverOperation),
+)
+
+
 @automation.register_action(
     "cover.template.publish",
     cover.CoverPublishAction,
@@ -128,42 +139,20 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def cover_template_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-
-    # All configured fields are folded into a single stateless lambda whose
-    # constants live in flash; the action stores only a function pointer.
-    # The lambda mutates Cover fields directly (no CoverCall) since publish
-    # is a state push, not a control request.
-    # CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
-    # one is present and both map to the position field.
-    FIELDS = (
-        (CONF_STATE, "position", cg.float_),
-        (CONF_POSITION, "position", cg.float_),
-        (CONF_TILT, "tilt", cg.float_),
-        (CONF_CURRENT_OPERATION, "current_operation", cover.CoverOperation),
+async def cover_template_publish_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    # Mutates Cover fields directly (no CoverCall) since publish is a state
+    # push, not a control request.
+    return await cover.build_apply_lambda_action(
+        config=config,
+        action_id=action_id,
+        template_arg=template_arg,
+        args=args,
+        fields=_COVER_PUBLISH_FIELDS,
+        prefix_args=[(cover.Cover.operator("ptr"), "cover")],
+        statement_fn=lambda field, expr: f"cover->{field} = {expr};",
     )
-
-    fwd_args = ", ".join(name for _, name in args)
-    body_lines: list[str] = []
-    for conf_key, field, type_ in FIELDS:
-        if (value := config.get(conf_key)) is None:
-            continue
-        if isinstance(value, Lambda):
-            inner = await cg.process_lambda(value, args, return_type=type_)
-            body_lines.append(f"cover->{field} = ({inner})({fwd_args});")
-        else:
-            body_lines.append(f"cover->{field} = {cg.safe_exp(value)};")
-
-    # Match CoverPublishAction::ApplyFn: const Ts &... for trigger args.
-    apply_args = [
-        (cover.Cover.operator("ptr"), "cover"),
-        *((t.operator("const").operator("ref"), n) for t, n in args),
-    ]
-    apply_lambda = LambdaExpression(
-        ["\n".join(body_lines)],
-        apply_args,
-        capture="",
-        return_type=cg.void,
-    )
-    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
