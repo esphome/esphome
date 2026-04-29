@@ -88,6 +88,10 @@ __attribute__((always_inline)) inline uint32_t millis() { return static_cast<uin
 #endif
 __attribute__((always_inline)) inline uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 
+void delayMicroseconds(uint32_t us);  // NOLINT(readability-identifier-naming)
+void arch_feed_wdt();
+uint32_t arch_get_cpu_cycle_count();
+
 }  // namespace esphome
 
 #endif  // USE_LIBRETINY
