@@ -228,38 +228,36 @@ void ESPHomeOTAComponent::handle_handshake_() {
       this->transition_ota_state_(OTAState::FEATURE_ACK);
 
       const bool supports_compression =
-          ((this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression());
+          (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression();
+
+      // Compose the feature-ack response. When USE_OTA_PARTITIONS is enabled and the client
+      // negotiates the extended protocol we emit a 2-byte response (marker + server feature flags);
+      // otherwise we emit the single-byte legacy response. The #ifdef wraps only the extended-proto
+      // branch so the legacy branch reads as unconditional code in either build configuration.
 #ifdef USE_OTA_PARTITIONS
-      this->extended_proto_ = this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL;
+      this->extended_proto_ = (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
       if (this->extended_proto_) {
-        // If the client supports the extended protocol, send 2 bytes: response type and server feature flags
         this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
-        this->handshake_buf_[1] = SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;  // supported if USE_OTA_PARTITIONS
-        if (supports_compression) {
-          this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_COMPRESSION;
-        }
-      } else {
+        this->handshake_buf_[1] =
+            SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS | (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
+      } else
 #endif
-        // Standard protocol without server feature flags
+      {
         this->handshake_buf_[0] =
-            (supports_compression) ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION : ota::OTA_RESPONSE_HEADER_OK;
-#ifdef USE_OTA_PARTITIONS
+            supports_compression ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION : ota::OTA_RESPONSE_HEADER_OK;
       }
-#endif
       [[fallthrough]];
     }
 
     case OTAState::FEATURE_ACK: {
-      // Acknowledge header - 1 byte
 #ifdef USE_OTA_PARTITIONS
-      if (!this->try_write_(this->extended_proto_ ? 2 : 1, LOG_STR("ack feature"))) {
-        return;
-      }
+      const size_t ack_size = this->extended_proto_ ? 2 : 1;
 #else
-      if (!this->try_write_(1, LOG_STR("ack feature"))) {
+      const size_t ack_size = 1;
+#endif
+      if (!this->try_write_(ack_size, LOG_STR("ack feature"))) {
         return;
       }
-#endif
 
 #ifdef USE_OTA_PASSWORD
       // If password is set, move to auth phase
