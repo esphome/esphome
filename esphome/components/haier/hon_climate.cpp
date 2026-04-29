@@ -85,7 +85,7 @@ void HonClimate::set_horizontal_airflow(hon_protocol::HorizontalSwingMode direct
   this->force_send_control_ = true;
 }
 
-std::string HonClimate::get_cleaning_status_text() const {
+const char *HonClimate::get_cleaning_status_text() const {
   switch (this->cleaning_status_) {
     case CleaningState::SELF_CLEAN:
       return "Self clean";
@@ -134,11 +134,11 @@ haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(haie
     }
     // All OK
     hon_protocol::DeviceVersionAnswer *answr = (hon_protocol::DeviceVersionAnswer *) data;
-    HardwareInfo info{};  // zero-init guarantees null-termination of each char[9]
-    strncpy(info.protocol_version_, answr->protocol_version, 8);
-    strncpy(info.software_version_, answr->software_version, 8);
-    strncpy(info.hardware_version_, answr->hardware_version, 8);
-    strncpy(info.device_name_, answr->device_name, 8);
+    HardwareInfo info{};  // zero-init guarantees null-termination
+    strncpy(info.protocol_version_, answr->protocol_version, HARDWARE_INFO_STR_SIZE - 1);
+    strncpy(info.software_version_, answr->software_version, HARDWARE_INFO_STR_SIZE - 1);
+    strncpy(info.hardware_version_, answr->hardware_version, HARDWARE_INFO_STR_SIZE - 1);
+    strncpy(info.device_name_, answr->device_name, HARDWARE_INFO_STR_SIZE - 1);
     info.functions_[0] = (answr->functions[1] & 0x01) != 0;  // interactive mode support
     info.functions_[1] = (answr->functions[1] & 0x02) != 0;  // controller-device mode support
     info.functions_[2] = (answr->functions[1] & 0x04) != 0;  // crc support
@@ -788,7 +788,7 @@ void HonClimate::set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSe
   }
 }
 
-void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const std::string &value) {
+void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const char *value) {
   size_t index = (size_t) type;
   if (this->sub_text_sensors_[index] != nullptr)
     this->sub_text_sensors_[index]->publish_state(value);
