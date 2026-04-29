@@ -442,6 +442,20 @@ valve:
           state: CLOSED
     stop_action:
       - logger.log: stop_action
+      # Exercise valve.control with various field combinations so the
+      # ControlAction codegen paths get build coverage.
+      - valve.control:
+          id: template_valve
+          stop: true
+      - valve.control:
+          id: template_valve
+          position: 50%
+      - valve.control:
+          id: template_valve
+          state: OPEN
+      - valve.control:
+          id: template_valve
+          position: !lambda 'return 0.25f;'
     optimistic: true
 
 text:
