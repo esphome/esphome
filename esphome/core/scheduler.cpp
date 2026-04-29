@@ -60,8 +60,9 @@ struct SchedulerNameLog {
       return buffer;
     } else {  // SELF_POINTER
       // static_name carries the void* key for SELF_POINTER (pointer-width union slot).
-      // Cast to const void* — %p requires a void* argument.
-      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("self:%p"), static_cast<const void *>(static_name));
+      // %p is specified as void* (not const void*), so strip const for the varargs call.
+      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("self:%p"),
+                         const_cast<void *>(static_cast<const void *>(static_name)));
       return buffer;
     }
   }
