@@ -102,6 +102,7 @@ Checks: >-
   -modernize-use-default-member-init,
   -modernize-use-designated-initializers,
   -modernize-use-equals-default,
+  -modernize-use-integer-sign-comparison,
   -modernize-use-nodiscard,
   -modernize-use-nullptr,
   -modernize-use-ranges,
@@ -129,8 +130,10 @@ Checks: >-
   -readability-redundant-member-init,
   -readability-redundant-parentheses,
   -readability-redundant-string-init,
+  -readability-redundant-typename,
   -readability-uppercase-literal-suffix,
   -readability-use-anyofallof,
+  -readability-use-std-min-max,
   -readability-use-concise-preprocessor-directives,
 WarningsAsErrors: '*'
 FormatStyle:     google
