@@ -155,7 +155,7 @@ void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufactu
   time_t time_val = App.get_build_time();
   struct tm *timeinfo = localtime(&time_val);
   strftime(date_buf, sizeof(date_buf), "%Y%m%d %H%M%S", timeinfo);
-  this->basic_cluster_data_ = {
+  this->basic_cluster_data = {
       .model = get_zcl_string(model, 31),
       .manufacturer = get_zcl_string(manufacturer, 31),
       .date = get_zcl_string(date_buf, 15),
@@ -166,13 +166,13 @@ void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufactu
 esp_zb_attribute_list_t *ZigbeeComponent::create_basic_cluster_() {
   esp_zb_basic_cluster_cfg_t basic_cluster_cfg = {
       .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
-      .power_source = this->basic_cluster_data_.power_source,
+      .power_source = this->basic_cluster_data.power_source,
   };
   esp_zb_attribute_list_t *attr_list = esp_zb_basic_cluster_create(&basic_cluster_cfg);
   esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID,
-                                this->basic_cluster_data_.manufacturer);
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, this->basic_cluster_data_.model);
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID, this->basic_cluster_data_.date);
+                                this->basic_cluster_data.manufacturer);
+  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, this->basic_cluster_data.model);
+  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID, this->basic_cluster_data.date);
   return attr_list;
 }
 
@@ -190,8 +190,7 @@ static void esp_zb_task_(void *pvParameters) {
     ESP_LOGE(TAG, "Could not setup Zigbee");
     vTaskDelete(NULL);
   }
-  bool battery_powered = *(bool *) pvParameters;
-  if (battery_powered) {
+  if (global_zigbee->basic_cluster_data.power_source == ESP_ZB_ZCL_BASIC_POWER_SOURCE_BATTERY) {
     ESP_LOGD(TAG, "Battery powered!");
     esp_zb_set_node_descriptor_power_source(0);
   } else {
@@ -289,8 +288,7 @@ void ZigbeeComponent::setup() {
       }
     }
   }
-  bool battery_powered = this->basic_cluster_data_.power_source == 0x03;
-  xTaskCreate(esp_zb_task_, "Zigbee_main", 4096, &battery_powered, 24, NULL);
+  xTaskCreate(esp_zb_task_, "Zigbee_main", 4096, NULL, 24, NULL);
 }
 
 void ZigbeeComponent::dump_config() {
@@ -303,7 +301,7 @@ void ZigbeeComponent::dump_config() {
                   "  Current channel: %d\n"
                   "  Short addr: 0x%04X\n"
                   "  Short pan id: 0x%04X",
-                  this->basic_cluster_data_.model, YESNO(this->device_role_ == ESP_ZB_DEVICE_TYPE_ROUTER),
+                  this->basic_cluster_data.model, YESNO(this->device_role_ == ESP_ZB_DEVICE_TYPE_ROUTER),
                   YESNO(esp_zb_bdb_dev_joined()), esp_zb_get_current_channel(), esp_zb_get_short_address(),
                   esp_zb_get_pan_id());
     esp_zb_lock_release();
@@ -312,7 +310,7 @@ void ZigbeeComponent::dump_config() {
                   "Zigbee\n"
                   "  Model: %s\n"
                   "  Router: %s\n",
-                  this->basic_cluster_data_.model, YESNO(this->device_role_ == ESP_ZB_DEVICE_TYPE_ROUTER));
+                  this->basic_cluster_data.model, YESNO(this->device_role_ == ESP_ZB_DEVICE_TYPE_ROUTER));
   }
 }
 }  // namespace esphome::zigbee

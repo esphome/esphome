@@ -64,13 +64,14 @@ class ZigbeeComponent : public Component {
   std::atomic<bool> connected = false;
   std::atomic<bool> started = false;
 
- protected:
   struct {
     uint8_t *model;
     uint8_t *manufacturer;
     uint8_t *date;
     uint8_t power_source;
-  } basic_cluster_data_;
+  } basic_cluster_data;
+
+ protected:
 #ifdef ZB_ED_ROLE
   esp_zb_nwk_device_type_t device_role_ = ESP_ZB_DEVICE_TYPE_ED;
 #else
