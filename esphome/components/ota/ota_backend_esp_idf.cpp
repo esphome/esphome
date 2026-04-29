@@ -305,6 +305,12 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   // Deinitialize NVS to prevent unwanted flash writes
   nvs_flash_deinit();
 
+  // Hold the watchdog open for the entire critical section: optional app copy, partition-table
+  // erase/write, and boot partition selection. None of the steps below should yield long enough
+  // to require a refresh, but bundling them under a single guard avoids spurious resets if the
+  // underlying ESP-IDF calls take longer than expected on a given chip variant.
+  watchdog::WatchdogManager watchdog(15000);
+
   // Copy the running app partition to new position if needed
   if (new_app_part_index == -1) {
     const esp_partition_t *running_app_part = nullptr;
@@ -324,7 +330,6 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,
              app_copy_target_part->address, running_app_size);
 
-    watchdog::WatchdogManager watchdog(15000);
     err = esp_partition_copy(app_copy_target_part, 0, running_app_part, 0, running_app_size);
 
     if (err != ESP_OK) {
