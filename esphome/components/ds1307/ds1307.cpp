@@ -44,7 +44,7 @@ void DS1307Component::read_time() {
       .year = uint16_t(ds1307_.reg.year + 10u * ds1307_.reg.year_10 + 2000),
   };
   rtc_time.recalc_timestamp_utc(false);
-  if (!rtc_time.is_valid()) {
+  if (!rtc_time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false)) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");
     return;
   }

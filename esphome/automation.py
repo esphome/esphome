@@ -199,11 +199,10 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
                     return cv.Schema([schema])(value)
                 except cv.Invalid as err2:
                     if "extra keys not allowed" in str(err2) and len(err2.path) == 2:
-                        # pylint: disable=raise-missing-from
-                        raise err
+                        raise err from None
                     if "Unable to find action" in str(err):
-                        raise err2
-                    raise cv.MultipleInvalid([err, err2])
+                        raise err2 from None
+                    raise cv.MultipleInvalid([err, err2]) from None
         elif isinstance(value, dict):
             if CONF_THEN in value:
                 return [schema(value)]
@@ -598,7 +597,7 @@ async def component_resume_action_to_code(
     comp = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, comp)
     if CONF_UPDATE_INTERVAL in config:
-        template_ = await cg.templatable(config[CONF_UPDATE_INTERVAL], args, int)
+        template_ = await cg.templatable(config[CONF_UPDATE_INTERVAL], args, cg.uint32)
         cg.add(var.set_update_interval(template_))
     return var
 

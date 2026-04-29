@@ -24,6 +24,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -162,7 +163,7 @@ async def _setup_valve_core(var, config):
 async def register_valve(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_valve(var))
+    queue_entity_register("valve", config)
     CORE.register_platform_component("valve", var)
     await _setup_valve_core(var, config)
 

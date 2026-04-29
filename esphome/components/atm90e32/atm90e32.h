@@ -111,14 +111,14 @@ class ATM90E32Component : public PollingComponent,
 #endif
   float get_reference_voltage(uint8_t phase) {
 #ifdef USE_NUMBER
-    return (phase >= 0 && phase < 3 && ref_voltages_[phase]) ? ref_voltages_[phase]->state : 120.0;  // Default voltage
+    return (phase < 3 && ref_voltages_[phase]) ? ref_voltages_[phase]->state : 120.0;  // Default voltage
 #else
     return 120.0;  // Default voltage
 #endif
   }
   float get_reference_current(uint8_t phase) {
 #ifdef USE_NUMBER
-    return (phase >= 0 && phase < 3 && ref_currents_[phase]) ? ref_currents_[phase]->state : 5.0f;  // Default current
+    return (phase < 3 && ref_currents_[phase]) ? ref_currents_[phase]->state : 5.0f;  // Default current
 #else
     return 5.0f;   // Default current
 #endif
