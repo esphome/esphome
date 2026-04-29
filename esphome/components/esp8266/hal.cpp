@@ -97,9 +97,6 @@ void arch_restart() {
   }
 }
 
-uint32_t IRAM_ATTR HOT arch_get_cpu_cycle_count() { return esp_get_cycle_count(); }
-uint32_t arch_get_cpu_freq_hz() { return F_CPU; }
-
 }  // namespace esphome
 
 // Linker wrap: redirect all ::millis() calls (Arduino libs, ISRs) to our accumulator.
