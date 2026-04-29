@@ -167,10 +167,10 @@ class HonClimate : public HaierClimateBase {
   void clear_control_messages_queue_();
 
   struct HardwareInfo {
-    std::string protocol_version_;
-    std::string software_version_;
-    std::string hardware_version_;
-    std::string device_name_;
+    char protocol_version_[9];
+    char software_version_[9];
+    char hardware_version_[9];
+    char device_name_[9];
     bool functions_[5];
   };
 
