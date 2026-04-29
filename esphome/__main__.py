@@ -21,7 +21,7 @@ import argcomplete
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
-from esphome import const, writer, yaml_util
+from esphome import const
 import esphome.codegen as cg
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
@@ -72,7 +72,12 @@ from esphome.util import (
     run_external_process,
     safe_print,
 )
-from esphome.zeroconf import discover_mdns_devices
+
+# Keep expensive imports (zeroconf, writer, yaml_util, etc.) out of this
+# module's top level. Every `esphome` invocation — including fast paths
+# like `esphome version` — pays the cost of what's imported here before
+# any command runs. Import inside the function that needs it instead.
+# `script/check_import_time.py` enforces a budget in CI.
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -241,6 +246,8 @@ def _discover_mac_suffix_devices() -> list[str] | None:
     """
     if not (has_name_add_mac_suffix() and has_mdns() and has_non_ip_address()):
         return None
+    from esphome.zeroconf import discover_mdns_devices
+
     _LOGGER.info("Discovering devices...")
     if not (discovered := discover_mdns_devices(CORE.name)):
         _LOGGER.warning(
@@ -660,7 +667,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     return 0
 
 
-def wrap_to_code(name, comp):
+def _wrap_to_code(name, comp, yaml_util):
     coro = coroutine(comp.to_code)
 
     @functools.wraps(comp.to_code)
@@ -680,6 +687,8 @@ def wrap_to_code(name, comp):
 
 
 def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
+    from esphome import writer
+
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
@@ -691,17 +700,21 @@ def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
+    from esphome import yaml_util
+
     _LOGGER.info("Generating C++ source...")
 
     for name, component, conf in iter_component_configs(CORE.config):
         if component.to_code is not None:
-            coro = wrap_to_code(name, component)
+            coro = _wrap_to_code(name, component, yaml_util)
             CORE.add_job(coro, conf)
 
     CORE.flush_tasks()
 
 
 def write_cpp_file(native_idf: bool = False) -> int:
+    from esphome import writer
+
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
 
@@ -1180,6 +1193,8 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 
 
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome import yaml_util
+
     if not CORE.verbose:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
@@ -1321,6 +1336,8 @@ def command_clean_mqtt(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_clean_all(args: ArgsProtocol) -> int | None:
+    from esphome import writer
+
     try:
         writer.clean_all(args.configuration)
     except OSError as err:
@@ -1336,6 +1353,8 @@ def command_version(args: ArgsProtocol) -> int | None:
 
 
 def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome import writer
+
     try:
         writer.clean_build()
     except OSError as err:
@@ -1538,6 +1557,8 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
 
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome import yaml_util
+
     new_name = args.name
     for c in new_name:
         if c not in ALLOWED_NAME_CHARS:
