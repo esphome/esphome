@@ -9,7 +9,7 @@ import pytest
 import requests
 
 from esphome import external_files
-from esphome.config_validation import Invalid
+from esphome.config_validation import Invalid, MultipleInvalid
 from esphome.core import CORE, EsphomeError, TimePeriod
 
 
@@ -555,10 +555,12 @@ def test_download_content_many_runs_in_parallel(
     assert mock_download_content.call_count == 3
 
 
-def test_download_content_many_propagates_errors(
+def test_download_content_many_propagates_single_error(
     mock_download_content: MagicMock, setup_core: Path
 ) -> None:
-    """An exception from any worker must propagate out of download_content_many."""
+    """A single failing worker should raise its `Invalid` directly, not wrap
+    it in a `MultipleInvalid` that the caller would have to unpack.
+    """
 
     def fake_download(url: str, path: Path, timeout: int) -> bytes:
         if url.endswith("bad"):
@@ -570,8 +572,9 @@ def test_download_content_many_propagates_errors(
         ("https://example.com/ok", setup_core / "ok"),
         ("https://example.com/bad", setup_core / "bad"),
     ]
-    with pytest.raises(Invalid, match="could not download"):
+    with pytest.raises(Invalid, match="could not download") as exc_info:
         external_files.download_content_many(items)
+    assert not isinstance(exc_info.value, MultipleInvalid)
 
 
 def test_download_content_many_aggregates_multiple_errors(
@@ -581,7 +584,6 @@ def test_download_content_many_aggregates_multiple_errors(
     the user sees all broken URLs in one validation pass instead of fixing
     them one network round-trip at a time.
     """
-    from voluptuous import MultipleInvalid
 
     def fake_download(url: str, path: Path, timeout: int) -> bytes:
         if url.endswith("ok"):
