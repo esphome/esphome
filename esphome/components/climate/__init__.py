@@ -515,6 +515,11 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         if isinstance(value, Lambda):
             inner = await cg.process_lambda(value, args, return_type=type_)
             body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
+        elif type_ is cg.std_string:
+            # Static custom strings: emit a flash literal and pass the codegen-known
+            # length to skip the runtime strlen inside set_fan_mode/set_preset.
+            literal = cg.safe_exp(value)
+            body_lines.append(f"call.{setter}({literal}, {len(value)});")
         else:
             body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
 
