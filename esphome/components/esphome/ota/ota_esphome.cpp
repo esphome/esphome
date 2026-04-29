@@ -104,9 +104,12 @@ void ESPHomeOTAComponent::dump_config() {
   }
 #endif
 #ifdef USE_OTA_PARTITIONS
-  ESP_LOGCONFIG(TAG, "  Partition access allowed");
-  ESP_LOGCONFIG(TAG, "  Running app:\n    Partition address: 0x%X\n    Used size: %zu bytes", this->running_app_offset_,
-                this->running_app_size_);
+  ESP_LOGCONFIG(TAG,
+                "  Partition access allowed\n"
+                "  Running app:\n"
+                "    Partition address: 0x%X\n"
+                "    Used size: %zu bytes",
+                this->running_app_offset_, this->running_app_size_);
 #ifdef USE_ESP32
   ESP_LOGCONFIG(TAG, "  Partition table:");
   esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, nullptr);
