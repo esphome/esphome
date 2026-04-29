@@ -1,15 +1,14 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import select
-from esphome.const import (
-    ENTITY_CATEGORY_CONFIG,
-)
+import esphome.config_validation as cv
+from esphome.const import ENTITY_CATEGORY_CONFIG
+
 from ..climate import (
     CONF_HAIER_ID,
+    CONF_HORIZONTAL_AIRFLOW,
+    CONF_VERTICAL_AIRFLOW,
     HonClimate,
     haier_ns,
-    CONF_VERTICAL_AIRFLOW,
-    CONF_HORIZONTAL_AIRFLOW,
 )
 
 CODEOWNERS = ["@paveldn"]
@@ -17,7 +16,7 @@ VerticalAirflowSelect = haier_ns.class_("VerticalAirflowSelect", select.Select)
 HorizontalAirflowSelect = haier_ns.class_("HorizontalAirflowSelect", select.Select)
 
 # Additional icons
-ICON_ARROW_HORIZONTAL =  "mdi:arrow-expand-horizontal"
+ICON_ARROW_HORIZONTAL = "mdi:arrow-expand-horizontal"
 ICON_ARROW_VERTICAL = "mdi:arrow-expand-vertical"
 
 AIRFLOW_VERTICAL_DIRECTION_OPTIONS = [
@@ -54,17 +53,20 @@ CONFIG_SCHEMA = cv.Schema(
     }
 )
 
+
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_HAIER_ID])
 
     if conf := config.get(CONF_VERTICAL_AIRFLOW):
-        sel_var = await select.new_select(conf, options=AIRFLOW_VERTICAL_DIRECTION_OPTIONS)
+        sel_var = await select.new_select(
+            conf, options=AIRFLOW_VERTICAL_DIRECTION_OPTIONS
+        )
         await cg.register_parented(sel_var, parent)
         cg.add(getattr(parent, f"set_{CONF_VERTICAL_AIRFLOW}_select")(sel_var))
 
     if conf := config.get(CONF_HORIZONTAL_AIRFLOW):
-        sel_var = await select.new_select(conf, options=AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS)
+        sel_var = await select.new_select(
+            conf, options=AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS
+        )
         await cg.register_parented(sel_var, parent)
         cg.add(getattr(parent, f"set_{CONF_HORIZONTAL_AIRFLOW}_select")(sel_var))
-
-

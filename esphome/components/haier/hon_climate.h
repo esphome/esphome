@@ -111,7 +111,7 @@ class HonClimate : public HaierClimateBase {
   switch_::Switch *quiet_mode_switch_{nullptr};
 #endif
 #ifdef USE_SELECT
-public:
+ public:
   void set_vertical_airflow_select(select::Select *sel);
   void set_horizontal_airflow_select(select::Select *sel);
 
