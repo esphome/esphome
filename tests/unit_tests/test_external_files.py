@@ -574,6 +574,35 @@ def test_download_content_many_propagates_errors(
         external_files.download_content_many(items)
 
 
+def test_download_content_many_aggregates_multiple_errors(
+    mock_download_content: MagicMock, setup_core: Path
+) -> None:
+    """Every failing worker should be reported in a single MultipleInvalid so
+    the user sees all broken URLs in one validation pass instead of fixing
+    them one network round-trip at a time.
+    """
+    from voluptuous import MultipleInvalid
+
+    def fake_download(url: str, path: Path, timeout: int) -> bytes:
+        if url.endswith("ok"):
+            return b""
+        raise Invalid(f"could not download {url}")
+
+    mock_download_content.side_effect = fake_download
+    items = [
+        ("https://example.com/ok", setup_core / "ok"),
+        ("https://example.com/bad1", setup_core / "bad1"),
+        ("https://example.com/bad2", setup_core / "bad2"),
+    ]
+    with pytest.raises(MultipleInvalid) as exc_info:
+        external_files.download_content_many(items)
+    messages = {str(e) for e in exc_info.value.errors}
+    assert messages == {
+        "could not download https://example.com/bad1",
+        "could not download https://example.com/bad2",
+    }
+
+
 def test_download_content_many_dedupes_by_path(
     mock_download_content: MagicMock, setup_core: Path
 ) -> None:
