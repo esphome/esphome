@@ -445,15 +445,15 @@ float Modbus::get_setup_priority() const {
 
 void ModbusServerHub::send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload) {
   const uint16_t len = static_cast<uint16_t>(2 + payload.size());
-  if (len > MAX_FRAME_SIZE) {
+  if (len > MAX_RAW_SIZE) {
     ESP_LOGE(TAG, "Server send frame too large (%" PRIu16 " bytes)", len);
     return;
   }
-  uint8_t frame[MAX_FRAME_SIZE];
-  frame[0] = address;
-  frame[1] = function_code;
-  std::memcpy(frame + 2, payload.data(), payload.size());
-  this->send_raw_(frame, len);
+  uint8_t raw_frame[MAX_RAW_SIZE];
+  raw_frame[0] = address;
+  raw_frame[1] = function_code;
+  std::memcpy(raw_frame + 2, payload.data(), payload.size());
+  this->send_raw_(raw_frame, len);
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.

@@ -360,9 +360,9 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
  * @param values_len length of values array
  * @return PDU (function code + data, no address, no CRC)
  */
-StaticVector<uint8_t, MAX_FRAME_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
-                                                        uint16_t number_of_entities, const uint8_t *values = nullptr,
-                                                        size_t values_len = 0);
+StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
+                                                      uint16_t number_of_entities, const uint8_t *values = nullptr,
+                                                      size_t values_len = 0);
 
 /** Create modbus write multiple registers command
  *  Function 0x10 Write Multiple Registers
@@ -371,8 +371,8 @@ StaticVector<uint8_t, MAX_FRAME_SIZE> create_client_pdu(ModbusFunctionCode funct
  * @param values uint16_t register values to write
  * @return PDU (function code + data, no address, no CRC)
  */
-StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_multiple_pdu(uint16_t start_address, uint16_t register_count,
-                                                                const std::vector<uint16_t> &values);
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_multiple_pdu(uint16_t start_address, uint16_t register_count,
+                                                              const std::vector<uint16_t> &values);
 
 /** Create modbus write single register command
  *  Function 0x06 Write Single Register
@@ -380,7 +380,7 @@ StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_multiple_pdu(uint16_t start_a
  * @param value uint16_t value to write
  * @return PDU (function code + data, no address, no CRC)
  */
-StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_single_pdu(uint16_t start_address, uint16_t value);
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_single_pdu(uint16_t start_address, uint16_t value);
 
 /** Create modbus write single coil command
  *  Function 0x05 Write Single Coil
@@ -388,7 +388,7 @@ StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_single_pdu(uint16_t start_add
  * @param value coil value to write
  * @return PDU (function code + data, no address, no CRC)
  */
-StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_single_coil_pdu(uint16_t address, bool value);
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_single_coil_pdu(uint16_t address, bool value);
 
 /** Create modbus write multiple coils command
  *  Function 0x0F Write Multiple Coils
@@ -396,8 +396,8 @@ StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_single_coil_pdu(uint16_t addr
  * @param values bool vector of coil values to write
  * @return PDU (function code + data, no address, no CRC)
  */
-StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_multiple_coils_pdu(uint16_t start_address,
-                                                                      const std::vector<bool> &values);
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_multiple_coils_pdu(uint16_t start_address,
+                                                                    const std::vector<bool> &values);
 
 /** Convert float to vector<uint8_t> response payload.
  * @param value value to convert

@@ -116,12 +116,12 @@ class ModbusClientHub : public Modbus {
                                               payload, payload_len),
                    device, allow_duplicates);
   };
-  void send_pdu(uint8_t address, const StaticVector<uint8_t, MAX_FRAME_SIZE> &pdu, ModbusClientDevice *device = nullptr,
+  void send_pdu(uint8_t address, const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu, ModbusClientDevice *device = nullptr,
                 bool allow_duplicates = false) {
-    uint8_t frame[MAX_FRAME_SIZE];
-    frame[0] = address;
-    std::memcpy(frame + 1, pdu.data(), pdu.size());
-    this->send_raw(frame, static_cast<uint16_t>(1 + pdu.size()), device, allow_duplicates);
+    uint8_t raw_frame[MAX_RAW_SIZE];
+    raw_frame[0] = address;
+    std::memcpy(raw_frame + 1, pdu.data(), pdu.size());
+    this->send_raw(raw_frame, static_cast<uint16_t>(pdu.size() + 1), device, allow_duplicates);
   }
   void send_raw(const uint8_t *payload, uint16_t len, ModbusClientDevice *device = nullptr,
                 bool allow_duplicates = false);
@@ -186,11 +186,9 @@ class ModbusClientDevice {
                                                        payload, payload_len),
                             this);
   }
-  void send_pdu(const StaticVector<uint8_t, MAX_FRAME_SIZE> &pdu) {
-    this->parent_->send_pdu(this->address_, pdu, this);
-  }
+  void send_pdu(const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
   void send_raw(const uint8_t *payload, uint16_t len) { this->parent_->send_raw(payload, len, this); }
-  ESPDEPRECATED("Use send_pdu(StaticVector<uint8_t, MAX_FRAME_SIZE>) instead. Removed in 2026.10.0", "2026.4.0")
+  ESPDEPRECATED("Use send_pdu(StaticVector<uint8_t, MAX_PDU_SIZE>) instead. Removed in 2026.10.0", "2026.4.0")
   void send_raw(const std::vector<uint8_t> &payload) {
     this->parent_->send_raw(payload.data(), static_cast<uint16_t>(payload.size()), this);
   }

@@ -141,10 +141,10 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
   return value;
 }
 
-StaticVector<uint8_t, MAX_FRAME_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
-                                                        uint16_t number_of_entities, const uint8_t *values,
-                                                        size_t values_len) {
-  StaticVector<uint8_t, MAX_FRAME_SIZE> pdu;
+StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
+                                                      uint16_t number_of_entities, const uint8_t *values,
+                                                      size_t values_len) {
+  StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
   pdu.push_back(static_cast<uint8_t>(function_code));
   pdu.push_back(start_address >> 8);
   pdu.push_back(start_address >> 0);
@@ -168,9 +168,9 @@ StaticVector<uint8_t, MAX_FRAME_SIZE> create_client_pdu(ModbusFunctionCode funct
   return pdu;
 }
 
-StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_multiple_pdu(uint16_t start_address, uint16_t register_count,
-                                                                const std::vector<uint16_t> &values) {
-  uint8_t payload[MAX_FRAME_SIZE];
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_multiple_pdu(uint16_t start_address, uint16_t register_count,
+                                                              const std::vector<uint16_t> &values) {
+  uint8_t payload[MAX_PDU_SIZE];
   size_t payload_len = 0;
   for (auto v : values) {
     auto decoded_value = decode_value(v);
@@ -181,20 +181,20 @@ StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_multiple_pdu(uint16_t start_a
                            payload_len);
 }
 
-StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_single_pdu(uint16_t start_address, uint16_t value) {
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_single_pdu(uint16_t start_address, uint16_t value) {
   auto decoded_value = decode_value(value);
   uint8_t payload[2] = {decoded_value[0], decoded_value[1]};
   return create_client_pdu(ModbusFunctionCode::WRITE_SINGLE_REGISTER, start_address, 1, payload, sizeof(payload));
 }
 
-StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_single_coil_pdu(uint16_t address, bool value) {
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_single_coil_pdu(uint16_t address, bool value) {
   uint8_t payload[2] = {uint8_t(value ? 0xFF : 0), 0};
   return create_client_pdu(ModbusFunctionCode::WRITE_SINGLE_COIL, address, 1, payload, sizeof(payload));
 }
 
-StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_multiple_coils_pdu(uint16_t start_address,
-                                                                      const std::vector<bool> &values) {
-  uint8_t payload[MAX_FRAME_SIZE];
+StaticVector<uint8_t, MAX_PDU_SIZE> create_write_multiple_coils_pdu(uint16_t start_address,
+                                                                    const std::vector<bool> &values) {
+  uint8_t payload[MAX_PDU_SIZE];
   size_t payload_len = 0;
   uint8_t bitmask = 0;
   int bitcounter = 0;
