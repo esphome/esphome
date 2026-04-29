@@ -50,8 +50,8 @@ OnUnknownPeerTrigger = espnow_ns.class_(
 OnReceiveTrigger = espnow_ns.class_(
     "OnReceiveTrigger", ESPNowHandlerTrigger, ESPNowReceivedPacketHandler
 )
-OnBroadcastedTrigger = espnow_ns.class_(
-    "OnBroadcastedTrigger", ESPNowHandlerTrigger, ESPNowBroadcastedHandler
+OnBroadcastTrigger = espnow_ns.class_(
+    "OnBroadcastTrigger", ESPNowHandlerTrigger, ESPNowBroadcastedHandler
 )
 
 
@@ -94,7 +94,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_BROADCAST): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnBroadcastedTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnBroadcastTrigger),
                     cv.Optional(CONF_ADDRESS): cv.mac_address,
                 }
             ),

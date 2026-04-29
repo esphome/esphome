@@ -149,13 +149,13 @@ class OnUnknownPeerTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_
     return false;  // Return false to continue processing other internal handlers
   }
 };
-class OnBroadcastedTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
-                             public ESPNowBroadcastedHandler {
+class OnBroadcastTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
+                           public ESPNowBroadcastHandler {
  public:
-  explicit OnBroadcastedTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
+  explicit OnBroadcastTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
     memcpy(this->address_, address.data(), ESP_NOW_ETH_ALEN);
   }
-  explicit OnBroadcastedTrigger() {}
+  explicit OnBroadcastTrigger() {}
 
   bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
     bool match = !this->has_address_ || (memcmp(this->address_, info.src_addr, ESP_NOW_ETH_ALEN) == 0);
