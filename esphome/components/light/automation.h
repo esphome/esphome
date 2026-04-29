@@ -32,13 +32,13 @@ template<bool HasTransitionLength, typename... Ts> class ToggleAction : public A
 };
 
 // All configured fields are baked into a single stateless lambda whose
-// constants live in flash. The action only stores a function pointer
-// (4 bytes) plus the parent (4 bytes), regardless of how many fields the
-// user set. Trigger args are forwarded to the apply function so user
-// lambdas (e.g. `brightness: !lambda "return x;"`) keep working.
+// constants live in flash. The action only stores one function pointer
+// plus one parent pointer, regardless of how many fields the user set.
+// Trigger args are forwarded to the apply function so user lambdas
+// (e.g. `brightness: !lambda "return x;"`) keep working.
 template<typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
-  using ApplyFn = void (*)(LightState *, LightCall &, Ts...);
+  using ApplyFn = void (*)(LightState *, LightCall &, const Ts &...);
   LightControlAction(LightState *parent, ApplyFn apply) : parent_(parent), apply_(apply) {}
 
   void play(const Ts &...x) override {
