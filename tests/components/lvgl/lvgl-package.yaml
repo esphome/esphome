@@ -1113,6 +1113,8 @@ lvgl:
                   pad_row: 6px
                   pad_column: 0
                   multiple_widgets_per_cell: true
+                  grid_cell_x_align: center
+                  grid_cell_y_align: center
                 widgets:
                   - image:
                       grid_cell_row_pos: 0
@@ -1304,6 +1306,87 @@ lvgl:
                 id: lv_keyboard1
                 hidden: true
                 mode: text_lower
+
+        # Grid shorthand "<rows>x": 3 rows specified, columns derived
+        # from widget count (4 widgets / 3 rows -> 2 columns)
+        - obj:
+            id: grid_rows_only_shorthand
+            layout: 3x
+            widgets:
+              - label:
+                  text: "r1"
+              - label:
+                  text: "r2"
+              - label:
+                  text: "r3"
+              - label:
+                  text: "r4"
+
+        # Grid shorthand "x<cols>": 4 columns specified, rows derived
+        # from widget count (5 widgets / 4 cols -> 2 rows)
+        - obj:
+            id: grid_cols_only_shorthand
+            layout: x4
+            widgets:
+              - label:
+                  text: "a"
+              - label:
+                  text: "b"
+              - label:
+                  text: "c"
+              - label:
+                  text: "d"
+              - label:
+                  text: "e"
+
+        # Grid dict form with grid_rows as a plain integer; columns derived
+        - obj:
+            id: grid_rows_int
+            layout:
+              type: grid
+              grid_rows: 2
+            widgets:
+              - label:
+                  text: "1"
+              - label:
+                  text: "2"
+              - label:
+                  text: "3"
+
+        # Grid dict form with grid_columns as a plain integer; rows derived
+        - obj:
+            id: grid_cols_int
+            layout:
+              type: grid
+              grid_columns: 3
+            widgets:
+              - label:
+                  text: "x"
+              - label:
+                  text: "y"
+              - label:
+                  text: "z"
+              - label:
+                  text: "w"
+              - label:
+                  text: "v"
+
+        # Grid dict form with both grid_rows and grid_columns as plain integers
+        - obj:
+            id: grid_both_int
+            layout:
+              type: grid
+              grid_rows: 2
+              grid_columns: 2
+            widgets:
+              - label:
+                  text: "1,1"
+              - label:
+                  text: "1,2"
+              - label:
+                  text: "2,1"
+              - label:
+                  text: "2,2"
 
 font:
   - file: "gfonts://Roboto"
