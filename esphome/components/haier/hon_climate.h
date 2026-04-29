@@ -14,12 +14,20 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
 #include "esphome/core/automation.h"
 #include "haier_base.h"
 #include "hon_packet.h"
 
 namespace esphome {
 namespace haier {
+
+#ifdef USE_SELECT
+extern const std::vector<hon_protocol::HorizontalSwingMode> HORIZONTAL_SWING_MODES_ORDER;
+extern const std::vector<hon_protocol::VerticalSwingMode> VERTICAL_SWING_MODES_ORDER;
+#endif
 
 enum class CleaningState : uint8_t {
   NO_CLEANING = 0,
@@ -30,7 +38,7 @@ enum class CleaningState : uint8_t {
 enum class HonControlMethod { MONITOR_ONLY = 0, SET_GROUP_PARAMETERS, SET_SINGLE_PARAMETER };
 
 struct HonSettings {
-  hon_protocol::VerticalSwingMode last_vertiacal_swing{hon_protocol::VerticalSwingMode::CENTER};
+  hon_protocol::VerticalSwingMode last_vertical_swing{hon_protocol::VerticalSwingMode::CENTER};
   hon_protocol::HorizontalSwingMode last_horizontal_swing{hon_protocol::HorizontalSwingMode::CENTER};
   bool beeper_state{true};
   bool quiet_mode_state{false};
@@ -101,6 +109,17 @@ class HonClimate : public HaierClimateBase {
  protected:
   switch_::Switch *beeper_switch_{nullptr};
   switch_::Switch *quiet_mode_switch_{nullptr};
+#endif
+#ifdef USE_SELECT
+public:
+  void set_vertical_airflow_select(select::Select *sel);
+  void set_horizontal_airflow_select(select::Select *sel);
+
+ protected:
+  void update_vertical_airflow_select_state_();
+  void update_horizontal_airflow_select_state_();
+  select::Select *vertical_airflow_select_{nullptr};
+  select::Select *horizontal_airflow_select_{nullptr};
 #endif
  public:
   HonClimate();
@@ -196,6 +215,8 @@ class HonClimate : public HaierClimateBase {
   uint8_t big_data_counter_{0};
   esphome::optional<hon_protocol::VerticalSwingMode> current_vertical_swing_{};
   esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
+  esphome::optional<std::chrono::steady_clock::time_point> vertical_direction_set_time_{};
+  esphome::optional<std::chrono::steady_clock::time_point> horizontal_direction_set_time_{};
   HonSettings settings_{};
   ESPPreferenceObject hon_rtc_;
   SwitchState quiet_mode_state_{SwitchState::OFF};

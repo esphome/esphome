@@ -210,6 +210,7 @@ esphome/components/gt911/* @clydebarrow @jesserockz
 esphome/components/haier/* @paveldn
 esphome/components/haier/binary_sensor/* @paveldn
 esphome/components/haier/button/* @paveldn
+esphome/components/haier/select/* @paveldn
 esphome/components/haier/sensor/* @paveldn
 esphome/components/haier/switch/* @paveldn
 esphome/components/haier/text_sensor/* @paveldn

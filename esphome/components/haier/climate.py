@@ -74,6 +74,7 @@ AIRFLOW_VERTICAL_DIRECTION_OPTIONS = {
     "UP": AirflowVerticalDirection.UP,
     "CENTER": AirflowVerticalDirection.CENTER,
     "DOWN": AirflowVerticalDirection.DOWN,
+    "MAX_DOWN": AirflowVerticalDirection.MAX_DOWN,
     "HEALTH_DOWN": AirflowVerticalDirection.HEALTH_DOWN,
 }
 
@@ -516,4 +517,4 @@ async def to_code(config):
         )
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     # https://github.com/paveldn/HaierProtocol
-    cg.add_library("pavlodn/HaierProtocol", "0.9.31")
+    cg.add_library("pavlodn/HaierProtocol", "0.9.32")
