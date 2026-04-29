@@ -271,8 +271,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
           // Check if there is an app partition in the old partition table at the right offset
           // This is for esp_partition_copy and won't be needed after implementing a better copy function in the future.
           // First match wins for determinism; stop searching as soon as a suitable pair is found.
-          esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
-          while (it != NULL) {
+          esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+          while (it != nullptr) {
             const esp_partition_t *p = esp_partition_get(it);
             if (p->address == new_part->pos.offset && p->size >= running_app_size) {
               // Found a suitable pair of partitions in the old and new partition table to copy the running app to
