@@ -103,15 +103,16 @@ int16_t XPT2046Component::best_two_avg(int16_t value1, int16_t value2, int16_t v
   return reta;
 }
 
-int16_t XPT2046Component::read_adc_(uint8_t ctrl) {  // NOLINT
-  uint8_t data[2];
+int16_t XPT2046Component::read_adc_(uint8_t ctrl) {
+  uint8_t data[3];
 
-  this->write_byte(ctrl);
-  delay(1);
-  data[0] = this->read_byte();
-  data[1] = this->read_byte();
+  data[0] = ctrl;
+  data[1] = 0;
+  data[2] = 0;
 
-  return ((data[0] << 8) | data[1]) >> 3;
+  this->transfer_array(data, sizeof(data));
+
+  return ((data[1] << 8) | data[2]) >> 3;
 }
 
 }  // namespace esphome::xpt2046
