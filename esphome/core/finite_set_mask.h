@@ -55,7 +55,7 @@ template<typename ValueType, int MaxBits> struct DefaultBitPolicy {
 ///
 template<typename ValueType, typename BitPolicy = DefaultBitPolicy<ValueType, 16>> class FiniteSetMask {
  public:
-  using bitmask_t = typename BitPolicy::mask_t;
+  using bitmask_t = BitPolicy::mask_t;
 
   constexpr FiniteSetMask() = default;
 
