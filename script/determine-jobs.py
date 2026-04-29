@@ -349,6 +349,42 @@ def should_run_python_linters(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
 
 
+# Files outside esphome/**/*.py whose changes can affect `import esphome.__main__`
+# cost. requirements.txt / pyproject.toml change the dependency graph pulled in
+# by top-level imports; check_import_time.py itself changes the check's behavior.
+IMPORT_TIME_TRIGGER_FILES = frozenset(
+    {
+        "requirements.txt",
+        "requirements_dev.txt",
+        "requirements_test.txt",
+        "pyproject.toml",
+        "script/check_import_time.py",
+        "script/import_time_budget.json",
+    }
+)
+
+
+def should_run_import_time(branch: str | None = None) -> bool:
+    """Determine if the `import esphome.__main__` time regression check should run.
+
+    Runs when any Python file under `esphome/` changes (those modules are
+    loaded transitively from `esphome.__main__`), when dependency
+    declarations change, or when the check script/budget itself changes.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        True if the import-time check should run, False otherwise.
+    """
+    for file in changed_files(branch):
+        if file.startswith("esphome/") and file.endswith(PYTHON_FILE_EXTENSIONS):
+            return True
+        if file in IMPORT_TIME_TRIGGER_FILES:
+            return True
+    return False
+
+
 def determine_cpp_unit_tests(
     branch: str | None = None,
 ) -> tuple[bool, list[str]]:
@@ -402,8 +438,11 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     Benchmarks run when any of the following conditions are met:
 
     1. Core C++ files changed (esphome/core/*)
-    2. A directly changed component has benchmark files (no dependency expansion)
-    3. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
+    2. The host platform changed (esphome/components/host/*) — benchmarks
+       are built and run on the host platform, so its implementations of
+       ``millis()``/``micros()``/etc. affect every benchmark
+    3. A directly changed component has benchmark files (no dependency expansion)
+    4. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
        script/build_helpers.py, script/setup_codspeed_lib.py)
 
     Unlike unit tests, benchmarks do NOT expand to dependent components.
@@ -418,6 +457,10 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     """
     files = changed_files(branch)
     if core_changed(files):
+        return True
+
+    # Host platform supplies the runtime that benchmarks execute on
+    if any(f.startswith("esphome/components/host/") for f in files):
         return True
 
     # Check if benchmark infrastructure changed
@@ -774,6 +817,7 @@ def main() -> None:
     run_clang_tidy = True
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
+    run_import_time = should_run_import_time(args.branch)
     changed_cpp_file_count = count_changed_cpp_files(args.branch)
 
     # Get changed components
@@ -920,6 +964,7 @@ def main() -> None:
         "clang_tidy_mode": clang_tidy_mode,
         "clang_format": run_clang_format,
         "python_linters": run_python_linters,
+        "import_time": run_import_time,
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
         "directly_changed_components_with_tests": list(directly_changed_with_tests),

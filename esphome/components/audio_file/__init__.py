@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from functools import partial
 import hashlib
 import logging
 from pathlib import Path
@@ -19,7 +20,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, HexInt
 from esphome.cpp_generator import MockObj
-from esphome.external_files import download_content
+from esphome.external_files import download_web_files_in_config
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,15 +62,6 @@ def _compute_local_file_path(value: ConfigType) -> Path:
     base_dir = external_files.compute_local_file_dir(DOMAIN)
     _LOGGER.debug("_compute_local_file_path: base_dir=%s", base_dir / key)
     return base_dir / key
-
-
-def _download_web_file(value: ConfigType) -> ConfigType:
-    url = value[CONF_URL]
-    path = _compute_local_file_path(value)
-
-    download_content(url, path)
-    _LOGGER.debug("download_web_file: path=%s", path)
-    return value
 
 
 def _file_schema(value: ConfigType | str) -> ConfigType:
@@ -142,11 +134,10 @@ LOCAL_SCHEMA = cv.Schema(
     }
 )
 
-WEB_SCHEMA = cv.All(
+WEB_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_URL): cv.url,
-    },
-    _download_web_file,
+    }
 )
 
 
@@ -209,6 +200,7 @@ def _validate_supported_local_file(config: list[ConfigType]) -> list[ConfigType]
 CONFIG_SCHEMA = cv.All(
     cv.only_on_esp32,
     cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
+    partial(download_web_files_in_config, path_for=_compute_local_file_path),
     _validate_supported_local_file,
 )
 
