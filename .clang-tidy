@@ -112,6 +112,7 @@ Checks: >-
   -objc-*,
   -performance-enum-size,
   -portability-avoid-pragma-once,
+  -portability-template-virtual-member-function,
   -readability-ambiguous-smartptr-reset-call,
   -readability-avoid-nested-conditional-operator,
   -readability-container-contains,
