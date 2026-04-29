@@ -73,6 +73,71 @@ _AUTH_METHODS: dict[int, tuple[Callable[..., Any], int, str]] = {
     RESPONSE_REQUEST_AUTH: (hashlib.md5, 32, "MD5"),
 }
 
+# Error response code -> human-readable message (without the "Error: " prefix; check_error()
+# prepends it uniformly). Looked up by check_error() to translate a single byte from the device
+# into an OTAError. Add new error codes here rather than extending the if-chain in check_error().
+_ERROR_MESSAGES: dict[int, str] = {
+    RESPONSE_ERROR_MAGIC: "Invalid magic byte",
+    RESPONSE_ERROR_UPDATE_PREPARE: (
+        "Couldn't prepare flash memory for update. Is the binary too big? "
+        "Please try restarting the ESP."
+    ),
+    RESPONSE_ERROR_AUTH_INVALID: "Authentication invalid. Is the password correct?",
+    RESPONSE_ERROR_WRITING_FLASH: (
+        "Writing OTA data to flash memory failed. See USB logs for more information."
+    ),
+    RESPONSE_ERROR_UPDATE_END: (
+        "Finishing update failed. See the MQTT/USB logs for more information."
+    ),
+    RESPONSE_ERROR_INVALID_BOOTSTRAPPING: (
+        "Please press the reset button on the ESP. A manual reset is "
+        "required on the first OTA-Update after flashing via USB."
+    ),
+    RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG: (
+        "ESP has been flashed with wrong flash size. Please choose the "
+        "correct 'board' option (esp01_1m always works) and then flash over USB."
+    ),
+    RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG: (
+        "ESP does not have the requested flash size (wrong board). Please "
+        "choose the correct 'board' option (esp01_1m always works) and try "
+        "uploading again."
+    ),
+    RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE: (
+        "ESP does not have enough space to store OTA file. Please try "
+        "flashing a minimal firmware (remove everything except ota)"
+    ),
+    RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE: (
+        "The OTA partition on the ESP is too small. ESPHome needs to resize "
+        "this partition, please flash over USB."
+    ),
+    RESPONSE_ERROR_NO_UPDATE_PARTITION: (
+        "The OTA partition on the ESP couldn't be found. ESPHome needs to "
+        "create this partition, please flash over USB."
+    ),
+    RESPONSE_ERROR_MD5_MISMATCH: (
+        "Application MD5 code mismatch. Please try again "
+        "or flash over USB with a good quality cable."
+    ),
+    RESPONSE_ERROR_SIGNATURE_INVALID: (
+        "Firmware signature verification failed. The firmware was not signed "
+        "with the correct key. Ensure the signing key matches the one used to build "
+        "the firmware currently running on the device."
+    ),
+    RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE: (
+        "The requested OTA type is not supported by the device."
+    ),
+    RESPONSE_ERROR_PARTITION_TABLE_VERIFY: (
+        "The partition table update could not be verified. No changes were "
+        "made to the flash content. Check the logs for more information and retry."
+    ),
+    RESPONSE_ERROR_PARTITION_TABLE_UPDATE: (
+        "An error occurred while updating the partition table. The device may "
+        "not be able to reboot to a working application. Check the logs and retry "
+        "the update without rebooting the device."
+    ),
+    RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
+}
+
 
 class OTAError(EsphomeError):
     pass
@@ -148,82 +213,9 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
             "a network issue, or the connection was interrupted."
         )
     dat = data[0]
-    if dat == RESPONSE_ERROR_MAGIC:
-        raise OTAError("Error: Invalid magic byte")
-    if dat == RESPONSE_ERROR_UPDATE_PREPARE:
-        raise OTAError(
-            "Error: Couldn't prepare flash memory for update. Is the binary too big? "
-            "Please try restarting the ESP."
-        )
-    if dat == RESPONSE_ERROR_AUTH_INVALID:
-        raise OTAError("Error: Authentication invalid. Is the password correct?")
-    if dat == RESPONSE_ERROR_WRITING_FLASH:
-        raise OTAError(
-            "Error: Writing OTA data to flash memory failed. See USB logs for more "
-            "information."
-        )
-    if dat == RESPONSE_ERROR_UPDATE_END:
-        raise OTAError(
-            "Error: Finishing update failed. See the MQTT/USB logs for more "
-            "information."
-        )
-    if dat == RESPONSE_ERROR_INVALID_BOOTSTRAPPING:
-        raise OTAError(
-            "Error: Please press the reset button on the ESP. A manual reset is "
-            "required on the first OTA-Update after flashing via USB."
-        )
-    if dat == RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG:
-        raise OTAError(
-            "Error: ESP has been flashed with wrong flash size. Please choose the "
-            "correct 'board' option (esp01_1m always works) and then flash over USB."
-        )
-    if dat == RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG:
-        raise OTAError(
-            "Error: ESP does not have the requested flash size (wrong board). Please "
-            "choose the correct 'board' option (esp01_1m always works) and try "
-            "uploading again."
-        )
-    if dat == RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE:
-        raise OTAError(
-            "Error: ESP does not have enough space to store OTA file. Please try "
-            "flashing a minimal firmware (remove everything except ota)"
-        )
-    if dat == RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE:
-        raise OTAError(
-            "Error: The OTA partition on the ESP is too small. ESPHome needs to resize "
-            "this partition, please flash over USB."
-        )
-    if dat == RESPONSE_ERROR_NO_UPDATE_PARTITION:
-        raise OTAError(
-            "Error: The OTA partition on the ESP couldn't be found. ESPHome needs to create "
-            "this partition, please flash over USB."
-        )
-    if dat == RESPONSE_ERROR_MD5_MISMATCH:
-        raise OTAError(
-            "Error: Application MD5 code mismatch. Please try again "
-            "or flash over USB with a good quality cable."
-        )
-    if dat == RESPONSE_ERROR_SIGNATURE_INVALID:
-        raise OTAError(
-            "Error: Firmware signature verification failed. The firmware was not signed "
-            "with the correct key. Ensure the signing key matches the one used to build "
-            "the firmware currently running on the device."
-        )
-    if dat == RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE:
-        raise OTAError("Error: The requested OTA type is not supported by the device.")
-    if dat == RESPONSE_ERROR_PARTITION_TABLE_VERIFY:
-        raise OTAError(
-            "Error: The partition table update could not be verified. No changes were "
-            "made to the flash content. Check the logs for more information and retry."
-        )
-    if dat == RESPONSE_ERROR_PARTITION_TABLE_UPDATE:
-        raise OTAError(
-            "Error: An error occurred while updating the partition table. The device may not "
-            "be able to reboot to a working application. Check the logs and retry the update "
-            "without rebooting the device."
-        )
-    if dat == RESPONSE_ERROR_UNKNOWN:
-        raise OTAError("Unknown error from ESP")
+    error_msg = _ERROR_MESSAGES.get(dat)
+    if error_msg is not None:
+        raise OTAError(f"Error: {error_msg}")
     if not isinstance(expect, (list, tuple)):
         expect = [expect]
     if dat not in expect:

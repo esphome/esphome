@@ -321,7 +321,12 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
-  ESP_LOGW(TAG, "Checks passed, starting partition table update. Don't remove power until it is completed!");
+  // Past this point any failure (power loss, watchdog reset, write error after the table has been
+  // partially erased) can leave the device unable to boot. Logged at ERROR severity so the message
+  // is visible in default log filters.
+  ESP_LOGE(TAG, "Starting partition table update.\n"
+                "  DO NOT REMOVE POWER until the device reboots successfully.\n"
+                "  Loss of power during this operation may permanently brick the device.");
 
   // Deinitialize NVS to prevent unwanted flash writes
   nvs_flash_deinit();

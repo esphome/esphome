@@ -92,9 +92,6 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   std::unique_ptr<uint8_t[]> auth_buf_;
 #endif  // USE_OTA_PASSWORD
 #ifdef USE_OTA_PARTITIONS
-  // 4-byte members first, 1-byte member last to minimize padding.
-  uint32_t running_app_offset_{0};
-  size_t running_app_size_{0};
   bool extended_proto_{false};
 #endif
 

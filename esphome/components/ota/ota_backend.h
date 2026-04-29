@@ -4,6 +4,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
+#include <cstdint>
+
 #ifdef USE_OTA_STATE_LISTENER
 #include <vector>
 #endif
@@ -53,7 +55,7 @@ enum OTAState {
   OTA_ERROR,
 };
 
-enum OTAType {
+enum OTAType : uint8_t {
   OTA_TYPE_UPDATE_APP = 0x00,
   OTA_TYPE_UPDATE_PARTITION_TABLE = 0x01,
 };
