@@ -168,10 +168,11 @@ void IDFOTABackend::abort() {
     esp_partition_deregister_external(this->partition_table_part_);
     this->partition_table_part_ = nullptr;
   }
-  if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP) {
-    return;
-  }
 #endif
+  // Always tear down any open OTA handle. update_partition_table() opens a handle internally to
+  // write the new partition table; if esp_ota_write/esp_ota_end fail mid-flight, the handle must
+  // be released here so it isn't leaked. esp_ota_abort with handle 0 returns ESP_ERR_INVALID_ARG
+  // harmlessly, so the unconditional call is safe whether or not we're mid-update.
   esp_ota_abort(this->update_handle_);
   this->update_handle_ = 0;
 }
@@ -358,11 +359,15 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   }
   err = esp_ota_write(this->update_handle_, this->buf_, ESP_PARTITION_TABLE_MAX_LEN);
   if (err != ESP_OK) {
+    // Release the handle eagerly; abort() would also do this, but cleaning up locally keeps the
+    // partial-write failure path self-contained.
+    esp_ota_abort(this->update_handle_);
+    this->update_handle_ = 0;
     ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   err = esp_ota_end(this->update_handle_);
-  this->update_handle_ = 0;
+  this->update_handle_ = 0;  // esp_ota_end releases the handle internally regardless of result
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X) ", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
