@@ -9,6 +9,10 @@
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+
+#if defined(USE_LWIP_FAST_SELECT) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
+#include <atomic>  // for std::atomic_thread_fence in Application::loop()
+#endif
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
@@ -370,6 +374,9 @@ class Application {
 #elif defined(USE_ESP8266)
   /// Wake from ISR (ESP8266). No task_woken arg — no FreeRTOS. Caller must be IRAM_ATTR.
   static void IRAM_ATTR ESPHOME_ALWAYS_INLINE wake_loop_isrsafe() { esphome::wake_loop_isrsafe(); }
+#elif defined(USE_ZEPHYR)
+  /// Wake from ISR (Zephyr). No task_woken arg — k_sem_give() handles ISR scheduling internally.
+  static void wake_loop_isrsafe() { esphome::wake_loop_isrsafe(); }
 #endif
 
   /// Wake from any context (ISR, thread, callback).
@@ -577,6 +584,15 @@ inline ESPHOME_ALWAYS_INLINE Application::ComponentPhaseGuard::ComponentPhaseGua
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
+#if defined(USE_LWIP_FAST_SELECT) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
+  // Pairs with the TCP/IP thread's SYS_ARCH_UNPROTECT release on rcvevent so
+  // subsequent Socket::ready() checks in this iter observe the published state
+  // without a per-call memw. Wake is independent (xTaskNotifyGive/
+  // ulTaskNotifyTake), so non-losing. Skipped on MULTI_NO_ATOMICS (e.g.
+  // BK72xx) — that path keeps `volatile` in esphome_lwip_socket_has_data()
+  // instead.
+  std::atomic_thread_fence(std::memory_order_acquire);
+#endif
 #ifdef USE_RUNTIME_STATS
   // Capture the start of the active (non-sleeping) portion of this iteration.
   // Used to derive main-loop overhead = active time − Σ(component time) −

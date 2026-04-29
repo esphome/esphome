@@ -139,12 +139,12 @@ void KamstrupKMPComponent::clear_uart_rx_buffer_() {
 
 void KamstrupKMPComponent::read_command_(uint16_t command) {
   uint8_t buffer[20] = {0};
-  int buffer_len = 0;
+  size_t buffer_len = 0;
   int data;
   int timeout = 250;  // ms
 
   // Read the data from the UART
-  while (timeout > 0 && buffer_len < static_cast<int>(sizeof(buffer))) {
+  while (timeout > 0 && buffer_len < sizeof(buffer)) {
     if (this->available()) {
       data = this->read();
       if (data > -1) {
@@ -183,7 +183,7 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
   // Decode
   uint8_t msg[20] = {0};
   int msg_len = 0;
-  for (int i = 1; i < buffer_len - 1; i++) {
+  for (size_t i = 1; i < buffer_len - 1; i++) {
     if (buffer[i] == 0x1B) {
       msg[msg_len++] = buffer[i + 1] ^ 0xFF;
       i++;

@@ -331,7 +331,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
 
 #ifdef USE_ESP8266
 WiFiClient *Nextion::get_wifi_client_() {
-  if (this->tft_url_.compare(0, 6, "https:") == 0) {
+  if (this->tft_url_.starts_with("https:")) {
     if (this->wifi_client_secure_ == nullptr) {
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();
