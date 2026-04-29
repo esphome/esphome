@@ -5,6 +5,8 @@ from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
 import esphome.config_validation as cv
 from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY, CONF_ID
 from esphome.core import ID, TimePeriod
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType, TemplateArgsType
 
 MULTI_CONF = True
 CODEOWNERS = ["@swoboda1337"]
@@ -334,7 +336,12 @@ SET_MODE_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id(
     SET_MODE_SLEEP_ACTION_SCHEMA,
     synchronous=True,
 )
-async def set_mode_sleep_action_to_code(config, action_id, template_arg, args):
+async def set_mode_sleep_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_COLD], args, bool)
