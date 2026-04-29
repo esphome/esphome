@@ -17,11 +17,13 @@ constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
 constexpr std::uintptr_t MBR_BOOTLOADER_ADDR = 0xFF8;
 
 static inline uint32_t read_mem_u32(uintptr_t addr) {
-  return *reinterpret_cast<volatile uint32_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
+  // NOLINTNEXTLINE(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference)
+  return *reinterpret_cast<volatile uint32_t *>(addr);
 }
 
 static inline uint8_t read_mem_u8(uintptr_t addr) {
-  return *reinterpret_cast<volatile uint8_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
+  // NOLINTNEXTLINE(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference)
+  return *reinterpret_cast<volatile uint8_t *>(addr);
 }
 
 // defines from https://github.com/adafruit/Adafruit_nRF52_Bootloader which prints those information
@@ -98,6 +100,7 @@ void DebugComponent::log_partition_info_() {
 #define NRF_PERIPH_ENABLED(periph, reg) \
   YESNO(((reg)->ENABLE & periph##_ENABLE_ENABLE_Msk) == (periph##_ENABLE_ENABLE_Enabled << periph##_ENABLE_ENABLE_Pos))
 
+// NOLINTBEGIN(clang-analyzer-core.FixedAddressDereference) -- nRF peripheral registers are MMIO at fixed addresses
 static void log_peripherals_info() {
   // most peripherals are enabled only when in use so ESP_LOGV is enough
   ESP_LOGV(TAG, "Peripherals status:");
@@ -131,6 +134,7 @@ static void log_peripherals_info() {
            YESNO((NRF_CRYPTOCELL->ENABLE & CRYPTOCELL_ENABLE_ENABLE_Msk) ==
                  (CRYPTOCELL_ENABLE_ENABLE_Enabled << CRYPTOCELL_ENABLE_ENABLE_Pos)));
 }
+// NOLINTEND(clang-analyzer-core.FixedAddressDereference)
 #undef NRF_PERIPH_ENABLED
 #endif
 
@@ -159,8 +163,9 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   char *buf = buffer.data();
 
   // Main supply status
-  const char *supply_status =
-      (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_NORMAL) ? "Normal voltage." : "High voltage.";
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_POWER is MMIO at a fixed address
+  auto regstatus = nrf_power_mainregstatus_get(NRF_POWER);
+  const char *supply_status = (regstatus == NRF_POWER_MAINREGSTATUS_NORMAL) ? "Normal voltage." : "High voltage.";
   ESP_LOGD(TAG, "Main supply status: %s", supply_status);
   pos = buf_append_str(buf, size, pos, "|Main supply status: ");
   pos = buf_append_str(buf, size, pos, supply_status);
