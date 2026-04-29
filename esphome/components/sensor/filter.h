@@ -254,15 +254,13 @@ class ExponentialMovingAverageFilter : public Filter {
  *
  * It takes the average of all the values received in a period of time.
  */
-class ThrottleAverageFilter : public Filter, public Component {
+class ThrottleAverageFilter : public Filter {
  public:
   explicit ThrottleAverageFilter(uint32_t time_period);
 
-  void setup() override;
+  void initialize(Sensor *parent, Filter *next) override;
 
   optional<float> new_value(float value) override;
-
-  float get_setup_priority() const override;
 
  protected:
   float sum_{0.0f};
@@ -454,25 +452,22 @@ class TimeoutFilterConfigured : public TimeoutFilterBase {
   // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
 };
 
-class DebounceFilter : public Filter, public Component {
+class DebounceFilter : public Filter {
  public:
   explicit DebounceFilter(uint32_t time_period);
 
   optional<float> new_value(float value) override;
 
-  float get_setup_priority() const override;
-
  protected:
   uint32_t time_period_;
 };
 
-class HeartbeatFilter : public Filter, public Component {
+class HeartbeatFilter : public Filter {
  public:
   explicit HeartbeatFilter(uint32_t time_period);
 
-  void setup() override;
+  void initialize(Sensor *parent, Filter *next) override;
   optional<float> new_value(float value) override;
-  float get_setup_priority() const override;
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
