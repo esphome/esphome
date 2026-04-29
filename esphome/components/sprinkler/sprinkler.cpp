@@ -897,11 +897,12 @@ void Sprinkler::resume() {
   }
 
   if (this->paused_valve_.has_value() && (this->resume_duration_.has_value())) {
+    const size_t paused_valve = *this->paused_valve_;
+    const uint32_t resume_duration = *this->resume_duration_;
     // Resume only if valve has not been completed yet
-    if (!this->valve_cycle_complete_(this->paused_valve_.value())) {
-      ESP_LOGD(TAG, "Resuming valve %zu with %" PRIu32 " seconds remaining", this->paused_valve_.value_or(0),
-               this->resume_duration_.value_or(0));
-      this->fsm_request_(this->paused_valve_.value(), this->resume_duration_.value());
+    if (!this->valve_cycle_complete_(paused_valve)) {
+      ESP_LOGD(TAG, "Resuming valve %zu with %" PRIu32 " seconds remaining", paused_valve, resume_duration);
+      this->fsm_request_(paused_valve, resume_duration);
     }
     this->reset_resume();
   } else {

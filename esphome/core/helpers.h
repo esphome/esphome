@@ -1666,7 +1666,7 @@ template<typename... Ts> struct Callback<void(Ts...)> {
   void *ctx_{nullptr};
 
   /// Invoke the callback. Only valid on Callbacks created via create(), never on default-constructed instances.
-  void call(Ts... args) const { this->fn_(this->ctx_, args...); }
+  void call(Ts... args) const { this->fn_(this->ctx_, std::forward<Ts>(args)...); }
 
   /// Create from any callable. Small trivially-copyable callables (like [this] lambdas)
   /// are stored inline in the ctx pointer without heap allocation.
@@ -1742,7 +1742,7 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   template<typename F> void add(F &&callback) { this->add_(CbType::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager.
-  inline void ESPHOME_ALWAYS_INLINE call(Ts... args) {
+  inline void ESPHOME_ALWAYS_INLINE call(const Ts &...args) {
     if (this->size_ != 0) {
       for (auto *it = this->data_, *end = it + this->size_; it != end; ++it) {
         it->call(args...);
@@ -1752,7 +1752,7 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   uint16_t size() const { return this->size_; }
 
   /// Call all callbacks in this manager.
-  void operator()(Ts... args) { this->call(args...); }
+  void operator()(const Ts &...args) { this->call(args...); }
 
  protected:
   template<typename...> friend class LazyCallbackManager;

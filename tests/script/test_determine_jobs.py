@@ -57,6 +57,13 @@ def mock_should_run_python_linters() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
+def mock_should_run_import_time() -> Generator[Mock, None, None]:
+    """Mock should_run_import_time from determine_jobs."""
+    with patch.object(determine_jobs, "should_run_import_time") as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_determine_cpp_unit_tests() -> Generator[Mock, None, None]:
     """Mock determine_cpp_unit_tests from helpers."""
     with patch.object(determine_jobs, "determine_cpp_unit_tests") as mock:
@@ -91,6 +98,7 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -104,6 +112,7 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = True
     mock_should_run_python_linters.return_value = True
+    mock_should_run_import_time.return_value = True
     mock_determine_cpp_unit_tests.return_value = (False, ["wifi", "api", "sensor"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
@@ -158,6 +167,7 @@ def test_main_all_tests_should_run(
     assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is True
     assert output["python_linters"] is True
+    assert output["import_time"] is True
     assert output["changed_components"] == ["wifi", "api", "sensor"]
     # changed_components_with_tests will only include components that actually have test files
     assert "changed_components_with_tests" in output
@@ -189,6 +199,7 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -202,6 +213,7 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
     mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
@@ -241,6 +253,7 @@ def test_main_no_tests_should_run(
     assert output["clang_tidy_mode"] == "disabled"
     assert output["clang_format"] is False
     assert output["python_linters"] is False
+    assert output["import_time"] is False
     assert output["changed_components"] == []
     assert output["changed_components_with_tests"] == []
     assert output["component_test_count"] == 0
@@ -261,6 +274,7 @@ def test_main_with_branch_argument(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -274,6 +288,7 @@ def test_main_with_branch_argument(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = True
+    mock_should_run_import_time.return_value = True
     mock_determine_cpp_unit_tests.return_value = (False, ["mqtt"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
@@ -310,6 +325,7 @@ def test_main_with_branch_argument(
     mock_should_run_clang_tidy.assert_called_once_with("main")
     mock_should_run_clang_format.assert_called_once_with("main")
     mock_should_run_python_linters.assert_called_once_with("main")
+    mock_should_run_import_time.assert_called_once_with("main")
 
     # Check output
     captured = capsys.readouterr()
@@ -322,6 +338,7 @@ def test_main_with_branch_argument(
     assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is False
     assert output["python_linters"] is True
+    assert output["import_time"] is True
     assert output["changed_components"] == ["mqtt"]
     # changed_components_with_tests will only include components that actually have test files
     assert "changed_components_with_tests" in output
@@ -594,6 +611,50 @@ def test_should_run_python_linters_with_branch() -> None:
     with patch.object(determine_jobs, "changed_files") as mock_changed:
         mock_changed.return_value = []
         determine_jobs.should_run_python_linters("release")
+        mock_changed.assert_called_once_with("release")
+
+
+@pytest.mark.parametrize(
+    ("changed_files", "expected_result"),
+    [
+        # esphome Python files trigger the check
+        (["esphome/__main__.py"], True),
+        (["esphome/components/wifi/__init__.py"], True),
+        (["esphome/core/config.py"], True),
+        (["esphome/types.pyi"], True),
+        # Dependency declarations and the check's own files trigger
+        (["requirements.txt"], True),
+        (["requirements_dev.txt"], True),
+        (["requirements_test.txt"], True),
+        (["pyproject.toml"], True),
+        (["script/check_import_time.py"], True),
+        (["script/import_time_budget.json"], True),
+        # Mixed: any triggering file is enough
+        (["docs/README.md", "esphome/config.py"], True),
+        # Python files outside esphome/ don't trigger
+        (["script/some_other_script.py"], False),
+        (["tests/script/test_determine_jobs.py"], False),
+        # Non-Python changes don't trigger
+        (["esphome/core/component.cpp"], False),
+        (["tests/components/wifi/test.esp32-idf.yaml"], False),
+        (["README.md"], False),
+        ([], False),
+    ],
+)
+def test_should_run_import_time(
+    changed_files: list[str], expected_result: bool
+) -> None:
+    """Test should_run_import_time function."""
+    with patch.object(determine_jobs, "changed_files", return_value=changed_files):
+        result = determine_jobs.should_run_import_time()
+        assert result == expected_result
+
+
+def test_should_run_import_time_with_branch() -> None:
+    """Test should_run_import_time with branch argument."""
+    with patch.object(determine_jobs, "changed_files") as mock_changed:
+        mock_changed.return_value = []
+        determine_jobs.should_run_import_time("release")
         mock_changed.assert_called_once_with("release")
 
 
