@@ -1,5 +1,6 @@
 #pragma once
 
+// DNM: integration-test bucketing CI probe — do not merge.
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
