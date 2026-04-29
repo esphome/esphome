@@ -98,7 +98,7 @@ void IDFOTABackend::set_update_md5(const char *expected_md5) {
 OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
 #ifdef USE_OTA_PARTITIONS
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
-    if (len > OTA_BUFFER_SIZE - this->buf_written_) {
+    if (len > PARTITION_TABLE_BUFFER_SIZE - this->buf_written_) {
       ESP_LOGE(TAG, "Wrong partition table size");
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
     }

@@ -10,7 +10,10 @@
 namespace esphome::ota {
 
 #ifdef USE_OTA_PARTITIONS
-static constexpr size_t OTA_BUFFER_SIZE = ESP_PARTITION_TABLE_MAX_LEN;  // 0xC00
+// Dedicated staging buffer size for the new partition table image. Must be at least
+// ESP_PARTITION_TABLE_MAX_LEN (0xC00) so the entire partition table fits before verification.
+// Kept separate from any OTA chunk-transfer buffer to avoid coupling unrelated sizes.
+static constexpr size_t PARTITION_TABLE_BUFFER_SIZE = ESP_PARTITION_TABLE_MAX_LEN;  // 0xC00
 #endif
 
 #ifdef USE_OTA_PARTITIONS
@@ -43,7 +46,7 @@ class IDFOTABackend final {
   bool md5_set_{false};
 #ifdef USE_OTA_PARTITIONS
   ota::OTAType ota_type_{ota::OTA_TYPE_UPDATE_APP};
-  uint8_t buf_[OTA_BUFFER_SIZE];
+  uint8_t buf_[PARTITION_TABLE_BUFFER_SIZE];
   size_t buf_written_{0};
   size_t image_size_{0};
   const esp_partition_t *partition_table_part_{nullptr};
