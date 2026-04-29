@@ -49,6 +49,9 @@
 #ifdef USE_INFRARED
 #include "esphome/components/infrared/infrared.h"
 #endif
+#ifdef USE_RADIO_FREQUENCY
+#include "esphome/components/radio_frequency/radio_frequency.h"
+#endif
 
 namespace esphome::api {
 
@@ -100,6 +103,12 @@ static const int CAMERA_STOP_STREAM = 5000;
   entity_type *entity_var = App.get_##getter_name##_by_key(msg.key, msg.device_id); \
   if ((entity_var) == nullptr) \
     return;
+
+// Helper macro for multi-entity dispatch: looks up an entity by key and device_id without early return or make_call().
+// Use when multiple entity types must be checked in sequence (at most one will match).
+#define ENTITY_COMMAND_LOOKUP(entity_type, entity_var, getter_name) \
+  entity_type *entity_var = App.get_##getter_name##_by_key(msg.key, msg.device_id)
+
 #else  // No device support, use simpler macros
 // Helper macro for entity command handlers - gets entity by key, returns if not found, and creates call
 // object
@@ -115,6 +124,12 @@ static const int CAMERA_STOP_STREAM = 5000;
   entity_type *entity_var = App.get_##getter_name##_by_key(msg.key); \
   if ((entity_var) == nullptr) \
     return;
+
+// Helper macro for multi-entity dispatch: looks up an entity by key without early return or make_call().
+// Use when multiple entity types must be checked in sequence (at most one will match).
+#define ENTITY_COMMAND_LOOKUP(entity_type, entity_var, getter_name) \
+  entity_type *entity_var = App.get_##getter_name##_by_key(msg.key)
+
 #endif  // USE_DEVICES
 
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent) : parent_(parent) {
@@ -1471,19 +1486,36 @@ uint16_t APIConnection::try_send_event_info(EntityBase *entity, APIConnection *c
 }
 #endif
 
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) {
-  // TODO: When RF is implemented, add a field to the message to distinguish IR vs RF
-  // and dispatch to the appropriate entity type based on that field.
+  // Dispatch by key: infrared entities are checked first, then radio frequency entities.
+  // The key is unique across all entity instances on a device, so at most one lookup will succeed.
 #ifdef USE_INFRARED
-  ENTITY_COMMAND_MAKE_CALL(infrared::Infrared, infrared, infrared)
-  call.set_carrier_frequency(msg.carrier_frequency);
-  call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
-  call.set_repeat_count(msg.repeat_count);
-  call.perform();
+  ENTITY_COMMAND_LOOKUP(infrared::Infrared, infrared, infrared);
+  if (infrared != nullptr) {
+    auto call = infrared->make_call();
+    call.set_carrier_frequency(msg.carrier_frequency);
+    call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
+    call.set_repeat_count(msg.repeat_count);
+    call.perform();
+    return;
+  }
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  ENTITY_COMMAND_LOOKUP(radio_frequency::RadioFrequency, radio_frequency, radio_frequency);
+  if (radio_frequency != nullptr) {
+    auto call = radio_frequency->make_call();
+    call.set_frequency(msg.carrier_frequency);
+    call.set_modulation(static_cast<radio_frequency::RadioFrequencyModulation>(msg.modulation));
+    call.set_repeat_count(msg.repeat_count);
+    call.set_raw_timings_packed(msg.timings_data_, msg.timings_length_, msg.timings_count_);
+    call.perform();
+  }
 #endif
 }
+#endif
 
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) { this->send_message(msg); }
 #endif
 
@@ -1577,6 +1609,19 @@ uint16_t APIConnection::try_send_infrared_info(EntityBase *entity, APIConnection
   msg.capabilities = infrared->get_capability_flags();
   msg.receiver_frequency = infrared->get_traits().get_receiver_frequency_hz();
   return fill_and_encode_entity_info(infrared, msg, conn, remaining_size);
+}
+#endif
+
+#ifdef USE_RADIO_FREQUENCY
+uint16_t APIConnection::try_send_radio_frequency_info(EntityBase *entity, APIConnection *conn,
+                                                      uint32_t remaining_size) {
+  auto *rf = static_cast<radio_frequency::RadioFrequency *>(entity);
+  ListEntitiesRadioFrequencyResponse msg;
+  msg.capabilities = rf->get_capability_flags();
+  msg.frequency_min = rf->get_traits().get_frequency_min_hz();
+  msg.frequency_max = rf->get_traits().get_frequency_max_hz();
+  msg.supported_modulations = rf->get_traits().get_supported_modulations();
+  return fill_and_encode_entity_info(rf, msg, conn, remaining_size);
 }
 #endif
 
@@ -2340,6 +2385,9 @@ uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, 
 #endif
 #ifdef USE_INFRARED
     CASE_INFO_ONLY(infrared, ListEntitiesInfraredResponse)
+#endif
+#ifdef USE_RADIO_FREQUENCY
+    CASE_INFO_ONLY(radio_frequency, ListEntitiesRadioFrequencyResponse)
 #endif
 #ifdef USE_EVENT
     CASE_INFO_ONLY(event, ListEntitiesEventResponse)

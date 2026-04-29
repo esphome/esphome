@@ -28,7 +28,7 @@ from script.analyze_component_buses import (
     create_grouping_signature,
     merge_compatible_bus_groups,
 )
-from script.helpers import get_component_test_files
+from script.helpers import get_component_test_files, split_conflicting_groups
 
 # Weighting for batch creation
 # Isolated components can't be grouped/merged, so they count as 10x
@@ -144,6 +144,11 @@ def create_intelligent_batches(
     # This allows components with different buses (ble + uart) to be batched together
     # improving the efficiency of test_build_components.py grouping
     signature_groups = merge_compatible_bus_groups(signature_groups)
+
+    # Split groups containing mutually-incompatible components (CONFLICTS_WITH).
+    # Without this, batch weighting assumes the group is one build when it will
+    # actually be split into two at build time -- throwing off CI distribution.
+    signature_groups = split_conflicting_groups(signature_groups)
 
     # Create batches by keeping signature groups together
     # Components with the same signature stay in the same batches

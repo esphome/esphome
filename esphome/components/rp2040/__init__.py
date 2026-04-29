@@ -26,7 +26,7 @@ from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
 
 from . import boards
-from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
+from .const import KEY_BOARD, KEY_LWIP_OPTS, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
 
 # force import gpio to register pin schema
 from .gpio import rp2040_pin_to_code  # noqa
@@ -240,6 +240,160 @@ async def to_code(config):
     cg.add_define("USE_RP2040_WATCHDOG_TIMEOUT", config[CONF_WATCHDOG_TIMEOUT])
     cg.add_define("USE_RP2040_CRASH_HANDLER")
 
+    _configure_lwip()
+
+
+def _configure_lwip() -> None:
+    """Configure lwIP options for RP2040 by generating a custom lwipopts.h.
+
+    Arduino-pico's lwipopts.h has no #ifndef guards, so -D flags cannot override
+    its settings. Instead, we generate a replacement lwipopts.h and place it in an
+    include directory that shadows the framework's version.
+
+    lwIP is compiled from source on RP2040 (not pre-built), so our replacement
+    header fully controls the compiled lwIP behavior.
+
+    RP2040 uses NO_SYS=1 (polling, no RTOS thread), LWIP_SOCKET=0, LWIP_NETCONN=0.
+    DHCP/DNS use raw udp_new() which allocates from MEMP_NUM_UDP_PCB.
+
+    Comparison of arduino-pico defaults vs ESPHome targets (TCP_MSS=1460):
+
+    Setting                   ESP8266  ESP32  arduino-pico  New
+    ────────────────────────────────────────────────────────────────
+    TCP_SND_BUF               2×MSS   4×MSS  8×MSS         4×MSS
+    TCP_WND                   4×MSS   4×MSS  8×MSS         4×MSS
+    MEM_LIBC_MALLOC           1       1      0             0*
+    MEMP_MEM_MALLOC           1       1      0             0**
+    MEM_SIZE                  N/A***  N/A*** 16KB          16KB
+    PBUF_POOL_SIZE            10      16     24            16
+    MEMP_NUM_TCP_SEG          10      16     32            17
+    MEMP_NUM_TCP_PCB          5       16     5             dynamic
+    MEMP_NUM_TCP_PCB_LISTEN   4       16     8****         dynamic
+    MEMP_NUM_UDP_PCB          4       16     7             dynamic
+    TCP_SND_QUEUELEN          ~8      17     32            17
+
+    * MEM_LIBC_MALLOC must stay 0: arduino-pico uses
+      PICO_CYW43_ARCH_THREADSAFE_BACKGROUND which runs lwIP callbacks from
+      a low-priority pendsv IRQ. The pico-sdk explicitly blocks
+      MEM_LIBC_MALLOC=1 because libc malloc uses mutexes (unsafe in IRQ).
+    ** MEMP_MEM_MALLOC must stay 0: the dedicated lwIP heap (MEM_SIZE=16KB)
+      is too small to hold all pools dynamically. The PBUF_POOL alone needs
+      ~24KB (16 × 1524 bytes). Increasing MEM_SIZE would negate BSS savings.
+    *** ESP8266/ESP32 use MEM_LIBC_MALLOC=1 (system heap, no dedicated pool).
+    **** opt.h default; arduino-pico doesn't override MEMP_NUM_TCP_PCB_LISTEN.
+    "dynamic" = auto-calculated from component socket registrations via
+    socket.get_socket_counts() with minimums of 8 TCP / 6 UDP / 2 TCP_LISTEN.
+    """
+    from esphome.components.socket import (
+        MIN_TCP_LISTEN_SOCKETS,
+        MIN_TCP_SOCKETS,
+        MIN_UDP_SOCKETS,
+        get_socket_counts,
+    )
+
+    sc = get_socket_counts()
+    # Apply platform minimums — ensure headroom for ESPHome's needs
+    tcp_sockets = max(MIN_TCP_SOCKETS, sc.tcp)
+    udp_sockets = max(MIN_UDP_SOCKETS, sc.udp)
+    # RP2040 has more RAM (264KB) than most LibreTiny boards, so DHCP/DNS
+    # UDP PCBs (2) are absorbed by the generous minimum of 6.
+    listening_tcp = max(MIN_TCP_LISTEN_SOCKETS, sc.tcp_listen)
+
+    # TCP_SND_BUF: 4×MSS=5,840 matches ESP32. Down from arduino-pico's 8×MSS.
+    # ESPAsyncWebServer allocates malloc(tcp_sndbuf()) per response chunk.
+    tcp_snd_buf = "(4*TCP_MSS)"
+
+    # TCP_WND: receive window. 4×MSS matches ESP32. Down from arduino-pico's 8×MSS.
+    tcp_wnd = "(4*TCP_MSS)"
+
+    # TCP_SND_QUEUELEN: max pbufs queued for send buffer
+    # ESP-IDF formula: (4 * TCP_SND_BUF + (TCP_MSS - 1)) / TCP_MSS
+    # With 4×MSS: (4*5840 + 1459) / 1460 = 17 — match ESP32
+    tcp_snd_queuelen = 17
+    # MEMP_NUM_TCP_SEG: segment pool, must be >= TCP_SND_QUEUELEN (lwIP sanity check)
+    memp_num_tcp_seg = tcp_snd_queuelen
+
+    # PBUF_POOL_SIZE: RP2040 has 264KB RAM, more generous than LibreTiny.
+    # 16 matches ESP32 (vs arduino-pico's 24). With MEMP_MEM_MALLOC=1,
+    # this is a max count (allocated on demand from heap).
+    pbuf_pool_size = 16
+
+    # Build the lwIP override defines for the Jinja2 template.
+    # The template uses #include_next to chain to the framework's original
+    # lwipopts.h, then #undef/#define only the values we need to change.
+    #
+    # Note: MEMP_MEM_MALLOC stays 0 (framework default). While the memp
+    # allocations use the dedicated lwIP heap (IRQ-safe), the 16KB MEM_SIZE
+    # is too small to hold all pools dynamically under stress. The PBUF_POOL
+    # alone needs ~24KB (16 × 1524 bytes). Increasing MEM_SIZE would negate
+    # the BSS savings.
+    #
+    # MEM_LIBC_MALLOC stays 0 (framework default): arduino-pico uses
+    # PICO_CYW43_ARCH_THREADSAFE_BACKGROUND which runs lwIP callbacks from
+    # a low-priority pendsv IRQ where libc malloc (mutex-based) is unsafe.
+    lwip_defines: dict[str, str] = {
+        "TCP_SND_BUF": tcp_snd_buf,
+        "TCP_WND": tcp_wnd,
+        "TCP_SND_QUEUELEN": str(tcp_snd_queuelen),
+        "MEMP_NUM_TCP_SEG": str(memp_num_tcp_seg),
+        "PBUF_POOL_SIZE": str(pbuf_pool_size),
+        "MEMP_NUM_TCP_PCB": str(tcp_sockets),
+        "MEMP_NUM_TCP_PCB_LISTEN": str(listening_tcp),
+        "MEMP_NUM_UDP_PCB": str(udp_sockets),
+    }
+
+    # Store for copy_files() to generate the header
+    CORE.data[KEY_RP2040][KEY_LWIP_OPTS] = lwip_defines
+
+    # Add a pre-build extra script that injects our lwip_override directory
+    # into CCFLAGS so our lwipopts.h shadows the framework's version.
+    # Regular build_flags (-I/-isystem) come after -iwithprefixbefore in GCC's
+    # search order, so we must prepend via an extra_scripts hook.
+    cg.add_platformio_option("extra_scripts", ["pre:inject_lwip_include.py"])
+
+    tcp_min = " (min)" if tcp_sockets > sc.tcp else ""
+    udp_min = " (min)" if udp_sockets > sc.udp else ""
+    listen_min = " (min)" if listening_tcp > sc.tcp_listen else ""
+    _LOGGER.info(
+        "Configuring lwIP: TCP=%d%s [%s], UDP=%d%s [%s], TCP_LISTEN=%d%s [%s]",
+        tcp_sockets,
+        tcp_min,
+        sc.tcp_details,
+        udp_sockets,
+        udp_min,
+        sc.udp_details,
+        listening_tcp,
+        listen_min,
+        sc.tcp_listen_details,
+    )
+
+
+def _generate_lwipopts_h() -> None:
+    """Generate a custom lwipopts.h that shadows the framework's version.
+
+    Uses Jinja2 to render the template with the lwIP defines calculated
+    during code generation. The generated header is placed in lwip_override/
+    in the build directory, and a pre-build script injects this directory
+    into the compiler include path before the framework's own include dir.
+    """
+    from jinja2 import Environment, FileSystemLoader
+
+    lwip_defines = CORE.data[KEY_RP2040].get(KEY_LWIP_OPTS)
+    if not lwip_defines:
+        return
+
+    template_dir = Path(__file__).parent
+    jinja_env = Environment(
+        loader=FileSystemLoader(str(template_dir)),
+        keep_trailing_newline=True,
+    )
+    template = jinja_env.get_template("lwipopts.h.jinja")
+    content = template.render(**lwip_defines)
+
+    lwip_dir = CORE.relative_build_path("lwip_override")
+    lwip_dir.mkdir(parents=True, exist_ok=True)
+    write_file_if_changed(lwip_dir / "lwipopts.h", content)
+
 
 def add_pio_file(component: str, key: str, data: str):
     try:
@@ -289,6 +443,12 @@ def copy_files():
         post_build_file,
         CORE.relative_build_path("post_build.py"),
     )
+    inject_lwip_file = dir / "inject_lwip_include.py.script"
+    copy_file_if_changed(
+        inject_lwip_file,
+        CORE.relative_build_path("inject_lwip_include.py"),
+    )
+    _generate_lwipopts_h()
     if generate_pio_files():
         path = CORE.relative_src_path("esphome.h")
         content = read_file(path).rstrip("\n")
