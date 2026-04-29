@@ -490,9 +490,9 @@ async def climate_control_to_code(config, action_id, template_arg, args):
 
     # All configured fields are folded into a single stateless lambda whose
     # constants live in flash; the action stores only a function pointer.
-    # `call_setter` is the ClimateCall method invoked in the lambda body —
-    # for custom_fan_mode/custom_preset this dispatches to the std::string
-    # overload of set_fan_mode/set_preset respectively.
+    # For custom_fan_mode/custom_preset the static-string path emits the
+    # (const char *, size_t) overload of set_fan_mode/set_preset to avoid
+    # constructing a std::string and calling runtime strlen.
     FIELDS = (
         (CONF_MODE, "set_mode", ClimateMode),
         (CONF_TARGET_TEMPERATURE, "set_target_temperature", cg.float_),
@@ -516,16 +516,20 @@ async def climate_control_to_code(config, action_id, template_arg, args):
             inner = await cg.process_lambda(value, args, return_type=type_)
             body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
         elif type_ is cg.std_string:
-            # Static custom strings: emit a flash literal and pass the codegen-known
-            # length to skip the runtime strlen inside set_fan_mode/set_preset.
+            # Static custom strings: emit a flash literal and pass the
+            # UTF-8 byte length to skip the runtime strlen inside
+            # set_fan_mode/set_preset.
             literal = cg.safe_exp(value)
-            body_lines.append(f"call.{setter}({literal}, {len(value)});")
+            body_lines.append(
+                f"call.{setter}({literal}, {len(value.encode('utf-8'))});"
+            )
         else:
             body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
 
+    # Match ControlAction::ApplyFn signature: const Ts &... for trigger args.
     apply_args = [
         (ClimateCall.operator("ref"), "call"),
-        *args,
+        *((t.operator("const").operator("ref"), n) for t, n in args),
     ]
     apply_lambda = LambdaExpression(
         ["\n".join(body_lines)],

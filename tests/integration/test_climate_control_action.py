@@ -1,8 +1,8 @@
 """Integration test for climate ControlAction.
 
 Tests that climate.control automation actions work correctly with the
-per-instance bitmask field storage. Exercises multiple field combinations
-to cover different bitmask variants and the lambda path.
+single stateless apply lambda/function pointer implementation. Exercises
+multiple field combinations and the lambda path.
 """
 
 from __future__ import annotations
@@ -61,24 +61,24 @@ async def test_climate_control_action(
             client.button_command(btn.key)
             return await wait_for_climate_state()
 
-        # Test 1: mode only (mask 1) — set HEAT
+        # mode only — set HEAT
         state = await press_and_wait("Set Mode Heat")
         assert state.mode == ClimateMode.HEAT
 
-        # Test 2: mode + low + high (mask 13) — HEAT_COOL with both temps
+        # mode + target_temperature_low + target_temperature_high
         state = await press_and_wait("Set Mode Temps")
         assert state.mode == ClimateMode.HEAT_COOL
         assert state.target_temperature_low == pytest.approx(19.0, abs=0.5)
         assert state.target_temperature_high == pytest.approx(23.0, abs=0.5)
 
-        # Test 3: low only (mask 4)
+        # target_temperature_low only
         state = await press_and_wait("Set Low Only")
         assert state.target_temperature_low == pytest.approx(17.5, abs=0.5)
 
-        # Test 4: lambda high — global is 21.5
+        # lambda path: target_temperature_high computed at runtime
         state = await press_and_wait("Lambda High")
         assert state.target_temperature_high == pytest.approx(21.5, abs=0.5)
 
-        # Test 5: turn off via mode (mask 1)
+        # mode only — turn off via mode
         state = await press_and_wait("Set Off")
         assert state.mode == ClimateMode.OFF

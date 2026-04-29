@@ -44,7 +44,7 @@ climate:
       max_temperature: 30 °C
 
 button:
-  # Test 1: mode only (mask 1)
+  # mode only
   - platform: template
     id: btn_mode
     name: "Set Mode Heat"
@@ -53,7 +53,7 @@ button:
           id: test_climate
           mode: HEAT
 
-  # Test 2: mode + low + high (mask 0b1101 = 13)
+  # mode + target_temperature_low + target_temperature_high
   - platform: template
     id: btn_mode_temps
     name: "Set Mode Temps"
@@ -64,7 +64,7 @@ button:
           target_temperature_low: 19.0 °C
           target_temperature_high: 23.0 °C
 
-  # Test 3: just target_temp_low (mask 0b0100 = 4)
+  # target_temperature_low only
   - platform: template
     id: btn_low_only
     name: "Set Low Only"
@@ -73,7 +73,7 @@ button:
           id: test_climate
           target_temperature_low: 17.5 °C
 
-  # Test 4: lambda for target_temperature_high (exercises lambda path)
+  # Lambda path: target_temperature_high computed at runtime
   - platform: template
     id: btn_lambda_high
     name: "Lambda High"
@@ -82,7 +82,7 @@ button:
           id: test_climate
           target_temperature_high: !lambda "return id(test_target_temp);"
 
-  # Test 5: turn off via mode
+  # mode only — turn off via mode
   - platform: template
     id: btn_off
     name: "Set Off"

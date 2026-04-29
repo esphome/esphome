@@ -6,13 +6,13 @@
 namespace esphome::climate {
 
 // All configured fields are baked into a single stateless lambda whose
-// constants live in flash. The action only stores a function pointer
-// (4 bytes) plus the parent (4 bytes), regardless of how many fields the
-// user set. Trigger args are forwarded to the apply function so user
-// lambdas (e.g. `target_temperature: !lambda "return x;"`) keep working.
+// constants live in flash. The action only stores one function pointer
+// plus one parent pointer, regardless of how many fields the user set.
+// Trigger args are forwarded to the apply function so user lambdas
+// (e.g. `target_temperature: !lambda "return x;"`) keep working.
 template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
-  using ApplyFn = void (*)(ClimateCall &, Ts...);
+  using ApplyFn = void (*)(ClimateCall &, const Ts &...);
   ControlAction(Climate *climate, ApplyFn apply) : climate_(climate), apply_(apply) {}
 
   void play(const Ts &...x) override {
