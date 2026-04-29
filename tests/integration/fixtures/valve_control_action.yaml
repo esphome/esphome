@@ -14,6 +14,7 @@ valve:
   - platform: template
     name: "Test Valve"
     id: test_valve
+    has_position: true
     optimistic: true
     assumed_state: true
     open_action:
