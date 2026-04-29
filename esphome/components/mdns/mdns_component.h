@@ -1,7 +1,10 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_MDNS
+#include <cinttypes>
+#include <cstdio>
 #include <string>
+#include "esphome/core/application.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -70,6 +73,9 @@ class MDNSComponent final : public Component
   void setup() override;
   void dump_config() override;
 
+  /// Size of buffer required for config hash hex string (8 hex chars + null terminator)
+  static constexpr size_t CONFIG_HASH_STR_SIZE = 9;
+
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
   // LEAmDNS has meaningful work only during the probe+announce phase (3×250ms probes +
   // 8×1000ms announces, ~9s). Afterwards every internal timer is resetToNeverExpires()
@@ -136,16 +142,21 @@ class MDNSComponent final : public Component
 #ifdef USE_MDNS_STORE_SERVICES
     get_mac_address_into_buffer(this->mac_address_);
     char *mac_ptr = this->mac_address_;
+    char *cfg_ptr = this->config_hash_str_;
 #else
     char mac_address[MAC_ADDRESS_BUFFER_SIZE];
+    char config_hash_str[CONFIG_HASH_STR_SIZE];
     get_mac_address_into_buffer(mac_address);
     char *mac_ptr = mac_address;
+    char *cfg_ptr = config_hash_str;
 #endif
+    snprintf(cfg_ptr, CONFIG_HASH_STR_SIZE, "%08" PRIx32, App.get_config_hash());
 #else
     char *mac_ptr = nullptr;
+    char *cfg_ptr = nullptr;
 #endif
 
-    this->compile_records_(services, mac_ptr);
+    this->compile_records_(services, mac_ptr, cfg_ptr);
     platform_register(this, services);
   }
 
@@ -159,6 +170,8 @@ class MDNSComponent final : public Component
 #if defined(USE_API) && defined(USE_MDNS_STORE_SERVICES)
   /// Fixed buffer for MAC address (only needed when services are stored)
   char mac_address_[MAC_ADDRESS_BUFFER_SIZE];
+  /// Fixed buffer for config hash hex string (only needed when services are stored)
+  char config_hash_str_[CONFIG_HASH_STR_SIZE];
 #endif
 #ifdef USE_MDNS_STORE_SERVICES
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_{};
@@ -167,7 +180,8 @@ class MDNSComponent final : public Component
   // RP2040 defers MDNS.begin() until the first IP-up event; this tracks that.
   bool initialized_{false};
 #endif
-  void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf);
+  void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf,
+                        char *config_hash_buf);
 };
 
 }  // namespace esphome::mdns
