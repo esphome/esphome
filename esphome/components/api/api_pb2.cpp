@@ -2352,7 +2352,7 @@ BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCO
     uint8_t *len_pos = pos;
     ProtoEncode::reserve_byte(pos PROTO_ENCODE_DEBUG_ARG);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 8);
-    ProtoEncode::encode_varint_raw_64(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.address);
+    ProtoEncode::encode_varint_raw_48bit(pos PROTO_ENCODE_DEBUG_ARG, sub_msg.address);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
     ProtoEncode::encode_varint_raw_short(pos PROTO_ENCODE_DEBUG_ARG, encode_zigzag32(sub_msg.rssi));
     if (sub_msg.address_type) {
@@ -2373,7 +2373,7 @@ BluetoothLERawAdvertisementsResponse::calculate_size() const {
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
     auto &sub_msg = this->advertisements[i];
     size += 2;
-    size += ProtoSize::calc_uint64_force(1, sub_msg.address);
+    size += ProtoSize::calc_uint64_48bit_force(1, sub_msg.address);
     size += ProtoSize::calc_sint32_force(1, sub_msg.rssi);
     size += sub_msg.address_type ? 2 : 0;
     size += 2 + sub_msg.data_len;
