@@ -443,21 +443,6 @@ float Modbus::get_setup_priority() const {
   return setup_priority::BUS - 1.0f;
 }
 
-void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-                           uint8_t payload_len, const uint8_t *payload, ModbusClientDevice *device,
-                           bool allow_duplicates) {
-  ESP_LOGVV(TAG,
-            "ModbusClient::send address=%" PRIu8 " function_code=0x%X start_address=%" PRIu16
-            " number_of_entities=%" PRIu16,
-            address, function_code, start_address, number_of_entities);
-  auto pdu =
-      create_client_pdu((ModbusFunctionCode) function_code, start_address, number_of_entities, payload, payload_len);
-  uint8_t frame[MAX_FRAME_SIZE];
-  frame[0] = address;
-  std::memcpy(frame + 1, pdu.data(), pdu.size());
-  this->send_raw(frame, static_cast<uint16_t>(1 + pdu.size()), device, allow_duplicates);
-}
-
 void ModbusServerHub::send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload) {
   const uint16_t len = static_cast<uint16_t>(2 + payload.size());
   if (len > MAX_FRAME_SIZE) {
@@ -582,10 +567,6 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
     ModbusFrame frame(payload, len);
     this->send_frame_(frame);
   }
-}
-
-void ModbusServerHub::send_raw(const std::vector<uint8_t> &payload) {
-  this->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
 }
 
 void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_to_clear) {

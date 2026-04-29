@@ -110,12 +110,12 @@ class ModbusClientHub : public Modbus {
   ESPDEPRECATED("Use send_pdu() with create_client_pdu() instead. Removed in 2026.10.0", "2026.4.0")
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
             uint8_t payload_len = 0, const uint8_t *payload = nullptr, ModbusClientDevice *device = nullptr,
-            bool allow_duplicates = false);
-  void send_raw(const uint8_t *payload, uint16_t len, ModbusClientDevice *device = nullptr,
-                bool allow_duplicates = false);
-  ESPDEPRECATED("Use send_raw(const uint8_t *, uint16_t) instead. Removed in 2026.10.0", "2026.4.0")
-  void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr,
-                bool allow_duplicates = false);
+            bool allow_duplicates = false) {
+    this->send_pdu(address,
+                   helpers::create_client_pdu((ModbusFunctionCode) function_code, start_address, number_of_entities,
+                                              payload, payload_len),
+                   device, allow_duplicates);
+  };
   void send_pdu(uint8_t address, const StaticVector<uint8_t, MAX_FRAME_SIZE> &pdu, ModbusClientDevice *device = nullptr,
                 bool allow_duplicates = false) {
     uint8_t frame[MAX_FRAME_SIZE];
@@ -123,6 +123,11 @@ class ModbusClientHub : public Modbus {
     std::memcpy(frame + 1, pdu.data(), pdu.size());
     this->send_raw(frame, static_cast<uint16_t>(1 + pdu.size()), device, allow_duplicates);
   }
+  void send_raw(const uint8_t *payload, uint16_t len, ModbusClientDevice *device = nullptr,
+                bool allow_duplicates = false);
+  ESPDEPRECATED("Use send_raw(const uint8_t *, uint16_t) instead. Removed in 2026.10.0", "2026.4.0")
+  void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr,
+                bool allow_duplicates = false);
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
@@ -145,8 +150,10 @@ class ModbusServerHub : public Modbus {
   ModbusServerHub() = default;
   void dump_config() override;
   void send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload);
-  ESPDEPRECATED("Use send_raw(const uint8_t *, uint16_t) instead. Removed in 2026.10.0", "2026.4.0")
-  void send_raw(const std::vector<uint8_t> &payload);
+  ESPDEPRECATED("Use send_raw_(const uint8_t *, uint16_t) instead. Removed in 2026.10.0", "2026.4.0")
+  void send_raw(const std::vector<uint8_t> &payload) {
+    this->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
+  };
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
 
  protected:
