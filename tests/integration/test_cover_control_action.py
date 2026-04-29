@@ -1,8 +1,8 @@
 """Integration test for cover ControlAction and CoverPublishAction.
 
 Tests that cover.control and cover.template.publish automation actions
-work correctly with the per-instance bitmask field storage. Exercises
-multiple field combinations to cover the bitmask variants.
+work correctly with the single stateless apply lambda/function pointer
+implementation. Exercises multiple field combinations and the lambda path.
 """
 
 from __future__ import annotations
@@ -55,38 +55,38 @@ async def test_cover_control_action(
             client.button_command(btn.key)
             return await wait_for_cover_state()
 
-        # Test 1: position only (mask 2)
+        # cover.control: position only
         state = await press_and_wait("Set Position")
         assert state.position == pytest.approx(0.5, abs=0.01)
 
-        # Test 2: tilt only (mask 4)
+        # cover.control: tilt only
         state = await press_and_wait("Set Tilt")
         assert state.tilt == pytest.approx(0.75, abs=0.01)
 
-        # Test 3: position + tilt (mask 6)
+        # cover.control: position + tilt
         state = await press_and_wait("Set Pos Tilt")
         assert state.position == pytest.approx(0.25, abs=0.01)
         assert state.tilt == pytest.approx(0.30, abs=0.01)
 
-        # Test 4: state: OPEN (CONF_STATE alias for position 1.0)
+        # cover.control: state alias for position 1.0
         state = await press_and_wait("Open State")
         assert state.position == pytest.approx(1.0, abs=0.01)
 
-        # Test 5: lambda position (test_position global = 0.42)
+        # cover.control: lambda position (test_position global = 0.42)
         state = await press_and_wait("Lambda Position")
         assert state.position == pytest.approx(0.42, abs=0.01)
 
-        # Test 6: cover.template.publish position only
+        # cover.template.publish: position only
         state = await press_and_wait("Publish Pos")
         assert state.position == pytest.approx(0.6, abs=0.01)
 
-        # Test 7: cover.template.publish current_operation only
+        # cover.template.publish: current_operation only
         state = await press_and_wait("Publish Op")
         # CoverOperation.OPENING == 1
         assert state.current_operation == 1
 
-        # Test 8: cover.control stop only (mask 1)
-        # The template cover's stop_action publishes current_operation: IDLE
+        # cover.control: stop only — template cover's stop_action publishes
+        # current_operation: IDLE.
         state = await press_and_wait("Stop Cover")
         # CoverOperation.IDLE == 0
         assert state.current_operation == 0

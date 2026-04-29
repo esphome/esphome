@@ -323,7 +323,11 @@ async def cover_control_to_code(config, action_id, template_arg, args):
         else:
             body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
 
-    apply_args = [(CoverCall.operator("ref"), "call"), *args]
+    # Match ControlAction::ApplyFn signature: const Ts &... for trigger args.
+    apply_args = [
+        (CoverCall.operator("ref"), "call"),
+        *((t.operator("const").operator("ref"), n) for t, n in args),
+    ]
     apply_lambda = LambdaExpression(
         ["\n".join(body_lines)],
         apply_args,

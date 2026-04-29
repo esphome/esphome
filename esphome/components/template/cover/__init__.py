@@ -155,7 +155,11 @@ async def cover_template_publish_to_code(config, action_id, template_arg, args):
         else:
             body_lines.append(f"cover->{field} = {cg.safe_exp(value)};")
 
-    apply_args = [(cover.Cover.operator("ptr"), "cover"), *args]
+    # Match CoverPublishAction::ApplyFn: const Ts &... for trigger args.
+    apply_args = [
+        (cover.Cover.operator("ptr"), "cover"),
+        *((t.operator("const").operator("ref"), n) for t, n in args),
+    ]
     apply_lambda = LambdaExpression(
         ["\n".join(body_lines)],
         apply_args,

@@ -47,14 +47,14 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
 };
 
 // All configured fields are baked into a single stateless lambda whose
-// constants live in flash. Each action stores only a function pointer
-// (4 bytes) plus the parent (4 bytes), regardless of how many fields the
-// user set. Trigger args are forwarded to the apply function so user
-// lambdas (e.g. `position: !lambda "return x;"`) keep working.
+// constants live in flash. Each action stores only one function pointer
+// plus one parent pointer, regardless of how many fields the user set.
+// Trigger args are forwarded to the apply function so user lambdas
+// (e.g. `position: !lambda "return x;"`) keep working.
 
 template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
-  using ApplyFn = void (*)(CoverCall &, Ts...);
+  using ApplyFn = void (*)(CoverCall &, const Ts &...);
   ControlAction(Cover *cover, ApplyFn apply) : cover_(cover), apply_(apply) {}
 
   void play(const Ts &...x) override {
@@ -70,7 +70,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
 
 template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
  public:
-  using ApplyFn = void (*)(Cover *, Ts...);
+  using ApplyFn = void (*)(Cover *, const Ts &...);
   CoverPublishAction(Cover *cover, ApplyFn apply) : cover_(cover), apply_(apply) {}
 
   void play(const Ts &...x) override {
