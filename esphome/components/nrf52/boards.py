@@ -1,5 +1,5 @@
 from esphome.components.zephyr import Section
-from esphome.components.zephyr.const import KEY_BOOTLOADER
+from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
 
 from .const import (
     BOOTLOADER_ADAFRUIT,
@@ -23,6 +23,7 @@ BOARDS_ZEPHYR = {
             BOOTLOADER_ADAFRUIT,
             BOOTLOADER_ADAFRUIT_NRF52_SD132,
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+            BOOTLOADER_MCUBOOT,
         ]
     },
 }
@@ -42,4 +43,5 @@ BOOTLOADER_CONFIG = {
         Section("SoftDevice", 0x0, 0x27000, "flash_primary"),
         Section("Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"),
     ],
+    BOOTLOADER_MCUBOOT: [],
 }

@@ -1,0 +1,37 @@
+#include "mdns_component.h"
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
+
+#ifdef USE_ZEPHYR
+
+namespace esphome {
+namespace mdns {
+
+static const char *const TAG = "mdns.zephyr";
+
+void MDNSComponent::setup() {
+  ESP_LOGD(TAG, "Setting up mDNS for Zephyr...");
+#ifdef USE_MDNS_STORE_SERVICES
+#if defined(USE_API)
+  get_mac_address_into_buffer(this->mac_address_);
+  char *mac_ptr = this->mac_address_;
+#else
+  char *mac_ptr = nullptr;
+#endif
+  this->compile_records_(this->services_, mac_ptr);
+  const auto &services = this->services_;
+#else
+  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
+  char *mac_ptr = nullptr;
+  this->compile_records_(services, mac_ptr);
+#endif
+
+  ESP_LOGI(TAG, "mDNS records compiled, waiting for network connectivity before registering services");
+}
+
+void MDNSComponent::on_shutdown() { ESP_LOGD(TAG, "Shutting down mDNS for Zephyr..."); }
+
+}  // namespace mdns
+}  // namespace esphome
+
+#endif  // USE_ZEPHYR

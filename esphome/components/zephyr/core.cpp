@@ -31,14 +31,22 @@ bool random_bytes(uint8_t *data, size_t len) {
 }
 
 #ifdef USE_NRF52
+#if defined(CONFIG_SOC_SERIES_NRF52X)
+#define MACADDR_STRUCT NRF_FICR->DEVICEADDR
+#elif defined(CONFIG_SOC_SERIES_NRF53X) || defined(CONFIG_SOC_SERIES_NRF54HX) || defined(CONFIG_SOC_SERIES_NRF54LX)
+#define MACADDR_STRUCT NRF_FICR->INFO.DEVICEID
+#else
+#define MACADDR_STRUCT NRF_FICR->DEVICEADDR
+#endif
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
-  mac[0] = ((NRF_FICR->DEVICEADDR[1] & 0xFFFF) >> 8) | 0xC0;
-  mac[1] = NRF_FICR->DEVICEADDR[1] & 0xFFFF;
-  mac[2] = NRF_FICR->DEVICEADDR[0] >> 24;
-  mac[3] = NRF_FICR->DEVICEADDR[0] >> 16;
-  mac[4] = NRF_FICR->DEVICEADDR[0] >> 8;
-  mac[5] = NRF_FICR->DEVICEADDR[0];
+  mac[0] = ((MACADDR_STRUCT[1] & 0xFFFF) >> 8) | 0xC0;
+  mac[1] = MACADDR_STRUCT[1] & 0xFFFF;
+  mac[2] = MACADDR_STRUCT[0] >> 24;
+  mac[3] = MACADDR_STRUCT[0] >> 16;
+  mac[4] = MACADDR_STRUCT[0] >> 8;
+  mac[5] = MACADDR_STRUCT[0];
 }
+#undef MACADDR_STRUCT
 #endif
 }  // namespace esphome
 

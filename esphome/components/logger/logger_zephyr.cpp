@@ -6,7 +6,7 @@
 
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
-#include <zephyr/sys/printk.h>
+#include <zephyr/logging/log.h>
 #include <zephyr/usb/usb_device.h>
 #ifdef USE_LOGGER_EARLY_MESSAGE
 #include <esphome/components/zephyr/reset_reason.h>
@@ -40,12 +40,9 @@ void Logger::cdc_loop_() {
   static bool opened = false;
   uint32_t dtr = 0;
   uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr);
-
-  /* Poll if the DTR flag was set, optional */
-  if (opened == dtr) {
+  if (opened == static_cast<bool>(dtr)) {
     return;
   }
-
   if (!opened) {
     App.schedule_dump_config();
   }
@@ -55,13 +52,10 @@ void Logger::cdc_loop_() {
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
-    static const struct device *uart_dev = nullptr;
+    const struct device *uart_dev = nullptr;
     switch (this->uart_) {
       case UART_SELECTION_UART0:
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart0));
-        break;
-      case UART_SELECTION_UART1:
-        uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart1));
         break;
 #ifdef USE_LOGGER_USB_CDC
       case UART_SELECTION_USB_CDC:
@@ -73,6 +67,8 @@ void Logger::pre_setup() {
 #endif
         break;
 #endif
+      default:
+        break;
     }
     if (!device_is_ready(uart_dev)) {
       ESP_LOGE(TAG, "%s is not ready.", LOG_STR_ARG(get_uart_selection_()));
@@ -119,8 +115,6 @@ const LogString *Logger::get_uart_selection_() {
   switch (this->uart_) {
     case UART_SELECTION_UART0:
       return LOG_STR("UART0");
-    case UART_SELECTION_UART1:
-      return LOG_STR("UART1");
 #ifdef USE_LOGGER_USB_CDC
     case UART_SELECTION_USB_CDC:
       return LOG_STR("USB_CDC");

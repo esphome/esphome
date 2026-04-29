@@ -10,6 +10,8 @@ from esphome.components.esp32 import (
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
+from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
@@ -20,6 +22,7 @@ from esphome.const import (
     CONF_OUTPUT_POWER,
     CONF_USE_ADDRESS,
     PLATFORM_ESP32,
+    PlatformFramework,
 )
 from esphome.core import (
     CORE,
@@ -52,7 +55,6 @@ AUTO_LOAD = ["network"]
 # Wi-fi / Bluetooth / Thread coexistence isn't implemented at this time
 # TODO: Doesn't conflict with wifi if you're using another ESP as an RCP (radio coprocessor), but this isn't implemented yet
 CONFLICTS_WITH = ["wifi"]
-DEPENDENCIES = ["esp32"]
 
 IDF_TO_OT_LOG_LEVEL = {
     "NONE": "NONE",
@@ -175,9 +177,18 @@ def _validate(config: ConfigType) -> ConfigType:
 
 def _require_vfs_select(config):
     """Register VFS select requirement during config validation."""
-    # OpenThread uses esp_vfs_eventfd which requires VFS select support
-    require_vfs_select()
+    # OpenThread uses esp_vfs_eventfd which requires VFS select support (ESP32 only)
+    if CORE.is_esp32:
+        require_vfs_select()
     return config
+
+
+def _validate_platform(config):
+    if CORE.is_nrf52:
+        return config
+    return only_on_variant(
+        supported=[VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32H2]
+    )(config)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -200,7 +211,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
-    only_on_variant(supported=[VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32H2]),
+    _validate_platform,
     _validate,
     _require_vfs_select,
 )
@@ -227,6 +238,16 @@ def _final_validate(_):
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "openthread_esp.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        "openthread_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
+    }
+)
+
 
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
@@ -252,4 +273,15 @@ async def to_code(config):
     if (output_power := config.get(CONF_OUTPUT_POWER)) is not None:
         cg.add(ot.set_output_power(output_power))
 
-    set_sdkconfig_options(config)
+    if CORE.is_esp32:
+        set_sdkconfig_options(config)
+    elif CORE.is_nrf52:
+        zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
+        zephyr_add_prj_conf("OPENTHREAD_NORDIC_LIBRARY_FTD", True)
+        zephyr_add_prj_conf("OPENTHREAD_SRP_CLIENT", True)
+        zephyr_add_prj_conf("OPENTHREAD_SLAAC", True)
+        zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
+        zephyr_add_prj_conf("OPENTHREAD_DEBUG", False)
+        if tlv := config.get(CONF_TLV):
+            cg.add_define("USE_OPENTHREAD_TLVS", tlv)
+>>>>>>> 32f317af4 ([nrf52] Add OpenThread support for nRF52 platform)
