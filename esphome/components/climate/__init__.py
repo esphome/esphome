@@ -48,13 +48,13 @@ from esphome.const import (
     CONF_VISUAL,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import LambdaExpression, MockObjClass
 
 IS_PLATFORM_COMPONENT = True
 
@@ -488,7 +488,11 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 async def climate_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
 
-    # Order/bits must match CLIMATE_CONTROL_FIELDS in automation.h.
+    # All configured fields are folded into a single stateless lambda whose
+    # constants live in flash; the action stores only a function pointer.
+    # `call_setter` is the ClimateCall method invoked in the lambda body —
+    # for custom_fan_mode/custom_preset this dispatches to the std::string
+    # overload of set_fan_mode/set_preset respectively.
     FIELDS = (
         (CONF_MODE, "set_mode", ClimateMode),
         (CONF_TARGET_TEMPERATURE, "set_target_temperature", cg.float_),
@@ -496,32 +500,35 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         (CONF_TARGET_TEMPERATURE_HIGH, "set_target_temperature_high", cg.float_),
         (CONF_TARGET_HUMIDITY, "set_target_humidity", cg.float_),
         (CONF_FAN_MODE, "set_fan_mode", ClimateFanMode),
-        (
-            CONF_CUSTOM_FAN_MODE,
-            "set_custom_fan_mode",
-            cg.std_string,
-        ),  # internal setter name
+        (CONF_CUSTOM_FAN_MODE, "set_fan_mode", cg.std_string),
         (CONF_PRESET, "set_preset", ClimatePreset),
-        (
-            CONF_CUSTOM_PRESET,
-            "set_custom_preset",
-            cg.std_string,
-        ),  # internal setter name
+        (CONF_CUSTOM_PRESET, "set_preset", cg.std_string),
         (CONF_SWING_MODE, "set_swing_mode", ClimateSwingMode),
     )
-    assert len(FIELDS) <= 16, "ControlAction Fields bitmask exceeds uint16_t"
 
-    field_mask = sum(1 << i for i, (k, _, _) in enumerate(FIELDS) if k in config)
-    control_template_arg = cg.TemplateArguments(
-        cg.RawExpression(f"static_cast<uint16_t>({field_mask})"), *template_arg
-    )
-    var = cg.new_Pvariable(action_id, control_template_arg, paren)
+    fwd_args = ", ".join(name for _, name in args)
+    body_lines: list[str] = []
 
     for conf_key, setter, type_ in FIELDS:
-        if (value := config.get(conf_key)) is not None:
-            template_ = await cg.templatable(value, args, type_)
-            cg.add(getattr(var, setter)(template_))
-    return var
+        if (value := config.get(conf_key)) is None:
+            continue
+        if isinstance(value, Lambda):
+            inner = await cg.process_lambda(value, args, return_type=type_)
+            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
+        else:
+            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
+
+    apply_args = [
+        (ClimateCall.operator("ref"), "call"),
+        *args,
+    ]
+    apply_lambda = LambdaExpression(
+        ["\n".join(body_lines)],
+        apply_args,
+        capture="",
+        return_type=cg.void,
+    )
+    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
