@@ -15,7 +15,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("p1_version_be"): text_sensor.text_sensor_schema(),
         cv.Optional("timestamp"): text_sensor.text_sensor_schema(),
         cv.Optional("electricity_tariff"): text_sensor.text_sensor_schema(),
+        cv.Optional("electricity_tariff_il"): text_sensor.text_sensor_schema(),
         cv.Optional("electricity_failure_log"): text_sensor.text_sensor_schema(),
+        cv.Optional("electricity_failure_log_il"): text_sensor.text_sensor_schema(),
         cv.Optional("message_short"): text_sensor.text_sensor_schema(),
         cv.Optional("message_long"): text_sensor.text_sensor_schema(),
         cv.Optional("equipment_id"): text_sensor.text_sensor_schema(),
@@ -52,6 +54,7 @@ async def to_code(config):
                 text_sensors.append(f"F({key})")
 
     if text_sensors:
+        cg.add_define("DSMR_TEXT_SENSOR_LIST_DEFINED")
         cg.add_define(
             "DSMR_TEXT_SENSOR_LIST(F, sep)",
             cg.RawExpression(" sep ".join(text_sensors)),

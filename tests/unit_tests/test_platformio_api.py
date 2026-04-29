@@ -906,7 +906,7 @@ def _filter_through_redirect(line: str) -> str:
 
     captured = io.StringIO()
     redirect = RedirectText(
-        captured, filter_lines=platformio_api.FILTER_PLATFORMIO_LINES
+        captured, filter_lines=platformio_runner.FILTER_PLATFORMIO_LINES
     )
     redirect.write(line + "\n")
     return captured.getvalue()

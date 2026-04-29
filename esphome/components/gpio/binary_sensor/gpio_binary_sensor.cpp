@@ -46,11 +46,6 @@ void GPIOBinarySensorStore::setup(InternalGPIOPin *pin, Component *component) {
 }
 
 void GPIOBinarySensor::setup() {
-  if (this->store_.use_interrupt_ && !this->pin_->is_internal()) {
-    ESP_LOGD(TAG, "GPIO is not internal, falling back to polling mode");
-    this->store_.use_interrupt_ = false;
-  }
-
   if (this->store_.use_interrupt_) {
     auto *internal_pin = static_cast<InternalGPIOPin *>(this->pin_);
     this->store_.setup(internal_pin, this);

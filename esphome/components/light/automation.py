@@ -60,8 +60,10 @@ from .types import (
 )
 async def light_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_TRANSITION_LENGTH in config:
+    has_transition_length = CONF_TRANSITION_LENGTH in config
+    toggle_template_arg = cg.TemplateArguments(has_transition_length, *template_arg)
+    var = cg.new_Pvariable(action_id, toggle_template_arg, paren)
+    if has_transition_length:
         template_ = await cg.templatable(
             config[CONF_TRANSITION_LENGTH], args, cg.uint32
         )
@@ -178,9 +180,9 @@ def _resolve_effect_index(config: ConfigType) -> int:
 )
 async def light_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    # (config_key, setter_name, c++ type)
+    # Order/bits must match LIGHT_CONTROL_FIELDS in automation.h.
+    # EFFECT has special handling below; setter=None skips the generic loop.
     FIELDS = (
         (CONF_COLOR_MODE, "set_color_mode", ColorMode),
         (CONF_STATE, "set_state", cg.bool_),
@@ -195,9 +197,19 @@ async def light_control_to_code(config, action_id, template_arg, args):
         (CONF_COLOR_TEMPERATURE, "set_color_temperature", cg.float_),
         (CONF_COLD_WHITE, "set_cold_white", cg.float_),
         (CONF_WARM_WHITE, "set_warm_white", cg.float_),
+        (CONF_EFFECT, None, cg.uint32),
     )
+    # Bitmask is passed as uint16_t in C++ — must stay within 16 bits.
+    assert len(FIELDS) <= 16, "LightControlAction Fields bitmask exceeds uint16_t"
+
+    field_mask = sum(1 << i for i, (k, _, _) in enumerate(FIELDS) if k in config)
+    control_template_arg = cg.TemplateArguments(
+        cg.RawExpression(f"static_cast<uint16_t>({field_mask})"), *template_arg
+    )
+    var = cg.new_Pvariable(action_id, control_template_arg, paren)
+
     for conf_key, setter, type_ in FIELDS:
-        if conf_key in config:
+        if conf_key in config and setter is not None:
             template_ = await cg.templatable(config[conf_key], args, type_)
             cg.add(getattr(var, setter)(template_))
 
@@ -261,10 +273,12 @@ LIGHT_DIM_RELATIVE_ACTION_SCHEMA = cv.Schema(
 )
 async def light_dim_relative_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    has_transition_length = CONF_TRANSITION_LENGTH in config
+    dim_template_arg = cg.TemplateArguments(has_transition_length, *template_arg)
+    var = cg.new_Pvariable(action_id, dim_template_arg, paren)
     templ = await cg.templatable(config[CONF_RELATIVE_BRIGHTNESS], args, cg.float_)
     cg.add(var.set_relative_brightness(templ))
-    if CONF_TRANSITION_LENGTH in config:
+    if has_transition_length:
         templ = await cg.templatable(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
         cg.add(var.set_transition_length(templ))
     if conf := config.get(CONF_BRIGHTNESS_LIMITS):

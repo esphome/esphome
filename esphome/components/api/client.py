@@ -93,7 +93,24 @@ async def async_run_logs(
                     config, raw_line, backtrace_state=backtrace_state
                 )
 
-    stop = await async_run(cli, on_log, name=name, subscribe_states=subscribe_states)
+    # Safe to fall back to plaintext here only for this diagnostics use
+    # case: the stream is one-way from device to client, and this code
+    # never accepts commands or acts on any message the device sends.
+    # An on-path attacker could still both inject fabricated log lines
+    # and passively read the device's log output (and any state data
+    # delivered when subscribe_states is enabled), so this does lose
+    # confidentiality as well as authentication/integrity. That tradeoff
+    # is acceptable for operator-visible logs, which aioesphomeapi also
+    # warns may come from an unverified device. Never mirror this opt-in
+    # for any connection that sends data to the device or uses Home
+    # Assistant actions.
+    stop = await async_run(
+        cli,
+        on_log,
+        name=name,
+        subscribe_states=subscribe_states,
+        allow_plaintext_fallback=True,
+    )
     try:
         await asyncio.Event().wait()
     finally:

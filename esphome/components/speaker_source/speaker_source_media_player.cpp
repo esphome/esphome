@@ -698,7 +698,7 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
     }
   }
 
-  auto media_url = call.get_media_url();
+  const auto &media_url = call.get_media_url();
   if (media_url.has_value()) {
     auto command = call.get_command();
     bool enqueue = command.has_value() && command.value() == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE;
