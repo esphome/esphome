@@ -19,7 +19,6 @@ Checks: >-
   -cert-int09-c,
   -cert-oop57-cpp,
   -cert-str34-c,
-  -clang-analyzer-core.FixedAddressDereference,
   -clang-analyzer-optin.core.EnumCastOutOfRange,
   -clang-analyzer-optin.cplusplus.UninitializedObject,
   -clang-analyzer-osx.*,
