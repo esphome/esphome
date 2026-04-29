@@ -1,6 +1,18 @@
 rc522_spi:
   id: rc522_nfcc_spi
   cs_pin: ${cs_pin}
+  on_tag:
+    - lambda: |-
+        ESP_LOGD("main", "Found tag UID: %s", x.c_str());
+        if (tag.has_ndef_message()) {
+          auto msg = tag.get_ndef_message();
+          for (auto &record : msg->get_records()) {
+            ESP_LOGD("main", "  NDEF record type: %s", record->get_type().c_str());
+          }
+        }
+  on_tag_removed:
+    - lambda: |-
+        ESP_LOGD("main", "Tag removed: %s", x.c_str());
 
 binary_sensor:
   - platform: rc522

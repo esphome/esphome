@@ -48,6 +48,7 @@ static constexpr uint8_t MIFARE_CMD_NAK_CRC_ERROR_XFER_BUFF_INVALID = 0x05;
 
 static const char *const MIFARE_CLASSIC = "Mifare Classic";
 static const char *const NFC_FORUM_TYPE_2 = "NFC Forum Type 2";
+static const char *const NFC_FORUM_TYPE_4 = "NFC Forum Type 4";
 static const char *const ERROR = "Error";
 
 static constexpr uint8_t DEFAULT_KEY[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};

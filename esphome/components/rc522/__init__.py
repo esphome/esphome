@@ -1,6 +1,6 @@
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import i2c
+from esphome.components import i2c, nfc
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ON_TAG,
@@ -10,15 +10,12 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@glmnet"]
-AUTO_LOAD = ["binary_sensor"]
+AUTO_LOAD = ["binary_sensor", "nfc"]
 
 CONF_RC522_ID = "rc522_id"
 
 rc522_ns = cg.esphome_ns.namespace("rc522")
 RC522 = rc522_ns.class_("RC522", cg.PollingComponent, i2c.I2CDevice)
-RC522Trigger = rc522_ns.class_(
-    "RC522Trigger", automation.Trigger.template(cg.std_string)
-)
 
 RC522_SCHEMA = cv.Schema(
     {
@@ -26,12 +23,12 @@ RC522_SCHEMA = cv.Schema(
         cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
         cv.Optional(CONF_ON_TAG): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RC522Trigger),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(nfc.NfcOnTagTrigger),
             }
         ),
         cv.Optional(CONF_ON_TAG_REMOVED): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RC522Trigger),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(nfc.NfcOnTagTrigger),
             }
         ),
     }
@@ -48,9 +45,13 @@ async def setup_rc522(var, config):
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_ontag_trigger(trigger))
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(
+            trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
+        )
 
     for conf in config.get(CONF_ON_TAG_REMOVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_ontagremoved_trigger(trigger))
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(
+            trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
+        )
