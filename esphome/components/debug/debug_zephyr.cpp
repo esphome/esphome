@@ -163,9 +163,9 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   char *buf = buffer.data();
 
   // Main supply status
-  const char *supply_status =
-      // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_POWER is MMIO at a fixed address
-      (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_NORMAL) ? "Normal voltage." : "High voltage.";
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_POWER is MMIO at a fixed address
+  auto regstatus = nrf_power_mainregstatus_get(NRF_POWER);
+  const char *supply_status = (regstatus == NRF_POWER_MAINREGSTATUS_NORMAL) ? "Normal voltage." : "High voltage.";
   ESP_LOGD(TAG, "Main supply status: %s", supply_status);
   pos = buf_append_str(buf, size, pos, "|Main supply status: ");
   pos = buf_append_str(buf, size, pos, supply_status);
