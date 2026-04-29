@@ -22,6 +22,7 @@ extern "C" unsigned long millis(void);
 // NOLINTEND(google-runtime-int,readability-identifier-naming,readability-redundant-declaration)
 
 // Forward decl from <user_interface.h> for arch_feed_wdt() inline below.
+// NOLINTNEXTLINE(readability-redundant-declaration)
 extern "C" void system_soft_wdt_feed(void);
 
 namespace esphome {
