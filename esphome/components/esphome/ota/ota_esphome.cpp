@@ -136,11 +136,11 @@ void ESPHomeOTAComponent::loop() {
   this->handle_handshake_();
 }
 
-static const uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
-static const uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
-static const uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
-static const uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
-static const uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
+static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
+static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the OTA handshake and authentication.
