@@ -19,6 +19,10 @@ uint32_t micros();
 uint32_t millis();
 uint64_t millis_64();
 
+void delayMicroseconds(uint32_t us);  // NOLINT(readability-identifier-naming)
+void arch_feed_wdt();
+uint32_t arch_get_cpu_cycle_count();
+
 }  // namespace esphome
 
 #endif  // USE_HOST

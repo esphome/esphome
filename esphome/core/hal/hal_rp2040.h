@@ -35,6 +35,10 @@ __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uin
 __attribute__((always_inline)) inline uint32_t millis() { return micros_to_millis(::time_us_64()); }
 __attribute__((always_inline)) inline uint64_t millis_64() { return micros_to_millis<uint64_t>(::time_us_64()); }
 
+void delayMicroseconds(uint32_t us);  // NOLINT(readability-identifier-naming)
+void arch_feed_wdt();
+uint32_t arch_get_cpu_cycle_count();
+
 }  // namespace esphome
 
 #endif  // USE_RP2040

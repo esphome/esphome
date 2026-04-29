@@ -60,6 +60,8 @@ __attribute__((always_inline)) inline uint16_t progmem_read_uint16(const uint16_
 __attribute__((always_inline)) inline void delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 __attribute__((always_inline)) inline void arch_feed_wdt() { system_soft_wdt_feed(); }
 
+uint32_t arch_get_cpu_cycle_count();
+
 }  // namespace esphome
 
 #endif  // USE_ESP8266
