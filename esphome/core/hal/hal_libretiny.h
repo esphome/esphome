@@ -95,7 +95,7 @@ __attribute__((always_inline)) inline uint32_t millis() { return static_cast<uin
 #endif
 __attribute__((always_inline)) inline uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 
-__attribute__((always_inline)) inline void arch_feed_wdt() { lt_wdt_feed(); }
+__attribute__((hot, always_inline)) inline void arch_feed_wdt() { lt_wdt_feed(); }
 __attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() { return lt_cpu_get_cycle_count(); }
 __attribute__((always_inline)) inline uint32_t arch_get_cpu_freq_hz() { return lt_cpu_get_freq(); }
 
