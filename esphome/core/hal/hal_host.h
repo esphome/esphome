@@ -22,6 +22,8 @@ uint64_t millis_64();
 void delayMicroseconds(uint32_t us);  // NOLINT(readability-identifier-naming)
 void arch_feed_wdt();
 uint32_t arch_get_cpu_cycle_count();
+void arch_init();
+uint32_t arch_get_cpu_freq_hz();
 
 }  // namespace esphome
 
