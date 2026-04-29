@@ -137,28 +137,29 @@ haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(haie
     char tmp[9];
     tmp[8] = 0;
     strncpy(tmp, answr->protocol_version, 8);
-    this->hvac_hardware_info_ = HardwareInfo();
-    // NOLINTBEGIN(bugprone-unchecked-optional-access)
-    this->hvac_hardware_info_.value().protocol_version_ = std::string(tmp);
+    HardwareInfo info;
+    info.protocol_version_ = std::string(tmp);
     strncpy(tmp, answr->software_version, 8);
-    this->hvac_hardware_info_.value().software_version_ = std::string(tmp);
+    info.software_version_ = std::string(tmp);
     strncpy(tmp, answr->hardware_version, 8);
-    this->hvac_hardware_info_.value().hardware_version_ = std::string(tmp);
+    info.hardware_version_ = std::string(tmp);
     strncpy(tmp, answr->device_name, 8);
-    this->hvac_hardware_info_.value().device_name_ = std::string(tmp);
+    info.device_name_ = std::string(tmp);
+    info.functions_[0] = (answr->functions[1] & 0x01) != 0;  // interactive mode support
+    info.functions_[1] = (answr->functions[1] & 0x02) != 0;  // controller-device mode support
+    info.functions_[2] = (answr->functions[1] & 0x04) != 0;  // crc support
+    info.functions_[3] = (answr->functions[1] & 0x08) != 0;  // multiple AC support
+    info.functions_[4] = (answr->functions[1] & 0x20) != 0;  // roles support
+    this->use_crc_ = info.functions_[2];
+    this->hvac_hardware_info_ = std::move(info);
 #ifdef USE_TEXT_SENSOR
-    this->update_sub_text_sensor_(SubTextSensorType::APPLIANCE_NAME, this->hvac_hardware_info_.value().device_name_);
-    this->update_sub_text_sensor_(SubTextSensorType::PROTOCOL_VERSION,
-                                  this->hvac_hardware_info_.value().protocol_version_);
+    this->update_sub_text_sensor_(
+        SubTextSensorType::APPLIANCE_NAME,
+        this->hvac_hardware_info_.value().device_name_);  // NOLINT(bugprone-unchecked-optional-access)
+    this->update_sub_text_sensor_(
+        SubTextSensorType::PROTOCOL_VERSION,
+        this->hvac_hardware_info_.value().protocol_version_);  // NOLINT(bugprone-unchecked-optional-access)
 #endif
-    this->hvac_hardware_info_.value().functions_[0] = (answr->functions[1] & 0x01) != 0;  // interactive mode support
-    this->hvac_hardware_info_.value().functions_[1] =
-        (answr->functions[1] & 0x02) != 0;  // controller-device mode support
-    this->hvac_hardware_info_.value().functions_[2] = (answr->functions[1] & 0x04) != 0;  // crc support
-    this->hvac_hardware_info_.value().functions_[3] = (answr->functions[1] & 0x08) != 0;  // multiple AC support
-    this->hvac_hardware_info_.value().functions_[4] = (answr->functions[1] & 0x20) != 0;  // roles support
-    this->use_crc_ = this->hvac_hardware_info_.value().functions_[2];
-    // NOLINTEND(bugprone-unchecked-optional-access)
     this->set_phase(ProtocolPhases::SENDING_INIT_2);
     return result;
   } else {
