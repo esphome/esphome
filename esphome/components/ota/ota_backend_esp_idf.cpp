@@ -248,6 +248,10 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   bool otadata_partition_found = false;
   bool otadata_overlap = false;
   bool nvs_partition_found = false;
+  // Selection policy when multiple app slots in the new partition table can host the running app:
+  // pick the FIRST eligible slot in table order. The no-copy path (offsets already match) is
+  // preferred over the copy path; within each path we lock in the first match and stop searching.
+  // This keeps the choice deterministic and table-ordering-stable instead of "last writer wins".
   for (int i = 0; i < num_partitions; i++) {  // Iterate over new partition table
     const esp_partition_info_t *new_part = &new_partition_table[i];
     if (new_part->type == ESP_PARTITION_TYPE_APP) {
@@ -256,12 +260,17 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
       if (new_part->pos.size >= running_app_size) {
         // Running app can fit inside this partition
         if (new_part->pos.offset == running_app_offset) {
-          // This new app partition can be used for the running app without copying because the offsets are the same
-          new_app_part_index = i;
-        } else if (!check_overlap(running_app_offset, running_app_size, new_part->pos.offset, running_app_size)) {
+          // This new app partition can be used for the running app without copying because the offsets are the same.
+          // First match wins; once locked in, the no-copy path is preferred and won't be overwritten.
+          if (new_app_part_index == -1) {
+            new_app_part_index = i;
+          }
+        } else if (new_app_part_index_with_copy == -1 &&
+                   !check_overlap(running_app_offset, running_app_size, new_part->pos.offset, running_app_size)) {
           // This new app partition can be used for the running app after copying the app into it
           // Check if there is an app partition in the old partition table at the right offset
-          // This is for esp_partition_copy and won't be needed after implementing a better copy function in the future
+          // This is for esp_partition_copy and won't be needed after implementing a better copy function in the future.
+          // First match wins for determinism; stop searching as soon as a suitable pair is found.
           esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
           while (it != NULL) {
             const esp_partition_t *p = esp_partition_get(it);
@@ -269,6 +278,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
               // Found a suitable pair of partitions in the old and new partition table to copy the running app to
               new_app_part_index_with_copy = i;  // The partition index in the new partition table
               app_copy_target_part = p;          // The partition in the old partition table
+              break;
             }
             it = esp_partition_next(it);
           }
