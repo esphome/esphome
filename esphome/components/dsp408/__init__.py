@@ -22,6 +22,11 @@ MULTI_CONF = True
 # Used by sub-platform configs to attach entities to a specific DSP-408
 # instance via ``dsp408_id:`` references.
 CONF_DSP408_ID = "dsp408_id"
+# Shared by every sub-platform to disambiguate the entity role
+# (master vs per-channel volume, HPF type vs LPF slope, etc.). Defined
+# once here to satisfy ci-custom (constants used in >=5 files must
+# either live here or in esphome/components/const/__init__.py).
+CONF_KIND = "kind"
 
 dsp408_ns = cg.esphome_ns.namespace("dsp408")
 DSP408 = dsp408_ns.class_("DSP408", cg.Component)

@@ -14,11 +14,10 @@ from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL
 
-from .. import CONF_DSP408_ID, DSP408, dsp408_ns
+from .. import CONF_DSP408_ID, CONF_KIND, DSP408, dsp408_ns
 
 DEPENDENCIES = ["dsp408"]
 
-CONF_KIND = "kind"
 KIND_CHANNEL_HPF_FILTER = "CHANNEL_HPF_FILTER"
 KIND_CHANNEL_HPF_SLOPE = "CHANNEL_HPF_SLOPE"
 KIND_CHANNEL_LPF_FILTER = "CHANNEL_LPF_FILTER"

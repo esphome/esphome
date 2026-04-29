@@ -9,11 +9,10 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 
-from .. import CONF_DSP408_ID, DSP408
+from .. import CONF_DSP408_ID, CONF_KIND, DSP408
 
 DEPENDENCIES = ["dsp408"]
 
-CONF_KIND = "kind"
 KIND_MODEL = "MODEL"
 
 KINDS = {KIND_MODEL: "MODEL"}

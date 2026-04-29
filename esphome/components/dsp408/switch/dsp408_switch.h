@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+
 #include "esphome/components/switch/switch.h"
 #include "../dsp408.h"
 
@@ -43,3 +45,5 @@ class DSP408Switch : public switch_::Switch, public Component {
 
 }  // namespace dsp408
 }  // namespace esphome
+
+#endif  // USE_ESP32_VARIANT_ESP32S2/S3/P4

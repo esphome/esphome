@@ -1,6 +1,8 @@
 #include "dsp408_switch.h"
 #include "esphome/core/log.h"
 
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+
 namespace esphome {
 namespace dsp408 {
 
@@ -47,3 +49,5 @@ void DSP408Switch::write_state(bool state) {
 
 }  // namespace dsp408
 }  // namespace esphome
+
+#endif  // USE_ESP32_VARIANT_ESP32S2/S3/P4

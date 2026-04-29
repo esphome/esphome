@@ -12,11 +12,10 @@ from esphome.components import text
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL
 
-from .. import CONF_DSP408_ID, DSP408, dsp408_ns
+from .. import CONF_DSP408_ID, CONF_KIND, DSP408, dsp408_ns
 
 DEPENDENCIES = ["dsp408"]
 
-CONF_KIND = "kind"
 KIND_PRESET_NAME = "PRESET_NAME"
 KIND_CHANNEL_NAME = "CHANNEL_NAME"
 
