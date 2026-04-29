@@ -8,6 +8,7 @@ Checks: >-
   -bugprone-derived-method-shadowing-base-method,
   -bugprone-easily-swappable-parameters,
   -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-invalid-enum-default-initialization,
   -bugprone-multi-level-implicit-pointer-conversion,
   -bugprone-narrowing-conversions,
   -bugprone-tagged-union-member-count,
