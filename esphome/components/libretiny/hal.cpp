@@ -14,10 +14,9 @@ namespace esphome::libretiny {}  // namespace esphome::libretiny
 
 namespace esphome {
 
-// yield(), delay(), micros(), millis(), millis_64(), arch_feed_wdt(),
-// arch_get_cpu_cycle_count(), arch_get_cpu_freq_hz() inlined in
-// core/hal/hal_libretiny.h.
-void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
+// yield(), delay(), micros(), millis(), millis_64(), delayMicroseconds(),
+// arch_feed_wdt(), arch_get_cpu_cycle_count(), arch_get_cpu_freq_hz()
+// inlined in core/hal/hal_libretiny.h.
 
 void arch_init() {
   libretiny::setup_preferences();
