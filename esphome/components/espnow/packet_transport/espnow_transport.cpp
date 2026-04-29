@@ -26,10 +26,10 @@ void ESPNowTransport::setup() {
            this->peer_address_[5]);
 
   // Register received handler
-  this->parent_->register_received_handler(this);
+  this->parent_->register_receive_handler(this);
 
-  // Register broadcasted handler
-  this->parent_->register_broadcasted_handler(this);
+  // Register broadcast handler
+  this->parent_->register_broadcast_handler(this);
 }
 
 void ESPNowTransport::send_packet(const std::vector<uint8_t> &buf) const {

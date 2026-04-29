@@ -31,8 +31,8 @@ using peer_address_t = std::array<uint8_t, ESP_NOW_ETH_ALEN>;
 enum class ESPNowTriggers : uint8_t {
   TRIGGER_NONE = 0,
   ON_NEW_PEER = 1,
-  ON_RECEIVED = 2,
-  ON_BROADCASTED = 3,
+  ON_RECEIVE = 2,
+  ON_BROADCAST = 3,
   ON_SUCCEED = 10,
   ON_FAILED = 11,
 };
@@ -136,11 +136,11 @@ class ESPNowComponent : public Component {
   esp_err_t send(const uint8_t *peer_address, const uint8_t *payload, size_t size,
                  const send_callback_t &callback = nullptr);
 
-  void register_received_handler(ESPNowReceivedPacketHandler *handler) { this->receive_handlers_.push_back(handler); }
+  void register_receive_handler(ESPNowReceivedPacketHandler *handler) { this->receive_handlers_.push_back(handler); }
   void register_unknown_peer_handler(ESPNowUnknownPeerHandler *handler) {
     this->unknown_peer_handlers_.push_back(handler);
   }
-  void register_broadcasted_handler(ESPNowBroadcastHandler *handler) { this->broadcast_handlers_.push_back(handler); }
+  void register_broadcast_handler(ESPNowBroadcastHandler *handler) { this->broadcast_handlers_.push_back(handler); }
 
  protected:
   friend void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size);

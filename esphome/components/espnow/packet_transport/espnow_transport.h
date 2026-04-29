@@ -15,7 +15,7 @@ namespace espnow {
 class ESPNowTransport : public packet_transport::PacketTransport,
                         public Parented<ESPNowComponent>,
                         public ESPNowReceivedPacketHandler,
-                        public ESPNowBroadcastedHandler {
+                        public ESPNowBroadcastHandler {
  public:
   void setup() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }

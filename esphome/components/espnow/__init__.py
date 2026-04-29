@@ -26,9 +26,9 @@ espnow_ns = cg.esphome_ns.namespace("espnow")
 ESPNowComponent = espnow_ns.class_("ESPNowComponent", cg.Component)
 
 # Handler interfaces that other components can use to register callbacks
-ESPNowReceivedPacketHandler = espnow_ns.class_("ESPNowReceivedPacketHandler")
+ESPNowReceivePacketHandler = espnow_ns.class_("ESPNowReceivePacketHandler")
 ESPNowUnknownPeerHandler = espnow_ns.class_("ESPNowUnknownPeerHandler")
-ESPNowBroadcastedHandler = espnow_ns.class_("ESPNowBroadcastedHandler")
+ESPNowBroadcastHandler = espnow_ns.class_("ESPNowBroadcastHandler")
 
 ESPNowRecvInfo = espnow_ns.class_("ESPNowRecvInfo")
 ESPNowRecvInfoConstRef = ESPNowRecvInfo.operator("const").operator("ref")
@@ -48,10 +48,10 @@ OnUnknownPeerTrigger = espnow_ns.class_(
     "OnUnknownPeerTrigger", ESPNowHandlerTrigger, ESPNowUnknownPeerHandler
 )
 OnReceiveTrigger = espnow_ns.class_(
-    "OnReceiveTrigger", ESPNowHandlerTrigger, ESPNowReceivedPacketHandler
+    "OnReceiveTrigger", ESPNowHandlerTrigger, ESPNowReceivePacketHandler
 )
 OnBroadcastTrigger = espnow_ns.class_(
-    "OnBroadcastTrigger", ESPNowHandlerTrigger, ESPNowBroadcastedHandler
+    "OnBroadcastTrigger", ESPNowHandlerTrigger, ESPNowBroadcastHandler
 )
 
 
@@ -140,11 +140,11 @@ async def to_code(config):
 
     for on_receive in config.get(CONF_ON_RECEIVE, []):
         trigger = await _trigger_to_code(on_receive)
-        cg.add(var.register_received_handler(trigger))
+        cg.add(var.register_receive_handler(trigger))
 
     for on_receive in config.get(CONF_ON_BROADCAST, []):
         trigger = await _trigger_to_code(on_receive)
-        cg.add(var.register_broadcasted_handler(trigger))
+        cg.add(var.register_broadcast_handler(trigger))
 
 
 # ========================================== A C T I O N S ================================================
