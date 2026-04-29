@@ -60,6 +60,7 @@ OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
 
   // Check boot mode - if boot mode is UART download mode,
   // we will not be able to reset into normal mode once update is done
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- GPI is MMIO at a fixed address
   int boot_mode = (GPI >> BOOT_MODE_SHIFT) & BOOT_MODE_MASK;
   if (boot_mode == BOOT_MODE_UART_DOWNLOAD) {
     return OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;

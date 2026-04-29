@@ -663,8 +663,8 @@ float gamma_uncorrect(float value, float gamma) {
 }
 
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {
-  float max_color_value = std::max(std::max(red, green), blue);
-  float min_color_value = std::min(std::min(red, green), blue);
+  float max_color_value = std::max({red, green, blue});
+  float min_color_value = std::min({red, green, blue});
   float delta = max_color_value - min_color_value;
 
   if (delta == 0) {
