@@ -27,7 +27,7 @@ calculations.
 
 ### Configuration variables
 
-- **layout** (*Optional*, dict): One of `HORIZONTAL`, `VERTICAL` or a dictionary describing the layout configuration:
+- **layout** (*Optional*, dict): One of `HORIZONTAL`, `VERTICAL`, a grid shorthand, or a dictionary describing the layout configuration:
   - **type** (*Optional*, string): `FLEX`, `GRID` or `NONE`. Defaults to `NONE`.
   - Further options from below depending on the chosen type.
 
@@ -179,22 +179,52 @@ Two or more widgets may not be explicitly assigned the same row and column posit
 
 The configuration `layout: <rows>x<cols>` is a shorthand for a grid layout with the specified number of rows and
 columns, with all rows and columns of equal size. For example `layout: 2x3` is a shorthand for
-`layout: { type: grid, grid_rows: [2], grid_columns: [3] }` with
-`FR(1)` set for all rows and columns.
+
+```yaml
+layout:
+  type: grid
+  grid_rows: [FR(1), FR(1)]
+  grid_columns: [FR(1), FR(1), FR(1)]
+  grid_cell_x_align: center
+  grid_cell_y_align: center
+```
+
+Either dimension may be omitted from the shorthand; the missing dimension will be calculated from the configured
+number of widgets:
+
+- `layout: <rows>x` specifies the number of rows; the column count is computed as the number of widgets divided by
+  the row count (rounded up).
+- `layout: x<cols>` specifies the number of columns; the row count is computed as the number of widgets divided by
+  the column count (rounded up).
+
+For example, with five widgets, both `layout: x3` and `layout: 2x` will produce a 2-row by 3-column grid.
+
+If there are no widgets, the missing dimension defaults to `1`.
 
 **Configuration variables (must be placed under the layout key):**
 
-- **grid_rows** (**Required**): The number of rows in the grid, expressed a list of values in pixels, `CONTENT` or
-  `FR(n)` (free units, where `n` is a proportional integer value).
-- **grid_columns** (**Required**): The number of columns in the grid, expressed a list of values in pixels, `CONTENT` or
-  `FR(n)` (free units, where `n` is a proportional integer value).
-- **grid_row_align** (*Optional*, string): How to align the row. Works only when `grid_rows` is given in pixels.
-  Possible options below.
-- **grid_column_align** (*Optional*, string): How to align the column. Works only when `grid_columns` is given in
-  pixels. Possible options below.
+- **grid_rows** (*Optional*): The rows in the grid, given either as a list of values in pixels, `CONTENT` or
+  `FR(n)` (free units, where `n` is a proportional integer value), or as a single positive integer specifying the
+  number of equal-size `FR(1)` rows. May be omitted if `grid_columns` is specified, in which case the row count is
+  derived from the number of widgets.
+- **grid_columns** (*Optional*): The columns in the grid, given either as a list of values in pixels, `CONTENT` or
+  `FR(n)` (free units, where `n` is a proportional integer value), or as a single positive integer specifying the
+  number of equal-size `FR(1)` columns. May be omitted if `grid_rows` is specified, in which case the column count
+  is derived from the number of widgets.
+- **grid_row_align** (*Optional*, string): How to align the row. It has no effect if `FR(n)` is used for any row size
+  since any free space will be allocated to a row. Possible options below.
+- **grid_column_align** (*Optional*, string): How to align the column. It has no effect if `FR(n)` is used for any
+  column size since any free space will be allocated to a column. Possible options below.
 - **pad_row** (*Optional*, int16): Set the padding between the rows, in pixels.
 - **pad_column** (*Optional*, int16): Set the padding between the columns, in pixels.
 - **multiple_widgets_per_cell** (*Optional*, bool): If true, multiple widgets can be placed in the same cell. Defaults to `false`.
+- **grid_cell_x_align** (*Optional*, string): A default value for `grid_cell_x_align` for cells. Will default to `center`
+  if a shorthand layout is used. Can be overridden on individual widgets.
+- **grid_cell_y_align** (*Optional*, string): A default value for `grid_cell_y_align` for cells. Will default to `center`
+  if a shorthand layout is used. Can be overridden on individual widgets.
+
+At least one of `grid_rows` and `grid_columns` must be specified. The number of rows and number of columns must
+both be greater than zero.
 
 In a grid layout, all child widgets placed on the grid have additional configuration options available:
 
