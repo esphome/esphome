@@ -373,8 +373,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
 
   // Write otadata to set the new boot partition
   const esp_partition_t *new_boot_partition = nullptr;
-  esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
-  while (it != NULL) {
+  esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+  while (it != nullptr) {
     const esp_partition_t *p = esp_partition_get(it);
     const esp_partition_info_t *new_part =
         &new_partition_table[new_app_part_index == -1 ? new_app_part_index_with_copy : new_app_part_index];
