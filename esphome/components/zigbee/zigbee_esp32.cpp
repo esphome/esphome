@@ -288,14 +288,11 @@ void ZigbeeComponent::setup() {
 }
 
 void ZigbeeComponent::loop() {
-  if (this->joined) {
-    this->join_cb_.call();
-    this->joined = false;  // only call once
+  if (this->joined.exchange(false)) {
     this->connected = true;
+    this->join_cb_.call();
   }
-  if (this->connected) {
-    this->disable_loop();  // only disable once connected
-  }
+  this->disable_loop();
 }
 
 void ZigbeeComponent::dump_config() {
