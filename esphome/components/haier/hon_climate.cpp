@@ -15,11 +15,11 @@ using namespace esphome::uart;
 namespace esphome {
 namespace haier {
 
-static bool vertical_axis_is_auto_(climate::ClimateSwingMode swing_mode) {
+static bool vertical_axis_is_auto(climate::ClimateSwingMode swing_mode) {
   return (swing_mode == climate::CLIMATE_SWING_VERTICAL) || (swing_mode == climate::CLIMATE_SWING_BOTH);
 }
 
-static bool horizontal_axis_is_auto_(climate::ClimateSwingMode swing_mode) {
+static bool horizontal_axis_is_auto(climate::ClimateSwingMode swing_mode) {
   return (swing_mode == climate::CLIMATE_SWING_HORIZONTAL) || (swing_mode == climate::CLIMATE_SWING_BOTH);
 }
 
@@ -742,13 +742,13 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
   }
   const ClimateSwingMode target_swing_mode = this->current_hvac_settings_.swing_mode.value_or(this->swing_mode);
   if (this->pending_vertical_direction_.has_value()) {
-    if (!vertical_axis_is_auto_(target_swing_mode)) {
+    if (!vertical_axis_is_auto(target_swing_mode)) {
       out_data->vertical_swing_mode = (uint8_t) this->pending_vertical_direction_.value();
     }
     this->pending_vertical_direction_.reset();
   }
   if (this->pending_horizontal_direction_.has_value()) {
-    if (!horizontal_axis_is_auto_(target_swing_mode)) {
+    if (!horizontal_axis_is_auto(target_swing_mode)) {
       out_data->horizontal_swing_mode = (uint8_t) this->pending_horizontal_direction_.value();
     }
     this->pending_horizontal_direction_.reset();
@@ -1437,7 +1437,7 @@ void HonClimate::fill_control_messages_queue_() {
                                           vertical_swing_buf, 2);
   }
   if (this->pending_vertical_direction_.has_value()) {
-    if (!vertical_axis_is_auto_(target_swing_mode)) {
+    if (!vertical_axis_is_auto(target_swing_mode)) {
       uint8_t vertical_swing_buf[] = {0x00, (uint8_t) this->pending_vertical_direction_.value()};
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
@@ -1447,7 +1447,7 @@ void HonClimate::fill_control_messages_queue_() {
     this->pending_vertical_direction_.reset();
   }
   if (this->pending_horizontal_direction_.has_value()) {
-    if (!horizontal_axis_is_auto_(target_swing_mode)) {
+    if (!horizontal_axis_is_auto(target_swing_mode)) {
       uint8_t horizontal_swing_buf[] = {0x00, (uint8_t) this->pending_horizontal_direction_.value()};
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
