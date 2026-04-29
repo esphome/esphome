@@ -329,7 +329,4 @@ async def test_uart_mock_modbus_server_controller_multiple(
     ):
         await tracker.setup_and_start_scenario(client)
         await tracker.await_all(futures)
-        # assert sensor_states["min_response_time"][-1] > 3, (
-        #     "Expected min_response_time to be > 3.5ms, per modbus frame delays at 9600 baud"
-        # )
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
