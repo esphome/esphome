@@ -6,8 +6,7 @@ what files have changed. It outputs JSON with the following structure:
 
 {
   "integration_tests": true/false,
-  "integration_tests_run_all": true/false,
-  "integration_test_files": ["tests/integration/test_foo.py", ...],
+  "integration_test_buckets": [{"name": "1/3", "tests": "tests/integration/test_foo.py ..."}, ...],
   "clang_tidy": true/false,
   "clang_format": true/false,
   "python_linters": true/false,
@@ -80,6 +79,25 @@ CLANG_TIDY_SPLIT_THRESHOLD = 65
 # Component test batch size (weighted)
 # Isolated components count as 10x, groupable components count as 1x
 COMPONENT_TEST_BATCH_SIZE = 40
+
+# Integration test bucketing: when more than the threshold tests are scheduled,
+# fan out across this many parallel jobs. Below the threshold, a single job runs.
+INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
+INTEGRATION_TESTS_SPLIT_BUCKETS = 3
+
+
+def _split_list(items: list[str], n: int) -> list[list[str]]:
+    """Split a list into n roughly-equal contiguous parts (matches script/clang-tidy)."""
+    k, m = divmod(len(items), n)
+    return [items[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]
+
+
+def _all_integration_test_files() -> list[str]:
+    """Return all integration test file paths, sorted, relative to repo root."""
+    return sorted(
+        str(p.relative_to(root_path))
+        for p in (Path(root_path) / "tests" / "integration").glob("test_*.py")
+    )
 
 
 class Platform(StrEnum):
@@ -813,6 +831,36 @@ def main() -> None:
         args.branch
     )
     run_integration = integration_run_all or bool(integration_test_files)
+
+    # When run_all is set, expand to the full glob here so determine-jobs.py
+    # remains the single source of truth for which tests run. The workflow
+    # never re-globs the filesystem.
+    if integration_run_all:
+        integration_test_files = _all_integration_test_files()
+    else:
+        integration_test_files = sorted(integration_test_files)
+
+    # Pre-bucket the test list so the CI matrix can consume it directly.
+    # Below threshold => 1 bucket; above threshold => INTEGRATION_TESTS_SPLIT_BUCKETS.
+    integration_test_buckets: list[dict[str, str]]
+    if not run_integration:
+        integration_test_buckets = []
+    elif len(integration_test_files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
+        parts = [
+            part
+            for part in _split_list(
+                integration_test_files, INTEGRATION_TESTS_SPLIT_BUCKETS
+            )
+            if part
+        ]
+        integration_test_buckets = [
+            {"name": f"{i + 1}/{len(parts)}", "tests": " ".join(part)}
+            for i, part in enumerate(parts)
+        ]
+    else:
+        integration_test_buckets = [
+            {"name": "1/1", "tests": " ".join(integration_test_files)}
+        ]
     run_clang_tidy = should_run_clang_tidy(args.branch)
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
@@ -944,8 +992,7 @@ def main() -> None:
 
     output: dict[str, Any] = {
         "integration_tests": run_integration,
-        "integration_tests_run_all": integration_run_all,
-        "integration_test_files": integration_test_files,
+        "integration_test_buckets": integration_test_buckets,
         "clang_tidy": run_clang_tidy,
         "clang_tidy_mode": clang_tidy_mode,
         "clang_format": run_clang_format,

@@ -122,10 +122,19 @@ def test_main_all_tests_should_run(
         "esphome/helpers.py",
     ]
 
+    # Stable, deterministic stand-in for the tests/integration/ glob so the
+    # bucket assertions don't drift with the real test count.
+    fake_test_files = [f"tests/integration/test_{i:03d}.py" for i in range(15)]
+
     # Run main function with mocked argv
     with (
         patch("sys.argv", ["determine-jobs.py"]),
         patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(
+            determine_jobs,
+            "_all_integration_test_files",
+            return_value=fake_test_files,
+        ),
         patch.object(
             determine_jobs,
             "get_changed_components",
@@ -161,8 +170,21 @@ def test_main_all_tests_should_run(
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is True
-    assert output["integration_tests_run_all"] is True
-    assert output["integration_test_files"] == []
+    # run_all=True expands to the full glob and pre-buckets into 3 parts
+    assert isinstance(output["integration_test_buckets"], list)
+    assert len(output["integration_test_buckets"]) == 3
+    assert [b["name"] for b in output["integration_test_buckets"]] == [
+        "1/3",
+        "2/3",
+        "3/3",
+    ]
+    bucket_files = [
+        f
+        for b in output["integration_test_buckets"]
+        for f in b["tests"].split(" ")
+        if f
+    ]
+    assert bucket_files == fake_test_files
     assert output["clang_tidy"] is True
     assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is True
@@ -247,8 +269,7 @@ def test_main_no_tests_should_run(
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is False
-    assert output["integration_tests_run_all"] is False
-    assert output["integration_test_files"] == []
+    assert output["integration_test_buckets"] == []
     assert output["clang_tidy"] is False
     assert output["clang_tidy_mode"] == "disabled"
     assert output["clang_format"] is False
@@ -332,8 +353,7 @@ def test_main_with_branch_argument(
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is False
-    assert output["integration_tests_run_all"] is False
-    assert output["integration_test_files"] == []
+    assert output["integration_test_buckets"] == []
     assert output["clang_tidy"] is True
     assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is False
