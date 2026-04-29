@@ -45,11 +45,14 @@ class IDFOTABackend final {
   char expected_bin_md5_[32];
   bool md5_set_{false};
 #ifdef USE_OTA_PARTITIONS
-  ota::OTAType ota_type_{ota::OTA_TYPE_UPDATE_APP};
+  // Place the byte buffer first so it sits immediately after the preceding `bool md5_set_`,
+  // eliminating the 3-byte alignment padding that an int-sized member would otherwise force.
+  // Remaining members are 4-byte-aligned and pack tightly after the buffer.
   uint8_t buf_[PARTITION_TABLE_BUFFER_SIZE];
   size_t buf_written_{0};
   size_t image_size_{0};
   const esp_partition_t *partition_table_part_{nullptr};
+  ota::OTAType ota_type_{ota::OTA_TYPE_UPDATE_APP};
 #endif
 };
 

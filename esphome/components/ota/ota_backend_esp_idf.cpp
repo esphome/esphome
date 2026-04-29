@@ -331,13 +331,12 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   // underlying ESP-IDF calls take longer than expected on a given chip variant.
   watchdog::WatchdogManager watchdog(15000);
 
-  // Copy the running app partition to new position if needed
+  // Copy the running app partition to new position if needed.
+  // esp_ota_get_running_partition() is still valid here (we have not yet called
+  // esp_partition_unload_all()) and returns the same partition that find_app_partition_at would
+  // have located, without an extra iterator walk.
   if (new_app_part_index == -1) {
-    const esp_partition_t *running_app_part = find_app_partition_at(running_app_offset, running_app_size);
-    if (running_app_part == nullptr) {
-      ESP_LOGE(TAG, "Running app partition not found in current partition table");
-      return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
-    }
+    const esp_partition_t *running_app_part = esp_ota_get_running_partition();
     ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,
              app_copy_target_part->address, running_app_size);
 
