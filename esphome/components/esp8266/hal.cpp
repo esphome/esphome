@@ -1,6 +1,7 @@
 #ifdef USE_ESP8266
 
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 #include <Arduino.h>
 #include <core_esp8266_features.h>
