@@ -1,7 +1,9 @@
 #ifdef USE_ESP32
 
-#include "crash_handler.h"
+// defines.h must come before crash_handler.h so USE_ESP32_CRASH_HANDLER is set
+// before crash_handler.h's #ifdef-guarded namespace block is parsed.
 #include "esphome/core/defines.h"
+#include "crash_handler.h"
 #include "esphome/core/hal.h"
 
 #include <esp_clk_tree.h>
