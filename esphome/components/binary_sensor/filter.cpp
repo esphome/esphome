@@ -4,16 +4,14 @@
 #include "filter.h"
 
 #include "binary_sensor.h"
+#include "esphome/core/application.h"
 
 namespace esphome::binary_sensor {
 
 static const char *const TAG = "sensor.filter";
 
-// Timeout IDs for filter classes.
-// Each filter is its own Component instance, so the scheduler scopes
-// IDs by component pointer — no risk of collisions between instances.
-constexpr uint32_t FILTER_TIMEOUT_ID = 0;
-// AutorepeatFilter needs two distinct IDs (both timeouts on the same component)
+// AutorepeatFilter still inherits Component (it schedules two distinct timer
+// purposes), so it keeps the (Component *, id) scheduler API.
 constexpr uint32_t AUTOREPEAT_TIMING_ID = 0;
 constexpr uint32_t AUTOREPEAT_ON_OFF_ID = 1;
 
@@ -34,45 +32,39 @@ void Filter::input(bool value) {
 }
 
 void TimeoutFilter::input(bool value) {
-  this->set_timeout(FILTER_TIMEOUT_ID, this->timeout_delay_.value(), [this]() { this->parent_->invalidate_state(); });
+  App.scheduler.set_timeout(this, this->timeout_delay_.value(), [this]() { this->parent_->invalidate_state(); });
   // we do not de-dup here otherwise changes from invalid to valid state will not be output
   this->output(value);
 }
 
 optional<bool> DelayedOnOffFilter::new_value(bool value) {
   if (value) {
-    this->set_timeout(FILTER_TIMEOUT_ID, this->on_delay_.value(), [this]() { this->output(true); });
+    App.scheduler.set_timeout(this, this->on_delay_.value(), [this]() { this->output(true); });
   } else {
-    this->set_timeout(FILTER_TIMEOUT_ID, this->off_delay_.value(), [this]() { this->output(false); });
+    App.scheduler.set_timeout(this, this->off_delay_.value(), [this]() { this->output(false); });
   }
   return {};
 }
 
-float DelayedOnOffFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
-
 optional<bool> DelayedOnFilter::new_value(bool value) {
   if (value) {
-    this->set_timeout(FILTER_TIMEOUT_ID, this->delay_.value(), [this]() { this->output(true); });
+    App.scheduler.set_timeout(this, this->delay_.value(), [this]() { this->output(true); });
     return {};
   } else {
-    this->cancel_timeout(FILTER_TIMEOUT_ID);
+    App.scheduler.cancel_timeout(this);
     return false;
   }
 }
 
-float DelayedOnFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
-
 optional<bool> DelayedOffFilter::new_value(bool value) {
   if (!value) {
-    this->set_timeout(FILTER_TIMEOUT_ID, this->delay_.value(), [this]() { this->output(false); });
+    App.scheduler.set_timeout(this, this->delay_.value(), [this]() { this->output(false); });
     return {};
   } else {
-    this->cancel_timeout(FILTER_TIMEOUT_ID);
+    App.scheduler.cancel_timeout(this);
     return true;
   }
 }
-
-float DelayedOffFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 optional<bool> InvertFilter::new_value(bool value) { return !value; }
 
@@ -118,19 +110,17 @@ optional<bool> LambdaFilter::new_value(bool value) { return this->f_(value); }
 
 optional<bool> SettleFilter::new_value(bool value) {
   if (!this->steady_) {
-    this->set_timeout(FILTER_TIMEOUT_ID, this->delay_.value(), [this, value]() {
+    App.scheduler.set_timeout(this, this->delay_.value(), [this, value]() {
       this->steady_ = true;
       this->output(value);
     });
     return {};
   } else {
     this->steady_ = false;
-    this->set_timeout(FILTER_TIMEOUT_ID, this->delay_.value(), [this]() { this->steady_ = true; });
+    App.scheduler.set_timeout(this, this->delay_.value(), [this]() { this->steady_ = true; });
     return value;
   }
 }
-
-float SettleFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 }  // namespace esphome::binary_sensor
 
