@@ -1,6 +1,13 @@
 #pragma once
 //
-// DSP-408 ESPHome external_component — main parent class.
+// DSP-408 ESPHome component — main parent class.
+//
+// Reference implementation: https://github.com/malaiwah/dsp408-py
+//   - dsp408/protocol.py — frame layout, command codes, blob offsets
+//   - dsp408/device.py   — high-level Device with the firmware quirks
+//                          (read-divergence retry, write seq=0 rule,
+//                          startup write-drop quirk, etc.)
+// The wire-format port here is byte-exact to that library.
 //
 // Subclasses esphome::usb_host::USBClient so it inherits the USB host
 // task, transfer-request pool, and lock-free event queue. We add a HID

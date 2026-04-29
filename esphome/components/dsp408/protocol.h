@@ -1,6 +1,11 @@
 #pragma once
 //
 // Dayton Audio DSP-408 wire protocol — direct port of dsp408-py/protocol.py.
+// Reference: https://github.com/malaiwah/dsp408-py/blob/main/dsp408/protocol.py
+//
+// All field semantics, command codes, and blob offsets here are
+// byte-exact to dsp408-py, which derived them from Windows GUI captures
+// against a real DSP-408 (firmware MYDW-AV1.06).
 //
 // Wire format (64-byte HID report on EP 0x01 OUT / EP 0x82 IN):
 //
