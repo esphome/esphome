@@ -394,32 +394,55 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
 }
 
 void get_running_app_position(uint32_t &offset, size_t &size) {
-  // Gets the start address and the used length aligned to sectors of the running app.
-  // This function needs to be called once before calling esp_partition_unload_all().
-  // The results are stored using static variables because esp_ota_get_running_partition()
-  // does not return valid data after calling esp_partition_unload_all().
-  static uint32_t running_app_offset = 0;
-  static size_t running_app_size = 0;
-  if (running_app_size == 0) {
+  // Gets the start address and the used length (rounded up to flash sectors) of the running app.
+  //
+  // The result is cached because esp_ota_get_running_partition() does not return valid data after
+  // esp_partition_unload_all() has been called during a partition-table OTA. The running app does
+  // not move within a boot, so the first successful query is valid for the lifetime of the process.
+  //
+  // Caching is gated by an explicit `initialized` flag (rather than checking for size == 0) so a
+  // failed first call (e.g., esp_ota_get_running_partition() returning nullptr after a previously
+  // aborted partition-table OTA already called esp_partition_unload_all()) does not poison the
+  // cache; the next caller will retry. Values are written into the cache atomically only after the
+  // full computation succeeds.
+  static bool initialized = false;
+  static uint32_t cached_offset = 0;
+  static size_t cached_size = 0;
+
+  if (!initialized) {
     const esp_partition_t *running_app_part = esp_ota_get_running_partition();
-    running_app_size = running_app_part->size;
-    running_app_offset = running_app_part->address;
+    if (running_app_part == nullptr || running_app_part->erase_size == 0) {
+      // Cannot determine the running app right now; surface zeros without committing to the cache
+      // so a later call has a chance to succeed.
+      offset = 0;
+      size = 0;
+      return;
+    }
+
+    uint32_t pending_offset = running_app_part->address;
+    size_t pending_size = running_app_part->size;
+
     const esp_partition_pos_t running_app_pos = {
         .offset = running_app_part->address,
         .size = running_app_part->size,
     };
-    esp_image_metadata_t image_metadata;
+    esp_image_metadata_t image_metadata = {};
     image_metadata.start_addr = running_app_part->address;
-    esp_err_t err = esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &running_app_pos, &image_metadata);
-    if (err == ESP_OK && image_metadata.image_len < running_app_part->size) {
-      running_app_size = image_metadata.image_len;
+    if (esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &running_app_pos, &image_metadata) == ESP_OK &&
+        image_metadata.image_len < running_app_part->size) {
+      pending_size = image_metadata.image_len;
     }
-    // Align running_app_size to flash sectors
-    running_app_size = ((running_app_size + running_app_part->erase_size - 1) / running_app_part->erase_size) *
-                       running_app_part->erase_size;
+    // Round up to flash sector size so the copy spans complete erase blocks.
+    pending_size = ((pending_size + running_app_part->erase_size - 1) / running_app_part->erase_size) *
+                   running_app_part->erase_size;
+
+    cached_offset = pending_offset;
+    cached_size = pending_size;
+    initialized = true;
   }
-  offset = running_app_offset;
-  size = running_app_size;
+
+  offset = cached_offset;
+  size = cached_size;
 }
 #endif
 
