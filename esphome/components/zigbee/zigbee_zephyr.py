@@ -52,6 +52,7 @@ from esphome.types import ConfigType
 from .const import (
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
+    CONF_ROUTER,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
     POWER_SOURCE,
@@ -160,7 +161,10 @@ zephyr_number = cv.Schema(
 async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("ZIGBEE", True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
-    zephyr_add_prj_conf("ZIGBEE_ROLE_END_DEVICE", True)
+    if config[CONF_ROUTER]:
+        zephyr_add_prj_conf("ZIGBEE_ROLE_ROUTER", True)
+    else:
+        zephyr_add_prj_conf("ZIGBEE_ROLE_END_DEVICE", True)
 
     zephyr_add_prj_conf("ZIGBEE_CHANNEL_SELECTION_MODE_MULTI", True)
 

@@ -462,7 +462,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     this->request_headers_.push_back({key, value});
   }
 
-  void add_collect_header(const char *value) { this->lower_case_collect_headers_.push_back(value); }
+  void add_collect_header(const char *value) { this->lower_case_collect_headers_.emplace_back(value); }
 
   void init_json(size_t count) { this->json_.init(count); }
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.push_back({key, value}); }
