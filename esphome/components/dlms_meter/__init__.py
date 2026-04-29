@@ -176,6 +176,6 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     if CORE.is_esp32:
-        esp32.add_idf_component(name="esphome/dlms_parser", ref="1.0.0")
+        esp32.add_idf_component(name="esphome/dlms_parser", ref="1.0.2")
     else:
-        cg.add_library("esphome/dlms_parser", "1.0.0")
+        cg.add_library("esphome/dlms_parser", "1.0.2")
