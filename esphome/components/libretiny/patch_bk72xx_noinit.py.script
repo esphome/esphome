@@ -1,0 +1,74 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+import os
+import re
+
+# BK72XX crash handler needs a region of RAM that is not zero-initialized
+# by the C runtime startup (boot_handlers_bk7231u.S _sysboot_zi_init zeros
+# from _bss_start to _bss_end). The stock linker script has no .noinit
+# section, so we inject one between .bss and _empty_ram in the generated
+# linker script: that places the section after _bss_end (skipping the
+# zero-init range) and before the heap start, so the heap shrinks to fit
+# rather than overlapping our crash record.
+
+_MARKER = "/* esphome .noinit */"
+# Insert a NOLOAD .noinit section right after the .bss block. NOLOAD prevents
+# the linker from emitting any LMA copy data for it.
+_NOINIT_BLOCK = (
+    "\n"
+    "\t.noinit ALIGN(8) (NOLOAD) :\n"
+    "\t{\n"
+    "\t\t_noinit_start = .;\n"
+    "\t\t*(.noinit*)\n"
+    "\t\t. = ALIGN(8);\n"
+    "\t\t_noinit_end = .;\n"
+    "\t} > ram\n"
+    "\n"
+    + "\t" + _MARKER + "\n"
+)
+# Match the closing brace + memory region of the .bss section, capturing
+# everything up through "} > ram" so we can append our block after it.
+_BSS_END = re.compile(
+    r"(\.bss\s+ALIGN\(8\)\s*:\s*\{[^}]*\}\s*>\s*ram\b[^\n]*\n)",
+    re.DOTALL,
+)
+
+
+def _patch(content):
+    if _MARKER in content:
+        return content
+    return _BSS_END.sub(r"\1" + _NOINIT_BLOCK, content, count=1)
+
+
+def _pre_link(target, source, env):
+    build_dir = env.subst("$BUILD_DIR")
+    if not os.path.isdir(build_dir):
+        return
+    patched = 0
+    for name in os.listdir(build_dir):
+        if not name.endswith(".ld"):
+            continue
+        path = os.path.join(build_dir, name)
+        with open(path, "r", encoding="utf-8") as fh:
+            original = fh.read()
+        if _MARKER in original:
+            patched += 1
+            continue
+        content = _patch(original)
+        if content != original:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(content)
+            print("ESPHome: injected .noinit into {} for crash handler".format(name))
+            patched += 1
+    if not patched:
+        raise RuntimeError(
+            "ESPHome: could not inject .noinit into any BK72XX linker script. "
+            "The crash handler relies on a non-zeroed RAM region; without it, "
+            "previous-boot crash data would be wiped at startup. Update "
+            "patch_bk72xx_noinit.py.script — the .bss matcher likely no longer "
+            "matches the current LibreTiny linker template."
+        )
+
+
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", _pre_link)

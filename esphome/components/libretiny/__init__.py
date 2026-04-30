@@ -479,6 +479,16 @@ async def component_to_code(config):
     # RAM-executable output section and prints a post-link placement summary.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
+    else:
+        # BK72XX: wrap the SDK's exception trap handlers (defined in LibreTiny's
+        # intc.c fixup, called from the closed-source SDK's do_undefined/pabort/
+        # dabort) so we can capture register state + a stack-scan backtrace into
+        # a .noinit region before the SDK's own register dump + bk_cpu_shutdown
+        # chain runs. The .noinit region is injected into the generated linker
+        # script by patch_bk72xx_noinit.py so it survives the watchdog reset.
+        for sym in ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt"):
+            cg.add_build_flag(f"-Wl,--wrap={sym}")
+        cg.add_platformio_option("extra_scripts", ["pre:patch_bk72xx_noinit.py"])
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
     # decrease web server stack size (16k words -> 4k words)
@@ -568,8 +578,11 @@ async def component_to_code(config):
 # Called by writer.py
 def copy_files() -> None:
     script_dir = Path(__file__).parent
-    patch_linker_file = script_dir / "patch_linker.py.script"
-    copy_file_if_changed(
-        patch_linker_file,
-        CORE.relative_build_path("patch_linker.py"),
-    )
+    for src_name, dst_name in (
+        ("patch_linker.py.script", "patch_linker.py"),
+        ("patch_bk72xx_noinit.py.script", "patch_bk72xx_noinit.py"),
+    ):
+        copy_file_if_changed(
+            script_dir / src_name,
+            CORE.relative_build_path(dst_name),
+        )

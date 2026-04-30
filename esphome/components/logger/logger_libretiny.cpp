@@ -1,5 +1,9 @@
 #ifdef USE_LIBRETINY
 #include "logger.h"
+#include "esphome/core/defines.h"
+#ifdef USE_BK72XX_CRASH_HANDLER
+#include "esphome/components/bk72xx/crash_handler.h"
+#endif
 
 namespace esphome::logger {
 
@@ -47,6 +51,9 @@ void Logger::pre_setup() {
 
   global_logger = this;
   ESP_LOGI(TAG, "Log initialized");
+#ifdef USE_BK72XX_CRASH_HANDLER
+  bk72xx::crash_handler_log();
+#endif
 }
 
 const LogString *Logger::get_uart_selection_() {

@@ -4,6 +4,10 @@
 #include "esphome/core/hal.h"
 #include "preferences.h"
 
+#ifdef USE_BK72XX_CRASH_HANDLER
+#include "esphome/components/bk72xx/crash_handler.h"
+#endif
+
 #include <FreeRTOS.h>
 #include <task.h>
 
@@ -19,6 +23,11 @@ namespace esphome {
 // inlined in core/hal/hal_libretiny.h.
 
 void arch_init() {
+#ifdef USE_BK72XX_CRASH_HANDLER
+  // Snapshot any crash data left in .noinit by the previous boot before the
+  // watchdog or anything else can perturb it.
+  bk72xx::crash_handler_read_and_clear();
+#endif
   libretiny::setup_preferences();
   lt_wdt_enable(10000L);
 #ifdef USE_BK72XX

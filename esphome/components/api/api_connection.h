@@ -23,6 +23,9 @@
 #ifdef USE_ESP8266_CRASH_HANDLER
 #include "esphome/components/esp8266/crash_handler.h"
 #endif
+#ifdef USE_BK72XX_CRASH_HANDLER
+#include "esphome/components/bk72xx/crash_handler.h"
+#endif
 #include "esphome/core/entity_base.h"
 #include "esphome/core/string_ref.h"
 
@@ -283,6 +286,9 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
 #ifdef USE_ESP8266_CRASH_HANDLER
     esp8266::crash_handler_log();
+#endif
+#ifdef USE_BK72XX_CRASH_HANDLER
+    bk72xx::crash_handler_log();
 #endif
   }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
