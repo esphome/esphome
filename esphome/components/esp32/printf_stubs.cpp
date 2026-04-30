@@ -48,6 +48,9 @@ extern "C" {
 
 #ifdef __PICOLIBC__
 
+#include <cstddef>
+#include <type_traits>
+
 extern int __real_vfprintf(FILE *stream, const char *fmt, va_list ap);
 
 namespace {
@@ -56,6 +59,12 @@ struct CookieFile {
   FILE base;
   FILE *target;
 };
+
+// cookie_put() recovers CookieFile* from FILE* via reinterpret_cast, which is
+// only well-defined when FILE is the first member at offset 0 and CookieFile
+// is standard-layout.
+static_assert(offsetof(CookieFile, base) == 0, "FILE must be the first member of CookieFile");
+static_assert(std::is_standard_layout<CookieFile>::value, "CookieFile must be standard-layout");
 
 int cookie_put(char c, FILE *stream) {
   auto *cookie = reinterpret_cast<CookieFile *>(stream);
