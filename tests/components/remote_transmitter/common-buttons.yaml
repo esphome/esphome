@@ -260,3 +260,8 @@ button:
       - remote_transmitter.digital_write: true
       - remote_transmitter.digital_write:
           value: false
+
+radio_frequency:
+  - platform: remote_transmitter
+    transmitter_id: xmitr
+    name: "Test RF TX"

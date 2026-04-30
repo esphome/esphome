@@ -1,7 +1,7 @@
 remote_transmitter:
   id: xmitr
   pin: GPIO5
-  carrier_duty_percent: 50%
+  carrier_duty_percent: 100%
 
 packages:
   buttons: !include common-buttons.yaml

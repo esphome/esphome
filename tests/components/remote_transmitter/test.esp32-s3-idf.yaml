@@ -7,7 +7,7 @@ substitutions:
 remote_transmitter:
   - id: xmitr
     pin: ${pin}
-    carrier_duty_percent: 50%
+    carrier_duty_percent: 100%
     clock_resolution: ${clock_resolution}
     rmt_symbols: ${rmt_symbols}
     use_dma: "true"
