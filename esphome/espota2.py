@@ -284,7 +284,7 @@ def perform_ota(
     else:
         features = 0
 
-    if ota_type not in (OTA_TYPE_UPDATE_APP):
+    if ota_type != OTA_TYPE_UPDATE_APP:
         raise OTAError(f"Unsupported OTA type: 0x{ota_type:02X}")
 
     if (
