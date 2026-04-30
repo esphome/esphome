@@ -5,6 +5,10 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION,
     CONF_CURRENT_TEMPERATURE,
+    CONF_CUSTOM_FAN_MODE,
+    CONF_CUSTOM_FAN_MODES,
+    CONF_CUSTOM_PRESET,
+    CONF_CUSTOM_PRESETS,
     CONF_FAN_MODE,
     CONF_ID,
     CONF_MODE,
@@ -24,6 +28,8 @@ from .. import template_ns
 
 CONF_CURRENT_HUMIDITY = "current_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
+CONF_SET_CUSTOM_FAN_MODE_ACTION = "set_custom_fan_mode_action"
+CONF_SET_CUSTOM_PRESET_ACTION = "set_custom_preset_action"
 CONF_SET_FAN_MODE_ACTION = "set_fan_mode_action"
 CONF_SET_MODE_ACTION = "set_mode_action"
 CONF_SET_PRESET_ACTION = "set_preset_action"
@@ -63,21 +69,25 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TARGET_HUMIDITY): cv.returning_lambda,
             cv.Optional(CONF_MODE): cv.returning_lambda,
             cv.Optional(CONF_ACTION): cv.returning_lambda,
-            cv.Optional(CONF_FAN_MODE): cv.returning_lambda,
+            cv.Exclusive(CONF_FAN_MODE, "fan_mode"): cv.returning_lambda,
+            cv.Exclusive(CONF_CUSTOM_FAN_MODE, "fan_mode"): cv.returning_lambda,
             cv.Optional(CONF_SWING_MODE): cv.returning_lambda,
-            cv.Optional(CONF_PRESET): cv.returning_lambda,
+            cv.Exclusive(CONF_PRESET, "preset"): cv.returning_lambda,
+            cv.Exclusive(CONF_CUSTOM_PRESET, "preset"): cv.returning_lambda,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(
                 climate.validate_climate_mode
             ),
             cv.Optional(CONF_SUPPORTED_FAN_MODES): cv.ensure_list(
                 climate.validate_climate_fan_mode
             ),
+            cv.Optional(CONF_CUSTOM_FAN_MODES): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.ensure_list(
                 climate.validate_climate_swing_mode
             ),
             cv.Optional(CONF_SUPPORTED_PRESETS): cv.ensure_list(
                 climate.validate_climate_preset
             ),
+            cv.Optional(CONF_CUSTOM_PRESETS): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_SET_MODE_ACTION): automation.validate_automation(
                 single=True
             ),
@@ -96,10 +106,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SET_FAN_MODE_ACTION): automation.validate_automation(
                 single=True
             ),
+            cv.Optional(
+                CONF_SET_CUSTOM_FAN_MODE_ACTION
+            ): automation.validate_automation(single=True),
             cv.Optional(CONF_SET_SWING_MODE_ACTION): automation.validate_automation(
                 single=True
             ),
             cv.Optional(CONF_SET_PRESET_ACTION): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_SET_CUSTOM_PRESET_ACTION): automation.validate_automation(
                 single=True
             ),
             # optimistic: controls whether the entity state is updated immediately after a
@@ -191,6 +207,14 @@ async def to_code(config):
         )
         cg.add(var.set_fan_mode_lambda(template_))
 
+    if CONF_CUSTOM_FAN_MODE in config:
+        template_ = await cg.process_lambda(
+            config[CONF_CUSTOM_FAN_MODE],
+            [],
+            return_type=cg.optional.template(cg.std_string),
+        )
+        cg.add(var.set_custom_fan_mode_lambda(template_))
+
     if CONF_SWING_MODE in config:
         template_ = await cg.process_lambda(
             config[CONF_SWING_MODE],
@@ -207,17 +231,31 @@ async def to_code(config):
         )
         cg.add(var.set_preset_lambda(template_))
 
+    if CONF_CUSTOM_PRESET in config:
+        template_ = await cg.process_lambda(
+            config[CONF_CUSTOM_PRESET],
+            [],
+            return_type=cg.optional.template(cg.std_string),
+        )
+        cg.add(var.set_custom_preset_lambda(template_))
+
     if CONF_SUPPORTED_MODES in config:
         cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
 
     if CONF_SUPPORTED_FAN_MODES in config:
         cg.add(var.set_supported_fan_modes(config[CONF_SUPPORTED_FAN_MODES]))
 
+    if CONF_CUSTOM_FAN_MODES in config:
+        cg.add(var.set_supported_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
+
     if CONF_SUPPORTED_SWING_MODES in config:
         cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
 
     if CONF_SUPPORTED_PRESETS in config:
         cg.add(var.set_supported_presets(config[CONF_SUPPORTED_PRESETS]))
+
+    if CONF_CUSTOM_PRESETS in config:
+        cg.add(var.set_supported_custom_presets(config[CONF_CUSTOM_PRESETS]))
 
     if CONF_SET_MODE_ACTION in config:
         await automation.build_automation(
@@ -261,6 +299,13 @@ async def to_code(config):
             config[CONF_SET_FAN_MODE_ACTION],
         )
 
+    if CONF_SET_CUSTOM_FAN_MODE_ACTION in config:
+        await automation.build_automation(
+            var.get_set_custom_fan_mode_trigger(),
+            [(cg.std_string, "x")],
+            config[CONF_SET_CUSTOM_FAN_MODE_ACTION],
+        )
+
     if CONF_SET_SWING_MODE_ACTION in config:
         await automation.build_automation(
             var.get_set_swing_mode_trigger(),
@@ -273,6 +318,13 @@ async def to_code(config):
             var.get_set_preset_trigger(),
             [(climate.ClimatePreset, "x")],
             config[CONF_SET_PRESET_ACTION],
+        )
+
+    if CONF_SET_CUSTOM_PRESET_ACTION in config:
+        await automation.build_automation(
+            var.get_set_custom_preset_trigger(),
+            [(cg.std_string, "x")],
+            config[CONF_SET_CUSTOM_PRESET_ACTION],
         )
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))

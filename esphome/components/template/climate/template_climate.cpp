@@ -13,8 +13,10 @@ TemplateClimate::TemplateClimate()
       set_target_temperature_high_trigger_(new Trigger<float>()),
       set_target_humidity_trigger_(new Trigger<float>()),
       set_fan_mode_trigger_(new Trigger<climate::ClimateFanMode>()),
+      set_custom_fan_mode_trigger_(new Trigger<std::string>()),
       set_swing_mode_trigger_(new Trigger<climate::ClimateSwingMode>()),
-      set_preset_trigger_(new Trigger<climate::ClimatePreset>()) {}
+      set_preset_trigger_(new Trigger<climate::ClimatePreset>()),
+      set_custom_preset_trigger_(new Trigger<std::string>()) {}
 
 void TemplateClimate::setup() {
   auto restore = this->restore_state_();
@@ -40,7 +42,8 @@ void TemplateClimate::setup() {
       !this->target_temperature_f_.has_value() && !this->target_temperature_low_f_.has_value() &&
       !this->target_temperature_high_f_.has_value() && !this->target_humidity_f_.has_value() &&
       !this->mode_f_.has_value() && !this->action_f_.has_value() && !this->fan_mode_f_.has_value() &&
-      !this->swing_mode_f_.has_value() && !this->preset_f_.has_value()) {
+      !this->custom_fan_mode_f_.has_value() && !this->swing_mode_f_.has_value() && !this->preset_f_.has_value() &&
+      !this->custom_preset_f_.has_value()) {
     this->disable_loop();
   }
 }
@@ -111,6 +114,13 @@ void TemplateClimate::loop() {
     }
   }
 
+  if (auto val = this->custom_fan_mode_f_()) {
+    if (this->get_custom_fan_mode() != *val) {
+      if (this->set_custom_fan_mode_(val->c_str()))
+        changed = true;
+    }
+  }
+
   if (auto val = this->swing_mode_f_()) {
     if (*val != this->swing_mode) {
       this->swing_mode = *val;
@@ -122,6 +132,13 @@ void TemplateClimate::loop() {
     if (this->preset != val) {
       this->preset = val;
       changed = true;
+    }
+  }
+
+  if (auto val = this->custom_preset_f_()) {
+    if (this->get_custom_preset() != *val) {
+      if (this->set_custom_preset_(val->c_str()))
+        changed = true;
     }
   }
 
@@ -148,7 +165,8 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
       this->target_temperature_f_.has_value() || this->target_temperature_low_f_.has_value() ||
       this->target_temperature_high_f_.has_value() || this->target_humidity_f_.has_value() ||
       this->mode_f_.has_value() || this->action_f_.has_value() || this->fan_mode_f_.has_value() ||
-      this->swing_mode_f_.has_value() || this->preset_f_.has_value();
+      this->custom_fan_mode_f_.has_value() || this->swing_mode_f_.has_value() || this->preset_f_.has_value() ||
+      this->custom_preset_f_.has_value();
   const bool apply_state = !has_state_lambdas || this->optimistic_;
 
   if (auto mode = call.get_mode()) {
@@ -187,6 +205,12 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
     this->set_fan_mode_trigger_->trigger(*fan_mode);
   }
 
+  if (call.has_custom_fan_mode()) {
+    if (apply_state)
+      this->set_custom_fan_mode_(call.get_custom_fan_mode());
+    this->set_custom_fan_mode_trigger_->trigger(std::string(call.get_custom_fan_mode()));
+  }
+
   if (auto swing_mode = call.get_swing_mode()) {
     if (apply_state)
       this->swing_mode = *swing_mode;
@@ -197,6 +221,12 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
     if (apply_state)
       this->preset = preset;
     this->set_preset_trigger_->trigger(*preset);
+  }
+
+  if (call.has_custom_preset()) {
+    if (apply_state)
+      this->set_custom_preset_(call.get_custom_preset());
+    this->set_custom_preset_trigger_->trigger(std::string(call.get_custom_preset()));
   }
 
   this->publish_state();

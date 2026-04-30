@@ -1,0 +1,42 @@
+esphome:
+  name: tmpl-clim-cfm-opt
+host:
+api:
+logger:
+
+# Globals simulate an external device that owns its own state.
+# The set_custom_*_action lambdas write to these globals; the state lambdas
+# read from them.  With optimistic: true, commands are reflected in HA
+# immediately while the device confirms via the lambdas on the next loop.
+globals:
+  - id: ext_custom_fan_mode
+    type: std::string
+    initial_value: '"turbo"'
+  - id: ext_custom_preset
+    type: std::string
+    initial_value: '"eco_plus"'
+
+climate:
+  - platform: template
+    id: test_climate
+    name: Test Custom Mode Climate
+    optimistic: true
+    current_temperature: !lambda "return 22.5f;"
+    custom_fan_mode: !lambda "return id(ext_custom_fan_mode);"
+    custom_preset: !lambda "return id(ext_custom_preset);"
+    custom_fan_modes:
+      - turbo
+      - silent
+      - eco
+    custom_presets:
+      - eco_plus
+      - power_save
+      - max
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    set_custom_fan_mode_action:
+      - lambda: "id(ext_custom_fan_mode) = x;"
+    set_custom_preset_action:
+      - lambda: "id(ext_custom_preset) = x;"
