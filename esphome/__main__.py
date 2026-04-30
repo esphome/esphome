@@ -737,12 +737,10 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
 
-    try:
-        module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if getattr(module, "compile_program")(args, config):
-            return 0
-    except AttributeError:
-        pass
+    module = importlib.import_module("esphome.components." + CORE.target_platform)
+    platform_compile_program = getattr(module, "compile_program", None)
+    if platform_compile_program is not None and platform_compile_program(args, config):
+        return 0
 
     if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
         from esphome import espidf_api
