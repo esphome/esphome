@@ -2571,6 +2571,7 @@ message InfraredRFReceiveEvent {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_IR_RF || USE_RADIO_FREQUENCY";
   option (no_delay) = true;
+  option (speed_optimized) = true;
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
   fixed32 key = 2 [(force) = true];     // Key identifying the receiver instance
