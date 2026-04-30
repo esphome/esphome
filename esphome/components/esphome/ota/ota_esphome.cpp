@@ -215,8 +215,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
       this->extended_proto_ = (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
       if (this->extended_proto_) {
         this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
-        this->handshake_buf_[1] =
-            SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS | (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
+        this->handshake_buf_[1] = (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
       } else {
         this->handshake_buf_[0] =
             supports_compression ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION : ota::OTA_RESPONSE_HEADER_OK;
@@ -225,7 +224,9 @@ void ESPHomeOTAComponent::handle_handshake_() {
     }
 
     case OTAState::FEATURE_ACK: {
-      const size_t ack_size = this->extended_proto_ ? 2 : 1;
+      static constexpr size_t STANDARD_PROTO_ACK_SIZE = 1;
+      static constexpr size_t EXTENDED_PROTO_ACK_SIZE = 2;
+      const size_t ack_size = this->extended_proto_ ? EXTENDED_PROTO_ACK_SIZE : STANDARD_PROTO_ACK_SIZE;
       if (!this->try_write_(ack_size, LOG_STR("ack feature"))) {
         return;
       }
