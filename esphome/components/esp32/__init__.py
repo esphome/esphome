@@ -2155,6 +2155,14 @@ async def to_code(config):
     if idf_version() >= cv.Version(6, 0, 0):
         add_idf_sdkconfig_option("CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY", False)
 
+    # Workaround for IDF 6.0 spi_flash compile failure:
+    # spi_flash_hpm_enable.c:388 unconditionally references *_dummy_bit3_4 /
+    # spi_flash_hpm_get_dummy_xmc symbols that are only defined when
+    # CONFIG_SPI_FLASH_HPM_DC_ON is set. Force HPM-DC on so the symbols exist.
+    # Tracked upstream: https://github.com/espressif/esp-idf/issues/18535
+    if idf_version() >= cv.Version(6, 0, 0):
+        add_idf_sdkconfig_option("CONFIG_SPI_FLASH_HPM_DC_ON", True)
+
     # Disable regi2c control functions in IRAM
     # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
     if advanced[CONF_DISABLE_REGI2C_IN_IRAM]:
