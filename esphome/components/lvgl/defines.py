@@ -59,7 +59,7 @@ _INITIAL_LV_USES = frozenset(
 # successive compilations / unit tests.
 
 
-def _get_data(key: str, default):
+def _get_data(key: str, default) -> Any:
     """
     Get a data structure from the global data store by key
     :param key: A key for the data
@@ -85,33 +85,33 @@ def get_esphome_fonts_used() -> set:
     return _get_data(KEY_ESPHOME_FONTS_USED, set())
 
 
-def add_lv_use(*names):
+def add_lv_use(*names: str) -> None:
     uses = get_lv_uses()
     for name in names:
         uses.add(name)
 
 
-def get_warnings():
+def get_warnings() -> set:
     return _get_data(KEY_WARNINGS, set())
 
 
-def get_remapped_uses():
+def get_remapped_uses() -> set:
     return _get_data(KEY_REMAPPED_USES, set())
 
 
-def add_warning(msg: str):
+def add_warning(msg: str) -> None:
     get_warnings().add(msg)
 
 
-def get_options():
+def get_options() -> dict:
     return _get_data(KEY_OPTIONS, {})
 
 
-def get_defines():
+def get_defines() -> dict:
     return _get_data(KEY_LV_DEFINES, {})
 
 
-def get_updated_widgets():
+def get_updated_widgets() -> dict:
     return _get_data(KEY_UPDATED_WIDGETS, {})
 
 
@@ -170,7 +170,7 @@ def add_define(macro, value="1"):
     lv_defines[macro] = value
 
 
-def is_defined(macro):
+def is_defined(macro) -> bool:
     return macro in get_defines()
 
 
@@ -184,7 +184,7 @@ def addr(arg) -> MockObj:
     return MockObj(f"&{arg}")
 
 
-def call_lambda(lamb: LambdaExpression):
+def call_lambda(lamb: LambdaExpression) -> Expression:
     """
     Given a lambda, either reduce to a simple expression or call it, possibly with parameters
     from the surrounding context
@@ -284,7 +284,7 @@ class LvConstant(LValidator):
             cv.ensure_list(self.one_of), cg.uint32, retmapper=self.mapper
         )
 
-    def mapper(self, value):
+    def mapper(self, value) -> Any:
         if not isinstance(value, list):
             value = [value]
         value = [
