@@ -5,8 +5,11 @@ esp32:
     advanced:
       enable_idf_experimental_features: yes
 
+# Speed dropped from 120MHz to 80MHz to avoid IDF 6.0 spi_flash_hpm_enable.c
+# compile bug. Restore to 120MHz once https://github.com/espressif/esp-idf/issues/18535
+# is fixed.
 psram:
   mode: octal
-  speed: 120MHz
+  speed: 80MHz
   enable_ecc: true
   ignore_not_found: false
