@@ -632,7 +632,7 @@ def add_extra_build_file(filename: str, path: Path) -> bool:
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
     if ver >= cv.Version(4, 0, 0):
-        return f"{ARDUINO_FRAMEWORK_PKG}@https://github.com/swoboda1337/arduino-esp32.git#v4"
+        return f"{ARDUINO_FRAMEWORK_PKG}@https://github.com/espressif/arduino-esp32/archive/master.zip"
     # 3.3.6+ changed filename from esp32-{ver}.zip to esp32-core-{ver}.tar.xz
     if ver >= cv.Version(3, 3, 6):
         filename = f"esp32-core-{ver}.tar.xz"
