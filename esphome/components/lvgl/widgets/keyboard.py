@@ -6,7 +6,6 @@ from esphome.cpp_types import std_string
 
 from .. import LvContext
 from ..defines import CONF_MAIN, KEYBOARD_MODES, literal
-from ..helpers import lvgl_components_required
 from ..types import LvCompound, LvType
 from . import Widget, WidgetType, get_widgets, is_widget_completed
 from .buttonmatrix import CONF_BUTTONMATRIX
@@ -46,9 +45,11 @@ class KeyboardType(WidgetType):
     def get_uses(self):
         return CONF_KEYBOARD, CONF_TEXTAREA, CONF_BUTTONMATRIX
 
+    @property
+    def required_component(self):
+        return "KEY_LISTENER"
+
     async def to_code(self, w: Widget, config: dict):
-        lvgl_components_required.add("KEY_LISTENER")
-        lvgl_components_required.add(CONF_KEYBOARD)
         if mode := config.get(CONF_MODE):
             await w.set_property(CONF_MODE, await KEYBOARD_MODES.process(mode))
         if textarea := config.get(CONF_TEXTAREA):

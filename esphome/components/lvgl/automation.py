@@ -22,9 +22,12 @@ from .defines import (
     CONF_SCROLLBAR,
     CONF_SHOW_SNOW,
     CONF_TOP_LAYER,
+    KEY_FOCUSED_WIDGETS,
+    KEY_REFRESHED_WIDGETS,
     PARTS,
     StaticCastExpression,
     add_warning,
+    get_data,
     get_options,
 )
 from .lv_validation import lv_bool, lv_milliseconds
@@ -70,9 +73,17 @@ from .widgets import (
     wait_for_widgets,
 )
 
-# Record widgets that are used in a focused action here
-focused_widgets = set()
-refreshed_widgets = set()
+# Widgets that are used in a focused/refreshed action are tracked in
+# ``CORE.data`` (under the lvgl domain) so the state is cleared between
+# successive compilations / unit tests via ``CORE.reset()``.
+
+
+def get_focused_widgets() -> set:
+    return get_data(KEY_FOCUSED_WIDGETS, set())
+
+
+def get_refreshed_widgets() -> set:
+    return get_data(KEY_REFRESHED_WIDGETS, set())
 
 
 async def layers_to_code(lv_component, config):
@@ -361,7 +372,7 @@ async def obj_show_to_code(config, action_id, template_arg, args):
 
 def focused_id(value):
     value = cv.use_id(lv_pseudo_button_t)(value)
-    focused_widgets.add(value)
+    get_focused_widgets().add(value)
     return value
 
 
@@ -446,8 +457,9 @@ async def obj_update_to_code(config, action_id, template_arg, args):
 
 
 def validate_refresh_config(config):
+    refreshed = get_refreshed_widgets()
     for w in config:
-        refreshed_widgets.add(w[CONF_ID])
+        refreshed.add(w[CONF_ID])
     return config
 
 

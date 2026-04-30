@@ -61,7 +61,6 @@ from ..lv_validation import (
     padding,
     pixels,
     pixels_or_percent,
-    requires_component,
     size,
 )
 from ..lvcode import LambdaContext, LocalVariable, lv, lv_add, lv_expr, lv_obj
@@ -214,7 +213,7 @@ INDICATOR_SCHEMA = cv.Schema(
                     cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(lv_image_t),
                 }
             ),
-            requires_component("image"),
+            cv.requires_component("image"),
         ),
         cv.Exclusive(CONF_ARC, CONF_INDICATORS): INDICATOR_ARC_SCHEMA.extend(
             {

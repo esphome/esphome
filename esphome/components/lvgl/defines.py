@@ -19,16 +19,26 @@ from esphome.cpp_generator import (
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
-from .helpers import requires_component
-
 LOGGER = logging.getLogger(__name__)
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
 
 DOMAIN = "lvgl"
 KEY_COLOR_FORMATS = "color_formats"
+KEY_ESPHOME_FONTS_USED = "esphome_fonts_used"
+KEY_FOCUSED_WIDGETS = "focused_widgets"
 KEY_LV_DEFINES = "lv_defines"
+KEY_LV_FONTS_USED = "lv_fonts_used"
+KEY_LV_IMAGES_USED = "lv_images_used"
+KEY_LV_USES = "lv_uses"
+KEY_LVGL_COMPONENTS_REQUIRED = "lvgl_components_required"
+KEY_NAMED_STYLES = "named_styles"
+KEY_REFRESHED_WIDGETS = "refreshed_widgets"
 KEY_REMAPPED_USES = "remapped_uses"
+KEY_STYLES_USED = "styles_used"
+KEY_THEME_WIDGET_MAP = "theme_widget_map"
 KEY_UPDATED_WIDGETS = "updated_widgets"
+KEY_WIDGET_MAP = "widget_map"
+KEY_WIDGETS_COMPLETED = "widgets_completed"
 KEY_OPTIONS = "options"
 KEY_WARNINGS = "warnings"
 
@@ -135,7 +145,7 @@ class LValidator:
 
     def __call__(self, value):
         if self.requires:
-            value = requires_component(self.requires)(value)
+            value = cv.requires_component(self.requires)(value)
         if isinstance(value, cv.Lambda):
             return cv.returning_lambda(value)
         return self.validator(value)

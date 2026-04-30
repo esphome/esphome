@@ -33,6 +33,10 @@ from ..defines import (
     CONF_SCALE,
     CONF_STYLES,
     CONF_WIDGETS,
+    KEY_STYLES_USED,
+    KEY_THEME_WIDGET_MAP,
+    KEY_WIDGET_MAP,
+    KEY_WIDGETS_COMPLETED,
     OBJ_FLAGS,
     PARTS,
     STATES,
@@ -40,6 +44,7 @@ from ..defines import (
     TYPE_GRID,
     LValidator,
     call_lambda,
+    get_data,
     join_enums,
     literal,
 )
@@ -67,8 +72,31 @@ from ..types import (
 
 EVENT_LAMB = "event_lamb__"
 
-theme_widget_map = {}
-styles_used = set()
+
+# These collections accumulate state across a single compilation run.  They
+# live in ``CORE.data`` (which ``CORE.reset()`` clears between runs) rather
+# than as module-level globals, so the state cannot leak from one
+# compilation / unit test into the next.
+def get_theme_widget_map() -> dict:
+    return get_data(KEY_THEME_WIDGET_MAP, {})
+
+
+def get_styles_used() -> set:
+    return get_data(KEY_STYLES_USED, set())
+
+
+def get_widget_map() -> dict:
+    return get_data(KEY_WIDGET_MAP, {})
+
+
+def get_widgets_completed() -> bool:
+    # ``[value]`` rather than the bare value so that we can mutate the
+    # entry in place; ``CORE.data`` is reset for us between runs.
+    return get_data(KEY_WIDGETS_COMPLETED, [False])[0]
+
+
+def set_widgets_completed(value: bool) -> None:
+    get_data(KEY_WIDGETS_COMPLETED, [False])[0] = value
 
 
 class WidgetType:
@@ -159,7 +187,7 @@ class WidgetType:
             await self.on_create(var, config)
 
         w = Widget.create(wid, var, self, config)
-        if theme := theme_widget_map.get(self.name):
+        if theme := get_theme_widget_map().get(self.name):
             for part, states in theme.items():
                 part = "LV_PART_" + part.upper()
                 for state, style in states.items():
@@ -242,8 +270,6 @@ class Widget:
     This class has a lot of methods. Adding any more runs foul of lint checks ("too many public methods").
     """
 
-    widgets_completed = False
-
     def __init__(self, var, wtype: WidgetType, config: dict = None):
         self.var = var
         self.type = wtype
@@ -264,7 +290,7 @@ class Widget:
     @staticmethod
     def create(name, var, wtype: WidgetType, config: dict = None):
         w = Widget(var, wtype, config)
-        widget_map[name] = w
+        get_widget_map()[name] = w
         return w
 
     def set_state(self, state: MockObj, value: bool | Expression):
@@ -344,7 +370,7 @@ class Widget:
     def set_style(self, prop, value, state=LV_STATE.DEFAULT):
         if value is None:
             return
-        styles_used.add(prop)
+        get_styles_used().add(prop)
         if isinstance(value, str):
             value = literal(value)
         lv.call(f"obj_set_style_{prop}", self.obj, value, state)
@@ -398,12 +424,8 @@ class Widget:
         return self.type.get_scale(self.config)
 
 
-# Map of widgets to their config, used for trigger generation
-widget_map: dict[ID, Widget] = {}
-
-
 def is_widget_completed(name: ID) -> bool:
-    return name in widget_map
+    return name in get_widget_map()
 
 
 class LvScrActType(WidgetType):
@@ -428,10 +450,11 @@ def get_widget_generator(wid):
     :param wid:
     :return:
     """
+    widget_map = get_widget_map()
     while True:
         if obj := widget_map.get(wid):
             return obj
-        if Widget.widgets_completed:
+        if get_widgets_completed():
             raise Invalid(
                 f"Widget {wid} not found, yet all widgets should be defined by now"
             )
@@ -439,20 +462,20 @@ def get_widget_generator(wid):
 
 
 async def get_widget_(wid):
-    if obj := widget_map.get(wid):
+    if obj := get_widget_map().get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))
 
 
 def widgets_wait_generator():
     while True:
-        if Widget.widgets_completed:
+        if get_widgets_completed():
             return
         yield
 
 
 async def wait_for_widgets():
-    if Widget.widgets_completed:
+    if get_widgets_completed():
         return
     await FakeAwaitable(widgets_wait_generator())
 

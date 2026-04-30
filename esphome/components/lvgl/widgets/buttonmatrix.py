@@ -19,7 +19,6 @@ from ..defines import (
     CONF_PAD_ROW,
     CONF_SELECTED,
 )
-from ..helpers import lvgl_components_required
 from ..lv_validation import key_code, lv_bool, padding
 from ..lvcode import lv, lv_add, lv_expr, lvgl_static
 from ..schemas import automation_schema
@@ -33,7 +32,7 @@ from ..types import (
     char_ptr,
     lv_pseudo_button_t,
 )
-from . import Widget, WidgetType, get_widgets, widget_map
+from . import Widget, WidgetType, get_widget_map, get_widgets
 from .button import lv_button_t
 
 CONF_BUTTONMATRIX = "buttonmatrix"
@@ -99,7 +98,7 @@ class MatrixButton(Widget):
     @staticmethod
     def create_button(id, parent, config: dict, index):
         w = MatrixButton(id, parent, config, index)
-        widget_map[id] = w
+        get_widget_map()[id] = w
         return w
 
     def __init__(self, id, parent: Widget, config, index):
@@ -192,7 +191,6 @@ class ButtonMatrixType(WidgetType):
         )
 
     async def to_code(self, w: Widget, config):
-        lvgl_components_required.add("BUTTONMATRIX")
         if CONF_ROWS not in config:
             return
         text_list, ctrl_list, width_list, key_list = await get_button_data(

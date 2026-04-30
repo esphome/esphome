@@ -32,7 +32,7 @@ from .defines import (
     LV_GRAD_DIR,
     get_remapped_uses,
 )
-from .helpers import CONF_IF_NAN, requires_component, validate_printf
+from .helpers import CONF_IF_NAN, validate_printf
 from .layout import (
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
@@ -110,7 +110,7 @@ PRESS_TIME = cv.All(
 ENCODER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.All(
-            cv.declare_id(LVEncoderListener), requires_component("binary_sensor")
+            cv.declare_id(LVEncoderListener), cv.requires_component("binary_sensor")
         ),
         cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
         cv.Optional(df.CONF_INITIAL_FOCUS): cv.All(
@@ -560,7 +560,7 @@ def any_widget_schema(extras=None):
             container_validator = container_schema(widget_type, extras=extras)
             if required := widget_type.required_component:
                 container_validator = cv.All(
-                    container_validator, requires_component(required)
+                    container_validator, cv.requires_component(required)
                 )
             # Apply custom validation
             path = [key] if is_dict else [index, key]
