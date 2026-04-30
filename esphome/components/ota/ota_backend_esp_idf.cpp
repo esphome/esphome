@@ -11,7 +11,6 @@
 #include <spi_flash_mmap.h>
 
 #ifdef USE_OTA_PARTITIONS
-#include "esphome/components/watchdog/watchdog.h"
 #include <esp_image_format.h>
 #include <nvs_flash.h>
 #endif

@@ -300,7 +300,7 @@ def perform_ota(
         raise OTAError(f"Unsupported OTA type: 0x{ota_type:02X}")
 
     if (
-        ota_type == OTA_TYPE_UPDATE_PARTITION_TABLE
+        ota_type != OTA_TYPE_UPDATE_APP
         and not features & SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS
     ):
         raise OTAError("Device only supports app updates")
