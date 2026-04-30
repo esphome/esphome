@@ -264,9 +264,12 @@ class ThrottleAverageFilter : public Filter {
 
  protected:
   float sum_{0.0f};
-  unsigned int n_{0};
   uint32_t time_period_;
-  bool have_nan_{false};
+  // Sample count packed with NaN-seen flag in a single 32-bit word.
+  // n_ is bounded by YAML cap on time_period_ (24 h) × max plausible source
+  // rate (1 kHz) = 86.4M ≪ 2^31, so 31 bits has 25x headroom.
+  uint32_t n_ : 31 {0};
+  uint32_t have_nan_ : 1 {0};
 };
 
 using lambda_filter_t = std::function<optional<float>(float)>;

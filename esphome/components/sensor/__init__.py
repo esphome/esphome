@@ -564,7 +564,12 @@ async def exponential_moving_average_filter_to_code(config, filter_id):
 
 
 @FILTER_REGISTRY.register(
-    "throttle_average", ThrottleAverageFilter, cv.positive_time_period_milliseconds
+    "throttle_average",
+    ThrottleAverageFilter,
+    cv.All(
+        cv.positive_time_period_milliseconds,
+        cv.Range(max=cv.TimePeriod(hours=24)),
+    ),
 )
 async def throttle_average_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
