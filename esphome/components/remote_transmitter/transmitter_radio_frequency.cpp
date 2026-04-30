@@ -6,6 +6,7 @@
 
 namespace esphome::remote_transmitter {
 
+#ifdef USE_RADIO_FREQUENCY
 static const char *const TAG = "remote_transmitter.radio_frequency";
 
 void TransmitterRadioFrequency::setup() { this->traits_.set_supports_transmitter(true); }
@@ -54,5 +55,6 @@ void TransmitterRadioFrequency::control(const radio_frequency::RadioFrequencyCal
   }
   tx_call.perform();
 }
+#endif  // USE_RADIO_FREQUENCY
 
 }  // namespace esphome::remote_transmitter
