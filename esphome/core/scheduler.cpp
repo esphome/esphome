@@ -899,12 +899,22 @@ void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
 #endif
 }
 
-// Shrink a SchedulerItem* vector's capacity to its current size via the swap-with-copy
-// idiom (std::vector::shrink_to_fit() is non-binding and our toolchain ignores it).
-// Out-of-line + noinline so the callers in trim_freelist() share one body instead of
-// inlining the construct-swap-destruct dance per call site (~440 B flash on ESP32).
+// Shrink a SchedulerItem* vector's capacity to its current size.
+// std::vector::shrink_to_fit() is non-binding and our toolchain ignores it; the classic
+// swap-with-copy idiom (std::vector<T>(other).swap(other)) instantiates the iterator-range
+// constructor which pulls in std::__throw_bad_array_new_length and ~120 B of related
+// stdlib RTTI/typeinfo. Build into a temp via reserve + push_back instead, then move-assign:
+// reserve uses operator new (throws bad_alloc, already linked) and push_back without growth
+// is the noexcept tail path. Move-assign just swaps pointers.
+// Out-of-line + noinline so the callers in trim_freelist() share one body.
 void __attribute__((noinline)) Scheduler::shrink_scheduler_vector_(std::vector<SchedulerItem *> *v) {
-  std::vector<SchedulerItem *>(*v).swap(*v);
+  if (v->capacity() == v->size())
+    return;  // already exact, common after a quiet period
+  std::vector<SchedulerItem *> tmp;
+  tmp.reserve(v->size());
+  for (SchedulerItem *p : *v)
+    tmp.push_back(p);
+  *v = std::move(tmp);
 }
 
 void Scheduler::trim_freelist() {
