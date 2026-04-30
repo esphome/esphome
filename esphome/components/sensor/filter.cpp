@@ -317,41 +317,19 @@ optional<float> or_filter_new_value(Filter **filters, size_t count, float value,
   return {};
 }
 
-// TimeoutFilterBase - shared loop logic
-void TimeoutFilterBase::loop() {
-  // Check if timeout period has elapsed
-  // Use cached loop start time to avoid repeated millis() calls
-  const uint32_t now = App.get_loop_component_start_time();
-  if (now - this->timeout_start_time_ >= this->time_period_) {
-    // Timeout fired - get output value from derived class and output it
-    this->output(this->get_output_value());
-
-    // Disable loop until next value arrives
-    this->disable_loop();
-  }
-}
-
-float TimeoutFilterBase::get_setup_priority() const { return setup_priority::HARDWARE; }
-
-// TimeoutFilterLast - "last" mode implementation
+// TimeoutFilterLast - "last" mode: re-arm on every input; output the latest value if no further
+// input arrives within time_period_. Self-keyed scheduler.set_timeout(this, ...) cancels any
+// pending arm with the same self-key and installs a new one.
 optional<float> TimeoutFilterLast::new_value(float value) {
-  // Store the value to output when timeout fires
   this->pending_value_ = value;
-
-  // Record when timeout started and enable loop
-  this->timeout_start_time_ = millis();
-  this->enable_loop();
-
+  App.scheduler.set_timeout(this, this->time_period_, [this]() { this->output(this->pending_value_); });
   return value;
 }
 
-// TimeoutFilterConfigured - configured value mode implementation
+// TimeoutFilterConfigured - configured-value mode: re-arm on every input; output the configured
+// value (static or lambda) if no further input arrives within time_period_.
 optional<float> TimeoutFilterConfigured::new_value(float value) {
-  // Record when timeout started and enable loop
-  // Note: we don't store the incoming value since we have a configured value
-  this->timeout_start_time_ = millis();
-  this->enable_loop();
-
+  App.scheduler.set_timeout(this, this->time_period_, [this]() { this->output(this->value_.value()); });
   return value;
 }
 

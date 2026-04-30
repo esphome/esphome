@@ -280,7 +280,7 @@ ThrottleWithPriorityFilter = sensor_ns.class_(
 ThrottleWithPriorityNanFilter = sensor_ns.class_(
     "ThrottleWithPriorityNanFilter", Filter
 )
-TimeoutFilterBase = sensor_ns.class_("TimeoutFilterBase", Filter, cg.Component)
+TimeoutFilterBase = sensor_ns.class_("TimeoutFilterBase", Filter)
 TimeoutFilterLast = sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
 TimeoutFilterConfigured = sensor_ns.class_("TimeoutFilterConfigured", TimeoutFilterBase)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter)
@@ -730,7 +730,6 @@ async def timeout_filter_to_code(config, filter_id):
         filter_id.type = TimeoutFilterConfigured
         template_ = await cg.templatable(config[CONF_VALUE], [], cg.float_)
         var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
-    await cg.register_component(var, {})
     return var
 
 
