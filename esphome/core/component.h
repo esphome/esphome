@@ -9,6 +9,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/millis_internal.h"
 #include "esphome/core/optional.h"
 
 // Forward declarations for friend access from codegen-generated setup()
@@ -116,6 +117,13 @@ struct ComponentRuntimeStats {
   uint64_t total_time_us{0};
   uint32_t total_max_time_us{0};
 
+  // Cumulative sum of every record_time() duration since boot, across all
+  // components. Used by Application::loop() to snapshot time spent inside
+  // WarnIfComponentBlockingGuard (including guards constructed by the
+  // scheduler at scheduler.cpp) so main-loop overhead accounting can
+  // subtract scheduled-callback time from the before_loop_tasks_ wall time.
+  static uint64_t global_recorded_us;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
   void record_time(uint32_t duration_us) {
     this->period_count++;
     this->period_time_us += duration_us;
@@ -125,6 +133,7 @@ struct ComponentRuntimeStats {
     this->total_time_us += duration_us;
     if (duration_us > this->total_max_time_us)
       this->total_max_time_us = duration_us;
+    global_recorded_us += duration_us;
   }
   void reset_period() {
     this->period_count = 0;
@@ -593,7 +602,7 @@ class Component {
  */
 class PollingComponent : public Component {
  public:
-  PollingComponent() : PollingComponent(0) {}
+  PollingComponent() : PollingComponent(SCHEDULER_DONT_RUN) {}
 
   /** Initialize this polling component with the given update interval in ms.
    *
@@ -646,9 +655,17 @@ class WarnIfComponentBlockingGuard {
   // Inlined: the fast path is just millis() + subtract + compare
   inline uint32_t HOT finish() {
 #ifdef USE_RUNTIME_STATS
-    this->component_->runtime_stats_.record_time(micros() - this->started_us_);
+    uint32_t elapsed_us = micros() - this->started_us_;
+    // component_ is nullptr for self-keyed scheduler items (set_timeout/set_interval(self, ...))
+    if (this->component_ != nullptr) {
+      this->component_->runtime_stats_.record_time(elapsed_us);
+    } else {
+      // Still accumulate into the global counter so Application::loop() can subtract
+      // this time from before_loop_tasks_ wall time.
+      ComponentRuntimeStats::global_recorded_us += elapsed_us;
+    }
 #endif
-    uint32_t curr_time = millis();
+    uint32_t curr_time = MillisInternal::get();
 #ifndef USE_BENCHMARK
     // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
     static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;

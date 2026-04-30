@@ -3,7 +3,6 @@
 #include "core.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/time_64.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
 
@@ -15,11 +14,7 @@ void loop();
 
 namespace esphome {
 
-void HOT yield() { ::yield(); }
-uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
-uint64_t millis_64() { return Millis64Impl::compute(::millis()); }
-uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
-void HOT delay(uint32_t ms) { ::delay(ms); }
+// yield(), delay(), micros(), millis(), millis_64() inlined in hal.h.
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
 
 void arch_init() {
@@ -35,7 +30,7 @@ void arch_init() {
   //
   // Raise to priority 6: above WiFi/LwIP tasks (4-5) so they don't preempt the
   // main loop, but below the TCP/IP thread (7) so packet processing keeps priority.
-  // This is safe because ESPHome yields voluntarily via yield_with_select_() and
+  // This is safe because ESPHome yields voluntarily via wakeable_delay() and
   // the Arduino mainTask yield() after each loop() iteration.
   static constexpr UBaseType_t MAIN_TASK_PRIORITY = 6;
   static_assert(MAIN_TASK_PRIORITY < configMAX_PRIORITIES, "MAIN_TASK_PRIORITY must be less than configMAX_PRIORITIES");
