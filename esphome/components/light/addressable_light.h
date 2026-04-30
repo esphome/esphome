@@ -25,7 +25,9 @@ class AddressableLightState final : public LightState {
   using LightState::LightState;
 
  public:
+#ifdef USE_LIGHT_POWER_ESTIMATION
   float get_estimated_current_ma();
+#endif
 };
 
 class AddressableLight : public LightOutput, public Component {
@@ -68,8 +70,9 @@ class AddressableLight : public LightOutput, public Component {
     this->correction_.set_max_brightness(
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
   }
-  void set_power_estimation(float ma_per_led_red, float ma_per_led_green, float ma_per_led_blue, float ma_per_led_white,
-                            float idle_ma_per_led) {
+#ifdef USE_LIGHT_POWER_ESTIMATION
+  void set_power_estimation(float ma_per_led_red, float ma_per_led_green, float ma_per_led_blue,
+                             float ma_per_led_white, float idle_ma_per_led) {
     this->ma_per_led_red_ = ma_per_led_red;
     this->ma_per_led_green_ = ma_per_led_green;
     this->ma_per_led_blue_ = ma_per_led_blue;
@@ -78,6 +81,7 @@ class AddressableLight : public LightOutput, public Component {
   }
   void set_max_current_ma(float max_current_ma) { this->max_current_ma_ = max_current_ma; }
   float get_estimated_current_ma();
+#endif
   void setup_state(LightState *state) override {
 #ifdef USE_LIGHT_GAMMA_LUT
     this->correction_.set_gamma_table(state->get_gamma_table());
@@ -86,7 +90,9 @@ class AddressableLight : public LightOutput, public Component {
   }
   void update_state(LightState *state) override;
   void schedule_show() {
+#ifdef USE_LIGHT_POWER_ESTIMATION
     this->apply_power_limit_();
+#endif
     this->state_parent_->schedule_write_();
   }
 
@@ -112,26 +118,32 @@ class AddressableLight : public LightOutput, public Component {
   }
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
+#ifdef USE_LIGHT_POWER_ESTIMATION
   void apply_power_limit_();
+#endif
 
   ESPColorCorrection correction_{};
   LightState *state_parent_{nullptr};
+#ifdef USE_LIGHT_POWER_ESTIMATION
   float ma_per_led_red_{20.0f};
   float ma_per_led_green_{20.0f};
   float ma_per_led_blue_{20.0f};
   float ma_per_led_white_{20.0f};
   float idle_ma_per_led_{1.0f};
   float max_current_ma_{0.0f};  // 0 = disabled
+#endif
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
 #endif
   bool effect_active_{false};
 };
 
+#ifdef USE_LIGHT_POWER_ESTIMATION
 // Defined here (after AddressableLight is complete) to avoid incomplete-type cast error.
 inline float AddressableLightState::get_estimated_current_ma() {
   return static_cast<AddressableLight *>(this->get_output())->get_estimated_current_ma();
 }
+#endif
 
 class AddressableLightTransformer : public LightTransformer {
  public:

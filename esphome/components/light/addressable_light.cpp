@@ -5,6 +5,7 @@ namespace esphome::light {
 
 static const char *const TAG = "light.addressable";
 
+#ifdef USE_LIGHT_POWER_ESTIMATION
 float AddressableLight::get_estimated_current_ma() {
   float total = 0.0f;
   for (int i = 0; i < this->size(); i++) {
@@ -19,26 +20,37 @@ float AddressableLight::get_estimated_current_ma() {
 }
 
 void AddressableLight::apply_power_limit_() {
-  if (this->max_current_ma_ <= 0.0f)
+  if (this->max_current_ma_ <= 0.0f || this->is_effect_active())
     return;
 
-  float estimated = this->get_estimated_current_ma();
+  // First pass: estimate total current draw from the current buffer.
+  // A second pass is required to scale, so two iterations are unavoidable.
+  float estimated = 0.0f;
+  for (int i = 0; i < this->size(); i++) {
+    auto pixel = this->get(i);
+    estimated += (pixel.get_red_raw() / 255.0f) * this->ma_per_led_red_;
+    estimated += (pixel.get_green_raw() / 255.0f) * this->ma_per_led_green_;
+    estimated += (pixel.get_blue_raw() / 255.0f) * this->ma_per_led_blue_;
+    estimated += (pixel.get_white_raw() / 255.0f) * this->ma_per_led_white_;
+    estimated += this->idle_ma_per_led_;
+  }
   if (estimated <= this->max_current_ma_)
     return;
 
   // Scale factor in 0-255 range: 255 = no reduction, 0 = fully off.
   auto scale = static_cast<uint8_t>((this->max_current_ma_ / estimated) * 255.0f);
 
+  // Second pass: scale raw (already gamma- and brightness-corrected) hardware
+  // values directly so gamma is not applied a second time.
   for (int i = 0; i < this->size(); i++) {
     auto view = this->get(i);
-    // Scale raw (already gamma- and brightness-corrected) hardware values directly
-    // so gamma is not applied a second time.
     view.set_red_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_red_raw()) * scale) >> 8));
     view.set_green_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_green_raw()) * scale) >> 8));
     view.set_blue_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_blue_raw()) * scale) >> 8));
     view.set_white_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_white_raw()) * scale) >> 8));
   }
 }
+#endif
 
 void AddressableLight::call_setup() {
   this->setup();

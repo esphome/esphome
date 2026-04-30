@@ -449,6 +449,7 @@ async def setup_light_core_(light_var, config, output_var):
         cg.add(output_var.set_power_supply(var_))
 
     if (power_estimation := config.get(CONF_POWER_ESTIMATION)) is not None:
+        cg.add_define("USE_LIGHT_POWER_ESTIMATION")
         cg.add(
             output_var.set_power_estimation(
                 power_estimation[CONF_MA_PER_LED_RED],
