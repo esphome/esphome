@@ -180,16 +180,10 @@ async def test_scheduler_pool(
     # Verify pool behavior
     assert pool_recycle_count > 0, "Should have recycled items to pool"
 
-    # Check pool metrics
-    if pool_recycle_count > 0:
-        max_pool_size = 0
-        for line in log_lines:
-            if match := recycle_pattern.search(line):
-                size = int(match.group(1))
-                max_pool_size = max(max_pool_size, size)
-
-        # Pool can grow up to its maximum of 5
-        assert max_pool_size <= 5, f"Pool grew beyond maximum ({max_pool_size})"
+    # Pool is unbounded; the cap was the source of the churn it was meant to prevent.
+    assert pool_full_count == 0, (
+        f"Pool should never report full (got {pool_full_count})"
+    )
 
     # Log summary for debugging
     print("\nScheduler Pool Test Summary (Python Orchestrated):")
