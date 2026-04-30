@@ -14,6 +14,23 @@ from esphome.util import run_external_process
 _LOGGER = logging.getLogger(__name__)
 
 
+def _strip_win_long_path_prefix(path: str) -> str:
+    r"""Strip the Windows extended-length path prefix (``\\?\``) from ``path``.
+
+    The NSIS-installed ``esphome.exe`` launcher on Windows starts Python with
+    ``sys.executable`` already prefixed with ``\\?\``. That prefix propagates
+    into PlatformIO's ``PYTHONEXE`` (set from ``os.path.normpath(sys.executable)``)
+    and ends up baked into SCons-emitted command lines for build steps such as
+    the esp8266 ``elf2bin`` invocation. ``cmd.exe`` does not understand the
+    ``\\?\`` prefix, so the build fails with "The system cannot find the path
+    specified." Stripping the prefix early keeps PlatformIO's ``$PYTHONEXE``
+    shell-quotable.
+    """
+    if sys.platform == "win32" and path.startswith("\\\\?\\"):
+        return path[4:]
+    return path
+
+
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
@@ -24,7 +41,14 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
     os.environ.setdefault("UV_HTTP_RETRIES", "10")
-    cmd = [sys.executable, "-m", "esphome.platformio_runner"] + list(args)
+    # Strip the Windows extended-length path prefix from sys.executable so it
+    # doesn't propagate into PlatformIO's PYTHONEXE and break SCons-emitted
+    # command lines run through cmd.exe.
+    python_exe = _strip_win_long_path_prefix(sys.executable)
+    # Pin PYTHONEXE explicitly as a belt-and-suspenders safeguard for the
+    # subprocess in case its sys.executable is still resolved with the prefix.
+    os.environ["PYTHONEXEPATH"] = python_exe
+    cmd = [python_exe, "-m", "esphome.platformio_runner"] + list(args)
 
     return run_external_process(*cmd, **kwargs)
 
