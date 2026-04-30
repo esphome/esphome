@@ -782,7 +782,7 @@ def test_perform_ota_version_differences(
 def test_perform_ota_extended_protocol_app(
     mock_socket: Mock, mock_file: io.BytesIO
 ) -> None:
-    """Test OTA partition table update."""
+    """Test OTA extended protocol app update."""
     recv_responses = [
         bytes([espota2.RESPONSE_OK]),  # First byte of version response
         bytes([espota2.OTA_VERSION_2_0]),  # Version number
@@ -807,7 +807,7 @@ def test_perform_ota_extended_protocol_app(
         mock_socket,
         "testpass",
         mock_file,
-        "partitions.bin",
+        "test.bin",
         espota2.OTA_TYPE_UPDATE_APP,
     )
 
@@ -850,6 +850,6 @@ def test_perform_ota_extended_protocol_unsupported_type(
             mock_socket,
             "testpass",
             mock_file,
-            "partitions.bin",
+            "test.bin",
             255,
         )

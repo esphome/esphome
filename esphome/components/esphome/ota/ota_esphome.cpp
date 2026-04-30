@@ -100,9 +100,6 @@ void ESPHomeOTAComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Password configured");
   }
 #endif
-#ifdef USE_OTA_PARTITIONS
-  ESP_LOGCONFIG(TAG, "  Partition access allowed");
-#endif
 }
 
 void ESPHomeOTAComponent::loop() {
@@ -211,19 +208,16 @@ void ESPHomeOTAComponent::handle_handshake_() {
       const bool supports_compression =
           (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression();
 
-      // Compose the feature-ack response. When USE_OTA_PARTITIONS is enabled and the client
+      // Compose the feature-ack response. When the client
       // negotiates the extended protocol we emit a 2-byte response (marker + server feature flags);
       // otherwise we emit the single-byte legacy response. The #ifdef wraps only the extended-proto
       // branch so the legacy branch reads as unconditional code in either build configuration.
-#ifdef USE_OTA_PARTITIONS
       this->extended_proto_ = (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
       if (this->extended_proto_) {
         this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
         this->handshake_buf_[1] =
             SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS | (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
-      } else
-#endif
-      {
+      } else {
         this->handshake_buf_[0] =
             supports_compression ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION : ota::OTA_RESPONSE_HEADER_OK;
       }
@@ -231,11 +225,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
     }
 
     case OTAState::FEATURE_ACK: {
-#ifdef USE_OTA_PARTITIONS
       const size_t ack_size = this->extended_proto_ ? 2 : 1;
-#else
-      const size_t ack_size = 1;
-#endif
       if (!this->try_write_(ack_size, LOG_STR("ack feature"))) {
         return;
       }
@@ -322,9 +312,7 @@ void ESPHomeOTAComponent::handle_data_() {
   uint8_t buf[OTA_BUFFER_SIZE];
   char *sbuf = reinterpret_cast<char *>(buf);
   size_t ota_size;
-#ifdef USE_OTA_PARTITIONS
   ota::OTAType ota_type = ota::OTA_TYPE_UPDATE_APP;
-#endif
 #if USE_OTA_VERSION == 2
   size_t size_acknowledged = 0;
 #endif
@@ -340,7 +328,6 @@ void ESPHomeOTAComponent::handle_data_() {
   // Acknowledge auth OK - 1 byte
   this->write_byte_(ota::OTA_RESPONSE_AUTH_OK);
 
-#ifdef USE_OTA_PARTITIONS
   if (this->extended_proto_) {
     // Read ota type, 1 byte
     if (!this->readall_(buf, 1)) {
@@ -350,7 +337,6 @@ void ESPHomeOTAComponent::handle_data_() {
     ota_type = static_cast<ota::OTAType>(buf[0]);
   }
   ESP_LOGV(TAG, "OTA type is 0x%02x", ota_type);
-#endif
 
   // Read size, 4 bytes MSB first
   if (!this->readall_(buf, 4)) {
@@ -371,13 +357,11 @@ void ESPHomeOTAComponent::handle_data_() {
   this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
-  // This will block for a few seconds as it locks flash
-#ifdef USE_OTA_PARTITIONS
   if (ota_type != ota::OTA_TYPE_UPDATE_APP) {
     error_code = ota::OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
-#endif
+  // This will block for a few seconds as it locks flash
   error_code = this->backend_->begin(ota_size);
   if (error_code != ota::OTA_RESPONSE_OK)
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
