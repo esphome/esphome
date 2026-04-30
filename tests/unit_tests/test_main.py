@@ -53,6 +53,7 @@ from esphome.__main__ import (
 )
 from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
+from esphome.components import esp32
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
@@ -3985,7 +3986,7 @@ def test_run_miniterm_batches_lines_with_same_timestamp(
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
     ):
         mock_bt.return_value = False
         result = run_miniterm(config, "/dev/ttyUSB0", args)
@@ -4024,7 +4025,7 @@ def test_run_miniterm_different_chunks_different_timestamps(
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
     ):
         mock_bt.return_value = False
         result = run_miniterm(config, "/dev/ttyUSB0", args)
@@ -4055,7 +4056,7 @@ def test_run_miniterm_handles_split_lines() -> None:
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
         patch("esphome.__main__.safe_print") as mock_print,
     ):
         mock_bt.return_value = False
@@ -4109,7 +4110,7 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
     with (
         patch("serial.Serial", return_value=mock_serial),
         patch.object(
-            platformio_api,
+            esp32,
             "process_stacktrace",
             side_effect=track_backtrace_state,
         ),
@@ -4160,7 +4161,7 @@ def test_run_miniterm_handles_empty_reads(
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
     ):
         mock_bt.return_value = False
         result = run_miniterm(config, "/dev/ttyUSB0", args)
@@ -4233,7 +4234,7 @@ def test_run_miniterm_buffer_limit_prevents_unbounded_growth() -> None:
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
         patch("esphome.__main__.safe_print") as mock_print,
         patch("esphome.__main__.SERIAL_BUFFER_MAX_SIZE", test_buffer_limit),
     ):
