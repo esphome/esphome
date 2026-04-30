@@ -457,9 +457,9 @@ void ModbusServerHub::send(uint8_t address, uint8_t function_code, const std::ve
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
-void ModbusClientHub::send_raw(const uint8_t *payload, uint16_t len, ModbusClientDevice *device,
-                               bool allow_duplicates) {
-  if (len == 0) {
+void ModbusClientHub::queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device,
+                                 bool allow_duplicates) {
+  if (pdu_len == 0) {
     if (device)
       device->on_modbus_not_sent();
     return;
@@ -468,12 +468,12 @@ void ModbusClientHub::send_raw(const uint8_t *payload, uint16_t len, ModbusClien
   if (!allow_duplicates) {
     for (const auto &item : this->tx_buffer_) {
       // Compare raw bytes (excluding CRC which is appended by ModbusFrame constructor)
-      if (item.device == device && item.frame.size - 2 == len &&
-          std::memcmp(item.frame.data.get(), payload, len) == 0) {
+      if (item.device == device && item.frame.data[0] == address && item.frame.size - 3 == pdu_len &&
+          std::memcmp(item.frame.data.get() + 1, pdu, pdu_len) == 0) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARNING
         char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-        ESP_LOGW(TAG, "Frame already in tx queue, dropping: %s", format_hex_pretty_to(hex_buf, payload, len));
+        ESP_LOGW(TAG, "Frame already in tx queue, dropping: %s", format_hex_pretty_to(hex_buf, pdu, pdu_len));
         if (device)
           device->on_modbus_not_sent();
         return;
@@ -485,40 +485,16 @@ void ModbusClientHub::send_raw(const uint8_t *payload, uint16_t len, ModbusClien
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-    ESP_LOGV(TAG, "Adding frame to tx queue: %s", format_hex_pretty_to(hex_buf, payload, len));
-    this->tx_buffer_.emplace_back(device, payload, len);
+    ESP_LOGV(TAG, "Adding frame to tx queue: %" PRIu8 ":%s", address, format_hex_pretty_to(hex_buf, pdu, pdu_len));
+    this->tx_buffer_.emplace_back(device, address, pdu, pdu_len);
   } else {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
     char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-    ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty_to(hex_buf, payload, len));
+    ESP_LOGE(TAG, "Write buffer full, dropped: %" PRIu8 ":%s", address, format_hex_pretty_to(hex_buf, pdu, pdu_len));
     if (device)
       device->on_modbus_not_sent();
   }
-}
-
-// Helper function for lambdas
-// Send raw command for client pushes to queue. Except CRC everything must be contained in payload
-void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device, bool allow_duplicates) {
-  if (payload.empty()) {
-    if (device)
-      device->on_modbus_not_sent();
-    return;
-  }
-
-  if (!is_client_frame_length_valid(payload, false)) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARNING
-    char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
-#endif
-    ESP_LOGW(TAG, "Frame is incorrect length, sending: %s",
-             format_hex_pretty_to(hex_buf, payload.data(), payload.size()));
-    // TODO: Decide whether to actually drop frames of incorrect length. How common is this?
-    //  if (device)
-    //    device->on_modbus_not_sent();
-    //  return;
-  }
-
-  this->send_raw(payload.data(), static_cast<uint16_t>(payload.size()), device, allow_duplicates);
 }
 
 void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
@@ -552,6 +528,15 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
   }
 }
 
+void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device) {
+  if (payload.size() < 2) {
+    if (device)
+      device->on_modbus_not_sent();
+    return;
+  }
+  this->queue_raw_(payload[0], payload.data() + 1, static_cast<uint16_t>(payload.size() - 1), device);
+}
+
 // Send raw command for server replies immediately. Except CRC everything must be contained in payload
 void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
   if (len == 0) {
@@ -561,10 +546,10 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
   // In the rare case that the server is blocked (turnaround delay is greater than the MODBUS_TX_MAX_DELAY_MS), we delay
   // the send. This should only happen at low baud rates with long turnaround times.
   if (this->tx_blocked()) {
-    auto frame = std::make_shared<ModbusFrame>(payload, len);
+    auto frame = std::make_shared<ModbusFrame>(payload[0], payload + 1, len - 1);
     this->set_timeout(this->turnaround_delay_remaining_(), [this, frame]() { this->send_frame_(*frame); });
   } else {
-    ModbusFrame frame(payload, len);
+    ModbusFrame frame(payload[0], payload + 1, len - 1);
     this->send_frame_(frame);
   }
 }
