@@ -1729,6 +1729,14 @@ def parse_args(argv):
         action="store_true",
         default=False,
     )
+    options_parser.add_argument(
+        "--toolchain",
+        type=Toolchain,
+        default=Toolchain.PLATFORMIO,
+        choices=list(Toolchain),
+        metavar="{" + ",".join(t.value for t in Toolchain) + "}",
+        help=f"Select toolchain for compiling (default: {Toolchain.PLATFORMIO.value}).",
+    )
 
     parser = argparse.ArgumentParser(
         description=f"ESPHome {const.__version__}", parents=[options_parser]
@@ -1772,14 +1780,6 @@ def parse_args(argv):
         "--only-generate",
         help="Only generate source code, do not compile.",
         action="store_true",
-    )
-    parser_compile.add_argument(
-        "--toolchain",
-        type=Toolchain,
-        default=Toolchain.PLATFORMIO,
-        choices=list(Toolchain),
-        metavar="{" + ",".join(t.value for t in Toolchain) + "}",
-        help=f"Select toolchain for compiling (default: {Toolchain.PLATFORMIO.value}).",
     )
 
     parser_upload = subparsers.add_parser(
@@ -1866,14 +1866,6 @@ def parse_args(argv):
         action="store_true",
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
-    )
-    parser_run.add_argument(
-        "--toolchain",
-        type=Toolchain,
-        default=Toolchain.PLATFORMIO,
-        choices=list(Toolchain),
-        metavar="{" + ",".join(t.value for t in Toolchain) + "}",
-        help=f"Select toolchain for compiling (default: {Toolchain.PLATFORMIO.value}).",
     )
 
     parser_clean = subparsers.add_parser(
@@ -2086,8 +2078,7 @@ def run_esphome(argv):
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
-    if hasattr(args, "toolchain"):
-        CORE.toolchain = args.toolchain
+    CORE.toolchain = args.toolchain
 
     # For logs command, skip updating external components
     skip_external = args.command == "logs"

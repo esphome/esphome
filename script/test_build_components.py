@@ -371,11 +371,11 @@ def run_esphome_test(
         ]
     )
 
+    if toolchain:
+        cmd.extend(["--toolchain", toolchain])
+
     # Add command
     cmd.append(esphome_command)
-
-    if toolchain and esphome_command == "compile":
-        cmd.extend(["--toolchain", toolchain])
 
     # Add config file
     cmd.append(str(output_file))
@@ -521,11 +521,13 @@ def run_grouped_test(
         "-s",
         "target_platform",
         platform,
-        esphome_command,
     ]
 
-    if toolchain and esphome_command == "compile":
+    if toolchain:
         cmd.extend(["--toolchain", toolchain])
+
+    # Add command
+    cmd.append(esphome_command)
 
     cmd.append(str(output_file))
 
