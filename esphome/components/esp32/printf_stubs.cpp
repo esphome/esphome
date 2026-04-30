@@ -13,14 +13,20 @@
  * and printf() calls in SDK components are only in debug/assert paths
  * (gpio_dump_io_configuration, ringbuf diagnostics) that are either
  * GC'd or never called. Crash backtraces and panic output are
- * unaffected — they use esp_rom_printf() which is a ROM function
+ * unaffected; they use esp_rom_printf() which is a ROM function
  * and does not go through libc.
  *
- * These stubs redirect through vsnprintf() (which uses _svfprintf_r
- * already in the binary) and fwrite(), allowing the linker to
- * dead-code eliminate _vfprintf_r.
+ * On picolibc (default for IDF >= 5 on RISC-V, IDF >= 6 everywhere) we
+ * route output through a stack-allocated cookie FILE that forwards each
+ * byte to the real target stream via fputc(). Picolibc's tinystdio
+ * vfprintf walks the FILE::put callback one character at a time, so this
+ * costs ~32 bytes of stack for the cookie struct vs. a 512-byte format
+ * buffer. The buffered path overflows the loopTask stack on IDF 6.
  *
- * Saves ~11 KB of flash.
+ * On newlib we fall back to a small bounded buffer; truncation is fine
+ * because these paths are not reached in practice.
+ *
+ * Saves ~11 KB of flash on newlib, ~2.8 KB on picolibc.
  *
  * To disable these wraps, set enable_full_printf: true in the esp32
  * advanced config section.
@@ -30,24 +36,51 @@
 #include <cstdarg>
 #include <cstdio>
 
-#include "esp_system.h"
-
 namespace esphome::esp32 {}
 
-static constexpr size_t PRINTF_BUFFER_SIZE = 512;
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+extern "C" {
 
-// These stubs are essentially dead code at runtime — ESPHome replaces the
-// ESP-IDF log handler, and the SDK's printf/fprintf calls only exist in
-// debug/assert paths that are never reached in normal operation.
-// The buffer overflow check is purely defensive and should never trigger.
+#ifdef __PICOLIBC__
+
+extern int __real_vfprintf(FILE *stream, const char *fmt, va_list ap);
+
+namespace {
+
+struct CookieFile {
+  FILE base;
+  FILE *target;
+};
+
+int cookie_put(char c, FILE *stream) {
+  auto *cookie = reinterpret_cast<CookieFile *>(stream);
+  return fputc(static_cast<unsigned char>(c), cookie->target);
+}
+
+const FILE COOKIE_FILE_TEMPLATE = FDEV_SETUP_STREAM(cookie_put, nullptr, nullptr, _FDEV_SETUP_WRITE);
+
+}  // namespace
+
+int __wrap_vfprintf(FILE *stream, const char *fmt, va_list ap) {
+  CookieFile cookie;
+  cookie.base = COOKIE_FILE_TEMPLATE;
+  cookie.target = stream;
+  return __real_vfprintf(&cookie.base, fmt, ap);
+}
+
+int __wrap_vprintf(const char *fmt, va_list ap) { return __wrap_vfprintf(stdout, fmt, ap); }
+
+#else  // !__PICOLIBC__ -- newlib fallback with a small bounded buffer
+
+static constexpr size_t PRINTF_BUFFER_SIZE = 128;
+
 static int write_printf_buffer(FILE *stream, char *buf, int len) {
   if (len < 0) {
     return len;
   }
-  size_t write_len = len;
+  size_t write_len = static_cast<size_t>(len);
   if (write_len >= PRINTF_BUFFER_SIZE) {
-    fwrite(buf, 1, PRINTF_BUFFER_SIZE - 1, stream);
-    esp_system_abort("printf buffer overflow; set enable_full_printf: true in esp32 framework advanced config");
+    write_len = PRINTF_BUFFER_SIZE - 1;
   }
   if (fwrite(buf, 1, write_len, stream) < write_len || ferror(stream)) {
     return -1;
@@ -55,13 +88,17 @@ static int write_printf_buffer(FILE *stream, char *buf, int len) {
   return len;
 }
 
-// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
-extern "C" {
-
 int __wrap_vprintf(const char *fmt, va_list ap) {
   char buf[PRINTF_BUFFER_SIZE];
   return write_printf_buffer(stdout, buf, vsnprintf(buf, sizeof(buf), fmt, ap));
 }
+
+int __wrap_vfprintf(FILE *stream, const char *fmt, va_list ap) {
+  char buf[PRINTF_BUFFER_SIZE];
+  return write_printf_buffer(stream, buf, vsnprintf(buf, sizeof(buf), fmt, ap));
+}
+
+#endif  // __PICOLIBC__
 
 int __wrap_printf(const char *fmt, ...) {
   va_list ap;
@@ -69,11 +106,6 @@ int __wrap_printf(const char *fmt, ...) {
   int len = __wrap_vprintf(fmt, ap);
   va_end(ap);
   return len;
-}
-
-int __wrap_vfprintf(FILE *stream, const char *fmt, va_list ap) {
-  char buf[PRINTF_BUFFER_SIZE];
-  return write_printf_buffer(stream, buf, vsnprintf(buf, sizeof(buf), fmt, ap));
 }
 
 int __wrap_fprintf(FILE *stream, const char *fmt, ...) {
