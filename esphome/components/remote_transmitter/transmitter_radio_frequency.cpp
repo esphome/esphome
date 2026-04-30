@@ -9,7 +9,12 @@ namespace esphome::remote_transmitter {
 #ifdef USE_RADIO_FREQUENCY
 static const char *const TAG = "remote_transmitter.radio_frequency";
 
-void TransmitterRadioFrequency::setup() { this->traits_.set_supports_transmitter(true); }
+void TransmitterRadioFrequency::setup() {
+  this->traits_.set_supports_transmitter(true);
+
+  // remote_transmitter/receiver always uses OOK (on-off keying)
+  this->traits_.add_supported_modulation(radio_frequency::Modulation::OOK);
+}
 
 void TransmitterRadioFrequency::control(const radio_frequency::RadioFrequencyCall &call) {
   if (this->transmitter_ == nullptr) {
