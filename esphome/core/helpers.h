@@ -2045,7 +2045,8 @@ void delay_microseconds_safe(uint32_t us);
  * Returns `nullptr` in case no memory is available.
  *
  * By setting flags, it can be configured to:
- * - perform external allocation falling back to main memory if SPI RAM is full or unavailable
+ * - perform external allocation falling back to internal memory if SPI RAM is full or unavailable (default)
+ * - perform internal allocation falling back to external memory (with PREFER_INTERNAL)
  * - perform external allocation only
  * - perform internal allocation only
  */
@@ -2054,16 +2055,26 @@ template<class T> class RAMAllocator {
   using value_type = T;
 
   enum Flags {
-    NONE = 0,                 // Perform external allocation and fall back to internal memory
-    ALLOC_EXTERNAL = 1 << 0,  // Perform external allocation only.
-    ALLOC_INTERNAL = 1 << 1,  // Perform internal allocation only.
-    ALLOW_FAILURE = 1 << 2,   // Does nothing. Kept for compatibility.
+    NONE = 0,                  // Perform external allocation and fall back to internal memory
+    ALLOC_EXTERNAL = 1 << 0,   // Perform external allocation only.
+    ALLOC_INTERNAL = 1 << 1,   // Perform internal allocation only.
+    ALLOW_FAILURE = 1 << 2,    // Does nothing. Kept for compatibility.
+    PREFER_INTERNAL = 1 << 3,  // Perform internal allocation and fall back to external memory
   };
 
   constexpr RAMAllocator() = default;
-  constexpr RAMAllocator(uint8_t flags)
-      : flags_((flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL)) != 0 ? (flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL))
-                                                                : (ALLOC_INTERNAL | ALLOC_EXTERNAL)) {}
+  constexpr RAMAllocator(uint8_t flags) {
+    if (flags & PREFER_INTERNAL) {
+      this->flags_ = ALLOC_INTERNAL | ALLOC_EXTERNAL | PREFER_INTERNAL;
+      return;
+    }
+    const uint8_t alloc_bits = flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL);
+    if (alloc_bits != 0) {
+      this->flags_ = alloc_bits;
+      return;
+    }
+    this->flags_ = ALLOC_INTERNAL | ALLOC_EXTERNAL;
+  }
   template<class U> constexpr RAMAllocator(const RAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) { return this->allocate(n, sizeof(T)); }
@@ -2072,12 +2083,8 @@ template<class T> class RAMAllocator {
     size_t size = n * manual_size;
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    if (this->flags_ & Flags::ALLOC_EXTERNAL) {
-      ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    }
-    if (ptr == nullptr && this->flags_ & Flags::ALLOC_INTERNAL) {
-      ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-    }
+    const auto caps = this->get_caps_();
+    ptr = static_cast<T *>(heap_caps_malloc_prefer(size, 2, caps[0], caps[1]));
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
     ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
@@ -2091,12 +2098,8 @@ template<class T> class RAMAllocator {
     size_t size = n * manual_size;
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    if (this->flags_ & Flags::ALLOC_EXTERNAL) {
-      ptr = static_cast<T *>(heap_caps_realloc(p, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    }
-    if (ptr == nullptr && this->flags_ & Flags::ALLOC_INTERNAL) {
-      ptr = static_cast<T *>(heap_caps_realloc(p, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-    }
+    const auto caps = this->get_caps_();
+    ptr = static_cast<T *>(heap_caps_realloc_prefer(p, size, 2, caps[0], caps[1]));
 #else
     // Ignore ALLOC_EXTERNAL/ALLOC_INTERNAL flags if external allocation is not supported
     ptr = static_cast<T *>(realloc(p, size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
@@ -2147,6 +2150,24 @@ template<class T> class RAMAllocator {
   }
 
  private:
+#ifdef USE_ESP32
+  /// Returns {primary_caps, fallback_caps} for heap_caps_*_prefer based on the configured flags.
+  /// PREFER_INTERNAL implies both regions are enabled (enforced by the constructor), so when it is set
+  /// the primary is internal and the fallback is external. Otherwise the primary is whichever region
+  /// is enabled (external preferred when both are enabled), and the fallback is the other region (or
+  /// the same region when only one is enabled, making the second attempt a no-op).
+  std::array<uint32_t, 2> get_caps_() const {
+    constexpr uint32_t external_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    constexpr uint32_t internal_caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+    if (this->flags_ & PREFER_INTERNAL) {
+      return {internal_caps, external_caps};
+    }
+    const uint32_t primary = (this->flags_ & ALLOC_EXTERNAL) ? external_caps : internal_caps;
+    const uint32_t fallback = (this->flags_ & ALLOC_INTERNAL) ? internal_caps : external_caps;
+    return {primary, fallback};
+  }
+#endif
+
   uint8_t flags_{ALLOC_INTERNAL | ALLOC_EXTERNAL};
 };
 
