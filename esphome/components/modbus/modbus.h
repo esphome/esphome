@@ -31,23 +31,6 @@ struct ModbusFrame {
     data[pdu_len + 1] = crc >> 0;
     data[pdu_len + 2] = crc >> 8;
   }
-
-  bool operator==(const ModbusFrame &other) const {
-    if (this->size != other.size) {
-      return false;
-    }
-    return std::memcmp(this->data.get(), other.data.get(), this->size) == 0;
-  }
-
-  // This is a comparison against a raw payload (without CRC).
-  // This is used to check for duplicates in the tx queue without needing to construct full ModbusFrames for every item
-  // in the queue.
-  bool operator==(const std::vector<uint8_t> &other) const {
-    if (this->size - 2 != other.size()) {
-      return false;
-    }
-    return std::memcmp(this->data.get(), other.data(), other.size()) == 0;
-  }
 };
 
 class Modbus : public uart::UARTDevice, public Component {
@@ -112,22 +95,16 @@ class ModbusClientHub : public Modbus {
   bool tx_blocked() override;
   ESPDEPRECATED("Use send_pdu() with create_client_pdu() instead. Removed in 2026.10.0", "2026.4.0")
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-            uint8_t payload_len = 0, const uint8_t *payload = nullptr, ModbusClientDevice *device = nullptr,
-            bool allow_duplicates = false) {
+            uint8_t payload_len = 0, const uint8_t *payload = nullptr, ModbusClientDevice *device = nullptr) {
     this->send_pdu(address,
                    helpers::create_client_pdu((ModbusFunctionCode) function_code, start_address, number_of_entities,
                                               payload, payload_len),
-                   device, allow_duplicates);
+                   device);
   };
-  void send_pdu(uint8_t address, const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu, ModbusClientDevice *device = nullptr,
-                bool allow_duplicates = false) {
-    this->queue_raw_(address, pdu.data(), pdu.size(), device, allow_duplicates);
+  void send_pdu(uint8_t address, const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu, ModbusClientDevice *device = nullptr) {
+    this->queue_raw_(address, pdu.data(), pdu.size(), device);
   }
-  ESPDEPRECATED(
-      "Use send_pdu(uint8_t address, const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu) instead. Removed in 2026.10.0",
-      "2026.4.0")
-  void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr,
-                bool allow_duplicates = false);
+  void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
@@ -135,8 +112,7 @@ class ModbusClientHub : public Modbus {
   void parse_modbus_frames() override;
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
   void send_next_frame_();
-  void queue_raw_(const uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device = nullptr,
-                  bool allow_duplicates = false);
+  void queue_raw_(const uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device = nullptr);
 
   uint16_t send_wait_time_{2000};
   std::optional<ModbusDeviceCommand> waiting_for_response_;
@@ -152,7 +128,7 @@ class ModbusServerHub : public Modbus {
   ModbusServerHub() = default;
   void dump_config() override;
   void send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload);
-  ESPDEPRECATED("Use send_raw_(const uint8_t *, uint16_t) instead. Removed in 2026.10.0", "2026.4.0")
+  ESPDEPRECATED("Use ModbusServerDevice::send_raw instead. Removed in 2026.10.0", "2026.4.0")
   void send_raw(const std::vector<uint8_t> &payload) {
     this->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
   };
@@ -189,7 +165,6 @@ class ModbusClientDevice {
                             this);
   }
   void send_pdu(const StaticVector<uint8_t, MAX_PDU_SIZE> &pdu) { this->parent_->send_pdu(this->address_, pdu, this); }
-  ESPDEPRECATED("Use send_pdu(StaticVector<uint8_t, MAX_PDU_SIZE>) instead. Removed in 2026.10.0", "2026.4.0")
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);

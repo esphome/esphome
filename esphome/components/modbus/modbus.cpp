@@ -457,28 +457,11 @@ void ModbusServerHub::send(uint8_t address, uint8_t function_code, const std::ve
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
-void ModbusClientHub::queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device,
-                                 bool allow_duplicates) {
+void ModbusClientHub::queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device) {
   if (pdu_len == 0) {
     if (device)
       device->on_modbus_not_sent();
     return;
-  }
-
-  if (!allow_duplicates) {
-    for (const auto &item : this->tx_buffer_) {
-      // Compare raw bytes (excluding CRC which is appended by ModbusFrame constructor)
-      if (item.device == device && item.frame.data[0] == address && item.frame.size - 3 == pdu_len &&
-          std::memcmp(item.frame.data.get() + 1, pdu, pdu_len) == 0) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARNING
-        char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
-#endif
-        ESP_LOGW(TAG, "Frame already in tx queue, dropping: %s", format_hex_pretty_to(hex_buf, pdu, pdu_len));
-        if (device)
-          device->on_modbus_not_sent();
-        return;
-      }
-    }
   }
 
   if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
