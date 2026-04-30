@@ -1,4 +1,7 @@
 #include "transmitter_radio_frequency.h"
+
+#include <cinttypes>
+
 #include "esphome/core/log.h"
 
 namespace esphome::remote_transmitter {
@@ -28,6 +31,16 @@ void TransmitterRadioFrequency::control(const radio_frequency::RadioFrequencyCal
       ESP_LOGE(TAG, "Failed to decode base64url data");
       return;
     }
+    constexpr int32_t max_timing_us = 500000;
+    for (int32_t timing : tx_data->get_data()) {
+      int32_t abs_timing = timing < 0 ? -timing : timing;
+      if (abs_timing > max_timing_us) {
+        ESP_LOGE(TAG, "Invalid timing value: %" PRId32 " µs (max %" PRId32 ")", timing, max_timing_us);
+        return;
+      }
+    }
+    ESP_LOGD(TAG, "Transmitting base64url raw timings: count=%zu, repeat=%" PRIu32, tx_data->get_data().size(),
+             call.get_repeat_count());
   } else {
     tx_data->set_data(call.get_raw_timings());
   }
