@@ -413,15 +413,22 @@ class ThrottleWithPriorityNanFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
-// Base class for timeout filters. Self-keyed scheduler timeout (`this` as key) re-arms on each
-// new_value(). Filter instances live for the program's lifetime, so the scheduler key never dangles.
-class TimeoutFilterBase : public Filter {
+// Base class for timeout filters - contains common loop logic
+class TimeoutFilterBase : public Filter, public Component {
+ public:
+  void loop() override;
+  float get_setup_priority() const override;
+
  protected:
-  explicit TimeoutFilterBase(uint32_t time_period) : time_period_(time_period) {}
-  uint32_t time_period_;
+  explicit TimeoutFilterBase(uint32_t time_period) : time_period_(time_period) { this->disable_loop(); }
+  virtual float get_output_value() = 0;
+
+  uint32_t time_period_;            // 4 bytes (timeout duration in ms)
+  uint32_t timeout_start_time_{0};  // 4 bytes (when the timeout was started)
+  // Total base: 8 bytes
 };
 
-// "last" mode — outputs the most recent input after time_period_ ms of silence.
+// Timeout filter for "last" mode - outputs the last received value after timeout
 class TimeoutFilterLast : public TimeoutFilterBase {
  public:
   explicit TimeoutFilterLast(uint32_t time_period) : TimeoutFilterBase(time_period) {}
@@ -429,10 +436,12 @@ class TimeoutFilterLast : public TimeoutFilterBase {
   optional<float> new_value(float value) override;
 
  protected:
-  float pending_value_{0};
+  float get_output_value() override { return this->pending_value_; }
+  float pending_value_{0};  // 4 bytes (value to output when timeout fires)
+  // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
 };
 
-// Configured-value mode — outputs a static or lambda value after time_period_ ms of silence.
+// Timeout filter with configured value - evaluates TemplatableValue after timeout
 class TimeoutFilterConfigured : public TimeoutFilterBase {
  public:
   explicit TimeoutFilterConfigured(uint32_t time_period, const TemplatableFn<float> &new_value)
@@ -441,7 +450,9 @@ class TimeoutFilterConfigured : public TimeoutFilterBase {
   optional<float> new_value(float value) override;
 
  protected:
-  TemplatableFn<float> value_;
+  float get_output_value() override { return this->value_.value(); }
+  TemplatableFn<float> value_;  // 4 bytes (configured output value, can be lambda)
+  // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
 };
 
 class DebounceFilter : public Filter {
