@@ -1,6 +1,5 @@
 #pragma once
 
-#ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #include "../hon_climate.h"
 
@@ -17,4 +16,3 @@ class VerticalAirflowSelect : public select::Select, public Parented<HonClimate>
 
 }  // namespace haier
 }  // namespace esphome
-#endif
