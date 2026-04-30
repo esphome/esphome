@@ -365,6 +365,10 @@ class Scheduler {
   SchedulerItem *get_item_from_pool_locked_();
 
  private:
+  // Out-of-line helper that shrinks a SchedulerItem* vector's capacity to its current
+  // size. Centralised so trim_freelist() doesn't pay flash cost per call site.
+  static void shrink_scheduler_vector_(std::vector<SchedulerItem *> *v);
+
   // Helper to cancel matching items - must be called with lock held.
   // When find_first=true, stops after the first match (used by set_timer_common_ where
   // the cancel-before-add invariant guarantees at most one match).
