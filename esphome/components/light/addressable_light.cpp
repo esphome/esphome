@@ -23,32 +23,29 @@ void AddressableLight::apply_power_limit_() {
   if (this->max_current_ma_ <= 0.0f || this->is_effect_active())
     return;
 
-  // First pass: estimate total current draw from the current buffer.
-  // A second pass is required to scale, so two iterations are unavoidable.
+  // Single pass: apply last frame's scale while accumulating this frame's estimate.
+  // Using the previous frame's scale introduces a one-frame lag (imperceptible at
+  // normal refresh rates) but avoids a second full iteration over the buffer.
   float estimated = 0.0f;
   for (int i = 0; i < this->size(); i++) {
-    auto pixel = this->get(i);
-    estimated += (pixel.get_red_raw() / 255.0f) * this->ma_per_led_red_;
-    estimated += (pixel.get_green_raw() / 255.0f) * this->ma_per_led_green_;
-    estimated += (pixel.get_blue_raw() / 255.0f) * this->ma_per_led_blue_;
-    estimated += (pixel.get_white_raw() / 255.0f) * this->ma_per_led_white_;
+    auto view = this->get(i);
+    if (this->power_scale_ < 255) {
+      view.set_red_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_red_raw()) * this->power_scale_) >> 8));
+      view.set_green_raw(
+          static_cast<uint8_t>((static_cast<uint16_t>(view.get_green_raw()) * this->power_scale_) >> 8));
+      view.set_blue_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_blue_raw()) * this->power_scale_) >> 8));
+      view.set_white_raw(
+          static_cast<uint8_t>((static_cast<uint16_t>(view.get_white_raw()) * this->power_scale_) >> 8));
+    }
+    estimated += (view.get_red_raw() / 255.0f) * this->ma_per_led_red_;
+    estimated += (view.get_green_raw() / 255.0f) * this->ma_per_led_green_;
+    estimated += (view.get_blue_raw() / 255.0f) * this->ma_per_led_blue_;
+    estimated += (view.get_white_raw() / 255.0f) * this->ma_per_led_white_;
     estimated += this->idle_ma_per_led_;
   }
-  if (estimated <= this->max_current_ma_)
-    return;
-
-  // Scale factor in 0-255 range: 255 = no reduction, 0 = fully off.
-  auto scale = static_cast<uint8_t>((this->max_current_ma_ / estimated) * 255.0f);
-
-  // Second pass: scale raw (already gamma- and brightness-corrected) hardware
-  // values directly so gamma is not applied a second time.
-  for (int i = 0; i < this->size(); i++) {
-    auto view = this->get(i);
-    view.set_red_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_red_raw()) * scale) >> 8));
-    view.set_green_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_green_raw()) * scale) >> 8));
-    view.set_blue_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_blue_raw()) * scale) >> 8));
-    view.set_white_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_white_raw()) * scale) >> 8));
-  }
+  this->power_scale_ = (estimated > this->max_current_ma_)
+                           ? static_cast<uint8_t>((this->max_current_ma_ / estimated) * 255.0f)
+                           : uint8_t(255);
 }
 #endif
 
