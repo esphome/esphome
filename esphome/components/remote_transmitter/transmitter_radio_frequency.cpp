@@ -27,7 +27,7 @@ void TransmitterRadioFrequency::control(const radio_frequency::RadioFrequencyCal
     return;
   }
 
-  if (call.get_modulation().has_value() && *call.get_modulation() != radio_frequency::RADIO_FREQUENCY_MODULATION_OOK) {
+  if (call.get_modulation().has_value() && call.get_modulation() != radio_frequency::RADIO_FREQUENCY_MODULATION_OOK) {
     ESP_LOGE(TAG, "Unsupported modulation requested; remote_transmitter only supports OOK.");
     return;
   }
