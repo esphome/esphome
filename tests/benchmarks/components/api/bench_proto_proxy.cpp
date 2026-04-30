@@ -13,16 +13,13 @@ namespace esphome::api::benchmarks {
 
 static constexpr int kInnerIterations = 2000;
 
-template<typename T> static APIBuffer encode_message_for_proxy(const T &msg) {
-  APIBuffer buffer;
-  uint32_t size = msg.calculate_size();
-  buffer.resize(size);
-  ProtoWriteBuffer writer(&buffer, 0);
-  msg.encode(writer);
-  return buffer;
+// Encodes `src` into `out`. Caller owns `out` and must keep it alive across
+// the decode loop (decoded messages may store pointers back into its bytes).
+template<typename T> static void encode_into(APIBuffer &out, const T &src) {
+  out.resize(src.calculate_size());
+  ProtoWriteBuffer writer(&out, 0);
+  src.encode(writer);
 }
-
-static void escape_proxy(void *p) { asm volatile("" : : "g"(p) : "memory"); }
 
 // --- ZWaveProxyFrame (Z-Wave frame, ~16 bytes payload) ---
 
@@ -53,18 +50,16 @@ static void Decode_ZWaveProxyFrame(benchmark::State &state) {
   ZWaveProxyFrame source;
   source.data = kZWaveFrameData;
   source.data_len = sizeof(kZWaveFrameData);
-  auto encoded = encode_message_for_proxy(source);
-  auto *data = encoded.data();
-  auto size = encoded.size();
-  benchmark::DoNotOptimize(data);
-  benchmark::DoNotOptimize(size);
+  APIBuffer encoded;
+  encode_into(encoded, source);
+  const uint8_t *data = encoded.data();
+  size_t size = encoded.size();
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       ZWaveProxyFrame msg;
-      escape_proxy(&msg);
       msg.decode(data, size);
-      escape_proxy(&msg);
+      benchmark::DoNotOptimize(msg);
     }
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
@@ -78,18 +73,16 @@ static void Decode_ZWaveProxyRequest(benchmark::State &state) {
   source.type = enums::ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE;
   source.data = kZWaveRequestData;
   source.data_len = sizeof(kZWaveRequestData);
-  auto encoded = encode_message_for_proxy(source);
-  auto *data = encoded.data();
-  auto size = encoded.size();
-  benchmark::DoNotOptimize(data);
-  benchmark::DoNotOptimize(size);
+  APIBuffer encoded;
+  encode_into(encoded, source);
+  const uint8_t *data = encoded.data();
+  size_t size = encoded.size();
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       ZWaveProxyRequest msg;
-      escape_proxy(&msg);
       msg.decode(data, size);
-      escape_proxy(&msg);
+      benchmark::DoNotOptimize(msg);
     }
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
@@ -135,18 +128,16 @@ static void Decode_SerialProxyWriteRequest(benchmark::State &state) {
   SerialProxyDataReceived source;
   source.instance = 0;
   source.set_data(kSerialPayload, kSerialPayloadSize);
-  auto encoded = encode_message_for_proxy(source);
-  auto *data = encoded.data();
-  auto size = encoded.size();
-  benchmark::DoNotOptimize(data);
-  benchmark::DoNotOptimize(size);
+  APIBuffer encoded;
+  encode_into(encoded, source);
+  const uint8_t *data = encoded.data();
+  size_t size = encoded.size();
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       SerialProxyWriteRequest msg;
-      escape_proxy(&msg);
       msg.decode(data, size);
-      escape_proxy(&msg);
+      benchmark::DoNotOptimize(msg);
     }
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
@@ -265,17 +256,14 @@ static APIBuffer build_infrared_rf_transmit_wire() {
 
 static void Decode_InfraredRFTransmitRawTimingsRequest(benchmark::State &state) {
   auto encoded = build_infrared_rf_transmit_wire();
-  auto *data = encoded.data();
-  auto size = encoded.size();
-  benchmark::DoNotOptimize(data);
-  benchmark::DoNotOptimize(size);
+  const uint8_t *data = encoded.data();
+  size_t size = encoded.size();
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       InfraredRFTransmitRawTimingsRequest msg;
-      escape_proxy(&msg);
       msg.decode(data, size);
-      escape_proxy(&msg);
+      benchmark::DoNotOptimize(msg);
     }
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
