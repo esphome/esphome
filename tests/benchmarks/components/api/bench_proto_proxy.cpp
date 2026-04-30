@@ -151,18 +151,19 @@ BENCHMARK(Decode_SerialProxyWriteRequest);
 
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 
-// Heap-allocated on first use to avoid C++17 lambda IIFE patterns that some
-// callgrind/valgrind versions handle awkwardly during benchmark init.
-static const std::vector<int32_t> &get_ir_timings_100() {
-  static std::vector<int32_t> *timings = nullptr;
-  if (timings == nullptr) {
-    timings = new std::vector<int32_t>();
-    timings->reserve(100);
-    for (int i = 0; i < 100; i++) {
-      timings->push_back((i % 2 == 0) ? 560 : -560);
-    }
+// Mark/space pairs simulating a typical RC-5 / NEC capture (100 timings).
+static std::vector<int32_t> make_ir_timings_100() {
+  std::vector<int32_t> v;
+  v.reserve(100);
+  for (int i = 0; i < 100; i++) {
+    v.push_back((i % 2 == 0) ? 560 : -560);
   }
-  return *timings;
+  return v;
+}
+
+static const std::vector<int32_t> &get_ir_timings_100() {
+  static const std::vector<int32_t> timings = make_ir_timings_100();
+  return timings;
 }
 
 static void Encode_InfraredRFReceiveEvent(benchmark::State &state) {
@@ -247,6 +248,10 @@ static APIBuffer build_infrared_rf_transmit_wire() {
   put_varint(static_cast<uint32_t>(packed_len));
   std::memcpy(bytes + len, packed, packed_len);
   len += packed_len;
+  // field 6: modulation = 1 (non-zero so it's actually emitted and exercises
+  // decode_varint for this field, matching the documented layout above).
+  put_byte(0x30);
+  put_varint(1);
 
   APIBuffer buf;
   buf.resize(len);

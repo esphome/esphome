@@ -14,7 +14,7 @@ class APIConnection;
 }  // namespace api
 
 namespace uart {
-enum UARTFlushResult : uint8_t {
+enum class UARTFlushResult : uint8_t {
   UART_FLUSH_RESULT_SUCCESS,
   UART_FLUSH_RESULT_ASSUMED_SUCCESS,
   UART_FLUSH_RESULT_TIMEOUT,
@@ -36,7 +36,7 @@ class SerialProxy {
   void write_from_client(const uint8_t *data, size_t len) {}
   void set_modem_pins(uint32_t line_states) {}
   uint32_t get_modem_pins() const { return 0; }
-  uart::UARTFlushResult flush_port() { return uart::UART_FLUSH_RESULT_SUCCESS; }
+  uart::UARTFlushResult flush_port() { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
 
  protected:
   uint32_t instance_index_{0};
