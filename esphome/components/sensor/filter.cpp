@@ -318,8 +318,8 @@ optional<float> or_filter_new_value(Filter **filters, size_t count, float value,
 }
 
 // TimeoutFilterLast - "last" mode: re-arm on every input; output the latest value if no further
-// input arrives within time_period_. Self-keyed scheduler.set_timeout(this, ...) cancels any
-// pending arm with the same self-key and installs a new one.
+// input arrives within time_period_. Self-keyed scheduler.set_timeout(this, ...) cancels and
+// replaces any pending arm in O(1).
 optional<float> TimeoutFilterLast::new_value(float value) {
   this->pending_value_ = value;
   App.scheduler.set_timeout(this, this->time_period_, [this]() { this->output(this->pending_value_); });
