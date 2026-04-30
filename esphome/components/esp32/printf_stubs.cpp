@@ -79,7 +79,7 @@ int __wrap_vprintf(const char *fmt, va_list ap) { return __wrap_vfprintf(stdout,
 
 static constexpr size_t PRINTF_BUFFER_SIZE = 512;
 
-// These stubs are essentially dead code at runtime -- ESPHome replaces the
+// These stubs are essentially dead code at runtime — ESPHome replaces the
 // ESP-IDF log handler, and the SDK's printf/fprintf calls only exist in
 // debug/assert paths that are never reached in normal operation.
 // The buffer overflow check is purely defensive and should never trigger.
