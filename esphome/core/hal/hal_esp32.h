@@ -42,6 +42,9 @@ __attribute__((always_inline)) inline void delayMicroseconds(uint32_t us) { dela
 __attribute__((always_inline)) inline void arch_feed_wdt() { esp_task_wdt_reset(); }
 __attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }
 
+void arch_init();
+uint32_t arch_get_cpu_freq_hz();
+
 }  // namespace esphome
 
 #endif  // USE_ESP32
