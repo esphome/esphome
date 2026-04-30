@@ -49,7 +49,9 @@ void TransmitterRadioFrequency::control(const radio_frequency::RadioFrequencyCal
     tx_data->set_carrier_frequency(*call.get_frequency());
   }
 
-  tx_call.set_send_times(call.get_repeat_count());
+  if (call.get_repeat_count() > 0) {
+    tx_call.set_send_times(call.get_repeat_count());
+  }
   tx_call.perform();
 }
 
