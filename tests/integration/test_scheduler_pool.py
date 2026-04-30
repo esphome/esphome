@@ -185,6 +185,18 @@ async def test_scheduler_pool(
         f"Pool should never report full (got {pool_full_count})"
     )
 
+    # Verify the pool actually grew past the old MAX_POOL_SIZE=5 cap.
+    # Phase 5 + Phase 6 schedule 8 + 10 same-component timeouts respectively, so the
+    # observed peak should comfortably exceed 5. Without this lower-bound check, a
+    # silent regression that re-introduced a small cap could pass the test above.
+    max_pool_size = 0
+    for line in log_lines:
+        if match := recycle_pattern.search(line):
+            max_pool_size = max(max_pool_size, int(match.group(1)))
+    assert max_pool_size > 5, (
+        f"Pool should grow past the old cap of 5; observed peak {max_pool_size}"
+    )
+
     # Log summary for debugging
     print("\nScheduler Pool Test Summary (Python Orchestrated):")
     print(f"  Items recycled to pool: {pool_recycle_count}")
