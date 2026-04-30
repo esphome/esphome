@@ -6,8 +6,6 @@
 #include <cstdint>
 #include <limits>
 
-#include "esphome/core/helpers.h"
-
 namespace esphome {
 
 class Scheduler;
@@ -24,7 +22,9 @@ class Millis64Impl {
   static uint32_t last_millis;
   static uint16_t millis_major;
 
-  static inline uint64_t ESPHOME_ALWAYS_INLINE compute(uint32_t now) {
+  // Raw __attribute__((always_inline)) (not ESPHOME_ALWAYS_INLINE) so this
+  // header does not need to pull helpers.h.
+  static inline uint64_t __attribute__((always_inline)) compute(uint32_t now) {
     // Half the 32-bit range - used to detect rollovers vs normal time progression
     static constexpr uint32_t HALF_MAX_UINT32 = std::numeric_limits<uint32_t>::max() / 2;
 
