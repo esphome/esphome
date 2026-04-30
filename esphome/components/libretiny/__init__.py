@@ -37,6 +37,7 @@ from .const import (
     CONF_UART_PORT,
     FAMILIES,
     FAMILY_BK7231N,
+    FAMILY_BK7238,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
     FAMILY_RTL8710B,
@@ -549,7 +550,7 @@ async def component_to_code(config):
         cg.add_platformio_option("custom_fw_version", __version__)
 
     # Apply chip-specific SDK options to save RAM/Flash
-    if config[CONF_FAMILY] == FAMILY_BK7231N:
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
         cg.add_platformio_option(
             "custom_options.sys_config#h", _BK7231N_SYS_CONFIG_OPTIONS
         )
