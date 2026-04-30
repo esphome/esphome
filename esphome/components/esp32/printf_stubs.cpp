@@ -23,8 +23,9 @@
  * costs ~32 bytes of stack for the cookie struct vs. a 512-byte format
  * buffer. The buffered path overflows the loopTask stack on IDF 6.
  *
- * On newlib we fall back to a small bounded buffer; truncation is fine
- * because these paths are not reached in practice.
+ * On newlib (IDF <= 5 on Xtensa) we keep the original snprintf-then-fwrite
+ * path because that loopTask stack budget has plenty of headroom for the
+ * 512-byte buffer; the picolibc-only crash above does not affect it.
  *
  * Saves ~11 KB of flash on newlib, ~2.8 KB on picolibc.
  *
@@ -35,6 +36,10 @@
 #if defined(USE_ESP_IDF) && !defined(USE_FULL_PRINTF)
 #include <cstdarg>
 #include <cstdio>
+
+#ifndef __PICOLIBC__
+#include "esp_system.h"
+#endif
 
 namespace esphome::esp32 {}
 
@@ -70,17 +75,22 @@ int __wrap_vfprintf(FILE *stream, const char *fmt, va_list ap) {
 
 int __wrap_vprintf(const char *fmt, va_list ap) { return __wrap_vfprintf(stdout, fmt, ap); }
 
-#else  // !__PICOLIBC__ -- newlib fallback with a small bounded buffer
+#else  // !__PICOLIBC__
 
-static constexpr size_t PRINTF_BUFFER_SIZE = 128;
+static constexpr size_t PRINTF_BUFFER_SIZE = 512;
 
+// These stubs are essentially dead code at runtime -- ESPHome replaces the
+// ESP-IDF log handler, and the SDK's printf/fprintf calls only exist in
+// debug/assert paths that are never reached in normal operation.
+// The buffer overflow check is purely defensive and should never trigger.
 static int write_printf_buffer(FILE *stream, char *buf, int len) {
   if (len < 0) {
     return len;
   }
-  size_t write_len = static_cast<size_t>(len);
+  size_t write_len = len;
   if (write_len >= PRINTF_BUFFER_SIZE) {
-    write_len = PRINTF_BUFFER_SIZE - 1;
+    fwrite(buf, 1, PRINTF_BUFFER_SIZE - 1, stream);
+    esp_system_abort("printf buffer overflow; set enable_full_printf: true in esp32 framework advanced config");
   }
   if (fwrite(buf, 1, write_len, stream) < write_len || ferror(stream)) {
     return -1;
