@@ -47,14 +47,15 @@ from esphome.helpers import write_file_if_changed
 from esphome.writer import clean_build
 from esphome.yaml_util import load_yaml
 
-from . import defines as df, helpers, lv_validation as lvalid, widgets
-from .automation import (
+from . import defines as df, lv_validation as lvalid, widgets
+from .automation import layers_to_code, lvgl_update
+from .defines import (
+    CONF_ALIGN_TO_LAMBDA_ID,
     get_focused_widgets,
+    get_lv_images_used,
     get_refreshed_widgets,
-    layers_to_code,
-    lvgl_update,
+    set_widgets_completed,
 )
-from .defines import CONF_ALIGN_TO_LAMBDA_ID
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -63,7 +64,7 @@ from .encoders import (
 )
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .keypads import KEYPADS_CONFIG, keypads_to_code
-from .lv_validation import get_lv_images_used, lv_bool
+from .lv_validation import lv_bool
 from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
@@ -93,9 +94,7 @@ from .widgets import (
     Widget,
     add_widgets,
     get_screen_active,
-    get_styles_used,
     set_obj_properties,
-    set_widgets_completed,
 )
 
 # Import only what we actually use directly in this file
@@ -150,7 +149,7 @@ def generate_lv_conf_h():
         df.LV_DEFINES + tuple(f"LV_USE_{w.upper()}" for w in WIDGET_TYPES)
     )
     # Get the defines that are actually used based on the config
-    lv_defines = df.get_data(df.KEY_LV_DEFINES)
+    lv_defines = df.get_defines()
     unused_defines = all_defines - set(lv_defines)
     # Create the content of lv_conf.h with the used defines set to their value, and the unused defines disabled
     definitions = [as_macro(m, v) for m, v in lv_defines.items()] + [
@@ -236,7 +235,7 @@ def final_validation(config_list):
                     f"Widget '{w}' does not have any dynamic properties to refresh",
                 )
         # Do per-widget type final validation for update actions
-        for widget_type, update_configs in df.get_data(df.KEY_UPDATED_WIDGETS).items():
+        for widget_type, update_configs in df.get_updated_widgets().items():
             for conf in update_configs:
                 for id_conf in conf.get(CONF_ID, ()):
                     name = id_conf[CONF_ID]
@@ -285,7 +284,7 @@ async def to_code(configs):
         cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config_0[CONF_LOG_LEVEL]}"),
     )
     df.add_define("LV_COLOR_DEPTH", config_0[CONF_COLOR_DEPTH])
-    for font in helpers.get_lv_fonts_used():
+    for font in df.get_lv_fonts_used():
         df.add_define(f"LV_FONT_{font.upper()}")
 
     if config_0[CONF_COLOR_DEPTH] == 16:
@@ -300,7 +299,7 @@ async def to_code(configs):
     cg.add_build_flag("-Isrc")
 
     cg.add_global(lvgl_ns.using)
-    for font in helpers.get_esphome_fonts_used():
+    for font in df.get_esphome_fonts_used():
         await cg.get_variable(font)
     default_font = config_0[df.CONF_DEFAULT_FONT]
     if not lvalid.is_lv_font(default_font):
@@ -410,8 +409,8 @@ async def to_code(configs):
                     )
 
     # This must be done after all widgets are created
-    styles_used = get_styles_used()
-    for use in helpers.get_lv_uses():
+    styles_used = df.get_styles_used()
+    for use in df.get_lv_uses():
         df.add_define(f"LV_USE_{use.upper()}")
         cg.add_define(f"USE_LVGL_{use.upper()}")
 

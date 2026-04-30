@@ -18,6 +18,7 @@ from ..defines import (
     CONF_PAD_COLUMN,
     CONF_PAD_ROW,
     CONF_SELECTED,
+    get_widget_map,
 )
 from ..lv_validation import key_code, lv_bool, padding
 from ..lvcode import lv, lv_add, lv_expr, lvgl_static
@@ -32,7 +33,7 @@ from ..types import (
     char_ptr,
     lv_pseudo_button_t,
 )
-from . import Widget, WidgetType, get_widget_map, get_widgets
+from . import Widget, WidgetType, get_widgets
 from .button import lv_button_t
 
 CONF_BUTTONMATRIX = "buttonmatrix"

@@ -4,12 +4,18 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import ID
 
-from .defines import CONF_STYLE_DEFINITIONS, CONF_THEME, LValidator, literal
-from .helpers import add_lv_use
+from .defines import (
+    CONF_STYLE_DEFINITIONS,
+    CONF_THEME,
+    LValidator,
+    add_lv_use,
+    get_theme_widget_map,
+    literal,
+)
 from .lvcode import LambdaContext, lv
 from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, WIDGET_TYPES, remap_property
 from .types import ObjUpdateAction, lv_style_t
-from .widgets import collect_parts, get_theme_widget_map, wait_for_widgets
+from .widgets import collect_parts, wait_for_widgets
 
 
 def has_style_props(config) -> bool:

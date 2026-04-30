@@ -9,19 +9,37 @@ method that delegates to the new C++ helpers
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
+from esphome.__main__ import generate_cpp_contents
+from esphome.config import read_config
+from esphome.core import CORE
 
-@pytest.fixture
-def main_cpp(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> str:
-    """Generate the C++ output for the shared widget-state YAML config once."""
-    return generate_main(component_config_path("widget_state_test.yaml"))
+
+@pytest.fixture(scope="module")
+def main_cpp(request: pytest.FixtureRequest) -> str:
+    """Generate the C++ output for the shared widget-state YAML config once
+    per module.
+
+    Module-scoped so the (relatively expensive) codegen runs a single time;
+    the function-scoped fixtures from ``conftest.py`` (e.g. ``generate_main``)
+    can't be requested from a higher-scoped fixture, so the small amount of
+    setup is inlined here.  The captured string is independent of
+    ``CORE.reset()`` calls that the per-test autouse fixtures perform after
+    this fixture has produced its value.
+    """
+    config_path = Path(request.fspath).parent / "config" / "widget_state_test.yaml"
+    original_path = CORE.config_path
+    try:
+        CORE.config_path = config_path
+        CORE.config = read_config({})
+        generate_cpp_contents(CORE.config)
+        return CORE.cpp_global_section + CORE.cpp_main_section
+    finally:
+        CORE.config_path = original_path
+        CORE.reset()
 
 
 def test_static_state_emits_set_state_value(main_cpp: str) -> None:

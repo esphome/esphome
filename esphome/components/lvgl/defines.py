@@ -41,25 +41,62 @@ KEY_WIDGETS_COMPLETED = "widgets_completed"
 KEY_OPTIONS = "options"
 KEY_WARNINGS = "warnings"
 
+# Initial set of LVGL features that are always enabled.
+_INITIAL_LV_USES = frozenset(
+    {
+        "USER_DATA",
+        "LOG",
+        "STYLE",
+        "FONT_PLACEHOLDER",
+        "THEME_DEFAULT",
+    }
+)
 
-def get_data(key, default=None):
+
+# These collections accumulate state across a single compilation run.  They
+# are stored under ``CORE.data`` (which ``CORE.reset()`` clears between runs)
+# rather than as module-level globals, otherwise they would leak between
+# successive compilations / unit tests.
+
+
+def _get_data(key: str, default):
     """
     Get a data structure from the global data store by key
     :param key: A key for the data
-    :param default: The default data - the default is an empty dict
+    :param default: The default data
     :return:
     """
-    return CORE.data.setdefault(DOMAIN, {}).setdefault(
-        key, {} if default is None else default
-    )
+    return CORE.data.setdefault(DOMAIN, {}).setdefault(key, default)
+
+
+def get_lv_images_used() -> set:
+    return _get_data(KEY_LV_IMAGES_USED, set())
+
+
+def get_lv_uses() -> set:
+    return _get_data(KEY_LV_USES, set(_INITIAL_LV_USES))
+
+
+def get_lv_fonts_used() -> set:
+    return _get_data(KEY_LV_FONTS_USED, set())
+
+
+def get_esphome_fonts_used() -> set:
+    return _get_data(KEY_ESPHOME_FONTS_USED, set())
+
+
+def add_lv_use(*names):
+    uses = get_lv_uses()
+    for name in names:
+        uses.add(name)
 
 
 def get_warnings():
-    return get_data(KEY_WARNINGS, set())
+    return _get_data(KEY_WARNINGS, set())
 
 
 def get_remapped_uses():
-    return get_data(KEY_REMAPPED_USES, set())
+    return _get_data(KEY_REMAPPED_USES, set())
 
 
 def add_warning(msg: str):
@@ -67,7 +104,49 @@ def add_warning(msg: str):
 
 
 def get_options():
-    return get_data(KEY_OPTIONS)
+    return _get_data(KEY_OPTIONS, {})
+
+
+def get_defines():
+    return _get_data(KEY_LV_DEFINES, {})
+
+
+def get_updated_widgets():
+    return _get_data(KEY_UPDATED_WIDGETS, {})
+
+
+def get_theme_widget_map() -> dict:
+    return _get_data(KEY_THEME_WIDGET_MAP, {})
+
+
+def get_styles_used() -> set:
+    return _get_data(KEY_STYLES_USED, set())
+
+
+def get_widget_map() -> dict:
+    return _get_data(KEY_WIDGET_MAP, {})
+
+
+def get_widgets_completed() -> bool:
+    # ``[value]`` rather than the bare value so that we can mutate the
+    # entry in place; ``CORE.data`` is reset for us between runs.
+    return _get_data(KEY_WIDGETS_COMPLETED, [False])[0]
+
+
+def set_widgets_completed(value: bool) -> None:
+    _get_data(KEY_WIDGETS_COMPLETED, [False])[0] = value
+
+
+def is_widget_completed(name: ID) -> bool:
+    return name in get_widget_map()
+
+
+def get_focused_widgets() -> set:
+    return _get_data(KEY_FOCUSED_WIDGETS, set())
+
+
+def get_refreshed_widgets() -> set:
+    return _get_data(KEY_REFRESHED_WIDGETS, set())
 
 
 class StaticCastExpression(Expression):
@@ -82,7 +161,7 @@ class StaticCastExpression(Expression):
 
 
 def add_define(macro, value="1"):
-    lv_defines = get_data(KEY_LV_DEFINES)
+    lv_defines = get_defines()
     value = str(value)
     if lv_defines.setdefault(macro, value) != value:
         LOGGER.error(
@@ -92,7 +171,7 @@ def add_define(macro, value="1"):
 
 
 def is_defined(macro):
-    return macro in get_data(KEY_LV_DEFINES)
+    return macro in get_defines()
 
 
 def literal(arg) -> MockObj:

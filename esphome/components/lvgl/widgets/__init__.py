@@ -33,22 +33,21 @@ from ..defines import (
     CONF_SCALE,
     CONF_STYLES,
     CONF_WIDGETS,
-    KEY_STYLES_USED,
-    KEY_THEME_WIDGET_MAP,
-    KEY_WIDGET_MAP,
-    KEY_WIDGETS_COMPLETED,
     OBJ_FLAGS,
     PARTS,
     STATES,
     TYPE_FLEX,
     TYPE_GRID,
     LValidator,
+    add_lv_use,
     call_lambda,
-    get_data,
+    get_styles_used,
+    get_theme_widget_map,
+    get_widget_map,
+    get_widgets_completed,
     join_enums,
     literal,
 )
-from ..helpers import add_lv_use
 from ..lvcode import (
     LvConditional,
     add_line_marks,
@@ -71,32 +70,6 @@ from ..types import (
 )
 
 EVENT_LAMB = "event_lamb__"
-
-
-# These collections accumulate state across a single compilation run.  They
-# live in ``CORE.data`` (which ``CORE.reset()`` clears between runs) rather
-# than as module-level globals, so the state cannot leak from one
-# compilation / unit test into the next.
-def get_theme_widget_map() -> dict:
-    return get_data(KEY_THEME_WIDGET_MAP, {})
-
-
-def get_styles_used() -> set:
-    return get_data(KEY_STYLES_USED, set())
-
-
-def get_widget_map() -> dict:
-    return get_data(KEY_WIDGET_MAP, {})
-
-
-def get_widgets_completed() -> bool:
-    # ``[value]`` rather than the bare value so that we can mutate the
-    # entry in place; ``CORE.data`` is reset for us between runs.
-    return get_data(KEY_WIDGETS_COMPLETED, [False])[0]
-
-
-def set_widgets_completed(value: bool) -> None:
-    get_data(KEY_WIDGETS_COMPLETED, [False])[0] = value
 
 
 class WidgetType:
@@ -422,10 +395,6 @@ class Widget:
 
     def get_scale(self):
         return self.type.get_scale(self.config)
-
-
-def is_widget_completed(name: ID) -> bool:
-    return name in get_widget_map()
 
 
 class LvScrActType(WidgetType):

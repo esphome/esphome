@@ -24,6 +24,7 @@ from .defines import (
     LV_SCREEN_EVENT_MAP,
     LV_SCREEN_EVENT_TRIGGERS,
     SWIPE_TRIGGERS,
+    get_widget_map,
     literal,
 )
 from .lvcode import (
@@ -38,7 +39,7 @@ from .lvcode import (
     lvgl_static,
 )
 from .types import LV_EVENT
-from .widgets import LvScrActType, get_screen_active, get_widget_map
+from .widgets import LvScrActType, get_screen_active
 
 
 async def add_on_boot_triggers(triggers):

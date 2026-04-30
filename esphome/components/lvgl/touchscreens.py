@@ -8,8 +8,8 @@ from .defines import (
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
     CONF_TOUCHSCREENS,
+    add_lv_use,
 )
-from .helpers import add_lv_use
 from .schemas import PRESS_TIME
 from .types import LVTouchListener
 

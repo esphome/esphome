@@ -31,10 +31,14 @@ from .defines import (
     LValidator,
     LvConstant,
     StaticCastExpression,
+    add_lv_use,
     call_lambda,
+    get_esphome_fonts_used,
+    get_lv_fonts_used,
+    get_lv_images_used,
     literal,
 )
-from .helpers import CONF_IF_NAN, add_lv_use, get_esphome_fonts_used, get_lv_fonts_used
+from .helpers import CONF_IF_NAN
 from .types import lv_gradient_t, lv_opa_t
 
 LV_OPA = LvConstant("LV_OPA_", "TRANSP", "COVER")
@@ -362,13 +366,6 @@ def id_name(value):
 
 def stop_value(value):
     return cv.int_range(0, 255)(value)
-
-
-def get_lv_images_used() -> set:
-    # Imported lazily to avoid a circular dependency with ``defines``.
-    from .defines import DOMAIN, KEY_LV_IMAGES_USED
-
-    return CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_LV_IMAGES_USED, set())
 
 
 def image_validator(value):

@@ -9,9 +9,9 @@ from .defines import (
     CONF_KEYPADS,
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
+    add_lv_use,
     literal,
 )
-from .helpers import add_lv_use
 from .lvcode import lv, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
 from .types import lv_group_t, lv_indev_type_t

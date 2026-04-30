@@ -5,10 +5,15 @@ from esphome.core import CORE
 from esphome.cpp_types import std_string
 
 from .. import LvContext
-from ..defines import CONF_MAIN, KEYBOARD_MODES, literal
-from ..helpers import add_lv_use
+from ..defines import (
+    CONF_MAIN,
+    KEYBOARD_MODES,
+    add_lv_use,
+    is_widget_completed,
+    literal,
+)
 from ..types import LvCompound, LvType
-from . import Widget, WidgetType, get_widgets, is_widget_completed
+from . import Widget, WidgetType, get_widgets
 from .buttonmatrix import CONF_BUTTONMATRIX
 from .textarea import CONF_TEXTAREA, lv_textarea_t
 

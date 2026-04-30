@@ -393,7 +393,7 @@ def _update_widget(widget_type: WidgetType) -> Callable[[dict], dict]:
     """
 
     def validator(value: dict) -> dict:
-        df.get_data(df.KEY_UPDATED_WIDGETS).setdefault(widget_type, []).append(value)
+        df.get_updated_widgets().setdefault(widget_type, []).append(value)
         return value
 
     return validator
