@@ -16,9 +16,7 @@ CONFIG_SCHEMA = radio_frequency.radio_frequency_schema(
     TransmitterRadioFrequency
 ).extend(
     {
-        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(
-            remote_base.RemoteTransmitterBase
-        ),
+        cv.Required(CONF_TRANSMITTER_ID): cv.use_id(remote_base.RemoteTransmitterBase),
     }
 )
 
