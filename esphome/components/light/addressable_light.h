@@ -71,8 +71,8 @@ class AddressableLight : public LightOutput, public Component {
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
   }
 #ifdef USE_LIGHT_POWER_ESTIMATION
-  void set_power_estimation(float ma_per_led_red, float ma_per_led_green, float ma_per_led_blue,
-                             float ma_per_led_white, float idle_ma_per_led) {
+  void set_power_estimation(float ma_per_led_red, float ma_per_led_green, float ma_per_led_blue, float ma_per_led_white,
+                            float idle_ma_per_led) {
     this->ma_per_led_red_ = ma_per_led_red;
     this->ma_per_led_green_ = ma_per_led_green;
     this->ma_per_led_blue_ = ma_per_led_blue;
@@ -132,7 +132,7 @@ class AddressableLight : public LightOutput, public Component {
   float idle_ma_per_led_{1.0f};
   float max_current_ma_{0.0f};  // 0 = disabled
   float estimated_ma_{0.0f};
-  uint8_t power_scale_{255};    // 255 = no reduction; updated each frame
+  uint8_t power_scale_{255};  // 255 = no reduction; updated each frame
 #endif
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;

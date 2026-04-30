@@ -21,11 +21,9 @@ void AddressableLight::apply_power_limit_() {
     auto view = this->get(i);
     if (this->power_scale_ < 255) {
       view.set_red_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_red_raw()) * this->power_scale_) >> 8));
-      view.set_green_raw(
-          static_cast<uint8_t>((static_cast<uint16_t>(view.get_green_raw()) * this->power_scale_) >> 8));
+      view.set_green_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_green_raw()) * this->power_scale_) >> 8));
       view.set_blue_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_blue_raw()) * this->power_scale_) >> 8));
-      view.set_white_raw(
-          static_cast<uint8_t>((static_cast<uint16_t>(view.get_white_raw()) * this->power_scale_) >> 8));
+      view.set_white_raw(static_cast<uint8_t>((static_cast<uint16_t>(view.get_white_raw()) * this->power_scale_) >> 8));
     }
     estimated += (view.get_red_raw() / 255.0f) * this->ma_per_led_red_;
     estimated += (view.get_green_raw() / 255.0f) * this->ma_per_led_green_;
