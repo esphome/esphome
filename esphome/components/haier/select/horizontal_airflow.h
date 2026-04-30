@@ -16,4 +16,3 @@ class HorizontalAirflowSelect : public select::Select, public Parented<HonClimat
 
 }  // namespace haier
 }  // namespace esphome
-
