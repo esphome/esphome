@@ -177,8 +177,12 @@ class Scheduler {
 
  protected:
   struct SchedulerItem {
-    // Ordered by size to minimize padding
-    Component *component;
+    // Ordered by size to minimize padding.
+    // `component` while live; `next_free` while in scheduler_item_pool_head_ (mutually exclusive).
+    union {
+      Component *component;
+      SchedulerItem *next_free;
+    };
     // Optimized name storage using tagged union - zero heap allocation
     union {
       const char *static_name;  // For STATIC_STRING (string literals) and SELF_POINTER (caller's `this`)
@@ -713,19 +717,15 @@ class Scheduler {
 #endif
   }
 
-  // Memory pool for recycling SchedulerItem objects to reduce heap churn.
-  // Design decisions:
-  // - std::vector is used instead of a fixed array because many systems only need 1-2 scheduler items
-  // - The vector grows dynamically up to MAX_POOL_SIZE (5) only when needed, saving memory on simple setups
-  // - Pool size of 5 matches typical usage (2-4 timers) while keeping memory overhead low (~250 bytes on ESP32)
-  // - The pool significantly reduces heap fragmentation which is critical because heap allocation/deallocation
-  //   can stall the entire system, causing timing issues and dropped events for any components that need
-  //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
-  std::vector<SchedulerItem *> scheduler_item_pool_;
+  // Intrusive freelist threaded through SchedulerItem::next_free. Unbounded so it quiesces at the
+  // app's concurrent-timer high-water mark; the previous fixed cap caused steady-state new/delete
+  // churn on devices with many timers (see https://github.com/esphome/backlog/issues/52).
+  SchedulerItem *scheduler_item_pool_head_{nullptr};
+  size_t scheduler_item_pool_size_{0};
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Leak detection: tracks total live SchedulerItem allocations.
-  // Invariant: debug_live_items_ == items_.size() + to_add_.size() + defer_queue_.size() + scheduler_item_pool_.size()
+  // Invariant: debug_live_items_ == items_.size() + to_add_.size() + defer_queue_.size() + scheduler_item_pool_size_
   // Verified periodically in call() to catch leaks early.
   size_t debug_live_items_{0};
 
