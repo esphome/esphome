@@ -655,7 +655,15 @@ class WarnIfComponentBlockingGuard {
   // Inlined: the fast path is just millis() + subtract + compare
   inline uint32_t HOT finish() {
 #ifdef USE_RUNTIME_STATS
-    this->component_->runtime_stats_.record_time(micros() - this->started_us_);
+    uint32_t elapsed_us = micros() - this->started_us_;
+    // component_ is nullptr for self-keyed scheduler items (set_timeout/set_interval(self, ...))
+    if (this->component_ != nullptr) {
+      this->component_->runtime_stats_.record_time(elapsed_us);
+    } else {
+      // Still accumulate into the global counter so Application::loop() can subtract
+      // this time from before_loop_tasks_ wall time.
+      ComponentRuntimeStats::global_recorded_us += elapsed_us;
+    }
 #endif
     uint32_t curr_time = MillisInternal::get();
 #ifndef USE_BENCHMARK
