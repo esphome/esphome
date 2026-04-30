@@ -13,7 +13,7 @@ void TransmitterRadioFrequency::setup() {
   this->traits_.set_supports_transmitter(true);
 
   // remote_transmitter/receiver always uses OOK (on-off keying)
-  this->traits_.add_supported_modulation(radio_frequency::Modulation::OOK);
+  this->traits_.add_supported_modulation(radio_frequency::RADIO_FREQUENCY_MODULATION_OOK);
 }
 
 void TransmitterRadioFrequency::control(const radio_frequency::RadioFrequencyCall &call) {
@@ -27,7 +27,7 @@ void TransmitterRadioFrequency::control(const radio_frequency::RadioFrequencyCal
     return;
   }
 
-  if (call.get_modulation().has_value() && *call.get_modulation() != radio_frequency::Modulation::OOK) {
+  if (call.get_modulation().has_value() && *call.get_modulation() != radio_frequency::RADIO_FREQUENCY_MODULATION_OOK) {
     ESP_LOGE(TAG, "Unsupported modulation requested; remote_transmitter only supports OOK.");
     return;
   }
