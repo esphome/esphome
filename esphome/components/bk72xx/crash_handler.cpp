@@ -63,8 +63,8 @@ static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 // BK72XX flash code is mapped at the chip-specific BKOFFSET_APP. Real code
 // addresses always live above 0x00000000 in the flash region; SRAM ends at
-// 0x00440000. We accept any address in the flash window (broad bound) and
-// reject obvious non-code values.
+// BK72XX_RAM_END. We accept any address in the flash window (broad bound)
+// and reject obvious non-code values.
 static constexpr uint32_t BK72XX_FLASH_START = 0x00010000;  // BKRBL header end (~min app offset)
 static constexpr uint32_t BK72XX_FLASH_END = 0x00200000;    // 2MB cap (largest typical flash)
 
@@ -75,9 +75,21 @@ static inline bool is_code_addr(uint32_t addr) {
   return addr >= BK72XX_FLASH_START && addr < BK72XX_FLASH_END;
 }
 
-// SRAM bounds for stack-scan validity. RAM = 0x00400100 to 0x00440000 (256KB).
-static constexpr uint32_t BK72XX_RAM_START = 0x00400100;
-static constexpr uint32_t BK72XX_RAM_END = 0x00440000;
+// SRAM bounds for stack-scan validity. RAM origin is 0x00400000 across all
+// BK72XX variants; the linker reserves the first 0x100 bytes for the ARM
+// exception vector slots (see ORIGIN = 0x00400100 in bk7231{,n}_bsp.template.ld).
+// Total RAM differs by variant: 192KB on BK7231N, 256KB on every other BK72XX.
+// This split mirrors the SDK's own lt_heap_get_size() in
+// libretiny/cores/beken-72xx/base/api/lt_mem.c — keep the values in sync if
+// LibreTiny ever adjusts them.
+static constexpr uint32_t BK72XX_RAM_BASE = 0x00400000;
+#ifdef USE_LIBRETINY_VARIANT_BK7231N
+static constexpr uint32_t BK72XX_RAM_SIZE = 192 * 1024;
+#else
+static constexpr uint32_t BK72XX_RAM_SIZE = 256 * 1024;
+#endif
+static constexpr uint32_t BK72XX_RAM_START = BK72XX_RAM_BASE + 0x100;
+static constexpr uint32_t BK72XX_RAM_END = BK72XX_RAM_BASE + BK72XX_RAM_SIZE;
 
 static inline bool is_valid_stack_ptr(uint32_t sp) {
   return (sp & 0x3) == 0 && sp >= BK72XX_RAM_START && sp < BK72XX_RAM_END;
