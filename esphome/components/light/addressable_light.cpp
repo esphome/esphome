@@ -6,26 +6,16 @@ namespace esphome::light {
 static const char *const TAG = "light.addressable";
 
 #ifdef USE_LIGHT_POWER_ESTIMATION
-float AddressableLight::get_estimated_current_ma() {
-  float total = 0.0f;
-  for (int i = 0; i < this->size(); i++) {
-    auto pixel = this->get(i);
-    total += (pixel.get_red_raw() / 255.0f) * this->ma_per_led_red_;
-    total += (pixel.get_green_raw() / 255.0f) * this->ma_per_led_green_;
-    total += (pixel.get_blue_raw() / 255.0f) * this->ma_per_led_blue_;
-    total += (pixel.get_white_raw() / 255.0f) * this->ma_per_led_white_;
-    total += this->idle_ma_per_led_;
-  }
-  return total;
-}
+float AddressableLight::get_estimated_current_ma() { return this->estimated_ma_; }
 
 void AddressableLight::apply_power_limit_() {
-  if (this->max_current_ma_ <= 0.0f || this->is_effect_active())
+  if (this->is_effect_active())
     return;
 
   // Single pass: apply last frame's scale while accumulating this frame's estimate.
-  // Using the previous frame's scale introduces a one-frame lag (imperceptible at
-  // normal refresh rates) but avoids a second full iteration over the buffer.
+  // The estimate is cached in estimated_ma_ so get_estimated_current_ma() is O(1).
+  // Using the previous frame's scale introduces a one-frame lag, which is
+  // imperceptible at normal refresh rates.
   float estimated = 0.0f;
   for (int i = 0; i < this->size(); i++) {
     auto view = this->get(i);
@@ -43,9 +33,12 @@ void AddressableLight::apply_power_limit_() {
     estimated += (view.get_white_raw() / 255.0f) * this->ma_per_led_white_;
     estimated += this->idle_ma_per_led_;
   }
-  this->power_scale_ = (estimated > this->max_current_ma_)
-                           ? static_cast<uint8_t>((this->max_current_ma_ / estimated) * 255.0f)
-                           : uint8_t(255);
+  this->estimated_ma_ = estimated;
+  if (this->max_current_ma_ > 0.0f) {
+    this->power_scale_ = (estimated > this->max_current_ma_)
+                             ? static_cast<uint8_t>((this->max_current_ma_ / estimated) * 255.0f)
+                             : uint8_t(255);
+  }
 }
 #endif
 
