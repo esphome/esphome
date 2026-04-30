@@ -914,6 +914,16 @@ void Scheduler::trim_freelist() {
   }
   this->scheduler_item_pool_head_ = nullptr;
   this->scheduler_item_pool_size_ = 0;
+
+  // The vectors that back items_/to_add_/defer_queue_ also retain their boot-peak
+  // capacity (std::vector grows by doubling). Swap each with a same-content copy to
+  // reclaim the slack -- the new vector is sized exactly to its current contents.
+  std::vector<SchedulerItem *>(this->items_).swap(this->items_);
+  std::vector<SchedulerItem *>(this->to_add_).swap(this->to_add_);
+#ifndef ESPHOME_THREAD_SINGLE
+  std::vector<SchedulerItem *>(this->defer_queue_).swap(this->defer_queue_);
+#endif
+
 #ifdef ESPHOME_DEBUG_SCHEDULER
   ESP_LOGD(TAG, "Freelist trimmed (%zu items freed)", freed);
 #else

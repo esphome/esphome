@@ -132,11 +132,10 @@ class Scheduler {
   // @return Timestamp of the last item that ran, or `now` unchanged if none ran.
   uint32_t call(uint32_t now);
 
-  // Free every SchedulerItem currently sitting in the recycle freelist. Items in
-  // items_/to_add_/defer_queue_ are untouched. Intended to claim the post-boot
-  // peak: boot churn (component setup, first sensor reads, retries) inflates the
-  // freelist beyond what steady-state needs, and without a one-shot trim that
-  // peak would be retained forever.
+  // Reclaim memory held by the post-boot peak. Frees every SchedulerItem in the
+  // recycle freelist and shrinks items_/to_add_/defer_queue_ vector capacity to
+  // their current sizes (std::vector grows by doubling and otherwise retains the
+  // peak). Live items in those vectors are preserved.
   void trim_freelist();
 
   // Move items from to_add_ into the main heap.
