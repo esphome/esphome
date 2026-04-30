@@ -37,6 +37,7 @@ from .types import (
     AddressableSet,
     ColorMode,
     DimRelativeAction,
+    LightCall,
     LightControlAction,
     LightIsOffCondition,
     LightIsOnCondition,
@@ -181,8 +182,8 @@ def _resolve_effect_index(config: ConfigType) -> int:
 async def light_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
 
-    # Order/bits must match LIGHT_CONTROL_FIELDS in automation.h.
-    # EFFECT has special handling below; setter=None skips the generic loop.
+    # All configured fields are folded into a single stateless lambda whose
+    # constants live in flash; the action stores only a function pointer.
     FIELDS = (
         (CONF_COLOR_MODE, "set_color_mode", ColorMode),
         (CONF_STATE, "set_state", cg.bool_),
@@ -197,49 +198,51 @@ async def light_control_to_code(config, action_id, template_arg, args):
         (CONF_COLOR_TEMPERATURE, "set_color_temperature", cg.float_),
         (CONF_COLD_WHITE, "set_cold_white", cg.float_),
         (CONF_WARM_WHITE, "set_warm_white", cg.float_),
-        (CONF_EFFECT, None, cg.uint32),
     )
-    # Bitmask is passed as uint16_t in C++ — must stay within 16 bits.
-    assert len(FIELDS) <= 16, "LightControlAction Fields bitmask exceeds uint16_t"
 
-    field_mask = sum(1 << i for i, (k, _, _) in enumerate(FIELDS) if k in config)
-    control_template_arg = cg.TemplateArguments(
-        cg.RawExpression(f"static_cast<uint16_t>({field_mask})"), *template_arg
-    )
-    var = cg.new_Pvariable(action_id, control_template_arg, paren)
+    fwd_args = ", ".join(name for _, name in args)
+    body_lines: list[str] = []
 
     for conf_key, setter, type_ in FIELDS:
-        if conf_key in config and setter is not None:
-            template_ = await cg.templatable(config[conf_key], args, type_)
-            cg.add(getattr(var, setter)(template_))
+        if conf_key not in config:
+            continue
+        value = config[conf_key]
+        if isinstance(value, Lambda):
+            inner = await cg.process_lambda(value, args, return_type=type_)
+            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
+        else:
+            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
 
     if CONF_EFFECT in config:
         if isinstance(config[CONF_EFFECT], Lambda):
-            # Lambda returns a string — wrap in a C++ lambda that resolves
-            # the effect name to its uint32_t index at runtime
             inner_lambda = await cg.process_lambda(
                 config[CONF_EFFECT], args, return_type=cg.std_string
             )
-            fwd_args = ", ".join(n for _, n in args)
-            # capture="" is correct: paren is a global variable name
-            # string-interpolated into the body at codegen time, not a
-            # C++ runtime capture.
-            wrapper = LambdaExpression(
-                f"auto __effect_s = ({inner_lambda})({fwd_args});\n"
-                f"return {paren}->get_effect_index("
-                f"__effect_s.c_str(), __effect_s.size());",
-                args,
-                capture="",
-                return_type=cg.uint32,
+            body_lines.append(
+                f"{{ auto __effect_s = ({inner_lambda})({fwd_args});\n"
+                f"call.set_effect(parent->get_effect_index("
+                f"__effect_s.c_str(), __effect_s.size())); }}"
             )
-            cg.add(var.set_effect(wrapper))
         else:
-            # Static string — resolve effect name to index at codegen time
-            template_ = await cg.templatable(
-                _resolve_effect_index(config), args, cg.uint32
+            # Cast disambiguates between set_effect(uint32_t) and
+            # set_effect(optional<uint32_t>) when the literal is an int.
+            body_lines.append(
+                f"call.set_effect(static_cast<uint32_t>({_resolve_effect_index(config)}));"
             )
-            cg.add(var.set_effect(template_))
-    return var
+
+    # Match LightControlAction::ApplyFn signature: const Ts &... for trigger args.
+    apply_args = [
+        (LightState.operator("ptr"), "parent"),
+        (LightCall.operator("ref"), "call"),
+        *((t.operator("const").operator("ref"), n) for t, n in args),
+    ]
+    apply_lambda = LambdaExpression(
+        ["\n".join(body_lines)],
+        apply_args,
+        capture="",
+        return_type=cg.void,
+    )
+    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
 
 
 CONF_RELATIVE_BRIGHTNESS = "relative_brightness"

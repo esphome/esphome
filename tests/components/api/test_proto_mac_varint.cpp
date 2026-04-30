@@ -112,7 +112,7 @@ TEST(ProtoMacVarint, AllOnes) { verify_mac(0xFFFFFFFFFFFFULL, 7); }         // F
 
 // 100 deterministic-random 48-bit MACs to catch regressions across the space.
 TEST(ProtoMacVarint, RandomSample) {
-  // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp) -- intentional fixed seed for reproducibility.
+  // NOLINTNEXTLINE(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) -- fixed seed for reproducibility
   std::mt19937_64 rng(0xC0FFEE);
   for (int i = 0; i < 100; i++) {
     uint64_t mac = rng() & 0xFFFFFFFFFFFFULL;
