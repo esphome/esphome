@@ -3,6 +3,7 @@ dlms_meter:
   decryption_key: "36C66639E48A8CA4D6BC8B282A793BBB"
   auth_key: "11223344556677889900AABBCCDDEEFF"
   skip_crc: true
+  provider: "deprecated"
   custom_patterns:
     - "custom_pattern_1"
     - "custom_pattern_2"

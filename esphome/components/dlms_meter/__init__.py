@@ -1,3 +1,4 @@
+import logging
 import re
 
 import esphome.codegen as cg
@@ -5,6 +6,8 @@ from esphome.components import esp32, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME, CONF_PATTERN, CONF_PRIORITY
 from esphome.core import CORE
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
 DEPENDENCIES = ["uart"]
@@ -70,6 +73,16 @@ def validate_custom_pattern(value):
     return value
 
 
+def validate_provider_deprecation(config):
+    if CONF_PROVIDER in config:
+        _LOGGER.warning(
+            "The 'provider' option is deprecated and will be removed in 2026.11.0. "
+            "The dlms_parser library now handles quirks dynamically. "
+            "Please remove this option from your configuration."
+        )
+    return config
+
+
 CUSTOM_PATTERN_SCHEMA = cv.All(
     custom_pattern_dict,
     cv.Schema(
@@ -95,13 +108,12 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_CUSTOM_PATTERNS): cv.ensure_list(CUSTOM_PATTERN_SCHEMA),
             cv.Optional(CONF_SKIP_CRC, default=False): cv.boolean,
-            cv.Optional(CONF_PROVIDER): cv.invalid(
-                "The 'provider' option has been removed. The dlms_parser library now handles quirks dynamically. Please remove this option from your configuration."
-            ),
+            cv.Optional(CONF_PROVIDER): cv.string,
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
+    validate_provider_deprecation,
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("dlms_meter", require_rx=True)

@@ -159,13 +159,10 @@ void DlmsMeterComponent::read_rx_buffer_() {
 
   this->bytes_accumulated_ += available;
 
-  this->last_rx_char_time_ = millis();
+  this->last_rx_char_time_ = App.get_loop_component_start_time();
 }
 
 void DlmsMeterComponent::process_frame_() {
-  if (this->bytes_accumulated_ == 0)
-    return;
-
   ESP_LOGV(TAG, "Processing frame of size: %zu bytes", this->bytes_accumulated_);
 
   auto callback = [this](const char *obis_code, float float_val, const char *str_val, bool is_numeric) {
