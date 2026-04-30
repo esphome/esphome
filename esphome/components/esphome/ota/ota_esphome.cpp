@@ -100,6 +100,9 @@ void ESPHomeOTAComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Password configured");
   }
 #endif
+#ifdef USE_OTA_PARTITIONS
+  ESP_LOGCONFIG(TAG, "  Partition access allowed");
+#endif
 }
 
 void ESPHomeOTAComponent::loop() {
@@ -114,8 +117,11 @@ void ESPHomeOTAComponent::loop() {
   this->handle_handshake_();
 }
 
-static const uint8_t FEATURE_SUPPORTS_COMPRESSION = 0x01;
-static const uint8_t FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
+static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
+static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
+static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the OTA handshake and authentication.
@@ -201,16 +207,36 @@ void ESPHomeOTAComponent::handle_handshake_() {
       this->ota_features_ = this->handshake_buf_[0];
       ESP_LOGV(TAG, "Features: 0x%02X", this->ota_features_);
       this->transition_ota_state_(OTAState::FEATURE_ACK);
-      this->handshake_buf_[0] =
-          ((this->ota_features_ & FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression())
-              ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION
-              : ota::OTA_RESPONSE_HEADER_OK;
+
+      const bool supports_compression =
+          (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression();
+
+      // Compose the feature-ack response. When USE_OTA_PARTITIONS is enabled and the client
+      // negotiates the extended protocol we emit a 2-byte response (marker + server feature flags);
+      // otherwise we emit the single-byte legacy response. The #ifdef wraps only the extended-proto
+      // branch so the legacy branch reads as unconditional code in either build configuration.
+#ifdef USE_OTA_PARTITIONS
+      this->extended_proto_ = (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
+      if (this->extended_proto_) {
+        this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
+        this->handshake_buf_[1] =
+            SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS | (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
+      } else
+#endif
+      {
+        this->handshake_buf_[0] =
+            supports_compression ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION : ota::OTA_RESPONSE_HEADER_OK;
+      }
       [[fallthrough]];
     }
 
     case OTAState::FEATURE_ACK: {
-      // Acknowledge header - 1 byte
-      if (!this->try_write_(1, LOG_STR("ack feature"))) {
+#ifdef USE_OTA_PARTITIONS
+      const size_t ack_size = this->extended_proto_ ? 2 : 1;
+#else
+      const size_t ack_size = 1;
+#endif
+      if (!this->try_write_(ack_size, LOG_STR("ack feature"))) {
         return;
       }
 #ifdef USE_OTA_PASSWORD
@@ -296,6 +322,9 @@ void ESPHomeOTAComponent::handle_data_() {
   uint8_t buf[OTA_BUFFER_SIZE];
   char *sbuf = reinterpret_cast<char *>(buf);
   size_t ota_size;
+#ifdef USE_OTA_PARTITIONS
+  ota::OTAType ota_type = ota::OTA_TYPE_UPDATE_APP;
+#endif
 #if USE_OTA_VERSION == 2
   size_t size_acknowledged = 0;
 #endif
@@ -310,6 +339,18 @@ void ESPHomeOTAComponent::handle_data_() {
 
   // Acknowledge auth OK - 1 byte
   this->write_byte_(ota::OTA_RESPONSE_AUTH_OK);
+
+#ifdef USE_OTA_PARTITIONS
+  if (this->extended_proto_) {
+    // Read ota type, 1 byte
+    if (!this->readall_(buf, 1)) {
+      this->log_read_error_(LOG_STR("OTA type"));
+      goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+    ota_type = static_cast<ota::OTAType>(buf[0]);
+  }
+  ESP_LOGV(TAG, "OTA type is 0x%02x", ota_type);
+#endif
 
   // Read size, 4 bytes MSB first
   if (!this->readall_(buf, 4)) {
@@ -331,6 +372,12 @@ void ESPHomeOTAComponent::handle_data_() {
 #endif
 
   // This will block for a few seconds as it locks flash
+#ifdef USE_OTA_PARTITIONS
+  if (ota_type != ota::OTA_TYPE_UPDATE_APP) {
+    error_code = ota::OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+  }
+#endif
   error_code = this->backend_->begin(ota_size);
   if (error_code != ota::OTA_RESPONSE_OK)
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
@@ -616,7 +663,7 @@ void ESPHomeOTAComponent::yield_and_feed_watchdog_() {
 void ESPHomeOTAComponent::log_auth_warning_(const LogString *msg) { ESP_LOGW(TAG, "Auth: %s", LOG_STR_ARG(msg)); }
 
 bool ESPHomeOTAComponent::select_auth_type_() {
-  bool client_supports_sha256 = (this->ota_features_ & FEATURE_SUPPORTS_SHA256_AUTH) != 0;
+  bool client_supports_sha256 = (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_SHA256_AUTH) != 0;
 
   // Require SHA256
   if (!client_supports_sha256) {

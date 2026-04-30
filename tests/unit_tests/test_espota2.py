@@ -185,6 +185,14 @@ def test_receive_exactly_socket_error(mock_socket: Mock) -> None:
             "Error: The OTA partition on the ESP couldn't be found",
         ),
         (espota2.RESPONSE_ERROR_MD5_MISMATCH, "Error: Application MD5 code mismatch"),
+        (
+            espota2.RESPONSE_ERROR_SIGNATURE_INVALID,
+            "Error: Firmware signature verification failed",
+        ),
+        (
+            espota2.RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE,
+            "Error: The requested OTA type is not supported by the device",
+        ),
         (espota2.RESPONSE_ERROR_UNKNOWN, "Unknown error from ESP"),
     ],
 )
@@ -270,12 +278,13 @@ def test_perform_ota_successful_md5_auth(
     # Verify magic bytes were sent
     assert mock_socket.sendall.call_args_list[0] == call(bytes(espota2.MAGIC_BYTES))
 
-    # Verify features were sent (compression + SHA256 support)
+    # Verify features were sent (compression + SHA256 support + extended protocol)
     assert mock_socket.sendall.call_args_list[1] == call(
         bytes(
             [
-                espota2.FEATURE_SUPPORTS_COMPRESSION
-                | espota2.FEATURE_SUPPORTS_SHA256_AUTH
+                espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
+                | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
+                | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
             ]
         )
     )
@@ -640,12 +649,13 @@ def test_perform_ota_successful_sha256_auth(
     # Verify magic bytes were sent
     assert mock_socket.sendall.call_args_list[0] == call(bytes(espota2.MAGIC_BYTES))
 
-    # Verify features were sent (compression + SHA256 support)
+    # Verify features were sent (compression + SHA256 support + extended protocol)
     assert mock_socket.sendall.call_args_list[1] == call(
         bytes(
             [
-                espota2.FEATURE_SUPPORTS_COMPRESSION
-                | espota2.FEATURE_SUPPORTS_SHA256_AUTH
+                espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
+                | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
+                | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
             ]
         )
     )
@@ -699,8 +709,9 @@ def test_perform_ota_sha256_fallback_to_md5(
     assert mock_socket.sendall.call_args_list[1] == call(
         bytes(
             [
-                espota2.FEATURE_SUPPORTS_COMPRESSION
-                | espota2.FEATURE_SUPPORTS_SHA256_AUTH
+                espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
+                | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
+                | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
             ]
         )
     )
