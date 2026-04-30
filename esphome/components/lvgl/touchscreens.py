@@ -9,6 +9,7 @@ from .defines import (
     CONF_LONG_PRESS_TIME,
     CONF_TOUCHSCREENS,
 )
+from .helpers import add_lv_use
 from .schemas import PRESS_TIME
 from .types import LVTouchListener
 
@@ -34,6 +35,7 @@ def touchscreen_schema(config):
 
 
 async def touchscreens_to_code(lv_component, config):
+    add_lv_use(CONF_TOUCHSCREEN)
     for tconf in config[CONF_TOUCHSCREENS]:
         touchscreen = await cg.get_variable(tconf[CONF_TOUCHSCREEN_ID])
         lpt = tconf[CONF_LONG_PRESS_TIME].total_milliseconds

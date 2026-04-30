@@ -49,7 +49,7 @@ def get_default_group(config):
 
 async def encoders_to_code(var, config, default_group):
     for enc_conf in config[CONF_ENCODERS]:
-        add_lv_use("KEY_LISTENER")
+        add_lv_use("KEY_LISTENER", "ROTARY_ENCODER")
         lpt = enc_conf[CONF_LONG_PRESS_TIME].total_milliseconds
         lprt = enc_conf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
         listener = cg.new_Pvariable(
