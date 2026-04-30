@@ -843,6 +843,10 @@ class EsphomeCore:
         return self.toolchain == Toolchain.ESP_IDF
 
     @property
+    def using_toolchain_platformio(self):
+        return self.toolchain == Toolchain.PLATFORMIO
+
+    @property
     def using_zephyr(self):
         return self.target_framework == "zephyr"
 

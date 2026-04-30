@@ -587,8 +587,6 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     from aioesphomeapi import LogParser
     import serial
 
-    from esphome import platformio_api
-
     if CONF_LOGGER not in config:
         _LOGGER.info("Logger is not enabled. Not starting UART logs.")
         return 1
@@ -605,6 +603,13 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         process_stacktrace = getattr(module, "process_stacktrace")
     except AttributeError:
         pass
+
+    if process_stacktrace is None:
+        _LOGGER.info(
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s". ',
+            CORE.target_platform,
+        )
+        return 1
 
     backtrace_state = False
     ser = serial.Serial()
@@ -647,14 +652,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                             )
                             safe_print(parser.parse_line(line, time_str))
 
-                            if process_stacktrace:
-                                backtrace_state = process_stacktrace(
-                                    config, line, backtrace_state
-                                )
-                            else:
-                                backtrace_state = platformio_api.process_stacktrace(
-                                    config, line, backtrace_state=backtrace_state
-                                )
+                            backtrace_state = process_stacktrace(
+                                config, line, backtrace_state
+                            )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
@@ -840,8 +840,6 @@ def _make_crystal_freq_callback(
 def upload_using_esptool(
     config: ConfigType, port: str, file: str, speed: int
 ) -> str | int:
-    from esphome import platformio_api
-
     first_baudrate = speed or config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", os.getenv("ESPHOME_UPLOAD_SPEED", "460800")
     )
@@ -853,6 +851,8 @@ def upload_using_esptool(
 
         flash_images = [FlashImage(path=api.get_factory_firmware_path(), offset="0x0")]
     else:
+        from esphome import platformio_api
+
         idedata = platformio_api.get_idedata(config)
 
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
@@ -1227,9 +1227,14 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     if exit_code != 0:
         return exit_code
     if CORE.is_host:
-        from esphome.platformio_api import get_idedata
+        if CORE.using_toolchain_esp_idf:
+            from esphome.espidf import api
 
-        program_path = str(get_idedata(config).firmware_elf_path)
+            program_path = str(api.get_elf_path())
+        else:
+            from esphome.platformio_api import get_idedata
+
+            program_path = str(get_idedata(config).firmware_elf_path)
         _LOGGER.info("Successfully compiled program to path '%s'", program_path)
     else:
         _LOGGER.info("Successfully compiled program.")
@@ -1280,9 +1285,14 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         return exit_code
     _LOGGER.info("Successfully compiled program.")
     if CORE.is_host:
-        from esphome.platformio_api import get_idedata
+        if CORE.using_toolchain_esp_idf:
+            from esphome.espidf import api
 
-        program_path = str(get_idedata(config).firmware_elf_path)
+            program_path = str(api.get_elf_path())
+        else:
+            from esphome.platformio_api import get_idedata
+
+            program_path = str(get_idedata(config).firmware_elf_path)
         _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
@@ -1473,6 +1483,13 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
 
+    if not CORE.using_toolchain_platformio:
+        _LOGGER.error(
+            "The idedata command is not compatible with %s toolchain",
+            CORE.toolchain.value,
+        )
+        return 1
+
     from esphome import platformio_api
 
     logging.disable(logging.INFO)
@@ -1492,7 +1509,6 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     This command compiles the configuration and performs memory analysis.
     Compilation is fast if sources haven't changed (just relinking).
     """
-    from esphome import platformio_api
     from esphome.analyze_memory.cli import MemoryAnalyzerCLI
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
@@ -1506,12 +1522,25 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     _LOGGER.info("Successfully compiled program.")
 
     # Get idedata for analysis
-    idedata = platformio_api.get_idedata(config)
-    if idedata is None:
-        _LOGGER.error("Failed to get IDE data for memory analysis")
-        return 1
+    idedata = None
+    if CORE.using_toolchain_esp_idf:
+        from esphome.espidf import api
 
-    firmware_elf = Path(idedata.firmware_elf_path)
+        objdump_path = str(api.get_objdump_path())
+        readelf_path = str(api.get_readelf_path())
+
+        firmware_elf = api.get_elf_path()
+    else:
+        from esphome import platformio_api
+
+        idedata = platformio_api.get_idedata(config)
+        if idedata is None:
+            _LOGGER.error("Failed to get IDE data for memory analysis")
+            return 1
+        objdump_path = idedata.objdump_path
+        readelf_path = idedata.readelf_path
+
+        firmware_elf = Path(idedata.firmware_elf_path)
 
     # Extract external components from config
     external_components = detect_external_components(config)
@@ -1521,8 +1550,8 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     _LOGGER.info("Analyzing memory usage...")
     analyzer = MemoryAnalyzerCLI(
         str(firmware_elf),
-        idedata.objdump_path,
-        idedata.readelf_path,
+        objdump_path,
+        readelf_path,
         external_components,
         idedata=idedata,
     )
@@ -1538,7 +1567,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     try:
         ram_analyzer = RamStringsAnalyzer(
             str(firmware_elf),
-            objdump_path=idedata.objdump_path,
+            objdump_path=objdump_path,
             platform=CORE.target_platform,
         )
         ram_analyzer.analyze()

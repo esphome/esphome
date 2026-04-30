@@ -17,6 +17,8 @@ _LOGGER = logging.getLogger(__name__)
 # Caches
 _esphome_esp_idf_paths_cache = {}
 _idf_env_cache = {}
+_cmake_output_cache = {}
+_cmake_tools_cache = {}
 
 
 def _get_core_framework_version():
@@ -55,6 +57,47 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
                 *_get_esphome_esp_idf_paths(version)
             )
     return _idf_env_cache[version]
+
+
+def _get_cmake_output(build_dir) -> str:
+    if build_dir not in _cmake_output_cache:
+        cmd = ["cmake", "-LA", "-N", "."]
+
+        env = _get_idf_env()
+        result = subprocess.run(
+            cmd,
+            cwd=build_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(f"CMake failed: {result.stderr}")
+
+        _cmake_output_cache[build_dir] = result.stdout
+    return _cmake_output_cache[build_dir]
+
+
+def _get_cmake_tool_path(var_name: str) -> Path:
+    build_dir = CORE.relative_build_path("build")
+    cmake_output = _get_cmake_output(build_dir)
+
+    if build_dir not in _cmake_tools_cache:
+        _cmake_tools_cache[build_dir] = {}
+
+    if var_name not in _cmake_tools_cache[build_dir]:
+        pattern = rf"^{var_name}:FILEPATH=(.+)$"
+        match = re.search(pattern, cmake_output, re.MULTILINE)
+
+        if not match:
+            raise RuntimeError(f"{var_name} not found in CMake output")
+
+        path = match.group(1).strip()
+        _cmake_tools_cache[build_dir][var_name] = Path(path)
+
+    return _cmake_tools_cache[build_dir][var_name]
 
 
 def run_idf_py(
@@ -310,6 +353,18 @@ def get_elf_path() -> Path:
     """
     build_dir = CORE.relative_build_path("build")
     return build_dir / "firmware.elf"
+
+
+def get_objdump_path() -> Path:
+    return _get_cmake_tool_path("CMAKE_OBJDUMP")
+
+
+def get_readelf_path() -> Path:
+    return _get_cmake_tool_path("CMAKE_READELF")
+
+
+def get_addr2line_path() -> Path:
+    return _get_cmake_tool_path("CMAKE_ADDR2LINE")
 
 
 def create_factory_bin() -> bool:
