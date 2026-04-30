@@ -61,38 +61,31 @@ static CrashData s_raw_crash_data __attribute__((section(".noinit"), used));
 // (zero-initialized at startup) — set by crash_handler_read_and_clear().
 static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-// BK72XX flash code is mapped at the chip-specific BKOFFSET_APP. Real code
-// addresses always live above 0x00000000 in the flash region; SRAM ends at
-// BK72XX_RAM_END. We accept any address in the flash window (broad bound)
-// and reject obvious non-code values.
-static constexpr uint32_t BK72XX_FLASH_START = 0x00010000;  // BKRBL header end (~min app offset)
-static constexpr uint32_t BK72XX_FLASH_END = 0x00200000;    // 2MB cap (largest typical flash)
+// RAM and flash bounds come from linker symbols injected by
+// libretiny/patch_bk72xx_noinit.py.script (PROVIDE assignments tied to the
+// linker's own MEMORY definition). This avoids hardcoding chip-variant
+// (BK7231N has 192KB RAM, others 256KB) or board (BKOFFSET_APP /
+// BKRBL_SIZE_APP) layout — the linker is the source of truth.
+extern "C" {
+// NOLINTBEGIN(bugprone-reserved-identifier,readability-identifier-naming,readability-redundant-declaration)
+extern char _esphome_ram_start[];
+extern char _esphome_ram_end[];
+extern char _esphome_flash_start[];
+extern char _esphome_flash_end[];
+// NOLINTEND(bugprone-reserved-identifier,readability-identifier-naming,readability-redundant-declaration)
+}
 
 static inline bool is_code_addr(uint32_t addr) {
   // ARM968 instructions are 4-byte aligned; reject obviously bogus values.
   if ((addr & 0x3) != 0)
     return false;
-  return addr >= BK72XX_FLASH_START && addr < BK72XX_FLASH_END;
+  return addr >= reinterpret_cast<uintptr_t>(_esphome_flash_start) &&
+         addr < reinterpret_cast<uintptr_t>(_esphome_flash_end);
 }
 
-// SRAM bounds for stack-scan validity. RAM origin is 0x00400000 across all
-// BK72XX variants; the linker reserves the first 0x100 bytes for the ARM
-// exception vector slots (see ORIGIN = 0x00400100 in bk7231{,n}_bsp.template.ld).
-// Total RAM differs by variant: 192KB on BK7231N, 256KB on every other BK72XX.
-// This split mirrors the SDK's own lt_heap_get_size() in
-// libretiny/cores/beken-72xx/base/api/lt_mem.c — keep the values in sync if
-// LibreTiny ever adjusts them.
-static constexpr uint32_t BK72XX_RAM_BASE = 0x00400000;
-#ifdef USE_LIBRETINY_VARIANT_BK7231N
-static constexpr uint32_t BK72XX_RAM_SIZE = 192 * 1024;
-#else
-static constexpr uint32_t BK72XX_RAM_SIZE = 256 * 1024;
-#endif
-static constexpr uint32_t BK72XX_RAM_START = BK72XX_RAM_BASE + 0x100;
-static constexpr uint32_t BK72XX_RAM_END = BK72XX_RAM_BASE + BK72XX_RAM_SIZE;
-
 static inline bool is_valid_stack_ptr(uint32_t sp) {
-  return (sp & 0x3) == 0 && sp >= BK72XX_RAM_START && sp < BK72XX_RAM_END;
+  return (sp & 0x3) == 0 && sp >= reinterpret_cast<uintptr_t>(_esphome_ram_start) &&
+         sp < reinterpret_cast<uintptr_t>(_esphome_ram_end);
 }
 
 // Walk the stack starting at `sp` and capture up to `max` code-looking
@@ -105,7 +98,7 @@ static uint8_t scan_backtrace(uint32_t sp, uint32_t pc, uint32_t *out, uint8_t m
   // Limit the scan to 256 words (1KB) — covers typical nested call frames
   // without dredging up too many stale stack values.
   const auto *scan = reinterpret_cast<const uint32_t *>(sp);
-  const auto *end = reinterpret_cast<const uint32_t *>(BK72XX_RAM_END);
+  const auto *end = reinterpret_cast<const uint32_t *>(_esphome_ram_end);
   const uint32_t *limit = scan + 256;
   if (limit > end)
     limit = end;

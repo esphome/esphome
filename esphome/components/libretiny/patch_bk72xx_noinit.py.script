@@ -14,7 +14,11 @@ import re
 
 _MARKER = "/* esphome .noinit */"
 # Insert a NOLOAD .noinit section right after the .bss block. NOLOAD prevents
-# the linker from emitting any LMA copy data for it.
+# the linker from emitting any LMA copy data for it. We also emit PROVIDE
+# symbols pinning RAM/flash bounds to the linker's own MEMORY definition;
+# the crash handler reads these instead of hardcoding bounds, so it tracks
+# the actual variant + board layout (BK7231N=192KB vs others=256KB,
+# board-specific BKOFFSET_APP/BKRBL_SIZE_APP) without separate constants.
 _NOINIT_BLOCK = (
     "\n"
     "\t.noinit ALIGN(8) (NOLOAD) :\n"
@@ -24,6 +28,11 @@ _NOINIT_BLOCK = (
     "\t\t. = ALIGN(8);\n"
     "\t\t_noinit_end = .;\n"
     "\t} > ram\n"
+    "\n"
+    "\tPROVIDE(_esphome_ram_start = ORIGIN(ram));\n"
+    "\tPROVIDE(_esphome_ram_end = ORIGIN(ram) + LENGTH(ram));\n"
+    "\tPROVIDE(_esphome_flash_start = ORIGIN(flash));\n"
+    "\tPROVIDE(_esphome_flash_end = ORIGIN(flash) + LENGTH(flash));\n"
     "\n"
     + "\t" + _MARKER + "\n"
 )
