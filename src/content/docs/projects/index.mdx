@@ -142,9 +142,9 @@ No programming or other software required.
   </label>
   <label>
     <input type="radio" name="type" value="irrf" />
-    <div class="name">Infrared Proxy</div>
+    <div class="name">Infrared &amp; radio frequency proxy</div>
     <div class="description">
-      Create a device to allow Home Assistant to control infrared devices.
+      Create a device to allow Home Assistant to control infrared and radio frequency devices.
     </div>
   </label>
   <label>
@@ -435,18 +435,19 @@ No programming or other software required.
   </ul>
 </div>
 
-{/* Infrared Proxy */}
-<div
-  class="project-type not-content type-irrf projects-hidden"
-  data-manifest-root="https://firmware.esphome.io/infrared-proxy"
->
+{/* Infrared & Radio Frequency Proxy */}
+<div class="project-type not-content type-irrf projects-hidden">
   <div class="question-prompt">
-    Pick the device you want to turn into an infrared proxy:
+    Pick the device you want to turn into an infrared or radio frequency proxy:
   </div>
   <div class="radios not-content">
     <label>
       <input type="radio" name="irrf-device" class="device-option" value="xiao-ir-mate" data-manifest-root="https://firmware.esphome.io/xiao-ir-mate" checked />
       <img src="/projects/irrf-proxy/xiao-ir-mate.png" alt="XIAO IR Mate" />
+    </label>
+    <label>
+      <input type="radio" name="irrf-device" class="device-option" value="m5stack-atom-echo" data-manifest-root="https://firmware.esphome.io/rf-proxy" />
+      <img src="/projects/irrf-proxy/m5stack-atom-echo.png" alt="M5Stack Atom Lite with 433MHz RF Unit" />
     </label>
   </div>
 
@@ -459,6 +460,20 @@ No programming or other software required.
     <p>Learn more &amp; buy</p>
     <ul>
       <li><a href="https://www.seeedstudio.com/XIAO-Smart-IR-Mate-p-6492.html">Seeed Studio</a></li>
+    </ul>
+  </div>
+
+  <div class="projects-hidden project-info not-content m5stack-atom-echo">
+    <h3>Radio Frequency Proxy</h3>
+    <p>
+      Turn an M5Stack Atom Lite into a 433MHz radio frequency proxy for Home
+      Assistant. Connect the RF Unit to the Atom Lite using the included Grove
+      cable.
+    </p>
+    <p>This project requires two devices from M5Stack:</p>
+    <ul>
+      <li><a href="https://shop.m5stack.com/products/atom-lite-esp32-development-kit">M5Stack Atom Lite ESP32 Development Kit</a></li>
+      <li><a href="https://shop.m5stack.com/products/rf-unit-433mhz-transmitter-syn115">M5Stack RF Unit 433MHz Transmitter (SYN115)</a></li>
     </ul>
   </div>
 
