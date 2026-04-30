@@ -899,6 +899,28 @@ void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
 #endif
 }
 
+void Scheduler::trim_freelist() {
+  LockGuard guard{this->lock_};
+  SchedulerItem *item = this->scheduler_item_pool_head_;
+  size_t freed = 0;
+  while (item != nullptr) {
+    SchedulerItem *next = item->next_free;
+    delete item;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+    this->debug_live_items_--;
+#endif
+    item = next;
+    freed++;
+  }
+  this->scheduler_item_pool_head_ = nullptr;
+  this->scheduler_item_pool_size_ = 0;
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  ESP_LOGD(TAG, "Freelist trimmed (%zu items freed)", freed);
+#else
+  (void) freed;
+#endif
+}
+
 #ifdef ESPHOME_DEBUG_SCHEDULER
 void Scheduler::debug_log_timer_(const SchedulerItem *item, NameType name_type, const char *static_name,
                                  uint32_t hash_or_id, SchedulerItem::Type type, uint32_t delay, uint64_t now) {
