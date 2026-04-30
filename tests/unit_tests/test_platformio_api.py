@@ -368,6 +368,10 @@ def test_run_platformio_cli_strips_win_long_path_prefix(
         patch("esphome.platformio_api.sys.platform", "win32"),
         patch("esphome.platformio_api.sys.executable", prefixed_exe),
     ):
+        # Pop any pre-existing PYTHONEXEPATH so the assertion below reflects
+        # what run_platformio_cli set, not whatever the test runner's
+        # environment happened to contain.
+        os.environ.pop("PYTHONEXEPATH", None)
         mock_run_external_process.return_value = 0
         platformio_api.run_platformio_cli("test", "arg")
 
@@ -378,6 +382,32 @@ def test_run_platformio_cli_strips_win_long_path_prefix(
         # PYTHONEXEPATH is exported with the stripped path so PlatformIO's
         # get_pythonexe_path() picks it up in the subprocess.
         assert os.environ["PYTHONEXEPATH"] == stripped_exe
+
+
+def test_run_platformio_cli_does_not_set_pythonexepath_without_strip(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    r"""PYTHONEXEPATH is not touched when sys.executable has no ``\\?\`` prefix.
+
+    Setting it unconditionally would clobber a user-provided value (or
+    interfere with non-Windows tooling that has no prefix to strip).
+    """
+    CORE.build_path = str(setup_core / "build" / "test")
+    plain_exe = "/usr/bin/python3"
+
+    with (
+        patch.dict(os.environ, {}, clear=False),
+        patch("esphome.platformio_api.sys.platform", "linux"),
+        patch("esphome.platformio_api.sys.executable", plain_exe),
+    ):
+        os.environ.pop("PYTHONEXEPATH", None)
+        mock_run_external_process.return_value = 0
+        platformio_api.run_platformio_cli("test", "arg")
+
+        mock_run_external_process.assert_called_once()
+        args = mock_run_external_process.call_args[0]
+        assert args[0] == plain_exe
+        assert "PYTHONEXEPATH" not in os.environ
 
 
 def test_run_platformio_cli_run_builds_command(

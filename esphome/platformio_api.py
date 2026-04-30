@@ -59,11 +59,13 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     # doesn't propagate into PlatformIO's $PYTHONEXE and break SCons-emitted
     # command lines run through cmd.exe.
     python_exe = _strip_win_long_path_prefix(sys.executable)
-    # Set PYTHONEXEPATH explicitly so PlatformIO's get_pythonexe_path() uses
-    # this stripped path instead of falling back to sys.executable in the
-    # subprocess (in case the subprocess's sys.executable still has the
-    # prefix).
-    os.environ["PYTHONEXEPATH"] = python_exe
+    if python_exe != sys.executable:
+        # Only override PYTHONEXEPATH when we actually stripped a prefix.
+        # PlatformIO's get_pythonexe_path() reads this and falls back to
+        # sys.executable otherwise; setting it unconditionally would clobber
+        # a user-provided value (or the unmodified path on platforms that
+        # don't need the strip).
+        os.environ["PYTHONEXEPATH"] = python_exe
     cmd = [python_exe, "-m", "esphome.platformio_runner"] + list(args)
 
     return run_external_process(*cmd, **kwargs)
