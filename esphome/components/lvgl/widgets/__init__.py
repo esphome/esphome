@@ -15,6 +15,7 @@ from esphome.const import (
 from esphome.core import ID, EsphomeError, TimePeriod
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObj
+from esphome.types import Expression
 
 from ..defines import (
     CONF_FLEX_ALIGN_CROSS,
@@ -34,7 +35,6 @@ from ..defines import (
     CONF_WIDGETS,
     OBJ_FLAGS,
     PARTS,
-    STATE_CHECKED,
     STATES,
     TYPE_FLEX,
     TYPE_GRID,
@@ -267,15 +267,8 @@ class Widget:
         widget_map[name] = w
         return w
 
-    def add_state(self, state):
-        if "|" in state:
-            state = f"(lv_state_t)({state})"
-        return lv_obj.add_state(self.obj, literal(state))
-
-    def clear_state(self, state):
-        if "|" in state:
-            state = f"(lv_state_t)({state})"
-        return lv_obj.remove_state(self.obj, literal(state))
+    def set_state(self, state: MockObj, value: bool | Expression):
+        lv_add(lvgl_static.lv_obj_set_state_value(self.obj, state, value))
 
     def has_state(self, state):
         return lv_expr.obj_has_state(self.obj, literal(state))
@@ -610,42 +603,13 @@ async def set_obj_properties(w: Widget, config):
             cond.else_()
             w.clear_flag(flag)
 
-    if states := config.get(CONF_STATE):
-        states = states.copy()
-        # checked state handled specially since it requires an event to be sent
-        if checked := states.get(STATE_CHECKED):
-            if isinstance(checked, cv.Lambda):
-                checked = call_lambda(
-                    await cg.process_lambda(
-                        checked, [], capture="=", return_type=cg.bool_
-                    )
-                )
-            lv_add(lvgl_static.lv_obj_set_checked(w.obj, checked))
-            states.pop(STATE_CHECKED)
-
-        adds = set()
-        clears = set()
-        lambs = {}
-        for key, value in states.items():
-            if isinstance(value, cv.Lambda):
-                lambs[key] = value
-            elif value:
-                adds.add(key)
-            else:
-                clears.add(key)
-        if adds:
-            adds = join_enums(adds, "LV_STATE_")
-            w.add_state(adds)
-        if clears:
-            clears = join_enums(clears, "LV_STATE_")
-            w.clear_state(clears)
-        for key, value in lambs.items():
-            lamb = await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
-            state = f"LV_STATE_{key.upper()}"
-            with LvConditional(call_lambda(lamb)) as cond:
-                w.add_state(state)
-                cond.else_()
-                w.clear_state(state)
+    for key, value in config.get(CONF_STATE, {}).items():
+        if isinstance(value, cv.Lambda):
+            value = call_lambda(
+                await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
+            )
+        state = getattr(LV_STATE, key.upper())
+        w.set_state(state, value)
 
     for property in OBJ_PROPERTIES:
         await w.set_property(property, config, lv_name="obj")

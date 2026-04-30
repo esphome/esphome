@@ -5,6 +5,7 @@ from esphome.components.key_provider import KeyProvider
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ITEMS, CONF_TEXT, CONF_WIDTH
 from esphome.cpp_generator import MockObj
+from esphome.types import Expression
 
 from ..automation import action_to_code
 from ..defines import (
@@ -20,7 +21,7 @@ from ..defines import (
 )
 from ..helpers import lvgl_components_required
 from ..lv_validation import key_code, lv_bool, padding
-from ..lvcode import lv, lv_add, lv_expr
+from ..lvcode import lv, lv_add, lv_expr, lvgl_static
 from ..schemas import automation_schema
 from ..types import (
     LV_BTNMATRIX_CTRL,
@@ -120,13 +121,9 @@ class MatrixButton(Widget):
         state = self.map_ctrls(state)
         return lv_expr.buttonmatrix_has_button_ctrl(self.obj, self.index, state)
 
-    def add_state(self, state):
-        state = self.map_ctrls(state)
-        return lv.buttonmatrix_set_button_ctrl(self.obj, self.index, state)
-
-    def clear_state(self, state):
-        state = self.map_ctrls(state)
-        return lv.buttonmatrix_clear_button_ctrl(self.obj, self.index, state)
+    def set_state(self, state: MockObj, value: bool | Expression):
+        ctrl = self.map_ctrls(state)
+        lv_add(lvgl_static.lv_buttonmatrix_set_button_ctrl_value(self.obj, ctrl, value))
 
     def is_pressed(self):
         return self.is_selected() & self.parent.has_state(LV_STATE.PRESSED)

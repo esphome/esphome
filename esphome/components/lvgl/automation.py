@@ -316,7 +316,7 @@ async def resume_action_to_code(config, action_id, template_arg, args):
 )
 async def obj_disable_to_code(config, action_id, template_arg, args):
     async def do_disable(widget: Widget):
-        widget.add_state(LV_STATE.DISABLED)
+        widget.set_state(LV_STATE.DISABLED, True)
 
     return await action_to_code(
         await get_widgets(config), do_disable, action_id, template_arg, args
@@ -328,7 +328,7 @@ async def obj_disable_to_code(config, action_id, template_arg, args):
 )
 async def obj_enable_to_code(config, action_id, template_arg, args):
     async def do_enable(widget: Widget):
-        widget.clear_state(LV_STATE.DISABLED)
+        widget.set_state(LV_STATE.DISABLED, False)
 
     return await action_to_code(
         await get_widgets(config), do_enable, action_id, template_arg, args

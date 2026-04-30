@@ -397,11 +397,6 @@ STATES = (
     "user_4",
 )
 
-
-STATE_PRESSED = "pressed"
-STATE_CHECKED = "checked"
-
-
 PARTS = (
     CONF_MAIN,
     CONF_SCROLLBAR,

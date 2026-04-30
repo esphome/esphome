@@ -27,7 +27,6 @@ from .defines import (
     literal,
 )
 from .lvcode import (
-    API_EVENT,
     EVENT_ARG,
     UPDATE_EVENT,
     LambdaContext,
@@ -89,7 +88,6 @@ async def generate_triggers():
                     conf,
                     w,
                     LV_EVENT.VALUE_CHANGED,
-                    API_EVENT,
                     UPDATE_EVENT,
                 )
 
