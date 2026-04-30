@@ -56,9 +56,10 @@ void TransmitterRadioFrequency::control(const radio_frequency::RadioFrequencyCal
     tx_data->set_data(call.get_raw_timings());
   }
 
-  if (call.get_frequency().has_value()) {
-    tx_data->set_carrier_frequency(*call.get_frequency());
-  }
+  // RF transmissions must not enable IR carrier modulation. Any RF frequency
+  // provided by the call should be treated as metadata elsewhere, not mapped
+  // to the remote transmitter carrier frequency.
+  tx_data->set_carrier_frequency(0);
 
   if (call.get_repeat_count() > 0) {
     tx_call.set_send_times(call.get_repeat_count());
