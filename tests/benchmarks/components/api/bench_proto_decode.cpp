@@ -1,5 +1,7 @@
 #include <benchmark/benchmark.h>
 
+#include <cstring>
+
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/api/api_buffer.h"
 
@@ -181,19 +183,19 @@ BENCHMARK(Decode_SerialProxyWriteRequest);
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 
 static APIBuffer build_infrared_rf_transmit_wire() {
-  APIBuffer buf;
+  // Build the entire wire payload into a stack buffer, then copy into the
+  // returned APIBuffer in a single resize+memcpy. Keeps allocation count
+  // low so callgrind/valgrind doesn't churn through hundreds of grow_()s.
+  uint8_t bytes[256];
+  size_t len = 0;
 
-  auto put_byte = [&](uint8_t b) {
-    size_t s = buf.size();
-    buf.resize(s + 1);
-    buf.data()[s] = b;
-  };
+  auto put_byte = [&](uint8_t b) { bytes[len++] = b; };
   auto put_varint = [&](uint32_t v) {
     while (v >= 0x80) {
-      put_byte(static_cast<uint8_t>((v & 0x7F) | 0x80));
+      bytes[len++] = static_cast<uint8_t>((v & 0x7F) | 0x80);
       v >>= 7;
     }
-    put_byte(static_cast<uint8_t>(v));
+    bytes[len++] = static_cast<uint8_t>(v);
   };
   auto encode_zigzag = [](int32_t v) -> uint32_t {
     return (static_cast<uint32_t>(v) << 1) ^ static_cast<uint32_t>(v >> 31);
@@ -212,7 +214,10 @@ static APIBuffer build_infrared_rf_transmit_wire() {
   put_byte(0x20);
   put_varint(2);
   // field 5: timings (packed sint32) — 100 entries alternating mark/space.
-  uint8_t packed[400];
+  // Each entry encodes to 2 bytes (zigzag(560)=1120 → varint 0xE0 0x08), so
+  // packed payload is 200 bytes; with tag (1) + length varint (2) it fits in
+  // the 256-byte stack buffer.
+  uint8_t packed[200];
   size_t packed_len = 0;
   for (int i = 0; i < 100; i++) {
     int32_t value = (i % 2 == 0) ? 560 : -560;
@@ -225,9 +230,13 @@ static APIBuffer build_infrared_rf_transmit_wire() {
   }
   put_byte(0x2A);
   put_varint(static_cast<uint32_t>(packed_len));
-  for (size_t i = 0; i < packed_len; i++)
-    put_byte(packed[i]);
+  std::memcpy(bytes + len, packed, packed_len);
+  len += packed_len;
   // field 6: modulation = 0 — skip (default value, not encoded by senders)
+
+  APIBuffer buf;
+  buf.resize(len);
+  std::memcpy(buf.data(), bytes, len);
   return buf;
 }
 

@@ -456,17 +456,17 @@ BENCHMARK(Encode_SerialProxyDataReceived);
 
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 
+// Mark/space pairs simulating a typical RC-5 / NEC capture (100 timings).
 static const std::vector<int32_t> &get_ir_timings_100() {
-  static const std::vector<int32_t> timings = [] {
-    std::vector<int32_t> v;
-    v.reserve(100);
-    // Mark/space pairs simulating a typical RC-5 / NEC capture.
+  static std::vector<int32_t> *timings = nullptr;
+  if (timings == nullptr) {
+    timings = new std::vector<int32_t>();
+    timings->reserve(100);
     for (int i = 0; i < 100; i++) {
-      v.push_back((i % 2 == 0) ? 560 : -560);
+      timings->push_back((i % 2 == 0) ? 560 : -560);
     }
-    return v;
-  }();
-  return timings;
+  }
+  return *timings;
 }
 
 static InfraredRFReceiveEvent make_infrared_rf_receive_event() {
