@@ -486,6 +486,10 @@ async def component_to_code(config):
         # a .noinit region before the SDK's own register dump + bk_cpu_shutdown
         # chain runs. The .noinit region is injected into the generated linker
         # script by patch_bk72xx_noinit.py so it survives the watchdog reset.
+        # bk72xx/__init__.py is auto-generated, so the define is set here
+        # rather than there. (defines.h has the matching #ifdef USE_BK72XX
+        # block for static analysis / IDE only — it doesn't drive the build.)
+        cg.add_define("USE_BK72XX_CRASH_HANDLER")
         for sym in ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt"):
             cg.add_build_flag(f"-Wl,--wrap={sym}")
         cg.add_platformio_option("extra_scripts", ["pre:patch_bk72xx_noinit.py"])
