@@ -175,12 +175,13 @@ CODECS_SCHEMA = cv.Schema(
     }
 )
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_CODECS): cv.All(
-            cv.only_on_esp32, _maybe_empty_codec(CODECS_SCHEMA)
-        ),
-    }
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_CODECS): _maybe_empty_codec(CODECS_SCHEMA),
+        }
+    ),
+    cv.only_on_esp32,
 )
 
 AUDIO_COMPONENT_SCHEMA = cv.Schema(
