@@ -91,19 +91,24 @@ static inline bool is_valid_stack_ptr(uint32_t sp) {
 // Walk the stack starting at `sp` and capture up to `max` code-looking
 // 32-bit values into `out`. Skips entries equal to the fault PC so it isn't
 // reported twice. Returns the number of entries captured.
+//
+// Bounds math is done in uintptr_t space; comparing pointers from unrelated
+// objects (sp vs the linker-symbol RAM-end) is technically UB in C++ even
+// though it works on flat-address embedded targets.
 static uint8_t scan_backtrace(uint32_t sp, uint32_t pc, uint32_t *out, uint8_t max) {
   if (!is_valid_stack_ptr(sp))
     return 0;
-  uint8_t count = 0;
   // Limit the scan to 256 words (1KB) — covers typical nested call frames
   // without dredging up too many stale stack values.
-  const auto *scan = reinterpret_cast<const uint32_t *>(sp);
-  const auto *end = reinterpret_cast<const uint32_t *>(_esphome_ram_end);
-  const uint32_t *limit = scan + 256;
-  if (limit > end)
-    limit = end;
-  for (; scan < limit && count < max; scan++) {
-    uint32_t val = *scan;
+  static constexpr uint32_t SCAN_WORDS = 256;
+  uintptr_t scan_addr = sp;
+  uintptr_t end_addr = reinterpret_cast<uintptr_t>(_esphome_ram_end);
+  uintptr_t limit_addr = scan_addr + SCAN_WORDS * sizeof(uint32_t);
+  if (limit_addr > end_addr)
+    limit_addr = end_addr;
+  uint8_t count = 0;
+  for (; scan_addr < limit_addr && count < max; scan_addr += sizeof(uint32_t)) {
+    uint32_t val = *reinterpret_cast<const uint32_t *>(scan_addr);
     if (is_code_addr(val) && val != pc) {
       out[count++] = val;
     }
@@ -163,11 +168,22 @@ void crash_handler_log() {
     ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (stack scan)", i, s_raw_crash_data.backtrace[i]);
   }
   // Build addr2line hint with all captured addresses for easy copy-paste.
+  // snprintf can return < 0 on error or >= size on truncation — clamp pos
+  // to a valid in-buffer offset before any further append, since we add
+  // `hint + pos` and OOB pointer arithmetic is UB.
   char hint[160];
-  int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32 " 0x%08" PRIX32,
-                     s_raw_crash_data.pc, s_raw_crash_data.lr);
-  for (uint8_t i = 0; i < s_raw_crash_data.backtrace_count && pos < (int) sizeof(hint) - 12; i++) {
-    pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, s_raw_crash_data.backtrace[i]);
+  int written = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32 " 0x%08" PRIX32,
+                         s_raw_crash_data.pc, s_raw_crash_data.lr);
+  size_t pos = (written < 0) ? 0 : (static_cast<size_t>(written) >= sizeof(hint) ? sizeof(hint) - 1 : written);
+  for (uint8_t i = 0; i < s_raw_crash_data.backtrace_count && pos + 12 < sizeof(hint); i++) {
+    int n = snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, s_raw_crash_data.backtrace[i]);
+    if (n < 0)
+      break;
+    if (static_cast<size_t>(n) >= sizeof(hint) - pos) {
+      // Truncated — buffer is full.
+      break;
+    }
+    pos += n;
   }
   ESP_LOGE(TAG, "%s", hint);
 }
