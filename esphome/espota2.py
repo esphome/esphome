@@ -287,12 +287,6 @@ def perform_ota(
     if ota_type != OTA_TYPE_UPDATE_APP:
         raise OTAError(f"Unsupported OTA type: 0x{ota_type:02X}")
 
-    if (
-        ota_type != OTA_TYPE_UPDATE_APP
-        and not features & SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS
-    ):
-        raise OTAError("Device only supports app updates")
-
     if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
         upload_contents = gzip.compress(file_contents, compresslevel=9)
         _LOGGER.info("Compressed to %s bytes", len(upload_contents))
