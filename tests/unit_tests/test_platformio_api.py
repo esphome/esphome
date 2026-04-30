@@ -311,6 +311,75 @@ def test_run_platformio_cli_sets_environment_variables(
         assert "arg" in args
 
 
+@pytest.mark.parametrize(
+    ("platform", "input_path", "expected"),
+    [
+        # win32: drive-letter extended-length prefix is stripped
+        (
+            "win32",
+            "\\\\?\\C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+        ),
+        # win32: UNC extended-length prefix is translated to a regular UNC path
+        (
+            "win32",
+            "\\\\?\\UNC\\server\\share\\python.exe",
+            "\\\\server\\share\\python.exe",
+        ),
+        # win32: paths without the prefix are returned unchanged
+        (
+            "win32",
+            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+        ),
+        # non-win32: prefix is left alone (no-op)
+        ("linux", "\\\\?\\C:\\python.exe", "\\\\?\\C:\\python.exe"),
+        ("darwin", "/usr/bin/python3", "/usr/bin/python3"),
+    ],
+)
+def test_strip_win_long_path_prefix(
+    platform: str, input_path: str, expected: str
+) -> None:
+    r"""``\\?\`` and ``\\?\UNC\`` prefixes are stripped only on win32."""
+    with patch("esphome.platformio_api.sys.platform", platform):
+        assert platformio_api._strip_win_long_path_prefix(input_path) == expected
+
+
+def test_run_platformio_cli_strips_win_long_path_prefix(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    r"""Windows ``\\?\`` prefix on sys.executable does not leak into the subprocess.
+
+    The NSIS-installed esphome.exe launcher starts Python with
+    ``sys.executable`` already prefixed by the extended-length path marker.
+    That prefix would otherwise propagate into PlatformIO's ``PYTHONEXE`` and
+    break SCons-emitted command lines run through ``cmd.exe``.
+    """
+    CORE.build_path = str(setup_core / "build" / "test")
+    prefixed_exe = (
+        "\\\\?\\C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe"
+    )
+    stripped_exe = (
+        "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe"
+    )
+
+    with (
+        patch.dict(os.environ, {}, clear=False),
+        patch("esphome.platformio_api.sys.platform", "win32"),
+        patch("esphome.platformio_api.sys.executable", prefixed_exe),
+    ):
+        mock_run_external_process.return_value = 0
+        platformio_api.run_platformio_cli("test", "arg")
+
+        # The subprocess is invoked with the stripped executable path.
+        mock_run_external_process.assert_called_once()
+        args = mock_run_external_process.call_args[0]
+        assert args[0] == stripped_exe
+        # PYTHONEXEPATH is exported with the stripped path so PlatformIO's
+        # get_pythonexe_path() picks it up in the subprocess.
+        assert os.environ["PYTHONEXEPATH"] == stripped_exe
+
+
 def test_run_platformio_cli_run_builds_command(
     setup_core: Path, mock_run_platformio_cli: Mock
 ) -> None:

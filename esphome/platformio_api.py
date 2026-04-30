@@ -15,19 +15,33 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _strip_win_long_path_prefix(path: str) -> str:
-    r"""Strip the Windows extended-length path prefix (``\\?\``) from ``path``.
+    r"""Strip the Windows extended-length path prefix from ``path``.
+
+    Handles both forms documented at
+    https://learn.microsoft.com/windows/win32/fileio/naming-a-file:
+
+    * ``\\?\C:\path\to\file`` -> ``C:\path\to\file``
+    * ``\\?\UNC\server\share\path`` -> ``\\server\share\path``
 
     The NSIS-installed ``esphome.exe`` launcher on Windows starts Python with
     ``sys.executable`` already prefixed with ``\\?\``. That prefix propagates
-    into PlatformIO's ``PYTHONEXE`` (set from ``os.path.normpath(sys.executable)``)
-    and ends up baked into SCons-emitted command lines for build steps such as
-    the esp8266 ``elf2bin`` invocation. ``cmd.exe`` does not understand the
-    ``\\?\`` prefix, so the build fails with "The system cannot find the path
-    specified." Stripping the prefix early keeps PlatformIO's ``$PYTHONEXE``
-    shell-quotable.
+    into PlatformIO's ``$PYTHONEXE`` (PlatformIO reads ``PYTHONEXEPATH`` from
+    the environment, falling back to ``os.path.normpath(sys.executable)``)
+    and ends up baked into SCons-emitted command lines for build steps such
+    as the esp8266 ``elf2bin`` invocation. ``cmd.exe`` does not understand
+    the ``\\?\`` prefix, so the build fails with
+    "The system cannot find the path specified." Stripping the prefix early
+    keeps the path shell-quotable.
+
+    No-op on non-Windows platforms.
     """
-    if sys.platform == "win32" and path.startswith("\\\\?\\"):
-        return path[4:]
+    if sys.platform != "win32":
+        return path
+    if path.startswith("\\\\?\\UNC\\"):
+        # \\?\UNC\server\share\... -> \\server\share\...
+        return "\\\\" + path[len("\\\\?\\UNC\\") :]
+    if path.startswith("\\\\?\\"):
+        return path[len("\\\\?\\") :]
     return path
 
 
@@ -42,11 +56,13 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     # Increase uv retry count to handle transient network errors (default is 3)
     os.environ.setdefault("UV_HTTP_RETRIES", "10")
     # Strip the Windows extended-length path prefix from sys.executable so it
-    # doesn't propagate into PlatformIO's PYTHONEXE and break SCons-emitted
+    # doesn't propagate into PlatformIO's $PYTHONEXE and break SCons-emitted
     # command lines run through cmd.exe.
     python_exe = _strip_win_long_path_prefix(sys.executable)
-    # Pin PYTHONEXE explicitly as a belt-and-suspenders safeguard for the
-    # subprocess in case its sys.executable is still resolved with the prefix.
+    # Set PYTHONEXEPATH explicitly so PlatformIO's get_pythonexe_path() uses
+    # this stripped path instead of falling back to sys.executable in the
+    # subprocess (in case the subprocess's sys.executable still has the
+    # prefix).
     os.environ["PYTHONEXEPATH"] = python_exe
     cmd = [python_exe, "-m", "esphome.platformio_runner"] + list(args)
 
