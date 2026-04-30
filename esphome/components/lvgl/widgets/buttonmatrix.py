@@ -123,7 +123,11 @@ class MatrixButton(Widget):
 
     def set_state(self, state: MockObj, value: bool | Expression):
         ctrl = self.map_ctrls(state)
-        lv_add(lvgl_static.lv_buttonmatrix_set_button_ctrl_value(self.obj, ctrl, value))
+        lv_add(
+            lvgl_static.lv_buttonmatrix_set_button_ctrl_value(
+                self.obj, self.index, ctrl, value
+            )
+        )
 
     def is_pressed(self):
         return self.is_selected() & self.parent.has_state(LV_STATE.PRESSED)

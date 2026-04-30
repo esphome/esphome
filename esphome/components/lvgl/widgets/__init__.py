@@ -270,8 +270,8 @@ class Widget:
     def set_state(self, state: MockObj, value: bool | Expression):
         lv_add(lvgl_static.lv_obj_set_state_value(self.obj, state, value))
 
-    def has_state(self, state):
-        return lv_expr.obj_has_state(self.obj, literal(state))
+    def has_state(self, state: MockObj):
+        return lv_expr.obj_has_state(self.obj, state)
 
     def is_pressed(self):
         return self.has_state(LV_STATE.PRESSED)
