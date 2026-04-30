@@ -52,8 +52,6 @@ MEMORY_LOCATION_ENUM = {
     MEMORY_INTERNAL: SendspinMemoryLocation.PREFER_INTERNAL,
 }
 
-_MEMORY_LOCATION_VALIDATOR = cv.one_of(*MEMORY_LOCATIONS, lower=True)
-
 # Trailing underscore avoids clashing with sendspin-cpp's global `sendspin` namespace.
 # Analysis tools strip the trailing underscore (same pattern as `template_`).
 sendspin_ns = cg.esphome_ns.namespace("sendspin_")
