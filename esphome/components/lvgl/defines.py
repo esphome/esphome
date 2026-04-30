@@ -59,7 +59,7 @@ _INITIAL_LV_USES = frozenset(
 # successive compilations / unit tests.
 
 
-def _get_data(key: str, default) -> Any:
+def _get_data(key: str, default: Any) -> Any:
     """
     Get a data structure from the global data store by key
     :param key: A key for the data
@@ -69,19 +69,19 @@ def _get_data(key: str, default) -> Any:
     return CORE.data.setdefault(DOMAIN, {}).setdefault(key, default)
 
 
-def get_lv_images_used() -> set:
+def get_lv_images_used() -> set[ID]:
     return _get_data(KEY_LV_IMAGES_USED, set())
 
 
-def get_lv_uses() -> set:
+def get_lv_uses() -> set[str]:
     return _get_data(KEY_LV_USES, set(_INITIAL_LV_USES))
 
 
-def get_lv_fonts_used() -> set:
+def get_lv_fonts_used() -> set[str]:
     return _get_data(KEY_LV_FONTS_USED, set())
 
 
-def get_esphome_fonts_used() -> set:
+def get_esphome_fonts_used() -> set[ID]:
     return _get_data(KEY_ESPHOME_FONTS_USED, set())
 
 
@@ -91,11 +91,11 @@ def add_lv_use(*names: str) -> None:
         uses.add(name)
 
 
-def get_warnings() -> set:
+def get_warnings() -> set[str]:
     return _get_data(KEY_WARNINGS, set())
 
 
-def get_remapped_uses() -> set:
+def get_remapped_uses() -> set[str]:
     return _get_data(KEY_REMAPPED_USES, set())
 
 
@@ -103,11 +103,11 @@ def add_warning(msg: str) -> None:
     get_warnings().add(msg)
 
 
-def get_options() -> dict:
+def get_options() -> dict[str, Any]:
     return _get_data(KEY_OPTIONS, {})
 
 
-def get_defines() -> dict:
+def get_defines() -> dict[str, str]:
     return _get_data(KEY_LV_DEFINES, {})
 
 
@@ -115,15 +115,15 @@ def get_updated_widgets() -> dict:
     return _get_data(KEY_UPDATED_WIDGETS, {})
 
 
-def get_theme_widget_map() -> dict:
+def get_theme_widget_map() -> dict[str, Any]:
     return _get_data(KEY_THEME_WIDGET_MAP, {})
 
 
-def get_styles_used() -> set:
+def get_styles_used() -> set[str]:
     return _get_data(KEY_STYLES_USED, set())
 
 
-def get_widget_map() -> dict:
+def get_widget_map() -> dict[str, Any]:
     return _get_data(KEY_WIDGET_MAP, {})
 
 
@@ -160,7 +160,7 @@ class StaticCastExpression(Expression):
         return f"static_cast<{self.type}>({self.exp})"
 
 
-def add_define(macro, value="1"):
+def add_define(macro: str, value="1"):
     lv_defines = get_defines()
     value = str(value)
     if lv_defines.setdefault(macro, value) != value:

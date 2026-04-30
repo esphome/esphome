@@ -340,7 +340,7 @@ class Widget:
         ltype = ltype or self.__type_base()
         return cg.RawExpression(f"lv_{ltype}_get_{prop}({self.obj})")
 
-    def set_style(self, prop, value, state=LV_STATE.DEFAULT):
+    def set_style(self, prop: str, value, state=LV_STATE.DEFAULT):
         if value is None:
             return
         get_styles_used().add(prop)
