@@ -4,6 +4,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
+#include <cstdint>
+
 #ifdef USE_OTA_STATE_LISTENER
 #include <vector>
 #endif
@@ -23,6 +25,7 @@ enum OTAResponseTypes {
   OTA_RESPONSE_UPDATE_END_OK = 0x45,
   OTA_RESPONSE_SUPPORTS_COMPRESSION = 0x46,
   OTA_RESPONSE_CHUNK_OK = 0x47,
+  OTA_RESPONSE_FEATURE_FLAGS = 0x48,
 
   OTA_RESPONSE_ERROR_MAGIC = 0x80,
   OTA_RESPONSE_ERROR_UPDATE_PREPARE = 0x81,
@@ -38,6 +41,7 @@ enum OTAResponseTypes {
   OTA_RESPONSE_ERROR_MD5_MISMATCH = 0x8B,
   OTA_RESPONSE_ERROR_RP2040_NOT_ENOUGH_SPACE = 0x8C,
   OTA_RESPONSE_ERROR_SIGNATURE_INVALID = 0x8D,
+  OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE = 0x8E,
   OTA_RESPONSE_ERROR_UNKNOWN = 0xFF,
 };
 
@@ -47,6 +51,10 @@ enum OTAState {
   OTA_IN_PROGRESS,
   OTA_ABORT,
   OTA_ERROR,
+};
+
+enum OTAType : uint8_t {
+  OTA_TYPE_UPDATE_APP = 0x00,
 };
 
 /** Listener interface for OTA state changes.

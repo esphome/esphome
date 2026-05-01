@@ -254,21 +254,22 @@ class ExponentialMovingAverageFilter : public Filter {
  *
  * It takes the average of all the values received in a period of time.
  */
-class ThrottleAverageFilter : public Filter, public Component {
+class ThrottleAverageFilter : public Filter {
  public:
   explicit ThrottleAverageFilter(uint32_t time_period);
 
-  void setup() override;
+  void initialize(Sensor *parent, Filter *next) override;
 
   optional<float> new_value(float value) override;
 
-  float get_setup_priority() const override;
-
  protected:
   float sum_{0.0f};
-  unsigned int n_{0};
   uint32_t time_period_;
-  bool have_nan_{false};
+  // Sample count packed with NaN-seen flag in a single 32-bit word.
+  // n_ is bounded by YAML cap on time_period_ (24 h) × max plausible source
+  // rate (1 kHz) = 86.4M ≪ 2^31, so 31 bits has 25x headroom.
+  uint32_t n_ : 31 {0};
+  uint32_t have_nan_ : 1 {0};
 };
 
 using lambda_filter_t = std::function<optional<float>(float)>;
@@ -454,25 +455,22 @@ class TimeoutFilterConfigured : public TimeoutFilterBase {
   // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
 };
 
-class DebounceFilter : public Filter, public Component {
+class DebounceFilter : public Filter {
  public:
   explicit DebounceFilter(uint32_t time_period);
 
   optional<float> new_value(float value) override;
 
-  float get_setup_priority() const override;
-
  protected:
   uint32_t time_period_;
 };
 
-class HeartbeatFilter : public Filter, public Component {
+class HeartbeatFilter : public Filter {
  public:
   explicit HeartbeatFilter(uint32_t time_period);
 
-  void setup() override;
+  void initialize(Sensor *parent, Filter *next) override;
   optional<float> new_value(float value) override;
-  float get_setup_priority() const override;
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
