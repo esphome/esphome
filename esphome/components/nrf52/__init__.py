@@ -542,7 +542,39 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             mcumgr_device = host
         else:
             if zephyr_data()[KEY_NATIVE_BUILD]:
-                raise EsphomeError("Not implemented yet")
+                import time
+
+                import serial
+                import serial.tools.list_ports
+
+                with serial.Serial(host, baudrate=1200):
+                    time.sleep(0.1)
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
+                    if any(
+                        p.device == host for p in serial.tools.list_ports.comports()
+                    ):
+                        break
+                else:
+                    raise EsphomeError(
+                        f"Timed out waiting for {host} to reappear after reset"
+                    )
+                dfu_zip = CORE.relative_build_path("firmware.zip")
+                result = subprocess.run(
+                    [
+                        "adafruit-nrfutil",
+                        "dfu",
+                        "serial",
+                        "-pkg",
+                        str(dfu_zip),
+                        "-p",
+                        host,
+                    ],
+                    check=False,
+                ).returncode
+                if result != 0:
+                    raise EsphomeError(f"Upload failed with result: {result}")
+                return True  # Handled: native adafruit-nrfutil serial upload
             result = _upload_using_platformio(config, host, ["-t", "upload"])
             if result != 0:
                 raise EsphomeError(f"Upload failed with result: {result}")
