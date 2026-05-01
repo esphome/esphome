@@ -18,7 +18,7 @@ namespace esphome::esp8266 {}  // namespace esphome::esp8266
 namespace esphome {
 
 // yield(), micros(), millis_64(), delayMicroseconds(), arch_feed_wdt(),
-// progmem_read_*() are inlined in core/hal/hal_esp8266.h.
+// progmem_read_*() are inlined in components/esp8266/hal.h.
 //
 // Fast accumulator replacement for Arduino's millis() (~3.3 μs via 4× 64-bit
 // multiplies on the LX106). Tracks a running ms counter from 32-bit
