@@ -146,13 +146,34 @@ class Scheduler {
   }
 
   // Name storage type discriminator for SchedulerItem
-  // Used to distinguish between static strings, hashed strings, numeric IDs, and internal numeric IDs
+  // Used to distinguish between static strings, hashed strings, numeric IDs, internal numeric IDs,
+  // and self-keyed pointers (caller-supplied `void *`, typically `this`).
   enum class NameType : uint8_t {
-    STATIC_STRING = 0,       // const char* pointer to static/flash storage
-    HASHED_STRING = 1,       // uint32_t FNV-1a hash of a runtime string
-    NUMERIC_ID = 2,          // uint32_t numeric identifier (component-level)
-    NUMERIC_ID_INTERNAL = 3  // uint32_t numeric identifier (core/internal, separate namespace)
+    STATIC_STRING = 0,        // const char* pointer to static/flash storage
+    HASHED_STRING = 1,        // uint32_t FNV-1a hash of a runtime string
+    NUMERIC_ID = 2,           // uint32_t numeric identifier (component-level)
+    NUMERIC_ID_INTERNAL = 3,  // uint32_t numeric identifier (core/internal, separate namespace)
+    SELF_POINTER = 4          // void* caller-supplied key (typically `this`); pointer equality
   };
+
+  /** Self-keyed timeout. The cancellation key is `self` (typically the caller's `this`).
+   *
+   * Use this when the caller schedules at most one timer of a single purpose at a time and
+   * does not need a `Component` for `is_failed()` skip or log source attribution. Lets
+   * small classes drop `Component` inheritance entirely when their only Component dependency
+   * was the per-instance scheduler key.
+   *
+   * NOT applied for self-keyed items:
+   *  - `is_failed()` skip — callbacks always fire (no Component to consult).
+   *  - Log source attribution — logs use a generic "self:0x…" label.
+   *
+   * If you need either of those, use the existing `(Component *, id)` overloads.
+   */
+  void set_timeout(const void *self, uint32_t timeout, std::function<void()> &&func);
+  /// Self-keyed interval. See set_timeout(const void *, ...) for semantics.
+  void set_interval(const void *self, uint32_t interval, std::function<void()> &&func);
+  bool cancel_timeout(const void *self);
+  bool cancel_interval(const void *self);
 
  protected:
   struct SchedulerItem {
@@ -160,8 +181,8 @@ class Scheduler {
     Component *component;
     // Optimized name storage using tagged union - zero heap allocation
     union {
-      const char *static_name;  // For STATIC_STRING (string literals, no allocation)
-      uint32_t hash_or_id;      // For HASHED_STRING or NUMERIC_ID
+      const char *static_name;  // For STATIC_STRING (string literals) and SELF_POINTER (caller's `this`)
+      uint32_t hash_or_id;      // For HASHED_STRING, NUMERIC_ID, and NUMERIC_ID_INTERNAL
     } name_;
     uint32_t interval;
     // Split time to handle millis() rollover. The scheduler combines the 32-bit millis()
@@ -182,19 +203,19 @@ class Scheduler {
     // std::atomic<uint8_t> inlines correctly on all platforms.
     std::atomic<uint8_t> remove{0};
 
-    // Bit-packed fields (4 bits used, 4 bits padding in 1 byte)
-    enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
-    NameType name_type_ : 2;  // Discriminator for name_ union (0–3, see NameType enum)
-    bool is_retry : 1;        // True if this is a retry timeout
-                              // 4 bits padding
-#else
-    // Single-threaded or multi-threaded without atomics: can pack all fields together
     // Bit-packed fields (5 bits used, 3 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
-    bool remove : 1;
-    NameType name_type_ : 2;  // Discriminator for name_ union (0–3, see NameType enum)
+    NameType name_type_ : 3;  // Discriminator for name_ union (0–4, see NameType enum)
     bool is_retry : 1;        // True if this is a retry timeout
                               // 3 bits padding
+#else
+    // Single-threaded or multi-threaded without atomics: can pack all fields together
+    // Bit-packed fields (6 bits used, 2 bits padding in 1 byte)
+    enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
+    bool remove : 1;
+    NameType name_type_ : 3;  // Discriminator for name_ union (0–4, see NameType enum)
+    bool is_retry : 1;        // True if this is a retry timeout
+                              // 2 bits padding
 #endif
 
     // Constructor
@@ -228,19 +249,26 @@ class Scheduler {
     SchedulerItem(SchedulerItem &&) = delete;
     SchedulerItem &operator=(SchedulerItem &&) = delete;
 
-    // Helper to get the static name (only valid for STATIC_STRING type)
-    const char *get_name() const { return (name_type_ == NameType::STATIC_STRING) ? name_.static_name : nullptr; }
+    // Helper to get the pointer-slot value (valid for STATIC_STRING and SELF_POINTER types).
+    // Both share the same union member, so callers (e.g. log formatters) can read either uniformly.
+    const char *get_name() const {
+      return (name_type_ == NameType::STATIC_STRING || name_type_ == NameType::SELF_POINTER) ? name_.static_name
+                                                                                             : nullptr;
+    }
 
-    // Helper to get the hash or numeric ID (only valid for HASHED_STRING or NUMERIC_ID types)
-    uint32_t get_name_hash_or_id() const { return (name_type_ != NameType::STATIC_STRING) ? name_.hash_or_id : 0; }
+    // Helper to get the hash or numeric ID (only valid for HASHED_STRING / NUMERIC_ID / NUMERIC_ID_INTERNAL types)
+    uint32_t get_name_hash_or_id() const {
+      return (name_type_ != NameType::STATIC_STRING && name_type_ != NameType::SELF_POINTER) ? name_.hash_or_id : 0;
+    }
 
     // Helper to get the name type
     NameType get_name_type() const { return name_type_; }
 
-    // Set name storage: for STATIC_STRING stores the pointer, for all other types stores hash_or_id.
-    // Both union members occupy the same offset, so only one store is needed.
+    // Set name storage. STATIC_STRING/SELF_POINTER use the static_name pointer slot
+    // (both are pointer-width); other types use hash_or_id. Both union members occupy
+    // the same offset, so only one store is needed.
     void set_name(NameType type, const char *static_name, uint32_t hash_or_id) {
-      if (type == NameType::STATIC_STRING) {
+      if (type == NameType::STATIC_STRING || type == NameType::SELF_POINTER) {
         name_.static_name = static_name;
       } else {
         name_.hash_or_id = hash_or_id;
@@ -367,9 +395,13 @@ class Scheduler {
     // Name type must match
     if (item->get_name_type() != name_type)
       return false;
-    // For static strings, compare the string content; for hash/ID, compare the value
+    // STATIC_STRING: compare string content. SELF_POINTER: raw pointer equality (no strcmp).
+    // Other types: compare hash/ID value.
     if (name_type == NameType::STATIC_STRING) {
       return this->names_match_static_(item->get_name(), static_name);
+    }
+    if (name_type == NameType::SELF_POINTER) {
+      return item->name_.static_name == static_name;
     }
     return item->get_name_hash_or_id() == hash_or_id;
   }

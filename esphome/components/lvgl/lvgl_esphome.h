@@ -115,6 +115,16 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
 int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int value);
 #endif
 
+#ifdef USE_LVGL_GRADIENT
+/**
+ *
+ * @param dsc The gradient descriptor containing the color stops
+ * @param pos The current position to calculate the color for
+ * @return The color for the given position
+ */
+
+lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos);
+#endif
 // Parent class for things that wrap an LVGL object
 class LvCompound {
  public:
