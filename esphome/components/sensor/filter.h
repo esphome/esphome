@@ -413,7 +413,32 @@ class ThrottleWithPriorityNanFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
-// Base class for timeout filters - contains common loop logic
+// Base class for timeout filters - contains common loop logic.
+//
+// Why this intentionally inherits Component (and does NOT use the self-keyed
+// `App.scheduler.set_timeout(this, ...)` pattern that the other Filter classes
+// migrated to):
+//
+//   - These filters re-arm on every input. On devices with many sensors using
+//     timeout filters (e.g. multi-LD2450 boards with dozens of `has_target`
+//     timeouts) the scheduler-based design churned the bounded SchedulerItem
+//     pool and triggered heap allocations / frees at high rate. See #11922
+//     for the original symptom and switchover to the loop-based design.
+//   - Scheduler `set_timeout(this, ...)` cancels-and-replaces by linear scan
+//     over `items_` and `to_add_`, then heap-inserts. That is O(N) + O(log N)
+//     in the currently-scheduled item count per re-arm. The `loop()` design
+//     here is a single timestamp compare per active filter, with the cost
+//     fully partitioned away (`enable_loop()` / `disable_loop()`) when no
+//     timeout is armed.
+//   - Filters live for the lifetime of the program. Carrying a Component
+//     subobject is a one-time cost per instance, not per-event work, and the
+//     RAM overhead is offset by avoiding heap allocations during operation.
+//
+// Earlier attempts to revert this back to the scheduler (e.g. #16173) were
+// closed because they would re-introduce exactly the heap churn #11922 was
+// fixing. A future scheduler that removes the bounded pool and provides
+// O(1) cancel-and-replace by self-key could change this calculus, but until
+// then this class deliberately stays on the loop-based design.
 class TimeoutFilterBase : public Filter, public Component {
  public:
   void loop() override;
