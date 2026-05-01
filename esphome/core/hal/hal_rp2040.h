@@ -20,7 +20,16 @@ extern "C" unsigned long millis(void);
 // Forward decl from <pico/time.h>.
 extern "C" uint64_t time_us_64(void);
 
+// Forward decls from pico-sdk / FreeRTOS port for the inline arch_*
+// wrappers below.
+extern "C" void watchdog_update(void);
+extern "C" unsigned long ulMainGetRunTimeCounterValue(void);
+
 namespace esphome {
+
+// Forward decl from helpers.h.
+// NOLINTNEXTLINE(readability-redundant-declaration)
+void delay_microseconds_safe(uint32_t us);
 
 /// Returns true when executing inside an interrupt handler.
 __attribute__((always_inline)) inline bool in_isr_context() {
@@ -35,9 +44,13 @@ __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uin
 __attribute__((always_inline)) inline uint32_t millis() { return micros_to_millis(::time_us_64()); }
 __attribute__((always_inline)) inline uint64_t millis_64() { return micros_to_millis<uint64_t>(::time_us_64()); }
 
-void delayMicroseconds(uint32_t us);  // NOLINT(readability-identifier-naming)
-void arch_feed_wdt();
-uint32_t arch_get_cpu_cycle_count();
+// NOLINTNEXTLINE(readability-identifier-naming)
+__attribute__((always_inline)) inline void delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
+__attribute__((always_inline)) inline void arch_feed_wdt() { watchdog_update(); }
+__attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() {
+  return static_cast<uint32_t>(ulMainGetRunTimeCounterValue());
+}
+
 void arch_init();
 uint32_t arch_get_cpu_freq_hz();
 
