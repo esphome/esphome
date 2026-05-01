@@ -419,26 +419,25 @@ class ThrottleWithPriorityNanFilter : public Filter {
 // `App.scheduler.set_timeout(this, ...)` pattern that the other Filter classes
 // migrated to):
 //
-//   - These filters re-arm on every input. On devices with many sensors using
-//     timeout filters (e.g. multi-LD2450 boards with dozens of `has_target`
-//     timeouts) the scheduler-based design churned the bounded SchedulerItem
-//     pool and triggered heap allocations / frees at high rate. See #11922
-//     for the original symptom and switchover to the loop-based design.
-//   - Scheduler `set_timeout(this, ...)` cancels-and-replaces by linear scan
-//     over `items_` and `to_add_`, then heap-inserts. That is O(N) + O(log N)
-//     in the currently-scheduled item count per re-arm. The `loop()` design
-//     here is a single timestamp compare per active filter, with the cost
-//     fully partitioned away (`enable_loop()` / `disable_loop()`) when no
-//     timeout is armed.
-//   - Filters live for the lifetime of the program. Carrying a Component
-//     subobject is a one-time cost per instance, not per-event work, and the
-//     RAM overhead is offset by avoiding heap allocations during operation.
+// Timeout filters re-arm on every input, so on devices with many sensors
+// using timeout filters (e.g. multi-LD2450 boards) every armed filter
+// requires a live SchedulerItem in RAM at the same time. A SchedulerItem is
+// substantially larger than the Component bookkeeping bytes carried by this
+// class, so paying the Component cost per filter (one-time, BSS) is cheaper
+// than paying for a SchedulerItem per filter (live, while armed). #11922
+// is the original symptom and switchover to the loop-based design; #16173
+// attempted to migrate back to the scheduler and was closed for exactly
+// this reason — even with the bounded pool removed, RAM-per-armed-filter
+// is dominated by the SchedulerItem itself, not by anything we can shrink
+// in the scheduler.
 //
-// Earlier attempts to revert this back to the scheduler (e.g. #16173) were
-// closed because they would re-introduce exactly the heap churn #11922 was
-// fixing. A future scheduler that removes the bounded pool and provides
-// O(1) cancel-and-replace by self-key could change this calculus, but until
-// then this class deliberately stays on the loop-based design.
+// The loop-based design has additional advantages on top of the RAM win:
+// `enable_loop()` / `disable_loop()` partitions the cost away when no
+// timeout is armed; while armed, work is a single timestamp compare per
+// active filter, with no per-input scheduler cancel/insert path.
+//
+// Don't try to migrate this class back to the self-keyed scheduler. The
+// math doesn't work — at scale, this design is the smaller one.
 class TimeoutFilterBase : public Filter, public Component {
  public:
   void loop() override;
