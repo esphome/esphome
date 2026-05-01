@@ -18,7 +18,7 @@ with warnings.catch_warnings():
 import contextlib
 
 from esphome.const import CONF_KEY, CONF_PORT, __version__
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from esphome.platformio_api import process_stacktrace
 
 from . import CONF_ENCRYPTION
@@ -30,6 +30,32 @@ if TYPE_CHECKING:
 
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _process_stacktrace_line(
+    config: dict[str, Any],
+    raw_line: str,
+    backtrace_state: bool,
+    platform_process_stacktrace: Any | None,
+) -> bool:
+    """Run the stack-trace decoder for a single log line.
+
+    on_log runs inside an asyncio protocol callback; if an exception
+    escapes, the loop tears the transport down with "Fatal error:
+    protocol.data_received() call failed." and ReconnectLogic
+    immediately reconnects, the device replays the same crash trace,
+    and we loop forever. Stack-trace decoding requires a populated
+    build dir for the device, which may not exist (e.g. flashed from
+    another machine); log and continue instead of killing the
+    connection.
+    """
+    try:
+        if platform_process_stacktrace:
+            return platform_process_stacktrace(config, raw_line, backtrace_state)
+        return process_stacktrace(config, raw_line, backtrace_state=backtrace_state)
+    except EsphomeError as exc:
+        _LOGGER.debug("Stack-trace decoding failed: %s", exc)
+        return False
 
 
 async def async_run_logs(
@@ -84,14 +110,9 @@ async def async_run_logs(
         for parsed_msg in parse_log_message(text, timestamp):
             print(parsed_msg.replace("\033", "\\033") if dashboard else parsed_msg)
         for raw_line in text.splitlines():
-            if platform_process_stacktrace:
-                backtrace_state = platform_process_stacktrace(
-                    config, raw_line, backtrace_state
-                )
-            else:
-                backtrace_state = process_stacktrace(
-                    config, raw_line, backtrace_state=backtrace_state
-                )
+            backtrace_state = _process_stacktrace_line(
+                config, raw_line, backtrace_state, platform_process_stacktrace
+            )
 
     # Safe to fall back to plaintext here only for this diagnostics use
     # case: the stream is one-way from device to client, and this code
