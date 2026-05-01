@@ -587,8 +587,6 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     from aioesphomeapi import LogParser
     import serial
 
-    from esphome import platformio_api
-
     if CONF_LOGGER not in config:
         _LOGGER.info("Logger is not enabled. Not starting UART logs.")
         return 1
@@ -604,7 +602,11 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         process_stacktrace = getattr(module, "process_stacktrace")
     except AttributeError:
-        pass
+        _LOGGER.info(
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s". ',
+            CORE.target_platform,
+        )
+        return 1
 
     backtrace_state = False
     ser = serial.Serial()
@@ -647,14 +649,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                             )
                             safe_print(parser.parse_line(line, time_str))
 
-                            if process_stacktrace:
-                                backtrace_state = process_stacktrace(
-                                    config, line, backtrace_state
-                                )
-                            else:
-                                backtrace_state = platformio_api.process_stacktrace(
-                                    config, line, backtrace_state=backtrace_state
-                                )
+                            backtrace_state = process_stacktrace(
+                                config, line, backtrace_state
+                            )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
@@ -844,8 +841,6 @@ def _make_crystal_freq_callback(
 def upload_using_esptool(
     config: ConfigType, port: str, file: str, speed: int
 ) -> str | int:
-    from esphome import platformio_api
-
     first_baudrate = speed or config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", os.getenv("ESPHOME_UPLOAD_SPEED", "460800")
     )
@@ -853,6 +848,8 @@ def upload_using_esptool(
     if file is not None:
         flash_images = [FlashImage(path=file, offset="0x0")]
     else:
+        from esphome import platformio_api
+
         idedata = platformio_api.get_idedata(config)
 
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"

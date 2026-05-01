@@ -19,7 +19,6 @@ import contextlib
 
 from esphome.const import CONF_KEY, CONF_PORT, __version__
 from esphome.core import CORE
-from esphome.platformio_api import process_stacktrace
 
 from . import CONF_ENCRYPTION
 
@@ -69,7 +68,10 @@ async def async_run_logs(
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         platform_process_stacktrace = getattr(module, "process_stacktrace")
     except (AttributeError, ImportError):
-        pass
+        _LOGGER.info(
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s". ',
+            CORE.target_platform,
+        )
 
     def on_log(msg: SubscribeLogsResponse) -> None:
         """Handle a new log message."""
@@ -87,10 +89,6 @@ async def async_run_logs(
             if platform_process_stacktrace:
                 backtrace_state = platform_process_stacktrace(
                     config, raw_line, backtrace_state
-                )
-            else:
-                backtrace_state = process_stacktrace(
-                    config, raw_line, backtrace_state=backtrace_state
                 )
 
     # Safe to fall back to plaintext here only for this diagnostics use

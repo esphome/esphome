@@ -407,3 +407,9 @@ def copy_files() -> None:
         remove_float_scanf_file,
         CORE.relative_build_path("remove_float_scanf.py"),
     )
+
+
+def process_stacktrace(config, line, backtrace_state):
+    from esphome.components.esp32 import process_stacktrace as _process_stacktrace
+
+    return _process_stacktrace(config, line, backtrace_state)
