@@ -91,25 +91,33 @@ async def test_binary_sensor_autorepeat_filter(
             )
 
         # Release: source becomes false, autorepeat must cancel both timers
-        # and emit a final false. After that, no further toggles should arrive.
-        autorepeat_states.clear()
+        # and settle on false. If the most recent oscillation was already
+        # false, the binary sensor will dedup and not emit a new state event;
+        # if it was true, exactly one final false transition arrives. Either
+        # way, the steady state must be false and no further toggles should
+        # arrive after a settle window longer than time_on + time_off.
+        was_true_before_release = autorepeat_states[-1] is True
+        before_count = len(autorepeat_states)
         client.button_command(release_button.key)
 
-        settle_seen = collector.add_waiter(lambda: len(autorepeat_states) >= 1)
-        try:
-            await asyncio.wait_for(settle_seen, timeout=2.0)
-        except TimeoutError:
-            pytest.fail("Timeout waiting for autorepeat to settle to false")
+        if was_true_before_release:
+            settle_seen = collector.add_waiter(
+                lambda: len(autorepeat_states) > before_count
+            )
+            try:
+                await asyncio.wait_for(settle_seen, timeout=2.0)
+            except TimeoutError:
+                pytest.fail("Timeout waiting for autorepeat to settle to false")
+            assert autorepeat_states[-1] is False, (
+                f"After release, final state should be False, got {autorepeat_states}"
+            )
 
-        assert autorepeat_states[0] is False, (
-            f"After release, first new state should be False, got {autorepeat_states}"
-        )
-
-        # Confirm the autorepeat is fully stopped: nothing arrives for a
-        # window longer than time_on + time_off.
-        before_count = len(autorepeat_states)
+        steady_count = len(autorepeat_states)
         await asyncio.sleep(0.5)
-        assert len(autorepeat_states) == before_count, (
+        assert len(autorepeat_states) == steady_count, (
             f"Expected no further toggles after release, "
-            f"got {autorepeat_states[before_count:]}"
+            f"got {autorepeat_states[steady_count:]}"
+        )
+        assert autorepeat_states[-1] is False, (
+            f"Final autorepeat state should be False, got {autorepeat_states}"
         )
