@@ -22,27 +22,6 @@ struct Hob2HoodData {
   Hob2HoodCommand command{HOB2HOOD_CMD_UNKNOWN};
 
   bool operator==(const Hob2HoodData &rhs) const { return this->command == rhs.command; }
-
-  std::string to_string() const {
-    switch (this->command) {
-      case HOB2HOOD_CMD_LIGHT_OFF:
-        return "Light off";
-      case HOB2HOOD_CMD_LIGHT_ON:
-        return "Light on";
-      case HOB2HOOD_CMD_FAN_OFF:
-        return "Fan off";
-      case HOB2HOOD_CMD_FAN_LOW:
-        return "Fan low";
-      case HOB2HOOD_CMD_FAN_MEDIUM:
-        return "Fan medium";
-      case HOB2HOOD_CMD_FAN_HIGH:
-        return "Fan high";
-      case HOB2HOOD_CMD_FAN_MAX:
-        return "Fan max";
-      default:
-        return "Unknown";
-    }
-  }
 };
 
 class Hob2HoodProtocol : public RemoteProtocol<Hob2HoodData> {

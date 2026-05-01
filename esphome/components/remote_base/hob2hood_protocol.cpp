@@ -151,7 +151,34 @@ optional<Hob2HoodData> Hob2HoodProtocol::decode(RemoteReceiveData src) {
 }
 
 void Hob2HoodProtocol::dump(const Hob2HoodData &data) {
-  ESP_LOGD(TAG, "Received Hob2Hood: %s", data.to_string().c_str());
+  char command_str[11] = {0};
+  switch (data.command) {
+    case HOB2HOOD_CMD_LIGHT_OFF:
+      snprintf(command_str, sizeof(command_str), "Light Off");
+      break;
+    case HOB2HOOD_CMD_LIGHT_ON:
+      snprintf(command_str, sizeof(command_str), "Light On");
+      break;
+    case HOB2HOOD_CMD_FAN_OFF:
+      snprintf(command_str, sizeof(command_str), "Fan Off");
+      break;
+    case HOB2HOOD_CMD_FAN_LOW:
+      snprintf(command_str, sizeof(command_str), "Fan Low");
+      break;
+    case HOB2HOOD_CMD_FAN_MEDIUM:
+      snprintf(command_str, sizeof(command_str), "Fan Medium");
+      break;
+    case HOB2HOOD_CMD_FAN_HIGH:
+      snprintf(command_str, sizeof(command_str), "Fan High");
+      break;
+    case HOB2HOOD_CMD_FAN_MAX:
+      snprintf(command_str, sizeof(command_str), "Fan Max");
+      break;
+    default:
+      snprintf(command_str, sizeof(command_str), "Unknown");
+      break;
+  }
+  ESP_LOGD(TAG, "Received Hob2Hood: %s", command_str);
 }
 
 }  // namespace esphome::remote_base
