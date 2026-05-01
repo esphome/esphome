@@ -346,6 +346,11 @@ void ESPHomeOTAComponent::handle_data_() {
              (static_cast<size_t>(buf[2]) << 8) | buf[3];
   ESP_LOGV(TAG, "Size is %u bytes", ota_size);
 
+  if (ota_type != ota::OTA_TYPE_UPDATE_APP) {
+    error_code = ota::OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
+  }
+
   // Now that we've passed authentication and are actually
   // starting the update, set the warning status and notify
   // listeners. This ensures that port scanners do not
@@ -356,10 +361,6 @@ void ESPHomeOTAComponent::handle_data_() {
   this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
-  if (ota_type != ota::OTA_TYPE_UPDATE_APP) {
-    error_code = ota::OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
-    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  }
   // This will block for a few seconds as it locks flash
   error_code = this->backend_->begin(ota_size);
   if (error_code != ota::OTA_RESPONSE_OK)
