@@ -10,9 +10,8 @@ from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
 
 from .const import (
-    BOOTLOADER_MCUBOOT,
     CONF_CDC_ACM,
-    KEY_BOARD,
+    CONF_NATIVE_BUILD,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
     KEY_KCONFIG,
@@ -56,6 +55,7 @@ class ZephyrData(TypedDict):
     pm_static: list[Section]
     user: dict[str, list[str]]
     kconfig: str
+    native_build: bool
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -68,6 +68,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         pm_static=[],
         user={},
         kconfig="",
+        native_build=config[CONF_NATIVE_BUILD],
     )
 
 
@@ -118,8 +119,6 @@ def zephyr_to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ZEPHYR")
     cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.set_cpp_standard("gnu++20")
-    # build is done by west so bypass board checking in platformio
-    cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))
     # c++ support
     zephyr_add_prj_conf("NEWLIB_LIBC", True)
     zephyr_add_prj_conf("FPU", True)
@@ -131,12 +130,6 @@ def zephyr_to_code(config: ConfigType) -> None:
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
     zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048)
-
-    add_extra_script(
-        "pre",
-        "pre_build.py",
-        Path(__file__).parent / "pre_build.py.script",
-    )
 
     CORE.add_job(_cdc_acm_to_code, config)
 
@@ -235,39 +228,6 @@ def copy_files():
         CORE.relative_build_path("zephyr/app.overlay"),
         zephyr_data()[KEY_OVERLAY],
     )
-
-    if (
-        zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
-        or zephyr_data()[KEY_BOARD] == "xiao_ble"
-    ):
-        fake_board_manifest = """
-{
-    "frameworks": [
-        "zephyr"
-    ],
-    "name": "esphome nrf52",
-    "upload": {
-        "maximum_ram_size": 248832,
-        "maximum_size": 815104,
-        "speed": 115200
-    },
-    "url": "https://esphome.io/",
-    "vendor": "esphome",
-    "build": {
-        "bsp": {
-            "name": "adafruit"
-        },
-        "softdevice": {
-            "sd_fwid": "0x00B6"
-        }
-    }
-}
-"""
-
-        write_file_if_changed(
-            CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD]}.json"),
-            fake_board_manifest,
-        )
 
     for filename, path in zephyr_data()[KEY_EXTRA_BUILD_FILES].items():
         copy_file_if_changed(
