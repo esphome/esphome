@@ -65,7 +65,9 @@ SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 # OTA types this client knows how to send. Future PRs that add bootloader/partition
 # updates extend this set. Anything outside the set is rejected up front so callers
 # of perform_ota/run_ota get a clear error instead of a post-auth 0x8E from the device.
-_SUPPORTED_OTA_TYPES: frozenset[int] = frozenset({OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE})
+_SUPPORTED_OTA_TYPES: frozenset[int] = frozenset(
+    {OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE}
+)
 
 UPLOAD_BLOCK_SIZE = 8192
 UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
