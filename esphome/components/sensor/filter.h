@@ -420,13 +420,13 @@ class ThrottleWithPriorityNanFilter : public Filter {
 // migrated to):
 //
 // Timeout filters re-arm on every input, so on devices with many sensors
-// using timeout filters (e.g. multi-LD2450 boards) every armed filter
-// requires a live SchedulerItem in RAM at the same time. A SchedulerItem is
+// using timeout filters (e.g. multi-LD2450 boards) every armed filter would
+// require a live SchedulerItem in RAM at the same time. A SchedulerItem is
 // substantially larger than the Component bookkeeping bytes carried by this
 // class, so paying the Component cost per filter (one-time, BSS) is cheaper
 // than paying for a SchedulerItem per filter (live, while armed). #11922
 // is the original symptom and switchover to the loop-based design; #16173
-// attempted to migrate back to the scheduler and was closed for exactly
+// attempted to migrate this onto the scheduler and was closed for exactly
 // this reason — even with the bounded pool removed, RAM-per-armed-filter
 // is dominated by the SchedulerItem itself, not by anything we can shrink
 // in the scheduler.
@@ -436,8 +436,8 @@ class ThrottleWithPriorityNanFilter : public Filter {
 // timeout is armed; while armed, work is a single timestamp compare per
 // active filter, with no per-input scheduler cancel/insert path.
 //
-// Don't try to migrate this class back to the self-keyed scheduler. The
-// math doesn't work — at scale, this design is the smaller one.
+// Don't try to migrate this class onto the self-keyed scheduler. The math
+// doesn't work — at scale, this design is the smaller one.
 class TimeoutFilterBase : public Filter, public Component {
  public:
   void loop() override;
