@@ -649,4 +649,27 @@ def compile_program(args, config: ConfigType) -> bool:
     )
     if rc != 0:
         raise EsphomeError(f"west build failed with exit code {rc}")
+
+    build_dir = CORE.relative_build_path(
+        ".west_build_sysbuild"
+        if platform_config[CONF_SECOND_BOOTLOADER]
+        else ".west_build"
+    )
+    app_bin = build_dir / "merged.hex"
+    dfu_zip = CORE.relative_build_path("firmware.zip")
+    nrfutil_rc = subprocess.run(
+        [
+            "adafruit-nrfutil",
+            "dfu",
+            "genpkg",
+            "--dev-type",
+            "0x0052",
+            "--application",
+            str(app_bin),
+            str(dfu_zip),
+        ],
+        check=False,
+    ).returncode
+    if nrfutil_rc != 0:
+        raise EsphomeError(f"adafruit-nrfutil failed with exit code {nrfutil_rc}")
     return True
