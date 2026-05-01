@@ -210,7 +210,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
       // play_next_tuple_ calls play_next_(const Ts&...) correctly for the delayed call.
       auto args_tuple = std::make_tuple(x...);
       auto f = [this, args_tuple]() mutable {
-        std::apply([this](const auto&... args) { this->play_next_(args...); }, args_tuple);
+        std::apply([this](const auto &...args) { this->play_next_(args...); }, args_tuple);
       };
       App.scheduler.set_timer_common_(
           /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
