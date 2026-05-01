@@ -37,7 +37,14 @@
 #include <cstdarg>
 #include <cstdio>
 
-#ifndef __PICOLIBC__
+#ifdef __PICOLIBC__
+#include <cstddef>
+#include <sys/lock.h>
+#include <type_traits>
+// Pre-initialized by esp_libc_locks_init(); reused as cookie FILE::lock to
+// avoid picolibc flockfile()'s lazy heap allocation leaking on every call.
+extern struct __lock __lock___libc_recursive_mutex;
+#else
 #include "esp_system.h"
 #endif
 
@@ -48,18 +55,7 @@ extern "C" {
 
 #ifdef __PICOLIBC__
 
-#include <cstddef>
-#include <sys/lock.h>
-#include <type_traits>
-
 extern int __real_vfprintf(FILE *stream, const char *fmt, va_list ap);
-
-// Pre-initialized by esp_libc_locks_init() before app_main runs. Picolibc's
-// flockfile() lazily heap-allocates a recursive mutex into FILE::lock when it
-// is null, but our cookie FILE lives on the stack — the mutex would be leaked
-// on every call. Pointing FILE::lock at this already-initialized libc-wide
-// recursive mutex avoids both the per-call allocation and the leak.
-extern struct __lock __lock___libc_recursive_mutex;
 
 namespace {
 
