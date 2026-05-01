@@ -62,7 +62,9 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         board=config[CONF_BOARD],
         bootloader=config[KEY_BOOTLOADER],
         prj_conf={},
-        overlay={},
+        overlay={
+            "": "",
+        },  # set empty to make sure that overlay is cleared after config change
         extra_build_files={},
         pm_static=[],
         user={},
@@ -140,7 +142,7 @@ def zephyr_to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _cdc_acm_to_code(config: ConfigType) -> None:
-    if "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in zephyr_data()[KEY_PRJ_CONF]:
+    if "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in zephyr_data()[KEY_PRJ_CONF][""]:
         var = cg.new_Pvariable(config[CONF_CDC_ACM])
         await cg.register_component(var, {})
 
