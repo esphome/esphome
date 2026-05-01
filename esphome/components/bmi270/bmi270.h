@@ -1,9 +1,10 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include <functional>
 
 namespace esphome {
 namespace bmi270 {
@@ -70,6 +71,18 @@ enum BMI270GyroODR : uint8_t {
   BMI270_GYRO_ODR_3200 = 0x0D,
 };
 
+// ---Data class
+
+struct BMI270AccelData {
+  float accel_x;
+  float accel_y;
+  float accel_z;
+  float gyro_x;
+  float gyro_y;
+  float gyro_z;
+  float temperature;
+};
+
 // ── Main component class ─────────────────────────────────────────────────────
 class BMI270Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -79,35 +92,19 @@ class BMI270Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  // Sensor setters (called from Python codegen)
-  void set_accel_x_sensor(sensor::Sensor *s) { accel_x_ = s; }
-  void set_accel_y_sensor(sensor::Sensor *s) { accel_y_ = s; }
-  void set_accel_z_sensor(sensor::Sensor *s) { accel_z_ = s; }
-  void set_gyro_x_sensor(sensor::Sensor *s) { gyro_x_ = s; }
-  void set_gyro_y_sensor(sensor::Sensor *s) { gyro_y_ = s; }
-  void set_gyro_z_sensor(sensor::Sensor *s) { gyro_z_ = s; }
-  void set_temperature_sensor(sensor::Sensor *s) { temperature_ = s; }
-
   // Configuration setters
   void set_accel_range(BMI270AccelRange r) { accel_range_ = r; }
   void set_accel_odr(BMI270AccelODR o) { accel_odr_ = o; }
   void set_gyro_range(BMI270GyroRange r) { gyro_range_ = r; }
   void set_gyro_odr(BMI270GyroODR o) { gyro_odr_ = o; }
 
+  void add_listener(std::function<void(BMI270AccelData &)> &&cb) { accel_data_callback_.add(std::move(cb)); }
+
  protected:
   bool load_config_file_();
   bool write_reg_(uint8_t reg, uint8_t value);
   bool read_reg_(uint8_t reg, uint8_t *value);
   bool read_bytes_(uint8_t reg, uint8_t *data, size_t len);
-
-  // Sensors
-  sensor::Sensor *accel_x_{nullptr};
-  sensor::Sensor *accel_y_{nullptr};
-  sensor::Sensor *accel_z_{nullptr};
-  sensor::Sensor *gyro_x_{nullptr};
-  sensor::Sensor *gyro_y_{nullptr};
-  sensor::Sensor *gyro_z_{nullptr};
-  sensor::Sensor *temperature_{nullptr};
 
   // Config
   BMI270AccelRange accel_range_{BMI270_ACCEL_RANGE_4G};
@@ -116,6 +113,7 @@ class BMI270Component : public PollingComponent, public i2c::I2CDevice {
   BMI270GyroODR gyro_odr_{BMI270_GYRO_ODR_200};
 
   bool init_ok_{false};
+  LazyCallbackManager<void(BMI270AccelData &)> accel_data_callback_{};
 };
 
 }  // namespace bmi270

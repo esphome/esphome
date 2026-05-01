@@ -1,50 +1,53 @@
 sensor:
   - platform: bmi270
-    address: 0x68          # SDO pin LOW → 0x68  |  SDO pin HIGH → 0x69
-    update_interval: 50ms  # 20 Hz polling – balance with ODR settings below
-
-    # Accelerometer axes (unit: m/s²)
-    accel_x:
-      name: "Accel X"
-      accuracy_decimals: 4
-      filters:
-        - sliding_window_moving_average:
-            window_size: 4
-            send_every: 1
-    accel_y:
-      name: "Accel Y"
-      accuracy_decimals: 4
-    accel_z:
-      name: "Accel Z"
-      accuracy_decimals: 4
+    type: accel_x
+    name: "Accel X"
+    accuracy_decimals: 4
+    filters:
+      - sliding_window_moving_average:
+          window_size: 4
+          send_every: 1
+  - platform: bmi270
+    type: accel_y
+    name: "Accel Y"
+    accuracy_decimals: 4
+  - platform: bmi270
+    type: accel_z
+    name: "Accel Z"
+    accuracy_decimals: 4
 
     # Gyroscope axes (unit: °/s)
-    gyro_x:
-      name: "Gyro X"
-      accuracy_decimals: 4
-    gyro_y:
-      name: "Gyro Y"
-      accuracy_decimals: 4
-    gyro_z:
-      name: "Gyro Z"
-      accuracy_decimals: 4
+  - platform: bmi270
+    type: gyro_x
+    name: "Gyro X"
+    accuracy_decimals: 4
+  - platform: bmi270
+    type: gyro_y
+    name: "Gyro Y"
+    accuracy_decimals: 4
+  - platform: bmi270
+    type: gyro_z
+    name: "Gyro Z"
+    accuracy_decimals: 4
 
     # On-chip temperature sensor (unit: °C)
-    temperature:
-      name: "IMU Temperature"
-      accuracy_decimals: 1
+  - platform: bmi270
+    type: temperature
+    name: "IMU Temperature"
+    accuracy_decimals: 1
 
-    # ── Hardware configuration ─────────────────────────────────────────────
-    # Accelerometer full-scale range: 2G | 4G | 8G | 16G
-    accel_range: 4G
+bmi270:
+  # ── Hardware configuration ─────────────────────────────────────────────
+  # Accelerometer full-scale range: 2G | 4G | 8G | 16G
+  accel_range: 4G
 
-    # Accelerometer output data rate: 12_5HZ | 25HZ | 50HZ | 100HZ |
-    #                                  200HZ | 400HZ | 800HZ | 1600HZ
-    accel_odr: 100HZ
+  # Accelerometer output data rate: 12_5HZ | 25HZ | 50HZ | 100HZ |
+  #                                  200HZ | 400HZ | 800HZ | 1600HZ
+  accel_odr: 100HZ
 
-    # Gyroscope full-scale range: 125DPS | 250DPS | 500DPS | 1000DPS | 2000DPS
-    gyro_range: 2000DPS
+  # Gyroscope full-scale range: 125DPS | 250DPS | 500DPS | 1000DPS | 2000DPS
+  gyro_range: 2000DPS
 
-    # Gyroscope output data rate: 25HZ | 50HZ | 100HZ | 200HZ |
-    #                               400HZ | 800HZ | 1600HZ | 3200HZ
-    gyro_odr: 200HZ
+  # Gyroscope output data rate: 25HZ | 50HZ | 100HZ | 200HZ |
+  #                               400HZ | 800HZ | 1600HZ | 3200HZ
+  gyro_odr: 200HZ

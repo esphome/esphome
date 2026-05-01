@@ -169,13 +169,6 @@ void BMI270Component::dump_config() {
 
   ESP_LOGCONFIG(TAG, "  Accel range : %s", accel_range_strs[accel_range_]);
   ESP_LOGCONFIG(TAG, "  Gyro  range : %s", gyro_range_strs[gyro_range_]);
-  LOG_SENSOR("  ", "Accel X", accel_x_);
-  LOG_SENSOR("  ", "Accel Y", accel_y_);
-  LOG_SENSOR("  ", "Accel Z", accel_z_);
-  LOG_SENSOR("  ", "Gyro X", gyro_x_);
-  LOG_SENSOR("  ", "Gyro Y", gyro_y_);
-  LOG_SENSOR("  ", "Gyro Z", gyro_z_);
-  LOG_SENSOR("  ", "Temperature", temperature_);
 }
 
 // ── update() ─────────────────────────────────────────────────────────────────
@@ -185,72 +178,54 @@ void BMI270Component::update() {
   if (!init_ok_)
     return;
 
+  BMI270AccelData accel_data{};
+
   // ── Accelerometer: registers 0x0C–0x11 (6 bytes: x_lsb, x_msb, y_lsb, y_msb, z_lsb, z_msb)
-  if (accel_x_ || accel_y_ || accel_z_) {
-    uint8_t raw_acc[6];
-    if (!read_bytes_(BMI270_REG_DATA_8, raw_acc, 6)) {
-      ESP_LOGW(TAG, "Failed to read accelerometer data");
-    } else {
-      // Scale factor: LSB/g depends on range
-      // raw is a signed 16-bit value; full-scale = range_g * 2^15 lsb
-      static const float accel_scale[] = {
-          2.0f / 32768.0f,
-          4.0f / 32768.0f,
-          8.0f / 32768.0f,
-          16.0f / 32768.0f,
-      };
-      float scale = accel_scale[accel_range_];
+  uint8_t raw_acc[6];
+  if (!read_bytes_(BMI270_REG_DATA_8, raw_acc, 6)) {
+    ESP_LOGW(TAG, "Failed to read accelerometer data");
+  } else {
+    // Scale factor: LSB/g depends on range
+    // raw is a signed 16-bit value; full-scale = range_g * 2^15 lsb
+    static const float accel_scale[] = {
+        2.0f / 32768.0f,
+        4.0f / 32768.0f,
+        8.0f / 32768.0f,
+        16.0f / 32768.0f,
+    };
+    float scale = accel_scale[accel_range_];
 
-      int16_t ax = (int16_t) ((raw_acc[1] << 8) | raw_acc[0]);
-      int16_t ay = (int16_t) ((raw_acc[3] << 8) | raw_acc[2]);
-      int16_t az = (int16_t) ((raw_acc[5] << 8) | raw_acc[4]);
-
-      if (accel_x_)
-        accel_x_->publish_state(ax * scale);
-      if (accel_y_)
-        accel_y_->publish_state(ay * scale);
-      if (accel_z_)
-        accel_z_->publish_state(az * scale);
-    }
+    accel_data.accel_x = ((raw_acc[1] << 8) | raw_acc[0]) * scale;
+    accel_data.accel_y = ((raw_acc[3] << 8) | raw_acc[2]) * scale;
+    accel_data.accel_z = ((raw_acc[5] << 8) | raw_acc[4]) * scale;
   }
 
   // ── Gyroscope: registers 0x12–0x17 (6 bytes)
-  if (gyro_x_ || gyro_y_ || gyro_z_) {
-    uint8_t raw_gyr[6];
-    if (!read_bytes_(BMI270_REG_DATA_14, raw_gyr, 6)) {
-      ESP_LOGW(TAG, "Failed to read gyroscope data");
-    } else {
-      // Scale: full-scale range / 2^15
-      static const float gyro_scale[] = {
-          2000.0f / 32768.0f, 1000.0f / 32768.0f, 500.0f / 32768.0f, 250.0f / 32768.0f, 125.0f / 32768.0f,
-      };
-      float scale = gyro_scale[gyro_range_];
+  uint8_t raw_gyr[6];
+  if (!read_bytes_(BMI270_REG_DATA_14, raw_gyr, 6)) {
+    ESP_LOGW(TAG, "Failed to read gyroscope data");
+  } else {
+    // Scale: full-scale range / 2^15
+    static const float gyro_scale[] = {
+        2000.0f / 32768.0f, 1000.0f / 32768.0f, 500.0f / 32768.0f, 250.0f / 32768.0f, 125.0f / 32768.0f,
+    };
+    float scale = gyro_scale[gyro_range_];
 
-      int16_t gx = (int16_t) ((raw_gyr[1] << 8) | raw_gyr[0]);
-      int16_t gy = (int16_t) ((raw_gyr[3] << 8) | raw_gyr[2]);
-      int16_t gz = (int16_t) ((raw_gyr[5] << 8) | raw_gyr[4]);
-
-      if (gyro_x_)
-        gyro_x_->publish_state(gx * scale);
-      if (gyro_y_)
-        gyro_y_->publish_state(gy * scale);
-      if (gyro_z_)
-        gyro_z_->publish_state(gz * scale);
-    }
+    accel_data.accel_x = ((raw_gyr[1] << 8) | raw_gyr[0]) * scale;
+    accel_data.accel_y = ((raw_gyr[3] << 8) | raw_gyr[2]) * scale;
+    accel_data.accel_z = ((raw_gyr[5] << 8) | raw_gyr[4]) * scale;
   }
 
   // ── Temperature: registers 0x22–0x23
   // Formula from datasheet: T[°C] = raw / 512 + 23
-  if (temperature_) {
-    uint8_t raw_temp[2];
-    if (!read_bytes_(BMI270_REG_TEMP_0, raw_temp, 2)) {
-      ESP_LOGW(TAG, "Failed to read temperature");
-    } else {
-      int16_t raw_t = (int16_t) ((raw_temp[1] << 8) | raw_temp[0]);
-      float temp_c = (raw_t / 512.0f) + 23.0f;
-      temperature_->publish_state(temp_c);
-    }
+  uint8_t raw_temp[2];
+  if (!read_bytes_(BMI270_REG_TEMP_0, raw_temp, 2)) {
+    ESP_LOGW(TAG, "Failed to read temperature");
+  } else {
+    int16_t raw_t = (int16_t) ((raw_temp[1] << 8) | raw_temp[0]);
+    accel_data.temperature = (raw_t / 512.0f) + 23.0f;
   }
+  this->accel_data_callback_.call(accel_data);
 }
 
 }  // namespace bmi270
