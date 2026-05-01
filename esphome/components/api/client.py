@@ -68,10 +68,13 @@ class _LogLineProcessor:
         except EsphomeError as exc:
             self._decode_enabled = False
             self.backtrace_state = False
+            # _run_idedata raises EsphomeError with no message; fall back
+            # to a generic explanation when str(exc) is empty.
+            detail = str(exc) or "build artifacts not found locally"
             _LOGGER.warning(
-                "Crash trace decoding unavailable (%s). Run "
-                "'esphome compile' for this device to enable PC decoding.",
-                exc,
+                "Crash trace decoding unavailable: %s. "
+                "Run 'esphome compile' for this device to enable PC decoding.",
+                detail,
             )
 
 
