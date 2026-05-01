@@ -9,6 +9,8 @@
 #define IRAM_ATTR
 #define PROGMEM
 
+namespace esphome::zephyr {}
+
 namespace esphome {
 
 /// Returns true when executing inside an interrupt handler.

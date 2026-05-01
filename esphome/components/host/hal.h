@@ -8,6 +8,8 @@
 #define IRAM_ATTR
 #define PROGMEM
 
+namespace esphome::host {}
+
 namespace esphome {
 
 /// Returns true when executing inside an interrupt handler.
