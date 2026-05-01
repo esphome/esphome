@@ -285,7 +285,19 @@ def perform_ota(
         features = 0
 
     if ota_type != OTA_TYPE_UPDATE_APP:
-        raise OTAError(f"Unsupported OTA type: 0x{ota_type:02X}")
+        # Any non-app OTA type requires the extended protocol and the
+        # partition-access server feature. Reject up front so the user gets
+        # a clear capability error instead of a post-auth 0x8E from the device.
+        if not extended_proto:
+            raise OTAError(
+                f"Device does not support extended OTA protocol; "
+                f"OTA type 0x{ota_type:02X} requires it"
+            )
+        if not (features & SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS):
+            raise OTAError(
+                f"Device does not support partition access; "
+                f"OTA type 0x{ota_type:02X} cannot be used"
+            )
 
     if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
         upload_contents = gzip.compress(file_contents, compresslevel=9)

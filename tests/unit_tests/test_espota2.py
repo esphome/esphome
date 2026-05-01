@@ -832,20 +832,91 @@ def test_perform_ota_extended_protocol_app(
 
 
 @pytest.mark.usefixtures("mock_time")
-def test_perform_ota_extended_protocol_unsupported_type(
+def test_perform_ota_device_rejects_with_unsupported_ota_type(
     mock_socket: Mock, mock_file: io.BytesIO
 ) -> None:
-    """Test OTA fails when OTA type is unsupported by the client."""
-    # Setup socket responses for recv calls
+    """End-to-end: device returns 0x8E after the size byte; perform_ota must
+    surface the human-readable 'unsupported OTA type' error from the lookup
+    table in check_error()."""
     recv_responses = [
         bytes([espota2.RESPONSE_OK]),  # First byte of version response
         bytes([espota2.OTA_VERSION_2_0]),  # Version number
-        bytes([espota2.RESPONSE_HEADER_OK]),  # Features response
+        bytes([espota2.RESPONSE_FEATURE_FLAGS]),  # Extended protocol marker
+        bytes(
+            [
+                espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION
+                | espota2.SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS
+            ]
+        ),  # Feature flags
+        bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
+        bytes([espota2.RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE]),  # Reject at size step
     ]
 
     mock_socket.recv.side_effect = recv_responses
 
-    with pytest.raises(espota2.OTAError, match="Unsupported OTA type"):
+    with pytest.raises(
+        espota2.OTAError,
+        match="The requested OTA type is not supported by the device",
+    ):
+        espota2.perform_ota(
+            mock_socket,
+            "testpass",
+            mock_file,
+            "test.bin",
+            espota2.OTA_TYPE_UPDATE_APP,
+        )
+
+    # Verify the client did send the OTA type byte before the size step
+    assert mock_socket.sendall.call_args_list[2] == call(
+        bytes([espota2.OTA_TYPE_UPDATE_APP])
+    )
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_non_app_type_requires_extended_protocol(
+    mock_socket: Mock, mock_file: io.BytesIO
+) -> None:
+    """Non-app OTA type must fail when device only supports the legacy protocol."""
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_HEADER_OK]),  # Legacy single-byte feature ack
+    ]
+
+    mock_socket.recv.side_effect = recv_responses
+
+    with pytest.raises(
+        espota2.OTAError, match="Device does not support extended OTA protocol"
+    ):
+        espota2.perform_ota(
+            mock_socket,
+            "testpass",
+            mock_file,
+            "test.bin",
+            255,
+        )
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_non_app_type_requires_partition_access(
+    mock_socket: Mock, mock_file: io.BytesIO
+) -> None:
+    """Non-app OTA type must fail when device advertises extended protocol but
+    not the partition-access feature."""
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_FEATURE_FLAGS]),  # Extended protocol marker
+        bytes(
+            [espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION]
+        ),  # Compression only, no partition access
+    ]
+
+    mock_socket.recv.side_effect = recv_responses
+
+    with pytest.raises(
+        espota2.OTAError, match="Device does not support partition access"
+    ):
         espota2.perform_ota(
             mock_socket,
             "testpass",
