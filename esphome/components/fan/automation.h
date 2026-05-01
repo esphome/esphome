@@ -7,29 +7,24 @@
 namespace esphome {
 namespace fan {
 
+// All configured fields are baked into a single stateless lambda whose
+// constants live in flash. The action only stores one function pointer
+// plus one parent pointer, regardless of how many fields the user set.
+// Trigger args are forwarded to the apply function so user lambdas
+// (e.g. `speed: !lambda "return x;"`) keep working.
 template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
-  explicit TurnOnAction(Fan *state) : state_(state) {}
-
-  TEMPLATABLE_VALUE(bool, oscillating)
-  TEMPLATABLE_VALUE(int, speed)
-  TEMPLATABLE_VALUE(FanDirection, direction)
+  using ApplyFn = void (*)(FanCall &, const Ts &...);
+  TurnOnAction(Fan *state, ApplyFn apply) : state_(state), apply_(apply) {}
 
   void play(const Ts &...x) override {
     auto call = this->state_->turn_on();
-    if (this->oscillating_.has_value()) {
-      call.set_oscillating(this->oscillating_.value(x...));
-    }
-    if (this->speed_.has_value()) {
-      call.set_speed(this->speed_.value(x...));
-    }
-    if (this->direction_.has_value()) {
-      call.set_direction(this->direction_.value(x...));
-    }
+    this->apply_(call, x...);
     call.perform();
   }
 
   Fan *state_;
+  ApplyFn apply_;
 };
 
 template<typename... Ts> class TurnOffAction : public Action<Ts...> {

@@ -511,6 +511,40 @@ def lint_no_std_string_view(fname, match):
     )
 
 
+@lint_re_check(
+    r"(?:"
+    # `from esphome.components.const import ...`
+    r"from\s+esphome\.components\.const\s+import"
+    r"|"
+    # `import esphome.components.const` (with optional `as` alias)
+    r"import\s+esphome\.components\.const\b"
+    r"|"
+    # `from esphome.components import [(] ... const ... [)]`
+    # Handles parenthesized + multiline import lists by allowing newlines inside
+    # the parens via [^)]*. Single-line form falls back to the [^#\n]* branch.
+    r"from\s+esphome\.components\s+import\s*"
+    r"(?:\([^)]*\bconst\b[^)]*\)|(?:[^#\n]*[\s,])?\bconst\b)"
+    r")",
+    include=["*.py"],
+    exclude=[
+        "esphome/components/*",
+        "tests/*",
+        "script/ci-custom.py",
+    ],
+)
+def lint_no_components_const_outside_components(fname, match):
+    return (
+        f"Constants in {highlight('esphome/components/const/__init__.py')} are intended "
+        f"to be shared only between components in {highlight('esphome/components/')}. "
+        f"Code outside this folder must not import from "
+        f"{highlight('esphome.components.const')}.\n"
+        f"For core code (used outside {highlight('esphome/components/')}), define the "
+        f"constant in {highlight('esphome/const.py')} instead. When adding a new "
+        f"{highlight('CONF_')} constant there, bump {highlight('CONST_PY_MAX_CONF')} "
+        f"in this file accordingly (see {highlight('lint_const_py_frozen')})."
+    )
+
+
 @lint_post_check
 def lint_constants_usage():
     errs = []

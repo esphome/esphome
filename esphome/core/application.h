@@ -9,6 +9,10 @@
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+
+#if defined(USE_LWIP_FAST_SELECT) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
+#include <atomic>  // for std::atomic_thread_fence in Application::loop()
+#endif
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
@@ -103,10 +107,19 @@ class Application {
   void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
 
-// Entity register methods (generated from entity_types.h)
+// Entity register methods (generated from entity_types.h).
+// Each entity type gets two overloads:
+//   - register_<entity>(obj)                              — bare push_back
+//   - register_<entity>(obj, name, hash, fields)          — configure_entity_ + push_back
+// The 4-arg form lets codegen collapse `App.register_<entity>(obj); obj->configure_entity_(...);`
+// into a single call site, saving flash and a `main.cpp` line per entity.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  void register_##singular(type *obj) { this->plural##_.push_back(obj); }
+  void register_##singular(type *obj) { this->plural##_.push_back(obj); } \
+  void register_##singular(type *obj, const char *name, uint32_t object_id_hash, uint32_t entity_fields) { \
+    obj->configure_entity_(name, object_id_hash, entity_fields); \
+    this->plural##_.push_back(obj); \
+  }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
 #include "esphome/core/entity_types.h"
@@ -361,6 +374,9 @@ class Application {
 #elif defined(USE_ESP8266)
   /// Wake from ISR (ESP8266). No task_woken arg — no FreeRTOS. Caller must be IRAM_ATTR.
   static void IRAM_ATTR ESPHOME_ALWAYS_INLINE wake_loop_isrsafe() { esphome::wake_loop_isrsafe(); }
+#elif defined(USE_ZEPHYR)
+  /// Wake from ISR (Zephyr). No task_woken arg — k_sem_give() handles ISR scheduling internally.
+  static void wake_loop_isrsafe() { esphome::wake_loop_isrsafe(); }
 #endif
 
   /// Wake from any context (ISR, thread, callback).
@@ -368,11 +384,15 @@ class Application {
 
  protected:
   friend Component;
+  friend class Scheduler;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
   friend void ::setup();
   friend void ::original_setup();
+
+  /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
+  void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
 
   /// Walk all registered components looking for any whose component_state_
   /// has the given flag set. Used by Component::status_clear_*_slow_path_()
@@ -382,7 +402,11 @@ class Application {
 
   /// Register a component, detecting loop() override at compile time.
   /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.
-  template<typename T> void register_component_(T *comp) {
+  /// Optionally sets the component source index in the same call to avoid emitting
+  /// a separate set_component_source_() line in generated code.
+  template<typename T> void register_component_(T *comp, uint8_t source_index = 0) {
+    if (source_index != 0)
+      comp->set_component_source_(source_index);
     this->register_component_impl_(comp, HasLoopOverride<T>::value);
   }
 
@@ -560,6 +584,15 @@ inline ESPHOME_ALWAYS_INLINE Application::ComponentPhaseGuard::ComponentPhaseGua
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
+#if defined(USE_LWIP_FAST_SELECT) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
+  // Pairs with the TCP/IP thread's SYS_ARCH_UNPROTECT release on rcvevent so
+  // subsequent Socket::ready() checks in this iter observe the published state
+  // without a per-call memw. Wake is independent (xTaskNotifyGive/
+  // ulTaskNotifyTake), so non-losing. Skipped on MULTI_NO_ATOMICS (e.g.
+  // BK72xx) — that path keeps `volatile` in esphome_lwip_socket_has_data()
+  // instead.
+  std::atomic_thread_fence(std::memory_order_acquire);
+#endif
 #ifdef USE_RUNTIME_STATS
   // Capture the start of the active (non-sleeping) portion of this iteration.
   // Used to derive main-loop overhead = active time − Σ(component time) −
@@ -604,10 +637,12 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // flag preserves it. wake_request_take() exchange-clears the flag; wakes
   // that arrive during Phase B re-set it and run Phase B again on the next
   // iteration.
-  const bool high_frequency = HighFrequencyLoopRequester::is_high_frequency();
-  const uint32_t elapsed = now - this->last_loop_;
-  const bool woke = esphome::wake_request_take();
-  const bool do_component_phase = high_frequency || woke || (elapsed >= this->loop_interval_);
+  //
+  // wake_request_take() must always be called first since it does an
+  // atomic exchange to clear the flag, and we want to run the component phase
+  // if either the flag was set or the scheduler requested a high-frequency loop.
+  const bool do_component_phase = esphome::wake_request_take() || HighFrequencyLoopRequester::is_high_frequency() ||
+                                  (now - this->last_loop_ >= this->loop_interval_);
 
   if (do_component_phase) {
     ComponentPhaseGuard phase_guard{*this};

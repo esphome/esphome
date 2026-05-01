@@ -127,7 +127,7 @@ def validate_potentially_or_condition(value):
     return validate_condition(value)
 
 
-DelayAction = cg.esphome_ns.class_("DelayAction", Action, cg.Component)
+DelayAction = cg.esphome_ns.class_("DelayAction", Action)
 LambdaAction = cg.esphome_ns.class_("LambdaAction", Action)
 StatelessLambdaAction = cg.esphome_ns.class_("StatelessLambdaAction", Action)
 IfAction = cg.esphome_ns.class_("IfAction", Action)
@@ -396,7 +396,6 @@ async def delay_action_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_component(var, {})
     template_ = await cg.templatable(config, args, cg.uint32)
     cg.add(var.set_delay(template_))
     return var
@@ -597,7 +596,7 @@ async def component_resume_action_to_code(
     comp = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, comp)
     if CONF_UPDATE_INTERVAL in config:
-        template_ = await cg.templatable(config[CONF_UPDATE_INTERVAL], args, int)
+        template_ = await cg.templatable(config[CONF_UPDATE_INTERVAL], args, cg.uint32)
         cg.add(var.set_update_interval(template_))
     return var
 
