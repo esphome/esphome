@@ -45,10 +45,15 @@ def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Sch
     return schema
 
 
-def add_usb_mps(mps_value: int):
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = {}
-    CORE.data[DOMAIN][CONF_MAX_PACKET_SIZE] = mps_value
+def _set_max_packet_size(config: dict) -> dict:
+    CORE.data.setdefault(DOMAIN, {})[CONF_MAX_PACKET_SIZE] = config[
+        CONF_MAX_PACKET_SIZE
+    ]
+    return config
+
+
+def get_max_packet_size() -> int:
+    return CORE.data.get(DOMAIN, {}).get(CONF_MAX_PACKET_SIZE, 64)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -66,6 +71,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     only_on_variant(supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3]),
+    _set_max_packet_size,
 )
 
 
@@ -83,11 +89,8 @@ async def to_code(config: ConfigType) -> None:
     if config.get(CONF_ENABLE_HUBS):
         add_idf_sdkconfig_option("CONFIG_USB_HOST_HUBS_SUPPORTED", True)
 
-    max_requests = config[CONF_MAX_TRANSFER_REQUESTS]
-    cg.add_define("USB_HOST_MAX_REQUESTS", max_requests)
-    max_packet_size = config.get(CONF_MAX_PACKET_SIZE)
-    cg.add_define("USB_HOST_MAX_PACKET_SIZE", max_packet_size)
-    add_usb_mps(max_packet_size)
+    cg.add_define("USB_HOST_MAX_REQUESTS", config[CONF_MAX_TRANSFER_REQUESTS])
+    cg.add_define("USB_HOST_MAX_PACKET_SIZE", config[CONF_MAX_PACKET_SIZE])
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
