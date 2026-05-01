@@ -11,7 +11,6 @@ from esphome.types import ConfigType
 
 from .const import (
     CONF_CDC_ACM,
-    CONF_NATIVE_BUILD,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
     KEY_KCONFIG,
@@ -68,7 +67,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         pm_static=[],
         user={},
         kconfig="",
-        native_build=config[CONF_NATIVE_BUILD],
+        native_build=False,
     )
 
 

@@ -22,7 +22,6 @@ from esphome.components.zephyr import (
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     CONF_CDC_ACM,
-    CONF_NATIVE_BUILD,
     KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_NATIVE_BUILD,
@@ -81,23 +80,21 @@ def set_core_data(config: ConfigType) -> ConfigType:
     if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
         zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
 
-
-def _set_framework_defaults(config: ConfigType) -> ConfigType:
-    if CONF_VERSION not in config[CONF_FRAMEWORK]:
-        default_version = "2.9.2" if config[CONF_NATIVE_BUILD] else "2.6.1-a"
-        config = {
-            **config,
-            CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
-        }
     return config
 
 
 def set_framework(config: ConfigType) -> ConfigType:
+    if CONF_VERSION not in config[CONF_FRAMEWORK]:
+        default_version = "2.9.2" if zephyr_data()[KEY_NATIVE_BUILD] else "2.6.1-a"
+        config = {
+            **config,
+            CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
+        }
     framework_ver = cv.Version.parse(
         cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION])
     )
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
-    if config[CONF_NATIVE_BUILD]:
+    if zephyr_data()[KEY_NATIVE_BUILD]:
         return config
     if framework_ver < cv.Version(2, 9, 2):
         return cv.require_framework_version(
@@ -192,7 +189,6 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_UICR_ERASE, default=False): cv.boolean,
                 }
             ),
-            cv.Optional(CONF_NATIVE_BUILD, default=False): cv.boolean,
             cv.Optional(
                 CONF_FRAMEWORK,
                 default={},
@@ -211,7 +207,6 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
         }
     ),
-    _set_framework_defaults,
     set_framework,
 )
 
@@ -260,7 +255,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_VARIANT", "NRF52")
     # nRF52 processors are single-core
     cg.add_define(ThreadModel.SINGLE)
-    if not config[CONF_NATIVE_BUILD]:
+    if not zephyr_data()[KEY_NATIVE_BUILD]:
         cg.add_platformio_option("board", config[CONF_BOARD])
         cg.add_platformio_option(
             CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
