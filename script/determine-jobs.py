@@ -6,8 +6,7 @@ what files have changed. It outputs JSON with the following structure:
 
 {
   "integration_tests": true/false,
-  "integration_tests_run_all": true/false,
-  "integration_test_files": ["tests/integration/test_foo.py", ...],
+  "integration_test_buckets": [{"name": "1/3", "tests": ["tests/integration/test_foo.py", ...]}, ...],
   "clang_tidy": true/false,
   "clang_format": true/false,
   "python_linters": true/false,
@@ -80,6 +79,62 @@ CLANG_TIDY_SPLIT_THRESHOLD = 65
 # Component test batch size (weighted)
 # Isolated components count as 10x, groupable components count as 1x
 COMPONENT_TEST_BATCH_SIZE = 40
+
+# Integration test bucketing: when more than the threshold tests are scheduled,
+# fan out across this many parallel jobs. Below the threshold, a single job runs.
+INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
+INTEGRATION_TESTS_SPLIT_BUCKETS = 3
+
+
+def _split_list(items: list[str], n: int) -> list[list[str]]:
+    """Split a list into n roughly-equal contiguous parts (matches script/clang-tidy)."""
+    k, m = divmod(len(items), n)
+    return [items[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]
+
+
+def _all_integration_test_files() -> list[str]:
+    """Return all integration test file paths, sorted, relative to repo root."""
+    return sorted(
+        str(p.relative_to(root_path))
+        for p in (Path(root_path) / "tests" / "integration").glob("test_*.py")
+    )
+
+
+def _compute_integration_test_buckets(
+    integration_run_all: bool,
+    integration_test_files: list[str],
+) -> tuple[bool, list[dict[str, Any]]]:
+    """Compute (run_integration, buckets) from the determine_integration_tests result.
+
+    Pure function for unit testing — no I/O beyond `_all_integration_test_files`
+    when `integration_run_all` is set.
+
+    `buckets` is a list of `{name, tests}` dicts where `tests` is a JSON-friendly
+    list of file paths so the workflow can build a bash array via jq, avoiding
+    shell word-splitting / glob hazards.
+    """
+    if integration_run_all:
+        files = _all_integration_test_files()
+    else:
+        files = sorted(integration_test_files)
+
+    # Empty list (e.g. run_all expansion with no files on disk) would otherwise
+    # cause the workflow to invoke pytest with no path argument and collect
+    # tests outside tests/integration/. Suppress the run instead.
+    if not files:
+        return False, []
+
+    if len(files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
+        parts = [
+            part for part in _split_list(files, INTEGRATION_TESTS_SPLIT_BUCKETS) if part
+        ]
+        buckets = [
+            {"name": f"{i + 1}/{len(parts)}", "tests": part}
+            for i, part in enumerate(parts)
+        ]
+    else:
+        buckets = [{"name": "1/1", "tests": files}]
+    return True, buckets
 
 
 class Platform(StrEnum):
@@ -812,7 +867,9 @@ def main() -> None:
     integration_run_all, integration_test_files = determine_integration_tests(
         args.branch
     )
-    run_integration = integration_run_all or bool(integration_test_files)
+    run_integration, integration_test_buckets = _compute_integration_test_buckets(
+        integration_run_all, integration_test_files
+    )
     run_clang_tidy = should_run_clang_tidy(args.branch)
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
@@ -944,8 +1001,7 @@ def main() -> None:
 
     output: dict[str, Any] = {
         "integration_tests": run_integration,
-        "integration_tests_run_all": integration_run_all,
-        "integration_test_files": integration_test_files,
+        "integration_test_buckets": integration_test_buckets,
         "clang_tidy": run_clang_tidy,
         "clang_tidy_mode": clang_tidy_mode,
         "clang_format": run_clang_format,
