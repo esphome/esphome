@@ -13,7 +13,11 @@ bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const
 
 void DeepSleepComponent::setup() {
   global_has_deep_sleep = true;
+  this->schedule_sleep_();
+}
 
+void DeepSleepComponent::schedule_sleep_() {
+  this->next_enter_deep_sleep_ = false;
   const optional<uint32_t> run_duration = get_run_duration_();
   if (run_duration.has_value()) {
     ESP_LOGI(TAG, "Scheduling in %" PRIu32 " ms", *run_duration);
@@ -40,10 +44,6 @@ void DeepSleepComponent::loop() {
     this->begin_sleep();
 }
 
-float DeepSleepComponent::get_loop_priority() const {
-  return -100.0f;  // run after everything else is ready
-}
-
 void DeepSleepComponent::set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
 
 void DeepSleepComponent::set_run_duration(uint32_t time_ms) { this->run_duration_ = time_ms; }
@@ -62,13 +62,17 @@ void DeepSleepComponent::begin_sleep(bool manual) {
   if (this->sleep_duration_.has_value()) {
     ESP_LOGI(TAG, "Sleeping for %" PRId64 "us", *this->sleep_duration_);
   }
-  App.run_safe_shutdown_hooks();
-  // It's critical to teardown components cleanly for deep sleep to ensure
-  // Home Assistant sees a clean disconnect instead of marking the device unavailable
-  App.teardown_components(TEARDOWN_TIMEOUT_DEEP_SLEEP_MS);
-  App.run_powerdown_hooks();
+
+  if (this->should_teardown_()) {
+    App.run_safe_shutdown_hooks();
+    // It's critical to teardown components cleanly for deep sleep to ensure
+    // Home Assistant sees a clean disconnect instead of marking the device unavailable
+    App.teardown_components(TEARDOWN_TIMEOUT_DEEP_SLEEP_MS);
+    App.run_powerdown_hooks();
+  }
 
   this->deep_sleep_();
+  this->schedule_sleep_();
 }
 
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }

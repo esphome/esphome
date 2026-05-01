@@ -4,8 +4,7 @@
 #include <zephyr/kernel.h>
 #include "esphome/core/hal.h"
 #include <zephyr/device.h>
-namespace esphome {
-namespace zephyr {
+namespace esphome::zephyr {
 
 class ZephyrGPIOPin : public InternalGPIOPin {
  public:
@@ -40,7 +39,6 @@ class ZephyrGPIOPin : public InternalGPIOPin {
   bool value_{false};
 };
 
-}  // namespace zephyr
-}  // namespace esphome
+}  // namespace esphome::zephyr
 
 #endif  // USE_ZEPHYR

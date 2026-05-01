@@ -6,8 +6,7 @@
 #include "i2c_bus.h"
 #include <driver/i2c_master.h>
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 enum RecoveryCode {
   RECOVERY_FAILED_SCL_LOW,
@@ -56,7 +55,6 @@ class IDFI2CBus : public InternalI2CBus, public Component {
 #endif
 };
 
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c
 
 #endif  // USE_ESP32

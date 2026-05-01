@@ -14,8 +14,6 @@ class RX8130Component : public time::RealTimeClock, public i2c::I2CDevice {
   void dump_config() override;
   void read_time();
   void write_time();
-  /// Ensure RTC is initialized at the correct time in the setup sequence
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   void stop_(bool stop);

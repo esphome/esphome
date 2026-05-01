@@ -1,20 +1,12 @@
 #pragma once
-#include "esphome/core/defines.h"
-
-#ifdef USE_SAFE_MODE_CALLBACK
-#include "safe_mode.h"
-
 #include "esphome/core/automation.h"
+#include "safe_mode.h"
 
 namespace esphome::safe_mode {
 
-class SafeModeTrigger : public Trigger<> {
+template<typename... Ts> class MarkSuccessfulAction : public Action<Ts...>, public Parented<SafeModeComponent> {
  public:
-  explicit SafeModeTrigger(SafeModeComponent *parent) {
-    parent->add_on_safe_mode_callback([this]() { trigger(); });
-  }
+  void play(const Ts &...x) override { this->parent_->mark_successful(); }
 };
 
 }  // namespace esphome::safe_mode
-
-#endif  // USE_SAFE_MODE_CALLBACK

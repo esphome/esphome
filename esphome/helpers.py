@@ -8,6 +8,8 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import stat
+import sys
 import tempfile
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -354,6 +356,23 @@ def is_ha_addon():
     return get_bool_env("ESPHOME_IS_HA_ADDON")
 
 
+def rmtree(path: Path | str) -> None:
+    """Remove a directory tree, handling read-only files on Windows.
+
+    On Windows, git pack files and other files may be marked read-only,
+    causing shutil.rmtree to fail. This handles that by removing the
+    read-only flag and retrying.
+    """
+
+    def _onerror(func, path, exc_info):
+        if os.access(path, os.W_OK):
+            raise exc_info[1].with_traceback(exc_info[2])
+        os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
+        func(path)
+
+    shutil.rmtree(path, onerror=_onerror)
+
+
 def walk_files(path: Path):
     for root, _, files in os.walk(path):
         for name in files:
@@ -481,8 +500,6 @@ def list_starts_with(list_, sub):
 
 def file_compare(path1: Path, path2: Path) -> bool:
     """Return True if the files path1 and path2 have the same contents."""
-    import stat
-
     try:
         stat1, stat2 = path1.stat(), path2.stat()
     except OSError:
@@ -567,6 +584,32 @@ _DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 def sanitize(value):
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
     return _DISALLOWED_CHARS.sub("_", value)
+
+
+class ProgressBar:
+    """A simple terminal progress bar for upload operations."""
+
+    def __init__(self) -> None:
+        self.last_progress: int | None = None
+
+    def update(self, progress: float) -> None:
+        bar_length = 60
+        status = ""
+        if progress >= 1:
+            progress = 1
+            status = "Done...\r\n"
+        new_progress = int(progress * 100)
+        if new_progress == self.last_progress:
+            return
+        self.last_progress = new_progress
+        block = int(round(bar_length * progress))
+        text = f"\rUploading: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
+        sys.stderr.write(text)
+        sys.stderr.flush()
+
+    def done(self) -> None:
+        sys.stderr.write("\n")
+        sys.stderr.flush()
 
 
 def docs_url(path: str) -> str:

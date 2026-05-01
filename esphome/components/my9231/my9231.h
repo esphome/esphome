@@ -30,7 +30,7 @@ class MY9231OutputComponent : public Component {
   class Channel : public output::FloatOutput {
    public:
     void set_parent(MY9231OutputComponent *parent) { parent_ = parent; }
-    void set_channel(uint8_t channel) { channel_ = channel; }
+    void set_channel(uint16_t channel) { channel_ = channel; }
 
    protected:
     void write_state(float state) override {
@@ -39,13 +39,13 @@ class MY9231OutputComponent : public Component {
     }
 
     MY9231OutputComponent *parent_;
-    uint8_t channel_;
+    uint16_t channel_;
   };
 
  protected:
   uint16_t get_max_amount_() const { return (uint32_t(1) << this->bit_depth_) - 1; }
 
-  void set_channel_value_(uint8_t channel, uint16_t value);
+  void set_channel_value_(uint16_t channel, uint16_t value);
   void init_chips_(uint8_t command);
   void write_word_(uint16_t value, uint8_t bits);
   void send_di_pulses_(uint8_t count);

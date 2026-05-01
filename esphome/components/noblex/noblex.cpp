@@ -71,7 +71,7 @@ void NoblexClimate::transmit_state() {
       break;
   }
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       remote_state[0] |= (IRNoblexFan::IR_NOBLEX_FAN_LOW << 2);
       break;
@@ -118,15 +118,15 @@ void NoblexClimate::transmit_state() {
   data->mark(NOBLEX_HEADER_MARK);
   data->space(NOBLEX_HEADER_SPACE);
   // Data (sent remote_state from the MSB to the LSB)
-  for (uint8_t i : remote_state) {
-    for (int8_t j = 7; j >= 0; j--) {
-      if ((i == 4) & (j == 4)) {
+  for (int byte_idx = 0; byte_idx < 8; byte_idx++) {
+    for (int8_t bit_idx = 7; bit_idx >= 0; bit_idx--) {
+      if ((byte_idx == 4) && (bit_idx == 4)) {
         // Header intermediate
         data->mark(NOBLEX_BIT_MARK);
         data->space(NOBLEX_GAP);  // gap en bit 36
       } else {
         data->mark(NOBLEX_BIT_MARK);
-        bool bit = i & (1 << j);
+        bool bit = remote_state[byte_idx] & (1 << bit_idx);
         data->space(bit ? NOBLEX_ONE_SPACE : NOBLEX_ZERO_SPACE);
       }
     }
@@ -145,76 +145,71 @@ void NoblexClimate::transmit_state() {
 
 // Handle received IR Buffer
 bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t remote_state[8] = {0};
-  uint8_t crc = 0, crc_calculated = 0;
-
-  if (!receiving_) {
-    // Validate header
-    if (data.expect_item(NOBLEX_HEADER_MARK, NOBLEX_HEADER_SPACE)) {
-      ESP_LOGV(TAG, "Header");
-      receiving_ = true;
-      // Read first 36 bits
-      for (int i = 0; i < 5; i++) {
-        // Read bit
-        for (int j = 7; j >= 0; j--) {
-          if ((i == 4) & (j == 4)) {
-            remote_state[i] |= 1 << j;
-            // Header intermediate
-            ESP_LOGVV(TAG, "GAP");
-            return false;
-          } else if (data.expect_item(NOBLEX_BIT_MARK, NOBLEX_ONE_SPACE)) {
-            remote_state[i] |= 1 << j;
-          } else if (!data.expect_item(NOBLEX_BIT_MARK, NOBLEX_ZERO_SPACE)) {
-            ESP_LOGVV(TAG, "Byte %d bit %d fail", i, j);
-            return false;
-          }
-        }
-        ESP_LOGV(TAG, "Byte %d %02X", i, remote_state[i]);
-      }
-
-    } else {
-      ESP_LOGV(TAG, "Header fail");
-      receiving_ = false;
-      return false;
-    }
-
-  } else {
-    // Read the remaining 28 bits
-    for (int i = 4; i < 8; i++) {
-      // Read bit
+  if (data.peek_item(NOBLEX_HEADER_MARK, NOBLEX_HEADER_SPACE)) {
+    // First part: header + first 36 bits, followed by 20ms gap
+    data.expect_item(NOBLEX_HEADER_MARK, NOBLEX_HEADER_SPACE);
+    ESP_LOGV(TAG, "Header");
+    this->receiving_ = false;
+    memset(this->remote_state_, 0, sizeof(this->remote_state_));
+    for (int i = 0; i < 5; i++) {
       for (int j = 7; j >= 0; j--) {
-        if ((i == 4) & (j >= 4)) {
-          // nothing
+        if ((i == 4) && (j == 4)) {
+          this->remote_state_[i] |= 1 << j;
+          ESP_LOGVV(TAG, "GAP");
+          this->receiving_ = true;
+          return false;
         } else if (data.expect_item(NOBLEX_BIT_MARK, NOBLEX_ONE_SPACE)) {
-          remote_state[i] |= 1 << j;
+          this->remote_state_[i] |= 1 << j;
         } else if (!data.expect_item(NOBLEX_BIT_MARK, NOBLEX_ZERO_SPACE)) {
           ESP_LOGVV(TAG, "Byte %d bit %d fail", i, j);
           return false;
         }
       }
-      ESP_LOGV(TAG, "Byte %d %02X", i, remote_state[i]);
+      ESP_LOGV(TAG, "Byte %d %02X", i, this->remote_state_[i]);
     }
+    return false;
+  }
 
-    // Read crc
-    for (int i = 3; i >= 0; i--) {
-      if (data.expect_item(NOBLEX_BIT_MARK, NOBLEX_ONE_SPACE)) {
-        crc |= 1 << i;
+  // Second part: remaining 28 bits + 4-bit CRC + footer
+  if (!this->receiving_) {
+    return false;
+  }
+  this->receiving_ = false;
+  for (int i = 4; i < 8; i++) {
+    for (int j = 7; j >= 0; j--) {
+      if ((i == 4) && (j >= 4)) {
+        // already decoded in first part
+      } else if (data.expect_item(NOBLEX_BIT_MARK, NOBLEX_ONE_SPACE)) {
+        this->remote_state_[i] |= 1 << j;
       } else if (!data.expect_item(NOBLEX_BIT_MARK, NOBLEX_ZERO_SPACE)) {
-        ESP_LOGVV(TAG, "Bit %d CRC fail", i);
+        ESP_LOGVV(TAG, "Byte %d bit %d fail", i, j);
         return false;
       }
     }
-    ESP_LOGV(TAG, "CRC %02X", crc);
-
-    // Validate footer
-    if (!data.expect_mark(NOBLEX_BIT_MARK)) {
-      ESP_LOGV(TAG, "Footer fail");
-      return false;
-    }
-    receiving_ = false;
+    ESP_LOGV(TAG, "Byte %d %02X", i, this->remote_state_[i]);
   }
 
-  for (uint8_t i : remote_state)
+  // Read CRC
+  uint8_t crc = 0;
+  for (int i = 3; i >= 0; i--) {
+    if (data.expect_item(NOBLEX_BIT_MARK, NOBLEX_ONE_SPACE)) {
+      crc |= 1 << i;
+    } else if (!data.expect_item(NOBLEX_BIT_MARK, NOBLEX_ZERO_SPACE)) {
+      ESP_LOGVV(TAG, "Bit %d CRC fail", i);
+      return false;
+    }
+  }
+  ESP_LOGV(TAG, "CRC %02X", crc);
+
+  // Validate footer
+  if (!data.expect_mark(NOBLEX_BIT_MARK)) {
+    ESP_LOGV(TAG, "Footer fail");
+    return false;
+  }
+
+  // Validate CRC
+  uint8_t crc_calculated = 0;
+  for (uint8_t i : this->remote_state_)
     crc_calculated += reverse_bits(i);
   crc_calculated = reverse_bits(uint8_t(crc_calculated & 0x0F)) >> 4;
   ESP_LOGVV(TAG, "CRC calc %02X", crc_calculated);
@@ -224,11 +219,12 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  ESP_LOGD(TAG, "Received noblex code: %02X%02X %02X%02X %02X%02X %02X%02X", remote_state[0], remote_state[1],
-           remote_state[2], remote_state[3], remote_state[4], remote_state[5], remote_state[6], remote_state[7]);
+  ESP_LOGD(TAG, "Received noblex code: %02X%02X %02X%02X %02X%02X %02X%02X", this->remote_state_[0],
+           this->remote_state_[1], this->remote_state_[2], this->remote_state_[3], this->remote_state_[4],
+           this->remote_state_[5], this->remote_state_[6], this->remote_state_[7]);
 
   auto powered_on = false;
-  if ((remote_state[0] & NOBLEX_POWER) == NOBLEX_POWER) {
+  if ((this->remote_state_[0] & NOBLEX_POWER) == NOBLEX_POWER) {
     powered_on = true;
     this->powered_on_assumed = powered_on;
   } else {
@@ -241,7 +237,7 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   // Set received mode
   if (powered_on_assumed) {
-    auto mode = (remote_state[0] & 0xE0) >> 5;
+    auto mode = (this->remote_state_[0] & 0xE0) >> 5;
     ESP_LOGV(TAG, "Mode: %02X", mode);
     switch (mode) {
       case IRNoblexMode::IR_NOBLEX_MODE_AUTO:
@@ -263,7 +259,7 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Set received temp
-  uint8_t temp = remote_state[1];
+  uint8_t temp = this->remote_state_[1];
   ESP_LOGVV(TAG, "Temperature Raw: %02X", temp);
 
   temp = 0x0F & reverse_bits(temp);
@@ -272,7 +268,7 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->target_temperature = temp;
 
   // Set received fan speed
-  auto fan = (remote_state[0] & 0x0C) >> 2;
+  auto fan = (this->remote_state_[0] & 0x0C) >> 2;
   ESP_LOGV(TAG, "Fan: %02X", fan);
   switch (fan) {
     case IRNoblexFan::IR_NOBLEX_FAN_HIGH:
@@ -291,7 +287,7 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Set received swing status
-  if (remote_state[0] & 0x02) {
+  if (this->remote_state_[0] & 0x02) {
     ESP_LOGV(TAG, "Swing vertical");
     this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
   } else {
@@ -299,8 +295,6 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
 
-  for (uint8_t &i : remote_state)
-    i = 0;
   this->publish_state();
   return true;
 }  // end on_receive()

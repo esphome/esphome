@@ -175,7 +175,7 @@ void HitachiClimate::transmit_state() {
 
   set_temp_(static_cast<uint8_t>(this->target_temperature));
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       set_fan_(HITACHI_AC344_FAN_LOW);
       break;

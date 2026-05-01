@@ -37,7 +37,6 @@ void MICS4514Component::dump_config() {
   LOG_SENSOR("  ", "Hydrogen", this->hydrogen_sensor_);
   LOG_SENSOR("  ", "Ammonia", this->ammonia_sensor_);
 }
-float MICS4514Component::get_setup_priority() const { return setup_priority::DATA; }
 void MICS4514Component::update() {
   if (!this->warmed_up_) {
     return;
@@ -60,6 +59,12 @@ void MICS4514Component::update() {
     return;
   }
 
+  if (this->red_calibration_ == 0 || this->ox_calibration_ == 0) {
+    ESP_LOGW(TAG, "Calibration values are zero, retrying");
+    this->status_set_warning();
+    this->initial_ = true;
+    return;
+  }
   float red_f = (float) (power - red) / this->red_calibration_;
   float ox_f = (float) (power - ox) / this->ox_calibration_;
 

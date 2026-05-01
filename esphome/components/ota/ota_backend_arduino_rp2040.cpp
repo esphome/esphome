@@ -9,12 +9,11 @@
 
 #include <Updater.h>
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 static const char *const TAG = "ota.arduino_rp2040";
 
-std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ArduinoRP2040OTABackend>(); }
+std::unique_ptr<ArduinoRP2040OTABackend> make_ota_backend() { return make_unique<ArduinoRP2040OTABackend>(); }
 
 OTAResponseTypes ArduinoRP2040OTABackend::begin(size_t image_size) {
   // OTA size of 0 is not currently handled, but
@@ -75,8 +74,6 @@ void ArduinoRP2040OTABackend::abort() {
   rp2040::preferences_prevent_write(false);
 }
 
-}  // namespace ota
-}  // namespace esphome
-
+}  // namespace esphome::ota
 #endif  // USE_RP2040
 #endif  // USE_ARDUINO

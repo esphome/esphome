@@ -56,8 +56,8 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
   }
 
  protected:
-  bool waiting_to_update_;
-  uint32_t last_send_;
+  bool waiting_to_update_{false};
+  uint32_t last_send_{0};
 
   struct GrowattPhase {
     sensor::Sensor *voltage_sensor_{nullptr};

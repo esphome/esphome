@@ -2,6 +2,7 @@
 
 #include "adc_sensor.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace adc {
@@ -42,11 +43,11 @@ void ADCSensor::setup() {
     adc_oneshot_unit_init_cfg_t init_config = {};  // Zero initialize
     init_config.unit_id = this->adc_unit_;
     init_config.ulp_mode = ADC_ULP_MODE_DISABLE;
-#if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
-    USE_ESP32_VARIANT_ESP32C61 || USE_ESP32_VARIANT_ESP32H2
+#if USE_ESP32_VARIANT_ESP32C2 || USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || \
+    USE_ESP32_VARIANT_ESP32C6 || USE_ESP32_VARIANT_ESP32C61 || USE_ESP32_VARIANT_ESP32H2
     init_config.clk_src = ADC_DIGI_CLK_SRC_DEFAULT;
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 ||
-        // USE_ESP32_VARIANT_ESP32C61 || USE_ESP32_VARIANT_ESP32H2
+#endif  // USE_ESP32_VARIANT_ESP32C2 || USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 ||
+        // USE_ESP32_VARIANT_ESP32C6 || USE_ESP32_VARIANT_ESP32C61 || USE_ESP32_VARIANT_ESP32H2
     esp_err_t err = adc_oneshot_new_unit(&init_config, &ADCSensor::shared_adc_handles[this->adc_unit_]);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Error initializing %s: %d", LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)), err);
@@ -76,7 +77,7 @@ void ADCSensor::setup() {
 
 #if USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C5 || USE_ESP32_VARIANT_ESP32C6 || \
     USE_ESP32_VARIANT_ESP32C61 || USE_ESP32_VARIANT_ESP32H2 || USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S3
-    // RISC-V variants and S3 use curve fitting calibration
+    // RISC-V variants (except C2) and S3 use curve fitting calibration
     adc_cali_curve_fitting_config_t cali_config = {};  // Zero initialize first
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
     cali_config.chan = this->channel_;
@@ -94,14 +95,14 @@ void ADCSensor::setup() {
       ESP_LOGW(TAG, "Curve fitting calibration failed with error %d, will use uncalibrated readings", err);
       this->setup_flags_.calibration_complete = false;
     }
-#else  // Other ESP32 variants use line fitting calibration
+#else  // ESP32, ESP32-S2, and ESP32-C2 use line fitting calibration
     adc_cali_line_fitting_config_t cali_config = {
       .unit_id = this->adc_unit_,
       .atten = this->attenuation_,
       .bitwidth = ADC_BITWIDTH_DEFAULT,
-#if !defined(USE_ESP32_VARIANT_ESP32S2)
+#if !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32C2)
       .default_vref = 1100,  // Default reference voltage in mV
-#endif  // !defined(USE_ESP32_VARIANT_ESP32S2)
+#endif  // !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32C2)
     };
     err = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
     if (err == ESP_OK) {
@@ -112,7 +113,7 @@ void ADCSensor::setup() {
       ESP_LOGW(TAG, "Line fitting calibration failed with error %d, will use uncalibrated readings", err);
       this->setup_flags_.calibration_complete = false;
     }
-#endif  // USE_ESP32_VARIANT_ESP32C3 || ESP32C5 || ESP32C6 || ESP32C61 || ESP32H2 || ESP32P4 || ESP32S3
+#endif  // ESP32C3 || ESP32C5 || ESP32C6 || ESP32C61 || ESP32H2 || ESP32P4 || ESP32S3
   }
 
   this->setup_flags_.init_complete = true;
@@ -189,7 +190,7 @@ float ADCSensor::sample_fixed_attenuation_() {
         adc_cali_delete_scheme_curve_fitting(this->calibration_handle_);
 #else   // Other ESP32 variants use line fitting calibration
         adc_cali_delete_scheme_line_fitting(this->calibration_handle_);
-#endif  // USE_ESP32_VARIANT_ESP32C3 || ESP32C5 || ESP32C6 || ESP32C61 || ESP32H2 || ESP32P4 || ESP32S3
+#endif  // ESP32C3 || ESP32C5 || ESP32C6 || ESP32C61 || ESP32H2 || ESP32P4 || ESP32S3
         this->calibration_handle_ = nullptr;
       }
     }
@@ -247,7 +248,7 @@ float ADCSensor::sample_autorange_() {
       .unit_id = this->adc_unit_,
       .atten = atten,
       .bitwidth = ADC_BITWIDTH_DEFAULT,
-#if !defined(USE_ESP32_VARIANT_ESP32S2)
+#if !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32C2)
       .default_vref = 1100,
 #endif
     };
@@ -346,7 +347,8 @@ float ADCSensor::sample_autorange_() {
   ESP_LOGVV(TAG, "Autorange summary:");
   ESP_LOGVV(TAG, "  Raw readings: 12db=%d, 6db=%d, 2.5db=%d, 0db=%d", raw12, raw6, raw2, raw0);
   ESP_LOGVV(TAG, "  Voltages: 12db=%.6f, 6db=%.6f, 2.5db=%.6f, 0db=%.6f", mv12, mv6, mv2, mv0);
-  ESP_LOGVV(TAG, "  Coefficients: c12=%u, c6=%u, c2=%u, c0=%u, sum=%u", c12, c6, c2, c0, csum);
+  ESP_LOGVV(TAG, "  Coefficients: c12=%" PRIu32 ", c6=%" PRIu32 ", c2=%" PRIu32 ", c0=%" PRIu32 ", sum=%" PRIu32, c12,
+            c6, c2, c0, csum);
 
   if (csum == 0) {
     ESP_LOGE(TAG, "Invalid weight sum in autorange calculation");
@@ -354,8 +356,10 @@ float ADCSensor::sample_autorange_() {
   }
 
   const float final_result = (mv12 * c12 + mv6 * c6 + mv2 * c2 + mv0 * c0) / csum;
-  ESP_LOGV(TAG, "Autorange final: (%.6f*%u + %.6f*%u + %.6f*%u + %.6f*%u)/%u = %.6fV", mv12, c12, mv6, c6, mv2, c2, mv0,
-           c0, csum, final_result);
+  ESP_LOGV(TAG,
+           "Autorange final: (%.6f*%" PRIu32 " + %.6f*%" PRIu32 " + %.6f*%" PRIu32 " + %.6f*%" PRIu32 ")/%" PRIu32
+           " = %.6fV",
+           mv12, c12, mv6, c6, mv2, c2, mv0, c0, csum, final_result);
 
   return final_result;
 }

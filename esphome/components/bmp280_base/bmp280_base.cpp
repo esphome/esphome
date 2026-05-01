@@ -2,7 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID"
+#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
 
 namespace esphome {
 namespace bmp280_base {
@@ -148,7 +148,6 @@ void BMP280Component::dump_config() {
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
 }
-float BMP280Component::get_setup_priority() const { return setup_priority::DATA; }
 
 inline uint8_t oversampling_to_time(BMP280Oversampling over_sampling) { return (1 << uint8_t(over_sampling)) >> 1; }
 

@@ -43,8 +43,6 @@ void DutyCycleSensor::update() {
   this->last_update_ = now;
 }
 
-float DutyCycleSensor::get_setup_priority() const { return setup_priority::DATA; }
-
 void IRAM_ATTR DutyCycleSensorStore::gpio_intr(DutyCycleSensorStore *arg) {
   const bool new_level = arg->pin.digital_read();
   if (new_level == arg->last_level)

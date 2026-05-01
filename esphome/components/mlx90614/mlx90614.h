@@ -12,7 +12,6 @@ class MLX90614Component : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override;
 
   void set_ambient_sensor(sensor::Sensor *ambient_sensor) { ambient_sensor_ = ambient_sensor; }
   void set_object_sensor(sensor::Sensor *object_sensor) { object_sensor_ = object_sensor; }

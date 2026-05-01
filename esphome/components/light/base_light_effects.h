@@ -138,20 +138,20 @@ class LambdaLightEffect : public LightEffect {
 class AutomationLightEffect : public LightEffect {
  public:
   AutomationLightEffect(const char *name) : LightEffect(name) {}
-  void stop() override { this->trig_->stop_action(); }
+  void stop() override { this->trig_.stop_action(); }
   void apply() override {
-    if (!this->trig_->is_action_running()) {
-      this->trig_->trigger();
+    if (!this->trig_.is_action_running()) {
+      this->trig_.trigger();
     }
   }
-  Trigger<> *get_trig() const { return trig_; }
+  Trigger<> *get_trig() { return &this->trig_; }
 
   /// Get the current effect index for use in automations.
   /// Useful for automations that need to know which effect is running.
   uint32_t get_current_index() const { return this->get_index(); }
 
  protected:
-  Trigger<> *trig_{new Trigger<>};
+  Trigger<> trig_;
 };
 
 struct StrobeLightEffectColor {

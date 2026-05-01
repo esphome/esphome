@@ -8,10 +8,10 @@
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/ring_buffer.h"
+#include "esphome/core/static_task.h"
 
 #include "esp_err.h"
 
-#include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <freertos/queue.h>
 
@@ -104,9 +104,6 @@ class AudioPipeline {
   /// @return ESP_OK if successful or an appropriate error if not
   esp_err_t start_tasks_();
 
-  /// @brief Resets the task related pointers and deallocates their stacks.
-  void delete_tasks_();
-
   std::string base_name_;
   UBaseType_t priority_;
 
@@ -143,15 +140,11 @@ class AudioPipeline {
 
   // Handles reading the media file from flash or a url
   static void read_task(void *params);
-  TaskHandle_t read_task_handle_{nullptr};
-  StaticTask_t read_task_stack_;
-  StackType_t *read_task_stack_buffer_{nullptr};
+  StaticTask read_task_;
 
   // Decodes the media file into PCM audio
   static void decode_task(void *params);
-  TaskHandle_t decode_task_handle_{nullptr};
-  StaticTask_t decode_task_stack_;
-  StackType_t *decode_task_stack_buffer_{nullptr};
+  StaticTask decode_task_;
 };
 
 }  // namespace speaker

@@ -94,7 +94,7 @@ uint8_t DaikinClimate::operation_mode_() const {
 
 uint16_t DaikinClimate::fan_speed_() const {
   uint16_t fan_speed;
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_QUIET:
       fan_speed = DAIKIN_FAN_SILENT << 8;
       break;

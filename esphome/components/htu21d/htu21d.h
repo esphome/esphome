@@ -28,8 +28,6 @@ class HTU21DComponent : public PollingComponent, public i2c::I2CDevice {
   void set_heater_level(uint8_t level);
   uint8_t get_heater_level();
 
-  float get_setup_priority() const override;
-
  protected:
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};

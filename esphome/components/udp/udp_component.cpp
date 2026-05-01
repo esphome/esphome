@@ -103,8 +103,8 @@ void UDPComponent::setup() {
 }
 
 void UDPComponent::loop() {
-  auto buf = std::vector<uint8_t>(MAX_PACKET_SIZE);
   if (this->should_listen_) {
+    std::array<uint8_t, MAX_PACKET_SIZE> buf;
     for (;;) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
       auto len = this->listen_socket_->read(buf.data(), buf.size());
@@ -116,9 +116,9 @@ void UDPComponent::loop() {
 #endif
       if (len <= 0)
         break;
-      buf.resize(len);
-      ESP_LOGV(TAG, "Received packet of length %zu", len);
-      this->packet_listeners_.call(buf);
+      size_t packet_len = static_cast<size_t>(len);
+      ESP_LOGV(TAG, "Received packet of length %zu", packet_len);
+      this->packet_listeners_.call(std::span<const uint8_t>(buf.data(), packet_len));
     }
   }
 }

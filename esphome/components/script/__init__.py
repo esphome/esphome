@@ -160,6 +160,7 @@ async def to_code(config):
             cv.Optional(validate_parameter_name): cv.templatable(cv.valid),
         },
     ),
+    synchronous=True,
 )
 async def script_execute_action_to_code(config, action_id, template_arg, args):
     def convert(type: str):
@@ -208,6 +209,7 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
     "script.stop",
     ScriptStopAction,
     maybe_simple_id({cv.Required(CONF_ID): cv.use_id(Script)}),
+    synchronous=True,
 )
 async def script_stop_action_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
@@ -219,6 +221,7 @@ async def script_stop_action_to_code(config, action_id, template_arg, args):
     "script.wait",
     ScriptWaitAction,
     maybe_simple_id({cv.Required(CONF_ID): cv.use_id(Script)}),
+    synchronous=False,
 )
 async def script_wait_action_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])

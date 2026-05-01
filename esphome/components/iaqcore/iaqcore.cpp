@@ -10,11 +10,13 @@ static const char *const TAG = "iaqcore";
 
 enum IAQCoreErrorCode : uint8_t { ERROR_OK = 0, ERROR_RUNIN = 0x10, ERROR_BUSY = 0x01, ERROR_ERROR = 0x80 };
 
+static constexpr size_t SENSOR_DATA_LENGTH = 9;
+
 struct SensorData {
-  uint16_t co2;
-  IAQCoreErrorCode status;
   int32_t resistance;
+  uint16_t co2;
   uint16_t tvoc;
+  IAQCoreErrorCode status;
 
   SensorData(const uint8_t *buffer) {
     this->co2 = encode_uint16(buffer[0], buffer[1]);
@@ -33,9 +35,9 @@ void IAQCore::setup() {
 }
 
 void IAQCore::update() {
-  uint8_t buffer[sizeof(SensorData)];
+  uint8_t buffer[SENSOR_DATA_LENGTH];
 
-  if (this->read_register(0xB5, buffer, sizeof(buffer)) != i2c::ERROR_OK) {
+  if (this->read_register(0xB5, buffer, SENSOR_DATA_LENGTH) != i2c::ERROR_OK) {
     ESP_LOGD(TAG, "Read failed");
     this->status_set_warning();
     this->publish_nans_();

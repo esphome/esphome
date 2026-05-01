@@ -10,7 +10,6 @@ class AQISensor : public sensor::Sensor, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_pm_2_5_sensor(sensor::Sensor *sensor) { this->pm_2_5_sensor_ = sensor; }
   void set_pm_10_0_sensor(sensor::Sensor *sensor) { this->pm_10_0_sensor_ = sensor; }

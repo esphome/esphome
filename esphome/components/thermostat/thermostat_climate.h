@@ -146,40 +146,40 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_preset_config(std::initializer_list<PresetEntry> presets);
   void set_custom_preset_config(std::initializer_list<CustomPresetEntry> presets);
 
-  Trigger<> *get_cool_action_trigger() const;
-  Trigger<> *get_supplemental_cool_action_trigger() const;
-  Trigger<> *get_dry_action_trigger() const;
-  Trigger<> *get_fan_only_action_trigger() const;
-  Trigger<> *get_heat_action_trigger() const;
-  Trigger<> *get_supplemental_heat_action_trigger() const;
-  Trigger<> *get_idle_action_trigger() const;
-  Trigger<> *get_auto_mode_trigger() const;
-  Trigger<> *get_cool_mode_trigger() const;
-  Trigger<> *get_dry_mode_trigger() const;
-  Trigger<> *get_fan_only_mode_trigger() const;
-  Trigger<> *get_heat_mode_trigger() const;
-  Trigger<> *get_heat_cool_mode_trigger() const;
-  Trigger<> *get_off_mode_trigger() const;
-  Trigger<> *get_fan_mode_on_trigger() const;
-  Trigger<> *get_fan_mode_off_trigger() const;
-  Trigger<> *get_fan_mode_auto_trigger() const;
-  Trigger<> *get_fan_mode_low_trigger() const;
-  Trigger<> *get_fan_mode_medium_trigger() const;
-  Trigger<> *get_fan_mode_high_trigger() const;
-  Trigger<> *get_fan_mode_middle_trigger() const;
-  Trigger<> *get_fan_mode_focus_trigger() const;
-  Trigger<> *get_fan_mode_diffuse_trigger() const;
-  Trigger<> *get_fan_mode_quiet_trigger() const;
-  Trigger<> *get_swing_mode_both_trigger() const;
-  Trigger<> *get_swing_mode_horizontal_trigger() const;
-  Trigger<> *get_swing_mode_off_trigger() const;
-  Trigger<> *get_swing_mode_vertical_trigger() const;
-  Trigger<> *get_humidity_change_trigger() const;
-  Trigger<> *get_temperature_change_trigger() const;
-  Trigger<> *get_preset_change_trigger() const;
-  Trigger<> *get_humidity_control_dehumidify_action_trigger() const;
-  Trigger<> *get_humidity_control_humidify_action_trigger() const;
-  Trigger<> *get_humidity_control_off_action_trigger() const;
+  Trigger<> *get_cool_action_trigger();
+  Trigger<> *get_supplemental_cool_action_trigger();
+  Trigger<> *get_dry_action_trigger();
+  Trigger<> *get_fan_only_action_trigger();
+  Trigger<> *get_heat_action_trigger();
+  Trigger<> *get_supplemental_heat_action_trigger();
+  Trigger<> *get_idle_action_trigger();
+  Trigger<> *get_auto_mode_trigger();
+  Trigger<> *get_cool_mode_trigger();
+  Trigger<> *get_dry_mode_trigger();
+  Trigger<> *get_fan_only_mode_trigger();
+  Trigger<> *get_heat_mode_trigger();
+  Trigger<> *get_heat_cool_mode_trigger();
+  Trigger<> *get_off_mode_trigger();
+  Trigger<> *get_fan_mode_on_trigger();
+  Trigger<> *get_fan_mode_off_trigger();
+  Trigger<> *get_fan_mode_auto_trigger();
+  Trigger<> *get_fan_mode_low_trigger();
+  Trigger<> *get_fan_mode_medium_trigger();
+  Trigger<> *get_fan_mode_high_trigger();
+  Trigger<> *get_fan_mode_middle_trigger();
+  Trigger<> *get_fan_mode_focus_trigger();
+  Trigger<> *get_fan_mode_diffuse_trigger();
+  Trigger<> *get_fan_mode_quiet_trigger();
+  Trigger<> *get_swing_mode_both_trigger();
+  Trigger<> *get_swing_mode_horizontal_trigger();
+  Trigger<> *get_swing_mode_off_trigger();
+  Trigger<> *get_swing_mode_vertical_trigger();
+  Trigger<> *get_humidity_change_trigger();
+  Trigger<> *get_temperature_change_trigger();
+  Trigger<> *get_preset_change_trigger();
+  Trigger<> *get_humidity_control_dehumidify_action_trigger();
+  Trigger<> *get_humidity_control_humidify_action_trigger();
+  Trigger<> *get_humidity_control_off_action_trigger();
   /// Get current hysteresis values
   float cool_deadband();
   float cool_overrun();
@@ -417,115 +417,65 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// The sensor used for getting the current humidity
   sensor::Sensor *humidity_sensor_{nullptr};
 
-  /// The trigger to call when the controller should switch to cooling action/mode.
-  ///
-  /// A null value for this attribute means that the controller has no cooling action
-  /// For example electric heat, where only heating (power on) and not-heating
-  /// (power off) is possible.
-  Trigger<> *cool_action_trigger_{nullptr};
-  Trigger<> *supplemental_cool_action_trigger_{nullptr};
-  Trigger<> *cool_mode_trigger_{nullptr};
+  /// Trigger for cooling action/mode
+  Trigger<> cool_action_trigger_;
+  Trigger<> supplemental_cool_action_trigger_;
+  Trigger<> cool_mode_trigger_;
 
-  /// The trigger to call when the controller should switch to dry (dehumidification) mode.
-  ///
-  /// In dry mode, the controller is assumed to have both heating and cooling disabled,
-  /// although the system may use its cooling mechanism to achieve drying.
-  Trigger<> *dry_action_trigger_{nullptr};
-  Trigger<> *dry_mode_trigger_{nullptr};
+  /// Trigger for dry (dehumidification) mode
+  Trigger<> dry_action_trigger_;
+  Trigger<> dry_mode_trigger_;
 
-  /// The trigger to call when the controller should switch to heating action/mode.
-  ///
-  /// A null value for this attribute means that the controller has no heating action
-  /// For example window blinds, where only cooling (blinds closed) and not-cooling
-  /// (blinds open) is possible.
-  Trigger<> *heat_action_trigger_{nullptr};
-  Trigger<> *supplemental_heat_action_trigger_{nullptr};
-  Trigger<> *heat_mode_trigger_{nullptr};
+  /// Trigger for heating action/mode
+  Trigger<> heat_action_trigger_;
+  Trigger<> supplemental_heat_action_trigger_;
+  Trigger<> heat_mode_trigger_;
 
-  /// The trigger to call when the controller should switch to heat/cool mode.
-  ///
-  /// In heat/cool mode, the controller will enable heating/cooling as necessary and switch
-  /// to idle when the temperature is within the thresholds/set points.
-  Trigger<> *heat_cool_mode_trigger_{nullptr};
+  /// Trigger for heat/cool mode
+  Trigger<> heat_cool_mode_trigger_;
 
-  /// The trigger to call when the controller should switch to auto mode.
-  ///
-  /// In auto mode, the controller will enable heating/cooling as supported/necessary and switch
-  /// to idle when the temperature is within the thresholds/set points.
-  Trigger<> *auto_mode_trigger_{nullptr};
+  /// Trigger for auto mode
+  Trigger<> auto_mode_trigger_;
 
-  /// The trigger to call when the controller should switch to idle action/off mode.
-  ///
-  /// In these actions/modes, the controller is assumed to have both heating and cooling disabled.
-  Trigger<> *idle_action_trigger_{nullptr};
-  Trigger<> *off_mode_trigger_{nullptr};
+  /// Trigger for idle action/off mode
+  Trigger<> idle_action_trigger_;
+  Trigger<> off_mode_trigger_;
 
-  /// The trigger to call when the controller should switch to fan-only action/mode.
-  ///
-  /// In fan-only mode, the controller is assumed to have both heating and cooling disabled.
-  /// The system should activate the fan only.
-  Trigger<> *fan_only_action_trigger_{nullptr};
-  Trigger<> *fan_only_mode_trigger_{nullptr};
+  /// Trigger for fan-only action/mode
+  Trigger<> fan_only_action_trigger_;
+  Trigger<> fan_only_mode_trigger_;
 
-  /// The trigger to call when the controller should switch on the fan.
-  Trigger<> *fan_mode_on_trigger_{nullptr};
+  /// Fan mode triggers
+  Trigger<> fan_mode_on_trigger_;
+  Trigger<> fan_mode_off_trigger_;
+  Trigger<> fan_mode_auto_trigger_;
+  Trigger<> fan_mode_low_trigger_;
+  Trigger<> fan_mode_medium_trigger_;
+  Trigger<> fan_mode_high_trigger_;
+  Trigger<> fan_mode_middle_trigger_;
+  Trigger<> fan_mode_focus_trigger_;
+  Trigger<> fan_mode_diffuse_trigger_;
+  Trigger<> fan_mode_quiet_trigger_;
 
-  /// The trigger to call when the controller should switch off the fan.
-  Trigger<> *fan_mode_off_trigger_{nullptr};
+  /// Swing mode triggers
+  Trigger<> swing_mode_both_trigger_;
+  Trigger<> swing_mode_off_trigger_;
+  Trigger<> swing_mode_horizontal_trigger_;
+  Trigger<> swing_mode_vertical_trigger_;
 
-  /// The trigger to call when the controller should switch the fan to "auto" mode.
-  Trigger<> *fan_mode_auto_trigger_{nullptr};
+  /// Trigger for target humidity changes
+  Trigger<> humidity_change_trigger_;
 
-  /// The trigger to call when the controller should switch the fan to "low" speed.
-  Trigger<> *fan_mode_low_trigger_{nullptr};
+  /// Trigger for target temperature changes
+  Trigger<> temperature_change_trigger_;
 
-  /// The trigger to call when the controller should switch the fan to "medium" speed.
-  Trigger<> *fan_mode_medium_trigger_{nullptr};
+  /// Trigger for preset mode changes
+  Trigger<> preset_change_trigger_;
 
-  /// The trigger to call when the controller should switch the fan to "high" speed.
-  Trigger<> *fan_mode_high_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the fan to "middle" position.
-  Trigger<> *fan_mode_middle_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the fan to "focus" position.
-  Trigger<> *fan_mode_focus_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the fan to "diffuse" position.
-  Trigger<> *fan_mode_diffuse_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the fan to "quiet" position.
-  Trigger<> *fan_mode_quiet_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the swing mode to "both".
-  Trigger<> *swing_mode_both_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the swing mode to "off".
-  Trigger<> *swing_mode_off_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the swing mode to "horizontal".
-  Trigger<> *swing_mode_horizontal_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the swing mode to "vertical".
-  Trigger<> *swing_mode_vertical_trigger_{nullptr};
-
-  /// The trigger to call when the target humidity changes.
-  Trigger<> *humidity_change_trigger_{nullptr};
-
-  /// The trigger to call when the target temperature(s) change(es).
-  Trigger<> *temperature_change_trigger_{nullptr};
-
-  /// The trigger to call when the preset mode changes
-  Trigger<> *preset_change_trigger_{nullptr};
-
-  /// The trigger to call when dehumidification is required
-  Trigger<> *humidity_control_dehumidify_action_trigger_{nullptr};
-
-  /// The trigger to call when humidification is required
-  Trigger<> *humidity_control_humidify_action_trigger_{nullptr};
-
-  /// The trigger to call when (de)humidification should stop
-  Trigger<> *humidity_control_off_action_trigger_{nullptr};
+  /// Humidity control triggers
+  Trigger<> humidity_control_dehumidify_action_trigger_;
+  Trigger<> humidity_control_humidify_action_trigger_;
+  Trigger<> humidity_control_off_action_trigger_;
 
   /// A reference to the trigger that was previously active.
   ///

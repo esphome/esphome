@@ -6,14 +6,14 @@ import hashlib
 import io
 import logging
 from pathlib import Path
-import random
+import secrets
 import socket
 import sys
 import time
 from typing import Any
 
 from esphome.core import EsphomeError
-from esphome.helpers import resolve_ip_address
+from esphome.helpers import ProgressBar, resolve_ip_address
 
 RESPONSE_OK = 0x00
 RESPONSE_REQUEST_AUTH = 0x01
@@ -40,6 +40,8 @@ RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE = 0x88
 RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE = 0x89
 RESPONSE_ERROR_NO_UPDATE_PARTITION = 0x8A
 RESPONSE_ERROR_MD5_MISMATCH = 0x8B
+RESPONSE_ERROR_RP2040_NOT_ENOUGH_SPACE = 0x8C
+RESPONSE_ERROR_SIGNATURE_INVALID = 0x8D
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -61,30 +63,6 @@ _AUTH_METHODS: dict[int, tuple[Callable[..., Any], int, str]] = {
     RESPONSE_REQUEST_SHA256_AUTH: (hashlib.sha256, 64, "SHA256"),
     RESPONSE_REQUEST_AUTH: (hashlib.md5, 32, "MD5"),
 }
-
-
-class ProgressBar:
-    def __init__(self):
-        self.last_progress = None
-
-    def update(self, progress):
-        bar_length = 60
-        status = ""
-        if progress >= 1:
-            progress = 1
-            status = "Done...\r\n"
-        new_progress = int(progress * 100)
-        if new_progress == self.last_progress:
-            return
-        self.last_progress = new_progress
-        block = int(round(bar_length * progress))
-        text = f"\rUploading: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
-        sys.stderr.write(text)
-        sys.stderr.flush()
-
-    def done(self):
-        sys.stderr.write("\n")
-        sys.stderr.flush()
 
 
 class OTAError(EsphomeError):
@@ -152,7 +130,7 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     :param expect: Expected response code(s), None to skip validation.
     :raises OTAError: If an error code is detected or response doesn't match expected.
     """
-    if not expect:
+    if expect is None:
         return
     if not data:
         raise OTAError(
@@ -215,6 +193,12 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
         raise OTAError(
             "Error: Application MD5 code mismatch. Please try again "
             "or flash over USB with a good quality cable."
+        )
+    if dat == RESPONSE_ERROR_SIGNATURE_INVALID:
+        raise OTAError(
+            "Error: Firmware signature verification failed. The firmware was not signed "
+            "with the correct key. Ensure the signing key matches the one used to build "
+            "the firmware currently running on the device."
         )
     if dat == RESPONSE_ERROR_UNKNOWN:
         raise OTAError("Unknown error from ESP")
@@ -294,14 +278,14 @@ def perform_ota(
             raise OTAError("ESP requests password, but no password given!")
 
         nonce_bytes = receive_exactly(
-            sock, nonce_size, f"{hash_name} authentication nonce", [], decode=False
+            sock, nonce_size, f"{hash_name} authentication nonce", None, decode=False
         )
         assert isinstance(nonce_bytes, bytes)
         nonce = nonce_bytes.decode()
         _LOGGER.debug("Auth: %s Nonce is %s", hash_name, nonce)
 
-        # Generate cnonce
-        cnonce = hash_func(str(random.random()).encode()).hexdigest()
+        # Generate cnonce matching the hash algorithm's digest size
+        cnonce = secrets.token_hex(nonce_size // 2)
         _LOGGER.debug("Auth: %s CNonce is %s", hash_name, cnonce)
 
         send_check(sock, cnonce, "auth cnonce")

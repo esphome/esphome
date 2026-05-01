@@ -48,7 +48,6 @@ void HLW8012Component::dump_config() {
   LOG_SENSOR("  ", "Power", this->power_sensor_);
   LOG_SENSOR("  ", "Energy", this->energy_sensor_);
 }
-float HLW8012Component::get_setup_priority() const { return setup_priority::DATA; }
 void HLW8012Component::update() {
   // HLW8012 has 50% duty cycle
   pulse_counter::pulse_counter_t raw_cf = this->cf_store_.read_raw_value();
@@ -74,13 +73,13 @@ void HLW8012Component::update() {
     // Only read cf1 after one cycle. Apparently it's quite unstable after being changed.
     if (this->current_mode_) {
       float current = cf1_hz * this->current_multiplier_;
-      ESP_LOGD(TAG, "Got power=%.1fW, current=%.1fA", power, current);
+      ESP_LOGV(TAG, "Got power=%.1fW, current=%.1fA", power, current);
       if (this->current_sensor_ != nullptr) {
         this->current_sensor_->publish_state(current);
       }
     } else {
       float voltage = cf1_hz * this->voltage_multiplier_;
-      ESP_LOGD(TAG, "Got power=%.1fW, voltage=%.1fV", power, voltage);
+      ESP_LOGV(TAG, "Got power=%.1fW, voltage=%.1fV", power, voltage);
       if (this->voltage_sensor_ != nullptr) {
         this->voltage_sensor_->publish_state(voltage);
       }

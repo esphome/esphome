@@ -6,10 +6,10 @@ namespace remote_base {
 
 static const char *const TAG = "remote.abbwelcome";
 
-static const uint32_t BIT_ONE_SPACE_US = 102;
-static const uint32_t BIT_ZERO_MARK_US = 32;  // 18-44
-static const uint32_t BIT_ZERO_SPACE_US = BIT_ONE_SPACE_US - BIT_ZERO_MARK_US;
-static const uint16_t BYTE_SPACE_US = 210;
+static constexpr uint32_t BIT_ONE_SPACE_US = 102;
+static constexpr uint32_t BIT_ZERO_MARK_US = 32;  // 18-44
+static constexpr uint32_t BIT_ZERO_SPACE_US = BIT_ONE_SPACE_US - BIT_ZERO_MARK_US;
+static constexpr uint16_t BYTE_SPACE_US = 210;
 
 uint8_t ABBWelcomeData::calc_cs_() const {
   uint8_t checksum = 0;

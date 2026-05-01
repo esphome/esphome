@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace switch_ {
+namespace esphome::switch_ {
 
 class SwitchBinarySensor : public binary_sensor::BinarySensor, public Component {
  public:
@@ -17,5 +16,4 @@ class SwitchBinarySensor : public binary_sensor::BinarySensor, public Component 
   Switch *source_;
 };
 
-}  // namespace switch_
-}  // namespace esphome
+}  // namespace esphome::switch_
