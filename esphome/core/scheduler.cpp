@@ -35,7 +35,9 @@ static constexpr uint32_t MAX_INTERVAL_DELAY = 5000;
 // Uses a stack buffer to avoid heap allocation
 // Uses ESPHOME_snprintf_P/ESPHOME_PSTR for ESP8266 to keep format strings in flash
 struct SchedulerNameLog {
-  char buffer[20];  // Enough for "id:4294967295" or "hash:0xFFFFFFFF" or "(null)"
+  // Sized for the widest formatted output: "self:0x" + 16 hex digits (64-bit pointer) + nul.
+  // Also covers "id:4294967295", "hash:0xFFFFFFFF", "iid:4294967295", "(null)".
+  char buffer[28];
 
   // Format a scheduler item name for logging
   // Returns pointer to formatted string (either static_name or internal buffer)
@@ -53,8 +55,14 @@ struct SchedulerNameLog {
     } else if (name_type == NameType::NUMERIC_ID) {
       ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("id:%" PRIu32), hash_or_id);
       return buffer;
-    } else {  // NUMERIC_ID_INTERNAL
+    } else if (name_type == NameType::NUMERIC_ID_INTERNAL) {
       ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("iid:%" PRIu32), hash_or_id);
+      return buffer;
+    } else {  // SELF_POINTER
+      // static_name carries the void* key for SELF_POINTER (pointer-width union slot).
+      // %p is specified as void* (not const void*), so strip const for the varargs call.
+      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("self:%p"),
+                         const_cast<void *>(static_cast<const void *>(static_name)));
       return buffer;
     }
   }
@@ -293,6 +301,27 @@ bool HOT Scheduler::cancel_interval(Component *component, uint32_t id) {
   return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::INTERVAL);
 }
 
+// Self-keyed scheduler API. The cancellation key is `self` (typically the caller's `this`),
+// passed through the existing static_name pointer slot. Matching is by raw pointer equality
+// (see matches_item_locked_'s SELF_POINTER branch). No Component pointer is stored, so
+// is_failed() skip and component-based log attribution don't apply.
+void HOT Scheduler::set_timeout(const void *self, uint32_t timeout, std::function<void()> &&func) {
+  this->set_timer_common_(nullptr, SchedulerItem::TIMEOUT, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                          timeout, std::move(func));
+}
+void HOT Scheduler::set_interval(const void *self, uint32_t interval, std::function<void()> &&func) {
+  this->set_timer_common_(nullptr, SchedulerItem::INTERVAL, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                          interval, std::move(func));
+}
+bool HOT Scheduler::cancel_timeout(const void *self) {
+  return this->cancel_item_(nullptr, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                            SchedulerItem::TIMEOUT);
+}
+bool HOT Scheduler::cancel_interval(const void *self) {
+  return this->cancel_item_(nullptr, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                            SchedulerItem::INTERVAL);
+}
+
 // Suppress deprecation warnings for RetryResult usage in the still-present (but deprecated) retry implementation.
 // Remove before 2026.8.0 along with all retry code.
 #pragma GCC diagnostic push
@@ -414,8 +443,27 @@ bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
 
 optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // IMPORTANT: This method should only be called from the main thread (loop task).
-  // It performs cleanup and accesses items_[0] without holding a lock, which is only
-  // safe when called from the main thread. Other threads must not call this method.
+  // Accesses items_[0] and the fast-path empty checks without holding a lock, which
+  // is only safe from the main thread. Other threads must not call this method.
+  //
+  // Note: cleanup_() is only invoked on the items_[0] path below. The early returns
+  // skip it because they don't read items_[0], and Scheduler::call() at the top of
+  // every loop iteration already performs its own cleanup before the next sleep-
+  // duration computation happens.
+
+#ifndef ESPHOME_THREAD_SINGLE
+  // defer() items live in a separate queue that is drained at the top of every
+  // loop tick via process_defer_queue_(). If any are pending, the next loop
+  // iteration has work to do right now -- don't let the caller sleep.
+  if (!this->defer_empty_())
+    return 0;
+#else
+  // On single-threaded builds, defer() routes through set_timeout(..., 0) which
+  // stages in to_add_. process_to_add() runs at the top of every scheduler.call(),
+  // so anything in to_add_ becomes runnable on the next iteration; don't sleep.
+  if (!this->to_add_empty_())
+    return 0;
+#endif
 
   // If no items, return empty optional
   if (!this->cleanup_())
@@ -753,6 +801,8 @@ Scheduler::SchedulerItem *HOT Scheduler::pop_raw_locked_() {
 // Helper to execute a scheduler item
 uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   App.set_current_component(item->component);
+  // Freshen so callbacks reading App.get_loop_component_start_time() see this item's dispatch time.
+  App.set_loop_component_start_time_(now);
   WarnIfComponentBlockingGuard guard{item->component, now};
   item->callback();
   uint32_t end = guard.finish();

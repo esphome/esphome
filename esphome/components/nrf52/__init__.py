@@ -141,6 +141,22 @@ CONF_UICR_ERASE = "uicr_erase"
 VOLTAGE_LEVELS = [1.8, 2.1, 2.4, 2.7, 3.0, 3.3]
 
 
+_DFU_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(DeviceFirmwareUpdate),
+        cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+    }
+)
+
+
+def _dfu_schema(value: bool | ConfigType) -> ConfigType:
+    if isinstance(value, bool):
+        if not value:
+            raise cv.Invalid("Use 'dfu: true' or specify a configuration dict")
+        return _DFU_SCHEMA({})
+    return _DFU_SCHEMA(value)
+
+
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
     set_core_data,
@@ -150,12 +166,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
             ),
             cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
-            cv.Optional(CONF_DFU): cv.Schema(
-                {
-                    cv.GenerateID(): cv.declare_id(DeviceFirmwareUpdate),
-                    cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-                }
-            ),
+            cv.Optional(CONF_DFU): _dfu_schema,
             cv.Optional(CONF_DCDC, default=True): cv.boolean,
             cv.Optional(CONF_REG0): cv.Schema(
                 {
@@ -321,8 +332,9 @@ async def to_code(config: ConfigType) -> None:
 async def _dfu_to_code(dfu_config):
     cg.add_define("USE_NRF52_DFU")
     var = cg.new_Pvariable(dfu_config[CONF_ID])
-    pin = await cg.gpio_pin_expression(dfu_config[CONF_RESET_PIN])
-    cg.add(var.set_reset_pin(pin))
+    if CONF_RESET_PIN in dfu_config:
+        pin = await cg.gpio_pin_expression(dfu_config[CONF_RESET_PIN])
+        cg.add(var.set_reset_pin(pin))
     zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
     await cg.register_component(var, dfu_config)
 

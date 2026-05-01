@@ -57,3 +57,34 @@ binary_sensor:
         return true;
       }
       return false;
+
+# Exercise fan.turn_on with various field combinations so the
+# TurnOnAction codegen paths get build coverage.
+button:
+  - platform: template
+    name: "Fan Speed Only"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          speed: 2
+  - platform: template
+    name: "Fan Oscillating + Direction"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          oscillating: true
+          direction: REVERSE
+  - platform: template
+    name: "Fan All Fields"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          oscillating: false
+          speed: 3
+          direction: FORWARD
+  - platform: template
+    name: "Fan Lambda Speed"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          speed: !lambda 'return 1;'
