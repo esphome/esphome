@@ -1754,13 +1754,13 @@ async def to_code(config):
         # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
         # (~11 KB). See printf_stubs.cpp for implementation.
         #
-        # On IDF 6.0+ picolibc is the libc on every variant. Picolibc's
-        # tinystdio implements vsnprintf by building a string-output FILE
-        # and calling vfprintf, so vfprintf is unconditionally linked in by
-        # any caller of snprintf/vsnprintf — which is effectively every
-        # build. The wrap therefore saves nothing while costing ~170 B of
-        # shim code plus a per-call cookie FILE forward. Force-disable on
-        # IDF 6.0+.
+        # The wrap is only beneficial against newlib. Picolibc's tinystdio
+        # implements vsnprintf by building a string-output FILE and calling
+        # vfprintf, so vfprintf is unconditionally linked in by any caller
+        # of snprintf/vsnprintf — effectively every build — and the wrap
+        # saves nothing while costing ~170 B of shim. IDF 5.x defaults to
+        # newlib on every variant; IDF 6.0+ switches to picolibc on every
+        # variant.
         if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or idf_version() >= cv.Version(
             6, 0, 0
         ):

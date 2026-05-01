@@ -1,99 +1,48 @@
 /*
- * Linker wrap stubs for FILE*-based printf functions.
+ * Linker wrap stubs for FILE*-based printf functions (newlib only).
  *
  * ESP-IDF SDK components (gpio driver, ringbuf, log_write) reference
- * fprintf(), printf(), vprintf(), and vfprintf() which pull in the full
- * printf implementation (~11 KB on newlib's _vfprintf_r, ~2.8 KB on
- * picolibc's vfprintf). This is a separate implementation from the one
- * used by snprintf/vsnprintf that handles FILE* stream I/O with buffering
- * and locking.
+ * fprintf(), printf(), vprintf(), and vfprintf(), which on newlib pull
+ * in _vfprintf_r (~11 KB) — a separate implementation from the one used
+ * by snprintf/vsnprintf that handles FILE* stream I/O with buffering.
  *
  * ESPHome replaces the ESP-IDF log handler via esp_log_set_vprintf_(),
  * so the SDK's vprintf() path is dead code at runtime. The fprintf()
  * and printf() calls in SDK components are only in debug/assert paths
  * (gpio_dump_io_configuration, ringbuf diagnostics) that are either
  * GC'd or never called. Crash backtraces and panic output are
- * unaffected; they use esp_rom_printf() which is a ROM function
- * and does not go through libc.
+ * unaffected; they use esp_rom_printf() which is a ROM function and
+ * does not go through libc.
  *
- * On picolibc (default for IDF >= 5 on RISC-V, IDF >= 6 everywhere) we
- * route output through a stack-allocated cookie FILE that forwards each
- * byte to the real target stream via fputc(). Picolibc's tinystdio
- * vfprintf walks the FILE::put callback one character at a time, so this
- * costs ~32 bytes of stack for the cookie struct vs. a 512-byte format
- * buffer. The buffered path overflows the loopTask stack on IDF 6.
+ * This wrap is newlib-only. On picolibc, vsnprintf is implemented as
+ * vfprintf into a string-output FILE, so vfprintf is unconditionally
+ * linked in by any caller of snprintf/vsnprintf and the wrap can never
+ * elide it — it just adds shim cost. The Python build glue forces
+ * USE_FULL_PRINTF on picolibc builds (RISC-V always, IDF 6.0+ on all
+ * variants), so this file compiles to nothing there. The #error below
+ * catches a desynchronised gate.
  *
- * On newlib (IDF <= 5 on Xtensa) we keep the original snprintf-then-fwrite
- * path because that loopTask stack budget has plenty of headroom for the
- * 512-byte buffer; the picolibc-only crash above does not affect it.
+ * Saves ~11 KB of flash on newlib.
  *
- * Saves ~11 KB of flash on newlib, ~2.8 KB on picolibc.
- *
- * To disable these wraps, set enable_full_printf: true in the esp32
- * advanced config section.
+ * To disable this wrap on newlib, set enable_full_printf: true in the
+ * esp32 advanced config section.
  */
 
 #if defined(USE_ESP_IDF) && !defined(USE_FULL_PRINTF)
+
+#ifdef __PICOLIBC__
+#error "printf wrap is net-negative on picolibc; build glue should set USE_FULL_PRINTF"
+#endif
+
 #include <cstdarg>
 #include <cstdio>
 
-#ifdef __PICOLIBC__
-#include <cstddef>
-#include <sys/lock.h>
-#include <type_traits>
-// Pre-initialized by esp_libc_locks_init(); reused as cookie FILE::lock to
-// avoid picolibc flockfile()'s lazy heap allocation leaking on every call.
-extern struct __lock __lock___libc_recursive_mutex;
-#else
 #include "esp_system.h"
-#endif
 
 namespace esphome::esp32 {}
 
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
-
-#ifdef __PICOLIBC__
-
-extern int __real_vfprintf(FILE *stream, const char *fmt, va_list ap);
-
-namespace {
-
-struct CookieFile {
-  FILE base;
-  FILE *target;
-};
-
-// cookie_put() recovers CookieFile* from FILE* via reinterpret_cast, which is
-// only well-defined when FILE is the first member at offset 0 and CookieFile
-// is standard-layout.
-static_assert(offsetof(CookieFile, base) == 0, "FILE must be the first member of CookieFile");
-static_assert(std::is_standard_layout<CookieFile>::value, "CookieFile must be standard-layout");
-
-int cookie_put(char c, FILE *stream) {
-  auto *cookie = reinterpret_cast<CookieFile *>(stream);
-  // putc_unlocked: outer flockfile on the cookie already serializes; locking
-  // the target per character would lazy-allocate (and leak) a recursive mutex
-  // when the target is a stack-allocated FILE, e.g. picolibc's internal
-  // string FILE used by vsnprintf — the hot path through esphome::str_sprintf.
-  return putc_unlocked(static_cast<unsigned char>(c), cookie->target);
-}
-
-const FILE COOKIE_FILE_TEMPLATE = FDEV_SETUP_STREAM(cookie_put, nullptr, nullptr, _FDEV_SETUP_WRITE);
-
-}  // namespace
-
-int __wrap_vfprintf(FILE *stream, const char *fmt, va_list ap) {
-  CookieFile cookie;
-  cookie.base = COOKIE_FILE_TEMPLATE;
-  cookie.base.lock = &__lock___libc_recursive_mutex;
-  cookie.target = stream;
-  return __real_vfprintf(&cookie.base, fmt, ap);
-}
-
-int __wrap_vprintf(const char *fmt, va_list ap) { return __wrap_vfprintf(stdout, fmt, ap); }
-
-#else  // !__PICOLIBC__
 
 static constexpr size_t PRINTF_BUFFER_SIZE = 512;
 
@@ -125,8 +74,6 @@ int __wrap_vfprintf(FILE *stream, const char *fmt, va_list ap) {
   char buf[PRINTF_BUFFER_SIZE];
   return write_printf_buffer(stream, buf, vsnprintf(buf, sizeof(buf), fmt, ap));
 }
-
-#endif  // __PICOLIBC__
 
 int __wrap_printf(const char *fmt, ...) {
   va_list ap;
