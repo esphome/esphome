@@ -413,8 +413,6 @@ async def to_code(config: ConfigType) -> None:
         CORE.data[PLATFORM_NRF52] = {"second_bootloader": True}
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
         zephyr_add_prj_conf("USB_DEVICE_STACK", False, image="mcuboot")
-        zephyr_add_prj_conf("USB_CDC_ACM", False, image="mcuboot")
-        zephyr_add_prj_conf("UART_CONSOLE", False, image="mcuboot")
         zephyr_add_prj_conf("CONSOLE", False, image="mcuboot")
 
 
