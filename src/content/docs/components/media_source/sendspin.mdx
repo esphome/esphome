@@ -54,6 +54,10 @@ media_player:
 - **task_stack_in_psram** (*Optional*, boolean): If `true`, the FreeRTOS playback task stack is
   allocated in PSRAM instead of internal RAM. Requires the [psram](/components/psram/) component.
   Defaults to `false`.
+- **decode_memory** (*Optional*, string): Preferred location for the audio decoder's transfer
+  buffer. One of `psram` or `internal`. Allocating in `internal` can reduce playback stuttering
+  at the start of a stream on devices with slower PSRAM at the cost of using more internal RAM.
+  Has minimal benefit on the ESP32-S3. Defaults to `psram`.
 - All other options from [Media Source](/components/media_source/).
 
 > [!TIP]
