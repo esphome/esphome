@@ -25,6 +25,8 @@ extern "C" uint64_t time_us_64(void);
 extern "C" void watchdog_update(void);
 extern "C" unsigned long ulMainGetRunTimeCounterValue(void);
 
+namespace esphome::rp2040 {}
+
 namespace esphome {
 
 // Forward decl from helpers.h.

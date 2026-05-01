@@ -15,7 +15,7 @@ namespace esphome::host {}  // namespace esphome::host
 namespace esphome {
 
 // yield(), arch_init(), arch_feed_wdt(), arch_get_cpu_freq_hz() inlined in
-// core/hal/hal_host.h.
+// components/host/hal.h.
 
 uint32_t IRAM_ATTR HOT millis() {
   struct timespec spec;

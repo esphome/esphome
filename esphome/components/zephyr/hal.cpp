@@ -20,7 +20,7 @@ static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 
 // yield(), delay(), micros(), millis(), millis_64(), delayMicroseconds(),
 // arch_get_cpu_cycle_count(), arch_get_cpu_freq_hz() inlined in
-// core/hal/hal_zephyr.h.
+// components/zephyr/hal.h.
 
 void arch_init() {
 #ifdef CONFIG_WATCHDOG

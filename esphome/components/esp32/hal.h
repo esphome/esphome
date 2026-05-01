@@ -15,6 +15,8 @@
 #define PROGMEM
 #endif
 
+namespace esphome::esp32 {}
+
 namespace esphome {
 
 // Forward decl from helpers.h (esphome/core/helpers.h) — kept here so this
