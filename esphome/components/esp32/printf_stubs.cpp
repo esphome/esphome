@@ -72,7 +72,11 @@ static_assert(std::is_standard_layout<CookieFile>::value, "CookieFile must be st
 
 int cookie_put(char c, FILE *stream) {
   auto *cookie = reinterpret_cast<CookieFile *>(stream);
-  return fputc(static_cast<unsigned char>(c), cookie->target);
+  // putc_unlocked: outer flockfile on the cookie already serializes; locking
+  // the target per character would lazy-allocate (and leak) a recursive mutex
+  // when the target is a stack-allocated FILE, e.g. picolibc's internal
+  // string FILE used by vsnprintf — the hot path through esphome::str_sprintf.
+  return putc_unlocked(static_cast<unsigned char>(c), cookie->target);
 }
 
 const FILE COOKIE_FILE_TEMPLATE = FDEV_SETUP_STREAM(cookie_put, nullptr, nullptr, _FDEV_SETUP_WRITE);
