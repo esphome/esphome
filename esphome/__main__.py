@@ -21,7 +21,7 @@ import argcomplete
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
-from esphome import const, writer, yaml_util
+from esphome import const
 import esphome.codegen as cg
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
@@ -39,6 +39,7 @@ from esphome.const import (
     CONF_MDNS,
     CONF_MQTT,
     CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PLATFORM,
@@ -71,6 +72,12 @@ from esphome.util import (
     run_external_process,
     safe_print,
 )
+
+# Keep expensive imports (zeroconf, writer, yaml_util, etc.) out of this
+# module's top level. Every `esphome` invocation — including fast paths
+# like `esphome version` — pays the cost of what's imported here before
+# any command runs. Import inside the function that needs it instead.
+# `script/check_import_time.py` enforces a budget in CI.
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -204,6 +211,66 @@ def _resolve_with_cache(address: str, purpose: Purpose) -> list[str]:
     return [address]
 
 
+def _populate_mdns_cache(hosts_to_addresses: dict[str, list[str]]) -> None:
+    """Store discovered ``host -> [ips]`` entries in ``CORE.address_cache``.
+
+    Ensures ``CORE.address_cache`` exists, then records each mDNS hostname so
+    the downstream resolution path (``resolve_ip_address``) can skip opening a
+    second Zeroconf client.
+    """
+    from esphome.address_cache import AddressCache
+
+    if CORE.address_cache is None:
+        CORE.address_cache = AddressCache()
+    for host, addresses in hosts_to_addresses.items():
+        if addresses:
+            _LOGGER.debug("Caching mDNS result %s -> %s", host, addresses)
+        CORE.address_cache.add_mdns_addresses(host, addresses)
+
+
+def _discover_mac_suffix_devices() -> list[str] | None:
+    """Discover ``<name>-<mac>.local`` devices and cache their IPs.
+
+    Returns:
+        - ``None`` when discovery isn't applicable (``name_add_mac_suffix`` off,
+          mDNS disabled, or ``CORE.address`` is already an IP). Callers should
+          then fall back to whatever default OTA address they normally use.
+        - ``[]`` when discovery ran but found nothing. Callers should NOT fall
+          back to the base name: with ``name_add_mac_suffix`` enabled, the base
+          name by definition doesn't exist on the network.
+        - A non-empty sorted list of ``.local`` hostnames on success.
+
+    Populates ``CORE.address_cache`` so downstream resolution (``espota2`` or
+    ``aioesphomeapi`` via :func:`_resolve_network_devices`) reuses the IPs we
+    already have without opening a second Zeroconf client.
+    """
+    if not (has_name_add_mac_suffix() and has_mdns() and has_non_ip_address()):
+        return None
+    from esphome.zeroconf import discover_mdns_devices
+
+    _LOGGER.info("Discovering devices...")
+    if not (discovered := discover_mdns_devices(CORE.name)):
+        _LOGGER.warning(
+            "No devices matching '%s-<mac>.local' were discovered.", CORE.name
+        )
+        return []
+    _populate_mdns_cache(discovered)
+    return list(discovered)
+
+
+def _ota_hostnames_for_default(purpose: Purpose) -> list[str]:
+    """Return OTA hostname(s) for the ``--device OTA`` / default-resolve path.
+
+    When ``name_add_mac_suffix`` is enabled, returns discovered
+    ``<name>-<mac>.local`` hostnames (possibly empty — in which case the
+    caller should not fall back to the base name). Otherwise falls back to
+    the cache-resolved ``CORE.address``.
+    """
+    if (discovered := _discover_mac_suffix_devices()) is not None:
+        return discovered
+    return _resolve_with_cache(CORE.address, purpose)
+
+
 def choose_upload_log_host(
     default: list[str] | str | None,
     check_default: str | None,
@@ -242,14 +309,14 @@ def choose_upload_log_host(
                         resolved.append("MQTT")
 
                     if has_api() and has_non_ip_address() and has_resolvable_address():
-                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
+                        resolved.extend(_ota_hostnames_for_default(purpose))
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
                     if has_ota() and has_non_ip_address() and has_resolvable_address():
-                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
+                        resolved.extend(_ota_hostnames_for_default(purpose))
             else:
                 resolved.append(device)
         if not resolved:
@@ -281,22 +348,29 @@ def choose_upload_log_host(
         elif bootsel.permission_error:
             bootsel_permission_error = True
 
+    def add_ota_options() -> None:
+        """Add OTA options, using mDNS discovery if name_add_mac_suffix is enabled."""
+        if (discovered := _discover_mac_suffix_devices()) is not None:
+            # Discovery was applicable. Use whatever we found — on empty,
+            # intentionally skip the base-name fallback since with
+            # name_add_mac_suffix on, the base name doesn't exist on the net.
+            for host in discovered:
+                options.append((f"Over The Air ({host})", host))
+        elif has_resolvable_address():
+            options.append((f"Over The Air ({CORE.address})", CORE.address))
+        if has_mqtt_ip_lookup():
+            options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
             mqtt_config = CORE.config[CONF_MQTT]
             options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
 
         if has_api():
-            if has_resolvable_address():
-                options.append((f"Over The Air ({CORE.address})", CORE.address))
-            if has_mqtt_ip_lookup():
-                options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+            add_ota_options()
 
     elif purpose == Purpose.UPLOADING and has_ota():
-        if has_resolvable_address():
-            options.append((f"Over The Air ({CORE.address})", CORE.address))
-        if has_mqtt_ip_lookup():
-            options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+        add_ota_options()
 
     # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
@@ -407,7 +481,17 @@ def has_resolvable_address() -> bool:
     return not CORE.address.endswith(".local")
 
 
-def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
+def has_name_add_mac_suffix() -> bool:
+    """Check if name_add_mac_suffix is enabled in the config."""
+    if CORE.config is None:
+        return False
+    esphome_config = CORE.config.get(CONF_ESPHOME, {})
+    return esphome_config.get(CONF_NAME_ADD_MAC_SUFFIX, False)
+
+
+def mqtt_get_ip(
+    config: ConfigType, username: str, password: str, client_id: str
+) -> list[str]:
     from esphome import mqtt
 
     return mqtt.get_esphome_device_ip(config, username, password, client_id)
@@ -420,6 +504,9 @@ def _resolve_network_devices(
 
     This function filters the devices list to:
     - Replace MQTT/MQTTIP magic strings with actual IP addresses via MQTT lookup
+    - Expand hostnames that are already in ``CORE.address_cache`` to their
+      cached IPs so downstream code (e.g. aioesphomeapi) doesn't open a second
+      Zeroconf client to resolve them
     - Deduplicate addresses while preserving order
     - Only resolve MQTT once even if multiple MQTT strings are present
     - If MQTT resolution fails, log a warning and continue with other devices
@@ -444,13 +531,29 @@ def _resolve_network_devices(
                     mqtt_ips = mqtt_get_ip(
                         config, args.username, args.password, args.client_id
                     )
-                    network_devices.extend(mqtt_ips)
+                    # pylint can't infer mqtt_get_ip's return through its
+                    # lazy ``from esphome import mqtt`` import, so it flags
+                    # the genexpr below.
+                    network_devices.extend(
+                        addr
+                        for addr in mqtt_ips  # pylint: disable=not-an-iterable
+                        if addr not in network_devices
+                    )
                 except EsphomeError as err:
                     _LOGGER.warning(
                         "MQTT IP discovery failed (%s), will try other devices if available",
                         err,
                     )
                 mqtt_resolved = True
+            continue
+
+        # If the hostname is already in the address cache (e.g. populated by
+        # mDNS discovery), substitute the cached IPs so aioesphomeapi doesn't
+        # open its own Zeroconf to re-resolve it.
+        if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
+            network_devices.extend(
+                addr for addr in cached if addr not in network_devices
+            )
         elif device not in network_devices:
             # Regular network address or IP - add if not already present
             network_devices.append(device)
@@ -564,7 +667,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     return 0
 
 
-def wrap_to_code(name, comp):
+def _wrap_to_code(name, comp, yaml_util):
     coro = coroutine(comp.to_code)
 
     @functools.wraps(comp.to_code)
@@ -584,6 +687,8 @@ def wrap_to_code(name, comp):
 
 
 def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
+    from esphome import writer
+
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
@@ -595,17 +700,21 @@ def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
+    from esphome import yaml_util
+
     _LOGGER.info("Generating C++ source...")
 
     for name, component, conf in iter_component_configs(CORE.config):
         if component.to_code is not None:
-            coro = wrap_to_code(name, component)
+            coro = _wrap_to_code(name, component, yaml_util)
             CORE.add_job(coro, conf)
 
     CORE.flush_tasks()
 
 
 def write_cpp_file(native_idf: bool = False) -> int:
+    from esphome import writer
+
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
 
@@ -1084,6 +1193,8 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 
 
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome import yaml_util
+
     if not CORE.verbose:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
@@ -1225,6 +1336,8 @@ def command_clean_mqtt(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_clean_all(args: ArgsProtocol) -> int | None:
+    from esphome import writer
+
     try:
         writer.clean_all(args.configuration)
     except OSError as err:
@@ -1240,6 +1353,8 @@ def command_version(args: ArgsProtocol) -> int | None:
 
 
 def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome import writer
+
     try:
         writer.clean_build()
     except OSError as err:
@@ -1442,6 +1557,8 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
 
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome import yaml_util
+
     new_name = args.name
     for c in new_name:
         if c not in ALLOWED_NAME_CHARS:

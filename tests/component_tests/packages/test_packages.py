@@ -1491,3 +1491,133 @@ def test_substitute_package_definition_includes_source_location(tmp_path: Path) 
     line, col = int(match.group(1)), int(match.group(2))
     assert line == 2, f"expected 1-based line 2, got {line} (err={err!r})"
     assert col >= 1, f"expected 1-based column ≥ 1, got {col} (err={err!r})"
+
+
+def test_substitute_package_definition_vars_preserved_literally() -> None:
+    """``vars:`` blocks in remote-package files are not substituted prematurely.
+
+    Variable references inside ``vars:`` may resolve to substitutions
+    contributed by sibling packages that have not yet been loaded, so they
+    must be passed through untouched and resolved later by the package YAML.
+    """
+    pkg = {
+        CONF_URL: "https://github.com/esphome/non-existant-repo",
+        CONF_REF: "main",
+        CONF_FILES: [
+            {
+                CONF_PATH: "common/somefile.yaml",
+                CONF_VARS: {"pin": "${PIN}"},
+            },
+        ],
+    }
+    # Note: PIN is intentionally NOT in the context — it is meant to
+    # be resolved later, when the package YAML is processed.
+    result = _substitute_package_definition(pkg, ContextVars())
+
+    assert result[CONF_FILES][0][CONF_VARS] == {"pin": "${PIN}"}
+
+
+def test_substitute_package_definition_other_fields_still_substituted() -> None:
+    """Marking ``vars:`` literal does not stop substitution of url/ref/path."""
+    ctx = ContextVars({"branch": "release", "org": "esphome"})
+    pkg = {
+        CONF_URL: "https://github.com/${org}/firmware",
+        CONF_REF: "${branch}",
+        CONF_FILES: [
+            {
+                CONF_PATH: "common/sensor.yaml",
+                CONF_VARS: {"pin": "${PIN}"},
+            },
+        ],
+    }
+    result = _substitute_package_definition(pkg, ctx)
+
+    assert result[CONF_URL] == "https://github.com/esphome/firmware"
+    assert result[CONF_REF] == "release"
+    # vars passed through unchanged
+    assert result[CONF_FILES][0][CONF_VARS] == {"pin": "${PIN}"}
+
+
+def test_substitute_package_definition_without_vars_unaffected() -> None:
+    """Files entries without a ``vars:`` block continue to work."""
+    ctx = ContextVars({"branch": "main"})
+    pkg = {
+        CONF_URL: "https://github.com/esphome/firmware",
+        CONF_REF: "${branch}",
+        CONF_FILES: [
+            {CONF_PATH: "file1.yaml"},
+            "file2.yaml",
+        ],
+    }
+    result = _substitute_package_definition(pkg, ctx)
+
+    assert result[CONF_REF] == "main"
+    assert result[CONF_FILES][0] == {CONF_PATH: "file1.yaml"}
+    assert result[CONF_FILES][1] == "file2.yaml"
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_package_vars_resolved_against_sibling_package_substitutions(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """A ``vars:`` reference in one remote package can resolve to a
+    substitution defined in a sibling remote package.
+
+    A higher-priority package declares ``substitutions:`` (e.g. ``SENSOR_PIN: 5``) and a
+    lower-priority package's ``files: -> vars:`` references that substitution.
+    Because packages are processed highest-priority first and ``vars:`` is now
+    preserved literally during package-definition processing, the substitution
+    is resolved correctly when the package YAML itself is loaded.
+    """
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), MagicMock())
+    mock_is_file.return_value = True
+
+    # Two YAML files mocked from the "remote" repo:
+    #   - platform.yaml exports a substitution ``SENSOR_PIN``
+    #   - sensor.yaml uses ``${pin}`` (which is bound from ``vars:`` to
+    #     ``${SENSOR_PIN}`` and resolved against the merged substitutions).
+    mock_load_yaml.side_effect = [
+        # Order matches reverse-priority traversal (highest priority first).
+        OrderedDict(
+            {
+                CONF_SUBSTITUTIONS: {"SENSOR_PIN": "GPIO5"},
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_1,
+                        "pin": "${pin}",
+                    }
+                ],
+            }
+        ),
+    ]
+
+    config = {
+        CONF_PACKAGES: {
+            "special_sensor": {
+                CONF_URL: "https://github.com/esphome/non-existant-repo",
+                CONF_FILES: [
+                    {
+                        CONF_PATH: "sensor.yaml",
+                        CONF_VARS: {"pin": "${SENSOR_PIN}"},
+                    },
+                ],
+                CONF_REFRESH: "1d",
+            },
+            "platform": {
+                CONF_URL: "https://github.com/esphome/non-existant-repo",
+                CONF_FILES: ["platform.yaml"],
+                CONF_REFRESH: "1d",
+            },
+        }
+    }
+
+    actual = packages_pass(config)
+
+    assert actual[CONF_SENSOR][0]["pin"] == "GPIO5"
