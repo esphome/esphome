@@ -203,11 +203,15 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
           [this]() { this->play_next_(); },
           /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
     } else {
-      // For delays with arguments, capture by value to preserve argument values
-      // Arguments must be copied because original references may be invalid after delay
-      // `mutable` is required so captured copies of non-const reference args (e.g. std::string&)
-      // are passed as non-const lvalues to play_next_(const Ts&...) where Ts may be `T&`
-      auto f = [this, x...]() mutable { this->play_next_(x...); };
+      // Capture all arguments in a tuple to snapshot values at capture time.
+      // This works around FixedVector's deleted copy constructor — std::make_tuple
+      // performs implicit moves for rvalue elements, and FixedVector has a valid move
+      // constructor, so the snapshot is created without a copy.
+      // play_next_tuple_ calls play_next_(const Ts&...) correctly for the delayed call.
+      auto args_tuple = std::make_tuple(x...);
+      auto f = [this, args_tuple]() mutable {
+        std::apply([this](const auto&... args) { this->play_next_(args...); }, args_tuple);
+      };
       App.scheduler.set_timer_common_(
           /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
           /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(x...),
