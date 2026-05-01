@@ -873,10 +873,48 @@ def test_perform_ota_device_rejects_with_unsupported_ota_type(
 
 
 @pytest.mark.usefixtures("mock_time")
-def test_perform_ota_non_app_type_requires_extended_protocol(
+def test_perform_ota_unsupported_type_rejected_early(
     mock_socket: Mock, mock_file: io.BytesIO
 ) -> None:
+    """ota_type values not in _SUPPORTED_OTA_TYPES are rejected before any I/O."""
+    with pytest.raises(espota2.OTAError, match="Unsupported OTA type 0xFF"):
+        espota2.perform_ota(
+            mock_socket,
+            "testpass",
+            mock_file,
+            "test.bin",
+            0xFF,
+        )
+    # No bytes should have been transmitted to the device.
+    mock_socket.sendall.assert_not_called()
+
+
+@pytest.mark.parametrize("bad_type", [-1, 256, 0x10000, "app", None, 1.5])
+def test_perform_ota_rejects_out_of_range_type(
+    mock_socket: Mock, mock_file: io.BytesIO, bad_type: object
+) -> None:
+    """Out-of-range or non-int ota_type must raise OTAError, not ValueError."""
+    with pytest.raises(espota2.OTAError, match="Invalid ota_type"):
+        espota2.perform_ota(
+            mock_socket,
+            "testpass",
+            mock_file,
+            "test.bin",
+            bad_type,  # type: ignore[arg-type]
+        )
+    mock_socket.sendall.assert_not_called()
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_non_app_type_requires_extended_protocol(
+    mock_socket: Mock, mock_file: io.BytesIO, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Non-app OTA type must fail when device only supports the legacy protocol."""
+    monkeypatch.setattr(
+        espota2,
+        "_SUPPORTED_OTA_TYPES",
+        frozenset({espota2.OTA_TYPE_UPDATE_APP, 0xFF}),
+    )
     recv_responses = [
         bytes([espota2.RESPONSE_OK]),  # First byte of version response
         bytes([espota2.OTA_VERSION_2_0]),  # Version number
@@ -893,16 +931,21 @@ def test_perform_ota_non_app_type_requires_extended_protocol(
             "testpass",
             mock_file,
             "test.bin",
-            255,
+            0xFF,
         )
 
 
 @pytest.mark.usefixtures("mock_time")
 def test_perform_ota_non_app_type_requires_partition_access(
-    mock_socket: Mock, mock_file: io.BytesIO
+    mock_socket: Mock, mock_file: io.BytesIO, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Non-app OTA type must fail when device advertises extended protocol but
     not the partition-access feature."""
+    monkeypatch.setattr(
+        espota2,
+        "_SUPPORTED_OTA_TYPES",
+        frozenset({espota2.OTA_TYPE_UPDATE_APP, 0xFF}),
+    )
     recv_responses = [
         bytes([espota2.RESPONSE_OK]),  # First byte of version response
         bytes([espota2.OTA_VERSION_2_0]),  # Version number
@@ -922,5 +965,31 @@ def test_perform_ota_non_app_type_requires_partition_access(
             "testpass",
             mock_file,
             "test.bin",
-            255,
+            0xFF,
         )
+
+
+def test_check_error_detects_errors_when_expect_is_none() -> None:
+    """check_error must surface device error bytes even when expect is None.
+
+    Regression test: previously, receive_exactly(..., expect=None) calls (used
+    during feature negotiation and nonce reads) silently passed error bytes
+    through, turning clean device errors into confusing later failures.
+    """
+    with pytest.raises(espota2.OTAError, match="Error: Authentication invalid"):
+        espota2.check_error([espota2.RESPONSE_ERROR_AUTH_INVALID], None)
+
+
+def test_check_error_detects_empty_when_expect_is_none() -> None:
+    """Empty data with expect=None must still raise (connection closed)."""
+    with pytest.raises(
+        espota2.OTAError, match="Device closed connection without responding"
+    ):
+        espota2.check_error([], None)
+
+
+def test_check_error_passes_non_error_when_expect_is_none() -> None:
+    """Non-error bytes with expect=None must pass through silently."""
+    espota2.check_error([espota2.RESPONSE_OK], None)
+    espota2.check_error([espota2.RESPONSE_HEADER_OK], None)
+    espota2.check_error([espota2.RESPONSE_FEATURE_FLAGS], None)

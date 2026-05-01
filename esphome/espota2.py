@@ -59,6 +59,11 @@ CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 
+# OTA types this client knows how to send. Future PRs that add bootloader/partition
+# updates extend this set. Anything outside the set is rejected up front so callers
+# of perform_ota/run_ota get a clear error instead of a post-auth 0x8E from the device.
+_SUPPORTED_OTA_TYPES: frozenset[int] = frozenset({OTA_TYPE_UPDATE_APP})
+
 UPLOAD_BLOCK_SIZE = 8192
 UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
 
@@ -192,8 +197,10 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     :param expect: Expected response code(s), None to skip validation.
     :raises OTAError: If an error code is detected or response doesn't match expected.
     """
-    if expect is None:
-        return
+    # Detect device errors and connection-closed cases regardless of `expect`. If we
+    # only ran these checks when expect was set, error bytes returned during
+    # accept-any-response reads (e.g. feature negotiation, auth nonces) would be
+    # silently passed through and surface later as cryptic decode/timeout failures.
     if not data:
         raise OTAError(
             "Error: Device closed connection without responding. "
@@ -204,6 +211,8 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     error_msg = _ERROR_MESSAGES.get(dat)
     if error_msg is not None:
         raise OTAError(f"Error: {error_msg}")
+    if expect is None:
+        return
     if not isinstance(expect, (list, tuple)):
         expect = [expect]
     if dat not in expect:
@@ -240,6 +249,19 @@ def perform_ota(
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
 ) -> None:
+    # Validate ota_type up front. It travels as a single byte on the wire, and
+    # passing an out-of-range value would only surface as a ValueError from
+    # bytes([ota_type]) deep inside send_check, bypassing OTAError handling.
+    if not isinstance(ota_type, int) or not 0 <= ota_type <= 0xFF:
+        raise OTAError(
+            f"Invalid ota_type {ota_type!r}; expected an integer in range 0-255"
+        )
+    if ota_type not in _SUPPORTED_OTA_TYPES:
+        supported = ", ".join(f"0x{t:02X}" for t in sorted(_SUPPORTED_OTA_TYPES))
+        raise OTAError(
+            f"Unsupported OTA type 0x{ota_type:02X}; this ESPHome supports: {supported}"
+        )
+
     file_contents = file_handle.read()
     file_size = len(file_contents)
     _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
