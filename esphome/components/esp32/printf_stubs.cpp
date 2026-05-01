@@ -17,10 +17,9 @@
  * This wrap is newlib-only. On picolibc, vsnprintf is implemented as
  * vfprintf into a string-output FILE, so vfprintf is unconditionally
  * linked in by any caller of snprintf/vsnprintf and the wrap can never
- * elide it — it just adds shim cost. The Python build glue forces
- * USE_FULL_PRINTF on picolibc builds (RISC-V always, IDF 6.0+ on all
- * variants), so this file compiles to nothing there. The #error below
- * catches a desynchronised gate.
+ * elide it — it just adds shim cost. Codegen forces USE_FULL_PRINTF
+ * on picolibc builds (IDF 6.0+ on all variants) so this file compiles
+ * to nothing there; the #error below catches a desynchronised gate.
  *
  * Saves ~11 KB of flash on newlib.
  *
@@ -31,7 +30,7 @@
 #if defined(USE_ESP_IDF) && !defined(USE_FULL_PRINTF)
 
 #ifdef __PICOLIBC__
-#error "printf wrap is net-negative on picolibc; build glue should set USE_FULL_PRINTF"
+#error "printf wrap is net-negative on picolibc; codegen should set USE_FULL_PRINTF"
 #endif
 
 #include <cstdarg>
