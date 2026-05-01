@@ -21,12 +21,12 @@ static bool checksum(const std::vector<uint8_t> &data) {
 }
 
 void SystaBus::loop() {
-  if (!available())
+  if (!this->available())
     return;
 
-  while (available()) {
+  do {
     uint8_t c;
-    read_byte(&c);
+    this->read_byte(&c);
 
     if (this->state_ == 0 && c == 0xfc) {
       this->state_ = 1;
@@ -53,7 +53,7 @@ void SystaBus::loop() {
           listener->handle_message(this->buffer_);
       }
     }
-  }
+  } while (this->available());
 }
 
 }  // namespace esphome::systa_bus

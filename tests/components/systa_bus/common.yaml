@@ -13,9 +13,3 @@ sensor:
       name: TW2
     pump_speed:
       name: Pump Speed
-
-text_sensor:
-  - platform: systa_bus
-    model: systasolar_aqua
-    error_code:
-      name: Error Code
