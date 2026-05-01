@@ -124,7 +124,7 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   void process_frame_();
   void on_data_(const char *obis_code, float float_val, const char *str_val, bool is_numeric);
 
-  std::vector<uint8_t> rx_buffer_;
+  std::array<uint8_t, 2048> rx_buffer_;
   size_t bytes_accumulated_{0};
   uint32_t last_rx_char_time_{0};
 
