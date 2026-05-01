@@ -118,7 +118,6 @@ static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
-static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the OTA handshake and authentication.
@@ -208,10 +207,9 @@ void ESPHomeOTAComponent::handle_handshake_() {
       const bool supports_compression =
           (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_COMPRESSION) != 0 && this->backend_->supports_compression();
 
-      // Compose the feature-ack response. When the client
-      // negotiates the extended protocol we emit a 2-byte response (marker + server feature flags);
-      // otherwise we emit the single-byte legacy response. The #ifdef wraps only the extended-proto
-      // branch so the legacy branch reads as unconditional code in either build configuration.
+      // Compose the feature-ack response. When the client negotiates the extended protocol we emit
+      // a 2-byte response (marker + server feature flags); otherwise we emit the single-byte
+      // legacy response.
       this->extended_proto_ = (this->ota_features_ & CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL) != 0;
       if (this->extended_proto_) {
         this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
