@@ -8,7 +8,7 @@ from esphome.components.api import client as api_client
 from esphome.core import EsphomeError
 
 
-def test_process_stacktrace_line_swallows_esphome_error() -> None:
+def test_decoder_swallows_esphome_error() -> None:
     """A failing stack-trace decode must not propagate.
 
     on_log runs inside an asyncio protocol callback; if EsphomeError
@@ -18,50 +18,68 @@ def test_process_stacktrace_line_swallows_esphome_error() -> None:
     reconnect.
     """
     config = {"esphome": {"name": "test"}}
+    processor = api_client._LogLineProcessor(config, None)
 
     with patch.object(
         api_client, "process_stacktrace", side_effect=EsphomeError("no idedata")
     ) as mock_process:
-        result = api_client._process_stacktrace_line(
-            config, "PC: 0x4010496e", True, None
-        )
+        processor.process_line("PC: 0x4010496e")
 
     assert mock_process.called
-    assert result is False
+    assert processor.backtrace_state is False
 
 
-def test_process_stacktrace_line_swallows_platform_handler_error() -> None:
+def test_decoder_swallows_platform_handler_error() -> None:
     """The same protection must apply to the platform-specific handler."""
     config = {"esphome": {"name": "test"}}
 
     def platform_handler(_config, _line, _state):
         raise EsphomeError("no idedata")
 
-    result = api_client._process_stacktrace_line(
-        config, "PC: 0x4010496e", True, platform_handler
-    )
+    processor = api_client._LogLineProcessor(config, platform_handler)
+    processor.process_line("PC: 0x4010496e")
 
-    assert result is False
+    assert processor.backtrace_state is False
 
 
-def test_process_stacktrace_line_returns_handler_result() -> None:
-    """When decoding succeeds, the handler's result is returned unchanged."""
+def test_decoder_short_circuits_after_failure() -> None:
+    """After one failure, subsequent lines must not retry the decoder.
+
+    _decode_pc shells out to PlatformIO; a crash dump can contain many
+    PC/BT lines and retrying the failing subprocess for each one would
+    stall log streaming.
+    """
     config = {"esphome": {"name": "test"}}
+    processor = api_client._LogLineProcessor(config, None)
 
     with patch.object(
-        api_client, "process_stacktrace", return_value=True
+        api_client, "process_stacktrace", side_effect=EsphomeError("no idedata")
     ) as mock_process:
-        result = api_client._process_stacktrace_line(
-            config, "PC: 0x4010496e", False, None
-        )
+        processor.process_line("PC: 0x4010496e")
+        processor.process_line("BT0: 0x4010496e")
+        processor.process_line("BT1: 0x401049aa")
 
-    mock_process.assert_called_once_with(
-        config, "PC: 0x4010496e", backtrace_state=False
-    )
-    assert result is True
+    assert mock_process.call_count == 1
 
 
-def test_process_stacktrace_line_uses_platform_handler_when_provided() -> None:
+def test_decoder_threads_backtrace_state() -> None:
+    """When decoding succeeds, backtrace_state is threaded across calls."""
+    config = {"esphome": {"name": "test"}}
+    processor = api_client._LogLineProcessor(config, None)
+
+    with patch.object(
+        api_client, "process_stacktrace", side_effect=[True, False]
+    ) as mock_process:
+        processor.process_line(">>>stack>>>")
+        assert processor.backtrace_state is True
+        processor.process_line("<<<stack<<<")
+        assert processor.backtrace_state is False
+
+    assert mock_process.call_args_list[0].kwargs == {"backtrace_state": False}
+    assert mock_process.call_args_list[1].kwargs == {"backtrace_state": True}
+
+
+def test_decoder_uses_platform_handler_when_provided() -> None:
     """The platform handler is preferred over the generic one."""
     config = {"esphome": {"name": "test"}}
     calls: list[tuple[object, str, bool]] = []
@@ -70,11 +88,11 @@ def test_process_stacktrace_line_uses_platform_handler_when_provided() -> None:
         calls.append((cfg, line, state))
         return True
 
+    processor = api_client._LogLineProcessor(config, platform_handler)
+
     with patch.object(api_client, "process_stacktrace") as mock_generic:
-        result = api_client._process_stacktrace_line(
-            config, "BT0: 0x4010496e", False, platform_handler
-        )
+        processor.process_line("BT0: 0x4010496e")
 
     assert calls == [(config, "BT0: 0x4010496e", False)]
     assert mock_generic.called is False
-    assert result is True
+    assert processor.backtrace_state is True
