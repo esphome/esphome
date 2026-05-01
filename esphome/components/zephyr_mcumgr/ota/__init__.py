@@ -6,7 +6,11 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_data,
 )
-from esphome.components.zephyr.const import BOOTLOADER_MCUBOOT, KEY_BOOTLOADER
+from esphome.components.zephyr.const import (
+    BOOTLOADER_MCUBOOT,
+    KEY_BOOTLOADER,
+    KEY_NATIVE_BUILD,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_HARDWARE_UART, CONF_ID, Framework
 from esphome.core import CORE, coroutine_with_priority
@@ -64,7 +68,7 @@ CONFIG_SCHEMA = cv.All(
 
 def _validate_mcumgr_bootloader(config: ConfigType) -> None:
     bootloader = zephyr_data()[KEY_BOOTLOADER]
-    if bootloader != BOOTLOADER_MCUBOOT:
+    if bootloader != BOOTLOADER_MCUBOOT and not zephyr_data()[KEY_NATIVE_BUILD]:
         raise cv.Invalid(f"'{bootloader}' bootloader does not support OTA")
 
 

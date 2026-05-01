@@ -49,8 +49,8 @@ class Section:
 class ZephyrData(TypedDict):
     board: str
     bootloader: str
-    prj_conf: dict[str, tuple[PrjConfValueType, bool]]
-    overlay: str
+    prj_conf: dict[str, dict[str, tuple[PrjConfValueType, bool]]]
+    overlay: dict[str, str]
     extra_build_files: dict[str, Path]
     pm_static: list[Section]
     user: dict[str, list[str]]
@@ -63,7 +63,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         board=config[CONF_BOARD],
         bootloader=config[KEY_BOOTLOADER],
         prj_conf={},
-        overlay="",
+        overlay={},
         extra_build_files={},
         pm_static=[],
         user={},
@@ -76,13 +76,22 @@ def zephyr_data() -> ZephyrData:
     return CORE.data[KEY_ZEPHYR]
 
 
+def zephyr_add_overlay(content: str, image: str = "") -> None:
+    data = zephyr_data()
+    if image not in data[KEY_OVERLAY]:
+        data[KEY_OVERLAY][image] = ""
+    data[KEY_OVERLAY][image] += textwrap.dedent(content)
+
+
 def zephyr_add_prj_conf(
-    name: str, value: PrjConfValueType, required: bool = True
+    name: str, value: PrjConfValueType, required: bool = True, image: str = ""
 ) -> None:
     """Set an zephyr prj conf value."""
     if not name.startswith("CONFIG_"):
         name = "CONFIG_" + name
-    prj_conf = zephyr_data()[KEY_PRJ_CONF]
+    if image not in zephyr_data()[KEY_PRJ_CONF]:
+        zephyr_data()[KEY_PRJ_CONF][image] = {}
+    prj_conf = zephyr_data()[KEY_PRJ_CONF][image]
     if name not in prj_conf:
         prj_conf[name] = (value, required)
         return
@@ -93,10 +102,6 @@ def zephyr_add_prj_conf(
         )
     if required:
         prj_conf[name] = (value, required)
-
-
-def zephyr_add_overlay(content):
-    zephyr_data()[KEY_OVERLAY] += textwrap.dedent(content)
 
 
 def add_extra_build_file(filename: str, path: Path) -> bool:
@@ -212,22 +217,28 @@ def copy_files():
             """
         )
 
-    want_opts = zephyr_data()[KEY_PRJ_CONF]
-
-    prj_conf = (
-        "\n".join(
-            f"{name}={_format_prj_conf_val(value[0])}"
-            for name, value in sorted(want_opts.items())
+    for image, want_opts in zephyr_data()[KEY_PRJ_CONF].items():
+        prj_conf = (
+            "\n".join(
+                f"{name}={_format_prj_conf_val(value[0])}"
+                for name, value in sorted(want_opts.items())
+            )
+            + "\n"
         )
-        + "\n"
-    )
 
-    write_file_if_changed(CORE.relative_build_path("zephyr/prj.conf"), prj_conf)
+        if image:
+            path = CORE.relative_build_path(f"sysbuild/{image}.conf")
+        else:
+            path = CORE.relative_build_path("zephyr/prj.conf")
 
-    write_file_if_changed(
-        CORE.relative_build_path("zephyr/app.overlay"),
-        zephyr_data()[KEY_OVERLAY],
-    )
+        write_file_if_changed(CORE.relative_build_path(path), prj_conf)
+
+    for image, content in zephyr_data()[KEY_OVERLAY].items():
+        if image:
+            path = CORE.relative_build_path(f"sysbuild/{image}.overlay")
+        else:
+            path = CORE.relative_build_path("zephyr/app.overlay")
+        write_file_if_changed(path, content)
 
     for filename, path in zephyr_data()[KEY_EXTRA_BUILD_FILES].items():
         copy_file_if_changed(

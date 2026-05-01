@@ -10,6 +10,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components.zephyr import (
     add_extra_script,
+    copy_files as zephyr_copy_files,
     zephyr_add_overlay,
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
@@ -79,7 +80,57 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
     if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
         zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
+        zephyr_add_overlay(
+            """
+            /delete-node/ &boot_partition;
 
+            &flash0 {
+                partitions {
+                        compatible = "fixed-partitions";
+                        #address-cells = <1>;
+                        #size-cells = <1>;
+
+                        boot_partition: partition@0 {
+                            label = "mcuboot";
+                            reg = <0x000000000 0x00010000>;
+                        };
+                        slot0_partition: partition@10000 {
+                            label = "image-0";
+                            reg = <0x000010000 0x000074000>;
+                        };
+                        slot1_partition: partition@75000 {
+                            label = "image-1";
+                            reg = <0x00084000 0x000074000>;
+                        };
+                };
+            };
+        """,
+            "mcuboot",
+        )
+        zephyr_add_overlay("""
+            /delete-node/ &boot_partition;
+
+            &flash0 {
+                partitions {
+                        compatible = "fixed-partitions";
+                        #address-cells = <1>;
+                        #size-cells = <1>;
+
+                        boot_partition: partition@0 {
+                            label = "mcuboot";
+                            reg = <0x000000000 0x00010000>;
+                        };
+                        slot0_partition: partition@10000 {
+                            label = "image-0";
+                            reg = <0x000010000 0x000074000>;
+                        };
+                        slot1_partition: partition@75000 {
+                            label = "image-1";
+                            reg = <0x00084000 0x000074000>;
+                        };
+                };
+            };
+        """)
     return config
 
 
@@ -361,7 +412,10 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_SECOND_BOOTLOADER]:
         CORE.data[PLATFORM_NRF52] = {"second_bootloader": True}
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
-        zephyr_add_prj_conf("BOOTLOADER_MCUBOOT", True)
+        zephyr_add_prj_conf("USB_DEVICE_STACK", False, image="mcuboot")
+        zephyr_add_prj_conf("USB_CDC_ACM", False, image="mcuboot")
+        zephyr_add_prj_conf("UART_CONSOLE", False, image="mcuboot")
+        zephyr_add_prj_conf("CONSOLE", False, image="mcuboot")
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
@@ -416,10 +470,7 @@ def copy_files() -> None:
             CORE.relative_build_path("sysbuild.conf"),
             "SB_CONFIG_BOOTLOADER_MCUBOOT=y\n",
         )
-        write_file_if_changed(
-            CORE.relative_build_path("sysbuild/mcuboot.conf"),
-            "CONFIG_USB_DEVICE_STACK=n\nCONFIG_USB_CDC_ACM=n\nCONFIG_UART_CONSOLE=n\nCONFIG_CONSOLE=n\n",
-        )
+    zephyr_copy_files()
 
 
 def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
