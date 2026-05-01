@@ -545,16 +545,17 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                 import time
 
                 import serial
-                import serial.tools.list_ports
 
                 with serial.Serial(host, baudrate=1200):
                     time.sleep(0.1)
-                deadline = time.monotonic() + 10
+                deadline = time.monotonic() + 5
                 while time.monotonic() < deadline:
-                    if any(
-                        p.device == host for p in serial.tools.list_ports.comports()
-                    ):
+                    try:
+                        with serial.Serial(host, baudrate=1200):
+                            pass
                         break
+                    except serial.SerialException:
+                        pass
                 else:
                     raise EsphomeError(
                         f"Timed out waiting for {host} to reappear after reset"
