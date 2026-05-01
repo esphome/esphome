@@ -42,6 +42,21 @@ def test_decoder_swallows_platform_handler_error() -> None:
     assert processor.backtrace_state is False
 
 
+def test_decoder_warning_uses_fallback_for_empty_error(caplog) -> None:
+    """_run_idedata raises EsphomeError with no message; the warning
+    must show a useful explanation rather than empty parens.
+    """
+    config = {"esphome": {"name": "test"}}
+    processor = api_client._LogLineProcessor(config, None)
+
+    with patch.object(api_client, "process_stacktrace", side_effect=EsphomeError()):
+        processor.process_line("PC: 0x4010496e")
+
+    warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert any("build artifacts not found locally" in m for m in warnings)
+    assert not any("()" in m for m in warnings)
+
+
 def test_decoder_short_circuits_after_failure() -> None:
     """After one failure, subsequent lines must not retry the decoder.
 
