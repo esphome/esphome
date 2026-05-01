@@ -91,6 +91,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   std::string password_;
   std::unique_ptr<uint8_t[]> auth_buf_;
 #endif  // USE_OTA_PASSWORD
+  bool extended_proto_{false};
 
   socket::ListenSocket *server_{nullptr};
   std::unique_ptr<socket::Socket> client_;
