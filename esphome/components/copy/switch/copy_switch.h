@@ -11,7 +11,6 @@ class CopySwitch : public switch_::Switch, public Component {
   void set_source(switch_::Switch *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   void write_state(bool state) override;

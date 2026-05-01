@@ -2,8 +2,7 @@
 
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 enum Hob2HoodCommand : uint8_t {
   HOB2HOOD_CMD_LIGHT_OFF = 0,
@@ -74,13 +73,13 @@ class Hob2HoodBinarySensor : public RemoteReceiverBinarySensorBase {
 };
 
 template<typename... Ts> class Hob2HoodAction : public RemoteTransmitterActionBase<Ts...> {
-  TEMPLATABLE_VALUE(Hob2HoodCommand, command)
+ public:
+  TEMPLATABLE_VALUE(uint8_t, command)
   void encode(RemoteTransmitData *dst, Ts... x) override {
     Hob2HoodData data;
-    data.command = this->command_.value(x...);
+    data.command = (Hob2HoodCommand) this->command_.value(x...);
     Hob2HoodProtocol().encode(dst, data);
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

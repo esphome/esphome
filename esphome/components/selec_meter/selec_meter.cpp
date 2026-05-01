@@ -1,5 +1,6 @@
 #include "selec_meter.h"
 #include "selec_meter_registers.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -83,8 +84,10 @@ void SelecMeter::on_modbus_data(const std::vector<uint8_t> &data) {
 
 void SelecMeter::update() { this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT); }
 void SelecMeter::dump_config() {
-  ESP_LOGCONFIG(TAG, "SELEC Meter:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG,
+                "SELEC Meter:\n"
+                "  Address: 0x%02X",
+                this->address_);
   LOG_SENSOR("  ", "Total Active Energy", this->total_active_energy_sensor_);
   LOG_SENSOR("  ", "Import Active Energy", this->import_active_energy_sensor_);
   LOG_SENSOR("  ", "Export Active Energy", this->export_active_energy_sensor_);

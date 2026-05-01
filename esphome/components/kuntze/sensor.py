@@ -1,19 +1,19 @@
 import esphome.codegen as cg
+from esphome.components import modbus, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, modbus
 from esphome.const import (
-    CONF_ID,
     CONF_EC,
+    CONF_ID,
     CONF_PH,
     CONF_TEMPERATURE,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_TEMPERATURE,
     ICON_EMPTY,
     ICON_THERMOMETER,
+    STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_EMPTY,
     UNIT_PH,
-    STATE_CLASS_MEASUREMENT,
-    DEVICE_CLASS_EMPTY,
-    DEVICE_CLASS_TEMPERATURE,
 )
 
 CODEOWNERS = ["@ssieb"]

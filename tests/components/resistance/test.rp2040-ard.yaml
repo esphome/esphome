@@ -1,0 +1,4 @@
+substitutions:
+  pin: VCC
+
+<<: !include common.yaml

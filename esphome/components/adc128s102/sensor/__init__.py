@@ -1,9 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
-from esphome.const import CONF_ID, CONF_CHANNEL
+import esphome.config_validation as cv
+from esphome.const import CONF_CHANNEL, CONF_ID
 
-from .. import adc128s102_ns, ADC128S102
+from .. import ADC128S102, adc128s102_ns
 
 AUTO_LOAD = ["voltage_sampler"]
 DEPENDENCIES = ["adc128s102"]

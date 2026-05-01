@@ -1,16 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-from .. import (
-    CONF_PYLONTECH_ID,
-    PYLONTECH_COMPONENT_SCHEMA,
-    CONF_BATTERY,
-    pylontech_ns,
-)
+from .. import CONF_BATTERY, CONF_PYLONTECH_ID, PYLONTECH_COMPONENT_SCHEMA, pylontech_ns
 
-PylontechTextSensor = pylontech_ns.class_("PylontechTextSensor", cg.Component)
+PylontechTextSensor = pylontech_ns.class_("PylontechTextSensor")
 
 CONF_BASE_STATE = "base_state"
 CONF_VOLTAGE_STATE = "voltage_state"

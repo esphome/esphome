@@ -15,7 +15,6 @@ static const uint8_t TSL2561_REGISTER_DATA_0 = 0x0C;
 static const uint8_t TSL2561_REGISTER_DATA_1 = 0x0E;
 
 void TSL2561Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TSL2561...");
   uint8_t id;
   if (!this->tsl2561_read_byte(TSL2561_REGISTER_ID, &id)) {
     this->mark_failed();
@@ -41,12 +40,14 @@ void TSL2561Sensor::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with TSL2561 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 
   int gain = this->gain_ == TSL2561_GAIN_1X ? 1 : 16;
-  ESP_LOGCONFIG(TAG, "  Gain: %dx", gain);
-  ESP_LOGCONFIG(TAG, "  Integration Time: %.1f ms", this->get_integration_time_ms_());
+  ESP_LOGCONFIG(TAG,
+                "  Gain: %dx\n"
+                "  Integration Time: %.1f ms",
+                gain, this->get_integration_time_ms_());
 
   LOG_UPDATE_INTERVAL(this);
 }
@@ -65,10 +66,14 @@ void TSL2561Sensor::update() {
 
 float TSL2561Sensor::calculate_lx_(uint16_t ch0, uint16_t ch1) {
   if ((ch0 == 0xFFFF) || (ch1 == 0xFFFF)) {
-    ESP_LOGW(TAG, "TSL2561 sensor is saturated.");
+    ESP_LOGW(TAG, "Sensor is saturated");
     return NAN;
   }
 
+  if (ch0 == 0) {
+    ESP_LOGVV(TAG, "No light detected");
+    return 0.0f;
+  }
   float d0 = ch0, d1 = ch1;
   float ratio = d1 / d0;
 
@@ -143,7 +148,7 @@ void TSL2561Sensor::set_integration_time(TSL2561IntegrationTime integration_time
 }
 void TSL2561Sensor::set_gain(TSL2561Gain gain) { this->gain_ = gain; }
 void TSL2561Sensor::set_is_cs_package(bool package_cs) { this->package_cs_ = package_cs; }
-float TSL2561Sensor::get_setup_priority() const { return setup_priority::DATA; }
+
 bool TSL2561Sensor::tsl2561_write_byte(uint8_t a_register, uint8_t value) {
   return this->write_byte(a_register | TSL2561_COMMAND_BIT, value);
 }

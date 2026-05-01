@@ -74,11 +74,12 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
         }
         break;
       case MATCH_BY_IBEACON_UUID:
-        if (!device.get_ibeacon().has_value()) {
+        auto maybe_ibeacon = device.get_ibeacon();
+        if (!maybe_ibeacon.has_value()) {
           return false;
         }
 
-        auto ibeacon = device.get_ibeacon().value();
+        auto ibeacon = *maybe_ibeacon;
 
         if (this->ibeacon_uuid_ != ibeacon.get_uuid()) {
           return false;
@@ -99,7 +100,6 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
     return false;
   }
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   enum MatchType { MATCH_BY_MAC_ADDRESS, MATCH_BY_IRK, MATCH_BY_SERVICE_UUID, MATCH_BY_IBEACON_UUID };

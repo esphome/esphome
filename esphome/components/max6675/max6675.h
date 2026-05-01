@@ -14,7 +14,6 @@ class MAX6675Sensor : public sensor::Sensor,
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
   void update() override;
 

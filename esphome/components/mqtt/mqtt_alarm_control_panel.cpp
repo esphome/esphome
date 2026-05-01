@@ -1,0 +1,130 @@
+#include "mqtt_alarm_control_panel.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+
+#include "mqtt_const.h"
+
+#ifdef USE_MQTT
+#ifdef USE_ALARM_CONTROL_PANEL
+
+namespace esphome::mqtt {
+
+static const char *const TAG = "mqtt.alarm_control_panel";
+
+using namespace esphome::alarm_control_panel;
+
+// Alarm state MQTT strings indexed by AlarmControlPanelState enum (0-9)
+PROGMEM_STRING_TABLE(AlarmMqttStateStrings, "disarmed", "armed_home", "armed_away", "armed_night", "armed_vacation",
+                     "armed_custom_bypass", "pending", "arming", "disarming", "triggered", "unknown");
+
+static ProgmemStr alarm_state_to_mqtt_str(AlarmControlPanelState state) {
+  return AlarmMqttStateStrings::get_progmem_str(static_cast<uint8_t>(state), AlarmMqttStateStrings::LAST_INDEX);
+}
+
+MQTTAlarmControlPanelComponent::MQTTAlarmControlPanelComponent(AlarmControlPanel *alarm_control_panel)
+    : alarm_control_panel_(alarm_control_panel) {}
+
+static bool apply_command(AlarmControlPanelCall &call, const char *state) {
+  if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("ARM_AWAY")) == 0) {
+    call.arm_away();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("ARM_HOME")) == 0) {
+    call.arm_home();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("ARM_NIGHT")) == 0) {
+    call.arm_night();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("ARM_VACATION")) == 0) {
+    call.arm_vacation();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("ARM_CUSTOM_BYPASS")) == 0) {
+    call.arm_custom_bypass();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("DISARM")) == 0) {
+    call.disarm();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("PENDING")) == 0) {
+    call.pending();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("TRIGGERED")) == 0) {
+    call.triggered();
+  } else {
+    return false;
+  }
+  return true;
+}
+
+void MQTTAlarmControlPanelComponent::setup() {
+  this->alarm_control_panel_->add_on_state_callback(
+      [this](AlarmControlPanelState /*state*/) { this->publish_state(); });
+  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+    auto call = this->alarm_control_panel_->make_call();
+    if (!payload.empty() && payload[0] == '{') {
+      // JSON payload: {"state": "DISARM", "code": "1234"}
+      JsonDocument doc = json::parse_json(payload);
+      JsonObject root = doc.as<JsonObject>();
+      if (!root.isNull()) {
+        const char *state = root[ESPHOME_F("state")];
+        if (state == nullptr) {
+          ESP_LOGW(TAG, "'%s': JSON payload missing 'state' key", this->friendly_name_().c_str());
+        } else if (!apply_command(call, state)) {
+          ESP_LOGW(TAG, "'%s': Received unknown state in JSON payload: %s", this->friendly_name_().c_str(), state);
+        } else {
+          const char *code = root[ESPHOME_F("code")];
+          if (code != nullptr) {
+            call.set_code(code);
+          }
+        }
+      }
+    } else if (!apply_command(call, payload.c_str())) {
+      ESP_LOGW(TAG, "'%s': Received unknown command payload %s", this->friendly_name_().c_str(), payload.c_str());
+    }
+    call.perform();
+  });
+}
+
+void MQTTAlarmControlPanelComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "MQTT alarm_control_panel '%s':", this->alarm_control_panel_->get_name().c_str());
+  LOG_MQTT_COMPONENT(true, true);
+  ESP_LOGCONFIG(TAG,
+                "  Supported Features: %" PRIu32 "\n"
+                "  Requires Code to Disarm: %s\n"
+                "  Requires Code To Arm: %s",
+                this->alarm_control_panel_->get_supported_features(),
+                YESNO(this->alarm_control_panel_->get_requires_code()),
+                YESNO(this->alarm_control_panel_->get_requires_code_to_arm()));
+}
+
+void MQTTAlarmControlPanelComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  JsonArray supported_features = root[MQTT_SUPPORTED_FEATURES].to<JsonArray>();
+  const uint32_t acp_supported_features = this->alarm_control_panel_->get_supported_features();
+  if (acp_supported_features & ACP_FEAT_ARM_AWAY) {
+    supported_features.add(ESPHOME_F("arm_away"));
+  }
+  if (acp_supported_features & ACP_FEAT_ARM_HOME) {
+    supported_features.add(ESPHOME_F("arm_home"));
+  }
+  if (acp_supported_features & ACP_FEAT_ARM_NIGHT) {
+    supported_features.add(ESPHOME_F("arm_night"));
+  }
+  if (acp_supported_features & ACP_FEAT_ARM_VACATION) {
+    supported_features.add(ESPHOME_F("arm_vacation"));
+  }
+  if (acp_supported_features & ACP_FEAT_ARM_CUSTOM_BYPASS) {
+    supported_features.add(ESPHOME_F("arm_custom_bypass"));
+  }
+  if (acp_supported_features & ACP_FEAT_TRIGGER) {
+    supported_features.add(ESPHOME_F("trigger"));
+  }
+  root[MQTT_CODE_DISARM_REQUIRED] = this->alarm_control_panel_->get_requires_code();
+  root[MQTT_CODE_ARM_REQUIRED] = this->alarm_control_panel_->get_requires_code_to_arm();
+}
+
+MQTT_COMPONENT_TYPE(MQTTAlarmControlPanelComponent, "alarm_control_panel")
+const EntityBase *MQTTAlarmControlPanelComponent::get_entity() const { return this->alarm_control_panel_; }
+
+bool MQTTAlarmControlPanelComponent::send_initial_state() { return this->publish_state(); }
+bool MQTTAlarmControlPanelComponent::publish_state() {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish(this->get_state_topic_to_(topic_buf),
+                       alarm_state_to_mqtt_str(this->alarm_control_panel_->get_state()));
+}
+
+}  // namespace esphome::mqtt
+
+#endif
+#endif  // USE_MQTT

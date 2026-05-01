@@ -1,0 +1,5 @@
+esphome:
+  name: host-reconnect-test
+host:
+api:
+logger:

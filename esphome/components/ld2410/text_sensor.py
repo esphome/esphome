@@ -2,17 +2,20 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    CONF_VERSION,
+    CONF_ID,
     CONF_MAC_ADDRESS,
+    CONF_VERSION,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_BLUETOOTH,
     ICON_CHIP,
 )
+
 from . import CONF_LD2410_ID, LD2410Component
 
 DEPENDENCIES = ["ld2410"]
 
 CONFIG_SCHEMA = {
+    cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
     cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC, icon=ICON_CHIP

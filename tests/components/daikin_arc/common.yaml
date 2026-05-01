@@ -1,0 +1,4 @@
+climate:
+  - platform: daikin_arc
+    name: Daikin AC
+    receiver_id: rcvr

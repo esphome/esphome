@@ -13,11 +13,10 @@ namespace xiaomi_lywsd03mmc {
 class XiaomiLYWSD03MMC : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
-  void set_bindkey(const std::string &bindkey);
+  void set_bindkey(const char *bindkey);
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }

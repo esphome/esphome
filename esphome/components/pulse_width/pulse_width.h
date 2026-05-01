@@ -32,7 +32,6 @@ class PulseWidthSensor : public sensor::Sensor, public PollingComponent {
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void setup() override { this->store_.setup(this->pin_); }
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void update() override;
 
  protected:

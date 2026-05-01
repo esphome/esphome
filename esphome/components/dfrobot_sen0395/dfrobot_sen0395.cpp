@@ -104,8 +104,9 @@ int8_t CircularCommandQueue::enqueue(std::unique_ptr<Command> cmd) {
   if (this->is_full()) {
     ESP_LOGE(TAG, "Command queue is full");
     return -1;
-  } else if (this->is_empty())
+  } else if (this->is_empty()) {
     front_++;
+  }
   rear_ = (rear_ + 1) % COMMAND_QUEUE_SIZE;
   commands_[rear_] = std::move(cmd);  // Transfer ownership using std::move
   return 1;
@@ -118,8 +119,9 @@ std::unique_ptr<Command> CircularCommandQueue::dequeue() {
   if (front_ == rear_) {
     front_ = -1;
     rear_ = -1;
-  } else
+  } else {
     front_ = (front_ + 1) % COMMAND_QUEUE_SIZE;
+  }
 
   return dequeued_cmd;
 }

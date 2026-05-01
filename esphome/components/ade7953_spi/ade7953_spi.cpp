@@ -1,11 +1,14 @@
 #include "ade7953_spi.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ade7953_spi {
 
 static const char *const TAG = "ade7953";
+
+// Datasheet requires at least 1.2µs after clearing CONFIG LOCK_BIT before raising CS
+constexpr uint8_t CONFIG_LOCK_SETTLE_US = 2;
 
 void AdE7953Spi::setup() {
   this->spi_setup();
@@ -32,6 +35,9 @@ bool AdE7953Spi::ade_write_16(uint16_t reg, uint16_t value) {
   this->write_byte16(reg);
   this->transfer_byte(0);
   this->write_byte16(value);
+  if (reg == ade7953_base::CONFIG_16) {
+    delayMicroseconds(CONFIG_LOCK_SETTLE_US);
+  }
   this->disable();
   return false;
 }
@@ -60,7 +66,7 @@ bool AdE7953Spi::ade_read_16(uint16_t reg, uint16_t *value) {
   this->write_byte16(reg);
   this->transfer_byte(0x80);
   uint8_t recv[2];
-  this->read_array(recv, 4);
+  this->read_array(recv, 2);
   *value = encode_uint16(recv[0], recv[1]);
   this->disable();
   return false;

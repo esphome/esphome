@@ -12,8 +12,10 @@ using namespace esphome::cover;
 
 void Am43Component::dump_config() {
   LOG_COVER("", "AM43 Cover", this);
-  ESP_LOGCONFIG(TAG, "  Device Pin: %d", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Invert Position: %d", (int) this->invert_position_);
+  ESP_LOGCONFIG(TAG,
+                "  Device Pin: %d\n"
+                "  Invert Position: %d",
+                this->pin_, (int) this->invert_position_);
 }
 
 void Am43Component::setup() {
@@ -61,8 +63,9 @@ void Am43Component::control(const CoverCall &call) {
       ESP_LOGW(TAG, "[%s] Error writing stop command to device, error = %d", this->get_name().c_str(), status);
     }
   }
-  if (call.get_position().has_value()) {
-    auto pos = *call.get_position();
+  auto opt_pos = call.get_position();
+  if (opt_pos.has_value()) {
+    auto pos = *opt_pos;
 
     if (this->invert_position_)
       pos = 1 - pos;

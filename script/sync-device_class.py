@@ -10,6 +10,7 @@ from homeassistant.components.event import EventDeviceClass
 from homeassistant.components.number import NumberDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.components.switch import SwitchDeviceClass
+from homeassistant.components.update import UpdateDeviceClass
 from homeassistant.components.valve import ValveDeviceClass
 
 # pylint: enable=import-error
@@ -27,6 +28,7 @@ DOMAINS = {
     "number": NumberDeviceClass,
     "sensor": SensorDeviceClass,
     "switch": SwitchDeviceClass,
+    "update": UpdateDeviceClass,
     "valve": ValveDeviceClass,
 }
 

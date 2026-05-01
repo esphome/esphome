@@ -1,6 +1,9 @@
 substitutions:
   pin: GPIO2
-  rmt_channel: "2"
+  clock_resolution: "2000000"
+  filter_symbols: "2"
+  receive_symbols: "4"
+  rmt_symbols: "64"
 
 packages:
   common: !include esp32-common.yaml

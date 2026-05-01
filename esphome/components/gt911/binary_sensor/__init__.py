@@ -1,10 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_INDEX
 
 from .. import gt911_ns
-from ..touchscreen import GT911Touchscreen, GT911ButtonListener
+from ..touchscreen import GT911ButtonListener, GT911Touchscreen
 
 CONF_GT911_ID = "gt911_id"
 

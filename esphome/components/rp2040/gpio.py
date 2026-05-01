@@ -1,6 +1,8 @@
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ANALOG,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
@@ -10,10 +12,8 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
-    CONF_ANALOG,
 )
 from esphome.core import CORE
-from esphome import pins
 
 from . import boards
 from .const import KEY_BOARD, KEY_RP2040, rp2040_ns
@@ -41,8 +41,10 @@ def _translate_pin(value):
             "This variable only supports pin numbers, not full pin schemas "
             "(with inverted and mode)."
         )
-    if isinstance(value, int):
+    if isinstance(value, int) and not isinstance(value, bool):
         return value
+    if not isinstance(value, str):
+        raise cv.Invalid(f"Invalid pin number: {value}")
     try:
         return int(value)
     except ValueError:
@@ -52,19 +54,29 @@ def _translate_pin(value):
     return _lookup_pin(value)
 
 
+def _board_max_virtual_pin(board):
+    """Get the max CYW43 virtual pin for this board, or None if no virtual pins."""
+    return boards.BOARDS.get(board, {}).get("max_virtual_pin")
+
+
 def validate_gpio_pin(value):
     value = _translate_pin(value)
     board = CORE.data[KEY_RP2040][KEY_BOARD]
-    if board == "rpipicow" and value == 32:
-        return value  # Special case for Pico-w LED pin
-    if value < 0 or value > 29:
-        raise cv.Invalid(f"RP2040: Invalid pin number: {value}")
+    max_virtual = _board_max_virtual_pin(board)
+    if max_virtual is not None and boards.CYW43_GPIO_OFFSET <= value <= max_virtual:
+        return value
+    max_pin = boards.BOARDS.get(board, {}).get("max_pin", boards.DEFAULT_MAX_PIN)
+    if value < 0 or value > max_pin:
+        raise cv.Invalid(f"Invalid pin number: {value} (max {max_pin} for this board)")
     return value
 
 
 def validate_supports(value):
     board = CORE.data[KEY_RP2040][KEY_BOARD]
-    if board != "rpipicow" or value[CONF_NUMBER] != 32:
+    if (
+        _board_max_virtual_pin(board) is None
+        or value[CONF_NUMBER] < boards.CYW43_GPIO_OFFSET
+    ):
         return value
     mode = value[CONF_MODE]
     is_input = mode[CONF_INPUT]
@@ -73,7 +85,7 @@ def validate_supports(value):
     is_pullup = mode[CONF_PULLUP]
     is_pulldown = mode[CONF_PULLDOWN]
     if not is_output or is_input or is_open_drain or is_pullup or is_pulldown:
-        raise cv.Invalid("Only output mode is supported for Pico-w LED pin")
+        raise cv.Invalid("Only output mode is supported for CYW43 virtual pins")
     return value
 
 
@@ -92,6 +104,9 @@ async def rp2040_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
     cg.add(var.set_pin(num))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
+    # Only set if true to avoid bloating setup() function
+    # (inverted bit in pin_flags_ bitfield is zero-initialized to false)
+    if config[CONF_INVERTED]:
+        cg.add(var.set_inverted(True))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
     return var

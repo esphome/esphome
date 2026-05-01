@@ -1,0 +1,3 @@
+button:
+  - platform: factory_reset
+    name: Reset to Factory Default Settings

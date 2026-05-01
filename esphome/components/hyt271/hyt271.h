@@ -16,8 +16,6 @@ class HYT271Component : public PollingComponent, public i2c::I2CDevice {
   /// Update the sensor values (temperature+humidity).
   void update() override;
 
-  float get_setup_priority() const override;
-
  protected:
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};

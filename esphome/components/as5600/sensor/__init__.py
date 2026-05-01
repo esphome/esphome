@@ -1,29 +1,25 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    STATE_CLASS_MEASUREMENT,
-    ICON_MAGNET,
-    ICON_ROTATE_RIGHT,
     CONF_GAIN,
-    ENTITY_CATEGORY_DIAGNOSTIC,
+    CONF_ID,
     CONF_MAGNITUDE,
     CONF_STATUS,
-    CONF_POSITION,
-    CONF_ANGLE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_MAGNET,
+    ICON_ROTATE_RIGHT,
+    STATE_CLASS_MEASUREMENT,
 )
-from .. import as5600_ns, AS5600Component
+
+from .. import AS5600Component, as5600_ns
 
 CODEOWNERS = ["@ammmze"]
 DEPENDENCIES = ["as5600"]
 
 AS5600Sensor = as5600_ns.class_("AS5600Sensor", sensor.Sensor, cg.PollingComponent)
 
-CONF_RAW_ANGLE = "raw_angle"
 CONF_RAW_POSITION = "raw_position"
-CONF_WATCHDOG = "watchdog"
-CONF_POWER_MODE = "power_mode"
 CONF_SLOW_FILTER = "slow_filter"
 CONF_FAST_FILTER = "fast_filter"
 CONF_PWM_FREQUENCY = "pwm_frequency"
@@ -89,18 +85,6 @@ async def to_code(config):
 
     if out_of_range_mode_config := config.get(CONF_OUT_OF_RANGE_MODE):
         cg.add(var.set_out_of_range_mode(out_of_range_mode_config))
-
-    if angle_config := config.get(CONF_ANGLE):
-        sens = await sensor.new_sensor(angle_config)
-        cg.add(var.set_angle_sensor(sens))
-
-    if raw_angle_config := config.get(CONF_RAW_ANGLE):
-        sens = await sensor.new_sensor(raw_angle_config)
-        cg.add(var.set_raw_angle_sensor(sens))
-
-    if position_config := config.get(CONF_POSITION):
-        sens = await sensor.new_sensor(position_config)
-        cg.add(var.set_position_sensor(sens))
 
     if raw_position_config := config.get(CONF_RAW_POSITION):
         sens = await sensor.new_sensor(raw_position_config)

@@ -1,16 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import (
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    ICON_FAN,
-    ICON_RADIATOR,
-)
-from ..climate import (
-    CONF_HAIER_ID,
-    HonClimate,
-)
+import esphome.config_validation as cv
+from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, ICON_FAN, ICON_RADIATOR
 
+from ..climate import CONF_HAIER_ID, HonClimate
+
+CODEOWNERS = ["@paveldn"]
 BinarySensorTypeEnum = HonClimate.enum("SubBinarySensorType", True)
 
 # Haier sensors
@@ -55,7 +50,7 @@ SENSOR_TYPES = {
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_HAIER_ID): cv.use_id(HonClimate),
+        cv.GenerateID(CONF_HAIER_ID): cv.use_id(HonClimate),
     }
 ).extend({cv.Optional(type): schema for type, schema in SENSOR_TYPES.items()})
 
@@ -63,8 +58,8 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_HAIER_ID])
 
-    for type, _ in SENSOR_TYPES.items():
-        if conf := config.get(type):
+    for type_ in SENSOR_TYPES:
+        if conf := config.get(type_):
             sens = await binary_sensor.new_binary_sensor(conf)
-            binary_sensor_type = getattr(BinarySensorTypeEnum, type.upper())
+            binary_sensor_type = getattr(BinarySensorTypeEnum, type_.upper())
             cg.add(paren.set_sub_binary_sensor(binary_sensor_type, sens))

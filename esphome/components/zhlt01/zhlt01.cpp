@@ -13,7 +13,7 @@ void ZHLT01Climate::transmit_state() {
   ir_message[1] = 0x00;  // Timer off
 
   // Byte 3 : Turbo mode
-  if (this->preset.value() == climate::CLIMATE_PRESET_BOOST) {
+  if (this->preset.value_or(climate::CLIMATE_PRESET_NONE) == climate::CLIMATE_PRESET_BOOST) {
     ir_message[3] = AC1_FAN_TURBO;
   }
 
@@ -47,7 +47,7 @@ void ZHLT01Climate::transmit_state() {
   }
 
   // -- Fan
-  switch (this->preset.value()) {
+  switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
     case climate::CLIMATE_PRESET_BOOST:
       ir_message[7] |= AC1_FAN3;
       break;
@@ -55,7 +55,7 @@ void ZHLT01Climate::transmit_state() {
       ir_message[7] |= AC1_FAN_SILENT;
       break;
     default:
-      switch (this->fan_mode.value()) {
+      switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
         case climate::CLIMATE_FAN_LOW:
           ir_message[7] |= AC1_FAN1;
           break;

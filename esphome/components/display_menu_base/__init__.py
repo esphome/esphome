@@ -1,23 +1,27 @@
 import re
-import esphome.codegen as cg
-import esphome.config_validation as cv
+
 from esphome import automation, core
+from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
+from esphome.components.number import Number
+from esphome.components.select import Select
+from esphome.components.switch import Switch
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    CONF_TYPE,
-    CONF_TRIGGER_ID,
-    CONF_ON_VALUE,
+    CONF_ACTIVE,
     CONF_COMMAND,
     CONF_CUSTOM,
-    CONF_NUMBER,
     CONF_FORMAT,
+    CONF_ID,
+    CONF_ITEMS,
     CONF_MODE,
-    CONF_ACTIVE,
+    CONF_NUMBER,
+    CONF_ON_VALUE,
+    CONF_SWITCH,
+    CONF_TEXT,
+    CONF_TRIGGER_ID,
+    CONF_TYPE,
 )
-from esphome.automation import maybe_simple_id
-from esphome.components.select import Select
-from esphome.components.number import Number
-from esphome.components.switch import Switch
 
 CODEOWNERS = ["@numo68"]
 
@@ -29,10 +33,7 @@ CONF_JOYSTICK = "joystick"
 CONF_LABEL = "label"
 CONF_MENU = "menu"
 CONF_BACK = "back"
-CONF_TEXT = "text"
 CONF_SELECT = "select"
-CONF_SWITCH = "switch"
-CONF_ITEMS = "items"
 CONF_ON_TEXT = "on_text"
 CONF_OFF_TEXT = "off_text"
 CONF_VALUE_LAMBDA = "value_lambda"
@@ -66,8 +67,6 @@ ShowMainAction = display_menu_base_ns.class_("ShowMainAction", automation.Action
 IsActiveCondition = display_menu_base_ns.class_(
     "IsActiveCondition", automation.Condition
 )
-
-MULTI_CONF = True
 
 MenuItemType = display_menu_base_ns.enum("MenuItemType")
 
@@ -120,7 +119,7 @@ DisplayMenuOnPrevTrigger = display_menu_base_ns.class_(
 
 
 def validate_format(format):
-    if re.search(r"^%([+-])*(\d+)*(\.\d+)*[fg]$", format) is None:
+    if re.search(r"^%[+-]*(\d+)?(\.\d+)?[fg]$", format) is None:
         raise cv.Invalid(
             f"{CONF_FORMAT}: has to specify a printf-like format string specifying exactly one f or g type conversion, '{format}' provided"
         )
@@ -295,50 +294,67 @@ MENU_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("display_menu.up", UpAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.up", UpAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_up_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("display_menu.down", DownAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.down", DownAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_down_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("display_menu.left", LeftAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.left", LeftAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_left_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("display_menu.right", RightAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.right", RightAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_right_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("display_menu.enter", EnterAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.enter", EnterAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_enter_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("display_menu.show", ShowAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.show", ShowAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_show_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("display_menu.hide", HideAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.hide", HideAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_hide_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
-    "display_menu.show_main", ShowMainAction, MENU_ACTION_SCHEMA
+    "display_menu.show_main",
+    ShowMainAction,
+    MENU_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def menu_show_main_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

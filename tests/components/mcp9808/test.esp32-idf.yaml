@@ -1,8 +1,4 @@
-i2c:
-  - id: i2c_mcp9808
-    scl: 16
-    sda: 17
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
-sensor:
-  - platform: mcp9808
-    name: MCP9808 Temperature
+<<: !include common.yaml

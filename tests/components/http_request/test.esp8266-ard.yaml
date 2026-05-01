@@ -1,0 +1,6 @@
+<<: !include common.yaml
+
+http_request:
+  verify_ssl: false
+  tls_buffer_size_rx: 16384
+  tls_buffer_size_tx: 512

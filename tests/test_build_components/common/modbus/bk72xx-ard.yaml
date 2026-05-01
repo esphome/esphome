@@ -1,0 +1,12 @@
+# Common Modbus configuration for BK72XX Arduino tests
+
+packages:
+  uart: !include ../uart/bk72xx-ard.yaml
+
+substitutions:
+  flow_control_pin: P6
+
+modbus:
+  - id: modbus_bus
+    uart_id: uart_bus
+    flow_control_pin: ${flow_control_pin}

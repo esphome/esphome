@@ -1,24 +1,25 @@
 #pragma once
-#include "esphome/core/defines.h"
 #ifdef USE_LIBRETINY
-
-#include "ota_component.h"
 #include "ota_backend.h"
 
-namespace esphome {
-namespace ota {
+#include "esphome/core/defines.h"
 
-class ArduinoLibreTinyOTABackend : public OTABackend {
+namespace esphome::ota {
+
+class ArduinoLibreTinyOTABackend final {
  public:
-  OTAResponseTypes begin(size_t image_size) override;
-  void set_update_md5(const char *md5) override;
-  OTAResponseTypes write(uint8_t *data, size_t len) override;
-  OTAResponseTypes end() override;
-  void abort() override;
-  bool supports_compression() override { return false; }
+  OTAResponseTypes begin(size_t image_size);
+  void set_update_md5(const char *md5);
+  OTAResponseTypes write(uint8_t *data, size_t len);
+  OTAResponseTypes end();
+  void abort();
+  bool supports_compression() { return false; }
+
+ private:
+  bool md5_set_{false};
 };
 
-}  // namespace ota
-}  // namespace esphome
+std::unique_ptr<ArduinoLibreTinyOTABackend> make_ota_backend();
 
+}  // namespace esphome::ota
 #endif  // USE_LIBRETINY

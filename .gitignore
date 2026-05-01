@@ -75,6 +75,9 @@ cov.xml
 # pyenv
 .python-version
 
+# asdf
+.tool-versions
+
 # Environments
 .env
 .venv
@@ -87,6 +90,10 @@ venv-*/
 
 # mypy
 .mypy_cache/
+
+# nix
+/default.nix
+/shell.nix
 
 .pioenvs
 .piolibdeps
@@ -138,3 +145,7 @@ sdkconfig.*
 .tests/
 
 /components
+/managed_components
+/dependencies.lock
+
+api-docs/

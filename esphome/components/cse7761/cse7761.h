@@ -11,10 +11,8 @@ struct CSE7761DataStruct {
   uint32_t frequency = 0;
   uint32_t voltage_rms = 0;
   uint32_t current_rms[2] = {0};
-  uint32_t energy[2] = {0};
-  uint32_t active_power[2] = {0};
+  int32_t active_power[2] = {0};
   uint16_t coefficient[8] = {0};
-  uint8_t energy_update = 0;
   bool ready = false;
 };
 
@@ -28,7 +26,6 @@ class CSE7761Component : public PollingComponent, public uart::UARTDevice {
   void set_current_2_sensor(sensor::Sensor *current_sensor_2) { current_sensor_2_ = current_sensor_2; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
  protected:

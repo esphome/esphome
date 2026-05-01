@@ -1,12 +1,12 @@
 #pragma once
-
+#include "esphome/core/defines.h"
+#ifdef USE_MQTT
 #include <string>
 #include <map>
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 enum class MQTTClientDisconnectReason : int8_t {
   TCP_DISCONNECTED = 0,
@@ -16,7 +16,8 @@ enum class MQTTClientDisconnectReason : int8_t {
   MQTT_MALFORMED_CREDENTIALS = 4,
   MQTT_NOT_AUTHORIZED = 5,
   ESP8266_NOT_ENOUGH_SPACE = 6,
-  TLS_BAD_FINGERPRINT = 7
+  TLS_BAD_FINGERPRINT = 7,
+  DNS_RESOLVE_ERROR = 8
 };
 
 /// internal struct for MQTT messages.
@@ -65,5 +66,5 @@ class MQTTBackend {
   virtual void loop() {}
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
+#endif

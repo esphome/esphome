@@ -1,0 +1,4 @@
+sensor:
+  - platform: hrxl_maxsonar_wr
+    id: hrxl_maxsonar_wr_sensor
+    name: Rainwater Tank Level

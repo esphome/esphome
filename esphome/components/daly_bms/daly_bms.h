@@ -54,6 +54,8 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   SUB_SENSOR(cell_14_voltage)
   SUB_SENSOR(cell_15_voltage)
   SUB_SENSOR(cell_16_voltage)
+  SUB_SENSOR(cell_17_voltage)
+  SUB_SENSOR(cell_18_voltage)
 #endif
 
 #ifdef USE_TEXT_SENSOR
@@ -70,7 +72,6 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   void update() override;
   void loop() override;
 
-  float get_setup_priority() const override;
   void set_address(uint8_t address) { this->addr_ = address; }
 
  protected:

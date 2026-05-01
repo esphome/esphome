@@ -15,7 +15,6 @@ static const uint8_t BP1658CJ_ADDR_START_5CH = 0x30;
 static const uint8_t BP1658CJ_DELAY = 2;
 
 void BP1658CJ::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up BP1658CJ Output Component...");
   this->data_pin_->setup();
   this->data_pin_->digital_write(false);
   this->clock_pin_->setup();
@@ -23,11 +22,13 @@ void BP1658CJ::setup() {
   this->pwm_amounts_.resize(5, 0);
 }
 void BP1658CJ::dump_config() {
-  ESP_LOGCONFIG(TAG, "BP1658CJ:");
+  ESP_LOGCONFIG(TAG,
+                "BP1658CJ:\n"
+                "  Color Channels Max Power: %u\n"
+                "  White Channels Max Power: %u",
+                this->max_power_color_channels_, this->max_power_white_channels_);
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
-  ESP_LOGCONFIG(TAG, "  Color Channels Max Power: %u", this->max_power_color_channels_);
-  ESP_LOGCONFIG(TAG, "  White Channels Max Power: %u", this->max_power_white_channels_);
 }
 
 void BP1658CJ::loop() {

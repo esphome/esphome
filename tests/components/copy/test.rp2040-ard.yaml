@@ -1,0 +1,5 @@
+substitutions:
+  pwm_platform: rp2040_pwm
+  pin: GPIO12
+
+<<: !include common.yaml

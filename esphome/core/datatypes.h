@@ -11,7 +11,7 @@ namespace internal {
 /// Wrapper class for memory using big endian data layout, transparently converting it to native order.
 template<typename T> class BigEndianLayout {
  public:
-  constexpr14 operator T() { return convert_big_endian(val_); }
+  constexpr operator T() { return convert_big_endian(val_); }
 
  private:
   T val_;
@@ -20,7 +20,7 @@ template<typename T> class BigEndianLayout {
 /// Wrapper class for memory using big endian data layout, transparently converting it to native order.
 template<typename T> class LittleEndianLayout {
  public:
-  constexpr14 operator T() { return convert_little_endian(val_); }
+  constexpr operator T() { return convert_little_endian(val_); }
 
  private:
   T val_;

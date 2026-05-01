@@ -1,8 +1,10 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE
+import esphome.config_validation as cv
+from esphome.const import CONF_CONDITION, CONF_ID, CONF_LAMBDA, CONF_STATE
+from esphome.cpp_generator import LambdaExpression
+
 from .. import template_ns
 
 TemplateBinarySensor = template_ns.class_(
@@ -13,7 +15,10 @@ CONFIG_SCHEMA = (
     binary_sensor.binary_sensor_schema(TemplateBinarySensor)
     .extend(
         {
-            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+            cv.Exclusive(CONF_LAMBDA, CONF_CONDITION): cv.returning_lambda,
+            cv.Exclusive(
+                CONF_CONDITION, CONF_CONDITION
+            ): automation.validate_potentially_and_condition,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -24,9 +29,23 @@ async def to_code(config):
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
 
-    if CONF_LAMBDA in config:
+    if lamb := config.get(CONF_LAMBDA):
         template_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [], return_type=cg.optional.template(bool)
+            lamb, [], return_type=cg.optional.template(bool)
+        )
+        cg.add(var.set_template(template_))
+    if condition := config.get(CONF_CONDITION):
+        condition = await automation.build_condition(
+            condition, cg.TemplateArguments(), []
+        )
+        # Generate a stateless lambda that calls condition.check()
+        # capture="" is safe because condition is a global variable in generated C++ code
+        # and doesn't need to be captured. This allows implicit conversion to function pointer.
+        template_ = LambdaExpression(
+            f"return {condition.check()};",
+            [],
+            return_type=cg.optional.template(bool),
+            capture="",
         )
         cg.add(var.set_template(template_))
 
@@ -40,10 +59,11 @@ async def to_code(config):
             cv.Required(CONF_STATE): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 async def binary_sensor_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, bool)
+    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
     cg.add(var.set_state(template_))
     return var

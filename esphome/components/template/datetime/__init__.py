@@ -1,23 +1,22 @@
 from esphome import automation
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import datetime
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_INITIAL_VALUE,
-    CONF_LAMBDA,
-    CONF_OPTIMISTIC,
-    CONF_RESTORE_VALUE,
-    CONF_SET_ACTION,
     CONF_DAY,
     CONF_HOUR,
+    CONF_INITIAL_VALUE,
+    CONF_LAMBDA,
     CONF_MINUTE,
     CONF_MONTH,
+    CONF_OPTIMISTIC,
+    CONF_RESTORE_VALUE,
     CONF_SECOND,
+    CONF_SET_ACTION,
     CONF_TYPE,
     CONF_YEAR,
 )
 
-from esphome.core import coroutine_with_priority
 from .. import template_ns
 
 CODEOWNERS = ["@rfdarter"]
@@ -45,9 +44,8 @@ def validate(config):
             raise cv.Invalid("initial_value cannot be used with lambda")
         if CONF_RESTORE_VALUE in config:
             raise cv.Invalid("restore_value cannot be used with lambda")
-    else:
-        if CONF_RESTORE_VALUE not in config:
-            config[CONF_RESTORE_VALUE] = False
+    elif CONF_RESTORE_VALUE not in config:
+        config[CONF_RESTORE_VALUE] = False
 
     if not config[CONF_OPTIMISTIC] and CONF_SET_ACTION not in config:
         raise cv.Invalid(
@@ -100,7 +98,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(-100.0)
 async def to_code(config):
     var = await datetime.new_datetime(config)
 

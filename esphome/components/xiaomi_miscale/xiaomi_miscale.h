@@ -23,7 +23,6 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_weight(sensor::Sensor *weight) { weight_ = weight; }
   void set_impedance(sensor::Sensor *impedance) { impedance_ = impedance; }
   void set_clear_impedance(bool clear_impedance) { clear_impedance_ = clear_impedance; }
@@ -38,7 +37,7 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   bool parse_message_(const std::vector<uint8_t> &message, ParseResult &result);
   bool parse_message_v1_(const std::vector<uint8_t> &message, ParseResult &result);
   bool parse_message_v2_(const std::vector<uint8_t> &message, ParseResult &result);
-  bool report_results_(const optional<ParseResult> &result, const std::string &address);
+  bool report_results_(const optional<ParseResult> &result, const char *address);
 };
 
 }  // namespace xiaomi_miscale

@@ -1,9 +1,9 @@
 #pragma once
 
+#include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/components/sensor/sensor.h"
-#include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
 namespace ags10 {
@@ -30,8 +30,6 @@ class AGS10Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
   void dump_config() override;
-
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   /**
    * Modifies target address of AGS10.
@@ -101,23 +99,13 @@ class AGS10Component : public PollingComponent, public i2c::I2CDevice {
    * Read, checks and returns data from the sensor.
    */
   template<size_t N> optional<std::array<uint8_t, N>> read_and_check_(uint8_t a_register);
-
-  /**
-   * Calculates CRC8 value.
-   *
-   * CRC8 calculation, initial value: 0xFF, polynomial: 0x31 (x8+ x5+ x4+1)
-   *
-   * @param[in] dat the data buffer
-   * @param num number of bytes in the buffer
-   */
-  template<size_t N> uint8_t calc_crc8_(std::array<uint8_t, N> dat, uint8_t num);
 };
 
 template<typename... Ts> class AGS10NewI2cAddressAction : public Action<Ts...>, public Parented<AGS10Component> {
  public:
   TEMPLATABLE_VALUE(uint8_t, new_address)
 
-  void play(Ts... x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
 };
 
 enum AGS10SetZeroPointActionMode {
@@ -134,7 +122,7 @@ template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...>, p
   TEMPLATABLE_VALUE(uint16_t, value)
   TEMPLATABLE_VALUE(AGS10SetZeroPointActionMode, mode)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     switch (this->mode_.value(x...)) {
       case FACTORY_DEFAULT:
         this->parent_->set_zero_point_with_factory_defaults();

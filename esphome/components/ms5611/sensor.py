@@ -1,15 +1,15 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
+    ICON_GAUGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    ICON_GAUGE,
     UNIT_HECTOPASCAL,
 )
 
@@ -24,13 +24,13 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MS5611Component),
-            cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Required(CONF_PRESSURE): sensor.sensor_schema(
+            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_HECTOPASCAL,
                 icon=ICON_GAUGE,
                 accuracy_decimals=1,
@@ -49,10 +49,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+    if temperature := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(temperature)
         cg.add(var.set_temperature_sensor(sens))
 
-    if CONF_PRESSURE in config:
-        sens = await sensor.new_sensor(config[CONF_PRESSURE])
+    if pressure := config.get(CONF_PRESSURE):
+        sens = await sensor.new_sensor(pressure)
         cg.add(var.set_pressure_sensor(sens))

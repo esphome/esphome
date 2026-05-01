@@ -5,8 +5,10 @@ from esphome.const import (
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_SPEED,
+    STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
+
 from . import CONF_MR24HPC1_ID, MR24HPC1Component
 
 CONF_CUSTOM_PRESENCE_OF_DETECTION = "custom_presence_of_detection"
@@ -25,6 +27,7 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_METER,
             accuracy_decimals=2,  # Specify the number of decimal places
             icon="mdi:signal-distance-variant",
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_MOVEMENT_SIGNS): sensor.sensor_schema(
             icon="mdi:human-greeting-variant",
@@ -33,6 +36,7 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_METER,
             accuracy_decimals=2,
             icon="mdi:signal-distance-variant",
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_CUSTOM_SPATIAL_STATIC_VALUE): sensor.sensor_schema(
             device_class=DEVICE_CLASS_ENERGY,
@@ -47,6 +51,7 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_SPEED,
             accuracy_decimals=2,
             icon="mdi:run-fast",
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_CUSTOM_MODE_NUM): sensor.sensor_schema(
             icon="mdi:counter",

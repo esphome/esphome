@@ -11,8 +11,7 @@
 #include "esphome/core/log.h"
 #include "uart_component.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 class RP2040UartComponent : public UARTComponent, public Component {
  public:
@@ -25,8 +24,8 @@ class RP2040UartComponent : public UARTComponent, public Component {
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
 
-  int available() override;
-  void flush() override;
+  size_t available() override;
+  UARTFlushResult flush() override;
 
   uint16_t get_config();
 
@@ -40,7 +39,5 @@ class RP2040UartComponent : public UARTComponent, public Component {
   HardwareSerial *serial_{nullptr};
 };
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_RP2040

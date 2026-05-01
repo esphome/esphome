@@ -29,7 +29,7 @@ enum MAX6956GPIORegisters {
   MAX6956_PORT_CONFIG_START = 0x09,   // Port Configuration P7, P6, P5, P4
   MAX6956_CURRENT_START = 0x12,       // Current054
   MAX6956_1PORT_VALUE_START = 0x20,   // Port 0 only (virtual port, no action)
-  MAX6956_8PORTS_VALUE_START = 0x44,  // 8 ports 4–11 (data bits D0–D7)
+  MAX6956_8PORTS_VALUE_START = 0x44,  // 8 ports 4-11 (data bits D0-D7)
 };
 
 enum MAX6956GPIOFlag { FLAG_LED = 0x20 };
@@ -63,8 +63,8 @@ class MAX6956 : public Component, public i2c::I2CDevice {
   bool read_reg_(uint8_t reg, uint8_t *value);
   // write a value to a given register
   bool write_reg_(uint8_t reg, uint8_t value);
-  max6956::MAX6956CURRENTMODE brightness_mode_;
-  uint8_t global_brightness_;
+  max6956::MAX6956CURRENTMODE brightness_mode_{};
+  uint8_t global_brightness_{0};
 
  private:
   int8_t prev_bright_[28] = {0};
@@ -76,12 +76,14 @@ class MAX6956GPIOPin : public GPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_parent(MAX6956 *parent) { parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { flags_ = flags; }
+
+  gpio::Flags get_flags() const override { return this->flags_; }
 
  protected:
   MAX6956 *parent_;

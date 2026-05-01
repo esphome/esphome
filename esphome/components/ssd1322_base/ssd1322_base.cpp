@@ -1,6 +1,6 @@
 #include "ssd1322_base.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ssd1322_base {
@@ -169,11 +169,17 @@ void HOT SSD1322::draw_absolute_pixel_internal(int x, int y, Color color) {
   // ensure 'color4' is valid (only 4 bits aka 1 nibble) and shift the bits left when necessary
   color4 = (color4 & SSD1322_COLORMASK) << shift;
   // first mask off the nibble we must change...
-  this->buffer_[pos] &= (~SSD1322_COLORMASK >> shift);
+  this->buffer_[pos] &= (static_cast<uint8_t>(~SSD1322_COLORMASK) >> shift);
   // ...then lay the new nibble back on top. done!
   this->buffer_[pos] |= color4;
 }
 void SSD1322::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   const uint32_t color4 = display::ColorUtil::color_to_grayscale4(color);
   uint8_t fill = (color4 & SSD1322_COLORMASK) | ((color4 & SSD1322_COLORMASK) << SSD1322_COLORSHIFT);
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)

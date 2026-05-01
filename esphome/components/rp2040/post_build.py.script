@@ -1,0 +1,23 @@
+import shutil
+
+# pylint: disable=E0602
+Import("env")  # noqa
+
+
+def rp2040_copy_factory_uf2(source, target, env):
+    firmware_name = env.subst("$BUILD_DIR/${PROGNAME}.uf2")
+    new_file_name = env.subst("$BUILD_DIR/${PROGNAME}.factory.uf2")
+
+    shutil.copyfile(firmware_name, new_file_name)
+
+
+def rp2040_copy_ota_bin(source, target, env):
+    firmware_name = env.subst("$BUILD_DIR/${PROGNAME}.bin")
+    new_file_name = env.subst("$BUILD_DIR/${PROGNAME}.ota.bin")
+
+    shutil.copyfile(firmware_name, new_file_name)
+
+
+# pylint: disable=E0602
+env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", rp2040_copy_factory_uf2)  # noqa
+env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", rp2040_copy_ota_bin)  # noqa

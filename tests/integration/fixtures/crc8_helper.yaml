@@ -1,0 +1,17 @@
+esphome:
+  name: crc8-helper-test
+
+host:
+
+api:
+
+logger:
+  level: INFO
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [crc8_test_component]
+
+crc8_test_component:

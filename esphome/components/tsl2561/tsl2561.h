@@ -67,7 +67,6 @@ class TSL2561Sensor : public sensor::Sensor, public PollingComponent, public i2c
   void setup() override;
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override;
 
   bool tsl2561_read_byte(uint8_t a_register, uint8_t *value);
   bool tsl2561_read_uint(uint8_t a_register, uint16_t *value);

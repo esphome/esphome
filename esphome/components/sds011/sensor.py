@@ -1,17 +1,17 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_PM_10_0,
     CONF_PM_2_5,
+    CONF_PM_10_0,
     CONF_RX_ONLY,
     CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_PM25,
     DEVICE_CLASS_PM10,
+    DEVICE_CLASS_PM25,
+    ICON_CHEMICAL_WEAPON,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
-    ICON_CHEMICAL_WEAPON,
 )
 
 DEPENDENCIES = ["uart"]
@@ -64,12 +64,15 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    # Pop update_interval before register_component so it doesn't generate
+    # a set_update_interval call — sds011 handles this via set_update_interval_min
+    update_interval = config.pop(CONF_UPDATE_INTERVAL, None)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_UPDATE_INTERVAL in config:
-        cg.add(var.set_update_interval_min(config[CONF_UPDATE_INTERVAL]))
+    if update_interval is not None:
+        cg.add(var.set_update_interval_min(update_interval))
     cg.add(var.set_rx_mode_only(config[CONF_RX_ONLY]))
 
     if CONF_PM_2_5 in config:

@@ -1,0 +1,8 @@
+sensor:
+  - platform: mcp9600
+    i2c_id: i2c_bus
+    thermocouple_type: K
+    hot_junction:
+      name: Thermocouple Temperature
+    cold_junction:
+      name: Ambient Temperature

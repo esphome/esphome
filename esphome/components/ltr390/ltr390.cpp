@@ -1,7 +1,7 @@
 #include "ltr390.h"
+#include <bitset>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
-#include <bitset>
 
 namespace esphome {
 namespace ltr390 {
@@ -19,6 +19,7 @@ static const uint8_t LTR390_MAIN_STATUS = 0x07;
 
 static const float GAINVALUES[5] = {1.0, 3.0, 6.0, 9.0, 18.0};
 static const float RESOLUTIONVALUE[6] = {4.0, 2.0, 1.0, 0.5, 0.25, 0.125};
+static const uint8_t RESOLUTION_BITS[6] = {20, 19, 18, 17, 16, 13};
 
 // Request fastest measurement rate - will be slowed by device if conversion rate is slower.
 static const float RESOLUTION_SETTING[6] = {0x00, 0x10, 0x20, 0x30, 0x40, 0x50};
@@ -44,6 +45,7 @@ optional<uint32_t> LTR390Component::read_sensor_data_(LTR390MODE mode) {
   uint8_t buffer[num_bytes];
 
   // Wait until data available
+  constexpr uint32_t max_wait_ms = 25;
   const uint32_t now = millis();
   while (true) {
     std::bitset<8> status = this->reg(LTR390_MAIN_STATUS).get();
@@ -51,12 +53,12 @@ optional<uint32_t> LTR390Component::read_sensor_data_(LTR390MODE mode) {
     if (available)
       break;
 
-    if (millis() - now > 100) {
+    if (millis() - now > max_wait_ms) {
       ESP_LOGW(TAG, "Sensor didn't return any data, aborting");
       return {};
     }
-    ESP_LOGD(TAG, "Waiting for data");
-    delay(2);
+    ESP_LOGV(TAG, "Waiting for data");
+    delay(1);
   }
 
   if (!this->read_bytes(MODEADDRESSES[mode], buffer, num_bytes)) {
@@ -74,7 +76,7 @@ void LTR390Component::read_als_() {
   uint32_t als = *val;
 
   if (this->light_sensor_ != nullptr) {
-    float lux = ((0.6 * als) / (GAINVALUES[this->gain_] * RESOLUTIONVALUE[this->res_])) * this->wfac_;
+    float lux = ((0.6 * als) / (GAINVALUES[this->gain_als_] * RESOLUTIONVALUE[this->res_als_])) * this->wfac_;
     this->light_sensor_->publish_state(lux);
   }
 
@@ -90,7 +92,12 @@ void LTR390Component::read_uvs_() {
   uint32_t uv = *val;
 
   if (this->uvi_sensor_ != nullptr) {
-    this->uvi_sensor_->publish_state((uv / this->sensitivity_) * this->wfac_);
+    // Set sensitivity by linearly scaling against known value in the datasheet
+    float gain_scale_uv = GAINVALUES[this->gain_uv_] / GAIN_MAX;
+    float intg_scale_uv = (RESOLUTIONVALUE[this->res_uv_] * 100) / INTG_MAX;
+    float sensitivity_uv = SENSITIVITY_MAX * gain_scale_uv * intg_scale_uv;
+
+    this->uvi_sensor_->publish_state((uv / sensitivity_uv) * this->wfac_);
   }
 
   if (this->uv_sensor_ != nullptr) {
@@ -98,38 +105,52 @@ void LTR390Component::read_uvs_() {
   }
 }
 
-void LTR390Component::read_mode_(int mode_index) {
-  // Set mode
-  LTR390MODE mode = std::get<0>(this->mode_funcs_[mode_index]);
-
+void LTR390Component::standby_() {
   std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
-  ctrl[LTR390_CTRL_MODE] = mode;
+  ctrl[LTR390_CTRL_EN] = false;
+  this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
+  this->reading_ = false;
+}
+
+void LTR390Component::read_mode_(LTR390MODE mode) {
+  // Set mode
+  std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
+  ctrl[LTR390_CTRL_MODE] = (mode == LTR390_MODE_UVS);
   ctrl[LTR390_CTRL_EN] = true;
   this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
 
-  // After the sensor integration time do the following
-  this->set_timeout(((uint32_t) RESOLUTIONVALUE[this->res_]) * 100 + LTR390_WAKEUP_TIME + LTR390_SETTLE_TIME,
-                    [this, mode_index]() {
-                      // Read from the sensor
-                      std::get<1>(this->mode_funcs_[mode_index])();
+  uint32_t int_time{0};
+  // Set gain, resolution and measurement rate
+  switch (mode) {
+    case LTR390_MODE_ALS:
+      this->reg(LTR390_GAIN) = this->gain_als_;
+      this->reg(LTR390_MEAS_RATE) = RESOLUTION_SETTING[this->res_als_];
+      int_time = ((uint32_t) RESOLUTIONVALUE[this->res_als_]) * 100;
+      break;
+    case LTR390_MODE_UVS:
+      this->reg(LTR390_GAIN) = this->gain_uv_;
+      this->reg(LTR390_MEAS_RATE) = RESOLUTION_SETTING[this->res_uv_];
+      int_time = ((uint32_t) RESOLUTIONVALUE[this->res_uv_]) * 100;
+      break;
+  }
 
-                      // If there are more modes to read then begin the next
-                      // otherwise stop
-                      if (mode_index + 1 < (int) this->mode_funcs_.size()) {
-                        this->read_mode_(mode_index + 1);
-                      } else {
-                        // put sensor in standby
-                        std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
-                        ctrl[LTR390_CTRL_EN] = false;
-                        this->reg(LTR390_MAIN_CTRL) = ctrl.to_ulong();
-                        this->reading_ = false;
-                      }
-                    });
+  // After the sensor integration time do the following
+  this->set_timeout(int_time + LTR390_WAKEUP_TIME + LTR390_SETTLE_TIME, [this, mode]() {
+    // Read from the sensor and continue to next mode or standby
+    if (mode == LTR390_MODE_ALS) {
+      this->read_als_();
+      if (this->enabled_modes_ & ENABLED_MODE_UVS) {
+        this->read_mode_(LTR390_MODE_UVS);
+        return;
+      }
+    } else {
+      this->read_uvs_();
+    }
+    this->standby_();
+  });
 }
 
 void LTR390Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ltr390...");
-
   // reset
   std::bitset<8> ctrl = this->reg(LTR390_MAIN_CTRL).get();
   ctrl[LTR390_CTRL_RST] = true;
@@ -151,38 +172,35 @@ void LTR390Component::setup() {
     return;
   }
 
-  // Set gain
-  this->reg(LTR390_GAIN) = gain_;
-
-  // Set resolution and measurement rate
-  this->reg(LTR390_MEAS_RATE) = RESOLUTION_SETTING[this->res_];
-
-  // Set sensitivity by linearly scaling against known value in the datasheet
-  float gain_scale = GAINVALUES[this->gain_] / GAIN_MAX;
-  float intg_scale = (RESOLUTIONVALUE[this->res_] * 100) / INTG_MAX;
-  this->sensitivity_ = SENSITIVITY_MAX * gain_scale * intg_scale;
-
   // Set sensor read state
   this->reading_ = false;
 
-  // If we need the light sensor then add to the list
+  // Determine which modes are enabled based on configured sensors
   if (this->light_sensor_ != nullptr || this->als_sensor_ != nullptr) {
-    this->mode_funcs_.emplace_back(LTR390_MODE_ALS, std::bind(&LTR390Component::read_als_, this));
+    this->enabled_modes_ |= ENABLED_MODE_ALS;
   }
-
-  // If we need the UV sensor then add to the list
   if (this->uvi_sensor_ != nullptr || this->uv_sensor_ != nullptr) {
-    this->mode_funcs_.emplace_back(LTR390_MODE_UVS, std::bind(&LTR390Component::read_uvs_, this));
+    this->enabled_modes_ |= ENABLED_MODE_UVS;
   }
 }
 
-void LTR390Component::dump_config() { LOG_I2C_DEVICE(this); }
+void LTR390Component::dump_config() {
+  LOG_I2C_DEVICE(this);
+  ESP_LOGCONFIG(TAG,
+                "  ALS Gain: X%.0f\n"
+                "  ALS Resolution: %u-bit\n"
+                "  UV Gain: X%.0f\n"
+                "  UV Resolution: %u-bit",
+                GAINVALUES[this->gain_als_], RESOLUTION_BITS[this->res_als_], GAINVALUES[this->gain_uv_],
+                RESOLUTION_BITS[this->res_uv_]);
+}
 
 void LTR390Component::update() {
-  if (!this->reading_ && !mode_funcs_.empty()) {
-    this->reading_ = true;
-    this->read_mode_(0);
-  }
+  if (this->reading_ || this->enabled_modes_ == 0)
+    return;
+
+  this->reading_ = true;
+  this->read_mode_((this->enabled_modes_ & ENABLED_MODE_ALS) ? LTR390_MODE_ALS : LTR390_MODE_UVS);
 }
 
 }  // namespace ltr390

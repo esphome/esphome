@@ -30,13 +30,12 @@ class StatusLEDLightOutput : public light::LightOutput, public Component {
   void dump_config() override;
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  float get_loop_priority() const override { return 50.0f; }
 
  protected:
   GPIOPin *pin_{nullptr};
   output::BinaryOutput *output_{nullptr};
   light::LightState *lightstate_{};
-  uint32_t last_app_state_{0xFFFF};
+  uint8_t last_app_state_{0xFF};
   void output_state_(bool state);
 };
 

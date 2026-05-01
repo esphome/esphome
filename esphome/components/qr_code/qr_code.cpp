@@ -9,8 +9,10 @@ namespace qr_code {
 static const char *const TAG = "qr_code";
 
 void QrCode::dump_config() {
-  ESP_LOGCONFIG(TAG, "QR code:");
-  ESP_LOGCONFIG(TAG, "  Value: '%s'", this->value_.c_str());
+  ESP_LOGCONFIG(TAG,
+                "QR code:\n"
+                "  Value: '%s'",
+                this->value_.c_str());
 }
 
 void QrCode::set_value(const std::string &value) {
@@ -24,8 +26,17 @@ void QrCode::set_ecc(qrcodegen_Ecc ecc) {
 }
 
 void QrCode::generate_qr_code() {
-  ESP_LOGV(TAG, "Generating QR code...");
+  ESP_LOGV(TAG, "Generating QR code");
+
+#ifdef USE_ESP32
+  // ESP32 has 8KB stack, safe to allocate ~4KB buffer on stack
   uint8_t tempbuffer[qrcodegen_BUFFER_LEN_MAX];
+#else
+  // Other platforms (ESP8266: 4KB, RP2040: 2KB, LibreTiny: ~4KB) have smaller stacks
+  // Allocate buffer on heap to avoid stack overflow
+  auto tempbuffer_owner = std::make_unique<uint8_t[]>(qrcodegen_BUFFER_LEN_MAX);
+  uint8_t *tempbuffer = tempbuffer_owner.get();
+#endif
 
   if (!qrcodegen_encodeText(this->value_.c_str(), tempbuffer, this->qr_, this->ecc_, qrcodegen_VERSION_MIN,
                             qrcodegen_VERSION_MAX, qrcodegen_Mask_AUTO, true)) {

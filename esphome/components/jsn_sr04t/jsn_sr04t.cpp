@@ -2,8 +2,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <cinttypes>
-
 // Very basic support for JSN_SR04T V3.0 distance sensor in mode 2
 
 namespace esphome {
@@ -12,7 +10,7 @@ namespace jsn_sr04t {
 static const char *const TAG = "jsn_sr04t.sensor";
 
 void Jsnsr04tComponent::update() {
-  this->write_byte(0x55);
+  this->write_byte((this->model_ == AJ_SR04M) ? 0x01 : 0x55);
   ESP_LOGV(TAG, "Request read out from sensor");
 }
 
@@ -36,12 +34,14 @@ void Jsnsr04tComponent::check_buffer_() {
   uint8_t checksum = this->buffer_[0] + this->buffer_[1] + this->buffer_[2];
   if (this->buffer_[3] == checksum) {
     uint16_t distance = encode_uint16(this->buffer_[1], this->buffer_[2]);
-    if (distance > 250) {
+    if (distance > ((this->model_ == AJ_SR04M) ? 200 : 250)) {
       float meters = distance / 1000.0f;
-      ESP_LOGV(TAG, "Distance from sensor: %" PRIu32 "mm, %.3fm", distance, meters);
+      ESP_LOGV(TAG, "Distance from sensor: %umm, %.3fm", distance, meters);
       this->publish_state(meters);
     } else {
-      ESP_LOGW(TAG, "Invalid data read from sensor: %s", format_hex_pretty(this->buffer_).c_str());
+      char hex_buf[format_hex_pretty_size(4)];
+      ESP_LOGW(TAG, "Invalid data read from sensor: %s",
+               format_hex_pretty_to(hex_buf, this->buffer_.data(), this->buffer_.size()));
     }
   } else {
     ESP_LOGW(TAG, "checksum failed: %02x != %02x", checksum, this->buffer_[3]);
@@ -51,6 +51,14 @@ void Jsnsr04tComponent::check_buffer_() {
 
 void Jsnsr04tComponent::dump_config() {
   LOG_SENSOR("", "JST_SR04T Sensor", this);
+  switch (this->model_) {
+    case JSN_SR04T:
+      ESP_LOGCONFIG(TAG, "  sensor model: jsn_sr04t");
+      break;
+    case AJ_SR04M:
+      ESP_LOGCONFIG(TAG, "  sensor model: aj_sr04m");
+      break;
+  }
   LOG_UPDATE_INTERVAL(this);
 }
 

@@ -1,28 +1,30 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+from esphome.components.const import ICON_CURRENT_DC, UNIT_AMPERE_HOUR
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_VOLTAGE,
-    CONF_CURRENT,
     CONF_BATTERY_LEVEL,
+    CONF_CURRENT,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
-    DEVICE_CLASS_CURRENT,
+    CONF_VOLTAGE,
     DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT,
-    UNIT_AMPERE,
-    UNIT_PERCENT,
-    UNIT_CELSIUS,
-    ICON_FLASH,
-    ICON_PERCENT,
+    DEVICE_CLASS_VOLTAGE,
     ICON_COUNTER,
-    ICON_THERMOMETER,
+    ICON_FLASH,
     ICON_GAUGE,
+    ICON_PERCENT,
+    ICON_THERMOMETER,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_AMPERE,
+    UNIT_CELSIUS,
+    UNIT_PERCENT,
+    UNIT_VOLT,
 )
-from . import DalyBmsComponent, CONF_BMS_DALY_ID
+
+from . import CONF_BMS_DALY_ID, DalyBmsComponent
 
 CONF_MAX_CELL_VOLTAGE = "max_cell_voltage"
 CONF_MAX_CELL_VOLTAGE_NUMBER = "max_cell_voltage_number"
@@ -52,13 +54,12 @@ CONF_CELL_13_VOLTAGE = "cell_13_voltage"
 CONF_CELL_14_VOLTAGE = "cell_14_voltage"
 CONF_CELL_15_VOLTAGE = "cell_15_voltage"
 CONF_CELL_16_VOLTAGE = "cell_16_voltage"
-ICON_CURRENT_DC = "mdi:current-dc"
+CONF_CELL_17_VOLTAGE = "cell_17_voltage"
+CONF_CELL_18_VOLTAGE = "cell_18_voltage"
 ICON_BATTERY_OUTLINE = "mdi:battery-outline"
 ICON_THERMOMETER_CHEVRON_UP = "mdi:thermometer-chevron-up"
 ICON_THERMOMETER_CHEVRON_DOWN = "mdi:thermometer-chevron-down"
 ICON_CAR_BATTERY = "mdi:car-battery"
-
-UNIT_AMPERE_HOUR = "Ah"
 
 TYPES = [
     CONF_VOLTAGE,
@@ -92,6 +93,8 @@ TYPES = [
     CONF_CELL_14_VOLTAGE,
     CONF_CELL_15_VOLTAGE,
     CONF_CELL_16_VOLTAGE,
+    CONF_CELL_17_VOLTAGE,
+    CONF_CELL_18_VOLTAGE,
 ]
 
 CELL_VOLTAGE_SCHEMA = sensor.sensor_schema(
@@ -212,6 +215,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CELL_14_VOLTAGE): CELL_VOLTAGE_SCHEMA,
             cv.Optional(CONF_CELL_15_VOLTAGE): CELL_VOLTAGE_SCHEMA,
             cv.Optional(CONF_CELL_16_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_17_VOLTAGE): CELL_VOLTAGE_SCHEMA,
+            cv.Optional(CONF_CELL_18_VOLTAGE): CELL_VOLTAGE_SCHEMA,
         }
     ).extend(cv.COMPONENT_SCHEMA)
 )

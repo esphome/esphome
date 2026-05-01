@@ -1,9 +1,3 @@
-uart:
-  - id: uart_shelly_dimmer
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 9600
-
 light:
   - platform: shelly_dimmer
     name: Shelly Dimmer Light

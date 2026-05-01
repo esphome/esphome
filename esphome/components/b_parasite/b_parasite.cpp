@@ -22,7 +22,8 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
   }
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str_to(addr_buf));
   const auto &service_datas = device.get_service_datas();
   if (service_datas.size() != 1) {
     ESP_LOGE(TAG, "Unexpected service_datas size (%d)", service_datas.size());
@@ -37,6 +38,11 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 
   const auto &data = service_data.data;
 
+  if (data.size() < 10) {
+    ESP_LOGW(TAG, "Service data too short: %zu", data.size());
+    return false;
+  }
+
   const uint8_t protocol_version = data[0] >> 4;
   if (protocol_version != 1 && protocol_version != 2) {
     ESP_LOGE(TAG, "Unsupported protocol version: %u", protocol_version);
@@ -45,6 +51,11 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 
   // Some b-parasite versions have an (optional) illuminance sensor.
   bool has_illuminance = data[0] & 0x1;
+
+  if (has_illuminance && data.size() < 18) {
+    ESP_LOGW(TAG, "Service data too short for illuminance: %zu", data.size());
+    return false;
+  }
 
   // Counter for deduplicating messages.
   uint8_t counter = data[1] & 0x0f;

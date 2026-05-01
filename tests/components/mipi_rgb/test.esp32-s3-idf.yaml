@@ -1,0 +1,7 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
+
+psram:
+  mode: octal
+
+<<: !include common.yaml

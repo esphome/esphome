@@ -1,8 +1,9 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import switch
+import esphome.config_validation as cv
 from esphome.const import CONF_INTERLOCK, CONF_PIN
+
 from .. import gpio_ns
 
 GPIOSwitch = gpio_ns.class_("GPIOSwitch", switch.Switch, cg.Component)
@@ -31,6 +32,7 @@ async def to_code(config):
     cg.add(var.set_pin(pin))
 
     if CONF_INTERLOCK in config:
+        cg.add_define("USE_GPIO_SWITCH_INTERLOCK")
         interlock = []
         for it in config[CONF_INTERLOCK]:
             lock = await cg.get_variable(it)

@@ -36,8 +36,10 @@ class XL9535GPIOPin : public GPIOPin {
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
 
+  gpio::Flags get_flags() const override { return this->flags_; }
+
   void setup() override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;

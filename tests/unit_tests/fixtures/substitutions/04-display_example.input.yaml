@@ -1,0 +1,7 @@
+# main.yaml
+packages:
+  my_display: !include
+    file: display.yaml
+    vars:
+      high_dpi: true
+      native_height: 272

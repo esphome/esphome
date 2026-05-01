@@ -1,7 +1,7 @@
 #include "tm1621.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace tm1621 {
@@ -23,14 +23,12 @@ enum Tm1621Device { TM1621_USER, TM1621_POWR316D, TM1621_THR316D };
 const uint8_t TM1621_COMMANDS[] = {TM1621_SYS_EN,  TM1621_LCD_ON,   TM1621_BIAS,   TM1621_TIMER_DIS,
                                    TM1621_WDT_DIS, TM1621_TONE_OFF, TM1621_IRQ_DIS};
 
-const char TM1621_KCHAR[] PROGMEM = {"0|1|2|3|4|5|6|7|8|9|-| "};
+constexpr char TM1621_KCHAR[] PROGMEM = {"0|1|2|3|4|5|6|7|8|9|-| "};
 //                                          0     1     2     3     4     5     6     7     8     9     -     off
 const uint8_t TM1621_DIGIT_ROW[2][12] = {{0x5F, 0x50, 0x3D, 0x79, 0x72, 0x6B, 0x6F, 0x51, 0x7F, 0x7B, 0x20, 0x00},
                                          {0xF5, 0x05, 0xB6, 0x97, 0x47, 0xD3, 0xF3, 0x85, 0xF7, 0xD7, 0x02, 0x00}};
 
 void TM1621Display::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TM1621...");
-
   this->cs_pin_->setup();  // OUTPUT
   this->cs_pin_->digital_write(true);
   this->data_pin_->setup();  // OUTPUT

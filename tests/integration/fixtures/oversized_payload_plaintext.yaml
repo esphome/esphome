@@ -1,0 +1,9 @@
+esphome:
+  name: oversized-plaintext
+
+host:
+
+api:
+
+logger:
+  level: VERY_VERBOSE

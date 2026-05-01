@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_FIELD_STRENGTH_X,
@@ -10,12 +10,12 @@ from esphome.const import (
     CONF_ID,
     CONF_OVERSAMPLING,
     CONF_RANGE,
-    ICON_MAGNET,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_MICROTESLA,
-    UNIT_DEGREES,
-    ICON_SCREEN_ROTATION,
     CONF_UPDATE_INTERVAL,
+    ICON_MAGNET,
+    ICON_SCREEN_ROTATION,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_DEGREES,
+    UNIT_MICROTESLA,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -87,6 +87,7 @@ heading_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_DEGREES,
     icon=ICON_SCREEN_ROTATION,
     accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
 )
 
 CONFIG_SCHEMA = (

@@ -1,0 +1,7 @@
+sensor:
+  - platform: kuntze
+    modbus_id: modbus_bus
+    ph:
+      name: Kuntze pH
+    temperature:
+      name: Kuntze temperature

@@ -1,0 +1,12 @@
+# Common remote_receiver configuration for ESP32 Arduino tests
+# Provides a shared remote receiver that all components can use
+# Components will auto-use this receiver if they don't specify receiver_id
+
+substitutions:
+  remote_receiver_pin: GPIO32
+
+remote_receiver:
+  - id: rcvr
+    pin: ${remote_receiver_pin}
+    dump: all
+    tolerance: 25%

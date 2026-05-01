@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import output
+import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
+
 from .. import TLC5947, tlc5947_ns
 
 DEPENDENCIES = ["tlc5947"]
@@ -15,7 +16,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.GenerateID(CONF_TLC5947_ID): cv.use_id(TLC5947),
         cv.Required(CONF_ID): cv.declare_id(TLC5947Channel),
-        cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=65535),
+        cv.Required(CONF_CHANNEL): cv.uint16_t,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

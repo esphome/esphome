@@ -4,8 +4,7 @@
 #include "esp_hsv_color.h"
 #include "esp_color_correction.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 class ESPColorSettable {
  public:
@@ -106,5 +105,4 @@ class ESPColorView : public ESPColorSettable {
   const ESPColorCorrection *color_correction_;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

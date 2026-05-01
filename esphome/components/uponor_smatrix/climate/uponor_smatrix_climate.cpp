@@ -1,6 +1,9 @@
 #include "uponor_smatrix_climate.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <cinttypes>
 
 namespace esphome {
 namespace uponor_smatrix {
@@ -9,11 +12,11 @@ static const char *const TAG = "uponor_smatrix.climate";
 
 void UponorSmatrixClimate::dump_config() {
   LOG_CLIMATE("", "Uponor Smatrix Climate", this);
-  ESP_LOGCONFIG(TAG, "  Device address: 0x%04X", this->address_);
+  ESP_LOGCONFIG(TAG, "  Device address: 0x%08" PRIX32, this->address_);
 }
 
 void UponorSmatrixClimate::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   // Publish state after all update packets are processed
   if (this->last_data_ != 0 && (now - this->last_data_ > 100) && this->target_temperature_raw_ != 0) {
@@ -29,10 +32,9 @@ void UponorSmatrixClimate::loop() {
 
 climate::ClimateTraits UponorSmatrixClimate::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_supports_current_temperature(true);
-  traits.set_supports_current_humidity(true);
+  traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE | climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY |
+                           climate::CLIMATE_SUPPORTS_ACTION);
   traits.set_supported_modes({climate::CLIMATE_MODE_HEAT});
-  traits.set_supports_action(true);
   traits.set_supported_presets({climate::CLIMATE_PRESET_ECO});
   traits.set_visual_min_temperature(this->min_temperature_);
   traits.set_visual_max_temperature(this->max_temperature_);
@@ -42,8 +44,9 @@ climate::ClimateTraits UponorSmatrixClimate::traits() {
 }
 
 void UponorSmatrixClimate::control(const climate::ClimateCall &call) {
-  if (call.get_target_temperature().has_value()) {
-    uint16_t temp = celsius_to_raw(*call.get_target_temperature());
+  auto val = call.get_target_temperature();
+  if (val.has_value()) {
+    uint16_t temp = celsius_to_raw(*val);
     if (this->preset == climate::CLIMATE_PRESET_ECO) {
       // During ECO mode, the thermostat automatically substracts the setback value from the setpoint,
       // so we need to add it here first
@@ -57,7 +60,7 @@ void UponorSmatrixClimate::control(const climate::ClimateCall &call) {
 }
 
 void UponorSmatrixClimate::on_device_data(const UponorSmatrixData *data, size_t data_len) {
-  for (int i = 0; i < data_len; i++) {
+  for (size_t i = 0; i < data_len; i++) {
     switch (data[i].id) {
       case UPONOR_ID_TARGET_TEMP_MIN:
         this->min_temperature_ = raw_to_celsius(data[i].value);

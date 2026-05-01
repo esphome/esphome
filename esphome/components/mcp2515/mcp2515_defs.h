@@ -130,7 +130,9 @@ static const uint8_t CANSTAT_ICOD = 0x0E;
 
 static const uint8_t CNF3_SOF = 0x80;
 
-static const uint8_t TXB_EXIDE_MASK = 0x08;
+// applies to RXBn_SIDL, TXBn_SIDL and RXFn_SIDL
+static const uint8_t SIDL_EXIDE_MASK = 0x08;
+
 static const uint8_t DLC_MASK = 0x0F;
 static const uint8_t RTR_MASK = 0x40;
 

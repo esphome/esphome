@@ -1,8 +1,7 @@
 import esphome.codegen as cg
+from esphome.components import ade7953_base, spi
 import esphome.config_validation as cv
-from esphome.components import spi, ade7953_base
 from esphome.const import CONF_ID
-
 
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["ade7953_base"]

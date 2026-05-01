@@ -13,7 +13,7 @@ void RestartSwitch::write_state(bool state) {
   this->publish_state(false);
 
   if (state) {
-    ESP_LOGI(TAG, "Restarting device...");
+    ESP_LOGI(TAG, "Restarting device");
     // Let MQTT settle a bit
     delay(100);  // NOLINT
     App.safe_reboot();

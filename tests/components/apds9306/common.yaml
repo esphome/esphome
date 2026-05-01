@@ -1,0 +1,8 @@
+sensor:
+  - platform: apds9306
+    i2c_id: i2c_bus
+    name: "APDS9306 Light Level"
+    gain: 3
+    bit_width: 16
+    measurement_rate: 2000ms
+    update_interval: 60s

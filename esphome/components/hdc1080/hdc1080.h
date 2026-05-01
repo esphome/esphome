@@ -12,13 +12,9 @@ class HDC1080Component : public PollingComponent, public i2c::I2CDevice {
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
 
-  /// Setup the sensor and check for connection.
   void setup() override;
   void dump_config() override;
-  /// Retrieve the latest sensor values. This operation takes approximately 16ms.
   void update() override;
-
-  float get_setup_priority() const override;
 
  protected:
   sensor::Sensor *temperature_{nullptr};

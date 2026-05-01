@@ -1,14 +1,15 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACCURACY_DECIMALS,
     CONF_ICON,
     CONF_ID,
-    CONF_SENSOR,
     CONF_RESTORE,
+    CONF_SENSOR,
     CONF_UNIT_OF_MEASUREMENT,
-    CONF_ACCURACY_DECIMALS,
+    CONF_VALUE,
 )
 from esphome.core.entity_helpers import inherit_property_from
 
@@ -17,6 +18,7 @@ IntegrationSensor = integration_ns.class_(
     "IntegrationSensor", sensor.Sensor, cg.Component
 )
 ResetAction = integration_ns.class_("ResetAction", automation.Action)
+SetValueAction = integration_ns.class_("SetValueAction", automation.Action)
 
 IntegrationSensorTime = integration_ns.enum("IntegrationSensorTime")
 INTEGRATION_TIMES = {
@@ -109,7 +111,28 @@ async def to_code(config):
             cv.Required(CONF_ID): cv.use_id(IntegrationSensor),
         }
     ),
+    synchronous=True,
 )
 async def sensor_integration_reset_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+@automation.register_action(
+    "sensor.integration.set_value",
+    SetValueAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(IntegrationSensor),
+            cv.Required(CONF_VALUE): cv.templatable(cv.float_),
+        }
+    ),
+    synchronous=True,
+)
+async def sensor_integration_set_value_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.float_)
+    cg.add(var.set_value(template_))
+    return var

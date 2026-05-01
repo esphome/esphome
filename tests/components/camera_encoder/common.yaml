@@ -1,0 +1,5 @@
+camera_encoder:
+  id: jpeg_encoder
+  quality: 80
+  buffer_size: 4096
+  buffer_expand_size: 1024

@@ -26,8 +26,16 @@ climate:
     name: My Bedjet
     bedjet_id: bedjet_hub
     heat_mode: extended
+    temperature_source: ambient
 
 fan:
   - platform: bedjet
     name: My Bedjet fan
     bedjet_id: bedjet_hub
+
+sensor:
+  - platform: bedjet
+    ambient_temperature:
+      name: My BedJet Ambient Temperature
+    outlet_temperature:
+      name: My BedJet Outlet Temperature

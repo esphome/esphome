@@ -1,0 +1,4 @@
+sensor:
+  - platform: t6615
+    co2:
+      name: CO2 Sensor

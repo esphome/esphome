@@ -1,100 +1,78 @@
 from dataclasses import dataclass
 import json
-from typing import Union
-from pathlib import Path
-
 import logging
 import os
+from pathlib import Path
 import re
 import subprocess
+import sys
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
-from esphome.util import run_external_command, run_external_process
+from esphome.util import run_external_process
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def patch_structhash():
-    # Patch platformio's structhash to not recompile the entire project when files are
-    # removed/added. This might have unintended consequences, but this improves compile
-    # times greatly when adding/removing components and a simple clean build solves
-    # all issues
-    from platformio.run import helpers, cli
-    from os.path import join, isdir, getmtime
-    from os import makedirs
+def _strip_win_long_path_prefix(path: str) -> str:
+    r"""Strip the Windows extended-length path prefix from ``path``.
 
-    def patched_clean_build_dir(build_dir, *args):
-        from platformio import fs
-        from platformio.project.helpers import get_project_dir
+    Handles both forms documented at
+    https://learn.microsoft.com/windows/win32/fileio/naming-a-file:
 
-        platformio_ini = join(get_project_dir(), "platformio.ini")
+    * ``\\?\C:\path\to\file`` -> ``C:\path\to\file``
+    * ``\\?\UNC\server\share\path`` -> ``\\server\share\path``
 
-        # if project's config is modified
-        if isdir(build_dir) and getmtime(platformio_ini) > getmtime(build_dir):
-            fs.rmtree(build_dir)
+    The NSIS-installed ``esphome.exe`` launcher on Windows starts Python with
+    ``sys.executable`` already prefixed with ``\\?\``. That prefix propagates
+    into PlatformIO's ``$PYTHONEXE`` (PlatformIO reads ``PYTHONEXEPATH`` from
+    the environment, falling back to ``os.path.normpath(sys.executable)``)
+    and ends up baked into SCons-emitted command lines for build steps such
+    as the esp8266 ``elf2bin`` invocation. ``cmd.exe`` does not understand
+    the ``\\?\`` prefix, so the build fails with
+    "The system cannot find the path specified." Stripping the prefix early
+    keeps the path shell-quotable.
 
-        if not isdir(build_dir):
-            makedirs(build_dir)
-
-    helpers.clean_build_dir = patched_clean_build_dir
-    cli.clean_build_dir = patched_clean_build_dir
-
-
-IGNORE_LIB_WARNINGS = f"(?:{'|'.join(['Hash', 'Update'])})"
-FILTER_PLATFORMIO_LINES = [
-    r"Verbose mode can be enabled via `-v, --verbose` option.*",
-    r"CONFIGURATION: https://docs.platformio.org/.*",
-    r"DEBUG: Current.*",
-    r"LDF Modes:.*",
-    r"LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf.*",
-    f"Looking for {IGNORE_LIB_WARNINGS} library in registry",
-    f"Warning! Library `.*'{IGNORE_LIB_WARNINGS}.*` has not been found in PlatformIO Registry.",
-    f"You can ignore this message, if `.*{IGNORE_LIB_WARNINGS}.*` is a built-in library.*",
-    r"Scanning dependencies...",
-    r"Found \d+ compatible libraries",
-    r"Memory Usage -> http://bit.ly/pio-memory-usage",
-    r"Found: https://platformio.org/lib/show/.*",
-    r"Using cache: .*",
-    r"Installing dependencies",
-    r"Library Manager: Already installed, built-in library",
-    r"Building in .* mode",
-    r"Advanced Memory Usage is available via .*",
-    r"Merged .* ELF section",
-    r"esptool.py v.*",
-    r"Checking size .*",
-    r"Retrieving maximum program size .*",
-    r"PLATFORM: .*",
-    r"PACKAGES:.*",
-    r" - framework-arduinoespressif.* \(.*\)",
-    r" - tool-esptool.* \(.*\)",
-    r" - toolchain-.* \(.*\)",
-    r"Creating BIN file .*",
-]
+    No-op on non-Windows platforms.
+    """
+    if sys.platform != "win32":
+        return path
+    if path.startswith("\\\\?\\UNC\\"):
+        # \\?\UNC\server\share\... -> \\server\share\...
+        return "\\\\" + path[len("\\\\?\\UNC\\") :]
+    if path.startswith("\\\\?\\"):
+        return path[len("\\\\?\\") :]
+    return path
 
 
-def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
+def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
-    os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
+    os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
     os.environ.setdefault(
-        "PLATFORMIO_LIBDEPS_DIR", os.path.abspath(CORE.relative_piolibdeps_path())
+        "PLATFORMIO_LIBDEPS_DIR", str(CORE.relative_piolibdeps_path().absolute())
     )
-    cmd = ["platformio"] + list(args)
+    # Suppress Python syntax warnings from third-party scripts during compilation
+    os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
+    # Increase uv retry count to handle transient network errors (default is 3)
+    os.environ.setdefault("UV_HTTP_RETRIES", "10")
+    # Strip the Windows extended-length path prefix from sys.executable so it
+    # doesn't propagate into PlatformIO's $PYTHONEXE and break SCons-emitted
+    # command lines run through cmd.exe.
+    python_exe = _strip_win_long_path_prefix(sys.executable)
+    if python_exe != sys.executable:
+        # Only override PYTHONEXEPATH when we actually stripped a prefix.
+        # PlatformIO's get_pythonexe_path() reads this and falls back to
+        # sys.executable otherwise; setting it unconditionally would clobber
+        # a user-provided value (or the unmodified path on platforms that
+        # don't need the strip).
+        os.environ["PYTHONEXEPATH"] = python_exe
+    cmd = [python_exe, "-m", "esphome.platformio_runner"] + list(args)
 
-    if not CORE.verbose:
-        kwargs["filter_lines"] = FILTER_PLATFORMIO_LINES
-
-    if os.environ.get("ESPHOME_USE_SUBPROCESS") is not None:
-        return run_external_process(*cmd, **kwargs)
-
-    import platformio.__main__
-
-    patch_structhash()
-    return run_external_command(platformio.__main__.main, *cmd, **kwargs)
+    return run_external_process(*cmd, **kwargs)
 
 
-def run_platformio_cli_run(config, verbose, *args, **kwargs) -> Union[str, int]:
-    command = ["run", "-d", CORE.build_path]
+def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
+    command = ["run", "-d", str(CORE.build_path)]
     if verbose:
         command += ["-v"]
     command += list(args)
@@ -126,13 +104,15 @@ def _run_idedata(config):
 
 
 def _load_idedata(config):
-    platformio_ini = Path(CORE.relative_build_path("platformio.ini"))
-    temp_idedata = Path(CORE.relative_internal_path("idedata", f"{CORE.name}.json"))
+    platformio_ini = CORE.relative_build_path("platformio.ini")
+    temp_idedata = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
 
     changed = False
-    if not platformio_ini.is_file() or not temp_idedata.is_file():
-        changed = True
-    elif platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime:
+    if (
+        not platformio_ini.is_file()
+        or not temp_idedata.is_file()
+        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
+    ):
         changed = True
 
     if not changed:
@@ -207,7 +187,7 @@ def _decode_pc(config, addr):
         return
     command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
     try:
-        translation = subprocess.check_output(command).decode().strip()
+        translation = subprocess.check_output(command, close_fds=False).decode().strip()
     except Exception:  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
@@ -239,6 +219,8 @@ STACKTRACE_ESP32_BACKTRACE_RE = re.compile(
     r"Backtrace:(?:\s*0x[0-9a-fA-F]{8}:0x[0-9a-fA-F]{8})+"
 )
 STACKTRACE_ESP32_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
+# ESP32 crash handler (stored backtrace from previous boot)
+STACKTRACE_ESP32_CRASH_BT_RE = re.compile(r"BT\d+:\s*0x([0-9a-fA-F]{8})")
 STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
 
 
@@ -270,6 +252,11 @@ def process_stacktrace(config, line, backtrace_state):
         )
         _decode_pc(config, match.group(1))
 
+    # ESP32 crash handler backtrace (from previous boot)
+    match = re.search(STACKTRACE_ESP32_CRASH_BT_RE, line)
+    if match is not None:
+        _decode_pc(config, match.group(1))
+
     # ESP32 single-line backtrace
     match = re.match(STACKTRACE_ESP32_BACKTRACE_RE, line)
     if match is not None:
@@ -295,7 +282,7 @@ def process_stacktrace(config, line, backtrace_state):
 
 @dataclass
 class FlashImage:
-    path: str
+    path: Path
     offset: str
 
 
@@ -304,17 +291,17 @@ class IDEData:
         self.raw = raw
 
     @property
-    def firmware_elf_path(self):
-        return self.raw["prog_path"]
+    def firmware_elf_path(self) -> Path:
+        return Path(self.raw["prog_path"])
 
     @property
-    def firmware_bin_path(self) -> str:
-        return str(Path(self.firmware_elf_path).with_suffix(".bin"))
+    def firmware_bin_path(self) -> Path:
+        return self.firmware_elf_path.with_suffix(".bin")
 
     @property
     def extra_flash_images(self) -> list[FlashImage]:
         return [
-            FlashImage(path=entry["path"], offset=entry["offset"])
+            FlashImage(path=Path(entry["path"]), offset=entry["offset"])
             for entry in self.raw["extra"]["flash_images"]
         ]
 
@@ -332,3 +319,28 @@ class IDEData:
             return f"{self.cc_path[:-7]}addr2line.exe"
 
         return f"{self.cc_path[:-3]}addr2line"
+
+    @property
+    def objdump_path(self) -> str:
+        # replace gcc at end with objdump
+        path = self.cc_path
+        return (
+            f"{path[:-7]}objdump.exe"
+            if path.endswith(".exe")
+            else f"{path[:-3]}objdump"
+        )
+
+    @property
+    def readelf_path(self) -> str:
+        # replace gcc at end with readelf
+        path = self.cc_path
+        return (
+            f"{path[:-7]}readelf.exe"
+            if path.endswith(".exe")
+            else f"{path[:-3]}readelf"
+        )
+
+    @property
+    def defines(self) -> list[str]:
+        """Return the list of preprocessor defines from idedata."""
+        return self.raw.get("defines", [])

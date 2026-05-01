@@ -4,9 +4,9 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
+#ifdef USE_ESP32_BLE_DEVICE
 
-namespace esphome {
-namespace esp32_ble_client {
+namespace esphome::esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
 
@@ -51,7 +51,7 @@ void BLEService::parse_characteristics() {
     }
     if (status != ESP_GATT_OK) {
       ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", this->client->get_connection_index(),
-               this->client->address_str().c_str(), status);
+               this->client->address_str(), status);
       break;
     }
     if (count == 0) {
@@ -64,14 +64,17 @@ void BLEService::parse_characteristics() {
     characteristic->handle = result.char_handle;
     characteristic->service = this;
     this->characteristics.push_back(characteristic);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char uuid_buf[espbt::UUID_STR_LEN];
+    characteristic->uuid.to_str(uuid_buf);
     ESP_LOGV(TAG, "[%d] [%s]  characteristic %s, handle 0x%x, properties 0x%x", this->client->get_connection_index(),
-             this->client->address_str().c_str(), characteristic->uuid.to_string().c_str(), characteristic->handle,
-             characteristic->properties);
+             this->client->address_str(), uuid_buf, characteristic->handle, characteristic->properties);
+#endif
     offset++;
   }
 }
 
-}  // namespace esp32_ble_client
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_client
 
+#endif  // USE_ESP32_BLE_DEVICE
 #endif  // USE_ESP32

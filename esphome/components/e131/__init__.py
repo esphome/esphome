@@ -1,8 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components.light.types import AddressableLightEffect
 from esphome.components.light.effects import register_addressable_effect
-from esphome.const import CONF_ID, CONF_NAME, CONF_METHOD, CONF_CHANNELS
+from esphome.components.light.types import AddressableLightEffect
+import esphome.config_validation as cv
+from esphome.const import CONF_CHANNELS, CONF_ID, CONF_METHOD, CONF_NAME
 
 AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["network"]
@@ -29,7 +29,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(E131Component),
         cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(*METHODS, upper=True),
     }
-)
+).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config):

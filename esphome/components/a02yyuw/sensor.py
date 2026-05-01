@@ -1,14 +1,14 @@
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 from esphome.const import (
-    STATE_CLASS_MEASUREMENT,
-    ICON_ARROW_EXPAND_VERTICAL,
     DEVICE_CLASS_DISTANCE,
+    ICON_ARROW_EXPAND_VERTICAL,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_MILLIMETER,
 )
 
 CODEOWNERS = ["@TH-Braemer"]
 DEPENDENCIES = ["uart"]
-UNIT_MILLIMETERS = "mm"
 
 a02yyuw_ns = cg.esphome_ns.namespace("a02yyuw")
 A02yyuwComponent = a02yyuw_ns.class_(
@@ -17,7 +17,7 @@ A02yyuwComponent = a02yyuw_ns.class_(
 
 CONFIG_SCHEMA = sensor.sensor_schema(
     A02yyuwComponent,
-    unit_of_measurement=UNIT_MILLIMETERS,
+    unit_of_measurement=UNIT_MILLIMETER,
     icon=ICON_ARROW_EXPAND_VERTICAL,
     accuracy_decimals=0,
     state_class=STATE_CLASS_MEASUREMENT,

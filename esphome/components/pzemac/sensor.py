@@ -1,27 +1,28 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.components import sensor, modbus
+import esphome.codegen as cg
+from esphome.components import modbus, sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT,
     CONF_ENERGY,
+    CONF_FREQUENCY,
     CONF_ID,
     CONF_POWER,
-    CONF_VOLTAGE,
-    CONF_FREQUENCY,
     CONF_POWER_FACTOR,
+    CONF_VOLTAGE,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
+    DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_VOLTAGE,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_ENERGY,
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
+    UNIT_AMPERE,
     UNIT_HERTZ,
     UNIT_VOLT,
-    UNIT_AMPERE,
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
@@ -66,6 +67,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_HERTZ,
                 icon=ICON_CURRENT_AC,
                 accuracy_decimals=1,
+                device_class=DEVICE_CLASS_FREQUENCY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
@@ -88,6 +90,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_ID): cv.use_id(PZEMAC),
         }
     ),
+    synchronous=True,
 )
 async def reset_energy_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

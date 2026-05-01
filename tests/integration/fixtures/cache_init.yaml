@@ -1,0 +1,10 @@
+esphome:
+  name: cache-init
+
+host:
+
+api:
+  encryption:
+    key: "IIevImVI42I0FGos5nLqFK91jrJehrgidI0ArwMLr8w="
+
+logger:

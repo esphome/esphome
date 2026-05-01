@@ -1,13 +1,15 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DISTANCE,
     CONF_LIGHTNING_ENERGY,
-    UNIT_KILOMETER,
-    ICON_SIGNAL_DISTANCE_VARIANT,
     ICON_FLASH,
+    ICON_SIGNAL_DISTANCE_VARIANT,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_KILOMETER,
 )
+
 from . import AS3935, CONF_AS3935_ID
 
 DEPENDENCIES = ["as3935"]
@@ -19,13 +21,14 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_KILOMETER,
             icon=ICON_SIGNAL_DISTANCE_VARIANT,
             accuracy_decimals=1,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_LIGHTNING_ENERGY): sensor.sensor_schema(
             icon=ICON_FLASH,
             accuracy_decimals=1,
         ),
     }
-).extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

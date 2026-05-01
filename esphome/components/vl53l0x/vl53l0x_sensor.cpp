@@ -1,6 +1,8 @@
 #include "vl53l0x_sensor.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 /*
  * Most of the code in this integration is based on the VL53L0x library
  * by Pololu (Pololu Corporation), which in turn is based on the VL53L0X
@@ -27,12 +29,13 @@ void VL53L0XSensor::dump_config() {
   if (this->enable_pin_ != nullptr) {
     LOG_PIN("  Enable Pin: ", this->enable_pin_);
   }
-  ESP_LOGCONFIG(TAG, "  Timeout: %u%s", this->timeout_us_, this->timeout_us_ > 0 ? "us" : " (no timeout)");
+  ESP_LOGCONFIG(TAG,
+                "  Timeout: %" PRIu32 "%s\n"
+                "  Timing Budget %" PRIu32 "us ",
+                this->timeout_us_, this->timeout_us_ > 0 ? "us" : " (no timeout)", this->measurement_timing_budget_us_);
 }
 
 void VL53L0XSensor::setup() {
-  ESP_LOGD(TAG, "'%s' - setup BEGIN", this->name_.c_str());
-
   if (!esphome::vl53l0x::VL53L0XSensor::enable_pin_setup_complete) {
     for (auto &vl53_sensor : vl53_sensors) {
       if (vl53_sensor->enable_pin_ != nullptr) {
@@ -86,9 +89,9 @@ void VL53L0XSensor::setup() {
   reg(0x94) = 0x6B;
   reg(0x83) = 0x00;
 
-  this->timeout_start_us_ = micros();
+  uint32_t timeout_start_us = micros();
   while (reg(0x83).get() == 0x00) {
-    if (this->timeout_us_ > 0 && ((uint16_t) (micros() - this->timeout_start_us_) > this->timeout_us_)) {
+    if (this->timeout_us_ > 0 && (micros() - timeout_start_us > this->timeout_us_)) {
       ESP_LOGE(TAG, "'%s' - setup timeout", this->name_.c_str());
       this->mark_failed();
       return;
@@ -230,7 +233,10 @@ void VL53L0XSensor::setup() {
   reg(0x84) &= ~0x10;
   reg(0x0B) = 0x01;
 
-  measurement_timing_budget_us_ = get_measurement_timing_budget_();
+  if (this->measurement_timing_budget_us_ == 0) {
+    this->measurement_timing_budget_us_ = this->get_measurement_timing_budget_();
+  }
+
   reg(0x01) = 0xE8;
   set_measurement_timing_budget_(measurement_timing_budget_us_);
   reg(0x01) = 0x01;
@@ -254,8 +260,6 @@ void VL53L0XSensor::setup() {
   // I2C_SXXXX__DEVICE_ADDRESS = 0x0001 for VL53L1X
   reg(0x8A) = final_address & 0x7F;
   this->set_i2c_address(final_address);
-
-  ESP_LOGD(TAG, "'%s' - setup END", this->name_.c_str());
 }
 
 void VL53L0XSensor::update() {
@@ -264,6 +268,7 @@ void VL53L0XSensor::update() {
     this->status_momentary_warning("update", 5000);
     ESP_LOGW(TAG, "%s - update called before prior reading complete - initiated:%d waiting_for_interrupt:%d",
              this->name_.c_str(), this->initiated_read_, this->waiting_for_interrupt_);
+    return;
   }
 
   // initiate single shot measurement

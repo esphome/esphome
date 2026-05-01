@@ -4,15 +4,23 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 static const char *const TAG = "alarm_control_panel";
 
 AlarmControlPanelCall::AlarmControlPanelCall(AlarmControlPanel *parent) : parent_(parent) {}
 
-AlarmControlPanelCall &AlarmControlPanelCall::set_code(const std::string &code) {
-  this->code_ = code;
+AlarmControlPanelCall &AlarmControlPanelCall::set_code(const char *code) {
+  if (code != nullptr) {
+    return this->set_code(code, strlen(code));
+  }
+  return *this;
+}
+
+AlarmControlPanelCall &AlarmControlPanelCall::set_code(const char *code, size_t len) {
+  if (code != nullptr) {
+    this->code_ = std::string(code, len);
+  }
   return *this;
 }
 
@@ -72,10 +80,9 @@ void AlarmControlPanelCall::validate_() {
       this->state_.reset();
       return;
     }
-    if (state == ACP_STATE_DISARMED &&
-        !(this->parent_->is_state_armed(this->parent_->get_state()) ||
-          this->parent_->get_state() == ACP_STATE_PENDING || this->parent_->get_state() == ACP_STATE_ARMING ||
-          this->parent_->get_state() == ACP_STATE_TRIGGERED)) {
+    if (state == ACP_STATE_DISARMED && !this->parent_->is_state_armed(this->parent_->get_state()) &&
+        this->parent_->get_state() != ACP_STATE_PENDING && this->parent_->get_state() != ACP_STATE_ARMING &&
+        this->parent_->get_state() != ACP_STATE_TRIGGERED) {
       ESP_LOGW(TAG, "Cannot disarm when not armed");
       this->state_.reset();
       return;
@@ -100,5 +107,4 @@ void AlarmControlPanelCall::perform() {
   }
 }
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel

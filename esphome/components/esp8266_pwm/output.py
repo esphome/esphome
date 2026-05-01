@@ -1,13 +1,9 @@
-from esphome import pins, automation
-from esphome.components import output
-import esphome.config_validation as cv
+from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.const import (
-    CONF_FREQUENCY,
-    CONF_ID,
-    CONF_NUMBER,
-    CONF_PIN,
-)
+from esphome.components import output
+from esphome.components.esp8266.const import require_waveform
+import esphome.config_validation as cv
+from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_NUMBER, CONF_PIN
 
 DEPENDENCIES = ["esp8266"]
 
@@ -21,7 +17,7 @@ def valid_pwm_pin(value):
 esp8266_pwm_ns = cg.esphome_ns.namespace("esp8266_pwm")
 ESP8266PWM = esp8266_pwm_ns.class_("ESP8266PWM", output.FloatOutput, cg.Component)
 SetFrequencyAction = esp8266_pwm_ns.class_("SetFrequencyAction", automation.Action)
-validate_frequency = cv.All(cv.frequency, cv.Range(min=1.0e-6))
+validate_frequency = cv.All(cv.frequency, cv.float_range(min=1.0e-6))
 
 CONFIG_SCHEMA = cv.All(
     output.FLOAT_OUTPUT_SCHEMA.extend(
@@ -39,7 +35,9 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config) -> None:
+    require_waveform()
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)
@@ -59,10 +57,11 @@ async def to_code(config):
             cv.Required(CONF_FREQUENCY): cv.templatable(validate_frequency),
         }
     ),
+    synchronous=True,
 )
 async def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_FREQUENCY], args, float)
+    template_ = await cg.templatable(config[CONF_FREQUENCY], args, cg.float_)
     cg.add(var.set_frequency(template_))
     return var

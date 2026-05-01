@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import output
+import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
+
 from . import SM2135
 
 DEPENDENCIES = ["sm2135"]
@@ -14,7 +15,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.GenerateID(CONF_SM2135_ID): cv.use_id(SM2135),
         cv.Required(CONF_ID): cv.declare_id(Channel),
-        cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=65535),
+        cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=4),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

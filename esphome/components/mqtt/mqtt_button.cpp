@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_BUTTON
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.button";
 
@@ -20,27 +19,24 @@ void MQTTButtonComponent::setup() {
     if (payload == "PRESS") {
       this->button_->press();
     } else {
-      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name().c_str(), payload.c_str());
+      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", this->friendly_name_().c_str(), payload.c_str());
       this->status_momentary_warning("state", 5000);
     }
   });
 }
 void MQTTButtonComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Button '%s': ", this->button_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true);
+  LOG_MQTT_COMPONENT(false, true);
 }
 
 void MQTTButtonComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   config.state_topic = false;
-  if (!this->button_->get_device_class().empty())
-    root[MQTT_DEVICE_CLASS] = this->button_->get_device_class();
 }
 
-std::string MQTTButtonComponent::component_type() const { return "button"; }
+MQTT_COMPONENT_TYPE(MQTTButtonComponent, "button")
 const EntityBase *MQTTButtonComponent::get_entity() const { return this->button_; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

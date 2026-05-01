@@ -1,0 +1,5 @@
+substitutions:
+  gate_pin: GPIO0
+  zero_cross_pin: GPIO2
+
+<<: !include common.yaml

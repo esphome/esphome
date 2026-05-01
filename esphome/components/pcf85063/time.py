@@ -1,9 +1,8 @@
-import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import i2c, time
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
-
 
 CODEOWNERS = ["@brogon"]
 DEPENDENCIES = ["i2c"]
@@ -30,6 +29,7 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
             cv.GenerateID(): cv.use_id(PCF85063Component),
         }
     ),
+    synchronous=True,
 )
 async def pcf85063_write_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -45,6 +45,7 @@ async def pcf85063_write_time_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(PCF85063Component),
         }
     ),
+    synchronous=True,
 )
 async def pcf85063_read_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

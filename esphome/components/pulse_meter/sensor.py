@@ -1,13 +1,13 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation, pins
+import esphome.codegen as cg
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INTERNAL_FILTER,
     CONF_INTERNAL_FILTER_MODE,
-    CONF_PIN,
     CONF_NUMBER,
+    CONF_PIN,
     CONF_TIMEOUT,
     CONF_TOTAL,
     CONF_VALUE,
@@ -105,10 +105,11 @@ async def to_code(config):
             cv.Required(CONF_VALUE): cv.templatable(cv.uint32_t),
         }
     ),
+    synchronous=True,
 )
 async def set_total_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, int)
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint32)
     cg.add(var.set_total_pulses(template_))
     return var

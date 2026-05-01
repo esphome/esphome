@@ -30,11 +30,9 @@ class Command {
 
 class ReadStateCommand : public Command {
  public:
+  ReadStateCommand() { timeout_ms_ = 500; }
   uint8_t execute(DfrobotSen0395Component *parent) override;
   uint8_t on_message(std::string &message) override;
-
- protected:
-  uint32_t timeout_ms_{500};
 };
 
 class PowerCommand : public Command {
@@ -75,8 +73,8 @@ class SetLatencyCommand : public Command {
 class SensorCfgStartCommand : public Command {
  public:
   SensorCfgStartCommand(bool startup_mode) : startup_mode_(startup_mode) {
-    char tmp_cmd[20] = {0};
-    sprintf(tmp_cmd, "sensorCfgStart %d", startup_mode);
+    char tmp_cmd[20];  // "sensorCfgStart " (15) + "0/1" (1) + null = 17
+    buf_append_printf(tmp_cmd, sizeof(tmp_cmd), 0, "sensorCfgStart %d", startup_mode);
     cmd_ = std::string(tmp_cmd);
   }
   uint8_t on_message(std::string &message) override;
@@ -99,12 +97,12 @@ class ResetSystemCommand : public Command {
 
 class SaveCfgCommand : public Command {
  public:
-  SaveCfgCommand() { cmd_ = "saveCfg 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89"; }
+  SaveCfgCommand() {
+    cmd_ = "saveCfg 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89";
+    cmd_duration_ms_ = 3000;
+    timeout_ms_ = 3500;
+  }
   uint8_t on_message(std::string &message) override;
-
- protected:
-  uint32_t cmd_duration_ms_{3000};
-  uint32_t timeout_ms_{3500};
 };
 
 class LedModeCommand : public Command {
@@ -142,8 +140,8 @@ class SensitivityCommand : public Command {
   SensitivityCommand(uint8_t sensitivity) : sensitivity_(sensitivity) {
     if (sensitivity > 9)
       sensitivity_ = sensitivity = 9;
-    char tmp_cmd[20] = {0};
-    sprintf(tmp_cmd, "setSensitivity %d", sensitivity);
+    char tmp_cmd[20];  // "setSensitivity " (15) + "0-9" (1) + null = 17
+    buf_append_printf(tmp_cmd, sizeof(tmp_cmd), 0, "setSensitivity %d", sensitivity);
     cmd_ = std::string(tmp_cmd);
   };
   uint8_t on_message(std::string &message) override;

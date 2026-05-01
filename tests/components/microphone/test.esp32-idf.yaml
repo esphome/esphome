@@ -1,15 +1,8 @@
-i2s_audio:
-  i2s_lrclk_pin: 13
-  i2s_bclk_pin: 14
-  i2s_mclk_pin: 15
+substitutions:
+  i2s_bclk_pin: GPIO15
+  i2s_lrclk_pin: GPIO4
+  i2s_mclk_pin: GPIO5
+  i2s_din_pin1: GPIO33
+  i2s_din_pin2: GPIO34
 
-microphone:
-  - platform: i2s_audio
-    id: mic_id_adc
-    adc_pin: 32
-    adc_type: internal
-  - platform: i2s_audio
-    id: mic_id_external
-    i2s_din_pin: 33
-    adc_type: external
-    pdm: false
+<<: !include common.yaml

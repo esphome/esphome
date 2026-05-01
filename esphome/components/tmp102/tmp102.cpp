@@ -15,13 +15,11 @@ static const uint8_t TMP102_REGISTER_HIGH_LIMIT = 0x03;
 
 static const float TMP102_CONVERSION_FACTOR = 0.0625;
 
-void TMP102Component::setup() { ESP_LOGCONFIG(TAG, "Setting up TMP102..."); }
-
 void TMP102Component::dump_config() {
   ESP_LOGCONFIG(TAG, "TMP102:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with TMP102 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this);
@@ -47,8 +45,6 @@ void TMP102Component::update() {
     this->status_clear_warning();
   });
 }
-
-float TMP102Component::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace tmp102
 }  // namespace esphome

@@ -11,7 +11,6 @@ class CopyTextSensor : public text_sensor::TextSensor, public Component {
   void set_source(text_sensor::TextSensor *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   text_sensor::TextSensor *source_;

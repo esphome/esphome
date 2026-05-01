@@ -1,9 +1,11 @@
 import esphome.codegen as cg
+from esphome.components import esp32_ble_tracker, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_BATTERY_LEVEL,
+    CONF_BINDKEY,
     CONF_HUMIDITY,
+    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
     DEVICE_CLASS_BATTERY,
@@ -13,8 +15,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
-    CONF_ID,
-    CONF_BINDKEY,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]

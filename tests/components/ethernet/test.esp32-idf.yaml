@@ -1,1 +1,1 @@
-<<: !include common.yaml
+<<: !include common-lan8720.yaml

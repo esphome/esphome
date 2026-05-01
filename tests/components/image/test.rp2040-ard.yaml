@@ -1,0 +1,15 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+
+display:
+  - platform: ili9xxx
+    id: main_lcd
+    spi_id: spi_bus
+    model: ili9342
+    cs_pin: 20
+    dc_pin: 21
+    reset_pin: 22
+    data_rate: 20MHz
+    invert_colors: true
+
+<<: !include common.yaml

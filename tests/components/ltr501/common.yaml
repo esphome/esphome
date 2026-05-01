@@ -1,0 +1,8 @@
+sensor:
+  - platform: ltr501
+    address: 0x23
+    type: ALS_PS
+    gain: 1X
+    integration_time: 100ms
+    ambient_light: "Ambient light"
+    ps_counts: "Proximity counts"

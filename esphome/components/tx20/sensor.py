@@ -1,17 +1,18 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_WIND_SPEED,
     CONF_PIN,
     CONF_WIND_DIRECTION_DEGREES,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_KILOMETER_PER_HOUR,
-    ICON_WEATHER_WINDY,
+    CONF_WIND_SPEED,
+    DEVICE_CLASS_WIND_SPEED,
     ICON_SIGN_DIRECTION,
+    ICON_WEATHER_WINDY,
+    STATE_CLASS_MEASUREMENT,
     UNIT_DEGREES,
+    UNIT_KILOMETER_PER_HOUR,
 )
 
 tx20_ns = cg.esphome_ns.namespace("tx20")
@@ -24,12 +25,14 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_KILOMETER_PER_HOUR,
             icon=ICON_WEATHER_WINDY,
             accuracy_decimals=1,
+            device_class=DEVICE_CLASS_WIND_SPEED,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_WIND_DIRECTION_DEGREES): sensor.sensor_schema(
             unit_of_measurement=UNIT_DEGREES,
             icon=ICON_SIGN_DIRECTION,
             accuracy_decimals=1,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
     }

@@ -1,0 +1,28 @@
+output:
+  - platform: ${light_platform}
+    id: light_output_1
+    pin: ${pin1}
+  - platform: ${light_platform}
+    id: light_output_2
+    pin: ${pin2}
+  - platform: ${light_platform}
+    id: light_output_3
+    pin: ${pin3}
+  - platform: ${light_platform}
+    id: light_output_4
+    pin: ${pin4}
+  - platform: ${light_platform}
+    id: light_output_5
+    pin: ${pin5}
+
+light:
+  - platform: rgbct
+    name: RGBCT Light
+    red: light_output_1
+    green: light_output_2
+    blue: light_output_3
+    color_temperature: light_output_4
+    white_brightness: light_output_5
+    cold_white_color_temperature: 153 mireds
+    warm_white_color_temperature: 500 mireds
+    color_interlock: true

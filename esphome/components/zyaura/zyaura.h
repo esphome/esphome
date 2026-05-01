@@ -69,7 +69,6 @@ class ZyAuraSensor : public PollingComponent {
   void setup() override { this->store_.setup(this->pin_clock_, this->pin_data_); }
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   ZaSensorStore store_;

@@ -1,0 +1,323 @@
+#include "http_request_idf.h"
+
+#ifdef USE_ESP32
+
+#include "esphome/components/network/util.h"
+#include "esphome/components/watchdog/watchdog.h"
+
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
+
+#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+#include "esp_crt_bundle.h"
+#endif
+
+#include "esp_task_wdt.h"
+
+namespace esphome::http_request {
+
+static const char *const TAG = "http_request.idf";
+static constexpr uint32_t ERROR_DURATION_MS = 1000;
+
+struct UserData {
+  const std::vector<std::string> &lower_case_collect_headers;
+  std::vector<Header> &response_headers;
+};
+
+void HttpRequestIDF::dump_config() {
+  HttpRequestComponent::dump_config();
+  ESP_LOGCONFIG(TAG,
+                "  Buffer Size RX: %u\n"
+                "  Buffer Size TX: %u\n"
+                "  Custom CA Certificate: %s",
+                this->buffer_size_rx_, this->buffer_size_tx_, YESNO(this->ca_certificate_ != nullptr));
+}
+
+esp_err_t HttpRequestIDF::http_event_handler(esp_http_client_event_t *evt) {
+  UserData *user_data = (UserData *) evt->user_data;
+
+  switch (evt->event_id) {
+    case HTTP_EVENT_ON_HEADER: {
+      const std::string header_name = str_lower_case(evt->header_key);  // NOLINT
+      if (should_collect_header(user_data->lower_case_collect_headers, header_name)) {
+        const std::string header_value = evt->header_value;
+        ESP_LOGD(TAG, "Received response header, name: %s, value: %s", header_name.c_str(), header_value.c_str());
+        user_data->response_headers.push_back({header_name, header_value});
+      }
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+  return ESP_OK;
+}
+
+std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, const std::string &method,
+                                                       const std::string &body,
+                                                       const std::vector<Header> &request_headers,
+                                                       const std::vector<std::string> &lower_case_collect_headers) {
+  if (!network::is_connected()) {
+    this->status_momentary_error("failed", ERROR_DURATION_MS);
+    ESP_LOGE(TAG, "HTTP Request failed; Not connected to network");
+    return nullptr;
+  }
+
+  esp_http_client_method_t method_idf;
+  if (method == "GET") {
+    method_idf = HTTP_METHOD_GET;
+  } else if (method == "POST") {
+    method_idf = HTTP_METHOD_POST;
+  } else if (method == "PUT") {
+    method_idf = HTTP_METHOD_PUT;
+  } else if (method == "DELETE") {
+    method_idf = HTTP_METHOD_DELETE;
+  } else if (method == "PATCH") {
+    method_idf = HTTP_METHOD_PATCH;
+  } else {
+    this->status_momentary_error("failed", ERROR_DURATION_MS);
+    ESP_LOGE(TAG, "HTTP Request failed; Unsupported method");
+    return nullptr;
+  }
+
+  bool secure = url.find("https:") != std::string::npos;
+
+  esp_http_client_config_t config = {};
+
+  config.url = url.c_str();
+  config.method = method_idf;
+  config.timeout_ms = this->timeout_;
+  config.disable_auto_redirect = !this->follow_redirects_;
+  config.max_redirection_count = this->redirect_limit_;
+  config.auth_type = HTTP_AUTH_TYPE_BASIC;
+  if (secure && this->verify_ssl_) {
+    if (this->ca_certificate_ != nullptr) {
+      config.cert_pem = this->ca_certificate_;
+#if CONFIG_MBEDTLS_CERTIFICATE_BUNDLE
+    } else {
+      config.crt_bundle_attach = esp_crt_bundle_attach;
+#endif
+    }
+  }
+
+  if (this->useragent_ != nullptr) {
+    config.user_agent = this->useragent_;
+  }
+
+  config.buffer_size = this->buffer_size_rx_;
+  config.buffer_size_tx = this->buffer_size_tx_;
+
+  const uint32_t start = millis();
+  watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
+
+  config.event_handler = http_event_handler;
+
+  esp_http_client_handle_t client = esp_http_client_init(&config);
+  if (client == nullptr) {
+    this->status_momentary_error("failed", ERROR_DURATION_MS);
+    ESP_LOGE(TAG, "HTTP Request failed; client could not be initialized");
+    return nullptr;
+  }
+
+  std::shared_ptr<HttpContainerIDF> container = std::make_shared<HttpContainerIDF>(client);
+  container->set_parent(this);
+
+  container->set_secure(secure);
+
+  auto user_data = UserData{lower_case_collect_headers, container->response_headers_};
+  esp_http_client_set_user_data(client, static_cast<void *>(&user_data));
+
+  for (const auto &header : request_headers) {
+    esp_http_client_set_header(client, header.name.c_str(), header.value.c_str());
+  }
+
+  const int body_len = body.length();
+
+  esp_err_t err = esp_http_client_open(client, body_len);
+  if (err != ESP_OK) {
+    this->status_momentary_error("failed", ERROR_DURATION_MS);
+    ESP_LOGE(TAG, "HTTP Request failed: %s", esp_err_to_name(err));
+    esp_http_client_cleanup(client);
+    return nullptr;
+  }
+
+  if (body_len > 0) {
+    int write_left = body_len;
+    int write_index = 0;
+    const char *buf = body.c_str();
+    while (write_left > 0) {
+      int written = esp_http_client_write(client, buf + write_index, write_left);
+      if (written < 0) {
+        err = ESP_FAIL;
+        break;
+      }
+      write_left -= written;
+      write_index += written;
+    }
+  }
+
+  if (err != ESP_OK) {
+    this->status_momentary_error("failed", ERROR_DURATION_MS);
+    ESP_LOGE(TAG, "HTTP Request failed: %s", esp_err_to_name(err));
+    esp_http_client_cleanup(client);
+    return nullptr;
+  }
+
+  container->feed_wdt();
+  // esp_http_client_fetch_headers() returns 0 for chunked transfer encoding (no Content-Length header).
+  // The read() method handles content_length == 0 specially to support chunked responses.
+  container->content_length = esp_http_client_fetch_headers(client);
+  container->set_chunked(esp_http_client_is_chunked_response(client));
+  container->feed_wdt();
+  container->status_code = esp_http_client_get_status_code(client);
+  container->feed_wdt();
+  container->duration_ms = millis() - start;
+  if (is_success(container->status_code)) {
+    return container;
+  }
+
+  if (this->follow_redirects_) {
+    auto num_redirects = this->redirect_limit_;
+    while (is_redirect(container->status_code) && num_redirects > 0) {
+      err = esp_http_client_set_redirection(client);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_http_client_set_redirection failed: %s", esp_err_to_name(err));
+        this->status_momentary_error("failed", ERROR_DURATION_MS);
+        esp_http_client_cleanup(client);
+        return nullptr;
+      }
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char redirect_url[256]{};
+      if (esp_http_client_get_url(client, redirect_url, sizeof(redirect_url) - 1) == ESP_OK) {
+        ESP_LOGV(TAG, "redirecting to url: %s", redirect_url);
+      }
+#endif
+      err = esp_http_client_open(client, 0);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_http_client_open failed: %s", esp_err_to_name(err));
+        this->status_momentary_error("failed", ERROR_DURATION_MS);
+        esp_http_client_cleanup(client);
+        return nullptr;
+      }
+
+      container->feed_wdt();
+      container->content_length = esp_http_client_fetch_headers(client);
+      container->set_chunked(esp_http_client_is_chunked_response(client));
+      container->feed_wdt();
+      container->status_code = esp_http_client_get_status_code(client);
+      container->feed_wdt();
+      container->duration_ms = millis() - start;
+      if (is_success(container->status_code)) {
+        return container;
+      }
+
+      num_redirects--;
+    }
+
+    if (num_redirects == 0) {
+      ESP_LOGW(TAG, "Reach redirect limit count=%d", this->redirect_limit_);
+    }
+  }
+
+  ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", url.c_str(), container->status_code);
+  this->status_momentary_error("failed", ERROR_DURATION_MS);
+  return container;
+}
+
+bool HttpContainerIDF::is_read_complete() const {
+  // Base class handles no-body status codes and non-chunked content_length completion
+  if (HttpContainer::is_read_complete()) {
+    return true;
+  }
+  // For chunked responses, use the authoritative ESP-IDF completion check
+  return this->is_chunked_ && esp_http_client_is_complete_data_received(this->client_);
+}
+
+// ESP-IDF HTTP read implementation (blocking mode)
+//
+// WARNING: Return values differ from BSD sockets! See http_request.h for full documentation.
+//
+// esp_http_client_read() in blocking mode returns:
+//   > 0: bytes read
+//   0: all chunked data received (is_chunk_complete true) or connection closed
+//   -ESP_ERR_HTTP_EAGAIN: transport timeout, no data available yet
+//   < 0: error
+//
+// We normalize to HttpContainer::read() contract:
+//   > 0: bytes read
+//   0: all content read (for both content_length-based and chunked completion)
+//   < 0: error/connection closed
+//
+// Note on chunked transfer encoding:
+//   esp_http_client_fetch_headers() returns 0 for chunked responses (no Content-Length header).
+//   When esp_http_client_read() returns 0 for a chunked response, is_read_complete() calls
+//   esp_http_client_is_complete_data_received() to distinguish successful completion from
+//   connection errors. Callers use http_read_loop_result() which checks is_read_complete()
+//   to return COMPLETE for successful chunked EOF.
+//
+// Streaming chunked responses are not supported (see http_request.h for details).
+// When data stops arriving, esp_http_client_read() returns -ESP_ERR_HTTP_EAGAIN
+// after its internal transport timeout (configured via timeout_ms) expires.
+// This is passed through as a negative return value, which callers treat as an error.
+int HttpContainerIDF::read(uint8_t *buf, size_t max_len) {
+  const uint32_t start = millis();
+  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+
+  // Check if we've already read all expected content (non-chunked and no-body only).
+  // Use the base class check here, NOT the override: esp_http_client_is_complete_data_received()
+  // returns true as soon as all data arrives from the network, but data may still be in
+  // the client's internal buffer waiting to be consumed by esp_http_client_read().
+  if (HttpContainer::is_read_complete()) {
+    return 0;  // All content read successfully
+  }
+
+  this->feed_wdt();
+  int read_len_or_error = esp_http_client_read(this->client_, (char *) buf, max_len);
+  this->feed_wdt();
+
+  this->duration_ms += (millis() - start);
+
+  if (read_len_or_error > 0) {
+    this->bytes_read_ += read_len_or_error;
+    return read_len_or_error;
+  }
+
+  // esp_http_client_read() returns 0 when:
+  // - Known content_length: connection closed before all data received (error)
+  // - Chunked encoding: all chunks received (is_chunk_complete true, genuine EOF)
+  //
+  // Return 0 in both cases. Callers use http_read_loop_result() which calls
+  // is_read_complete() to distinguish these:
+  // - Chunked complete: is_read_complete() returns true (via
+  //   esp_http_client_is_complete_data_received()), caller gets COMPLETE
+  // - Non-chunked incomplete: is_read_complete() returns false, caller
+  //   eventually gets TIMEOUT (since no more data arrives)
+  if (read_len_or_error == 0) {
+    return 0;
+  }
+
+  // Negative value - error, return the actual error code for debugging
+  return read_len_or_error;
+}
+
+void HttpContainerIDF::end() {
+  if (this->client_ == nullptr) {
+    return;  // Already cleaned up
+  }
+  watchdog::WatchdogManager wdm(this->parent_->get_watchdog_timeout());
+
+  esp_http_client_close(this->client_);
+  esp_http_client_cleanup(this->client_);
+  this->client_ = nullptr;
+}
+
+void HttpContainerIDF::feed_wdt() {
+  // Tests to see if the executing task has a watchdog timer attached
+  if (esp_task_wdt_status(nullptr) == ESP_OK) {
+    App.feed_wdt();
+  }
+}
+
+}  // namespace esphome::http_request
+
+#endif  // USE_ESP32

@@ -1,13 +1,14 @@
 import esphome.codegen as cg
+from esphome.components import ble_client, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, ble_client
 from esphome.const import (
-    CONF_ID,
     CONF_BATTERY_LEVEL,
+    CONF_ID,
+    CONF_ILLUMINANCE,
     DEVICE_CLASS_BATTERY,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    CONF_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
+    STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
 )
 
@@ -26,11 +27,13 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_BATTERY,
                 accuracy_decimals=0,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_BRIGHTNESS_5,
                 accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )

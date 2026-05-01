@@ -1,0 +1,20 @@
+display:
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    id: ft5x06_display
+    model: SSD1306_128X64
+    reset_pin: ${reset_pin}
+    pages:
+      - id: ft5x06_page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+
+touchscreen:
+  - platform: ft5x06
+    i2c_id: i2c_bus
+    display: ft5x06_display
+    id: ft5x06_touchscreen
+    on_touch:
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: [touch.x, touch.y]

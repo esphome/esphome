@@ -1,12 +1,14 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    UNIT_DEGREES,
-    ICON_WEATHER_SUNSET,
     CONF_TYPE,
+    ICON_WEATHER_SUNSET,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_DEGREES,
 )
-from .. import sun_ns, CONF_SUN_ID, Sun
+
+from .. import CONF_SUN_ID, Sun, sun_ns
 
 DEPENDENCIES = ["sun"]
 
@@ -23,6 +25,7 @@ CONFIG_SCHEMA = (
         unit_of_measurement=UNIT_DEGREES,
         icon=ICON_WEATHER_SUNSET,
         accuracy_decimals=1,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

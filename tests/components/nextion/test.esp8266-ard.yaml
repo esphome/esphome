@@ -1,0 +1,4 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
+  base: !include common.yaml
+  tft_upload: !include common_tft_upload.yaml

@@ -8,18 +8,23 @@
 namespace esphome {
 namespace scd4x {
 
-enum ERRORCODE {
+enum ErrorCode : uint8_t {
   COMMUNICATION_FAILED,
   SERIAL_NUMBER_IDENTIFICATION_FAILED,
   MEASUREMENT_INIT_FAILED,
   FRC_FAILED,
-  UNKNOWN
+  UNKNOWN,
 };
-enum MeasurementMode { PERIODIC, LOW_POWER_PERIODIC, SINGLE_SHOT, SINGLE_SHOT_RHT_ONLY };
+
+enum MeasurementMode : uint8_t {
+  PERIODIC,
+  LOW_POWER_PERIODIC,
+  SINGLE_SHOT,
+  SINGLE_SHOT_RHT_ONLY,
+};
 
 class SCD4XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -40,21 +45,18 @@ class SCD4XComponent : public PollingComponent, public sensirion_common::Sensiri
  protected:
   bool update_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
   bool start_measurement_();
-  ERRORCODE error_code_;
 
-  bool initialized_{false};
-
-  float temperature_offset_;
-  uint16_t altitude_compensation_;
-  bool ambient_pressure_compensation_;
-  uint16_t ambient_pressure_;
-  bool enable_asc_;
-  MeasurementMode measurement_mode_{PERIODIC};
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
-  // used for compensation
-  sensor::Sensor *ambient_pressure_source_{nullptr};
+  sensor::Sensor *ambient_pressure_source_{nullptr};  // used for compensation
+  float temperature_offset_;
+  uint16_t altitude_compensation_{0};
+  uint16_t ambient_pressure_{0};  // Per datasheet, valid values are 700 to 1200 hPa; 0 is a valid sentinel value
+  bool initialized_{false};
+  bool enable_asc_{false};
+  ErrorCode error_code_;
+  MeasurementMode measurement_mode_{PERIODIC};
 };
 
 }  // namespace scd4x

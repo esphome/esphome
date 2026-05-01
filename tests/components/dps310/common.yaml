@@ -1,0 +1,8 @@
+sensor:
+  - platform: dps310
+    i2c_id: i2c_bus
+    temperature:
+      name: DPS310 Temperature
+    pressure:
+      name: DPS310 Pressure
+    address: 0x77

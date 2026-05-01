@@ -1,0 +1,282 @@
+esphome:
+  name: scheduler-pool-test
+  on_boot:
+    priority: -100
+    then:
+      - logger.log: "Starting scheduler pool tests"
+  debug_scheduler: true  # Enable scheduler debug logging
+
+host:
+api:
+  services:
+    - service: run_phase_1
+      then:
+        - script.execute: test_pool_recycling
+    - service: run_phase_2
+      then:
+        - script.execute: test_sensor_polling
+    - service: run_phase_3
+      then:
+        - script.execute: test_communication_patterns
+    - service: run_phase_4
+      then:
+        - script.execute: test_defer_patterns
+    - service: run_phase_5
+      then:
+        - script.execute: test_pool_reuse_verification
+    - service: run_phase_6
+      then:
+        - script.execute: test_full_pool_reuse
+    - service: run_phase_7
+      then:
+        - script.execute: test_same_defer_optimization
+    - service: run_complete
+      then:
+        - script.execute: complete_test
+logger:
+  level: VERY_VERBOSE  # Need VERY_VERBOSE to see pool debug messages
+
+globals:
+  - id: create_count
+    type: int
+    initial_value: '0'
+  - id: cancel_count
+    type: int
+    initial_value: '0'
+  - id: interval_counter
+    type: int
+    initial_value: '0'
+  - id: pool_test_done
+    type: bool
+    initial_value: 'false'
+
+script:
+  - id: test_pool_recycling
+    then:
+      - logger.log: "Testing scheduler pool recycling with realistic usage patterns"
+      - lambda: |-
+          auto *component = id(test_sensor);
+
+          // Simulate realistic component behavior with timeouts that complete naturally
+          ESP_LOGI("test", "Phase 1: Simulating normal component lifecycle");
+
+          // Sensor update timeouts (common pattern)
+          App.scheduler.set_timeout(component, "sensor_init", 10, []() {
+            ESP_LOGD("test", "Sensor initialized");
+            id(create_count)++;
+          });
+
+          // Retry timeout (gets cancelled if successful)
+          App.scheduler.set_timeout(component, "retry_timeout", 50, []() {
+            ESP_LOGD("test", "Retry timeout executed");
+            id(create_count)++;
+          });
+
+          // Simulate successful operation - cancel retry
+          App.scheduler.set_timeout(component, "success_sim", 20, []() {
+            ESP_LOGD("test", "Operation succeeded, cancelling retry");
+            App.scheduler.cancel_timeout(id(test_sensor), "retry_timeout");
+            id(cancel_count)++;
+          });
+
+          id(create_count) += 3;
+          ESP_LOGI("test", "Phase 1 complete");
+
+  - id: test_sensor_polling
+    then:
+      - lambda: |-
+          // Simulate sensor polling pattern
+          ESP_LOGI("test", "Phase 2: Simulating sensor polling patterns");
+          auto *component = id(test_sensor);
+
+          // Multiple sensors with different update intervals
+          // These should only allocate once and reuse the same item for each interval execution
+          App.scheduler.set_interval(component, "temp_sensor", 10, []() {
+            ESP_LOGD("test", "Temperature sensor update");
+            id(interval_counter)++;
+            if (id(interval_counter) >= 3) {
+              App.scheduler.cancel_interval(id(test_sensor), "temp_sensor");
+              ESP_LOGD("test", "Temperature sensor stopped");
+            }
+          });
+
+          App.scheduler.set_interval(component, "humidity_sensor", 15, []() {
+            ESP_LOGD("test", "Humidity sensor update");
+            id(interval_counter)++;
+            if (id(interval_counter) >= 5) {
+              App.scheduler.cancel_interval(id(test_sensor), "humidity_sensor");
+              ESP_LOGD("test", "Humidity sensor stopped");
+            }
+          });
+
+          // Only 2 allocations for the intervals, no matter how many times they execute
+          id(create_count) += 2;
+          ESP_LOGD("test", "Created 2 intervals - they will reuse same items for each execution");
+          ESP_LOGI("test", "Phase 2 complete");
+
+  - id: test_communication_patterns
+    then:
+      - lambda: |-
+          // Simulate communication patterns (WiFi/API reconnects, etc)
+          ESP_LOGI("test", "Phase 3: Simulating communication patterns");
+          auto *component = id(test_sensor);
+
+          // Connection timeout pattern
+          App.scheduler.set_timeout(component, "connect_timeout", 200, []() {
+            ESP_LOGD("test", "Connection timeout - would retry");
+            id(create_count)++;
+
+            // Schedule retry
+            App.scheduler.set_timeout(id(test_sensor), "connect_retry", 100, []() {
+              ESP_LOGD("test", "Retrying connection");
+              id(create_count)++;
+            });
+          });
+
+          // Heartbeat pattern
+          App.scheduler.set_interval(component, "heartbeat", 50, []() {
+            ESP_LOGD("test", "Heartbeat");
+            id(interval_counter)++;
+            if (id(interval_counter) >= 10) {
+              App.scheduler.cancel_interval(id(test_sensor), "heartbeat");
+              ESP_LOGD("test", "Heartbeat stopped");
+            }
+          });
+
+          id(create_count) += 2;
+          ESP_LOGI("test", "Phase 3 complete");
+
+  - id: test_defer_patterns
+    then:
+      - lambda: |-
+          // Simulate defer patterns (state changes, async operations)
+          ESP_LOGI("test", "Phase 4: Simulating heavy defer patterns like ratgdo");
+
+          auto *component = id(test_sensor);
+
+          // Simulate a burst of defer operations like ratgdo does with state updates
+          // These should execute immediately and recycle quickly to the pool
+          for (int i = 0; i < 10; i++) {
+            std::string defer_name = "defer_" + std::to_string(i);
+            App.scheduler.set_timeout(component, defer_name, 0, [i]() {
+              ESP_LOGD("test", "Defer %d executed", i);
+              // Force a small delay between defer executions to see recycling
+              if (i == 5) {
+                ESP_LOGI("test", "Half of defers executed, checking pool status");
+              }
+            });
+          }
+
+          id(create_count) += 10;
+          ESP_LOGD("test", "Created 10 defer operations (0ms timeouts)");
+
+          // Also create some named defers that might get replaced
+          App.scheduler.set_timeout(component, "state_update", 0, []() {
+            ESP_LOGD("test", "State update 1");
+          });
+
+          // Replace the same named defer (should cancel previous)
+          App.scheduler.set_timeout(component, "state_update", 0, []() {
+            ESP_LOGD("test", "State update 2 (replaced)");
+          });
+
+          id(create_count) += 2;
+          id(cancel_count) += 1; // One cancelled due to replacement
+
+          ESP_LOGI("test", "Phase 4 complete");
+
+  - id: test_pool_reuse_verification
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "Phase 5: Verifying pool reuse after everything settles");
+
+          // Cancel any remaining intervals
+          auto *component = id(test_sensor);
+          App.scheduler.cancel_interval(component, "temp_sensor");
+          App.scheduler.cancel_interval(component, "humidity_sensor");
+          App.scheduler.cancel_interval(component, "heartbeat");
+
+          ESP_LOGD("test", "Cancelled any remaining intervals");
+
+          // The pool should have items from completed timeouts in earlier phases.
+          // Phase 1 had 3 timeouts that completed and were recycled.
+          // Phase 3 had 1 timeout that completed and was recycled.
+          // Phase 4 had 3 defers that completed and were recycled.
+          // So we should have a decent pool size already from naturally completed items.
+
+          // Now create 8 new timeouts - they should reuse from pool when available
+          int reuse_test_count = 8;
+
+          for (int i = 0; i < reuse_test_count; i++) {
+            std::string name = "reuse_test_" + std::to_string(i);
+            App.scheduler.set_timeout(component, name, 10 + i * 5, [i]() {
+              ESP_LOGD("test", "Reuse test %d completed", i);
+            });
+          }
+
+          ESP_LOGI("test", "Created %d items for reuse verification", reuse_test_count);
+          id(create_count) += reuse_test_count;
+          ESP_LOGI("test", "Phase 5 complete");
+
+  - id: test_full_pool_reuse
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "Phase 6: Testing pool size limits after Phase 5 items complete");
+
+          // At this point, all Phase 5 timeouts should have completed and been recycled.
+          // The pool should be at its maximum size (5).
+          // Creating 10 new items tests that:
+          // - First 5 items reuse from the pool
+          // - Remaining 5 items allocate new (pool empty)
+          // - Pool doesn't grow beyond MAX_POOL_SIZE of 5
+
+          auto *component = id(test_sensor);
+          int full_reuse_count = 10;
+
+          for (int i = 0; i < full_reuse_count; i++) {
+            std::string name = "full_reuse_" + std::to_string(i);
+            App.scheduler.set_timeout(component, name, 10 + i * 5, [i]() {
+              ESP_LOGD("test", "Full reuse test %d completed", i);
+            });
+          }
+
+          ESP_LOGI("test", "Created %d items for full pool reuse verification", full_reuse_count);
+          id(create_count) += full_reuse_count;
+          ESP_LOGI("test", "Phase 6 complete");
+
+  - id: test_same_defer_optimization
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "Phase 7: Testing same-named defer optimization");
+
+          auto *component = id(test_sensor);
+
+          // Create 10 defers with the same name - should optimize to update callback in-place
+          // This pattern is common in components like ratgdo that repeatedly defer state updates
+          for (int i = 0; i < 10; i++) {
+            App.scheduler.set_timeout(component, "repeated_defer", 0, [i]() {
+              ESP_LOGD("test", "Repeated defer executed with value: %d", i);
+            });
+          }
+
+          // Only the first should allocate, the rest should update in-place
+          // We expect only 1 allocation for all 10 operations
+          id(create_count) += 1;  // Only count 1 since others should be optimized
+
+          ESP_LOGD("test", "Created 10 same-named defers (should only allocate once)");
+          ESP_LOGI("test", "Phase 7 complete");
+
+  - id: complete_test
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "Pool recycling test complete - created %d items, cancelled %d, intervals %d",
+                   id(create_count), id(cancel_count), id(interval_counter));
+
+sensor:
+  - platform: template
+    name: Test Sensor
+    id: test_sensor
+    lambda: return 1.0;
+    update_interval: never
+
+# No interval - tests will be triggered from Python via API services

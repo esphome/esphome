@@ -1,18 +1,30 @@
-import logging
-from typing import Callable, Optional, Any, ContextManager
-from types import ModuleType
-import importlib
-import importlib.util
-import importlib.resources
-import importlib.abc
-import sys
-from pathlib import Path
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
+import importlib
+import importlib.abc
+import importlib.resources
+import importlib.util
+import logging
+from pathlib import Path
+import sys
+from types import ModuleType
+from typing import TYPE_CHECKING, Any
 
 from esphome.const import SOURCE_FILE_EXTENSIONS
-import esphome.core.config
 from esphome.core import CORE
 from esphome.types import ConfigType
+
+if TYPE_CHECKING:
+    from esphome.cpp_generator import MockObjClass
+
+# `esphome.core.config` is imported lazily in `_lookup_module` when the
+# "esphome" pseudo-component is first resolved. It pulls in
+# `esphome.automation` and `esphome.config_validation`, which together
+# dominate `esphome.__main__` startup cost when loaded eagerly.
+# `esphome.cpp_generator` is similarly avoided at module scope; it pulls
+# in `esphome.yaml_util` and is only needed for the `MockObjClass` type
+# annotation, which is resolved lazily via `TYPE_CHECKING`.
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,15 +34,16 @@ class FileResource:
     package: str
     resource: str
 
-    def path(self) -> ContextManager[Path]:
+    def path(self) -> AbstractContextManager[Path]:
         return importlib.resources.as_file(
             importlib.resources.files(self.package) / self.resource
         )
 
 
 class ComponentManifest:
-    def __init__(self, module: ModuleType):
+    def __init__(self, module: ModuleType, recursive_sources: bool = False):
         self.module = module
+        self.recursive_sources = recursive_sources
 
     @property
     def package(self) -> str:
@@ -52,7 +65,11 @@ class ComponentManifest:
         return getattr(self.module, "IS_PLATFORM_COMPONENT", False)
 
     @property
-    def config_schema(self) -> Optional[Any]:
+    def is_target_platform(self) -> bool:
+        return getattr(self.module, "IS_TARGET_PLATFORM", False)
+
+    @property
+    def config_schema(self) -> Any | None:
         return getattr(self.module, "CONFIG_SCHEMA", None)
 
     @property
@@ -64,7 +81,7 @@ class ComponentManifest:
         return getattr(self.module, "MULTI_CONF_NO_DEFAULT", False)
 
     @property
-    def to_code(self) -> Optional[Callable[[Any], None]]:
+    def to_code(self) -> Callable[[Any], None] | None:
         return getattr(self.module, "to_code", None)
 
     @property
@@ -76,18 +93,21 @@ class ComponentManifest:
         return getattr(self.module, "CONFLICTS_WITH", [])
 
     @property
-    def auto_load(self) -> list[str]:
-        al = getattr(self.module, "AUTO_LOAD", [])
-        if callable(al):
-            return al()
-        return al
+    def auto_load(
+        self,
+    ) -> list[str] | Callable[[], list[str]] | Callable[[ConfigType], list[str]]:
+        return getattr(self.module, "AUTO_LOAD", [])
 
     @property
     def codeowners(self) -> list[str]:
         return getattr(self.module, "CODEOWNERS", [])
 
     @property
-    def final_validate_schema(self) -> Optional[Callable[[ConfigType], None]]:
+    def instance_type(self) -> "MockObjClass | None":
+        return getattr(self.module, "INSTANCE_TYPE", None)
+
+    @property
+    def final_validate_schema(self) -> Callable[[ConfigType], None] | None:
         """Components can declare a `FINAL_VALIDATE_SCHEMA` cv.Schema that gets called
         after the main validation. In that function checks across components can be made.
 
@@ -99,28 +119,51 @@ class ComponentManifest:
     def resources(self) -> list[FileResource]:
         """Return a list of all file resources defined in the package of this component.
 
-        This will return all cpp source files that are located in the same folder as the
-        loaded .py file (does not look through subdirectories)
+        By default only files directly in the package directory are returned. Manifests
+        constructed with ``recursive_sources=True`` also descend into non-subpackage
+        subdirectories (subdirectories without an ``__init__.py``), so core code can
+        live under ``esphome/core/<group>/`` without every component paying the cost.
         """
-        ret = []
+        ret: list[FileResource] = []
 
-        for resource in (
-            r.name
-            for r in importlib.resources.files(self.package).iterdir()
-            if r.is_file()
-        ):
-            if Path(resource).suffix not in SOURCE_FILE_EXTENSIONS:
-                continue
-            if not importlib.resources.files(self.package).joinpath(resource).is_file():
-                # Not a resource = this is a directory (yeah this is confusing)
-                continue
-            ret.append(FileResource(self.package, resource))
+        # Get filter function for source files
+        filter_source_files_func = getattr(self.module, "FILTER_SOURCE_FILES", None)
+
+        # Get list of files to exclude
+        excluded_files = (
+            set(filter_source_files_func()) if filter_source_files_func else set()
+        )
+
+        root = importlib.resources.files(self.package)
+
+        for child in root.iterdir():
+            name = child.name
+            if child.is_file():
+                if Path(name).suffix not in SOURCE_FILE_EXTENSIONS:
+                    continue
+                if name in excluded_files:
+                    continue
+                ret.append(FileResource(self.package, name))
+            elif self.recursive_sources and child.is_dir() and name != "__pycache__":
+                # Skip Python subpackages — they load as their own components.
+                if child.joinpath("__init__.py").is_file():
+                    continue
+                for sub in child.iterdir():
+                    if not sub.is_file():
+                        continue
+                    if Path(sub.name).suffix not in SOURCE_FILE_EXTENSIONS:
+                        continue
+                    resource = f"{name}/{sub.name}"
+                    if resource in excluded_files:
+                        continue
+                    ret.append(FileResource(self.package, resource))
+
         return ret
 
 
 class ComponentMetaFinder(importlib.abc.MetaPathFinder):
     def __init__(
-        self, components_path: Path, allowed_components: Optional[list[str]] = None
+        self, components_path: Path, allowed_components: list[str] | None = None
     ) -> None:
         self._allowed_components = allowed_components
         self._finders = []
@@ -131,7 +174,7 @@ class ComponentMetaFinder(importlib.abc.MetaPathFinder):
                 continue
             self._finders.append(finder)
 
-    def find_spec(self, fullname: str, path: Optional[list[str]], target=None):
+    def find_spec(self, fullname: str, path: list[str] | None, target=None):
         if not fullname.startswith("esphome.components."):
             return None
         parts = fullname.split(".")
@@ -158,27 +201,49 @@ def clear_component_meta_finders():
 
 
 def install_meta_finder(
-    components_path: Path, allowed_components: Optional[list[str]] = None
+    components_path: Path, allowed_components: list[str] | None = None
 ):
     sys.meta_path.insert(0, ComponentMetaFinder(components_path, allowed_components))
 
 
 def install_custom_components_meta_finder():
+    # Remove before 2026.6.0
     custom_components_dir = (Path(CORE.config_dir) / "custom_components").resolve()
+    if custom_components_dir.is_dir() and any(custom_components_dir.iterdir()):
+        _LOGGER.warning(
+            "The 'custom_components' folder is deprecated and will be removed in 2026.6.0. "
+            "Please use 'external_components' instead. "
+            "See https://esphome.io/components/external_components.html for more information."
+        )
     install_meta_finder(custom_components_dir)
 
 
-def _lookup_module(domain):
+def _lookup_module(domain: str, exception: bool) -> ComponentManifest | None:
     if domain in _COMPONENT_CACHE:
         return _COMPONENT_CACHE[domain]
+
+    if domain == "esphome":
+        import esphome.core.config
+
+        manif = ComponentManifest(esphome.core.config, recursive_sources=True)
+        _COMPONENT_CACHE[domain] = manif
+        return manif
 
     try:
         module = importlib.import_module(f"esphome.components.{domain}")
     except ImportError as e:
-        if "No module named" not in str(e):
+        if exception:
+            raise
+        if "No module named" in str(e):
+            _LOGGER.info(
+                "Unable to import component %s: %s", domain, str(e), exc_info=False
+            )
+        else:
             _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
         return None
     except Exception:  # pylint: disable=broad-except
+        if exception:
+            raise
         _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
         return None
 
@@ -187,16 +252,25 @@ def _lookup_module(domain):
     return manif
 
 
-def get_component(domain):
+def get_component(domain: str, exception: bool = False) -> ComponentManifest | None:
     assert "." not in domain
-    return _lookup_module(domain)
+    return _lookup_module(domain, exception)
 
 
-def get_platform(domain, platform):
+def get_platform(domain: str, platform: str) -> ComponentManifest | None:
     full = f"{platform}.{domain}"
-    return _lookup_module(full)
+    return _lookup_module(full, False)
 
 
-_COMPONENT_CACHE = {}
+_COMPONENT_CACHE: dict[str, ComponentManifest] = {}
 CORE_COMPONENTS_PATH = (Path(__file__).parent / "components").resolve()
-_COMPONENT_CACHE["esphome"] = ComponentManifest(esphome.core.config)
+
+
+def _replace_component_manifest(domain: str, manifest: ComponentManifest) -> None:
+    """Replace the cached manifest for a component.
+
+    This is an intentionally-supported hook for the C++ test infrastructure
+    to install ``ComponentManifestOverride`` wrappers.  Normal application
+    code should never call this.
+    """
+    _COMPONENT_CACHE[domain] = manifest

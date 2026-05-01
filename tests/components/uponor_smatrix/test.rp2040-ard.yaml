@@ -1,0 +1,5 @@
+packages:
+  uart_19200: !include ../../test_build_components/common/uart_19200/rp2040-ard.yaml
+  i2c: !include ../../test_build_components/common/i2c/rp2040-ard.yaml
+
+<<: !include common.yaml

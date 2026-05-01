@@ -1,0 +1,3 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/rp2040-ard.yaml
+  base: !include common.yaml

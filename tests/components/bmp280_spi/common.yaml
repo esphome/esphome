@@ -1,0 +1,11 @@
+sensor:
+  - platform: bmp280_spi
+    cs_pin: ${cs_pin}
+    temperature:
+      id: bmp280_spi_temperature
+      name: Outside Temperature
+    pressure:
+      name: Outside Pressure
+      id: bmp280_spi_pressure
+    iir_filter: 16x
+    update_interval: 15s

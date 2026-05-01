@@ -1,0 +1,22 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+display:
+  - platform: ili9xxx
+    spi_id: spi_bus
+    id: ili9xxx_display
+    model: GC9A01A
+    invert_colors: True
+    cs_pin: 22
+    dc_pin: 21
+    pages:
+      - id: page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
+
+touchscreen:
+  - platform: chsc6x
+    i2c_id: i2c_bus
+    display: ili9xxx_display
+    interrupt_pin: 20

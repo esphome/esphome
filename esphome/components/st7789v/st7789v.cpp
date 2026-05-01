@@ -1,14 +1,18 @@
 #include "st7789v.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 
 namespace esphome {
 namespace st7789v {
 
 static const char *const TAG = "st7789v";
-static const size_t TEMP_BUFFER_SIZE = 128;
+#ifdef USE_ESP32
+static constexpr size_t TEMP_BUFFER_SIZE = 1024;
+#else
+static constexpr size_t TEMP_BUFFER_SIZE = 512;
+#endif
 
 void ST7789V::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SPI ST7789V...");
 #ifdef USE_POWER_SUPPLY
   this->power_.request();
   // the PowerSupply component takes care of post turn-on delay
@@ -122,18 +126,21 @@ void ST7789V::setup() {
 
 void ST7789V::dump_config() {
   LOG_DISPLAY("", "SPI ST7789V", this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_);
-  ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
-  ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
-  ESP_LOGCONFIG(TAG, "  Height Offset: %u", this->offset_height_);
-  ESP_LOGCONFIG(TAG, "  Width Offset: %u", this->offset_width_);
-  ESP_LOGCONFIG(TAG, "  8-bit color mode: %s", YESNO(this->eightbitcolor_));
+  ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
+                "  Height: %u\n"
+                "  Width: %u\n"
+                "  Height Offset: %u\n"
+                "  Width Offset: %u\n"
+                "  8-bit color mode: %s\n"
+                "  Data rate: %dMHz",
+                this->model_str_, this->height_, this->width_, this->offset_height_, this->offset_width_,
+                YESNO(this->eightbitcolor_), (unsigned) (this->data_rate_ / 1000000));
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  B/L Pin: ", this->backlight_pin_);
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 #ifdef USE_POWER_SUPPLY
   ESP_LOGCONFIG(TAG, "  Power Supply Configured: yes");
 #endif
@@ -149,9 +156,9 @@ void ST7789V::update() {
 void ST7789V::set_model_str(const char *model_str) { this->model_str_ = model_str; }
 
 void ST7789V::write_display_data() {
-  uint16_t x1 = this->offset_height_;
+  uint16_t x1 = this->offset_width_;
   uint16_t x2 = x1 + get_width_internal() - 1;
-  uint16_t y1 = this->offset_width_;
+  uint16_t y1 = this->offset_height_;
   uint16_t y2 = y1 + get_height_internal() - 1;
 
   this->enable();
@@ -174,8 +181,9 @@ void ST7789V::write_display_data() {
   if (this->eightbitcolor_) {
     uint8_t temp_buffer[TEMP_BUFFER_SIZE];
     size_t temp_index = 0;
-    for (int line = 0; line < this->get_buffer_length_(); line = line + this->get_width_internal()) {
-      for (int index = 0; index < this->get_width_internal(); ++index) {
+    size_t width = static_cast<size_t>(this->get_width_internal());
+    for (size_t line = 0; line < this->get_buffer_length_(); line += width) {
+      for (size_t index = 0; index < width; ++index) {
         auto color = display::ColorUtil::color_to_565(
             display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
                                          display::ColorBitness::COLOR_BITNESS_332, true));
@@ -233,7 +241,7 @@ void ST7789V::write_data_(uint8_t value) {
 }
 
 void ST7789V::write_addr_(uint16_t addr1, uint16_t addr2) {
-  static uint8_t byte[4];
+  uint8_t byte[4];
   byte[0] = (addr1 >> 8) & 0xFF;
   byte[1] = addr1 & 0xFF;
   byte[2] = (addr2 >> 8) & 0xFF;
@@ -244,15 +252,19 @@ void ST7789V::write_addr_(uint16_t addr1, uint16_t addr2) {
 }
 
 void ST7789V::write_color_(uint16_t color, uint16_t size) {
-  static uint8_t byte[1024];
-  int index = 0;
-  for (int i = 0; i < size; i++) {
-    byte[index++] = (color >> 8) & 0xFF;
-    byte[index++] = color & 0xFF;
-  }
-
+  uint8_t byte[TEMP_BUFFER_SIZE];
+  uint16_t remaining = size;
   this->dc_pin_->digital_write(true);
-  return write_array(byte, size * 2);
+  while (remaining > 0) {
+    uint16_t batch = std::min(remaining, static_cast<uint16_t>(sizeof(byte) / 2));
+    int index = 0;
+    for (int i = 0; i < batch; i++) {
+      byte[index++] = (color >> 8) & 0xFF;
+      byte[index++] = color & 0xFF;
+    }
+    this->write_array(byte, batch * 2);
+    remaining -= batch;
+  }
 }
 
 size_t ST7789V::get_buffer_length_() {

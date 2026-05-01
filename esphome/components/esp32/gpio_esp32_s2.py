@@ -1,5 +1,7 @@
 import logging
+from typing import Any
 
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_INPUT,
     CONF_MODE,
@@ -8,8 +10,6 @@ from esphome.const import (
     CONF_PULLDOWN,
     CONF_PULLUP,
 )
-
-import esphome.config_validation as cv
 from esphome.pins import check_strapping_pin
 
 _ESP32S2_SPI_PSRAM_PINS = {
@@ -27,7 +27,7 @@ _ESP32S2_STRAPPING_PINS = {0, 45, 46}
 _LOGGER = logging.getLogger(__name__)
 
 
-def esp32_s2_validate_gpio_pin(value):
+def esp32_s2_validate_gpio_pin(value: int) -> int:
     if value < 0 or value > 46:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-46)")
 
@@ -44,7 +44,7 @@ def esp32_s2_validate_gpio_pin(value):
     return value
 
 
-def esp32_s2_validate_supports(value):
+def esp32_s2_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     num = value[CONF_NUMBER]
     mode = value[CONF_MODE]
     is_input = mode[CONF_INPUT]

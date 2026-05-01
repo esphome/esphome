@@ -1,5 +1,7 @@
 #pragma once
 
+#include <span>
+
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 
@@ -34,8 +36,10 @@ class SunGTIL2 : public Component, public uart::UARTDevice {
   void set_serial_number(text_sensor::TextSensor *text_sensor) { serial_number_ = text_sensor; }
 #endif
 
+  static constexpr size_t STATE_BUFFER_SIZE = 32;
+
  protected:
-  std::string state_to_string_(uint8_t state);
+  const char *state_to_string_(uint8_t state, std::span<char, STATE_BUFFER_SIZE> buffer);
 #ifdef USE_SENSOR
   sensor::Sensor *ac_voltage_{nullptr};
   sensor::Sensor *dc_voltage_{nullptr};

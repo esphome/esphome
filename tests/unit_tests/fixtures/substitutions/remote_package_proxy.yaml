@@ -1,0 +1,6 @@
+# acts as a proxy to be able to include a remote package
+# in which the url/ref/files come from a substitution
+packages:
+  - url: ${url}
+    ref: ${ref}
+    files: ${files}

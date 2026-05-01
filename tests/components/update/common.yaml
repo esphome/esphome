@@ -1,0 +1,34 @@
+substitutions:
+  verify_ssl: "true"
+
+esphome:
+  on_boot:
+    then:
+      - if:
+          condition:
+            update.is_available:
+          then:
+            - logger.log: "Update available"
+          else:
+            - update.check:
+      - update.perform:
+          force_update: true
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+http_request:
+  verify_ssl: ${verify_ssl}
+
+ota:
+  - platform: http_request
+    id: update_http_request_ota
+
+update:
+  - platform: http_request
+    name: Firmware Update
+    ota_id: update_http_request_ota
+    source: http://example.com/manifest.json
+    on_update_available:
+      - logger.log: "A new update is available"

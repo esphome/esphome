@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 static const char *const TAG = "ble_client";
 
@@ -25,8 +24,7 @@ void BLEClient::loop() {
 
 void BLEClient::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Client:");
-  ESP_LOGCONFIG(TAG, "  Address: %s", this->address_str().c_str());
-  ESP_LOGCONFIG(TAG, "  Auto-Connect: %s", TRUEFALSE(this->auto_connect_));
+  BLEClientBase::dump_config();
 }
 
 bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {
@@ -40,7 +38,7 @@ void BLEClient::set_enabled(bool enabled) {
     return;
   this->enabled = enabled;
   if (!enabled) {
-    ESP_LOGI(TAG, "[%s] Disabling BLE client.", this->address_str().c_str());
+    ESP_LOGI(TAG, "[%s] Disabling BLE client.", this->address_str());
     this->disconnect();
   }
 }
@@ -83,7 +81,6 @@ bool BLEClient::all_nodes_established_() {
   return true;
 }
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 
 #endif

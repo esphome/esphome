@@ -7,16 +7,15 @@ so that it doesn't crash if it's not installed.
 import logging
 from pathlib import Path
 
-from esphome.core import CORE
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_USERNAME,
-    CONF_IDENTITY,
-    CONF_PASSWORD,
     CONF_CERTIFICATE,
+    CONF_IDENTITY,
     CONF_KEY,
+    CONF_PASSWORD,
+    CONF_USERNAME,
 )
-
+from esphome.core import CORE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,8 +48,8 @@ def wrapped_load_pem_x509_certificate(value):
 def wrapped_load_pem_private_key(value, password):
     validate_cryptography_installed()
 
-    from cryptography.hazmat.primitives.serialization import load_pem_private_key
     from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
     if password:
         password = password.encode("UTF-8")
@@ -68,13 +67,15 @@ def _validate_load_certificate(value):
         contents = read_relative_config_path(value)
         return wrapped_load_pem_x509_certificate(contents)
     except ValueError as err:
-        raise cv.Invalid(f"Invalid certificate: {err}")
+        raise cv.Invalid(f"Invalid certificate: {err}") from err
 
 
 def validate_certificate(value):
+    # _validate_load_certificate already calls cv.file_() internally,
+    # but returns the parsed certificate object.  We re-call cv.file_()
+    # to get the resolved path string that the bundle walker can discover.
     _validate_load_certificate(value)
-    # Validation result should be the path, not the loaded certificate
-    return value
+    return str(cv.file_(value))
 
 
 def _validate_load_private_key(key, cert_pw):
@@ -85,13 +86,13 @@ def _validate_load_private_key(key, cert_pw):
     except ValueError as e:
         raise cv.Invalid(
             f"There was an error with the EAP 'password:' provided for 'key' {e}"
-        )
+        ) from e
     except TypeError as e:
-        raise cv.Invalid(f"There was an error with the EAP 'key:' provided: {e}")
+        raise cv.Invalid(f"There was an error with the EAP 'key:' provided: {e}") from e
 
 
 def _check_private_key_cert_match(key, cert):
-    from cryptography.hazmat.primitives.asymmetric import rsa, ec
+    from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
     def check_match_a():
         return key.public_key().public_numbers() == cert.public_key().public_numbers()

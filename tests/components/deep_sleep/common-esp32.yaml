@@ -1,0 +1,7 @@
+deep_sleep:
+  run_duration:
+    default: 10s
+    gpio_wakeup_reason: 30s
+  sleep_duration: 50s
+  wakeup_pin: ${wakeup_pin}
+  wakeup_pin_mode: INVERT_WAKEUP

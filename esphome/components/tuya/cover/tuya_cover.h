@@ -25,6 +25,7 @@ class TuyaCover : public cover::Cover, public Component {
   void set_min_value(uint32_t min_value) { min_value_ = min_value; }
   void set_max_value(uint32_t max_value) { max_value_ = max_value; }
   void set_invert_position(bool invert_position) { invert_position_ = invert_position; }
+  void set_invert_position_report(bool invert_position_report) { invert_position_report_ = invert_position_report; }
   void set_restore_mode(TuyaCoverRestoreMode restore_mode) { restore_mode_ = restore_mode; }
 
  protected:
@@ -42,6 +43,7 @@ class TuyaCover : public cover::Cover, public Component {
   uint32_t max_value_;
   uint32_t value_range_;
   bool invert_position_;
+  bool invert_position_report_;
 };
 
 }  // namespace tuya

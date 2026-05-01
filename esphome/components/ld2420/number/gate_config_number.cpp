@@ -2,10 +2,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-static const char *const TAG = "LD2420.number";
+static const char *const TAG = "ld2420.number";
 
-namespace esphome {
-namespace ld2420 {
+namespace esphome::ld2420 {
 
 void LD2420TimeoutNumber::control(float timeout) {
   this->publish_state(timeout);
@@ -69,5 +68,4 @@ void LD2420StillThresholdNumbers::control(float still_threshold) {
   }
 }
 
-}  // namespace ld2420
-}  // namespace esphome
+}  // namespace esphome::ld2420

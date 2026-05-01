@@ -1,9 +1,9 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/touchscreen/touchscreen.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 

@@ -21,4 +21,99 @@ extend google.protobuf.MessageOptions {
     optional string ifdef = 1038;
     optional bool log = 1039 [default=true];
     optional bool no_delay = 1040 [default=false];
+    optional string base_class = 1041;
+    optional bool inline_encode = 1042 [default=false];
+    optional bool speed_optimized = 1043 [default=false];
+}
+
+extend google.protobuf.FieldOptions {
+    optional string field_ifdef = 1042;
+    optional uint32 fixed_array_size = 50007;
+    optional bool fixed_array_skip_zero = 50009 [default=false];
+    optional string fixed_array_size_define = 50010;
+    optional string fixed_array_with_length_define = 50011;
+
+    // pointer_to_buffer: Use pointer instead of array for fixed-size byte fields
+    // When set, the field will be declared as a pointer (const uint8_t *data)
+    // instead of an array (uint8_t data[N]). This allows zero-copy on decode
+    // by pointing directly to the protobuf buffer. The buffer must remain valid
+    // until the message is processed (which is guaranteed for stack-allocated messages).
+    optional bool pointer_to_buffer = 50012 [default=false];
+
+    // container_pointer: Zero-copy optimization for repeated fields.
+    //
+    // When container_pointer is set on a repeated field, the generated message will
+    // store a pointer to an existing container instead of copying the data into the
+    // message's own repeated field. This eliminates heap allocations and improves performance.
+    //
+    // Requirements for safe usage:
+    // 1. The source container must remain valid until the message is encoded
+    // 2. Messages must be encoded immediately (which ESPHome does by default)
+    // 3. The container type must match the field type exactly
+    //
+    // Supported container types:
+    // - "std::vector<T>" for most repeated fields
+    // - "std::set<T>" for unique/sorted data
+    // - Full type specification required for enums (e.g., "std::set<climate::ClimateMode>")
+    //
+    // Example usage in .proto file:
+    //   repeated string supported_modes = 12 [(container_pointer) = "std::set"];
+    //   repeated ColorMode color_modes = 13 [(container_pointer) = "std::set<light::ColorMode>"];
+    //
+    // The corresponding C++ code must provide const reference access to a container
+    // that matches the specified type and remains valid during message encoding.
+    // This is typically done through methods returning const T& or special accessor
+    // methods like get_options() or supported_modes_for_api_().
+    optional string container_pointer = 50001;
+
+    // fixed_vector: Use FixedVector instead of std::vector for repeated fields
+    // When set, the repeated field will use FixedVector<T> which requires calling
+    // init(size) before adding elements. This eliminates std::vector template overhead
+    // and is ideal when the exact size is known before populating the array.
+    optional bool fixed_vector = 50013 [default=false];
+
+    // container_pointer_no_template: Use a non-template container type for repeated fields
+    // Similar to container_pointer, but for containers that don't take template parameters.
+    // The container type is used as-is without appending element type.
+    // The container must have:
+    // - begin() and end() methods returning iterators
+    // - empty() method
+    // Example: [(container_pointer_no_template) = "light::ColorModeMask"]
+    //   generates: const light::ColorModeMask *supported_color_modes{};
+    optional string container_pointer_no_template = 50014;
+
+    // packed_buffer: Expose raw packed buffer instead of decoding into container
+    // When set on a packed repeated field, the generated code stores a pointer
+    // to the raw protobuf buffer instead of decoding values. This enables
+    // zero-copy passthrough when the consumer can decode on-demand.
+    // The field must be a packed repeated field (packed=true).
+    // Generates three fields:
+    //   - const uint8_t *<field>_data_{nullptr};
+    //   - uint16_t <field>_length_{0};
+    //   - uint16_t <field>_count_{0};
+    optional bool packed_buffer = 50015 [default=false];
+
+    // force: Always encode this field, even when its value equals the proto3 default.
+    // Skips the zero/empty check in calculate_size() and encode(), using the _force
+    // variant of the calc_ method. Use on fields that are almost always non-default
+    // to eliminate dead branches on hot paths.
+    optional bool force = 50016 [default=false];
+
+    // max_value: Maximum value a field can have.
+    // When max_value < 128, the code generator emits constant-size calculations
+    // and direct byte writes instead of varint branching, since the encoded varint
+    // is guaranteed to be 1 byte.
+    optional uint32 max_value = 50017;
+
+    // max_data_length: Maximum length of a string or bytes field.
+    // When max_data_length < 128, the code generator emits constant-size
+    // length varint calculations and direct byte writes, since the length
+    // varint is guaranteed to be 1 byte.
+    optional uint32 max_data_length = 50018;
+
+    // mac_address: Field is a 48-bit MAC address stored in a uint64.
+    // Emits encode_varint_raw_48bit which has a 7-byte fast path that avoids
+    // the per-byte loop when the upper bits are non-zero (the common case
+    // for real MAC addresses, since OUIs occupy the top 24 bits).
+    optional bool mac_address = 50019 [default=false];
 }

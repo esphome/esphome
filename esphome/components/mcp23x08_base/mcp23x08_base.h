@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/mcp23xxx_base/mcp23xxx_base.h"
+#include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
 namespace esphome {
@@ -22,10 +22,12 @@ enum MCP23S08GPIORegisters {
   MCP23X08_OLAT = 0x0A,
 };
 
-class MCP23X08Base : public mcp23xxx_base::MCP23XXXBase {
+class MCP23X08Base : public mcp23xxx_base::MCP23XXXBase<8> {
  public:
-  bool digital_read(uint8_t pin) override;
-  void digital_write(uint8_t pin, bool value) override;
+  bool digital_read_hw(uint8_t pin) override;
+  void digital_write_hw(uint8_t pin, bool value) override;
+  bool digital_read_cache(uint8_t pin) override;
+
   void pin_mode(uint8_t pin, gpio::Flags flags) override;
   void pin_interrupt_mode(uint8_t pin, mcp23xxx_base::MCP23XXXInterruptMode interrupt_mode) override;
 
@@ -33,6 +35,9 @@ class MCP23X08Base : public mcp23xxx_base::MCP23XXXBase {
   void update_reg(uint8_t pin, bool pin_value, uint8_t reg_a) override;
 
   uint8_t olat_{0x00};
+
+  /// State read in digital_read_hw
+  uint8_t input_mask_{0x00};
 };
 
 }  // namespace mcp23x08_base
