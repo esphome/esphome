@@ -3,6 +3,7 @@
 #ifdef USE_ESP8266
 
 #include <c_types.h>
+#include <core_esp8266_features.h>
 #include <cstdint>
 #include <pgmspace.h>
 
@@ -23,6 +24,8 @@ extern "C" unsigned long millis(void);
 // Forward decl from <user_interface.h> for arch_feed_wdt() inline below.
 // NOLINTNEXTLINE(readability-redundant-declaration)
 extern "C" void system_soft_wdt_feed(void);
+
+namespace esphome::esp8266 {}
 
 namespace esphome {
 
@@ -59,8 +62,11 @@ __attribute__((always_inline)) inline uint16_t progmem_read_uint16(const uint16_
 // NOLINTNEXTLINE(readability-identifier-naming)
 __attribute__((always_inline)) inline void delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 __attribute__((always_inline)) inline void arch_feed_wdt() { system_soft_wdt_feed(); }
-
-uint32_t arch_get_cpu_cycle_count();
+__attribute__((always_inline)) inline void arch_init() {}
+// esp_get_cycle_count() declared in <core_esp8266_features.h>; F_CPU is a
+// compiler-driven macro from the ESP8266 Arduino board defs (-DF_CPU=...).
+__attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() { return esp_get_cycle_count(); }
+__attribute__((always_inline)) inline uint32_t arch_get_cpu_freq_hz() { return F_CPU; }
 
 }  // namespace esphome
 
