@@ -380,10 +380,12 @@ void ESPHomeOTAComponent::handle_data_() {
              (static_cast<size_t>(buf[2]) << 8) | buf[3];
   ESP_LOGV(TAG, "Size is %u bytes", ota_size);
 
+#ifndef USE_OTA_PARTITIONS
   if (ota_type != ota::OTA_TYPE_UPDATE_APP) {
     error_code = ota::OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
+#endif
 
   // Now that we've passed authentication and are actually
   // starting the update, set the warning status and notify
@@ -398,10 +400,6 @@ void ESPHomeOTAComponent::handle_data_() {
 #ifdef USE_OTA_PARTITIONS
   error_code = this->backend_->begin(ota_size, ota_type);
 #else
-  if (ota_type != ota::OTA_TYPE_UPDATE_APP) {
-    error_code = ota::OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
-    goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  }
   // This will block for a few seconds as it locks flash
   error_code = this->backend_->begin(ota_size);
 #endif

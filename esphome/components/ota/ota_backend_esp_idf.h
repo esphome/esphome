@@ -14,9 +14,7 @@ namespace esphome::ota {
 // ESP_PARTITION_TABLE_MAX_LEN (0xC00) so the entire partition table fits before verification.
 // Kept separate from any OTA chunk-transfer buffer to avoid coupling unrelated sizes.
 static constexpr size_t PARTITION_TABLE_BUFFER_SIZE = ESP_PARTITION_TABLE_MAX_LEN;  // 0xC00
-#endif
 
-#ifdef USE_OTA_PARTITIONS
 void get_running_app_position(uint32_t &offset, size_t &size);
 #endif
 
