@@ -13,6 +13,7 @@ Color = cg.esphome_ns.class_("Color")
 LightColorValues = light_ns.class_("LightColorValues")
 
 LightStateRTCState = light_ns.struct("LightStateRTCState")
+LightCall = light_ns.class_("LightCall")
 
 # Color modes
 ColorMode = light_ns.enum("ColorMode", is_class=True)
