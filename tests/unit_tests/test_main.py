@@ -83,7 +83,7 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.util import BootselResult
+from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
 
@@ -1178,8 +1178,8 @@ def test_upload_using_esptool_path_conversion(
     mock_idedata = MagicMock(spec=platformio_api.IDEData)
     mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
     mock_idedata.extra_flash_images = [
-        platformio_api.FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
-        platformio_api.FlashImage(path=tmp_path / "partitions.bin", offset="0x8000"),
+        FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        FlashImage(path=tmp_path / "partitions.bin", offset="0x8000"),
     ]
 
     mock_get_idedata.return_value = mock_idedata
@@ -1256,8 +1256,8 @@ def test_upload_using_esptool_skips_missing_extra_flash_images(
     mock_idedata = MagicMock(spec=platformio_api.IDEData)
     mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
     mock_idedata.extra_flash_images = [
-        platformio_api.FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
-        platformio_api.FlashImage(path=missing_path, offset="0x2d0000"),
+        FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        FlashImage(path=missing_path, offset="0x2d0000"),
     ]
     mock_get_idedata.return_value = mock_idedata
 

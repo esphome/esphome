@@ -13,6 +13,7 @@ import pytest
 
 from esphome import platformio_api, platformio_runner
 from esphome.core import CORE, EsphomeError
+from esphome.util import FlashImage
 
 
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
@@ -70,7 +71,7 @@ def test_idedata_extra_flash_images(setup_core: Path) -> None:
 
     images = idedata.extra_flash_images
     assert len(images) == 2
-    assert all(isinstance(img, platformio_api.FlashImage) for img in images)
+    assert all(isinstance(img, FlashImage) for img in images)
     assert images[0].path == Path("/path/to/bootloader.bin")
     assert images[0].offset == "0x1000"
     assert images[1].path == Path("/path/to/partition.bin")
@@ -106,7 +107,7 @@ def test_idedata_cc_path(setup_core: Path) -> None:
 
 def test_flash_image_dataclass() -> None:
     """Test FlashImage dataclass stores path and offset correctly."""
-    image = platformio_api.FlashImage(path=Path("/path/to/image.bin"), offset="0x10000")
+    image = FlashImage(path=Path("/path/to/image.bin"), offset="0x10000")
 
     assert image.path == Path("/path/to/image.bin")
     assert image.offset == "0x10000"
