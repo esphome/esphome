@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Generate cache-key
         id: cache-key
-        run: echo key="${{ hashFiles('requirements.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
+        run: echo key="${{ hashFiles('requirements.txt', 'requirements_dev.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -58,7 +58,7 @@ jobs:
           python -m venv venv
           . venv/bin/activate
           python --version
-          pip install -r requirements.txt -r requirements_test.txt pre-commit
+          pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt pre-commit
           pip install -e .
 
   pylint:
@@ -107,6 +107,34 @@ jobs:
           script/build_language_schema.py --check
           script/generate-esp32-boards.py --check
           script/generate-rp2040-boards.py --check
+
+  import-time:
+    name: Check import esphome.__main__ time
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.import-time == 'true'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Check import time against budget and write waterfall HAR
+        run: |
+          . venv/bin/activate
+          script/check_import_time.py --check --har importtime.har
+      - name: Upload waterfall HAR
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: import-time-waterfall
+          path: importtime.har
+          if-no-files-found: ignore
+          retention-days: 14
 
   pytest:
     name: Run pytest
@@ -171,11 +199,11 @@ jobs:
       - common
     outputs:
       integration-tests: ${{ steps.determine.outputs.integration-tests }}
-      integration-tests-run-all: ${{ steps.determine.outputs.integration-tests-run-all }}
-      integration-test-files: ${{ steps.determine.outputs.integration-test-files }}
+      integration-test-buckets: ${{ steps.determine.outputs.integration-test-buckets }}
       clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
       clang-tidy-mode: ${{ steps.determine.outputs.clang-tidy-mode }}
       python-linters: ${{ steps.determine.outputs.python-linters }}
+      import-time: ${{ steps.determine.outputs.import-time }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
@@ -214,11 +242,11 @@ jobs:
 
           # Extract individual fields
           echo "integration-tests=$(echo "$output" | jq -r '.integration_tests')" >> $GITHUB_OUTPUT
-          echo "integration-tests-run-all=$(echo "$output" | jq -r '.integration_tests_run_all')" >> $GITHUB_OUTPUT
-          echo "integration-test-files=$(echo "$output" | jq -c '.integration_test_files')" >> $GITHUB_OUTPUT
+          echo "integration-test-buckets=$(echo "$output" | jq -c '.integration_test_buckets')" >> $GITHUB_OUTPUT
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
           echo "clang-tidy-mode=$(echo "$output" | jq -r '.clang_tidy_mode')" >> $GITHUB_OUTPUT
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
+          echo "import-time=$(echo "$output" | jq -r '.import_time')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
@@ -237,12 +265,16 @@ jobs:
           key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
 
   integration-tests:
-    name: Run integration tests
+    name: Run integration tests (${{ matrix.bucket.name }})
     runs-on: ubuntu-latest
     needs:
       - common
       - determine-jobs
     if: needs.determine-jobs.outputs.integration-tests == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        bucket: ${{ fromJson(needs.determine-jobs.outputs.integration-test-buckets) }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -269,19 +301,14 @@ jobs:
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run integration tests
         env:
-          INTEGRATION_TEST_FILES: ${{ needs.determine-jobs.outputs.integration-test-files }}
-          INTEGRATION_TESTS_RUN_ALL: ${{ needs.determine-jobs.outputs.integration-tests-run-all }}
+          # JSON array of test paths; parsed into a bash array below to avoid
+          # shell word-splitting / glob hazards.
+          BUCKET_TESTS: ${{ toJson(matrix.bucket.tests) }}
         run: |
           . venv/bin/activate
-          if [[ "$INTEGRATION_TESTS_RUN_ALL" == "true" ]]; then
-            echo "Running all integration tests"
-            pytest -vv --no-cov --tb=native -n auto tests/integration/
-          else
-            # Parse JSON array into bash array to avoid shell expansion issues
-            mapfile -t test_files < <(echo "$INTEGRATION_TEST_FILES" | jq -r '.[]')
-            echo "Running ${#test_files[@]} specific integration tests"
-            pytest -vv --no-cov --tb=native -n auto "${test_files[@]}"
-          fi
+          mapfile -t test_files < <(echo "$BUCKET_TESTS" | jq -r '.[]')
+          echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
+          pytest -vv --no-cov --tb=native -n auto "${test_files[@]}"
 
   cpp-unit-tests:
     name: Run C++ unit tests
@@ -339,7 +366,7 @@ jobs:
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@db35df748deb45fdef0960669f57d627c1956c30 # v4
+        uses: CodSpeedHQ/action@c381be0bfd20e844fb45594f6aa182ffcd94545c # v4.15.0
         with:
           run: ${{ steps.build.outputs.binary }}
           mode: simulation

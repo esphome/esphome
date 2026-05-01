@@ -502,7 +502,7 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     media_command.announce = false;
   }
 
-  auto media_url = call.get_media_url();
+  const auto &media_url = call.get_media_url();
   if (media_url.has_value()) {
     media_command.url =
         new std::string(*media_url);  // Must be manually deleted after receiving media_command from a queue
