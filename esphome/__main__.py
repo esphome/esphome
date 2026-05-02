@@ -1125,15 +1125,16 @@ def upload_program(
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD)
-    if getattr(args, "file", None) is not None:
-        binary = Path(args.file)
-    else:
-        binary = CORE.firmware_bin
 
     # Resolve MQTT magic strings to actual IP addresses
     network_devices = _resolve_network_devices(devices, config, args)
 
-    return espota2.run_ota(network_devices, remote_port, password, binary)
+    binary = CORE.firmware_bin
+    ota_type = espota2.OTA_TYPE_UPDATE_APP
+    if getattr(args, "file", None) is not None:
+        binary = Path(args.file)
+
+    return espota2.run_ota(network_devices, remote_port, password, binary, ota_type)
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
