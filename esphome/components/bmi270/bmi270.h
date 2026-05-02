@@ -79,6 +79,7 @@ enum BMI270GyroODR : uint8_t {
 // ---Data class
 
 class BMI270AccelData {
+ public:
   float acceleration_x{NAN};
   float acceleration_y{NAN};
   float acceleration_z{NAN};
