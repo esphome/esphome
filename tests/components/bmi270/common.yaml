@@ -37,7 +37,6 @@ sensor:
     accuracy_decimals: 1
 
 bmi270:
-  # ── Hardware configuration ─────────────────────────────────────────────
   # Accelerometer full-scale range: 2G | 4G | 8G | 16G
   accel_range: 4G
 

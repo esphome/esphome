@@ -9,14 +9,19 @@
 namespace esphome {
 namespace bmi270 {
 
-// ── Register map ────────────────────────────────────────────────────────────
+//  Register map
 static const uint8_t BMI270_REG_CHIP_ID = 0x00;
 static const uint8_t BMI270_REG_ERR_REG = 0x02;
 static const uint8_t BMI270_REG_STATUS = 0x03;
-static const uint8_t BMI270_REG_DATA_8 = 0x0C;    // ACC_X LSB
-static const uint8_t BMI270_REG_DATA_14 = 0x12;   // GYR_X LSB
-static const uint8_t BMI270_REG_TEMP_MSB = 0x23;  // temperature (2 bytes big-endian ish)
+static const uint8_t BMI270_REG_DATA_8 = 0x0C;   // ACC_X LSB
+static const uint8_t BMI270_REG_DATA_14 = 0x12;  // GYR_X LSB
 static const uint8_t BMI270_REG_TEMP_0 = 0x22;
+static const uint8_t BMI270_REG_TEMP_MSB = 0x23;  // temperature (2 bytes big-endian ish)
+
+static constexpr uint8_t REG_READ_LEN =
+    BMI270_REG_TEMP_MSB - BMI270_REG_DATA_8 +
+    1;  // 0x23 - 0x0C + 1 = 18 bytes total for accel(6) + gyro(6) + temp(2) + padding(4)
+
 static const uint8_t BMI270_REG_PWR_CONF = 0x7C;
 static const uint8_t BMI270_REG_PWR_CTRL = 0x7D;
 static const uint8_t BMI270_REG_INIT_CTRL = 0x59;
@@ -30,7 +35,7 @@ static const uint8_t BMI270_REG_GYR_RANGE = 0x43;
 
 static const uint8_t BMI270_CHIP_ID_VALUE = 0x24;
 
-// ── Accelerometer range options ──────────────────────────────────────────────
+//  Accelerometer range options
 enum BMI270AccelRange : uint8_t {
   BMI270_ACCEL_RANGE_2G = 0x00,
   BMI270_ACCEL_RANGE_4G = 0x01,
@@ -38,7 +43,7 @@ enum BMI270AccelRange : uint8_t {
   BMI270_ACCEL_RANGE_16G = 0x03,
 };
 
-// ── Accelerometer ODR options ────────────────────────────────────────────────
+//  Accelerometer ODR options
 enum BMI270AccelODR : uint8_t {
   BMI270_ACCEL_ODR_12_5 = 0x05,
   BMI270_ACCEL_ODR_25 = 0x06,
@@ -50,7 +55,7 @@ enum BMI270AccelODR : uint8_t {
   BMI270_ACCEL_ODR_1600 = 0x0C,
 };
 
-// ── Gyroscope range options ──────────────────────────────────────────────────
+// Gyroscope range options
 enum BMI270GyroRange : uint8_t {
   BMI270_GYRO_RANGE_2000 = 0x00,
   BMI270_GYRO_RANGE_1000 = 0x01,
@@ -59,7 +64,7 @@ enum BMI270GyroRange : uint8_t {
   BMI270_GYRO_RANGE_125 = 0x04,
 };
 
-// ── Gyroscope ODR options ────────────────────────────────────────────────────
+// Gyroscope ODR options
 enum BMI270GyroODR : uint8_t {
   BMI270_GYRO_ODR_25 = 0x06,
   BMI270_GYRO_ODR_50 = 0x07,
@@ -83,7 +88,7 @@ struct BMI270AccelData {
   float temperature;
 };
 
-// ── Main component class ─────────────────────────────────────────────────────
+// Main component class
 class BMI270Component : public PollingComponent, public i2c::I2CDevice {
  public:
   // Lifecycle
@@ -102,9 +107,6 @@ class BMI270Component : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   bool load_config_file_();
-  bool write_reg_(uint8_t reg, uint8_t value);
-  bool read_reg_(uint8_t reg, uint8_t *value);
-  bool read_bytes_(uint8_t reg, uint8_t *data, size_t len);
 
   // Config
   BMI270AccelRange accel_range_{BMI270_ACCEL_RANGE_4G};
@@ -112,7 +114,6 @@ class BMI270Component : public PollingComponent, public i2c::I2CDevice {
   BMI270GyroRange gyro_range_{BMI270_GYRO_RANGE_2000};
   BMI270GyroODR gyro_odr_{BMI270_GYRO_ODR_200};
 
-  bool init_ok_{false};
   LazyCallbackManager<void(BMI270AccelData &)> accel_data_callback_{};
 };
 

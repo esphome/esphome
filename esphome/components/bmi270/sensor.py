@@ -12,7 +12,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_DEGREE_PER_SECOND,
-    UNIT_METER_PER_SECOND_SQUARED,
+    UNIT_G,
 )
 from esphome.cpp_generator import MockObj
 
@@ -29,9 +29,9 @@ CONF_GYRO_Z = "gyro_z"
 # ── Sensor schema helpers ────────────────────────────────────────────────────
 def _accel_sensor_schema():
     return sensor.sensor_schema(
-        unit_of_measurement=UNIT_METER_PER_SECOND_SQUARED,
+        unit_of_measurement=UNIT_G,
         icon=ICON_ACCELERATION,
-        accuracy_decimals=4,
+        accuracy_decimals=2,
         state_class=STATE_CLASS_MEASUREMENT,
     ).extend(SENSOR_SCHEMA)
 
@@ -40,7 +40,7 @@ def _gyro_sensor_schema():
     return sensor.sensor_schema(
         unit_of_measurement=UNIT_DEGREE_PER_SECOND,
         icon=ICON_ROTATE_RIGHT,
-        accuracy_decimals=4,
+        accuracy_decimals=2,
         state_class=STATE_CLASS_MEASUREMENT,
     ).extend(SENSOR_SCHEMA)
 
@@ -71,8 +71,8 @@ async def to_code(config):
     var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_BMI270_ID])
     data = MockObj("data")
-    trigger_lambda = await cg.process_lambda(
+    value_lambda = await cg.process_lambda(
         var.publish_state(getattr(data, type)),
         [(BMI270AccelData.operator("ref"), "data")],
     )
-    cg.add(parent.add_listener(trigger_lambda))
+    cg.add(parent.add_listener(value_lambda))
