@@ -1,3 +1,4 @@
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
@@ -12,7 +13,15 @@ from esphome.components.zephyr.const import (
     KEY_NATIVE_BUILD,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_HARDWARE_UART, CONF_ID, Framework
+from esphome.const import (
+    CONF_HARDWARE_UART,
+    CONF_ID,
+    CONF_INVERTED,
+    CONF_NUMBER,
+    CONF_PIN,
+    CONF_STATUS,
+    Framework,
+)
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 from esphome.types import ConfigType
@@ -55,6 +64,11 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_HARDWARE_UART,
                     ): cv.one_of(*UARTS, upper=True),
+                }
+            ),
+            cv.Optional(CONF_STATUS): cv.Schema(
+                {
+                    cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
                 }
             ),
         }
@@ -142,4 +156,30 @@ async def to_code(config: ConfigType) -> None:
                     }};
                 }};
                 """
+        )
+    if CONF_STATUS in config:
+        pin_conf = config[CONF_STATUS][CONF_PIN]
+        pin_num = pin_conf[CONF_NUMBER]
+        port = pin_num // 32
+        pin_in_port = pin_num % 32
+        active_flag = (
+            "GPIO_ACTIVE_LOW" if pin_conf[CONF_INVERTED] else "GPIO_ACTIVE_HIGH"
+        )
+        zephyr_add_prj_conf("MCUBOOT_INDICATION_LED", True, image="mcuboot")
+        zephyr_add_overlay(
+            f"""
+                #include <dt-bindings/gpio/gpio.h>
+                / {{
+                    mcuboot_leds {{
+                        compatible = "gpio-leds";
+                        mcuboot_led0: mcuboot_led0 {{
+                            gpios = <&gpio{port} {pin_in_port} {active_flag}>;
+                        }};
+                    }};
+                    aliases {{
+                        mcuboot-led0 = &mcuboot_led0;
+                    }};
+                }};
+                """,
+            image="mcuboot",
         )
