@@ -427,9 +427,9 @@ class ThrottleWithPriorityNanFilter : public Filter {
 // than paying for a SchedulerItem per filter (live, while armed). #11922
 // is the original symptom and switchover to the loop-based design; #16173
 // attempted to migrate this onto the scheduler and was closed for exactly
-// this reason — even with the bounded pool removed, RAM-per-armed-filter
-// is dominated by the SchedulerItem itself, not by anything we can shrink
-// in the scheduler.
+// this reason — even if the scheduler pool were unbounded, RAM per armed
+// filter would still be dominated by the SchedulerItem itself, not by
+// anything we can shrink in the scheduler.
 //
 // The loop-based design has additional advantages on top of the RAM win:
 // `enable_loop()` / `disable_loop()` partitions the cost away when no
