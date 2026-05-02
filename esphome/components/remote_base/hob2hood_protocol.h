@@ -30,7 +30,7 @@ class Hob2HoodProtocol : public RemoteProtocol<Hob2HoodData> {
   void dump(const Hob2HoodData &data) override;
 
  protected:
-  bool get_timings_(const Hob2HoodCommand data, RemoteReceiveData *src, RemoteTransmitData *dst);
+  bool get_timings_(Hob2HoodCommand data, RemoteReceiveData *src, RemoteTransmitData *dst);
 };
 
 using Hob2HoodTrigger = RemoteReceiverTrigger<Hob2HoodProtocol>;
