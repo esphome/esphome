@@ -28,6 +28,7 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
     CONF_API,
+    CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
@@ -47,6 +48,8 @@ from esphome.const import (
     CONF_PORT,
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
+    CONF_USERNAME,
+    CONF_WEB_SERVER,
     ENV_NOGITIGNORE,
     KEY_CORE,
     KEY_NATIVE_IDF,
@@ -428,11 +431,33 @@ def has_api() -> bool:
 
 
 def has_ota() -> bool:
-    """Check if OTA upload is available (requires platform: esphome)."""
+    """Check if any network OTA upload is available.
+
+    True if the config exposes either ``platform: esphome`` (native API
+    OTA) or ``platform: web_server`` (HTTP OTA). Both reach the device
+    over the same network stack, so the OTA discovery path treats them
+    interchangeably; ``upload_program`` picks the actual transport based
+    on ``--ota-platform`` and what's configured.
+    """
+    return has_native_ota() or has_web_server_ota()
+
+
+def has_native_ota() -> bool:
+    """Check if native API OTA upload is available (``platform: esphome``)."""
     if CONF_OTA not in CORE.config:
         return False
     return any(
         ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
+        for ota_item in CORE.config[CONF_OTA]
+    )
+
+
+def has_web_server_ota() -> bool:
+    """Check if web_server OTA upload is available (``platform: web_server``)."""
+    if CONF_OTA not in CORE.config:
+        return False
+    return any(
+        ota_item.get(CONF_PLATFORM) == CONF_WEB_SERVER
         for ota_item in CORE.config[CONF_OTA]
     )
 
@@ -1110,31 +1135,97 @@ def upload_program(
 
         return exit_code, host if exit_code == 0 else None
 
-    ota_conf = {}
-    for ota_item in config.get(CONF_OTA, []):
-        if ota_item[CONF_PLATFORM] == CONF_ESPHOME:
-            ota_conf = ota_item
-            break
-
-    if not ota_conf:
-        raise EsphomeError(
-            f"Cannot upload Over the Air as the {CONF_OTA} configuration is not present or does not include {CONF_PLATFORM}: {CONF_ESPHOME}"
-        )
-
-    from esphome import espota2
-
-    remote_port = int(ota_conf[CONF_PORT])
-    password = ota_conf.get(CONF_PASSWORD)
+    requested_platform = getattr(args, "ota_platform", None)
+    chosen_platform = _choose_ota_platform(config, requested_platform)
 
     # Resolve MQTT magic strings to actual IP addresses
     network_devices = _resolve_network_devices(devices, config, args)
 
     binary = CORE.firmware_bin
-    ota_type = espota2.OTA_TYPE_UPDATE_APP
     if getattr(args, "file", None) is not None:
         binary = Path(args.file)
 
-    return espota2.run_ota(network_devices, remote_port, password, binary, ota_type)
+    if chosen_platform == CONF_WEB_SERVER:
+        return _upload_via_web_server(config, network_devices, binary)
+
+    return _upload_via_native_api(config, network_devices, binary)
+
+
+def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
+    """Pick the OTA platform to use, optionally honoring ``--ota-platform``.
+
+    Default behavior prefers ``esphome`` (native API) since it supports
+    compression and stronger auth, but falls back to ``web_server`` when
+    that is the only available platform.
+    """
+    available: list[str] = []
+    for ota_item in config.get(CONF_OTA, []):
+        platform = ota_item.get(CONF_PLATFORM)
+        if platform in (CONF_ESPHOME, CONF_WEB_SERVER):
+            available.append(platform)
+
+    if not available:
+        raise EsphomeError(
+            f"Cannot upload Over the Air as the {CONF_OTA} configuration is not "
+            f"present or does not include {CONF_PLATFORM}: {CONF_ESPHOME} or "
+            f"{CONF_PLATFORM}: {CONF_WEB_SERVER}"
+        )
+
+    if requested is not None:
+        if requested not in available:
+            raise EsphomeError(
+                f"--ota-platform {requested} was requested but the configuration "
+                f"only provides: {', '.join(available)}"
+            )
+        return requested
+
+    if CONF_ESPHOME in available:
+        return CONF_ESPHOME
+    return CONF_WEB_SERVER
+
+
+def _upload_via_native_api(
+    config: ConfigType, network_devices: list[str], binary: Path
+) -> tuple[int, str | None]:
+    ota_conf: ConfigType = {}
+    for ota_item in config.get(CONF_OTA, []):
+        if ota_item.get(CONF_PLATFORM) == CONF_ESPHOME:
+            ota_conf = ota_item
+            break
+
+    from esphome import espota2
+
+    remote_port = int(ota_conf[CONF_PORT])
+    password = ota_conf.get(CONF_PASSWORD)
+    return espota2.run_ota(
+        network_devices,
+        remote_port,
+        password,
+        binary,
+        espota2.OTA_TYPE_UPDATE_APP,
+    )
+
+
+def _upload_via_web_server(
+    config: ConfigType, network_devices: list[str], binary: Path
+) -> tuple[int, str | None]:
+    web_conf = config.get(CONF_WEB_SERVER)
+    if not web_conf:
+        raise EsphomeError(
+            f"Cannot upload via web_server OTA: the {CONF_WEB_SERVER} component "
+            f"is not configured."
+        )
+
+    remote_port = int(web_conf[CONF_PORT])
+    auth = web_conf.get(CONF_AUTH) or {}
+    username = auth.get(CONF_USERNAME)
+    password = auth.get(CONF_PASSWORD)
+
+    from esphome import web_server_ota
+
+    return web_server_ota.run_ota(
+        network_devices, remote_port, username, password, binary
+    )
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
@@ -1804,6 +1895,15 @@ def parse_args(argv):
         "--file",
         help="Manually specify the binary file to upload.",
     )
+    parser_upload.add_argument(
+        "--ota-platform",
+        choices=[CONF_ESPHOME, CONF_WEB_SERVER],
+        help=(
+            "OTA platform to use for network uploads. Defaults to "
+            f"'{CONF_ESPHOME}' (native API) when configured, otherwise "
+            f"'{CONF_WEB_SERVER}'."
+        ),
+    )
 
     parser_logs = subparsers.add_parser(
         "logs",
@@ -1872,6 +1972,15 @@ def parse_args(argv):
         "--native-idf",
         help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
         action="store_true",
+    )
+    parser_run.add_argument(
+        "--ota-platform",
+        choices=[CONF_ESPHOME, CONF_WEB_SERVER],
+        help=(
+            "OTA platform to use for network uploads. Defaults to "
+            f"'{CONF_ESPHOME}' (native API) when configured, otherwise "
+            f"'{CONF_WEB_SERVER}'."
+        ),
     )
 
     parser_clean = subparsers.add_parser(

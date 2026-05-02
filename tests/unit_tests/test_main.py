@@ -42,6 +42,7 @@ from esphome.__main__ import (
     has_non_ip_address,
     has_ota,
     has_resolvable_address,
+    has_web_server_ota,
     mqtt_get_ip,
     run_esphome,
     run_miniterm,
@@ -56,6 +57,7 @@ from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
+    CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DISABLED,
@@ -74,6 +76,8 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     CONF_USE_ADDRESS,
+    CONF_USERNAME,
+    CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
@@ -208,6 +212,13 @@ def mock_upload_using_picotool() -> Generator[Mock]:
 def mock_run_ota() -> Generator[Mock]:
     """Mock espota2.run_ota for testing."""
     with patch("esphome.espota2.run_ota") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_run_web_server_ota() -> Generator[Mock]:
+    """Mock web_server_ota.run_ota for testing."""
+    with patch("esphome.web_server_ota.run_ota") as mock:
         yield mock
 
 
@@ -1112,6 +1123,7 @@ class MockArgs:
     reset: bool = False
     list_only: bool = False
     output: str | None = None
+    ota_platform: str | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -1641,6 +1653,199 @@ def test_upload_program_ota_no_config(
     devices = ["192.168.1.100"]
 
     with pytest.raises(EsphomeError, match="Cannot upload Over the Air"):
+        upload_program(config, args, devices)
+
+
+def test_has_web_server_ota_detects_platform() -> None:
+    """has_web_server_ota returns True when web_server OTA platform is configured."""
+    setup_core(
+        config={
+            CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        }
+    )
+    assert has_web_server_ota() is True
+    assert has_ota() is True
+
+
+def test_has_web_server_ota_returns_false_without_config() -> None:
+    """has_web_server_ota returns False when only native OTA is configured."""
+    setup_core(
+        config={
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+        }
+    )
+    assert has_web_server_ota() is False
+    assert has_ota() is True
+
+
+def test_upload_program_web_server_only_auto_dispatches(
+    mock_run_web_server_ota: Mock,
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """When only web_server OTA is configured, upload_program picks it automatically."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_web_server_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        CONF_WEB_SERVER: {
+            CONF_PORT: 80,
+            CONF_AUTH: {CONF_USERNAME: "admin", CONF_PASSWORD: "pw"},
+        },
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_web_server_ota.assert_called_once_with(
+        ["192.168.1.100"], 80, "admin", "pw", expected_firmware
+    )
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_web_server_no_auth(
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """web_server OTA works without an auth block (passes None for credentials)."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_web_server_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        CONF_WEB_SERVER: {CONF_PORT: 8080},
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_web_server_ota.assert_called_once_with(
+        ["192.168.1.100"], 8080, None, None, expected_firmware
+    )
+
+
+def test_upload_program_both_platforms_default_prefers_native(
+    mock_run_ota: Mock,
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """When both OTA platforms are configured, default selection is native API."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            },
+            {CONF_PLATFORM: CONF_WEB_SERVER},
+        ],
+        CONF_WEB_SERVER: {CONF_PORT: 80},
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once()
+    mock_run_web_server_ota.assert_not_called()
+
+
+def test_upload_program_ota_platform_override_to_web_server(
+    mock_run_ota: Mock,
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--ota-platform web_server forces web_server OTA even when native is configured."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_web_server_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            },
+            {CONF_PLATFORM: CONF_WEB_SERVER},
+        ],
+        CONF_WEB_SERVER: {CONF_PORT: 80},
+    }
+    args = MockArgs(ota_platform=CONF_WEB_SERVER)
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_not_called()
+    mock_run_web_server_ota.assert_called_once()
+
+
+def test_upload_program_ota_platform_unavailable(
+    mock_get_port_type: Mock,
+) -> None:
+    """--ota-platform must reference a platform that is actually configured."""
+    setup_core(platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            }
+        ],
+    }
+    args = MockArgs(ota_platform=CONF_WEB_SERVER)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="--ota-platform web_server"):
+        upload_program(config, args, devices)
+
+
+def test_upload_program_web_server_missing_component(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """web_server OTA without a web_server component fails with a clear error."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        # No CONF_WEB_SERVER
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="web_server.*not configured"):
         upload_program(config, args, devices)
 
 
