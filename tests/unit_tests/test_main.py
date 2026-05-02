@@ -1883,6 +1883,32 @@ def test_upload_program_unrelated_ota_platform_ignored(
     mock_run_ota.assert_called_once()
 
 
+def test_upload_program_duplicate_platform_dedup_in_error(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Duplicate same-platform OTA entries don't repeat in --ota-platform errors."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232},
+            {CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3233},
+        ],
+    }
+    args = MockArgs(ota_platform=CONF_WEB_SERVER)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError) as excinfo:
+        upload_program(config, args, devices)
+
+    # Error mentions esphome once in the platform list, not "esphome, esphome".
+    msg = str(excinfo.value)
+    assert "esphome, esphome" not in msg
+    assert msg.endswith(": esphome")
+
+
 def test_upload_program_only_unrelated_ota_platforms(
     mock_get_port_type: Mock,
     tmp_path: Path,

@@ -437,6 +437,29 @@ def test_run_ota_finalizes_progress_bar_on_success(
     assert done_called, "ProgressBar.done() was not called on success"
 
 
+def test_run_ota_ipv6_url_brackets_host(
+    monkeypatch: pytest.MonkeyPatch, firmware: Path
+) -> None:
+    """IPv6 candidates are bracketed in the URL so the port parses correctly."""
+    addr_infos = [
+        (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("2001:db8::1", 80)),
+    ]
+    monkeypatch.setattr(
+        "esphome.web_server_ota.resolve_ip_address", lambda *a, **kw: addr_infos
+    )
+
+    with patch(
+        "esphome.web_server_ota.requests.post",
+        return_value=_make_response(200, "Update Successful!"),
+    ) as post:
+        exit_code, host = run_ota(["device.local"], 80, None, None, firmware)
+
+    assert exit_code == 0
+    assert host == "2001:db8::1"
+    url = post.call_args.args[0]
+    assert url == f"http://[2001:db8::1]:80{OTA_PATH}"
+
+
 def test_run_ota_finalizes_progress_bar_on_failure(
     monkeypatch: pytest.MonkeyPatch, firmware: Path
 ) -> None:

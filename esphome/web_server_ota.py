@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+import socket
 from typing import BinaryIO
 
 import requests
@@ -91,9 +92,13 @@ def _try_upload(
     last_error: str | None = None
     # Each entry is the resolved IP for ``host``; iterate in order so IPv4
     # and IPv6 candidates are both tried (mirrors espota2's behavior).
-    for _af, _socktype, _, _, sa in addr_infos:
+    for af, _socktype, _, _, sa in addr_infos:
         ip = sa[0]
-        url = f"http://{ip}:{port}{OTA_PATH}"
+        # IPv6 literals must be wrapped in brackets in URLs so the port is
+        # parsed correctly. ``resolve_ip_address`` can hand back IPv6
+        # candidates first on dual-stack networks.
+        host_part = f"[{ip}]" if af == socket.AF_INET6 else ip
+        url = f"http://{host_part}:{port}{OTA_PATH}"
         _LOGGER.info("Connecting to %s port %s...", ip, port)
 
         try:

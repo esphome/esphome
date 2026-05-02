@@ -1164,11 +1164,15 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     sent uncompressed regardless of which platform is used.) Falls back to
     ``web_server`` only when that is the only available platform.
     """
-    available: list[str] = []
+    # Use a dict (insertion-ordered) instead of a list so error messages and
+    # membership checks see one entry per platform even if the user has
+    # multiple ``ota:`` items of the same platform; the web_server OTA
+    # platform's final-validate hook merges duplicates anyway.
+    available: dict[str, None] = {}
     for ota_item in config.get(CONF_OTA, []):
         platform = ota_item.get(CONF_PLATFORM)
         if platform in (CONF_ESPHOME, CONF_WEB_SERVER):
-            available.append(platform)
+            available[platform] = None
 
     if not available:
         raise EsphomeError(
