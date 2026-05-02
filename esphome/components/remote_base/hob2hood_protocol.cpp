@@ -14,18 +14,18 @@ static constexpr int32_t SPACE_2_US = 1200;
 static constexpr int32_t SPACE_3_US = 1900;
 static constexpr int32_t SPACE_4_US = 2600;
 
-static const std::vector<int8_t> LIGHT_OFF_DATA = {-1, 2, -1, 1, -1, 1, -1, 3, -1, 1, -1, 2, -1, 2, -1, 1, -1};
-static const std::vector<int8_t> LIGHT_ON_DATA = {-1, 2, -1, 1, -2, 1, -1, 2, -1, 1, -2, 4, -1, 1, -1, 1, -2};
-static const std::vector<int8_t> FAN_OFF_DATA = {-1, 2, -1, 2, -3, 2, -1, 2, -2, 3, -1, 2, -1, 1, -1};
-static const std::vector<int8_t> FAN_1_DATA = {-2, 2, -1, 2, -3, 2, -1, 2, -1, 1, -1, 2, -1, 3, -1};
-static const std::vector<int8_t> FAN_2_DATA = {-2, 2, -1, 4, -1, 3, -4, 3, -3};
-static const std::vector<int8_t> FAN_3_DATA = {-1, 3, -4, 4, -3, 1, -1, 3, -3};
-static const std::vector<int8_t> FAN_4_DATA = {-2, 3, -2, 1, -2, 3, -2, 2, -1, 3, -1, 1, -2};
+static const int8_t LIGHT_OFF_DATA[] = {-1, 2, -1, 1, -1, 1, -1, 3, -1, 1, -1, 2, -1, 2, -1, 1, -1};
+static const int8_t LIGHT_ON_DATA[] = {-1, 2, -1, 1, -2, 1, -1, 2, -1, 1, -2, 4, -1, 1, -1, 1, -2};
+static const int8_t FAN_OFF_DATA[] = {-1, 2, -1, 2, -3, 2, -1, 2, -2, 3, -1, 2, -1, 1, -1};
+static const int8_t FAN_LOW_DATA[] = {-2, 2, -1, 2, -3, 2, -1, 2, -1, 1, -1, 2, -1, 3, -1};
+static const int8_t FAN_MEDIUM_DATA[] = {-2, 2, -1, 4, -1, 3, -4, 3, -3};
+static const int8_t FAN_HIGH_DATA[] = {-1, 3, -4, 4, -3, 1, -1, 3, -3};
+static const int8_t FAN_MAX_DATA[] = {-2, 3, -2, 1, -2, 3, -2, 2, -1, 3, -1, 1, -2};
 
-void Hob2HoodProtocol::encode_data_(RemoteTransmitData *dst, const std::vector<int8_t> &data) const {
-  dst->reserve(data.size());
-  for (const int8_t &d : data) {
-    switch (d) {
+void Hob2HoodProtocol::encode_data_(RemoteTransmitData *dst, const int8_t *data, size_t length) const {
+  dst->reserve(length);
+  for (size_t i = 0; i < length; i++) {
+    switch (data[i]) {
       case -1:
         dst->mark(MARK_1_US);
         break;
@@ -58,25 +58,25 @@ void Hob2HoodProtocol::encode(RemoteTransmitData *dst, const Hob2HoodData &data)
   dst->set_carrier_frequency(38000);
   switch (data.command) {
     case HOB2HOOD_CMD_LIGHT_OFF:
-      encode_data_(dst, LIGHT_OFF_DATA);
+      this->encode_data_(dst, LIGHT_OFF_DATA, sizeof(LIGHT_OFF_DATA));
       break;
     case HOB2HOOD_CMD_LIGHT_ON:
-      encode_data_(dst, LIGHT_ON_DATA);
+      this->encode_data_(dst, LIGHT_ON_DATA, sizeof(LIGHT_ON_DATA));
       break;
     case HOB2HOOD_CMD_FAN_OFF:
-      encode_data_(dst, FAN_OFF_DATA);
+      this->encode_data_(dst, FAN_OFF_DATA, sizeof(FAN_OFF_DATA));
       break;
     case HOB2HOOD_CMD_FAN_LOW:
-      encode_data_(dst, FAN_1_DATA);
+      this->encode_data_(dst, FAN_LOW_DATA, sizeof(FAN_LOW_DATA));
       break;
     case HOB2HOOD_CMD_FAN_MEDIUM:
-      encode_data_(dst, FAN_2_DATA);
+      this->encode_data_(dst, FAN_MEDIUM_DATA, sizeof(FAN_MEDIUM_DATA));
       break;
     case HOB2HOOD_CMD_FAN_HIGH:
-      encode_data_(dst, FAN_3_DATA);
+      this->encode_data_(dst, FAN_HIGH_DATA, sizeof(FAN_HIGH_DATA));
       break;
     case HOB2HOOD_CMD_FAN_MAX:
-      encode_data_(dst, FAN_4_DATA);
+      this->encode_data_(dst, FAN_MAX_DATA, sizeof(FAN_MAX_DATA));
       break;
     default:
       break;
@@ -106,46 +106,41 @@ bool Hob2HoodProtocol::expect_data_(RemoteReceiveData &src, int8_t data) {
   }
 }
 
-bool Hob2HoodProtocol::expect_data_(RemoteReceiveData &src, const std::vector<int8_t> &data) {
-  for (const int8_t &d : data) {
-    if (!expect_data_(src, d))
+bool Hob2HoodProtocol::expect_data_(RemoteReceiveData &src, const int8_t *data, size_t length) {
+  for (size_t i = 0; i < length; i++) {
+    if (!this->expect_data_(src, data[i]))
       return false;
   }
   return true;
 }
 
 optional<Hob2HoodData> Hob2HoodProtocol::decode(RemoteReceiveData src) {
-  if (this->expect_data_(src, -1)) {
-    if (this->expect_data_(src, 2) && this->expect_data_(src, -1)) {
-      if (this->expect_data_(src, 1)) {
-        if (this->expect_data_(src, std::vector<int8_t>(LIGHT_OFF_DATA.begin() + 4, LIGHT_OFF_DATA.end()))) {
-          // LIGHT_OFF: -1 2 -1 1 -1 ...
-          return Hob2HoodData(HOB2HOOD_CMD_LIGHT_OFF);
-        } else if (this->expect_data_(src, std::vector<int8_t>(LIGHT_ON_DATA.begin() + 4, LIGHT_ON_DATA.end()))) {
-          // LIGHT_ON: -1 2 -1 1 -2 ...
-          return Hob2HoodData(HOB2HOOD_CMD_LIGHT_ON);
-        }
-      } else if (this->expect_data_(src, std::vector<int8_t>(FAN_OFF_DATA.begin() + 3, FAN_OFF_DATA.end()))) {
-        // FAN_OFF: -1 2 -1 2 ...
-        return Hob2HoodData(HOB2HOOD_CMD_FAN_OFF);
-      }
-    } else if (this->expect_data_(src, std::vector<int8_t>(FAN_3_DATA.begin() + 1, FAN_3_DATA.end()))) {
-      // FAN_3: -1 3 ...
-      return Hob2HoodData(HOB2HOOD_CMD_FAN_HIGH);
-    }
-  } else if (this->expect_data_(src, -2)) {
-    if (this->expect_data_(src, 2) && this->expect_data_(src, -1)) {
-      if (this->expect_data_(src, std::vector<int8_t>(FAN_1_DATA.begin() + 3, FAN_1_DATA.end()))) {
-        // FAN_1: -2 2 -1 2 ...
-        return Hob2HoodData(HOB2HOOD_CMD_FAN_LOW);
-      } else if (this->expect_data_(src, std::vector<int8_t>(FAN_2_DATA.begin() + 3, FAN_2_DATA.end()))) {
-        // FAN_2: -2 2 -1 4 ...
-        return Hob2HoodData(HOB2HOOD_CMD_FAN_MEDIUM);
-      }
-    } else if (this->expect_data_(src, std::vector<int8_t>(FAN_4_DATA.begin() + 1, FAN_4_DATA.end()))) {
-      // FAN_4: -2 3 ...
-      return Hob2HoodData(HOB2HOOD_CMD_FAN_MAX);
-    }
+  if (this->expect_data_(src, LIGHT_OFF_DATA, sizeof(LIGHT_OFF_DATA))) {
+    return Hob2HoodData(HOB2HOOD_CMD_LIGHT_OFF);
+  }
+  src.reset();
+  if (this->expect_data_(src, LIGHT_ON_DATA, sizeof(LIGHT_ON_DATA))) {
+    return Hob2HoodData(HOB2HOOD_CMD_LIGHT_ON);
+  }
+  src.reset();
+  if (this->expect_data_(src, FAN_OFF_DATA, sizeof(FAN_OFF_DATA))) {
+    return Hob2HoodData(HOB2HOOD_CMD_FAN_OFF);
+  }
+  src.reset();
+  if (this->expect_data_(src, FAN_LOW_DATA, sizeof(FAN_LOW_DATA))) {
+    return Hob2HoodData(HOB2HOOD_CMD_FAN_LOW);
+  }
+  src.reset();
+  if (this->expect_data_(src, FAN_MEDIUM_DATA, sizeof(FAN_MEDIUM_DATA))) {
+    return Hob2HoodData(HOB2HOOD_CMD_FAN_MEDIUM);
+  }
+  src.reset();
+  if (this->expect_data_(src, FAN_HIGH_DATA, sizeof(FAN_HIGH_DATA))) {
+    return Hob2HoodData(HOB2HOOD_CMD_FAN_HIGH);
+  }
+  src.reset();
+  if (this->expect_data_(src, FAN_MAX_DATA, sizeof(FAN_MAX_DATA))) {
+    return Hob2HoodData(HOB2HOOD_CMD_FAN_MAX);
   }
   return {};
 }

@@ -31,9 +31,9 @@ class Hob2HoodProtocol : public RemoteProtocol<Hob2HoodData> {
   void dump(const Hob2HoodData &data) override;
 
  protected:
-  void encode_data_(RemoteTransmitData *dst, const std::vector<int8_t> &data) const;
+  void encode_data_(RemoteTransmitData *dst, const int8_t *data, size_t length) const;
   bool expect_data_(RemoteReceiveData &src, int8_t data);
-  bool expect_data_(RemoteReceiveData &src, const std::vector<int8_t> &data);
+  bool expect_data_(RemoteReceiveData &src, const int8_t *data, size_t length);
 };
 
 using Hob2HoodTrigger = RemoteReceiverTrigger<Hob2HoodProtocol>;
