@@ -351,10 +351,12 @@ def choose_upload_log_host(
         elif bootsel.permission_error:
             bootsel_permission_error = True
 
-    # Annotate OTA chooser entries with the transport when uploading so the
-    # user can see whether the run will go through the native API or the
-    # web_server HTTP path. For LOGGING the OTA transport doesn't apply, so
-    # leave the label plain.
+    # Annotate the OTA chooser entry only in the non-default case: when the
+    # config has web_server OTA but no native API OTA, the upload will fall
+    # through to the HTTP path and the user benefits from seeing that
+    # explicitly. The native-API path is the default and gets a plain label
+    # to avoid noise on the most common scenario. For LOGGING the OTA
+    # transport doesn't apply, so always leave the label plain.
     if purpose == Purpose.UPLOADING and not has_native_ota() and has_web_server_ota():
         ota_suffix = " via web_server"
     else:
