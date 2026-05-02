@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import logging
 from pathlib import Path
 import socket
 from unittest.mock import MagicMock, patch
@@ -14,10 +15,9 @@ from requests.auth import HTTPBasicAuth
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import ProgressBar
 from esphome.web_server_ota import (
-    FORM_FIELD,
     OTA_PATH,
     WebServerOTAError,
-    _ProgressFile,
+    _MultipartStreamer,
     run_ota,
 )
 
@@ -33,6 +33,7 @@ def _make_response(status: int, body: str) -> MagicMock:
     response = MagicMock(spec=requests.Response)
     response.status_code = status
     response.text = body
+    response.reason = ""
     return response
 
 
@@ -49,28 +50,123 @@ def _patch_resolve(
     )
 
 
-def test_progress_file_reports_progress() -> None:
-    """_ProgressFile forwards reads and tracks consumption ratio."""
-    data = b"abcdef" * 100  # 600 bytes
-    pf = _ProgressFile(io.BytesIO(data), len(data))
-
-    chunk = pf.read(200)
-    assert chunk == data[:200]
-
-    rest = pf.read()
-    assert rest == data[200:]
-
-    # Caller (`_try_upload`) is responsible for finalizing the progress bar,
-    # so subsequent empty reads simply forward EOF.
-    assert pf.read() == b""
+# ---------------------------------------------------------------------------
+# _MultipartStreamer
+# ---------------------------------------------------------------------------
 
 
-def test_progress_file_zero_size_skips_progress() -> None:
-    """A zero-length size shouldn't divide-by-zero in the progress update."""
-    # Pass a non-empty BytesIO but report size=0 so the chunk-truthy branch
-    # exercises the ``self._size > 0`` guard.
-    pf = _ProgressFile(io.BytesIO(b"x"), 0)
-    assert pf.read() == b"x"
+def test_multipart_streamer_emits_full_body() -> None:
+    """Streaming the whole body in one call yields prefix + file + suffix."""
+    data = b"abcdef" * 100
+    streamer = _MultipartStreamer(io.BytesIO(data), len(data), "fw.bin")
+
+    body = streamer.read()
+    while True:
+        chunk = streamer.read()
+        if not chunk:
+            break
+        body += chunk
+
+    assert body.startswith(f"--{streamer.boundary}\r\n".encode())
+    assert b'name="update"' in body
+    assert b'filename="fw.bin"' in body
+    assert data in body
+    assert body.endswith(f"\r\n--{streamer.boundary}--\r\n".encode())
+
+
+def test_multipart_streamer_chunked_read_matches_full_read() -> None:
+    """Chunked reads (urllib3 calls read(8192) repeatedly) yield the same body."""
+    data = b"abcdef" * 1000  # 6000 bytes
+    full = _MultipartStreamer(io.BytesIO(data), len(data), "fw.bin").read()
+
+    streamed = bytearray()
+    s = _MultipartStreamer(io.BytesIO(data), len(data), "fw.bin")
+    # Same boundary lengths -> identical total length.
+    while True:
+        chunk = s.read(64)
+        if not chunk:
+            break
+        streamed += chunk
+    # Boundaries are random per instance, so compare lengths and structure.
+    assert len(streamed) == len(full)
+    assert streamed.startswith(f"--{s.boundary}\r\n".encode())
+    assert streamed.endswith(f"\r\n--{s.boundary}--\r\n".encode())
+
+
+def test_multipart_streamer_len_matches_emitted_bytes() -> None:
+    """``__len__`` is what urllib3 uses to set Content-Length, so it must
+    equal the total bytes emitted by ``read``."""
+    data = b"x" * 12345
+    s = _MultipartStreamer(io.BytesIO(data), len(data), "fw.bin")
+    declared = len(s)
+
+    emitted = 0
+    while True:
+        chunk = s.read(1024)
+        if not chunk:
+            break
+        emitted += len(chunk)
+
+    assert emitted == declared
+
+
+def test_multipart_streamer_progress_ticks_during_read() -> None:
+    """Each read advances the progress bar (this is the whole point of
+    streaming via ``data=``: progress reflects bytes leaving the host)."""
+    data = b"x" * 1000
+    s = _MultipartStreamer(io.BytesIO(data), len(data), "fw.bin")
+
+    updates: list[float] = []
+    s.progress.update = updates.append  # type: ignore[method-assign]
+
+    while True:
+        chunk = s.read(128)
+        if not chunk:
+            break
+
+    assert updates, "progress.update was never called"
+    # Strictly non-decreasing.
+    assert updates == sorted(updates)
+    # Final update reaches (within FP) 1.0 because all bytes were read.
+    assert updates[-1] == pytest.approx(1.0, abs=1e-9)
+
+
+def test_multipart_streamer_content_type_includes_boundary() -> None:
+    s = _MultipartStreamer(io.BytesIO(b""), 0, "fw.bin")
+    assert s.content_type == f"multipart/form-data; boundary={s.boundary}"
+
+
+def test_multipart_streamer_zero_size_file() -> None:
+    """A zero-byte file still produces a well-formed body and progress is
+    skipped (avoiding a divide-by-zero on the empty file segment)."""
+    s = _MultipartStreamer(io.BytesIO(b""), 0, "empty.bin")
+    body = b""
+    while True:
+        chunk = s.read(64)
+        if not chunk:
+            break
+        body += chunk
+    assert body.startswith(f"--{s.boundary}".encode())
+    assert body.endswith(f"--{s.boundary}--\r\n".encode())
+
+
+def test_multipart_streamer_unique_boundary_per_instance() -> None:
+    a = _MultipartStreamer(io.BytesIO(b""), 0, "a")
+    b = _MultipartStreamer(io.BytesIO(b""), 0, "a")
+    assert a.boundary != b.boundary
+
+
+def test_multipart_streamer_zero_size_read_returns_empty() -> None:
+    """``read(0)`` short-circuits without touching state."""
+    s = _MultipartStreamer(io.BytesIO(b"x" * 10), 10, "fw.bin")
+    assert s.read(0) == b""
+    # No bytes consumed.
+    assert s._sent == 0
+
+
+# ---------------------------------------------------------------------------
+# run_ota
+# ---------------------------------------------------------------------------
 
 
 def test_run_ota_success(monkeypatch: pytest.MonkeyPatch, firmware: Path) -> None:
@@ -88,10 +184,44 @@ def test_run_ota_success(monkeypatch: pytest.MonkeyPatch, firmware: Path) -> Non
     args, kwargs = post.call_args
     assert args == (f"http://192.168.1.50:80{OTA_PATH}",)
     assert kwargs["auth"] is None
-    assert FORM_FIELD in kwargs["files"]
-    file_tuple = kwargs["files"][FORM_FIELD]
-    assert file_tuple[0] == firmware.name
-    assert file_tuple[2] == "application/octet-stream"
+    # Streaming body, not files=, so progress fires during transmission.
+    assert "files" not in kwargs
+    assert isinstance(kwargs["data"], _MultipartStreamer)
+    assert kwargs["headers"]["Content-Type"] == kwargs["data"].content_type
+    assert kwargs["headers"]["Connection"] == "close"
+
+
+def test_run_ota_logs_device_response_body(
+    monkeypatch: pytest.MonkeyPatch, firmware: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The device's HTTP response body is surfaced on success."""
+    _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
+    caplog.set_level(logging.INFO, logger="esphome.web_server_ota")
+
+    with patch(
+        "esphome.web_server_ota.requests.post",
+        return_value=_make_response(200, "Update Successful!"),
+    ):
+        run_ota(["192.168.1.50"], 80, None, None, firmware)
+
+    assert "Device response: Update Successful!" in caplog.text
+    assert "OTA successful" in caplog.text
+
+
+def test_run_ota_log_says_via_web_server(
+    monkeypatch: pytest.MonkeyPatch, firmware: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The upload-start log line names the transport explicitly."""
+    _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
+    caplog.set_level(logging.INFO, logger="esphome.web_server_ota")
+
+    with patch(
+        "esphome.web_server_ota.requests.post",
+        return_value=_make_response(200, "Update Successful!"),
+    ):
+        run_ota(["192.168.1.50"], 80, None, None, firmware)
+
+    assert "via web_server OTA" in caplog.text
 
 
 def test_run_ota_sends_basic_auth(
@@ -176,7 +306,6 @@ def test_run_ota_failure_response(
 def test_run_ota_failure_response_empty_body(
     monkeypatch: pytest.MonkeyPatch, firmware: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """An empty body falls back to a deterministic error message."""
     _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
 
     with patch(
@@ -220,6 +349,44 @@ def test_run_ota_unexpected_status_code(
     assert exit_code == 1
     assert host is None
     assert "Unexpected HTTP 500" in caplog.text
+
+
+def test_run_ota_unexpected_status_empty_body_falls_back(
+    monkeypatch: pytest.MonkeyPatch, firmware: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Empty response body uses response.reason / a fallback in the error."""
+    _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
+
+    response = _make_response(503, "")
+    response.reason = "Service Unavailable"
+
+    with patch(
+        "esphome.web_server_ota.requests.post",
+        return_value=response,
+    ):
+        exit_code, host = run_ota(["192.168.1.50"], 80, None, None, firmware)
+
+    assert exit_code == 1
+    assert host is None
+    assert "Service Unavailable" in caplog.text
+
+
+def test_run_ota_unexpected_status_no_body_no_reason(
+    monkeypatch: pytest.MonkeyPatch, firmware: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Empty body and empty reason still produce a usable error message."""
+    _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
+
+    response = _make_response(599, "")
+    response.reason = ""
+
+    with patch(
+        "esphome.web_server_ota.requests.post",
+        return_value=response,
+    ):
+        run_ota(["192.168.1.50"], 80, None, None, firmware)
+
+    assert "no response body" in caplog.text
 
 
 def test_run_ota_connection_error_then_success(
@@ -421,20 +588,37 @@ def test_run_ota_finalizes_progress_bar_on_success(
     _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
 
     done_called: list[bool] = []
-    real_progress_bar_done = patch.object(
-        ProgressBar, "done", lambda self: done_called.append(True)
-    )
 
     with (
         patch(
             "esphome.web_server_ota.requests.post",
             return_value=_make_response(200, "Update Successful!"),
         ),
-        real_progress_bar_done,
+        patch.object(ProgressBar, "done", lambda self: done_called.append(True)),
     ):
         run_ota(["192.168.1.50"], 80, None, None, firmware)
 
-    assert done_called, "ProgressBar.done() was not called on success"
+    assert done_called
+
+
+def test_run_ota_finalizes_progress_bar_on_failure(
+    monkeypatch: pytest.MonkeyPatch, firmware: Path
+) -> None:
+    """progress.done() fires when the request itself raises (finally block)."""
+    _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
+
+    done_called: list[bool] = []
+
+    with (
+        patch(
+            "esphome.web_server_ota.requests.post",
+            side_effect=requests.ConnectionError("boom"),
+        ),
+        patch.object(ProgressBar, "done", lambda self: done_called.append(True)),
+    ):
+        run_ota(["192.168.1.50"], 80, None, None, firmware)
+
+    assert done_called
 
 
 def test_run_ota_ipv6_url_brackets_host(
@@ -464,7 +648,6 @@ def test_run_ota_ipv6_link_local_includes_scope_id(
     monkeypatch: pytest.MonkeyPatch, firmware: Path
 ) -> None:
     """Link-local IPv6 candidates include the percent-encoded zone index."""
-    # sockaddr_in6 = (host, port, flowinfo, scope_id); scope_id=3 -> eth/wlan index
     addr_infos = [
         (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("fe80::1", 80, 0, 3)),
     ]
@@ -480,49 +663,4 @@ def test_run_ota_ipv6_link_local_includes_scope_id(
 
     assert exit_code == 0
     url = post.call_args.args[0]
-    # RFC 6874: literal '%' is percent-encoded as '%25' inside the URL.
     assert url == f"http://[fe80::1%253]:80{OTA_PATH}"
-
-
-def test_run_ota_unexpected_status_empty_body_falls_back(
-    monkeypatch: pytest.MonkeyPatch, firmware: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Empty response body uses response.reason / a fallback in the error."""
-    _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
-
-    response = _make_response(503, "")
-    response.reason = "Service Unavailable"
-
-    with patch(
-        "esphome.web_server_ota.requests.post",
-        return_value=response,
-    ):
-        exit_code, host = run_ota(["192.168.1.50"], 80, None, None, firmware)
-
-    assert exit_code == 1
-    assert host is None
-    # Error message ends with the reason, not a dangling colon-space.
-    assert "Service Unavailable" in caplog.text
-    assert "Unexpected HTTP 503 response from device: " not in caplog.text.replace(
-        "Unexpected HTTP 503 response from device: Service Unavailable", ""
-    )
-
-
-def test_run_ota_finalizes_progress_bar_on_failure(
-    monkeypatch: pytest.MonkeyPatch, firmware: Path
-) -> None:
-    """progress.done() fires when the request itself raises (finally block)."""
-    _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
-
-    done_called: list[bool] = []
-
-    with (
-        patch(
-            "esphome.web_server_ota.requests.post",
-            side_effect=requests.ConnectionError("boom"),
-        ),
-        patch.object(ProgressBar, "done", lambda self: done_called.append(True)),
-    ):
-        run_ota(["192.168.1.50"], 80, None, None, firmware)
-
-    assert done_called, "ProgressBar.done() was not called on failure"

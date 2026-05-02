@@ -351,6 +351,15 @@ def choose_upload_log_host(
         elif bootsel.permission_error:
             bootsel_permission_error = True
 
+    # Annotate OTA chooser entries with the transport when uploading so the
+    # user can see whether the run will go through the native API or the
+    # web_server HTTP path. For LOGGING the OTA transport doesn't apply, so
+    # leave the label plain.
+    if purpose == Purpose.UPLOADING and not has_native_ota() and has_web_server_ota():
+        ota_suffix = " via web_server"
+    else:
+        ota_suffix = ""
+
     def add_ota_options() -> None:
         """Add OTA options, using mDNS discovery if name_add_mac_suffix is enabled."""
         if (discovered := _discover_mac_suffix_devices()) is not None:
@@ -358,11 +367,11 @@ def choose_upload_log_host(
             # intentionally skip the base-name fallback since with
             # name_add_mac_suffix on, the base name doesn't exist on the net.
             for host in discovered:
-                options.append((f"Over The Air ({host})", host))
+                options.append((f"Over The Air{ota_suffix} ({host})", host))
         elif has_resolvable_address():
-            options.append((f"Over The Air ({CORE.address})", CORE.address))
+            options.append((f"Over The Air{ota_suffix} ({CORE.address})", CORE.address))
         if has_mqtt_ip_lookup():
-            options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+            options.append((f"Over The Air{ota_suffix} (MQTT IP lookup)", "MQTTIP"))
 
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():

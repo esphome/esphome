@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+import secrets
 import socket
 from typing import BinaryIO
 
@@ -34,35 +35,109 @@ FORM_FIELD = "update"
 # upload, so the read side must allow for a slow flash + response.
 TIMEOUT = (20.0, 120.0)
 
+# Read the firmware in 8 KiB chunks while streaming, matching urllib3's
+# default block size and espota2's UPLOAD_BLOCK_SIZE.
+UPLOAD_BLOCK_SIZE = 8192
+
 
 class WebServerOTAError(EsphomeError):
     pass
 
 
-class _ProgressFile:
-    """Wraps a file handle so requests' multipart encoder reports progress.
+class _MultipartStreamer:
+    """Streams a single-file multipart/form-data body during transmission.
 
-    requests' multipart encoder reads the wrapped file via ``.read(size)``
-    while building the body. We forward each read to the underlying file and
-    update a :class:`ProgressBar` proportional to bytes consumed. The bar is
-    finalized by the caller (see :func:`_try_upload`) rather than from inside
-    ``read`` so it always renders cleanly even if urllib3 stops calling
-    ``read`` exactly at ``Content-Length`` instead of issuing a trailing
-    empty read.
+    ``requests.post(files=...)`` materializes the entire multipart body in
+    memory before sending, which makes any progress callback wired into the
+    file-like fire instantly during encoding rather than during the actual
+    network send. By exposing this class via ``data=streamer`` (with
+    ``__len__`` so urllib3 sets ``Content-Length`` instead of chunked
+    transfer encoding), the body is read in 8 KiB chunks during the POST and
+    the progress bar tracks bytes that have left the host.
     """
 
-    def __init__(self, file_handle: BinaryIO, file_size: int) -> None:
+    def __init__(self, file_handle: BinaryIO, file_size: int, filename: str) -> None:
+        self.boundary = "esphomeOTA" + secrets.token_hex(16)
+        self._prefix = (
+            f"--{self.boundary}\r\n"
+            f'Content-Disposition: form-data; name="{FORM_FIELD}"; '
+            f'filename="{filename}"\r\n'
+            f"Content-Type: application/octet-stream\r\n\r\n"
+        ).encode()
+        self._suffix = f"\r\n--{self.boundary}--\r\n".encode()
         self._file = file_handle
-        self._size = file_size
-        self._read = 0
+        self._file_size = file_size
+        self._total = len(self._prefix) + file_size + len(self._suffix)
+        self._sent = 0
+        # Pending bytes from the prefix/suffix segments; each is consumed
+        # before reading the next segment.
+        self._head = self._prefix
+        self._tail = self._suffix
+        self._file_done = False
         self.progress = ProgressBar()
 
+    def __len__(self) -> int:
+        return self._total
+
+    @property
+    def content_type(self) -> str:
+        return f"multipart/form-data; boundary={self.boundary}"
+
     def read(self, size: int = -1) -> bytes:
-        chunk = self._file.read(size)
-        if chunk and self._size > 0:
-            self._read += len(chunk)
-            self.progress.update(self._read / self._size)
-        return chunk
+        # urllib3 calls read(blocksize) repeatedly until it returns b''.
+        # Walk the prefix -> file -> suffix segments in order, accumulating
+        # up to ``size`` bytes across segment boundaries so a single
+        # ``read(-1)`` returns the whole body and a chunked ``read(8192)``
+        # ticks progress for every block.
+        remaining = self._total if size is None or size < 0 else size
+        if remaining == 0:
+            return b""
+
+        out = bytearray()
+        while remaining > 0:
+            if self._head:
+                take = min(remaining, len(self._head))
+                out += self._head[:take]
+                self._head = self._head[take:]
+                remaining -= take
+                continue
+            if not self._file_done:
+                chunk = self._file.read(remaining)
+                if not chunk:
+                    self._file_done = True
+                    continue
+                out += chunk
+                remaining -= len(chunk)
+                continue
+            if self._tail:
+                take = min(remaining, len(self._tail))
+                out += self._tail[:take]
+                self._tail = self._tail[take:]
+                remaining -= take
+                continue
+            break  # nothing left to emit
+
+        if out:
+            # ``self._total`` is always > 0 since the prefix and suffix
+            # contribute well over a hundred bytes regardless of file size.
+            self._sent += len(out)
+            self.progress.update(self._sent / self._total)
+        return bytes(out)
+
+
+def _format_url(af: int, sa: tuple, port: int) -> str:
+    """Build an HTTP URL for the given resolved sockaddr.
+
+    Wraps IPv6 literals in brackets and includes the percent-encoded zone
+    index for link-local addresses (RFC 6874: literal ``%`` -> ``%25``).
+    """
+    ip = sa[0]
+    if af == socket.AF_INET6:
+        scope_id = sa[3] if len(sa) >= 4 else 0
+        host_part = f"[{ip}%25{scope_id}]" if scope_id else f"[{ip}]"
+    else:
+        host_part = ip
+    return f"http://{host_part}:{port}{OTA_PATH}"
 
 
 def _try_upload(
@@ -85,7 +160,7 @@ def _try_upload(
         raise WebServerOTAError(err) from err
 
     file_size = filename.stat().st_size
-    _LOGGER.info("Uploading %s (%s bytes) via web_server", filename, file_size)
+    _LOGGER.info("Uploading %s (%s bytes) via web_server OTA", filename, file_size)
 
     auth = HTTPBasicAuth(username, password) if username and password else None
 
@@ -94,41 +169,28 @@ def _try_upload(
     # and IPv6 candidates are both tried (mirrors espota2's behavior).
     for af, _socktype, _, _, sa in addr_infos:
         ip = sa[0]
-        # IPv6 literals must be wrapped in brackets in URLs so the port is
-        # parsed correctly. ``resolve_ip_address`` can hand back IPv6
-        # candidates first on dual-stack networks. For link-local
-        # addresses (fe80::/10) we also need the zone index from the
-        # sockaddr, percent-encoded per RFC 6874 (literal ``%`` -> ``%25``).
-        if af == socket.AF_INET6:
-            scope_id = sa[3] if len(sa) >= 4 else 0
-            host_part = f"[{ip}%25{scope_id}]" if scope_id else f"[{ip}]"
-        else:
-            host_part = ip
-        url = f"http://{host_part}:{port}{OTA_PATH}"
+        url = _format_url(af, sa, port)
         _LOGGER.info("Connecting to %s port %s...", ip, port)
 
         try:
             with open(filename, "rb") as file_handle:
-                progress_file = _ProgressFile(file_handle, file_size)
-                files = {
-                    FORM_FIELD: (
-                        filename.name,
-                        progress_file,
-                        "application/octet-stream",
-                    ),
+                streamer = _MultipartStreamer(file_handle, file_size, filename.name)
+                headers = {
+                    "Content-Type": streamer.content_type,
+                    "Connection": "close",
                 }
                 try:
                     response = requests.post(
                         url,
-                        files=files,
+                        data=streamer,
                         auth=auth,
                         timeout=TIMEOUT,
-                        headers={"Connection": "close"},
+                        headers=headers,
                     )
                 finally:
-                    # Always finalize the progress bar; urllib3 may not issue
-                    # a trailing empty read after consuming Content-Length.
-                    progress_file.progress.done()
+                    # Always finalize the progress bar; on a transport error
+                    # the streamer may not have reached 100%.
+                    streamer.progress.done()
         except requests.ConnectionError as err:
             _LOGGER.error("Connecting to %s port %s failed: %s", ip, port, err)
             last_error = str(err)
@@ -155,6 +217,10 @@ def _try_upload(
         # components/web_server/ota/ota_web_server.cpp -> handleRequest().
         body = response.text.strip()
         if "Successful" in body:
+            # Surface the device's exact response so the user can see the
+            # firmware was accepted (not just that the HTTP request returned
+            # 200) and that the device intends to reboot.
+            _LOGGER.info("Device response: %s", body)
             _LOGGER.info("OTA successful")
             return 0, ip
 
