@@ -292,7 +292,7 @@ def copy_files():
             "SB_CONFIG_BOOTLOADER_MCUBOOT=y\n",
         )
 
-    if mcuboot and pm_static:
-        write_file_if_changed(
-            CORE.relative_build_path("sysbuild/mcuboot.yml"), pm_static
-        )
+    # if mcuboot and pm_static:
+    #     write_file_if_changed(
+    #         CORE.relative_build_path("sysbuild/mcuboot.yml"), pm_static
+    #     )
