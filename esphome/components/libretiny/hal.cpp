@@ -16,7 +16,7 @@ namespace esphome {
 
 // yield(), delay(), micros(), millis(), millis_64(), delayMicroseconds(),
 // arch_feed_wdt(), arch_get_cpu_cycle_count(), arch_get_cpu_freq_hz()
-// inlined in core/hal/hal_libretiny.h.
+// inlined in components/libretiny/hal.h.
 
 void arch_init() {
   libretiny::setup_preferences();

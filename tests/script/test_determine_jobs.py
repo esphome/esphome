@@ -122,10 +122,19 @@ def test_main_all_tests_should_run(
         "esphome/helpers.py",
     ]
 
+    # Stable, deterministic stand-in for the tests/integration/ glob so the
+    # bucket assertions don't drift with the real test count.
+    fake_test_files = [f"tests/integration/test_{i:03d}.py" for i in range(15)]
+
     # Run main function with mocked argv
     with (
         patch("sys.argv", ["determine-jobs.py"]),
         patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(
+            determine_jobs,
+            "_all_integration_test_files",
+            return_value=fake_test_files,
+        ),
         patch.object(
             determine_jobs,
             "get_changed_components",
@@ -161,8 +170,24 @@ def test_main_all_tests_should_run(
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is True
-    assert output["integration_tests_run_all"] is True
-    assert output["integration_test_files"] == []
+    # run_all=True expands to the full glob and pre-buckets into 3 parts.
+    # Each bucket's `tests` is a JSON list of file paths.
+    assert isinstance(output["integration_test_buckets"], list)
+    assert len(output["integration_test_buckets"]) == 3
+    assert [b["name"] for b in output["integration_test_buckets"]] == [
+        "1/3",
+        "2/3",
+        "3/3",
+    ]
+    for bucket in output["integration_test_buckets"]:
+        assert isinstance(bucket["tests"], list)
+        for path in bucket["tests"]:
+            assert isinstance(path, str)
+    bucket_files = [f for b in output["integration_test_buckets"] for f in b["tests"]]
+    assert bucket_files == fake_test_files
+    # Bucket sizes are balanced (max-min difference at most 1).
+    sizes = [len(b["tests"]) for b in output["integration_test_buckets"]]
+    assert max(sizes) - min(sizes) <= 1
     assert output["clang_tidy"] is True
     assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is True
@@ -247,8 +272,7 @@ def test_main_no_tests_should_run(
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is False
-    assert output["integration_tests_run_all"] is False
-    assert output["integration_test_files"] == []
+    assert output["integration_test_buckets"] == []
     assert output["clang_tidy"] is False
     assert output["clang_tidy_mode"] == "disabled"
     assert output["clang_format"] is False
@@ -332,8 +356,7 @@ def test_main_with_branch_argument(
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is False
-    assert output["integration_tests_run_all"] is False
-    assert output["integration_test_files"] == []
+    assert output["integration_test_buckets"] == []
     assert output["clang_tidy"] is True
     assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is False
@@ -355,6 +378,59 @@ def test_main_with_branch_argument(
     assert output["memory_impact"]["should_run"] == "false"
     assert output["cpp_unit_tests_run_all"] is False
     assert output["cpp_unit_tests_components"] == ["mqtt"]
+
+
+def test_compute_integration_test_buckets_empty() -> None:
+    """No integration tests scheduled => (False, [])."""
+    run, buckets = determine_jobs._compute_integration_test_buckets(False, [])
+    assert run is False
+    assert buckets == []
+
+
+def test_compute_integration_test_buckets_below_threshold() -> None:
+    """A small explicit list (<= threshold) => single 1/1 bucket with that list."""
+    files = [f"tests/integration/test_{name}.py" for name in ("c", "a", "b")]
+    run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
+    assert run is True
+    assert buckets == [{"name": "1/1", "tests": sorted(files)}]
+
+
+def test_compute_integration_test_buckets_at_threshold_stays_single() -> None:
+    """Exactly INTEGRATION_TESTS_SPLIT_THRESHOLD files => still one bucket
+    (the split kicks in only when count is strictly greater than threshold)."""
+    files = [
+        f"tests/integration/test_{i:02d}.py"
+        for i in range(determine_jobs.INTEGRATION_TESTS_SPLIT_THRESHOLD)
+    ]
+    run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
+    assert run is True
+    assert len(buckets) == 1
+    assert buckets[0]["name"] == "1/1"
+    assert buckets[0]["tests"] == sorted(files)
+
+
+def test_compute_integration_test_buckets_just_over_threshold_splits() -> None:
+    """One file over the threshold triggers the 3-bucket fan-out, balanced."""
+    n = determine_jobs.INTEGRATION_TESTS_SPLIT_THRESHOLD + 1
+    files = [f"tests/integration/test_{i:02d}.py" for i in range(n)]
+    run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
+    assert run is True
+    assert [b["name"] for b in buckets] == ["1/3", "2/3", "3/3"]
+    union = [path for b in buckets for path in b["tests"]]
+    assert union == sorted(files)
+    sizes = [len(b["tests"]) for b in buckets]
+    assert max(sizes) - min(sizes) <= 1
+
+
+def test_compute_integration_test_buckets_run_all_with_empty_glob_disables_run() -> (
+    None
+):
+    """run_all=True but glob returns no files => run suppressed (otherwise
+    pytest would collect tests outside tests/integration/)."""
+    with patch.object(determine_jobs, "_all_integration_test_files", return_value=[]):
+        run, buckets = determine_jobs._compute_integration_test_buckets(True, [])
+    assert run is False
+    assert buckets == []
 
 
 def test_determine_integration_tests(
