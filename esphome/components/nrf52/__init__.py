@@ -595,9 +595,8 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         mcumgr_device = host
 
     if mcumgr_device:
-        firmware = Path(
-            CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
-        ).resolve()
+        platform_config = config[CORE.target_platform]
+        firmware = _firmware_image_path(platform_config).resolve()
         asyncio.run(smpmgr_upload(mcumgr_device, firmware))
         return True  # Handled: mcumgr OTA upload
 
@@ -648,7 +647,8 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
             addr2line = find_tool("addr2line")
             if addr2line is None:
                 return False
-            elf = CORE.relative_pioenvs_path(CORE.name, "firmware.elf")
+            platform_config = config[CORE.target_platform]
+            elf = _elf_path(platform_config)
             if not elf.exists():
                 _LOGGER.warning("%s does not exists", elf)
                 return False
@@ -657,6 +657,43 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
             _LOGGER.error("LR: %s", _addr2line(addr2line, elf, lr))
 
     return False
+
+
+def _build_env_dir(platform_config: ConfigType) -> Path:
+    """Root of the build environment directory (west build dir or PlatformIO env dir)."""
+    if platform_config[CONF_NATIVE_BUILD]:
+        return CORE.relative_build_path(
+            ".west_build_sysbuild"
+            if platform_config[CONF_SECOND_BOOTLOADER]
+            else ".west_build"
+        )
+    return CORE.relative_pioenvs_path(CORE.name)
+
+
+def _app_image_dir(platform_config: ConfigType) -> Path:
+    """Directory containing main application image artifacts (zephyr/, firmware.elf, ...).
+
+    With sysbuild, west creates per-image subdirectories named after the application
+    source directory basename; without sysbuild the artifacts sit at the build root.
+    """
+    build_dir = _build_env_dir(platform_config)
+    if platform_config[CONF_NATIVE_BUILD] and platform_config[CONF_SECOND_BOOTLOADER]:
+        return build_dir / CORE.build_path.name
+    return build_dir
+
+
+def _firmware_image_path(platform_config: ConfigType) -> Path:
+    app_dir = _app_image_dir(platform_config)
+    if platform_config[CONF_NATIVE_BUILD] and platform_config[CONF_SECOND_BOOTLOADER]:
+        return app_dir / "zephyr" / "zephyr.signed.bin"
+    return app_dir / "zephyr" / "app_update.bin"
+
+
+def _elf_path(platform_config: ConfigType) -> Path:
+    app_dir = _app_image_dir(platform_config)
+    if platform_config[CONF_NATIVE_BUILD]:
+        return app_dir / "zephyr" / "zephyr.elf"
+    return app_dir / "firmware.elf"
 
 
 def compile_program(args, config: ConfigType) -> bool:
@@ -680,26 +717,23 @@ def compile_program(args, config: ConfigType) -> bool:
     if rc != 0:
         raise EsphomeError(f"west build failed with exit code {rc}")
 
-    build_dir = CORE.relative_build_path(
-        ".west_build_sysbuild"
-        if platform_config[CONF_SECOND_BOOTLOADER]
-        else ".west_build"
-    )
-    app_bin = build_dir / "merged.hex"
-    dfu_zip = CORE.relative_build_path("firmware.zip")
-    nrfutil_rc = subprocess.run(
-        [
-            "adafruit-nrfutil",
-            "dfu",
-            "genpkg",
-            "--dev-type",
-            "0x0052",
-            "--application",
-            str(app_bin),
-            str(dfu_zip),
-        ],
-        check=False,
-    ).returncode
-    if nrfutil_rc != 0:
-        raise EsphomeError(f"adafruit-nrfutil failed with exit code {nrfutil_rc}")
+    build_dir = _build_env_dir(platform_config)
+    if zephyr_data()[KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT:
+        app_bin = build_dir / "merged.hex"
+        dfu_zip = CORE.relative_build_path("firmware.zip")
+        nrfutil_rc = subprocess.run(
+            [
+                "adafruit-nrfutil",
+                "dfu",
+                "genpkg",
+                "--dev-type",
+                "0x0052",
+                "--application",
+                str(app_bin),
+                str(dfu_zip),
+            ],
+            check=False,
+        ).returncode
+        if nrfutil_rc != 0:
+            raise EsphomeError(f"adafruit-nrfutil failed with exit code {nrfutil_rc}")
     return True
