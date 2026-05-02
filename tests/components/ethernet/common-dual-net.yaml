@@ -1,0 +1,70 @@
+esphome:
+  on_boot:
+    # Run after both ethernet and wifi setup() but before either has had time
+    # to connect. Decide which interface to use based on the PHY link state.
+    priority: 250
+    then:
+      - delay: 3s  # give the PHY time to autonegotiate
+      - if:
+          condition:
+            ethernet.has_link:
+          then:
+            - logger.log: "Ethernet cable detected, using Ethernet"
+            - wifi.disable
+            - ethernet.enable
+          else:
+            - logger.log: "No Ethernet link, using WiFi"
+            - ethernet.disable
+            - wifi.enable
+
+ethernet:
+  type: LAN8720
+  mdc_pin: 23
+  mdio_pin: 32
+  clk:
+    pin: 0
+    mode: CLK_EXT_IN
+  phy_addr: 0
+  power_pin: 33
+  enable_on_boot: false
+  on_disconnect:
+    then:
+      - logger.log: "Ethernet disconnected, restarting"
+      - delay: 2s
+      - button.press: restart_btn
+
+wifi:
+  ssid: MySSID
+  password: password1
+  enable_on_boot: false
+  ap:
+    ssid: "Dual-Net Fallback"
+
+button:
+  - platform: restart
+    id: restart_btn
+    name: "Restart"
+
+# Detect cable insertion when running on WiFi: poll PHY link, restart if it
+# changes. The ethernet driver is installed but stopped; calling has_link
+# requires it to be enabled briefly. Restart on a positive transition.
+interval:
+  - interval: 30s
+    then:
+      - if:
+          condition:
+            and:
+              - wifi.connected:
+              - not:
+                  ethernet.connected:
+          then:
+            - ethernet.enable
+            - delay: 3s
+            - if:
+                condition:
+                  ethernet.has_link:
+                then:
+                  - logger.log: "Ethernet cable plugged in, restarting"
+                  - button.press: restart_btn
+                else:
+                  - ethernet.disable

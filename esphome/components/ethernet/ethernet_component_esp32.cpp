@@ -370,9 +370,41 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "GOT IPv6 event handler register error");
 #endif /* USE_NETWORK_IPV6 */
 
-  /* start Ethernet driver state machine */
-  err = esp_eth_start(this->eth_handle_);
-  ESPHL_ERROR_CHECK(err, "ETH start error");
+  if (this->enable_on_boot_) {
+    /* start Ethernet driver state machine */
+    err = esp_eth_start(this->eth_handle_);
+    ESPHL_ERROR_CHECK(err, "ETH start error");
+  } else {
+    ESP_LOGCONFIG(TAG, "Ethernet not started (enable_on_boot is false)");
+  }
+}
+
+void EthernetComponent::enable() {
+  if (this->started_ || this->eth_handle_ == nullptr)
+    return;
+  esp_err_t err = esp_eth_start(this->eth_handle_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "ETH start error: (%d) %s", err, esp_err_to_name(err));
+    return;
+  }
+  this->enable_loop_soon_any_context();
+}
+
+void EthernetComponent::disable() {
+  if (!this->started_ || this->eth_handle_ == nullptr)
+    return;
+  esp_err_t err = esp_eth_stop(this->eth_handle_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "ETH stop error: (%d) %s", err, esp_err_to_name(err));
+    return;
+  }
+  this->enable_loop_soon_any_context();
+}
+
+bool EthernetComponent::has_link() {
+  // connected_ is set by ETHERNET_EVENT_CONNECTED and cleared by ETHERNET_EVENT_DISCONNECTED.
+  // It reflects the PHY link state once the driver has been started.
+  return this->connected_;
 }
 
 void EthernetComponent::dump_config() {

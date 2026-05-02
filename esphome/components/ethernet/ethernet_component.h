@@ -124,6 +124,18 @@ class EthernetComponent final : public Component {
   void on_powerdown() override { powerdown(); }
   bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
+  // Returns true when the PHY reports the cable is plugged in and link is up.
+  // Safe to call once setup() has completed - does not require the connection
+  // state machine to have run.
+  bool has_link();
+
+  // Start the ethernet connection state machine. No-op if already started.
+  void enable();
+  // Stop the ethernet connection state machine and power down the interface.
+  void disable();
+
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+
   void set_type(EthernetType type);
 #ifdef USE_ETHERNET_MANUAL_IP
   void set_manual_ip(const ManualIP &manual_ip);
@@ -284,6 +296,7 @@ class EthernetComponent final : public Component {
   // Group all uint8_t types together (enums and bools)
   EthernetType type_{ETHERNET_TYPE_UNKNOWN};
   EthernetComponentState state_{EthernetComponentState::STOPPED};
+  bool enable_on_boot_{true};
   bool started_{false};
   bool connected_{false};
   bool got_ipv4_address_{false};

@@ -95,6 +95,34 @@ void EthernetComponent::setup() {
   // when the link is actually up. Setting it prematurely causes
   // a "Starting → Stopped → Starting" log sequence because the chip
   // needs time after begin() before the PHY link is ready.
+
+  if (!this->enable_on_boot_) {
+    ESP_LOGCONFIG(TAG, "Ethernet not started (enable_on_boot is false)");
+  }
+}
+
+void EthernetComponent::enable() {
+  this->enable_on_boot_ = true;
+  this->enable_loop_soon_any_context();
+}
+
+void EthernetComponent::disable() {
+  this->enable_on_boot_ = false;
+  this->started_ = false;
+  this->connected_ = false;
+  this->state_ = EthernetComponentState::STOPPED;
+  this->enable_loop_soon_any_context();
+}
+
+bool EthernetComponent::has_link() {
+  if (this->eth_ == nullptr)
+    return false;
+#if defined(USE_ETHERNET_W5100)
+  // W5100 cannot detect link state - assume up after successful begin()
+  return true;
+#else
+  return this->eth_->linkStatus() == LinkON;
+#endif
 }
 
 void EthernetComponent::loop() {
@@ -107,7 +135,7 @@ void EthernetComponent::loop() {
   // connected() reads netif->ip_addr without LwIPLock, but this is a single
   // 32-bit aligned read (atomic on ARM) — worst case is a one-iteration-stale
   // value, which is benign for polling.
-  if (this->eth_ != nullptr && now - this->last_link_check_ >= LINK_CHECK_INTERVAL) {
+  if (this->eth_ != nullptr && this->enable_on_boot_ && now - this->last_link_check_ >= LINK_CHECK_INTERVAL) {
     this->last_link_check_ = now;
 #if defined(USE_ETHERNET_W5100)
     // W5100 can't detect link (isLinkDetectable() returns false), so linkStatus()

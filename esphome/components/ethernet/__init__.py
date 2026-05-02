@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_DNS1,
     CONF_DNS2,
     CONF_DOMAIN,
+    CONF_ENABLE_ON_BOOT,
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
@@ -49,7 +50,6 @@ from esphome.core import (
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-CONFLICTS_WITH = ["wifi"]
 AUTO_LOAD = ["network"]
 LOGGER = logging.getLogger(__name__)
 
@@ -219,6 +219,15 @@ MANUAL_IP_SCHEMA = cv.Schema(
 EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
 ManualIP = ethernet_ns.struct("ManualIP")
 
+EthernetConnectedCondition = ethernet_ns.class_(
+    "EthernetConnectedCondition", automation.Condition
+)
+EthernetHasLinkCondition = ethernet_ns.class_(
+    "EthernetHasLinkCondition", automation.Condition
+)
+EthernetEnableAction = ethernet_ns.class_("EthernetEnableAction", automation.Action)
+EthernetDisableAction = ethernet_ns.class_("EthernetDisableAction", automation.Action)
+
 
 def _is_framework_spi_polling_mode_supported() -> bool:
     """Check if ESP-IDF framework supports SPI polling mode (ESP32 only).
@@ -349,6 +358,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
     }
@@ -508,6 +518,10 @@ async def to_code(config):
     if mac_address := config.get(CONF_MAC_ADDRESS):
         cg.add(var.set_fixed_mac(mac_address.parts))
 
+    # enable_on_boot defaults to true in C++ - only set if false
+    if not config[CONF_ENABLE_ON_BOOT]:
+        cg.add(var.set_enable_on_boot(False))
+
     cg.add_define("USE_ETHERNET")
 
     if on_connect_config := config.get(CONF_ON_CONNECT):
@@ -577,10 +591,12 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
             )
             cg.add(var.add_phy_register(reg))
 
-    # Disable WiFi when using Ethernet to save memory
-    add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
-    # Also disable WiFi/BT coexistence since WiFi is disabled
-    add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+    # When wifi is not also configured, disable the WiFi stack to save flash/RAM.
+    # When both are configured the user wants dual-stack (e.g. boot-time link
+    # selection), so leave WiFi enabled.
+    if "wifi" not in CORE.config:
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
+        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
 
     # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
     include_builtin_idf_component("esp_eth")
@@ -716,3 +732,31 @@ def _filter_source_files() -> list[str]:
 
 
 FILTER_SOURCE_FILES = _filter_source_files
+
+
+@automation.register_condition(
+    "ethernet.connected", EthernetConnectedCondition, cv.Schema({})
+)
+async def ethernet_connected_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)
+
+
+@automation.register_condition(
+    "ethernet.has_link", EthernetHasLinkCondition, cv.Schema({})
+)
+async def ethernet_has_link_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)
+
+
+@automation.register_action(
+    "ethernet.enable", EthernetEnableAction, cv.Schema({}), synchronous=True
+)
+async def ethernet_enable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)
+
+
+@automation.register_action(
+    "ethernet.disable", EthernetDisableAction, cv.Schema({}), synchronous=True
+)
+async def ethernet_disable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)
