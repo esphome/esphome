@@ -1154,9 +1154,13 @@ def upload_program(
 def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     """Pick the OTA platform to use, optionally honoring ``--ota-platform``.
 
-    Default behavior prefers ``esphome`` (native API) since it supports
-    compression and stronger auth, but falls back to ``web_server`` when
-    that is the only available platform.
+    Default behavior prefers ``esphome`` (native API) when it is configured.
+    The native API uses challenge-response auth with MD5/SHA256 hashing of a
+    server-issued nonce, so the password is never sent over the wire; the
+    ``web_server`` path uses HTTP Basic auth which transmits credentials in
+    cleartext over the LAN. The native path also supports gzip compression of
+    the firmware payload. Falls back to ``web_server`` only when that is the
+    only available platform.
     """
     available: list[str] = []
     for ota_item in config.get(CONF_OTA, []):
@@ -1900,8 +1904,10 @@ def parse_args(argv):
         choices=[CONF_ESPHOME, CONF_WEB_SERVER],
         help=(
             "OTA platform to use for network uploads. Defaults to "
-            f"'{CONF_ESPHOME}' (native API) when configured, otherwise "
-            f"'{CONF_WEB_SERVER}'."
+            f"'{CONF_ESPHOME}' (native API) when configured because it uses "
+            "challenge-response auth (no plaintext password on the wire) and "
+            f"supports compression. Falls back to '{CONF_WEB_SERVER}', which "
+            "uses HTTP Basic auth, when that is the only configured platform."
         ),
     )
 
@@ -1978,8 +1984,10 @@ def parse_args(argv):
         choices=[CONF_ESPHOME, CONF_WEB_SERVER],
         help=(
             "OTA platform to use for network uploads. Defaults to "
-            f"'{CONF_ESPHOME}' (native API) when configured, otherwise "
-            f"'{CONF_WEB_SERVER}'."
+            f"'{CONF_ESPHOME}' (native API) when configured because it uses "
+            "challenge-response auth (no plaintext password on the wire) and "
+            f"supports compression. Falls back to '{CONF_WEB_SERVER}', which "
+            "uses HTTP Basic auth, when that is the only configured platform."
         ),
     )
 
