@@ -47,7 +47,7 @@ class _MultipartStreamer:
     """
 
     def __init__(self, file: BinaryIO, file_size: int, filename: str) -> None:
-        self.boundary = "esphomeOTA" + secrets.token_hex(16)
+        self.boundary = f"esphomeOTA{secrets.token_hex(16)}"
         prefix = (
             f"--{self.boundary}\r\n"
             f'Content-Disposition: form-data; name="{FORM_FIELD}"; '
