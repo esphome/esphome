@@ -163,6 +163,24 @@ def _ensure_nrf_sdk(venv_path: Path, framework_ver) -> Path:
     return sdk_path
 
 
+def _download_and_extract(
+    url: str, archive_tmp: Path, extract_dest: Path, label: str
+) -> None:
+    try:
+        urllib.request.urlretrieve(url, archive_tmp)
+    except Exception as e:
+        archive_tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"Can't download {label}: {e}") from e
+
+    try:
+        with tarfile.open(archive_tmp, "r:xz") as tar:
+            tar.extractall(extract_dest)
+    except Exception as e:
+        raise RuntimeError(f"Can't extract {label}: {e}") from e
+    finally:
+        archive_tmp.unlink(missing_ok=True)
+
+
 def _ensure_toolchain(version: str) -> Path:
     toolchains_dir = _get_zephyr_tools_path() / "toolchains"
     toolchain_path = toolchains_dir / f"zephyr-sdk-{version}"
@@ -191,38 +209,41 @@ def _ensure_toolchain(version: str) -> Path:
     else:
         raise RuntimeError(f"Unsupported OS for Zephyr toolchain: {sys.platform}")
 
-    filename = f"zephyr-sdk-{version}_{os_tag}-{arch}.tar.xz"
-    url = f"{_TOOLCHAIN_BASE_URL}/v{version}/{filename}"
     toolchains_dir.mkdir(parents=True, exist_ok=True)
-    archive_tmp = toolchains_dir / f"{filename}.tmp"
-
-    _LOGGER.info("Downloading Zephyr SDK toolchain v%s ...", version)
-    try:
-        urllib.request.urlretrieve(url, archive_tmp)
-    except Exception as e:
-        archive_tmp.unlink(missing_ok=True)
-        raise RuntimeError(
-            f"Can't download Zephyr SDK toolchain v{version}: {e}"
-        ) from e
-
-    _LOGGER.info("Extracting Zephyr SDK toolchain v%s ...", version)
     extract_tmp = toolchains_dir / f"zephyr-sdk-{version}.tmp"
+    extract_tmp.mkdir(parents=True, exist_ok=True)
+
     try:
-        extract_tmp.mkdir(parents=True, exist_ok=True)
-        with tarfile.open(archive_tmp, "r:xz") as tar:
-            tar.extractall(extract_tmp)
+        minimal_filename = f"zephyr-sdk-{version}_{os_tag}-{arch}_minimal.tar.xz"
+        minimal_url = f"{_TOOLCHAIN_BASE_URL}/v{version}/{minimal_filename}"
+        _LOGGER.info("Downloading Zephyr SDK minimal v%s ...", version)
+        _download_and_extract(
+            minimal_url,
+            toolchains_dir / f"{minimal_filename}.tmp",
+            extract_tmp,
+            f"Zephyr SDK minimal v{version}",
+        )
+
         entries = list(extract_tmp.iterdir())
         if len(entries) != 1 or not entries[0].is_dir():
             raise RuntimeError(
-                f"Unexpected archive layout in Zephyr SDK toolchain v{version}"
+                f"Unexpected archive layout in Zephyr SDK minimal v{version}"
             )
         entries[0].rename(toolchain_path)
-    except Exception as e:
-        shutil.rmtree(extract_tmp, ignore_errors=True)
+
+        toolchain_filename = f"toolchain_{os_tag}-{arch}_arm-zephyr-eabi.tar.xz"
+        toolchain_url = f"{_TOOLCHAIN_BASE_URL}/v{version}/{toolchain_filename}"
+        _LOGGER.info("Downloading arm-zephyr-eabi toolchain v%s ...", version)
+        _download_and_extract(
+            toolchain_url,
+            toolchains_dir / f"{toolchain_filename}.tmp",
+            toolchain_path,
+            f"arm-zephyr-eabi toolchain v{version}",
+        )
+    except Exception:
         shutil.rmtree(toolchain_path, ignore_errors=True)
-        raise RuntimeError(f"Can't extract Zephyr SDK toolchain v{version}: {e}") from e
+        raise
     finally:
-        archive_tmp.unlink(missing_ok=True)
         shutil.rmtree(extract_tmp, ignore_errors=True)
 
     setup_script = toolchain_path / "setup.sh"
