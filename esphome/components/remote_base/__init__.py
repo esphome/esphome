@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_EXTENSION
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -14,7 +15,6 @@ from esphome.const import (
     CONF_DATA,
     CONF_DELTA,
     CONF_DEVICE,
-    CONF_EXTENSION,
     CONF_FAMILY,
     CONF_GROUP,
     CONF_ID,
