@@ -11,7 +11,7 @@ static constexpr int32_t MARK_US = 300;
 
 bool Hob2HoodProtocol::get_timings_(const Hob2HoodCommand data, RemoteReceiveData *src, RemoteTransmitData *dst) {
   static constexpr uint32_t BIT_MASK = (1U << 24U);
-  uint32_t transmitted_data = ((uint8_t)data << 16U) | ((uint8_t)(data + 1) << 8U) | (uint8_t)(data + 2);
+  uint32_t transmitted_data = ((uint8_t) data << 16U) | ((uint8_t) (data + 1) << 8U) | (uint8_t) (data + 2);
   int8_t bit_counter = 0;
   bool current_bit = (transmitted_data & BIT_MASK) != 0;
   bool result = true;
@@ -57,13 +57,8 @@ void Hob2HoodProtocol::encode(RemoteTransmitData *dst, const Hob2HoodData &data)
 
 optional<Hob2HoodData> Hob2HoodProtocol::decode(RemoteReceiveData src) {
   const Hob2HoodCommand commands[] = {
-    HOB2HOOD_CMD_LIGHT_OFF,
-    HOB2HOOD_CMD_LIGHT_ON,
-    HOB2HOOD_CMD_FAN_OFF,
-    HOB2HOOD_CMD_FAN_LOW,
-    HOB2HOOD_CMD_FAN_MEDIUM,
-    HOB2HOOD_CMD_FAN_HIGH,
-    HOB2HOOD_CMD_FAN_MAX,
+      HOB2HOOD_CMD_LIGHT_OFF,  HOB2HOOD_CMD_LIGHT_ON, HOB2HOOD_CMD_FAN_OFF, HOB2HOOD_CMD_FAN_LOW,
+      HOB2HOOD_CMD_FAN_MEDIUM, HOB2HOOD_CMD_FAN_HIGH, HOB2HOOD_CMD_FAN_MAX,
   };
   for (auto cmd : commands) {
     src.reset();
