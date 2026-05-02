@@ -369,6 +369,9 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #ifdef USE_BOOTLOADER_MCUBOOT
   ESP_LOGD(TAG, "  Bootloader: mcuboot");
 #else
+#ifdef CONFIG_BOOTLOADER_MCUBOOT
+  ESP_LOGD(TAG, "  Second bootloader: mcuboot");
+#endif
   ESP_LOGD(TAG, "  Bootloader: Adafruit, version %u.%u.%u", (BOOTLOADER_VERSION_REGISTER >> 16) & 0xFF,
            (BOOTLOADER_VERSION_REGISTER >> 8) & 0xFF, BOOTLOADER_VERSION_REGISTER & 0xFF);
   ESP_LOGD(TAG, "  MBR bootloader addr 0x%08x, UICR bootloader addr 0x%08x", read_mem_u32(MBR_BOOTLOADER_ADDR),

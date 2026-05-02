@@ -25,7 +25,15 @@ from .const import (
 
 CODEOWNERS = ["@tomaszduda23"]
 
-PrjConfValueType = bool | str | int
+
+class HexValue:
+    """Wrap an integer so it is written as 0x... in prj.conf (required for hex Kconfig types)."""
+
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+
+PrjConfValueType = bool | str | int | HexValue
 
 
 class Section:
@@ -157,6 +165,8 @@ def zephyr_setup_preferences():
 def _format_prj_conf_val(value: PrjConfValueType) -> str:
     if isinstance(value, bool):
         return "y" if value else "n"
+    if isinstance(value, HexValue):
+        return hex(value.value)
     if isinstance(value, int):
         return str(value)
     if isinstance(value, str):
@@ -202,6 +212,8 @@ def zephyr_add_user(key, value):
 
 
 def copy_files():
+    sysbuild = False
+    mcuboot = False
     user = zephyr_data()[KEY_USER]
     if user:
         entries = " ".join(
@@ -226,16 +238,23 @@ def copy_files():
             + "\n"
         )
 
+        if image == "mcuboot":
+            mcuboot = True
+
         if image:
             path = CORE.relative_build_path(f"sysbuild/{image}.conf")
+            sysbuild = True
         else:
             path = CORE.relative_build_path("zephyr/prj.conf")
 
         write_file_if_changed(CORE.relative_build_path(path), prj_conf)
 
     for image, content in zephyr_data()[KEY_OVERLAY].items():
+        if image == "mcuboot":
+            mcuboot = True
         if image:
             path = CORE.relative_build_path(f"sysbuild/{image}.overlay")
+            sysbuild = True
         else:
             path = CORE.relative_build_path("zephyr/app.overlay")
         write_file_if_changed(path, content)
@@ -266,3 +285,14 @@ def copy_files():
             + kconfig
         )
         write_file_if_changed(CORE.relative_build_path("zephyr/Kconfig"), kconfig)
+
+    if sysbuild:
+        write_file_if_changed(
+            CORE.relative_build_path("sysbuild.conf"),
+            "SB_CONFIG_BOOTLOADER_MCUBOOT=y\n",
+        )
+
+    if mcuboot and pm_static:
+        write_file_if_changed(
+            CORE.relative_build_path("sysbuild/mcuboot.yml"), pm_static
+        )

@@ -411,9 +411,10 @@ async def to_code(config: ConfigType) -> None:
 
     if config[CONF_SECOND_BOOTLOADER]:
         CORE.data[PLATFORM_NRF52] = {"second_bootloader": True}
-        cg.add_define("USE_BOOTLOADER_MCUBOOT")
         zephyr_add_prj_conf("USB_DEVICE_STACK", False, image="mcuboot")
         zephyr_add_prj_conf("CONSOLE", False, image="mcuboot")
+        # zephyr_add_prj_conf("BOOT_USB_DFU_WAIT", True, image="mcuboot")
+        # zephyr_add_prj_conf("PM_PARTITION_SIZE_MCUBOOT", HexValue(0x10000), image="mcuboot")
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
@@ -463,11 +464,6 @@ def copy_files() -> None:
             fake_board_manifest,
         )
 
-    if CORE.data.get(PLATFORM_NRF52, {}).get("second_bootloader"):
-        write_file_if_changed(
-            CORE.relative_build_path("sysbuild.conf"),
-            "SB_CONFIG_BOOTLOADER_MCUBOOT=y\n",
-        )
     zephyr_copy_files()
 
 
