@@ -451,7 +451,9 @@ def test_run_ota_all_addresses_unreachable(
 
     assert exit_code == 1
     assert host is None
-    assert "Connection failed" in caplog.text
+    # Per-address failure is logged for each attempt; final summary follows.
+    assert caplog.text.count("OTA upload to ") >= 2
+    assert "OTA upload failed." in caplog.text
 
 
 def test_run_ota_no_resolved_addresses(
@@ -559,7 +561,7 @@ def test_run_ota_multiple_hosts_first_fails(
 def test_run_ota_all_hosts_return_failure_no_exception(
     monkeypatch: pytest.MonkeyPatch, firmware: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """All hosts return (1, None) without raising; final fallthrough hits."""
+    """All hosts resolve to no addresses; run_ota cleanly returns failure."""
     addr_lookup = {
         "a.local": [],
         "b.local": [],
@@ -574,7 +576,9 @@ def test_run_ota_all_hosts_return_failure_no_exception(
 
     assert exit_code == 1
     assert host is None
-    assert "All hosts failed" in caplog.text
+    # Each host gets its own "Could not resolve" log line + final summary.
+    assert caplog.text.count("Could not resolve") == 2
+    assert "OTA upload failed." in caplog.text
 
 
 def test_web_server_ota_error_is_esphome_error() -> None:
