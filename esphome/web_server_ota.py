@@ -8,14 +8,12 @@ basic-auth credentials.
 
 from __future__ import annotations
 
-import base64
-from http.client import HTTPConnection, HTTPException, HTTPResponse
 import logging
 from pathlib import Path
-import secrets
-import socket
-import sys
 from typing import BinaryIO
+
+import requests
+from requests.auth import HTTPBasicAuth
 
 from esphome.core import EsphomeError
 from esphome.helpers import ProgressBar, resolve_ip_address
@@ -26,83 +24,49 @@ _LOGGER = logging.getLogger(__name__)
 # components/web_server/ota/ota_web_server.cpp -> canHandle()).
 OTA_PATH = "/update"
 
-# Read the firmware in 8 KiB chunks while streaming. Matches espota2's
-# UPLOAD_BLOCK_SIZE so progress feedback feels similar between the two paths.
-UPLOAD_BLOCK_SIZE = 8192
+# Form field name for the firmware file in the multipart body. AsyncWebServer
+# treats any uploaded file the same regardless of name, but use a stable name
+# so the curl-equivalent ``-F "update=@firmware.bin"`` matches.
+FORM_FIELD = "update"
 
-# Connect timeout when racing through resolved address candidates. Mirrors
-# espota2 so a single unreachable address doesn't stall the whole run.
-CONNECT_TIMEOUT = 20.0
-
-# Per-request timeout once we are connected. The device reboots after a
-# successful upload, so the response can take several seconds.
-REQUEST_TIMEOUT = 120.0
+# (connect_timeout, read_timeout). The device reboots after a successful
+# upload, so the read side must allow for a slow flash + response.
+TIMEOUT = (20.0, 120.0)
 
 
 class WebServerOTAError(EsphomeError):
     pass
 
 
-def _build_multipart_envelope(filename: str) -> tuple[bytes, bytes, str]:
-    """Return (prefix, suffix, boundary) for a single-file multipart body."""
-    boundary = "esphomeOTA" + secrets.token_hex(16)
-    prefix = (
-        f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="update"; filename="{filename}"\r\n'
-        f"Content-Type: application/octet-stream\r\n\r\n"
-    ).encode()
-    suffix = f"\r\n--{boundary}--\r\n".encode()
-    return prefix, suffix, boundary
+class _ProgressFile:
+    """Wraps a file handle so requests' multipart encoder reports progress.
 
+    requests' multipart encoder reads the wrapped file via ``.read(size)``
+    while building the body. We forward each read to the underlying file and
+    update a :class:`ProgressBar` proportional to bytes consumed.
+    """
 
-def _send_request(
-    sock: socket.socket,
-    host: str,
-    port: int,
-    username: str | None,
-    password: str | None,
-    file_handle: BinaryIO,
-    file_size: int,
-    filename: str,
-) -> HTTPResponse:
-    """Send the OTA POST over an already-connected socket and return the response."""
-    prefix, suffix, boundary = _build_multipart_envelope(filename)
-    content_length = len(prefix) + file_size + len(suffix)
+    def __init__(self, file_handle: BinaryIO, file_size: int) -> None:
+        self._file = file_handle
+        self._size = file_size
+        self._read = 0
+        self._progress = ProgressBar()
 
-    conn = HTTPConnection(host, port, timeout=REQUEST_TIMEOUT)
-    # Reuse the socket we already opened so error handling is uniform with
-    # espota2 (one connect attempt per resolved address).
-    conn.sock = sock
+    def read(self, size: int = -1) -> bytes:
+        chunk = self._file.read(size)
+        if chunk:
+            self._read += len(chunk)
+            if self._size > 0:
+                self._progress.update(self._read / self._size)
+        elif self._read >= self._size:
+            self._progress.done()
+        return chunk
 
-    conn.putrequest("POST", OTA_PATH, skip_host=False, skip_accept_encoding=True)
-    conn.putheader("Content-Type", f"multipart/form-data; boundary={boundary}")
-    conn.putheader("Content-Length", str(content_length))
-    conn.putheader("Connection", "close")
-    if username is not None and password is not None:
-        token = base64.b64encode(f"{username}:{password}".encode()).decode()
-        conn.putheader("Authorization", f"Basic {token}")
-    conn.endheaders()
-
-    sock.sendall(prefix)
-
-    progress = ProgressBar()
-    sent = 0
-    while True:
-        chunk = file_handle.read(UPLOAD_BLOCK_SIZE)
-        if not chunk:
-            break
-        try:
-            sock.sendall(chunk)
-        except OSError as err:
-            sys.stderr.write("\n")
-            raise WebServerOTAError(f"Error sending firmware data: {err}") from err
-        sent += len(chunk)
-        progress.update(sent / file_size)
-    progress.done()
-
-    sock.sendall(suffix)
-
-    return conn.getresponse()
+    # urllib3 / requests probe a couple of optional file-like attributes when
+    # deciding how to encode the body; expose them so it picks the streaming
+    # path instead of buffering the whole file in memory.
+    def __len__(self) -> int:
+        return self._size
 
 
 def _try_upload(
@@ -127,57 +91,60 @@ def _try_upload(
     file_size = filename.stat().st_size
     _LOGGER.info("Uploading %s (%s bytes) via web_server", filename, file_size)
 
-    last_error: str | None = None
-    for af, socktype, _, _, sa in addr_infos:
-        _LOGGER.info("Connecting to %s port %s...", sa[0], sa[1])
-        sock = socket.socket(af, socktype)
-        sock.settimeout(CONNECT_TIMEOUT)
-        try:
-            sock.connect(sa)
-        except OSError as err:
-            sock.close()
-            _LOGGER.error("Connecting to %s port %s failed: %s", sa[0], sa[1], err)
-            last_error = str(err)
-            continue
+    auth = HTTPBasicAuth(username, password) if username and password else None
 
-        sock.settimeout(REQUEST_TIMEOUT)
-        _LOGGER.info("Connected to %s", sa[0])
+    last_error: str | None = None
+    # Each entry is the resolved IP for ``host``; iterate in order so IPv4
+    # and IPv6 candidates are both tried (mirrors espota2's behavior).
+    for _af, _socktype, _, _, sa in addr_infos:
+        ip = sa[0]
+        url = f"http://{ip}:{port}{OTA_PATH}"
+        _LOGGER.info("Connecting to %s port %s...", ip, port)
+
         try:
             with open(filename, "rb") as file_handle:
-                response = _send_request(
-                    sock,
-                    host,
-                    port,
-                    username,
-                    password,
-                    file_handle,
-                    file_size,
-                    filename.name,
+                progress_file = _ProgressFile(file_handle, file_size)
+                files = {
+                    FORM_FIELD: (
+                        filename.name,
+                        progress_file,
+                        "application/octet-stream",
+                    ),
+                }
+                response = requests.post(
+                    url,
+                    files=files,
+                    auth=auth,
+                    timeout=TIMEOUT,
+                    headers={"Connection": "close"},
                 )
-                body = response.read().decode("utf-8", errors="replace").strip()
-        except (OSError, HTTPException) as err:
-            _LOGGER.error("OTA upload to %s failed: %s", sa[0], err)
+        except requests.ConnectionError as err:
+            _LOGGER.error("Connecting to %s port %s failed: %s", ip, port, err)
             last_error = str(err)
             continue
-        finally:
-            sock.close()
+        except requests.RequestException as err:
+            _LOGGER.error("OTA upload to %s failed: %s", ip, err)
+            last_error = str(err)
+            continue
 
-        if response.status == 401:
+        if response.status_code == 401:
             raise WebServerOTAError(
                 "Authentication failed (HTTP 401). Check the 'web_server' "
                 "'auth' username and password."
             )
-        if response.status != 200:
+        if response.status_code != 200:
             raise WebServerOTAError(
-                f"Unexpected HTTP {response.status} response from device: {body}"
+                f"Unexpected HTTP {response.status_code} response from device: "
+                f"{response.text.strip()}"
             )
 
         # The endpoint returns HTTP 200 in both success and failure paths;
         # the body is what tells us which one. See
         # components/web_server/ota/ota_web_server.cpp -> handleRequest().
+        body = response.text.strip()
         if "Successful" in body:
             _LOGGER.info("OTA successful")
-            return 0, sa[0]
+            return 0, ip
 
         raise WebServerOTAError(
             f"Device reported OTA failure: {body or 'no response body'}"
