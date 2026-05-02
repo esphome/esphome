@@ -94,8 +94,9 @@ class DashboardImportDiscovery:
       "Discovered devices" panel and the adoption flow.
 
     The class maintains ``import_state: dict[str, DiscoveredImport]``
-    keyed by the mDNS service name, and invokes ``on_update`` with
-    ``(name, info | None)`` for additions / updates / removals.
+    keyed by the mDNS service name. ``on_update`` is invoked with
+    ``(name, info | None)`` for additions and removals; update events
+    refresh ``import_state`` without firing the callback.
     Coordinate before changing the callback signature or the keys
     of ``import_state`` — device-builder reads both directly.
     """
