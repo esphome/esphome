@@ -439,10 +439,9 @@ void MitsubishiCN105::apply_settings_() {
       payload[1] |= 0x08;
     }
 
-    this->pending_updates_.erase(UpdateFlag::TEMPERATURE);
-    this->pending_updates_.erase(UpdateFlag::POWER);
-    this->pending_updates_.erase(UpdateFlag::MODE);
-    this->pending_updates_.erase(UpdateFlag::FAN);
+    this->pending_updates_ = this->pending_updates_.count(UpdateFlag::REMOTE_TEMPERATURE)
+                                 ? UpdateFlagMask{UpdateFlag::REMOTE_TEMPERATURE}
+                                 : UpdateFlagMask{};
   }
 
   this->send_packet_(make_packet(PACKET_TYPE_WRITE_SETTINGS_REQUEST, payload));
