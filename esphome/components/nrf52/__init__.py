@@ -80,57 +80,67 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
     if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
         zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
-        zephyr_add_overlay(
-            """
-            /delete-node/ &boot_partition;
 
-            &flash0 {
-                partitions {
-                        compatible = "fixed-partitions";
-                        #address-cells = <1>;
-                        #size-cells = <1>;
+        # second_bootloader = config.get(CONF_SECOND_BOOTLOADER, False)
+        # if second_bootloader:
+        #     # Partition addresses derived from partitions.yml PM output.
+        #     # SoftDevice (empty_app_offset) occupies 0x0..app_offset.
+        #     # MCUboot follows immediately; slot sizes match PM computation.
+        #     app_offset = BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]][0].end_address
+        #     mcuboot_size = 0xC000
+        #     slot_size = 0x66000
+        #     boot_addr = app_offset
+        #     slot0_addr = boot_addr + mcuboot_size
+        #     slot1_addr = slot0_addr + slot_size
+        # else:
+        #     boot_addr = 0x0
+        #     mcuboot_size = 0x10000
+        #     slot_size = 0x74000
+        #     slot0_addr = 0x10000
+        #     slot1_addr = 0x84000
 
-                        boot_partition: partition@0 {
-                            label = "mcuboot";
-                            reg = <0x000000000 0x00010000>;
-                        };
-                        slot0_partition: partition@10000 {
-                            label = "image-0";
-                            reg = <0x000010000 0x000074000>;
-                        };
-                        slot1_partition: partition@75000 {
-                            label = "image-1";
-                            reg = <0x00084000 0x000074000>;
-                        };
-                };
-            };
-        """,
-            "mcuboot",
-        )
-        zephyr_add_overlay("""
-            /delete-node/ &boot_partition;
+        # partition_nodes = f"""
+        #     /delete-node/ &boot_partition;
 
-            &flash0 {
-                partitions {
-                        compatible = "fixed-partitions";
-                        #address-cells = <1>;
-                        #size-cells = <1>;
+        #     &flash0 {{
+        #         partitions {{
+        #                 compatible = "fixed-partitions";
+        #                 #address-cells = <1>;
+        #                 #size-cells = <1>;
 
-                        boot_partition: partition@0 {
-                            label = "mcuboot";
-                            reg = <0x000000000 0x00010000>;
-                        };
-                        slot0_partition: partition@10000 {
-                            label = "image-0";
-                            reg = <0x000010000 0x000074000>;
-                        };
-                        slot1_partition: partition@75000 {
-                            label = "image-1";
-                            reg = <0x00084000 0x000074000>;
-                        };
-                };
-            };
-        """)
+        #                 boot_partition: partition@{boot_addr:x} {{
+        #                     label = "mcuboot";
+        #                     reg = <0x{boot_addr:08X} 0x{mcuboot_size:08X}>;
+        #                 }};
+        #                 slot0_partition: partition@{slot0_addr:x} {{
+        #                     label = "image-0";
+        #                     reg = <0x{slot0_addr:08X} 0x{slot_size:08X}>;
+        #                 }};
+        #                 slot1_partition: partition@{slot1_addr:x} {{
+        #                     label = "image-1";
+        #                     reg = <0x{slot1_addr:08X} 0x{slot_size:08X}>;
+        #                 }};
+        #         }};
+        #     }};
+        # """
+
+        # if second_bootloader:
+        #     # MCUboot runs from boot_partition — code_partition stays as-is (board default).
+        #     zephyr_add_overlay(partition_nodes, "mcuboot")
+        #     # App runs from slot0_partition — override zephyr,code-partition accordingly.
+        #     zephyr_add_overlay(
+        #         partition_nodes
+        #         + f"""
+        #     / {{
+        #         chosen {{
+        #             zephyr,code-partition = &slot0_partition;
+        #         }};
+        #     }};
+        #     """
+        #     )
+        # else:
+        #     zephyr_add_overlay(partition_nodes, "mcuboot")
+        #     zephyr_add_overlay(partition_nodes)
     return config
 
 
