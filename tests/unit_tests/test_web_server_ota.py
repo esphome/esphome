@@ -442,7 +442,7 @@ def test_run_ota_ipv6_url_brackets_host(
 ) -> None:
     """IPv6 candidates are bracketed in the URL so the port parses correctly."""
     addr_infos = [
-        (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("2001:db8::1", 80)),
+        (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("2001:db8::1", 80, 0, 0)),
     ]
     monkeypatch.setattr(
         "esphome.web_server_ota.resolve_ip_address", lambda *a, **kw: addr_infos
@@ -458,6 +458,54 @@ def test_run_ota_ipv6_url_brackets_host(
     assert host == "2001:db8::1"
     url = post.call_args.args[0]
     assert url == f"http://[2001:db8::1]:80{OTA_PATH}"
+
+
+def test_run_ota_ipv6_link_local_includes_scope_id(
+    monkeypatch: pytest.MonkeyPatch, firmware: Path
+) -> None:
+    """Link-local IPv6 candidates include the percent-encoded zone index."""
+    # sockaddr_in6 = (host, port, flowinfo, scope_id); scope_id=3 -> eth/wlan index
+    addr_infos = [
+        (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("fe80::1", 80, 0, 3)),
+    ]
+    monkeypatch.setattr(
+        "esphome.web_server_ota.resolve_ip_address", lambda *a, **kw: addr_infos
+    )
+
+    with patch(
+        "esphome.web_server_ota.requests.post",
+        return_value=_make_response(200, "Update Successful!"),
+    ) as post:
+        exit_code, _ = run_ota(["device.local"], 80, None, None, firmware)
+
+    assert exit_code == 0
+    url = post.call_args.args[0]
+    # RFC 6874: literal '%' is percent-encoded as '%25' inside the URL.
+    assert url == f"http://[fe80::1%253]:80{OTA_PATH}"
+
+
+def test_run_ota_unexpected_status_empty_body_falls_back(
+    monkeypatch: pytest.MonkeyPatch, firmware: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Empty response body uses response.reason / a fallback in the error."""
+    _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
+
+    response = _make_response(503, "")
+    response.reason = "Service Unavailable"
+
+    with patch(
+        "esphome.web_server_ota.requests.post",
+        return_value=response,
+    ):
+        exit_code, host = run_ota(["192.168.1.50"], 80, None, None, firmware)
+
+    assert exit_code == 1
+    assert host is None
+    # Error message ends with the reason, not a dangling colon-space.
+    assert "Service Unavailable" in caplog.text
+    assert "Unexpected HTTP 503 response from device: " not in caplog.text.replace(
+        "Unexpected HTTP 503 response from device: Service Unavailable", ""
+    )
 
 
 def test_run_ota_finalizes_progress_bar_on_failure(

@@ -96,8 +96,14 @@ def _try_upload(
         ip = sa[0]
         # IPv6 literals must be wrapped in brackets in URLs so the port is
         # parsed correctly. ``resolve_ip_address`` can hand back IPv6
-        # candidates first on dual-stack networks.
-        host_part = f"[{ip}]" if af == socket.AF_INET6 else ip
+        # candidates first on dual-stack networks. For link-local
+        # addresses (fe80::/10) we also need the zone index from the
+        # sockaddr, percent-encoded per RFC 6874 (literal ``%`` -> ``%25``).
+        if af == socket.AF_INET6:
+            scope_id = sa[3] if len(sa) >= 4 else 0
+            host_part = f"[{ip}%25{scope_id}]" if scope_id else f"[{ip}]"
+        else:
+            host_part = ip
         url = f"http://{host_part}:{port}{OTA_PATH}"
         _LOGGER.info("Connecting to %s port %s...", ip, port)
 
@@ -138,9 +144,10 @@ def _try_upload(
                 "'auth' username and password."
             )
         if response.status_code != 200:
+            body = response.text.strip()
+            detail = body or response.reason or "no response body"
             raise WebServerOTAError(
-                f"Unexpected HTTP {response.status_code} response from device: "
-                f"{response.text.strip()}"
+                f"Unexpected HTTP {response.status_code} response from device: {detail}"
             )
 
         # The endpoint returns HTTP 200 in both success and failure paths;
