@@ -3,16 +3,16 @@ from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-# ── Dependency declarations ──────────────────────────────────────────────────
+#  Dependency declarations
 DEPENDENCIES = ["i2c"]
 
-# ── C++ namespace / class ────────────────────────────────────────────────────
+#  C++ namespace / class
 bmi270_ns = cg.esphome_ns.namespace("bmi270")
 BMI270Component = bmi270_ns.class_(
     "BMI270Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-# ── Enum proxies (must match the C++ enum values exactly) ────────────────────
+#  Enum proxies (must match the C++ enum values exactly)
 BMI270AccelRange = bmi270_ns.enum("BMI270AccelRange")
 ACCEL_RANGE_OPTIONS = {
     "2G": BMI270AccelRange.BMI270_ACCEL_RANGE_2G,
@@ -56,10 +56,10 @@ GYRO_ODR_OPTIONS = {
 
 BMI270AccelData = bmi270_ns.class_("BMI270AccelData")
 
-CONF_ACCEL_RANGE = "accel_range"
-CONF_ACCEL_ODR = "accel_odr"
-CONF_GYRO_RANGE = "gyro_range"
-CONF_GYRO_ODR = "gyro_odr"
+CONF_ACCELERATION_RANGE = "acceleration_range"
+CONF_ACCELERATION_ODR = "acceleration_odr"
+CONF_GYROSCOPE_RANGE = "gyroscope_range"
+CONF_GYROSCOPE_ODR = "gyroscope_odr"
 CONF_BMI270_ID = "bmi270_id"
 
 SENSOR_SCHEMA = cv.Schema(
@@ -67,23 +67,23 @@ SENSOR_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_BMI270_ID): cv.use_id(BMI270Component),
     }
 )
-# ── Top-level CONFIG_SCHEMA ──────────────────────────────────────────────────
+#  Top-level CONFIG_SCHEMA
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BMI270Component),
             # Accelerometer axes
             # Hardware configuration
-            cv.Optional(CONF_ACCEL_RANGE, default="4G"): cv.enum(
+            cv.Optional(CONF_ACCELERATION_RANGE, default="4G"): cv.enum(
                 ACCEL_RANGE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_ACCEL_ODR, default="100HZ"): cv.enum(
+            cv.Optional(CONF_ACCELERATION_ODR, default="100HZ"): cv.enum(
                 ACCEL_ODR_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_GYRO_RANGE, default="2000DPS"): cv.enum(
+            cv.Optional(CONF_GYROSCOPE_RANGE, default="2000DPS"): cv.enum(
                 GYRO_RANGE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_GYRO_ODR, default="200HZ"): cv.enum(
+            cv.Optional(CONF_GYROSCOPE_ODR, default="200HZ"): cv.enum(
                 GYRO_ODR_OPTIONS, upper=True
             ),
         }
@@ -93,7 +93,7 @@ CONFIG_SCHEMA = (
 )
 
 
-# ── Code generation ──────────────────────────────────────────────────────────
+#  Code generation
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -101,7 +101,7 @@ async def to_code(config):
 
     # Accelerometer sensors
     # Hardware configuration
-    cg.add(var.set_accel_range(config[CONF_ACCEL_RANGE]))
-    cg.add(var.set_accel_odr(config[CONF_ACCEL_ODR]))
-    cg.add(var.set_gyro_range(config[CONF_GYRO_RANGE]))
-    cg.add(var.set_gyro_odr(config[CONF_GYRO_ODR]))
+    cg.add(var.set_accel_range(config[CONF_ACCELERATION_RANGE]))
+    cg.add(var.set_accel_odr(config[CONF_ACCELERATION_ODR]))
+    cg.add(var.set_gyro_range(config[CONF_GYROSCOPE_RANGE]))
+    cg.add(var.set_gyro_odr(config[CONF_GYROSCOPE_ODR]))
