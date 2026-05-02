@@ -108,8 +108,8 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
           }
         }
         if (recv_string.size() < 5) {
-          ESP_LOGE(TAG, "Truncated 0x08 response: got %zu bytes within %" PRIu32 "ms",
-                  recv_string.size(), NEXTION_UPLOAD_ACK_TIMEOUT_MS);
+          ESP_LOGE(TAG, "Truncated 0x08 response: got %zu bytes within %" PRIu32 "ms", recv_string.size(),
+                   NEXTION_UPLOAD_ACK_TIMEOUT_MS);
           allocator.deallocate(buffer, 4096);
           buffer = nullptr;
           return -1;
