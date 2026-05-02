@@ -1849,6 +1849,58 @@ def test_upload_program_web_server_missing_component(
         upload_program(config, args, devices)
 
 
+def test_upload_program_unrelated_ota_platform_ignored(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """OTA list entries that are neither esphome nor web_server are ignored.
+
+    Covers the false branch in _choose_ota_platform's filter loop and the
+    no-match branch in _upload_via_native_api's lookup loop.
+    """
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {CONF_PLATFORM: "http_request"},  # unrelated platform; ignored
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            },
+        ],
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once()
+
+
+def test_upload_program_only_unrelated_ota_platforms(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Only unrelated OTA platforms configured -> raises like missing OTA."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: "http_request"}],
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="Cannot upload Over the Air"):
+        upload_program(config, args, devices)
+
+
 def test_upload_program_ota_with_mqtt_resolution(
     mock_mqtt_get_ip: Mock,
     mock_is_ip_address: Mock,
