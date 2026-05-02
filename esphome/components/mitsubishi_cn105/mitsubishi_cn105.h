@@ -2,6 +2,7 @@
 
 #include <optional>
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/finite_set_mask.h"
 
 namespace esphome::mitsubishi_cn105 {
 
@@ -93,23 +94,15 @@ class MitsubishiCN105 {
   };
 
   enum class UpdateFlag : uint8_t {
-    TEMPERATURE = 1 << 0,
-    POWER = 1 << 1,
-    MODE = 1 << 2,
-    FAN = 1 << 3,
-    REMOTE_TEMPERATURE = 1 << 4,
+    TEMPERATURE = 0,
+    POWER = 1,
+    MODE = 2,
+    FAN = 3,
+    REMOTE_TEMPERATURE = 4,
   };
 
-  struct UpdateFlags {
-    void set(UpdateFlag f) { this->flags_ |= static_cast<uint8_t>(f); }
-    template<typename... Flags> void clear(Flags... flags) { this->flags_ &= ~(static_cast<uint8_t>(flags) | ...); }
-    bool any() const { return this->flags_ != 0; }
-    bool has(UpdateFlag f) const { return (this->flags_ & static_cast<uint8_t>(f)) != 0; }
-    bool has_only(UpdateFlag f) const { return this->flags_ == static_cast<uint8_t>(f); }
-
-   protected:
-    uint8_t flags_{0};
-  };
+  using UpdateFlagMask =
+      FiniteSetMask<UpdateFlag, DefaultBitPolicy<UpdateFlag, static_cast<int>(UpdateFlag::REMOTE_TEMPERATURE) + 1>>;
 
   void set_state_(State new_state);
   void did_transition_(State to);
@@ -137,7 +130,7 @@ class MitsubishiCN105 {
   std::optional<uint32_t> last_room_temperature_update_ms_;
   Status status_{};
   State state_{State::NOT_CONNECTED};
-  UpdateFlags pending_updates_;
+  UpdateFlagMask pending_updates_;
   bool use_temperature_encoding_b_{false};
   FrameParser frame_parser_;
   uint8_t current_status_msg_type_{0};

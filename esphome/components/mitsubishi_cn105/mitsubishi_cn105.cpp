@@ -91,7 +91,7 @@ void MitsubishiCN105::initialize() { this->set_state_(State::CONNECTING); }
 
 bool MitsubishiCN105::update() {
   if (const auto start = this->status_update_start_ms_) {
-    if (this->pending_updates_.any()) {
+    if (!this->pending_updates_.empty()) {
       this->status_update_wait_credit_ms_ = std::min(this->update_interval_ms_, get_loop_time_ms() - *start);
       this->cancel_waiting_and_transition_to_(State::APPLYING_SETTINGS);
       return false;
@@ -181,7 +181,7 @@ void MitsubishiCN105::did_transition_(State to) {
 
     case State::STATUS_UPDATED: {
       this->write_timeout_start_ms_.reset();
-      if (this->pending_updates_.any() && this->is_status_initialized()) {
+      if (!this->pending_updates_.empty() && this->is_status_initialized()) {
         this->set_state_(State::APPLYING_SETTINGS);
       } else if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_room_temperature_()) {
         this->current_status_msg_type_ = STATUS_MSG_ROOM_TEMP;
@@ -311,21 +311,21 @@ bool MitsubishiCN105::parse_status_settings_(const uint8_t *payload, size_t len)
     return false;
   }
 
-  if (!this->pending_updates_.has(UpdateFlag::POWER)) {
+  if (!this->pending_updates_.count(UpdateFlag::POWER)) {
     this->status_.power_on = payload[2] != 0;
   }
 
   this->use_temperature_encoding_b_ = payload[10] != 0;
-  if (!this->pending_updates_.has(UpdateFlag::TEMPERATURE)) {
+  if (!this->pending_updates_.count(UpdateFlag::TEMPERATURE)) {
     this->status_.target_temperature = decode_temperature(-payload[4], payload[10], TARGET_TEMPERATURE_ENC_A_OFFSET);
   }
 
-  if (!this->pending_updates_.has(UpdateFlag::MODE)) {
+  if (!this->pending_updates_.count(UpdateFlag::MODE)) {
     const bool i_see = payload[3] > 0x08;
     this->status_.mode = lookup(PROTOCOL_MODE_MAP, payload[3] - (i_see ? 0x08 : 0)).value_or(Mode::UNKNOWN);
   }
 
-  if (!this->pending_updates_.has(UpdateFlag::FAN)) {
+  if (!this->pending_updates_.count(UpdateFlag::FAN)) {
     this->status_.fan_mode = lookup(PROTOCOL_FAN_MODE_MAP, payload[5]).value_or(FanMode::UNKNOWN);
   }
 
@@ -346,7 +346,7 @@ bool MitsubishiCN105::parse_status_room_temperature_(const uint8_t *payload, siz
 
 void MitsubishiCN105::set_power(bool power_on) {
   this->status_.power_on = power_on;
-  this->pending_updates_.set(UpdateFlag::POWER);
+  this->pending_updates_.insert(UpdateFlag::POWER);
 }
 
 void MitsubishiCN105::set_target_temperature(float target_temperature) {
@@ -355,7 +355,7 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
     return;
   }
   this->status_.target_temperature = target_temperature;
-  this->pending_updates_.set(UpdateFlag::TEMPERATURE);
+  this->pending_updates_.insert(UpdateFlag::TEMPERATURE);
 }
 
 void MitsubishiCN105::set_mode(Mode mode) {
@@ -365,7 +365,7 @@ void MitsubishiCN105::set_mode(Mode mode) {
     return;
   }
   this->status_.mode = mode;
-  this->pending_updates_.set(UpdateFlag::MODE);
+  this->pending_updates_.insert(UpdateFlag::MODE);
 }
 
 void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {
@@ -375,7 +375,7 @@ void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {
     return;
   }
   this->status_.fan_mode = fan_mode;
-  this->pending_updates_.set(UpdateFlag::FAN);
+  this->pending_updates_.insert(UpdateFlag::FAN);
 }
 
 void MitsubishiCN105::set_remote_temperature(float temperature) {
@@ -395,14 +395,14 @@ void MitsubishiCN105::clear_remote_temperature() { this->set_remote_temperature_
 
 void MitsubishiCN105::set_remote_temperature_(uint8_t temperature_half_deg) {
   this->remote_temperature_half_deg_ = temperature_half_deg;
-  this->pending_updates_.set(UpdateFlag::REMOTE_TEMPERATURE);
+  this->pending_updates_.insert(UpdateFlag::REMOTE_TEMPERATURE);
 }
 
 void MitsubishiCN105::apply_settings_() {
   std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload{};
 
   // If any setting is pending, set it before remote temperature
-  if (this->pending_updates_.has_only(UpdateFlag::REMOTE_TEMPERATURE)) {
+  if (this->pending_updates_.get_mask() == UpdateFlagMask{UpdateFlag::REMOTE_TEMPERATURE}.get_mask()) {
     payload[0] = 0x07;
     if (this->remote_temperature_half_deg_ == REMOTE_TEMPERATURE_DISABLED) {
       payload[3] = 0x80;
@@ -411,16 +411,16 @@ void MitsubishiCN105::apply_settings_() {
       payload[2] = static_cast<uint8_t>(this->remote_temperature_half_deg_ - 16);
       payload[3] = static_cast<uint8_t>(this->remote_temperature_half_deg_ + 128);
     }
-    this->pending_updates_.clear(UpdateFlag::REMOTE_TEMPERATURE);
+    this->pending_updates_.erase(UpdateFlag::REMOTE_TEMPERATURE);
 
   } else {
     payload[0] = 0x01;
-    if (this->pending_updates_.has(UpdateFlag::POWER)) {
+    if (this->pending_updates_.count(UpdateFlag::POWER)) {
       payload[1] |= 0x01;
       payload[3] = this->status_.power_on ? 0x01 : 0x00;
     }
 
-    if (this->pending_updates_.has(UpdateFlag::TEMPERATURE)) {
+    if (this->pending_updates_.count(UpdateFlag::TEMPERATURE)) {
       payload[1] |= 0x04;
       if (this->use_temperature_encoding_b_) {
         payload[14] = static_cast<uint8_t>(this->status_.target_temperature * 2.0f + 128.0f);
@@ -429,17 +429,20 @@ void MitsubishiCN105::apply_settings_() {
       }
     }
 
-    if (this->pending_updates_.has(UpdateFlag::MODE) &&
+    if (this->pending_updates_.count(UpdateFlag::MODE) &&
         reverse_lookup(PROTOCOL_MODE_MAP, this->status_.mode, payload[4])) {
       payload[1] |= 0x02;
     }
 
-    if (this->pending_updates_.has(UpdateFlag::FAN) &&
+    if (this->pending_updates_.count(UpdateFlag::FAN) &&
         reverse_lookup(PROTOCOL_FAN_MODE_MAP, this->status_.fan_mode, payload[6])) {
       payload[1] |= 0x08;
     }
 
-    this->pending_updates_.clear(UpdateFlag::TEMPERATURE, UpdateFlag::POWER, UpdateFlag::MODE, UpdateFlag::FAN);
+    this->pending_updates_.erase(UpdateFlag::TEMPERATURE);
+    this->pending_updates_.erase(UpdateFlag::POWER);
+    this->pending_updates_.erase(UpdateFlag::MODE);
+    this->pending_updates_.erase(UpdateFlag::FAN);
   }
 
   this->send_packet_(make_packet(PACKET_TYPE_WRITE_SETTINGS_REQUEST, payload));
