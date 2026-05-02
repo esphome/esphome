@@ -1158,9 +1158,11 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
     The native API uses challenge-response auth with MD5/SHA256 hashing of a
     server-issued nonce, so the password is never sent over the wire; the
     ``web_server`` path uses HTTP Basic auth which transmits credentials in
-    cleartext over the LAN. The native path also supports gzip compression of
-    the firmware payload. Falls back to ``web_server`` only when that is the
-    only available platform.
+    cleartext over the LAN. (The native path also supports gzip compression
+    on ESP8266, where flash space is tight; on ESP32/RP2040/LibreTiny the
+    backend reports ``supports_compression() == false`` and the firmware is
+    sent uncompressed regardless of which platform is used.) Falls back to
+    ``web_server`` only when that is the only available platform.
     """
     available: list[str] = []
     for ota_item in config.get(CONF_OTA, []):
@@ -1905,9 +1907,9 @@ def parse_args(argv):
         help=(
             "OTA platform to use for network uploads. Defaults to "
             f"'{CONF_ESPHOME}' (native API) when configured because it uses "
-            "challenge-response auth (no plaintext password on the wire) and "
-            f"supports compression. Falls back to '{CONF_WEB_SERVER}', which "
-            "uses HTTP Basic auth, when that is the only configured platform."
+            "challenge-response auth so the password is never sent in "
+            f"cleartext on the wire. Falls back to '{CONF_WEB_SERVER}' "
+            "(HTTP Basic auth) when that is the only configured platform."
         ),
     )
 
@@ -1985,9 +1987,9 @@ def parse_args(argv):
         help=(
             "OTA platform to use for network uploads. Defaults to "
             f"'{CONF_ESPHOME}' (native API) when configured because it uses "
-            "challenge-response auth (no plaintext password on the wire) and "
-            f"supports compression. Falls back to '{CONF_WEB_SERVER}', which "
-            "uses HTTP Basic auth, when that is the only configured platform."
+            "challenge-response auth so the password is never sent in "
+            f"cleartext on the wire. Falls back to '{CONF_WEB_SERVER}' "
+            "(HTTP Basic auth) when that is the only configured platform."
         ),
     )
 
