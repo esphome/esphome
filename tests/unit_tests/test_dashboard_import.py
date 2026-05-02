@@ -22,9 +22,10 @@ def _load_plain_yaml(path: Path) -> dict:
 
     ``esphome.yaml_util.load_yaml`` resolves ``!include`` /
     ``!secret`` against ``CORE.config_path`` which isn't set in
-    these tests. We're only asserting on plain key/value structure
-    so a vanilla ``pyyaml.safe_load`` (with empty fallbacks for
-    the secret/include tags) is enough.
+    these tests. We're only asserting on plain key/value structure,
+    so ``pyyaml.load`` with a custom loader subclassing
+    ``pyyaml.SafeLoader`` (and empty fallbacks for the secret/include
+    tags) is enough.
     """
 
     class _Loader(pyyaml.SafeLoader):
