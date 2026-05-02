@@ -12,6 +12,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 
 from esphome.core import CORE, EsphomeError
+from esphome.helpers import ProgressBar
 from esphome.web_server_ota import (
     FORM_FIELD,
     OTA_PATH,
@@ -55,17 +56,13 @@ def test_progress_file_reports_progress() -> None:
 
     chunk = pf.read(200)
     assert chunk == data[:200]
-    assert pf._read == 200
 
     rest = pf.read()
     assert rest == data[200:]
-    # __len__ exposes the total size to urllib3 streaming detection.
-    assert len(pf) == len(data)
 
-    # A trailing zero-byte read after consuming the whole file finalizes the
-    # progress bar (urllib3 issues this read to detect EOF).
-    eof = pf.read()
-    assert eof == b""
+    # Caller (`_try_upload`) is responsible for finalizing the progress bar,
+    # so subsequent empty reads simply forward EOF.
+    assert pf.read() == b""
 
 
 def test_progress_file_zero_size_skips_progress() -> None:
@@ -74,18 +71,6 @@ def test_progress_file_zero_size_skips_progress() -> None:
     # exercises the ``self._size > 0`` guard.
     pf = _ProgressFile(io.BytesIO(b"x"), 0)
     assert pf.read() == b"x"
-    assert len(pf) == 0
-
-
-def test_progress_file_short_read_does_not_finalize() -> None:
-    """Reaching EOF before reading all promised bytes leaves progress open."""
-    # File has only 5 bytes but we claim 100.
-    pf = _ProgressFile(io.BytesIO(b"short"), 100)
-    # Drain the file.
-    assert pf.read() == b"short"
-    # Subsequent read returns empty; _read (5) < _size (100) so the
-    # finalize branch is intentionally skipped.
-    assert pf.read() == b""
 
 
 def test_run_ota_success(monkeypatch: pytest.MonkeyPatch, firmware: Path) -> None:
@@ -427,3 +412,46 @@ def test_run_ota_all_hosts_return_failure_no_exception(
 
 def test_web_server_ota_error_is_esphome_error() -> None:
     assert issubclass(WebServerOTAError, EsphomeError)
+
+
+def test_run_ota_finalizes_progress_bar_on_success(
+    monkeypatch: pytest.MonkeyPatch, firmware: Path
+) -> None:
+    """progress.done() fires on the success path (finally block)."""
+    _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
+
+    done_called: list[bool] = []
+    real_progress_bar_done = patch.object(
+        ProgressBar, "done", lambda self: done_called.append(True)
+    )
+
+    with (
+        patch(
+            "esphome.web_server_ota.requests.post",
+            return_value=_make_response(200, "Update Successful!"),
+        ),
+        real_progress_bar_done,
+    ):
+        run_ota(["192.168.1.50"], 80, None, None, firmware)
+
+    assert done_called, "ProgressBar.done() was not called on success"
+
+
+def test_run_ota_finalizes_progress_bar_on_failure(
+    monkeypatch: pytest.MonkeyPatch, firmware: Path
+) -> None:
+    """progress.done() fires when the request itself raises (finally block)."""
+    _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
+
+    done_called: list[bool] = []
+
+    with (
+        patch(
+            "esphome.web_server_ota.requests.post",
+            side_effect=requests.ConnectionError("boom"),
+        ),
+        patch.object(ProgressBar, "done", lambda self: done_called.append(True)),
+    ):
+        run_ota(["192.168.1.50"], 80, None, None, firmware)
+
+    assert done_called, "ProgressBar.done() was not called on failure"

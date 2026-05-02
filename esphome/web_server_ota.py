@@ -43,30 +43,25 @@ class _ProgressFile:
 
     requests' multipart encoder reads the wrapped file via ``.read(size)``
     while building the body. We forward each read to the underlying file and
-    update a :class:`ProgressBar` proportional to bytes consumed.
+    update a :class:`ProgressBar` proportional to bytes consumed. The bar is
+    finalized by the caller (see :func:`_try_upload`) rather than from inside
+    ``read`` so it always renders cleanly even if urllib3 stops calling
+    ``read`` exactly at ``Content-Length`` instead of issuing a trailing
+    empty read.
     """
 
     def __init__(self, file_handle: BinaryIO, file_size: int) -> None:
         self._file = file_handle
         self._size = file_size
         self._read = 0
-        self._progress = ProgressBar()
+        self.progress = ProgressBar()
 
     def read(self, size: int = -1) -> bytes:
         chunk = self._file.read(size)
-        if chunk:
+        if chunk and self._size > 0:
             self._read += len(chunk)
-            if self._size > 0:
-                self._progress.update(self._read / self._size)
-        elif self._read >= self._size:
-            self._progress.done()
+            self.progress.update(self._read / self._size)
         return chunk
-
-    # urllib3 / requests probe a couple of optional file-like attributes when
-    # deciding how to encode the body; expose them so it picks the streaming
-    # path instead of buffering the whole file in memory.
-    def __len__(self) -> int:
-        return self._size
 
 
 def _try_upload(
@@ -111,13 +106,18 @@ def _try_upload(
                         "application/octet-stream",
                     ),
                 }
-                response = requests.post(
-                    url,
-                    files=files,
-                    auth=auth,
-                    timeout=TIMEOUT,
-                    headers={"Connection": "close"},
-                )
+                try:
+                    response = requests.post(
+                        url,
+                        files=files,
+                        auth=auth,
+                        timeout=TIMEOUT,
+                        headers={"Connection": "close"},
+                    )
+                finally:
+                    # Always finalize the progress bar; urllib3 may not issue
+                    # a trailing empty read after consuming Content-Length.
+                    progress_file.progress.done()
         except requests.ConnectionError as err:
             _LOGGER.error("Connecting to %s port %s failed: %s", ip, port, err)
             last_error = str(err)
