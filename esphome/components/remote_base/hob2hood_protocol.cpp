@@ -5,142 +5,71 @@ namespace esphome::remote_base {
 
 static const char *const TAG = "remote.hob2hood";
 
-static constexpr int32_t MARK_1_US = 950;
-static constexpr int32_t MARK_2_US = 1700;
-static constexpr int32_t MARK_3_US = 2450;
-static constexpr int32_t MARK_4_US = 3400;
-static constexpr int32_t SPACE_1_US = 550;
-static constexpr int32_t SPACE_2_US = 1200;
-static constexpr int32_t SPACE_3_US = 1900;
-static constexpr int32_t SPACE_4_US = 2600;
+static constexpr uint32_t BIT_TIME_US = 700;
+static constexpr int32_t SPACE_US = -200;
+static constexpr int32_t MARK_US = 300;
 
-static const int8_t LIGHT_OFF_DATA[] = {-1, 2, -1, 1, -1, 1, -1, 3, -1, 1, -1, 2, -1, 2, -1, 1, -1};
-static const int8_t LIGHT_ON_DATA[] = {-1, 2, -1, 1, -2, 1, -1, 2, -1, 1, -2, 4, -1, 1, -1, 1, -2};
-static const int8_t FAN_OFF_DATA[] = {-1, 2, -1, 2, -3, 2, -1, 2, -2, 3, -1, 2, -1, 1, -1};
-static const int8_t FAN_LOW_DATA[] = {-2, 2, -1, 2, -3, 2, -1, 2, -1, 1, -1, 2, -1, 3, -1};
-static const int8_t FAN_MEDIUM_DATA[] = {-2, 2, -1, 4, -1, 3, -4, 3, -3};
-static const int8_t FAN_HIGH_DATA[] = {-1, 3, -4, 4, -3, 1, -1, 3, -3};
-static const int8_t FAN_MAX_DATA[] = {-2, 3, -2, 1, -2, 3, -2, 2, -1, 3, -1, 1, -2};
-
-void Hob2HoodProtocol::encode_data_(RemoteTransmitData *dst, const int8_t *data, size_t length) const {
-  dst->reserve(length);
-  for (size_t i = 0; i < length; i++) {
-    switch (data[i]) {
-      case -1:
-        dst->mark(MARK_1_US);
-        break;
-      case -2:
-        dst->mark(MARK_2_US);
-        break;
-      case -3:
-        dst->mark(MARK_3_US);
-        break;
-      case -4:
-        dst->mark(MARK_4_US);
-        break;
-      case 1:
-        dst->space(SPACE_1_US);
-        break;
-      case 2:
-        dst->space(SPACE_2_US);
-        break;
-      case 3:
-        dst->space(SPACE_3_US);
-        break;
-      case 4:
-        dst->space(SPACE_4_US);
-        break;
+bool Hob2HoodProtocol::get_timings_(const Hob2HoodCommand data, RemoteReceiveData *src, RemoteTransmitData *dst) {
+  static constexpr uint32_t BIT_MASK = (1U << 24U);
+  uint32_t transmitted_data = ((uint8_t)data << 16U) | ((uint8_t)(data + 1) << 8U) | (uint8_t)(data + 2);
+  int8_t bit_counter = 0;
+  bool current_bit = (transmitted_data & BIT_MASK) != 0;
+  bool result = true;
+  for (uint8_t bits_remaining = 25; bits_remaining > 0; bits_remaining--) {
+    if (current_bit) {
+      bit_counter++;
+    } else {
+      bit_counter--;
+    }
+    transmitted_data <<= 1U;
+    current_bit = (transmitted_data & BIT_MASK) != 0;
+    if (bits_remaining == 1 || (bit_counter > 0) != current_bit) {
+      uint32_t total_time = ((bit_counter > 0) ? SPACE_US : MARK_US) + BIT_TIME_US * std::abs(bit_counter);
+      if (src != nullptr && result) {
+        if (bit_counter < 0) {
+          result = src->expect_mark(total_time);
+        } else if (bits_remaining != 1) {
+          result = src->expect_space(total_time);
+        }
+      }
+      if (dst != nullptr) {
+        if (bit_counter < 0) {
+          dst->mark(total_time);
+        } else {
+          dst->space(total_time);
+        }
+      } else if (!result) {
+        return result;
+      }
+      bit_counter = 0;
     }
   }
+  return result;
 }
 
 void Hob2HoodProtocol::encode(RemoteTransmitData *dst, const Hob2HoodData &data) {
-  dst->set_carrier_frequency(38000);
-  switch (data.command) {
-    case HOB2HOOD_CMD_LIGHT_OFF:
-      this->encode_data_(dst, LIGHT_OFF_DATA, sizeof(LIGHT_OFF_DATA));
-      break;
-    case HOB2HOOD_CMD_LIGHT_ON:
-      this->encode_data_(dst, LIGHT_ON_DATA, sizeof(LIGHT_ON_DATA));
-      break;
-    case HOB2HOOD_CMD_FAN_OFF:
-      this->encode_data_(dst, FAN_OFF_DATA, sizeof(FAN_OFF_DATA));
-      break;
-    case HOB2HOOD_CMD_FAN_LOW:
-      this->encode_data_(dst, FAN_LOW_DATA, sizeof(FAN_LOW_DATA));
-      break;
-    case HOB2HOOD_CMD_FAN_MEDIUM:
-      this->encode_data_(dst, FAN_MEDIUM_DATA, sizeof(FAN_MEDIUM_DATA));
-      break;
-    case HOB2HOOD_CMD_FAN_HIGH:
-      this->encode_data_(dst, FAN_HIGH_DATA, sizeof(FAN_HIGH_DATA));
-      break;
-    case HOB2HOOD_CMD_FAN_MAX:
-      this->encode_data_(dst, FAN_MAX_DATA, sizeof(FAN_MAX_DATA));
-      break;
-    default:
-      break;
-  }
-}
-
-bool Hob2HoodProtocol::expect_data_(RemoteReceiveData &src, int8_t data) {
-  switch (data) {
-    case -1:
-      return src.expect_mark(MARK_1_US);
-    case -2:
-      return src.expect_mark(MARK_2_US);
-    case -3:
-      return src.expect_mark(MARK_3_US);
-    case -4:
-      return src.expect_mark(MARK_4_US);
-    case 1:
-      return src.expect_space(SPACE_1_US);
-    case 2:
-      return src.expect_space(SPACE_2_US);
-    case 3:
-      return src.expect_space(SPACE_3_US);
-    case 4:
-      return src.expect_space(SPACE_4_US);
-    default:
-      return false;
-  }
-}
-
-bool Hob2HoodProtocol::expect_data_(RemoteReceiveData &src, const int8_t *data, size_t length) {
-  for (size_t i = 0; i < length; i++) {
-    if (!this->expect_data_(src, data[i]))
-      return false;
-  }
-  return true;
+  static constexpr uint32_t CARRIER_FREQUENCY = 38000;
+  static constexpr uint32_t RESERVE_LENGTH = 17;
+  dst->set_carrier_frequency(CARRIER_FREQUENCY);
+  dst->reserve(RESERVE_LENGTH);
+  this->get_timings_(data.command, nullptr, dst);
 }
 
 optional<Hob2HoodData> Hob2HoodProtocol::decode(RemoteReceiveData src) {
-  if (this->expect_data_(src, LIGHT_OFF_DATA, sizeof(LIGHT_OFF_DATA))) {
-    return Hob2HoodData(HOB2HOOD_CMD_LIGHT_OFF);
-  }
-  src.reset();
-  if (this->expect_data_(src, LIGHT_ON_DATA, sizeof(LIGHT_ON_DATA))) {
-    return Hob2HoodData(HOB2HOOD_CMD_LIGHT_ON);
-  }
-  src.reset();
-  if (this->expect_data_(src, FAN_OFF_DATA, sizeof(FAN_OFF_DATA))) {
-    return Hob2HoodData(HOB2HOOD_CMD_FAN_OFF);
-  }
-  src.reset();
-  if (this->expect_data_(src, FAN_LOW_DATA, sizeof(FAN_LOW_DATA))) {
-    return Hob2HoodData(HOB2HOOD_CMD_FAN_LOW);
-  }
-  src.reset();
-  if (this->expect_data_(src, FAN_MEDIUM_DATA, sizeof(FAN_MEDIUM_DATA))) {
-    return Hob2HoodData(HOB2HOOD_CMD_FAN_MEDIUM);
-  }
-  src.reset();
-  if (this->expect_data_(src, FAN_HIGH_DATA, sizeof(FAN_HIGH_DATA))) {
-    return Hob2HoodData(HOB2HOOD_CMD_FAN_HIGH);
-  }
-  src.reset();
-  if (this->expect_data_(src, FAN_MAX_DATA, sizeof(FAN_MAX_DATA))) {
-    return Hob2HoodData(HOB2HOOD_CMD_FAN_MAX);
+  const Hob2HoodCommand commands[] = {
+    HOB2HOOD_CMD_LIGHT_OFF,
+    HOB2HOOD_CMD_LIGHT_ON,
+    HOB2HOOD_CMD_FAN_OFF,
+    HOB2HOOD_CMD_FAN_LOW,
+    HOB2HOOD_CMD_FAN_MEDIUM,
+    HOB2HOOD_CMD_FAN_HIGH,
+    HOB2HOOD_CMD_FAN_MAX,
+  };
+  for (auto cmd : commands) {
+    src.reset();
+    if (this->get_timings_(cmd, &src, nullptr)) {
+      return cmd;
+    }
   }
   return {};
 }

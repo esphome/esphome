@@ -5,21 +5,20 @@
 namespace esphome::remote_base {
 
 enum Hob2HoodCommand : uint8_t {
-  HOB2HOOD_CMD_LIGHT_OFF = 0,
-  HOB2HOOD_CMD_LIGHT_ON,
-  HOB2HOOD_CMD_FAN_OFF,
-  HOB2HOOD_CMD_FAN_LOW,
-  HOB2HOOD_CMD_FAN_MEDIUM,
-  HOB2HOOD_CMD_FAN_HIGH,
-  HOB2HOOD_CMD_FAN_MAX,
-  HOB2HOOD_CMD_UNKNOWN,
+  HOB2HOOD_CMD_LIGHT_OFF = 0xd5,
+  HOB2HOOD_CMD_LIGHT_ON = 0xd2,
+  HOB2HOOD_CMD_FAN_OFF = 0xd8,
+  HOB2HOOD_CMD_FAN_LOW = 0x6c,
+  HOB2HOOD_CMD_FAN_MEDIUM = 0x6f,
+  HOB2HOOD_CMD_FAN_HIGH = 0xe1,
+  HOB2HOOD_CMD_FAN_MAX = 0x72,
 };
 
 struct Hob2HoodData {
   Hob2HoodData() {}
   Hob2HoodData(Hob2HoodCommand command) { this->command = command; }
 
-  Hob2HoodCommand command{HOB2HOOD_CMD_UNKNOWN};
+  Hob2HoodCommand command{HOB2HOOD_CMD_LIGHT_ON};
 
   bool operator==(const Hob2HoodData &rhs) const { return this->command == rhs.command; }
 };
@@ -31,9 +30,7 @@ class Hob2HoodProtocol : public RemoteProtocol<Hob2HoodData> {
   void dump(const Hob2HoodData &data) override;
 
  protected:
-  void encode_data_(RemoteTransmitData *dst, const int8_t *data, size_t length) const;
-  bool expect_data_(RemoteReceiveData &src, int8_t data);
-  bool expect_data_(RemoteReceiveData &src, const int8_t *data, size_t length);
+  bool get_timings_(const Hob2HoodCommand data, RemoteReceiveData *src, RemoteTransmitData *dst);
 };
 
 using Hob2HoodTrigger = RemoteReceiverTrigger<Hob2HoodProtocol>;
