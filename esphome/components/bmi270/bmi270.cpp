@@ -175,9 +175,9 @@ void BMI270Component::update() {
     };
     float scale = accel_scale[accel_range_];
 
-    accel_data.accel_x = (int16_t) ((raw_data[1] << 8) | raw_data[0]) * scale;
-    accel_data.accel_y = (int16_t) ((raw_data[3] << 8) | raw_data[2]) * scale;
-    accel_data.accel_z = (int16_t) ((raw_data[5] << 8) | raw_data[4]) * scale;
+    accel_data.acceleration_x = (int16_t) ((raw_data[1] << 8) | raw_data[0]) * scale;
+    accel_data.acceleration_y = (int16_t) ((raw_data[3] << 8) | raw_data[2]) * scale;
+    accel_data.acceleration_z = (int16_t) ((raw_data[5] << 8) | raw_data[4]) * scale;
 
     // Gyroscope: registers 0x12–0x17 (6 bytes)
     // Scale: full-scale range / 2^15
@@ -187,9 +187,9 @@ void BMI270Component::update() {
     static const uint8_t GYR_OFFS = BMI270_REG_DATA_14 - BMI270_REG_DATA_8;
     scale = gyro_scale[gyro_range_];
 
-    accel_data.gyro_x = (int16_t) ((raw_data[GYR_OFFS + 1] << 8) | raw_data[GYR_OFFS + 0]) * scale;
-    accel_data.gyro_y = (int16_t) ((raw_data[GYR_OFFS + 3] << 8) | raw_data[GYR_OFFS + 2]) * scale;
-    accel_data.gyro_z = (int16_t) ((raw_data[GYR_OFFS + 5] << 8) | raw_data[GYR_OFFS + 4]) * scale;
+    accel_data.gyroscope_x = (int16_t) ((raw_data[GYR_OFFS + 1] << 8) | raw_data[GYR_OFFS + 0]) * scale;
+    accel_data.gyroscope_y = (int16_t) ((raw_data[GYR_OFFS + 3] << 8) | raw_data[GYR_OFFS + 2]) * scale;
+    accel_data.gyroscope_z = (int16_t) ((raw_data[GYR_OFFS + 5] << 8) | raw_data[GYR_OFFS + 4]) * scale;
 
     //  Temperature: registers 0x22–0x23
     // Formula from datasheet: T[°C] = raw / 512 + 23
@@ -197,9 +197,9 @@ void BMI270Component::update() {
     int16_t raw_t = (int16_t) ((raw_data[TEMP_OFFS + 1] << 8) | raw_data[TEMP_OFFS + 0]);
     accel_data.temperature = (raw_t / 512.0f) + 23.0f;
   }
-  ESP_LOGV(TAG, "Accel: [%.3f, %.3f, %.3f] g; Gyro: [%.3f, %.3f, %.3f] °/s; Temp: %.2f °C", accel_data.accel_x,
-           accel_data.accel_y, accel_data.accel_z, accel_data.gyro_x, accel_data.gyro_y, accel_data.gyro_z,
-           accel_data.temperature);
+  ESP_LOGV(TAG, "Accel: [%.3f, %.3f, %.3f] g; Gyro: [%.3f, %.3f, %.3f] °/s; Temp: %.2f °C", accel_data.acceleration_x,
+           accel_data.acceleration_y, accel_data.acceleration_z, accel_data.gyroscope_x, accel_data.gyroscope_y,
+           accel_data.gyroscope_z, accel_data.temperature);
   this->accel_data_callback_.call(accel_data);
 }
 

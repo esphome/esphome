@@ -79,12 +79,12 @@ enum BMI270GyroODR : uint8_t {
 // ---Data class
 
 struct BMI270AccelData {
-  float accel_x;
-  float accel_y;
-  float accel_z;
-  float gyro_x;
-  float gyro_y;
-  float gyro_z;
+  float acceleration_x;
+  float acceleration_y;
+  float acceleration_z;
+  float gyroscope_x;
+  float gyroscope_y;
+  float gyroscope_z;
   float temperature;
 };
 
