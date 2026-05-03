@@ -53,11 +53,13 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
 // Trigger args are forwarded to the apply function so user lambdas
 // (e.g. `position: !lambda "return x;"`) keep working.
 //
-// Ts... must be forwarded by-value: `const T &` is ill-formed when T is
-// already a reference type (some triggers pass `std::string &`).
+// Trigger args are forwarded as `const std::remove_reference_t<Ts> &...`
+// (instead of `const Ts &...`) so codegen can emit the same form in the
+// apply lambda's parameter list without producing `const T & &` for
+// triggers whose Ts already carries a reference (e.g. `std::string &`).
 template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
-  using ApplyFn = void (*)(ValveCall &, Ts...);
+  using ApplyFn = void (*)(ValveCall &, const std::remove_reference_t<Ts> &...);
   ControlAction(Valve *valve, ApplyFn apply) : valve_(valve), apply_(apply) {}
 
   void play(const Ts &...x) override {
