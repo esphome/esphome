@@ -143,15 +143,15 @@ BinarySensorCondition = binary_sensor_ns.class_("BinarySensorCondition", Conditi
 
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
-TimeoutFilter = binary_sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
-DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter, cg.Component)
-DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter, cg.Component)
-DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter, cg.Component)
+TimeoutFilter = binary_sensor_ns.class_("TimeoutFilter", Filter)
+DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter)
+DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter)
+DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter, cg.Component)
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
 StatelessLambdaFilter = binary_sensor_ns.class_("StatelessLambdaFilter", Filter)
-SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter, cg.Component)
+SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter)
 
 _LOGGER = getLogger(__name__)
 
@@ -175,7 +175,6 @@ async def invert_filter_to_code(config, filter_id):
 )
 async def timeout_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id)
-    await cg.register_component(var, {})
     template_ = await cg.templatable(config, [], cg.uint32)
     cg.add(var.set_timeout_value(template_))
     return var
@@ -203,7 +202,6 @@ async def timeout_filter_to_code(config, filter_id):
 )
 async def delayed_on_off_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id)
-    await cg.register_component(var, {})
     if isinstance(config, dict):
         template_ = await cg.templatable(config[CONF_TIME_ON], [], cg.uint32)
         cg.add(var.set_on_delay(template_))
@@ -221,7 +219,6 @@ async def delayed_on_off_filter_to_code(config, filter_id):
 )
 async def delayed_on_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id)
-    await cg.register_component(var, {})
     template_ = await cg.templatable(config, [], cg.uint32)
     cg.add(var.set_delay(template_))
     return var
@@ -234,7 +231,6 @@ async def delayed_on_filter_to_code(config, filter_id):
 )
 async def delayed_off_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id)
-    await cg.register_component(var, {})
     template_ = await cg.templatable(config, [], cg.uint32)
     cg.add(var.set_delay(template_))
     return var
@@ -306,7 +302,6 @@ async def lambda_filter_to_code(config, filter_id):
 )
 async def settle_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id)
-    await cg.register_component(var, {})
     template_ = await cg.templatable(config, [], cg.uint32)
     cg.add(var.set_delay(template_))
     return var

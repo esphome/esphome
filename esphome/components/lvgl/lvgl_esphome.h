@@ -112,7 +112,7 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
 #endif  // USE_LVGL_ANIMIMG
 
 #ifdef USE_LVGL_METER
-int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int value);
+int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value);
 #endif
 
 #ifdef USE_LVGL_GRADIENT
