@@ -97,8 +97,9 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   ota::OTABackendPtr backend_;
 
   uint32_t client_connect_time_{0};
+  static constexpr size_t HANDSHAKE_BUF_SIZE = 5;
   uint16_t port_;
-  uint8_t handshake_buf_[5];
+  uint8_t handshake_buf_[HANDSHAKE_BUF_SIZE];
   OTAState ota_state_{OTAState::IDLE};
   uint8_t handshake_buf_pos_{0};
   uint8_t ota_features_{0};
@@ -106,6 +107,7 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
   uint8_t auth_buf_pos_{0};
   uint8_t auth_type_{0};  // Store auth type to know which hasher to use
 #endif                    // USE_OTA_PASSWORD
+  bool extended_proto_{false};
 };
 
 }  // namespace esphome

@@ -56,7 +56,8 @@ template<typename... Ts> class SetModeRxAction : public Action<Ts...>, public Pa
 
 template<typename... Ts> class SetModeSleepAction : public Action<Ts...>, public Parented<SX126x> {
  public:
-  void play(const Ts &...x) override { this->parent_->set_mode_sleep(); }
+  TEMPLATABLE_VALUE(bool, cold)
+  void play(const Ts &...x) override { this->parent_->set_mode_sleep(this->cold_.value(x...)); }
 };
 
 template<typename... Ts> class SetModeStandbyAction : public Action<Ts...>, public Parented<SX126x> {

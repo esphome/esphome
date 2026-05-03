@@ -454,10 +454,12 @@ void LVTouchListener::update(const touchscreen::TouchPoints_t &tpoints) {
 
 #ifdef USE_LVGL_METER
 
-int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int value) {
+int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value) {
   auto *scale = lv_obj_get_parent(obj);
   auto min_value = lv_scale_get_range_min_value(scale);
-  return ((value - min_value) * lv_scale_get_angle_range(scale) / (lv_scale_get_range_max_value(scale) - min_value) +
+  auto max_value = lv_scale_get_range_max_value(scale);
+  value = clamp(value, min_value, max_value);
+  return ((value - min_value) * lv_scale_get_angle_range(scale) / (max_value - min_value) +
           lv_scale_get_rotation((scale))) %
          360;
 }
