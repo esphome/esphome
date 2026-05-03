@@ -82,11 +82,11 @@ async def to_code(config):
     pif = std_ns.namespace("numbers").pi_v.template(cg.float_)
     if sensor_type == CONF_TEMPERATURE:
         expr = data.temperature
-    elif sensor_type == CONF_PITCH:
+    elif sensor_type == CONF_ROLL:
         ay = data.acceleration[1]
         az = data.acceleration[2]
         expr = std_ns.atan2f(ay, az) * (180.0 / pif)
-    elif sensor_type == CONF_ROLL:
+    elif sensor_type == CONF_PITCH:
         ax = data.acceleration[0]
         ay = data.acceleration[1]
         az = data.acceleration[2]

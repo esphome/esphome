@@ -1,3 +1,5 @@
+import re
+
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
@@ -59,24 +61,65 @@ BMI270AccelData = bmi270_ns.class_("BMI270AccelData")
 
 CONF_ACCELEROMETER_RANGE = "accelerometer_range"
 CONF_ACCELEROMETER_ODR = "accelerometer_odr"
+CONF_AXIS_MAP = "axis_map"
 CONF_GYROSCOPE_RANGE = "gyroscope_range"
 CONF_GYROSCOPE_ODR = "gyroscope_odr"
 CONF_BMI270_ID = "bmi270_id"
 
 AXES = ["x", "y", "z"]
 
+
 SENSOR_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_BMI270_ID): cv.use_id(BMI270Component),
     }
 )
+
+_AXIS_REGEX = re.compile(r"^[+-]?[xyz]$", re.IGNORECASE)
+
+
+def _axis_map(config: dict) -> dict:
+    errors = []
+    for key, axis in config.items():
+        if _AXIS_REGEX.fullmatch(axis) is None:
+            errors.append(
+                cv.Invalid(
+                    "Each 'axis_map' config value must be one of 'x', 'y' or 'z' (optionally preceded by '+' or '-').",
+                    path=[key],
+                )
+            )
+    values = {x.lower().removeprefix("-").removeprefix("+") for x in config.values()}
+    if values != set(AXES):
+        errors.append(cv.Invalid("Each axis may be mapped only once"))
+    if errors:
+        raise cv.MultipleInvalid(errors)
+    return config
+
+
+def _axis_map_to_matrix(config: dict[str, str]) -> list[int]:
+    matrix = []
+    for target_axis in AXES:
+        source_axis = config[target_axis].lower()
+        sign = -1 if source_axis.startswith("-") else 1
+        source_axis = source_axis.removeprefix("+").removeprefix("-")
+
+        row = [0, 0, 0]
+        row[AXES.index(source_axis)] = sign
+        matrix.extend(row)
+
+    return matrix
+
+
 #  Top-level CONFIG_SCHEMA
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BMI270Component),
-            # Accelerometer axes
             # Hardware configuration
+            cv.Optional(CONF_AXIS_MAP): cv.All(
+                {cv.Required(k): cv.string_strict for k in AXES},
+                _axis_map,
+            ),
             cv.Optional(CONF_ACCELEROMETER_RANGE, default="4G"): cv.enum(
                 ACCEL_RANGE_OPTIONS, upper=True
             ),
@@ -108,3 +151,6 @@ async def to_code(config):
     cg.add(var.set_accel_odr(config[CONF_ACCELEROMETER_ODR]))
     cg.add(var.set_gyro_range(config[CONF_GYROSCOPE_RANGE]))
     cg.add(var.set_gyro_odr(config[CONF_GYROSCOPE_ODR]))
+
+    if axis_map := config.get(CONF_AXIS_MAP):
+        cg.add(var.set_matrix(_axis_map_to_matrix(axis_map)))

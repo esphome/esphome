@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
+#include <array>
 #include <functional>
 
 namespace esphome {
@@ -98,7 +99,7 @@ class BMI270Component : public PollingComponent, public i2c::I2CDevice {
   void set_accel_odr(BMI270AccelODR o) { accel_odr_ = o; }
   void set_gyro_range(BMI270GyroRange r) { gyro_range_ = r; }
   void set_gyro_odr(BMI270GyroODR o) { gyro_odr_ = o; }
-  void set_matrix_(float m[3][3]) { memcpy(matrix_, m, sizeof(matrix_)); }
+  void set_matrix(const std::array<float, 9> &m) { memcpy(this->matrix_, m.data(), sizeof(this->matrix_)); }
   void add_listener(std::function<void(BMI270AccelData &)> &&cb) { accel_data_callback_.add(std::move(cb)); }
 
  protected:
@@ -115,8 +116,8 @@ class BMI270Component : public PollingComponent, public i2c::I2CDevice {
 
   void map_axes_(float output[3], float x, float y, float z) const {
     output[0] = x * this->matrix_[0] + y * this->matrix_[1] + z * this->matrix_[2];
-    output[1] = y * this->matrix_[3] + y * this->matrix_[4] + z * this->matrix_[5];
-    output[2] = z * this->matrix_[6] + y * this->matrix_[7] + z * this->matrix_[8];
+    output[1] = x * this->matrix_[3] + y * this->matrix_[4] + z * this->matrix_[5];
+    output[2] = x * this->matrix_[6] + y * this->matrix_[7] + z * this->matrix_[8];
   };
 
   LazyCallbackManager<void(BMI270AccelData &)> accel_data_callback_{};
