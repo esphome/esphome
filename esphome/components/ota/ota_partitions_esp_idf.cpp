@@ -38,19 +38,6 @@ static const esp_partition_t *find_app_partition_at(uint32_t address, size_t min
   return found;
 }
 
-// Re-inits NVS unless disarmed. Used so failure paths past nvs_flash_deinit() leave NVS usable
-// for any component still running after a failed OTA.
-namespace {
-struct NvsReinitGuard {
-  bool armed{true};
-  ~NvsReinitGuard() {
-    if (armed) {
-      nvs_flash_init();
-    }
-  }
-};
-}  // namespace
-
 // Validates the staged partition table and picks the post-update boot slot. All non-destructive
 // checks live here; the destructive write is in update_partition_table().
 // Side effect: registers the live partition-table region as partition_table_part_ so the caller
@@ -197,10 +184,11 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   }
 
   // ERROR severity so the warning shows up in default log filters; any failure past this point
-  // can leave the device unable to boot.
+  // can leave the device unbootable until it is recovered with a serial flash.
   ESP_LOGE(TAG, "Starting partition table update.\n"
                 "  DO NOT REMOVE POWER until the device reboots successfully.\n"
-                "  Loss of power during this operation may permanently brick the device.");
+                "  Loss of power during this operation may render the device unable to boot until\n"
+                "  it is recovered via a serial flash.");
 
   // One guard over the whole critical section in case an IDF call takes longer than expected on
   // some chip variant.
@@ -228,9 +216,12 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   }
 
   // Deinit NVS only just before the first destructive write so verify/copy failure paths return
-  // with NVS still functional. The guard re-inits on early returns; success disarms it.
+  // with NVS still functional. From this point on, components that hold open NVS handles
+  // (e.g. preferences) will fail with ESP_ERR_NVS_INVALID_HANDLE on success or failure;
+  // nvs_flash_init() can re-init the subsystem but cannot revive existing handles. On the
+  // success path the device reboots immediately afterwards so this doesn't matter; on the
+  // failure path the user must reboot the device before retrying.
   nvs_flash_deinit();
-  NvsReinitGuard nvs_guard;
 
   // Update the partition table
   err = esp_ota_begin(this->partition_table_part_, ESP_PARTITION_TABLE_MAX_LEN, &this->update_handle_);
@@ -272,7 +263,6 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
-  nvs_guard.armed = false;
   return OTA_RESPONSE_OK;
 }
 
