@@ -18,7 +18,7 @@ from esphome.const import (
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import std_ns
 
-from . import CONF_BMI270_ID, SENSOR_SCHEMA, BMI270AccelData
+from . import AXES, CONF_BMI270_ID, SENSOR_SCHEMA, BMI270AccelData
 
 
 def _accel_sensor_schema():
@@ -52,10 +52,9 @@ CONF_PITCH = "pitch"
 CONF_ROLL = "roll"
 ICON_SEESAW = "mdi:seesaw"
 
-_AXES = ["x", "y", "z"]
-_ACCELERATIONS = ["acceleration_" + a for a in _AXES]
-_GYROSCOPES = ["gyroscope_" + g for g in _AXES]
-_ANGULAR_RATES = ["angular_rate_" + r for r in _AXES]
+_ACCELERATIONS = ["acceleration_" + a for a in AXES]
+_GYROSCOPES = ["gyroscope_" + g for g in AXES]
+_ANGULAR_RATES = ["angular_rate_" + r for r in AXES]
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
@@ -93,11 +92,10 @@ async def to_code(config):
         az = data.acceleration[2]
         expr = std_ns.atan2f(-ax, std_ns.sqrtf(ay * ay + az * az)) * (180.0 / pif)
     else:
-        sensor_offset = _AXES.index(sensor_type[-1:])
+        sensor_offset = AXES.index(sensor_type[-1:])
         if sensor_type in _GYROSCOPES:
             sensor_type = _ANGULAR_RATES[sensor_offset]
-        sensor_type = sensor_type[:-2]
-        expr = getattr(data, sensor_type)[sensor_offset]
+        expr = getattr(data, str(sensor_type[:-2]))[sensor_offset]
     value_lambda = await cg.process_lambda(
         var.publish_state(expr),
         [(BMI270AccelData.operator("ref"), "data")],

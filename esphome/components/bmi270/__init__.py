@@ -57,11 +57,13 @@ GYRO_ODR_OPTIONS = {
 
 BMI270AccelData = bmi270_ns.class_("BMI270AccelData")
 
-CONF_ACCELERATION_RANGE = "acceleration_range"
-CONF_ACCELERATION_ODR = "acceleration_odr"
+CONF_ACCELEROMETER_RANGE = "accelerometer_range"
+CONF_ACCELEROMETER_ODR = "accelerometer_odr"
 CONF_GYROSCOPE_RANGE = "gyroscope_range"
 CONF_GYROSCOPE_ODR = "gyroscope_odr"
 CONF_BMI270_ID = "bmi270_id"
+
+AXES = ["x", "y", "z"]
 
 SENSOR_SCHEMA = cv.Schema(
     {
@@ -75,10 +77,10 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(BMI270Component),
             # Accelerometer axes
             # Hardware configuration
-            cv.Optional(CONF_ACCELERATION_RANGE, default="4G"): cv.enum(
+            cv.Optional(CONF_ACCELEROMETER_RANGE, default="4G"): cv.enum(
                 ACCEL_RANGE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_ACCELERATION_ODR, default="100HZ"): cv.enum(
+            cv.Optional(CONF_ACCELEROMETER_ODR, default="100HZ"): cv.enum(
                 ACCEL_ODR_OPTIONS, upper=True
             ),
             cv.Optional(CONF_GYROSCOPE_RANGE, default="2000DPS"): cv.enum(
@@ -89,7 +91,7 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.polling_component_schema("50ms"))
+    .extend(cv.polling_component_schema("250ms"))
     .extend(i2c.i2c_device_schema(0x68))
 )
 
@@ -102,7 +104,7 @@ async def to_code(config):
 
     # Accelerometer sensors
     # Hardware configuration
-    cg.add(var.set_accel_range(config[CONF_ACCELERATION_RANGE]))
-    cg.add(var.set_accel_odr(config[CONF_ACCELERATION_ODR]))
+    cg.add(var.set_accel_range(config[CONF_ACCELEROMETER_RANGE]))
+    cg.add(var.set_accel_odr(config[CONF_ACCELEROMETER_ODR]))
     cg.add(var.set_gyro_range(config[CONF_GYROSCOPE_RANGE]))
     cg.add(var.set_gyro_odr(config[CONF_GYROSCOPE_ODR]))
