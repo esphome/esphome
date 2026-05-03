@@ -33,6 +33,17 @@ class IDFOTABackend final {
 
  protected:
 #ifdef USE_OTA_PARTITIONS
+  // Outcome of validating an incoming partition-table image. ``target_app_index`` is the
+  // entry in the new table that the running app will boot from after the update;
+  // ``copy_source_part`` is non-null when the running app must be copied into that slot
+  // first (the source is the matching slot in the *current* partition table).
+  struct PartitionTablePlan {
+    int target_app_index{-1};
+    const esp_partition_t *copy_source_part{nullptr};
+  };
+
+  OTAResponseTypes validate_new_partition_table_(uint32_t running_app_offset, size_t running_app_size,
+                                                 PartitionTablePlan &plan);
   OTAResponseTypes update_partition_table();
 #endif
 
@@ -45,7 +56,9 @@ class IDFOTABackend final {
 #ifdef USE_OTA_PARTITIONS
   // Place the byte buffer first so it sits immediately after the preceding `bool md5_set_`,
   // eliminating the 3-byte alignment padding that an int-sized member would otherwise force.
-  // Remaining members are 4-byte-aligned and pack tightly after the buffer.
+  // Remaining members are 4-byte-aligned and pack tightly after the buffer. The backend is
+  // constructed on each incoming OTA connection and destroyed on cleanup_connection_(), so this
+  // 3 KiB is only resident during an active OTA, not permanently.
   uint8_t buf_[PARTITION_TABLE_BUFFER_SIZE];
   size_t buf_written_{0};
   size_t image_size_{0};

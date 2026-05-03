@@ -184,26 +184,14 @@ static const esp_partition_t *find_app_partition_at(uint32_t address, size_t min
   return found;
 }
 
-OTAResponseTypes IDFOTABackend::update_partition_table() {
-  int num_partitions;
-  if (this->buf_written_ == 0 || this->image_size_ != this->buf_written_) {
-    ESP_LOGE(TAG, "Not enough data received");
-    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
-  }
-
-  // Get running app partition and used size. A zero size means we couldn't determine the running
-  // app (e.g., esp_ota_get_running_partition() returned nullptr after a previous aborted partition
-  // table OTA called esp_partition_unload_all()). Without a valid size we cannot safely compute
-  // overlap or copy bounds, so fail before any flash operation.
-  uint32_t running_app_offset;
-  size_t running_app_size;
-  get_running_app_position(running_app_offset, running_app_size);
-  if (running_app_size == 0) {
-    ESP_LOGE(TAG, "Failed to determine running app position");
-    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
-  }
-
-  // Get partition table partition
+// Validate the new partition table image staged in ``buf_`` and pick the slot the running app
+// will boot from after the update. Performs all non-destructive checks; the destructive write
+// is in ``update_partition_table()``. Side-effect: registers the live partition-table region
+// as ``partition_table_part_`` so the caller can write to it; ``abort()`` releases it on error.
+OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_app_offset, size_t running_app_size,
+                                                              PartitionTablePlan &plan) {
+  // Register the live primary partition table as an external partition so we can mmap it for
+  // verification and later issue esp_ota_begin/esp_ota_write against it.
   esp_err_t err = esp_partition_register_external(
       nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE, "PrimaryPrtTable",
       ESP_PARTITION_TYPE_PARTITION_TABLE, ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY, &this->partition_table_part_);
@@ -213,6 +201,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   }
 
   // Verify existing partition table
+  int num_partitions = 0;
   const esp_partition_info_t *existing_partition_table = nullptr;
   esp_partition_mmap_handle_t partition_table_map;
   err = esp_partition_mmap(this->partition_table_part_, 0, ESP_PARTITION_TABLE_MAX_LEN, ESP_PARTITION_MMAP_DATA,
@@ -228,20 +217,22 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
-  // Verify new partition table
+  // Verify new partition table. esp_partition_table_verify expects ESP_PARTITION_TABLE_MAX_LEN
+  // bytes; ``buf_`` is sized to that exactly.
   const esp_partition_info_t *new_partition_table = reinterpret_cast<const esp_partition_info_t *>(this->buf_);
-  // esp_partition_table_verify expects ESP_PARTITION_TABLE_MAX_LEN bytes of data
   err = esp_partition_table_verify(new_partition_table, true, &num_partitions);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_table_verify failed (new partition table) (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
-  // Check for missing checksum
-  // esp_partition_table_verify does not fail in this case and the ESP would not boot after the update
+
+  // Check for missing checksum entry. esp_partition_table_verify does not fail in this case and
+  // the ESP would not boot after the update.
   bool checksum_found = false;
   for (size_t i = 0; i < ESP_PARTITION_TABLE_MAX_ENTRIES; i++) {
     if (new_partition_table[i].magic == ESP_PARTITION_MAGIC_MD5) {
       checksum_found = true;
+      break;
     }
   }
   if (!checksum_found) {
@@ -249,56 +240,49 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
-  // Check if the required app and otadata partitions exist in the new partition table
-  // Check which app slot to boot from in the new partition table
+  // Walk the new table once, populating: the chosen target app slot, presence of otadata/nvs,
+  // and otadata-vs-running-app overlap. Selection policy when multiple app slots can host the
+  // running app: pick the FIRST eligible slot in table order. The no-copy path (offsets already
+  // match) is preferred over the copy path; within each path we lock in the first match and stop
+  // searching. This keeps the choice deterministic and table-ordering-stable.
   int app_partitions_found = 0;
   int new_app_part_index = -1;
   int new_app_part_index_with_copy = -1;
-  const esp_partition_t *app_copy_target_part = nullptr;
+  const esp_partition_t *app_copy_source_part = nullptr;
   bool otadata_partition_found = false;
   bool otadata_overlap = false;
   bool nvs_partition_found = false;
-  // Selection policy when multiple app slots in the new partition table can host the running app:
-  // pick the FIRST eligible slot in table order. The no-copy path (offsets already match) is
-  // preferred over the copy path; within each path we lock in the first match and stop searching.
-  // This keeps the choice deterministic and table-ordering-stable instead of "last writer wins".
-  for (int i = 0; i < num_partitions; i++) {  // Iterate over new partition table
+  for (int i = 0; i < num_partitions; i++) {
     const esp_partition_info_t *new_part = &new_partition_table[i];
     if (new_part->type == ESP_PARTITION_TYPE_APP) {
-      // Found an app partition in the new partition table
       app_partitions_found++;
       if (new_part->pos.size >= running_app_size) {
-        // Running app can fit inside this partition
         if (new_part->pos.offset == running_app_offset) {
-          // This new app partition can be used for the running app without copying because the offsets are the same.
-          // First match wins; once locked in, the no-copy path is preferred and won't be overwritten.
+          // No-copy path: same offset as running app, first match wins.
           if (new_app_part_index == -1) {
             new_app_part_index = i;
           }
         } else if (new_app_part_index_with_copy == -1 &&
                    !check_overlap(running_app_offset, running_app_size, new_part->pos.offset, running_app_size)) {
-          // This new app partition can be used for the running app after copying the app into it.
-          // Check if there is an app partition in the old partition table at the right offset
-          // (esp_partition_copy needs a registered source partition; first match wins for determinism).
+          // Copy path: needs a registered source partition in the *current* table at the new slot's offset.
           const esp_partition_t *p = find_app_partition_at(new_part->pos.offset, running_app_size);
           if (p != nullptr) {
-            new_app_part_index_with_copy = i;  // The partition index in the new partition table
-            app_copy_target_part = p;          // The partition in the old partition table
+            new_app_part_index_with_copy = i;
+            app_copy_source_part = p;
           }
         }
       }
     } else if (new_part->type == ESP_PARTITION_TYPE_DATA) {
       if (new_part->subtype == ESP_PARTITION_SUBTYPE_DATA_OTA) {
-        // Found the otadata partition in the new partition table
         otadata_partition_found = true;
         otadata_overlap = check_overlap(running_app_offset, running_app_size, new_part->pos.offset, new_part->pos.size);
       } else if (new_part->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS &&
                  strncmp(reinterpret_cast<const char *>(new_part->label), "nvs", sizeof(new_part->label)) == 0) {
-        // Found the nvs partition in the new partition table
         nvs_partition_found = true;
       }
     }
   }
+
   if (new_app_part_index == -1 && new_app_part_index_with_copy == -1) {
     ESP_LOGE(TAG, "No compatible app partition found in the new partition table");
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
@@ -320,6 +304,41 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
+  // No-copy preferred; copy path only when no-copy slot was unavailable.
+  if (new_app_part_index != -1) {
+    plan.target_app_index = new_app_part_index;
+    plan.copy_source_part = nullptr;
+  } else {
+    plan.target_app_index = new_app_part_index_with_copy;
+    plan.copy_source_part = app_copy_source_part;
+  }
+  return OTA_RESPONSE_OK;
+}
+
+OTAResponseTypes IDFOTABackend::update_partition_table() {
+  if (this->buf_written_ == 0 || this->image_size_ != this->buf_written_) {
+    ESP_LOGE(TAG, "Not enough data received");
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+  }
+
+  // Get running app partition and used size. A zero size means we couldn't determine the running
+  // app (e.g., esp_ota_get_running_partition() returned nullptr after a previous aborted partition
+  // table OTA called esp_partition_unload_all()). Without a valid size we cannot safely compute
+  // overlap or copy bounds, so fail before any flash operation.
+  uint32_t running_app_offset;
+  size_t running_app_size;
+  get_running_app_position(running_app_offset, running_app_size);
+  if (running_app_size == 0) {
+    ESP_LOGE(TAG, "Failed to determine running app position");
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+  }
+
+  PartitionTablePlan plan;
+  OTAResponseTypes validate_result = this->validate_new_partition_table_(running_app_offset, running_app_size, plan);
+  if (validate_result != OTA_RESPONSE_OK) {
+    return validate_result;
+  }
+
   // Past this point any failure (power loss, watchdog reset, write error after the table has been
   // partially erased) can leave the device unable to boot. Logged at ERROR severity so the message
   // is visible in default log filters.
@@ -333,16 +352,19 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   // underlying ESP-IDF calls take longer than expected on a given chip variant.
   watchdog::WatchdogManager watchdog(15000);
 
+  esp_err_t err;
+  const esp_partition_info_t *new_partition_table = reinterpret_cast<const esp_partition_info_t *>(this->buf_);
+
   // Copy the running app partition to new position if needed.
   // esp_ota_get_running_partition() is still valid here (we have not yet called
   // esp_partition_unload_all()) and returns the same partition that find_app_partition_at would
   // have located, without an extra iterator walk.
-  if (new_app_part_index == -1) {
+  if (plan.copy_source_part != nullptr) {
     const esp_partition_t *running_app_part = esp_ota_get_running_partition();
     ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,
-             app_copy_target_part->address, running_app_size);
+             plan.copy_source_part->address, running_app_size);
 
-    err = esp_partition_copy(app_copy_target_part, 0, running_app_part, 0, running_app_size);
+    err = esp_partition_copy(plan.copy_source_part, 0, running_app_part, 0, running_app_size);
 
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_partition_copy failed (err=0x%X)", err);
@@ -386,8 +408,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   this->partition_table_part_ = nullptr;
 
   // Write otadata to set the new boot partition
-  const esp_partition_info_t *new_part =
-      &new_partition_table[new_app_part_index == -1 ? new_app_part_index_with_copy : new_app_part_index];
+  const esp_partition_info_t *new_part = &new_partition_table[plan.target_app_index];
   const esp_partition_t *new_boot_partition = find_app_partition_at(new_part->pos.offset, 0);
   if (new_boot_partition == nullptr) {
     ESP_LOGE(TAG, "Selected app partition not found after partition table update");
