@@ -375,6 +375,9 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   // Deinitialize NVS just before the first destructive write to the partition-table region. Doing
   // this here (instead of earlier) means that any failure path in the verify or copy phases above
   // returns with NVS still functional, so other components on the device aren't broken until reboot.
+  // Each failure path past this point calls nvs_flash_init() before returning so that, if the
+  // device keeps running, components that depend on NVS aren't permanently broken. The success
+  // path skips reinit because the device reboots immediately afterwards.
   nvs_flash_deinit();
 
   // Update the partition table
@@ -383,6 +386,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
     ESP_LOGE(TAG, "esp_ota_begin failed (err=0x%X)", err);
+    nvs_flash_init();
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   err = esp_ota_write(this->update_handle_, this->buf_, ESP_PARTITION_TABLE_MAX_LEN);
@@ -392,12 +396,14 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
     ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X)", err);
+    nvs_flash_init();
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   err = esp_ota_end(this->update_handle_);
   this->update_handle_ = 0;  // esp_ota_end releases the handle internally regardless of result
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X)", err);
+    nvs_flash_init();
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   // esp_partition_unload_all() invalidates every cached partition entry, including the externally
@@ -412,12 +418,14 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   const esp_partition_t *new_boot_partition = find_app_partition_at(new_part->pos.offset, 0);
   if (new_boot_partition == nullptr) {
     ESP_LOGE(TAG, "Selected app partition not found after partition table update");
+    nvs_flash_init();
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   ESP_LOGD(TAG, "Setting next boot partition to 0x%X", new_boot_partition->address);
   err = esp_ota_set_boot_partition(new_boot_partition);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (err=0x%X)", err);
+    nvs_flash_init();
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   return OTA_RESPONSE_OK;

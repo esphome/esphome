@@ -1705,6 +1705,47 @@ def test_upload_program_serial_partition_table(
         upload_program(config, args, devices)
 
 
+def test_upload_program_ota_partition_table_mqttip(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table is allowed for MQTTIP devices; they resolve to a real IP at OTA time."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "MQTTIP"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    partition_file = tmp_path / "partitions.bin"
+    partition_file.write_bytes(_make_partition_table_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(partition_file), partition_table=True)
+
+    with patch(
+        "esphome.__main__._resolve_network_devices", return_value=["192.168.1.100"]
+    ):
+        exit_code, host = upload_program(config, args, ["MQTTIP"])
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        partition_file,
+        OTA_TYPE_UPDATE_PARTITION_TABLE,
+    )
+
+
 def test_validate_partition_table_binary_accepts_valid(tmp_path: Path) -> None:
     f = tmp_path / "partitions.bin"
     f.write_bytes(_make_partition_table_bytes())

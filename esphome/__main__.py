@@ -1091,7 +1091,11 @@ def upload_program(
 
     port_type = get_port_type(host)
 
-    if port_type != PortType.NETWORK and getattr(args, "partition_table", False):
+    # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
+    # _resolve_network_devices(). Only SERIAL and BOOTSEL are non-OTA upload paths.
+    if port_type in (PortType.SERIAL, PortType.BOOTSEL) and getattr(
+        args, "partition_table", False
+    ):
         raise EsphomeError(
             "The option --partition-table can only be used for Over The Air updates."
         )
