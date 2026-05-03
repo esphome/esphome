@@ -230,15 +230,16 @@ async def light_control_to_code(config, action_id, template_arg, args):
                 f"call.set_effect(static_cast<uint32_t>({_resolve_effect_index(config)}));"
             )
 
-    # Forward trigger args as Ts... so each (type, name) pair passes through
-    # unchanged. Wrapping in `const &` here would emit invalid C++ source
-    # for trigger types that already carry a reference (e.g. `std::string &`)
-    # and fails on plain Python types (`float`/`bool`) which have no
-    # `.operator()` method.
+    # Match LightControlAction::ApplyFn signature: `const std::remove_reference_t<T> &`
+    # for each trigger arg so non-reference Ts stay no-copy (`const T &`) and
+    # reference Ts collapse correctly without producing `const T & &`.
     apply_args = [
         (LightState.operator("ptr"), "parent"),
         (LightCall.operator("ref"), "call"),
-        *args,
+        *(
+            (cg.RawExpression(f"const std::remove_reference_t<{cg.safe_exp(t)}> &"), n)
+            for t, n in args
+        ),
     ]
     apply_lambda = LambdaExpression(
         ["\n".join(body_lines)],
