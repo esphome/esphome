@@ -730,6 +730,9 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
+        6, 0, 1
+    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
     cv.Version(5, 5, 4): cv.Version(55, 3, 38, "1"),
@@ -1724,6 +1727,11 @@ async def to_code(config):
         CORE.relative_internal_path(".espressif")
     )
 
+    # Both ESP-IDF and ESP32 Arduino builds generate IDF app metadata. Keep
+    # volatile build path/time data out of the binary so equivalent projects can
+    # produce reproducible outputs and downstream tooling can reuse artifacts.
+    add_idf_sdkconfig_option("CONFIG_APP_REPRODUCIBLE_BUILD", True)
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
@@ -1745,7 +1753,17 @@ async def to_code(config):
 
         # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
         # (~11 KB). See printf_stubs.cpp for implementation.
-        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF]:
+        #
+        # The wrap is only beneficial against newlib. Picolibc's tinystdio
+        # implements vsnprintf by building a string-output FILE and calling
+        # vfprintf, so vfprintf is unconditionally linked in by any caller
+        # of snprintf/vsnprintf — effectively every build — and the wrap
+        # saves nothing while costing ~170 B of shim. IDF 5.x defaults to
+        # newlib on every variant; IDF 6.0+ switches to picolibc on every
+        # variant.
+        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or idf_version() >= cv.Version(
+            6, 0, 0
+        ):
             cg.add_define("USE_FULL_PRINTF")
         else:
             for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):

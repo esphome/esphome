@@ -459,9 +459,10 @@ void SX126x::set_mode_tx() {
   this->write_opcode_(RADIO_SET_TX, buf, 3);
 }
 
-void SX126x::set_mode_sleep() {
+void SX126x::set_mode_sleep(bool cold) {
+  // 0x04 = warm start (config retained), 0x00 = cold start (config lost, lowest power)
   uint8_t buf[1];
-  buf[0] = 0x05;
+  buf[0] = cold ? 0x00 : 0x04;
   this->write_opcode_(RADIO_SET_SLEEP, buf, 1);
 }
 

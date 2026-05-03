@@ -109,6 +109,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
     setup_unit_of_measurement,
@@ -265,7 +266,7 @@ StreamingMovingAverageFilter = sensor_ns.class_("StreamingMovingAverageFilter", 
 ExponentialMovingAverageFilter = sensor_ns.class_(
     "ExponentialMovingAverageFilter", Filter
 )
-ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter, cg.Component)
+ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter)
 LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
 StatelessLambdaFilter = sensor_ns.class_("StatelessLambdaFilter", Filter)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
@@ -282,8 +283,8 @@ ThrottleWithPriorityNanFilter = sensor_ns.class_(
 TimeoutFilterBase = sensor_ns.class_("TimeoutFilterBase", Filter, cg.Component)
 TimeoutFilterLast = sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
 TimeoutFilterConfigured = sensor_ns.class_("TimeoutFilterConfigured", TimeoutFilterBase)
-DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
-HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
+DebounceFilter = sensor_ns.class_("DebounceFilter", Filter)
+HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
 OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
@@ -563,12 +564,15 @@ async def exponential_moving_average_filter_to_code(config, filter_id):
 
 
 @FILTER_REGISTRY.register(
-    "throttle_average", ThrottleAverageFilter, cv.positive_time_period_milliseconds
+    "throttle_average",
+    ThrottleAverageFilter,
+    cv.All(
+        cv.positive_time_period_milliseconds,
+        cv.Range(max=cv.TimePeriod(hours=24)),
+    ),
 )
 async def throttle_average_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id, config)
-    await cg.register_component(var, {})
-    return var
+    return cg.new_Pvariable(filter_id, config)
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
@@ -697,13 +701,10 @@ HEARTBEAT_SCHEMA = cv.Schema(
 async def heartbeat_filter_to_code(config, filter_id):
     if isinstance(config, dict):
         var = cg.new_Pvariable(filter_id, config[CONF_PERIOD])
-        await cg.register_component(var, {})
         cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
         return var
 
-    var = cg.new_Pvariable(filter_id, config)
-    await cg.register_component(var, {})
-    return var
+    return cg.new_Pvariable(filter_id, config)
 
 
 TIMEOUT_SCHEMA = cv.maybe_simple_value(
@@ -737,9 +738,7 @@ async def timeout_filter_to_code(config, filter_id):
     "debounce", DebounceFilter, cv.positive_time_period_milliseconds
 )
 async def debounce_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id, config)
-    await cg.register_component(var, {})
-    return var
+    return cg.new_Pvariable(filter_id, config)
 
 
 CONF_DATAPOINTS = "datapoints"
@@ -982,7 +981,7 @@ async def setup_sensor_core_(var, config):
 async def register_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_sensor(var))
+    queue_entity_register("sensor", config)
     CORE.register_platform_component("sensor", var)
     await setup_sensor_core_(var, config)
 
