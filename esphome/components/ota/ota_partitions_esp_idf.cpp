@@ -131,7 +131,14 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
   }
 
   if (new_app_part_index == -1 && new_app_part_index_with_copy == -1) {
-    ESP_LOGE(TAG, "No compatible app partition found in the new partition table");
+    // Most likely cause: the user picked the wrong migration .bin for their running app's size.
+    // Rejecting here is non-destructive (no flash op has run yet); the user can safely retry with
+    // a different .bin. Log enough info that they can pick the right method without guessing.
+    ESP_LOGE(TAG,
+             "Running app at 0x%X (%u bytes used) does not fit any compatible slot in the new "
+             "partition table. Pick a migration method whose size limit is at least %u bytes and "
+             "retry; no flash content was modified.",
+             running_app_offset, running_app_size, running_app_size);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   if (app_partitions_found < 2) {
@@ -147,7 +154,11 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   if (otadata_overlap) {
-    ESP_LOGE(TAG, "New otadata partition overlaps with running app");
+    ESP_LOGE(TAG,
+             "New otadata partition overlaps with the running app at 0x%X (size %u). The chosen "
+             "partition table is not compatible with this device's current flash layout; pick a "
+             "different migration method.",
+             running_app_offset, running_app_size);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
