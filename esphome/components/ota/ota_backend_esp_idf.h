@@ -27,11 +27,13 @@ class IDFOTABackend final {
 
  protected:
 #ifdef USE_OTA_PARTITIONS
-  // copy_source_part non-null means the running app must be copied from this slot in the current
-  // table into target_app_index in the new table before the table is committed.
+  // copy_dest_part non-null means the running app must be copied INTO this slot of the current
+  // table before the new partition table is committed. The destination is in the current table
+  // because that's where esp_partition_copy can write; once the new table replaces it, the same
+  // flash region becomes target_app_index in the new table.
   struct PartitionTablePlan {
     int target_app_index{-1};
-    const esp_partition_t *copy_source_part{nullptr};
+    const esp_partition_t *copy_dest_part{nullptr};
   };
 
   OTAResponseTypes validate_new_partition_table_(uint32_t running_app_offset, size_t running_app_size,

@@ -108,7 +108,7 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
   int app_partitions_found = 0;
   int new_app_part_index = -1;
   int new_app_part_index_with_copy = -1;
-  const esp_partition_t *app_copy_source_part = nullptr;
+  const esp_partition_t *app_copy_dest_part = nullptr;
   bool otadata_partition_found = false;
   bool otadata_overlap = false;
   bool nvs_partition_found = false;
@@ -123,11 +123,12 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
           }
         } else if (new_app_part_index_with_copy == -1 &&
                    !check_overlap(running_app_offset, running_app_size, new_part->pos.offset, running_app_size)) {
-          // esp_partition_copy needs a registered source partition in the current table.
+          // esp_partition_copy writes into a registered partition; need one at this offset in the
+          // current table.
           const esp_partition_t *p = find_app_partition_at(new_part->pos.offset, running_app_size);
           if (p != nullptr) {
             new_app_part_index_with_copy = i;
-            app_copy_source_part = p;
+            app_copy_dest_part = p;
           }
         }
       }
@@ -165,10 +166,10 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
 
   if (new_app_part_index != -1) {
     plan.target_app_index = new_app_part_index;
-    plan.copy_source_part = nullptr;
+    plan.copy_dest_part = nullptr;
   } else {
     plan.target_app_index = new_app_part_index_with_copy;
-    plan.copy_source_part = app_copy_source_part;
+    plan.copy_dest_part = app_copy_dest_part;
   }
   return OTA_RESPONSE_OK;
 }
@@ -208,15 +209,18 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   esp_err_t err;
   const esp_partition_info_t *new_partition_table = reinterpret_cast<const esp_partition_info_t *>(this->buf_);
 
-  // esp_ota_get_running_partition() is still valid here (esp_partition_unload_all() has not run)
-  // so use it directly instead of repeating the iterator walk.
-  if (plan.copy_source_part != nullptr) {
-    const esp_partition_t *running_app_part = esp_ota_get_running_partition();
+  if (plan.copy_dest_part != nullptr) {
+    // Resolve the source via running_app_offset rather than esp_ota_get_running_partition() in
+    // case a prior aborted partition-table OTA called esp_partition_unload_all() in this boot,
+    // which leaves esp_ota_get_running_partition() returning nullptr.
+    const esp_partition_t *running_app_part = find_app_partition_at(running_app_offset, running_app_size);
+    if (running_app_part == nullptr) {
+      ESP_LOGE(TAG, "Cannot resolve running app partition at offset 0x%X", running_app_offset);
+      return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
+    }
     ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,
-             plan.copy_source_part->address, running_app_size);
-
-    err = esp_partition_copy(plan.copy_source_part, 0, running_app_part, 0, running_app_size);
-
+             plan.copy_dest_part->address, running_app_size);
+    err = esp_partition_copy(plan.copy_dest_part, 0, running_app_part, 0, running_app_size);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_partition_copy failed (err=0x%X)", err);
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
