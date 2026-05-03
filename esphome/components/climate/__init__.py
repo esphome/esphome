@@ -526,11 +526,15 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         else:
             body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
 
-    # Match ControlAction::ApplyFn signature: trigger args forwarded
-    # by-value as Ts...
+    # Match ControlAction::ApplyFn signature: `const std::remove_reference_t<T> &`
+    # for each trigger arg so non-reference Ts stay no-copy (`const T &`) and
+    # reference Ts collapse correctly without producing `const T & &`.
     apply_args = [
         (ClimateCall.operator("ref"), "call"),
-        *args,
+        *(
+            (cg.RawExpression(f"const std::remove_reference_t<{cg.safe_exp(t)}> &"), n)
+            for t, n in args
+        ),
     ]
     apply_lambda = LambdaExpression(
         ["\n".join(body_lines)],
