@@ -36,9 +36,12 @@ template<bool HasTransitionLength, typename... Ts> class ToggleAction : public A
 // plus one parent pointer, regardless of how many fields the user set.
 // Trigger args are forwarded to the apply function so user lambdas
 // (e.g. `brightness: !lambda "return x;"`) keep working.
+//
+// Ts... must be forwarded by-value: `const T &` is ill-formed when T is
+// already a reference type (some triggers pass `std::string &`).
 template<typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
-  using ApplyFn = void (*)(LightState *, LightCall &, const Ts &...);
+  using ApplyFn = void (*)(LightState *, LightCall &, Ts...);
   LightControlAction(LightState *parent, ApplyFn apply) : parent_(parent), apply_(apply) {}
 
   void play(const Ts &...x) override {

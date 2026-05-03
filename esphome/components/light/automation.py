@@ -230,11 +230,12 @@ async def light_control_to_code(config, action_id, template_arg, args):
                 f"call.set_effect(static_cast<uint32_t>({_resolve_effect_index(config)}));"
             )
 
-    # Match LightControlAction::ApplyFn signature: const Ts &... for trigger args.
+    # Match LightControlAction::ApplyFn signature: trigger args forwarded
+    # by-value as Ts...
     apply_args = [
         (LightState.operator("ptr"), "parent"),
         (LightCall.operator("ref"), "call"),
-        *((t.operator("const").operator("ref"), n) for t, n in args),
+        *args,
     ]
     apply_lambda = LambdaExpression(
         ["\n".join(body_lines)],
