@@ -423,23 +423,22 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   return OTA_RESPONSE_OK;
 }
 
-void get_running_app_position(uint32_t &offset, size_t &size) {
-  // Gets the start address and the used length (rounded up to flash sectors) of the running app.
-  //
-  // The result is cached because esp_ota_get_running_partition() does not return valid data after
-  // esp_partition_unload_all() has been called during a partition-table OTA. The running app does
-  // not move within a boot, so the first successful query is valid for the lifetime of the process.
-  //
-  // Caching is gated by an explicit `initialized` flag (rather than checking for size == 0) so a
-  // failed first call (e.g., esp_ota_get_running_partition() returning nullptr after a previously
-  // aborted partition-table OTA already called esp_partition_unload_all()) does not poison the
-  // cache; the next caller will retry. Values are written into the cache atomically only after the
-  // full computation succeeds.
-  static bool initialized = false;
-  static uint32_t cached_offset = 0;
-  static size_t cached_size = 0;
+// Process-scoped cache of the running app's flash position. Cannot live on IDFOTABackend
+// because the backend is created/destroyed per OTA connection, while the cached values must
+// survive across connections: once a previously aborted partition-table OTA has called
+// esp_partition_unload_all(), esp_ota_get_running_partition() no longer returns valid data,
+// so we have to remember the answer from the first successful call. The running app does not
+// move within a boot, so a single capture is valid for the process lifetime.
+static bool s_running_app_initialized = false;
+static uint32_t s_running_app_cached_offset = 0;
+static size_t s_running_app_cached_size = 0;
 
-  if (!initialized) {
+void get_running_app_position(uint32_t &offset, size_t &size) {
+  // Returns the start address and the used length (rounded up to flash sectors) of the running app.
+  // The ``s_running_app_initialized`` flag (rather than ``size == 0``) gates the cache so a failed
+  // first call does not poison it; the next caller retries. Values are written atomically only
+  // after the full computation succeeds.
+  if (!s_running_app_initialized) {
     const esp_partition_t *running_app_part = esp_ota_get_running_partition();
     if (running_app_part == nullptr || running_app_part->erase_size == 0) {
       // Cannot determine the running app right now; surface zeros without committing to the cache
@@ -466,13 +465,13 @@ void get_running_app_position(uint32_t &offset, size_t &size) {
     pending_size = ((pending_size + running_app_part->erase_size - 1) / running_app_part->erase_size) *
                    running_app_part->erase_size;
 
-    cached_offset = pending_offset;
-    cached_size = pending_size;
-    initialized = true;
+    s_running_app_cached_offset = pending_offset;
+    s_running_app_cached_size = pending_size;
+    s_running_app_initialized = true;
   }
 
-  offset = cached_offset;
-  size = cached_size;
+  offset = s_running_app_cached_offset;
+  size = s_running_app_cached_size;
 }
 #endif
 
