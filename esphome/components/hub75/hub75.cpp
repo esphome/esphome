@@ -195,6 +195,21 @@ void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, co
   }
 }
 
+void HUB75Display::set_rotation(display::DisplayRotation rotation) {
+  // Apply rotation at the hardware level via the hub75 driver. We deliberately do NOT
+  // call Display::set_rotation() — leaving the base class rotation_ at 0 prevents the
+  // base class draw helpers from rotating coordinates a second time on top of the
+  // driver's hardware rotation.
+  // DisplayRotation and Hub75Rotation share the same numeric values (0/90/180/270).
+  auto hw_rotation = static_cast<Hub75Rotation>(static_cast<int>(rotation));
+  if (this->driver_ != nullptr) {
+    this->driver_->set_rotation(hw_rotation);
+  } else {
+    // setup() hasn't run yet — stash on config_ so the driver picks it up at construction.
+    this->config_.rotation = hw_rotation;
+  }
+}
+
 void HUB75Display::set_brightness(uint8_t brightness) {
   this->brightness_ = brightness;
   this->enabled_ = (brightness > 0);

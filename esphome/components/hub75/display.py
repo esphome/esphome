@@ -627,12 +627,20 @@ async def to_code(config: ConfigType) -> None:
     pins_struct = _build_pins_struct(pin_expressions, e_pin_num)
     hub75_config = _build_config_struct(config, pins_struct, min_refresh)
 
-    # Rotation is handled by the hub75 driver (config_.rotation already set above).
-    # Force rotation to 0 for ESPHome's Display base class to avoid double-rotation.
-    if CONF_ROTATION in config:
-        config[CONF_ROTATION] = 0
+    # Total virtual display dimensions, native (pre-rotation) — what LVGL needs to know.
+    width = config[CONF_PANEL_WIDTH] * config.get(CONF_LAYOUT_COLS, 1)
+    height = config[CONF_PANEL_HEIGHT] * config.get(CONF_LAYOUT_ROWS, 1)
+    display.add_metadata(
+        config[CONF_ID],
+        width,
+        height,
+        has_writer=CONF_LAMBDA in config,
+        has_hardware_rotation=True,
+    )
 
-    # Create display and register
+    # Create display and register. Rotation is handled by the hub75 driver via the virtual
+    # set_rotation() override — setup_display_core_ will emit var->set_rotation(...) and our
+    # override forwards it to the driver without touching Display::rotation_.
     var = cg.new_Pvariable(config[CONF_ID], hub75_config)
     await display.register_display(var, config)
 
