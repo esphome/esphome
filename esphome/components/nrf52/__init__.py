@@ -9,6 +9,7 @@ import subprocess
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.zephyr import (
+    HexValue,
     add_extra_script,
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
@@ -79,59 +80,48 @@ def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
 
     if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
-        zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
+        sections = BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]]
+        zephyr_add_pm_static(sections)
 
-        zephyr_add_overlay(
-            """
+        # Derive partition addresses from the SoftDevice and bootloader sections so
+        # that the DTS flash map matches what the Partition Manager produces:
+        #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1.
+        mcuboot_size = 0x10000  # 64 KB
+        sd_end = next(s.address + s.size for s in sections if "SoftDevice" in s.name)
+        bl_start = next(s.address for s in sections if "Adafruit" in s.name)
+        slot0_start = sd_end + mcuboot_size
+        # Align slot size down to a 4 KB sector boundary
+        slot_size = ((bl_start - slot0_start) // 2 // 0x1000) * 0x1000
+        slot1_start = slot0_start + slot_size
+
+        def _mcuboot_partition_overlay() -> str:
+            return f"""
             /delete-node/ &boot_partition;
 
-            &flash0 {
-                partitions {
+            &flash0 {{
+                partitions {{
                         compatible = "fixed-partitions";
                         #address-cells = <1>;
                         #size-cells = <1>;
 
-                        boot_partition: partition@0 {
+                        boot_partition: partition@{sd_end:x} {{
                             label = "mcuboot";
-                            reg = <0x000000000 0x00010000>;
-                        };
-                        slot0_partition: partition@10000 {
+                            reg = <0x{sd_end:08x} 0x{mcuboot_size:08x}>;
+                        }};
+                        slot0_partition: partition@{slot0_start:x} {{
                             label = "image-0";
-                            reg = <0x000010000 0x000074000>;
-                        };
-                        slot1_partition: partition@75000 {
+                            reg = <0x{slot0_start:08x} 0x{slot_size:08x}>;
+                        }};
+                        slot1_partition: partition@{slot1_start:x} {{
                             label = "image-1";
-                            reg = <0x00084000 0x000074000>;
-                        };
-                };
-            };
-        """,
-            "mcuboot",
-        )
-        zephyr_add_overlay("""
-            /delete-node/ &boot_partition;
+                            reg = <0x{slot1_start:08x} 0x{slot_size:08x}>;
+                        }};
+                }};
+            }};
+        """
 
-            &flash0 {
-                partitions {
-                        compatible = "fixed-partitions";
-                        #address-cells = <1>;
-                        #size-cells = <1>;
-
-                        boot_partition: partition@0 {
-                            label = "mcuboot";
-                            reg = <0x000000000 0x00010000>;
-                        };
-                        slot0_partition: partition@10000 {
-                            label = "image-0";
-                            reg = <0x000010000 0x000074000>;
-                        };
-                        slot1_partition: partition@75000 {
-                            label = "image-1";
-                            reg = <0x00084000 0x000074000>;
-                        };
-                };
-            };
-        """)
+        zephyr_add_overlay(_mcuboot_partition_overlay(), "mcuboot")
+        zephyr_add_overlay(_mcuboot_partition_overlay())
     return config
 
 
@@ -412,10 +402,19 @@ async def to_code(config: ConfigType) -> None:
 
     if config[CONF_SECOND_BOOTLOADER]:
         CORE.data[PLATFORM_NRF52] = {"second_bootloader": True}
-        zephyr_add_prj_conf("USB_DEVICE_STACK", False, image="mcuboot")
-        zephyr_add_prj_conf("CONSOLE", False, image="mcuboot")
+        # zephyr_add_prj_conf("UART_CONSOLE", False, image="mcuboot")
+        # zephyr_add_prj_conf("CONSOLE", False, image="mcuboot")
         # zephyr_add_prj_conf("BOOT_USB_DFU_WAIT", True, image="mcuboot")
-        # zephyr_add_prj_conf("PM_PARTITION_SIZE_MCUBOOT", HexValue(0x10000), image="mcuboot")
+        zephyr_add_prj_conf(
+            "PM_PARTITION_SIZE_MCUBOOT", HexValue(0x10000), image="mcuboot"
+        )
+        zephyr_add_prj_conf("BOOT_SERIAL_CDC_ACM", True, image="mcuboot")
+        # USB CDC ACM requires multithreading and the full USB device stack
+        zephyr_add_prj_conf("MULTITHREADING", True, image="mcuboot")
+        zephyr_add_prj_conf("MCUBOOT_LOG_LEVEL_DBG", True, image="mcuboot")
+        zephyr_add_prj_conf("LOG_MODE_IMMEDIATE", True, image="mcuboot")
+        # zephyr_add_prj_conf("USB_DEVICE_STACK", True, image="mcuboot")
+        # zephyr_add_prj_conf("USB_CDC_ACM", True, image="mcuboot")
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
