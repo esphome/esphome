@@ -75,6 +75,7 @@ void Logger::pre_setup() {
 #endif
     }
     if (!device_is_ready(uart_dev)) {
+      global_logger = this;  // HACK - next statement uses global_logger
       ESP_LOGE(TAG, "%s is not ready.", LOG_STR_ARG(get_uart_selection_()));
     } else {
       this->uart_dev_ = uart_dev;
