@@ -484,6 +484,74 @@ alarm_control_panel:
     codes:
       - "1234"
 
+climate:
+  - platform: template
+    id: template_climate
+    name: "Template Climate"
+    optimistic: true
+    current_temperature: !lambda "return 22.5f;"
+    mode: !lambda "return climate::CLIMATE_MODE_HEAT;"
+    fan_mode: !lambda "return climate::CLIMATE_FAN_AUTO;"
+    swing_mode: !lambda "return climate::CLIMATE_SWING_OFF;"
+    preset: !lambda "return climate::CLIMATE_PRESET_NONE;"
+    target_temperature: !lambda "return 21.0f;"
+    supported_modes:
+      - "OFF"
+      - HEAT
+      - COOL
+    supported_fan_modes:
+      - AUTO
+      - LOW
+      - HIGH
+    supported_swing_modes:
+      - "OFF"
+      - VERTICAL
+    supported_presets:
+      - NONE
+      - ECO
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    set_mode_action:
+      - logger.log: "set_mode_action"
+    set_fan_mode_action:
+      - logger.log: "set_fan_mode_action"
+    set_swing_mode_action:
+      - logger.log: "set_swing_mode_action"
+    set_preset_action:
+      - logger.log: "set_preset_action"
+    set_target_temperature_action:
+      - logger.log: "set_target_temperature_action"
+
+  - platform: template
+    id: template_climate_custom_modes
+    name: "Template Climate Custom Modes"
+    optimistic: true
+    current_temperature: !lambda "return 22.5f;"
+    custom_fan_mode: !lambda "return std::string{\"turbo\"};"
+    custom_preset: !lambda "return std::string{\"eco_plus\"};"
+    custom_fan_modes:
+      - turbo
+      - silent
+      - eco
+    custom_presets:
+      - eco_plus
+      - power_save
+      - max
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    set_custom_fan_mode_action:
+      - logger.log:
+          format: "set_custom_fan_mode_action: %s"
+          args: ["x.c_str()"]
+    set_custom_preset_action:
+      - logger.log:
+          format: "set_custom_preset_action: %s"
+          args: ["x.c_str()"]
+
 water_heater:
   - platform: template
     id: template_water_heater
