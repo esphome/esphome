@@ -52,6 +52,7 @@ from ..lv_validation import (
     lv_text,
     opacity,
     pixels,
+    pixels_or_percent,
     size,
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
@@ -59,7 +60,7 @@ from ..schemas import STYLE_PROPS, TEXT_SCHEMA, point_schema, remap_property
 from ..types import LvType, ObjUpdateAction
 from . import Widget, WidgetType, get_widgets
 from .img import CONF_IMAGE
-from .line import lv_point_precise_t, process_coord
+from .line import lv_point_precise_t
 
 CONF_CANVAS = "canvas"
 CONF_BUFFER_ID = "buffer_id"
@@ -449,7 +450,10 @@ LINE_PROPS = {
 )
 async def canvas_draw_line(config, action_id, template_arg, args):
     points = [
-        [await process_coord(p[CONF_X]), await process_coord(p[CONF_Y])]
+        [
+            await pixels_or_percent.process(p[CONF_X]),
+            await pixels_or_percent.process(p[CONF_Y]),
+        ]
         for p in config[CONF_POINTS]
     ]
 
@@ -475,7 +479,10 @@ async def canvas_draw_line(config, action_id, template_arg, args):
 )
 async def canvas_draw_polygon(config, action_id, template_arg, args):
     points = [
-        [await process_coord(p[CONF_X]), await process_coord(p[CONF_Y])]
+        [
+            await pixels_or_percent.process(p[CONF_X]),
+            await pixels_or_percent.process(p[CONF_Y]),
+        ]
         for p in config[CONF_POINTS]
     ]
     # Close the polygon
