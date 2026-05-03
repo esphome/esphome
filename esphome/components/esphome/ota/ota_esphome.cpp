@@ -498,6 +498,13 @@ void ESPHomeOTAComponent::handle_data_() {
   this->notify_state_(ota::OTA_COMPLETED, 100.0f, 0);
 #endif
   delay(100);  // NOLINT
+#ifdef USE_OTA_PARTITIONS
+  if (ota_type == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
+    // Skip on_safe_shutdown: nvs_flash_deinit() has already invalidated open NVS handles, so
+    // preferences flush would emit ESP_ERR_NVS_INVALID_HANDLE for every entry. Reboot directly.
+    App.reboot();
+  }
+#endif
   App.safe_reboot();
 
 error:
