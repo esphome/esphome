@@ -152,56 +152,51 @@ void BMI270Component::dump_config() {
 //  update() ─
 // Reads all 6 axes + temperature in one block
 
-void BMI270Component::update() {
+bool BMI270Component::update_data_(motion::MotionData &data) {
   if (this->is_failed())
-    return;
+    return false;
 
   //  Accelerometer: registers 0x0C–0x11 (6 bytes: x_lsb, x_msb, y_lsb, y_msb, z_lsb, z_msb)
   uint8_t raw_data[REG_READ_LEN];
-  BMI270AccelData accel_data{};
   if (!this->read_bytes(BMI270_REG_DATA_8, raw_data, REG_READ_LEN)) {
     ESP_LOGW(TAG, "Failed to read IMU data");
-  } else {
-    // Scale factor: LSB/g depends on range
-    // raw is a signed 16-bit value; full-scale = range_g * 2^15 lsb
-    static constexpr float ACCEL_SCALE[] = {
-        2.0f / 32768.0f,
-        4.0f / 32768.0f,
-        8.0f / 32768.0f,
-        16.0f / 32768.0f,
-    };
-    float scale = ACCEL_SCALE[this->accel_range_];
-
-    float acceleration_x = (int16_t) ((raw_data[1] << 8) | raw_data[0]) * scale;
-    float acceleration_y = (int16_t) ((raw_data[3] << 8) | raw_data[2]) * scale;
-    float acceleration_z = (int16_t) ((raw_data[5] << 8) | raw_data[4]) * scale;
-    this->map_axes_(accel_data.acceleration, acceleration_x, acceleration_y, acceleration_z);
-
-    // Gyroscope: registers 0x12–0x17 (6 bytes)
-    // Scale: full-scale range / 2^15
-    static constexpr float GYRO_SCALE[] = {
-        2000.0f / 32768.0f, 1000.0f / 32768.0f, 500.0f / 32768.0f, 250.0f / 32768.0f, 125.0f / 32768.0f,
-    };
-    static constexpr uint8_t GYR_OFFS = BMI270_REG_DATA_14 - BMI270_REG_DATA_8;
-    scale = GYRO_SCALE[this->gyro_range_];
-
-    float angular_rate_x = (int16_t) ((raw_data[GYR_OFFS + 1] << 8) | raw_data[GYR_OFFS + 0]) * scale;
-    float angular_rate_y = (int16_t) ((raw_data[GYR_OFFS + 3] << 8) | raw_data[GYR_OFFS + 2]) * scale;
-    float angular_rate_z = (int16_t) ((raw_data[GYR_OFFS + 5] << 8) | raw_data[GYR_OFFS + 4]) * scale;
-
-    this->map_axes_(accel_data.angular_rate, angular_rate_x, angular_rate_y, angular_rate_z);
-
-    //  Temperature: registers 0x22–0x23
-    // Formula from datasheet: T[°C] = raw / 512 + 23
-    static constexpr uint8_t TEMP_OFFS = BMI270_REG_TEMP_0 - BMI270_REG_DATA_8;
-    int16_t raw_t = (int16_t) ((raw_data[TEMP_OFFS + 1] << 8) | raw_data[TEMP_OFFS + 0]);
-    accel_data.temperature = (raw_t / 512.0f) + 23.0f;
-    ESP_LOGV(TAG, "Accel: [%.3f, %.3f, %.3f] g; Gyro: [%.3f, %.3f, %.3f] °/s; Temp: %.2f °C",
-             accel_data.acceleration[0], accel_data.acceleration[1], accel_data.acceleration[2],
-             accel_data.angular_rate[0], accel_data.angular_rate[1], accel_data.angular_rate[2],
-             accel_data.temperature);
+    return false;
   }
-  this->accel_data_callback_.call(accel_data);
+  // Scale factor: LSB/g depends on range
+  // raw is a signed 16-bit value; full-scale = range_g * 2^15 lsb
+  static constexpr float ACCEL_SCALE[] = {
+      2.0f / 32768.0f,
+      4.0f / 32768.0f,
+      8.0f / 32768.0f,
+      16.0f / 32768.0f,
+  };
+  float scale = ACCEL_SCALE[this->accel_range_];
+
+  data.acceleration[motion::X_AXIS] = (int16_t) ((raw_data[1] << 8) | raw_data[0]) * scale;
+  data.acceleration[motion::Y_AXIS] = (int16_t) ((raw_data[3] << 8) | raw_data[2]) * scale;
+  data.acceleration[motion::Z_AXIS] = (int16_t) ((raw_data[5] << 8) | raw_data[4]) * scale;
+
+  // Gyroscope: registers 0x12–0x17 (6 bytes)
+  // Scale: full-scale range / 2^15
+  static constexpr float GYRO_SCALE[] = {
+      2000.0f / 32768.0f, 1000.0f / 32768.0f, 500.0f / 32768.0f, 250.0f / 32768.0f, 125.0f / 32768.0f,
+  };
+  static constexpr uint8_t GYR_OFFS = BMI270_REG_DATA_14 - BMI270_REG_DATA_8;
+  scale = GYRO_SCALE[this->gyro_range_];
+
+  data.angular_rate[motion::X_AXIS] = (int16_t) ((raw_data[GYR_OFFS + 1] << 8) | raw_data[GYR_OFFS + 0]) * scale;
+  data.angular_rate[motion::Y_AXIS] = (int16_t) ((raw_data[GYR_OFFS + 3] << 8) | raw_data[GYR_OFFS + 2]) * scale;
+  data.angular_rate[motion::Z_AXIS] = (int16_t) ((raw_data[GYR_OFFS + 5] << 8) | raw_data[GYR_OFFS + 4]) * scale;
+
+  if (this->temperature_callback_.empty())
+    return true;
+  //  Temperature: registers 0x22–0x23
+  // Formula from datasheet: T[°C] = raw / 512 + 23
+  static constexpr uint8_t TEMP_OFFS = BMI270_REG_TEMP_0 - BMI270_REG_DATA_8;
+  int16_t raw_t = (int16_t) ((raw_data[TEMP_OFFS + 1] << 8) | raw_data[TEMP_OFFS + 0]);
+  float temperature = (raw_t / 512.0f) + 23.0f;
+  this->temperature_callback_.call(temperature);
+  return true;
 }
 
 }  // namespace bmi270

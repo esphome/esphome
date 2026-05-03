@@ -1,9 +1,9 @@
 #pragma once
 
+#include "esphome/components/motion/motion_component.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/i2c/i2c.h"
-#include <array>
 #include <functional>
 
 namespace esphome {
@@ -78,20 +78,12 @@ enum BMI270GyroODR : uint8_t {
 
 // ---Data class
 
-class BMI270AccelData {
- public:
-  float acceleration[3]{NAN, NAN, NAN};
-  float angular_rate[3]{NAN, NAN, NAN};
-  float temperature{NAN};
-};
-
 // Main component class
-class BMI270Component : public PollingComponent, public i2c::I2CDevice {
+class BMI270Component : public motion::MotionComponent, public i2c::I2CDevice {
  public:
   // Lifecycle
   void setup() override;
   void dump_config() override;
-  void update() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Configuration setters
@@ -99,10 +91,10 @@ class BMI270Component : public PollingComponent, public i2c::I2CDevice {
   void set_accel_odr(BMI270AccelODR o) { accel_odr_ = o; }
   void set_gyro_range(BMI270GyroRange r) { gyro_range_ = r; }
   void set_gyro_odr(BMI270GyroODR o) { gyro_odr_ = o; }
-  void set_matrix(const std::array<float, 9> &m) { memcpy(this->matrix_, m.data(), sizeof(this->matrix_)); }
-  void add_listener(std::function<void(BMI270AccelData &)> &&cb) { accel_data_callback_.add(std::move(cb)); }
+  void add_temperature_listener(std::function<void(float)> callback) { temperature_callback_.add(std::move(callback)); }
 
  protected:
+  bool update_data_(motion::MotionData &data) override;
   bool load_config_file_();
 
   // Config
@@ -110,17 +102,8 @@ class BMI270Component : public PollingComponent, public i2c::I2CDevice {
   BMI270AccelODR accel_odr_{BMI270_ACCEL_ODR_100};
   BMI270GyroRange gyro_range_{BMI270_GYRO_RANGE_2000};
   BMI270GyroODR gyro_odr_{BMI270_GYRO_ODR_200};
-  float matrix_[9]{
-      1, 0, 0, 0, 1, 0, 0, 0, 1,
-  };
 
-  void map_axes_(float output[3], float x, float y, float z) const {
-    output[0] = x * this->matrix_[0] + y * this->matrix_[1] + z * this->matrix_[2];
-    output[1] = x * this->matrix_[3] + y * this->matrix_[4] + z * this->matrix_[5];
-    output[2] = x * this->matrix_[6] + y * this->matrix_[7] + z * this->matrix_[8];
-  };
-
-  LazyCallbackManager<void(BMI270AccelData &)> accel_data_callback_{};
+  LazyCallbackManager<void(float)> temperature_callback_{};
 };
 
 }  // namespace bmi270
