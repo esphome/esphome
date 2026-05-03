@@ -457,9 +457,15 @@ def should_run_device_builder(branch: str | None = None) -> bool:
     """Determine if downstream esphome/device-builder tests should run.
 
     device-builder imports esphome as a library, so whenever the importable
-    Python surface or the runtime dependencies change we re-run its test
-    suite against the PR's code to catch breakage we'd otherwise only see
-    after a release.
+    Python surface, the runtime dependencies, or any non-C++ file packaged
+    with esphome (pyproject.toml has ``include-package-data = true``, so
+    things like esphome/idf_component.yml ship and can affect installs)
+    changes we re-run its test suite against the PR's code to catch
+    breakage we'd otherwise only see after a release.
+
+    Skipped on beta/release branches: those branches typically lag behind
+    device-builder@main, so a new device-builder API dependency would
+    falsely fail the run without reflecting any problem in the PR itself.
 
     Args:
         branch: Branch to compare against. If None, uses default.
@@ -467,10 +473,21 @@ def should_run_device_builder(branch: str | None = None) -> bool:
     Returns:
         True if the device-builder downstream tests should run, False otherwise.
     """
+    target_branch = get_target_branch()
+    if target_branch and (
+        target_branch.startswith("release") or target_branch.startswith("beta")
+    ):
+        return False
+
     for file in changed_files(branch):
-        if file.startswith("esphome/") and file.endswith(PYTHON_FILE_EXTENSIONS):
-            return True
         if file in DEVICE_BUILDER_TRIGGER_FILES:
+            return True
+        # Anything under esphome/ that isn't C++ source can change the
+        # importable / packaged surface device-builder consumes
+        # (Python sources, packaged YAML/JSON like idf_component.yml,
+        # etc.). C++ files only affect compiled firmware, not the
+        # Python install device-builder pulls in.
+        if file.startswith("esphome/") and not file.endswith(CPP_FILE_EXTENSIONS):
             return True
     return False
 

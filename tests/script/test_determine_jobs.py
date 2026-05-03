@@ -762,17 +762,27 @@ def test_should_run_import_time_with_branch() -> None:
         # Runtime dependency changes trigger
         (["requirements.txt"], True),
         (["pyproject.toml"], True),
+        # Non-C++ files packaged with esphome trigger -- device-builder
+        # picks them up because esphome's pyproject sets
+        # include-package-data = true.
+        (["esphome/idf_component.yml"], True),
+        (["esphome/dashboard/templates/index.html"], True),
+        (["esphome/components/api/api_pb2_service.json"], True),
         # Mixed: any triggering file is enough
         (["docs/README.md", "esphome/config.py"], True),
         # Dev/test-only dependency changes don't trigger device-builder
         # (they don't affect the importable surface device-builder uses)
         (["requirements_dev.txt"], False),
         (["requirements_test.txt"], False),
-        # Python files outside esphome/ don't trigger
+        # Files outside esphome/ don't trigger
         (["script/some_other_script.py"], False),
         (["tests/script/test_determine_jobs.py"], False),
-        # Non-Python changes don't trigger
+        # C++ files under esphome/ don't trigger -- they only affect
+        # compiled firmware, not the Python install device-builder pulls in.
         (["esphome/core/component.cpp"], False),
+        (["esphome/core/component.h"], False),
+        (["esphome/components/wifi/wifi_component.cpp"], False),
+        # Files outside esphome/ entirely
         (["tests/components/wifi/test.esp32-idf.yaml"], False),
         (["README.md"], False),
         ([], False),
@@ -781,18 +791,40 @@ def test_should_run_import_time_with_branch() -> None:
 def test_should_run_device_builder(
     changed_files: list[str], expected_result: bool
 ) -> None:
-    """Test should_run_device_builder function."""
-    with patch.object(determine_jobs, "changed_files", return_value=changed_files):
+    """Test should_run_device_builder function (non-beta/release target)."""
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=changed_files),
+        # Mock target branch to "dev" so the beta/release skip is bypassed
+        # for these per-file behavior checks.
+        patch.object(determine_jobs, "get_target_branch", return_value="dev"),
+    ):
         result = determine_jobs.should_run_device_builder()
         assert result == expected_result
 
 
 def test_should_run_device_builder_with_branch() -> None:
     """Test should_run_device_builder with branch argument."""
-    with patch.object(determine_jobs, "changed_files") as mock_changed:
+    with (
+        patch.object(determine_jobs, "changed_files") as mock_changed,
+        patch.object(determine_jobs, "get_target_branch", return_value="dev"),
+    ):
         mock_changed.return_value = []
         determine_jobs.should_run_device_builder("release")
         mock_changed.assert_called_once_with("release")
+
+
+@pytest.mark.parametrize("target_branch", ["beta", "release", "release-2026.5"])
+def test_should_run_device_builder_skips_beta_release(target_branch: str) -> None:
+    """Beta/release target branches skip device-builder (lag behind device-builder@main)."""
+    with (
+        patch.object(determine_jobs, "get_target_branch", return_value=target_branch),
+        patch.object(determine_jobs, "changed_files") as mock_changed,
+    ):
+        # Even with a triggering file present, the target-branch guard wins.
+        mock_changed.return_value = ["esphome/__main__.py"]
+        assert determine_jobs.should_run_device_builder() is False
+        # changed_files shouldn't even be consulted -- the guard short-circuits.
+        mock_changed.assert_not_called()
 
 
 @pytest.mark.parametrize(
