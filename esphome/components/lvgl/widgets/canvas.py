@@ -435,6 +435,13 @@ LINE_PROPS = {
 }
 
 
+def _validate_points(config):
+    for index, point in enumerate(config[CONF_POINTS]):
+        if not all(isinstance(p, int) for p in point.values()):
+            raise cv.Invalid("Points must be integers", path=[index])
+    return config
+
+
 @automation.register_action(
     "lvgl.canvas.draw_line",
     ObjUpdateAction,
@@ -445,14 +452,14 @@ LINE_PROPS = {
             cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
             **{cv.Optional(prop): validator for prop, validator in LINE_PROPS.items()},
         }
-    ),
+    ).add_extra(_validate_points),
     synchronous=True,
 )
 async def canvas_draw_line(config, action_id, template_arg, args):
     points = [
         [
-            await pixels_or_percent.process(p[CONF_X]),
-            await pixels_or_percent.process(p[CONF_Y]),
+            await pixels.process(p[CONF_X]),
+            await pixels.process(p[CONF_Y]),
         ]
         for p in config[CONF_POINTS]
     ]
@@ -474,7 +481,7 @@ async def canvas_draw_line(config, action_id, template_arg, args):
             cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
             **{cv.Optional(prop): STYLE_PROPS[prop] for prop in RECT_PROPS},
         },
-    ),
+    ).add_extra(_validate_points),
     synchronous=True,
 )
 async def canvas_draw_polygon(config, action_id, template_arg, args):
