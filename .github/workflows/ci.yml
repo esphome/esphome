@@ -158,21 +158,30 @@ jobs:
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.13"
-          cache: pip
-          cache-dependency-path: |
-            device-builder/pyproject.toml
-            esphome/requirements.txt
+      - name: Set up uv
+        # Mirrors the install shape device-builder's own CI uses
+        # (esphome/device-builder#192): uv replaces pip for the
+        # install step (order-of-magnitude faster on cold boots,
+        # with its own wheel cache). actions/setup-python still
+        # provides the interpreter.
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
       - name: Install device-builder + esphome from PR
+        # Install device-builder with its esphome + test extras
+        # first so its pinned versions of pytest/etc. land, then
+        # overlay the PR's esphome so the downstream tests run
+        # against this PR's Python code. ``--system`` installs into
+        # the runner's Python instead of a venv.
         run: |
-          python -m pip install --upgrade pip
-          # Install device-builder with its esphome + test extras first so its
-          # pinned versions of pytest/etc. land, then overlay the PR's esphome
-          # so the downstream tests run against this PR's Python code.
-          pip install -e './device-builder[esphome]' -e './device-builder[test]'
-          pip install -e ./esphome
+          uv pip install --system -e './device-builder[esphome,test]'
+          uv pip install --system -e ./esphome
       - name: Run device-builder pytest
+        # ``-n auto`` runs under pytest-xdist (matches device-builder's
+        # own CI). No ``--cov`` here -- this is purely a downstream
+        # smoke check against this PR's esphome code.
         working-directory: device-builder
-        run: pytest -q --maxfail=5 --durations=10 --no-cov --ignore=tests/benchmarks
+        run: pytest -q -n auto --maxfail=5 --durations=10 --no-cov --ignore=tests/benchmarks
 
   pytest:
     name: Run pytest
