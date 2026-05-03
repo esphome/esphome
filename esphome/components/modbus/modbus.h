@@ -24,7 +24,7 @@ struct ModbusFrame {
   uint16_t size;  // Modbus RTU max is 256 bytes
 
   ModbusFrame(uint8_t address, const uint8_t *pdu, uint16_t pdu_len)
-      : data(make_unique<uint8_t[]>(pdu_len + 3)), size(pdu_len + 3) {
+      : data(std::make_unique<uint8_t[]>(pdu_len + 3)), size(pdu_len + 3) {
     data[0] = address;
     memcpy(data.get() + 1, pdu, pdu_len);
     auto crc = crc16(data.get(), pdu_len + 1);

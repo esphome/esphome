@@ -111,7 +111,6 @@ def final_validate_modbus_device(
     )
 
 
-# Remove the server parameter and extract from config.
 async def register_modbus_device(var, config, server: bool = False):
     parent = await cg.get_variable(config[CONF_MODBUS_ID])
     cg.add(var.set_parent(parent))

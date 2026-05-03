@@ -6,8 +6,6 @@
 namespace esphome {
 namespace modbus {
 
-using namespace helpers;
-
 static const char *const TAG = "modbus";
 
 // Maximum bytes to log for Modbus frames (truncated if larger)
@@ -52,14 +50,17 @@ void ModbusClientHub::loop() {
   this->Modbus::loop();
 
   //  If we're past the send_wait_time timeout and response buffer doesn't have the start of the expected response
-  if (this->waiting_for_response_.has_value() &&
-      this->last_receive_check_ - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_ &&
-      (this->rx_buffer_.empty() || this->rx_buffer_[0] != this->waiting_for_response_.value().frame.data.get()[0])) {
-    ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send",
-             this->waiting_for_response_.value().frame.data.get()[0], this->last_receive_check_ - this->last_send_);
-    if (this->waiting_for_response_.value().device)
-      this->waiting_for_response_.value().device->on_modbus_no_response();
-    this->waiting_for_response_.reset();
+  if (this->waiting_for_response_.has_value()) {
+    ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
+    uint8_t expected_address = wfr.frame.data.get()[0];
+    if (this->last_receive_check_ - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_ &&
+        (this->rx_buffer_.empty() || this->rx_buffer_[0] != expected_address)) {
+      ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send", expected_address,
+               this->last_receive_check_ - this->last_send_);
+      if (wfr.device)
+        wfr.device->on_modbus_no_response();
+      this->waiting_for_response_.reset();
+    }
   }
 
   //  If there's no response pending and there's commands in the buffer
@@ -186,7 +187,7 @@ uint16_t Modbus::find_custom_frame_end_(uint16_t min_length) const {
 
 bool Modbus::parse_modbus_server_frame_() {
   size_t size = this->rx_buffer_.size();
-  uint16_t frame_length = server_frame_length(this->rx_buffer_);
+  uint16_t frame_length = helpers::server_frame_length(this->rx_buffer_);
 
   if (size < frame_length)
     return true;
@@ -194,7 +195,7 @@ bool Modbus::parse_modbus_server_frame_() {
   uint8_t address = this->rx_buffer_[0];
   uint8_t function_code = this->rx_buffer_[1];
 
-  if (is_function_code_custom(function_code)) {
+  if (helpers::is_function_code_custom(function_code)) {
     frame_length = this->find_custom_frame_end_(frame_length);
     if (frame_length == 0)
       return size < MAX_FRAME_SIZE;  // Continue to parse until we hit max size
@@ -206,7 +207,7 @@ bool Modbus::parse_modbus_server_frame_() {
 
   // Process before clearing: process_modbus_server_frame (receiving a response or peer message) never sends a reply
   // synchronously We can safely point directly into rx_buffer_ and avoid a copy.
-  uint8_t data_offset = server_frame_data_offset(this->rx_buffer_);
+  uint8_t data_offset = helpers::server_frame_data_offset(this->rx_buffer_);
   const uint8_t *data = this->rx_buffer_.data() + data_offset;
   uint16_t data_len = frame_length - 2 - data_offset;
 
@@ -218,7 +219,7 @@ bool Modbus::parse_modbus_server_frame_() {
 
 bool ModbusServerHub::parse_modbus_client_frame_() {
   size_t size = this->rx_buffer_.size();
-  uint16_t frame_length = client_frame_length(this->rx_buffer_);
+  uint16_t frame_length = helpers::client_frame_length(this->rx_buffer_);
 
   if (size < frame_length)
     return true;
@@ -226,7 +227,7 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   uint8_t address = this->rx_buffer_[0];
   uint8_t function_code = this->rx_buffer_[1];
 
-  if (is_function_code_custom(function_code)) {
+  if (helpers::is_function_code_custom(function_code)) {
     frame_length = this->find_custom_frame_end_(frame_length);
     if (frame_length == 0)
       return size < MAX_FRAME_SIZE;  // Continue to parse until we hit max size
@@ -239,7 +240,7 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   // Clear before processing: process_modbus_client_frame_ dispatches to a server device which sends
   // a response immediately. We need to clear the rx buffer first so the response doesn't snag tx_blocked.
   // This requires copying the frame data to a local buffer beforehand.
-  uint8_t data_offset = client_frame_data_offset(this->rx_buffer_);
+  uint8_t data_offset = helpers::client_frame_data_offset(this->rx_buffer_);
   uint16_t data_len = frame_length - 2 - data_offset;
   uint8_t data[MAX_FRAME_SIZE];
   std::memcpy(data, this->rx_buffer_.data() + data_offset, data_len);
@@ -287,7 +288,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
 
       this->waiting_for_response_.reset();
       // Is it an error response?
-      if (is_function_code_exception(function_code)) {
+      if (helpers::is_function_code_exception(function_code)) {
         uint8_t exception = len > 0 ? data[0] : 0;
         ESP_LOGW(TAG,
                  "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "ms after last send",
@@ -339,7 +340,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
           device->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
           continue;
         }
-        device->on_modbus_read_registers(function_code, get_data<uint16_t>(data, 0), get_data<uint16_t>(data, 2));
+        device->on_modbus_read_registers(function_code, helpers::get_data<uint16_t>(data, 0),
+                                         helpers::get_data<uint16_t>(data, 2));
       } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
                  function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
         device->on_modbus_write_registers(function_code, std::vector<uint8_t>(data, data + len));
