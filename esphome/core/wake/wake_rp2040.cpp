@@ -36,6 +36,10 @@ void wakeable_delay(uint32_t ms) {
   }
   if (g_main_loop_woke) {
     g_main_loop_woke = false;
+    // Yield even on the already-woken fast path so callers in tight loops
+    // (e.g. lwIP raw TCP wait_for_data_) make forward progress when async
+    // wakes keep re-setting g_main_loop_woke between iterations.
+    yield();
     return;
   }
   s_delay_expired = false;

@@ -1,5 +1,6 @@
 """Speaker Media Player Setup."""
 
+from functools import partial
 import hashlib
 import logging
 from pathlib import Path
@@ -32,7 +33,7 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import CORE, HexInt
-from esphome.external_files import download_content
+from esphome.external_files import download_web_files_in_config
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -90,15 +91,6 @@ def _compute_local_file_path(value: dict) -> Path:
     base_dir = external_files.compute_local_file_dir(DOMAIN)
     _LOGGER.debug("_compute_local_file_path: base_dir=%s", base_dir / key)
     return base_dir / key
-
-
-def _download_web_file(value):
-    url = value[CONF_URL]
-    path = _compute_local_file_path(value)
-
-    download_content(url, path)
-    _LOGGER.debug("download_web_file: path=%s", path)
-    return value
 
 
 _PURPOSE_MAP = {
@@ -229,11 +221,10 @@ LOCAL_SCHEMA = cv.Schema(
     }
 )
 
-WEB_SCHEMA = cv.All(
+WEB_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_URL): cv.url,
-    },
-    _download_web_file,
+    }
 )
 
 
@@ -285,7 +276,12 @@ CONFIG_SCHEMA = cv.All(
             ),
             # Remove before 2026.10.0
             cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.Any(cv.boolean, cv.string),
-            cv.Optional(CONF_FILES): cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
+            cv.Optional(CONF_FILES): cv.All(
+                cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
+                partial(
+                    download_web_files_in_config, path_for=_compute_local_file_path
+                ),
+            ),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
                 cv.boolean, cv.requires_component(psram.DOMAIN)
             ),
