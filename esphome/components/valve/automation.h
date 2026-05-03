@@ -52,9 +52,12 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
 // plus one parent pointer, regardless of how many fields the user set.
 // Trigger args are forwarded to the apply function so user lambdas
 // (e.g. `position: !lambda "return x;"`) keep working.
+//
+// Ts... must be forwarded by-value: `const T &` is ill-formed when T is
+// already a reference type (some triggers pass `std::string &`).
 template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
-  using ApplyFn = void (*)(ValveCall &, const Ts &...);
+  using ApplyFn = void (*)(ValveCall &, Ts...);
   ControlAction(Valve *valve, ApplyFn apply) : valve_(valve), apply_(apply) {}
 
   void play(const Ts &...x) override {
