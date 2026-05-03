@@ -34,8 +34,6 @@ class HUB75Display : public display::Display {
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
-  // Hardware rotation: forwarded to the hub75 driver so LVGL (and base-class drawing helpers)
-  // see rotated coordinates without the base class doing a software rotation pass on top.
   void set_rotation(display::DisplayRotation rotation) override;
 
   // Brightness control (runtime mutable)
