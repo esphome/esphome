@@ -59,8 +59,7 @@ class TaskLogBuffer {
   // Valid log levels are 0-7, so 0xFF cannot be a real message
   static constexpr uint8_t PADDING_MARKER_LEVEL = 0xFF;
 
-  // Constructor that takes a total buffer size
-  explicit TaskLogBuffer(size_t total_buffer_size);
+  TaskLogBuffer();
   ~TaskLogBuffer();
 
   // NOT thread-safe - borrow a message from the buffer, only call from main loop
@@ -78,7 +77,7 @@ class TaskLogBuffer {
   inline bool HOT has_messages() const { return this->message_count_ != 0; }
 
   // Get the total buffer size in bytes
-  inline size_t size() const { return this->size_; }
+  static constexpr size_t size() { return ESPHOME_TASK_LOG_BUFFER_SIZE; }
 
  private:
   // Calculate total size needed for a message (header + text + null terminator)
@@ -87,10 +86,9 @@ class TaskLogBuffer {
   // Calculate available contiguous space at write position
   size_t available_contiguous_space() const;
 
-  uint8_t *storage_{nullptr};  // Pointer to allocated memory
-  size_t size_{0};             // Size of allocated memory
-  size_t head_{0};             // Write position
-  size_t tail_{0};             // Read position
+  uint8_t storage_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Embedded in Logger (no separate heap allocation)
+  size_t head_{0};                                 // Write position
+  size_t tail_{0};                                 // Read position
 
   SemaphoreHandle_t mutex_{nullptr};    // FreeRTOS mutex for thread safety
   volatile uint16_t message_count_{0};  // Fast check counter (dirty read OK)

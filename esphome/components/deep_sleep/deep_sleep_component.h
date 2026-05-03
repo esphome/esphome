@@ -4,7 +4,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-
 #ifdef USE_ESP32
 #include <esp_sleep.h>
 #endif
@@ -113,9 +112,6 @@ class DeepSleepComponent : public Component {
   void setup() override;
   void dump_config() override;
   void loop() override;
-#ifdef USE_LOOP_PRIORITY
-  float get_loop_priority() const override;
-#endif
   float get_setup_priority() const override;
 
   /// Helper to enter deep sleep mode
@@ -132,6 +128,8 @@ class DeepSleepComponent : public Component {
   void dump_config_platform_();
   bool prepare_to_sleep_();
   void deep_sleep_();
+  void schedule_sleep_();
+  bool should_teardown_();
 
 #ifdef USE_BK72XX
   bool pin_prevents_sleep_(WakeUpPinItem &pinItem) const;

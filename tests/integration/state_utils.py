@@ -13,6 +13,7 @@ from aioesphomeapi import (
     EntityInfo,
     EntityState,
     SensorState,
+    TextSensorState,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -87,7 +88,7 @@ def build_key_to_entity_mapping(
 
     Args:
         entities: List of entity info objects from the API
-        entity_names: List of entity names to search for in object_ids
+        entity_names: List of entity names to match exactly against object_ids
 
     Returns:
         Dictionary mapping entity keys to entity names
@@ -96,7 +97,7 @@ def build_key_to_entity_mapping(
     for entity in entities:
         obj_id = entity.object_id.lower()
         for entity_name in entity_names:
-            if entity_name in obj_id:
+            if entity_name == obj_id:
                 key_to_entity[entity.key] = entity_name
                 break
     return key_to_entity
@@ -244,12 +245,13 @@ class InitialStateHelper:
 
 
 class SensorStateCollector:
-    """Collects sensor and binary sensor state updates and provides wait helpers.
+    """Collects sensor, binary sensor, and text sensor state updates with wait helpers.
 
     Usage:
         collector = SensorStateCollector(
             sensor_names=["moving_distance", "still_distance"],
             binary_sensor_names=["has_target"],
+            text_sensor_names=["direction"],
         )
         # Use collector.on_state as the callback (or wrap it)
         client.subscribe_states(helper.on_state_wrapper(collector.on_state))
@@ -259,17 +261,22 @@ class SensorStateCollector:
 
         # Access collected states
         assert collector.sensor_states["moving_distance"][0] == approx(100.0)
+        assert collector.text_sensor_states["direction"][0] == "Approaching"
     """
 
     def __init__(
         self,
         sensor_names: list[str],
         binary_sensor_names: list[str] | None = None,
+        text_sensor_names: list[str] | None = None,
         entities: list[EntityInfo] | None = None,
     ) -> None:
         self.sensor_states: dict[str, list[float]] = {name: [] for name in sensor_names}
         self.binary_states: dict[str, list[bool]] = {
             name: [] for name in (binary_sensor_names or [])
+        }
+        self.text_sensor_states: dict[str, list[str]] = {
+            name: [] for name in (text_sensor_names or [])
         }
         self._key_to_sensor: dict[int, str] = {}
         self._waiters: list[tuple[Callable[[], bool], asyncio.Future[bool]]] = []
@@ -279,7 +286,11 @@ class SensorStateCollector:
 
     def build_key_mapping(self, entities: list[EntityInfo]) -> None:
         """Build key-to-name mapping from entities. Sorted by descending length."""
-        all_names = list(self.sensor_states.keys()) + list(self.binary_states.keys())
+        all_names = (
+            list(self.sensor_states.keys())
+            + list(self.binary_states.keys())
+            + list(self.text_sensor_states.keys())
+        )
         all_names.sort(key=len, reverse=True)
         self._key_to_sensor = build_key_to_entity_mapping(entities, all_names)
 
@@ -295,6 +306,11 @@ class SensorStateCollector:
             if sensor_name and sensor_name in self.binary_states:
                 self.binary_states[sensor_name].append(state.state)
                 self._check_waiters()
+        elif isinstance(state, TextSensorState) and not state.missing_state:
+            sensor_name = self._key_to_sensor.get(state.key)
+            if sensor_name and sensor_name in self.text_sensor_states:
+                self.text_sensor_states[sensor_name].append(state.state)
+                self._check_waiters()
 
     def _check_waiters(self) -> None:
         """Check all pending waiters and resolve any whose condition is met."""
@@ -303,9 +319,11 @@ class SensorStateCollector:
                 future.set_result(True)
 
     def _all_have_values(self) -> bool:
-        """Check if all sensor and binary sensor lists have at least one value."""
-        return all(len(v) >= 1 for v in self.sensor_states.values()) and all(
-            len(v) >= 1 for v in self.binary_states.values()
+        """Check if all sensor, binary sensor, and text sensor lists have at least one value."""
+        return (
+            all(len(v) >= 1 for v in self.sensor_states.values())
+            and all(len(v) >= 1 for v in self.binary_states.values())
+            and all(len(v) >= 1 for v in self.text_sensor_states.values())
         )
 
     async def wait_for_all(self, timeout: float = 3.0) -> None:
@@ -328,3 +346,109 @@ class SensorStateCollector:
         else:
             self._waiters.append((condition, future))
         return future
+
+
+class SensorTracker:
+    """Data-driven sensor state tracker with expected-value futures.
+
+    Tracks sensor state updates and resolves futures when sensors report
+    specific expected values. Eliminates per-sensor future boilerplate.
+
+    Usage::
+
+        tracker = SensorTracker(["reg_u_word", "reg_s_word"])
+        futures = tracker.expect_all({"reg_u_word": 99, "reg_s_word": -99})
+        # ... subscribe_states with tracker.on_state, start scenario ...
+        await tracker.await_all(futures)
+    """
+
+    def __init__(self, sensor_names: list[str]) -> None:
+        self.sensor_states: dict[str, list[float]] = {name: [] for name in sensor_names}
+        self.key_to_sensor: dict[int, str] = {}
+        self._expectations: dict[str, list[tuple[object, asyncio.Future]]] = {}
+
+    _ANY = object()  # Sentinel: match any value
+
+    def expect(self, name: str, value: object) -> asyncio.Future:
+        """Register an expected value for *name* and return a future for it."""
+        future: asyncio.Future = asyncio.get_running_loop().create_future()
+        self._expectations.setdefault(name, []).append((value, future))
+        return future
+
+    def expect_any(self, name: str) -> asyncio.Future:
+        """Register a future that resolves on *any* state update for *name*."""
+        return self.expect(name, self._ANY)
+
+    def expect_all(self, expected: dict[str, object]) -> dict[str, asyncio.Future]:
+        """Call ``expect`` for every entry and return a dict of futures."""
+        return {name: self.expect(name, value) for name, value in expected.items()}
+
+    def on_state(self, state: EntityState) -> None:
+        """State callback suitable for ``subscribe_states``."""
+        if not isinstance(state, SensorState) or state.missing_state:
+            return
+        sensor_name = self.key_to_sensor.get(state.key)
+        if not sensor_name or sensor_name not in self.sensor_states:
+            return
+        self.sensor_states[sensor_name].append(state.state)
+        for expected_value, future in self._expectations.get(sensor_name, []):
+            if not future.done() and (
+                expected_value is self._ANY or state.state == expected_value
+            ):
+                future.set_result(True)
+                break
+
+    async def await_change(
+        self, future: asyncio.Future, name: str, timeout: float = 2.0
+    ) -> None:
+        """Wait for a sensor future to resolve; fail the test on timeout."""
+        try:
+            await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError:
+            import pytest
+
+            pytest.fail(
+                f"Timeout waiting for {name} change. Received sensor states:\n"
+                f"  {name}: {self.sensor_states[name]}\n"
+            )
+
+    async def await_must_not_change(
+        self, future: asyncio.Future, name: str, timeout: float = 2.0
+    ) -> None:
+        """Assert a sensor future does NOT resolve within the timeout."""
+        try:
+            await asyncio.wait_for(future, timeout=timeout)
+        except TimeoutError:
+            return  # Expected
+        import pytest
+
+        pytest.fail(
+            f"{name} change should not have been triggered, but was. "
+            f"Received sensor states:\n  {name}: {self.sensor_states[name]}\n"
+        )
+
+    async def await_all(
+        self, futures: dict[str, asyncio.Future], timeout: float = 2.0
+    ) -> None:
+        """Await every future in *futures*, failing with per-sensor diagnostics."""
+        for name, future in futures.items():
+            await self.await_change(future, name, timeout=timeout)
+
+    async def setup_and_start_scenario(self, client) -> list:
+        """Wire up subscriptions, wait for initial states, press Start Scenario."""
+        entities, _ = await client.list_entities_services()
+        self.key_to_sensor.update(
+            build_key_to_entity_mapping(entities, list(self.sensor_states.keys()))
+        )
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(self.on_state))
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            import pytest
+
+            pytest.fail("Timeout waiting for initial states")
+        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
+        assert start_btn is not None, "Start Scenario button not found"
+        client.button_command(start_btn.key)
+        return entities

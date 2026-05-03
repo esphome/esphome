@@ -39,6 +39,7 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -232,7 +233,7 @@ async def setup_cover_core_(var, config):
 async def register_cover(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_cover(var))
+    queue_entity_register("cover", config)
     CORE.register_platform_component("cover", var)
     await setup_cover_core_(var, config)
 
@@ -300,16 +301,16 @@ async def cover_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if (stop := config.get(CONF_STOP)) is not None:
-        template_ = await cg.templatable(stop, args, bool)
+        template_ = await cg.templatable(stop, args, cg.bool_)
         cg.add(var.set_stop(template_))
     if (state := config.get(CONF_STATE)) is not None:
-        template_ = await cg.templatable(state, args, float)
+        template_ = await cg.templatable(state, args, cg.float_)
         cg.add(var.set_position(template_))
     if (position := config.get(CONF_POSITION)) is not None:
-        template_ = await cg.templatable(position, args, float)
+        template_ = await cg.templatable(position, args, cg.float_)
         cg.add(var.set_position(template_))
     if (tilt := config.get(CONF_TILT)) is not None:
-        template_ = await cg.templatable(tilt, args, float)
+        template_ = await cg.templatable(tilt, args, cg.float_)
         cg.add(var.set_tilt(template_))
     return var
 

@@ -55,45 +55,49 @@ using GroupJoinAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYE
 template<typename... Ts>
 using ClearPlaylistAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST, Ts...>;
 
-template<typename... Ts> class PlayMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
+template<MediaPlayerCommand Command, typename... Ts>
+class MediaPlayerMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(std::string, media_url)
   TEMPLATABLE_VALUE(bool, announcement)
   void play(const Ts &...x) override {
-    this->parent_->make_call()
-        .set_media_url(this->media_url_.value(x...))
-        .set_announcement(this->announcement_.value(x...))
-        .perform();
+    auto call = this->parent_->make_call();
+    if constexpr (Command != MediaPlayerCommand::MEDIA_PLAYER_COMMAND_PLAY)
+      call.set_command(Command);
+    call.set_media_url(this->media_url_.value(x...)).set_announcement(this->announcement_.value(x...)).perform();
   }
 };
+
+template<typename... Ts>
+using PlayMediaAction = MediaPlayerMediaAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_PLAY, Ts...>;
+template<typename... Ts>
+using EnqueueMediaAction = MediaPlayerMediaAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_ENQUEUE, Ts...>;
 
 template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(float, volume)
   void play(const Ts &...x) override { this->parent_->make_call().set_volume(this->volume_.value(x...)).perform(); }
 };
 
-class StateTrigger : public Trigger<> {
- public:
-  explicit StateTrigger(MediaPlayer *player) {
-    player->add_on_state_callback([this]() { this->trigger(); });
+/// Callback forwarder that triggers an Automation<> on any state change.
+/// Pointer-sized (single Automation* field) to fit inline in Callback::ctx_.
+struct StateAnyForwarder {
+  Automation<> *automation;
+  void operator()(MediaPlayerState /*state*/) const { this->automation->trigger(); }
+};
+
+/// Callback forwarder that triggers an Automation<> only when a specific media player state is entered.
+/// Pointer-sized (single Automation* field) to fit inline in Callback::ctx_.
+template<MediaPlayerState State> struct StateEnterForwarder {
+  Automation<> *automation;
+  void operator()(MediaPlayerState state) const {
+    if (state == State)
+      this->automation->trigger();
   }
 };
 
-template<MediaPlayerState State> class MediaPlayerStateTrigger : public Trigger<> {
- public:
-  explicit MediaPlayerStateTrigger(MediaPlayer *player) {
-    player->add_on_state_callback([this, player]() {
-      if (player->state == State)
-        this->trigger();
-    });
-  }
-};
-
-using IdleTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>;
-using PlayTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING>;
-using PauseTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_PAUSED>;
-using AnnouncementTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING>;
-using OnTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_ON>;
-using OffTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_OFF>;
+static_assert(sizeof(StateAnyForwarder) <= sizeof(void *));
+static_assert(std::is_trivially_copyable_v<StateAnyForwarder>);
+static_assert(sizeof(StateEnterForwarder<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>) <= sizeof(void *));
+static_assert(std::is_trivially_copyable_v<StateEnterForwarder<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>>);
 
 template<typename... Ts> class IsIdleCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:

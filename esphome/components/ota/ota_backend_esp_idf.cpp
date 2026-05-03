@@ -2,14 +2,17 @@
 #include "ota_backend_esp_idf.h"
 
 #include "esphome/components/md5/md5.h"
+#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/log.h"
 
 #include <esp_ota_ops.h>
 #include <esp_task_wdt.h>
 #include <spi_flash_mmap.h>
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
+
+static const char *const TAG = "ota.idf";
 
 std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
@@ -26,28 +29,8 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
     return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
   }
 
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-  // The following function takes longer than the 5 seconds timeout of WDT
-  esp_task_wdt_config_t wdtc;
-  wdtc.idle_core_mask = 0;
-#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0
-  wdtc.idle_core_mask |= (1 << 0);
-#endif
-#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1
-  wdtc.idle_core_mask |= (1 << 1);
-#endif
-  wdtc.timeout_ms = 15000;
-  wdtc.trigger_panic = false;
-  esp_task_wdt_reconfigure(&wdtc);
-#endif
-
+  watchdog::WatchdogManager watchdog(15000);
   esp_err_t err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
-
-#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
-  // Set the WDT back to the configured timeout
-  wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
-  esp_task_wdt_reconfigure(&wdtc);
-#endif
 
   if (err != ESP_OK) {
     esp_ota_abort(this->update_handle_);
@@ -99,7 +82,12 @@ OTAResponseTypes IDFOTABackend::end() {
     }
   }
   if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+#ifdef USE_OTA_SIGNED_VERIFICATION
+    ESP_LOGE(TAG, "OTA validation failed (err=0x%X) - possible signature verification failure", err);
+    return OTA_RESPONSE_ERROR_SIGNATURE_INVALID;
+#else
     return OTA_RESPONSE_ERROR_UPDATE_END;
+#endif
   }
   if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
@@ -112,6 +100,5 @@ void IDFOTABackend::abort() {
   this->update_handle_ = 0;
 }
 
-}  // namespace ota
-}  // namespace esphome
+}  // namespace esphome::ota
 #endif  // USE_ESP32

@@ -145,6 +145,12 @@ bool ListEntitiesIterator::on_infrared(infrared::Infrared *obj) {
   return true;
 }
 #endif
+#ifdef USE_RADIO_FREQUENCY
+bool ListEntitiesIterator::on_radio_frequency(radio_frequency::RadioFrequency *obj) {
+  this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::radio_frequency_all_json_generator);
+  return true;
+}
+#endif
 
 #ifdef USE_EVENT
 bool ListEntitiesIterator::on_event(event::Event *obj) {

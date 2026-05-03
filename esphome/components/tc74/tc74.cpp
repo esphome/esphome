@@ -50,8 +50,9 @@ void TC74Component::read_temperature_() {
     }
   }
 
-  uint8_t temperature_reg;
-  if (this->read_register(TC74_REGISTER_TEMPERATURE, &temperature_reg, 1) != i2c::ERROR_OK) {
+  int8_t temperature_reg;
+  if (this->read_register(TC74_REGISTER_TEMPERATURE, reinterpret_cast<uint8_t *>(&temperature_reg), 1) !=
+      i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }

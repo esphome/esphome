@@ -4,8 +4,7 @@
 
 #include "esphome/core/defines.h"
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 class ArduinoLibreTinyOTABackend final {
  public:
@@ -22,7 +21,5 @@ class ArduinoLibreTinyOTABackend final {
 
 std::unique_ptr<ArduinoLibreTinyOTABackend> make_ota_backend();
 
-}  // namespace ota
-}  // namespace esphome
-
+}  // namespace esphome::ota
 #endif  // USE_LIBRETINY

@@ -60,6 +60,12 @@ esphome:
             }
           }
 
+      # Test set_effect with const char* doesn't cause ambiguous overload (issue #14728)
+      - lambda: |-
+          auto call = id(test_monochromatic_light).turn_on();
+          call.set_effect("None");
+          call.perform();
+
       - light.toggle: test_binary_light
       - light.turn_off: test_rgb_light
       - light.turn_on:
@@ -102,6 +108,10 @@ esphome:
           relative_brightness: 5%
           brightness_limits:
             max_brightness: 90%
+      - light.dim_relative:
+          id: test_monochromatic_light
+          relative_brightness: -5%
+          transition_length: 250ms
       - light.turn_on:
           id: test_addressable_transition
           brightness: 50%

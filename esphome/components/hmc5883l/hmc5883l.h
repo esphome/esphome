@@ -61,7 +61,7 @@ class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
     NONE = 0,
     COMMUNICATION_FAILED,
     ID_REGISTERS,
-  } error_code_;
+  } error_code_{NONE};
   HighFrequencyLoopRequester high_freq_;
 };
 

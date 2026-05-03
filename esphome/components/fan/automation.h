@@ -7,29 +7,24 @@
 namespace esphome {
 namespace fan {
 
+// All configured fields are baked into a single stateless lambda whose
+// constants live in flash. The action only stores one function pointer
+// plus one parent pointer, regardless of how many fields the user set.
+// Trigger args are forwarded to the apply function so user lambdas
+// (e.g. `speed: !lambda "return x;"`) keep working.
 template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
-  explicit TurnOnAction(Fan *state) : state_(state) {}
-
-  TEMPLATABLE_VALUE(bool, oscillating)
-  TEMPLATABLE_VALUE(int, speed)
-  TEMPLATABLE_VALUE(FanDirection, direction)
+  using ApplyFn = void (*)(FanCall &, const Ts &...);
+  TurnOnAction(Fan *state, ApplyFn apply) : state_(state), apply_(apply) {}
 
   void play(const Ts &...x) override {
     auto call = this->state_->turn_on();
-    if (this->oscillating_.has_value()) {
-      call.set_oscillating(this->oscillating_.value(x...));
-    }
-    if (this->speed_.has_value()) {
-      call.set_speed(this->speed_.value(x...));
-    }
-    if (this->direction_.has_value()) {
-      call.set_direction(this->direction_.value(x...));
-    }
+    this->apply_(call, x...);
     call.perform();
   }
 
   Fan *state_;
+  ApplyFn apply_;
 };
 
 template<typename... Ts> class TurnOffAction : public Action<Ts...> {
@@ -113,16 +108,19 @@ template<typename... Ts> class FanIsOffCondition : public Condition<Ts...> {
 
 class FanStateTrigger : public Trigger<Fan *> {
  public:
-  FanStateTrigger(Fan *state) {
-    state->add_on_state_callback([this, state]() { this->trigger(state); });
+  FanStateTrigger(Fan *state) : fan_(state) {
+    state->add_on_state_callback([this]() { this->trigger(this->fan_); });
   }
+
+ protected:
+  Fan *fan_;
 };
 
 class FanTurnOnTrigger : public Trigger<> {
  public:
-  FanTurnOnTrigger(Fan *state) {
-    state->add_on_state_callback([this, state]() {
-      auto is_on = state->state;
+  FanTurnOnTrigger(Fan *state) : fan_(state) {
+    state->add_on_state_callback([this]() {
+      auto is_on = this->fan_->state;
       auto should_trigger = is_on && !this->last_on_;
       this->last_on_ = is_on;
       if (should_trigger) {
@@ -133,14 +131,15 @@ class FanTurnOnTrigger : public Trigger<> {
   }
 
  protected:
+  Fan *fan_;
   bool last_on_;
 };
 
 class FanTurnOffTrigger : public Trigger<> {
  public:
-  FanTurnOffTrigger(Fan *state) {
-    state->add_on_state_callback([this, state]() {
-      auto is_on = state->state;
+  FanTurnOffTrigger(Fan *state) : fan_(state) {
+    state->add_on_state_callback([this]() {
+      auto is_on = this->fan_->state;
       auto should_trigger = !is_on && this->last_on_;
       this->last_on_ = is_on;
       if (should_trigger) {
@@ -151,14 +150,15 @@ class FanTurnOffTrigger : public Trigger<> {
   }
 
  protected:
+  Fan *fan_;
   bool last_on_;
 };
 
 class FanDirectionSetTrigger : public Trigger<FanDirection> {
  public:
-  FanDirectionSetTrigger(Fan *state) {
-    state->add_on_state_callback([this, state]() {
-      auto direction = state->direction;
+  FanDirectionSetTrigger(Fan *state) : fan_(state) {
+    state->add_on_state_callback([this]() {
+      auto direction = this->fan_->direction;
       auto should_trigger = direction != this->last_direction_;
       this->last_direction_ = direction;
       if (should_trigger) {
@@ -169,14 +169,15 @@ class FanDirectionSetTrigger : public Trigger<FanDirection> {
   }
 
  protected:
+  Fan *fan_;
   FanDirection last_direction_;
 };
 
 class FanOscillatingSetTrigger : public Trigger<bool> {
  public:
-  FanOscillatingSetTrigger(Fan *state) {
-    state->add_on_state_callback([this, state]() {
-      auto oscillating = state->oscillating;
+  FanOscillatingSetTrigger(Fan *state) : fan_(state) {
+    state->add_on_state_callback([this]() {
+      auto oscillating = this->fan_->oscillating;
       auto should_trigger = oscillating != this->last_oscillating_;
       this->last_oscillating_ = oscillating;
       if (should_trigger) {
@@ -187,14 +188,15 @@ class FanOscillatingSetTrigger : public Trigger<bool> {
   }
 
  protected:
+  Fan *fan_;
   bool last_oscillating_;
 };
 
 class FanSpeedSetTrigger : public Trigger<int> {
  public:
-  FanSpeedSetTrigger(Fan *state) {
-    state->add_on_state_callback([this, state]() {
-      auto speed = state->speed;
+  FanSpeedSetTrigger(Fan *state) : fan_(state) {
+    state->add_on_state_callback([this]() {
+      auto speed = this->fan_->speed;
       auto should_trigger = speed != this->last_speed_;
       this->last_speed_ = speed;
       if (should_trigger) {
@@ -205,14 +207,15 @@ class FanSpeedSetTrigger : public Trigger<int> {
   }
 
  protected:
+  Fan *fan_;
   int last_speed_;
 };
 
 class FanPresetSetTrigger : public Trigger<StringRef> {
  public:
-  FanPresetSetTrigger(Fan *state) {
-    state->add_on_state_callback([this, state]() {
-      auto preset_mode = state->get_preset_mode();
+  FanPresetSetTrigger(Fan *state) : fan_(state) {
+    state->add_on_state_callback([this]() {
+      auto preset_mode = this->fan_->get_preset_mode();
       auto should_trigger = preset_mode != this->last_preset_mode_;
       this->last_preset_mode_ = preset_mode;
       if (should_trigger) {
@@ -223,6 +226,7 @@ class FanPresetSetTrigger : public Trigger<StringRef> {
   }
 
  protected:
+  Fan *fan_;
   StringRef last_preset_mode_{};
 };
 

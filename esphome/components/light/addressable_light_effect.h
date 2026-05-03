@@ -324,6 +324,8 @@ class AddressableFireworksEffect : public AddressableLightEffect {
         target *= 170;
       view = target;
     }
+    if (it.size() < 2)
+      return;
     int last = it.size() - 1;
     it[0].set(it[0].get() + (it[1].get() * 128));
     for (int i = 1; i < last; i++) {

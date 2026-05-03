@@ -192,8 +192,13 @@ bool Pipsolar::send_next_command_() {
   if (!this->command_queue_[this->command_queue_position_].empty()) {
     const char *command = this->command_queue_[this->command_queue_position_].c_str();
     uint8_t byte_command[16];
-    uint8_t length = this->command_queue_[this->command_queue_position_].length();
-    for (uint8_t i = 0; i < length; i++) {
+    size_t length = this->command_queue_[this->command_queue_position_].length();
+    if (length > sizeof(byte_command)) {
+      ESP_LOGE(TAG, "Command too long: %zu", length);
+      this->command_queue_[this->command_queue_position_].clear();
+      return false;
+    }
+    for (size_t i = 0; i < length; i++) {
       byte_command[i] = (uint8_t) this->command_queue_[this->command_queue_position_].at(i);
     }
     this->state_ = STATE_COMMAND;
@@ -428,13 +433,17 @@ void Pipsolar::handle_qpigs_(const char *message) {
 }
 
 void Pipsolar::handle_qmod_(const char *message) {
-  std::string mode;
-  char device_mode = char(message[1]);
   if (this->last_qmod_) {
     this->last_qmod_->publish_state(message);
   }
+  // QMOD response is "(M" where M is the device-mode character. Bail out if the
+  // message is shorter than 2 chars (e.g. empty error response from
+  // handle_poll_error_) — reading message[1] would otherwise be out of bounds.
+  if (message[0] == '\0' || message[1] == '\0')
+    return;
   if (this->device_mode_) {
-    mode = device_mode;
+    std::string mode;
+    mode = char(message[1]);
     this->device_mode_->publish_state(mode);
   }
 }

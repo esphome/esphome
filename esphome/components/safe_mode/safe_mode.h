@@ -34,8 +34,8 @@ class SafeModeComponent final : public Component {
   void mark_successful();
 
 #ifdef USE_SAFE_MODE_CALLBACK
-  void add_on_safe_mode_callback(std::function<void()> &&callback) {
-    this->safe_mode_callback_.add(std::move(callback));
+  template<typename F> void add_on_safe_mode_callback(F &&callback) {
+    this->safe_mode_callback_.add(std::forward<F>(callback));
   }
 #endif
 
@@ -57,7 +57,7 @@ class SafeModeComponent final : public Component {
   // Larger objects at the end
   ESPPreferenceObject rtc_;
 #ifdef USE_SAFE_MODE_CALLBACK
-  CallbackManager<void()> safe_mode_callback_{};
+  StaticCallbackManager<ESPHOME_SAFE_MODE_CALLBACK_COUNT, void()> safe_mode_callback_{};
 #endif
 
   static const uint32_t ENTER_SAFE_MODE_MAGIC =

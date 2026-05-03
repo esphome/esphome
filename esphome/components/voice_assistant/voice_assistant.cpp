@@ -39,8 +39,8 @@ void VoiceAssistant::setup() {
 
 #ifdef USE_MEDIA_PLAYER
   if (this->media_player_ != nullptr) {
-    this->media_player_->add_on_state_callback([this]() {
-      switch (this->media_player_->state) {
+    this->media_player_->add_on_state_callback([this](media_player::MediaPlayerState state) {
+      switch (state) {
         case media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING:
           if (this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT) {
             // State changed to announcing after receiving the url
@@ -619,6 +619,8 @@ void VoiceAssistant::start_playback_timeout_() {
     this->cancel_timeout("speaker-timeout");
     this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
+    if (this->api_client_ == nullptr)
+      return;
     api::VoiceAssistantAnnounceFinished msg;
     msg.success = true;
     this->api_client_->send_message(msg);

@@ -334,6 +334,8 @@ void MR60FDA2Component::process_frame_() {
 
 // Send Heartbeat Packet Command
 void MR60FDA2Component::set_install_height(uint8_t index) {
+  if (index >= std::size(INSTALL_HEIGHT))
+    return;
   uint8_t send_data[13] = {0x01, 0x00, 0x00, 0x00, 0x04, 0x0E, 0x04, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00};
   float_to_bytes(INSTALL_HEIGHT[index], &send_data[8]);
   send_data[12] = calculate_checksum(send_data + 8, 4);
@@ -345,6 +347,8 @@ void MR60FDA2Component::set_install_height(uint8_t index) {
 }
 
 void MR60FDA2Component::set_height_threshold(uint8_t index) {
+  if (index >= std::size(HEIGHT_THRESHOLD))
+    return;
   uint8_t send_data[13] = {0x01, 0x00, 0x00, 0x00, 0x04, 0x0E, 0x08, 0xFC, 0x00, 0x00, 0x00, 0x00, 0x00};
   float_to_bytes(HEIGHT_THRESHOLD[index], &send_data[8]);
   send_data[12] = calculate_checksum(send_data + 8, 4);
@@ -356,6 +360,8 @@ void MR60FDA2Component::set_height_threshold(uint8_t index) {
 }
 
 void MR60FDA2Component::set_sensitivity(uint8_t index) {
+  if (index >= std::size(SENSITIVITY))
+    return;
   uint8_t send_data[13] = {0x01, 0x00, 0x00, 0x00, 0x04, 0x0E, 0x0A, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00};
 
   int_to_bytes(SENSITIVITY[index], &send_data[8]);

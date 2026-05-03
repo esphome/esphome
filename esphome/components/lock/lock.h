@@ -26,7 +26,9 @@ enum LockState : uint8_t {
   LOCK_STATE_UNLOCKED = 2,
   LOCK_STATE_JAMMED = 3,
   LOCK_STATE_LOCKING = 4,
-  LOCK_STATE_UNLOCKING = 5
+  LOCK_STATE_UNLOCKING = 5,
+  LOCK_STATE_OPENING = 6,
+  LOCK_STATE_OPEN = 7,
 };
 const LogString *lock_state_to_string(LockState state);
 
@@ -148,9 +150,11 @@ class Lock : public EntityBase {
 
   /** Set callback for state changes.
    *
-   * @param callback The void(bool) callback.
+   * @param callback The void(LockState) callback.
    */
-  void add_on_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   friend LockCall;
@@ -176,7 +180,7 @@ class Lock : public EntityBase {
    */
   virtual void control(const LockCall &call) = 0;
 
-  LazyCallbackManager<void()> state_callback_{};
+  LazyCallbackManager<void(LockState)> state_callback_{};
   Deduplicator<LockState> publish_dedup_;
   ESPPreferenceObject rtc_;
 };

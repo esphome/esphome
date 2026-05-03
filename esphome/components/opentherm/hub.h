@@ -160,11 +160,11 @@ class OpenthermHub : public Component {
   void set_dhw_block(bool value) { this->dhw_block = value; }
   void set_sync_mode(bool sync_mode) { this->sync_mode_ = sync_mode; }
 
-  void add_on_before_send_callback(std::function<void(OpenthermData &)> &&callback) {
-    this->before_send_callback_.add(std::move(callback));
+  template<typename F> void add_on_before_send_callback(F &&callback) {
+    this->before_send_callback_.add(std::forward<F>(callback));
   }
-  void add_on_before_process_response_callback(std::function<void(OpenthermData &)> &&callback) {
-    this->before_process_response_callback_.add(std::move(callback));
+  template<typename F> void add_on_before_process_response_callback(F &&callback) {
+    this->before_process_response_callback_.add(std::forward<F>(callback));
   }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }

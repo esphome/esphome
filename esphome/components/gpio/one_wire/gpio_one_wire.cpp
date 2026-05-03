@@ -131,7 +131,7 @@ uint8_t IRAM_ATTR GPIOOneWireBus::read8() {
 uint64_t IRAM_ATTR GPIOOneWireBus::read64() {
   InterruptLock lock;
   uint64_t ret = 0;
-  for (uint8_t i = 0; i < 8; i++) {
+  for (uint8_t i = 0; i < 64; i++) {
     ret |= (uint64_t(this->read_bit_()) << i);
   }
   return ret;

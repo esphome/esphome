@@ -97,12 +97,13 @@ UFIRE_EC_CALIBRATE_PROBE_SCHEMA = cv.Schema(
     "ufire_ec.calibrate_probe",
     UFireECCalibrateProbeAction,
     UFIRE_EC_CALIBRATE_PROBE_SCHEMA,
+    synchronous=True,
 )
 async def ufire_ec_calibrate_probe_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    solution_ = await cg.templatable(config[CONF_SOLUTION], args, float)
-    temperature_ = await cg.templatable(config[CONF_TEMPERATURE], args, float)
+    solution_ = await cg.templatable(config[CONF_SOLUTION], args, cg.float_)
+    temperature_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.float_)
     cg.add(var.set_solution(solution_))
     cg.add(var.set_temperature(temperature_))
     return var
@@ -119,6 +120,7 @@ UFIRE_EC_RESET_SCHEMA = cv.Schema(
     "ufire_ec.reset",
     UFireECResetAction,
     UFIRE_EC_RESET_SCHEMA,
+    synchronous=True,
 )
 async def ufire_ec_reset_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

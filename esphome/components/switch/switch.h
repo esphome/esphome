@@ -93,7 +93,9 @@ class Switch : public EntityBase {
    *
    * @param callback The void(bool) callback.
    */
-  void add_on_state_callback(std::function<void(bool)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   /** Returns the initial state of the switch, as persisted previously,
     or empty if never persisted.

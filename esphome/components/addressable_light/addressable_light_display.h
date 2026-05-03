@@ -33,7 +33,7 @@ class AddressableLightDisplay : public display::DisplayBuffer {
         // - Save the current effect index.
         this->last_effect_index_ = light_state_->get_current_effect_index();
         // - Disable any current effect.
-        light_state_->make_call().set_effect(0).perform();
+        light_state_->make_call().set_effect(uint32_t{0}).perform();
       }
     }
     enabled_ = enabled;

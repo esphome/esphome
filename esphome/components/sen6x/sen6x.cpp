@@ -2,13 +2,16 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <cmath>
-#include <functional>
-#include <memory>
 
 namespace esphome::sen6x {
 
 static const char *const TAG = "sen6x";
 
+static constexpr uint8_t POLL_RETRIES = 24;     // 24 attempts
+static constexpr uint32_t I2C_READ_DELAY = 20;  // 20 ms to wait for I2C read to complete
+static constexpr uint32_t POLL_INTERVAL = 50;   // 50 ms between poll attempts
+// Single numeric timeout ID — the chain is sequential so only one is active at a time.
+static constexpr uint32_t TIMEOUT_POLL = 1;
 static constexpr uint16_t SEN6X_CMD_GET_DATA_READY_STATUS = 0x0202;
 static constexpr uint16_t SEN6X_CMD_GET_FIRMWARE_VERSION = 0xD100;
 static constexpr uint16_t SEN6X_CMD_GET_PRODUCT_NAME = 0xD014;
@@ -182,179 +185,202 @@ void SEN6XComponent::update() {
     return;
   }
 
-  uint16_t read_cmd;
-  uint8_t read_words;
-  set_read_command_and_words(this->sen6x_type_, read_cmd, read_words);
+  // Cancel any in-flight polling from a previous update() cycle.
+  this->cancel_timeout(TIMEOUT_POLL);
 
-  const uint8_t poll_retries = 24;
-  auto poll_ready = std::make_shared<std::function<void(uint8_t)>>();
-  *poll_ready = [this, poll_ready, read_cmd, read_words](uint8_t retries_left) {
-    const uint8_t attempt = static_cast<uint8_t>(poll_retries - retries_left + 1);
-    ESP_LOGV(TAG, "Data ready polling attempt %u", attempt);
+  set_read_command_and_words(this->sen6x_type_, this->read_cmd_, this->read_words_);
 
-    if (!this->write_command(SEN6X_CMD_GET_DATA_READY_STATUS)) {
+  // Polling uses chained timeouts to guarantee each I2C operation completes
+  // before the next begins. The flow is:
+  //
+  //   poll_data_ready_()
+  //     -> write_command (data ready status)
+  //     -> timeout I2C_READ_DELAY
+  //       -> read_data (check ready flag)
+  //       -> if not ready: timeout POLL_INTERVAL -> poll_data_ready_() (retry)
+  //       -> if ready: read_measurements_()
+  //                      -> write_command (read measurement)
+  //                      -> timeout I2C_READ_DELAY
+  //                        -> parse_and_publish_measurements_()
+  //
+  // All timeouts share a single ID (TIMEOUT_POLL) since only one is active
+  // at a time. cancel_timeout in update() stops any in-flight chain.
+  this->poll_retries_remaining_ = POLL_RETRIES;
+  this->poll_data_ready_();
+}
+
+void SEN6XComponent::poll_data_ready_() {
+  if (this->poll_retries_remaining_ == 0) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "Data not ready");
+    return;
+  }
+  ESP_LOGV(TAG, "Data ready polling attempt %u",
+           static_cast<unsigned>(POLL_RETRIES - this->poll_retries_remaining_ + 1));
+  this->poll_retries_remaining_--;
+
+  if (!this->write_command(SEN6X_CMD_GET_DATA_READY_STATUS)) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "write data ready status error (%d)", this->last_error_);
+    return;
+  }
+
+  this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() {
+    uint16_t raw_read_status;
+    if (!this->read_data(&raw_read_status, 1)) {
       this->status_set_warning();
-      ESP_LOGD(TAG, "write data ready status error (%d)", this->last_error_);
+      ESP_LOGD(TAG, "read data ready status error (%d)", this->last_error_);
       return;
     }
 
-    this->set_timeout(20, [this, poll_ready, retries_left, read_cmd, read_words]() {
-      uint16_t raw_read_status;
-      if (!this->read_data(&raw_read_status, 1)) {
-        this->status_set_warning();
-        ESP_LOGD(TAG, "read data ready status error (%d)", this->last_error_);
-        return;
-      }
+    if ((raw_read_status & 0x0001) == 0) {
+      // Not ready yet; schedule next attempt after POLL_INTERVAL.
+      this->set_timeout(TIMEOUT_POLL, POLL_INTERVAL, [this]() { this->poll_data_ready_(); });
+      return;
+    }
 
-      if ((raw_read_status & 0x0001) == 0) {
-        if (retries_left == 0) {
-          this->status_set_warning();
-          ESP_LOGD(TAG, "Data not ready");
-          return;
-        }
-        this->set_timeout(50, [poll_ready, retries_left]() { (*poll_ready)(retries_left - 1); });
-        return;
-      }
+    this->read_measurements_();
+  });
+}
 
-      if (!this->write_command(read_cmd)) {
-        this->status_set_warning();
-        ESP_LOGD(TAG, "Read measurement failed (%d)", this->last_error_);
-        return;
-      }
+void SEN6XComponent::read_measurements_() {
+  if (!this->write_command(this->read_cmd_)) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "Read measurement failed (%d)", this->last_error_);
+    return;
+  }
 
-      this->set_timeout(20, [this, read_words]() {
-        uint16_t measurements[10];
+  this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_measurements_(); });
+}
 
-        if (!this->read_data(measurements, read_words)) {
-          this->status_set_warning();
-          ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
-          return;
-        }
-        int8_t voc_index = -1;
-        int8_t nox_index = -1;
-        int8_t hcho_index = -1;
-        int8_t co2_index = -1;
-        bool co2_uint16 = false;
-        switch (this->sen6x_type_) {
-          case SEN62:
-            break;
-          case SEN63C:
-            co2_index = 6;
-            break;
-          case SEN65:
-            voc_index = 6;
-            nox_index = 7;
-            break;
-          case SEN66:
-            voc_index = 6;
-            nox_index = 7;
-            co2_index = 8;
-            co2_uint16 = true;
-            break;
-          case SEN68:
-            voc_index = 6;
-            nox_index = 7;
-            hcho_index = 8;
-            break;
-          case SEN69C:
-            voc_index = 6;
-            nox_index = 7;
-            hcho_index = 8;
-            co2_index = 9;
-            break;
-          default:
-            break;
-        }
+void SEN6XComponent::parse_and_publish_measurements_() {
+  uint16_t measurements[10];
 
-        float pm_1_0 = measurements[0] / 10.0f;
-        if (measurements[0] == 0xFFFF)
-          pm_1_0 = NAN;
-        float pm_2_5 = measurements[1] / 10.0f;
-        if (measurements[1] == 0xFFFF)
-          pm_2_5 = NAN;
-        float pm_4_0 = measurements[2] / 10.0f;
-        if (measurements[2] == 0xFFFF)
-          pm_4_0 = NAN;
-        float pm_10_0 = measurements[3] / 10.0f;
-        if (measurements[3] == 0xFFFF)
-          pm_10_0 = NAN;
-        float humidity = static_cast<int16_t>(measurements[4]) / 100.0f;
-        if (measurements[4] == 0x7FFF)
-          humidity = NAN;
-        float temperature = static_cast<int16_t>(measurements[5]) / 200.0f;
-        if (measurements[5] == 0x7FFF)
-          temperature = NAN;
+  if (!this->read_data(measurements, this->read_words_)) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
+    return;
+  }
+  int8_t voc_index = -1;
+  int8_t nox_index = -1;
+  int8_t hcho_index = -1;
+  int8_t co2_index = -1;
+  bool co2_uint16 = false;
+  switch (this->sen6x_type_) {
+    case SEN62:
+      break;
+    case SEN63C:
+      co2_index = 6;
+      break;
+    case SEN65:
+      voc_index = 6;
+      nox_index = 7;
+      break;
+    case SEN66:
+      voc_index = 6;
+      nox_index = 7;
+      co2_index = 8;
+      co2_uint16 = true;
+      break;
+    case SEN68:
+      voc_index = 6;
+      nox_index = 7;
+      hcho_index = 8;
+      break;
+    case SEN69C:
+      voc_index = 6;
+      nox_index = 7;
+      hcho_index = 8;
+      co2_index = 9;
+      break;
+    default:
+      break;
+  }
 
-        float voc = NAN;
-        float nox = NAN;
-        float hcho = NAN;
-        float co2 = NAN;
+  float pm_1_0 = measurements[0] / 10.0f;
+  if (measurements[0] == 0xFFFF)
+    pm_1_0 = NAN;
+  float pm_2_5 = measurements[1] / 10.0f;
+  if (measurements[1] == 0xFFFF)
+    pm_2_5 = NAN;
+  float pm_4_0 = measurements[2] / 10.0f;
+  if (measurements[2] == 0xFFFF)
+    pm_4_0 = NAN;
+  float pm_10_0 = measurements[3] / 10.0f;
+  if (measurements[3] == 0xFFFF)
+    pm_10_0 = NAN;
+  float humidity = static_cast<int16_t>(measurements[4]) / 100.0f;
+  if (measurements[4] == 0x7FFF)
+    humidity = NAN;
+  float temperature = static_cast<int16_t>(measurements[5]) / 200.0f;
+  if (measurements[5] == 0x7FFF)
+    temperature = NAN;
 
-        if (voc_index >= 0) {
-          voc = static_cast<int16_t>(measurements[voc_index]) / 10.0f;
-          if (measurements[voc_index] == 0x7FFF)
-            voc = NAN;
-        }
-        if (nox_index >= 0) {
-          nox = static_cast<int16_t>(measurements[nox_index]) / 10.0f;
-          if (measurements[nox_index] == 0x7FFF)
-            nox = NAN;
-        }
+  float voc = NAN;
+  float nox = NAN;
+  float hcho = NAN;
+  float co2 = NAN;
 
-        if (hcho_index >= 0) {
-          const uint16_t hcho_raw = measurements[hcho_index];
-          hcho = hcho_raw / 10.0f;
-          if (hcho_raw == 0xFFFF)
-            hcho = NAN;
-        }
+  if (voc_index >= 0) {
+    voc = static_cast<int16_t>(measurements[voc_index]) / 10.0f;
+    if (measurements[voc_index] == 0x7FFF)
+      voc = NAN;
+  }
+  if (nox_index >= 0) {
+    nox = static_cast<int16_t>(measurements[nox_index]) / 10.0f;
+    if (measurements[nox_index] == 0x7FFF)
+      nox = NAN;
+  }
 
-        if (co2_index >= 0) {
-          if (co2_uint16) {
-            const uint16_t co2_raw = measurements[co2_index];
-            co2 = static_cast<float>(co2_raw);
-            if (co2_raw == 0xFFFF)
-              co2 = NAN;
-          } else {
-            const int16_t co2_raw = static_cast<int16_t>(measurements[co2_index]);
-            co2 = static_cast<float>(co2_raw);
-            if (co2_raw == 0x7FFF)
-              co2 = NAN;
-          }
-        }
+  if (hcho_index >= 0) {
+    const uint16_t hcho_raw = measurements[hcho_index];
+    hcho = hcho_raw / 10.0f;
+    if (hcho_raw == 0xFFFF)
+      hcho = NAN;
+  }
 
-        if (!this->startup_complete_) {
-          ESP_LOGD(TAG, "Startup delay, ignoring values");
-          this->status_clear_warning();
-          return;
-        }
+  if (co2_index >= 0) {
+    if (co2_uint16) {
+      const uint16_t co2_raw = measurements[co2_index];
+      co2 = static_cast<float>(co2_raw);
+      if (co2_raw == 0xFFFF)
+        co2 = NAN;
+    } else {
+      const int16_t co2_raw = static_cast<int16_t>(measurements[co2_index]);
+      co2 = static_cast<float>(co2_raw);
+      if (co2_raw == 0x7FFF)
+        co2 = NAN;
+    }
+  }
 
-        if (this->pm_1_0_sensor_ != nullptr)
-          this->pm_1_0_sensor_->publish_state(pm_1_0);
-        if (this->pm_2_5_sensor_ != nullptr)
-          this->pm_2_5_sensor_->publish_state(pm_2_5);
-        if (this->pm_4_0_sensor_ != nullptr)
-          this->pm_4_0_sensor_->publish_state(pm_4_0);
-        if (this->pm_10_0_sensor_ != nullptr)
-          this->pm_10_0_sensor_->publish_state(pm_10_0);
-        if (this->temperature_sensor_ != nullptr)
-          this->temperature_sensor_->publish_state(temperature);
-        if (this->humidity_sensor_ != nullptr)
-          this->humidity_sensor_->publish_state(humidity);
-        if (this->voc_sensor_ != nullptr)
-          this->voc_sensor_->publish_state(voc);
-        if (this->nox_sensor_ != nullptr)
-          this->nox_sensor_->publish_state(nox);
-        if (this->hcho_sensor_ != nullptr)
-          this->hcho_sensor_->publish_state(hcho);
-        if (this->co2_sensor_ != nullptr)
-          this->co2_sensor_->publish_state(co2);
+  if (!this->startup_complete_) {
+    ESP_LOGD(TAG, "Startup delay, ignoring values");
+    this->status_clear_warning();
+    return;
+  }
 
-        this->status_clear_warning();
-      });
-    });
-  };
+  if (this->pm_1_0_sensor_ != nullptr)
+    this->pm_1_0_sensor_->publish_state(pm_1_0);
+  if (this->pm_2_5_sensor_ != nullptr)
+    this->pm_2_5_sensor_->publish_state(pm_2_5);
+  if (this->pm_4_0_sensor_ != nullptr)
+    this->pm_4_0_sensor_->publish_state(pm_4_0);
+  if (this->pm_10_0_sensor_ != nullptr)
+    this->pm_10_0_sensor_->publish_state(pm_10_0);
+  if (this->temperature_sensor_ != nullptr)
+    this->temperature_sensor_->publish_state(temperature);
+  if (this->humidity_sensor_ != nullptr)
+    this->humidity_sensor_->publish_state(humidity);
+  if (this->voc_sensor_ != nullptr)
+    this->voc_sensor_->publish_state(voc);
+  if (this->nox_sensor_ != nullptr)
+    this->nox_sensor_->publish_state(nox);
+  if (this->hcho_sensor_ != nullptr)
+    this->hcho_sensor_->publish_state(hcho);
+  if (this->co2_sensor_ != nullptr)
+    this->co2_sensor_->publish_state(co2);
 
-  (*poll_ready)(poll_retries);
+  this->status_clear_warning();
 }
 
 SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string &product_name) {

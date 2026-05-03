@@ -13,8 +13,7 @@ void MAX6675Sensor::update() {
   this->disable();
 
   // Conversion time typ: 170ms, max: 220ms
-  auto f = std::bind(&MAX6675Sensor::read_data_, this);
-  this->set_timeout("value", 250, f);
+  this->set_timeout("value", 250, [this]() { this->read_data_(); });
 }
 
 void MAX6675Sensor::setup() { this->spi_setup(); }

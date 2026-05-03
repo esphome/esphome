@@ -91,7 +91,7 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
   return buffer.data();
 }
 
-const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
+const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer) {
   // ESP8266 doesn't have detailed wakeup cause like ESP32
   return "";
 }

@@ -103,11 +103,16 @@ async function detectCoreChanges(changedFiles) {
 }
 
 // Strategy: PR size detection
-async function detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, TOO_BIG_THRESHOLD) {
+async function detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD) {
   const labels = new Set();
 
   if (totalChanges <= SMALL_PR_THRESHOLD) {
     labels.add('small-pr');
+    return labels;
+  }
+
+  if (totalChanges <= MEDIUM_PR_THRESHOLD) {
+    labels.add('medium-pr');
     return labels;
   }
 
@@ -230,19 +235,20 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
     }
   }
 
-  // Get PR head to fetch files from the PR branch
-  const prNumber = context.payload.pull_request.number;
+  // Get base branch ref to check if deprecation already exists for the component
+  // This prevents flagging a PR that simply adds deprecation
+  const baseRef = context.payload.pull_request.base.ref;
 
   // Check each component's __init__.py for DEPRECATED_COMPONENT constant
   for (const component of components) {
     const initFile = `esphome/components/${component}/__init__.py`;
     try {
-      // Fetch file content from PR head using GitHub API
+      // Fetch file content from base branch using GitHub API
       const { data: fileData } = await github.rest.repos.getContent({
         owner,
         repo,
         path: initFile,
-        ref: `refs/pull/${prNumber}/head`
+        ref: baseRef
       });
 
       // Decode base64 content
@@ -273,6 +279,24 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
   }
 
   return { labels, deprecatedInfo };
+}
+
+// Strategy: Detect when maintainers cannot modify the PR branch
+function detectMaintainerAccess(context) {
+  const pr = context.payload.pull_request;
+
+  // Only relevant for cross-repo PRs (forks)
+  if (!pr.head.repo || pr.head.repo.full_name === pr.base.repo.full_name) {
+    return null;
+  }
+
+  if (pr.maintainer_can_modify) {
+    return null;
+  }
+
+  const isOrgFork = pr.head.repo.owner.type === 'Organization';
+  console.log(`Maintainer cannot modify PR branch (${isOrgFork ? 'org fork: ' + pr.head.repo.owner.login : 'user disabled'})`);
+  return { isOrgFork, orgName: pr.head.repo.owner.login };
 }
 
 // Strategy: Requirements detection
@@ -323,5 +347,6 @@ module.exports = {
   detectTests,
   detectPRTemplateCheckboxes,
   detectDeprecatedComponents,
+  detectMaintainerAccess,
   detectRequirements
 };

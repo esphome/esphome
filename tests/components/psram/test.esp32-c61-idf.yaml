@@ -1,0 +1,7 @@
+esp32:
+  framework:
+    type: esp-idf
+
+psram:
+  speed: 80MHz
+  ignore_not_found: false
