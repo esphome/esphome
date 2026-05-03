@@ -37,8 +37,11 @@ template<bool HasTransitionLength, typename... Ts> class ToggleAction : public A
 // Trigger args are forwarded to the apply function so user lambdas
 // (e.g. `brightness: !lambda "return x;"`) keep working.
 //
-// Ts... must be forwarded by-value: `const T &` is ill-formed when T is
-// already a reference type (some triggers pass `std::string &`).
+// Trigger args are forwarded as `Ts...`. The previous `const Ts &...`
+// form caused codegen to emit `const T &` for each arg in the apply
+// lambda's parameter list, which is invalid C++ source text when T is
+// already a reference (e.g. `const std::string & &` for triggers that
+// pass `std::string &`).
 template<typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
   using ApplyFn = void (*)(LightState *, LightCall &, Ts...);

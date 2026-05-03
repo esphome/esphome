@@ -230,8 +230,11 @@ async def light_control_to_code(config, action_id, template_arg, args):
                 f"call.set_effect(static_cast<uint32_t>({_resolve_effect_index(config)}));"
             )
 
-    # Match LightControlAction::ApplyFn signature: trigger args forwarded
-    # by-value as Ts...
+    # Forward trigger args as Ts... so each (type, name) pair passes through
+    # unchanged. Wrapping in `const &` here would emit invalid C++ source
+    # for trigger types that already carry a reference (e.g. `std::string &`)
+    # and fails on plain Python types (`float`/`bool`) which have no
+    # `.operator()` method.
     apply_args = [
         (LightState.operator("ptr"), "parent"),
         (LightCall.operator("ref"), "call"),
