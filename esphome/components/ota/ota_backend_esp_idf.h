@@ -10,9 +10,7 @@
 namespace esphome::ota {
 
 #ifdef USE_OTA_PARTITIONS
-// Dedicated staging buffer size for the new partition table image. Must be at least
-// ESP_PARTITION_TABLE_MAX_LEN (0xC00) so the entire partition table fits before verification.
-// Kept separate from any OTA chunk-transfer buffer to avoid coupling unrelated sizes.
+// Staging buffer holds the entire partition table for verification before any flash op.
 static constexpr size_t PARTITION_TABLE_BUFFER_SIZE = ESP_PARTITION_TABLE_MAX_LEN;  // 0xC00
 
 void get_running_app_position(uint32_t &offset, size_t &size);
@@ -20,11 +18,7 @@ void get_running_app_position(uint32_t &offset, size_t &size);
 
 class IDFOTABackend final {
  public:
-#ifdef USE_OTA_PARTITIONS
   OTAResponseTypes begin(size_t image_size, ota::OTAType ota_type = ota::OTA_TYPE_UPDATE_APP);
-#else
-  OTAResponseTypes begin(size_t image_size);
-#endif
   void set_update_md5(const char *md5);
   OTAResponseTypes write(uint8_t *data, size_t len);
   OTAResponseTypes end();
@@ -33,10 +27,8 @@ class IDFOTABackend final {
 
  protected:
 #ifdef USE_OTA_PARTITIONS
-  // Outcome of validating an incoming partition-table image. ``target_app_index`` is the
-  // entry in the new table that the running app will boot from after the update;
-  // ``copy_source_part`` is non-null when the running app must be copied into that slot
-  // first (the source is the matching slot in the *current* partition table).
+  // copy_source_part non-null means the running app must be copied from this slot in the current
+  // table into target_app_index in the new table before the table is committed.
   struct PartitionTablePlan {
     int target_app_index{-1};
     const esp_partition_t *copy_source_part{nullptr};
@@ -54,11 +46,9 @@ class IDFOTABackend final {
   char expected_bin_md5_[32];
   bool md5_set_{false};
 #ifdef USE_OTA_PARTITIONS
-  // Place the byte buffer first so it sits immediately after the preceding `bool md5_set_`,
-  // eliminating the 3-byte alignment padding that an int-sized member would otherwise force.
-  // Remaining members are 4-byte-aligned and pack tightly after the buffer. The backend is
-  // constructed on each incoming OTA connection and destroyed on cleanup_connection_(), so this
-  // 3 KiB is only resident during an active OTA, not permanently.
+  // Buffer first so it packs tightly after the preceding `bool md5_set_` with no alignment
+  // padding. Only resident during an active OTA: the backend is constructed per connection and
+  // destroyed on cleanup_connection_().
   uint8_t buf_[PARTITION_TABLE_BUFFER_SIZE];
   size_t buf_written_{0};
   size_t image_size_{0};

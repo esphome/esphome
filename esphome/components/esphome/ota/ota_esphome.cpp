@@ -101,13 +101,8 @@ void ESPHomeOTAComponent::dump_config() {
   }
 #endif
 #ifdef USE_OTA_PARTITIONS
-  // Avoid running esp_image_verify here: it reads and checksums the entire app image, which is too
-  // expensive for a config dump. The address comes from a cached lookup; the precise used size is
-  // computed lazily by update_partition_table() the first time a partition-table OTA is requested.
-  // Guard against esp_ota_get_running_partition() returning nullptr (can happen after the partition
-  // cache has been unloaded) so dump_config never crashes.
-  // Single ESP_LOGCONFIG call so the lines stay together as one log message; on the (rare)
-  // nullptr path we surface zeros rather than dereferencing.
+  // running_app_part can be nullptr if the partition cache was unloaded by a prior aborted
+  // partition-table OTA; surface zeros instead of dereferencing.
   const esp_partition_t *running_app_part = esp_ota_get_running_partition();
   ESP_LOGCONFIG(TAG,
                 "  Partition access allowed\n"
@@ -397,12 +392,8 @@ void ESPHomeOTAComponent::handle_data_() {
   this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
-#ifdef USE_OTA_PARTITIONS
+  // begin() may block for a few seconds while it locks flash.
   error_code = this->backend_->begin(ota_size, ota_type);
-#else
-  // This will block for a few seconds as it locks flash
-  error_code = this->backend_->begin(ota_size);
-#endif
   if (error_code != ota::OTA_RESPONSE_OK)
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   update_started = true;

@@ -16,14 +16,12 @@ static const char *const TAG = "ota.idf";
 
 std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
-#ifdef USE_OTA_PARTITIONS
 OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) {
+#ifdef USE_OTA_PARTITIONS
   this->ota_type_ = ota_type;
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
-    // Partition table images produced by gen_esp32part.py are padded with 0xFF and an MD5 entry to
-    // exactly ESP_PARTITION_TABLE_MAX_LEN bytes. Reject anything else: an undersized image would
-    // leave trailing bytes from the previous table in place after the partial write, and an
-    // oversized image cannot fit in the reserved region. This is stricter than verify alone.
+    // Reject any size other than ESP_PARTITION_TABLE_MAX_LEN: under- leaves stale bytes from the
+    // previous table; over- can't fit the reserved region.
     if (image_size != ESP_PARTITION_TABLE_MAX_LEN) {
       ESP_LOGE(TAG, "Wrong partition table size: expected %u bytes, got %zu", ESP_PARTITION_TABLE_MAX_LEN, image_size);
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
@@ -38,7 +36,9 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
 #else
-OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
+  if (ota_type != ota::OTA_TYPE_UPDATE_APP) {
+    return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+  }
 #endif
 #ifdef USE_OTA_ROLLBACK
   // If we're starting an OTA, the current boot is good enough - mark it valid
@@ -148,10 +148,8 @@ void IDFOTABackend::abort() {
     this->partition_table_part_ = nullptr;
   }
 #endif
-  // Always tear down any open OTA handle. update_partition_table() opens a handle internally to
-  // write the new partition table; if esp_ota_write/esp_ota_end fail mid-flight, the handle must
-  // be released here so it isn't leaked. esp_ota_abort with handle 0 returns ESP_ERR_INVALID_ARG
-  // harmlessly, so the unconditional call is safe whether or not we're mid-update.
+  // esp_ota_abort with handle 0 returns ESP_ERR_INVALID_ARG harmlessly, so this is safe whether
+  // or not an update is in flight.
   esp_ota_abort(this->update_handle_);
   this->update_handle_ = 0;
 }

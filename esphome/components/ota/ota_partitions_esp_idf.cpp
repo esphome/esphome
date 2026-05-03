@@ -21,9 +21,8 @@ static inline bool check_overlap(uint32_t a_offset, size_t a_size, uint32_t b_of
   return (a_offset + a_size > b_offset && b_offset + b_size > a_offset);
 }
 
-// Find the first registered APP partition whose address matches `address` and whose size is at least
-// `min_size`. Returns nullptr when no match exists. Encapsulates the iterator + release pattern so
-// callers don't have to repeat (and correctly handle) the find/get/next/release dance.
+// Wraps esp_partition_find/_get/_next/_release. Returns nullptr if no APP partition at `address`
+// is at least `min_size` bytes.
 static const esp_partition_t *find_app_partition_at(uint32_t address, size_t min_size) {
   const esp_partition_t *found = nullptr;
   esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
@@ -39,12 +38,8 @@ static const esp_partition_t *find_app_partition_at(uint32_t address, size_t min
   return found;
 }
 
-// RAII helper for the destructive section of update_partition_table(). nvs_flash_deinit() is
-// called immediately before the first partition-table write so that earlier failure paths leave
-// NVS functional; this guard re-initializes NVS on every early return past that point so any
-// component still running after a failed OTA can keep using NVS. The success path disarms the
-// guard before returning because the device reboots immediately afterwards and reinit would only
-// churn the partition cache.
+// Re-inits NVS unless disarmed. Used so failure paths past nvs_flash_deinit() leave NVS usable
+// for any component still running after a failed OTA.
 namespace {
 struct NvsReinitGuard {
   bool armed{true};
@@ -56,14 +51,12 @@ struct NvsReinitGuard {
 };
 }  // namespace
 
-// Validate the new partition table image staged in ``buf_`` and pick the slot the running app
-// will boot from after the update. Performs all non-destructive checks; the destructive write
-// is in ``update_partition_table()``. Side-effect: registers the live partition-table region
-// as ``partition_table_part_`` so the caller can write to it; ``abort()`` releases it on error.
+// Validates the staged partition table and picks the post-update boot slot. All non-destructive
+// checks live here; the destructive write is in update_partition_table().
+// Side effect: registers the live partition-table region as partition_table_part_ so the caller
+// can write to it; abort() releases it on error.
 OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_app_offset, size_t running_app_size,
                                                               PartitionTablePlan &plan) {
-  // Register the live primary partition table as an external partition so we can mmap it for
-  // verification and later issue esp_ota_begin/esp_ota_write against it.
   esp_err_t err = esp_partition_register_external(
       nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE, "PrimaryPrtTable",
       ESP_PARTITION_TYPE_PARTITION_TABLE, ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY, &this->partition_table_part_);
@@ -72,7 +65,6 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
-  // Verify existing partition table
   int num_partitions = 0;
   const esp_partition_info_t *existing_partition_table = nullptr;
   esp_partition_mmap_handle_t partition_table_map;
@@ -89,8 +81,6 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
-  // Verify new partition table. esp_partition_table_verify expects ESP_PARTITION_TABLE_MAX_LEN
-  // bytes; ``buf_`` is sized to that exactly.
   const esp_partition_info_t *new_partition_table = reinterpret_cast<const esp_partition_info_t *>(this->buf_);
   err = esp_partition_table_verify(new_partition_table, true, &num_partitions);
   if (err != ESP_OK) {
@@ -98,8 +88,8 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
-  // Check for missing checksum entry. esp_partition_table_verify does not fail in this case and
-  // the ESP would not boot after the update.
+  // esp_partition_table_verify does not catch a missing MD5 entry, but the bootloader refuses
+  // to boot from a table without one.
   bool checksum_found = false;
   for (size_t i = 0; i < ESP_PARTITION_TABLE_MAX_ENTRIES; i++) {
     if (new_partition_table[i].magic == ESP_PARTITION_MAGIC_MD5) {
@@ -112,11 +102,9 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
-  // Walk the new table once, populating: the chosen target app slot, presence of otadata/nvs,
-  // and otadata-vs-running-app overlap. Selection policy when multiple app slots can host the
-  // running app: pick the FIRST eligible slot in table order. The no-copy path (offsets already
-  // match) is preferred over the copy path; within each path we lock in the first match and stop
-  // searching. This keeps the choice deterministic and table-ordering-stable.
+  // Slot-selection policy when multiple slots can host the running app: pick the FIRST eligible
+  // slot in table order, preferring the no-copy path (matching offset) over the copy path.
+  // Deterministic and table-ordering-stable.
   int app_partitions_found = 0;
   int new_app_part_index = -1;
   int new_app_part_index_with_copy = -1;
@@ -130,13 +118,12 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
       app_partitions_found++;
       if (new_part->pos.size >= running_app_size) {
         if (new_part->pos.offset == running_app_offset) {
-          // No-copy path: same offset as running app, first match wins.
           if (new_app_part_index == -1) {
             new_app_part_index = i;
           }
         } else if (new_app_part_index_with_copy == -1 &&
                    !check_overlap(running_app_offset, running_app_size, new_part->pos.offset, running_app_size)) {
-          // Copy path: needs a registered source partition in the *current* table at the new slot's offset.
+          // esp_partition_copy needs a registered source partition in the current table.
           const esp_partition_t *p = find_app_partition_at(new_part->pos.offset, running_app_size);
           if (p != nullptr) {
             new_app_part_index_with_copy = i;
@@ -176,7 +163,6 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
-  // No-copy preferred; copy path only when no-copy slot was unavailable.
   if (new_app_part_index != -1) {
     plan.target_app_index = new_app_part_index;
     plan.copy_source_part = nullptr;
@@ -193,10 +179,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
-  // Get running app partition and used size. A zero size means we couldn't determine the running
-  // app (e.g., esp_ota_get_running_partition() returned nullptr after a previous aborted partition
-  // table OTA called esp_partition_unload_all()). Without a valid size we cannot safely compute
-  // overlap or copy bounds, so fail before any flash operation.
+  // Without a valid running-app size we cannot compute overlap or copy bounds. zero indicates
+  // esp_ota_get_running_partition() failed (e.g. cache unloaded by a previous aborted OTA).
   uint32_t running_app_offset;
   size_t running_app_size;
   get_running_app_position(running_app_offset, running_app_size);
@@ -211,26 +195,21 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     return validate_result;
   }
 
-  // Past this point any failure (power loss, watchdog reset, write error after the table has been
-  // partially erased) can leave the device unable to boot. Logged at ERROR severity so the message
-  // is visible in default log filters.
+  // ERROR severity so the warning shows up in default log filters; any failure past this point
+  // can leave the device unable to boot.
   ESP_LOGE(TAG, "Starting partition table update.\n"
                 "  DO NOT REMOVE POWER until the device reboots successfully.\n"
                 "  Loss of power during this operation may permanently brick the device.");
 
-  // Hold the watchdog open for the entire critical section: optional app copy, partition-table
-  // erase/write, and boot partition selection. None of the steps below should yield long enough
-  // to require a refresh, but bundling them under a single guard avoids spurious resets if the
-  // underlying ESP-IDF calls take longer than expected on a given chip variant.
+  // One guard over the whole critical section in case an IDF call takes longer than expected on
+  // some chip variant.
   watchdog::WatchdogManager watchdog(15000);
 
   esp_err_t err;
   const esp_partition_info_t *new_partition_table = reinterpret_cast<const esp_partition_info_t *>(this->buf_);
 
-  // Copy the running app partition to new position if needed.
-  // esp_ota_get_running_partition() is still valid here (we have not yet called
-  // esp_partition_unload_all()) and returns the same partition that find_app_partition_at would
-  // have located, without an extra iterator walk.
+  // esp_ota_get_running_partition() is still valid here (esp_partition_unload_all() has not run)
+  // so use it directly instead of repeating the iterator walk.
   if (plan.copy_source_part != nullptr) {
     const esp_partition_t *running_app_part = esp_ota_get_running_partition();
     ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,
@@ -244,11 +223,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     }
   }
 
-  // Deinitialize NVS just before the first destructive write to the partition-table region. Doing
-  // this here (instead of earlier) means that any failure path in the verify or copy phases above
-  // returns with NVS still functional, so other components on the device aren't broken until reboot.
-  // The RAII guard re-initializes NVS on every early-return below; the success path disarms it
-  // immediately before returning, since the device reboots right after.
+  // Deinit NVS only just before the first destructive write so verify/copy failure paths return
+  // with NVS still functional. The guard re-inits on early returns; success disarms it.
   nvs_flash_deinit();
   NvsReinitGuard nvs_guard;
 
@@ -262,23 +238,20 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   }
   err = esp_ota_write(this->update_handle_, this->buf_, ESP_PARTITION_TABLE_MAX_LEN);
   if (err != ESP_OK) {
-    // Release the handle eagerly; abort() would also do this, but cleaning up locally keeps the
-    // partial-write failure path self-contained.
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
     ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   err = esp_ota_end(this->update_handle_);
-  this->update_handle_ = 0;  // esp_ota_end releases the handle internally regardless of result
+  this->update_handle_ = 0;  // esp_ota_end releases the handle internally
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
-  // esp_partition_unload_all() invalidates every cached partition entry, including the externally
-  // registered `partition_table_part_`, so the explicit deregister call is redundant. Do the
-  // unload first, then null the member pointer so it never dangles past invalidation; if abort()
-  // were ever to observe an in-between state, it would see a non-null but freed pointer and crash.
+  // unload first, then null the member pointer; if abort() ran between the two steps it would
+  // see a freed pointer. esp_partition_unload_all() invalidates partition_table_part_ too, so
+  // an explicit deregister would be redundant.
   esp_partition_unload_all();
   this->partition_table_part_ = nullptr;
 
@@ -299,26 +272,19 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   return OTA_RESPONSE_OK;
 }
 
-// Process-scoped cache of the running app's flash position. Cannot live on IDFOTABackend
-// because the backend is created/destroyed per OTA connection, while the cached values must
-// survive across connections: once a previously aborted partition-table OTA has called
-// esp_partition_unload_all(), esp_ota_get_running_partition() no longer returns valid data,
-// so we have to remember the answer from the first successful call. The running app does not
-// move within a boot, so a single capture is valid for the process lifetime.
+// Process-scoped cache. Cannot be a backend member: backends are per-connection but the cache
+// must outlive a connection that called esp_partition_unload_all(), after which
+// esp_ota_get_running_partition() no longer returns valid data.
 static bool s_running_app_initialized = false;
 static uint32_t s_running_app_cached_offset = 0;
 static size_t s_running_app_cached_size = 0;
 
+// Flag-gated rather than size==0 so a failed first call doesn't poison the cache.
 void get_running_app_position(uint32_t &offset, size_t &size) {
-  // Returns the start address and the used length (rounded up to flash sectors) of the running app.
-  // The ``s_running_app_initialized`` flag (rather than ``size == 0``) gates the cache so a failed
-  // first call does not poison it; the next caller retries. Values are written atomically only
-  // after the full computation succeeds.
   if (!s_running_app_initialized) {
     const esp_partition_t *running_app_part = esp_ota_get_running_partition();
     if (running_app_part == nullptr || running_app_part->erase_size == 0) {
-      // Cannot determine the running app right now; surface zeros without committing to the cache
-      // so a later call has a chance to succeed.
+      // Surface zeros without committing to the cache so a later call has a chance to succeed.
       offset = 0;
       size = 0;
       return;
@@ -337,7 +303,7 @@ void get_running_app_position(uint32_t &offset, size_t &size) {
         image_metadata.image_len < running_app_part->size) {
       pending_size = image_metadata.image_len;
     }
-    // Round up to flash sector size so the copy spans complete erase blocks.
+    // Round up to a full flash sector so the copy spans complete erase blocks.
     pending_size = ((pending_size + running_app_part->erase_size - 1) / running_app_part->erase_size) *
                    running_app_part->erase_size;
 
