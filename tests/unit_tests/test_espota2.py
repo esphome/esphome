@@ -843,7 +843,14 @@ def test_perform_ota_extended_protocol_app(
 def test_perform_ota_successful_partition_table(
     mock_socket: Mock, mock_file: io.BytesIO
 ) -> None:
-    """Test OTA partition table update."""
+    """Test OTA partition table update.
+
+    The mocked server advertises both COMPRESSION and PARTITION_ACCESS to exercise
+    the full extended-protocol negotiation path. Real IDFOTABackend devices return
+    ``supports_compression() == false`` and never set the COMPRESSION flag for a
+    partition-table OTA; the flag here is intentional protocol-coverage, not a
+    description of on-device behaviour.
+    """
     recv_responses = [
         bytes([espota2.RESPONSE_OK]),  # First byte of version response
         bytes([espota2.OTA_VERSION_2_0]),  # Version number
@@ -853,7 +860,7 @@ def test_perform_ota_successful_partition_table(
                 espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION
                 | espota2.SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS
             ]
-        ),  # Device feature flags
+        ),  # Device feature flags (compression flag is unrealistic; see docstring)
         bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
         bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
         bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK

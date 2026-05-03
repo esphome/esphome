@@ -208,7 +208,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
       nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE, "PrimaryPrtTable",
       ESP_PARTITION_TYPE_PARTITION_TABLE, ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY, &this->partition_table_part_);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_partition_register_external failed (err=0x%X) ", err);
+    ESP_LOGE(TAG, "esp_partition_register_external failed (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
@@ -218,13 +218,13 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   err = esp_partition_mmap(this->partition_table_part_, 0, ESP_PARTITION_TABLE_MAX_LEN, ESP_PARTITION_MMAP_DATA,
                            reinterpret_cast<const void **>(&existing_partition_table), &partition_table_map);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_partition_mmap failed (err=0x%X) ", err);
+    ESP_LOGE(TAG, "esp_partition_mmap failed (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   err = esp_partition_table_verify(existing_partition_table, true, &num_partitions);
   esp_partition_munmap(partition_table_map);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_partition_table_verify failed (existing partition table) (err=0x%X) ", err);
+    ESP_LOGE(TAG, "esp_partition_table_verify failed (existing partition table) (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
@@ -233,7 +233,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   // esp_partition_table_verify expects ESP_PARTITION_TABLE_MAX_LEN bytes of data
   err = esp_partition_table_verify(new_partition_table, true, &num_partitions);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_partition_table_verify failed (new partition table) (err=0x%X) ", err);
+    ESP_LOGE(TAG, "esp_partition_table_verify failed (new partition table) (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   // Check for missing checksum
@@ -303,8 +303,16 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGE(TAG, "No compatible app partition found in the new partition table");
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
-  if (app_partitions_found < 2 || !otadata_partition_found || !nvs_partition_found) {
-    ESP_LOGE(TAG, "New partition table is missing the required app, otadata or nvs partitions");
+  if (app_partitions_found < 2) {
+    ESP_LOGE(TAG, "New partition table needs at least 2 app partitions, found %d", app_partitions_found);
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+  }
+  if (!otadata_partition_found) {
+    ESP_LOGE(TAG, "New partition table is missing the required otadata partition");
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+  }
+  if (!nvs_partition_found) {
+    ESP_LOGE(TAG, "New partition table is missing the required nvs partition");
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   if (otadata_overlap) {
@@ -337,7 +345,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     err = esp_partition_copy(app_copy_target_part, 0, running_app_part, 0, running_app_size);
 
     if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_partition_copy failed (err=0x%X) ", err);
+      ESP_LOGE(TAG, "esp_partition_copy failed (err=0x%X)", err);
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
     }
   }
@@ -352,7 +360,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   if (err != ESP_OK) {
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
-    ESP_LOGE(TAG, "esp_ota_begin failed (err=0x%X) ", err);
+    ESP_LOGE(TAG, "esp_ota_begin failed (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   err = esp_ota_write(this->update_handle_, this->buf_, ESP_PARTITION_TABLE_MAX_LEN);
@@ -361,13 +369,13 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     // partial-write failure path self-contained.
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
-    ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X) ", err);
+    ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   err = esp_ota_end(this->update_handle_);
   this->update_handle_ = 0;  // esp_ota_end releases the handle internally regardless of result
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X) ", err);
+    ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   // esp_partition_unload_all() invalidates every cached partition entry, including the externally
@@ -388,7 +396,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   ESP_LOGD(TAG, "Setting next boot partition to 0x%X", new_boot_partition->address);
   err = esp_ota_set_boot_partition(new_boot_partition);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (err=0x%X) ", err);
+    ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
   return OTA_RESPONSE_OK;
