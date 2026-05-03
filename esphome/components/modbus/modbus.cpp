@@ -86,10 +86,10 @@ int32_t Modbus::turnaround_delay_remaining_() {
   // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
   // So in this component we don't use any cached timestamp values to avoid these annoying bugs
   const uint32_t now = millis();
-  return std::max((int32_t) 0, std::max((int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ +
-                                                   this->turnaround_delay_ms_ - (now - this->last_send_)),
-                                        (int32_t) (this->frame_delay_ms_ + this->turnaround_delay_ms_ -
-                                                   (now - this->last_modbus_byte_))));
+  return std::max({(int32_t) 0,
+                   (int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ + this->turnaround_delay_ms_ -
+                              (now - this->last_send_)),
+                   (int32_t) (this->frame_delay_ms_ + this->turnaround_delay_ms_ - (now - this->last_modbus_byte_))});
 }
 
 bool Modbus::tx_blocked() {
