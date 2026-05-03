@@ -1,7 +1,20 @@
+esphome:
+  on_loop:
+    then:
+      - hx711.power_down
+      - hx711.power_up
+      - hx711.set_gain:
+          gain: 128
+
 sensor:
   - platform: hx711
     name: HX711 Value
     clk_pin: ${clk_pin}
     dout_pin: ${dout_pin}
     gain: 128
+    settling_time: 450ms
+    power_down_after_reading: true
+    measurement_ready_timeout: 1000ms
+    channel_b:
+      name: HX711 Channel B
     update_interval: 15s
