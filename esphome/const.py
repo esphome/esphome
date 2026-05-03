@@ -1,4 +1,4 @@
-"""Constants used by esphome."""
+"""Constants used by ESPHome."""
 
 from enum import Enum
 
