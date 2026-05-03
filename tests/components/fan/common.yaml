@@ -88,3 +88,18 @@ button:
       - fan.turn_on:
           id: test_fan
           speed: !lambda 'return 1;'
+
+# Exercise fan.turn_on inside a trigger with non-empty Ts (number on_value
+# passes float).
+number:
+  - platform: template
+    id: fan_speed_number
+    optimistic: true
+    min_value: 1
+    max_value: 3
+    step: 1
+    on_value:
+      then:
+        - fan.turn_on:
+            id: test_fan
+            speed: !lambda "return (int) x;"
