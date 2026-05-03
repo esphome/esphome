@@ -87,6 +87,10 @@ void ESPHomeOTAComponent::setup() {
   // no wakes fire and loop() falls back to the self-disable safety net.
   esphome_fast_select_set_ota_listener_sock(esphome_lwip_get_sock(this->server_->get_fd()));
 #endif
+
+#ifdef USE_OTA_PARTITIONS
+  ota::get_running_app_position(this->running_app_offset_, this->running_app_size_);
+#endif
 }
 
 void ESPHomeOTAComponent::dump_config() {
@@ -101,16 +105,12 @@ void ESPHomeOTAComponent::dump_config() {
   }
 #endif
 #ifdef USE_OTA_PARTITIONS
-  // running_app_part can be nullptr if the partition cache was unloaded by a prior aborted
-  // partition-table OTA; surface zeros instead of dereferencing.
-  const esp_partition_t *running_app_part = esp_ota_get_running_partition();
   ESP_LOGCONFIG(TAG,
                 "  Partition access allowed\n"
                 "  Running app:\n"
                 "    Partition address: 0x%X\n"
-                "    Partition size: 0x%X bytes",
-                running_app_part != nullptr ? running_app_part->address : 0u,
-                running_app_part != nullptr ? running_app_part->size : 0u);
+                "    Used size: %zu bytes (0x%X)",
+                this->running_app_offset_, this->running_app_size_, this->running_app_size_);
 
 #ifdef USE_ESP32
   ESP_LOGCONFIG(TAG, "  Partition table:");
