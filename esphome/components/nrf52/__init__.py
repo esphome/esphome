@@ -94,34 +94,54 @@ def set_core_data(config: ConfigType) -> ConfigType:
         slot_size = ((bl_start - slot0_start) // 2 // 0x1000) * 0x1000
         slot1_start = slot0_start + slot_size
 
-        def _mcuboot_partition_overlay() -> str:
-            return f"""
-            /delete-node/ &boot_partition;
+        print(f"0x{sd_end:08x} ")
+        print(f"0x{slot0_start:08x} ")
 
-            &flash0 {{
-                partitions {{
+        def _mcuboot_partition_overlay() -> str:
+            def part(name, start, size):
+                return f"""
+                {name}: partition@{start:x} {{
+                    reg = <0x{start:x} 0x{size:x}>;
+                }};"""
+
+            return f"""
+                /delete-node/ &boot_partition;
+                /delete-node/ &storage_partition;
+                /delete-node/ &code_partition;
+                /delete-node/ &reserved_partition_0;
+
+                &flash0 {{
+                    partitions {{
                         compatible = "fixed-partitions";
                         #address-cells = <1>;
                         #size-cells = <1>;
-
-                        boot_partition: partition@{sd_end:x} {{
-                            label = "mcuboot";
-                            reg = <0x{sd_end:08x} 0x{mcuboot_size:08x}>;
-                        }};
-                        slot0_partition: partition@{slot0_start:x} {{
-                            label = "image-0";
-                            reg = <0x{slot0_start:08x} 0x{slot_size:08x}>;
-                        }};
-                        slot1_partition: partition@{slot1_start:x} {{
-                            label = "image-1";
-                            reg = <0x{slot1_start:08x} 0x{slot_size:08x}>;
-                        }};
+                        {part("slot0_partition", slot0_start, slot_size)}
+                        {part("slot1_partition", slot1_start, slot_size)}
+                    }};
                 }};
-            }};
-        """
+            """
 
         zephyr_add_overlay(_mcuboot_partition_overlay(), "mcuboot")
         zephyr_add_overlay(_mcuboot_partition_overlay())
+        zephyr_add_overlay(
+            """
+            / {
+                chosen {
+                    zephyr,code-partition = &slot0_partition;
+                };
+            };
+            """
+        )
+        zephyr_add_overlay(
+            """
+            / {
+                chosen {
+                    zephyr,code-partition = &slot0_partition;
+                };
+            };
+            """,
+            "mcuboot",
+        )
     return config
 
 
@@ -402,8 +422,6 @@ async def to_code(config: ConfigType) -> None:
 
     if config[CONF_SECOND_BOOTLOADER]:
         CORE.data[PLATFORM_NRF52] = {"second_bootloader": True}
-        # zephyr_add_prj_conf("UART_CONSOLE", False, image="mcuboot")
-        # zephyr_add_prj_conf("CONSOLE", False, image="mcuboot")
         # zephyr_add_prj_conf("BOOT_USB_DFU_WAIT", True, image="mcuboot")
         zephyr_add_prj_conf(
             "PM_PARTITION_SIZE_MCUBOOT", HexValue(0x10000), image="mcuboot"
@@ -578,9 +596,24 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             return True  # Handled: platformio serial upload
 
     if host == "PYOCD":
-        result = _upload_using_platformio(config, host, ["-t", "flash_pyocd"])
-        if result != 0:
-            raise EsphomeError(f"Upload failed with result: {result}")
+        if zephyr_data()[KEY_NATIVE_BUILD]:
+            firmware = _build_env_dir(config[CORE.target_platform]) / "merged.hex"
+            result = subprocess.run(
+                [
+                    "pyocd",
+                    "flash",
+                    "-t",
+                    "nrf52840",
+                    str(firmware),
+                ],
+                check=False,
+            ).returncode
+            if result != 0:
+                raise EsphomeError(f"Upload failed with result: {result}")
+        else:
+            result = _upload_using_platformio(config, host, ["-t", "flash_pyocd"])
+            if result != 0:
+                raise EsphomeError(f"Upload failed with result: {result}")
         return True  # Handled: platformio PYOCD upload
 
     # Deferred imports: bleak/smpclient are heavy, only load for BLE/mcumgr paths

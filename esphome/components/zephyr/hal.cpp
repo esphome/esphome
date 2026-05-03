@@ -46,6 +46,8 @@ void arch_init() {
     }
   }
 #endif
+  // OTA may fail withotu it
+  arch_feed_wdt();
 }
 
 void arch_feed_wdt() {
