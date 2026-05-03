@@ -2,7 +2,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 #include <functional>
 
@@ -80,12 +79,8 @@ enum BMI270GyroODR : uint8_t {
 
 class BMI270AccelData {
  public:
-  float acceleration_x{NAN};
-  float acceleration_y{NAN};
-  float acceleration_z{NAN};
-  float gyroscope_x{NAN};
-  float gyroscope_y{NAN};
-  float gyroscope_z{NAN};
+  float acceleration[3]{NAN, NAN, NAN};
+  float angular_rate[3]{NAN, NAN, NAN};
   float temperature{NAN};
 };
 
@@ -103,7 +98,7 @@ class BMI270Component : public PollingComponent, public i2c::I2CDevice {
   void set_accel_odr(BMI270AccelODR o) { accel_odr_ = o; }
   void set_gyro_range(BMI270GyroRange r) { gyro_range_ = r; }
   void set_gyro_odr(BMI270GyroODR o) { gyro_odr_ = o; }
-
+  void set_matrix_(float m[3][3]) { memcpy(matrix_, m, sizeof(matrix_)); }
   void add_listener(std::function<void(BMI270AccelData &)> &&cb) { accel_data_callback_.add(std::move(cb)); }
 
  protected:
@@ -114,6 +109,15 @@ class BMI270Component : public PollingComponent, public i2c::I2CDevice {
   BMI270AccelODR accel_odr_{BMI270_ACCEL_ODR_100};
   BMI270GyroRange gyro_range_{BMI270_GYRO_RANGE_2000};
   BMI270GyroODR gyro_odr_{BMI270_GYRO_ODR_200};
+  float matrix_[9]{
+      1, 0, 0, 0, 1, 0, 0, 0, 1,
+  };
+
+  void map_axes_(float output[3], float x, float y, float z) const {
+    output[0] = x * this->matrix_[0] + y * this->matrix_[1] + z * this->matrix_[2];
+    output[1] = y * this->matrix_[3] + y * this->matrix_[4] + z * this->matrix_[5];
+    output[2] = z * this->matrix_[6] + y * this->matrix_[7] + z * this->matrix_[8];
+  };
 
   LazyCallbackManager<void(BMI270AccelData &)> accel_data_callback_{};
 };

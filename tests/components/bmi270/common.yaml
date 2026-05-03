@@ -20,15 +20,29 @@ sensor:
   - platform: bmi270
     type: gyroscope_x
     name: "Gyro X"
-    accuracy_decimals: 4
   - platform: bmi270
     type: gyroscope_y
     name: "Gyro Y"
-    accuracy_decimals: 4
   - platform: bmi270
     type: gyroscope_z
     name: "Gyro Z"
-    accuracy_decimals: 4
+
+  - platform: bmi270
+    type: angular_rate_x
+    name: "Angular Rate X"
+  - platform: bmi270
+    type: angular_rate_y
+    name: "Angular Rate Y"
+  - platform: bmi270
+    type: angular_rate_z
+    name: "Angular Rate Z"
+
+  - platform: bmi270
+    type: pitch
+    name: "Pitch"
+  - platform: bmi270
+    type: roll
+    name: "Roll"
 
     # On-chip temperature sensor (unit: °C)
   - platform: bmi270

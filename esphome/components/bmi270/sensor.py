@@ -3,12 +3,6 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ACCELERATION_X,
-    CONF_ACCELERATION_Y,
-    CONF_ACCELERATION_Z,
-    CONF_GYROSCOPE_X,
-    CONF_GYROSCOPE_Y,
-    CONF_GYROSCOPE_Z,
     CONF_TEMPERATURE,
     CONF_TYPE,
     DEVICE_CLASS_TEMPERATURE,
@@ -18,9 +12,11 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_DEGREE_PER_SECOND,
+    UNIT_DEGREES,
     UNIT_G,
 )
 from esphome.cpp_generator import MockObj
+from esphome.cpp_types import std_ns
 
 from . import CONF_BMI270_ID, SENSOR_SCHEMA, BMI270AccelData
 
@@ -43,15 +39,30 @@ def _gyro_sensor_schema():
     ).extend(SENSOR_SCHEMA)
 
 
+def _level_sensor_schema():
+    return sensor.sensor_schema(
+        unit_of_measurement=UNIT_DEGREES,
+        icon=ICON_SEESAW,
+        accuracy_decimals=2,
+        state_class=STATE_CLASS_MEASUREMENT,
+    ).extend(SENSOR_SCHEMA)
+
+
+CONF_PITCH = "pitch"
+CONF_ROLL = "roll"
+ICON_SEESAW = "mdi:seesaw"
+
+_AXES = ["x", "y", "z"]
+_ACCELERATIONS = ["acceleration_" + a for a in _AXES]
+_GYROSCOPES = ["gyroscope_" + g for g in _AXES]
+_ANGULAR_RATES = ["angular_rate_" + r for r in _AXES]
+
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_ACCELERATION_X: _accel_sensor_schema(),
-        CONF_ACCELERATION_Y: _accel_sensor_schema(),
-        CONF_ACCELERATION_Z: _accel_sensor_schema(),
-        # Gyroscope axes
-        CONF_GYROSCOPE_X: _gyro_sensor_schema(),
-        CONF_GYROSCOPE_Y: _gyro_sensor_schema(),
-        CONF_GYROSCOPE_Z: _gyro_sensor_schema(),
+        **{x: _accel_sensor_schema() for x in _ACCELERATIONS},
+        **{x: _gyro_sensor_schema() for x in _GYROSCOPES},
+        **{x: _gyro_sensor_schema() for x in _ANGULAR_RATES},
+        **{x: _level_sensor_schema() for x in (CONF_PITCH, CONF_ROLL)},
         # Temperature
         CONF_TEMPERATURE: sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
@@ -69,8 +80,26 @@ async def to_code(config):
     var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_BMI270_ID])
     data = MockObj("data")
+    pif = std_ns.namespace("numbers").pi_v.template(cg.float_)
+    if sensor_type == CONF_TEMPERATURE:
+        expr = data.temperature
+    elif sensor_type == CONF_PITCH:
+        ay = data.acceleration[1]
+        az = data.acceleration[2]
+        expr = std_ns.atan2f(ay, az) * (180.0 / pif)
+    elif sensor_type == CONF_ROLL:
+        ax = data.acceleration[0]
+        ay = data.acceleration[1]
+        az = data.acceleration[2]
+        expr = std_ns.atan2f(-ax, std_ns.sqrtf(ay * ay + az * az)) * (180.0 / pif)
+    else:
+        sensor_offset = _AXES.index(sensor_type[-1:])
+        if sensor_type in _GYROSCOPES:
+            sensor_type = _ANGULAR_RATES[sensor_offset]
+        sensor_type = sensor_type[:-2]
+        expr = getattr(data, sensor_type)[sensor_offset]
     value_lambda = await cg.process_lambda(
-        var.publish_state(getattr(data, sensor_type)),
+        var.publish_state(expr),
         [(BMI270AccelData.operator("ref"), "data")],
     )
     cg.add(parent.add_listener(value_lambda))
