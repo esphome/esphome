@@ -13,8 +13,16 @@ from esphome.const import (
 )
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import std_ns
+import esphome.final_validate as fv
 
-from . import AXES, CONF_MOTION_ID, SENSOR_SCHEMA, motion_ns
+from . import (
+    AXES,
+    CONF_MOTION_ID,
+    KEY_ACCELEROMETER,
+    KEY_GYROSCOPE,
+    SENSOR_SCHEMA,
+    motion_ns,
+)
 
 MotionData = motion_ns.class_("MotionData")
 
@@ -64,18 +72,33 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def final_validate_sensor_schema(config, has_accel=True, has_gyro=True):
+def _final_validate(config: dict) -> None:
+    full_config = fv.full_config.get()
+    motion_path = full_config.get_path_for_id(config[CONF_MOTION_ID])[:-1]
+    motion_config = full_config.get_config_for_path(motion_path)
+    has_accel = motion_config.get(KEY_ACCELEROMETER, False)
+    has_gyro = motion_config.get(KEY_GYROSCOPE, False)
+
     sensor_type = config[CONF_TYPE]
     if (
         sensor_type in _ACCELERATIONS or sensor_type in (CONF_ROLL, CONF_PITCH)
     ) and not has_accel:
-        raise cv.Invalid("The referenced device does not measure acceleration")
+        raise cv.Invalid(
+            "The motion device does not measure acceleration", path=[CONF_TYPE]
+        )
     if (sensor_type in _GYROSCOPES or sensor_type in _ANGULAR_RATES) and not has_gyro:
-        raise cv.Invalid("The referenced device does not measure angular rate")
+        raise cv.Invalid(
+            "The motion device does not measure angular rate", path=[CONF_TYPE]
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def build_sensor_expr(sensor_type: str, data: MockObj) -> MockObj:
     """Build the C++ expression for a motion sensor type."""
+
+    # Note that <numbers> is included via this component's header file.
     pif = std_ns.namespace("numbers").pi_v.template(cg.float_)
     if sensor_type == CONF_ROLL:
         ay = data.acceleration[1]

@@ -14,7 +14,6 @@ from esphome.components.motion.sensor import (
     CONF_ROLL,
     CONFIG_SCHEMA,
     build_sensor_expr,
-    final_validate_sensor_schema,
 )
 from esphome.cpp_generator import MockObj
 
@@ -236,54 +235,6 @@ class TestSensorExpressions:
         assert "std::numbers::pi_v<float>" in expr
         # Pitch negates the x component
         assert "(-data.acceleration[0])" in expr
-
-
-# --- Final validate sensor schema ---
-
-
-class TestFinalValidateSensorSchema:
-    """Tests for final_validate_sensor_schema."""
-
-    @pytest.mark.parametrize("sensor_type", _ACCELERATIONS)
-    def test_accel_sensor_allowed_with_accel(self, sensor_type):
-        final_validate_sensor_schema({"type": sensor_type}, has_accel=True)
-
-    @pytest.mark.parametrize("sensor_type", _ACCELERATIONS)
-    def test_accel_sensor_rejected_without_accel(self, sensor_type):
-        with pytest.raises(Invalid, match="acceleration"):
-            final_validate_sensor_schema({"type": sensor_type}, has_accel=False)
-
-    @pytest.mark.parametrize("sensor_type", [CONF_PITCH, CONF_ROLL])
-    def test_level_sensor_allowed_with_accel(self, sensor_type):
-        final_validate_sensor_schema({"type": sensor_type}, has_accel=True)
-
-    @pytest.mark.parametrize("sensor_type", [CONF_PITCH, CONF_ROLL])
-    def test_level_sensor_rejected_without_accel(self, sensor_type):
-        with pytest.raises(Invalid, match="acceleration"):
-            final_validate_sensor_schema({"type": sensor_type}, has_accel=False)
-
-    @pytest.mark.parametrize("sensor_type", _GYROSCOPES + _ANGULAR_RATES)
-    def test_gyro_sensor_allowed_with_gyro(self, sensor_type):
-        final_validate_sensor_schema({"type": sensor_type}, has_gyro=True)
-
-    @pytest.mark.parametrize("sensor_type", _GYROSCOPES + _ANGULAR_RATES)
-    def test_gyro_sensor_rejected_without_gyro(self, sensor_type):
-        with pytest.raises(Invalid, match="angular rate"):
-            final_validate_sensor_schema({"type": sensor_type}, has_gyro=False)
-
-    @pytest.mark.parametrize("sensor_type", _ACCELERATIONS + [CONF_PITCH, CONF_ROLL])
-    def test_accel_sensor_unaffected_by_has_gyro(self, sensor_type):
-        """Accel/level sensors should pass even when has_gyro=False."""
-        final_validate_sensor_schema(
-            {"type": sensor_type}, has_accel=True, has_gyro=False
-        )
-
-    @pytest.mark.parametrize("sensor_type", _GYROSCOPES + _ANGULAR_RATES)
-    def test_gyro_sensor_unaffected_by_has_accel(self, sensor_type):
-        """Gyro sensors should pass even when has_accel=False."""
-        final_validate_sensor_schema(
-            {"type": sensor_type}, has_accel=False, has_gyro=True
-        )
 
 
 # --- Sensor config schema type validation ---
