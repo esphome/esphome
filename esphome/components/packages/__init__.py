@@ -611,3 +611,48 @@ def merge_packages(config: dict) -> dict:
     config = reduce(lambda new, old: merge_config(old, new), merge_list, config)
     del config[CONF_PACKAGES]
     return config
+
+
+def resolve_packages(
+    config: dict[str, Any],
+    *,
+    command_line_substitutions: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Load and merge ``packages:`` in one call; return the flattened config.
+
+    Convenience wrapper around :func:`do_packages_pass` followed by
+    :func:`merge_packages`. External tools that want the package-
+    merged dict (without going through full schema validation via
+    :func:`esphome.config.read_config`) get one stable seam to call
+    instead of having to chain the two functions and stay in sync
+    with the pipeline order.
+
+    Note: the full :func:`esphome.config.validate_config` pipeline
+    runs :func:`esphome.components.substitutions.do_substitution_pass`
+    BETWEEN :func:`do_packages_pass` and :func:`merge_packages`.
+    This wrapper deliberately skips the substitution pass — it's
+    only "load and merge", not "load, substitute, merge". Callers
+    that care about ``${var}`` resolution inside package content
+    should invoke ``do_substitution_pass`` themselves between
+    calls, or go through the full ``validate_config``.
+
+    Used by:
+
+    - ``esphome/device-builder`` — the new WebSocket dashboard
+      backend reads device metadata (api / wifi / target-platform
+      flags) off the merged config so packages contribute the same
+      blocks the compiler sees, not just whatever sits at the top
+      of the user's YAML. See
+      https://github.com/esphome/device-builder/issues/288 for the
+      bug this fixes.
+
+    Returns *config* unchanged when ``packages:`` isn't present, so
+    callers can apply this unconditionally without having to peek
+    at the config first.
+    """
+    if CONF_PACKAGES not in config:
+        return config
+    config = do_packages_pass(
+        config, command_line_substitutions=command_line_substitutions
+    )
+    return merge_packages(config)

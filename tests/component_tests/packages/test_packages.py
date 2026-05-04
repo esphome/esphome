@@ -14,6 +14,7 @@ from esphome.components.packages import (
     do_packages_pass,
     is_package_definition,
     merge_packages,
+    resolve_packages,
 )
 from esphome.components.substitutions import ContextVars, do_substitution_pass
 import esphome.config as config_module
@@ -1621,3 +1622,78 @@ def test_remote_package_vars_resolved_against_sibling_package_substitutions(
     actual = packages_pass(config)
 
     assert actual[CONF_SENSOR][0]["pin"] == "GPIO5"
+
+
+# ---------------------------------------------------------------------------
+# resolve_packages — single-call wrapper around do_packages_pass + merge_packages
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_packages_returns_config_unchanged_without_packages() -> None:
+    """No ``packages:`` key → no-op, same dict back."""
+    config = {CONF_ESPHOME: {CONF_NAME: "test"}, CONF_WIFI: {CONF_SSID: "x"}}
+    result = resolve_packages(config)
+    assert result is config
+    assert CONF_PACKAGES not in result
+
+
+def test_resolve_packages_loads_and_merges_in_one_call() -> None:
+    """End-to-end: a config with one local-dict package gets its blocks flattened."""
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_PACKAGES: {
+            "shared": {
+                CONF_WIFI: {CONF_SSID: "from_package"},
+                CONF_SENSOR: [
+                    {CONF_PLATFORM: "template", CONF_NAME: "from_package_sensor"},
+                ],
+            }
+        },
+    }
+    result = resolve_packages(config)
+    # ``packages:`` is gone — it was consumed by the merge.
+    assert CONF_PACKAGES not in result
+    # Blocks contributed by the package are now top-level.
+    assert result[CONF_WIFI][CONF_SSID] == "from_package"
+    assert result[CONF_SENSOR][0][CONF_NAME] == "from_package_sensor"
+    # The main config's own keys survive untouched.
+    assert result[CONF_ESPHOME][CONF_NAME] == "main"
+
+
+def test_resolve_packages_preserves_main_config_overrides() -> None:
+    """Main-config values win over package values for the same key.
+
+    Pinning the precedence ESPHome's compiler uses so any future
+    refactor of the wrapper doesn't accidentally flip the order.
+    """
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_WIFI: {CONF_SSID: "main_wins"},
+        CONF_PACKAGES: {
+            "shared": {CONF_WIFI: {CONF_SSID: "package_loses"}},
+        },
+    }
+    result = resolve_packages(config)
+    assert result[CONF_WIFI][CONF_SSID] == "main_wins"
+
+
+def test_resolve_packages_forwards_command_line_substitutions() -> None:
+    """``command_line_substitutions`` reaches the underlying ``do_packages_pass``.
+
+    The wrapper exists so external tools have one stable seam; if
+    that seam silently dropped a kwarg the underlying call accepts,
+    callers would see surprising behaviour. This pins the
+    pass-through.
+    """
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_PACKAGES: {"shared": {CONF_WIFI: {CONF_SSID: "from_package"}}},
+    }
+    with patch(
+        "esphome.components.packages.do_packages_pass",
+        wraps=do_packages_pass,
+    ) as spy:
+        resolve_packages(config, command_line_substitutions={"foo": "bar"})
+    spy.assert_called_once()
+    _, kwargs = spy.call_args
+    assert kwargs.get("command_line_substitutions") == {"foo": "bar"}
