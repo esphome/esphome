@@ -13,9 +13,11 @@ from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 from .. import (
+    CONF_DECODE_MEMORY,
     CONF_FIXED_DELAY,
     CONF_INITIAL_STATIC_DELAY,
     CONF_SENDSPIN_ID,
+    MEMORY_LOCATIONS,
     SendspinHub,
     _validate_task_stack_in_psram,
     register_player_config,
@@ -57,6 +59,7 @@ def _register(config: ConfigType) -> ConfigType:
             CONF_INITIAL_STATIC_DELAY: config[CONF_INITIAL_STATIC_DELAY],
             CONF_FIXED_DELAY: config[CONF_FIXED_DELAY],
             CONF_TASK_STACK_IN_PSRAM: config.get(CONF_TASK_STACK_IN_PSRAM, False),
+            CONF_DECODE_MEMORY: config.get(CONF_DECODE_MEMORY),
         }
     )
     return config
@@ -82,6 +85,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SAMPLE_RATE, default=48000): cv.int_range(
                 min=16000, max=96000
             ),
+            cv.Optional(CONF_DECODE_MEMORY): cv.one_of(*MEMORY_LOCATIONS, lower=True),
         }
     ),
     cv.only_on_esp32,

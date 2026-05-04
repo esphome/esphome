@@ -15,6 +15,8 @@
 #define PROGMEM
 #endif
 
+namespace esphome::esp32 {}
+
 namespace esphome {
 
 // Forward decl from helpers.h (esphome/core/helpers.h) — kept here so this
@@ -41,6 +43,9 @@ __attribute__((always_inline)) inline uint64_t millis_64() {
 __attribute__((always_inline)) inline void delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 __attribute__((always_inline)) inline void arch_feed_wdt() { esp_task_wdt_reset(); }
 __attribute__((always_inline)) inline uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }
+
+void arch_init();
+uint32_t arch_get_cpu_freq_hz();
 
 }  // namespace esphome
 

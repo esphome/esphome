@@ -3784,12 +3784,16 @@ bool ZWaveProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited valu
   }
   return true;
 }
-uint8_t *ZWaveProxyFrame::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint8_t *
+ZWaveProxyFrame::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1, this->data, this->data_len);
   return pos;
 }
-uint32_t ZWaveProxyFrame::calculate_size() const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint32_t
+ZWaveProxyFrame::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_length(1, this->data_len);
   return size;
@@ -3910,7 +3914,9 @@ bool InfraredRFTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto3
   }
   return true;
 }
-uint8_t *InfraredRFReceiveEvent::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint8_t *
+InfraredRFReceiveEvent::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
 #ifdef USE_DEVICES
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->device_id);
@@ -3921,7 +3927,9 @@ uint8_t *InfraredRFReceiveEvent::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DE
   }
   return pos;
 }
-uint32_t InfraredRFReceiveEvent::calculate_size() const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint32_t
+InfraredRFReceiveEvent::calculate_size() const {
   uint32_t size = 0;
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, this->device_id);
@@ -4001,13 +4009,17 @@ bool SerialProxyConfigureRequest::decode_varint(uint32_t field_id, proto_varint_
   }
   return true;
 }
-uint8_t *SerialProxyDataReceived::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint8_t *
+SerialProxyDataReceived::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->instance);
   ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 2, this->data_ptr_, this->data_len_);
   return pos;
 }
-uint32_t SerialProxyDataReceived::calculate_size() const {
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+uint32_t
+SerialProxyDataReceived::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint32(1, this->instance);
   size += ProtoSize::calc_length(1, this->data_len_);
