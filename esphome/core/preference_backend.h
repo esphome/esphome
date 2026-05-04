@@ -69,6 +69,10 @@ template<typename Derived> class PreferencesMixin {
   ESPPreferenceObject make_preference(uint32_t type) {
     return static_cast<Derived *>(this)->make_preference(sizeof(T), type);
   }
+
+ private:
+  PreferencesMixin() = default;
+  friend Derived;
 };
 
 // Macro for platform preferences.h headers to declare the standard aliases.

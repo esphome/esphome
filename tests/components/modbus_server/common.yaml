@@ -1,0 +1,41 @@
+modbus:
+  - id: mod_bus2
+    uart_id: uart_bus
+    role: server
+
+modbus_server:
+  - id: modbus_server2
+    address: 0x2
+    modbus_id: mod_bus2
+    registers:
+      - address: 0x0
+        value_type: S_DWORD_R
+        read_lambda: |-
+          return 42.3;
+  - id: modbus_server3
+    address: 0x3
+    modbus_id: mod_bus2
+    registers:
+      - address: 0x9
+        value_type: S_DWORD
+        read_lambda: |-
+          return 31;
+        write_lambda: |-
+          printf("address=%d, value=%d", x);
+          return true;
+  - id: modbus_server4
+    modbus_id: mod_bus2
+    address: 0x4
+    courtesy_response:
+      enabled: true
+      register_last_address: 100
+      register_value: 0
+    registers:
+      - address: 0x1
+        value_type: U_WORD
+        read_lambda: |-
+          return 0x8;
+      - address: 0x5
+        value_type: U_WORD
+        read_lambda: |-
+          return (random_uint32() % 100);
