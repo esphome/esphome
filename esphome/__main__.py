@@ -66,6 +66,7 @@ from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
 from esphome.util import (
     PICOTOOL_PACKAGE,
+    FlashImage,
     detect_rp2040_bootsel,
     get_picotool_path,
     get_serial_ports,
@@ -622,8 +623,6 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     from aioesphomeapi import LogParser
     import serial
 
-    from esphome import platformio_api
-
     if CONF_LOGGER not in config:
         _LOGGER.info("Logger is not enabled. Not starting UART logs.")
         return 1
@@ -638,8 +637,11 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         process_stacktrace = getattr(module, "process_stacktrace")
-    except AttributeError:
-        pass
+    except (AttributeError, ImportError):
+        _LOGGER.info(
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
+            CORE.target_platform,
+        )
 
     backtrace_state = False
     ser = serial.Serial()
@@ -682,13 +684,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                             )
                             safe_print(parser.parse_line(line, time_str))
 
-                            if process_stacktrace:
+                            if process_stacktrace is not None:
                                 backtrace_state = process_stacktrace(
                                     config, line, backtrace_state
-                                )
-                            else:
-                                backtrace_state = platformio_api.process_stacktrace(
-                                    config, line, backtrace_state=backtrace_state
                                 )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
@@ -879,22 +877,20 @@ def _make_crystal_freq_callback(
 def upload_using_esptool(
     config: ConfigType, port: str, file: str, speed: int
 ) -> str | int:
-    from esphome import platformio_api
-
     first_baudrate = speed or config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", os.getenv("ESPHOME_UPLOAD_SPEED", "460800")
     )
 
     if file is not None:
-        flash_images = [platformio_api.FlashImage(path=file, offset="0x0")]
+        flash_images = [FlashImage(path=file, offset="0x0")]
     else:
+        from esphome import platformio_api
+
         idedata = platformio_api.get_idedata(config)
 
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
         flash_images = [
-            platformio_api.FlashImage(
-                path=idedata.firmware_bin_path, offset=firmware_offset
-            ),
+            FlashImage(path=idedata.firmware_bin_path, offset=firmware_offset),
         ]
         for image in idedata.extra_flash_images:
             if not image.path.is_file():
@@ -1127,6 +1123,15 @@ def upload_program(
 
     port_type = get_port_type(host)
 
+    # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
+    # _resolve_network_devices(). Only SERIAL and BOOTSEL are non-OTA upload paths.
+    if port_type in (PortType.SERIAL, PortType.BOOTSEL) and getattr(
+        args, "partition_table", False
+    ):
+        raise EsphomeError(
+            "The option --partition-table can only be used for Over The Air updates."
+        )
+
     if port_type == PortType.BOOTSEL:
         exit_code = upload_using_picotool(config)
         # Return None for device - BOOTSEL can't be used for logging,
@@ -1152,14 +1157,18 @@ def upload_program(
     # Resolve MQTT magic strings to actual IP addresses
     network_devices = _resolve_network_devices(devices, config, args)
 
-    binary = CORE.firmware_bin
-    if getattr(args, "file", None) is not None:
-        binary = Path(args.file)
-
     if chosen_platform == CONF_WEB_SERVER:
+        if getattr(args, "partition_table", False):
+            raise EsphomeError(
+                "--partition-table is only supported with the esphome OTA platform; "
+                "the web_server OTA path can only update the firmware image."
+            )
+        binary = CORE.firmware_bin
+        if getattr(args, "file", None) is not None:
+            binary = Path(args.file)
         return _upload_via_web_server(config, network_devices, binary)
 
-    return _upload_via_native_api(config, network_devices, binary)
+    return _upload_via_native_api(config, network_devices, args)
 
 
 def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
@@ -1206,7 +1215,7 @@ def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
 
 
 def _upload_via_native_api(
-    config: ConfigType, network_devices: list[str], binary: Path
+    config: ConfigType, network_devices: list[str], args: ArgsProtocol
 ) -> tuple[int, str | None]:
     ota_conf: ConfigType = {}
     for ota_item in config.get(CONF_OTA, []):
@@ -1218,13 +1227,28 @@ def _upload_via_native_api(
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD)
-    return espota2.run_ota(
-        network_devices,
-        remote_port,
-        password,
-        binary,
-        espota2.OTA_TYPE_UPDATE_APP,
-    )
+
+    binary = CORE.firmware_bin
+    ota_type = espota2.OTA_TYPE_UPDATE_APP
+    if getattr(args, "partition_table", False):
+        # Fail fast if the resolved ESPHome OTA config does not enable allow_partition_access.
+        # The device-side handshake also rejects this with "Device only supports app updates",
+        # but checking here surfaces the misconfiguration before opening a network connection.
+        if not ota_conf.get("allow_partition_access"):
+            raise EsphomeError(
+                "The option --partition-table requires 'allow_partition_access: true' on the "
+                "esphome OTA platform in the device's YAML configuration. Add it, recompile, "
+                "flash a build with the option enabled, and then retry --partition-table."
+            )
+        binary = CORE.partition_table_bin
+        ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
+    if getattr(args, "file", None) is not None:
+        binary = Path(args.file)
+
+    if ota_type == espota2.OTA_TYPE_UPDATE_PARTITION_TABLE:
+        _validate_partition_table_binary(binary)
+
+    return espota2.run_ota(network_devices, remote_port, password, binary, ota_type)
 
 
 def _upload_via_web_server(
@@ -1247,6 +1271,59 @@ def _upload_via_web_server(
     return web_server_ota.run_ota(
         network_devices, remote_port, username, password, binary
     )
+
+
+# Layout of esp_partition_info_t on flash. Each entry is 32 bytes, leading with a
+# 16-bit little-endian magic. ESP-IDF defines ESP_PARTITION_MAGIC = 0x50AA (stored as
+# bytes 0xAA, 0x50) for partition entries and ESP_PARTITION_MAGIC_MD5 = 0xEBEB for the
+# trailing checksum entry. Padding past the last entry is 0xFF. The full table is
+# exactly ESP_PARTITION_TABLE_MAX_LEN bytes.
+_PARTITION_TABLE_MAX_LEN = 0xC00
+_ESP_PARTITION_MAGIC = 0x50AA
+_ESP_PARTITION_MAGIC_MD5 = 0xEBEB
+
+
+def _validate_partition_table_binary(binary: Path) -> None:
+    """Validate that ``binary`` looks like an ESP32 partition table image.
+
+    Catches common mistakes (wrong file, truncated build output, swapped --file path)
+    before opening a network connection so the failure mode is a clear local error
+    instead of a post-handshake device rejection.
+    """
+    try:
+        data = binary.read_bytes()
+    except OSError as err:
+        raise EsphomeError(
+            f"Cannot read partition table file '{binary}': {err}"
+        ) from err
+
+    if len(data) != _PARTITION_TABLE_MAX_LEN:
+        raise EsphomeError(
+            f"Partition table file '{binary}' has wrong size: expected "
+            f"{_PARTITION_TABLE_MAX_LEN} bytes, got {len(data)}. "
+            "Pass the partition table image (e.g. partitions.bin / partition-table.bin), "
+            "not the firmware image."
+        )
+
+    first_magic = data[0] | (data[1] << 8)
+    if first_magic != _ESP_PARTITION_MAGIC:
+        raise EsphomeError(
+            f"Partition table file '{binary}' does not start with the expected "
+            f"partition magic 0x{_ESP_PARTITION_MAGIC:04X} (got 0x{first_magic:04X}). "
+            "This file does not look like an ESP32 partition table."
+        )
+
+    # The MD5 checksum entry is required: without it the device-side
+    # esp_partition_table_verify will accept the table but the bootloader will
+    # refuse to boot from it. Scan the 32-byte entries for the MD5 magic.
+    if not any(
+        (data[off] | (data[off + 1] << 8)) == _ESP_PARTITION_MAGIC_MD5
+        for off in range(0, _PARTITION_TABLE_MAX_LEN, 32)
+    ):
+        raise EsphomeError(
+            f"Partition table file '{binary}' is missing the MD5 checksum entry. "
+            "Regenerate the partition table with gen_esp32part.py or rebuild the project."
+        )
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
@@ -1926,6 +2003,11 @@ def parse_args(argv):
             f"cleartext on the wire. Falls back to '{CONF_WEB_SERVER}' "
             "(HTTP Basic auth) when that is the only configured platform."
         ),
+    )
+    parser_upload.add_argument(
+        "--partition-table",
+        help="Upload as partition table (OTA).",
+        action="store_true",
     )
 
     parser_logs = subparsers.add_parser(

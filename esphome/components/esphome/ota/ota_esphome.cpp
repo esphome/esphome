@@ -87,6 +87,10 @@ void ESPHomeOTAComponent::setup() {
   // no wakes fire and loop() falls back to the self-disable safety net.
   esphome_fast_select_set_ota_listener_sock(esphome_lwip_get_sock(this->server_->get_fd()));
 #endif
+
+#ifdef USE_OTA_PARTITIONS
+  ota::get_running_app_position(this->running_app_offset_, this->running_app_size_);
+#endif
 }
 
 void ESPHomeOTAComponent::dump_config() {
@@ -99,6 +103,29 @@ void ESPHomeOTAComponent::dump_config() {
   if (!this->password_.empty()) {
     ESP_LOGCONFIG(TAG, "  Password configured");
   }
+#endif
+#ifdef USE_OTA_PARTITIONS
+  ESP_LOGCONFIG(TAG,
+                "  Partition access allowed\n"
+                "  Running app:\n"
+                "    Partition address: 0x%X\n"
+                "    Used size: %zu bytes (0x%X)",
+                this->running_app_offset_, this->running_app_size_, this->running_app_size_);
+
+#ifdef USE_ESP32
+  ESP_LOGCONFIG(TAG,
+                "  Partition table:\n"
+                "    %-12s %-4s %-8s %-10s %-10s",
+                "Name", "Type", "Subtype", "Address", "Size");
+  esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
+  while (it != NULL) {
+    const esp_partition_t *partition = esp_partition_get(it);
+    ESP_LOGCONFIG(TAG, "    %-12s 0x%-2X 0x%-6X 0x%-8" PRIX32 " 0x%-8" PRIX32, partition->label, partition->type,
+                  partition->subtype, partition->address, partition->size);
+    it = esp_partition_next(it);
+  }
+  esp_partition_iterator_release(it);
+#endif
 #endif
 }
 
@@ -118,6 +145,7 @@ static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
+static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the OTA handshake and authentication.
@@ -215,6 +243,9 @@ void ESPHomeOTAComponent::handle_handshake_() {
         static_assert(HANDSHAKE_BUF_SIZE >= 2, "handshake_buf_ must hold the 2-byte extended-protocol feature ack");
         this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
         this->handshake_buf_[1] = (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
+#ifdef USE_OTA_PARTITIONS
+        this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;
+#endif
       } else {
         this->handshake_buf_[0] =
             supports_compression ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION : ota::OTA_RESPONSE_HEADER_OK;
@@ -347,10 +378,12 @@ void ESPHomeOTAComponent::handle_data_() {
              (static_cast<size_t>(buf[2]) << 8) | buf[3];
   ESP_LOGV(TAG, "Size is %u bytes", ota_size);
 
+#ifndef USE_OTA_PARTITIONS
   if (ota_type != ota::OTA_TYPE_UPDATE_APP) {
     error_code = ota::OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
+#endif
 
   // Now that we've passed authentication and are actually
   // starting the update, set the warning status and notify
@@ -362,8 +395,8 @@ void ESPHomeOTAComponent::handle_data_() {
   this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
-  // This will block for a few seconds as it locks flash
-  error_code = this->backend_->begin(ota_size);
+  // begin() may block for a few seconds while it locks flash.
+  error_code = this->backend_->begin(ota_size, ota_type);
   if (error_code != ota::OTA_RESPONSE_OK)
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   update_started = true;
@@ -465,6 +498,13 @@ void ESPHomeOTAComponent::handle_data_() {
   this->notify_state_(ota::OTA_COMPLETED, 100.0f, 0);
 #endif
   delay(100);  // NOLINT
+#ifdef USE_OTA_PARTITIONS
+  if (ota_type == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
+    // Skip on_safe_shutdown: nvs_flash_deinit() has already invalidated open NVS handles, so
+    // preferences flush would emit ESP_ERR_NVS_INVALID_HANDLE for every entry. Reboot directly.
+    App.reboot();
+  }
+#endif
   App.safe_reboot();
 
 error:
