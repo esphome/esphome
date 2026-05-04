@@ -27,6 +27,7 @@ ota:
 ## Configuration variables
 
 - **password** (*Optional*, string): The password to use for updates.
+- **allow_partition_access** (*Optional*, boolean): Only on `esp32`. Allow updating more partition types. Currently only used for updating the partition table. Defaults to `false`.
 
 > [!IMPORTANT]
 > Always use strong, unique passwords for OTA updates. See the [Security Best Practices](/guides/security_best_practices#3-ota-password-protection) guide for more information.
@@ -83,6 +84,35 @@ If OTA is already enabled without a password, simply add a `password:` line to t
   - Remove the OTA password from the configuration
   - Build a new image locally.
   - Execute the OTA update directly via the ESP web server.
+
+## Updating the partition table on ESP32
+
+On the ESP32 it is possible to modify the partition table with an OTA update. This feature can be used to update devices that can't be flashed via serial and have an old partition table with a small NVS partition. It can also be used to [convert devices running Tasmota to ESPHome](/guides/migrate_sonoff_tasmota). Before you can update the partition table you need to add the option `allow_partition_access: true` to the config and install it to your device.
+
+```yaml
+ota:
+  - platform: esphome
+    allow_partition_access: true
+```
+
+> [!CAUTION]
+> There is a risk of bricking the device if the power is interrupted or the ESP is reset during a partition table update, requiring serial flashing to repair it. Make sure you have a stable power supply. The update is usually completed within less than 15 seconds after running the `esphome upload` command.
+
+Open the ESPHome logs for detailed information about potential errors. To perform the partition table update you can run the following command:
+
+```
+esphome upload --partition-table name-of-your-config.yaml
+```
+
+To upload a custom partition table from a CSV file, you can run the commands below. `gen_esp32part.py` is part of ESP-IDF and can be found [here](https://github.com/espressif/esp-idf/blob/master/components/partition_table/gen_esp32part.py).
+
+```
+python3 gen_esp32part.py partitions.csv partitions.bin
+esphome upload --partition-table --file partitions.bin name-of-your-config.yaml
+```
+
+> [!CAUTION]
+> When [converting a Tasmota ESP32 device to ESPHome](/guides/migrate_sonoff_tasmota), it is required to add `allow_partition_access: true` on the first ESPHome firmware you upload to the device. Regular OTA updates will not work until the partition table update is completed.
 
 ## See Also
 
