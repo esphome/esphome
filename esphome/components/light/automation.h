@@ -8,84 +8,66 @@ namespace esphome::light {
 
 enum class LimitMode { CLAMP, DO_NOTHING };
 
-template<typename... Ts> class ToggleAction : public Action<Ts...> {
+template<bool HasTransitionLength, typename... Ts> class ToggleAction : public Action<Ts...> {
  public:
   explicit ToggleAction(LightState *state) : state_(state) {}
 
-  TEMPLATABLE_VALUE(uint32_t, transition_length)
+  template<typename V> void set_transition_length(V value) requires(HasTransitionLength) {
+    this->transition_length_ = value;
+  }
 
   void play(const Ts &...x) override {
     auto call = this->state_->toggle();
-    call.set_transition_length(this->transition_length_.optional_value(x...));
+    if constexpr (HasTransitionLength) {
+      call.set_transition_length(this->transition_length_.optional_value(x...));
+    }
     call.perform();
   }
 
  protected:
   LightState *state_;
+  struct NoTransition {};
+  [[no_unique_address]] std::conditional_t<HasTransitionLength, TemplatableFn<uint32_t, Ts...>, NoTransition>
+      transition_length_{};
 };
 
+// All configured fields are baked into a single stateless lambda whose
+// constants live in flash. The action only stores one function pointer
+// plus one parent pointer, regardless of how many fields the user set.
+// Trigger args are forwarded to the apply function so user lambdas
+// (e.g. `brightness: !lambda "return x;"`) keep working.
+//
+// Trigger args are normalized to `const std::remove_cvref_t<Ts> &...` so
+// the codegen can emit a matching parameter list for both the apply lambda
+// and any inner field lambdas without producing invalid C++ source text
+// (e.g. `const T & &` if Ts already carries a reference, or `const const
+// T &` if Ts already carries a const). This keeps trigger args no-copy
+// regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
 template<typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
-  explicit LightControlAction(LightState *parent) : parent_(parent) {}
-
-  TEMPLATABLE_VALUE(ColorMode, color_mode)
-  TEMPLATABLE_VALUE(bool, state)
-  TEMPLATABLE_VALUE(uint32_t, transition_length)
-  TEMPLATABLE_VALUE(uint32_t, flash_length)
-  TEMPLATABLE_VALUE(float, brightness)
-  TEMPLATABLE_VALUE(float, color_brightness)
-  TEMPLATABLE_VALUE(float, red)
-  TEMPLATABLE_VALUE(float, green)
-  TEMPLATABLE_VALUE(float, blue)
-  TEMPLATABLE_VALUE(float, white)
-  TEMPLATABLE_VALUE(float, color_temperature)
-  TEMPLATABLE_VALUE(float, cold_white)
-  TEMPLATABLE_VALUE(float, warm_white)
-  TEMPLATABLE_VALUE(uint32_t, effect)
+  using ApplyFn = void (*)(LightState *, LightCall &, const std::remove_cvref_t<Ts> &...);
+  LightControlAction(LightState *parent, ApplyFn apply) : parent_(parent), apply_(apply) {}
 
   void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
-    if (this->color_mode_.has_value())
-      call.set_color_mode(this->color_mode_.value(x...));
-    if (this->state_.has_value())
-      call.set_state(this->state_.value(x...));
-    if (this->transition_length_.has_value())
-      call.set_transition_length(this->transition_length_.value(x...));
-    if (this->flash_length_.has_value())
-      call.set_flash_length(this->flash_length_.value(x...));
-    if (this->brightness_.has_value())
-      call.set_brightness(this->brightness_.value(x...));
-    if (this->color_brightness_.has_value())
-      call.set_color_brightness(this->color_brightness_.value(x...));
-    if (this->red_.has_value())
-      call.set_red(this->red_.value(x...));
-    if (this->green_.has_value())
-      call.set_green(this->green_.value(x...));
-    if (this->blue_.has_value())
-      call.set_blue(this->blue_.value(x...));
-    if (this->white_.has_value())
-      call.set_white(this->white_.value(x...));
-    if (this->color_temperature_.has_value())
-      call.set_color_temperature(this->color_temperature_.value(x...));
-    if (this->cold_white_.has_value())
-      call.set_cold_white(this->cold_white_.value(x...));
-    if (this->warm_white_.has_value())
-      call.set_warm_white(this->warm_white_.value(x...));
-    if (this->effect_.has_value())
-      call.set_effect(this->effect_.value(x...));
+    this->apply_(this->parent_, call, x...);
     call.perform();
   }
 
  protected:
   LightState *parent_;
+  ApplyFn apply_;
 };
 
-template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
+template<bool HasTransitionLength, typename... Ts> class DimRelativeAction : public Action<Ts...> {
  public:
   explicit DimRelativeAction(LightState *parent) : parent_(parent) {}
 
   TEMPLATABLE_VALUE(float, relative_brightness)
-  TEMPLATABLE_VALUE(uint32_t, transition_length)
+
+  template<typename V> void set_transition_length(V value) requires(HasTransitionLength) {
+    this->transition_length_ = value;
+  }
 
   void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
@@ -99,7 +81,9 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
     call.set_state(new_brightness != 0.0f);
     call.set_brightness(new_brightness);
 
-    call.set_transition_length(this->transition_length_.optional_value(x...));
+    if constexpr (HasTransitionLength) {
+      call.set_transition_length(this->transition_length_.optional_value(x...));
+    }
     call.perform();
   }
 
@@ -115,6 +99,9 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
   float min_brightness_{0.0};
   float max_brightness_{1.0};
   LimitMode limit_mode_{LimitMode::CLAMP};
+  struct NoTransition {};
+  [[no_unique_address]] std::conditional_t<HasTransitionLength, TemplatableFn<uint32_t, Ts...>, NoTransition>
+      transition_length_{};
 };
 
 template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {

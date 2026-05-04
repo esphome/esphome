@@ -1,0 +1,112 @@
+esphome:
+  debug_scheduler: true  # Enable scheduler leak detection
+  name: scheduler-self-keyed-test
+  on_boot:
+    priority: -100
+    then:
+      - logger.log: "Starting scheduler self-keyed tests"
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+globals:
+  - id: tests_done
+    type: bool
+    initial_value: 'false'
+
+script:
+  - id: test_self_keyed
+    then:
+      - logger.log: "Testing self-keyed scheduler API"
+      - lambda: |-
+          // Two distinct keys backed by addresses of static markers — they
+          // must not collide even though both are self-keyed and share no
+          // Component pointer. Static storage gives them stable, unique
+          // addresses for the lifetime of the program.
+          static int key_a_marker = 0;
+          static int key_b_marker = 0;
+          void *key_a = &key_a_marker;
+          void *key_b = &key_b_marker;
+
+          // ---- Test 1: Self-keyed timeout fires ----
+          App.scheduler.set_timeout(key_a, 50, []() {
+            ESP_LOGI("test", "Self timeout A fired");
+          });
+
+          // ---- Test 2: Self-keyed cancel cancels only that key ----
+          App.scheduler.set_timeout(key_b, 100, []() {
+            ESP_LOGE("test", "ERROR: Self timeout B should have been cancelled");
+          });
+          App.scheduler.cancel_timeout(key_b);
+
+          // ---- Test 3: Two independent self keys don't collide ----
+          // Using fresh static markers so neither matches key_a / key_b.
+          static int key_c_marker = 0;
+          static int key_d_marker = 0;
+          void *key_c = &key_c_marker;
+          void *key_d = &key_d_marker;
+          App.scheduler.set_timeout(key_c, 150, []() {
+            ESP_LOGI("test", "Self timeout C fired");
+          });
+          App.scheduler.set_timeout(key_d, 150, []() {
+            ESP_LOGI("test", "Self timeout D fired");
+          });
+
+          // ---- Test 4: Self-keyed and component-keyed don't collide ----
+          // Use a self pointer that happens to look like a Component-attached id.
+          // The scheduler must treat them as separate namespaces.
+          static int shared_marker = 0;
+          void *self_shared = &shared_marker;
+          App.scheduler.set_timeout(self_shared, 200, []() {
+            ESP_LOGI("test", "Self timeout shared fired");
+          });
+          App.scheduler.set_timeout(id(test_sensor), 7777U, 200, []() {
+            ESP_LOGI("test", "Component timeout 7777 fired");
+          });
+
+          // ---- Test 5: Self-keyed interval fires multiple times then cancels ----
+          static int interval_count = 0;
+          static int key_e_marker = 0;
+          void *key_e = &key_e_marker;
+          App.scheduler.set_interval(key_e, 80, [key_e]() {
+            interval_count++;
+            if (interval_count == 2) {
+              ESP_LOGI("test", "Self interval E fired twice");
+              App.scheduler.cancel_interval(key_e);
+            }
+          });
+
+          // ---- Test 6: Re-registering same self-key replaces the timer ----
+          // The old timer must NOT fire; only the new one does.
+          static int key_f_marker = 0;
+          void *key_f = &key_f_marker;
+          App.scheduler.set_timeout(key_f, 250, []() {
+            ESP_LOGE("test", "ERROR: Self timeout F first registration should have been replaced");
+          });
+          App.scheduler.set_timeout(key_f, 300, []() {
+            ESP_LOGI("test", "Self timeout F replacement fired");
+          });
+
+          // Log completion after all timers should have fired
+          App.scheduler.set_timeout(id(test_sensor), 9999U, 1500, []() {
+            ESP_LOGI("test", "All self-keyed tests complete");
+          });
+
+sensor:
+  - platform: template
+    name: Test Sensor
+    id: test_sensor
+    lambda: return 1.0;
+    update_interval: never
+
+interval:
+  - interval: 0.1s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(tests_done) == false;'
+          then:
+            - lambda: 'id(tests_done) = true;'
+            - script.execute: test_self_keyed
