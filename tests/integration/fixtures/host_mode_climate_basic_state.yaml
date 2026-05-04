@@ -29,10 +29,6 @@ climate:
       min_temperature: 15.0
       max_temperature: 32.0
       temperature_step: 0.1
-    # Don't restore previous state from flash — this fixture shares the
-    # `host-climate-test` build dir with host_mode_climate_control.yaml, so a
-    # prior run of that test could leave the thermostat in HEAT/COOL.
-    on_boot_restore_from: default_preset
     default_preset: home
     preset:
       - name: "away"
