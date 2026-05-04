@@ -628,13 +628,27 @@ def resolve_packages(
     with the pipeline order.
 
     Note: the full :func:`esphome.config.validate_config` pipeline
-    runs :func:`esphome.components.substitutions.do_substitution_pass`
-    BETWEEN :func:`do_packages_pass` and :func:`merge_packages`.
-    This wrapper deliberately skips the substitution pass — it's
-    only "load and merge", not "load, substitute, merge". Callers
-    that care about ``${var}`` resolution inside package content
-    should invoke ``do_substitution_pass`` themselves between
-    calls, or go through the full ``validate_config``.
+    runs two extra passes around the merge that this wrapper
+    deliberately skips:
+
+    1. :func:`esphome.components.substitutions.do_substitution_pass`
+       runs BETWEEN :func:`do_packages_pass` and
+       :func:`merge_packages`, so ``${var}`` placeholders inside
+       package content are NOT resolved here. Callers that need
+       substitution should invoke ``do_substitution_pass``
+       themselves between calls, or go through the full
+       ``validate_config``.
+    2. :func:`esphome.config.resolve_extend_remove` runs AFTER
+       :func:`merge_packages`, so top-level ``!remove`` / ``!extend``
+       markers are NOT applied here. A package-contributed block
+       paired with a top-level ``key: !remove`` will still appear
+       in the returned dict (the marker just sits next to it).
+
+    The wrapper exists for the "what blocks did packages
+    contribute?" question — metadata callers that just need to
+    see merged top-level keys. It is NOT a stand-in for
+    :func:`esphome.config.validate_config` and the two passes
+    above are the reasons why.
 
     Used by:
 
