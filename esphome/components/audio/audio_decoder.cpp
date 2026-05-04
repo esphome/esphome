@@ -314,52 +314,46 @@ FileDecoderState AudioDecoder::decode_mp3_() {
 
   this->input_buffer_->consume(bytes_consumed);
 
-  switch (result) {
-    case micro_mp3::MP3_OK:
-      if (samples_decoded > 0 && this->audio_stream_info_.has_value()) {
-        this->output_transfer_buffer_->increase_buffer_length(
-            this->audio_stream_info_.value().frames_to_bytes(samples_decoded));
-      }
-      return FileDecoderState::MORE_TO_PROCESS;
-
-    case micro_mp3::MP3_STREAM_INFO_READY:
-      // First successful header parse: capture stream info and resize the output buffer to fit one full frame.
-      // microMP3 always outputs 16-bit PCM.
-      this->audio_stream_info_ =
-          audio::AudioStreamInfo(16, this->mp3_decoder_->get_channels(), this->mp3_decoder_->get_sample_rate());
+  if (result == micro_mp3::MP3_OK) {
+    if (samples_decoded > 0 && this->audio_stream_info_.has_value()) {
+      this->output_transfer_buffer_->increase_buffer_length(
+          this->audio_stream_info_.value().frames_to_bytes(samples_decoded));
+    }
+  } else if (result == micro_mp3::MP3_STREAM_INFO_READY) {
+    // First successful header parse: capture stream info and resize the output buffer to fit one full frame.
+    // microMP3 always outputs 16-bit PCM.
+    this->audio_stream_info_ =
+        audio::AudioStreamInfo(16, this->mp3_decoder_->get_channels(), this->mp3_decoder_->get_sample_rate());
+    this->free_buffer_required_ =
+        this->mp3_decoder_->get_samples_per_frame() * this->mp3_decoder_->get_channels() * sizeof(int16_t);
+    if (!this->output_transfer_buffer_->reallocate(this->free_buffer_required_)) {
+      return FileDecoderState::FAILED;
+    }
+  } else if (result == micro_mp3::MP3_NEED_MORE_DATA) {
+    return FileDecoderState::MORE_TO_PROCESS;
+  } else if (result == micro_mp3::MP3_OUTPUT_BUFFER_TOO_SMALL) {
+    // Reallocate to decode the frame on the next call
+    if (this->mp3_decoder_->get_channels() > 0) {
       this->free_buffer_required_ =
           this->mp3_decoder_->get_samples_per_frame() * this->mp3_decoder_->get_channels() * sizeof(int16_t);
-      if (!this->output_transfer_buffer_->reallocate(this->free_buffer_required_)) {
-        return FileDecoderState::FAILED;
-      }
-      return FileDecoderState::MORE_TO_PROCESS;
-
-    case micro_mp3::MP3_NEED_MORE_DATA:
-      return FileDecoderState::MORE_TO_PROCESS;
-
-    case micro_mp3::MP3_OUTPUT_BUFFER_TOO_SMALL:
-      // Re-size and retry on next call.
-      if (this->mp3_decoder_->get_channels() > 0) {
-        this->free_buffer_required_ =
-            this->mp3_decoder_->get_samples_per_frame() * this->mp3_decoder_->get_channels() * sizeof(int16_t);
-      } else {
-        // Fallback to worst-case size if channel info isn't available
-        this->free_buffer_required_ = this->mp3_decoder_->get_min_output_buffer_bytes();
-      }
-      if (!this->output_transfer_buffer_->reallocate(this->free_buffer_required_)) {
-        return FileDecoderState::FAILED;
-      }
-      return FileDecoderState::MORE_TO_PROCESS;
-
-    case micro_mp3::MP3_DECODE_ERROR:
-      ESP_LOGE(TAG, "MP3 decoder failed: %" PRId8, static_cast<int8_t>(result));
-      return FileDecoderState::POTENTIALLY_FAILED;
-
-    case micro_mp3::MP3_INPUT_INVALID:
-    case micro_mp3::MP3_ALLOCATION_FAILED:
-    default:
+    } else {
+      // Fallback to worst-case size if channel info isn't available
+      this->free_buffer_required_ = this->mp3_decoder_->get_min_output_buffer_bytes();
+    }
+    if (!this->output_transfer_buffer_->reallocate(this->free_buffer_required_)) {
       return FileDecoderState::FAILED;
+    }
+  } else if (result == micro_mp3::MP3_DECODE_ERROR) {
+    // Corrupt frame skipped; recoverable, retry on next call
+    ESP_LOGW(TAG, "MP3 decoder skipped a corrupt frame");
+    return FileDecoderState::POTENTIALLY_FAILED;
+  } else {
+    // MP3_ALLOCATION_FAILED, MP3_INPUT_INVALID, or any future error -- not recoverable
+    ESP_LOGE(TAG, "MP3 decoder failed: %d", static_cast<int>(result));
+    return FileDecoderState::FAILED;
   }
+
+  return FileDecoderState::MORE_TO_PROCESS;
 }
 #endif
 
