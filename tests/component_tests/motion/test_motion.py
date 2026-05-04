@@ -5,7 +5,13 @@ from __future__ import annotations
 import pytest
 from voluptuous import Invalid, MultipleInvalid
 
-from esphome.components.motion import _axis_map, _axis_map_to_matrix
+from esphome.components.motion import (
+    CONF_MOTION_ID,
+    KEY_ACCELEROMETER,
+    KEY_GYROSCOPE,
+    _axis_map,
+    _axis_map_to_matrix,
+)
 from esphome.components.motion.sensor import (
     _ACCELERATIONS,
     _ANGULAR_RATES,
@@ -13,9 +19,14 @@ from esphome.components.motion.sensor import (
     CONF_PITCH,
     CONF_ROLL,
     CONFIG_SCHEMA,
+    FINAL_VALIDATE_SCHEMA,
     build_sensor_expr,
 )
+from esphome.config import Config
+from esphome.const import CONF_TYPE
+from esphome.core import ID
 from esphome.cpp_generator import MockObj
+import esphome.final_validate as fv
 
 # --- Axis map validation ---
 
@@ -235,6 +246,80 @@ class TestSensorExpressions:
         assert "std::numbers::pi_v<float>" in expr
         # Pitch negates the x component
         assert "(-data.acceleration[0])" in expr
+
+
+# --- Final validation ---
+
+_MOTION_ID = "test_motion"
+
+
+def _make_full_config(*, has_accel: bool, has_gyro: bool) -> Config:
+    """Build a Config object with a motion component declaring the given capabilities."""
+    config = Config()
+    motion_entry = {
+        "id": ID(_MOTION_ID, is_declaration=True),
+        KEY_ACCELEROMETER: has_accel,
+        KEY_GYROSCOPE: has_gyro,
+    }
+    config["motion"] = [motion_entry]
+    config.declare_ids.append(
+        (ID(_MOTION_ID, is_declaration=True), ["motion", 0, "id"])
+    )
+    return config
+
+
+def _sensor_config(sensor_type: str) -> dict:
+    return {CONF_TYPE: sensor_type, CONF_MOTION_ID: ID(_MOTION_ID)}
+
+
+class TestFinalValidate:
+    """Tests for FINAL_VALIDATE_SCHEMA (_final_validate)."""
+
+    @pytest.mark.parametrize("sensor_type", _ACCELERATIONS + [CONF_PITCH, CONF_ROLL])
+    def test_accel_sensor_allowed_with_accel(self, sensor_type):
+        token = fv.full_config.set(_make_full_config(has_accel=True, has_gyro=False))
+        try:
+            FINAL_VALIDATE_SCHEMA(_sensor_config(sensor_type))
+        finally:
+            fv.full_config.reset(token)
+
+    @pytest.mark.parametrize("sensor_type", _ACCELERATIONS + [CONF_PITCH, CONF_ROLL])
+    def test_accel_sensor_rejected_without_accel(self, sensor_type):
+        token = fv.full_config.set(_make_full_config(has_accel=False, has_gyro=True))
+        try:
+            with pytest.raises(Invalid, match="acceleration"):
+                FINAL_VALIDATE_SCHEMA(_sensor_config(sensor_type))
+        finally:
+            fv.full_config.reset(token)
+
+    @pytest.mark.parametrize("sensor_type", _GYROSCOPES + _ANGULAR_RATES)
+    def test_gyro_sensor_allowed_with_gyro(self, sensor_type):
+        token = fv.full_config.set(_make_full_config(has_accel=False, has_gyro=True))
+        try:
+            FINAL_VALIDATE_SCHEMA(_sensor_config(sensor_type))
+        finally:
+            fv.full_config.reset(token)
+
+    @pytest.mark.parametrize("sensor_type", _GYROSCOPES + _ANGULAR_RATES)
+    def test_gyro_sensor_rejected_without_gyro(self, sensor_type):
+        token = fv.full_config.set(_make_full_config(has_accel=True, has_gyro=False))
+        try:
+            with pytest.raises(Invalid, match="angular rate"):
+                FINAL_VALIDATE_SCHEMA(_sensor_config(sensor_type))
+        finally:
+            fv.full_config.reset(token)
+
+    def test_all_types_allowed_with_both(self):
+        """Every sensor type should pass when the device has both capabilities."""
+        all_types = (
+            _ACCELERATIONS + _GYROSCOPES + _ANGULAR_RATES + [CONF_PITCH, CONF_ROLL]
+        )
+        token = fv.full_config.set(_make_full_config(has_accel=True, has_gyro=True))
+        try:
+            for sensor_type in all_types:
+                FINAL_VALIDATE_SCHEMA(_sensor_config(sensor_type))
+        finally:
+            fv.full_config.reset(token)
 
 
 # --- Sensor config schema type validation ---
