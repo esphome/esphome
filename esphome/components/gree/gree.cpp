@@ -1,11 +1,18 @@
 #include "gree.h"
 #include <cstring>
 #include "esphome/components/remote_base/remote_base.h"
+#ifdef ESPHOME_GREE_IR_DECODE_DEBUG
 #include "esphome/core/log.h"
+#endif
 
 namespace esphome::gree {
 
+#ifdef ESPHOME_GREE_IR_DECODE_DEBUG
 static const char *const TAG = "gree.climate";
+#define GREE_LOG_DECODE(...) ESP_LOGVV(TAG, __VA_ARGS__)
+#else
+#define GREE_LOG_DECODE(...)
+#endif
 
 static constexpr uint32_t GREE_YAP_IR_FREQUENCY = 38000;
 static constexpr uint32_t GREE_YAP_HEADER_MARK = 9000;
@@ -100,6 +107,53 @@ static uint32_t gree_message_space(Model model) {
   return GREE_MESSAGE_SPACE;
 }
 
+static climate::ClimateMode gree_decode_mode(uint8_t mode) {
+  switch (mode) {
+    case GREE_MODE_AUTO:
+      return climate::CLIMATE_MODE_HEAT_COOL;
+    case GREE_MODE_COOL:
+      return climate::CLIMATE_MODE_COOL;
+    case GREE_MODE_DRY:
+      return climate::CLIMATE_MODE_DRY;
+    case GREE_MODE_FAN:
+      return climate::CLIMATE_MODE_FAN_ONLY;
+    case GREE_MODE_HEAT:
+      return climate::CLIMATE_MODE_HEAT;
+    default:
+      return climate::CLIMATE_MODE_HEAT_COOL;
+  }
+}
+
+static climate::ClimateFanMode gree_decode_fan(uint8_t fan, bool yx1ff) {
+  if (yx1ff) {
+    switch (fan) {
+      case GREE_FAN_1:
+        return climate::CLIMATE_FAN_QUIET;
+      case GREE_FAN_2:
+        return climate::CLIMATE_FAN_LOW;
+      case GREE_FAN_3:
+        return climate::CLIMATE_FAN_MEDIUM;
+      case GREE_FAN_TURBO:
+        return climate::CLIMATE_FAN_HIGH;
+      case GREE_FAN_AUTO:
+      default:
+        return climate::CLIMATE_FAN_AUTO;
+    }
+  }
+
+  switch (fan) {
+    case GREE_FAN_1:
+      return climate::CLIMATE_FAN_LOW;
+    case GREE_FAN_2:
+      return climate::CLIMATE_FAN_MEDIUM;
+    case GREE_FAN_3:
+      return climate::CLIMATE_FAN_HIGH;
+    case GREE_FAN_AUTO:
+    default:
+      return climate::CLIMATE_FAN_AUTO;
+  }
+}
+
 static bool gree_read_byte(remote_base::RemoteReceiveData &data, uint32_t bit_mark, uint32_t one_space,
                            uint32_t zero_space, uint8_t *value) {
   uint8_t out = 0;
@@ -151,9 +205,19 @@ void GreeClimate::set_mode_bit(uint8_t bit_mask, bool enabled) {
   this->transmit_state();
 }
 
+void GreeClimate::register_mode_bit_switch(uint8_t bit_mask, void *arg, void (*publish_state)(void *arg, bool state)) {
+  if (this->mode_bit_switch_count_ < sizeof(this->mode_bit_switch_args_) / sizeof(this->mode_bit_switch_args_[0])) {
+    const uint8_t index = this->mode_bit_switch_count_++;
+    this->mode_bit_switch_masks_[index] = bit_mask;
+    this->mode_bit_switch_args_[index] = arg;
+    this->mode_bit_switch_publish_state_ = publish_state;
+  }
+}
+
 void GreeClimate::publish_mode_bit_switches_() {
-  for (auto *sw : this->mode_bit_switches_) {
-    sw->publish_mode_bit_state((this->mode_bits_ & sw->bit_mask()) != 0);
+  for (uint8_t i = 0; i < this->mode_bit_switch_count_; i++) {
+    this->mode_bit_switch_publish_state_(this->mode_bit_switch_args_[i],
+                                         (this->mode_bits_ & this->mode_bit_switch_masks_[i]) != 0);
   }
 }
 
@@ -166,23 +230,7 @@ void GreeClimate::transmit_state() {
 
     uint8_t operating_mode = GREE_MODE_HEAT;
     uint8_t temperature_cmd = uint8_t(roundf(clamp<float>(this->target_temperature, GREE_TEMP_MIN, GREE_TEMP_MAX)));
-    uint8_t fan_speed = GREE_FAN_AUTO;
-
-    switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
-      case climate::CLIMATE_FAN_LOW:
-        fan_speed = GREE_FAN_1;
-        break;
-      case climate::CLIMATE_FAN_MEDIUM:
-        fan_speed = GREE_FAN_2;
-        break;
-      case climate::CLIMATE_FAN_HIGH:
-        fan_speed = GREE_FAN_3;
-        break;
-      case climate::CLIMATE_FAN_AUTO:
-      default:
-        fan_speed = GREE_FAN_AUTO;
-        break;
-    }
+    uint8_t fan_speed = this->fan_speed_();
 
     if (!power_off) {
       switch (this->mode) {
@@ -435,13 +483,13 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     const uint8_t checksum0 = gree_yap_checksum(buffer);
     if (buffer[8] != checksum0) {
-      ESP_LOGVV(TAG, "Checksum 0 mismatch (got %02X expected %02X)", buffer[8], checksum0);
+      GREE_LOG_DECODE("Checksum 0 mismatch (got %02X expected %02X)", buffer[8], checksum0);
       return false;
     }
 
     const uint8_t checksum1 = gree_yap_checksum(buffer + 8);
     if (buffer[16] != checksum1) {
-      ESP_LOGVV(TAG, "Checksum 1 mismatch (got %02X expected %02X)", buffer[16], checksum1);
+      GREE_LOG_DECODE("Checksum 1 mismatch (got %02X expected %02X)", buffer[16], checksum1);
       return false;
     }
 
@@ -449,46 +497,13 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
     if (!power_on) {
       this->mode = climate::CLIMATE_MODE_OFF;
     } else {
-      switch (buffer[0] & 0x07) {
-        case GREE_MODE_AUTO:
-          this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-          break;
-        case GREE_MODE_COOL:
-          this->mode = climate::CLIMATE_MODE_COOL;
-          break;
-        case GREE_MODE_DRY:
-          this->mode = climate::CLIMATE_MODE_DRY;
-          break;
-        case GREE_MODE_FAN:
-          this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-          break;
-        case GREE_MODE_HEAT:
-          this->mode = climate::CLIMATE_MODE_HEAT;
-          break;
-        default:
-          this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-          break;
-      }
+      this->mode = gree_decode_mode(buffer[0] & 0x07);
     }
 
     // Temperature is encoded as (temp - 16) in the low nibble.
     this->target_temperature = float((buffer[1] & 0x0F) + GREE_TEMP_MIN);
 
-    switch (buffer[0] & 0xF0) {
-      case GREE_FAN_1:
-        this->fan_mode = climate::CLIMATE_FAN_LOW;
-        break;
-      case GREE_FAN_2:
-        this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-        break;
-      case GREE_FAN_3:
-        this->fan_mode = climate::CLIMATE_FAN_HIGH;
-        break;
-      case GREE_FAN_AUTO:
-      default:
-        this->fan_mode = climate::CLIMATE_FAN_AUTO;
-        break;
-    }
+    this->fan_mode = gree_decode_fan(buffer[0] & 0xF0, false);
 
     const uint8_t vdir = buffer[4] & 0x0F;
     const uint8_t hdir = (buffer[4] >> 4) & 0x0F;
@@ -497,7 +512,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     if (!vertical_swing) {
       if (!gree_is_fixed_vertical_direction(vdir)) {
-        ESP_LOGVV(TAG, "Unsupported vertical direction value: 0x%02X", vdir);
+        GREE_LOG_DECODE("Unsupported vertical direction value: 0x%02X", vdir);
         return false;
       }
       this->default_vertical_direction_ = static_cast<VerticalDirections>(vdir);
@@ -505,7 +520,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     if (!horizontal_swing) {
       if (!gree_is_fixed_horizontal_direction(hdir)) {
-        ESP_LOGVV(TAG, "Unsupported horizontal direction value: 0x%02X", hdir);
+        GREE_LOG_DECODE("Unsupported horizontal direction value: 0x%02X", hdir);
         return false;
       }
       this->default_horizontal_direction_ = static_cast<HorizontalDirections>(hdir);
@@ -574,7 +589,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   if (buffer[7] != expected_checksum) {
-    ESP_LOGVV(TAG, "Checksum mismatch (got %02X expected %02X)", buffer[7], expected_checksum);
+    GREE_LOG_DECODE("Checksum mismatch (got %02X expected %02X)", buffer[7], expected_checksum);
     return false;
   }
 
@@ -582,70 +597,20 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (!power_on) {
     this->mode = climate::CLIMATE_MODE_OFF;
   } else {
-    switch (buffer[0] & 0x07) {
-      case GREE_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-      case GREE_MODE_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case GREE_MODE_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case GREE_MODE_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-      case GREE_MODE_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      default:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-    }
+    this->mode = gree_decode_mode(buffer[0] & 0x07);
   }
 
   if (buffer[1] < GREE_TEMP_MIN || buffer[1] > GREE_TEMP_MAX) {
-    ESP_LOGVV(TAG, "Unsupported temperature value: 0x%02X", buffer[1]);
+    GREE_LOG_DECODE("Unsupported temperature value: 0x%02X", buffer[1]);
     return false;
   }
   this->target_temperature = float(buffer[1]);
 
   if (this->model_ == GREE_YX1FF) {
-    switch (buffer[0] & 0xF0) {
-      case GREE_FAN_1:
-        this->fan_mode = climate::CLIMATE_FAN_QUIET;
-        break;
-      case GREE_FAN_2:
-        this->fan_mode = climate::CLIMATE_FAN_LOW;
-        break;
-      case GREE_FAN_3:
-        this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-        break;
-      case GREE_FAN_TURBO:
-        this->fan_mode = climate::CLIMATE_FAN_HIGH;
-        break;
-      case GREE_FAN_AUTO:
-      default:
-        this->fan_mode = climate::CLIMATE_FAN_AUTO;
-        break;
-    }
+    this->fan_mode = gree_decode_fan(buffer[0] & 0xF0, true);
     this->preset = (buffer[0] & GREE_PRESET_SLEEP_BIT) ? climate::CLIMATE_PRESET_SLEEP : climate::CLIMATE_PRESET_NONE;
   } else {
-    switch (buffer[0] & 0xF0) {
-      case GREE_FAN_1:
-        this->fan_mode = climate::CLIMATE_FAN_LOW;
-        break;
-      case GREE_FAN_2:
-        this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-        break;
-      case GREE_FAN_3:
-        this->fan_mode = climate::CLIMATE_FAN_HIGH;
-        break;
-      case GREE_FAN_AUTO:
-      default:
-        this->fan_mode = climate::CLIMATE_FAN_AUTO;
-        break;
-    }
+    this->fan_mode = gree_decode_fan(buffer[0] & 0xF0, false);
   }
 
   bool vertical_swing = false;
@@ -657,7 +622,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
     vertical_swing = vdir == GREE_VDIR_SWING;
     if (!vertical_swing) {
       if (!gree_is_fixed_vertical_direction(vdir)) {
-        ESP_LOGVV(TAG, "Unsupported vertical direction value: 0x%02X", vdir);
+        GREE_LOG_DECODE("Unsupported vertical direction value: 0x%02X", vdir);
         return false;
       }
       this->default_vertical_direction_ = static_cast<VerticalDirections>(vdir);
@@ -667,7 +632,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
     if (!vertical_swing) {
       const uint8_t vdir = buffer[5] & 0x0F;
       if (!gree_is_fixed_vertical_direction(vdir)) {
-        ESP_LOGVV(TAG, "Unsupported vertical direction value: 0x%02X", vdir);
+        GREE_LOG_DECODE("Unsupported vertical direction value: 0x%02X", vdir);
         return false;
       }
       this->default_vertical_direction_ = static_cast<VerticalDirections>(vdir);
@@ -678,7 +643,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
       horizontal_swing = hdir == GREE_HDIR_SWING;
       if (!horizontal_swing) {
         if (!gree_is_fixed_horizontal_direction(hdir)) {
-          ESP_LOGVV(TAG, "Unsupported horizontal direction value: 0x%02X", hdir);
+          GREE_LOG_DECODE("Unsupported horizontal direction value: 0x%02X", hdir);
           return false;
         }
         this->default_horizontal_direction_ = static_cast<HorizontalDirections>(hdir);
@@ -693,7 +658,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     if (!vertical_swing) {
       if (!gree_is_fixed_vertical_direction(vdir)) {
-        ESP_LOGVV(TAG, "Unsupported vertical direction value: 0x%02X", vdir);
+        GREE_LOG_DECODE("Unsupported vertical direction value: 0x%02X", vdir);
         return false;
       }
       this->default_vertical_direction_ = static_cast<VerticalDirections>(vdir);
@@ -701,7 +666,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     if (!horizontal_swing) {
       if (!gree_is_fixed_horizontal_direction(hdir)) {
-        ESP_LOGVV(TAG, "Unsupported horizontal direction value: 0x%02X", hdir);
+        GREE_LOG_DECODE("Unsupported horizontal direction value: 0x%02X", hdir);
         return false;
       }
       this->default_horizontal_direction_ = static_cast<HorizontalDirections>(hdir);

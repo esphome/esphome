@@ -1,66 +1,11 @@
 climate:
   - platform: gree
-    name: GREE Generic
-    id: my_gree_generic
-    model: GENERIC
-    horizontal_default: auto
-    vertical_default: auto
-    transmitter_id: xmitr
-  - platform: gree
-    name: GREE YAN
+    name: GREE
     id: my_gree_ac
     model: YAN
-    horizontal_default: auto
-    vertical_default: auto
-    transmitter_id: xmitr
-  - platform: gree
-    name: GREE YAA
-    id: my_gree_yaa
-    model: YAA
-    horizontal_default: auto
-    vertical_default: auto
-    transmitter_id: xmitr
-  - platform: gree
-    name: GREE YAC
-    id: my_gree_yac
-    model: YAC
-    horizontal_default: middle
-    vertical_default: up
-    transmitter_id: xmitr
-  - platform: gree
-    name: GREE YAC1FB9
-    id: my_gree_yac1fb9
-    model: YAC1FB9
-    horizontal_default: auto
-    vertical_default: up
-    transmitter_id: xmitr
-  - platform: gree
-    name: GREE YX1FF
-    id: my_gree_yx1ff
-    model: YX1FF
-    horizontal_default: auto
-    vertical_default: middle
-    transmitter_id: xmitr
-  - platform: gree
-    name: GREE YAG
-    id: my_gree_yag
-    model: YAG
-    horizontal_default: right
-    vertical_default: mdown
-    transmitter_id: xmitr
-  - platform: gree
-    name: GREE YAP1F
-    id: my_gree_yap
-    model: YAP1F
-    horizontal_default: middle
-    vertical_default: up
     transmitter_id: xmitr
 
 switch:
-  - platform: gree
-    gree_id: my_gree_generic
-    light:
-      name: "Generic Light"
   - platform: gree
     gree_id: my_gree_ac
     light:
@@ -71,27 +16,3 @@ switch:
       name: "AC Health"
     xfan:
       name: "AC X-Fan"
-  - platform: gree
-    gree_id: my_gree_yaa
-    light:
-      name: "YAA Lights"
-  - platform: gree
-    gree_id: my_gree_yac
-    light:
-      name: "YAC Lights"
-  - platform: gree
-    gree_id: my_gree_yac1fb9
-    light:
-      name: "YAC1FB9 Lights"
-  - platform: gree
-    gree_id: my_gree_yx1ff
-    light:
-      name: "YX1FF Lights"
-  - platform: gree
-    gree_id: my_gree_yag
-    light:
-      name: "YAG Lights"
-  - platform: gree
-    gree_id: my_gree_yap
-    light:
-      name: "YAP Lights"

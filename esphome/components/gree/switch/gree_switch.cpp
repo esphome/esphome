@@ -6,7 +6,7 @@ namespace esphome::gree {
 static const char *const TAG = "gree.switch";
 
 void GreeModeBitSwitch::setup() {
-  this->parent_->register_mode_bit_switch(this);
+  this->parent_->register_mode_bit_switch(this->bit_mask_, this, GreeModeBitSwitch::publish_mode_bit_state);
   auto initial = this->get_initial_state_with_restore_mode();
   if (initial.has_value()) {
     this->write_state(*initial);
@@ -20,6 +20,8 @@ void GreeModeBitSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-void GreeModeBitSwitch::publish_mode_bit_state(bool state) { this->publish_state(state); }
+void GreeModeBitSwitch::publish_mode_bit_state(void *arg, bool state) {
+  static_cast<GreeModeBitSwitch *>(arg)->publish_state(state);
+}
 
 }  // namespace esphome::gree

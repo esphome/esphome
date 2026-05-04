@@ -6,20 +6,17 @@
 
 namespace esphome::gree {
 
-class GreeModeBitSwitch : public switch_::Switch,
-                          public Component,
-                          public Parented<GreeClimate>,
-                          public GreeModeBitSwitchListener {
+class GreeModeBitSwitch : public switch_::Switch, public Component, public Parented<GreeClimate> {
  public:
   GreeModeBitSwitch(const char *name, uint8_t bit_mask) : name_(name), bit_mask_(bit_mask) {}
 
   void setup() override;
   void dump_config() override;
   void write_state(bool state) override;
-  uint8_t bit_mask() const override { return this->bit_mask_; }
-  void publish_mode_bit_state(bool state) override;
 
  protected:
+  static void publish_mode_bit_state(void *arg, bool state);
+
   const char *name_;
   uint8_t bit_mask_;
 };

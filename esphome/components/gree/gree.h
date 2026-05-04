@@ -1,7 +1,5 @@
 #pragma once
 
-#include <vector>
-
 #include "esphome/components/climate_ir/climate_ir.h"
 
 namespace esphome::gree {
@@ -106,13 +104,6 @@ enum VerticalDirections {
   VERTICAL_DIRECTION_DOWN = GREE_VDIR_DOWN,
 };
 
-class GreeModeBitSwitchListener {
- public:
-  virtual ~GreeModeBitSwitchListener() = default;
-  virtual uint8_t bit_mask() const = 0;
-  virtual void publish_mode_bit_state(bool state) = 0;
-};
-
 class GreeClimate : public climate_ir::ClimateIR {
  public:
   GreeClimate()
@@ -131,7 +122,7 @@ class GreeClimate : public climate_ir::ClimateIR {
     this->default_vertical_direction_ = vertical_direction;
   }
 
-  void register_mode_bit_switch(GreeModeBitSwitchListener *sw) { this->mode_bit_switches_.push_back(sw); }
+  void register_mode_bit_switch(uint8_t bit_mask, void *arg, void (*publish_state)(void *arg, bool state));
 
  protected:
   // Transmit via IR the state of this climate controller.
@@ -151,7 +142,10 @@ class GreeClimate : public climate_ir::ClimateIR {
   HorizontalDirections default_horizontal_direction_{HORIZONTAL_DIRECTION_AUTO};
   VerticalDirections default_vertical_direction_{VERTICAL_DIRECTION_AUTO};
 
-  std::vector<GreeModeBitSwitchListener *> mode_bit_switches_{};
+  uint8_t mode_bit_switch_masks_[4]{};
+  void *mode_bit_switch_args_[4]{};
+  void (*mode_bit_switch_publish_state_)(void *arg, bool state){nullptr};
+  uint8_t mode_bit_switch_count_{0};
   void publish_mode_bit_switches_();
 };
 
