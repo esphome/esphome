@@ -356,7 +356,7 @@ def _owner_pkgname_to_name(owner: str | None, pkgname: str) -> str:
     Returns:
         str: The standardized component name in "owner/pkgname" format or just "pkgname"
     """
-    return "/".join([owner, pkgname]) if owner else pkgname
+    return f"{owner}/{pkgname}" if owner else pkgname
 
 
 def _collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[str]:
