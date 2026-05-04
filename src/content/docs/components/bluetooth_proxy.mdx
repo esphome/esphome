@@ -187,8 +187,10 @@ bluetooth_proxy:
 If you experience memory issues, consider the following:
 
 - **Framework:** The `esp-idf` framework is recommended over `arduino` as it uses less memory.
-  When switching frameworks, update the device with a serial cable as the partition table differs.
-  [OTA](/components/ota) updates will not change the partition table.
+- **NVS Partition Size:** If you last updated your ESP32 via serial before 2022.12.0 on `esp-idf`
+  or before 2026.4.0 on `arduino` it is recommended to update your partition table to increase the
+  NVS partition size. You can do this by updating the device with a serial cable once or through an
+  [OTA partition table update](/components/ota/esphome/#updating-the-partition-table-on-esp32).
 - **Web Server:** The [Web Server](/components/web_server) component uses additional RAM.
   Disabling it can help if you experience memory-related issues.
 
