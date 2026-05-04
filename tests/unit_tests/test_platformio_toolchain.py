@@ -298,7 +298,7 @@ def test_run_platformio_cli_sets_environment_variables(
         KEY_TARGET_FRAMEWORK: "arduino",
     }
 
-    with patch.dict(os.environ, {}, clear=False):
+    with patch.dict(os.environ, {}, clear=True):
         mock_run_external_process.return_value = 0
         toolchain.run_platformio_cli("test", "arg")
 
