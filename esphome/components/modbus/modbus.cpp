@@ -335,11 +335,6 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 
       if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
           static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_INPUT_REGISTERS) {
-        if (len < 4) {
-          ESP_LOGW(TAG, "Read registers request too short (%" PRIu16 " bytes)", len);
-          device->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
-          continue;
-        }
         device->on_modbus_read_registers(function_code, helpers::get_data<uint16_t>(data, 0),
                                          helpers::get_data<uint16_t>(data, 2));
       } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
