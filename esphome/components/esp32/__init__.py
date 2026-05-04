@@ -2518,46 +2518,6 @@ def copy_files():
             copy_file_if_changed(path, CORE.relative_build_path(name))
 
 
-# ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder
-ESP8266_EXCEPTION_CODES = {
-    0: "Illegal instruction (Is the flash damaged?)",
-    1: "SYSCALL instruction",
-    2: "InstructionFetchError: Processor internal physical address or data error during "
-    "instruction fetch",
-    3: "LoadStoreError: Processor internal physical address or data error during load or store",
-    4: "Level1Interrupt: Level-1 interrupt as indicated by set level-1 bits in the INTERRUPT "
-    "register",
-    5: "Alloca: MOVSP instruction, if caller's registers are not in the register file",
-    6: "Integer Divide By Zero",
-    7: "reserved",
-    8: "Privileged: Attempt to execute a privileged operation when CRING ? 0",
-    9: "LoadStoreAlignmentCause: Load or store to an unaligned address",
-    10: "reserved",
-    11: "reserved",
-    12: "InstrPIFDataError: PIF data error during instruction fetch",
-    13: "LoadStorePIFDataError: Synchronous PIF data error during LoadStore access",
-    14: "InstrPIFAddrError: PIF address error during instruction fetch",
-    15: "LoadStorePIFAddrError: Synchronous PIF address error during LoadStore access",
-    16: "InstTLBMiss: Error during Instruction TLB refill",
-    17: "InstTLBMultiHit: Multiple instruction TLB entries matched",
-    18: "InstFetchPrivilege: An instruction fetch referenced a virtual address at a ring level "
-    "less than CRING",
-    19: "reserved",
-    20: "InstFetchProhibited: An instruction fetch referenced a page mapped with an attribute "
-    "that does not permit instruction fetch",
-    21: "reserved",
-    22: "reserved",
-    23: "reserved",
-    24: "LoadStoreTLBMiss: Error during TLB refill for a load or store",
-    25: "LoadStoreTLBMultiHit: Multiple TLB entries matched for a load or store",
-    26: "LoadStorePrivilege: A load or store referenced a virtual address at a ring level less "
-    "than ",
-    27: "reserved",
-    28: "Access to invalid address: LOAD (wild pointer?)",
-    29: "Access to invalid address: STORE (wild pointer?)",
-}
-
-
 def _decode_pc(config, addr):
     from esphome import platformio_api
 
@@ -2585,9 +2545,6 @@ def _parse_register(config, regex, line):
         _decode_pc(config, match.group(1))
 
 
-STACKTRACE_ESP8266_EXCEPTION_TYPE_RE = re.compile(r"[eE]xception \((\d+)\):")
-STACKTRACE_ESP8266_PC_RE = re.compile(r"epc1=0x(4[0-9a-fA-F]{7})")
-STACKTRACE_ESP8266_EXCVADDR_RE = re.compile(r"excvaddr=0x(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP32_PC_RE = re.compile(r".*PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7}).*")
 STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r"EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP32_C3_PC_RE = re.compile(r"MEPC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
@@ -2601,22 +2558,11 @@ STACKTRACE_ESP32_BACKTRACE_RE = re.compile(
 STACKTRACE_ESP32_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
 # ESP32 crash handler (stored backtrace from previous boot)
 STACKTRACE_ESP32_CRASH_BT_RE = re.compile(r"BT\d+:\s*0x([0-9a-fA-F]{8})")
-STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
 
 
 def process_stacktrace(config, line, backtrace_state):
     line = line.strip()
-    # ESP8266 Exception type
-    match = re.match(STACKTRACE_ESP8266_EXCEPTION_TYPE_RE, line)
-    if match is not None:
-        code = int(match.group(1))
-        _LOGGER.warning(
-            "Exception type: %s", ESP8266_EXCEPTION_CODES.get(code, "unknown")
-        )
 
-    # ESP8266 PC/EXCVADDR
-    _parse_register(config, STACKTRACE_ESP8266_PC_RE, line)
-    _parse_register(config, STACKTRACE_ESP8266_EXCVADDR_RE, line)
     # ESP32 PC/EXCVADDR
     _parse_register(config, STACKTRACE_ESP32_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP32_EXCVADDR_RE, line)
@@ -2642,19 +2588,6 @@ def process_stacktrace(config, line, backtrace_state):
     if match is not None:
         _LOGGER.warning("Found stack trace! Trying to decode it")
         for addr in re.finditer(STACKTRACE_ESP32_BACKTRACE_PC_RE, line):
-            _decode_pc(config, addr.group())
-
-    # ESP8266 multi-line backtrace
-    if ">>>stack>>>" in line:
-        # Start of backtrace
-        backtrace_state = True
-        _LOGGER.warning("Found stack trace! Trying to decode it")
-    elif "<<<stack<<<" in line:
-        # End of backtrace
-        backtrace_state = False
-
-    if backtrace_state:
-        for addr in re.finditer(STACKTRACE_ESP8266_BACKTRACE_PC_RE, line):
             _decode_pc(config, addr.group())
 
     return backtrace_state
