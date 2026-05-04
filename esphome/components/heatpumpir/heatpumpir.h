@@ -103,6 +103,7 @@ class HeatpumpIRClimate : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
   void setup() override;
   void set_protocol(Protocol protocol) { this->protocol_ = protocol; }
+  void set_light(bool light) { this->light_ = light; }
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
   }
@@ -123,6 +124,8 @@ class HeatpumpIRClimate : public climate_ir::ClimateIR {
 
   float max_temperature_;
   float min_temperature_;
+
+  bool light_{true};
 };
 
 }  // namespace esphome::heatpumpir

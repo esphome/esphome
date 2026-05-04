@@ -1,7 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import climate_ir
+from esphome.components.const import CONF_HORIZONTAL_DEFAULT, CONF_VERTICAL_DEFAULT
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_LIGHT,
     CONF_MAX_TEMPERATURE,
     CONF_MIN_TEMPERATURE,
     CONF_PROTOCOL,
@@ -75,7 +77,6 @@ PROTOCOLS = {
     "r51m": Protocol.PROTOCOL_R51M,
 }
 
-CONF_HORIZONTAL_DEFAULT = "horizontal_default"
 HorizontalDirections = heatpumpir_ns.enum("HorizontalDirections")
 HORIZONTAL_DIRECTIONS = {
     "auto": HorizontalDirections.HORIZONTAL_DIRECTION_AUTO,
@@ -86,7 +87,6 @@ HORIZONTAL_DIRECTIONS = {
     "right": HorizontalDirections.HORIZONTAL_DIRECTION_RIGHT,
 }
 
-CONF_VERTICAL_DEFAULT = "vertical_default"
 VerticalDirections = heatpumpir_ns.enum("VerticalDirections")
 VERTICAL_DIRECTIONS = {
     "auto": VerticalDirections.VERTICAL_DIRECTION_AUTO,
@@ -97,6 +97,19 @@ VERTICAL_DIRECTIONS = {
     "down": VerticalDirections.VERTICAL_DIRECTION_DOWN,
 }
 
+LIGHT_CAPABLE_PROTOCOLS = {"greeyap", "vaillantvai8"}
+
+
+def _validate_light_supported_protocols(config):
+    protocol = str(config[CONF_PROTOCOL])
+    if CONF_LIGHT in config and protocol not in LIGHT_CAPABLE_PROTOCOLS:
+        supported = ", ".join(sorted(LIGHT_CAPABLE_PROTOCOLS))
+        raise cv.Invalid(
+            f"{CONF_LIGHT} is only configurable for protocols {supported} in heatpumpir"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     climate_ir.climate_ir_with_receiver_schema(HeatpumpIRClimate).extend(
         {
@@ -105,8 +118,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_VERTICAL_DEFAULT): cv.enum(VERTICAL_DIRECTIONS),
             cv.Required(CONF_MIN_TEMPERATURE): cv.temperature,
             cv.Required(CONF_MAX_TEMPERATURE): cv.temperature,
+            cv.Optional(CONF_LIGHT): cv.boolean,
         }
     ),
+    _validate_light_supported_protocols,
     cv.Any(cv.only_with_arduino, cv.only_on_esp32),
 )
 
@@ -126,6 +141,9 @@ async def to_code(config):
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
     cg.add_build_flag("-Wno-error=overloaded-virtual")
+
+    if str(config[CONF_PROTOCOL]) in LIGHT_CAPABLE_PROTOCOLS:
+        cg.add(var.set_light(config.get(CONF_LIGHT, True)))
 
     cg.add_library("tonia/HeatpumpIR", "1.0.41")
     if CORE.is_libretiny or CORE.is_esp32:

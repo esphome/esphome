@@ -25,10 +25,14 @@ SWITCH_CONFIGS = (
 )
 
 SUPPORTED_MODELS = {
+    "generic",
     "yan",
     "yaa",
     "yac",
     "yac1fb9",
+    "yx1ff",
+    "yag",
+    "yap1f",
 }
 
 CONFIG_SCHEMA = cv.Schema(
@@ -53,10 +57,9 @@ def _validate_model(config):
     climate_path = full_config.get_path_for_id(config[CONF_GREE_ID])[:-1]
     climate_conf = full_config.get_config_for_path(climate_path)
     if climate_conf[CONF_MODEL] not in SUPPORTED_MODELS:
+        supported_models = ", ".join(sorted(SUPPORTED_MODELS))
         raise cv.Invalid(
-            "Gree switches are only supported for the "
-            + ", ".join(SUPPORTED_MODELS)
-            + " models"
+            "Gree switches are only supported for the " + supported_models + " models"
         )
 
 

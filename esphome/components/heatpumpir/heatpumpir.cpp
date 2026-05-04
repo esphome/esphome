@@ -5,6 +5,8 @@
 #include <map>
 #include <IRSender.h>
 #include <HeatpumpIRFactory.h>
+#include <GreeHeatpumpIR.h>
+#include <VaillantHeatpumpIR.h>
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
 
@@ -23,18 +25,16 @@ class IRSenderESPHome : public IRSender {
   }
 
   void space(int space_length) override {
-    if (space_length) {
-      auto *data = this->transmit_.get_data();
-      data->space(space_length);
-    } else {
-      this->transmit_.perform();
-    }
+    auto *data = this->transmit_.get_data();
+    data->space(space_length > 0 ? space_length : 0);
   }
 
   void mark(int mark_length) override {
     auto *data = this->transmit_.get_data();
-    data->mark(mark_length);
+    data->mark(mark_length > 0 ? mark_length : 0);
   }
+
+  void perform() { this->transmit_.perform(); }
 
  protected:
   remote_base::RemoteTransmitterBase::TransmitCall transmit_;
@@ -114,6 +114,7 @@ void HeatpumpIRClimate::setup() {
 
       IRSenderESPHome esp_sender(this->transmitter_);
       this->heatpump_ir_->send(esp_sender, uint8_t(lround(this->current_temperature)));
+      esp_sender.perform();
 
       // current temperature changed, publish state
       this->publish_state();
@@ -238,8 +239,19 @@ void HeatpumpIRClimate::transmit_state() {
   temperature_cmd = (uint8_t) clamp(this->target_temperature, this->min_temperature_, this->max_temperature_);
 
   IRSenderESPHome esp_sender(this->transmitter_);
-  heatpump_ir_->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
-                     swing_h_cmd);
+  if (this->protocol_ == PROTOCOL_GREEYAP) {
+    auto *gree_yap = static_cast<GreeYAPHeatpumpIR *>(this->heatpump_ir_);
+    gree_yap->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
+                   swing_h_cmd, false, false, this->light_);
+  } else if (this->protocol_ == PROTOCOL_VAILLANTVAI8) {
+    auto *vaillant = static_cast<VaillantHeatpumpIR *>(this->heatpump_ir_);
+    vaillant->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd, false,
+                   this->light_);
+  } else {
+    heatpump_ir_->send(esp_sender, power_mode_cmd, operating_mode_cmd, fan_speed_cmd, temperature_cmd, swing_v_cmd,
+                       swing_h_cmd);
+  }
+  esp_sender.perform();
 }
 
 }  // namespace esphome::heatpumpir
