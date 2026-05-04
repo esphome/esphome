@@ -89,6 +89,9 @@ enum LSM6DS3TRCGyroODR : uint8_t {
 // ── Main component class ─────────────────────────────────────────────────────
 class LSM6DS3TRCComponent : public motion::MotionComponent, public i2c::I2CDevice {
  public:
+  // read/write that operate as separate transactions
+  bool write_reg(uint8_t reg, const uint8_t *data, size_t len) const;
+  bool read_reg(uint8_t reg, uint8_t *data, size_t len) const;
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }

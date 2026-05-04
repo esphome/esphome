@@ -291,6 +291,7 @@ esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/logger/select/* @clydebarrow
 esphome/components/lps22/* @nagisa
+esphome/components/lsm6ds3/* @clydebarrow
 esphome/components/ltr390/* @latonita @sjtrny
 esphome/components/ltr501/* @latonita
 esphome/components/ltr_als_ps/* @latonita

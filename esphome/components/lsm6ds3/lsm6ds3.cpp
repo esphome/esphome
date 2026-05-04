@@ -12,20 +12,21 @@ static const char *const TAG = "lsm6ds3";
 void LSM6DS3TRCComponent::setup() {
   // 1. Verify chip identity
   uint8_t who_am_i = 0;
-  if (!this->read_register(LSM6DS3TRC_REG_WHO_AM_I, &who_am_i, 1)) {
+  if (this->read_register(LSM6DS3TRC_REG_WHO_AM_I, &who_am_i, 1) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Failed to read WHO_AM_I — check wiring and I2C address");
     this->mark_failed();
     return;
   }
   if (who_am_i != LSM6DS3TRC_WHO_AM_I_VALUE) {
     ESP_LOGE(TAG, "Wrong WHO_AM_I: 0x%02X (expected 0x%02X)", who_am_i, LSM6DS3TRC_WHO_AM_I_VALUE);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Wrong WHO_AM_I value"));
     return;
   }
+  ESP_LOGD(TAG, "Whoami = 0x%02X", who_am_i);
 
   // 2. Software reset — clears all registers to defaults
-  if (!this->write_register(LSM6DS3TRC_REG_CTRL3_C, &CTRL3_C_SW_RESET, 1)) {
-    this->mark_failed();
+  if (this->write_register(LSM6DS3TRC_REG_CTRL3_C, &CTRL3_C_SW_RESET, 1) != i2c::ERROR_OK) {
+    this->mark_failed(LOG_STR("Software reset failed"));
     return;
   }
   // Datasheet: reset bit self-clears after boot (typ. 50 µs); 5 ms is safe
@@ -35,24 +36,24 @@ void LSM6DS3TRCComponent::setup() {
   //    BDU prevents reading a high-byte from one sample and a low-byte from the next.
   //    IF_INC is set by default after reset but we set it explicitly for clarity.
   uint8_t ctrl3 = CTRL3_C_IF_INC | CTRL3_C_BDU;
-  if (!this->write_register(LSM6DS3TRC_REG_CTRL3_C, &ctrl3, 1)) {
-    this->mark_failed();
+  if (this->write_register(LSM6DS3TRC_REG_CTRL3_C, &ctrl3, 1) != i2c::ERROR_OK) {
+    this->mark_failed(LOG_STR("Config failed"));
     return;
   }
 
   // 4. Configure accelerometer: ODR in bits[7:4], FS in bits[3:2]
   //    Anti-aliasing filter bandwidth is left at power-on default (bits[1:0] = 00 = ODR/2).
   uint8_t ctrl1_xl = (uint8_t) (this->accel_odr_ << 4) | (uint8_t) (this->accel_range_ << 2);
-  if (!this->write_register(LSM6DS3TRC_REG_CTRL1_XL, &ctrl1_xl, 1)) {
-    this->mark_failed();
+  if (this->write_register(LSM6DS3TRC_REG_CTRL1_XL, &ctrl1_xl, 1) != i2c::ERROR_OK) {
+    this->mark_failed(LOG_STR("Failed to configure accelerometer"));
     return;
   }
 
   // 5. Configure gyroscope: ODR in bits[7:4], FS_G + FS_125 in bits[3:0]
   //    For ±125 dps: FS_G[2:1]=00 and FS_125(bit1)=1, so gyro_range_ encodes the full nibble.
   uint8_t ctrl2_g = (uint8_t) (this->gyro_odr_ << 4) | (uint8_t) (this->gyro_range_);
-  if (!this->write_register(LSM6DS3TRC_REG_CTRL2_G, &ctrl2_g, 1)) {
-    this->mark_failed();
+  if (this->write_register(LSM6DS3TRC_REG_CTRL2_G, &ctrl2_g, 1) != i2c::ERROR_OK) {
+    this->mark_failed(LOG_STR("Failed to configure gyroscope"));
     return;
   }
 
@@ -60,11 +61,11 @@ void LSM6DS3TRCComponent::setup() {
   //    and gyroscope is in high-performance mode (CTRL7_G bit 7 = G_HM_MODE = 0).
   //    Both default to 0 (high-performance) after reset, but write explicitly.
   uint8_t zero = 0x00;
-  if (!this->write_register(LSM6DS3TRC_REG_CTRL6_C, &zero, 1)) {
+  if (this->write_register(LSM6DS3TRC_REG_CTRL6_C, &zero, 1) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
-  if (!this->write_register(LSM6DS3TRC_REG_CTRL7_G, &zero, 1)) {
+  if (this->write_register(LSM6DS3TRC_REG_CTRL7_G, &zero, 1) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
@@ -86,10 +87,7 @@ void LSM6DS3TRCComponent::dump_config() {
 
   // Accel range — index into the sensitivity table (datasheet Table 3)
   static const char *const ACCEL_RANGE_STR[] = {"±2g", "±16g", "±4g", "±8g"};
-  static const char *const GYRO_RANGE_STR[] = {"±250dps", "±250dps", "±125dps", "±250dps",  "±500dps",
-                                               "±500dps", "±250dps", "±250dps", "±1000dps", "±1000dps",
-                                               "±500dps", "±500dps", "±2000dps"};
-  // Simpler direct decode
+
   const char *gyro_str = "unknown";
   switch (this->gyro_range_) {
     case LSM6DS3TRC_GYRO_RANGE_125:
