@@ -19,7 +19,6 @@ import contextlib
 
 from esphome.const import CONF_KEY, CONF_PORT, __version__
 from esphome.core import CORE, EsphomeError
-from esphome.platformio_api import process_stacktrace
 from esphome.util import safe_print
 
 from . import CONF_ENCRYPTION
@@ -61,10 +60,6 @@ class _LogLineProcessor:
             if self._platform_handler is not None:
                 self.backtrace_state = self._platform_handler(
                     self._config, raw_line, self.backtrace_state
-                )
-            else:
-                self.backtrace_state = process_stacktrace(
-                    self._config, raw_line, backtrace_state=self.backtrace_state
                 )
         except EsphomeError as exc:
             self._decode_enabled = False
@@ -114,7 +109,10 @@ async def async_run_logs(
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         platform_process_stacktrace = getattr(module, "process_stacktrace")
     except (AttributeError, ImportError):
-        pass
+        _LOGGER.info(
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
+            CORE.target_platform,
+        )
 
     processor = _LogLineProcessor(config, platform_process_stacktrace)
 

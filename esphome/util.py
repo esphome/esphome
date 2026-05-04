@@ -503,3 +503,9 @@ def get_esp32_arduino_flash_error_help() -> str | None:
             "https://esphome.io/guides/esp32_arduino_to_idf/\n\n",
         )
     )
+
+
+@dataclass
+class FlashImage:
+    path: Path
+    offset: str

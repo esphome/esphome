@@ -54,6 +54,7 @@ from esphome.__main__ import (
 )
 from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
+from esphome.components import esp32
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
@@ -85,7 +86,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.espota2 import OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE
-from esphome.util import BootselResult
+from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
 
@@ -1181,8 +1182,8 @@ def test_upload_using_esptool_path_conversion(
     mock_idedata = MagicMock(spec=platformio_api.IDEData)
     mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
     mock_idedata.extra_flash_images = [
-        platformio_api.FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
-        platformio_api.FlashImage(path=tmp_path / "partitions.bin", offset="0x8000"),
+        FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        FlashImage(path=tmp_path / "partitions.bin", offset="0x8000"),
     ]
 
     mock_get_idedata.return_value = mock_idedata
@@ -1259,8 +1260,8 @@ def test_upload_using_esptool_skips_missing_extra_flash_images(
     mock_idedata = MagicMock(spec=platformio_api.IDEData)
     mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
     mock_idedata.extra_flash_images = [
-        platformio_api.FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
-        platformio_api.FlashImage(path=missing_path, offset="0x2d0000"),
+        FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        FlashImage(path=missing_path, offset="0x2d0000"),
     ]
     mock_get_idedata.return_value = mock_idedata
 
@@ -4225,7 +4226,7 @@ def test_run_miniterm_batches_lines_with_same_timestamp(
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
     ):
         mock_bt.return_value = False
         result = run_miniterm(config, "/dev/ttyUSB0", args)
@@ -4264,7 +4265,7 @@ def test_run_miniterm_different_chunks_different_timestamps(
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
     ):
         mock_bt.return_value = False
         result = run_miniterm(config, "/dev/ttyUSB0", args)
@@ -4295,7 +4296,7 @@ def test_run_miniterm_handles_split_lines() -> None:
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
         patch("esphome.__main__.safe_print") as mock_print,
     ):
         mock_bt.return_value = False
@@ -4349,7 +4350,7 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
     with (
         patch("serial.Serial", return_value=mock_serial),
         patch.object(
-            platformio_api,
+            esp32,
             "process_stacktrace",
             side_effect=track_backtrace_state,
         ),
@@ -4400,7 +4401,7 @@ def test_run_miniterm_handles_empty_reads(
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
     ):
         mock_bt.return_value = False
         result = run_miniterm(config, "/dev/ttyUSB0", args)
@@ -4473,7 +4474,7 @@ def test_run_miniterm_buffer_limit_prevents_unbounded_growth() -> None:
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
         patch("esphome.__main__.safe_print") as mock_print,
         patch("esphome.__main__.SERIAL_BUFFER_MAX_SIZE", test_buffer_limit),
     ):
