@@ -41,8 +41,8 @@ class CoverCall {
   CoverCall &set_command_toggle();
   /// Set the call to a certain target position.
   CoverCall &set_position(float position);
-  /// Set the call to pause if OPEN/CLOSE is already in progress.
-  CoverCall &set_pause();
+  /// Set whether this cover call should stop the operation if it's already in progress..
+  CoverCall &set_pause(bool pause);
   /// Set the call to a certain target tilt.
   CoverCall &set_tilt(float tilt);
   /// Set whether this cover call should stop the cover.

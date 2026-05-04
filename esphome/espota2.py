@@ -16,6 +16,7 @@ from esphome.core import EsphomeError
 from esphome.helpers import ProgressBar, resolve_ip_address
 
 OTA_TYPE_UPDATE_APP = 0x00
+OTA_TYPE_UPDATE_PARTITION_TABLE = 0x01
 
 RESPONSE_OK = 0x00
 RESPONSE_REQUEST_AUTH = 0x01
@@ -46,6 +47,8 @@ RESPONSE_ERROR_MD5_MISMATCH = 0x8B
 RESPONSE_ERROR_RP2040_NOT_ENOUGH_SPACE = 0x8C
 RESPONSE_ERROR_SIGNATURE_INVALID = 0x8D
 RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE = 0x8E
+RESPONSE_ERROR_PARTITION_TABLE_VERIFY = 0x8F
+RESPONSE_ERROR_PARTITION_TABLE_UPDATE = 0x90
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -62,7 +65,9 @@ SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 # OTA types this client knows how to send. Future PRs that add bootloader/partition
 # updates extend this set. Anything outside the set is rejected up front so callers
 # of perform_ota/run_ota get a clear error instead of a post-auth 0x8E from the device.
-_SUPPORTED_OTA_TYPES: frozenset[int] = frozenset({OTA_TYPE_UPDATE_APP})
+_SUPPORTED_OTA_TYPES: frozenset[int] = frozenset(
+    {OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE}
+)
 
 UPLOAD_BLOCK_SIZE = 8192
 UPLOAD_BUFFER_SIZE = UPLOAD_BLOCK_SIZE * 8
@@ -127,6 +132,16 @@ _ERROR_MESSAGES: dict[int, str] = {
     ),
     RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE: (
         "The requested OTA type is not supported by the device."
+    ),
+    RESPONSE_ERROR_PARTITION_TABLE_VERIFY: (
+        "The partition table update could not be verified. No changes were "
+        "made to the flash content. Check the logs for more information and retry."
+    ),
+    RESPONSE_ERROR_PARTITION_TABLE_UPDATE: (
+        "An error occurred while updating the partition table. The device is now "
+        "in a degraded state (NVS handles are invalid; many components will fail) "
+        "and may not be able to boot. Check the logs, reboot the device, and "
+        "retry the update. If the device fails to boot, recover it via a serial flash."
     ),
     RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
 }

@@ -91,6 +91,24 @@ api:
               - float_arr.size()
               - string_arr[0].c_str()
               - string_arr.size()
+    # Test array + string args used after a non-synchronous action (delay).
+    # The default non-owning types (StringRef, const FixedVector&) would
+    # dangle once rx_buf_ is reused, and FixedVector is non-copyable so
+    # DelayAction's lambda capture would fail to compile.  The api codegen
+    # must fall back to owning std::string / std::vector here.
+    - action: array_with_delay
+      variables:
+        name: string
+        int_arr: int[]
+        string_arr: string[]
+      then:
+        - delay: 20ms
+        - logger.log:
+            format: "Delayed: %s (%u ints, %u strings)"
+            args:
+              - name.c_str()
+              - int_arr.size()
+              - string_arr.size()
     # Test ContinuationAction (IfAction with then/else branches)
     - action: test_if_action
       variables:

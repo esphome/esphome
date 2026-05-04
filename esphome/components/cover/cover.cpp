@@ -63,8 +63,8 @@ CoverCall &CoverCall::set_position(float position) {
   this->position_ = position;
   return *this;
 }
-CoverCall &CoverCall::set_pause() {
-  this->pause_ = true;
+CoverCall &CoverCall::set_pause(bool pause) {
+  this->pause_ = pause;
   return *this;
 }
 CoverCall &CoverCall::set_tilt(float tilt) {

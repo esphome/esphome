@@ -200,6 +200,15 @@ async def light_control_to_code(config, action_id, template_arg, args):
         (CONF_WARM_WHITE, "set_warm_white", cg.float_),
     )
 
+    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
+    # apply lambda and any inner field lambdas (generated below via
+    # `process_lambda`) share one parameter spelling that's well-formed for
+    # any T (value, ref, or const-ref). Matches LightControlAction::ApplyFn.
+    normalized_args = [
+        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
+        for t, n in args
+    ]
+
     fwd_args = ", ".join(name for _, name in args)
     body_lines: list[str] = []
 
@@ -208,7 +217,7 @@ async def light_control_to_code(config, action_id, template_arg, args):
             continue
         value = config[conf_key]
         if isinstance(value, Lambda):
-            inner = await cg.process_lambda(value, args, return_type=type_)
+            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
             body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
         else:
             body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
@@ -216,7 +225,7 @@ async def light_control_to_code(config, action_id, template_arg, args):
     if CONF_EFFECT in config:
         if isinstance(config[CONF_EFFECT], Lambda):
             inner_lambda = await cg.process_lambda(
-                config[CONF_EFFECT], args, return_type=cg.std_string
+                config[CONF_EFFECT], normalized_args, return_type=cg.std_string
             )
             body_lines.append(
                 f"{{ auto __effect_s = ({inner_lambda})({fwd_args});\n"
@@ -230,11 +239,10 @@ async def light_control_to_code(config, action_id, template_arg, args):
                 f"call.set_effect(static_cast<uint32_t>({_resolve_effect_index(config)}));"
             )
 
-    # Match LightControlAction::ApplyFn signature: const Ts &... for trigger args.
     apply_args = [
         (LightState.operator("ptr"), "parent"),
         (LightCall.operator("ref"), "call"),
-        *((t.operator("const").operator("ref"), n) for t, n in args),
+        *normalized_args,
     ]
     apply_lambda = LambdaExpression(
         ["\n".join(body_lines)],

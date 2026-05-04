@@ -84,10 +84,11 @@ struct AutorepeatFilterTiming {
 
 /// Non-template base for AutorepeatFilter — all methods in filter.cpp.
 /// Lambdas capture this base pointer, so set_timeout/cancel_timeout are instantiated once.
-class AutorepeatFilterBase : public Filter, public Component {
+/// The two scheduled timers are keyed off `this` and `&active_timing_`; since the address
+/// of `active_timing_` is taken as a scheduler key, the class must not be copied or moved.
+class AutorepeatFilterBase : public Filter {
  public:
   optional<bool> new_value(bool value) override;
-  float get_setup_priority() const override;
   AutorepeatFilterBase(const AutorepeatFilterBase &) = delete;
   AutorepeatFilterBase &operator=(const AutorepeatFilterBase &) = delete;
 
