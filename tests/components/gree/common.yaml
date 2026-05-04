@@ -5,7 +5,6 @@ climate:
     model: GENERIC
     horizontal_default: auto
     vertical_default: auto
-    receiver_id: rcvr
     transmitter_id: xmitr
   - platform: gree
     name: GREE YAN
@@ -13,7 +12,6 @@ climate:
     model: YAN
     horizontal_default: auto
     vertical_default: auto
-    receiver_id: rcvr
     transmitter_id: xmitr
   - platform: gree
     name: GREE YAA
@@ -21,7 +19,6 @@ climate:
     model: YAA
     horizontal_default: auto
     vertical_default: auto
-    receiver_id: rcvr
     transmitter_id: xmitr
   - platform: gree
     name: GREE YAC
@@ -29,7 +26,6 @@ climate:
     model: YAC
     horizontal_default: middle
     vertical_default: up
-    receiver_id: rcvr
     transmitter_id: xmitr
   - platform: gree
     name: GREE YAC1FB9
@@ -37,7 +33,6 @@ climate:
     model: YAC1FB9
     horizontal_default: auto
     vertical_default: up
-    receiver_id: rcvr
     transmitter_id: xmitr
   - platform: gree
     name: GREE YX1FF
@@ -45,7 +40,6 @@ climate:
     model: YX1FF
     horizontal_default: auto
     vertical_default: middle
-    receiver_id: rcvr
     transmitter_id: xmitr
   - platform: gree
     name: GREE YAG
@@ -53,7 +47,6 @@ climate:
     model: YAG
     horizontal_default: right
     vertical_default: mdown
-    receiver_id: rcvr
     transmitter_id: xmitr
   - platform: gree
     name: GREE YAP1F
@@ -61,7 +54,6 @@ climate:
     model: YAP1F
     horizontal_default: middle
     vertical_default: up
-    receiver_id: rcvr
     transmitter_id: xmitr
 
 switch:
