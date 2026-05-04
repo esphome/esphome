@@ -17,8 +17,7 @@ static constexpr uint32_t AUDIO_WRITE_TIMEOUT_MS = 50;
 static constexpr size_t DECODER_TASK_STACK_SIZE = 5120;
 static constexpr uint8_t DECODER_TASK_PRIORITY = 2;
 static constexpr uint32_t PAUSE_POLL_DELAY_MS = 20;
-static constexpr const char *const URI_PREFIX = "audio-file://";
-static constexpr size_t URI_PREFIX_LEN = 13;
+static constexpr char URI_PREFIX[] = "audio-file://";
 
 namespace {  // anonymous namespace for internal linkage
 
@@ -96,7 +95,7 @@ bool AudioFileMediaSource::play_uri(const std::string &uri) {
     return false;
   }
 
-  const char *file_id = uri.c_str() + URI_PREFIX_LEN;
+  const char *file_id = uri.c_str() + sizeof(URI_PREFIX) - 1;
   this->current_file_ = nullptr;
   for (const auto &named_file : get_named_audio_files()) {
     if (strcmp(named_file.file_id, file_id) == 0) {
