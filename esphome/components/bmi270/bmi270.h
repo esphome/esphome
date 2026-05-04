@@ -87,11 +87,11 @@ class BMI270Component : public motion::MotionComponent, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Configuration setters
-  void set_accel_range(BMI270AccelRange r) { accel_range_ = r; }
-  void set_accel_odr(BMI270AccelODR o) { accel_odr_ = o; }
-  void set_gyro_range(BMI270GyroRange r) { gyro_range_ = r; }
-  void set_gyro_odr(BMI270GyroODR o) { gyro_odr_ = o; }
-  void add_temperature_listener(std::function<void(float)> callback) { temperature_callback_.add(std::move(callback)); }
+  void set_accel_range(BMI270AccelRange r) { this->accel_range_ = r; }
+  void set_accel_odr(BMI270AccelODR o) { this->accel_odr_ = o; }
+  void set_gyro_range(BMI270GyroRange r) { this->gyro_range_ = r; }
+  void set_gyro_odr(BMI270GyroODR o) { this->gyro_odr_ = o; }
+  template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
 
  protected:
   bool update_data(motion::MotionData &data) override;
