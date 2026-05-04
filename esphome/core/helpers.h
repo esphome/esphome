@@ -60,7 +60,7 @@
 #ifdef USE_ZEPHYR
 #define ESPHOME_PRId64 "s"
 #define ESPHOME_PRIu64 "s"
-#define WRAP64(n) (to_str(n).p)
+#define WRAP64(n) (to_str(n).c_str())
 #else
 #define ESPHOME_PRId64 PRId64
 #define ESPHOME_PRIu64 PRIu64
@@ -72,7 +72,8 @@ namespace esphome {
 #ifdef USE_ZEPHYR
 struct Str64 {
   char buf[21];  // 20 digits + NUL  (covers both signed and unsigned)
-  const char *p;
+  uint8_t i;     // offset of first char in buf; c_str() == buf + i
+  const char *c_str() const { return buf + i; }
 };
 
 Str64 to_str(uint64_t n);

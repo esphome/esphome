@@ -49,23 +49,17 @@ Str64 to_str(uint64_t n) {
     *--p = '0' + (n % 10);
     n /= 10;
   } while (n);
-  s.p = p;
+  s.i = uint8_t(p - s.buf);
   return s;
 }
 
 Str64 to_str(int64_t n) {
-  Str64 s;
-  char *p = s.buf + sizeof s.buf - 1;
-  *p = '\0';
   bool neg = (n < 0);
   uint64_t u = neg ? (uint64_t(-(n + 1)) + 1u) : uint64_t(n);
-  do {
-    *--p = '0' + (u % 10);
-    u /= 10;
-  } while (u);
-  if (neg)
-    *--p = '-';
-  s.p = p;
+  Str64 s = to_str(u);
+  if (neg) {
+    s.buf[--s.i] = '-';
+  }
   return s;
 }
 
