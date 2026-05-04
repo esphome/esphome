@@ -261,8 +261,9 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
 
 OTAResponseTypes IDFOTABackend::validate_new_bootloader_() {
   // Register the bootloader partition
-  esp_err_t err = esp_partition_register_external(
-      nullptr, ESP_PRIMARY_BOOTLOADER_OFFSET, ESP_BOOTLOADER_SIZE, "PrimaryBTLDR", ESP_PARTITION_TYPE_BOOTLOADER, ESP_PARTITION_SUBTYPE_BOOTLOADER_PRIMARY, &this->bootloader_part_);
+  esp_err_t err = esp_partition_register_external(nullptr, ESP_PRIMARY_BOOTLOADER_OFFSET, ESP_BOOTLOADER_SIZE,
+                                                  "PrimaryBTLDR", ESP_PARTITION_TYPE_BOOTLOADER,
+                                                  ESP_PARTITION_SUBTYPE_BOOTLOADER_PRIMARY, &this->bootloader_part_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_register_external failed (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
@@ -280,7 +281,8 @@ OTAResponseTypes IDFOTABackend::validate_new_bootloader_() {
     return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
   }
 
-  // Verify existing partition table to make sure ESP_BOOTLOADER_SIZE is correct and matches the available bootloader size in flash
+  // Verify existing partition table to make sure ESP_BOOTLOADER_SIZE is correct and matches the available bootloader
+  // size in flash
   if (this->register_and_validate_partition_table_part_() != OTA_RESPONSE_OK) {
     return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
   }

@@ -27,7 +27,8 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
     }
     if (image_size > sizeof this->buf_) {
-      ESP_LOGE(TAG, "Length of received data exceeds the buffer size: expected <=%zu bytes, got %zu", sizeof this->buf_, image_size);
+      ESP_LOGE(TAG, "Length of received data exceeds the buffer size: expected <=%zu bytes, got %zu", sizeof this->buf_,
+               image_size);
       return is_part_table ? OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY : OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
     }
     memset(this->buf_, 0xFF, sizeof this->buf_);

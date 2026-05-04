@@ -11,7 +11,7 @@ namespace esphome::ota {
 
 #ifdef USE_OTA_PARTITIONS
 // Staging buffer holds the entire partition table for verification before any flash op.
-//static constexpr size_t PARTITION_TABLE_BUFFER_SIZE = ESP_PARTITION_TABLE_MAX_LEN;  // 0xC00
+// static constexpr size_t PARTITION_TABLE_BUFFER_SIZE = ESP_PARTITION_TABLE_MAX_LEN;  // 0xC00
 static constexpr size_t PARTITION_TABLE_BUFFER_SIZE = ESP_BOOTLOADER_SIZE;
 
 void get_running_app_position(uint32_t &offset, size_t &size);
