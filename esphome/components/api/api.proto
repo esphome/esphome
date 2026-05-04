@@ -2511,6 +2511,7 @@ message ZWaveProxyFrame {
   option (source) = SOURCE_BOTH;
   option (ifdef) = "USE_ZWAVE_PROXY";
   option (no_delay) = true;
+  option (speed_optimized) = true;
 
   bytes data = 1;
 }
@@ -2571,6 +2572,7 @@ message InfraredRFReceiveEvent {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_IR_RF || USE_RADIO_FREQUENCY";
   option (no_delay) = true;
+  option (speed_optimized) = true;
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
   fixed32 key = 2 [(force) = true];     // Key identifying the receiver instance
@@ -2627,6 +2629,7 @@ message SerialProxyDataReceived {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_SERIAL_PROXY";
   option (no_delay) = true;
+  option (speed_optimized) = true;
 
   uint32 instance = 1;          // Instance index (0-based)
   bytes data = 2;               // Raw data received from the serial device

@@ -1091,6 +1091,15 @@ def upload_program(
 
     port_type = get_port_type(host)
 
+    # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
+    # _resolve_network_devices(). Only SERIAL and BOOTSEL are non-OTA upload paths.
+    if port_type in (PortType.SERIAL, PortType.BOOTSEL) and getattr(
+        args, "partition_table", False
+    ):
+        raise EsphomeError(
+            "The option --partition-table can only be used for Over The Air updates."
+        )
+
     if port_type == PortType.BOOTSEL:
         exit_code = upload_using_picotool(config)
         # Return None for device - BOOTSEL can't be used for logging,
@@ -1131,10 +1140,78 @@ def upload_program(
 
     binary = CORE.firmware_bin
     ota_type = espota2.OTA_TYPE_UPDATE_APP
+    if getattr(args, "partition_table", False):
+        # Fail fast if the resolved ESPHome OTA config does not enable allow_partition_access.
+        # The device-side handshake also rejects this with "Device only supports app updates",
+        # but checking here surfaces the misconfiguration before opening a network connection.
+        if not ota_conf.get("allow_partition_access"):
+            raise EsphomeError(
+                "The option --partition-table requires 'allow_partition_access: true' on the "
+                "esphome OTA platform in the device's YAML configuration. Add it, recompile, "
+                "flash a build with the option enabled, and then retry --partition-table."
+            )
+        binary = CORE.partition_table_bin
+        ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
     if getattr(args, "file", None) is not None:
         binary = Path(args.file)
 
+    if ota_type == espota2.OTA_TYPE_UPDATE_PARTITION_TABLE:
+        _validate_partition_table_binary(binary)
+
     return espota2.run_ota(network_devices, remote_port, password, binary, ota_type)
+
+
+# Layout of esp_partition_info_t on flash. Each entry is 32 bytes, leading with a
+# 16-bit little-endian magic. ESP-IDF defines ESP_PARTITION_MAGIC = 0x50AA (stored as
+# bytes 0xAA, 0x50) for partition entries and ESP_PARTITION_MAGIC_MD5 = 0xEBEB for the
+# trailing checksum entry. Padding past the last entry is 0xFF. The full table is
+# exactly ESP_PARTITION_TABLE_MAX_LEN bytes.
+_PARTITION_TABLE_MAX_LEN = 0xC00
+_ESP_PARTITION_MAGIC = 0x50AA
+_ESP_PARTITION_MAGIC_MD5 = 0xEBEB
+
+
+def _validate_partition_table_binary(binary: Path) -> None:
+    """Validate that ``binary`` looks like an ESP32 partition table image.
+
+    Catches common mistakes (wrong file, truncated build output, swapped --file path)
+    before opening a network connection so the failure mode is a clear local error
+    instead of a post-handshake device rejection.
+    """
+    try:
+        data = binary.read_bytes()
+    except OSError as err:
+        raise EsphomeError(
+            f"Cannot read partition table file '{binary}': {err}"
+        ) from err
+
+    if len(data) != _PARTITION_TABLE_MAX_LEN:
+        raise EsphomeError(
+            f"Partition table file '{binary}' has wrong size: expected "
+            f"{_PARTITION_TABLE_MAX_LEN} bytes, got {len(data)}. "
+            "Pass the partition table image (e.g. partitions.bin / partition-table.bin), "
+            "not the firmware image."
+        )
+
+    first_magic = data[0] | (data[1] << 8)
+    if first_magic != _ESP_PARTITION_MAGIC:
+        raise EsphomeError(
+            f"Partition table file '{binary}' does not start with the expected "
+            f"partition magic 0x{_ESP_PARTITION_MAGIC:04X} (got 0x{first_magic:04X}). "
+            "This file does not look like an ESP32 partition table."
+        )
+
+    # The MD5 checksum entry is required: without it the device-side
+    # esp_partition_table_verify will accept the table but the bootloader will
+    # refuse to boot from it. Scan the 32-byte entries for the MD5 magic.
+    if not any(
+        (data[off] | (data[off + 1] << 8)) == _ESP_PARTITION_MAGIC_MD5
+        for off in range(0, _PARTITION_TABLE_MAX_LEN, 32)
+    ):
+        raise EsphomeError(
+            f"Partition table file '{binary}' is missing the MD5 checksum entry. "
+            "Regenerate the partition table with gen_esp32part.py or rebuild the project."
+        )
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
@@ -1803,6 +1880,11 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--file",
         help="Manually specify the binary file to upload.",
+    )
+    parser_upload.add_argument(
+        "--partition-table",
+        help="Upload as partition table (OTA).",
+        action="store_true",
     )
 
     parser_logs = subparsers.add_parser(
