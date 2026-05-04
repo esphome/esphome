@@ -64,6 +64,16 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
+def final_validate_sensor_schema(config, has_accel=True, has_gyro=True):
+    sensor_type = config[CONF_TYPE]
+    if (
+        sensor_type in _ACCELERATIONS or sensor_type in (CONF_ROLL, CONF_PITCH)
+    ) and not has_accel:
+        raise cv.Invalid("The referenced device does not measure acceleration")
+    if (sensor_type in _GYROSCOPES or sensor_type in _ANGULAR_RATES) and not has_gyro:
+        raise cv.Invalid("The referenced device does not measure angular rate")
+
+
 def build_sensor_expr(sensor_type: str, data: MockObj) -> MockObj:
     """Build the C++ expression for a motion sensor type."""
     pif = std_ns.namespace("numbers").pi_v.template(cg.float_)
