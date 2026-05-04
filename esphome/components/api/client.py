@@ -18,7 +18,7 @@ with warnings.catch_warnings():
 import contextlib
 
 from esphome.const import CONF_KEY, CONF_PORT, __version__
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from esphome.platformio_api import process_stacktrace
 
 from . import CONF_ENCRYPTION
@@ -30,6 +30,52 @@ if TYPE_CHECKING:
 
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class _LogLineProcessor:
+    """Feeds incoming log lines to the stack-trace decoder.
+
+    Two responsibilities beyond just calling the decoder:
+    1. Catch EsphomeError. on_log runs inside an asyncio protocol
+       callback; if an exception escapes, the loop tears the transport
+       down with "Fatal error: protocol.data_received() call failed."
+       and ReconnectLogic immediately reconnects, the device replays
+       the same crash trace, and we loop forever.
+    2. Disable decoding after the first failure. _decode_pc shells out
+       to PlatformIO via _run_idedata, which is expensive; a single
+       crash dump can contain many PC/BT lines and we don't want to
+       retry the failing subprocess for each one.
+    """
+
+    def __init__(self, config: dict[str, Any], platform_handler: Any | None) -> None:
+        self._config = config
+        self._platform_handler = platform_handler
+        self._decode_enabled = True
+        self.backtrace_state = False
+
+    def process_line(self, raw_line: str) -> None:
+        if not self._decode_enabled:
+            return
+        try:
+            if self._platform_handler is not None:
+                self.backtrace_state = self._platform_handler(
+                    self._config, raw_line, self.backtrace_state
+                )
+            else:
+                self.backtrace_state = process_stacktrace(
+                    self._config, raw_line, backtrace_state=self.backtrace_state
+                )
+        except EsphomeError as exc:
+            self._decode_enabled = False
+            self.backtrace_state = False
+            # _run_idedata raises EsphomeError with no message; fall back
+            # to a generic explanation when str(exc) is empty.
+            detail = str(exc) or "build artifacts not found locally"
+            _LOGGER.warning(
+                "Crash trace decoding unavailable: %s. "
+                "Run 'esphome compile' for this device to enable PC decoding.",
+                detail,
+            )
 
 
 async def async_run_logs(
@@ -61,7 +107,6 @@ async def async_run_logs(
         addresses=addresses,  # Pass all addresses for automatic retry
     )
     dashboard = CORE.dashboard
-    backtrace_state = False
 
     # Try platform-specific stacktrace handler first, fall back to generic
     platform_process_stacktrace = None
@@ -71,9 +116,10 @@ async def async_run_logs(
     except (AttributeError, ImportError):
         pass
 
+    processor = _LogLineProcessor(config, platform_process_stacktrace)
+
     def on_log(msg: SubscribeLogsResponse) -> None:
         """Handle a new log message."""
-        nonlocal backtrace_state
         time_ = datetime.now()
         message: bytes = msg.message
         text = message.decode("utf8", "backslashreplace")
@@ -84,14 +130,7 @@ async def async_run_logs(
         for parsed_msg in parse_log_message(text, timestamp):
             print(parsed_msg.replace("\033", "\\033") if dashboard else parsed_msg)
         for raw_line in text.splitlines():
-            if platform_process_stacktrace:
-                backtrace_state = platform_process_stacktrace(
-                    config, raw_line, backtrace_state
-                )
-            else:
-                backtrace_state = process_stacktrace(
-                    config, raw_line, backtrace_state=backtrace_state
-                )
+            processor.process_line(raw_line)
 
     # Safe to fall back to plaintext here only for this diagnostics use
     # case: the stream is one-way from device to client, and this code
