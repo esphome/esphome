@@ -2,9 +2,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/i2c/i2c.h"
 #include <array>
 #include <functional>
+#include <numbers>
 
 namespace esphome {
 namespace motion {
