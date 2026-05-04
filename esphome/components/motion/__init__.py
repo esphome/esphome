@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import re
 
 import esphome.codegen as cg
@@ -18,6 +19,9 @@ AXES = ["x", "y", "z"]
 
 CONF_AXIS_MAP = "axis_map"
 CONF_MOTION_ID = "motion_id"
+
+KEY_ACCELEROMETER = "accelerometer"
+KEY_GYROSCOPE = "gyroscope"
 
 SENSOR_SCHEMA = cv.Schema(
     {
@@ -71,16 +75,27 @@ _CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("250ms"))
 
 
-def motion_schema(class_: MockObjClass) -> cv.Schema:
+def _add_data(has_accel: bool, has_gyro: bool) -> Callable[[dict], dict]:
+
+    def validator(config):
+        config = config.copy()
+        config[KEY_ACCELEROMETER] = has_accel
+        config[KEY_GYROSCOPE] = has_gyro
+        return config
+
+    return validator
+
+
+def motion_schema(class_: MockObjClass, has_accel: bool, has_gyro: bool) -> cv.Schema:
     return _CONFIG_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(class_),
         }
-    )
+    ).add_extra(_add_data(has_accel, has_gyro))
 
 
 #  Code generation
-async def register_motion_component(var: MockObj, config):
+async def register_motion_component(var: MockObj, config) -> None:
     await cg.register_component(var, config)
     if axis_map := config.get(CONF_AXIS_MAP):
         cg.add(var.set_matrix(_axis_map_to_matrix(axis_map)))
