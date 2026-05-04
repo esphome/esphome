@@ -32,7 +32,7 @@ class MotionComponent : public PollingComponent {
 
   void set_matrix(const std::array<float, 9> &m) { memcpy(this->matrix_, m.data(), sizeof(this->matrix_)); }
 
-  template<typename F> void add_listener(F &&cb) { motion_data_callback_.add(std::forward<F>(cb)); }
+  template<typename F> void add_listener(F &&cb) { this->motion_data_callback_.add(std::forward<F>(cb)); }
 
  protected:
   // platforms must implement this method to update raw data.
