@@ -2,9 +2,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/i2c/i2c.h"
 #include <array>
 #include <functional>
+#include <numbers>
 
 namespace esphome {
 namespace motion {
@@ -32,7 +32,7 @@ class MotionComponent : public PollingComponent {
 
   void set_matrix(const std::array<float, 9> &m) { memcpy(this->matrix_, m.data(), sizeof(this->matrix_)); }
 
-  void add_listener(std::function<void(MotionData &)> &&cb) { motion_data_callback_.add(std::move(cb)); }
+  template<typename F> void add_listener(F &&cb) { motion_data_callback_.add(std::forward<F>(cb)); }
 
  protected:
   // platforms must implement this method to update raw data.
@@ -47,7 +47,7 @@ class MotionComponent : public PollingComponent {
     output[0] = input[X_AXIS] * this->matrix_[0] + input[Y_AXIS] * this->matrix_[1] + input[Z_AXIS] * this->matrix_[2];
     output[1] = input[X_AXIS] * this->matrix_[3] + input[Y_AXIS] * this->matrix_[4] + input[Z_AXIS] * this->matrix_[5];
     output[2] = input[X_AXIS] * this->matrix_[6] + input[Y_AXIS] * this->matrix_[7] + input[Z_AXIS] * this->matrix_[8];
-  };
+  }
 
   LazyCallbackManager<void(MotionData &)> motion_data_callback_{};
 };

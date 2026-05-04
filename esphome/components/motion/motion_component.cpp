@@ -10,8 +10,7 @@ static const char *const TAG = "motion";
 void MotionComponent::update() {
   if (this->is_failed())
     return;
-  MotionData motion_data;
-  {};
+  MotionData motion_data{};
   MotionData raw_data{};
   if (!this->update_data(raw_data))
     return;
