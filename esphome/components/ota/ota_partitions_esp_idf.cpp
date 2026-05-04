@@ -155,8 +155,7 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
   }
   if (otadata_overlap) {
     // Unlikely, the otadata partition is before the start of the first app partition in most cases
-    ESP_LOGE(TAG,
-             "New otadata partition overlaps with the running app at address: 0x%X, size: %u bytes",
+    ESP_LOGE(TAG, "New otadata partition overlaps with the running app at address: 0x%X, size: %u bytes",
              running_app_offset, running_app_size);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
