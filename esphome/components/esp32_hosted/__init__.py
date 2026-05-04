@@ -236,6 +236,12 @@ async def to_code(config):
         True,
     )
 
+    # Enable PicolibC Newlib compatibility shim on IDF 6.0+ to fix missing type
+    if esp32.idf_version() >= cv.Version(6, 0, 0):
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY", True
+        )
+
     # Transport-specific configuration
     if transport == "sdio":
         _configure_sdio(config)
