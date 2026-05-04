@@ -333,8 +333,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
     if (device->address_ == address) {
       found = true;
 
-      if (function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
-          function_code == ModbusFunctionCode::READ_INPUT_REGISTERS) {
+      if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
+          static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_INPUT_REGISTERS) {
         if (len < 4) {
           ESP_LOGW(TAG, "Read registers request too short (%" PRIu16 " bytes)", len);
           device->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
@@ -342,8 +342,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         }
         device->on_modbus_read_registers(function_code, helpers::get_data<uint16_t>(data, 0),
                                          helpers::get_data<uint16_t>(data, 2));
-      } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
-                 function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+      } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
+                 static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
         device->on_modbus_write_registers(function_code, std::vector<uint8_t>(data, data + len));
       } else {
         ESP_LOGW(TAG, "Unsupported function code %" PRIu8, function_code);

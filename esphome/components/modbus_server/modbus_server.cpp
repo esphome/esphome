@@ -80,7 +80,7 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
   uint16_t number_of_registers;
   uint16_t payload_offset;
 
-  if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+  if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
     if (data.size() < 5) {
       ESP_LOGW(TAG, "Write multiple registers data too short (%zu bytes)", data.size());
       this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
@@ -108,7 +108,7 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
       return;
     }
     payload_offset = 5;
-  } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
+  } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
     if (data.size() < 4) {
       ESP_LOGW(TAG, "Write single register data too short (%zu bytes)", data.size());
       this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);

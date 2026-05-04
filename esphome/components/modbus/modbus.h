@@ -110,6 +110,7 @@ class ModbusClientHub : public Modbus {
 
  protected:
   void parse_modbus_frames() override;
+  // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
   void send_next_frame_();
   void queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device = nullptr);
@@ -139,6 +140,7 @@ class ModbusServerHub : public Modbus {
 
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
+  // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len);
   void send_raw_(const uint8_t *payload, uint16_t len);

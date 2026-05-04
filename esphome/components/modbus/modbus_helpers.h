@@ -10,7 +10,7 @@
 namespace esphome::modbus::helpers {
 
 inline bool is_function_code_read(uint8_t function_code) {
-  uint8_t masked_function_code = static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK;
+  ModbusFunctionCode masked_function_code = static_cast<ModbusFunctionCode>(function_code & FUNCTION_CODE_MASK);
   return masked_function_code == ModbusFunctionCode::READ_COILS ||
          masked_function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS ||
          masked_function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
@@ -18,7 +18,7 @@ inline bool is_function_code_read(uint8_t function_code) {
 }
 
 inline bool is_function_code_write(uint8_t function_code) {
-  uint8_t masked_function_code = static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK;
+  ModbusFunctionCode masked_function_code = static_cast<ModbusFunctionCode>(function_code & FUNCTION_CODE_MASK);
   return masked_function_code == ModbusFunctionCode::WRITE_SINGLE_COIL ||
          masked_function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
          masked_function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
@@ -30,7 +30,7 @@ inline bool is_function_code_exception(uint8_t function_code) {
 }
 
 inline bool is_function_code_custom(uint8_t function_code) {
-  uint8_t masked_function_code = static_cast<uint8_t>(function_code) & FUNCTION_CODE_MASK;
+  uint8_t masked_function_code = function_code & FUNCTION_CODE_MASK;
   return (masked_function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT &&
           masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END) ||
          (masked_function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT &&
