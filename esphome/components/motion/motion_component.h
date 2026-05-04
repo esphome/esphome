@@ -43,7 +43,7 @@ class MotionComponent : public PollingComponent {
       1, 0, 0, 0, 1, 0, 0, 0, 1,
   };
 
-  void map_axes_(float output[3], float input[3]) const {
+  void map_axes_(float output[3], const float input[3]) const {
     output[0] = input[X_AXIS] * this->matrix_[0] + input[Y_AXIS] * this->matrix_[1] + input[Z_AXIS] * this->matrix_[2];
     output[1] = input[X_AXIS] * this->matrix_[3] + input[Y_AXIS] * this->matrix_[4] + input[Z_AXIS] * this->matrix_[5];
     output[2] = input[X_AXIS] * this->matrix_[6] + input[Y_AXIS] * this->matrix_[7] + input[Z_AXIS] * this->matrix_[8];
