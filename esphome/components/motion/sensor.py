@@ -64,26 +64,30 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
+def build_sensor_expr(sensor_type: str, data: MockObj) -> MockObj:
+    """Build the C++ expression for a motion sensor type."""
+    pif = std_ns.namespace("numbers").pi_v.template(cg.float_)
+    if sensor_type == CONF_ROLL:
+        ay = data.acceleration[1]
+        az = data.acceleration[2]
+        return std_ns.atan2f(ay, az) * (180.0 / pif)
+    if sensor_type == CONF_PITCH:
+        ax = data.acceleration[0]
+        ay = data.acceleration[1]
+        az = data.acceleration[2]
+        return std_ns.atan2f(-ax, std_ns.sqrtf(ay * ay + az * az)) * (180.0 / pif)
+    sensor_offset = AXES.index(sensor_type[-1:])
+    if sensor_type in _GYROSCOPES:
+        sensor_type = _ANGULAR_RATES[sensor_offset]
+    return getattr(data, str(sensor_type[:-2]))[sensor_offset]
+
+
 async def to_code(config):
     sensor_type = config[CONF_TYPE]
     var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_MOTION_ID])
     data = MockObj("data")
-    pif = std_ns.namespace("numbers").pi_v.template(cg.float_)
-    if sensor_type == CONF_ROLL:
-        ay = data.acceleration[1]
-        az = data.acceleration[2]
-        expr = std_ns.atan2f(ay, az) * (180.0 / pif)
-    elif sensor_type == CONF_PITCH:
-        ax = data.acceleration[0]
-        ay = data.acceleration[1]
-        az = data.acceleration[2]
-        expr = std_ns.atan2f(-ax, std_ns.sqrtf(ay * ay + az * az)) * (180.0 / pif)
-    else:
-        sensor_offset = AXES.index(sensor_type[-1:])
-        if sensor_type in _GYROSCOPES:
-            sensor_type = _ANGULAR_RATES[sensor_offset]
-        expr = getattr(data, str(sensor_type[:-2]))[sensor_offset]
+    expr = build_sensor_expr(sensor_type, data)
     value_lambda = await cg.process_lambda(
         var.publish_state(expr),
         [(MotionData.operator("ref"), str(data))],
