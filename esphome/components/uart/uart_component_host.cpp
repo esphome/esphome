@@ -276,9 +276,12 @@ UARTFlushResult HostUartComponent::flush() {
   if (this->file_descriptor_ == -1) {
     return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
-  tcdrain(this->file_descriptor_);
   ESP_LOGV(TAG, "    Flushing");
-  return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
+  if (tcdrain(this->file_descriptor_) == -1) {
+    this->update_error_(strerror(errno));
+    return UARTFlushResult::UART_FLUSH_RESULT_FAILED;
+  }
+  return UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 void HostUartComponent::update_error_(const std::string &error) {
