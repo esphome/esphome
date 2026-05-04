@@ -110,7 +110,7 @@ async def async_run_logs(
         platform_process_stacktrace = getattr(module, "process_stacktrace")
     except (AttributeError, ImportError):
         _LOGGER.info(
-            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s". ',
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
             CORE.target_platform,
         )
 

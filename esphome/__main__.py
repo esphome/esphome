@@ -603,7 +603,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         process_stacktrace = getattr(module, "process_stacktrace")
     except AttributeError:
         _LOGGER.info(
-            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s". ',
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
             CORE.target_platform,
         )
 
