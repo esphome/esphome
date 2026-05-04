@@ -80,7 +80,12 @@ class RingBuffer {
    */
   BaseType_t reset();
 
-  static std::unique_ptr<RingBuffer> create(size_t len);
+  enum class MemoryPreference {
+    EXTERNAL_FIRST,  // External RAM preferred, fall back to internal (default)
+    INTERNAL_FIRST,  // Internal RAM preferred, fall back to external
+  };
+
+  static std::unique_ptr<RingBuffer> create(size_t len, MemoryPreference preference = MemoryPreference::EXTERNAL_FIRST);
 
  protected:
   /// @brief Discards data from the ring buffer.
