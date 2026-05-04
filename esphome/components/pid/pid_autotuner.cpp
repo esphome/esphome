@@ -101,10 +101,10 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
   if (!zc_symmetrical || !amplitude_convergent) {
     // The frequency/amplitude is not fully accurate yet, try to wait
     // until the fault clears, or terminate after a while anyway
-    if (zc_symmetrical) {
+    if (!zc_symmetrical) {
       ESP_LOGVV(TAG, "%s:   ZC is not symmetrical", this->id_.c_str());
     }
-    if (amplitude_convergent) {
+    if (!amplitude_convergent) {
       ESP_LOGVV(TAG, "%s:   Amplitude is not convergent", this->id_.c_str());
     }
     uint32_t phase = this->relay_function_.phase_count;

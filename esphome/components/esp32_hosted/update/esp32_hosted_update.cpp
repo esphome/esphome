@@ -448,6 +448,13 @@ void Esp32HostedUpdate::perform(bool force) {
     return;
   }
 
+#ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+  if (this->firmware_url_.empty()) {
+    ESP_LOGW(TAG, "No firmware URL available, run check first");
+    return;
+  }
+#endif
+
   update::UpdateState prev_state = this->state_;
   this->state_ = update::UPDATE_STATE_INSTALLING;
   this->update_info_.has_progress = false;

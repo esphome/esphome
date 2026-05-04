@@ -25,7 +25,7 @@ void SM2135::setup() {
   this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
   this->clock_pin_->setup();
   this->clock_pin_->digital_write(false);
-  this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->clock_pin_->pin_mode(gpio::FLAG_OUTPUT);
 
   this->data_pin_->pin_mode(gpio::FLAG_PULLUP);
   this->clock_pin_->pin_mode(gpio::FLAG_PULLUP);

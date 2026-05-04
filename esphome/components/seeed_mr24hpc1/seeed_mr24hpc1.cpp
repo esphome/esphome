@@ -62,8 +62,6 @@ void MR24HPC1Component::dump_config() {
 
 // Initialisation functions
 void MR24HPC1Component::setup() {
-  this->check_uart_settings(115200);
-
 #ifdef USE_NUMBER
   if (this->custom_mode_number_ != nullptr) {
     this->custom_mode_number_->publish_state(0);  // Zero out the custom mode
@@ -297,19 +295,17 @@ void MR24HPC1Component::r24_split_data_frame_(uint8_t value) {
       this->sg_recv_data_state_ = FRAME_DATA_LEN_H;
       break;
     case FRAME_DATA_LEN_H:
-      if (value <= 4) {
-        this->sg_data_len_ = value * 256;
+      if (value == 0) {
         this->sg_frame_buf_[4] = value;
         this->sg_recv_data_state_ = FRAME_DATA_LEN_L;
       } else {
-        this->sg_data_len_ = 0;
         this->sg_recv_data_state_ = FRAME_IDLE;
         ESP_LOGD(TAG, "FRAME_DATA_LEN_H ERROR value:%x", value);
       }
       break;
     case FRAME_DATA_LEN_L:
-      this->sg_data_len_ += value;
-      if (this->sg_data_len_ > 32) {
+      this->sg_data_len_ = value;
+      if (this->sg_data_len_ == 0 || this->sg_data_len_ > 32) {
         ESP_LOGD(TAG, "len=%d, FRAME_DATA_LEN_L ERROR value:%x", this->sg_data_len_, value);
         this->sg_data_len_ = 0;
         this->sg_recv_data_state_ = FRAME_IDLE;
@@ -320,9 +316,8 @@ void MR24HPC1Component::r24_split_data_frame_(uint8_t value) {
       }
       break;
     case FRAME_DATA_BYTES:
-      this->sg_data_len_ -= 1;
       this->sg_frame_buf_[this->sg_frame_len_++] = value;
-      if (this->sg_data_len_ <= 0) {
+      if (--this->sg_data_len_ == 0) {
         this->sg_recv_data_state_ = FRAME_DATA_CRC;
       }
       break;

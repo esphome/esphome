@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -8,8 +9,8 @@ namespace esphome::logger {
 // Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
 
-// ANSI color code last digit (30-38 range, store only last digit to save RAM)
-static constexpr char LOG_LEVEL_COLOR_DIGIT[] = {
+// ANSI color code last digit (30-38 range, store only last digit to save RAM on ESP8266)
+static const char LOG_LEVEL_COLOR_DIGIT[] PROGMEM = {
     '\0',  // NONE
     '1',   // ERROR (31 = red)
     '3',   // WARNING (33 = yellow)
@@ -20,7 +21,7 @@ static constexpr char LOG_LEVEL_COLOR_DIGIT[] = {
     '8',   // VERY_VERBOSE (38 = white)
 };
 
-static constexpr char LOG_LEVEL_LETTER_CHARS[] = {
+static const char LOG_LEVEL_LETTER_CHARS[] PROGMEM = {
     '\0',  // NONE
     'E',   // ERROR
     'W',   // WARNING
@@ -64,7 +65,7 @@ struct LogBuffer {
         *p++ = 'V';  // VERY_VERBOSE = "VV"
         *p++ = 'V';
       } else {
-        *p++ = LOG_LEVEL_LETTER_CHARS[level];
+        *p++ = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(&LOG_LEVEL_LETTER_CHARS[level])));
       }
     }
     *p++ = ']';
@@ -111,7 +112,12 @@ struct LogBuffer {
   }
 #endif
   void write_body(const char *text, uint16_t text_length) {
-    this->write_(text, text_length);
+    const uint16_t available = this->remaining_();
+    const uint16_t copy_len = (text_length < available) ? text_length : available;
+    if (copy_len > 0) {
+      memcpy(this->current_(), text, copy_len);
+      this->pos += copy_len;
+    }
     this->finalize_();
   }
 
@@ -119,20 +125,22 @@ struct LogBuffer {
   bool full_() const { return this->pos >= this->size; }
   uint16_t remaining_() const { return this->size - this->pos; }
   char *current_() { return this->data + this->pos; }
-  void write_(const char *value, uint16_t length) {
-    const uint16_t available = this->remaining_();
-    const uint16_t copy_len = (length < available) ? length : available;
-    if (copy_len > 0) {
-      memcpy(this->current_(), value, copy_len);
-      this->pos += copy_len;
-    }
-  }
   void finalize_() {
-    // Write color reset sequence
-    static constexpr uint16_t RESET_COLOR_LEN = sizeof(ESPHOME_LOG_RESET_COLOR) - 1;
-    this->write_(ESPHOME_LOG_RESET_COLOR, RESET_COLOR_LEN);
+    this->write_ansi_reset_();
     // Null terminate
     this->data[this->full_() ? this->size - 1 : this->pos] = '\0';
+  }
+  // Write ANSI reset sequence inline ("\033[0m") - avoids write_() call overhead
+  static constexpr uint16_t ANSI_RESET_LEN = 4;  // "\033[0m"
+  void write_ansi_reset_() {
+    if (this->remaining_() >= ANSI_RESET_LEN) {
+      char *p = this->current_();
+      *p++ = '\033';
+      *p++ = '[';
+      *p++ = '0';
+      *p++ = 'm';
+      this->pos += ANSI_RESET_LEN;
+    }
   }
   void strip_trailing_newlines_() {
     while (this->pos > 0 && this->data[this->pos - 1] == '\n')
@@ -177,7 +185,7 @@ struct LogBuffer {
     *p++ = (level == 1) ? '1' : '0';  // Only ERROR is bold
     *p++ = ';';
     *p++ = '3';
-    *p++ = LOG_LEVEL_COLOR_DIGIT[level];
+    *p++ = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(&LOG_LEVEL_COLOR_DIGIT[level])));
     *p++ = 'm';
   }
   // Copy string without null terminator, updates pointer in place

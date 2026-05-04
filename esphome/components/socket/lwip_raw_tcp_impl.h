@@ -57,6 +57,7 @@ class LWIPRawCommon {
   // instead use it for determining whether to call lwip_output
   bool nodelay_ = false;
   sa_family_t family_ = 0;
+  uint8_t recv_timeout_cs_ = 0;  // SO_RCVTIMEO in centiseconds (0 = no timeout, max 2.55s)
 };
 
 /// Connected socket implementation for LWIP raw TCP.
@@ -95,6 +96,8 @@ class LWIPRawImpl : public LWIPRawCommon {
     errno = ENOSYS;
     return -1;
   }
+  // Check if the socket has buffered data ready to read.
+  // See the ready() contract in socket.h — callers must drain or track remaining data.
   // Intentionally unlocked — this is a polling check called every loop iteration.
   // A stale read at worst delays processing by one loop tick; the actual I/O in
   // read() holds the lwip lock and re-checks properly. See esphome#10681.
@@ -107,11 +110,8 @@ class LWIPRawImpl : public LWIPRawCommon {
       errno = ECONNRESET;
       return -1;
     }
-    if (blocking) {
-      // blocking operation not supported
-      errno = EINVAL;
-      return -1;
-    }
+    // Raw TCP doesn't use a blocking flag directly. Blocking behavior
+    // is provided by SO_RCVTIMEO which makes read() wait via wakeable_delay().
     return 0;
   }
   int loop() { return 0; }
@@ -122,6 +122,14 @@ class LWIPRawImpl : public LWIPRawCommon {
   static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err);
 
  protected:
+  // True when the socket could receive data but none has arrived yet.
+  // Safe to call without LWIP_LOCK — only null-checks pointers and reads a bool,
+  // all atomic on ARM/Xtensa. A stale value is harmless: the caller either does
+  // an unnecessary wait (stale true) or skips it (stale false), and the
+  // authoritative recheck happens under LWIP_LOCK afterward.
+  bool waiting_for_data_() const { return this->rx_buf_ == nullptr && !this->rx_closed_ && this->pcb_ != nullptr; }
+  void wait_for_data_();
+  ssize_t read_locked_(void *buf, size_t len);
   ssize_t internal_write_(const void *buf, size_t len);
   int internal_output_();
 

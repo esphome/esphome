@@ -2,12 +2,8 @@
 
 #ifdef USE_ESP32
 
-#ifdef USE_I2S_LEGACY
-#include <driver/i2s.h>
-#else
 #include <driver/i2s_std.h>
 #include <driver/i2s_pdm.h>
-#endif
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -37,27 +33,6 @@ enum MicrophoneEventGroupBits : uint32_t {
 };
 
 void I2SAudioMicrophone::setup() {
-#ifdef USE_I2S_LEGACY
-#if SOC_I2S_SUPPORTS_ADC
-  if (this->adc_) {
-    if (this->parent_->get_port() != I2S_NUM_0) {
-      ESP_LOGE(TAG, "Internal ADC only works on I2S0");
-      this->mark_failed();
-      return;
-    }
-  } else
-#endif
-#endif
-  {
-    if (this->pdm_) {
-      if (this->parent_->get_port() != I2S_NUM_0) {
-        ESP_LOGE(TAG, "PDM only works on I2S0");
-        this->mark_failed();
-        return;
-      }
-    }
-  }
-
   this->active_listeners_semaphore_ = xSemaphoreCreateCounting(MAX_LISTENERS, MAX_LISTENERS);
   if (this->active_listeners_semaphore_ == nullptr) {
     ESP_LOGE(TAG, "Creating semaphore failed");
@@ -86,13 +61,6 @@ void I2SAudioMicrophone::dump_config() {
 
 void I2SAudioMicrophone::configure_stream_settings_() {
   uint8_t channel_count = 1;
-#ifdef USE_I2S_LEGACY
-  uint8_t bits_per_sample = this->bits_per_sample_;
-
-  if (this->channel_ == I2S_CHANNEL_FMT_RIGHT_LEFT) {
-    channel_count = 2;
-  }
-#else
   uint8_t bits_per_sample = 16;
   if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
     bits_per_sample = this->slot_bit_width_;
@@ -101,7 +69,6 @@ void I2SAudioMicrophone::configure_stream_settings_() {
   if (this->slot_mode_ == I2S_SLOT_MODE_STEREO) {
     channel_count = 2;
   }
-#endif
 
 #ifdef USE_ESP32_VARIANT_ESP32
   // ESP32 reads audio aligned to a multiple of 2 bytes. For example, if configured for 24 bits per sample, then it will
@@ -135,65 +102,6 @@ bool I2SAudioMicrophone::start_driver_() {
   this->locked_driver_ = true;
   esp_err_t err;
 
-#ifdef USE_I2S_LEGACY
-  i2s_driver_config_t config = {
-      .mode = (i2s_mode_t) (this->i2s_mode_ | I2S_MODE_RX),
-      .sample_rate = this->sample_rate_,
-      .bits_per_sample = this->bits_per_sample_,
-      .channel_format = this->channel_,
-      .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-      .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-      .dma_buf_count = 4,
-      .dma_buf_len = 240,  // Must be divisible by 3 to support 24 bits per sample on old driver and newer variants
-      .use_apll = this->use_apll_,
-      .tx_desc_auto_clear = false,
-      .fixed_mclk = 0,
-      .mclk_multiple = this->mclk_multiple_,
-      .bits_per_chan = this->bits_per_channel_,
-  };
-
-#if SOC_I2S_SUPPORTS_ADC
-  if (this->adc_) {
-    config.mode = (i2s_mode_t) (config.mode | I2S_MODE_ADC_BUILT_IN);
-    err = i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error installing driver: %s", esp_err_to_name(err));
-      return false;
-    }
-
-    err = i2s_set_adc_mode(ADC_UNIT_1, this->adc_channel_);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error setting ADC mode: %s", esp_err_to_name(err));
-      return false;
-    }
-
-    err = i2s_adc_enable(this->parent_->get_port());
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error enabling ADC: %s", esp_err_to_name(err));
-      return false;
-    }
-  } else
-#endif
-  {
-    if (this->pdm_)
-      config.mode = (i2s_mode_t) (config.mode | I2S_MODE_PDM);
-
-    err = i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error installing driver: %s", esp_err_to_name(err));
-      return false;
-    }
-
-    i2s_pin_config_t pin_config = this->parent_->get_pin_config();
-    pin_config.data_in_num = this->din_pin_;
-
-    err = i2s_set_pin(this->parent_->get_port(), &pin_config);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "Error setting pin: %s", esp_err_to_name(err));
-      return false;
-    }
-  }
-#else
   i2s_chan_config_t chan_cfg = {
       .id = this->parent_->get_port(),
       .role = this->i2s_role_,
@@ -286,7 +194,6 @@ bool I2SAudioMicrophone::start_driver_() {
     ESP_LOGE(TAG, "Enabling failed: %s", esp_err_to_name(err));
     return false;
   }
-#endif
 
   this->configure_stream_settings_();  // redetermine the settings in case some settings were changed after compilation
 
@@ -305,24 +212,6 @@ void I2SAudioMicrophone::stop_driver_() {
   // ensures that we stop/unload the driver when it only partially starts.
 
   esp_err_t err;
-#ifdef USE_I2S_LEGACY
-#if SOC_I2S_SUPPORTS_ADC
-  if (this->adc_) {
-    err = i2s_adc_disable(this->parent_->get_port());
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "Error disabling ADC: %s", esp_err_to_name(err));
-    }
-  }
-#endif
-  err = i2s_stop(this->parent_->get_port());
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Error stopping: %s", esp_err_to_name(err));
-  }
-  err = i2s_driver_uninstall(this->parent_->get_port());
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "Error uninstalling driver: %s", esp_err_to_name(err));
-  }
-#else
   if (this->rx_handle_ != nullptr) {
     /* Have to stop the channel before deleting it */
     err = i2s_channel_disable(this->rx_handle_);
@@ -336,7 +225,6 @@ void I2SAudioMicrophone::stop_driver_() {
     }
     this->rx_handle_ = nullptr;
   }
-#endif
   if (this->locked_driver_) {
     this->parent_->unlock();
     this->locked_driver_ = false;
@@ -433,12 +321,8 @@ void I2SAudioMicrophone::fix_dc_offset_(std::vector<uint8_t> &data) {
 
 size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_wait) {
   size_t bytes_read = 0;
-#ifdef USE_I2S_LEGACY
-  esp_err_t err = i2s_read(this->parent_->get_port(), buf, len, &bytes_read, ticks_to_wait);
-#else
   // i2s_channel_read expects the timeout value in ms, not ticks
   esp_err_t err = i2s_channel_read(this->rx_handle_, buf, len, &bytes_read, pdTICKS_TO_MS(ticks_to_wait));
-#endif
   if ((err != ESP_OK) && ((err != ESP_ERR_TIMEOUT) || (ticks_to_wait != 0))) {
     // Ignore ESP_ERR_TIMEOUT if ticks_to_wait = 0, as it will read the data on the next call
     if (!this->status_has_warning()) {
@@ -453,7 +337,7 @@ size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_w
     return 0;
   }
   this->status_clear_warning();
-#if defined(USE_ESP32_VARIANT_ESP32) and not defined(USE_I2S_LEGACY)
+#ifdef USE_ESP32_VARIANT_ESP32
   // For ESP32 16-bit standard mono mode, adjacent samples need to be swapped.
   if (this->slot_mode_ == I2S_SLOT_MODE_MONO && this->slot_bit_width_ == I2S_SLOT_BIT_WIDTH_16BIT && !this->pdm_) {
     int16_t *samples = reinterpret_cast<int16_t *>(buf);

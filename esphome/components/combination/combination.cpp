@@ -4,8 +4,6 @@
 #include "esphome/core/hal.h"
 
 #include <cmath>
-#include <functional>
-#include <vector>
 
 namespace esphome {
 namespace combination {
@@ -20,12 +18,12 @@ void CombinationComponent::log_config_(const LogString *combo_type) {
 
 void CombinationNoParameterComponent::add_source(Sensor *sensor) { this->sensors_.emplace_back(sensor); }
 
-void CombinationOneParameterComponent::add_source(Sensor *sensor, std::function<float(float)> const &stddev) {
-  this->sensor_pairs_.emplace_back(sensor, stddev);
+void CombinationOneParameterComponent::add_source(Sensor *sensor, std::function<float(float)> const &compute) {
+  this->sensor_sources_.push_back({sensor, compute, this});
 }
 
-void CombinationOneParameterComponent::add_source(Sensor *sensor, float stddev) {
-  this->add_source(sensor, std::function<float(float)>{[stddev](float x) -> float { return stddev; }});
+void CombinationOneParameterComponent::add_source(Sensor *sensor, float value) {
+  this->add_source(sensor, std::function<float(float)>{[value](float x) -> float { return value; }});
 }
 
 void CombinationNoParameterComponent::log_source_sensors() {
@@ -37,9 +35,8 @@ void CombinationNoParameterComponent::log_source_sensors() {
 
 void CombinationOneParameterComponent::log_source_sensors() {
   ESP_LOGCONFIG(TAG, "  Source Sensors:");
-  for (const auto &sensor : this->sensor_pairs_) {
-    auto &entity = *sensor.first;
-    ESP_LOGCONFIG(TAG, "    - %s", entity.get_name().c_str());
+  for (const auto &source : this->sensor_sources_) {
+    ESP_LOGCONFIG(TAG, "    - %s", source.sensor->get_name().c_str());
   }
 }
 
@@ -62,9 +59,12 @@ void KalmanCombinationComponent::dump_config() {
 }
 
 void KalmanCombinationComponent::setup() {
-  for (const auto &sensor : this->sensor_pairs_) {
-    const auto stddev = sensor.second;
-    sensor.first->add_on_state_callback([this, stddev](float x) -> void { this->correct_(x, stddev(x)); });
+  for (auto &source : this->sensor_sources_) {
+    // [&source] is safe: source refers to a FixedVector element that never reallocates,
+    // so the reference remains valid for the component's lifetime.
+    source.sensor->add_on_state_callback([&source](float x) -> void {
+      static_cast<KalmanCombinationComponent *>(source.parent)->correct_(x, source.compute(x));
+    });
   }
 }
 
@@ -117,10 +117,10 @@ void KalmanCombinationComponent::correct_(float value, float stddev) {
 }
 
 void LinearCombinationComponent::setup() {
-  for (const auto &sensor : this->sensor_pairs_) {
+  for (auto &source : this->sensor_sources_) {
     // All sensor updates are deferred until the next loop. This avoids publishing the combined sensor's result
     // repeatedly in the same loop if multiple source senors update.
-    sensor.first->add_on_state_callback(
+    source.sensor->add_on_state_callback(
         [this](float value) -> void { this->defer("update", [this, value]() { this->handle_new_value(value); }); });
   }
 }
@@ -133,10 +133,10 @@ void LinearCombinationComponent::handle_new_value(float value) {
 
   float sum = 0.0;
 
-  for (const auto &sensor : this->sensor_pairs_) {
-    const float sensor_state = sensor.first->state;
+  for (const auto &source : this->sensor_sources_) {
+    const float sensor_state = source.sensor->state;
     if (std::isfinite(sensor_state)) {
-      sum += sensor_state * sensor.second(sensor_state);
+      sum += sensor_state * source.compute(sensor_state);
     }
   }
 

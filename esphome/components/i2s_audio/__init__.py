@@ -1,3 +1,5 @@
+from dataclasses import dataclass, field
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
@@ -26,6 +28,9 @@ CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
 MULTI_CONF = True
 
+CONF_PDM = "pdm"
+CONF_ADC_TYPE = "adc_type"
+
 CONF_I2S_DOUT_PIN = "i2s_dout_pin"
 CONF_I2S_DIN_PIN = "i2s_din_pin"
 CONF_I2S_MCLK_PIN = "i2s_mclk_pin"
@@ -47,8 +52,6 @@ CONF_LEFT = "left"
 CONF_RIGHT = "right"
 CONF_STEREO = "stereo"
 CONF_BOTH = "both"
-
-CONF_USE_LEGACY = "use_legacy"
 
 i2s_audio_ns = cg.esphome_ns.namespace("i2s_audio")
 I2SAudioComponent = i2s_audio_ns.class_("I2SAudioComponent", cg.Component)
@@ -149,20 +152,6 @@ def validate_mclk_divisible_by_3(config):
     return config
 
 
-# Key for storing legacy driver setting in CORE.data
-I2S_USE_LEGACY_DRIVER_KEY = "i2s_use_legacy_driver"
-
-
-def _get_use_legacy_driver():
-    """Get the legacy driver setting from CORE.data."""
-    return CORE.data.get(I2S_USE_LEGACY_DRIVER_KEY)
-
-
-def _set_use_legacy_driver(value: bool) -> None:
-    """Set the legacy driver setting in CORE.data."""
-    CORE.data[I2S_USE_LEGACY_DRIVER_KEY] = value
-
-
 def i2s_audio_component_schema(
     class_: MockObjClass,
     *,
@@ -187,10 +176,6 @@ def i2s_audio_component_schema(
                 *I2S_MODE_OPTIONS, lower=True
             ),
             cv.Optional(CONF_USE_APLL, default=False): cv.boolean,
-            cv.Optional(CONF_BITS_PER_CHANNEL, default="default"): cv.All(
-                cv.Any(cv.float_with_unit("bits", "bit"), "default"),
-                cv.one_of(*I2S_BITS_PER_CHANNEL),
-            ),
             cv.Optional(CONF_MCLK_MULTIPLE, default=256): cv.one_of(*I2S_MCLK_MULTIPLE),
         }
     )
@@ -198,60 +183,80 @@ def i2s_audio_component_schema(
 
 async def register_i2s_audio_component(var, config):
     await cg.register_parented(var, config[CONF_I2S_AUDIO_ID])
-    if use_legacy():
-        cg.add(var.set_i2s_mode(I2S_MODE_OPTIONS[config[CONF_I2S_MODE]]))
-        cg.add(var.set_channel(I2S_CHANNELS[config[CONF_CHANNEL]]))
-        cg.add(
-            var.set_bits_per_sample(I2S_BITS_PER_SAMPLE[config[CONF_BITS_PER_SAMPLE]])
-        )
-        cg.add(
-            var.set_bits_per_channel(
-                I2S_BITS_PER_CHANNEL[config[CONF_BITS_PER_CHANNEL]]
-            )
-        )
-    else:
-        cg.add(var.set_i2s_role(I2S_ROLE_OPTIONS[config[CONF_I2S_MODE]]))
-        slot_mode = config[CONF_CHANNEL]
-        if slot_mode != CONF_STEREO:
-            slot_mode = CONF_MONO
-        slot_mask = config[CONF_CHANNEL]
-        if slot_mask not in [CONF_LEFT, CONF_RIGHT]:
-            slot_mask = CONF_BOTH
-        cg.add(var.set_slot_mode(I2S_SLOT_MODE[slot_mode]))
-        cg.add(var.set_std_slot_mask(I2S_STD_SLOT_MASK[slot_mask]))
-        cg.add(var.set_slot_bit_width(I2S_SLOT_BIT_WIDTH[config[CONF_BITS_PER_SAMPLE]]))
+    cg.add(var.set_i2s_role(I2S_ROLE_OPTIONS[config[CONF_I2S_MODE]]))
+    slot_mode = config[CONF_CHANNEL]
+    if slot_mode != CONF_STEREO:
+        slot_mode = CONF_MONO
+    slot_mask = config[CONF_CHANNEL]
+    if slot_mask not in [CONF_LEFT, CONF_RIGHT]:
+        slot_mask = CONF_BOTH
+    cg.add(var.set_slot_mode(I2S_SLOT_MODE[slot_mode]))
+    cg.add(var.set_std_slot_mask(I2S_STD_SLOT_MASK[slot_mask]))
+    cg.add(var.set_slot_bit_width(I2S_SLOT_BIT_WIDTH[config[CONF_BITS_PER_SAMPLE]]))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
     cg.add(var.set_use_apll(config[CONF_USE_APLL]))
     cg.add(var.set_mclk_multiple(I2S_MCLK_MULTIPLE[config[CONF_MCLK_MULTIPLE]]))
 
 
-def validate_use_legacy(value):
-    if CONF_USE_LEGACY in value:
-        existing_value = _get_use_legacy_driver()
-        if (existing_value is not None) and (existing_value != value[CONF_USE_LEGACY]):
-            raise cv.Invalid(
-                f"All i2s_audio components must set {CONF_USE_LEGACY} to the same value."
-            )
-        if (not value[CONF_USE_LEGACY]) and (CORE.using_arduino):
-            raise cv.Invalid("Arduino supports only the legacy i2s driver")
-        _set_use_legacy_driver(value[CONF_USE_LEGACY])
-    elif CORE.using_arduino:
-        _set_use_legacy_driver(True)
-    return value
-
-
-CONFIG_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(I2SAudioComponent),
-            cv.Required(CONF_I2S_LRCLK_PIN): pins.internal_gpio_output_pin_number,
-            cv.Optional(CONF_I2S_BCLK_PIN): pins.internal_gpio_output_pin_number,
-            cv.Optional(CONF_I2S_MCLK_PIN): pins.internal_gpio_output_pin_number,
-            cv.Optional(CONF_USE_LEGACY): cv.boolean,
-        },
-    ),
-    validate_use_legacy,
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(I2SAudioComponent),
+        cv.Required(CONF_I2S_LRCLK_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_I2S_BCLK_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_I2S_MCLK_PIN): pins.internal_gpio_output_pin_number,
+    },
 )
+
+
+@dataclass
+class I2SAudioData:
+    """I2S audio component state stored in CORE.data."""
+
+    port_map: dict[str, int] = field(default_factory=dict)
+
+
+def _get_data() -> I2SAudioData:
+    if CONF_I2S_AUDIO not in CORE.data:
+        CORE.data[CONF_I2S_AUDIO] = I2SAudioData()
+    return CORE.data[CONF_I2S_AUDIO]
+
+
+def _assign_ports() -> None:
+    """Assign I2S port numbers, prioritizing instances with microphone children.
+
+    Microphones (especially PDM) require port 0 on most ESP32 variants.
+    This runs once and stores the mapping in CORE.data.
+    """
+    data = _get_data()
+    if data.port_map:
+        return
+
+    full_config = fv.full_config.get()
+    i2s_configs = full_config[CONF_I2S_AUDIO]
+
+    # Find i2s_audio instances with microphones that require port 0
+    # (PDM and internal ADC only work on I2S port 0)
+    port0_parent_id = None
+    for mic_config in full_config.get("microphone", []):
+        if CONF_I2S_AUDIO_ID not in mic_config:
+            continue
+        if mic_config.get(CONF_PDM) or mic_config.get(CONF_ADC_TYPE) == "internal":
+            if port0_parent_id is not None:
+                raise cv.Invalid(
+                    "Only one PDM/ADC microphone is supported (requires I2S port 0)"
+                )
+            port0_parent_id = str(mic_config[CONF_I2S_AUDIO_ID])
+
+    # Assign ports: port 0 parent first (if any), rest get sequential
+    next_port = 0
+    if port0_parent_id is not None:
+        data.port_map[port0_parent_id] = next_port
+        next_port += 1
+    for config in i2s_configs:
+        config_id = str(config[CONF_ID])
+        if config_id != port0_parent_id:
+            data.port_map[config_id] = next_port
+            next_port += 1
 
 
 def _final_validate(_):
@@ -263,10 +268,7 @@ def _final_validate(_):
         raise cv.Invalid(
             f"Only {I2S_PORTS[variant]} I2S audio ports are supported on {variant}"
         )
-
-
-def use_legacy():
-    return _get_use_legacy_driver()
+    _assign_ports()
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -276,13 +278,14 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
+    # Assign I2S port from _final_validate computed mapping
+    data = _get_data()
+    if (port := data.port_map.get(str(config[CONF_ID]))) is None:
+        raise ValueError(f"No I2S port assigned for {config[CONF_ID]}")
+    cg.add(var.set_port(port))
+
     # Re-enable ESP-IDF's I2S driver (excluded by default to save compile time)
     include_builtin_idf_component("esp_driver_i2s")
-
-    if use_legacy():
-        cg.add_define("USE_I2S_LEGACY")
-        # Legacy I2S API lives in the "driver" shim component (driver/i2s.h)
-        include_builtin_idf_component("driver")
 
     # Helps avoid callbacks being skipped due to processor load
     add_idf_sdkconfig_option("CONFIG_I2S_ISR_IRAM_SAFE", True)

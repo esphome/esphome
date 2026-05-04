@@ -79,6 +79,9 @@ LIST_ENTITIES_HANDLER(water_heater, water_heater::WaterHeater, ListEntitiesWater
 #ifdef USE_INFRARED
 LIST_ENTITIES_HANDLER(infrared, infrared::Infrared, ListEntitiesInfraredResponse)
 #endif
+#ifdef USE_RADIO_FREQUENCY
+LIST_ENTITIES_HANDLER(radio_frequency, radio_frequency::RadioFrequency, ListEntitiesRadioFrequencyResponse)
+#endif
 #ifdef USE_EVENT
 LIST_ENTITIES_HANDLER(event, event::Event, ListEntitiesEventResponse)
 #endif

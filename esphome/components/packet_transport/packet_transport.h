@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
@@ -37,11 +38,14 @@ struct Provider {
 #endif
 };
 
+class PacketTransport;
+
 #ifdef USE_SENSOR
 struct Sensor {
   sensor::Sensor *sensor;
   const char *id;
   bool updated;
+  PacketTransport *parent;
 };
 #endif
 #ifdef USE_BINARY_SENSOR
@@ -49,6 +53,7 @@ struct BinarySensor {
   binary_sensor::BinarySensor *sensor;
   const char *id;
   bool updated;
+  PacketTransport *parent;
 };
 #endif
 
@@ -60,8 +65,9 @@ class PacketTransport : public PollingComponent {
   void dump_config() override;
 
 #ifdef USE_SENSOR
+  void set_sensor_count(size_t count) { this->sensors_.init(count); }
   void add_sensor(const char *id, sensor::Sensor *sensor) {
-    Sensor st{sensor, id, true};
+    Sensor st{sensor, id, true, this};
     this->sensors_.push_back(st);
   }
   void add_remote_sensor(const char *hostname, const char *remote_id, sensor::Sensor *sensor) {
@@ -70,8 +76,9 @@ class PacketTransport : public PollingComponent {
   }
 #endif
 #ifdef USE_BINARY_SENSOR
+  void set_binary_sensor_count(size_t count) { this->binary_sensors_.init(count); }
   void add_binary_sensor(const char *id, binary_sensor::BinarySensor *sensor) {
-    BinarySensor st{sensor, id, true};
+    BinarySensor st{sensor, id, true, this};
     this->binary_sensors_.push_back(st);
   }
 
@@ -141,11 +148,11 @@ class PacketTransport : public PollingComponent {
   std::vector<uint8_t> encryption_key_{};
 
 #ifdef USE_SENSOR
-  std::vector<Sensor> sensors_{};
+  FixedVector<Sensor> sensors_{};
   string_map_t<string_map_t<sensor::Sensor *>> remote_sensors_{};
 #endif
 #ifdef USE_BINARY_SENSOR
-  std::vector<BinarySensor> binary_sensors_{};
+  FixedVector<BinarySensor> binary_sensors_{};
   string_map_t<string_map_t<binary_sensor::BinarySensor *>> remote_binary_sensors_{};
 #endif
 

@@ -61,20 +61,20 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
 #ifdef USE_SENSOR
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
 #endif
-  void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
-    this->sms_received_callback_.add(std::move(callback));
+  template<typename F> void add_on_sms_received_callback(F &&callback) {
+    this->sms_received_callback_.add(std::forward<F>(callback));
   }
-  void add_on_incoming_call_callback(std::function<void(std::string)> callback) {
-    this->incoming_call_callback_.add(std::move(callback));
+  template<typename F> void add_on_incoming_call_callback(F &&callback) {
+    this->incoming_call_callback_.add(std::forward<F>(callback));
   }
-  void add_on_call_connected_callback(std::function<void()> callback) {
-    this->call_connected_callback_.add(std::move(callback));
+  template<typename F> void add_on_call_connected_callback(F &&callback) {
+    this->call_connected_callback_.add(std::forward<F>(callback));
   }
-  void add_on_call_disconnected_callback(std::function<void()> callback) {
-    this->call_disconnected_callback_.add(std::move(callback));
+  template<typename F> void add_on_call_disconnected_callback(F &&callback) {
+    this->call_disconnected_callback_.add(std::forward<F>(callback));
   }
-  void add_on_ussd_received_callback(std::function<void(std::string)> callback) {
-    this->ussd_received_callback_.add(std::move(callback));
+  template<typename F> void add_on_ussd_received_callback(F &&callback) {
+    this->ussd_received_callback_.add(std::forward<F>(callback));
   }
   void send_sms(const std::string &recipient, const std::string &message);
   void send_ussd(const std::string &ussd_code);
@@ -119,41 +119,6 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   CallbackManager<void()> call_connected_callback_;
   CallbackManager<void()> call_disconnected_callback_;
   CallbackManager<void(std::string)> ussd_received_callback_;
-};
-
-class Sim800LReceivedMessageTrigger : public Trigger<std::string, std::string> {
- public:
-  explicit Sim800LReceivedMessageTrigger(Sim800LComponent *parent) {
-    parent->add_on_sms_received_callback(
-        [this](const std::string &message, const std::string &sender) { this->trigger(message, sender); });
-  }
-};
-
-class Sim800LIncomingCallTrigger : public Trigger<std::string> {
- public:
-  explicit Sim800LIncomingCallTrigger(Sim800LComponent *parent) {
-    parent->add_on_incoming_call_callback([this](const std::string &caller_id) { this->trigger(caller_id); });
-  }
-};
-
-class Sim800LCallConnectedTrigger : public Trigger<> {
- public:
-  explicit Sim800LCallConnectedTrigger(Sim800LComponent *parent) {
-    parent->add_on_call_connected_callback([this]() { this->trigger(); });
-  }
-};
-
-class Sim800LCallDisconnectedTrigger : public Trigger<> {
- public:
-  explicit Sim800LCallDisconnectedTrigger(Sim800LComponent *parent) {
-    parent->add_on_call_disconnected_callback([this]() { this->trigger(); });
-  }
-};
-class Sim800LReceivedUssdTrigger : public Trigger<std::string> {
- public:
-  explicit Sim800LReceivedUssdTrigger(Sim800LComponent *parent) {
-    parent->add_on_ussd_received_callback([this](const std::string &ussd) { this->trigger(ussd); });
-  }
 };
 
 template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {

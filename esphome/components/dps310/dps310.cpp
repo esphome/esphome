@@ -127,8 +127,7 @@ void DPS310Component::read_() {
     this->update_in_progress_ = false;
     this->status_clear_warning();
   } else {
-    auto f = std::bind(&DPS310Component::read_, this);
-    this->set_timeout("dps310", 10, f);
+    this->set_timeout("dps310", 10, [this]() { this->read_(); });
   }
 }
 

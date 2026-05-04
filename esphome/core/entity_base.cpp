@@ -8,9 +8,6 @@ namespace esphome {
 
 static const char *const TAG = "entity_base";
 
-// Entity Name
-const StringRef &EntityBase::get_name() const { return this->name_; }
-
 void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
   this->name_ = StringRef(name);
   if (this->name_.empty()) {
@@ -175,8 +172,6 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   size_t len = this->write_object_id_to(buf.data(), buf.size());
   return StringRef(buf.data(), len);
 }
-
-uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }
 
 // Migrate preference data from old_key to new_key if they differ.
 // This helper is exposed so callers with custom key computation (like TextPrefs)

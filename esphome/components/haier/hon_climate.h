@@ -90,7 +90,7 @@ class HonClimate : public HaierClimateBase {
   void set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSensor *sens);
 
  protected:
-  void update_sub_text_sensor_(SubTextSensorType type, const std::string &value);
+  void update_sub_text_sensor_(SubTextSensorType type, const char *value);
   text_sensor::TextSensor *sub_text_sensors_[(size_t) SubTextSensorType::SUB_TEXT_SENSOR_TYPE_COUNT]{nullptr};
 #endif
 #ifdef USE_SWITCH
@@ -116,7 +116,7 @@ class HonClimate : public HaierClimateBase {
   void set_vertical_airflow(hon_protocol::VerticalSwingMode direction);
   esphome::optional<hon_protocol::HorizontalSwingMode> get_horizontal_airflow() const;
   void set_horizontal_airflow(hon_protocol::HorizontalSwingMode direction);
-  std::string get_cleaning_status_text() const;
+  const char *get_cleaning_status_text() const;
   CleaningState get_cleaning_status() const;
   void start_self_cleaning();
   void start_steri_cleaning();
@@ -124,8 +124,12 @@ class HonClimate : public HaierClimateBase {
   void set_extra_sensors_packet_bytes_size(size_t size) { this->extra_sensors_packet_bytes_ = size; };
   void set_status_message_header_size(size_t size) { this->status_message_header_size_ = size; };
   void set_control_method(HonControlMethod method) { this->control_method_ = method; };
-  void add_alarm_start_callback(std::function<void(uint8_t, const char *)> &&callback);
-  void add_alarm_end_callback(std::function<void(uint8_t, const char *)> &&callback);
+  template<typename F> void add_alarm_start_callback(F &&callback) {
+    this->alarm_start_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_alarm_end_callback(F &&callback) {
+    this->alarm_end_callback_.add(std::forward<F>(callback));
+  }
   float get_active_alarm_count() const { return this->active_alarm_count_; }
 
  protected:
@@ -162,11 +166,12 @@ class HonClimate : public HaierClimateBase {
   void fill_control_messages_queue_();
   void clear_control_messages_queue_();
 
+  static constexpr size_t HARDWARE_INFO_STR_SIZE = 9;
   struct HardwareInfo {
-    std::string protocol_version_;
-    std::string software_version_;
-    std::string hardware_version_;
-    std::string device_name_;
+    char protocol_version_[HARDWARE_INFO_STR_SIZE];
+    char software_version_[HARDWARE_INFO_STR_SIZE];
+    char hardware_version_[HARDWARE_INFO_STR_SIZE];
+    char device_name_[HARDWARE_INFO_STR_SIZE];
     bool functions_[5];
   };
 
@@ -194,22 +199,6 @@ class HonClimate : public HaierClimateBase {
   HonSettings settings_{};
   ESPPreferenceObject hon_rtc_;
   SwitchState quiet_mode_state_{SwitchState::OFF};
-};
-
-class HaierAlarmStartTrigger : public Trigger<uint8_t, const char *> {
- public:
-  explicit HaierAlarmStartTrigger(HonClimate *parent) {
-    parent->add_alarm_start_callback(
-        [this](uint8_t alarm_code, const char *alarm_message) { this->trigger(alarm_code, alarm_message); });
-  }
-};
-
-class HaierAlarmEndTrigger : public Trigger<uint8_t, const char *> {
- public:
-  explicit HaierAlarmEndTrigger(HonClimate *parent) {
-    parent->add_alarm_end_callback(
-        [this](uint8_t alarm_code, const char *alarm_message) { this->trigger(alarm_code, alarm_message); });
-  }
 };
 
 }  // namespace haier

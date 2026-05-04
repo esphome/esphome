@@ -18,28 +18,28 @@ const LogString *update_state_to_string(UpdateState state) {
 }
 
 void UpdateEntity::publish_state() {
-  ESP_LOGD(TAG,
+  ESP_LOGV(TAG,
            "'%s' >>\n"
            "  Current Version: %s",
            this->name_.c_str(), this->update_info_.current_version.c_str());
 
   if (!this->update_info_.md5.empty()) {
-    ESP_LOGD(TAG, "  Latest Version: %s", this->update_info_.latest_version.c_str());
+    ESP_LOGV(TAG, "  Latest Version: %s", this->update_info_.latest_version.c_str());
   }
   if (!this->update_info_.firmware_url.empty()) {
-    ESP_LOGD(TAG, "  Firmware URL: %s", this->update_info_.firmware_url.c_str());
+    ESP_LOGV(TAG, "  Firmware URL: %s", this->update_info_.firmware_url.c_str());
   }
 
-  ESP_LOGD(TAG, "  Title: %s", this->update_info_.title.c_str());
+  ESP_LOGV(TAG, "  Title: %s", this->update_info_.title.c_str());
   if (!this->update_info_.summary.empty()) {
-    ESP_LOGD(TAG, "  Summary: %s", this->update_info_.summary.c_str());
+    ESP_LOGV(TAG, "  Summary: %s", this->update_info_.summary.c_str());
   }
   if (!this->update_info_.release_url.empty()) {
-    ESP_LOGD(TAG, "  Release URL: %s", this->update_info_.release_url.c_str());
+    ESP_LOGV(TAG, "  Release URL: %s", this->update_info_.release_url.c_str());
   }
 
   if (this->update_info_.has_progress) {
-    ESP_LOGD(TAG, "  Progress: %.0f%%", this->update_info_.progress);
+    ESP_LOGV(TAG, "  Progress: %.0f%%", this->update_info_.progress);
   }
 
   this->set_has_state(true);

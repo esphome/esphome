@@ -7,7 +7,7 @@
 namespace esphome {
 namespace homeassistant {
 
-class HomeassistantTime : public time::RealTimeClock {
+class HomeassistantTime final : public time::RealTimeClock {
  public:
   void setup() override;
   void update() override;

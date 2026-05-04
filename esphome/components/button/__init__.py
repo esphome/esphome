@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_PRESS,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_IDENTIFY,
@@ -20,6 +19,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -41,10 +41,6 @@ ButtonPtr = Button.operator("ptr")
 
 PressAction = button_ns.class_("PressAction", automation.Action)
 
-ButtonPressTrigger = button_ns.class_(
-    "ButtonPressTrigger", automation.Trigger.template()
-)
-
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 
@@ -55,11 +51,7 @@ _BUTTON_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTButtonComponent),
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-            cv.Optional(CONF_ON_PRESS): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ButtonPressTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_PRESS): automation.validate_automation({}),
         }
     )
 )
@@ -88,11 +80,14 @@ def button_schema(
     return _BUTTON_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_PRESS, "add_on_press_callback"),
+)
+
+
 @setup_entity("button")
 async def setup_button_core_(var, config):
-    for conf in config.get(CONF_ON_PRESS, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     setup_device_class(config)
 
@@ -107,7 +102,7 @@ async def setup_button_core_(var, config):
 async def register_button(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_button(var))
+    queue_entity_register("button", config)
     CORE.register_platform_component("button", var)
     await setup_button_core_(var, config)
 

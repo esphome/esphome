@@ -288,6 +288,9 @@ def merge_component_configs(
                 for pkg_name, pkg_value in list(packages_value.items()):
                     if pkg_name in common_bus_packages:
                         continue
+                    # Resolve deferred !include files before checking type
+                    if isinstance(pkg_value, yaml_util.IncludeFile):
+                        pkg_value = pkg_value.load()
                     if not isinstance(pkg_value, dict):
                         continue
                     # Component-specific package - expand its content into top level
@@ -295,6 +298,9 @@ def merge_component_configs(
             elif isinstance(packages_value, list):
                 # List format - expand all package includes
                 for pkg_value in packages_value:
+                    # Resolve deferred !include files before checking type
+                    if isinstance(pkg_value, yaml_util.IncludeFile):
+                        pkg_value = pkg_value.load()
                     if not isinstance(pkg_value, dict):
                         continue
                     comp_data = merge_config(comp_data, pkg_value)
@@ -384,7 +390,7 @@ def merge_component_configs(
     # Write merged config
     output_file.parent.mkdir(parents=True, exist_ok=True)
     yaml_content = yaml_util.dump(merged_config_data)
-    output_file.write_text(yaml_content)
+    output_file.write_text(yaml_content, encoding="utf-8")
 
     print(f"Successfully merged {len(component_names)} components into {output_file}")
 

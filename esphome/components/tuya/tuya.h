@@ -112,8 +112,8 @@ class Tuya : public Component, public uart::UARTDevice {
   void add_ignore_mcu_update_on_datapoints(uint8_t ignore_mcu_update_on_datapoints) {
     this->ignore_mcu_update_on_datapoints_.push_back(ignore_mcu_update_on_datapoints);
   }
-  void add_on_initialized_callback(std::function<void()> callback) {
-    this->initialized_callback_.add(std::move(callback));
+  template<typename F> void add_on_initialized_callback(F &&callback) {
+    this->initialized_callback_.add(std::forward<F>(callback));
   }
 
  protected:

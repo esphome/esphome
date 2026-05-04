@@ -50,14 +50,6 @@ SetWriteMessageAction = pn7150_ns.class_("SetWriteMessageAction", automation.Act
 SetWriteModeAction = pn7150_ns.class_("SetWriteModeAction", automation.Action)
 
 
-PN7150OnEmulatedTagScanTrigger = pn7150_ns.class_(
-    "PN7150OnEmulatedTagScanTrigger", automation.Trigger.template()
-)
-
-PN7150OnFinishedWriteTrigger = pn7150_ns.class_(
-    "PN7150OnFinishedWriteTrigger", automation.Trigger.template()
-)
-
 PN7150IsWritingCondition = pn7150_ns.class_(
     "PN7150IsWritingCondition", automation.Condition
 )
@@ -83,20 +75,8 @@ SET_MESSAGE_ACTION_SCHEMA = cv.Schema(
 PN7150_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(PN7150),
-        cv.Optional(CONF_ON_EMULATED_TAG_SCAN): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    PN7150OnEmulatedTagScanTrigger
-                ),
-            }
-        ),
-        cv.Optional(CONF_ON_FINISHED_WRITE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    PN7150OnFinishedWriteTrigger
-                ),
-            }
-        ),
+        cv.Optional(CONF_ON_EMULATED_TAG_SCAN): automation.validate_automation({}),
+        cv.Optional(CONF_ON_FINISHED_WRITE): automation.validate_automation({}),
         cv.Optional(CONF_ON_TAG): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(nfc.NfcOnTagTrigger),
@@ -184,6 +164,16 @@ async def pn7150_simple_action_to_code(config, action_id, template_arg, args):
     return var
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_EMULATED_TAG_SCAN, "add_on_emulated_tag_scan_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_FINISHED_WRITE, "add_on_finished_write_callback"
+    ),
+)
+
+
 async def setup_pn7150(var, config):
     await cg.register_component(var, config)
 
@@ -214,13 +204,7 @@ async def setup_pn7150(var, config):
             trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
         )
 
-    for conf in config.get(CONF_ON_EMULATED_TAG_SCAN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_FINISHED_WRITE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_condition(

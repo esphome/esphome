@@ -16,22 +16,20 @@ class PCA9554Component : public Component,
 
   /// Check i2c availability and setup masks
   void setup() override;
-  /// Invalidate cache at start of each loop
   void loop() override;
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
   float get_setup_priority() const override;
 
-#ifdef USE_LOOP_PRIORITY
-  float get_loop_priority() const override;
-#endif
-
   void dump_config() override;
 
   void set_pin_count(size_t pin_count) { this->pin_count_ = pin_count; }
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
  protected:
+  static void IRAM_ATTR gpio_intr(PCA9554Component *arg);
+
   bool read_inputs_();
   bool write_register_(uint8_t reg, uint16_t value);
 
@@ -52,6 +50,7 @@ class PCA9554Component : public Component,
   uint16_t input_mask_{0x00};
   /// Storage for last I2C error seen
   esphome::i2c::ErrorCode last_error_;
+  InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
 /// Helper class to expose a PCA9554 pin as an internal input GPIO pin.

@@ -28,8 +28,8 @@ class MAX44009Sensor : public sensor::Sensor, public PollingComponent, public i2
   uint8_t read_(uint8_t reg);
   void write_(uint8_t reg, uint8_t value);
 
-  int error_;
-  MAX44009Mode mode_;
+  int8_t error_{0};
+  MAX44009Mode mode_{MAX44009_MODE_AUTO};
 };
 
 }  // namespace max44009

@@ -1,3 +1,22 @@
+"""
+LVGL 9.4 Canvas Widget Implementation
+
+This module implements the canvas widget for LVGL 9.4. Key changes from LVGL 8.4:
+
+1. Buffer allocation:
+   - LV_IMG_CF_TRUE_COLOR → LV_COLOR_FORMAT_RGB565
+   - LV_IMG_CF_TRUE_COLOR_ALPHA → LV_COLOR_FORMAT_ARGB8888
+   - LV_CANVAS_BUF_SIZE_TRUE_COLOR → LV_CANVAS_BUF_SIZE(w, h, bpp, stride)
+
+2. Drawing API:
+   - All lv_canvas_draw_* functions removed
+   - Use layer-based drawing: lv_canvas_init_layer() / lv_canvas_finish_layer()
+   - Draw using low-level lv_draw_* functions (rect, line, arc, image, label)
+
+3. Pixel operations:
+   - lv_canvas_set_px_color + lv_canvas_set_px_opa → lv_canvas_set_px(color, opa)
+"""
+
 from esphome import automation, codegen as cg, config_validation as cv
 from esphome.components.display_menu_base import CONF_LABEL
 from esphome.const import (
@@ -9,7 +28,7 @@ from esphome.const import (
     CONF_X,
     CONF_Y,
 )
-from esphome.cpp_generator import Literal, MockObj
+from esphome.cpp_types import FixedVector
 
 from ..automation import action_to_code
 from ..defines import (
@@ -19,8 +38,10 @@ from ..defines import (
     CONF_PIVOT_X,
     CONF_PIVOT_Y,
     CONF_POINTS,
+    CONF_RADIUS,
     CONF_SRC,
     CONF_START_ANGLE,
+    addr,
     literal,
 )
 from ..lv_validation import (
@@ -34,18 +55,20 @@ from ..lv_validation import (
     size,
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
-from ..schemas import STYLE_PROPS, STYLE_REMAP, TEXT_SCHEMA, point_schema
-from ..types import LvType, ObjUpdateAction, WidgetType
-from . import Widget, get_widgets
-from .line import lv_point_t, process_coord
+from ..schemas import STYLE_PROPS, TEXT_SCHEMA, point_schema, remap_property
+from ..types import LvType, ObjUpdateAction
+from . import Widget, WidgetType, get_widgets
+from .img import CONF_IMAGE
+from .line import lv_point_precise_t, process_coord
 
 CONF_CANVAS = "canvas"
 CONF_BUFFER_ID = "buffer_id"
 CONF_MAX_WIDTH = "max_width"
 CONF_TRANSPARENT = "transparent"
-CONF_RADIUS = "radius"
+CONF_DRAW_BUF_ID = "draw_buf_id"
 
 lv_canvas_t = LvType("lv_canvas_t")
+lv_draw_buf_t = LvType("lv_draw_buf_t")
 
 
 class CanvasType(WidgetType):
@@ -59,32 +82,43 @@ class CanvasType(WidgetType):
                     cv.Required(CONF_WIDTH): size,
                     cv.Required(CONF_HEIGHT): size,
                     cv.Optional(CONF_TRANSPARENT, default=False): cv.boolean,
+                    cv.GenerateID(CONF_DRAW_BUF_ID): cv.declare_id(lv_draw_buf_t),
                 }
             ),
+            modify_schema={},
         )
 
     def get_uses(self):
-        return "img", CONF_LABEL
+        return CONF_IMAGE, CONF_LABEL
 
     async def to_code(self, w: Widget, config):
         width = config[CONF_WIDTH]
         height = config[CONF_HEIGHT]
-        use_alpha = "_ALPHA" if config[CONF_TRANSPARENT] else ""
-        buf_size = literal(
-            f"LV_CANVAS_BUF_SIZE_TRUE_COLOR{use_alpha}({width}, {height})"
+        # LVGL 9.4: Use LV_COLOR_FORMAT instead of LV_IMG_CF
+        # RGB565 is 16-bit (2 bytes per pixel), ARGB8888 is 32-bit (4 bytes per pixel)
+        if config[CONF_TRANSPARENT]:
+            color_format = "LV_COLOR_FORMAT_ARGB8888"
+        else:
+            color_format = "LV_COLOR_FORMAT_NATIVE"
+
+        # LVGL 9.4: LV_CANVAS_BUF_SIZE(width, height, bits_per_pixel, stride)
+        # stride is 0 for default (width * bytes_per_pixel)
+        draw_buf = cg.new_Pvariable(config[CONF_DRAW_BUF_ID])
+        buf_size = literal(f"LV_DRAW_BUF_SIZE({width}, {height}, {color_format})")
+        lv.draw_buf_init(
+            draw_buf,
+            width,
+            height,
+            literal(color_format),
+            0,
+            lv_expr.malloc_core(buf_size),
+            literal(buf_size),
         )
-        with LocalVariable("buf", cg.void, lv_expr.custom_mem_alloc(buf_size)) as buf:
-            cg.add(cg.RawExpression(f"memset({buf}, 0, {buf_size});"))
-            lv.canvas_set_buffer(
-                w.obj,
-                buf,
-                width,
-                height,
-                literal(f"LV_IMG_CF_TRUE_COLOR{use_alpha}"),
-            )
+        lv.draw_buf_set_flag(draw_buf, literal("LV_IMAGE_FLAGS_MODIFIABLE"))
+        lv.canvas_set_draw_buf(w.obj, draw_buf)
 
 
-canvas_spec = CanvasType()
+CanvasType()
 
 
 @automation.register_action(
@@ -117,7 +151,7 @@ async def canvas_fill(config, action_id, template_arg, args):
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
             cv.Required(CONF_COLOR): lv_color,
-            cv.Optional(CONF_OPA): opacity,
+            cv.Optional(CONF_OPA, default="COVER"): opacity,
             cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
         },
     ),
@@ -126,7 +160,7 @@ async def canvas_fill(config, action_id, template_arg, args):
 async def canvas_set_pixel(config, action_id, template_arg, args):
     widget = await get_widgets(config)
     color = await lv_color.process(config[CONF_COLOR])
-    opa = await opacity.process(config.get(CONF_OPA))
+    opa = await opacity.process(config.get(CONF_OPA), "COVER")
     points = [
         (
             await pixels.process(p[CONF_X]),
@@ -136,25 +170,11 @@ async def canvas_set_pixel(config, action_id, template_arg, args):
     ]
 
     async def do_set_pixels(w: Widget):
-        if isinstance(color, MockObj):
-            for point in points:
-                x, y = point
-                lv.canvas_set_px_color(w.obj, x, y, color)
-        else:
-            with LocalVariable("color", "lv_color_t", color, modifier="") as color_var:
-                for point in points:
-                    x, y = point
-                    lv.canvas_set_px_color(w.obj, x, y, color_var)
-        if opa:
-            if isinstance(opa, Literal):
-                for point in points:
-                    x, y = point
-                    lv.canvas_set_px_opa(w.obj, x, y, opa)
-            else:
-                with LocalVariable("opa", "lv_opa_t", opa, modifier="") as opa_var:
-                    for point in points:
-                        x, y = point
-                        lv.canvas_set_px_opa(w.obj, x, y, opa_var)
+        # LVGL 9.4: lv_canvas_set_px combines color and opacity
+        # Could optimize this for lambda values
+        for point in points:
+            x, y = point
+            lv.canvas_set_px(w.obj, x, y, color, opa)
 
     return await action_to_code(
         widget, do_set_pixels, action_id, template_arg, args, config
@@ -178,18 +198,21 @@ async def draw_to_code(config, dsc_type, props, do_draw, action_id, template_arg
     y = await pixels.process(config.get(CONF_Y))
 
     async def action_func(w: Widget):
-        with LocalVariable("dsc", f"lv_draw_{dsc_type}_dsc_t", modifier="") as dsc:
-            dsc_addr = literal(f"&{dsc}")
-            lv.call(f"draw_{dsc_type}_dsc_init", dsc_addr)
-            if CONF_OPA in config:
-                opa = await opacity.process(config[CONF_OPA])
-                lv_assign(dsc.opa, opa)
-            for prop, validator in props.items():
-                if prop in config:
-                    value = await validator.process(config[prop])
-                    mapped_prop = STYLE_REMAP.get(prop, prop)
-                    lv_assign(getattr(dsc, mapped_prop), value)
-            await do_draw(w, x, y, dsc_addr)
+        # LVGL 9.4: Create a layer for drawing on canvas
+        with LocalVariable("layer", "lv_layer_t", modifier="") as layer:
+            lv.canvas_init_layer(w.obj, addr(layer))
+            with LocalVariable("dsc", f"lv_draw_{dsc_type}_dsc_t", modifier="") as dsc:
+                lv.call(f"draw_{dsc_type}_dsc_init", addr(dsc))
+                if CONF_OPA in config:
+                    opa = await opacity.process(config[CONF_OPA])
+                    lv_assign(dsc.opa, opa)
+                for prop, validator in props.items():
+                    if prop in config:
+                        value = await validator.process(config[prop])
+                        mapped_prop = remap_property(prop)
+                        lv_assign(getattr(dsc, mapped_prop), value)
+                await do_draw(addr(layer), x, y, dsc)
+            lv.canvas_finish_layer(w.obj, addr(layer))
 
     return await action_to_code(
         widget, action_func, action_id, template_arg, args, config
@@ -212,12 +235,32 @@ RECT_PROPS = {
         "outline_opa",
         "shadow_color",
         "shadow_width",
+        "shadow_offset_x",
+        "shadow_offset_y",
         "shadow_ofs_x",
         "shadow_ofs_y",
         "shadow_spread",
         "shadow_opa",
     )
 }
+
+
+def _draw_line(layer, dsc, points):
+    # LVGL 9.4: Use lv_draw_line for each line segment
+    with (
+        LocalVariable(
+            "points", FixedVector.template(lv_point_precise_t), points, modifier=""
+        ) as points_var,
+        LocalVariable("i", "uint32_t", literal("0"), modifier="") as i,
+    ):
+        # Draw lines between consecutive points
+        lv.append(
+            cg.RawStatement(f"for ({i} = 0; {i} != {points_var}.size() - 1; {i}++) {{")
+        )
+        lv_assign(dsc.p1, points_var[i])
+        lv_assign(dsc.p2, points_var[i + 1])
+        lv.draw_line(layer, addr(dsc))
+        lv.append(cg.RawStatement("}"))
 
 
 @automation.register_action(
@@ -237,8 +280,14 @@ async def canvas_draw_rect(config, action_id, template_arg, args):
     width = await pixels.process(config[CONF_WIDTH])
     height = await pixels.process(config[CONF_HEIGHT])
 
-    async def do_draw_rect(w: Widget, x, y, dsc_addr):
-        lv.canvas_draw_rect(w.obj, x, y, width, height, dsc_addr)
+    async def do_draw_rect(layer, x, y, dsc):
+        # LVGL 9.4: Use lv_draw_rect with area
+        with LocalVariable("area", "lv_area_t", modifier="") as area:
+            lv_assign(area.x1, x)
+            lv_assign(area.y1, y)
+            lv_assign(area.x2, literal(f"{x} + {width} - 1"))
+            lv_assign(area.y2, literal(f"{y} + {height} - 1"))
+            lv.draw_rect(layer, addr(dsc), addr(area))
 
     return await draw_to_code(
         config, "rect", RECT_PROPS, do_draw_rect, action_id, template_arg, args
@@ -277,21 +326,57 @@ async def canvas_draw_text(config, action_id, template_arg, args):
     text = await lv_text.process(config[CONF_TEXT])
     max_width = await pixels.process(config[CONF_MAX_WIDTH])
 
-    async def do_draw_text(w: Widget, x, y, dsc_addr):
-        lv.canvas_draw_text(w.obj, x, y, max_width, dsc_addr, text)
+    async def do_draw_text(layer, x, y, dsc):
+        # LVGL 9.4: Use lv_draw_label with area and hint
+        with LocalVariable("area", "lv_area_t", modifier="") as area:
+            lv_assign(area.x1, x)
+            lv_assign(area.y1, y)
+            lv_assign(area.x2, literal(f"{x} + {max_width} - 1"))
+            lv_assign(area.y2, literal(f"{y} + LV_COORD_MAX"))
+            lv_assign(dsc.text, text)
+            lv.draw_label(layer, addr(dsc), addr(area))
 
     return await draw_to_code(
         config, "label", TEXT_PROPS, do_draw_text, action_id, template_arg, args
     )
 
 
-IMG_PROPS = {
-    "angle": STYLE_PROPS["transform_angle"],
-    "zoom": STYLE_PROPS["transform_zoom"],
-    "recolor": STYLE_PROPS["image_recolor"],
-    "recolor_opa": STYLE_PROPS["image_recolor_opa"],
-    "opa": STYLE_PROPS["opa"],
-}
+IMG_PROPS = (
+    "angle",
+    "rotation",
+    "scale_x",
+    "scale_y",
+    "skew_x",
+    "skew_y",
+    "scale",
+    "zoom",
+    "recolor",
+    "recolor_opa",
+    "opa",
+)
+
+
+def _scale_map(config):
+    config = {remap_property(p): v for p, v in config.items()}
+    if "scale" in config and {"scale_x", "scale_y"} & config.keys():
+        raise cv.Invalid("Cannot specify both scale and scale_x/scale_y")
+    if "scale" in config:
+        config.update({"scale_x": config["scale"], "scale_y": config["scale"]})
+        del config["scale"]
+    return config
+
+
+def _get_prop_validator(prop):
+    return STYLE_PROPS.get(
+        f"transform_{remap_property(prop, False)}"
+    ) or STYLE_PROPS.get(prop)
+
+
+def _prop_validator(prop):
+    def validator(value):
+        return _get_prop_validator(prop)(value)
+
+    return validator
 
 
 @automation.register_action(
@@ -303,9 +388,9 @@ IMG_PROPS = {
             cv.Required(CONF_SRC): lv_image,
             cv.Optional(CONF_PIVOT_X, default=0): pixels,
             cv.Optional(CONF_PIVOT_Y, default=0): pixels,
-            **{cv.Optional(prop): validator for prop, validator in IMG_PROPS.items()},
+            **{cv.Optional(prop): _prop_validator(prop) for prop in IMG_PROPS},
         }
-    ),
+    ).add_extra(_scale_map),
     synchronous=True,
 )
 async def canvas_draw_image(config, action_id, template_arg, args):
@@ -313,15 +398,29 @@ async def canvas_draw_image(config, action_id, template_arg, args):
     pivot_x = await pixels.process(config[CONF_PIVOT_X])
     pivot_y = await pixels.process(config[CONF_PIVOT_Y])
 
-    async def do_draw_image(w: Widget, x, y, dsc_addr):
-        dsc = MockObj(f"(*{dsc_addr})")
+    async def do_draw_image(layer, x, y, dsc):
+        # LVGL 9.4: Use lv_draw_image with area
+        lv_assign(dsc.src, src.get_lv_image_dsc())
         if pivot_x or pivot_y:
             # pylint :disable=no-member
-            lv_assign(dsc.pivot, literal(f"{{{pivot_x}, {pivot_y}}}"))
-        lv.canvas_draw_img(w.obj, x, y, src, dsc_addr)
+            lv_assign(dsc.pivot.x, pivot_x)
+            lv_assign(dsc.pivot.y, pivot_y)
+        with LocalVariable("area", "lv_area_t", modifier="") as area:
+            lv_assign(area.x1, x)
+            lv_assign(area.y1, y)
+            # Image size will be determined from the image descriptor
+            lv_assign(area.x2, x)
+            lv_assign(area.y2, y)
+            lv.draw_image(layer, addr(dsc), addr(area))
 
     return await draw_to_code(
-        config, "img", IMG_PROPS, do_draw_image, action_id, template_arg, args
+        config,
+        "image",
+        {prop: _get_prop_validator(prop) for prop in IMG_PROPS},
+        do_draw_image,
+        action_id,
+        template_arg,
+        args,
     )
 
 
@@ -354,11 +453,8 @@ async def canvas_draw_line(config, action_id, template_arg, args):
         for p in config[CONF_POINTS]
     ]
 
-    async def do_draw_line(w: Widget, x, y, dsc_addr):
-        with LocalVariable(
-            "points", cg.std_vector.template(lv_point_t), points, modifier=""
-        ) as points_var:
-            lv.canvas_draw_line(w.obj, points_var.data(), points_var.size(), dsc_addr)
+    async def do_draw_line(layer, _x, _y, dsc):
+        _draw_line(layer, dsc, points)
 
     return await draw_to_code(
         config, "line", LINE_PROPS, do_draw_line, action_id, template_arg, args
@@ -382,14 +478,20 @@ async def canvas_draw_polygon(config, action_id, template_arg, args):
         [await process_coord(p[CONF_X]), await process_coord(p[CONF_Y])]
         for p in config[CONF_POINTS]
     ]
+    # Close the polygon
+    points.append(points[0])
 
-    async def do_draw_polygon(w: Widget, x, y, dsc_addr):
-        with LocalVariable(
-            "points", cg.std_vector.template(lv_point_t), points, modifier=""
-        ) as points_var:
-            lv.canvas_draw_polygon(
-                w.obj, points_var.data(), points_var.size(), dsc_addr
-            )
+    async def do_draw_polygon(layer, x, y, dsc):
+        # LVGL 9.4: Draw polygon using line drawing in a closed path
+        # Note: This draws outline only. For filled polygons, would need different approach
+        # Convert rect descriptor to line descriptor for polygon outline
+        with LocalVariable("line_dsc", "lv_draw_line_dsc_t", modifier="") as line_dsc:
+            lv.draw_line_dsc_init(addr(line_dsc))
+            # Copy border properties from rect descriptor to line descriptor
+            lv_assign(line_dsc.color, dsc.border_color)
+            lv_assign(line_dsc.width, dsc.border_width)
+            lv_assign(line_dsc.opa, dsc.border_opa)
+            _draw_line(layer, line_dsc, points)
 
     return await draw_to_code(
         config, "rect", RECT_PROPS, do_draw_polygon, action_id, template_arg, args
@@ -422,8 +524,14 @@ async def canvas_draw_arc(config, action_id, template_arg, args):
     start_angle = await lv_angle_degrees.process(config[CONF_START_ANGLE])
     end_angle = await lv_angle_degrees.process(config[CONF_END_ANGLE])
 
-    async def do_draw_arc(w: Widget, x, y, dsc_addr):
-        lv.canvas_draw_arc(w.obj, x, y, radius, start_angle, end_angle, dsc_addr)
+    async def do_draw_arc(layer, x, y, dsc):
+        # LVGL 9.4: Use lv_draw_arc with center point
+        lv_assign(dsc.center.x, x)
+        lv_assign(dsc.center.y, y)
+        lv_assign(dsc.start_angle, start_angle)
+        lv_assign(dsc.end_angle, end_angle)
+        lv_assign(dsc.radius, radius)
+        lv.draw_arc(layer, addr(dsc))
 
     return await draw_to_code(
         config, "arc", ARC_PROPS, do_draw_arc, action_id, template_arg, args

@@ -110,6 +110,25 @@ void DeltaSolCS2BSensor::handle_message(std::vector<uint8_t> &message) {
     this->s4_error_bsensor_->publish_state(message[18] & 8);
 }
 
+void DeltaSolCS4BSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "Deltasol CS4:");
+  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
+}
+
+void DeltaSolCS4BSensor::handle_message(std::vector<uint8_t> &message) {
+  if (this->s1_error_bsensor_ != nullptr)
+    this->s1_error_bsensor_->publish_state(message[20] & 1);
+  if (this->s2_error_bsensor_ != nullptr)
+    this->s2_error_bsensor_->publish_state(message[20] & 2);
+  if (this->s3_error_bsensor_ != nullptr)
+    this->s3_error_bsensor_->publish_state(message[20] & 4);
+  if (this->s4_error_bsensor_ != nullptr)
+    this->s4_error_bsensor_->publish_state(message[20] & 8);
+}
+
 void DeltaSolCSPlusBSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Deltasol CS Plus:");
   LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);

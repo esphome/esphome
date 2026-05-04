@@ -26,6 +26,10 @@ class BmpDecoder : public ImageDecoder {
   int HOT decode(uint8_t *buffer, size_t size) override;
 
   bool is_finished() const override {
+    if (this->bits_per_pixel_ == 0) {
+      // header not yet received, so dimensions not yet determined
+      return false;
+    }
     // BMP is finished when we've decoded all pixel data
     return this->paint_index_ >= static_cast<size_t>(this->width_ * this->height_);
   }

@@ -2,6 +2,8 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_OUTPUT
 #include "esphome/components/output/float_output.h"
@@ -45,9 +47,11 @@ class Rtttl : public Component {
 
   bool is_playing() { return this->state_ != State::STOPPED; }
 
-  void add_on_finished_playback_callback(std::function<void()> callback) {
-    this->on_finished_playback_callback_.add(std::move(callback));
+#ifdef USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
+  template<typename F> void add_on_finished_playback_callback(F &&callback) {
+    this->on_finished_playback_callback_.add(std::forward<F>(callback));
   }
+#endif
 
  protected:
   inline uint16_t get_integer_() {
@@ -106,8 +110,10 @@ class Rtttl : public Component {
   uint32_t samples_gap_{0};
 #endif  // USE_SPEAKER
 
+#ifdef USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
   /// The callback to call when playback is finished.
   CallbackManager<void()> on_finished_playback_callback_;
+#endif
 };
 
 template<typename... Ts> class PlayAction : public Action<Ts...> {
@@ -129,13 +135,6 @@ template<typename... Ts> class StopAction : public Action<Ts...>, public Parente
 template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<Rtttl> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_playing(); }
-};
-
-class FinishedPlaybackTrigger : public Trigger<> {
- public:
-  explicit FinishedPlaybackTrigger(Rtttl *parent) {
-    parent->add_on_finished_playback_callback([this]() { this->trigger(); });
-  }
 };
 
 }  // namespace esphome::rtttl
