@@ -407,10 +407,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
-  auto eap_opt = ap.get_eap();
+  const auto &eap_opt = ap.get_eap();
   if (eap_opt.has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
-    EAPAuth eap = *eap_opt;
+    const EAPAuth &eap = *eap_opt;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
     err = esp_eap_client_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
 #else
