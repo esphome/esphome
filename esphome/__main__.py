@@ -606,7 +606,6 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
             'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s". ',
             CORE.target_platform,
         )
-        return 1
 
     backtrace_state = False
     ser = serial.Serial()
@@ -649,9 +648,10 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                             )
                             safe_print(parser.parse_line(line, time_str))
 
-                            backtrace_state = process_stacktrace(
-                                config, line, backtrace_state
-                            )
+                            if process_stacktrace is not None:
+                                backtrace_state = process_stacktrace(
+                                    config, line, backtrace_state
+                                )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
