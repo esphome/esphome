@@ -23,12 +23,6 @@ static const char *const TAG = "i2s_audio.spdif";
 // 15 buffers x 4ms = 60ms of DMA buffering (same as 4 x 15ms for standard)
 static constexpr size_t SPDIF_DMA_BUFFERS_COUNT = 15;
 
-// Sync offset to compensate for SPDIF preload latency.
-// The preload mechanism adds delay compared to standard I2S.
-// This value is added to timestamps reported to upstream sync algorithms.
-// Adjust this value to fine-tune synchronization with other players.
-static constexpr int64_t SPDIF_SYNC_OFFSET_US = 75 * 1000;  // 75ms in microseconds
-
 // Duration to wait after preload before entering "silence mode".
 // Allows bursty data delivery to settle without causing audio/silence oscillation.
 static constexpr uint32_t SPDIF_GRACE_PERIOD_MS = 500;
@@ -203,6 +197,28 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
   if (!successful_setup) {
     xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
   } else {
+    // Preload DMA buffers with SPDIF-encoded silence before enabling the channel.
+    // This ensures the first data transmitted is valid SPDIF (not raw zeros from
+    // auto_clear) and prevents phantom DMA events before real audio is available.
+    this->spdif_encoder_->set_preload_mode(true);
+    for (size_t i = 0; i < SPDIF_DMA_BUFFERS_COUNT; i++) {
+      uint32_t preload_blocks = 0;
+      esp_err_t preload_err = this->spdif_encoder_->write(reinterpret_cast<const uint8_t *>(SPDIF_SILENCE_BUFFER),
+                                                          sizeof(SPDIF_SILENCE_BUFFER),
+                                                          pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS), &preload_blocks);
+      if (preload_err != ESP_OK || preload_blocks == 0) {
+        break;  // DMA buffers full or error
+      }
+    }
+    this->spdif_encoder_->set_preload_mode(false);
+    this->spdif_encoder_->reset();  // Clean encoder state for the main loop
+
+    // Now register the callback and enable the channel
+    xQueueReset(this->i2s_event_queue_);
+    const i2s_event_callbacks_t callbacks = {.on_sent = i2s_on_sent_cb};
+    i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
+    i2s_channel_enable(this->tx_handle_);
+
     bool stop_gracefully = false;
     bool tx_dma_underflow = true;
 
@@ -278,11 +294,10 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
         if (spdif_callback_threshold > 0) {
           spdif_dma_event_count++;
 
-          // Accumulate frames and timestamp
+          // Accumulate frames; always keep the latest timestamp so the
+          // callback reports when the last sample left the wire, not the first.
           if (frames_sent > 0) {
-            if (spdif_pending_frames == 0) {
-              spdif_pending_timestamp = write_timestamp;
-            }
+            spdif_pending_timestamp = write_timestamp;
             spdif_pending_frames += frames_sent;
           }
 
@@ -293,9 +308,7 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
 
           if (decimation_reached || timeout_flush) {
             if (spdif_pending_frames > 0) {
-              // Apply SPDIF sync offset (defined at top of file)
-              int64_t adjusted_timestamp = spdif_pending_timestamp + SPDIF_SYNC_OFFSET_US;
-              this->audio_output_callback_(spdif_pending_frames, adjusted_timestamp);
+              this->audio_output_callback_(spdif_pending_frames, spdif_pending_timestamp);
               spdif_pending_frames = 0;
               spdif_last_callback_time = millis();
             }
@@ -631,11 +644,10 @@ esp_err_t I2SAudioSpeakerSPDIF::start_i2s_driver(audio::AudioStreamInfo &audio_s
     return err;
   }
 
-  // For SPDIF continuous mode, register callback at startup since we never disable the channel
-  const i2s_event_callbacks_t callbacks = {.on_sent = i2s_on_sent_cb};
-  i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
-
-  i2s_channel_enable(this->tx_handle_);
+  // Channel is NOT enabled here. The speaker task will preload DMA buffers
+  // with SPDIF-encoded silence before enabling, ensuring the first data on
+  // the wire is valid SPDIF (not raw zeros from auto_clear) and preventing
+  // phantom DMA events before real audio data is available.
 
   return ESP_OK;
 }
