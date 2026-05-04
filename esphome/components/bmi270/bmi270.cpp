@@ -152,7 +152,7 @@ void BMI270Component::dump_config() {
 //  update() ─
 // Reads all 6 axes + temperature in one block
 
-bool BMI270Component::update_data_(motion::MotionData &data) {
+bool BMI270Component::update_data(motion::MotionData &data) {
   if (this->is_failed())
     return false;
 

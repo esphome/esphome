@@ -94,7 +94,7 @@ class BMI270Component : public motion::MotionComponent, public i2c::I2CDevice {
   void add_temperature_listener(std::function<void(float)> callback) { temperature_callback_.add(std::move(callback)); }
 
  protected:
-  bool update_data_(motion::MotionData &data) override;
+  bool update_data(motion::MotionData &data) override;
   bool load_config_file_();
 
   // Config
