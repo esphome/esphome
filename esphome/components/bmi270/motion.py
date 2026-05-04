@@ -58,7 +58,7 @@ CONF_GYROSCOPE_ODR = "gyroscope_odr"
 
 #  Top-level CONFIG_SCHEMA
 CONFIG_SCHEMA = (
-    motion_schema(BMI270Component)
+    motion_schema(BMI270Component, has_accel=True, has_gyro=True)
     .extend(
         {
             cv.Optional(CONF_ACCELEROMETER_RANGE, default="4G"): cv.enum(
