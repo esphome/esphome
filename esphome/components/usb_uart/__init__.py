@@ -1,7 +1,11 @@
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
-from esphome.components.usb_host import register_usb_client, usb_device_schema
+from esphome.components.usb_host import (
+    get_max_packet_size,
+    register_usb_client,
+    usb_device_schema,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -118,14 +122,14 @@ CONFIG_SCHEMA = cv.ensure_list(
 async def to_code(config):
     # The output chunk pool/queue are compile-time-sized templates shared by all
     # USBUartChannel instances, so use the largest buffer_size across every channel
-    # of every device.  Each chunk is 64 bytes (USB FS MPS); add one extra slot
-    # because LockFreeQueue<T,N> is a ring buffer that wastes one entry.
+    # of every device. Add one extra slot because LockFreeQueue<T,N> is a ring
+    # buffer that wastes one entry.
     max_buffer_size = max(
         channel[CONF_BUFFER_SIZE]
         for device in config
         for channel in device[CONF_CHANNELS]
     )
-    output_chunk_count = max_buffer_size // 64 + 1
+    output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
     for device in config:

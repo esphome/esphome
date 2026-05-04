@@ -94,6 +94,18 @@ def set_core_data(config):
 
 
 def get_download_types(storage_json):
+    """Binary-download entries for a built ESP8266 firmware.
+
+    Used by:
+    - esphome.dashboard (legacy "Download .bin" button)
+    - device-builder (esphome/device-builder) — same dispatch via
+      ``importlib.import_module(f"esphome.components.{platform}")``
+      then ``module.get_download_types(storage)``. The contract is
+      "returns ``list[dict]`` with at least ``title`` /
+      ``description`` / ``file`` / ``download`` keys"; please keep
+      the shape stable so the new dashboard's download panel
+      doesn't have to special-case per-platform schemas.
+    """
     return [
         {
             "title": "Standard format",
@@ -313,6 +325,11 @@ async def to_code(config):
     else:
         for symbol in ("vprintf", "printf", "fprintf"):
             cg.add_build_flag(f"-Wl,--wrap={symbol}")
+
+    # Wrap Arduino's millis() so all callers (including Arduino libraries and ISR
+    # handlers) use our fast accumulator instead of the expensive 4x 64-bit multiply
+    # implementation in the Arduino ESP8266 core.
+    cg.add_build_flag("-Wl,--wrap=millis")
 
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 

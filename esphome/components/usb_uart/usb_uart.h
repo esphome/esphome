@@ -106,20 +106,19 @@ class RingBuffer {
 
 // Structure for queuing received USB data chunks
 struct UsbDataChunk {
-  static constexpr size_t MAX_CHUNK_SIZE = 64;  // USB packet size
-  uint8_t data[MAX_CHUNK_SIZE];
-  uint8_t length;  // Max 64 bytes, so uint8_t is sufficient
+  uint8_t data[usb_host::USB_MAX_PACKET_SIZE];
+  uint16_t length;
   USBUartChannel *channel;
 
   // Required for EventPool - no cleanup needed for POD types
   void release() {}
 };
 
-// Structure for queuing outgoing USB data chunks (one per USB FS packet)
+// Structure for queuing outgoing USB data chunks (one per USB packet)
 struct UsbOutputChunk {
-  static constexpr size_t MAX_CHUNK_SIZE = 64;  // USB FS MPS
+  static constexpr size_t MAX_CHUNK_SIZE = usb_host::USB_MAX_PACKET_SIZE;
   uint8_t data[MAX_CHUNK_SIZE];
-  uint8_t length;
+  uint16_t length;
 
   // Required for EventPool - no cleanup needed for POD types
   void release() {}

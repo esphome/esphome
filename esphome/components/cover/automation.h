@@ -46,48 +46,41 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   Cover *cover_;
 };
 
+// All configured fields are baked into a single stateless lambda whose
+// constants live in flash. Each action stores only one function pointer
+// plus one parent pointer, regardless of how many fields the user set.
+// Trigger args are forwarded to the apply function so user lambdas
+// (e.g. `position: !lambda "return x;"`) keep working.
+
 template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
-  explicit ControlAction(Cover *cover) : cover_(cover) {}
-
-  TEMPLATABLE_VALUE(bool, stop)
-  TEMPLATABLE_VALUE(float, position)
-  TEMPLATABLE_VALUE(float, tilt)
+  using ApplyFn = void (*)(CoverCall &, const Ts &...);
+  ControlAction(Cover *cover, ApplyFn apply) : cover_(cover), apply_(apply) {}
 
   void play(const Ts &...x) override {
     auto call = this->cover_->make_call();
-    if (this->stop_.has_value())
-      call.set_stop(this->stop_.value(x...));
-    if (this->position_.has_value())
-      call.set_position(this->position_.value(x...));
-    if (this->tilt_.has_value())
-      call.set_tilt(this->tilt_.value(x...));
+    this->apply_(call, x...);
     call.perform();
   }
 
  protected:
   Cover *cover_;
+  ApplyFn apply_;
 };
 
 template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
  public:
-  CoverPublishAction(Cover *cover) : cover_(cover) {}
-  TEMPLATABLE_VALUE(float, position)
-  TEMPLATABLE_VALUE(float, tilt)
-  TEMPLATABLE_VALUE(CoverOperation, current_operation)
+  using ApplyFn = void (*)(Cover *, const Ts &...);
+  CoverPublishAction(Cover *cover, ApplyFn apply) : cover_(cover), apply_(apply) {}
 
   void play(const Ts &...x) override {
-    if (this->position_.has_value())
-      this->cover_->position = this->position_.value(x...);
-    if (this->tilt_.has_value())
-      this->cover_->tilt = this->tilt_.value(x...);
-    if (this->current_operation_.has_value())
-      this->cover_->current_operation = this->current_operation_.value(x...);
+    this->apply_(this->cover_, x...);
     this->cover_->publish_state();
   }
 
  protected:
   Cover *cover_;
+  ApplyFn apply_;
 };
 
 template<bool OPEN, typename... Ts> class CoverPositionCondition : public Condition<Ts...> {

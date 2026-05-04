@@ -16,6 +16,13 @@ namespace esphome::nextion {
 static const char *const TAG = "nextion.upload.arduino";
 static constexpr size_t NEXTION_MAX_RESPONSE_LOG_BYTES = 16;
 
+// Timeout for display acknowledgment during TFT upload (ms).
+// A single value is used for all chunks; the happy path returns as soon as
+// 0x05/0x08 arrives, so this only bounds failed-detection latency. Field
+// reports showed the previous 500ms steady-state value was too tight for
+// some firmware variants.
+static constexpr uint32_t NEXTION_UPLOAD_ACK_TIMEOUT_MS = 5000;
+
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
 
@@ -80,14 +87,41 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
       recv_string.clear();
       this->write_array(buffer, buffer_size);
       App.feed_wdt();
-      this->recv_ret_string_(recv_string, this->upload_first_chunk_sent_ ? 500 : 5000, true);
+      this->recv_ret_string_(recv_string, NEXTION_UPLOAD_ACK_TIMEOUT_MS, true);
+
+      // Some Nextion firmware variants (notably bootloader/recovery mode on panels
+      // with no installed TFT) emit the 5-byte 0x08+position fast-mode ack with a
+      // multi-second gap between the leading 0x08 byte and the 4 trailing position
+      // bytes. recv_ret_string_ returns after the first byte; manually drain the
+      // trailing bytes from the UART before continuing.
+      if (!recv_string.empty() && recv_string[0] == 0x08 && recv_string.size() < 5) {
+        const uint32_t deadline = millis() + NEXTION_UPLOAD_ACK_TIMEOUT_MS;
+        while (recv_string.size() < 5 && millis() < deadline) {
+          if (this->available()) {
+            uint8_t b = 0;
+            if (this->read_byte(&b)) {
+              recv_string.push_back(static_cast<char>(b));
+            }
+          } else {
+            delay(5);  // NOLINT
+            App.feed_wdt();
+          }
+        }
+        if (recv_string.size() < 5) {
+          ESP_LOGE(TAG, "Truncated 0x08 response: got %zu bytes within %" PRIu32 "ms", recv_string.size(),
+                   NEXTION_UPLOAD_ACK_TIMEOUT_MS);
+          allocator.deallocate(buffer, 4096);
+          buffer = nullptr;
+          return -1;
+        }
+      }
       this->content_length_ -= read_len;
       const float upload_percentage = 100.0f * (this->tft_size_ - this->content_length_) / this->tft_size_;
       ESP_LOGD(TAG, "Upload: %0.2f%% (%" PRIu32 " left, heap: %" PRIu32 ")", upload_percentage, this->content_length_,
                EspClass::getFreeHeap());
       this->upload_first_chunk_sent_ = true;
       if (recv_string.empty()) {
-        ESP_LOGW(TAG, "No response from display during upload");
+        ESP_LOGW(TAG, "No response from display after %" PRIu32 "ms", NEXTION_UPLOAD_ACK_TIMEOUT_MS);
         allocator.deallocate(buffer, 4096);
         buffer = nullptr;
         return -1;
@@ -324,7 +358,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
 
 #ifdef USE_ESP8266
 WiFiClient *Nextion::get_wifi_client_() {
-  if (this->tft_url_.compare(0, 6, "https:") == 0) {
+  if (this->tft_url_.starts_with("https:")) {
     if (this->wifi_client_secure_ == nullptr) {
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();

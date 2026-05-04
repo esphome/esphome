@@ -9,6 +9,14 @@ fan:
     has_oscillating: true
     has_direction: true
     speed_count: 3
+    # Exercise fan.turn_on inside a trigger whose Ts pack is non-empty
+    # (StringRef from on_preset_set) so the apply-lambda + inner-lambda
+    # codegen runs through the cvref-normalized path.
+    on_preset_set:
+      then:
+        - fan.turn_on:
+            id: test_fan
+            speed: !lambda "return x.empty() ? 1 : 3;"
 
 # Test lambdas using get_preset_mode() which returns StringRef
 # These examples match the migration guide in the PR description
@@ -57,3 +65,52 @@ binary_sensor:
         return true;
       }
       return false;
+
+# Exercise fan.turn_on with various field combinations so the
+# TurnOnAction codegen paths get build coverage.
+button:
+  - platform: template
+    name: "Fan Speed Only"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          speed: 2
+  - platform: template
+    name: "Fan Oscillating + Direction"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          oscillating: true
+          direction: REVERSE
+  - platform: template
+    name: "Fan All Fields"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          oscillating: false
+          speed: 3
+          direction: FORWARD
+  - platform: template
+    name: "Fan Lambda Speed"
+    on_press:
+      - fan.turn_on:
+          id: test_fan
+          speed: !lambda 'return 1;'
+
+# Exercise fan.turn_on inside triggers with non-empty Ts:
+#  - number.on_value: Ts = float (Python value type; previously raised
+#    AttributeError on .operator("const"))
+#  - fan.on_preset_set: Ts = StringRef (already a value-type wrapper around
+#    a const char * + size; tests the cvref-normalized inner-lambda path)
+number:
+  - platform: template
+    id: fan_speed_number
+    optimistic: true
+    min_value: 1
+    max_value: 3
+    step: 1
+    on_value:
+      then:
+        - fan.turn_on:
+            id: test_fan
+            speed: !lambda "return (int) x;"
