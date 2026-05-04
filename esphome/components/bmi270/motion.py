@@ -3,6 +3,12 @@ from esphome.components import i2c
 from esphome.components.motion import motion_schema, new_motion_component
 import esphome.config_validation as cv
 
+from ..const import (
+    CONF_ACCELEROMETER_ODR,
+    CONF_ACCELEROMETER_RANGE,
+    CONF_GYROSCOPE_ODR,
+    CONF_GYROSCOPE_RANGE,
+)
 from . import BMI270Component, bmi270_ns
 
 AUTO_LOAD = ["bmi270"]
@@ -50,11 +56,6 @@ GYRO_ODR_OPTIONS = {
 }
 
 BMI270AccelData = bmi270_ns.class_("BMI270AccelData")
-
-CONF_ACCELEROMETER_RANGE = "accelerometer_range"
-CONF_ACCELEROMETER_ODR = "accelerometer_odr"
-CONF_GYROSCOPE_RANGE = "gyroscope_range"
-CONF_GYROSCOPE_ODR = "gyroscope_odr"
 
 #  Top-level CONFIG_SCHEMA
 CONFIG_SCHEMA = (
