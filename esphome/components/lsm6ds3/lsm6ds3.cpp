@@ -7,7 +7,7 @@ namespace lsm6ds3 {
 
 static const char *const TAG = "lsm6ds3";
 
-// ── setup() ─────────────────────────────────────────────────────────────────
+//  setup()
 
 void LSM6DS3TRCComponent::setup() {
   // 1. Verify chip identity
@@ -22,7 +22,7 @@ void LSM6DS3TRCComponent::setup() {
     this->mark_failed(LOG_STR("Wrong WHO_AM_I value"));
     return;
   }
-  ESP_LOGD(TAG, "Whoami = 0x%02X", who_am_i);
+  ESP_LOGV(TAG, "Whoami = 0x%02X", who_am_i);
 
   // 2. Software reset — clears all registers to defaults
   if (this->write_register(LSM6DS3TRC_REG_CTRL3_C, &CTRL3_C_SW_RESET, 1) != i2c::ERROR_OK) {
@@ -75,15 +75,10 @@ void LSM6DS3TRCComponent::setup() {
   delay(20);
 }
 
-// ── dump_config() ────────────────────────────────────────────────────────────
-
 void LSM6DS3TRCComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LSM6DS3TR-C IMU:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Communication failed!");
-    return;
-  }
+  LOG_UPDATE_INTERVAL(this);
 
   // Accel range — index into the sensitivity table (datasheet Table 3)
   static const char *const ACCEL_RANGE_STR[] = {"±2g", "±16g", "±4g", "±8g"};
@@ -105,12 +100,21 @@ void LSM6DS3TRCComponent::dump_config() {
     case LSM6DS3TRC_GYRO_RANGE_2000:
       gyro_str = "±2000dps";
       break;
+    default:
+      gyro_str = "unknown";
+      break;
   }
-  ESP_LOGCONFIG(TAG, "  Accel range : %s", ACCEL_RANGE_STR[this->accel_range_]);
-  ESP_LOGCONFIG(TAG, "  Gyro  range : %s", gyro_str);
+  auto accel_odr = this->accel_odr_ == 0 ? 0 : 13 * (1 << (this->accel_odr_ - 1));
+  auto gyro_odr = this->gyro_odr_ == 0 ? 0 : 13 * (1 << (this->gyro_odr_ - 1));
+  ESP_LOGCONFIG(TAG,
+                "  Accel range : %s\n"
+                "  Accel data rate : %dHz\n"
+                "  Gyro  range : %s\n"
+                "  Gyro  data rate : %dHz",
+                ACCEL_RANGE_STR[this->accel_range_], accel_odr, gyro_str, gyro_odr);
 }
 
-// ── update_data() ────────────────────────────────────────────────────────────
+//  update_data()
 // Called by MotionComponent::update() on each polling interval.
 // Reads gyro XYZ and accel XYZ in a single 12-byte burst (registers 0x22–0x2D).
 // Values are in g (accel) and °/s (gyro) — MotionComponent handles axis mapping
@@ -123,11 +127,12 @@ bool LSM6DS3TRCComponent::update_data(motion::MotionData &data) {
   // Single burst: gyro X/Y/Z (0x22–0x27) then accel X/Y/Z (0x28–0x2D)
   uint8_t raw[LSM6DS3TRC_BURST_LEN];
   if (!this->read_bytes(LSM6DS3TRC_REG_OUTX_L_G, raw, LSM6DS3TRC_BURST_LEN)) {
-    ESP_LOGW(TAG, "Failed to read IMU data");
+    this->status_set_error(LOG_STR("Failed to read IMU data"));
     return false;
   }
+  this->status_clear_error();
 
-  // ── Gyroscope ─────────────────────────────────────────────────────────────
+  //  Gyroscope
   // Sensitivity (mdps/LSB) from datasheet Table 3.
   // Multiply by 1e-3 to convert mdps → dps (°/s).
   static constexpr float GYRO_SCALE[] = {
@@ -151,7 +156,7 @@ bool LSM6DS3TRCComponent::update_data(motion::MotionData &data) {
   data.angular_rate[motion::Y_AXIS] = (int16_t) ((raw[3] << 8) | raw[2]) * gyro_scale;
   data.angular_rate[motion::Z_AXIS] = (int16_t) ((raw[5] << 8) | raw[4]) * gyro_scale;
 
-  // ── Accelerometer ──────────────────────────────────────────────────────────
+  //  Accelerometer
   // Sensitivity (mg/LSB) from datasheet Table 3.
   // Multiply by 1e-3 to convert mg → g.
   // Note: FS_XL register values are non-monotonic (0=2g, 1=16g, 2=4g, 3=8g).
@@ -170,7 +175,7 @@ bool LSM6DS3TRCComponent::update_data(motion::MotionData &data) {
   data.acceleration[motion::Z_AXIS] =
       (int16_t) ((raw[LSM6DS3TRC_ACCEL_OFFSET + 5] << 8) | raw[LSM6DS3TRC_ACCEL_OFFSET + 4]) * accel_scale;
 
-  // ── Temperature (lazy — only read if a listener is registered) ─────────────
+  //  Temperature (lazy — only read if a listener is registered)
   // Kept as a separate 2-byte read to avoid extending the burst to 14 bytes when
   // temperature is not needed.
   // Formula: T(°C) = (raw / 256.0) + 25.0  (datasheet Table 90, OUT_TEMP register)

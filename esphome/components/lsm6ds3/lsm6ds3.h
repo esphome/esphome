@@ -45,7 +45,6 @@ enum LSM6DS3TRCAccelRange : uint8_t {
 // CTRL1_XL bits [7:4] — ODR_XL[3:0]
 enum LSM6DS3TRCAccelODR : uint8_t {
   LSM6DS3TRC_ACCEL_ODR_OFF = 0x00,
-  LSM6DS3TRC_ACCEL_ODR_1_6 = 0x0B,   // 1.6 Hz (low-power only)
   LSM6DS3TRC_ACCEL_ODR_12_5 = 0x01,  // 12.5 Hz
   LSM6DS3TRC_ACCEL_ODR_26 = 0x02,    // 26 Hz
   LSM6DS3TRC_ACCEL_ODR_52 = 0x03,    // 52 Hz
@@ -89,9 +88,6 @@ enum LSM6DS3TRCGyroODR : uint8_t {
 // ── Main component class ─────────────────────────────────────────────────────
 class LSM6DS3TRCComponent : public motion::MotionComponent, public i2c::I2CDevice {
  public:
-  // read/write that operate as separate transactions
-  bool write_reg(uint8_t reg, const uint8_t *data, size_t len) const;
-  bool read_reg(uint8_t reg, uint8_t *data, size_t len) const;
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
