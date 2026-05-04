@@ -88,7 +88,7 @@ void LSM6DS3TRCComponent::dump_config() {
   // Accel range — index into the sensitivity table (datasheet Table 3)
   static const char *const ACCEL_RANGE_STR[] = {"±2g", "±16g", "±4g", "±8g"};
 
-  const char *gyro_str = "unknown";
+  const char *gyro_str;
   switch (this->gyro_range_) {
     case LSM6DS3TRC_GYRO_RANGE_125:
       gyro_str = "±125dps";
