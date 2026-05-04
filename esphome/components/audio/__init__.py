@@ -64,8 +64,7 @@ class AudioData:
     flac_support: bool = False
     mp3_support: bool = False
     opus_support: bool = False
-    # WAV defaults to True for backward compatibility; will become opt-in in a future release
-    wav_support: bool = True
+    wav_support: bool = False
     micro_decoder_support: bool = False
     flac: FlacOptions = field(default_factory=FlacOptions)
     mp3: Mp3Options = field(default_factory=Mp3Options)
@@ -428,3 +427,5 @@ async def to_code(config):
             add_idf_sdkconfig_option(
                 "CONFIG_OPUS_PSEUDOSTACK_SIZE", data.opus.pseudostack.size
             )
+    if data.wav_support:
+        cg.add_define("USE_AUDIO_WAV_SUPPORT")
