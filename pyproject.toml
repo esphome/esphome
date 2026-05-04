@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==82.0.1", "wheel>=0.43,<0.47"]
+requires = ["setuptools==82.0.1", "wheel>=0.43,<0.48"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -113,6 +113,7 @@ exclude = ['generated']
 select = [
   "E",    # pycodestyle
   "F",    # pyflakes/autoflake
+  "FLY",  # flynt: convert string formatting to f-strings
   "FURB", # refurb
   "I",    # isort
   "PERF", # performance

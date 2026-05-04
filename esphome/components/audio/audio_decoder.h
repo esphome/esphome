@@ -16,14 +16,16 @@
 #include "esp_err.h"
 
 // esp-audio-libs
-#ifdef USE_AUDIO_MP3_SUPPORT
-#include <mp3_decoder.h>
-#endif
 #include <wav_decoder.h>
 
 // micro-flac
 #ifdef USE_AUDIO_FLAC_SUPPORT
 #include <micro_flac/flac_decoder.h>
+#endif
+
+// micro-mp3
+#ifdef USE_AUDIO_MP3_SUPPORT
+#include <micro_mp3/mp3_decoder.h>
 #endif
 
 // micro-opus
@@ -62,8 +64,7 @@ class AudioDecoder {
   /// @param output_buffer_size Size of the output transfer buffer in bytes.
   AudioDecoder(size_t input_buffer_size, size_t output_buffer_size);
 
-  /// @brief Deallocates the MP3 decoder (the flac, opus, and wav decoders are deallocated automatically)
-  ~AudioDecoder();
+  ~AudioDecoder() = default;
 
   /// @brief Adds a source ring buffer for raw file data. Takes ownership of the ring buffer in a shared_ptr.
   /// @param input_ring_buffer weak_ptr of a shared_ptr of the sink ring buffer to transfer ownership
@@ -125,7 +126,7 @@ class AudioDecoder {
 #endif
 #ifdef USE_AUDIO_MP3_SUPPORT
   FileDecoderState decode_mp3_();
-  esp_audio_libs::helix_decoder::HMP3Decoder mp3_decoder_;
+  std::unique_ptr<micro_mp3::Mp3Decoder> mp3_decoder_;
 #endif
 #ifdef USE_AUDIO_OPUS_SUPPORT
   FileDecoderState decode_opus_();
