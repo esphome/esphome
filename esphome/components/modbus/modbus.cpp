@@ -242,7 +242,7 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   // This requires copying the frame data to a local buffer beforehand.
   uint8_t data_offset = helpers::client_frame_data_offset(this->rx_buffer_);
   uint16_t data_len = frame_length - 2 - data_offset;
-  uint8_t data[MAX_FRAME_SIZE];
+  uint8_t data[MAX_FRAME_SIZE] = {};
   std::memcpy(data, this->rx_buffer_.data() + data_offset, data_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
 
