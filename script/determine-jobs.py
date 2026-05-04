@@ -10,6 +10,7 @@ what files have changed. It outputs JSON with the following structure:
   "clang_tidy": true/false,
   "clang_format": true/false,
   "python_linters": true/false,
+  "device_builder": true/false,
   "changed_components": ["component1", "component2", ...],
   "component_test_count": 5,
   "memory_impact": {
@@ -25,6 +26,7 @@ The CI workflow uses this information to:
 - Skip or run clang-tidy (and whether to do a full scan)
 - Skip or run clang-format
 - Skip or run Python linters (ruff, flake8, pylint, pyupgrade)
+- Skip or run downstream esphome/device-builder tests against the PR's Python code
 - Determine which components to test individually
 - Decide how to split component tests (if there are many)
 - Run memory impact analysis whenever there are changed components (merged config), and also for core-only changes
@@ -436,6 +438,56 @@ def should_run_import_time(branch: str | None = None) -> bool:
         if file.startswith("esphome/") and file.endswith(PYTHON_FILE_EXTENSIONS):
             return True
         if file in IMPORT_TIME_TRIGGER_FILES:
+            return True
+    return False
+
+
+# Files outside esphome/**/*.py whose changes can affect the downstream
+# device-builder build. requirements.txt / pyproject.toml change the runtime
+# dependency graph that device-builder picks up when it installs esphome.
+DEVICE_BUILDER_TRIGGER_FILES = frozenset(
+    {
+        "requirements.txt",
+        "pyproject.toml",
+    }
+)
+
+
+def should_run_device_builder(branch: str | None = None) -> bool:
+    """Determine if downstream esphome/device-builder tests should run.
+
+    device-builder imports esphome as a library, so whenever the importable
+    Python surface, the runtime dependencies, or any non-C++ file packaged
+    with esphome (pyproject.toml has ``include-package-data = true``, so
+    things like esphome/idf_component.yml ship and can affect installs)
+    changes we re-run its test suite against the PR's code to catch
+    breakage we'd otherwise only see after a release.
+
+    Skipped on beta/release branches: those branches typically lag behind
+    device-builder@main, so a new device-builder API dependency would
+    falsely fail the run without reflecting any problem in the PR itself.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        True if the device-builder downstream tests should run, False otherwise.
+    """
+    target_branch = get_target_branch()
+    if target_branch and (
+        target_branch.startswith("release") or target_branch.startswith("beta")
+    ):
+        return False
+
+    for file in changed_files(branch):
+        if file in DEVICE_BUILDER_TRIGGER_FILES:
+            return True
+        # Anything under esphome/ that isn't C++ source can change the
+        # importable / packaged surface device-builder consumes
+        # (Python sources, packaged YAML/JSON like idf_component.yml,
+        # etc.). C++ files only affect compiled firmware, not the
+        # Python install device-builder pulls in.
+        if file.startswith("esphome/") and not file.endswith(CPP_FILE_EXTENSIONS):
             return True
     return False
 
@@ -874,6 +926,7 @@ def main() -> None:
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
     run_import_time = should_run_import_time(args.branch)
+    run_device_builder = should_run_device_builder(args.branch)
     changed_cpp_file_count = count_changed_cpp_files(args.branch)
 
     # Get changed components
@@ -1007,6 +1060,7 @@ def main() -> None:
         "clang_format": run_clang_format,
         "python_linters": run_python_linters,
         "import_time": run_import_time,
+        "device_builder": run_device_builder,
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
         "directly_changed_components_with_tests": list(directly_changed_with_tests),
