@@ -85,3 +85,18 @@ button:
       - climate.control:
           id: climate_test_thermostat
           mode: "OFF"
+
+# Exercise climate.control inside a trigger with non-empty Ts (number on_value
+# passes float).
+number:
+  - platform: template
+    id: climate_target_temp_number
+    optimistic: true
+    min_value: 16
+    max_value: 28
+    step: 0.5
+    on_value:
+      then:
+        - climate.control:
+            id: climate_test_thermostat
+            target_temperature_high: !lambda "return x;"

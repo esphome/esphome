@@ -14,6 +14,37 @@ from esphome.util import run_external_process
 _LOGGER = logging.getLogger(__name__)
 
 
+def _strip_win_long_path_prefix(path: str) -> str:
+    r"""Strip the Windows extended-length path prefix from ``path``.
+
+    Handles both forms documented at
+    https://learn.microsoft.com/windows/win32/fileio/naming-a-file:
+
+    * ``\\?\C:\path\to\file`` -> ``C:\path\to\file``
+    * ``\\?\UNC\server\share\path`` -> ``\\server\share\path``
+
+    The NSIS-installed ``esphome.exe`` launcher on Windows starts Python with
+    ``sys.executable`` already prefixed with ``\\?\``. That prefix propagates
+    into PlatformIO's ``$PYTHONEXE`` (PlatformIO reads ``PYTHONEXEPATH`` from
+    the environment, falling back to ``os.path.normpath(sys.executable)``)
+    and ends up baked into SCons-emitted command lines for build steps such
+    as the esp8266 ``elf2bin`` invocation. ``cmd.exe`` does not understand
+    the ``\\?\`` prefix, so the build fails with
+    "The system cannot find the path specified." Stripping the prefix early
+    keeps the path shell-quotable.
+
+    No-op on non-Windows platforms.
+    """
+    if sys.platform != "win32":
+        return path
+    if path.startswith("\\\\?\\UNC\\"):
+        # \\?\UNC\server\share\... -> \\server\share\...
+        return "\\\\" + path[len("\\\\?\\UNC\\") :]
+    if path.startswith("\\\\?\\"):
+        return path[len("\\\\?\\") :]
+    return path
+
+
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
@@ -24,7 +55,18 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
     os.environ.setdefault("UV_HTTP_RETRIES", "10")
-    cmd = [sys.executable, "-m", "esphome.platformio_runner"] + list(args)
+    # Strip the Windows extended-length path prefix from sys.executable so it
+    # doesn't propagate into PlatformIO's $PYTHONEXE and break SCons-emitted
+    # command lines run through cmd.exe.
+    python_exe = _strip_win_long_path_prefix(sys.executable)
+    if python_exe != sys.executable:
+        # Only override PYTHONEXEPATH when we actually stripped a prefix.
+        # PlatformIO's get_pythonexe_path() reads this and falls back to
+        # sys.executable otherwise; setting it unconditionally would clobber
+        # a user-provided value (or the unmodified path on platforms that
+        # don't need the strip).
+        os.environ["PYTHONEXEPATH"] = python_exe
+    cmd = [python_exe, "-m", "esphome.platformio_runner"] + list(args)
 
     return run_external_process(*cmd, **kwargs)
 
