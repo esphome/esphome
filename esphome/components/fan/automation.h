@@ -12,9 +12,16 @@ namespace fan {
 // plus one parent pointer, regardless of how many fields the user set.
 // Trigger args are forwarded to the apply function so user lambdas
 // (e.g. `speed: !lambda "return x;"`) keep working.
+//
+// Trigger args are normalized to `const std::remove_cvref_t<Ts> &...` so
+// the codegen can emit a matching parameter list for both the apply lambda
+// and any inner field lambdas without producing invalid C++ source text
+// (e.g. `const T & &` if Ts already carries a reference, or `const const
+// T &` if Ts already carries a const). This keeps trigger args no-copy
+// regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
 template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
-  using ApplyFn = void (*)(FanCall &, const Ts &...);
+  using ApplyFn = void (*)(FanCall &, const std::remove_cvref_t<Ts> &...);
   TurnOnAction(Fan *state, ApplyFn apply) : state_(state), apply_(apply) {}
 
   void play(const Ts &...x) override {

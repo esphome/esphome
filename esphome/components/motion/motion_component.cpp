@@ -13,7 +13,7 @@ void MotionComponent::update() {
   MotionData motion_data;
   {};
   MotionData raw_data{};
-  if (!this->update_data_(raw_data))
+  if (!this->update_data(raw_data))
     return;
   this->map_axes_(motion_data.acceleration, raw_data.acceleration);
   this->map_axes_(motion_data.angular_rate, raw_data.angular_rate);

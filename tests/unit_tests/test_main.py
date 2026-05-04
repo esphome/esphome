@@ -24,6 +24,7 @@ from esphome.__main__ import (
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
     _resolve_network_devices,
+    _validate_partition_table_binary,
     choose_upload_log_host,
     command_analyze_memory,
     command_bundle,
@@ -83,7 +84,7 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.espota2 import OTA_TYPE_UPDATE_APP
+from esphome.espota2 import OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE
 from esphome.util import BootselResult
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
@@ -1112,6 +1113,7 @@ class MockArgs:
     reset: bool = False
     list_only: bool = False
     output: str | None = None
+    partition_table: bool = False
 
 
 def test_upload_program_serial_esp32(
@@ -1627,6 +1629,237 @@ def test_upload_program_ota_with_file_arg(
     mock_run_ota.assert_called_once_with(
         ["192.168.1.100"], 3232, None, Path("custom.bin"), OTA_TYPE_UPDATE_APP
     )
+
+
+_PARTITION_TABLE_LEN = 0xC00
+
+
+def _make_partition_table_bytes() -> bytes:
+    """Build a minimal partition table image accepted by _validate_partition_table_binary."""
+    table = bytearray(b"\xff" * _PARTITION_TABLE_LEN)
+    # First entry: ESP_PARTITION_MAGIC (0x50AA) little-endian -> bytes 0xAA, 0x50.
+    table[0] = 0xAA
+    table[1] = 0x50
+    # MD5 checksum entry at offset 32: ESP_PARTITION_MAGIC_MD5 (0xEBEB) little-endian.
+    table[32] = 0xEB
+    table[33] = 0xEB
+    return bytes(table)
+
+
+def test_upload_program_ota_partition_table_with_file_arg(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with OTA and partition table."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    partition_file = tmp_path / "partitions.bin"
+    partition_file.write_bytes(_make_partition_table_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(partition_file), partition_table=True)
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        partition_file,
+        OTA_TYPE_UPDATE_PARTITION_TABLE,
+    )
+
+
+def test_upload_program_serial_partition_table(
+    mock_upload_using_esptool: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test serial upload with partition table option (unsupported)."""
+    setup_core(platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_upload_using_esptool.return_value = 0
+
+    config = {}
+    args = MockArgs(partition_table=True)
+    devices = ["/dev/ttyUSB0"]
+
+    with pytest.raises(
+        EsphomeError,
+        match="The option --partition-table can only be used for Over The Air updates",
+    ):
+        upload_program(config, args, devices)
+
+
+def test_upload_program_ota_partition_table_mqttip(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table is allowed for MQTTIP devices; they resolve to a real IP at OTA time."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "MQTTIP"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    partition_file = tmp_path / "partitions.bin"
+    partition_file.write_bytes(_make_partition_table_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(partition_file), partition_table=True)
+
+    with patch(
+        "esphome.__main__._resolve_network_devices", return_value=["192.168.1.100"]
+    ):
+        exit_code, host = upload_program(config, args, ["MQTTIP"])
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        partition_file,
+        OTA_TYPE_UPDATE_PARTITION_TABLE,
+    )
+
+
+def test_validate_partition_table_binary_accepts_valid(tmp_path: Path) -> None:
+    f = tmp_path / "partitions.bin"
+    f.write_bytes(_make_partition_table_bytes())
+    _validate_partition_table_binary(f)
+
+
+_PARTITION_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "partition_tables"
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        # Stock ESP-IDF gen_esp32part.py output for an ESPHome build.
+        "esphome_default.bin",
+        # ESP-IDF Hello-world example partition table (vendored from espressif/esp-serial-flasher).
+        "esp_idf_hello_world.bin",
+        # Partition table shipped with esphome_dashboard's prebuilt firmware.
+        "esphome_dashboard_firmware.bin",
+    ],
+)
+def test_validate_partition_table_binary_accepts_real_binaries(fixture: str) -> None:
+    """Real-world partition-table binaries from ESP-IDF / ESPHome tooling pass validation."""
+    _validate_partition_table_binary(_PARTITION_FIXTURE_DIR / fixture)
+
+
+def test_validate_partition_table_binary_rejects_wrong_size(tmp_path: Path) -> None:
+    f = tmp_path / "partitions.bin"
+    f.write_bytes(b"\xaa\x50" + b"\xff" * 100)
+    with pytest.raises(EsphomeError, match="wrong size"):
+        _validate_partition_table_binary(f)
+
+
+def test_validate_partition_table_binary_rejects_wrong_magic(tmp_path: Path) -> None:
+    data = bytearray(_make_partition_table_bytes())
+    data[0] = 0x00
+    data[1] = 0x00
+    f = tmp_path / "partitions.bin"
+    f.write_bytes(bytes(data))
+    with pytest.raises(EsphomeError, match="partition magic"):
+        _validate_partition_table_binary(f)
+
+
+def test_validate_partition_table_binary_rejects_missing_md5(tmp_path: Path) -> None:
+    data = bytearray(_make_partition_table_bytes())
+    data[32] = 0xFF
+    data[33] = 0xFF
+    f = tmp_path / "partitions.bin"
+    f.write_bytes(bytes(data))
+    with pytest.raises(EsphomeError, match="missing the MD5 checksum entry"):
+        _validate_partition_table_binary(f)
+
+
+def test_validate_partition_table_binary_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(EsphomeError, match="Cannot read partition table file"):
+        _validate_partition_table_binary(tmp_path / "does-not-exist.bin")
+
+
+def test_upload_program_ota_partition_table_invalid_file(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table must fail before calling run_ota when the file is not a partition table."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    bad_file = tmp_path / "firmware.bin"
+    bad_file.write_bytes(b"\x00" * 4096)
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(bad_file), partition_table=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="wrong size"):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_ota_partition_table_without_allow_flag(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table must fail fast when allow_partition_access is not enabled in YAML."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ]
+    }
+    args = MockArgs(file="partitions.bin", partition_table=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match="requires 'allow_partition_access: true'",
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
 
 
 def test_upload_program_ota_no_config(

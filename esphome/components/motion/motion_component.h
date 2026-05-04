@@ -36,7 +36,7 @@ class MotionComponent : public PollingComponent {
 
  protected:
   // platforms must implement this method to update raw data.
-  virtual bool update_data_(MotionData &data) = 0;
+  virtual bool update_data(MotionData &data) = 0;
 
   // for mapping axes
   float matrix_[9]{
