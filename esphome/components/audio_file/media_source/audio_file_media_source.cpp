@@ -39,7 +39,7 @@ micro_decoder::AudioFileType to_micro_decoder_type(audio::AudioFileType type) {
     case audio::AudioFileType::OPUS:
       return micro_decoder::AudioFileType::OPUS;
 #endif
-#ifdef MICRO_DECODER_CODEC_WAV
+#ifdef USE_AUDIO_WAV_SUPPORT
     case audio::AudioFileType::WAV:
       return micro_decoder::AudioFileType::WAV;
 #endif
