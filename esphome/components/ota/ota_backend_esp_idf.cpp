@@ -19,12 +19,16 @@ std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABac
 OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) {
 #ifdef USE_OTA_PARTITIONS
   this->ota_type_ = ota_type;
-  if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
-    // Reject any size other than ESP_PARTITION_TABLE_MAX_LEN: under- leaves stale bytes from the
-    // previous table; over- can't fit the reserved region.
-    if (image_size != ESP_PARTITION_TABLE_MAX_LEN) {
+  const bool is_part_table = this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE;
+  if (is_part_table || this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
+    if (is_part_table && image_size != ESP_PARTITION_TABLE_MAX_LEN) {
+      // Reject any size other than ESP_PARTITION_TABLE_MAX_LEN
       ESP_LOGE(TAG, "Wrong partition table size: expected %u bytes, got %zu", ESP_PARTITION_TABLE_MAX_LEN, image_size);
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+    }
+    if (image_size > sizeof this->buf_) {
+      ESP_LOGE(TAG, "Length of received data exceeds the buffer size: expected <=%zu bytes, got %zu", sizeof this->buf_, image_size);
+      return is_part_table ? OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY : OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
     }
     memset(this->buf_, 0xFF, sizeof this->buf_);
     this->buf_written_ = 0;
@@ -76,10 +80,11 @@ void IDFOTABackend::set_update_md5(const char *expected_md5) {
 
 OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
 #ifdef USE_OTA_PARTITIONS
-  if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
+  const bool is_part_table = this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE;
+  if (is_part_table || this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
     if (len > PARTITION_TABLE_BUFFER_SIZE - this->buf_written_) {
-      ESP_LOGE(TAG, "Wrong partition table size");
-      return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+      ESP_LOGE(TAG, "Too much data received");
+      return is_part_table ? OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY : OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
     }
     memcpy(this->buf_ + this->buf_written_, data, len);
     this->buf_written_ += len;
@@ -115,6 +120,9 @@ OTAResponseTypes IDFOTABackend::end() {
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
     return this->update_partition_table();
   }
+  if (this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
+    return this->update_bootloader();
+  }
   if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
@@ -146,6 +154,10 @@ void IDFOTABackend::abort() {
   if (this->partition_table_part_ != nullptr) {
     esp_partition_deregister_external(this->partition_table_part_);
     this->partition_table_part_ = nullptr;
+  }
+  if (this->bootloader_part_ != nullptr) {
+    esp_partition_deregister_external(this->bootloader_part_);
+    this->bootloader_part_ = nullptr;
   }
 #endif
   // esp_ota_abort with handle 0 returns ESP_ERR_INVALID_ARG harmlessly, so this is safe whether

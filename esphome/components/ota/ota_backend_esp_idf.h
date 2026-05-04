@@ -11,7 +11,8 @@ namespace esphome::ota {
 
 #ifdef USE_OTA_PARTITIONS
 // Staging buffer holds the entire partition table for verification before any flash op.
-static constexpr size_t PARTITION_TABLE_BUFFER_SIZE = ESP_PARTITION_TABLE_MAX_LEN;  // 0xC00
+//static constexpr size_t PARTITION_TABLE_BUFFER_SIZE = ESP_PARTITION_TABLE_MAX_LEN;  // 0xC00
+static constexpr size_t PARTITION_TABLE_BUFFER_SIZE = ESP_BOOTLOADER_SIZE;
 
 void get_running_app_position(uint32_t &offset, size_t &size);
 #endif
@@ -39,6 +40,9 @@ class IDFOTABackend final {
   OTAResponseTypes validate_new_partition_table_(uint32_t running_app_offset, size_t running_app_size,
                                                  PartitionTablePlan &plan);
   OTAResponseTypes update_partition_table();
+  OTAResponseTypes validate_new_bootloader_();
+  OTAResponseTypes update_bootloader();
+  OTAResponseTypes register_and_validate_partition_table_part_();
 #endif
 
  private:
@@ -55,6 +59,7 @@ class IDFOTABackend final {
   size_t buf_written_{0};
   size_t image_size_{0};
   const esp_partition_t *partition_table_part_{nullptr};
+  const esp_partition_t *bootloader_part_{nullptr};
   ota::OTAType ota_type_{ota::OTA_TYPE_UPDATE_APP};
 #endif
 };

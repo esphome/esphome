@@ -1152,6 +1152,15 @@ def upload_program(
             )
         binary = CORE.partition_table_bin
         ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
+    elif getattr(args, "bootloader", False):
+        if not ota_conf.get("allow_partition_access"):
+            raise EsphomeError(
+                "The option --bootloader requires 'allow_partition_access: true' on the "
+                "esphome OTA platform in the device's YAML configuration. Add it, recompile, "
+                "flash a build with the option enabled, and then retry --bootloader."
+            )
+        binary = CORE.bootloader_bin
+        ota_type = espota2.OTA_TYPE_UPDATE_BOOTLOADER
     if getattr(args, "file", None) is not None:
         binary = Path(args.file)
 
@@ -1884,6 +1893,11 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--partition-table",
         help="Upload as partition table (OTA).",
+        action="store_true",
+    )
+    parser_upload.add_argument(
+        "--bootloader",
+        help="Upload as bootloader (OTA).",
         action="store_true",
     )
 

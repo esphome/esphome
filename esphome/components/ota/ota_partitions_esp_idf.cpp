@@ -44,32 +44,14 @@ static const esp_partition_t *find_app_partition_at(uint32_t address, size_t min
 // can write to it; abort() releases it on error.
 OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_app_offset, size_t running_app_size,
                                                               PartitionTablePlan &plan) {
-  esp_err_t err = esp_partition_register_external(
-      nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE, "PrimaryPrtTable",
-      ESP_PARTITION_TYPE_PARTITION_TABLE, ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY, &this->partition_table_part_);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_partition_register_external failed (err=0x%X)", err);
-    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+  OTAResponseTypes validate_result = this->register_and_validate_partition_table_part_();
+  if (validate_result != OTA_RESPONSE_OK) {
+    return validate_result;
   }
 
   int num_partitions = 0;
-  const esp_partition_info_t *existing_partition_table = nullptr;
-  esp_partition_mmap_handle_t partition_table_map;
-  err = esp_partition_mmap(this->partition_table_part_, 0, ESP_PARTITION_TABLE_MAX_LEN, ESP_PARTITION_MMAP_DATA,
-                           reinterpret_cast<const void **>(&existing_partition_table), &partition_table_map);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_partition_mmap failed (err=0x%X)", err);
-    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
-  }
-  err = esp_partition_table_verify(existing_partition_table, true, &num_partitions);
-  esp_partition_munmap(partition_table_map);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_partition_table_verify failed (existing partition table) (err=0x%X)", err);
-    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
-  }
-
   const esp_partition_info_t *new_partition_table = reinterpret_cast<const esp_partition_info_t *>(this->buf_);
-  err = esp_partition_table_verify(new_partition_table, true, &num_partitions);
+  esp_err_t err = esp_partition_table_verify(new_partition_table, true, &num_partitions);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_table_verify failed (new partition table) (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
@@ -273,6 +255,111 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
+  }
+  return OTA_RESPONSE_OK;
+}
+
+OTAResponseTypes IDFOTABackend::validate_new_bootloader_() {
+  // Register the bootloader partition
+  esp_err_t err = esp_partition_register_external(
+      nullptr, ESP_PRIMARY_BOOTLOADER_OFFSET, ESP_BOOTLOADER_SIZE, "PrimaryBTLDR", ESP_PARTITION_TYPE_BOOTLOADER, ESP_PARTITION_SUBTYPE_BOOTLOADER_PRIMARY, &this->bootloader_part_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_partition_register_external failed (err=0x%X)", err);
+    return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
+  }
+
+  // Verify existing bootloader to make sure ESP_PRIMARY_BOOTLOADER_OFFSET is correct
+  esp_image_metadata_t data;
+  const esp_partition_pos_t part_pos = {
+      .offset = this->bootloader_part_->address,
+      .size = this->bootloader_part_->size,
+  };
+  err = esp_image_verify(ESP_IMAGE_VERIFY, &part_pos, &data);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_image_verify failed (existing bootloader) (err=0x%X)", err);
+    return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
+  }
+
+  // Verify existing partition table to make sure ESP_BOOTLOADER_SIZE is correct and matches the available bootloader size in flash
+  if (this->register_and_validate_partition_table_part_() != OTA_RESPONSE_OK) {
+    return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
+  }
+
+  // Verify the new bootloader image
+  // TODO
+
+  // Make sure the new bootloader is compatible with the device
+  // TODO
+
+  return OTA_RESPONSE_OK;
+}
+
+OTAResponseTypes IDFOTABackend::update_bootloader() {
+  if (this->buf_written_ == 0 || this->image_size_ != this->buf_written_) {
+    ESP_LOGE(TAG, "Not enough data received");
+    return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
+  }
+
+  OTAResponseTypes validate_result = this->validate_new_bootloader_();
+  if (validate_result != OTA_RESPONSE_OK) {
+    return validate_result;
+  }
+
+  ESP_LOGE(TAG, "Starting bootloader update.\n"
+                "  DO NOT REMOVE POWER until the device reboots successfully.\n"
+                "  Loss of power during this operation may render the device unable to boot until\n"
+                "  it is recovered via a serial flash.");
+
+  watchdog::WatchdogManager watchdog(15000);
+
+  // Update the bootloader
+  esp_err_t err = esp_ota_begin(this->bootloader_part_, this->image_size_, &this->update_handle_);
+  if (err != ESP_OK) {
+    esp_ota_abort(this->update_handle_);
+    this->update_handle_ = 0;
+    ESP_LOGE(TAG, "esp_ota_begin failed (err=0x%X)", err);
+    return OTA_RESPONSE_ERROR_BOOTLOADER_UPDATE;
+  }
+  err = esp_ota_write(this->update_handle_, this->buf_, this->image_size_);
+  if (err != ESP_OK) {
+    esp_ota_abort(this->update_handle_);
+    this->update_handle_ = 0;
+    ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X)", err);
+    return OTA_RESPONSE_ERROR_BOOTLOADER_UPDATE;
+  }
+  err = esp_ota_end(this->update_handle_);
+  this->update_handle_ = 0;  // esp_ota_end releases the handle internally
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X)", err);
+    return OTA_RESPONSE_ERROR_BOOTLOADER_UPDATE;
+  }
+
+  return OTA_RESPONSE_OK;
+}
+
+OTAResponseTypes IDFOTABackend::register_and_validate_partition_table_part_() {
+  esp_err_t err = esp_partition_register_external(
+      nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE, "PrimaryPrtTable",
+      ESP_PARTITION_TYPE_PARTITION_TABLE, ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY, &this->partition_table_part_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_partition_register_external failed (partition table) (err=0x%X)", err);
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+  }
+
+  int num_partitions = 0;
+  const esp_partition_info_t *existing_partition_table = nullptr;
+  esp_partition_mmap_handle_t partition_table_map;
+  err = esp_partition_mmap(this->partition_table_part_, 0, ESP_PARTITION_TABLE_MAX_LEN, ESP_PARTITION_MMAP_DATA,
+                           reinterpret_cast<const void **>(&existing_partition_table), &partition_table_map);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_partition_mmap failed (partition table) (err=0x%X)", err);
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+  }
+  err = esp_partition_table_verify(existing_partition_table, true, &num_partitions);
+  esp_partition_munmap(partition_table_map);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_partition_table_verify failed (existing partition table) (err=0x%X)", err);
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   return OTA_RESPONSE_OK;
 }

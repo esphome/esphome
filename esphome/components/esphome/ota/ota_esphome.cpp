@@ -504,6 +504,10 @@ void ESPHomeOTAComponent::handle_data_() {
     // preferences flush would emit ESP_ERR_NVS_INVALID_HANDLE for every entry. Reboot directly.
     App.reboot();
   }
+  if (ota_type == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
+    // Don't reboot after a bootloader update
+    return;
+  }
 #endif
   App.safe_reboot();
 

@@ -17,6 +17,7 @@ from esphome.helpers import ProgressBar, resolve_ip_address
 
 OTA_TYPE_UPDATE_APP = 0x00
 OTA_TYPE_UPDATE_PARTITION_TABLE = 0x01
+OTA_TYPE_UPDATE_BOOTLOADER = 0x02
 
 RESPONSE_OK = 0x00
 RESPONSE_REQUEST_AUTH = 0x01
@@ -49,6 +50,8 @@ RESPONSE_ERROR_SIGNATURE_INVALID = 0x8D
 RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE = 0x8E
 RESPONSE_ERROR_PARTITION_TABLE_VERIFY = 0x8F
 RESPONSE_ERROR_PARTITION_TABLE_UPDATE = 0x90
+RESPONSE_ERROR_BOOTLOADER_VERIFY = 0x91
+RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -66,7 +69,7 @@ SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 # updates extend this set. Anything outside the set is rejected up front so callers
 # of perform_ota/run_ota get a clear error instead of a post-auth 0x8E from the device.
 _SUPPORTED_OTA_TYPES: frozenset[int] = frozenset(
-    {OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE}
+    {OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE, OTA_TYPE_UPDATE_BOOTLOADER}
 )
 
 UPLOAD_BLOCK_SIZE = 8192
@@ -142,6 +145,15 @@ _ERROR_MESSAGES: dict[int, str] = {
         "in a degraded state (NVS handles are invalid; many components will fail) "
         "and may not be able to boot. Check the logs, reboot the device, and "
         "retry the update. If the device fails to boot, recover it via a serial flash."
+    ),
+    RESPONSE_ERROR_BOOTLOADER_VERIFY: (
+        "The bootloader update could not be verified. No changes were "
+        "made to the flash content. Check the logs for more information and retry."
+    ),
+    RESPONSE_ERROR_BOOTLOADER_UPDATE: (
+        "An error occurred while updating the bootloader. The device may not be able "
+        "to boot. Check the logs and retry the update. If the device fails to boot, "
+        "recover it via a serial flash."
     ),
     RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
 }
