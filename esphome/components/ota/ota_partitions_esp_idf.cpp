@@ -140,8 +140,7 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
              "  size: at least %" PRIu32 " bytes (0x%" PRIX32 ")\n"
              "  address: one of",
              (uint32_t) running_app_size, (uint32_t) running_app_size);
-    esp_partition_iterator_t it =
-        esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
     while (it != nullptr) {
       const esp_partition_t *partition = esp_partition_get(it);
       if (partition->size >= running_app_size) {
