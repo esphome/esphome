@@ -19,6 +19,7 @@ import contextlib
 
 from esphome.const import CONF_KEY, CONF_PORT, __version__
 from esphome.core import CORE, EsphomeError
+from esphome.util import safe_print
 
 from . import CONF_ENCRYPTION
 
@@ -101,7 +102,6 @@ async def async_run_logs(
         noise_psk=noise_psk,
         addresses=addresses,  # Pass all addresses for automatic retry
     )
-    dashboard = CORE.dashboard
 
     # Try platform-specific stacktrace handler first, fall back to generic
     platform_process_stacktrace = None
@@ -126,7 +126,11 @@ async def async_run_logs(
             f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
         )
         for parsed_msg in parse_log_message(text, timestamp):
-            print(parsed_msg.replace("\033", "\\033") if dashboard else parsed_msg)
+            # safe_print handles the dashboard \033 escaping and falls back
+            # to backslashreplace encoding on stdouts that can't represent
+            # the wifi signal-bar block characters (Windows redirected
+            # cp1252 pipe).
+            safe_print(parsed_msg)
         for raw_line in text.splitlines():
             processor.process_line(raw_line)
 
