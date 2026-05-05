@@ -43,6 +43,37 @@ def _strip_win_long_path_prefix(path: str) -> str:
     return path
 
 
+def _strip_win_long_path_prefix(path: str) -> str:
+    r"""Strip the Windows extended-length path prefix from ``path``.
+
+    Handles both forms documented at
+    https://learn.microsoft.com/windows/win32/fileio/naming-a-file:
+
+    * ``\\?\C:\path\to\file`` -> ``C:\path\to\file``
+    * ``\\?\UNC\server\share\path`` -> ``\\server\share\path``
+
+    The NSIS-installed ``esphome.exe`` launcher on Windows starts Python with
+    ``sys.executable`` already prefixed with ``\\?\``. That prefix propagates
+    into PlatformIO's ``$PYTHONEXE`` (PlatformIO reads ``PYTHONEXEPATH`` from
+    the environment, falling back to ``os.path.normpath(sys.executable)``)
+    and ends up baked into SCons-emitted command lines for build steps such
+    as the esp8266 ``elf2bin`` invocation. ``cmd.exe`` does not understand
+    the ``\\?\`` prefix, so the build fails with
+    "The system cannot find the path specified." Stripping the prefix early
+    keeps the path shell-quotable.
+
+    No-op on non-Windows platforms.
+    """
+    if sys.platform != "win32":
+        return path
+    if path.startswith("\\\\?\\UNC\\"):
+        # \\?\UNC\server\share\... -> \\server\share\...
+        return "\\\\" + path[len("\\\\?\\UNC\\") :]
+    if path.startswith("\\\\?\\"):
+        return path[len("\\\\?\\") :]
+    return path
+
+
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
