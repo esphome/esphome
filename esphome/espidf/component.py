@@ -401,7 +401,7 @@ def _collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[s
             else:
                 # PlatformIO quirk: a directory matched with "*" should include all its
                 # nested files and subdirectories, not just the directory itself.
-                for root, _, files in os.walk(item, followlinks=True):
+                for root, _, files in os.walk(item):
                     matched.extend([os.path.join(root, f) for f in files])
 
         if sign == "+":
