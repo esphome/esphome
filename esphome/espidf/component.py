@@ -14,11 +14,7 @@ from urllib.parse import urlparse, urlsplit, urlunsplit
 from esphome import git, yaml_util
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, Library
-from esphome.espidf.framework import (
-    archive_extract_all,
-    download_from_mirrors,
-    rmdir,
-)
+from esphome.espidf.framework import archive_extract_all, download_from_mirrors, rmdir
 from esphome.helpers import write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
