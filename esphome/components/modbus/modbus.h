@@ -48,7 +48,7 @@ class Modbus : public uart::UARTDevice, public Component {
  protected:
   void receive_bytes_();
   bool timeout_();
-  virtual int32_t tx_delay_remaining_();
+  virtual int32_t tx_delay_remaining();
   virtual void parse_modbus_frames() = 0;
   bool parse_modbus_server_frame_();
   virtual void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data,
@@ -108,7 +108,7 @@ class ModbusClientHub : public Modbus {
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
  protected:
-  int32_t tx_delay_remaining_() override;
+  int32_t tx_delay_remaining() override;
   void parse_modbus_frames() override;
   // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;

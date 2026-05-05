@@ -79,7 +79,7 @@ bool Modbus::timeout_() {
   return this->last_receive_check_ - this->last_modbus_byte_ > timeout;
 }
 
-int32_t Modbus::tx_delay_remaining_() {
+int32_t Modbus::tx_delay_remaining() {
   // We use millis() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
   // It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
   // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
@@ -91,7 +91,7 @@ int32_t Modbus::tx_delay_remaining_() {
                    (int32_t) (this->frame_delay_ms_ - (now - this->last_modbus_byte_))});
 }
 
-int32_t ModbusClientHub::tx_delay_remaining_() {
+int32_t ModbusClientHub::tx_delay_remaining() {
   const uint32_t now = millis();
   return std::max({(int32_t) 0,
                    (int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ + this->turnaround_delay_ms_ -
@@ -107,7 +107,7 @@ bool Modbus::tx_blocked() {
   // 4. The last received byte isn't more than tx_delay ms ago (i.e. wait to be sure there isn't more Rx coming)
   // N.B. We allow a small delay (MODBUS_TX_MAX_DELAY_MS) to avoid looping on small delays. This gets handled by
   // send_frame_.
-  return this->available() || !this->rx_buffer_.empty() || this->tx_delay_remaining_() > MODBUS_TX_MAX_DELAY_MS;
+  return this->available() || !this->rx_buffer_.empty() || this->tx_delay_remaining() > MODBUS_TX_MAX_DELAY_MS;
 }
 
 bool ModbusClientHub::tx_blocked() {
@@ -369,7 +369,7 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
     return false;
   }
 
-  const int32_t tx_delay_remaining = this->tx_delay_remaining_();
+  const int32_t tx_delay_remaining = this->tx_delay_remaining();
   if (tx_delay_remaining > 0) {
     delay(tx_delay_remaining);
   }
@@ -533,7 +533,7 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
   // the send. This should only happen at low baud rates with long turnaround times.
   if (this->tx_blocked()) {
     auto frame = std::make_shared<ModbusFrame>(payload[0], payload + 1, len - 1);
-    this->set_timeout(this->tx_delay_remaining_(), [this, frame]() { this->send_frame_(*frame); });
+    this->set_timeout(this->tx_delay_remaining(), [this, frame]() { this->send_frame_(*frame); });
   } else {
     ModbusFrame frame(payload[0], payload + 1, len - 1);
     this->send_frame_(frame);
