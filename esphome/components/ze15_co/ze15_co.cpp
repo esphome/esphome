@@ -100,7 +100,6 @@ void ZE15COComponent::validate_and_publish_(const uint8_t *data, uint8_t fault_i
   uint16_t raw = ((data[conc_high_idx] & 0x1F) << 8) | data[conc_low_idx];
   float ppm = raw * 0.1f;
   this->publish_state(ppm);
-  return;
 }
 
 void ZE15COComponent::process_stream_byte_(uint8_t byte) {
