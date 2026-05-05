@@ -429,3 +429,4 @@ async def to_code(config):
             )
     if data.wav_support:
         cg.add_define("USE_AUDIO_WAV_SUPPORT")
+        add_idf_component(name="esphome/micro-wav", ref="0.2.0")

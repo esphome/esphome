@@ -30,9 +30,9 @@
 #include <micro_opus/ogg_opus_decoder.h>
 #endif
 
-// esp-audio-libs
+// micro-wav
 #ifdef USE_AUDIO_WAV_SUPPORT
-#include <wav_decoder.h>
+#include <micro_wav/wav_decoder.h>
 #endif
 
 namespace esphome {
@@ -135,7 +135,7 @@ class AudioDecoder {
 #endif
 #ifdef USE_AUDIO_WAV_SUPPORT
   FileDecoderState decode_wav_();
-  std::unique_ptr<esp_audio_libs::wav_decoder::WAVDecoder> wav_decoder_;
+  std::unique_ptr<micro_wav::WAVDecoder> wav_decoder_;
 #endif
 
   std::unique_ptr<AudioReadableBuffer> input_buffer_;
@@ -146,20 +146,12 @@ class AudioDecoder {
 
   size_t input_buffer_size_{0};
   size_t free_buffer_required_{0};
-#ifdef USE_AUDIO_WAV_SUPPORT
-  size_t wav_bytes_left_{0};
-#endif
 
   uint32_t potentially_failed_count_{0};
   uint32_t accumulated_frames_written_{0};
   uint32_t playback_ms_{0};
 
   bool end_of_file_{false};
-#ifdef USE_AUDIO_WAV_SUPPORT
-  bool wav_has_known_end_{false};
-#endif
-
-  bool decoder_buffers_internally_{false};
 
   bool pause_output_{false};
 };
