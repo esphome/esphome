@@ -210,6 +210,8 @@ def _final_validate(config):
                     audio.request_mp3_support()
                 elif fmt_name == "OPUS":
                     audio.request_opus_support()
+                elif fmt_name == "WAV":
+                    audio.request_wav_support()
                 break
 
     return config
