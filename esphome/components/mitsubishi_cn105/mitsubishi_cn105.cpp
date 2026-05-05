@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <numeric>
@@ -403,7 +404,17 @@ void MitsubishiCN105::apply_settings_() {
   std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload{};
 
   // Apply all other pending settings first; handle REMOTE_TEMPERATURE last
-  if (this->pending_updates_.get_mask() != UpdateFlagMask{UpdateFlag::REMOTE_TEMPERATURE}.get_mask()) {
+  if (this->pending_updates_.get_mask() == UpdateFlagMask{UpdateFlag::REMOTE_TEMPERATURE}.get_mask()) {
+    payload[0] = 0x07;
+    if (this->remote_temperature_half_deg_ == REMOTE_TEMPERATURE_DISABLED) {
+      payload[3] = 0x80;
+    } else {
+      payload[1] = 0x01;
+      payload[2] = static_cast<uint8_t>(this->remote_temperature_half_deg_ - 16);
+      payload[3] = static_cast<uint8_t>(this->remote_temperature_half_deg_ + 128);
+    }
+    this->pending_updates_.erase(UpdateFlag::REMOTE_TEMPERATURE);
+  } else {
     payload[0] = 0x01;
     if (this->pending_updates_.count(UpdateFlag::POWER)) {
       payload[1] |= 0x01;
@@ -433,16 +444,6 @@ void MitsubishiCN105::apply_settings_() {
     this->pending_updates_ = this->pending_updates_.count(UpdateFlag::REMOTE_TEMPERATURE)
                                  ? UpdateFlagMask{UpdateFlag::REMOTE_TEMPERATURE}
                                  : UpdateFlagMask{};
-  } else {
-    payload[0] = 0x07;
-    if (this->remote_temperature_half_deg_ == REMOTE_TEMPERATURE_DISABLED) {
-      payload[3] = 0x80;
-    } else {
-      payload[1] = 0x01;
-      payload[2] = static_cast<uint8_t>(this->remote_temperature_half_deg_ - 16);
-      payload[3] = static_cast<uint8_t>(this->remote_temperature_half_deg_ + 128);
-    }
-    this->pending_updates_.erase(UpdateFlag::REMOTE_TEMPERATURE);
   }
 
   this->send_packet_(make_packet(PACKET_TYPE_WRITE_SETTINGS_REQUEST, payload));
@@ -480,7 +481,7 @@ bool MitsubishiCN105::FrameParser::read_and_parse(uart::UARTDevice &device, Call
   while (device.available() > 0 && watchdog-- > 0) {
     uint8_t &value = this->read_buffer_[this->read_pos_];
     if (!device.read_byte(&value)) {
-      ESP_LOGW(TAG, "UART read failed while data available");
+      ESP_LOGV(TAG, "UART read failed while data available");
       return false;
     }
 
