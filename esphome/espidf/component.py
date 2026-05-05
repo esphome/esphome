@@ -16,7 +16,6 @@ from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, Library
 from esphome.espidf.framework import (
     archive_extract_all,
-    auto_cleanup_dir,
     download_from_mirrors,
     rmdir,
 )
@@ -95,7 +94,13 @@ class URLSource(Source):
         h = hashlib.new("sha256")
         h.update(self.url.encode())
         path = base_dir / h.hexdigest()[:8] / dir_suffix
-        if not path.is_dir() or force:
+        # Marker file written last to signal a complete extraction. Using a
+        # marker (instead of just `path.is_dir()`) means an interrupted
+        # extraction is correctly detected and re-run on the next invocation,
+        # and lets us extract directly into ``path`` — avoiding a
+        # post-extraction rename that races with antivirus on Windows.
+        extracted_marker = path / ".esphome_extracted"
+        if not extracted_marker.is_file() or force:
             rmdir(path, msg=f"Clean up library directory {path}")
 
             # Download in temporary file
@@ -105,16 +110,9 @@ class URLSource(Source):
 
                 download_from_mirrors([self.url], {}, tmp.file)
 
-                # Create temporary directory for extracting archive: if the process is interrupted the library will not be considered as extracted
-                temp_path = path.with_name(path.name + ".tmp")
-                with auto_cleanup_dir(
-                    temp_path,
-                    msg=f"Temporary library directory {temp_path}",
-                ) as d:
-                    _LOGGER.debug("Extracting archive to %s ...", path)
-                    archive_extract_all(tmp.file, d)
-
-                    temp_path.rename(path)
+                _LOGGER.debug("Extracting archive to %s ...", path)
+                archive_extract_all(tmp.file, path)
+                extracted_marker.touch()
         return path
 
     def __str__(self):

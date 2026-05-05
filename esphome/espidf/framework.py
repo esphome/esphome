@@ -1,7 +1,7 @@
 """ESP-IDF framework tools for ESPHome."""
 
-from collections.abc import Generator
-from contextlib import ExitStack, contextmanager
+from collections.abc import Iterable
+from contextlib import ExitStack
 import io
 import json
 import logging
@@ -12,7 +12,6 @@ import subprocess
 import sys
 import tempfile
 from typing import IO
-import uuid
 
 import requests
 
@@ -204,34 +203,6 @@ def _write_stamp(file: PathType, data: dict[str, str]):
     """
     with open(file, "w", encoding="utf8") as fp:
         json.dump(data, fp)
-
-
-@contextmanager
-def auto_cleanup_dir(path: PathType, msg: str | None = None) -> Generator[Path]:
-    """
-    Context manager that creates a directory and automatically cleans it up.
-
-    Args:
-        path: Path to the directory to create and clean up
-        msg: Optional debug message for cleanup operations
-
-    Yields:
-        Path object of the created directory
-
-    Returns:
-        Generator yielding the directory path
-    """
-    # 1. Remove existing directory and create new one
-    path = Path(path)
-    rmdir(path, msg=msg)
-    path.mkdir(parents=True)
-
-    try:
-        # 2. Yield the directory path to the caller
-        yield path
-    finally:
-        # 3. Clean up by removing directory on exit
-        rmdir(path, msg=msg)
 
 
 def _exec(
@@ -433,6 +404,32 @@ def _create_venv(root: PathType, msg: str | None = None):
         raise RuntimeError(f"Can't create Python virtual environment for {msg}")
 
 
+def _detect_archive_root(names: Iterable[str]) -> str | None:
+    """Detect a single top-level directory shared by all archive entries.
+
+    Returns the directory name if every non-empty entry sits under the same
+    top-level directory, else ``None``. Extraction helpers use this to strip
+    the wrapper directory commonly found in source archives during extraction
+    rather than renaming it afterwards — post-extraction renames are
+    unreliable on Windows because antivirus and the search indexer briefly
+    hold handles on freshly written files.
+    """
+    root: str | None = None
+    has_descendant = False
+    for raw in names:
+        name = raw.replace("\\", "/").strip("/")
+        if not name:
+            continue
+        first, sep, _ = name.partition("/")
+        if root is None:
+            root = first
+        elif root != first:
+            return None
+        if sep:
+            has_descendant = True
+    return root if has_descendant else None
+
+
 def _tar_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
     """
     Extract a TAR archive to the specified directory.
@@ -452,9 +449,16 @@ def _tar_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
     abs_dest = os.path.abspath(extract_dir)
 
     with tarfile.open(fileobj=data, mode="r") as tar_ref:
+        all_members = tar_ref.getmembers()
+
+        # Detect a single common top-level directory and strip it during
+        # extraction so we don't have to flatten it via a rename afterwards.
+        strip_root = _detect_archive_root(m.name for m in all_members)
+        strip_prefix = f"{strip_root}/" if strip_root is not None else None
+
         safe_members = []
 
-        for member in tar_ref.getmembers():
+        for member in all_members:
             name = member.name
 
             # 1. Strip leading slashes
@@ -466,12 +470,21 @@ def _tar_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
             ):
                 continue
 
-            # 3. Compute final path
+            # 3. Strip wrapper directory if one was detected
+            if strip_prefix is not None:
+                norm = name.replace("\\", "/")
+                if norm in (strip_root, strip_prefix):
+                    continue
+                if not norm.startswith(strip_prefix):
+                    continue
+                name = norm[len(strip_prefix) :]
+
+            # 4. Compute final path
             target_path = os.path.realpath(os.path.join(abs_dest, name))
             if os.path.commonpath([abs_dest, target_path]) != abs_dest:
                 continue
 
-            # 4. Validate links properly
+            # 5. Validate links properly
             if member.issym() or member.islnk():
                 linkname = member.linkname
 
@@ -496,7 +509,7 @@ def _tar_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
                 # write back normalized linkname
                 member.linkname = linkname
 
-            # 5. Sanitize permissions
+            # 6. Sanitize permissions
             mode = member.mode
             if mode is not None:
                 # Strip high bits & group/other write bits
@@ -521,13 +534,13 @@ def _tar_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
 
                 member.mode = mode
 
-            # 6. Strip ownership
+            # 7. Strip ownership
             member.uid = None
             member.gid = None
             member.uname = None
             member.gname = None
 
-            # 7. Assign sanitized name back
+            # 8. Assign sanitized name back
             member.name = name
 
             safe_members.append(member)
@@ -548,7 +561,14 @@ def _zip_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
     extract_dir = os.path.abspath(extract_dir)
 
     with zipfile.ZipFile(data, "r") as zip_ref:
-        for member in zip_ref.infolist():
+        all_members = zip_ref.infolist()
+
+        # Detect a single common top-level directory and strip it during
+        # extraction so we don't have to flatten it via a rename afterwards.
+        strip_root = _detect_archive_root(m.filename for m in all_members)
+        strip_prefix = f"{strip_root}/" if strip_root is not None else None
+
+        for member in all_members:
             # 1. Normalize name
             name = member.filename.lstrip("/\\")
 
@@ -558,16 +578,25 @@ def _zip_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
             ):
                 continue
 
-            # 3. Compute safe target path
+            # 3. Strip wrapper directory if one was detected
+            if strip_prefix is not None:
+                norm = name.replace("\\", "/")
+                if norm in (strip_root, strip_prefix):
+                    continue
+                if not norm.startswith(strip_prefix):
+                    continue
+                name = norm[len(strip_prefix) :]
+
+            # 4. Compute safe target path
             target_path = os.path.abspath(os.path.join(extract_dir, name))
 
             if os.path.commonpath([extract_dir, target_path]) != extract_dir:
                 raise ValueError(f"Unsafe path detected: {member.filename}")
 
-            # 4. Assign sanitized name back
+            # 5. Assign sanitized name back
             member.filename = name
 
-            # 5. Extract
+            # 6. Extract
             zip_ref.extract(member, extract_dir)
 
 
@@ -619,23 +648,6 @@ def archive_extract_all(
         if matched_fct is None:
             raise ValueError("Unsupported archive format")
         matched_fct(archive_ref, extract_dir)
-
-    # 3. Handle single directory wrapper case
-    entries = list(Path(extract_dir).iterdir())
-    if len(entries) == 1 and entries[0].is_dir():
-        wrapper_dir = entries[0]
-
-        # Rename wrapper directory to a random temporary name
-        tmp_name = f"__tmp_extract_{uuid.uuid4().hex}"
-        tmp_dir = Path(extract_dir) / tmp_name
-        wrapper_dir.rename(tmp_dir)
-
-        # Move contents out
-        for item in tmp_dir.iterdir():
-            target = Path(extract_dir) / item.name
-            shutil.move(str(item), target)
-
-        rmdir(tmp_dir, "Remove temp directory")
 
 
 def download_from_mirrors(
@@ -740,12 +752,19 @@ def _check_esphome_idf_framework_install(
 
     # 1. Get framework path and stamp file path
     framework_path = _get_framework_path(version)
+    extracted_marker = framework_path / ".esphome_extracted"
     env_stamp_file = framework_path / ESPHOME_STAMP_FILE
     idf_tools_path = framework_path / "tools" / "idf_tools.py"
     _LOGGER.info("Checking ESP-IDF %s framework ...", version)
 
-    # 2. Download and extract the framework if not present
-    install = force or not framework_path.is_dir() or not idf_tools_path.is_file()
+    # 2. Download and extract the framework if not already extracted.
+    # The marker is written last after extraction succeeds, so its presence
+    # is the authoritative "extraction complete" signal — no half-extracted
+    # tree can pass for installed. Extracting directly into framework_path
+    # avoids post-extraction renames that race with antivirus on Windows.
+    # Tool install state is tracked separately by the stamp file in step 3,
+    # so we only re-extract when extraction itself is missing or incomplete.
+    install = force or not extracted_marker.is_file()
     if install:
         rmdir(framework_path, msg=f"Clean up ESP-IDF {version} framework")
 
@@ -768,16 +787,9 @@ def _check_esphome_idf_framework_install(
                 ESPHOME_IDF_FRAMEWORK_MIRRORS, substitutions, tmp.file
             )
 
-            # Create temporary directory for extracting archive: if the process is interrupted the framework will not be considered as extracted
-            temp_framework_path = framework_path.with_name(framework_path.name + ".tmp")
-            with auto_cleanup_dir(
-                temp_framework_path,
-                msg=f"Temporary ESP-IDF {version} framework directory",
-            ) as d:
-                _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-                archive_extract_all(tmp.file, d)
-
-                temp_framework_path.rename(framework_path)
+            _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
+            archive_extract_all(tmp.file, framework_path)
+            extracted_marker.touch()
 
     # 3. Check if the framework tools are the same and correctly installed
     if not install:
