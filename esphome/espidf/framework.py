@@ -40,6 +40,15 @@ def _str_to_lst_of_str(a: str) -> list[str]:
 
 ESPHOME_STAMP_FILE = ".esphome.stamp.json"
 
+# Cache-buster baked into the stamp file. Bump this whenever a change would
+# make pre-existing stamped installs invalid, e.g.:
+#   - the inlined Python helpers (_get_idf_version, _get_idf_tool_paths) are
+#     rewritten in a way that's incompatible with prior installs
+#   - the stamp_info schema changes (keys added/renamed/removed)
+#   - the tool selection or env-construction logic changes meaning
+# Bumping triggers a full reinstall on every user's next run.
+STAMP_SCHEMA_VERSION = "0"
+
 ESPHOME_IDF_DEFAULT_TARGETS = _str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TARGETS", "all")
 )
@@ -69,9 +78,6 @@ ESP_IDF_CONSTRAINTS_MIRRORS = _str_to_lst_of_str(
         "https://dl.espressif.com/dl/esp-idf/espidf.constraints.v{VERSION}.txt",
     )
 )
-
-# Internal version used to force a reinstall when mechanisms change or new scripts are added.
-ESPHOME_IDF_VERSION = "0"
 
 
 def _get_idf_tools_path() -> Path:
@@ -744,7 +750,7 @@ def _check_esphome_idf_framework_install(
     tools = sorted(set(tools))
 
     stamp_info = {}
-    stamp_info["esphome_idf_version"] = ESPHOME_IDF_VERSION
+    stamp_info["schema_version"] = STAMP_SCHEMA_VERSION
     stamp_info["targets"] = targets
     stamp_info["tools"] = tools
     # TODO: Add stamp with this module version
@@ -846,7 +852,7 @@ def _check_esp_idf_python_env_install(
     features = sorted(set(features))
 
     stamp_info = {}
-    stamp_info["esphome_idf_version"] = ESPHOME_IDF_VERSION
+    stamp_info["schema_version"] = STAMP_SCHEMA_VERSION
     stamp_info["features"] = features
 
     framework_path = _get_framework_path(version)
@@ -980,7 +986,7 @@ def check_esp_idf_install(
 
     # 2) Python env
     python_env_path, installed = _check_esp_idf_python_env_install(
-        version, features, force=force | installed, env=env
+        version, features, force=force or installed, env=env
     )
 
     return framework_path, python_env_path
