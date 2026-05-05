@@ -40,6 +40,9 @@
 #ifdef USE_INFRARED
 #include "esphome/components/infrared/infrared.h"
 #endif
+#ifdef USE_RADIO_FREQUENCY
+#include "esphome/components/radio_frequency/radio_frequency.h"
+#endif
 
 #ifdef USE_WEBSERVER_LOCAL
 #if USE_WEBSERVER_VERSION == 2
@@ -2102,6 +2105,104 @@ json::SerializationBuffer<> WebServer::infrared_json_(infrared::Infrared *obj, J
 }
 #endif
 
+#ifdef USE_RADIO_FREQUENCY
+void WebServer::handle_radio_frequency_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (radio_frequency::RadioFrequency *obj : App.get_radio_frequencies()) {
+    auto entity_match = match.match_entity(obj);
+    if (!entity_match.matched)
+      continue;
+
+    if (request->method() == HTTP_GET && entity_match.action_is_empty) {
+      auto detail = get_request_detail(request);
+      auto data = this->radio_frequency_json_(obj, detail);
+      request->send(200, ESPHOME_F("application/json"), data.c_str());
+      return;
+    }
+    if (!match.method_equals(ESPHOME_F("transmit"))) {
+      request->send(404);
+      return;
+    }
+
+    // Only allow transmit if the device supports it
+    if (!(obj->get_capability_flags() & radio_frequency::CAPABILITY_TRANSMITTER)) {
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Device does not support transmission"));
+      return;
+    }
+
+    auto call = obj->make_call();
+
+    // Parse carrier frequency (optional — overrides IC default)
+    {
+      auto value = parse_number<uint32_t>(request->arg(ESPHOME_F("frequency")).c_str());
+      if (value.has_value()) {
+        call.set_frequency(*value);
+      }
+    }
+
+    // Parse repeat count (optional, defaults to 1)
+    {
+      auto value = parse_number<uint32_t>(request->arg(ESPHOME_F("repeat_count")).c_str());
+      if (value.has_value()) {
+        call.set_repeat_count(*value);
+      }
+    }
+
+    // Parse base64url-encoded raw timings (required)
+    // Base64url is URL-safe: uses A-Za-z0-9-_ (no special characters needing escaping)
+    const auto &data_arg = request->arg(ESPHOME_F("data"));
+
+    // Validate base64url is not empty (also catches missing parameter since arg() returns empty string)
+    // Arduino String has isEmpty() not empty(), use length() for cross-platform compatibility
+    if (data_arg.length() == 0) {  // NOLINT(readability-container-size-empty)
+      request->send(400, ESPHOME_F("text/plain"), ESPHOME_F("Missing or empty 'data' parameter"));
+      return;
+    }
+
+    // Defer to main loop for thread safety. Move encoded string into lambda to ensure
+    // it outlives the call - set_raw_timings_base64url stores a pointer, so the string
+    // must remain valid until perform() completes.
+    // ESP8266 also needs this because ESPAsyncWebServer callbacks run in "sys" context.
+    this->defer([call, encoded = std::string(data_arg.c_str(), data_arg.length())]() mutable {
+      call.set_raw_timings_base64url(encoded);
+      call.perform();
+    });
+
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+
+json::SerializationBuffer<> WebServer::radio_frequency_all_json_generator(WebServer *web_server, void *source) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  return web_server->radio_frequency_json_(static_cast<radio_frequency::RadioFrequency *>(source), DETAIL_ALL);
+}
+
+json::SerializationBuffer<> WebServer::radio_frequency_json_(radio_frequency::RadioFrequency *obj,
+                                                             JsonDetail start_config) {
+  json::JsonBuilder builder;
+  JsonObject root = builder.root();
+
+  set_json_icon_state_value(root, obj, "radio_frequency", "", 0, start_config);
+
+  const auto &traits = obj->get_traits();
+  auto caps = obj->get_capability_flags();
+
+  root[ESPHOME_F("supports_transmitter")] = bool(caps & radio_frequency::CAPABILITY_TRANSMITTER);
+  root[ESPHOME_F("supports_receiver")] = bool(caps & radio_frequency::CAPABILITY_RECEIVER);
+  if (traits.get_frequency_min_hz() != 0) {
+    root[ESPHOME_F("frequency_min")] = traits.get_frequency_min_hz();
+    root[ESPHOME_F("frequency_max")] = traits.get_frequency_max_hz();
+  }
+
+  if (start_config == DETAIL_ALL) {
+    this->add_sorting_info_(root, obj);
+  }
+
+  return builder.serialize();
+}
+#endif
+
 #ifdef USE_EVENT
 void WebServer::on_event(event::Event *obj) {
   if (!this->include_internal_ && obj->is_internal())
@@ -2358,6 +2459,10 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) const {
     if (match.domain_equals(ESPHOME_F("infrared")))
       return true;
 #endif
+#ifdef USE_RADIO_FREQUENCY
+    if (match.domain_equals(ESPHOME_F("radio_frequency")))
+      return true;
+#endif
   }
 
   return false;
@@ -2515,6 +2620,11 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_INFRARED
   else if (match.domain_equals(ESPHOME_F("infrared"))) {
     this->handle_infrared_request(request, match);
+  }
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  else if (match.domain_equals(ESPHOME_F("radio_frequency"))) {
+    this->handle_radio_frequency_request(request, match);
   }
 #endif
   else {

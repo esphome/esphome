@@ -9,12 +9,22 @@ import logging
 from pathlib import Path
 import sys
 from types import ModuleType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from esphome.const import SOURCE_FILE_EXTENSIONS
 from esphome.core import CORE
-import esphome.core.config
 from esphome.types import ConfigType
+
+if TYPE_CHECKING:
+    from esphome.cpp_generator import MockObjClass
+
+# `esphome.core.config` is imported lazily in `_lookup_module` when the
+# "esphome" pseudo-component is first resolved. It pulls in
+# `esphome.automation` and `esphome.config_validation`, which together
+# dominate `esphome.__main__` startup cost when loaded eagerly.
+# `esphome.cpp_generator` is similarly avoided at module scope; it pulls
+# in `esphome.yaml_util` and is only needed for the `MockObjClass` type
+# annotation, which is resolved lazily via `TYPE_CHECKING`.
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,8 +41,9 @@ class FileResource:
 
 
 class ComponentManifest:
-    def __init__(self, module: ModuleType):
+    def __init__(self, module: ModuleType, recursive_sources: bool = False):
         self.module = module
+        self.recursive_sources = recursive_sources
 
     @property
     def package(self) -> str:
@@ -92,7 +103,7 @@ class ComponentManifest:
         return getattr(self.module, "CODEOWNERS", [])
 
     @property
-    def instance_type(self) -> list[str]:
+    def instance_type(self) -> "MockObjClass | None":
         return getattr(self.module, "INSTANCE_TYPE", None)
 
     @property
@@ -108,8 +119,10 @@ class ComponentManifest:
     def resources(self) -> list[FileResource]:
         """Return a list of all file resources defined in the package of this component.
 
-        This will return all cpp source files that are located in the same folder as the
-        loaded .py file (does not look through subdirectories)
+        By default only files directly in the package directory are returned. Manifests
+        constructed with ``recursive_sources=True`` also descend into non-subpackage
+        subdirectories (subdirectories without an ``__init__.py``), so core code can
+        live under ``esphome/core/<group>/`` without every component paying the cost.
         """
         ret: list[FileResource] = []
 
@@ -121,23 +134,30 @@ class ComponentManifest:
             set(filter_source_files_func()) if filter_source_files_func else set()
         )
 
-        # Process all resources
-        for resource in (
-            r.name
-            for r in importlib.resources.files(self.package).iterdir()
-            if r.is_file()
-        ):
-            if Path(resource).suffix not in SOURCE_FILE_EXTENSIONS:
-                continue
-            if not importlib.resources.files(self.package).joinpath(resource).is_file():
-                # Not a resource = this is a directory (yeah this is confusing)
-                continue
+        root = importlib.resources.files(self.package)
 
-            # Skip excluded files
-            if resource in excluded_files:
-                continue
+        for child in root.iterdir():
+            name = child.name
+            if child.is_file():
+                if Path(name).suffix not in SOURCE_FILE_EXTENSIONS:
+                    continue
+                if name in excluded_files:
+                    continue
+                ret.append(FileResource(self.package, name))
+            elif self.recursive_sources and child.is_dir() and name != "__pycache__":
+                # Skip Python subpackages — they load as their own components.
+                if child.joinpath("__init__.py").is_file():
+                    continue
+                for sub in child.iterdir():
+                    if not sub.is_file():
+                        continue
+                    if Path(sub.name).suffix not in SOURCE_FILE_EXTENSIONS:
+                        continue
+                    resource = f"{name}/{sub.name}"
+                    if resource in excluded_files:
+                        continue
+                    ret.append(FileResource(self.package, resource))
 
-            ret.append(FileResource(self.package, resource))
         return ret
 
 
@@ -202,6 +222,13 @@ def _lookup_module(domain: str, exception: bool) -> ComponentManifest | None:
     if domain in _COMPONENT_CACHE:
         return _COMPONENT_CACHE[domain]
 
+    if domain == "esphome":
+        import esphome.core.config
+
+        manif = ComponentManifest(esphome.core.config, recursive_sources=True)
+        _COMPONENT_CACHE[domain] = manif
+        return manif
+
     try:
         module = importlib.import_module(f"esphome.components.{domain}")
     except ImportError as e:
@@ -237,7 +264,6 @@ def get_platform(domain: str, platform: str) -> ComponentManifest | None:
 
 _COMPONENT_CACHE: dict[str, ComponentManifest] = {}
 CORE_COMPONENTS_PATH = (Path(__file__).parent / "components").resolve()
-_COMPONENT_CACHE["esphome"] = ComponentManifest(esphome.core.config)
 
 
 def _replace_component_manifest(domain: str, manifest: ComponentManifest) -> None:
