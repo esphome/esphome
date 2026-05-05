@@ -1,0 +1,40 @@
+esphome:
+  name: test-autorepeat-filter
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive every state transition
+logger:
+  level: DEBUG
+
+binary_sensor:
+  # The autorepeat filter is applied directly to the template sensor, so each
+  # write through `binary_sensor.template.publish` runs through the filter
+  # chain. With the source true the filter must oscillate after `delay`; once
+  # the source returns to false the filter must cancel both timers and emit a
+  # final false.
+  - platform: template
+    name: "Autorepeat Sensor"
+    id: autorepeat_sensor
+    filters:
+      - autorepeat:
+          - delay: 200ms
+            time_off: 100ms
+            time_on: 100ms
+
+button:
+  - platform: template
+    name: "Press"
+    id: press_button
+    on_press:
+      - binary_sensor.template.publish:
+          id: autorepeat_sensor
+          state: true
+
+  - platform: template
+    name: "Release"
+    id: release_button
+    on_press:
+      - binary_sensor.template.publish:
+          id: autorepeat_sensor
+          state: false
