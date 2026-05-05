@@ -79,7 +79,6 @@ esp_err_t AudioDecoder::start(AudioFileType audio_file_type) {
       this->flac_decoder_ = make_unique<micro_flac::FLACDecoder>();
       this->free_buffer_required_ =
           this->output_transfer_buffer_->capacity();  // Adjusted and reallocated after reading the header
-      this->decoder_buffers_internally_ = true;
       break;
 #endif
 #ifdef USE_AUDIO_MP3_SUPPORT
@@ -87,7 +86,6 @@ esp_err_t AudioDecoder::start(AudioFileType audio_file_type) {
       this->mp3_decoder_ = make_unique<micro_mp3::Mp3Decoder>();
       this->free_buffer_required_ =
           this->output_transfer_buffer_->capacity();  // Adjusted and reallocated after reading the header
-      this->decoder_buffers_internally_ = true;
       break;
 #endif
 #ifdef USE_AUDIO_OPUS_SUPPORT
@@ -95,16 +93,12 @@ esp_err_t AudioDecoder::start(AudioFileType audio_file_type) {
       this->opus_decoder_ = make_unique<micro_opus::OggOpusDecoder>();
       this->free_buffer_required_ =
           this->output_transfer_buffer_->capacity();  // Adjusted and reallocated after reading the header
-      this->decoder_buffers_internally_ = true;
       break;
 #endif
 #ifdef USE_AUDIO_WAV_SUPPORT
     case AudioFileType::WAV:
-      this->wav_decoder_ = make_unique<esp_audio_libs::wav_decoder::WAVDecoder>();
-      this->wav_decoder_->reset();
-
-      // Processing WAVs doesn't actually require a specific amount of buffer size, as it is already in PCM format.
-      // Thus, we don't reallocate to a minimum size.
+      this->wav_decoder_ = make_unique<micro_wav::WAVDecoder>();
+      // 1 KiB suffices to always make progress while avoiding excessive CPU spinning for decoding
       this->free_buffer_required_ = 1024;
       if (this->output_transfer_buffer_->capacity() < this->free_buffer_required_) {
         this->output_transfer_buffer_->reallocate(this->free_buffer_required_);
@@ -181,10 +175,8 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
 
     // Decode more audio
 
-    // Only shift data on the first loop iteration to avoid unnecessary, slow moves
-    // If the decoder buffers internally, then never shift
-    size_t bytes_read = this->input_buffer_->fill(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS),
-                                                  first_loop_iteration && !this->decoder_buffers_internally_);
+    // Never shift the input buffer; every decoder buffers internally and consumes only what it processed.
+    size_t bytes_read = this->input_buffer_->fill(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
 
     if (!first_loop_iteration && (this->input_buffer_->available() < bytes_processed)) {
       // Less data is available than what was processed in last iteration, so don't attempt to decode.
@@ -401,50 +393,38 @@ FileDecoderState AudioDecoder::decode_opus_() {
 
 #ifdef USE_AUDIO_WAV_SUPPORT
 FileDecoderState AudioDecoder::decode_wav_() {
-  if (!this->audio_stream_info_.has_value()) {
-    // Header hasn't been processed
+  // microWAV's samples_decoded counts individual channel samples; e.g., for
+  // 16-bit stereo, 4 input bytes results in 2 samples_decoded.
+  size_t bytes_consumed = 0;
+  size_t samples_decoded = 0;
 
-    esp_audio_libs::wav_decoder::WAVDecoderResult result =
-        this->wav_decoder_->decode_header(this->input_buffer_->data(), this->input_buffer_->available());
+  micro_wav::WAVDecoderResult result = this->wav_decoder_->decode(
+      this->input_buffer_->data(), this->input_buffer_->available(), this->output_transfer_buffer_->get_buffer_end(),
+      this->output_transfer_buffer_->free(), bytes_consumed, samples_decoded);
 
-    if (result == esp_audio_libs::wav_decoder::WAV_DECODER_SUCCESS_IN_DATA) {
-      this->input_buffer_->consume(this->wav_decoder_->bytes_processed());
+  this->input_buffer_->consume(bytes_consumed);
 
-      this->audio_stream_info_ = audio::AudioStreamInfo(
-          this->wav_decoder_->bits_per_sample(), this->wav_decoder_->num_channels(), this->wav_decoder_->sample_rate());
-
-      this->wav_bytes_left_ = this->wav_decoder_->chunk_bytes_left();
-      this->wav_has_known_end_ = (this->wav_bytes_left_ > 0);
-      return FileDecoderState::MORE_TO_PROCESS;
-    } else if (result == esp_audio_libs::wav_decoder::WAV_DECODER_WARNING_INCOMPLETE_DATA) {
-      // Available data didn't have the full header
-      return FileDecoderState::POTENTIALLY_FAILED;
-    } else {
-      return FileDecoderState::FAILED;
+  if (result == micro_wav::WAV_DECODER_SUCCESS) {
+    if (samples_decoded > 0 && this->audio_stream_info_.has_value()) {
+      this->output_transfer_buffer_->increase_buffer_length(
+          this->audio_stream_info_.value().samples_to_bytes(samples_decoded));
     }
+  } else if (result == micro_wav::WAV_DECODER_HEADER_READY) {
+    // After HEADER_READY, get_bits_per_sample() returns the output bit depth
+    // (16 for A-law/mu-law, 32 for IEEE float, original value for PCM).
+    this->audio_stream_info_ =
+        audio::AudioStreamInfo(this->wav_decoder_->get_bits_per_sample(), this->wav_decoder_->get_channels(),
+                               this->wav_decoder_->get_sample_rate());
+  } else if (result == micro_wav::WAV_DECODER_NEED_MORE_DATA) {
+    return FileDecoderState::MORE_TO_PROCESS;
+  } else if (result == micro_wav::WAV_DECODER_END_OF_STREAM) {
+    return FileDecoderState::END_OF_FILE;
   } else {
-    if (!this->wav_has_known_end_ || (this->wav_bytes_left_ > 0)) {
-      size_t bytes_to_copy = this->input_buffer_->available();
-
-      if (this->wav_has_known_end_) {
-        bytes_to_copy = std::min(bytes_to_copy, this->wav_bytes_left_);
-      }
-
-      bytes_to_copy = std::min(bytes_to_copy, this->output_transfer_buffer_->free());
-
-      if (bytes_to_copy > 0) {
-        std::memcpy(this->output_transfer_buffer_->get_buffer_end(), this->input_buffer_->data(), bytes_to_copy);
-        this->input_buffer_->consume(bytes_to_copy);
-        this->output_transfer_buffer_->increase_buffer_length(bytes_to_copy);
-        if (this->wav_has_known_end_) {
-          this->wav_bytes_left_ -= bytes_to_copy;
-        }
-      }
-      return FileDecoderState::IDLE;
-    }
+    ESP_LOGE(TAG, "WAV decoder failed: %d", static_cast<int>(result));
+    return FileDecoderState::FAILED;
   }
 
-  return FileDecoderState::END_OF_FILE;
+  return FileDecoderState::MORE_TO_PROCESS;
 }
 #endif
 
