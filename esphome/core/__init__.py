@@ -618,8 +618,10 @@ class EsphomeCore:
         # When True, skip network freshness checks for cached external files
         # (e.g. for `esphome logs`, where remote downloads aren't needed)
         self.skip_external_update: bool = False
-        # Toolchain used for building the configuration.
-        self.toolchain: Toolchain = Toolchain.PLATFORMIO
+        # Toolchain used for building the configuration. None until resolved
+        # by CLI (--toolchain) or by `esphome.toolchain:` in YAML during
+        # preload_core_config; defaults to PLATFORMIO if neither sets it.
+        self.toolchain: Toolchain | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -650,7 +652,7 @@ class EsphomeCore:
         self.address_cache = None
         self._config_hash = None
         self.skip_external_update = False
-        self.toolchain = Toolchain.PLATFORMIO
+        self.toolchain = None
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager

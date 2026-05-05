@@ -23,7 +23,6 @@ from esphome.const import (
     CONF_IGNORE_EFUSE_MAC_CRC,
     CONF_LOG_LEVEL,
     CONF_NAME,
-    CONF_NATIVE_IDF,
     CONF_OTA,
     CONF_PATH,
     CONF_PLATFORM_VERSION,
@@ -43,7 +42,6 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     ThreadModel,
-    Toolchain,
     __version__,
 )
 from esphome.core import CORE, HexInt, Library
@@ -866,12 +864,6 @@ def _check_esp_idf_versions(config):
 
 
 def _check_versions(config):
-    conf = config[CONF_FRAMEWORK]
-
-    # Set the native IDF key if the configuration requires it.
-    if conf[CONF_NATIVE_IDF]:
-        CORE.toolchain = Toolchain.ESP_IDF
-
     if CORE.using_toolchain_esp_idf:
         return _check_esp_idf_versions(config)
     return _check_pio_versions(config)
@@ -1304,7 +1296,6 @@ FRAMEWORK_ARDUINO = "arduino"
 FRAMEWORK_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_TYPE): cv.one_of(FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO),
-        cv.Optional(CONF_NATIVE_IDF, default=False): cv.boolean,
         cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
         cv.Optional(CONF_RELEASE): cv.string_strict,
         cv.Optional(CONF_SOURCE): cv.string_strict,

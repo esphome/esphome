@@ -152,7 +152,6 @@ class ArgsProtocol(Protocol):
     configuration: str
     name: str
     upload_speed: str | None
-    native_idf: bool
 
 
 def choose_prompt(options, purpose: str = None):
@@ -1836,10 +1835,13 @@ def parse_args(argv):
     options_parser.add_argument(
         "--toolchain",
         type=Toolchain,
-        default=Toolchain.PLATFORMIO,
+        default=None,
         choices=list(Toolchain),
         metavar="{" + ",".join(t.value for t in Toolchain) + "}",
-        help=f"Select toolchain for compiling (default: {Toolchain.PLATFORMIO.value}).",
+        help=(
+            "Select toolchain for compiling. Overrides 'esphome.toolchain' in YAML. "
+            f"Default: {Toolchain.PLATFORMIO.value}."
+        ),
     )
 
     parser = argparse.ArgumentParser(
@@ -2187,7 +2189,9 @@ def run_esphome(argv):
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
-    CORE.toolchain = args.toolchain
+    if args.toolchain is not None:
+        # CLI toolchain wins over esphome.toolchain in YAML.
+        CORE.toolchain = args.toolchain
 
     # For logs command, skip updating external components
     skip_external = args.command == "logs"

@@ -36,10 +36,12 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
     CONF_PROJECT,
+    CONF_TOOLCHAIN,
     CONF_TRIGGER_ID,
     CONF_VERSION,
     KEY_CORE,
     PlatformFramework,
+    Toolchain,
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import (
@@ -270,6 +272,10 @@ def validate_area_config(config: dict | str) -> dict[str, str | core.ID]:
     return cv.maybe_simple_value(AREA_SCHEMA, key=CONF_NAME)(config)
 
 
+def _validate_toolchain(value) -> Toolchain:
+    return Toolchain(cv.one_of(*(t.value for t in Toolchain), lower=True)(value))
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -342,6 +348,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.int_range(min=1, max=get_usable_cpu_count()),
             cv.Optional(CONF_AREAS, default=[]): cv.ensure_list(AREA_SCHEMA),
             cv.Optional(CONF_DEVICES, default=[]): cv.ensure_list(DEVICE_SCHEMA),
+            cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
         }
     ),
     validate_hostname,
@@ -358,6 +365,7 @@ PRELOAD_CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MIN_VERSION, default=ESPHOME_VERSION): cv.All(
             cv.version_number, cv.validate_esphome_version
         ),
+        cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
     },
     extra=cv.ALLOW_EXTRA,
 )
@@ -406,6 +414,10 @@ def preload_core_config(config, result) -> str:
     CORE.name = conf[CONF_NAME]
     CORE.friendly_name = conf.get(CONF_FRIENDLY_NAME)
     CORE.data[KEY_CORE] = {}
+
+    # Resolve toolchain: CLI (already set on CORE.toolchain) > YAML > default.
+    if CORE.toolchain is None:
+        CORE.toolchain = conf.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
 
     if CONF_BUILD_PATH not in conf:
         build_path = Path(get_str_env("ESPHOME_BUILD_PATH", "build"))
