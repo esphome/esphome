@@ -12,7 +12,8 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_OPENTHREAD
+from esphome.core import TimePeriodMilliseconds
 import esphome.final_validate as fv
 
 from .const import (
@@ -164,6 +165,14 @@ def _pm_final_validate(config):
         raise cv.Invalid(
             f"{CONF_POWER_DOWN_FLASH}: True not allowed when device has PSRAM"
         )
+    if (
+        config.get(CONF_ENABLE_LIGHT_SLEEP)
+        and (ot_conf := full_config.get(CONF_OPENTHREAD))
+        and (ot_conf.get("device_type") == "MTD")
+        and ((poll_period := ot_conf.get("poll_period")) is not None)
+        and (poll_period > TimePeriodMilliseconds(milliseconds=0))
+    ):
+        add_idf_sdkconfig_option("CONFIG_LWIP_ND6", False)
 
     if not (config.get(CONF_ENABLE_LIGHT_SLEEP)):
         if config.get(CONF_POWER_DOWN_PERIPHERALS):
