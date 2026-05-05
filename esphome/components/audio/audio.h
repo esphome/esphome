@@ -116,7 +116,9 @@ enum class AudioFileType : uint8_t {
 #ifdef USE_AUDIO_OPUS_SUPPORT
   OPUS,
 #endif
+#ifdef USE_AUDIO_WAV_SUPPORT
   WAV,
+#endif
 };
 
 struct AudioFile {

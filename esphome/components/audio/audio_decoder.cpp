@@ -98,6 +98,7 @@ esp_err_t AudioDecoder::start(AudioFileType audio_file_type) {
       this->decoder_buffers_internally_ = true;
       break;
 #endif
+#ifdef USE_AUDIO_WAV_SUPPORT
     case AudioFileType::WAV:
       this->wav_decoder_ = make_unique<esp_audio_libs::wav_decoder::WAVDecoder>();
       this->wav_decoder_->reset();
@@ -109,6 +110,7 @@ esp_err_t AudioDecoder::start(AudioFileType audio_file_type) {
         this->output_transfer_buffer_->reallocate(this->free_buffer_required_);
       }
       break;
+#endif
     case AudioFileType::NONE:
     default:
       return ESP_ERR_NOT_SUPPORTED;
@@ -226,9 +228,11 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
           state = this->decode_opus_();
           break;
 #endif
+#ifdef USE_AUDIO_WAV_SUPPORT
         case AudioFileType::WAV:
           state = this->decode_wav_();
           break;
+#endif
         case AudioFileType::NONE:
         default:
           state = FileDecoderState::IDLE;
@@ -395,6 +399,7 @@ FileDecoderState AudioDecoder::decode_opus_() {
 }
 #endif
 
+#ifdef USE_AUDIO_WAV_SUPPORT
 FileDecoderState AudioDecoder::decode_wav_() {
   if (!this->audio_stream_info_.has_value()) {
     // Header hasn't been processed
@@ -441,6 +446,7 @@ FileDecoderState AudioDecoder::decode_wav_() {
 
   return FileDecoderState::END_OF_FILE;
 }
+#endif
 
 }  // namespace audio
 }  // namespace esphome
