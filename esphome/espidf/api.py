@@ -112,6 +112,18 @@ def _get_cmake_tool_path(var_name: str) -> Path:
     return cmake_tools_cache[build_dir][var_name]
 
 
+def _get_idf_tool(name: str) -> str:
+    """Return the path to an executable from the ESP-IDF environment PATH or raise if not found."""
+    env = _get_idf_env()
+    executable = shutil.which(name, path=env.get("PATH", None))
+    if executable is None:
+        raise EsphomeError(
+            f"{name} executable not found in ESP-IDF environment. "
+            "Check that the IDF environment is correctly set up."
+        )
+    return executable
+
+
 def run_idf_py(
     *args, cwd: Path | None = None, capture_output: bool = False
 ) -> int | str:
@@ -121,12 +133,7 @@ def run_idf_py(
         raise EsphomeError("ESP-IDF not found")
 
     env = _get_idf_env()
-    python_executable = shutil.which("python", path=env.get("PATH", None))
-    if python_executable is None:
-        raise EsphomeError(
-            "Python executable not found in ESP-IDF environment. "
-            "Check that the IDF environment is correctly set up."
-        )
+    python_executable = _get_idf_tool("python")
     idf_py = idf_path / "tools" / "idf.py"
 
     cmd = [python_executable, str(idf_py)] + list(args)
@@ -306,12 +313,7 @@ def run_compile(config, verbose: bool) -> int:
         # Build just the memory.ld target - ninja needs the path relative to build dir
         memory_ld_target = os.path.relpath(str(memory_ld), str(build_dir))
         env = _get_idf_env()
-        ninja_executable = shutil.which("ninja", path=env.get("PATH", None))
-        if ninja_executable is None:
-            raise EsphomeError(
-                "ninja not found in ESP-IDF environment. "
-                "Check that the IDF environment is correctly set up."
-            )
+        ninja_executable = _get_idf_tool("ninja")
         result = subprocess.run(
             [ninja_executable, "-C", str(build_dir), memory_ld_target],
             env=env,
@@ -429,13 +431,7 @@ def create_factory_bin() -> bool:
     chip = flash_data.get("extra_esptool_args", {}).get("chip", "esp32")
 
     env = _get_idf_env()
-    python_executable = shutil.which("python", path=env.get("PATH", None))
-    if python_executable is None:
-        raise EsphomeError(
-            "Python executable not found in ESP-IDF environment. "
-            "Check that the IDF environment is correctly set up."
-        )
-
+    python_executable = _get_idf_tool("python")
     cmd = [
         python_executable,
         "-m",
