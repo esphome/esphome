@@ -789,12 +789,7 @@ jobs:
     needs:
       - common
       - determine-jobs
-    if: github.event_name == 'pull_request' #&& fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
-    #strategy:
-    #  fail-fast: false
-    #  max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
-    #  matrix:
-    #    components: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
+    if: github.event_name == 'pull_request'
     env:
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
       TEST_COMPONENTS: esp32,api,heatpumpir,bme280_i2c,bh1750,aht10,esp32_ble,esp32_ble_beacon,esp32_ble_client,esp32_ble_server,esp32_ble_tracker,ble_client,ble_presence,ble_rssi,ble_scanner
