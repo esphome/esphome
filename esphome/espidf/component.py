@@ -48,7 +48,7 @@ SRC_FILE_EXTENSIONS = [
 ]
 
 ESP32_PLATFORM = "espressif32"
-PIO_COMPONENTS = "pio_components"
+DOMAIN = "pio_components"
 
 #
 # Constants for workarounds
@@ -86,7 +86,7 @@ class URLSource(Source):
         self.url = url
 
     def download(self, dir_suffix: str, force: bool = False) -> Path:
-        base_dir = Path(CORE.data_dir) / PIO_COMPONENTS
+        base_dir = Path(CORE.data_dir) / DOMAIN
         h = hashlib.new("sha256")
         h.update(self.url.encode())
         path = base_dir / h.hexdigest()[:8] / dir_suffix
@@ -125,7 +125,7 @@ class GitSource(Source):
             url=self.url,
             ref=self.ref,
             refresh=git.NEVER_REFRESH if not force else None,
-            domain=PIO_COMPONENTS,
+            domain=DOMAIN,
             submodules=[],
             subpath=Path(dir_suffix),
         )
