@@ -15,9 +15,6 @@
 
 #include "esp_err.h"
 
-// esp-audio-libs
-#include <wav_decoder.h>
-
 // micro-flac
 #ifdef USE_AUDIO_FLAC_SUPPORT
 #include <micro_flac/flac_decoder.h>
@@ -31,6 +28,11 @@
 // micro-opus
 #ifdef USE_AUDIO_OPUS_SUPPORT
 #include <micro_opus/ogg_opus_decoder.h>
+#endif
+
+// esp-audio-libs
+#ifdef USE_AUDIO_WAV_SUPPORT
+#include <wav_decoder.h>
 #endif
 
 namespace esphome {
@@ -56,7 +58,7 @@ class AudioDecoder {
    * @brief Class that facilitates decoding an audio file.
    * The audio file is read from a source (ring buffer or const data pointer), decoded, and sent to an audio sink
    * (ring buffer, speaker component, or callback).
-   * Supports wav, flac, mp3, and ogg opus formats.
+   * Supports flac, mp3, ogg opus, and wav formats (each enabled independently at compile time).
    */
  public:
   /// @brief Allocates the output transfer buffer and stores the input buffer size for later use by add_source()
@@ -119,7 +121,6 @@ class AudioDecoder {
   void set_pause_output_state(bool pause_state) { this->pause_output_ = pause_state; }
 
  protected:
-  std::unique_ptr<esp_audio_libs::wav_decoder::WAVDecoder> wav_decoder_;
 #ifdef USE_AUDIO_FLAC_SUPPORT
   FileDecoderState decode_flac_();
   std::unique_ptr<micro_flac::FLACDecoder> flac_decoder_;
@@ -132,7 +133,10 @@ class AudioDecoder {
   FileDecoderState decode_opus_();
   std::unique_ptr<micro_opus::OggOpusDecoder> opus_decoder_;
 #endif
+#ifdef USE_AUDIO_WAV_SUPPORT
   FileDecoderState decode_wav_();
+  std::unique_ptr<esp_audio_libs::wav_decoder::WAVDecoder> wav_decoder_;
+#endif
 
   std::unique_ptr<AudioReadableBuffer> input_buffer_;
   std::unique_ptr<AudioSinkTransferBuffer> output_transfer_buffer_;
@@ -142,14 +146,18 @@ class AudioDecoder {
 
   size_t input_buffer_size_{0};
   size_t free_buffer_required_{0};
+#ifdef USE_AUDIO_WAV_SUPPORT
   size_t wav_bytes_left_{0};
+#endif
 
   uint32_t potentially_failed_count_{0};
   uint32_t accumulated_frames_written_{0};
   uint32_t playback_ms_{0};
 
   bool end_of_file_{false};
+#ifdef USE_AUDIO_WAV_SUPPORT
   bool wav_has_known_end_{false};
+#endif
 
   bool decoder_buffers_internally_{false};
 
