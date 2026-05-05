@@ -2190,7 +2190,7 @@ def run_esphome(argv):
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
     if args.toolchain is not None:
-        # CLI toolchain wins over esphome.toolchain in YAML.
+        # CLI toolchain wins over esp32.framework.toolchain in YAML.
         CORE.toolchain = args.toolchain
 
     # For logs command, skip updating external components
@@ -2202,6 +2202,12 @@ def run_esphome(argv):
     if config is None:
         return 2
     CORE.config = config
+
+    # Fallback for platforms whose validators didn't set the toolchain
+    # (only the esp32 component reads esp32.framework.toolchain). All
+    # other platforms only support PlatformIO today.
+    if CORE.toolchain is None:
+        CORE.toolchain = Toolchain.PLATFORMIO
 
     if args.command not in POST_CONFIG_ACTIONS:
         safe_print(f"Unknown command {args.command}")

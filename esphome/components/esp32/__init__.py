@@ -31,6 +31,7 @@ from esphome.const import (
     CONF_SAFE_MODE,
     CONF_SIZE,
     CONF_SOURCE,
+    CONF_TOOLCHAIN,
     CONF_TYPE,
     CONF_VARIANT,
     CONF_VERSION,
@@ -42,6 +43,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     ThreadModel,
+    Toolchain,
     __version__,
 )
 from esphome.core import CORE, HexInt, Library
@@ -863,7 +865,17 @@ def _check_esp_idf_versions(config):
     return config
 
 
+def _validate_toolchain(value) -> Toolchain:
+    return Toolchain(cv.one_of(*(t.value for t in Toolchain), lower=True)(value))
+
+
 def _check_versions(config):
+    # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
+    if CORE.toolchain is None:
+        CORE.toolchain = config[CONF_FRAMEWORK].get(
+            CONF_TOOLCHAIN, Toolchain.PLATFORMIO
+        )
+
     if CORE.using_toolchain_esp_idf:
         return _check_esp_idf_versions(config)
     return _check_pio_versions(config)
@@ -1296,6 +1308,7 @@ FRAMEWORK_ARDUINO = "arduino"
 FRAMEWORK_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_TYPE): cv.one_of(FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO),
+        cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
         cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
         cv.Optional(CONF_RELEASE): cv.string_strict,
         cv.Optional(CONF_SOURCE): cv.string_strict,
