@@ -116,7 +116,7 @@ class MitsubishiCN105 {
   void cancel_waiting_and_transition_to_(State state);
   bool should_request_room_temperature_() const;
   void apply_settings_();
-  void set_remote_temperature_(uint8_t temperature_half_deg);
+  void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
   template<typename T> void send_packet_(const T &packet) { this->send_packet_(packet.data(), packet.size()); }
   static bool should_transition(State from, State to);
   static const LogString *state_to_string(State state);

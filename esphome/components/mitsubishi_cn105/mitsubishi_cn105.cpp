@@ -344,6 +344,28 @@ bool MitsubishiCN105::parse_status_room_temperature_(const uint8_t *payload, siz
   return true;
 }
 
+void MitsubishiCN105::set_remote_temperature(float temperature) {
+  if (!std::isfinite(temperature)) {
+    ESP_LOGD(TAG, "Ignoring NaN remote temperature");
+    return;
+  }
+  const int temperature_half_deg = static_cast<int>(std::round(temperature * 2.0f));
+  if (temperature_half_deg < 16 || temperature_half_deg > 79) {
+    ESP_LOGD(TAG, "Ignoring out-of-range remote temperature: %.1f", temperature);
+    return;
+  }
+  this->set_remote_temperature_half_deg_(static_cast<uint8_t>(temperature_half_deg));
+}
+
+void MitsubishiCN105::clear_remote_temperature() { 
+  this->set_remote_temperature_half_deg_(REMOTE_TEMPERATURE_DISABLED); 
+}
+
+void MitsubishiCN105::set_remote_temperature_half_deg_(uint8_t temperature_half_deg) {
+  this->remote_temperature_half_deg_ = temperature_half_deg;
+  this->pending_updates_.insert(UpdateFlag::REMOTE_TEMPERATURE);
+}
+
 void MitsubishiCN105::set_power(bool power_on) {
   this->status_.power_on = power_on;
   this->pending_updates_.insert(UpdateFlag::POWER);
@@ -376,26 +398,6 @@ void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {
   }
   this->status_.fan_mode = fan_mode;
   this->pending_updates_.insert(UpdateFlag::FAN);
-}
-
-void MitsubishiCN105::set_remote_temperature(float temperature) {
-  if (!std::isfinite(temperature)) {
-    ESP_LOGD(TAG, "Ignoring NaN remote temperature");
-    return;
-  }
-  const int temperature_half_deg = static_cast<int>(std::round(temperature * 2.0f));
-  if (temperature_half_deg < 16 || temperature_half_deg > 79) {
-    ESP_LOGD(TAG, "Ignoring out-of-range remote temperature: %.1f", temperature);
-    return;
-  }
-  this->set_remote_temperature_(static_cast<uint8_t>(temperature_half_deg));
-}
-
-void MitsubishiCN105::clear_remote_temperature() { this->set_remote_temperature_(REMOTE_TEMPERATURE_DISABLED); }
-
-void MitsubishiCN105::set_remote_temperature_(uint8_t temperature_half_deg) {
-  this->remote_temperature_half_deg_ = temperature_half_deg;
-  this->pending_updates_.insert(UpdateFlag::REMOTE_TEMPERATURE);
 }
 
 void MitsubishiCN105::apply_settings_() {
@@ -480,7 +482,7 @@ bool MitsubishiCN105::FrameParser::read_and_parse(uart::UARTDevice &device, Call
   while (device.available() > 0 && watchdog-- > 0) {
     uint8_t &value = this->read_buffer_[this->read_pos_];
     if (!device.read_byte(&value)) {
-      ESP_LOGW(TAG, "UART read failed while data available");
+      ESP_LOGV(TAG, "UART read failed while data available");
       return false;
     }
 
