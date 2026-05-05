@@ -445,6 +445,10 @@ def _tar_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
     """
     Extract a TAR archive to the specified directory.
 
+    Implementation is inspired by Python 3.12's tarfile data filtering logic.
+    This can be replaced with the standard library implementation once
+    support for Python 3.11 is no longer required.
+
     Args:
         data: File-like object containing the TAR archive
         extract_dir: Directory to extract contents to
@@ -459,8 +463,10 @@ def _tar_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
         safe_members = []
 
         for member in tar_ref.getmembers():
+            name = member.name
+
             # 1. Strip leading slashes
-            name = member.name.lstrip("/\\")
+            name = name.lstrip("/" + os.sep)
 
             # 2. Reject absolute paths (incl. Windows drive)
             if os.path.isabs(name) or (
@@ -469,17 +475,67 @@ def _tar_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
                 continue
 
             # 3. Compute final path
-            target_path = os.path.abspath(os.path.join(abs_dest, name))
-
+            target_path = os.path.realpath(os.path.join(abs_dest, name))
             if os.path.commonpath([abs_dest, target_path]) != abs_dest:
                 continue
 
-            # 4. Sanitize permissions
-            if member.mode is not None:
-                member.mode &= ~(stat.S_ISUID | stat.S_ISGID | stat.S_ISVTX)
-                member.mode &= ~(stat.S_IWGRP | stat.S_IWOTH)
+            # 4. Validate links properly
+            if member.issym() or member.islnk():
+                linkname = member.linkname
 
-            # 5. Assign sanitized name back
+                # Reject absolute link targets
+                if os.path.isabs(linkname):
+                    continue
+
+                # Strip leading slashes
+                linkname = os.path.normpath(linkname)
+
+                if member.issym():
+                    link_target = os.path.join(
+                        abs_dest, os.path.dirname(name), linkname
+                    )
+                else:
+                    link_target = os.path.join(abs_dest, linkname)
+                link_target = os.path.realpath(link_target)
+
+                if os.path.commonpath([abs_dest, link_target]) != abs_dest:
+                    continue
+
+                # write back normalized linkname
+                member.linkname = linkname
+
+            # 5. Sanitize permissions
+            mode = member.mode
+            if mode is not None:
+                # Strip high bits & group/other write bits
+                mode &= (
+                    stat.S_IRWXU
+                    | stat.S_IRGRP
+                    | stat.S_IXGRP
+                    | stat.S_IROTH
+                    | stat.S_IXOTH
+                )
+                if member.isfile() or member.islnk():
+                    # remove exec bits unless explicitly user-executable
+                    if not (mode & stat.S_IXUSR):
+                        mode &= ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                    mode |= stat.S_IRUSR | stat.S_IWUSR
+                elif member.isdir() or member.issym():
+                    # Ignore mode for directories & symlinks
+                    mode = None
+                else:
+                    # Block special files
+                    continue
+
+                member.mode = mode
+
+            # 6. Strip ownership
+            member.uid = None
+            member.gid = None
+            member.uname = None
+            member.gname = None
+
+            # 7. Assign sanitized name back
             member.name = name
 
             safe_members.append(member)

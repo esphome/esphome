@@ -43,10 +43,7 @@ def _get_idf_path(version: str | None = None) -> Path | None:
 
 
 def _get_idf_env(version: str | None = None) -> dict[str, str]:
-    """Get environment variables needed for ESP-IDF build.
-
-    Requires the user to have sourced export.sh before running esphome.
-    """
+    """Get environment variables needed for ESP-IDF build."""
     version = version or _get_core_framework_version()
     if version not in _idf_env_cache:
         _idf_env_cache[version] = os.environ.copy()
@@ -110,6 +107,11 @@ def run_idf_py(
 
     env = _get_idf_env()
     python_executable = shutil.which("python", path=env.get("PATH", None))
+    if python_executable is None:
+        raise EsphomeError(
+            "Python executable not found in ESP-IDF environment. "
+            "Check that the IDF environment is correctly set up."
+        )
     idf_py = idf_path / "tools" / "idf.py"
 
     cmd = [python_executable, str(idf_py)] + list(args)
@@ -406,6 +408,11 @@ def create_factory_bin() -> bool:
 
     env = _get_idf_env()
     python_executable = shutil.which("python", path=env.get("PATH", None))
+    if python_executable is None:
+        raise EsphomeError(
+            "Python executable not found in ESP-IDF environment. "
+            "Check that the IDF environment is correctly set up."
+        )
 
     cmd = [
         python_executable,

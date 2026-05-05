@@ -650,6 +650,7 @@ class EsphomeCore:
         self.address_cache = None
         self._config_hash = None
         self.skip_external_update = False
+        self.toolchain = Toolchain.PLATFORMIO
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
