@@ -425,7 +425,8 @@ void MitsubishiCN105::apply_settings_() {
       if (this->use_temperature_encoding_b_) {
         payload[14] = static_cast<uint8_t>(std::round(this->status_.target_temperature * 2.0f) + 128);
       } else {
-        payload[5] = static_cast<uint8_t>(TARGET_TEMPERATURE_ENC_A_OFFSET - std::round(this->status_.target_temperature));
+        payload[5] =
+            static_cast<uint8_t>(TARGET_TEMPERATURE_ENC_A_OFFSET - std::round(this->status_.target_temperature));
       }
     }
 
