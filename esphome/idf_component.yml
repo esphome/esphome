@@ -12,7 +12,7 @@ dependencies:
   esphome/micro-mp3:
     version: 0.2.0
   esphome/micro-opus:
-    version: 0.4.0
+    version: 0.4.1
   espressif/esp-dsp:
     version: "1.7.1"
   espressif/esp-tflite-micro:
