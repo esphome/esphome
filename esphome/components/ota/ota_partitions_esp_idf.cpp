@@ -11,6 +11,7 @@
 #include <esp_ota_ops.h>
 #include <nvs_flash.h>
 
+#include <cinttypes>
 #include <cstring>
 
 namespace esphome::ota {
@@ -136,9 +137,9 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
     // a different .bin. Log enough info that they can pick the right method without guessing.
     ESP_LOGE(TAG,
              "The new partition table must contain a compatible app partition with:\n"
-             "  size: at least %u bytes (0x%X)\n"
+             "  size: at least %" PRIu32 " bytes (0x%" PRIX32 ")\n"
              "  address: one of",
-             running_app_size, running_app_size);
+             (uint32_t) running_app_size, (uint32_t) running_app_size);
     esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
     while (it != NULL) {
       const esp_partition_t *partition = esp_partition_get(it);
@@ -165,8 +166,10 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
   }
   if (otadata_overlap) {
     // Unlikely, the otadata partition is before the start of the first app partition in most cases
-    ESP_LOGE(TAG, "New otadata partition overlaps with the running app which has address: 0x%X, size: %u bytes",
-             running_app_offset, running_app_size);
+    ESP_LOGE(TAG,
+             "New otadata partition overlaps with the running app at address: 0x%" PRIX32 ", running app size: %" PRIu32
+             " bytes",
+             running_app_offset, (uint32_t) running_app_size);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
@@ -222,7 +225,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     // which leaves esp_ota_get_running_partition() returning nullptr.
     const esp_partition_t *running_app_part = find_app_partition_at(running_app_offset, running_app_size);
     if (running_app_part == nullptr) {
-      ESP_LOGE(TAG, "Cannot resolve running app partition at address 0x%X", running_app_offset);
+      ESP_LOGE(TAG, "Cannot resolve running app partition at address 0x%" PRIX32, running_app_offset);
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
     }
     ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,
