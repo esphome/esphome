@@ -345,16 +345,15 @@ bool MitsubishiCN105::parse_status_room_temperature_(const uint8_t *payload, siz
 }
 
 void MitsubishiCN105::set_remote_temperature(float temperature) {
-  if (!std::isfinite(temperature)) {
+  if (std::isnan(temperature)) {
     ESP_LOGD(TAG, "Ignoring NaN remote temperature");
     return;
   }
-  const int temperature_half_deg = static_cast<int>(std::round(temperature * 2.0f));
-  if (temperature_half_deg < 16 || temperature_half_deg > 79) {
+  if (temperature < 8.0f || temperature > 39.5f) {
     ESP_LOGD(TAG, "Ignoring out-of-range remote temperature: %.1f", temperature);
     return;
   }
-  this->set_remote_temperature_half_deg_(static_cast<uint8_t>(temperature_half_deg));
+  this->set_remote_temperature_half_deg_(static_cast<uint8_t>(std::lround(temperature * 2.0f)));
 }
 
 void MitsubishiCN105::clear_remote_temperature() {
@@ -403,19 +402,8 @@ void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {
 void MitsubishiCN105::apply_settings_() {
   std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload{};
 
-  // If any setting is pending, set it before remote temperature
-  if (this->pending_updates_.get_mask() == UpdateFlagMask{UpdateFlag::REMOTE_TEMPERATURE}.get_mask()) {
-    payload[0] = 0x07;
-    if (this->remote_temperature_half_deg_ == REMOTE_TEMPERATURE_DISABLED) {
-      payload[3] = 0x80;
-    } else {
-      payload[1] = 0x01;
-      payload[2] = static_cast<uint8_t>(this->remote_temperature_half_deg_ - 16);
-      payload[3] = static_cast<uint8_t>(this->remote_temperature_half_deg_ + 128);
-    }
-    this->pending_updates_.erase(UpdateFlag::REMOTE_TEMPERATURE);
-
-  } else {
+  // Apply all other pending settings first; handle REMOTE_TEMPERATURE last
+  if (this->pending_updates_.get_mask() != UpdateFlagMask{UpdateFlag::REMOTE_TEMPERATURE}.get_mask()) {
     payload[0] = 0x01;
     if (this->pending_updates_.count(UpdateFlag::POWER)) {
       payload[1] |= 0x01;
@@ -445,6 +433,16 @@ void MitsubishiCN105::apply_settings_() {
     this->pending_updates_ = this->pending_updates_.count(UpdateFlag::REMOTE_TEMPERATURE)
                                  ? UpdateFlagMask{UpdateFlag::REMOTE_TEMPERATURE}
                                  : UpdateFlagMask{};
+  } else {
+    payload[0] = 0x07;
+    if (this->remote_temperature_half_deg_ == REMOTE_TEMPERATURE_DISABLED) {
+      payload[3] = 0x80;
+    } else {
+      payload[1] = 0x01;
+      payload[2] = static_cast<uint8_t>(this->remote_temperature_half_deg_ - 16);
+      payload[3] = static_cast<uint8_t>(this->remote_temperature_half_deg_ + 128);
+    }
+    this->pending_updates_.erase(UpdateFlag::REMOTE_TEMPERATURE);
   }
 
   this->send_packet_(make_packet(PACKET_TYPE_WRITE_SETTINGS_REQUEST, payload));
