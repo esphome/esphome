@@ -91,6 +91,51 @@ def test_cpp_string_escape(string, expected):
 
 
 @pytest.mark.parametrize(
+    "value, expected",
+    (
+        # Basic underscore→dash conversion.
+        ("Living Room Sensor", "living-room-sensor"),
+        # Already-slugified input passes through with dash output.
+        ("kitchen_light", "kitchen-light"),
+        # Accents are stripped (matches the underlying ``slugify``).
+        ("Café Caché", "cafe-cache"),
+        # Mixed casing + multiple separators collapse correctly.
+        ("Foo  Bar__Baz", "foo-bar-baz"),
+        # Empty input yields empty output.
+        ("", ""),
+        # Numbers survive intact.
+        ("Sensor 42", "sensor-42"),
+    ),
+)
+def test_friendly_name_slugify(value, expected):
+    """Friendly-name → URL-safe dash-slug.
+
+    Stable mapping is part of the cross-tool contract
+    (legacy dashboard + device-builder both depend on it for
+    filename → device-name routing). Lock the cases here so a
+    refactor can't accidentally change a slug shape and break
+    on-disk filenames in already-deployed installs.
+    """
+    assert helpers.friendly_name_slugify(value) == expected
+
+
+def test_friendly_name_slugify_back_compat_shim():
+    """``esphome.dashboard.util.text`` keeps re-exporting for back-compat.
+
+    The function moved to ``esphome.helpers`` so the new
+    device-builder dashboard backend can import it without depending
+    on the legacy dashboard package, but downstream code that still
+    imports from the old path keeps working until the dashboard
+    module is removed.
+    """
+    from esphome.dashboard.util.text import (
+        friendly_name_slugify as legacy_friendly_name_slugify,
+    )
+
+    assert legacy_friendly_name_slugify is helpers.friendly_name_slugify
+
+
+@pytest.mark.parametrize(
     "host",
     (
         "127.0.0",

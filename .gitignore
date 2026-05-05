@@ -146,5 +146,6 @@ sdkconfig.*
 
 /components
 /managed_components
+/dependencies.lock
 
 api-docs/

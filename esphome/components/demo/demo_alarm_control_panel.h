@@ -29,7 +29,7 @@ class DemoAlarmControlPanel : public AlarmControlPanel, public Component {
  protected:
   void control(const AlarmControlPanelCall &call) override {
     auto state = call.get_state().value_or(ACP_STATE_DISARMED);
-    auto code = call.get_code();
+    const auto &code = call.get_code();
     switch (state) {
       case ACP_STATE_ARMED_AWAY:
         if (this->get_requires_code_to_arm()) {

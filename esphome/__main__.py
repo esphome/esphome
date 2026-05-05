@@ -21,7 +21,7 @@ import argcomplete
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
-from esphome import const, writer, yaml_util
+from esphome import const
 import esphome.codegen as cg
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
@@ -63,6 +63,7 @@ from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
 from esphome.util import (
     PICOTOOL_PACKAGE,
+    FlashImage,
     detect_rp2040_bootsel,
     get_picotool_path,
     get_serial_ports,
@@ -72,7 +73,12 @@ from esphome.util import (
     run_external_process,
     safe_print,
 )
-from esphome.zeroconf import discover_mdns_devices
+
+# Keep expensive imports (zeroconf, writer, yaml_util, etc.) out of this
+# module's top level. Every `esphome` invocation — including fast paths
+# like `esphome version` — pays the cost of what's imported here before
+# any command runs. Import inside the function that needs it instead.
+# `script/check_import_time.py` enforces a budget in CI.
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -241,6 +247,8 @@ def _discover_mac_suffix_devices() -> list[str] | None:
     """
     if not (has_name_add_mac_suffix() and has_mdns() and has_non_ip_address()):
         return None
+    from esphome.zeroconf import discover_mdns_devices
+
     _LOGGER.info("Discovering devices...")
     if not (discovered := discover_mdns_devices(CORE.name)):
         _LOGGER.warning(
@@ -579,8 +587,6 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     from aioesphomeapi import LogParser
     import serial
 
-    from esphome import platformio_api
-
     if CONF_LOGGER not in config:
         _LOGGER.info("Logger is not enabled. Not starting UART logs.")
         return 1
@@ -595,8 +601,11 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         process_stacktrace = getattr(module, "process_stacktrace")
-    except AttributeError:
-        pass
+    except (AttributeError, ImportError):
+        _LOGGER.info(
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
+            CORE.target_platform,
+        )
 
     backtrace_state = False
     ser = serial.Serial()
@@ -639,13 +648,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                             )
                             safe_print(parser.parse_line(line, time_str))
 
-                            if process_stacktrace:
+                            if process_stacktrace is not None:
                                 backtrace_state = process_stacktrace(
                                     config, line, backtrace_state
-                                )
-                            else:
-                                backtrace_state = platformio_api.process_stacktrace(
-                                    config, line, backtrace_state=backtrace_state
                                 )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
@@ -660,7 +665,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     return 0
 
 
-def wrap_to_code(name, comp):
+def _wrap_to_code(name, comp, yaml_util):
     coro = coroutine(comp.to_code)
 
     @functools.wraps(comp.to_code)
@@ -680,6 +685,8 @@ def wrap_to_code(name, comp):
 
 
 def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
+    from esphome import writer
+
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
@@ -691,17 +698,21 @@ def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
+    from esphome import yaml_util
+
     _LOGGER.info("Generating C++ source...")
 
     for name, component, conf in iter_component_configs(CORE.config):
         if component.to_code is not None:
-            coro = wrap_to_code(name, component)
+            coro = _wrap_to_code(name, component, yaml_util)
             CORE.add_job(coro, conf)
 
     CORE.flush_tasks()
 
 
 def write_cpp_file(native_idf: bool = False) -> int:
+    from esphome import writer
+
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
 
@@ -830,22 +841,20 @@ def _make_crystal_freq_callback(
 def upload_using_esptool(
     config: ConfigType, port: str, file: str, speed: int
 ) -> str | int:
-    from esphome import platformio_api
-
     first_baudrate = speed or config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", os.getenv("ESPHOME_UPLOAD_SPEED", "460800")
     )
 
     if file is not None:
-        flash_images = [platformio_api.FlashImage(path=file, offset="0x0")]
+        flash_images = [FlashImage(path=file, offset="0x0")]
     else:
+        from esphome import platformio_api
+
         idedata = platformio_api.get_idedata(config)
 
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
         flash_images = [
-            platformio_api.FlashImage(
-                path=idedata.firmware_bin_path, offset=firmware_offset
-            ),
+            FlashImage(path=idedata.firmware_bin_path, offset=firmware_offset),
         ]
         for image in idedata.extra_flash_images:
             if not image.path.is_file():
@@ -1078,6 +1087,15 @@ def upload_program(
 
     port_type = get_port_type(host)
 
+    # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
+    # _resolve_network_devices(). Only SERIAL and BOOTSEL are non-OTA upload paths.
+    if port_type in (PortType.SERIAL, PortType.BOOTSEL) and getattr(
+        args, "partition_table", False
+    ):
+        raise EsphomeError(
+            "The option --partition-table can only be used for Over The Air updates."
+        )
+
     if port_type == PortType.BOOTSEL:
         exit_code = upload_using_picotool(config)
         # Return None for device - BOOTSEL can't be used for logging,
@@ -1112,15 +1130,84 @@ def upload_program(
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD)
-    if getattr(args, "file", None) is not None:
-        binary = Path(args.file)
-    else:
-        binary = CORE.firmware_bin
 
     # Resolve MQTT magic strings to actual IP addresses
     network_devices = _resolve_network_devices(devices, config, args)
 
-    return espota2.run_ota(network_devices, remote_port, password, binary)
+    binary = CORE.firmware_bin
+    ota_type = espota2.OTA_TYPE_UPDATE_APP
+    if getattr(args, "partition_table", False):
+        # Fail fast if the resolved ESPHome OTA config does not enable allow_partition_access.
+        # The device-side handshake also rejects this with "Device only supports app updates",
+        # but checking here surfaces the misconfiguration before opening a network connection.
+        if not ota_conf.get("allow_partition_access"):
+            raise EsphomeError(
+                "The option --partition-table requires 'allow_partition_access: true' on the "
+                "esphome OTA platform in the device's YAML configuration. Add it, recompile, "
+                "flash a build with the option enabled, and then retry --partition-table."
+            )
+        binary = CORE.partition_table_bin
+        ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
+    if getattr(args, "file", None) is not None:
+        binary = Path(args.file)
+
+    if ota_type == espota2.OTA_TYPE_UPDATE_PARTITION_TABLE:
+        _validate_partition_table_binary(binary)
+
+    return espota2.run_ota(network_devices, remote_port, password, binary, ota_type)
+
+
+# Layout of esp_partition_info_t on flash. Each entry is 32 bytes, leading with a
+# 16-bit little-endian magic. ESP-IDF defines ESP_PARTITION_MAGIC = 0x50AA (stored as
+# bytes 0xAA, 0x50) for partition entries and ESP_PARTITION_MAGIC_MD5 = 0xEBEB for the
+# trailing checksum entry. Padding past the last entry is 0xFF. The full table is
+# exactly ESP_PARTITION_TABLE_MAX_LEN bytes.
+_PARTITION_TABLE_MAX_LEN = 0xC00
+_ESP_PARTITION_MAGIC = 0x50AA
+_ESP_PARTITION_MAGIC_MD5 = 0xEBEB
+
+
+def _validate_partition_table_binary(binary: Path) -> None:
+    """Validate that ``binary`` looks like an ESP32 partition table image.
+
+    Catches common mistakes (wrong file, truncated build output, swapped --file path)
+    before opening a network connection so the failure mode is a clear local error
+    instead of a post-handshake device rejection.
+    """
+    try:
+        data = binary.read_bytes()
+    except OSError as err:
+        raise EsphomeError(
+            f"Cannot read partition table file '{binary}': {err}"
+        ) from err
+
+    if len(data) != _PARTITION_TABLE_MAX_LEN:
+        raise EsphomeError(
+            f"Partition table file '{binary}' has wrong size: expected "
+            f"{_PARTITION_TABLE_MAX_LEN} bytes, got {len(data)}. "
+            "Pass the partition table image (e.g. partitions.bin / partition-table.bin), "
+            "not the firmware image."
+        )
+
+    first_magic = data[0] | (data[1] << 8)
+    if first_magic != _ESP_PARTITION_MAGIC:
+        raise EsphomeError(
+            f"Partition table file '{binary}' does not start with the expected "
+            f"partition magic 0x{_ESP_PARTITION_MAGIC:04X} (got 0x{first_magic:04X}). "
+            "This file does not look like an ESP32 partition table."
+        )
+
+    # The MD5 checksum entry is required: without it the device-side
+    # esp_partition_table_verify will accept the table but the bootloader will
+    # refuse to boot from it. Scan the 32-byte entries for the MD5 magic.
+    if not any(
+        (data[off] | (data[off + 1] << 8)) == _ESP_PARTITION_MAGIC_MD5
+        for off in range(0, _PARTITION_TABLE_MAX_LEN, 32)
+    ):
+        raise EsphomeError(
+            f"Partition table file '{binary}' is missing the MD5 checksum entry. "
+            "Regenerate the partition table with gen_esp32part.py or rebuild the project."
+        )
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
@@ -1180,6 +1267,8 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 
 
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome import yaml_util
+
     if not CORE.verbose:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
@@ -1321,6 +1410,8 @@ def command_clean_mqtt(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_clean_all(args: ArgsProtocol) -> int | None:
+    from esphome import writer
+
     try:
         writer.clean_all(args.configuration)
     except OSError as err:
@@ -1336,6 +1427,8 @@ def command_version(args: ArgsProtocol) -> int | None:
 
 
 def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome import writer
+
     try:
         writer.clean_build()
     except OSError as err:
@@ -1538,6 +1631,8 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
 
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome import yaml_util
+
     new_name = args.name
     for c in new_name:
         if c not in ALLOWED_NAME_CHARS:
@@ -1781,6 +1876,11 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--file",
         help="Manually specify the binary file to upload.",
+    )
+    parser_upload.add_argument(
+        "--partition-table",
+        help="Upload as partition table (OTA).",
+        action="store_true",
     )
 
     parser_logs = subparsers.add_parser(

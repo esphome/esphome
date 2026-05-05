@@ -17,8 +17,21 @@
 #define ESPHOME_DEBUG_SCHEDULER
 #define ESPHOME_DEBUG_API
 
-// Default threading model for static analysis (ESP32 is multi-threaded with atomics)
+// Threading model for static analysis. Match what the real codegen picks per
+// platform (see esphome/components/<platform>/__init__.py ThreadModel.*):
+//   USE_ESP8266 / USE_RP2040 / USE_NRF52 → SINGLE
+//   USE_BK72XX (ARMv5TE, no LDREX/STREX) → MULTI_NO_ATOMICS
+//   everything else (ESP32, host, RTL87XX, LN882X) → MULTI_ATOMICS
+// Without this the clang-tidy envs end up with USE_<single-threaded platform>
+// + MULTI_ATOMICS simultaneously, a combination that can never occur in a
+// real build.
+#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_NRF52)
+#define ESPHOME_THREAD_SINGLE
+#elif defined(USE_BK72XX)
+#define ESPHOME_THREAD_MULTI_NO_ATOMICS
+#else
 #define ESPHOME_THREAD_MULTI_ATOMICS
+#endif
 
 // logger
 #define ESPHOME_LOG_LEVEL ESPHOME_LOG_LEVEL_VERY_VERBOSE
@@ -83,6 +96,7 @@
 #define USE_LVGL_CHECKBOX
 #define USE_LVGL_DROPDOWN
 #define USE_LVGL_FONT
+#define USE_LVGL_GRADIENT
 #define USE_LVGL_IMAGE
 #define USE_LVGL_IMAGEBUTTON
 #define USE_LVGL_KEY_LISTENER
@@ -132,10 +146,12 @@
 #define USE_NEXTION_WAVEFORM
 #define USE_NUMBER
 #define USE_OUTPUT
+#define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
 #define USE_PREFERENCES_SYNC_EVERY_LOOP
 #define USE_QR_CODE
 #define USE_SAFE_MODE_CALLBACK
+#define ESPHOME_SAFE_MODE_CALLBACK_COUNT 1
 #define USE_SELECT
 #define USE_SENSOR
 #define USE_SENSOR_FILTER
@@ -164,6 +180,7 @@
 #define USE_AUDIO_FLAC_SUPPORT
 #define USE_AUDIO_MP3_SUPPORT
 #define USE_AUDIO_OPUS_SUPPORT
+#define USE_AUDIO_WAV_SUPPORT
 #define USE_API
 #define USE_API_CLIENT_CONNECTED_TRIGGER
 #define USE_API_CLIENT_DISCONNECTED_TRIGGER
@@ -185,6 +202,7 @@
 #define USE_MQTT
 #define USE_MQTT_COVER_JSON
 #define USE_NETWORK
+#define USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
 #define USE_RUNTIME_IMAGE_BMP
 #define USE_RUNTIME_IMAGE_PNG
 #define USE_RUNTIME_IMAGE_JPEG
@@ -280,6 +298,7 @@
 #define USE_CAPTIVE_PORTAL_GZIP
 #define USE_WIFI_11KV_SUPPORT
 #define USE_WIFI_FAST_CONNECT
+#define USE_WIFI_PHY_MODE
 #define USE_WIFI_IP_STATE_LISTENERS
 #define USE_WIFI_SCAN_RESULTS_LISTENERS
 #define USE_WIFI_CONNECT_STATE_LISTENERS

@@ -108,6 +108,10 @@ esphome:
           relative_brightness: 5%
           brightness_limits:
             max_brightness: 90%
+      - light.dim_relative:
+          id: test_monochromatic_light
+          relative_brightness: -5%
+          transition_length: 250ms
       - light.turn_on:
           id: test_addressable_transition
           brightness: 50%
@@ -122,6 +126,21 @@ esphome:
           green: 100%
           blue: 0%
           transition_length: 1s
+
+# Exercise light actions inside a trigger with non-empty Ts (number on_value
+# passes float).
+number:
+  - platform: template
+    id: test_number_brightness
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    on_value:
+      then:
+        - light.turn_on:
+            id: test_monochromatic_light
+            brightness: !lambda "return x / 100.0;"
 
 light:
   - platform: binary
