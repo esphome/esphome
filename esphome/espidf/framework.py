@@ -286,7 +286,7 @@ def _get_idf_version(
 
     cmd = [
         _get_pythonexe_path(),
-        str(_SCRIPTS_DIR / "get_idf_version.py.script"),
+        str(_SCRIPTS_DIR / "get_idf_version.py"),
         str(idf_framework_root),
     ]
 
@@ -326,7 +326,7 @@ def _get_idf_tool_paths(
 
     cmd = [
         _get_pythonexe_path(),
-        str(_SCRIPTS_DIR / "get_idf_tool_paths.py.script"),
+        str(_SCRIPTS_DIR / "get_idf_tool_paths.py"),
         str(idf_framework_root),
     ]
 

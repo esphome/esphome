@@ -6,6 +6,8 @@ status 1 and prints ``Missing ESP-IDF tools: ...`` on stderr if any tool is
 not installed.
 """
 
+# pylint: disable=import-error  # idf_tools is on PYTHONPATH at runtime only
+
 import json
 import os
 import sys
