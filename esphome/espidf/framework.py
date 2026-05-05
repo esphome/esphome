@@ -24,6 +24,8 @@ PathType = str | os.PathLike
 
 _LOGGER = logging.getLogger(__name__)
 
+_SCRIPTS_DIR = Path(__file__).parent
+
 
 def _str_to_lst_of_str(a: str) -> list[str]:
     """
@@ -311,12 +313,11 @@ def _get_idf_version(
         RuntimeError: If ESP-IDF version cannot be determined
     """
 
-    script = f"""
-from idf_tools import get_idf_version, g
-g.idf_path = r"{str(idf_framework_root)}"
-print(get_idf_version())
-"""
-    cmd = [_get_pythonexe_path(), "-c", script]
+    cmd = [
+        _get_pythonexe_path(),
+        str(_SCRIPTS_DIR / "get_idf_version.py.script"),
+        str(idf_framework_root),
+    ]
 
     success, stdout, stderr = _exec(
         cmd,
@@ -352,39 +353,11 @@ def _get_idf_tool_paths(
         RuntimeError: If ESP-IDF tool paths cannot be determined
     """
 
-    script = f"""
-import json
-import os
-import sys
-from types import SimpleNamespace
-from idf_tools import load_tools_info, filter_tools_info, TOOLS_FILE, IDFEnv, IDFTool, g, process_tool
-g.idf_path = r"{str(idf_framework_root)}"
-g.idf_tools_path = os.environ.get('IDF_TOOLS_PATH')
-g.tools_json = os.path.join(g.idf_path, TOOLS_FILE)
-tools_info = load_tools_info()
-tools_info = filter_tools_info(IDFEnv.get_idf_env(), tools_info)
-missing_tools = []
-export_vars = {{}}
-args = SimpleNamespace(prefer_system=False)
-paths_to_export = []
-
-for name, tool in tools_info.items():
-    if tool.get_install_type() == IDFTool.INSTALL_NEVER:
-        continue
-    tool_export_paths, tool_export_vars, tool_found = process_tool(
-        tool, name, args, "install_cmd", "prefer_system_hint"
-    )
-    if not tool_found:
-        missing_tools.append(name)
-    paths_to_export += tool_export_paths
-    export_vars = {{**export_vars, **tool_export_vars}}
-
-if missing_tools:
-    print("Missing ESP-IDF tools: " + ", ".join(missing_tools), file=sys.stderr)
-    raise SystemExit(1)
-print(json.dumps(dict(paths_to_export=paths_to_export, export_vars=export_vars)))
-"""
-    cmd = [_get_pythonexe_path(), "-c", script]
+    cmd = [
+        _get_pythonexe_path(),
+        str(_SCRIPTS_DIR / "get_idf_tool_paths.py.script"),
+        str(idf_framework_root),
+    ]
 
     success, stdout, stderr = _exec(
         cmd,
