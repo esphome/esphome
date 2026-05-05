@@ -25,6 +25,7 @@ static const uint16_t SEN5X_CMD_STOP_MEASUREMENTS = 0x3f86;
 static const uint16_t SEN5X_CMD_TEMPERATURE_COMPENSATION = 0x60B2;
 static const uint16_t SEN5X_CMD_VOC_ALGORITHM_STATE = 0x6181;
 static const uint16_t SEN5X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
+static const uint16_t SEN5X_CMD_RESTART = 0xD304;
 
 static const int8_t SEN5X_INDEX_SCALE_FACTOR = 10;                            // used for VOC and NOx index values
 static const int8_t SEN5X_MIN_INDEX_VALUE = 1 * SEN5X_INDEX_SCALE_FACTOR;     // must be adjusted by the scale factor
@@ -412,6 +413,17 @@ bool SEN5XComponent::write_temperature_compensation_(const TemperatureCompensati
   return true;
 }
 
+bool SEN5XComponent::start_reset() {
+  if (!write_command(SEN5X_CMD_RESTART)) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "error restart sensor", this->last_error_);
+    return false;
+  } else {
+    ESP_LOGD(TAG, "restart sensor started");
+  }
+  return true;
+}
+
 bool SEN5XComponent::start_fan_cleaning() {
   if (!write_command(SEN5X_CMD_START_CLEANING_FAN)) {
     this->status_set_warning();
@@ -419,6 +431,28 @@ bool SEN5XComponent::start_fan_cleaning() {
     return false;
   } else {
     ESP_LOGD(TAG, "Fan auto clean started");
+  }
+  return true;
+}
+
+bool SEN5XComponent::start_measurements_rht_only() {
+  if (!write_command(SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY)) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "write error start mesurement mode rht only (%d)", this->last_error_);
+    return false;
+  } else {
+    ESP_LOGD(TAG, "Started Measurement Mode RHT Only");
+  }
+  return true;
+}
+
+bool SEN5XComponent::start_measurements() {
+  if (!write_command(SEN5X_CMD_START_MEASUREMENTS)) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "write error start mesurement mode normal (%d)", this->last_error_);
+    return false;
+  } else {
+    ESP_LOGD(TAG, "Started Measurement Mode Normal");
   }
   return true;
 }

@@ -57,6 +57,9 @@ CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
 
 # Actions
 StartFanAction = sen5x_ns.class_("StartFanAction", automation.Action)
+StartReset = sen5x_ns.class_("StartReset", automation.Action)
+StartMeasurements = sen5x_ns.class_("StartMeasurements", automation.Action)
+StartMeasurementsRHTOnly = sen5x_ns.class_("StartMeasurementsRHTOnly", automation.Action)
 
 ACCELERATION_MODES = {
     "low": RhtAccelerationMode.LOW_ACCELERATION,
@@ -270,6 +273,40 @@ SEN5X_ACTION_SCHEMA = maybe_simple_id(
     SEN5X_ACTION_SCHEMA,
     synchronous=True,
 )
+
+async def sen54_fan_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+@automation.register_action(
+    "sen5x.start_restart",
+    StartReset,
+    SEN5X_ACTION_SCHEMA,
+    synchronous=True,
+)
+
+async def sen54_fan_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+@automation.register_action(
+    "sen5x.start_measurements",
+    StartMeasurements,
+    SEN5X_ACTION_SCHEMA,
+    synchronous=True,
+)
+
+async def sen54_fan_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+@automation.register_action(
+    "sen5x.start_measurements_rht_only",
+    StartMeasurementsRHTOnly,
+    SEN5X_ACTION_SCHEMA,
+    synchronous=True,
+)
+
 async def sen54_fan_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
