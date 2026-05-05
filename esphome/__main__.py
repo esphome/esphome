@@ -2190,7 +2190,7 @@ def run_esphome(argv):
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
     if args.toolchain is not None:
-        # CLI toolchain wins over esp32.framework.toolchain in YAML.
+        # CLI toolchain wins over esp32.toolchain in YAML.
         CORE.toolchain = args.toolchain
 
     # For logs command, skip updating external components

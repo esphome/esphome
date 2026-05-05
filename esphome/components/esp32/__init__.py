@@ -872,9 +872,7 @@ def _validate_toolchain(value) -> Toolchain:
 def _check_versions(config):
     # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
     if CORE.toolchain is None:
-        CORE.toolchain = config[CONF_FRAMEWORK].get(
-            CONF_TOOLCHAIN, Toolchain.PLATFORMIO
-        )
+        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
 
     if CORE.using_toolchain_esp_idf:
         return _check_esp_idf_versions(config)
@@ -1308,7 +1306,6 @@ FRAMEWORK_ARDUINO = "arduino"
 FRAMEWORK_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_TYPE): cv.one_of(FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO),
-        cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
         cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
         cv.Optional(CONF_RELEASE): cv.string_strict,
         cv.Optional(CONF_SOURCE): cv.string_strict,
@@ -1564,6 +1561,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
+            cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
             cv.Optional(CONF_WATCHDOG_TIMEOUT, default="5s"): cv.All(
                 cv.positive_time_period_seconds,
                 cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
