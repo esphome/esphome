@@ -31,6 +31,7 @@ class ZE15COComponent : public sensor::Sensor, public PollingComponent, public u
 
   void process_stream_byte_(uint8_t byte);
   bool ze15_co_write_command_(const uint8_t *command, uint8_t *response);
+  void validate_and_publish_(const uint8_t *data, uint8_t fault_idx, uint8_t conc_high_idx, uint8_t conc_low_idx);
 };
 
 }  // namespace esphome::ze15_co
