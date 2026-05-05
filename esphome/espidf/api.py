@@ -135,8 +135,17 @@ def run_idf_py(
     env = _get_idf_env()
     python_executable = _get_idf_tool("python")
     idf_py = idf_path / "tools" / "idf.py"
+    # Dispatch idf.py through esphome.espidf.runner, which wraps
+    # sys.stdout/sys.stderr so ``isatty()`` reports True. This keeps CMake,
+    # Ninja, and idf.py's own progress-bar code emitting TTY-format output
+    # (``\r`` cursor moves, ANSI colors, fancy progress bars) even when our
+    # real stdout is a pipe — e.g. when esphome is running under the Home
+    # Assistant dashboard add-on. The runner is a plain script (not a
+    # ``python -m`` module) because IDF's Python venv does not have the
+    # esphome package installed.
+    runner_py = Path(__file__).parent / "runner.py"
 
-    cmd = [python_executable, str(idf_py)] + list(args)
+    cmd = [python_executable, str(runner_py), str(idf_py)] + list(args)
 
     if cwd is None:
         cwd = CORE.build_path
