@@ -48,7 +48,7 @@ class Modbus : public uart::UARTDevice, public Component {
  protected:
   void receive_bytes_();
   bool timeout_();
-  int32_t turnaround_delay_remaining_();
+  virtual int32_t tx_delay_remaining_();
   virtual void parse_modbus_frames() = 0;
   bool parse_modbus_server_frame_();
   virtual void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data,
@@ -65,7 +65,6 @@ class Modbus : public uart::UARTDevice, public Component {
   uint32_t last_send_tx_offset_{0};
   uint16_t frame_delay_ms_{5};
   uint16_t long_rx_buffer_delay_ms_{0};
-  uint16_t turnaround_delay_ms_{0};  // This is only used by ModbusClientHub. Servers respond immediately.
 
   GPIOPin *flow_control_pin_{nullptr};
 
@@ -109,6 +108,7 @@ class ModbusClientHub : public Modbus {
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
  protected:
+  int32_t tx_delay_remaining_() override;
   void parse_modbus_frames() override;
   // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
@@ -116,6 +116,7 @@ class ModbusClientHub : public Modbus {
   void queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device = nullptr);
 
   uint16_t send_wait_time_{2000};
+  uint16_t turnaround_delay_ms_{0};
   std::optional<ModbusDeviceCommand> waiting_for_response_;
 
   // std::deque is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
