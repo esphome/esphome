@@ -1,4 +1,11 @@
 climate:
   - platform: mitsubishi_cn105
+    id: hp
     name: "AC Test"
     uart_id: uart_bus
+
+esphome:
+  on_boot:
+    - lambda: |-
+        id(hp).set_remote_temperature(22.0f);
+        id(hp).clear_remote_temperature();
