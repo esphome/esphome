@@ -135,10 +135,20 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
     // Rejecting here is non-destructive (no flash op has run yet); the user can safely retry with
     // a different .bin. Log enough info that they can pick the right method without guessing.
     ESP_LOGE(TAG,
-             "The new partition table must contain an app partition with the same address as any of the app\n"
-             "  partitions (type 0x0) in the current partition table and size at least %u bytes (0x%X).\n"
-             "  Upload a different partition table. No flash content was modified.",
+             "The new partition table must contain a compatible app partition with:\n"
+             "  size: at least %u bytes (0x%X)\n"
+             "  address: one of",
              running_app_size, running_app_size);
+    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
+    while (it != NULL) {
+      const esp_partition_t *partition = esp_partition_get(it);
+      if (partition->size >= running_app_size) {
+        ESP_LOGE(TAG, "    0x%" PRIX32, partition->address);
+      }
+      it = esp_partition_next(it);
+    }
+    esp_partition_iterator_release(it);
+    ESP_LOGE(TAG, "Upload a different partition table. No flash content was modified.");
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   if (app_partitions_found < 2) {
@@ -155,7 +165,7 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
   }
   if (otadata_overlap) {
     // Unlikely, the otadata partition is before the start of the first app partition in most cases
-    ESP_LOGE(TAG, "New otadata partition overlaps with the running app at address: 0x%X, size: %u bytes",
+    ESP_LOGE(TAG, "New otadata partition overlaps with the running app which has address: 0x%X, size: %u bytes",
              running_app_offset, running_app_size);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
@@ -196,7 +206,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   // can leave the device unbootable until it is recovered with a serial flash.
   ESP_LOGE(TAG, "Starting partition table update.\n"
                 "  DO NOT REMOVE POWER until the device reboots successfully.\n"
-                "  Loss of power during this operation may render the device \n"
+                "  Loss of power during this operation may render the device\n"
                 "  unable to boot until it is recovered via a serial flash.");
 
   // One guard over the whole critical section in case an IDF call takes longer than expected on
