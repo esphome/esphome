@@ -318,7 +318,7 @@ print(get_idf_version())
 """
     cmd = [_get_pythonexe_path(), "-c", script]
 
-    success, stdout, _ = _exec(
+    success, stdout, stderr = _exec(
         cmd,
         msg="ESP-IDF version",
         env=(env or os.environ)
@@ -327,7 +327,11 @@ print(get_idf_version())
     if stdout:
         stdout = stdout.strip()
     if not success or not stdout:
-        raise RuntimeError(f"Can't get ESP-IDF version of {idf_framework_root}")
+        detail = (stderr or "").strip()
+        raise RuntimeError(
+            f"Can't get ESP-IDF version of {idf_framework_root}"
+            + (f": {detail}" if detail else "")
+        )
     return stdout
 
 
@@ -351,6 +355,7 @@ def _get_idf_tool_paths(
     script = f"""
 import json
 import os
+import sys
 from types import SimpleNamespace
 from idf_tools import load_tools_info, filter_tools_info, TOOLS_FILE, IDFEnv, IDFTool, g, process_tool
 g.idf_path = r"{str(idf_framework_root)}"
@@ -358,7 +363,7 @@ g.idf_tools_path = os.environ.get('IDF_TOOLS_PATH')
 g.tools_json = os.path.join(g.idf_path, TOOLS_FILE)
 tools_info = load_tools_info()
 tools_info = filter_tools_info(IDFEnv.get_idf_env(), tools_info)
-all_tools_found = True
+missing_tools = []
 export_vars = {{}}
 args = SimpleNamespace(prefer_system=False)
 paths_to_export = []
@@ -370,24 +375,29 @@ for name, tool in tools_info.items():
         tool, name, args, "install_cmd", "prefer_system_hint"
     )
     if not tool_found:
-        all_tools_found = False
+        missing_tools.append(name)
     paths_to_export += tool_export_paths
     export_vars = {{**export_vars, **tool_export_vars}}
 
-if not all_tools_found:
+if missing_tools:
+    print("Missing ESP-IDF tools: " + ", ".join(missing_tools), file=sys.stderr)
     raise SystemExit(1)
 print(json.dumps(dict(paths_to_export=paths_to_export, export_vars=export_vars)))
 """
     cmd = [_get_pythonexe_path(), "-c", script]
 
-    success, stdout, _ = _exec(
+    success, stdout, stderr = _exec(
         cmd,
         msg="ESP-IDF tool paths",
         env=(env or os.environ)
         | {"PYTHONPATH": str(Path(idf_framework_root) / "tools")},
     )
     if not success or not stdout:
-        raise RuntimeError(f"Can't get ESP-IDF tool paths of {idf_framework_root}")
+        detail = (stderr or "").strip()
+        raise RuntimeError(
+            f"Can't get ESP-IDF tool paths of {idf_framework_root}"
+            + (f": {detail}" if detail else "")
+        )
 
     # Extract json values
     try:
