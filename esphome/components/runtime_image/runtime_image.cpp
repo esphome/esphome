@@ -127,9 +127,9 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       uint32_t pos = this->get_position_(x, y);
       Color mapped_color = color;
       this->map_chroma_key(mapped_color);
-      this->buffer_[pos + 0] = mapped_color.r;
+      this->buffer_[pos + 0] = mapped_color.b;
       this->buffer_[pos + 1] = mapped_color.g;
-      this->buffer_[pos + 2] = mapped_color.b;
+      this->buffer_[pos + 2] = mapped_color.r;
       if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
         this->buffer_[pos + 3] = color.w;
       }

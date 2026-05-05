@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -24,6 +25,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.core.config import BOARD_MAX_LENGTH
+from esphome.helpers import copy_file_if_changed
 from esphome.storage_json import StorageJSON
 
 from . import gpio  # noqa
@@ -35,6 +37,7 @@ from .const import (
     CONF_UART_PORT,
     FAMILIES,
     FAMILY_BK7231N,
+    FAMILY_BK7238,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
     FAMILY_RTL8710B,
@@ -54,19 +57,22 @@ CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
 
-# BK7231N SDK options to disable unused features.
+# BLE 5.x BK SDK options to disable unused features.
 # Disabling BLE saves ~21KB RAM and ~200KB Flash because BLE init code is
 # called unconditionally by the SDK. ESPHome doesn't use BLE on LibreTiny.
 #
-# This only works on BK7231N (BLE 5.x). Other BK72XX chips using BLE 4.2
-# (BK7231T, BK7231Q, BK7251; BK7252 boards use the BK7251 family) have a bug
-# where the BLE library still links and references undefined symbols when
-# CFG_SUPPORT_BLE=0.
+# This only works on BLE 5.x BK chips (BK7231N, BK7238). Other BK72XX chips
+# using BLE 4.2 (BK7231T, BK7231Q, BK7251; BK7252 boards use the BK7251 family)
+# have a bug where the BLE library still links and references undefined symbols
+# when CFG_SUPPORT_BLE=0.
+#
+# On BK7238 the SDK also hangs at WiFi STA enable when BLE init runs, so
+# disabling it is required for reliable boot, not just an optimization.
 #
 # Other options like CFG_TX_EVM_TEST, CFG_RX_SENSITIVITY_TEST, CFG_SUPPORT_BKREG,
 # CFG_SUPPORT_OTA_HTTP, and CFG_USE_SPI_SLAVE were evaluated but provide no  # NOLINT
 # measurable benefit - the linker already strips unreferenced code via -gc-sections.
-_BK7231N_SYS_CONFIG_OPTIONS = [
+_BLE5_BK_SYS_CONFIG_OPTIONS = [
     "CFG_SUPPORT_BLE=0",
 ]
 
@@ -150,6 +156,18 @@ def only_on_family(*, supported=None, unsupported=None):
 
 
 def get_download_types(storage_json: StorageJSON = None):
+    """Binary-download entries for a built LibreTiny firmware.
+
+    Used by:
+    - esphome.dashboard (legacy "Download .bin" button)
+    - device-builder (esphome/device-builder) — same dispatch via
+      ``importlib.import_module(f"esphome.components.{platform}")``
+      then ``module.get_download_types(storage)``. The contract is
+      "returns ``list[dict]`` with at least ``title`` /
+      ``description`` / ``file`` / ``download`` keys"; please keep
+      the shape stable so the new dashboard's download panel
+      doesn't have to special-case per-platform schemas.
+    """
     types = [
         {
             "title": "UF2 package (recommended)",
@@ -441,6 +459,13 @@ async def component_to_code(config):
         # 4-8KB flash). Even if linked, it would use locks, so explicit FreeRTOS
         # mutexes are simpler and equivalent.
         cg.add_define(ThreadModel.MULTI_NO_ATOMICS)
+        # Enable FreeRTOS static allocation so FreeRTOSQueue can use
+        # xQueueCreateStatic (queue storage in BSS, no heap allocation).
+        # Also moves FreeRTOS internal structures (timer command queue) to BSS.
+        # BK72xx's FreeRTOSConfig.h doesn't define this, defaulting to 0.
+        # The -D wins over the #ifndef default in FreeRTOS.h.
+        # Not enabled on RTL87xx/LN882x — costs more heap than it saves there.
+        cg.add_build_flag("-DconfigSUPPORT_STATIC_ALLOCATION=1")
 
     # RTL8710B needs FreeRTOS 8.2.3+ for xTaskNotifyGive/ulTaskNotifyTake
     # required by AsyncTCP 3.4.3+ (https://github.com/esphome/esphome/issues/10220)
@@ -465,6 +490,11 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
+    # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
+    # On other families, patch_linker.py routes .sram.text into the right
+    # RAM-executable output section and prints a post-link placement summary.
+    if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
+        cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
     # dummy version code
     cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
     # decrease web server stack size (16k words -> 4k words)
@@ -535,9 +565,9 @@ async def component_to_code(config):
         cg.add_platformio_option("custom_fw_version", __version__)
 
     # Apply chip-specific SDK options to save RAM/Flash
-    if config[CONF_FAMILY] == FAMILY_BK7231N:
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
         cg.add_platformio_option(
-            "custom_options.sys_config#h", _BK7231N_SYS_CONFIG_OPTIONS
+            "custom_options.sys_config#h", _BLE5_BK_SYS_CONFIG_OPTIONS
         )
 
     # Tune lwIP for ESPHome's actual needs.
@@ -549,3 +579,13 @@ async def component_to_code(config):
     _configure_lwip(config)
 
     await cg.register_component(var, config)
+
+
+# Called by writer.py
+def copy_files() -> None:
+    script_dir = Path(__file__).parent
+    patch_linker_file = script_dir / "patch_linker.py.script"
+    copy_file_if_changed(
+        patch_linker_file,
+        CORE.relative_build_path("patch_linker.py"),
+    )

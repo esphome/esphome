@@ -454,10 +454,12 @@ void LVTouchListener::update(const touchscreen::TouchPoints_t &tpoints) {
 
 #ifdef USE_LVGL_METER
 
-int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int value) {
+int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value) {
   auto *scale = lv_obj_get_parent(obj);
   auto min_value = lv_scale_get_range_min_value(scale);
-  return ((value - min_value) * lv_scale_get_angle_range(scale) / (lv_scale_get_range_max_value(scale) - min_value) +
+  auto max_value = lv_scale_get_range_max_value(scale);
+  value = clamp(value, min_value, max_value);
+  return ((value - min_value) * lv_scale_get_angle_range(scale) / (max_value - min_value) +
           lv_scale_get_rotation((scale))) %
          360;
 }
@@ -642,26 +644,28 @@ void LvglComponent::write_random_() {
   int iterations = 6 - lv_display_get_inactive_time(this->disp_) / 60000;
   if (iterations <= 0)
     iterations = 1;
+  int16_t width = lv_display_get_horizontal_resolution(this->disp_);
+  int16_t height = lv_display_get_vertical_resolution(this->disp_);
   while (iterations-- != 0) {
-    int32_t col = random_uint32() % this->width_;
+    int32_t col = random_uint32() % width;
     col = col / this->draw_rounding * this->draw_rounding;
-    int32_t row = random_uint32() % this->height_;
+    int32_t row = random_uint32() % height;
     row = row / this->draw_rounding * this->draw_rounding;
     // size will be between 8 and 32, and a multiple of draw_rounding
     int32_t size = (random_uint32() % 25 + 8) / this->draw_rounding * this->draw_rounding;
-    lv_area_t area{col, row, col + size - 1, row + size - 1};
+    lv_area_t area{.x1 = col, .y1 = row, .x2 = col + size - 1, .y2 = row + size - 1};
     // clip to display bounds just in case
-    if (area.x2 >= this->width_)
-      area.x2 = this->width_ - 1;
-    if (area.y2 >= this->height_)
-      area.y2 = this->height_ - 1;
+    if (area.x2 >= width)
+      area.x2 = width - 1;
+    if (area.y2 >= height)
+      area.y2 = height - 1;
 
     // line_len can't exceed 1024, and minimum buffer size is 2048, so this won't overflow the buffer
     size_t line_len = lv_area_get_width(&area) * lv_area_get_height(&area) / 2;
     for (size_t i = 0; i != line_len; i++) {
-      ((uint32_t *) (this->draw_buf_))[i] = random_uint32();
+      reinterpret_cast<uint32_t *>(this->draw_buf_)[i] = random_uint32();
     }
-    this->draw_buffer_(&area, (lv_color_data *) this->draw_buf_);
+    this->draw_buffer_(&area, reinterpret_cast<lv_color_data *>(this->draw_buf_));
   }
 }
 
@@ -861,6 +865,32 @@ void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_en
   }
 }
 #endif  // USE_LVGL_SCALE
+
+#ifdef USE_LVGL_GRADIENT
+/**
+ *
+ * @param dsc The gradient descriptor containing the color stops
+ * @param pos The current position to calculate the color for
+ * @return The color for the given position
+ */
+
+lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos) {
+  if (dsc->stops_count == 0)
+    return lv_color_black();
+  if (dsc->stops_count == 1 || pos <= dsc->stops[0].frac)
+    return dsc->stops[0].color;
+  if (pos >= dsc->stops[dsc->stops_count - 1].frac)
+    return dsc->stops[dsc->stops_count - 1].color;
+  int i = 1;
+  while (i < dsc->stops_count && dsc->stops[i].frac < pos)
+    i++;
+  auto *stop1 = &dsc->stops[i - 1];
+  auto *stop2 = &dsc->stops[i];
+  int32_t range = stop2->frac - stop1->frac;
+  int32_t offset = pos - stop1->frac;
+  return lv_color_mix(stop2->color, stop1->color, range == 0 ? 0 : (offset * 255) / range);
+}
+#endif
 
 static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *obj) {
   LV_TRACE_OBJ_CREATE("begin");
