@@ -357,8 +357,8 @@ void MitsubishiCN105::set_remote_temperature(float temperature) {
   this->set_remote_temperature_half_deg_(static_cast<uint8_t>(temperature_half_deg));
 }
 
-void MitsubishiCN105::clear_remote_temperature() { 
-  this->set_remote_temperature_half_deg_(REMOTE_TEMPERATURE_DISABLED); 
+void MitsubishiCN105::clear_remote_temperature() {
+  this->set_remote_temperature_half_deg_(REMOTE_TEMPERATURE_DISABLED);
 }
 
 void MitsubishiCN105::set_remote_temperature_half_deg_(uint8_t temperature_half_deg) {
