@@ -305,9 +305,16 @@ def run_compile(config, verbose: bool) -> int:
         build_dir = CORE.relative_build_path("build")
         # Build just the memory.ld target - ninja needs the path relative to build dir
         memory_ld_target = os.path.relpath(str(memory_ld), str(build_dir))
+        env = _get_idf_env()
+        ninja_executable = shutil.which("ninja", path=env.get("PATH", None))
+        if ninja_executable is None:
+            raise EsphomeError(
+                "ninja not found in ESP-IDF environment. "
+                "Check that the IDF environment is correctly set up."
+            )
         result = subprocess.run(
-            ["ninja", "-C", str(build_dir), memory_ld_target],
-            env=_get_idf_env(),
+            [ninja_executable, "-C", str(build_dir), memory_ld_target],
+            env=env,
             check=False,
         )
         if result.returncode != 0:
