@@ -1,5 +1,6 @@
 """ESP-IDF direct build API for ESPHome."""
 
+from dataclasses import dataclass, field
 import json
 import logging
 import os
@@ -14,11 +15,21 @@ from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 
 _LOGGER = logging.getLogger(__name__)
 
-# Caches
-_esphome_esp_idf_paths_cache = {}
-_idf_env_cache = {}
-_cmake_output_cache = {}
-_cmake_tools_cache = {}
+DOMAIN = "espidf_api"
+
+
+@dataclass
+class _CacheData:
+    paths: dict[str, tuple] = field(default_factory=dict)
+    env: dict[str, dict[str, str]] = field(default_factory=dict)
+    cmake_output: dict[Path, str] = field(default_factory=dict)
+    cmake_tools: dict[Path, dict[str, Path]] = field(default_factory=dict)
+
+
+def _cache() -> _CacheData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = _CacheData()
+    return CORE.data[DOMAIN]
 
 
 def _get_core_framework_version():
@@ -29,9 +40,10 @@ def _get_esphome_esp_idf_paths(
     version: str | None = None,
 ) -> tuple[os.PathLike, os.PathLike]:
     version = version or _get_core_framework_version()
-    if version not in _esphome_esp_idf_paths_cache:
-        _esphome_esp_idf_paths_cache[version] = check_esp_idf_install(version)
-    return _esphome_esp_idf_paths_cache[version]
+    paths = _cache().paths
+    if version not in paths:
+        paths[version] = check_esp_idf_install(version)
+    return paths[version]
 
 
 def _get_idf_path(version: str | None = None) -> Path | None:
@@ -45,19 +57,21 @@ def _get_idf_path(version: str | None = None) -> Path | None:
 def _get_idf_env(version: str | None = None) -> dict[str, str]:
     """Get environment variables needed for ESP-IDF build."""
     version = version or _get_core_framework_version()
-    if version not in _idf_env_cache:
-        _idf_env_cache[version] = os.environ.copy()
+    env_cache = _cache().env
+    if version not in env_cache:
+        env_cache[version] = os.environ.copy()
 
         # Use provided IDF framework if available
         if "IDF_PATH" not in os.environ:
-            _idf_env_cache[version] |= get_framework_env(
+            env_cache[version] |= get_framework_env(
                 *_get_esphome_esp_idf_paths(version)
             )
-    return _idf_env_cache[version]
+    return env_cache[version]
 
 
 def _get_cmake_output(build_dir) -> str:
-    if build_dir not in _cmake_output_cache:
+    cmake_output_cache = _cache().cmake_output
+    if build_dir not in cmake_output_cache:
         cmd = ["cmake", "-LA", "-N", "."]
 
         env = _get_idf_env()
@@ -73,18 +87,19 @@ def _get_cmake_output(build_dir) -> str:
         if result.returncode != 0:
             raise RuntimeError(f"CMake failed: {result.stderr}")
 
-        _cmake_output_cache[build_dir] = result.stdout
-    return _cmake_output_cache[build_dir]
+        cmake_output_cache[build_dir] = result.stdout
+    return cmake_output_cache[build_dir]
 
 
 def _get_cmake_tool_path(var_name: str) -> Path:
     build_dir = CORE.relative_build_path("build")
     cmake_output = _get_cmake_output(build_dir)
 
-    if build_dir not in _cmake_tools_cache:
-        _cmake_tools_cache[build_dir] = {}
+    cmake_tools_cache = _cache().cmake_tools
+    if build_dir not in cmake_tools_cache:
+        cmake_tools_cache[build_dir] = {}
 
-    if var_name not in _cmake_tools_cache[build_dir]:
+    if var_name not in cmake_tools_cache[build_dir]:
         pattern = rf"^{var_name}:FILEPATH=(.+)$"
         match = re.search(pattern, cmake_output, re.MULTILINE)
 
@@ -92,9 +107,9 @@ def _get_cmake_tool_path(var_name: str) -> Path:
             raise RuntimeError(f"{var_name} not found in CMake output")
 
         path = match.group(1).strip()
-        _cmake_tools_cache[build_dir][var_name] = Path(path)
+        cmake_tools_cache[build_dir][var_name] = Path(path)
 
-    return _cmake_tools_cache[build_dir][var_name]
+    return cmake_tools_cache[build_dir][var_name]
 
 
 def run_idf_py(

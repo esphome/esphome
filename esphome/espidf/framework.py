@@ -179,8 +179,11 @@ def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
     if not Path(file).is_file():
         return False
 
-    with open(file, encoding="utf-8") as f:
-        return f.read() == json.dumps(data)
+    try:
+        with open(file, encoding="utf-8") as f:
+            return json.load(f) == data
+    except (json.JSONDecodeError, OSError):
+        return False
 
 
 def _write_stamp(file: PathType, data: dict[str, str]):
@@ -924,10 +927,10 @@ def _check_esp_idf_python_env_install(
                     f"Install ESP-IDF {version} Python dependencies for {feature} failure"
                 )
 
-            stamp_info["python_version"] = _get_python_version(
-                env_python_path, env=env, throw_exception=True
-            )
-            _write_stamp(env_stamp_file, stamp_info)
+        stamp_info["python_version"] = _get_python_version(
+            env_python_path, env=env, throw_exception=True
+        )
+        _write_stamp(env_stamp_file, stamp_info)
 
     return python_env_path, install
 
