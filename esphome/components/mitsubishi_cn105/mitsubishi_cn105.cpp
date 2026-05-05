@@ -379,7 +379,7 @@ void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {
 }
 
 void MitsubishiCN105::set_remote_temperature(float temperature) {
-  if (std::isnan(temperature)) {
+  if (!std::isfinite(temperature)) {
     ESP_LOGD(TAG, "Ignoring NaN remote temperature");
     return;
   }
@@ -423,9 +423,9 @@ void MitsubishiCN105::apply_settings_() {
     if (this->pending_updates_.count(UpdateFlag::TEMPERATURE)) {
       payload[1] |= 0x04;
       if (this->use_temperature_encoding_b_) {
-        payload[14] = static_cast<uint8_t>(this->status_.target_temperature * 2.0f + 128.0f);
+        payload[14] = static_cast<uint8_t>(std::round(this->status_.target_temperature * 2.0f) + 128);
       } else {
-        payload[5] = static_cast<uint8_t>(TARGET_TEMPERATURE_ENC_A_OFFSET - this->status_.target_temperature);
+        payload[5] = static_cast<uint8_t>(TARGET_TEMPERATURE_ENC_A_OFFSET - std::round(this->status_.target_temperature));
       }
     }
 
