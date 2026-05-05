@@ -193,6 +193,8 @@ def _validate_supported_local_file(config: list[ConfigType]) -> list[ConfigType]
             audio.request_mp3_support()
         elif media_file_type_str == str(audio.AUDIO_FILE_TYPE_ENUM["OPUS"]):
             audio.request_opus_support()
+        elif media_file_type_str == str(audio.AUDIO_FILE_TYPE_ENUM["WAV"]):
+            audio.request_wav_support()
 
     return config
 
