@@ -41,6 +41,7 @@ enum VoiceAssistantFeature : uint32_t {
   FEATURE_TIMERS = 1 << 3,
   FEATURE_ANNOUNCE = 1 << 4,
   FEATURE_START_CONVERSATION = 1 << 5,
+  FEATURE_MULTI_CHANNEL_AUDIO = 1 << 6,
 };
 
 enum class State {
@@ -151,6 +152,7 @@ class VoiceAssistant : public Component {
     uint32_t flags = 0;
     flags |= VoiceAssistantFeature::FEATURE_VOICE_ASSISTANT;
     flags |= VoiceAssistantFeature::FEATURE_API_AUDIO;
+    flags |= VoiceAssistantFeature::FEATURE_MULTI_CHANNEL_AUDIO;
 #ifdef USE_SPEAKER
     if (this->speaker_ != nullptr) {
       flags |= VoiceAssistantFeature::FEATURE_SPEAKER;
