@@ -60,7 +60,7 @@ void PowerManagement::setup() {
 // Thread Safe
 void PowerManagement::acquire_lock(PowerManagementLockType lt) {
   if (this->is_ready()) {
-    std::lock_guard<std::mutex> lock(this->pm_lock_mutex_);
+    std::scoped_lock<std::mutex> lock(this->pm_lock_mutex_);
     esp_err_t rc = esp_pm_lock_acquire(this->pm_lock_handles_[lt]);
     if (rc != ESP_OK) {
       ESP_LOGE(TAG, "Failed esp_pm_lock_acquire %s %d", power_manager_type_to_string(lt), rc);
@@ -73,7 +73,7 @@ void PowerManagement::acquire_lock(PowerManagementLockType lt) {
 // Thread Safe
 void PowerManagement::release_lock(PowerManagementLockType lt) {
   if (this->is_ready()) {
-    std::lock_guard<std::mutex> lock(this->pm_lock_mutex_);
+    std::scoped_lock<std::mutex> lock(this->pm_lock_mutex_);
     esp_err_t rc = esp_pm_lock_release(this->pm_lock_handles_[lt]);
     if (rc != ESP_OK) {
       ESP_LOGE(TAG, "Failed esp_pm_lock_release %s %d", power_manager_type_to_string(lt), rc);
