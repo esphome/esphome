@@ -35,7 +35,9 @@ static constexpr uint32_t MAX_INTERVAL_DELAY = 5000;
 // Uses a stack buffer to avoid heap allocation
 // Uses ESPHOME_snprintf_P/ESPHOME_PSTR for ESP8266 to keep format strings in flash
 struct SchedulerNameLog {
-  char buffer[20];  // Enough for "id:4294967295" or "hash:0xFFFFFFFF" or "(null)"
+  // Sized for the widest formatted output: "self:0x" + 16 hex digits (64-bit pointer) + nul.
+  // Also covers "id:4294967295", "hash:0xFFFFFFFF", "iid:4294967295", "(null)".
+  char buffer[28];
 
   // Format a scheduler item name for logging
   // Returns pointer to formatted string (either static_name or internal buffer)
@@ -53,8 +55,14 @@ struct SchedulerNameLog {
     } else if (name_type == NameType::NUMERIC_ID) {
       ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("id:%" PRIu32), hash_or_id);
       return buffer;
-    } else {  // NUMERIC_ID_INTERNAL
+    } else if (name_type == NameType::NUMERIC_ID_INTERNAL) {
       ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("iid:%" PRIu32), hash_or_id);
+      return buffer;
+    } else {  // SELF_POINTER
+      // static_name carries the void* key for SELF_POINTER (pointer-width union slot).
+      // %p is specified as void* (not const void*), so strip const for the varargs call.
+      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("self:%p"),
+                         const_cast<void *>(static_cast<const void *>(static_name)));
       return buffer;
     }
   }
@@ -291,6 +299,27 @@ bool HOT Scheduler::cancel_interval(Component *component, const char *name) {
 }
 bool HOT Scheduler::cancel_interval(Component *component, uint32_t id) {
   return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::INTERVAL);
+}
+
+// Self-keyed scheduler API. The cancellation key is `self` (typically the caller's `this`),
+// passed through the existing static_name pointer slot. Matching is by raw pointer equality
+// (see matches_item_locked_'s SELF_POINTER branch). No Component pointer is stored, so
+// is_failed() skip and component-based log attribution don't apply.
+void HOT Scheduler::set_timeout(const void *self, uint32_t timeout, std::function<void()> &&func) {
+  this->set_timer_common_(nullptr, SchedulerItem::TIMEOUT, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                          timeout, std::move(func));
+}
+void HOT Scheduler::set_interval(const void *self, uint32_t interval, std::function<void()> &&func) {
+  this->set_timer_common_(nullptr, SchedulerItem::INTERVAL, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                          interval, std::move(func));
+}
+bool HOT Scheduler::cancel_timeout(const void *self) {
+  return this->cancel_item_(nullptr, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                            SchedulerItem::TIMEOUT);
+}
+bool HOT Scheduler::cancel_interval(const void *self) {
+  return this->cancel_item_(nullptr, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                            SchedulerItem::INTERVAL);
 }
 
 // Suppress deprecation warnings for RetryResult usage in the still-present (but deprecated) retry implementation.

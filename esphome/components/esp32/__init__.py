@@ -5,6 +5,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import subprocess
 
 from esphome import yaml_util
 import esphome.codegen as cg
@@ -489,6 +490,18 @@ def get_board(core_obj=None):
 
 
 def get_download_types(storage_json):
+    """Binary-download entries for a built ESP32 firmware.
+
+    Used by:
+    - esphome.dashboard (legacy "Download .bin" button)
+    - device-builder (esphome/device-builder) — same dispatch via
+      ``importlib.import_module(f"esphome.components.{platform}")``
+      then ``module.get_download_types(storage)``. The contract is
+      "returns ``list[dict]`` with at least ``title`` /
+      ``description`` / ``file`` / ``download`` keys"; please keep
+      the shape stable so the new dashboard's download panel
+      doesn't have to special-case per-platform schemas.
+    """
     return [
         {
             "title": "Factory format (Previously Modern)",
@@ -729,6 +742,9 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(5, 5, 4),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(
+        6, 0, 1
+    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
@@ -1750,7 +1766,17 @@ async def to_code(config):
 
         # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
         # (~11 KB). See printf_stubs.cpp for implementation.
-        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF]:
+        #
+        # The wrap is only beneficial against newlib. Picolibc's tinystdio
+        # implements vsnprintf by building a string-output FILE and calling
+        # vfprintf, so vfprintf is unconditionally linked in by any caller
+        # of snprintf/vsnprintf — effectively every build — and the wrap
+        # saves nothing while costing ~170 B of shim. IDF 5.x defaults to
+        # newlib on every variant; IDF 6.0+ switches to picolibc on every
+        # variant.
+        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or idf_version() >= cv.Version(
+            6, 0, 0
+        ):
             cg.add_define("USE_FULL_PRINTF")
         else:
             for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
@@ -2490,3 +2516,78 @@ def copy_files():
             CORE.relative_build_path(name).write_bytes(content)
         else:
             copy_file_if_changed(path, CORE.relative_build_path(name))
+
+
+def _decode_pc(config, addr):
+    from esphome import platformio_api
+
+    idedata = platformio_api.get_idedata(config)
+    if not idedata.addr2line_path or not idedata.firmware_elf_path:
+        _LOGGER.debug("decode_pc no addr2line")
+        return
+    command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
+    try:
+        translation = subprocess.check_output(command, close_fds=False).decode().strip()
+    except Exception:  # pylint: disable=broad-except
+        _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
+        return
+
+    if "?? ??:0" in translation:
+        # Nothing useful
+        return
+    translation = translation.replace(" at ??:?", "").replace(":?", "")
+    _LOGGER.warning("Decoded %s", translation)
+
+
+def _parse_register(config, regex, line):
+    match = regex.match(line)
+    if match is not None:
+        _decode_pc(config, match.group(1))
+
+
+STACKTRACE_ESP32_PC_RE = re.compile(r".*PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7}).*")
+STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r"EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_C3_PC_RE = re.compile(r"MEPC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_C3_RA_RE = re.compile(r"RA\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_BAD_ALLOC_RE = re.compile(
+    r"^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$"
+)
+STACKTRACE_ESP32_BACKTRACE_RE = re.compile(
+    r"Backtrace:(?:\s*0x[0-9a-fA-F]{8}:0x[0-9a-fA-F]{8})+"
+)
+STACKTRACE_ESP32_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
+# ESP32 crash handler (stored backtrace from previous boot)
+STACKTRACE_ESP32_CRASH_BT_RE = re.compile(r"BT\d+:\s*0x([0-9a-fA-F]{8})")
+
+
+def process_stacktrace(config, line, backtrace_state):
+    line = line.strip()
+
+    # ESP32 PC/EXCVADDR
+    _parse_register(config, STACKTRACE_ESP32_PC_RE, line)
+    _parse_register(config, STACKTRACE_ESP32_EXCVADDR_RE, line)
+    # ESP32-C3 PC/RA
+    _parse_register(config, STACKTRACE_ESP32_C3_PC_RE, line)
+    _parse_register(config, STACKTRACE_ESP32_C3_RA_RE, line)
+
+    # bad alloc
+    match = re.match(STACKTRACE_BAD_ALLOC_RE, line)
+    if match is not None:
+        _LOGGER.warning(
+            "Memory allocation of %s bytes failed at %s", match.group(2), match.group(1)
+        )
+        _decode_pc(config, match.group(1))
+
+    # ESP32 crash handler backtrace (from previous boot)
+    match = re.search(STACKTRACE_ESP32_CRASH_BT_RE, line)
+    if match is not None:
+        _decode_pc(config, match.group(1))
+
+    # ESP32 single-line backtrace
+    match = re.match(STACKTRACE_ESP32_BACKTRACE_RE, line)
+    if match is not None:
+        _LOGGER.warning("Found stack trace! Trying to decode it")
+        for addr in re.finditer(STACKTRACE_ESP32_BACKTRACE_PC_RE, line):
+            _decode_pc(config, addr.group())
+
+    return backtrace_state

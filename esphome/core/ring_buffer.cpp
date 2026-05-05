@@ -1,11 +1,9 @@
 #include "ring_buffer.h"
 
-#include "esphome/core/helpers.h"
-#include "esphome/core/log.h"
-
 #ifdef USE_ESP32
 
-#include "helpers.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 
@@ -19,12 +17,15 @@ RingBuffer::~RingBuffer() {
   }
 }
 
-std::unique_ptr<RingBuffer> RingBuffer::create(size_t len) {
+std::unique_ptr<RingBuffer> RingBuffer::create(size_t len, MemoryPreference preference) {
   std::unique_ptr<RingBuffer> rb = make_unique<RingBuffer>();
 
   rb->size_ = len;
 
-  RAMAllocator<uint8_t> allocator;
+  const uint8_t type = (preference == MemoryPreference::INTERNAL_FIRST) ? RAMAllocator<uint8_t>::PREFER_INTERNAL
+                                                                        : RAMAllocator<uint8_t>::NONE;
+
+  RAMAllocator<uint8_t> allocator(type);
   rb->storage_ = allocator.allocate(rb->size_);
   if (rb->storage_ == nullptr) {
     return nullptr;

@@ -4,8 +4,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-#include <atomic>
-
 #ifdef USE_ESP32
 #include <esp_sleep.h>
 #endif
@@ -13,10 +11,6 @@
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/core/time.h"
-#endif
-
-#ifdef USE_ZEPHYR
-#include <zephyr/kernel.h>
 #endif
 
 #include <cinttypes>
@@ -125,9 +119,6 @@ class DeepSleepComponent : public Component {
 
   void prevent_deep_sleep();
   void allow_deep_sleep();
-#ifdef USE_ZEPHYR
-  void wakeup();
-#endif
 
  protected:
   // Returns nullopt if no run duration is set. Otherwise, returns the run
@@ -167,9 +158,6 @@ class DeepSleepComponent : public Component {
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};
   bool prevent_{false};
-#ifdef USE_ZEPHYR
-  k_sem wakeup_sem_;
-#endif
 };
 
 extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -255,9 +243,6 @@ template<typename... Ts> class AllowDeepSleepAction : public Action<Ts...>, publ
  public:
   void play(const Ts &...x) override { this->parent_->allow_deep_sleep(); }
 };
-
-extern std::atomic<DeepSleepComponent *>
-    global_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace deep_sleep
 }  // namespace esphome

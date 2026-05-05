@@ -282,12 +282,13 @@ optional<GateStatus> Tormatic::read_gate_status_() {
     }
   }
 
+  auto hdr = this->pending_hdr_.value();
+
   // Wait for all payload bytes to arrive before processing.
-  if (this->available() < this->pending_hdr_->payload_size()) {
+  if (this->available() < hdr.payload_size()) {
     return {};
   }
 
-  auto hdr = *this->pending_hdr_;
   this->pending_hdr_.reset();
 
   switch (hdr.type) {
