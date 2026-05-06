@@ -1038,7 +1038,10 @@ lvgl:
               - 5, 5
               - x: !lambda return random_uint32() % 100;
                 y: !lambda return random_uint32() % 100;
-              - 70, 70
+              - x: 10%
+                y: 50%
+              - 70%, 70%
+              - [75%, 75%]
               - 120, 10
               - 180, 60
               - 240, 10
