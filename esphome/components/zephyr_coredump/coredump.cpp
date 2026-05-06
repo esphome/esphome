@@ -8,20 +8,19 @@ namespace esphome::zephyr_coredump {
 
 void print_coredump();
 
-#define COREDUMP_BEGIN_STR "BEGIN#"
-#define COREDUMP_END_STR "END#"
-#define COREDUMP_ERROR_STR "ERROR CANNOT DUMP#"
+static constexpr char COREDUMP_BEGIN_STR[] = "BEGIN#";
+static constexpr char COREDUMP_END_STR[] = "END#";
 
 /*
  * Need to prefix coredump strings to make it easier to parse
  * as log module adds its own prefixes.
  */
-#define COREDUMP_PREFIX_STR "#CD:"
+static constexpr char COREDUMP_PREFIX_STR[] = "#CD:";
 
 static const char *const TAG = "coredump";
 
-static const uint8_t BUF_SZ = 32;
-static const uint8_t PRINT_BUF_SZ = BUF_SZ * 2;
+static constexpr uint8_t BUF_SZ = 32;
+static constexpr uint8_t PRINT_BUF_SZ = BUF_SZ * 2;
 
 void Coredump::dump_config() {
   ESP_LOGCONFIG(TAG,
