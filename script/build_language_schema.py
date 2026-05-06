@@ -1070,6 +1070,17 @@ def convert_keys(converted, schema, path):
             if default_value is not None:
                 result["default"] = str(default_value)
 
+        # UI hints from ``cv.Optional`` / ``cv.Required`` — surfaced
+        # for schema consumers (visual editors) that want to render
+        # advanced / yaml-only fields differently. ESPHome itself
+        # ignores them at runtime; ``getattr`` with a False default
+        # keeps the dump backwards-compatible with markers that
+        # don't carry the attributes.
+        if getattr(k, "advanced", False):
+            result["advanced"] = True
+        if getattr(k, "yaml_only", False):
+            result["yaml_only"] = True
+
         # Do value
         convert(v, result, path + f"/{str(k)}")
         if "schema" not in converted:

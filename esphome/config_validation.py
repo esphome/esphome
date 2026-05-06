@@ -295,10 +295,43 @@ class Optional(vol.Optional):
     In ESPHome, all configuration defaults should be defined with the Optional class
     during config validation - specifically *not* in the C++ code or the code generation
     phase.
+
+    The ``advanced`` and ``yaml_only`` flags are UI hints consumed by
+    schema-driven editors (e.g. the device-builder dashboard catalog
+    via ``script/build_language_schema.py``). They do NOT affect
+    validation — the YAML still accepts the key the same way. ESPHome
+    itself reads neither flag at runtime; they exist purely so a
+    schema consumer can decide to render the field under an
+    "advanced settings" toggle, or hide the field entirely from a
+    visual editor while the YAML continues to drive the actual
+    behaviour.
+
+    - ``advanced=True`` — render under the editor's "advanced
+      settings" disclosure. Use for fields whose defaults are right
+      for the typical user (e.g. ``update_interval`` on time
+      platforms — 15 min is universally correct, but power users
+      can still tune it).
+    - ``yaml_only=True`` — never render in a visual editor. Use for
+      knobs that are dangerous to expose in a UI even as advanced —
+      ``setup_priority`` on every component is the canonical example
+      (changing it casually can break boot).
+
+    Both flags can be set, but ``yaml_only`` is the stronger signal —
+    a sensible consumer treats ``yaml_only`` as "hide" regardless of
+    the ``advanced`` value.
     """
 
-    def __init__(self, key, default=UNDEFINED):
+    def __init__(
+        self,
+        key,
+        default=UNDEFINED,
+        *,
+        advanced: bool = False,
+        yaml_only: bool = False,
+    ):
         super().__init__(key, default=default)
+        self.advanced: bool = advanced
+        self.yaml_only: bool = yaml_only
 
 
 class Required(vol.Required):
@@ -307,10 +340,26 @@ class Required(vol.Required):
 
     All required values should be acceessed with the `config[CONF_<KEY>]` syntax in code
     - *not* the `config.get(CONF_<KEY>)` syntax.
+
+    See :class:`Optional` for the semantics of ``advanced`` and
+    ``yaml_only`` — they're UI hints only, with no effect on
+    validation. Required fields rarely need either flag (a required
+    field by definition needs the user's attention), but the kwargs
+    are exposed for completeness so schema consumers can apply the
+    same logic uniformly across key markers.
     """
 
-    def __init__(self, key, msg=None):
+    def __init__(
+        self,
+        key,
+        msg=None,
+        *,
+        advanced: bool = False,
+        yaml_only: bool = False,
+    ):
         super().__init__(key, msg=msg)
+        self.advanced: bool = advanced
+        self.yaml_only: bool = yaml_only
 
 
 class FinalExternalInvalid(Invalid):
@@ -2162,26 +2211,49 @@ ENTITY_BASE_SCHEMA = Schema(
 
 ENTITY_BASE_SCHEMA.add_extra(_entity_base_validator)
 
-COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
+COMPONENT_SCHEMA = Schema(
+    {
+        # ``setup_priority`` controls the relative order in which
+        # components are brought up at boot. Wrong values can break
+        # the boot sequence in subtle ways (e.g. an i2c device set
+        # to higher priority than the bus). Mark it ``yaml_only`` so
+        # visual editors never render it — the YAML escape hatch
+        # stays available for the rare component author who really
+        # needs to override the default.
+        Optional(CONF_SETUP_PRIORITY, yaml_only=True): float_,
+    }
+)
 
 
-def polling_component_schema(default_update_interval):
+def polling_component_schema(
+    default_update_interval, *, advanced_update_interval=False
+):
     """Validate that this component represents a PollingComponent with a configurable
     update_interval.
 
     :param default_update_interval: The default update interval to set for the integration.
+    :param advanced_update_interval: When True, mark ``update_interval`` as
+        an advanced UI-hint field. Set this for components whose default
+        cadence is already correct for ~all users (time platforms, NTP
+        sync, etc.) — power users can still tune the YAML directly, but
+        the field hides behind the editor's advanced disclosure so it
+        doesn't crowd the form.
     """
     if default_update_interval is None:
         return COMPONENT_SCHEMA.extend(
             {
-                Required(CONF_UPDATE_INTERVAL): update_interval,
+                Required(
+                    CONF_UPDATE_INTERVAL, advanced=advanced_update_interval
+                ): update_interval,
             }
         )
     assert isinstance(default_update_interval, str)
     return COMPONENT_SCHEMA.extend(
         {
             Optional(
-                CONF_UPDATE_INTERVAL, default=default_update_interval
+                CONF_UPDATE_INTERVAL,
+                default=default_update_interval,
+                advanced=advanced_update_interval,
             ): update_interval,
         }
     )
