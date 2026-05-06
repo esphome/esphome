@@ -137,11 +137,9 @@ void BL0942::setup() {
   }
 
   this->write_reg_(BL0942_REG_USR_WRPROT, BL0942_REG_USR_WRPROT_MAGIC);
-  if (this->reset_) {
+  if (this->reset_)
     this->write_reg_(BL0942_REG_SOFT_RESET, BL0942_REG_SOFT_RESET_MAGIC);
-    ESP_LOGV(TAG, "Reset sent");
-    /* this->prev_cf_cnt = 0;*/
-  }
+
   uint32_t mode = BL0942_REG_MODE_DEFAULT;
   mode |= BL0942_REG_MODE_RMS_UPDATE_SEL; /* 800ms refresh time */
   if (this->line_freq_ == LINE_FREQUENCY_60HZ)
@@ -163,16 +161,9 @@ void BL0942::received_package_(DataPacket *data) {
     return;
   }
 
+  // cf_cnt wraps at 24 bits; total_increasing on the energy sensor handles the
+  // wrap (and any spurious chip resets) downstream.
   uint32_t cf_cnt = (uint24_t) data->cf_cnt;
-
-  // cf_cnt is only 24 bits, so track overflows
-  if (!this->cf_cnt_native_size_) {
-    cf_cnt |= this->prev_cf_cnt_ & 0xff000000;
-    if (cf_cnt < this->prev_cf_cnt_) {
-      cf_cnt += 0x1000000;
-    }
-  }
-  this->prev_cf_cnt_ = cf_cnt;
 
   float v_rms = (uint24_t) data->v_rms / voltage_reference_;
   float i_rms = (uint24_t) data->i_rms / current_reference_;
@@ -207,12 +198,11 @@ void BL0942::dump_config() {  // NOLINT(readability-function-cognitive-complexit
                 "  Address: %d\n"
                 "  Nominal line frequency: %d Hz\n"
                 "  Current reference: %f\n"
-                "  Energy reference: %f, native size: %s\n"
+                "  Energy reference: %f\n"
                 "  Power reference: %f\n"
                 "  Voltage reference: %f",
                 TRUEFALSE(this->reset_), this->address_, this->line_freq_, this->current_reference_,
-                this->energy_reference_, TRUEFALSE(this->cf_cnt_native_size_), this->power_reference_,
-                this->voltage_reference_);
+                this->energy_reference_, this->power_reference_, this->voltage_reference_);
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);
