@@ -67,7 +67,10 @@ INITIAL_STATE_HANDLER(water_heater, water_heater::WaterHeater)
 INITIAL_STATE_HANDLER(update, update::UpdateEntity)
 #endif
 
-// Special cases (button and event) are already defined inline in subscribe_state.h
+// event is an ENTITY_CONTROLLER_TYPE_ but has no state to send.
+#ifdef USE_EVENT
+bool InitialStateIterator::on_event(event::Event *entity) { return true; }
+#endif
 
 InitialStateIterator::InitialStateIterator(APIConnection *client) : client_(client) {}
 
