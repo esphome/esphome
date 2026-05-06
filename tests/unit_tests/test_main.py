@@ -89,7 +89,11 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.espota2 import OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE, OTA_TYPE_UPDATE_BOOTLOADER
+from esphome.espota2 import (
+    OTA_TYPE_UPDATE_APP,
+    OTA_TYPE_UPDATE_BOOTLOADER,
+    OTA_TYPE_UPDATE_PARTITION_TABLE,
+)
 from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
