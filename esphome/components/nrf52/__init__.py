@@ -11,6 +11,7 @@ import esphome.codegen as cg
 from esphome.components.zephyr import (
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
+    zephyr_add_pm_static,
     zephyr_add_prj_conf,
     zephyr_data,
     zephyr_set_core_data,
@@ -50,7 +51,7 @@ import esphome.final_validate as fv
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS_ZEPHYR
+from .boards import BOARDS_ZEPHYR, BOOTLOADER_CONFIG
 from .const import (
     BOOTLOADER_ADAFRUIT,
     BOOTLOADER_ADAFRUIT_NRF52_SD132,
@@ -71,6 +72,10 @@ def set_core_data(config: ConfigType) -> ConfigType:
     zephyr_set_core_data(config)
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
+
+    if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
+        zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
+
     return config
 
 
