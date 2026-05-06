@@ -5038,6 +5038,32 @@ def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
     assert result == 2
 
 
+@pytest.mark.parametrize(
+    ("command", "expected_skip"),
+    [
+        ("logs", True),
+        ("clean", True),
+        ("compile", False),
+        ("config", False),
+        ("run", False),
+        ("clean-mqtt", False),
+    ],
+)
+def test_run_esphome_skip_external_update_per_command(
+    tmp_path: Path, command: str, expected_skip: bool
+) -> None:
+    """read_config is invoked with skip_external_update=True only for commands
+    that don't need fresh external components (logs, clean)."""
+    yaml_file = tmp_path / "device.yaml"
+    yaml_file.write_text("esphome:\n  name: test\n")
+
+    with patch("esphome.__main__.read_config", return_value=None) as mock_read:
+        run_esphome(["esphome", command, str(yaml_file)])
+
+    mock_read.assert_called_once()
+    assert mock_read.call_args.kwargs["skip_external_update"] is expected_skip
+
+
 def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
     """Test reading XTAL_FREQ from sdkconfig."""
     CORE.name = "test-device"
