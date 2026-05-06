@@ -291,7 +291,7 @@ void ZigbeeComponent::setup() {
 
 void ZigbeeComponent::loop() {
   if (this->joined.exchange(false)) {
-    this->connected = true;
+    this->connected_ = true;
     this->join_cb_.call(this->factory_new);
   }
   this->disable_loop();
