@@ -161,24 +161,9 @@ void BL0942::received_package_(DataPacket *data) {
     return;
   }
 
-  // cf_cnt is only 24 bits, so track overflows
+  // cf_cnt wraps at 24 bits; total_increasing on the energy sensor handles the
+  // wrap (and any spurious chip resets) downstream.
   uint32_t cf_cnt = (uint24_t) data->cf_cnt;
-  uint32_t prev_cf_cnt_24 = this->prev_cf_cnt_ & 0x00ffffff;
-  cf_cnt |= this->prev_cf_cnt_ & 0xff000000;
-  if (cf_cnt < this->prev_cf_cnt_) {
-    if (prev_cf_cnt_24 > 0x800000) {
-      // Previous value was in the upper half of the 24-bit range,
-      // so this is likely a genuine overflow from 0xFFFFFF to 0x000000.
-      cf_cnt += 0x1000000;
-    } else {
-      // Previous value was low, so the BL0942 chip likely reset its
-      // counter (e.g. due to electrical disturbance). Don't treat as
-      // overflow — just continue from the new value to avoid a ~3MWh jump.
-      ESP_LOGW(TAG, "BL0942 energy counter unexpectedly decreased from %" PRIu32 " to %" PRIu32 ", assuming chip reset",
-               this->prev_cf_cnt_, cf_cnt);
-    }
-  }
-  this->prev_cf_cnt_ = cf_cnt;
 
   float v_rms = (uint24_t) data->v_rms / voltage_reference_;
   float i_rms = (uint24_t) data->i_rms / current_reference_;

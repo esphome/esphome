@@ -10,11 +10,6 @@ namespace esphome::binary_sensor {
 
 static const char *const TAG = "sensor.filter";
 
-// AutorepeatFilter still inherits Component (it schedules two distinct timer
-// purposes), so it keeps the (Component *, id) scheduler API.
-constexpr uint32_t AUTOREPEAT_TIMING_ID = 0;
-constexpr uint32_t AUTOREPEAT_ON_OFF_ID = 1;
-
 void Filter::output(bool value) {
   if (this->next_ == nullptr) {
     this->parent_->send_state_internal(value);
@@ -69,6 +64,10 @@ optional<bool> DelayedOffFilter::new_value(bool value) {
 optional<bool> InvertFilter::new_value(bool value) { return !value; }
 
 // AutorepeatFilterBase
+// Two independent timers per instance, keyed off two stable addresses inside
+// the filter: `this` for the timing-step timer, `&active_timing_` for the
+// on/off timer. Both are unique per instance and don't collide with anything
+// else, so the self-keyed scheduler API is sufficient.
 optional<bool> AutorepeatFilterBase::new_value(bool value) {
   if (value) {
     if (this->active_timing_ != 0)
@@ -76,8 +75,8 @@ optional<bool> AutorepeatFilterBase::new_value(bool value) {
     this->next_timing_();
     return true;
   } else {
-    this->cancel_timeout(AUTOREPEAT_TIMING_ID);
-    this->cancel_timeout(AUTOREPEAT_ON_OFF_ID);
+    App.scheduler.cancel_timeout(this);
+    App.scheduler.cancel_timeout(&this->active_timing_);
     this->active_timing_ = 0;
     return false;
   }
@@ -85,8 +84,7 @@ optional<bool> AutorepeatFilterBase::new_value(bool value) {
 
 void AutorepeatFilterBase::next_timing_() {
   if (this->active_timing_ < this->timings_count_) {
-    this->set_timeout(AUTOREPEAT_TIMING_ID, this->timings_[this->active_timing_].delay,
-                      [this]() { this->next_timing_(); });
+    App.scheduler.set_timeout(this, this->timings_[this->active_timing_].delay, [this]() { this->next_timing_(); });
   }
   if (this->active_timing_ <= this->timings_count_) {
     this->active_timing_++;
@@ -98,11 +96,9 @@ void AutorepeatFilterBase::next_timing_() {
 void AutorepeatFilterBase::next_value_(bool val) {
   const AutorepeatFilterTiming &timing = this->timings_[this->active_timing_ - 2];
   this->output(val);
-  this->set_timeout(AUTOREPEAT_ON_OFF_ID, val ? timing.time_on : timing.time_off,
-                    [this, val]() { this->next_value_(!val); });
+  App.scheduler.set_timeout(&this->active_timing_, val ? timing.time_on : timing.time_off,
+                            [this, val]() { this->next_value_(!val); });
 }
-
-float AutorepeatFilterBase::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 LambdaFilter::LambdaFilter(std::function<optional<bool>(bool)> f) : f_(std::move(f)) {}
 

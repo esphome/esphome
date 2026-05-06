@@ -17,9 +17,12 @@ namespace speaker {
 //    - Each stream has an individual speaker component for output
 //  - Each stream is handled by an ``AudioPipeline`` object with two parts/tasks
 //    - ``AudioReader`` handles reading from an HTTP source or from a PROGMEM flash set at compile time
-//    - ``AudioDecoder`` handles decoding the audio file. All formats are limited to two channels and 16 bits per sample
+//    - ``AudioDecoder`` handles decoding the audio file. All formats are limited to two channels and 16 bits per
+//    sample.
+//      Each format is enabled independently at compile time:
 //      - FLAC
 //      - MP3 (based on the libhelix decoder)
+//      - Ogg Opus
 //      - WAV
 //    - Each task runs until it is done processing the file or it receives a stop command
 //    - Inter-task communication uses a FreeRTOS Event Group

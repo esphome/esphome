@@ -28,6 +28,28 @@ class RingBuffer {
   size_t read(void *data, size_t len, TickType_t ticks_to_wait = 0);
 
   /**
+   * @brief Acquires a pointer into the ring buffer's internal storage without copying.
+   *
+   * The returned pointer is valid until receive_release() is called. Only one item
+   * may be checked out at a time.
+   *
+   * @param[out] length Set to the number of bytes actually acquired (may be less than max_length at wrap boundary)
+   * @param max_length Maximum number of bytes to acquire
+   * @param ticks_to_wait Maximum number of FreeRTOS ticks to wait (default: 0)
+   * @return Pointer into the ring buffer's internal storage, or nullptr if no data is available
+   */
+  void *receive_acquire(size_t &length, size_t max_length, TickType_t ticks_to_wait = 0);
+
+  /**
+   * @brief Releases a previously acquired ring buffer item.
+   *
+   * Must be called exactly once for each successful receive_acquire().
+   *
+   * @param item Pointer returned by receive_acquire()
+   */
+  void receive_release(void *item);
+
+  /**
    * @brief Writes to the ring buffer, overwriting oldest data if necessary.
    *
    * The provided data is written to the ring buffer. If not enough space is available,

@@ -309,6 +309,14 @@ LV_EVENT_MAP = {
     "STYLE_CHANGE": "STYLE_CHANGED",
     "TRIPLE_CLICK": "TRIPLE_CLICKED",
 }
+
+LV_PRESS_EVENTS = ("PRESS", "PRESSING", "RELEASE")
+
+
+def is_press_event(event: str) -> bool:
+    return event.removeprefix("on_").upper() in LV_PRESS_EVENTS
+
+
 LV_SCREEN_EVENT_MAP = {
     "SCREEN_LOAD": "SCREEN_LOADED",
     "SCREEN_LOAD_START": "SCREEN_LOAD_START",
