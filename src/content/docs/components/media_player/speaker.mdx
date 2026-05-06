@@ -35,7 +35,7 @@ media_player:
 - **announcement_pipeline** (**Required**, Pipeline Schema): Configuration settings for the announcement pipeline.
 
   - **speaker** (**Required**, [ID](/guides/configuration-types#id)): The [speaker](/components/speaker/) to output the audio.
-  - **format** (*Optional*, enum): The audio format Home Assistant will transcode audio to before sending it to the device. One of `FLAC`, `MP3`, `OPUS`, `WAV`, or `NONE`. `NONE` disables transcoding in Home Assistant; ESPHome will then compile support for all supported codecs (`FLAC`, `MP3`, `OPUS`, and `WAV`), which increases firmware size. Defaults to `FLAC`.
+  - **format** (*Optional*, enum): The audio format Home Assistant will transcode audio to before sending it to the device. One of `FLAC`, `MP3`, `OPUS`, `WAV`, or `NONE`. `NONE` disables transcoding in Home Assistant; ESPHome will then compile support for all supported codecs (`FLAC`, `MP3`, `OPUS`, and `WAV`), which increases firmware size. To compile in additional codecs without setting this to `NONE`, use the [Audio](/components/audio/) component. Defaults to `FLAC`.
   - **sample_rate** (*Optional*, positive integer): Sample rate for the transcoded audio. Should be supported by the configured `speaker` component. Defaults to the speaker's sample rate. The `OPUS` codec only supports a `48000` sample rate.
   - **num_channels** (*Optional*, positive integer): Number of channels for the transcoded audio. Must be either `1` or `2`. Defaults to the speaker's number of channels.
 
@@ -183,6 +183,8 @@ In general, decoding FLAC has the lowest CPU usage, but requires a strong WiFi c
 
 Decoding OPUS is extremely CPU and memory intensive and may not even decode in real-time on an ESP32. It is only suitable for ESP32-S3 devices with PSRAM.
 
+If you experience stuttering at the start of playback, especially on the original ESP32, you can override where each decoder library allocates its working buffers using the [Audio](/components/audio/) component.
+
 Increasing the buffer size may reduce stuttering, but do not set it to the entire size of the external memory. Each pipeline allocates the configured amount, and this setting also does not take into account other smaller buffers allocated throughout the audio stack.
 
 Only set `task_stack_in_psram` to true if you have many components configured and your logs show that memory allocation failed. It is slower, especially if your PSRAM doesn't support `octal` mode.
@@ -205,6 +207,7 @@ If audio stutters, and your device has PSRAM, add ([Psram](/components/psram/) c
 
 ## See Also
 
+- [Audio](/components/audio/)
 - [Speaker Components](/components/speaker/)
 - [Mixer Speaker](/components/speaker/mixer/)
 - [Resampler Speaker](/components/speaker/resampler/)
