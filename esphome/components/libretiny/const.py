@@ -54,6 +54,14 @@ COMPONENT_LN882X = "ln882x"
 COMPONENT_RTL87XX = "rtl87xx"
 # COMPONENTS - end
 
+# Note for ``generate_components.py`` maintainers: the
+# ``FAMILY_COMPONENT`` map below is also consumed externally —
+# device-builder (esphome/device-builder) derives the set of
+# ``target_platform`` values that should route to the ``libretiny``
+# component for the dashboard's ``get_download_types`` lookup from
+# ``FAMILY_COMPONENT.values()``. New chip families added by the
+# generator are picked up automatically; please don't repurpose
+# the public ``FAMILY_COMPONENT`` name without coordinating.
 # FAMILIES - auto-generated! Do not modify this block.
 FAMILY_BK7231N = "BK7231N"
 FAMILY_BK7231Q = "BK7231Q"

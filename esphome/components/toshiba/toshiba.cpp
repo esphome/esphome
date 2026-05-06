@@ -275,7 +275,7 @@ static Ras2819tSecondPacketCodes get_ras_2819t_second_packet_codes(climate::Clim
  */
 static uint8_t get_ras_2819t_temp_code(float temperature) {
   int temp_index = static_cast<int>(temperature) - 18;
-  if (temp_index < 0 || temp_index >= static_cast<int>(sizeof(RAS_2819T_TEMP_CODES))) {
+  if (temp_index < 0 || static_cast<size_t>(temp_index) >= sizeof(RAS_2819T_TEMP_CODES)) {
     ESP_LOGW(TAG, "Temperature %.1f°C out of range [18-30°C], defaulting to 24°C", temperature);
     return 0x40;  // Default to 24°C
   }
