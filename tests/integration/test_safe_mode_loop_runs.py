@@ -24,13 +24,13 @@ This test uses ``run_binary`` directly to skip the port wait.
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 import re
 import struct
 
 import pytest
 
 from .conftest import run_binary
+from .host_prefs import clear_host_prefs, write_host_pref
 from .types import CompileFunction, ConfigWriter
 
 # Must match esphome::safe_mode::RTC_KEY in safe_mode.h
@@ -40,20 +40,6 @@ ENTER_SAFE_MODE_MAGIC = 0x5AFE5AFE
 
 DEVICE_NAME = "safe-mode-loop-runs"
 THREAD_LOG_MARKER = "looping component ran in safe mode"
-
-
-def _write_safe_mode_pending_prefs(device_name: str) -> Path:
-    """Pre-populate the host prefs file so the next boot enters safe mode.
-
-    Mirrors the on-disk layout written by ``HostPreferences::sync()``:
-    ``[uint32_t key][uint8_t len][uint8_t data[len]]`` per entry.
-    """
-    prefs_dir = Path.home() / ".esphome" / "prefs"
-    prefs_dir.mkdir(parents=True, exist_ok=True)
-    prefs_path = prefs_dir / f"{device_name}.prefs"
-    payload = struct.pack("<IBI", SAFE_MODE_RTC_KEY, 4, ENTER_SAFE_MODE_MAGIC)
-    prefs_path.write_bytes(payload)
-    return prefs_path
 
 
 @pytest.mark.asyncio
@@ -70,7 +56,9 @@ async def test_safe_mode_loop_runs(
 
     # Compile finished successfully; pre-populate prefs so the *next* run
     # enters safe mode immediately.
-    prefs_path = _write_safe_mode_pending_prefs(DEVICE_NAME)
+    write_host_pref(
+        DEVICE_NAME, SAFE_MODE_RTC_KEY, struct.pack("<I", ENTER_SAFE_MODE_MAGIC)
+    )
 
     try:
         loop = asyncio.get_running_loop()
@@ -103,4 +91,4 @@ async def test_safe_mode_loop_runs(
                     "sized -- this is the regression #16269 fixed."
                 )
     finally:
-        prefs_path.unlink(missing_ok=True)
+        clear_host_prefs(DEVICE_NAME)
