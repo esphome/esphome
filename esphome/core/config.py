@@ -568,11 +568,13 @@ async def _add_controller_registry_define() -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_looping_components() -> None:
-    # Emit a constexpr that computes the looping component count at C++ compile time
-    # and pre-init the FixedVector with the exact capacity. Uses std::is_same_v to
-    # detect loop() overrides. The constexpr goes in main.cpp's global section where
-    # all component types are in scope. calculate_looping_components_() then skips
-    # the counting pass and only does the two population passes.
+    # Emit ESPHOME_LOOPING_COMPONENT_COUNT, a constexpr that computes the
+    # number of registered looping components at C++ compile time. Uses
+    # HasLoopOverride<T> to detect loop() overrides. The constexpr goes in
+    # main.cpp's global section where all component types are in scope.
+    # The FixedVector that holds these components is sized via this constant
+    # in core to_code() (CoroPriority.CORE), which runs early enough to
+    # land before safe_mode's possible early return in setup_app().
     entries = CORE.data.get("looping_component_entries", [])
 
     # Build constexpr sum for the exact count, deduplicating by type
