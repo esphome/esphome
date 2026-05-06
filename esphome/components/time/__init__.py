@@ -346,13 +346,12 @@ TIME_SCHEMA = cv.Schema(
         ),
     }
 ).extend(
-    # ``advanced_update_interval`` flags the inherited
-    # ``update_interval`` field as an advanced UI hint — the 15min
-    # default is correct for essentially every user, so visual
-    # editors should keep it tucked under "advanced" so it doesn't
-    # crowd the form. Validation is unaffected; YAML can override
-    # as before.
-    cv.polling_component_schema("15min", advanced_update_interval=True)
+    # ``visibility=ADVANCED`` flags the inherited ``update_interval``
+    # field for visual editors — the 15min default is correct for
+    # essentially every user, so editors should keep it tucked under
+    # "advanced" so it doesn't crowd the form. Validation is
+    # unaffected; YAML can override as before.
+    cv.polling_component_schema("15min", visibility=cv.Visibility.ADVANCED)
 )
 
 

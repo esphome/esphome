@@ -89,6 +89,7 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
+from esphome.enum import StrEnum
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
 from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
 from esphome.schema_extractors import (
@@ -281,6 +282,54 @@ RESERVED_IDS = [
 ]
 
 
+class Visibility(StrEnum):
+    """Schema-driven UI hint for visual editors.
+
+    The values describe how a schema-aware editor (e.g. the
+    device-builder dashboard catalog via
+    ``script/build_language_schema.py``) should render the field.
+    They do NOT affect validation — the YAML still accepts the key
+    the same way. ESPHome itself ignores the value at runtime;
+    consumers downstream of the schema dump act on it.
+
+    A field with no ``visibility`` set (the default) renders on the
+    editor's main form. The two values below are points along a
+    single axis of "how prominently to surface this":
+
+    - ``ADVANCED`` — render under the editor's "advanced settings"
+      disclosure. Use for fields whose default is right for ~all
+      users (e.g. ``update_interval`` on time platforms — 15 min is
+      universally correct, but power users can still tune the YAML
+      directly).
+    - ``YAML_ONLY`` — never render in a visual editor. Use for
+      knobs that are dangerous to expose in a UI even as advanced
+      (``setup_priority`` is the canonical example — casual UI
+      tweaks can break boot). The YAML escape hatch stays
+      available for the rare power-user override.
+
+    The single-axis shape encodes "yaml-only is strictly stronger
+    than advanced" at the type level — there's no way to ask for
+    both at once, and no way to set a contradictory state like
+    "advanced=False, yaml_only=True".
+
+    Per-field; the dumper walks recursively into nested schemas
+    and emits each field's setting independently. Cascading
+    semantics — "a stricter parent makes its descendants at-least
+    as strict" — belong on the consumer side: the schema marker
+    is faithfully what the field author wrote, and a consumer that
+    cares about effective visibility walks the parent chain and
+    takes the strictest setting. ``YAML_ONLY`` is strictly stronger
+    than ``ADVANCED``, which is strictly stronger than no setting.
+    Inner fields can declare their own visibility; an inner
+    ``YAML_ONLY`` under an ``ADVANCED`` parent stays ``YAML_ONLY``,
+    and the consumer's cascade keeps siblings under the parent at
+    ``ADVANCED`` regardless of their own (less-strict) setting.
+    """
+
+    ADVANCED = "advanced"
+    YAML_ONLY = "yaml_only"
+
+
 class Optional(vol.Optional):
     """Mark a field as optional and optionally define a default for the field.
 
@@ -296,29 +345,8 @@ class Optional(vol.Optional):
     during config validation - specifically *not* in the C++ code or the code generation
     phase.
 
-    The ``advanced`` and ``yaml_only`` flags are UI hints consumed by
-    schema-driven editors (e.g. the device-builder dashboard catalog
-    via ``script/build_language_schema.py``). They do NOT affect
-    validation — the YAML still accepts the key the same way. ESPHome
-    itself reads neither flag at runtime; they exist purely so a
-    schema consumer can decide to render the field under an
-    "advanced settings" toggle, or hide the field entirely from a
-    visual editor while the YAML continues to drive the actual
-    behaviour.
-
-    - ``advanced=True`` — render under the editor's "advanced
-      settings" disclosure. Use for fields whose defaults are right
-      for the typical user (e.g. ``update_interval`` on time
-      platforms — 15 min is universally correct, but power users
-      can still tune it).
-    - ``yaml_only=True`` — never render in a visual editor. Use for
-      knobs that are dangerous to expose in a UI even as advanced —
-      ``setup_priority`` on every component is the canonical example
-      (changing it casually can break boot).
-
-    Both flags can be set, but ``yaml_only`` is the stronger signal —
-    a sensible consumer treats ``yaml_only`` as "hide" regardless of
-    the ``advanced`` value.
+    See :class:`Visibility` for the ``visibility`` kwarg — a UI
+    hint for schema-driven editors that doesn't affect validation.
     """
 
     def __init__(
@@ -326,12 +354,10 @@ class Optional(vol.Optional):
         key,
         default=UNDEFINED,
         *,
-        advanced: bool = False,
-        yaml_only: bool = False,
+        visibility: Visibility | None = None,
     ):
         super().__init__(key, default=default)
-        self.advanced: bool = advanced
-        self.yaml_only: bool = yaml_only
+        self.visibility: Visibility | None = visibility
 
 
 class Required(vol.Required):
@@ -341,12 +367,11 @@ class Required(vol.Required):
     All required values should be accessed with the `config[CONF_<KEY>]` syntax in code
     - *not* the `config.get(CONF_<KEY>)` syntax.
 
-    See :class:`Optional` for the semantics of ``advanced`` and
-    ``yaml_only`` — they're UI hints only, with no effect on
-    validation. Required fields rarely need either flag (a required
-    field by definition needs the user's attention), but the kwargs
-    are exposed for completeness so schema consumers can apply the
-    same logic uniformly across key markers.
+    See :class:`Visibility` for the ``visibility`` kwarg — a UI
+    hint for schema-driven editors that doesn't affect validation.
+    Required fields rarely need it (a required field by definition
+    needs the user's attention) but the kwarg is exposed for
+    symmetry so consumers can apply uniform logic across key markers.
     """
 
     def __init__(
@@ -354,12 +379,10 @@ class Required(vol.Required):
         key,
         msg=None,
         *,
-        advanced: bool = False,
-        yaml_only: bool = False,
+        visibility: Visibility | None = None,
     ):
         super().__init__(key, msg=msg)
-        self.advanced: bool = advanced
-        self.yaml_only: bool = yaml_only
+        self.visibility: Visibility | None = visibility
 
 
 class FinalExternalInvalid(Invalid):
@@ -2216,28 +2239,27 @@ COMPONENT_SCHEMA = Schema(
         # ``setup_priority`` controls the relative order in which
         # components are brought up at boot. Wrong values can break
         # the boot sequence in subtle ways (e.g. an i2c device set
-        # to higher priority than the bus). Mark it ``yaml_only`` so
+        # to higher priority than the bus). Mark it ``YAML_ONLY`` so
         # visual editors never render it — the YAML escape hatch
         # stays available for the rare component author who really
         # needs to override the default.
-        Optional(CONF_SETUP_PRIORITY, yaml_only=True): float_,
+        Optional(CONF_SETUP_PRIORITY, visibility=Visibility.YAML_ONLY): float_,
     }
 )
 
 
 def polling_component_schema(
-    default_update_interval, *, advanced_update_interval=False
+    default_update_interval, *, visibility: Visibility | None = None
 ):
     """Validate that this component represents a PollingComponent with a configurable
     update_interval.
 
     :param default_update_interval: The default update interval to set for the integration.
-    :param advanced_update_interval: When True, mark ``update_interval`` as
-        an advanced UI-hint field. Set this for components whose default
-        cadence is already correct for ~all users (time platforms, NTP
-        sync, etc.) — power users can still tune the YAML directly, but
-        the field hides behind the editor's advanced disclosure so it
-        doesn't crowd the form.
+    :param visibility: When set, propagate to the inherited
+        ``update_interval`` field's :class:`Visibility` UI hint. Set
+        this for components whose default cadence is already correct
+        for ~all users (e.g. time platforms — pass
+        ``Visibility.ADVANCED``).
 
         Only honoured on the optional-default branch. When
         ``default_update_interval`` is ``None`` the field becomes
@@ -2245,11 +2267,11 @@ def polling_component_schema(
         needs the user to choose), and hiding a Required field behind
         an advanced disclosure would be a UX hazard — collapsed-by-default
         editors could let the user submit without realising the form has
-        an unfilled required field. The flag is silently ignored on that
+        an unfilled required field. The kwarg is silently ignored on that
         path so callers can pass it unconditionally.
     """
     if default_update_interval is None:
-        # Required → don't honour ``advanced_update_interval``.
+        # Required → don't honour ``visibility``.
         # See the docstring for the UX rationale.
         return COMPONENT_SCHEMA.extend(
             {
@@ -2262,7 +2284,7 @@ def polling_component_schema(
             Optional(
                 CONF_UPDATE_INTERVAL,
                 default=default_update_interval,
-                advanced=advanced_update_interval,
+                visibility=visibility,
             ): update_interval,
         }
     )
