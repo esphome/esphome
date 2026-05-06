@@ -45,6 +45,12 @@ esp32:
   - ESP32-H2: `16MHz`, `32MHz`, `48MHz`, `64MHz`, `96MHz`
   - ESP32-P4: `40MHz`, `360MHz`, `400MHz` (engineering samples are limited to `360MHz`)
 
+  Some ESP32 modules -- typically OEM/single-core variants found in commercial
+  devices (e.g. certain Xiaomi lamps) -- are rated only up to `160MHz` even though
+  they identify as ESP32. If your device hangs, resets, or fails to boot after
+  flashing at the default (maximum) frequency, set `cpu_frequency: 160MHz` (or
+  lower) to work around this.
+
 - **partitions** (*Optional*, filename or list): A partition table CSV file or a list of custom partitions to add.
   See [Partitions](#esp32-partitions).
 
