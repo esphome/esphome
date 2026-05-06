@@ -890,7 +890,21 @@ lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos) {
   int32_t offset = pos - stop1->frac;
   return lv_color_mix(stop2->color, stop1->color, range == 0 ? 0 : (offset * 255) / range);
 }
-#endif
+#endif  // USE_LVGL_GRADIENT
+
+lv_point_t LvglComponent::get_touch_relative_to_obj(lv_obj_t *obj) {
+  auto *indev = lv_indev_get_act();
+  if (indev == nullptr) {
+    return {INT32_MAX, INT32_MAX};
+  }
+  lv_point_t point;
+  lv_indev_get_point(indev, &point);
+  lv_area_t coords;
+  lv_obj_get_coords(obj, &coords);
+  point.x -= coords.x1;
+  point.y -= coords.y1;
+  return point;
+}
 
 static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *obj) {
   LV_TRACE_OBJ_CREATE("begin");
