@@ -11,8 +11,8 @@
     "lint": "node lint.mjs"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.38.2",
-    "astro": "^6.1.9",
+    "@astrojs/starlight": "^0.38.5",
+    "astro": "^6.2.2",
     "katex": "^0.16.45",
     "micromark": "^4.0.2",
     "rehype-katex": "^7.0.1",
@@ -31,6 +31,6 @@
   },
   "homepage": "https://esphome.io",
   "devDependencies": {
-    "jsdom": "^29.1.0"
+    "jsdom": "^29.1.1"
   }
 }
