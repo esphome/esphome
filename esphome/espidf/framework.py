@@ -17,7 +17,7 @@ import requests
 
 from esphome.config_validation import Version
 from esphome.core import CORE
-from esphome.helpers import get_str_env, rmtree
+from esphome.helpers import ProgressBar, get_str_env, rmtree
 
 PathType = str | os.PathLike
 
@@ -698,10 +698,25 @@ def download_from_mirrors(
 
                 with requests.get(url, stream=True, timeout=timeout) as r:
                     r.raise_for_status()
-                    # 5. Write downloaded content
+
+                    total_size = int(r.headers.get("content-length", 0))
+                    downloaded = 0
+
+                    progress = ProgressBar("Downloading")
+
                     for chunk in r.iter_content(chunk_size=8192):
                         if chunk:
                             f.write(chunk)
+
+                        downloaded += len(chunk)
+
+                        if total_size > 0:
+                            progress.update(downloaded / total_size)
+                        else:
+                            # fallback: just pulse or treat as unknown size
+                            progress.update(0)
+
+                    progress.update(1)
 
                 _LOGGER.debug("Downloaded successfully from: %s", url)
 
