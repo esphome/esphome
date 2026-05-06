@@ -9,7 +9,8 @@ FROM ghcr.io/esphome/docker-base:${BUILD_OS}-ha-addon-${BUILD_BASE_VERSION} AS b
 ARG BUILD_TYPE
 FROM base-source-${BUILD_TYPE} AS base
 
-RUN git config --system --add safe.directory "*"
+RUN git config --system --add safe.directory "*" \
+    && git config --system advice.detachedHead false
 
 # Install build tools for Python packages that require compilation
 # (e.g., ruamel.yaml.clibz used by ESP-IDF's idf-component-manager)
@@ -23,7 +24,7 @@ RUN if command -v apk > /dev/null; then \
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN pip install --no-cache-dir -U pip uv==0.6.14
+RUN pip install --no-cache-dir -U pip uv==0.10.1
 
 COPY requirements.txt /
 

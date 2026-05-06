@@ -20,8 +20,6 @@ class HTU31DComponent : public PollingComponent, public i2c::I2CDevice {
   void set_heater_state(bool desired);
   bool is_heater_enabled();
 
-  float get_setup_priority() const override;
-
  protected:
   bool reset_();
   uint32_t read_serial_num_();

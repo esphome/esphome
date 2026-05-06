@@ -69,10 +69,8 @@ class BL0940 : public PollingComponent, public uart::UARTDevice {
   void set_energy_calibration_number(number::Number *num) { this->energy_calibration_number_ = num; }
 #endif
 
-#ifdef USE_BUTTON
-  // Resets all calibration values to defaults (can be triggered by a button)
+  // Resets all calibration values to defaults
   void reset_calibration();
-#endif
 
   // Core component methods
   void loop() override;

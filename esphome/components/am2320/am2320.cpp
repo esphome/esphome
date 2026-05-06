@@ -51,7 +51,6 @@ void AM2320Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
-float AM2320Component::get_setup_priority() const { return setup_priority::DATA; }
 
 bool AM2320Component::read_bytes_(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion) {
   if (!this->write_bytes(a_register, data, 2)) {

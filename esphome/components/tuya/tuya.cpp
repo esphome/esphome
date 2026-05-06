@@ -31,10 +31,19 @@ void Tuya::setup() {
 }
 
 void Tuya::loop() {
-  while (this->available()) {
-    uint8_t c;
-    this->read_byte(&c);
-    this->handle_char_(c);
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[64];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+
+    for (size_t i = 0; i < to_read; i++) {
+      this->handle_char_(buf[i]);
+    }
   }
   process_command_queue_();
 }

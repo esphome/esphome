@@ -114,7 +114,6 @@ enum INAModel : uint8_t { INA_UNKNOWN = 0, INA_228, INA_229, INA_238, INA_239, I
 class INA2XX : public PollingComponent {
  public:
   void setup() override;
-  float get_setup_priority() const override;
   void update() override;
   void loop() override;
   void dump_config() override;

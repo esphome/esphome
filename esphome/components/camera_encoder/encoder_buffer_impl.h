@@ -16,7 +16,6 @@ class EncoderBufferImpl : public camera::EncoderBuffer {
   ~EncoderBufferImpl() override;
 
  protected:
-  RAMAllocator<uint8_t> allocator_;
   size_t capacity_{};
   size_t size_{};
   uint8_t *data_{};

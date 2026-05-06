@@ -1,5 +1,6 @@
 #pragma once
 
+#include <queue>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
@@ -83,7 +84,6 @@ class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
   void set_flow_sensor(sensor::Sensor *sensor) { this->flow_sensor_ = sensor; }
   void set_volume_sensor(sensor::Sensor *sensor) { this->volume_sensor_ = sensor; }
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
   void loop() override;
   void add_custom_sensor(sensor::Sensor *sensor, uint16_t command) {

@@ -21,9 +21,9 @@ float PIDController::update(float setpoint, float process_value) {
   // u(t) := p(t) + i(t) + d(t)
   float output = proportional_term_ + integral_term_ + derivative_term_;
 
-  // smooth/sample the output
+  // smooth/sample the output using shared buffer with mode-appropriate sample count
   int samples = in_deadband() ? deadband_output_samples_ : output_samples_;
-  return weighted_average_(output_list_, output, samples);
+  return ring_buffer_average_(output_window_, output, samples);
 }
 
 bool PIDController::in_deadband() {
@@ -83,7 +83,7 @@ void PIDController::calculate_derivative_term_(float setpoint) {
   previous_setpoint_ = setpoint;
 
   // smooth the derivative samples
-  derivative = weighted_average_(derivative_list_, derivative, derivative_samples_);
+  derivative = ring_buffer_average_(derivative_window_, derivative, derivative_samples_);
 
   derivative_term_ = kd_ * derivative;
 
@@ -93,25 +93,23 @@ void PIDController::calculate_derivative_term_(float setpoint) {
   }
 }
 
-float PIDController::weighted_average_(std::deque<float> &list, float new_value, int samples) {
-  // if only 1 sample needed, clear the list and return
-  if (samples == 1) {
-    list.clear();
+float PIDController::ring_buffer_average_(FixedRingBuffer<float> &buf, float new_value, int max_samples) {
+  // if only 1 sample needed (or invalid), clear the buffer and return
+  if (max_samples <= 1) {
+    buf.clear();
     return new_value;
   }
 
-  // add the new item to the list
-  list.push_front(new_value);
+  // Trim oldest entries to make room (handles mode-switching where buffer
+  // may have more entries than the current mode needs)
+  while (buf.size() >= static_cast<size_t>(max_samples))
+    buf.pop();
+  buf.push(new_value);
 
-  // keep only 'samples' readings, by popping off the back of the list
-  while (samples > 0 && list.size() > static_cast<size_t>(samples))
-    list.pop_back();
-
-  // calculate and return the average of all values in the list
   float sum = 0;
-  for (auto &elem : list)
-    sum += elem;
-  return sum / list.size();
+  for (auto val : buf)
+    sum += val;
+  return sum / buf.size();
 }
 
 float PIDController::calculate_relative_time_() {

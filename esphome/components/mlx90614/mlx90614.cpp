@@ -71,8 +71,6 @@ void MLX90614Component::dump_config() {
   LOG_SENSOR("  ", "Object", this->object_sensor_);
 }
 
-float MLX90614Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void MLX90614Component::update() {
   uint8_t emissivity[3];
   if (this->read_register(MLX90614_EMISSIVITY, emissivity, 3) != i2c::ERROR_OK) {

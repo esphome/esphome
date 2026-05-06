@@ -69,7 +69,5 @@ int8_t M5Stack8AngleComponent::read_switch() {
   }
 }
 
-float M5Stack8AngleComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace m5stack_8angle
 }  // namespace esphome

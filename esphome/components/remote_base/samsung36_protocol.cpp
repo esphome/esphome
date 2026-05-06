@@ -6,17 +6,17 @@ namespace remote_base {
 
 static const char *const TAG = "remote.samsung36";
 
-static const uint8_t NBITS = 78;
+static constexpr uint8_t NBITS = 78;
 
-static const uint32_t HEADER_HIGH_US = 4500;
-static const uint32_t HEADER_LOW_US = 4500;
-static const uint32_t BIT_HIGH_US = 500;
-static const uint32_t BIT_ONE_LOW_US = 1500;
-static const uint32_t BIT_ZERO_LOW_US = 500;
-static const uint32_t MIDDLE_HIGH_US = 500;
-static const uint32_t MIDDLE_LOW_US = 4500;
-static const uint32_t FOOTER_HIGH_US = 500;
-static const uint32_t FOOTER_LOW_US = 59000;
+static constexpr uint32_t HEADER_HIGH_US = 4500;
+static constexpr uint32_t HEADER_LOW_US = 4500;
+static constexpr uint32_t BIT_HIGH_US = 500;
+static constexpr uint32_t BIT_ONE_LOW_US = 1500;
+static constexpr uint32_t BIT_ZERO_LOW_US = 500;
+static constexpr uint32_t MIDDLE_HIGH_US = 500;
+static constexpr uint32_t MIDDLE_LOW_US = 4500;
+static constexpr uint32_t FOOTER_HIGH_US = 500;
+static constexpr uint32_t FOOTER_LOW_US = 59000;
 
 void Samsung36Protocol::encode(RemoteTransmitData *dst, const Samsung36Data &data) {
   dst->set_carrier_frequency(38000);

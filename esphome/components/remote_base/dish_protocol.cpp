@@ -6,11 +6,11 @@ namespace remote_base {
 
 static const char *const TAG = "remote.dish";
 
-static const uint32_t HEADER_HIGH_US = 400;
-static const uint32_t HEADER_LOW_US = 6100;
-static const uint32_t BIT_HIGH_US = 400;
-static const uint32_t BIT_ONE_LOW_US = 1700;
-static const uint32_t BIT_ZERO_LOW_US = 2800;
+static constexpr uint32_t HEADER_HIGH_US = 400;
+static constexpr uint32_t HEADER_LOW_US = 6100;
+static constexpr uint32_t BIT_HIGH_US = 400;
+static constexpr uint32_t BIT_ONE_LOW_US = 1700;
+static constexpr uint32_t BIT_ZERO_LOW_US = 2800;
 
 void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
   dst->reserve(138);

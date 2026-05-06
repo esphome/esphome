@@ -298,9 +298,9 @@ using display_writer_t = DisplayWriter<Display>;
   }
 
 /// Turn the pixel OFF.
-extern const Color COLOR_OFF;
+inline constexpr Color COLOR_OFF(0, 0, 0, 0);
 /// Turn the pixel ON.
-extern const Color COLOR_ON;
+inline constexpr Color COLOR_ON(255, 255, 255, 255);
 
 class BaseImage {
  public:
@@ -704,7 +704,7 @@ class Display : public PollingComponent {
   void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
 
   /// Internal method to set the display rotation with.
-  void set_rotation(DisplayRotation rotation);
+  virtual void set_rotation(DisplayRotation rotation);
 
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }

@@ -24,7 +24,7 @@ void SPISSD1306::dump_config() {
                 "  Offset X: %d\n"
                 "  Offset Y: %d\n"
                 "  Inverted Color: %s",
-                this->model_str_(), YESNO(this->external_vcc_), YESNO(this->flip_x_), YESNO(this->flip_y_),
+                LOG_STR_ARG(this->model_str_()), YESNO(this->external_vcc_), YESNO(this->flip_x_), YESNO(this->flip_y_),
                 this->offset_x_, this->offset_y_, YESNO(this->invert_));
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);

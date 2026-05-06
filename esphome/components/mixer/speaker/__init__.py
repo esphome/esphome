@@ -61,7 +61,7 @@ def _set_stream_limits(config):
 def _validate_source_speaker(config):
     fconf = fv.full_config.get()
 
-    # Get ID for the output speaker and add it to the source speakrs config to easily inherit properties
+    # Get ID for the output speaker and add it to the source speakers config to easily inherit properties
     path = fconf.get_path_for_id(config[CONF_ID])[:-3]
     path.append(CONF_OUTPUT_SPEAKER)
     output_speaker_id = fconf.get_config_for_path(path)
@@ -127,6 +127,9 @@ async def to_code(config):
                 "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
             )
 
+    # Initialize FixedVector with exact count of source speakers
+    cg.add(var.init_source_speakers(len(config[CONF_SOURCE_SPEAKERS])))
+
     for speaker_config in config[CONF_SOURCE_SPEAKERS]:
         source_speaker = cg.new_Pvariable(speaker_config[CONF_ID])
 
@@ -156,6 +159,7 @@ async def to_code(config):
             ),
         }
     ),
+    synchronous=True,
 )
 async def ducking_set_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

@@ -1,5 +1,6 @@
 #include "gobox_protocol.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace remote_base {
@@ -25,7 +26,7 @@ void GoboxProtocol::encode(RemoteTransmitData *dst, const GoboxData &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve((HEADER_SIZE + CODE_SIZE + 1) * 2);
   uint64_t code = (HEADER << CODE_SIZE) | (data.code & ((1UL << CODE_SIZE) - 1));
-  ESP_LOGI(TAG, "Send Gobox: code=0x%Lx", code);
+  ESP_LOGI(TAG, "Send Gobox: code=0x%016" PRIx64, code);
   for (int16_t i = (HEADER_SIZE + CODE_SIZE - 1); i >= 0; i--) {
     if (code & ((uint64_t) 1 << i)) {
       dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);

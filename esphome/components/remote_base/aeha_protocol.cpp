@@ -7,13 +7,13 @@ namespace remote_base {
 
 static const char *const TAG = "remote.aeha";
 
-static const uint16_t BITWISE = 425;
-static const uint16_t HEADER_HIGH_US = BITWISE * 8;
-static const uint16_t HEADER_LOW_US = BITWISE * 4;
-static const uint16_t BIT_HIGH_US = BITWISE;
-static const uint16_t BIT_ONE_LOW_US = BITWISE * 3;
-static const uint16_t BIT_ZERO_LOW_US = BITWISE;
-static const uint16_t TRAILER = BITWISE;
+static constexpr uint16_t BITWISE = 425;
+static constexpr uint16_t HEADER_HIGH_US = BITWISE * 8;
+static constexpr uint16_t HEADER_LOW_US = BITWISE * 4;
+static constexpr uint16_t BIT_HIGH_US = BITWISE;
+static constexpr uint16_t BIT_ONE_LOW_US = BITWISE * 3;
+static constexpr uint16_t BIT_ZERO_LOW_US = BITWISE;
+static constexpr uint16_t TRAILER = BITWISE;
 
 void AEHAProtocol::encode(RemoteTransmitData *dst, const AEHAData &data) {
   dst->reserve(2 + 32 + (data.data.size() * 2) + 1);

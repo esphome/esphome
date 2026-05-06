@@ -11,7 +11,7 @@
 #include "esp_log.h"
 
 #include "tusb.h"
-#include "tusb_cdc_acm.h"
+#include "tinyusb_cdc_acm.h"
 
 namespace esphome::usb_cdc_acm {
 
@@ -140,7 +140,6 @@ void USBCDCACMInstance::setup() {
 
   // Configure this CDC interface
   const tinyusb_config_cdcacm_t acm_cfg = {
-      .usb_dev = TINYUSB_USBDEV_0,
       .cdc_port = static_cast<tinyusb_cdcacm_itf_t>(this->itf_),
       .callback_rx = &tinyusb_cdc_rx_callback,
       .callback_rx_wanted_char = NULL,
@@ -148,19 +147,20 @@ void USBCDCACMInstance::setup() {
       .callback_line_coding_changed = &tinyusb_cdc_line_coding_changed_callback,
   };
 
-  esp_err_t result = tusb_cdc_acm_init(&acm_cfg);
+  esp_err_t result = tinyusb_cdcacm_init(&acm_cfg);
   if (result != ESP_OK) {
-    ESP_LOGE(TAG, "tusb_cdc_acm_init failed: %d", result);
+    ESP_LOGE(TAG, "tinyusb_cdcacm_init failed: %d", result);
     this->parent_->mark_failed();
     return;
   }
 
-  // Use a larger stack size for (very) verbose logging
-  const size_t stack_size = esp_log_level_get(TAG) > ESP_LOG_DEBUG ? USB_TX_TASK_STACK_SIZE_VV : USB_TX_TASK_STACK_SIZE;
+  // Use a larger stack size for very verbose logging
+  constexpr size_t stack_size =
+      ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE ? USB_TX_TASK_STACK_SIZE_VV : USB_TX_TASK_STACK_SIZE;
 
   // Create a simple, unique task name per interface
   char task_name[] = "usb_tx_0";
-  task_name[sizeof(task_name) - 1] = format_hex_char(static_cast<char>(this->itf_));
+  task_name[sizeof(task_name) - 2] = format_hex_char(static_cast<char>(this->itf_));
   xTaskCreate(usb_tx_task_fn, task_name, stack_size, this, 4, &this->usb_tx_task_handle_);
 
   if (this->usb_tx_task_handle_ == nullptr) {
@@ -317,18 +317,18 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   return bytes_read == original_len;
 }
 
-int USBCDCACMInstance::available() {
+size_t USBCDCACMInstance::available() {
   UBaseType_t waiting = 0;
   if (this->usb_rx_ringbuf_ != nullptr) {
     vRingbufferGetInfo(this->usb_rx_ringbuf_, nullptr, nullptr, nullptr, nullptr, &waiting);
   }
-  return static_cast<int>(waiting) + (this->has_peek_ ? 1 : 0);
+  return waiting + (this->has_peek_ ? 1 : 0);
 }
 
-void USBCDCACMInstance::flush() {
+uart::UARTFlushResult USBCDCACMInstance::flush() {
   // Wait for TX ring buffer to be empty
   if (this->usb_tx_ringbuf_ == nullptr) {
-    return;
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
 
   UBaseType_t waiting = 1;
@@ -340,7 +340,12 @@ void USBCDCACMInstance::flush() {
   }
 
   // Also wait for USB to finish transmitting
-  tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(100));
+  esp_err_t err = tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(100));
+  if (err == ESP_OK)
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+  if (err == ESP_ERR_TIMEOUT)
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
 }
 
 void USBCDCACMInstance::check_logger_conflict() {}

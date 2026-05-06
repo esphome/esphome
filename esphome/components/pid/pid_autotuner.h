@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 #include "pid_controller.h"
-#include "pid_simulator.h"
 
 #include <vector>
 

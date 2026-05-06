@@ -169,6 +169,7 @@ void RC522::loop() {
         default:
           ESP_LOGE(TAG, "uid_idx_ invalid, uid_idx_ = %d", uid_idx_);
           state_ = STATE_DONE;
+          return;
       }
       buffer_[1] = 32;
       pcd_transceive_data_(2);

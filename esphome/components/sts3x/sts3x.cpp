@@ -41,7 +41,7 @@ void STS3XComponent::dump_config() {
 
   LOG_SENSOR("  ", "STS3x", this);
 }
-float STS3XComponent::get_setup_priority() const { return setup_priority::DATA; }
+
 void STS3XComponent::update() {
   if (this->status_has_warning()) {
     ESP_LOGD(TAG, "Retrying to reconnect the sensor.");

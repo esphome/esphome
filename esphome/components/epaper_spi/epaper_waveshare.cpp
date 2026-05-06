@@ -4,7 +4,7 @@ namespace esphome::epaper_spi {
 
 static const char *const TAG = "epaper_spi.waveshare";
 
-void EpaperWaveshare::initialise(bool partial) {
+bool EpaperWaveshare::initialise(bool partial) {
   EPaperBase::initialise(partial);
   if (partial) {
     this->cmd_data(0x32, this->partial_lut_, this->partial_lut_length_);
@@ -17,6 +17,7 @@ void EpaperWaveshare::initialise(bool partial) {
     this->cmd_data(0x3C, {0x05});
   }
   this->send_red_ = true;
+  return true;
 }
 
 void EpaperWaveshare::set_window() {

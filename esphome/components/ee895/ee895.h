@@ -14,7 +14,6 @@ class EE895Component : public PollingComponent, public i2c::I2CDevice {
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
 
-  float get_setup_priority() const override;
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -23,9 +22,9 @@ class EE895Component : public PollingComponent, public i2c::I2CDevice {
   void write_command_(uint16_t addr, uint16_t reg_cnt);
   float read_float_();
   uint16_t calc_crc16_(const uint8_t buf[], uint8_t len);
-  sensor::Sensor *co2_sensor_;
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *pressure_sensor_;
+  sensor::Sensor *co2_sensor_{nullptr};
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *pressure_sensor_{nullptr};
 
   enum ErrorCode { NONE = 0, COMMUNICATION_FAILED, CRC_CHECK_FAILED } error_code_{NONE};
 };

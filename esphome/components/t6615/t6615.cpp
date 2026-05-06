@@ -86,7 +86,6 @@ void T6615Component::query_ppm_() {
   this->send_ppm_command_();
 }
 
-float T6615Component::get_setup_priority() const { return setup_priority::DATA; }
 void T6615Component::dump_config() {
   ESP_LOGCONFIG(TAG, "T6615:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);

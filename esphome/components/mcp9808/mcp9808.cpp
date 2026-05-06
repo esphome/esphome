@@ -73,7 +73,6 @@ void MCP9808Sensor::update() {
   this->publish_state(temp);
   this->status_clear_warning();
 }
-float MCP9808Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace mcp9808
 }  // namespace esphome

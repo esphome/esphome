@@ -12,7 +12,6 @@ class PCF8563Component : public time::RealTimeClock, public i2c::I2CDevice {
   void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void read_time();
   void write_time();
 

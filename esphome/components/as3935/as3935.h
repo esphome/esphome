@@ -41,7 +41,7 @@ enum AS3935RegisterMasks {
   INT_MASK = 0xF0,
   THRESH_MASK = 0x0F,
   R_SPIKE_MASK = 0xF0,
-  ENERGY_MASK = 0xF0,
+  ENERGY_MASK = 0xE0,
   CAP_MASK = 0xF0,
   LIGHT_MASK = 0xCF,
   DISTURB_MASK = 0xDF,
@@ -74,7 +74,6 @@ class AS3935Component : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void loop() override;
 
   void set_irq_pin(GPIOPin *irq_pin) { irq_pin_ = irq_pin; }

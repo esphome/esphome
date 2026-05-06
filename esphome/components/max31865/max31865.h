@@ -34,7 +34,6 @@ class MAX31865Sensor : public sensor::Sensor,
   void set_num_rtd_wires(uint8_t rtd_wires) { rtd_wires_ = rtd_wires; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
   void update() override;
 

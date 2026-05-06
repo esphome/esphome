@@ -52,8 +52,9 @@ void MQTTSwitchComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
 bool MQTTSwitchComponent::send_initial_state() { return this->publish_state(this->switch_->state); }
 
 bool MQTTSwitchComponent::publish_state(bool state) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   const char *state_s = state ? "ON" : "OFF";
-  return this->publish(this->get_state_topic_(), state_s);
+  return this->publish(this->get_state_topic_to_(topic_buf), state_s);
 }
 
 }  // namespace esphome::mqtt
