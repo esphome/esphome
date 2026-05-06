@@ -206,7 +206,10 @@ def _write_stamp(file: PathType, data: dict[str, str]):
 
 
 def _exec(
-    cmd: list[str], msg: str | None = None, env: dict[str, str] | None = None
+    cmd: list[str],
+    msg: str | None = None,
+    env: dict[str, str] | None = None,
+    stream_output: bool = False,
 ) -> tuple[bool, str | None, str | None]:
     """
     Execute a command and return results.
@@ -215,9 +218,13 @@ def _exec(
         cmd: list of command arguments
         msg: Optional custom message for logging
         env: Optional dictionary of environment variables to set
+        stream_output: If True, inherit parent stdio so the subprocess prints
+            directly to the terminal (useful for commands that produce their
+            own progress output). stdout/stderr are not captured in this mode.
 
     Returns:
-        tuple of (success: bool, stdout: str or None, stderr: str or None)
+        tuple of (success: bool, stdout: str or None, stderr: str or None).
+        When stream_output is True, stdout and stderr are always None.
     """
     cmd_str = msg or " ".join(cmd)
     try:
@@ -227,26 +234,35 @@ def _exec(
         if env:
             run_env.update(env)
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False,
-            env=run_env,
-        )
+        if stream_output:
+            result = subprocess.run(cmd, check=False, env=run_env)
+            stdout = stderr = None
+        else:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                env=run_env,
+            )
+            stdout = result.stdout
+            stderr = result.stderr
 
         if result.returncode != 0:
-            tail = (result.stderr or result.stdout or "").strip()[-1000:]
-            _LOGGER.error(
-                "%s - failed (returncode=%s). Tail:\n%s",
-                cmd_str,
-                result.returncode,
-                tail,
-            )
-            return False, result.stdout, result.stderr
+            if stream_output:
+                _LOGGER.error("%s - failed (returncode=%s)", cmd_str, result.returncode)
+            else:
+                tail = (stderr or stdout or "").strip()[-1000:]
+                _LOGGER.error(
+                    "%s - failed (returncode=%s). Tail:\n%s",
+                    cmd_str,
+                    result.returncode,
+                    tail,
+                )
+            return False, stdout, stderr
 
         _LOGGER.debug("%s - executed successfully", cmd_str)
-        return True, result.stdout, result.stderr
+        return True, stdout, stderr
 
     except (subprocess.SubprocessError, OSError) as e:
         _LOGGER.error("%s - error: %s", cmd_str, str(e))
@@ -430,7 +446,11 @@ def _detect_archive_root(names: Iterable[str]) -> str | None:
     return root if has_descendant else None
 
 
-def _tar_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
+def _tar_extract_all(
+    data: io.BufferedIOBase,
+    extract_dir: PathType = ".",
+    progress_header: str | None = None,
+):
     """
     Extract a TAR archive to the specified directory.
 
@@ -441,6 +461,7 @@ def _tar_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
     Args:
         data: File-like object containing the TAR archive
         extract_dir: Directory to extract contents to
+        progress_header: If set, show a progress bar with this header
     """
     import stat
     import tarfile
@@ -545,16 +566,30 @@ def _tar_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
 
             safe_members.append(member)
 
-        tar_ref.extractall(path=abs_dest, members=safe_members)
+        total = len(safe_members)
+        progress = (
+            ProgressBar(progress_header) if progress_header and total > 0 else None
+        )
+        for i, member in enumerate(safe_members, 1):
+            tar_ref.extract(member, abs_dest)
+            if progress is not None:
+                progress.update(i / total)
+        if progress is not None:
+            progress.update(1)
 
 
-def _zip_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
+def _zip_extract_all(
+    data: io.BufferedIOBase,
+    extract_dir: PathType = ".",
+    progress_header: str | None = None,
+):
     """
     Extract a ZIP archive to the specified directory.
 
     Args:
         data: File-like object containing the ZIP archive
         extract_dir: Directory to extract contents to
+        progress_header: If set, show a progress bar with this header
     """
     import zipfile
 
@@ -568,7 +603,12 @@ def _zip_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
         strip_root = _detect_archive_root(m.filename for m in all_members)
         strip_prefix = f"{strip_root}/" if strip_root is not None else None
 
-        for member in all_members:
+        total = len(all_members)
+        progress = (
+            ProgressBar(progress_header) if progress_header and total > 0 else None
+        )
+
+        for i, member in enumerate(all_members, 1):
             # 1. Normalize name
             name = member.filename.lstrip("/\\")
 
@@ -599,6 +639,11 @@ def _zip_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
             # 6. Extract
             zip_ref.extract(member, extract_dir)
 
+            if progress is not None:
+                progress.update(i / total)
+        if progress is not None:
+            progress.update(1)
+
 
 _ARCHIVE_MAGIC_MAP = {
     b"\x1f\x8b\x08": _tar_extract_all,
@@ -609,7 +654,9 @@ _ARCHIVE_MAGIC_MAP = {
 
 
 def archive_extract_all(
-    archive: PathType | io.RawIOBase | IO[bytes], extract_dir: PathType = "."
+    archive: PathType | io.RawIOBase | IO[bytes],
+    extract_dir: PathType = ".",
+    progress_header: str | None = None,
 ):
     """
     Extract an archive file to the specified directory.
@@ -617,6 +664,7 @@ def archive_extract_all(
     Args:
         archive: Path to archive file or file-like object
         extract_dir: Directory to extract contents to
+        progress_header: If set, show a progress bar with this header
 
     Raises:
         TypeError: If archive is not a valid type
@@ -647,7 +695,7 @@ def archive_extract_all(
                 break
         if matched_fct is None:
             raise ValueError("Unsupported archive format")
-        matched_fct(archive_ref, extract_dir)
+        matched_fct(archive_ref, extract_dir, progress_header=progress_header)
 
 
 def download_from_mirrors(
@@ -702,7 +750,7 @@ def download_from_mirrors(
                     total_size = int(r.headers.get("content-length", 0))
                     downloaded = 0
 
-                    progress = ProgressBar("Downloading")
+                    progress = ProgressBar("Downloading") if total_size > 0 else None
 
                     for chunk in r.iter_content(chunk_size=8192):
                         if chunk:
@@ -710,13 +758,11 @@ def download_from_mirrors(
 
                         downloaded += len(chunk)
 
-                        if total_size > 0:
+                        if progress is not None:
                             progress.update(downloaded / total_size)
-                        else:
-                            # fallback: just pulse or treat as unknown size
-                            progress.update(0)
 
-                    progress.update(1)
+                    if progress is not None:
+                        progress.update(1)
 
                 _LOGGER.debug("Downloaded successfully from: %s", url)
 
@@ -803,7 +849,7 @@ def _check_esphome_idf_framework_install(
             )
 
             _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-            archive_extract_all(tmp.file, framework_path)
+            archive_extract_all(tmp.file, framework_path, progress_header="Extracting")
             extracted_marker.touch()
 
     # 3. Check if the framework tools are the same and correctly installed
@@ -831,7 +877,12 @@ def _check_esphome_idf_framework_install(
             "install",
             f"--targets={targets_str}",
         ] + tools
-        if not _exec_ok(cmd, msg=f"ESP-IDF {version} framework installation", env=env):
+        if not _exec_ok(
+            cmd,
+            msg=f"ESP-IDF {version} framework installation",
+            env=env,
+            stream_output=True,
+        ):
             raise RuntimeError(f"ESP-IDF {version} framework installation failure")
 
         _write_stamp(env_stamp_file, stamp_info)
