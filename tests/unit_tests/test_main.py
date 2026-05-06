@@ -89,7 +89,7 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.espota2 import OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE
+from esphome.espota2 import OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE, OTA_TYPE_UPDATE_BOOTLOADER
 from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
@@ -1127,6 +1127,7 @@ class MockArgs:
     output: str | None = None
     ota_platform: str | None = None
     partition_table: bool = False
+    bootloader: bool = False
 
 
 def test_upload_program_serial_esp32(
@@ -1873,6 +1874,42 @@ def test_upload_program_ota_partition_table_without_allow_flag(
     ):
         upload_program(config, args, devices)
     mock_run_ota.assert_not_called()
+
+
+def test_upload_program_ota_bootloader_with_file_arg(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with OTA and bootloader."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file="bootloader.bin", bootloader=True)
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        Path("bootloader.bin"),
+        OTA_TYPE_UPDATE_BOOTLOADER,
+    )
 
 
 def test_upload_program_ota_no_config(
