@@ -893,7 +893,7 @@ lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos) {
 #endif  // USE_LVGL_GRADIENT
 
 lv_point_t LvglComponent::get_touch_relative_to_obj(lv_obj_t *obj) {
-  auto indev = lv_indev_get_act();
+  auto *indev = lv_indev_get_act();
   if (indev == nullptr) {
     return {INT32_MAX, INT32_MAX};
   }
