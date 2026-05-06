@@ -6,8 +6,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#include "gsl_point_id.h"
-
 namespace esphome {
 namespace gsl3670 {
 
