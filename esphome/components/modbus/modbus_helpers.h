@@ -43,8 +43,8 @@ inline bool is_register_type_binary(ModbusRegisterType type) {
 
 // Returns the expected length of a server response frame based on the function code
 // If the frame is too short to determine the length, returns the minimum length
-inline uint16_t server_frame_length(const std::vector<uint8_t> &frame) {
-  if (frame.size() < 2)
+inline uint16_t server_frame_length(const uint8_t *frame, size_t size) {
+  if (size < 2)
     return MIN_FRAME_SIZE;
   if (is_function_code_exception(frame[1])) {
     return 5;  // address(1) + function(1) + exception(1) + CRC(2)
@@ -55,7 +55,7 @@ inline uint16_t server_frame_length(const std::vector<uint8_t> &frame) {
     case ModbusFunctionCode::READ_HOLDING_REGISTERS:
     case ModbusFunctionCode::READ_INPUT_REGISTERS:
       // address(1) + function(1) + byte count(1) + data + CRC(2)
-      return 5 + (frame.size() > 2 ? std::min(frame[2], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
+      return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
     case ModbusFunctionCode::WRITE_SINGLE_COIL:
     case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
     case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
@@ -65,12 +65,12 @@ inline uint16_t server_frame_length(const std::vector<uint8_t> &frame) {
     case ModbusFunctionCode::READ_FILE_RECORD:
     case ModbusFunctionCode::WRITE_FILE_RECORD:
       // address(1) + function(1) + byte count(1) + data + CRC(2)
-      return 5 + (frame.size() > 2 ? std::min(frame[2], uint8_t(MAX_FRAME_SIZE - 5)) : 0);
+      return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_FRAME_SIZE - 5)) : 0);
     case ModbusFunctionCode::MASK_WRITE_REGISTER:
       return 10;  // address(1) + function(1) + reference address(2) + AND mask(2) + OR mask(2) + CRC(2)
     case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
       // address(1) + function(1) + byte count(1) + data + CRC(2)
-      return 5 + (frame.size() > 2 ? std::min(frame[2], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
+      return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
     case ModbusFunctionCode::READ_FIFO_QUEUE:
       // address(1) + function(1) + fifo address(2) CRC(2)
       return 6;
@@ -79,10 +79,10 @@ inline uint16_t server_frame_length(const std::vector<uint8_t> &frame) {
   }
 }
 
-// Returns the expected length of a client response frame based on the function code
+// Returns the expected length of a client request frame based on the function code
 // If the frame is too short to determine the length, returns the minimum length
-inline uint16_t client_frame_length(const std::vector<uint8_t> &frame) {
-  if (frame.size() < 2)
+inline uint16_t client_frame_length(const uint8_t *frame, size_t size) {
+  if (size < 2)
     return MIN_FRAME_SIZE;
   switch (static_cast<ModbusFunctionCode>(frame[1])) {
     case ModbusFunctionCode::READ_COILS:
@@ -96,18 +96,18 @@ inline uint16_t client_frame_length(const std::vector<uint8_t> &frame) {
     case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
     case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
       // address(1) + function(1) + start address(2) + quantity(2) + byte count(1) + data + CRC(2)
-      return 9 + (frame.size() > 6 ? std::min(frame[6], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
+      return 9 + (size > 6 ? std::min(frame[6], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
     // Unsupported function codes. Included here to prevent parser failures. Excluding Serial Line specific functions.
     case ModbusFunctionCode::READ_FILE_RECORD:
     case ModbusFunctionCode::WRITE_FILE_RECORD:
       // address(1) + function(1) + byte count(1) + data + CRC(2)
-      return 5 + (frame.size() > 2 ? std::min(frame[2], uint8_t(MAX_FRAME_SIZE - 5)) : 0);
+      return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_FRAME_SIZE - 5)) : 0);
     case ModbusFunctionCode::MASK_WRITE_REGISTER:
       return 10;  // address(1) + function(1) + reference address(2) + AND mask(2) + OR mask(2) + CRC(2)
     case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
       // address(1) + function(1) + read start address(2) + read quantity(2) + write start address(2) +
       // write quantity(2) + byte count(1) + data + CRC(2)
-      return 13 + (frame.size() > 10 ? std::min(frame[10], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
+      return 13 + (size > 10 ? std::min(frame[10], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
     case ModbusFunctionCode::READ_FIFO_QUEUE:
       // address(1) + function(1) + fifo address(2) CRC(2)
       return 6;
@@ -116,8 +116,8 @@ inline uint16_t client_frame_length(const std::vector<uint8_t> &frame) {
   }
 }
 
-inline uint8_t server_frame_data_offset(const std::vector<uint8_t> &frame) {
-  if (frame.size() < 2)
+inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
+  if (size < 2)
     return 0;
   switch (static_cast<ModbusFunctionCode>(frame[1])) {
     case ModbusFunctionCode::READ_COILS:
@@ -130,7 +130,7 @@ inline uint8_t server_frame_data_offset(const std::vector<uint8_t> &frame) {
   }
 }
 
-inline uint8_t client_frame_data_offset(const std::vector<uint8_t> &) { return 2; }
+inline uint8_t client_frame_data_offset(const uint8_t *, size_t) { return 2; }
 
 enum class SensorValueType : uint8_t {
   RAW = 0x00,     // variable length
@@ -150,12 +150,14 @@ enum class SensorValueType : uint8_t {
 };
 
 // Check frame length for supported read and write function codes.
-inline bool is_client_frame_length_valid(const std::vector<uint8_t> &frame, bool has_crc = true) {
-  uint16_t frame_length = frame.size() + (has_crc ? 0 : 2);  // Account for CRC if not already included in frame
+inline bool is_client_frame_length_valid(const uint8_t *frame, size_t size, bool has_crc = true) {
+  uint16_t frame_length = size + (has_crc ? 0 : 2);  // Account for CRC if not already included in frame
   if (frame_length < MIN_FRAME_SIZE || frame_length > MAX_FRAME_SIZE)
     return false;
+  if (size < 2)
+    return false;
   if (is_function_code_read(frame[1]) || is_function_code_write(frame[1])) {
-    return client_frame_length(frame) == frame_length;
+    return client_frame_length(frame, size) == frame_length;
   }
   return true;
 }

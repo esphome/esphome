@@ -193,7 +193,7 @@ uint16_t Modbus::find_custom_frame_end_(uint16_t min_length) const {
 
 bool Modbus::parse_modbus_server_frame_() {
   size_t size = this->rx_buffer_.size();
-  uint16_t frame_length = helpers::server_frame_length(this->rx_buffer_);
+  uint16_t frame_length = helpers::server_frame_length(this->rx_buffer_.data(), this->rx_buffer_.size());
 
   if (size < frame_length)
     return true;
@@ -213,7 +213,7 @@ bool Modbus::parse_modbus_server_frame_() {
 
   // Process before clearing: process_modbus_server_frame (receiving a response or peer message) never sends a reply
   // synchronously We can safely point directly into rx_buffer_ and avoid a copy.
-  uint8_t data_offset = helpers::server_frame_data_offset(this->rx_buffer_);
+  uint8_t data_offset = helpers::server_frame_data_offset(this->rx_buffer_.data(), this->rx_buffer_.size());
   const uint8_t *data = this->rx_buffer_.data() + data_offset;
   uint16_t data_len = frame_length - 2 - data_offset;
 
@@ -225,7 +225,7 @@ bool Modbus::parse_modbus_server_frame_() {
 
 bool ModbusServerHub::parse_modbus_client_frame_() {
   size_t size = this->rx_buffer_.size();
-  uint16_t frame_length = helpers::client_frame_length(this->rx_buffer_);
+  uint16_t frame_length = helpers::client_frame_length(this->rx_buffer_.data(), this->rx_buffer_.size());
 
   if (size < frame_length)
     return true;
@@ -246,7 +246,7 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   // Clear before processing: process_modbus_client_frame_ dispatches to a server device which sends
   // a response immediately. We need to clear the rx buffer first so the response doesn't snag tx_blocked.
   // This requires copying the frame data to a local buffer beforehand.
-  uint8_t data_offset = helpers::client_frame_data_offset(this->rx_buffer_);
+  uint8_t data_offset = helpers::client_frame_data_offset(this->rx_buffer_.data(), this->rx_buffer_.size());
   uint16_t data_len = frame_length - 2 - data_offset;
   uint8_t data[MAX_FRAME_SIZE] = {};
   std::memcpy(data, this->rx_buffer_.data() + data_offset, data_len);
