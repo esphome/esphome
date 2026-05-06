@@ -369,6 +369,19 @@ number:
         - valve.control:
             id: template_valve
             position: !lambda "return x / 100.0f;"
+  # Same regression test for cover.control: forces the apply-lambda
+  # codegen to handle a non-empty trigger Ts (float).
+  - platform: template
+    id: template_cover_position_number
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    on_value:
+      then:
+        - cover.control:
+            id: template_cover_with_triggers
+            position: !lambda "return x / 100.0f;"
 
 select:
   - platform: template

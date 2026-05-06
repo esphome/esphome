@@ -117,8 +117,8 @@ void ESPHomeOTAComponent::dump_config() {
                 "  Partition table:\n"
                 "    %-12s %-4s %-8s %-10s %-10s",
                 "Name", "Type", "Subtype", "Address", "Size");
-  esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
-  while (it != NULL) {
+  esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+  while (it != nullptr) {
     const esp_partition_t *partition = esp_partition_get(it);
     ESP_LOGCONFIG(TAG, "    %-12s 0x%-2X 0x%-6X 0x%-8" PRIX32 " 0x%-8" PRIX32, partition->label, partition->type,
                   partition->subtype, partition->address, partition->size);
