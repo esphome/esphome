@@ -52,6 +52,12 @@ static const char *const TAG = "socket.lwip";
 #define LWIP_LOG(msg, ...)
 #endif
 
+// DNM diagnostic: trace lwip TCP receive callback invocations and accept-queue
+// activity at WARN level so they show up at default log verbosity. Used to
+// diagnose esphome/esphome#15953 (ESP8266 OTA hang where firmware data appears
+// on the wire but never reaches the application). Remove before merge.
+#define LWIP_DIAG(msg, ...) ESP_LOGW(TAG, "lwip-diag %p: " msg, this, ##__VA_ARGS__)
+
 // Clear arg, recv, and err callbacks, then abort a connected PCB.
 // Only valid for full tcp_pcb (not tcp_pcb_listen).
 // Must be called before destroying the object that tcp_arg points to —
@@ -432,6 +438,15 @@ err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
   // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
   // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
   LWIP_LOG("recv(pb=%p err=%d)", pb, err);
+  // DNM diagnostic for #15953: prove whether lwip is actually delivering
+  // OTA firmware bursts up to the application layer. err!=0/pb==nullptr
+  // are connection-close signals and not part of the symptom we're chasing.
+  if (pb != nullptr && err == 0) {
+    LWIP_DIAG("recv tot_len=%u rx_buf=%p rx_off=%u closed=%d", pb->tot_len, this->rx_buf_, this->rx_buf_offset_,
+              this->rx_closed_ ? 1 : 0);
+  } else {
+    LWIP_DIAG("recv close pb=%p err=%d", pb, err);
+  }
   if (err != 0) {
     // "An error code if there has been an error receiving Only return ERR_ABRT if you have
     // called tcp_abort from within the callback function!"
@@ -736,6 +751,12 @@ err_t LWIPRawListenImpl::s_queued_recv_fn(void *arg, struct tcp_pcb *pcb, struct
   // causing the API handshake to silently fail (client sends Hello, server never sees it).
   (void) pcb;
   auto *entry = reinterpret_cast<QueuedPcb *>(arg);
+  // DNM diagnostic for #15953.
+  if (pb != nullptr && err == ERR_OK) {
+    ESP_LOGW(TAG, "lwip-diag queued-recv entry=%p tot_len=%u rx_buf=%p", entry, pb->tot_len, entry->rx_buf);
+  } else {
+    ESP_LOGW(TAG, "lwip-diag queued-recv close entry=%p pb=%p err=%d", entry, pb, err);
+  }
   if (pb == nullptr || err != ERR_OK) {
     // Remote closed or error
     if (pb != nullptr) {
