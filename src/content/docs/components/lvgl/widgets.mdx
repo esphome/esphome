@@ -2248,10 +2248,17 @@ These triggers can be attached to any widget, but they will only be activated if
 - `on_all_events`: Will be triggered on any event sent to the widget - mostly useful for debugging.
 
 These triggers can be applied directly to any widget in the LVGL configuration.
-For the widgets having a value, the triggers return the current value in variable `x`; this variable may be used in lambdas defined within those triggers.
+Parameters passed to the triggers depend on the event type. These parameters may be used in lambdas defined within
+those triggers, includng text format arguments.
 
-Each trigger also deliver an `event` parameter, which is a pointer to the LVGL C type `lv_event_t`.
-This may be used in lambdas defined within those triggers. Refer to the [LVGL documentation](https://docs.lvgl.io/9.5/common-widget-features/events.html) for more information.
+For any widget that have a value, all its triggers receive the current widget value in parameter `x` (a `float`).
+
+Any widget not having a value will receive a parameter `obj` which is a pointer to the LVGL C type `lv_obj_t` of the widget which received the event.
+
+Triggers relating to a touch event (`on_press`, `on_release` and `on_pressing`) also receive the coordinates of the event
+in a parameter `point` of type `lv_point_t` (with members `x` and `y`).
+
+Finally each trigger receives an `event` parameter, which is a pointer to the LVGL C type `lv_event_t`.
 
 There are additional triggers for pages - each page may have an `on_load` and `on_unload` trigger. These will be called
 when the page becomes active or inactive respectively.
@@ -2268,6 +2275,9 @@ when the page becomes active or inactive respectively.
 - slider:
     ...
     on_release:
+      - logger.log:
+          format: "Slider released at value: %.0f, coordinates: (%d, %d)"
+          args: [x, point.x, point.y]
       - light.turn_on:
           id: display_backlight
           transition_length: 0ms
