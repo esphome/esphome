@@ -574,8 +574,6 @@ async def _add_looping_components() -> None:
     # all component types are in scope. calculate_looping_components_() then skips
     # the counting pass and only does the two population passes.
     entries = CORE.data.get("looping_component_entries", [])
-    if not entries:
-        return
 
     # Build constexpr sum for the exact count, deduplicating by type
     # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
@@ -589,14 +587,6 @@ async def _add_looping_components() -> None:
         cg.RawStatement(
             f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
             f"  {constexpr_expr};"
-        )
-    )
-
-    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
-    # can skip the counting pass
-    cg.add(
-        cg.RawExpression(
-            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
         )
     )
 
@@ -641,6 +631,14 @@ async def to_code(config: ConfigType) -> None:
     cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
     # Define component count for static allocation
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
+
+    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
+    # can skip the counting pass
+    cg.add(
+        cg.RawExpression(
+            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+        )
+    )
 
     CORE.add_job(_add_platform_defines)
     CORE.add_job(_add_controller_registry_define)
