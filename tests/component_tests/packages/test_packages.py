@@ -14,6 +14,7 @@ from esphome.components.packages import (
     do_packages_pass,
     is_package_definition,
     merge_packages,
+    resolve_packages,
 )
 from esphome.components.substitutions import ContextVars, do_substitution_pass
 import esphome.config as config_module
@@ -46,7 +47,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.util import OrderedDict
-from esphome.yaml_util import IncludeFile, add_context, load_yaml
+from esphome.yaml_util import DocumentPath, IncludeFile, add_context, load_yaml
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -1113,7 +1114,7 @@ def test_packages_include_file_resolves_to_list(mock_resolve_include) -> None:
     """When packages: is an IncludeFile that resolves to a list, it is processed correctly."""
     include_file = MagicMock(spec=IncludeFile)
     package_content = {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
-    mock_resolve_include.return_value = ([package_content], None)
+    mock_resolve_include.return_value = [package_content]
 
     config = {CONF_PACKAGES: include_file}
     result = do_packages_pass(config)
@@ -1127,7 +1128,7 @@ def test_packages_include_file_resolves_to_dict(mock_resolve_include) -> None:
     """When packages: is an IncludeFile that resolves to a dict, it is processed correctly."""
     include_file = MagicMock(spec=IncludeFile)
     package_content = {CONF_WIFI: {CONF_SSID: TEST_PACKAGE_WIFI_SSID}}
-    mock_resolve_include.return_value = ({"network": package_content}, None)
+    mock_resolve_include.return_value = {"network": package_content}
 
     config = {CONF_PACKAGES: include_file}
     result = do_packages_pass(config)
@@ -1142,7 +1143,7 @@ def test_packages_include_file_resolves_to_invalid_type_raises(
 ) -> None:
     """When packages: is an IncludeFile that resolves to an invalid type, cv.Invalid is raised."""
     include_file = MagicMock(spec=IncludeFile)
-    mock_resolve_include.return_value = ("not_a_dict_or_list", None)
+    mock_resolve_include.return_value = "not_a_dict_or_list"
 
     config = {CONF_PACKAGES: include_file}
     with pytest.raises(
@@ -1215,7 +1216,9 @@ def test_named_dict_with_include_files_no_false_deprecation_warning(
 
     call_count = 0
 
-    def failing_callback(package_config: dict, context: object) -> dict:
+    def failing_callback(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -1251,7 +1254,9 @@ def test_validate_deprecated_false_raises_directly(
 
     call_count = 0
 
-    def failing_callback(package_config: dict, context: object) -> dict:
+    def failing_callback(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -1283,7 +1288,9 @@ def test_error_on_first_declared_package_still_detected() -> None:
 
     call_count = 0
 
-    def fail_on_last(package_config: dict, context: object) -> dict:
+    def fail_on_last(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal call_count
         call_count += 1
         # Reverse iteration: third_pkg (1), second_pkg (2), first_pkg (3)
@@ -1312,7 +1319,9 @@ def test_deprecated_single_package_fallback_still_works(
 
     attempt = 0
 
-    def fail_then_succeed(package_config: dict, context: object) -> dict:
+    def fail_then_succeed(
+        package_config: dict, context: object, path: DocumentPath | None = None
+    ) -> dict:
         nonlocal attempt
         attempt += 1
         if attempt == 1:
@@ -1483,3 +1492,252 @@ def test_substitute_package_definition_includes_source_location(tmp_path: Path) 
     line, col = int(match.group(1)), int(match.group(2))
     assert line == 2, f"expected 1-based line 2, got {line} (err={err!r})"
     assert col >= 1, f"expected 1-based column ≥ 1, got {col} (err={err!r})"
+
+
+def test_substitute_package_definition_vars_preserved_literally() -> None:
+    """``vars:`` blocks in remote-package files are not substituted prematurely.
+
+    Variable references inside ``vars:`` may resolve to substitutions
+    contributed by sibling packages that have not yet been loaded, so they
+    must be passed through untouched and resolved later by the package YAML.
+    """
+    pkg = {
+        CONF_URL: "https://github.com/esphome/non-existant-repo",
+        CONF_REF: "main",
+        CONF_FILES: [
+            {
+                CONF_PATH: "common/somefile.yaml",
+                CONF_VARS: {"pin": "${PIN}"},
+            },
+        ],
+    }
+    # Note: PIN is intentionally NOT in the context — it is meant to
+    # be resolved later, when the package YAML is processed.
+    result = _substitute_package_definition(pkg, ContextVars())
+
+    assert result[CONF_FILES][0][CONF_VARS] == {"pin": "${PIN}"}
+
+
+def test_substitute_package_definition_other_fields_still_substituted() -> None:
+    """Marking ``vars:`` literal does not stop substitution of url/ref/path."""
+    ctx = ContextVars({"branch": "release", "org": "esphome"})
+    pkg = {
+        CONF_URL: "https://github.com/${org}/firmware",
+        CONF_REF: "${branch}",
+        CONF_FILES: [
+            {
+                CONF_PATH: "common/sensor.yaml",
+                CONF_VARS: {"pin": "${PIN}"},
+            },
+        ],
+    }
+    result = _substitute_package_definition(pkg, ctx)
+
+    assert result[CONF_URL] == "https://github.com/esphome/firmware"
+    assert result[CONF_REF] == "release"
+    # vars passed through unchanged
+    assert result[CONF_FILES][0][CONF_VARS] == {"pin": "${PIN}"}
+
+
+def test_substitute_package_definition_without_vars_unaffected() -> None:
+    """Files entries without a ``vars:`` block continue to work."""
+    ctx = ContextVars({"branch": "main"})
+    pkg = {
+        CONF_URL: "https://github.com/esphome/firmware",
+        CONF_REF: "${branch}",
+        CONF_FILES: [
+            {CONF_PATH: "file1.yaml"},
+            "file2.yaml",
+        ],
+    }
+    result = _substitute_package_definition(pkg, ctx)
+
+    assert result[CONF_REF] == "main"
+    assert result[CONF_FILES][0] == {CONF_PATH: "file1.yaml"}
+    assert result[CONF_FILES][1] == "file2.yaml"
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_package_vars_resolved_against_sibling_package_substitutions(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """A ``vars:`` reference in one remote package can resolve to a
+    substitution defined in a sibling remote package.
+
+    A higher-priority package declares ``substitutions:`` (e.g. ``SENSOR_PIN: 5``) and a
+    lower-priority package's ``files: -> vars:`` references that substitution.
+    Because packages are processed highest-priority first and ``vars:`` is now
+    preserved literally during package-definition processing, the substitution
+    is resolved correctly when the package YAML itself is loaded.
+    """
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), MagicMock())
+    mock_is_file.return_value = True
+
+    # Two YAML files mocked from the "remote" repo:
+    #   - platform.yaml exports a substitution ``SENSOR_PIN``
+    #   - sensor.yaml uses ``${pin}`` (which is bound from ``vars:`` to
+    #     ``${SENSOR_PIN}`` and resolved against the merged substitutions).
+    mock_load_yaml.side_effect = [
+        # Order matches reverse-priority traversal (highest priority first).
+        OrderedDict(
+            {
+                CONF_SUBSTITUTIONS: {"SENSOR_PIN": "GPIO5"},
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_1,
+                        "pin": "${pin}",
+                    }
+                ],
+            }
+        ),
+    ]
+
+    config = {
+        CONF_PACKAGES: {
+            "special_sensor": {
+                CONF_URL: "https://github.com/esphome/non-existant-repo",
+                CONF_FILES: [
+                    {
+                        CONF_PATH: "sensor.yaml",
+                        CONF_VARS: {"pin": "${SENSOR_PIN}"},
+                    },
+                ],
+                CONF_REFRESH: "1d",
+            },
+            "platform": {
+                CONF_URL: "https://github.com/esphome/non-existant-repo",
+                CONF_FILES: ["platform.yaml"],
+                CONF_REFRESH: "1d",
+            },
+        }
+    }
+
+    actual = packages_pass(config)
+
+    assert actual[CONF_SENSOR][0]["pin"] == "GPIO5"
+
+
+# ---------------------------------------------------------------------------
+# resolve_packages — single-call wrapper around do_packages_pass + merge_packages
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_packages_returns_config_unchanged_without_packages() -> None:
+    """No ``packages:`` key → no-op, same dict back."""
+    config = {CONF_ESPHOME: {CONF_NAME: "test"}, CONF_WIFI: {CONF_SSID: "x"}}
+    result = resolve_packages(config)
+    assert result is config
+    assert CONF_PACKAGES not in result
+
+
+def test_resolve_packages_loads_and_merges_in_one_call() -> None:
+    """End-to-end: a config with one local-dict package gets its blocks flattened."""
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_PACKAGES: {
+            "shared": {
+                CONF_WIFI: {CONF_SSID: "from_package"},
+                CONF_SENSOR: [
+                    {CONF_PLATFORM: "template", CONF_NAME: "from_package_sensor"},
+                ],
+            }
+        },
+    }
+    result = resolve_packages(config)
+    # ``packages:`` is gone — it was consumed by the merge.
+    assert CONF_PACKAGES not in result
+    # Blocks contributed by the package are now top-level.
+    assert result[CONF_WIFI][CONF_SSID] == "from_package"
+    assert result[CONF_SENSOR][0][CONF_NAME] == "from_package_sensor"
+    # The main config's own keys survive untouched.
+    assert result[CONF_ESPHOME][CONF_NAME] == "main"
+
+
+def test_resolve_packages_preserves_main_config_overrides() -> None:
+    """Main-config values win over package values for the same key.
+
+    Pinning the precedence ESPHome's compiler uses so any future
+    refactor of the wrapper doesn't accidentally flip the order.
+    """
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_WIFI: {CONF_SSID: "main_wins"},
+        CONF_PACKAGES: {
+            "shared": {CONF_WIFI: {CONF_SSID: "package_loses"}},
+        },
+    }
+    result = resolve_packages(config)
+    assert result[CONF_WIFI][CONF_SSID] == "main_wins"
+
+
+def test_resolve_packages_forwards_command_line_substitutions() -> None:
+    """``command_line_substitutions`` reaches the underlying ``do_packages_pass``.
+
+    The wrapper exists so external tools have one stable seam; if
+    that seam silently dropped a kwarg the underlying call accepts,
+    callers would see surprising behaviour. This pins the
+    pass-through.
+    """
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_PACKAGES: {"shared": {CONF_WIFI: {CONF_SSID: "from_package"}}},
+    }
+    with patch(
+        "esphome.components.packages.do_packages_pass",
+        wraps=do_packages_pass,
+    ) as spy:
+        resolve_packages(config, command_line_substitutions={"foo": "bar"})
+    spy.assert_called_once()
+    _, kwargs = spy.call_args
+    assert kwargs.get("command_line_substitutions") == {"foo": "bar"}
+
+
+def test_resolve_packages_does_not_run_substitutions() -> None:
+    """``${var}`` placeholders inside package content stay literal.
+
+    The full ``validate_config`` pipeline runs ``do_substitution_pass``
+    BETWEEN ``do_packages_pass`` and ``merge_packages``; this wrapper
+    skips it on purpose. Pin that contract so a future refactor can't
+    silently start resolving substitutions and break callers that
+    deliberately compose the passes themselves.
+    """
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_SUBSTITUTIONS: {"ssid_value": "resolved_ssid"},
+        CONF_PACKAGES: {
+            "shared": {CONF_WIFI: {CONF_SSID: "${ssid_value}"}},
+        },
+    }
+    result = resolve_packages(config)
+    # Without ``do_substitution_pass`` the placeholder is preserved.
+    assert result[CONF_WIFI][CONF_SSID] == "${ssid_value}"
+
+
+def test_resolve_packages_does_not_apply_extend_remove() -> None:
+    """Top-level ``!remove`` / ``!extend`` markers stay in the merged dict.
+
+    The full ``validate_config`` pipeline runs ``resolve_extend_remove``
+    AFTER ``merge_packages``; this wrapper skips it on purpose. Pin
+    that contract: a package-contributed block paired with a top-level
+    ``!remove`` is left as-is for callers to handle (or for them to
+    call ``resolve_extend_remove`` themselves).
+    """
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_WIFI: Remove(),
+        CONF_PACKAGES: {
+            "shared": {CONF_WIFI: {CONF_SSID: "from_package"}},
+        },
+    }
+    result = resolve_packages(config)
+    # ``merge_packages`` keeps the top-level ``!remove`` (it wins
+    # over the package value during merge), and the marker is not
+    # resolved by this wrapper.
+    assert isinstance(result[CONF_WIFI], Remove)
