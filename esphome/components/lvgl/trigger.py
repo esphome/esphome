@@ -35,7 +35,6 @@ from .lvcode import (
     LvConditional,
     lv,
     lv_add,
-    lv_event_t_ptr,
     lv_expr,
     lvgl_static,
 )
@@ -144,7 +143,7 @@ async def add_trigger(conf, w, *events: str, is_selected=None):
         # Make the touch point available for selected events
         args.append((lv_point_t, "point"))
         value.append(lvgl_static.get_touch_relative_to_obj(w.obj))
-    args.append((lv_event_t_ptr, "event"))
+    args.extend(EVENT_ARG)
     await automation.build_automation(trigger, args, conf)
     async with LambdaContext(EVENT_ARG, where=tid) as context:
         with LvConditional(is_selected):
