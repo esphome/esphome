@@ -1,13 +1,19 @@
 """Speaker Media Player Setup."""
 
-from functools import partial
-import hashlib
 import logging
-from pathlib import Path
 
-from esphome import automation, external_files
+from esphome import automation
 import esphome.codegen as cg
-from esphome.components import audio, esp32, media_player, network, ota, psram, speaker
+from esphome.components import (
+    audio,
+    audio_file,
+    esp32,
+    media_player,
+    network,
+    ota,
+    psram,
+    speaker,
+)
 from esphome.components.const import (
     CONF_VOLUME_INCREMENT,
     CONF_VOLUME_INITIAL,
@@ -17,23 +23,16 @@ from esphome.components.const import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
-    CONF_FILE,
     CONF_FILES,
     CONF_FORMAT,
     CONF_ID,
     CONF_NUM_CHANNELS,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
-    CONF_PATH,
-    CONF_RAW_DATA_ID,
     CONF_SAMPLE_RATE,
     CONF_SPEAKER,
     CONF_TASK_STACK_IN_PSRAM,
-    CONF_TYPE,
-    CONF_URL,
 )
-from esphome.core import CORE, HexInt
-from esphome.external_files import download_web_files_in_config
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,9 +42,6 @@ DEPENDENCIES = ["network"]
 
 CODEOWNERS = ["@kahrendt", "@synesthesiam"]
 DOMAIN = "media_player"
-
-TYPE_LOCAL = "local"
-TYPE_WEB = "web"
 
 CONF_ANNOUNCEMENT = "announcement"
 CONF_ANNOUNCEMENT_PIPELINE = "announcement_pipeline"
@@ -83,85 +79,10 @@ StopStreamAction = speaker_ns.class_(
 )
 
 
-def _compute_local_file_path(value: dict) -> Path:
-    url = value[CONF_URL]
-    h = hashlib.new("sha256")
-    h.update(url.encode())
-    key = h.hexdigest()[:8]
-    base_dir = external_files.compute_local_file_dir(DOMAIN)
-    _LOGGER.debug("_compute_local_file_path: base_dir=%s", base_dir / key)
-    return base_dir / key
-
-
 _PURPOSE_MAP = {
     "MEDIA": media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["default"],
     "ANNOUNCEMENT": media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["announcement"],
 }
-
-
-def _file_schema(value):
-    if isinstance(value, str):
-        return _validate_file_shorthand(value)
-    return TYPED_FILE_SCHEMA(value)
-
-
-def _read_audio_file_and_type(file_config):
-    conf_file = file_config[CONF_FILE]
-    file_source = conf_file[CONF_TYPE]
-    if file_source == TYPE_LOCAL:
-        path = CORE.relative_config_path(conf_file[CONF_PATH])
-    elif file_source == TYPE_WEB:
-        path = _compute_local_file_path(conf_file)
-    else:
-        raise cv.Invalid("Unsupported file source")
-
-    with open(path, "rb") as f:
-        data = f.read()
-
-    import puremagic
-
-    try:
-        file_type: str = puremagic.from_string(data)
-        file_type = file_type.removeprefix(".")
-    except puremagic.PureError as e:
-        raise cv.Invalid(
-            f"Unable to determine audio file type of '{path}'. "
-            f"Try re-encoding the file into a supported format. Details: {e}"
-        ) from e
-
-    media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
-    if file_type in ("wav"):
-        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["WAV"]
-    elif file_type in ("mp3", "mpeg", "mpga"):
-        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["MP3"]
-    elif file_type in ("flac"):
-        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["FLAC"]
-    elif (
-        file_type in ("ogg")
-        and len(data) >= 36
-        and data.startswith(b"OggS")
-        and data[28:36] == b"OpusHead"
-    ):
-        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["OPUS"]
-
-    return data, media_file_type
-
-
-def _validate_file_shorthand(value):
-    value = cv.string_strict(value)
-    if value.startswith("http://") or value.startswith("https://"):
-        return _file_schema(
-            {
-                CONF_TYPE: TYPE_WEB,
-                CONF_URL: value,
-            }
-        )
-    return _file_schema(
-        {
-            CONF_TYPE: TYPE_LOCAL,
-            CONF_PATH: value,
-        }
-    )
 
 
 _validate_pipeline = media_player.validate_preferred_format(
@@ -192,59 +113,14 @@ def _final_validate(config):
             CONF_CODEC_SUPPORT_ENABLED,
         )
 
-    # Request codecs based on pipeline formats
+    # Request codecs based on pipeline formats. Codecs needed by local files are
+    # already requested during CONFIG_SCHEMA validation (via audio_files_schema).
     media_player.request_codecs_for_format_configs(
         config, [CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE]
     )
 
-    # Validate local files and request any additional codecs they need
-    for file_config in config.get(CONF_FILES, []):
-        _, media_file_type = _read_audio_file_and_type(file_config)
-        if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
-            raise cv.Invalid("Unsupported local media file")
-        for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
-            if str(media_file_type) == str(fmt_enum):
-                if fmt_name == "FLAC":
-                    audio.request_flac_support()
-                elif fmt_name == "MP3":
-                    audio.request_mp3_support()
-                elif fmt_name == "OPUS":
-                    audio.request_opus_support()
-                elif fmt_name == "WAV":
-                    audio.request_wav_support()
-                break
-
     return config
 
-
-LOCAL_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_PATH): cv.file_,
-    }
-)
-
-WEB_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_URL): cv.url,
-    }
-)
-
-
-TYPED_FILE_SCHEMA = cv.typed_schema(
-    {
-        TYPE_LOCAL: LOCAL_SCHEMA,
-        TYPE_WEB: WEB_SCHEMA,
-    },
-)
-
-
-MEDIA_FILE_TYPE_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.declare_id(audio.AudioFile),
-        cv.Required(CONF_FILE): _file_schema,
-        cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-    }
-)
 
 PIPELINE_SCHEMA = cv.Schema(
     {
@@ -278,12 +154,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             # Remove before 2026.10.0
             cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.Any(cv.boolean, cv.string),
-            cv.Optional(CONF_FILES): cv.All(
-                cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
-                partial(
-                    download_web_files_in_config, path_for=_compute_local_file_path
-                ),
-            ),
+            cv.Optional(CONF_FILES): audio_file.audio_files_schema(),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
                 cv.boolean, cv.requires_component(psram.DOMAIN)
             ),
@@ -380,31 +251,7 @@ async def to_code(config):
         )
 
     for file_config in config.get(CONF_FILES, []):
-        data, media_file_type = _read_audio_file_and_type(file_config)
-
-        rhs = [HexInt(x) for x in data]
-        prog_arr = cg.progmem_array(file_config[CONF_RAW_DATA_ID], rhs)
-
-        media_files_struct = cg.StructInitializer(
-            audio.AudioFile,
-            (
-                "data",
-                prog_arr,
-            ),
-            (
-                "length",
-                len(rhs),
-            ),
-            (
-                "file_type",
-                media_file_type,
-            ),
-        )
-
-        cg.new_Pvariable(
-            file_config[CONF_ID],
-            media_files_struct,
-        )
+        audio_file.generate_audio_file_code(file_config)
 
 
 @automation.register_action(
