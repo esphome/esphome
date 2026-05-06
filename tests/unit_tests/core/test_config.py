@@ -339,7 +339,6 @@ async def test_add_looping_components_handles_empty_entries() -> None:
     C++ (`= 0;`), not an empty expression (`= ;`). This guards the empty-list
     case that would otherwise produce uncompilable main.cpp output.
     """
-    CORE.reset()
     CORE.data["looping_component_entries"] = []
 
     await config._add_looping_components()
@@ -359,13 +358,10 @@ async def test_add_looping_components_handles_empty_entries() -> None:
         f"constexpr right-hand side must not be empty, got: {text!r}"
     )
 
-    CORE.reset()
-
 
 @pytest.mark.asyncio
 async def test_add_looping_components_with_entries() -> None:
     """Test that _add_looping_components builds a HasLoopOverride sum from entries."""
-    CORE.reset()
     CORE.data["looping_component_entries"] = [
         "esphome::wifi::WiFiComponent",
         "esphome::logger::Logger",
@@ -384,8 +380,6 @@ async def test_add_looping_components_with_entries() -> None:
     # Deduplicated by type, with per-type counts as multiplier.
     assert "(2 * HasLoopOverride<esphome::wifi::WiFiComponent>::value)" in text
     assert "(1 * HasLoopOverride<esphome::logger::Logger>::value)" in text
-
-    CORE.reset()
 
 
 def test_valid_include_with_angle_brackets() -> None:
