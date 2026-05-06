@@ -305,7 +305,7 @@ bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s
 }
 
 void I2SAudioSpeakerBase::apply_software_volume_(uint8_t *data, size_t bytes_read) {
-  if (this->q31_volume_factor_ >= INT32_MAX) {
+  if (this->q31_volume_factor_ == INT32_MAX) {
     return;  // Max volume, no processing needed
   }
 
