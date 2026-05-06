@@ -461,7 +461,7 @@ def test_run_platformio_cli_scopes_libdeps_by_toolchain_and_dependencies(
 
     with patch.dict(os.environ, {}, clear=True):
         mock_run_external_process.return_value = 0
-        platformio_api.run_platformio_cli("test")
+        toolchain.run_platformio_cli("test")
 
         assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == str(
             setup_core
@@ -494,7 +494,7 @@ def test_run_platformio_cli_keeps_special_platform_libdeps_device_scoped(
 
     with patch.dict(os.environ, {}, clear=True):
         mock_run_external_process.return_value = 0
-        platformio_api.run_platformio_cli("test")
+        toolchain.run_platformio_cli("test")
 
         assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == str(
             (setup_core / "build" / "test" / ".piolibdeps").absolute()
