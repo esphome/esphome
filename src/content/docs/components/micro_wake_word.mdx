@@ -40,6 +40,9 @@ micro_wake_word:
     - A full URL to a model JSON file.
       e.g. `https://github.com/esphome/micro-wake-word-models/raw/main/models/okay_nabu.json`.
 
+    - A full path to a local model JSON file.
+      e.g. `/config/models/okay_nabu.json`.
+
   - **probability_cutoff** (*Optional*, percentage): The probability cutoff for the wake word detection.
     If the probability of the wake word is below this value, the wake word is not detected.
     A larger value reduces the number of false accepts but increases the number of false rejections.
@@ -58,6 +61,9 @@ micro_wake_word:
 
     - A full URL to a model JSON file.
       e.g. `https://github.com/esphome/micro-wake-word-models/raw/main/models/v2/vad.json`.
+
+    - A full path to a local model JSON file.
+      e.g. `/config/models/vad.json`.
 
   - **probability_cutoff** (*Optional*, percentage): The probability cutoff for voice activity detection.
     If the probability is below this value, then no wake word will be accepted.
@@ -137,6 +143,7 @@ wake_word:
   "author": "Kevin Ahrendt",
   "website": "https://www.kevinahrendt.com/",
   "model": "stream_state_internal_quant.tflite",
+  "trained_languages": ["en"],
   "version": 2,
   "micro": {
     "probability_cutoff": 0.97,
