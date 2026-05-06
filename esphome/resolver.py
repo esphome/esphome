@@ -13,7 +13,7 @@ from esphome.core import EsphomeError
 
 _LOGGER = logging.getLogger(__name__)
 
-_DEFAULT_RESOLVE_TIMEOUT = 10.0
+_DEFAULT_RESOLVE_TIMEOUT = 20.0
 _env_timeout = os.environ.get("ESPHOME_RESOLVE_TIMEOUT", _DEFAULT_RESOLVE_TIMEOUT)
 try:
     RESOLVE_TIMEOUT = float(_env_timeout)
