@@ -526,12 +526,14 @@ class _PackageProcessor:
         self,
         package_config: dict,
         context_vars: ContextVars | None,
-    ) -> ContextVars | None:
+    ) -> ContextVars:
         """Extract substitutions from a package and merge into the shared context.
 
         Returns the context updated with the package's ``!include vars`` (or
-        ``context_vars`` unchanged if the package has none) so the caller can
-        reuse it when recursing into nested packages.
+        an equivalent of *context_vars* if the package has none) so the caller
+        can reuse it when recursing into nested packages. ``None`` inputs are
+        normalized to an empty :class:`ContextVars`, so the result is always
+        non-``None``.
         """
         # Push the package's own !include vars before evaluating its
         # substitutions so they can reference vars passed in by the parent
