@@ -438,7 +438,7 @@ LINE_PROPS = {
 def _validate_points(config):
     for index, point in enumerate(config[CONF_POINTS]):
         if not all(isinstance(p, int) for p in point.values()):
-            raise cv.Invalid("Points must be integers", path=[index])
+            raise cv.Invalid("Points must be integers", path=[CONF_POINTS, index])
     return config
 
 
