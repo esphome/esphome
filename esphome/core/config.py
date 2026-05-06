@@ -581,7 +581,7 @@ async def _add_looping_components() -> None:
     terms = [
         f"({count} * HasLoopOverride<{cpp_type}>::value)"
         for cpp_type, count in type_counts.items()
-    ]
+    ] or ["0"]
     constexpr_expr = " + \\\n  ".join(terms)
     cg.add_global(
         cg.RawStatement(
