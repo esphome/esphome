@@ -280,6 +280,9 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
   }
 #else
   slot_cfg.slot_bit_width = this->slot_bit_width_;
+  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
+    slot_cfg.ws_width = static_cast<uint32_t>(this->slot_bit_width_);
+  }
 #endif  // USE_ESP32_VARIANT_ESP32
   slot_cfg.slot_mask = slot_mask;
 
