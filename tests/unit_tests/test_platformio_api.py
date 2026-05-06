@@ -13,6 +13,7 @@ import pytest
 
 from esphome import platformio_api, platformio_runner
 from esphome.core import CORE, EsphomeError
+from esphome.util import FlashImage
 
 
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
@@ -70,7 +71,7 @@ def test_idedata_extra_flash_images(setup_core: Path) -> None:
 
     images = idedata.extra_flash_images
     assert len(images) == 2
-    assert all(isinstance(img, platformio_api.FlashImage) for img in images)
+    assert all(isinstance(img, FlashImage) for img in images)
     assert images[0].path == Path("/path/to/bootloader.bin")
     assert images[0].offset == "0x1000"
     assert images[1].path == Path("/path/to/partition.bin")
@@ -106,7 +107,7 @@ def test_idedata_cc_path(setup_core: Path) -> None:
 
 def test_flash_image_dataclass() -> None:
     """Test FlashImage dataclass stores path and offset correctly."""
-    image = platformio_api.FlashImage(path=Path("/path/to/image.bin"), offset="0x10000")
+    image = FlashImage(path=Path("/path/to/image.bin"), offset="0x10000")
 
     assert image.path == Path("/path/to/image.bin")
     assert image.offset == "0x10000"
@@ -706,101 +707,6 @@ def test_patched_clean_build_dir_creates_missing(setup_core: Path) -> None:
 
         # Verify directory was created
         assert build_dir.exists()
-
-
-def test_process_stacktrace_esp8266_exception(setup_core: Path, caplog) -> None:
-    """Test process_stacktrace handles ESP8266 exceptions."""
-    config = {"name": "test"}
-
-    # Test exception type parsing
-    line = "Exception (28):"
-    backtrace_state = False
-
-    result = platformio_api.process_stacktrace(config, line, backtrace_state)
-
-    assert "Access to invalid address: LOAD (wild pointer?)" in caplog.text
-    assert result is False
-
-
-def test_process_stacktrace_esp8266_backtrace(
-    setup_core: Path, mock_decode_pc: Mock
-) -> None:
-    """Test process_stacktrace handles ESP8266 multi-line backtrace."""
-    config = {"name": "test"}
-
-    # Start of backtrace
-    line1 = ">>>stack>>>"
-    state = platformio_api.process_stacktrace(config, line1, False)
-    assert state is True
-
-    # Backtrace content with addresses
-    line2 = "40201234 40205678"
-    state = platformio_api.process_stacktrace(config, line2, state)
-    assert state is True
-    assert mock_decode_pc.call_count == 2
-
-    # End of backtrace
-    line3 = "<<<stack<<<"
-    state = platformio_api.process_stacktrace(config, line3, state)
-    assert state is False
-
-
-def test_process_stacktrace_esp32_backtrace(
-    setup_core: Path, mock_decode_pc: Mock
-) -> None:
-    """Test process_stacktrace handles ESP32 single-line backtrace."""
-    config = {"name": "test"}
-
-    line = "Backtrace: 0x40081234:0x3ffb1234 0x40085678:0x3ffb5678"
-    state = platformio_api.process_stacktrace(config, line, False)
-
-    # Should decode both addresses
-    assert mock_decode_pc.call_count == 2
-    mock_decode_pc.assert_any_call(config, "40081234")
-    mock_decode_pc.assert_any_call(config, "40085678")
-    assert state is False
-
-
-def test_process_stacktrace_bad_alloc(
-    setup_core: Path, mock_decode_pc: Mock, caplog
-) -> None:
-    """Test process_stacktrace handles bad alloc messages."""
-    config = {"name": "test"}
-
-    line = "last failed alloc call: 40201234(512)"
-    state = platformio_api.process_stacktrace(config, line, False)
-
-    assert "Memory allocation of 512 bytes failed at 40201234" in caplog.text
-    mock_decode_pc.assert_called_once_with(config, "40201234")
-    assert state is False
-
-
-def test_process_stacktrace_esp32_crash_handler(
-    setup_core: Path, mock_decode_pc: Mock
-) -> None:
-    """Test process_stacktrace handles ESP32 crash handler backtrace lines."""
-    config = {"name": "test"}
-
-    # Simulate crash handler log lines as they appear from the API/serial
-    line_pc = "[E][esp32.crash:078]:   PC:  0x400D1234  (fault location)"
-    state = platformio_api.process_stacktrace(config, line_pc, False)
-    # PC line is matched by existing STACKTRACE_ESP32_PC_RE
-    mock_decode_pc.assert_called_with(config, "400D1234")
-    assert state is False
-
-    mock_decode_pc.reset_mock()
-
-    line_bt0 = "[E][esp32.crash:080]:   BT0: 0x400D5678  (backtrace)"
-    state = platformio_api.process_stacktrace(config, line_bt0, False)
-    mock_decode_pc.assert_called_once_with(config, "400D5678")
-    assert state is False
-
-    mock_decode_pc.reset_mock()
-
-    line_bt1 = "[E][esp32.crash:080]:   BT1: 0x42005ABC  (backtrace)"
-    state = platformio_api.process_stacktrace(config, line_bt1, False)
-    mock_decode_pc.assert_called_once_with(config, "42005ABC")
-    assert state is False
 
 
 def test_patch_file_downloader_succeeds_first_try() -> None:
