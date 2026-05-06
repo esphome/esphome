@@ -577,7 +577,7 @@ async def _add_looping_components() -> None:
     if not entries:
         cg.add_global(
             cg.RawStatement(
-                f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = 0;"
+                "static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = 0;"
             )
         )
         return
