@@ -574,13 +574,6 @@ async def _add_looping_components() -> None:
     # all component types are in scope. calculate_looping_components_() then skips
     # the counting pass and only does the two population passes.
     entries = CORE.data.get("looping_component_entries", [])
-    if not entries:
-        cg.add_global(
-            cg.RawStatement(
-                "static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = 0;"
-            )
-        )
-        return
 
     # Build constexpr sum for the exact count, deduplicating by type
     # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
@@ -588,7 +581,7 @@ async def _add_looping_components() -> None:
     terms = [
         f"({count} * HasLoopOverride<{cpp_type}>::value)"
         for cpp_type, count in type_counts.items()
-    ]
+    ] or ["0"]
     constexpr_expr = " + \\\n  ".join(terms)
     cg.add_global(
         cg.RawStatement(
