@@ -931,7 +931,7 @@ lvgl:
                       return yyy + .8;
             on_release:
               logger.log:
-                format: Slider released at %d/%d with value %d
+                format: Slider released at %d/%d with value %.0f
                 args: [point.x, point.y, x]
         - button:
             styles: spin_button
