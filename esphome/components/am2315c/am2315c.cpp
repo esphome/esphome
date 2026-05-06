@@ -176,7 +176,5 @@ void AM2315C::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-float AM2315C::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace am2315c
 }  // namespace esphome

@@ -131,7 +131,6 @@ bool BMP085Component::set_mode_(uint8_t mode) {
   ESP_LOGV(TAG, "Setting mode to 0x%02X", mode);
   return this->write_byte(BMP085_REGISTER_CONTROL, mode);
 }
-float BMP085Component::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace bmp085
 }  // namespace esphome

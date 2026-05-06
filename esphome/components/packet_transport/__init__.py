@@ -176,17 +176,28 @@ async def register_packet_transport(var, config):
         if encryption := provider.get(CONF_ENCRYPTION):
             cg.add(var.set_provider_encryption(name, hash_encryption_key(encryption)))
 
-    for sens_conf in config.get(CONF_SENSORS, ()):
+    is_provider = False
+    sensors = config.get(CONF_SENSORS, ())
+    binary_sensors = config.get(CONF_BINARY_SENSORS, ())
+    if sensors:
+        cg.add(var.set_sensor_count(len(sensors)))
+    if binary_sensors:
+        cg.add(var.set_binary_sensor_count(len(binary_sensors)))
+    for sens_conf in sensors:
+        is_provider = True
         sens_id = sens_conf[CONF_ID]
         sensor = await cg.get_variable(sens_id)
         bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
         cg.add(var.add_sensor(bcst_id, sensor))
-    for sens_conf in config.get(CONF_BINARY_SENSORS, ()):
+    for sens_conf in binary_sensors:
+        is_provider = True
         sens_id = sens_conf[CONF_ID]
         sensor = await cg.get_variable(sens_id)
         bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
         cg.add(var.add_binary_sensor(bcst_id, sensor))
 
+    if is_provider:
+        cg.add(var.set_is_provider(True))
     if encryption := config.get(CONF_ENCRYPTION):
         cg.add(var.set_encryption_key(hash_encryption_key(encryption)))
     return providers

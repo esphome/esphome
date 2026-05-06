@@ -97,14 +97,14 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
   }
 
   bool zc_symmetrical = this->frequency_detector_.is_increase_decrease_symmetrical();
-  bool amplitude_convergent = this->frequency_detector_.is_increase_decrease_symmetrical();
+  bool amplitude_convergent = this->amplitude_detector_.is_amplitude_convergent();
   if (!zc_symmetrical || !amplitude_convergent) {
     // The frequency/amplitude is not fully accurate yet, try to wait
     // until the fault clears, or terminate after a while anyway
-    if (zc_symmetrical) {
+    if (!zc_symmetrical) {
       ESP_LOGVV(TAG, "%s:   ZC is not symmetrical", this->id_.c_str());
     }
-    if (amplitude_convergent) {
+    if (!amplitude_convergent) {
       ESP_LOGVV(TAG, "%s:   Amplitude is not convergent", this->id_.c_str());
     }
     uint32_t phase = this->relay_function_.phase_count;
@@ -138,20 +138,21 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
 }
 void PIDAutotuner::dump_config() {
   if (this->state_ == AUTOTUNE_SUCCEEDED) {
-    ESP_LOGI(TAG, "%s: PID Autotune:", this->id_.c_str());
-    ESP_LOGI(TAG, "  State: Succeeded!");
+    ESP_LOGI(TAG,
+             "%s: PID Autotune:\n"
+             "  State: Succeeded!",
+             this->id_.c_str());
     bool has_issue = false;
     if (!this->amplitude_detector_.is_amplitude_convergent()) {
-      ESP_LOGW(TAG, "  Could not reliably determine oscillation amplitude, PID parameters may be inaccurate!");
-      ESP_LOGW(TAG, "    Please make sure you eliminate all outside influences on the measured temperature.");
+      ESP_LOGW(TAG, "  Could not reliably determine oscillation amplitude, PID parameters may be inaccurate!\n"
+                    "    Please make sure you eliminate all outside influences on the measured temperature.");
       has_issue = true;
     }
     if (!this->frequency_detector_.is_increase_decrease_symmetrical()) {
-      ESP_LOGW(TAG, "  Oscillation Frequency is not symmetrical. PID parameters may be inaccurate!");
-      ESP_LOGW(
-          TAG,
-          "    This is usually because the heat and cool processes do not change the temperature at the same rate.");
       ESP_LOGW(TAG,
+               "  Oscillation Frequency is not symmetrical. PID parameters may be inaccurate!\n"
+               "    This is usually because the heat and cool processes do not change the temperature at the same "
+               "rate.\n"
                "    Please try reducing the positive_output value (or increase negative_output in case of a cooler)");
       has_issue = true;
     }
@@ -160,18 +161,23 @@ void PIDAutotuner::dump_config() {
     }
 
     auto fac = get_ziegler_nichols_pid_();
-    ESP_LOGI(TAG, "  Calculated PID parameters (\"Ziegler-Nichols PID\" rule):");
-    ESP_LOGI(TAG, " ");
-    ESP_LOGI(TAG, "  control_parameters:");
-    ESP_LOGI(TAG, "    kp: %.5f", fac.kp);
-    ESP_LOGI(TAG, "    ki: %.5f", fac.ki);
-    ESP_LOGI(TAG, "    kd: %.5f", fac.kd);
-    ESP_LOGI(TAG, " ");
-    ESP_LOGI(TAG, "  Please copy these values into your YAML configuration! They will reset on the next reboot.");
+    ESP_LOGI(TAG,
+             "  Calculated PID parameters (\"Ziegler-Nichols PID\" rule):\n"
+             "\n"
+             "  control_parameters:\n"
+             "    kp: %.5f\n"
+             "    ki: %.5f\n"
+             "    kd: %.5f\n"
+             "\n"
+             "  Please copy these values into your YAML configuration! They will reset on the next reboot.",
+             fac.kp, fac.ki, fac.kd);
 
-    ESP_LOGV(TAG, "  Oscillation Period: %f", this->frequency_detector_.get_mean_oscillation_period());
-    ESP_LOGV(TAG, "  Oscillation Amplitude: %f", this->amplitude_detector_.get_mean_oscillation_amplitude());
-    ESP_LOGV(TAG, "  Ku: %f, Pu: %f", this->ku_, this->pu_);
+    ESP_LOGV(TAG,
+             "  Oscillation Period: %f\n"
+             "  Oscillation Amplitude: %f\n"
+             "  Ku: %f, Pu: %f",
+             this->frequency_detector_.get_mean_oscillation_period(),
+             this->amplitude_detector_.get_mean_oscillation_amplitude(), this->ku_, this->pu_);
 
     ESP_LOGD(TAG, "  Alternative Rules:");
     // http://www.mstarlabs.com/control/znrule.html
@@ -183,13 +189,16 @@ void PIDAutotuner::dump_config() {
   }
 
   if (this->state_ == AUTOTUNE_RUNNING) {
-    ESP_LOGD(TAG, "%s: PID Autotune:", this->id_.c_str());
-    ESP_LOGD(TAG, "  Autotune is still running!");
-    ESP_LOGD(TAG, "  Status: Trying to reach %.2f °C", setpoint_ - relay_function_.current_target_error());
-    ESP_LOGD(TAG, "  Stats so far:");
-    ESP_LOGD(TAG, "    Phases: %" PRIu32, relay_function_.phase_count);
-    ESP_LOGD(TAG, "    Detected %zu zero-crossings", frequency_detector_.zerocrossing_intervals.size());
-    ESP_LOGD(TAG, "    Current Phase Min: %.2f, Max: %.2f", amplitude_detector_.phase_min,
+    ESP_LOGD(TAG,
+             "%s: PID Autotune:\n"
+             "  Autotune is still running!\n"
+             "  Status: Trying to reach %.2f °C\n"
+             "  Stats so far:\n"
+             "    Phases: %" PRIu32 "\n"
+             "    Detected %zu zero-crossings\n"
+             "    Current Phase Min: %.2f, Max: %.2f",
+             this->id_.c_str(), setpoint_ - relay_function_.current_target_error(), relay_function_.phase_count,
+             frequency_detector_.zerocrossing_intervals.size(), amplitude_detector_.phase_min,
              amplitude_detector_.phase_max);
   }
 }
@@ -205,8 +214,10 @@ PIDAutotuner::PIDResult PIDAutotuner::calculate_pid_(float kp_factor, float ki_f
 }
 void PIDAutotuner::print_rule_(const char *name, float kp_factor, float ki_factor, float kd_factor) {
   auto fac = calculate_pid_(kp_factor, ki_factor, kd_factor);
-  ESP_LOGD(TAG, "    Rule '%s':", name);
-  ESP_LOGD(TAG, "      kp: %.5f, ki: %.5f, kd: %.5f", fac.kp, fac.ki, fac.kd);
+  ESP_LOGD(TAG,
+           "    Rule '%s':\n"
+           "      kp: %.5f, ki: %.5f, kd: %.5f",
+           name, fac.kp, fac.ki, fac.kd);
 }
 
 // ================== RelayFunction ==================
@@ -351,7 +362,7 @@ bool PIDAutotuner::OscillationAmplitudeDetector::is_amplitude_convergent() const
   for (auto v : this->phase_mins)
     global_min = std::min(global_min, v);
   for (auto v : this->phase_maxs)
-    global_max = std::min(global_max, v);
+    global_max = std::max(global_max, v);
   float global_amplitude = (global_max - global_min) / 2.0f;
   float mean_amplitude = this->get_mean_oscillation_amplitude();
   return (mean_amplitude - global_amplitude) / (global_amplitude) < 0.05f;

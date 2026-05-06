@@ -1,0 +1,108 @@
+esphome:
+  name: host-climate-test
+host:
+api:
+logger:
+
+climate:
+  - platform: thermostat
+    id: dual_mode_thermostat
+    name: Dual-mode Thermostat
+    sensor: host_thermostat_temperature_sensor
+    humidity_sensor: host_thermostat_humidity_sensor
+    humidity_hysteresis: 1.0
+    min_cooling_off_time: 20s
+    min_cooling_run_time: 20s
+    max_cooling_run_time: 30s
+    supplemental_cooling_delta: 3.0
+    min_heating_off_time: 20s
+    min_heating_run_time: 20s
+    max_heating_run_time: 30s
+    supplemental_heating_delta: 3.0
+    min_fanning_off_time: 20s
+    min_fanning_run_time: 20s
+    min_idle_time: 10s
+    visual:
+      min_humidity: 20%
+      max_humidity: 70%
+      min_temperature: 15.0
+      max_temperature: 32.0
+      temperature_step: 0.1
+    default_preset: home
+    preset:
+      - name: "away"
+        default_target_temperature_low: 18.0
+        default_target_temperature_high: 24.0
+      - name: "home"
+        default_target_temperature_low: 18.0
+        default_target_temperature_high: 24.0
+    auto_mode:
+      - logger.log: "AUTO mode set"
+    heat_cool_mode:
+      - logger.log: "HEAT_COOL mode set"
+    cool_action:
+      - switch.turn_on: air_cond
+    supplemental_cooling_action:
+      - switch.turn_on: air_cond_2
+    heat_action:
+      - switch.turn_on: heater
+    supplemental_heating_action:
+      - switch.turn_on: heater_2
+    dry_action:
+      - switch.turn_on: air_cond
+    fan_only_action:
+      - switch.turn_on: fan_only
+    idle_action:
+      - switch.turn_off: air_cond
+      - switch.turn_off: air_cond_2
+      - switch.turn_off: heater
+      - switch.turn_off: heater_2
+      - switch.turn_off: fan_only
+    humidity_control_humidify_action:
+      - switch.turn_on: humidifier
+    humidity_control_off_action:
+      - switch.turn_off: humidifier
+
+sensor:
+  - platform: template
+    id: host_thermostat_humidity_sensor
+    unit_of_measurement: °C
+    accuracy_decimals: 2
+    state_class: measurement
+    force_update: true
+    lambda: return 42.0;
+    update_interval: 0.1s
+  - platform: template
+    id: host_thermostat_temperature_sensor
+    unit_of_measurement: °C
+    accuracy_decimals: 2
+    state_class: measurement
+    force_update: true
+    lambda: return 22.0;
+    update_interval: 0.1s
+
+switch:
+  - platform: template
+    id: air_cond
+    name: Air Conditioner
+    optimistic: true
+  - platform: template
+    id: air_cond_2
+    name: Air Conditioner 2
+    optimistic: true
+  - platform: template
+    id: fan_only
+    name: Fan
+    optimistic: true
+  - platform: template
+    id: heater
+    name: Heater
+    optimistic: true
+  - platform: template
+    id: heater_2
+    name: Heater 2
+    optimistic: true
+  - platform: template
+    id: humidifier
+    name: Humidifier
+    optimistic: true

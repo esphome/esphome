@@ -20,6 +20,23 @@ bool MCP2515::setup_internal() {
     return false;
   if (this->set_bitrate_(this->bit_rate_, this->mcp_clock_) != canbus::ERROR_OK)
     return false;
+
+  // setup hardware filter RXF0 accepting all standard CAN IDs
+  if (this->set_filter_(RXF::RXF0, false, 0) != canbus::ERROR_OK) {
+    return false;
+  }
+  if (this->set_filter_mask_(MASK::MASK0, false, 0) != canbus::ERROR_OK) {
+    return false;
+  }
+
+  // setup hardware filter RXF1 accepting all extended CAN IDs
+  if (this->set_filter_(RXF::RXF1, true, 0) != canbus::ERROR_OK) {
+    return false;
+  }
+  if (this->set_filter_mask_(MASK::MASK1, true, 0) != canbus::ERROR_OK) {
+    return false;
+  }
+
   if (this->set_mode_(this->mcp_mode_) != canbus::ERROR_OK)
     return false;
   uint8_t err_flags = this->get_error_flags_();
@@ -116,8 +133,8 @@ uint8_t MCP2515::get_status_() {
 canbus::Error MCP2515::set_mode_(const CanctrlReqopMode mode) {
   modify_register_(MCP_CANCTRL, CANCTRL_REQOP, mode);
 
-  uint32_t end_time = millis() + 10;
-  while (millis() < end_time) {
+  uint32_t start_time = millis();
+  while (millis() - start_time < 10) {
     if ((read_register_(MCP_CANSTAT) & CANSTAT_OPMOD) == mode)
       return canbus::ERROR_OK;
   }
@@ -489,6 +506,7 @@ canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clo
           cfg3 = MCP_12MHZ_40KBPS_CFG3;
           break;
         case (canbus::CAN_50KBPS):  //  50Kbps
+          cfg1 = MCP_12MHZ_50KBPS_CFG1;
           cfg2 = MCP_12MHZ_50KBPS_CFG2;
           cfg3 = MCP_12MHZ_50KBPS_CFG3;
           break;

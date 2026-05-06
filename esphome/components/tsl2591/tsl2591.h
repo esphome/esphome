@@ -249,8 +249,6 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   /** Used by ESPHome framework. */
   void update() override;
-  /** Used by ESPHome framework. */
-  float get_setup_priority() const override;
 
  protected:
   const char *name_;

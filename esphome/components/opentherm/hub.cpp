@@ -395,10 +395,8 @@ void OpenthermHub::dump_config() {
   this->write_initial_messages_(initial_messages);
   this->write_repeating_messages_(repeating_messages);
 
-  ESP_LOGCONFIG(TAG, "OpenTherm:");
-  LOG_PIN("  In: ", this->in_pin_);
-  LOG_PIN("  Out: ", this->out_pin_);
   ESP_LOGCONFIG(TAG,
+                "OpenTherm:\n"
                 "  Sync mode: %s\n"
                 "  Sensors: %s\n"
                 "  Binary sensors: %s\n"
@@ -409,6 +407,8 @@ void OpenthermHub::dump_config() {
                 YESNO(this->sync_mode_), SHOW(OPENTHERM_SENSOR_LIST(ID, )), SHOW(OPENTHERM_BINARY_SENSOR_LIST(ID, )),
                 SHOW(OPENTHERM_SWITCH_LIST(ID, )), SHOW(OPENTHERM_INPUT_SENSOR_LIST(ID, )),
                 SHOW(OPENTHERM_OUTPUT_LIST(ID, )), SHOW(OPENTHERM_NUMBER_LIST(ID, )));
+  LOG_PIN("  In: ", this->in_pin_);
+  LOG_PIN("  Out: ", this->out_pin_);
   ESP_LOGCONFIG(TAG, "  Initial requests:");
   for (auto type : initial_messages) {
     ESP_LOGCONFIG(TAG, "  - %d (%s)", type, this->opentherm_->message_id_to_str(type));

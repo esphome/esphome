@@ -43,6 +43,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_MINUTE,
                 icon=ICON_TIMELAPSE,
                 accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,

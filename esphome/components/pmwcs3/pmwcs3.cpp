@@ -53,8 +53,6 @@ void PMWCS3Component::water_calibration() {
 
 void PMWCS3Component::update() { this->read_data_(); }
 
-float PMWCS3Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void PMWCS3Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PMWCS3");
   LOG_I2C_DEVICE(this);

@@ -71,16 +71,19 @@ void WTS01Sensor::process_packet_() {
   }
 
   // Extract temperature value
-  int8_t temp = this->buffer_[6];
-  int32_t sign = 1;
+  const uint8_t raw = this->buffer_[6];
 
-  // Handle negative temperatures
-  if (temp < 0) {
-    sign = -1;
+  // WTS01 encodes sign in bit 7, magnitude in bits 0-6
+  const bool negative = (raw & 0x80) != 0;
+  const uint8_t magnitude = raw & 0x7F;
+
+  const float decimal = static_cast<float>(this->buffer_[7]) / 100.0f;
+
+  float temperature = static_cast<float>(magnitude) + decimal;
+
+  if (negative) {
+    temperature = -temperature;
   }
-
-  // Calculate temperature (temp + decimal/100)
-  float temperature = static_cast<float>(temp) + (sign * static_cast<float>(this->buffer_[7]) / 100.0f);
 
   ESP_LOGV(TAG, "Received new temperature: %.2f°C", temperature);
 

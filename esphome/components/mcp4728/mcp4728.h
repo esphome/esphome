@@ -58,7 +58,7 @@ class MCP4728Component : public Component, public i2c::I2CDevice {
   void select_gain_(MCP4728ChannelIdx channel, MCP4728Gain gain);
 
  private:
-  DACInputData reg_[4];
+  DACInputData reg_[4]{};
   bool store_in_eeprom_ = false;
   bool update_ = false;
 };

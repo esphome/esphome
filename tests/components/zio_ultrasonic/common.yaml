@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_zio_ultrasonic
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: zio_ultrasonic
+    i2c_id: i2c_bus
     name: "Distance"
     update_interval: 60s

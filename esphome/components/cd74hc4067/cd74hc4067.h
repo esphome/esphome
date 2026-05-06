@@ -13,7 +13,6 @@ class CD74HC4067Component : public Component {
   /// Set up the internal sensor array.
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
   /// setting pin active by setting the right combination of the four multiplexer input pins
   void activate_pin(uint8_t pin);

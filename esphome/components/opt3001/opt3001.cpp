@@ -116,7 +116,5 @@ void OPT3001Sensor::update() {
   });
 }
 
-float OPT3001Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace opt3001
 }  // namespace esphome

@@ -11,11 +11,13 @@ from esphome.const import (
     CONF_COMMENT,
     CONF_ESPHOME,
     CONF_ETHERNET,
+    CONF_OPENTHREAD,
     CONF_PORT,
     CONF_USE_ADDRESS,
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_NATIVE_IDF,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
@@ -46,6 +48,9 @@ if TYPE_CHECKING:
     from ..types import ConfigType, EntityMetadata
 
 _LOGGER = logging.getLogger(__name__)
+
+# Key for tracking controller count in CORE.data for ControllerRegistry StaticVector sizing
+KEY_CONTROLLER_REGISTRY_COUNT = "controller_registry_count"
 
 
 class EsphomeError(Exception):
@@ -273,9 +278,13 @@ LAMBDA_PROG = re.compile(r"\bid\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 class Lambda:
     def __init__(self, value):
+        from esphome.cpp_generator import Expression, statement
+
         # pylint: disable=protected-access
         if isinstance(value, Lambda):
             self._value = value._value
+        elif isinstance(value, Expression):
+            self._value = str(statement(value))
         else:
             self._value = value
         self._parts = None
@@ -529,14 +538,30 @@ class EsphomeCore:
         self.dashboard = False
         # True if command is run from vscode api
         self.vscode = False
+        # True if running in testing mode (disables validation checks for grouped testing)
+        self.testing_mode = False
         # The name of the node
         self.name: str | None = None
         # The friendly name of the node
         self.friendly_name: str | None = None
         # The area / zone of the node
         self.area: str | None = None
-        # Additional data components can store temporary data in
-        # The first key to this dict should always be the integration name
+        # Additional data components can store temporary data in.
+        # This dict is cleared between compilation runs.
+        #
+        # Usage pattern (use @dataclass for type safety):
+        #   DOMAIN = "my_component"
+        #
+        #   @dataclass
+        #   class MyComponentData:
+        #       feature_enabled: bool = False
+        #
+        #   def _get_data() -> MyComponentData:
+        #       if DOMAIN not in CORE.data:
+        #           CORE.data[DOMAIN] = MyComponentData()
+        #       return CORE.data[DOMAIN]
+        #
+        # The first key should always be the component domain name (DOMAIN constant).
         self.data = {}
         # The relative path to the configuration YAML
         self.config_path: Path | None = None
@@ -588,6 +613,11 @@ class EsphomeCore:
         self.current_component: str | None = None
         # Address cache for DNS and mDNS lookups from command line arguments
         self.address_cache: AddressCache | None = None
+        # Cached config hash (computed lazily)
+        self._config_hash: int | None = None
+        # When True, skip network freshness checks for cached external files
+        # (e.g. for `esphome logs`, where remote downloads aren't needed)
+        self.skip_external_update: bool = False
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -616,6 +646,8 @@ class EsphomeCore:
         self.unique_ids = {}
         self.current_component = None
         self.address_cache = None
+        self._config_hash = None
+        self.skip_external_update = False
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -633,11 +665,12 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        if CONF_WIFI in self.config:
-            return self.config[CONF_WIFI][CONF_USE_ADDRESS]
+        for network_type in (CONF_WIFI, CONF_ETHERNET, CONF_OPENTHREAD):
+            if network_type in self.config:
+                return self.config[network_type][CONF_USE_ADDRESS]
 
-        if CONF_ETHERNET in self.config:
-            return self.config[CONF_ETHERNET][CONF_USE_ADDRESS]
+        if CONF_OPENTHREAD in self.config:
+            return f"{self.name}.local"
 
         return None
 
@@ -665,6 +698,21 @@ class EsphomeCore:
         return None
 
     @property
+    def config_hash(self) -> int:
+        """Get the FNV-1a 32-bit hash of the config.
+
+        The hash is computed lazily and cached for performance.
+        Uses sort_keys=True to ensure deterministic ordering.
+        """
+        if self._config_hash is None:
+            from esphome import yaml_util
+            from esphome.helpers import fnv1a_32bit_hash
+
+            config_str = yaml_util.dump(self.config, show_secrets=True, sort_keys=True)
+            self._config_hash = fnv1a_32bit_hash(config_str)
+        return self._config_hash
+
+    @property
     def config_dir(self) -> Path:
         if self.config_path.is_dir():
             return self.config_path.absolute()
@@ -681,6 +729,25 @@ class EsphomeCore:
     @property
     def config_filename(self) -> str:
         return self.config_path.name
+
+    def has_at_least_one_component(self, *components: str) -> bool:
+        """
+        Are any of the given components configured?
+        :param components: component names
+        :return: true if so
+        """
+        if self.config is None:
+            raise ValueError("Config has not been loaded yet")
+
+        return any(component in self.config for component in components)
+
+    @property
+    def has_networking(self) -> bool:
+        """
+        Is a network component configured?
+        :return: true if so
+        """
+        return self.has_at_least_one_component("wifi", "ethernet", "openthread")
 
     def relative_config_path(self, *path: str | Path) -> Path:
         path_ = Path(*path).expanduser()
@@ -705,9 +772,23 @@ class EsphomeCore:
 
     @property
     def firmware_bin(self) -> Path:
+        # Check if using native ESP-IDF build (--native-idf)
+        if self.data.get(KEY_NATIVE_IDF, False):
+            return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")
+
+    @property
+    def partition_table_bin(self) -> Path:
+        # Native ESP-IDF (--native-idf): the partition table image is emitted under
+        # build/partition_table/partition-table.bin alongside firmware.bin. PlatformIO writes the
+        # equivalent file as partitions.bin in the env-specific .pioenvs directory.
+        if self.data.get(KEY_NATIVE_IDF):
+            return self.relative_build_path(
+                "build", "partition_table", "partition-table.bin"
+            )
+        return self.relative_pioenvs_path(self.name, "partitions.bin")
 
     @property
     def target_platform(self):
@@ -759,6 +840,11 @@ class EsphomeCore:
 
     @property
     def using_esp_idf(self):
+        _LOGGER.warning(
+            "CORE.using_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
+            "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
+            "Use CORE.is_esp32 and/or CORE.using_arduino instead."
+        )
         return self.target_framework == "esp-idf"
 
     @property
@@ -820,6 +906,16 @@ class EsphomeCore:
         short_name = (
             library.name if "/" not in library.name else library.name.split("/")[-1]
         )
+
+        # Auto-enable Arduino libraries on ESP32 Arduino builds
+        if self.is_esp32 and self.using_arduino:
+            from esphome.components.esp32 import (
+                ARDUINO_DISABLED_LIBRARIES,
+                _enable_arduino_library,
+            )
+
+            if short_name in ARDUINO_DISABLED_LIBRARIES:
+                _enable_arduino_library(short_name)
 
         if short_name not in self.platformio_libraries:
             _LOGGER.debug("Adding library: %s", library)
@@ -905,6 +1001,20 @@ class EsphomeCore:
         :param var: The variable (component) being registered (currently unused but kept for future use)
         """
         self.platform_counts[platform_name] += 1
+
+    def testing_ensure_platform_registered(self, platform_name: str) -> None:
+        """Ensure a platform has at least one entity registered for testing.
+
+        Used during C++ test builds to guarantee USE_* defines are emitted
+        without needing a real component variable.
+        """
+        if not self.platform_counts[platform_name]:
+            self.platform_counts[platform_name] = 1
+
+    def register_controller(self) -> None:
+        """Track registration of a Controller for ControllerRegistry StaticVector sizing."""
+        controller_count = self.data.setdefault(KEY_CONTROLLER_REGISTRY_COUNT, 0)
+        self.data[KEY_CONTROLLER_REGISTRY_COUNT] = controller_count + 1
 
     @property
     def cpp_main_section(self):

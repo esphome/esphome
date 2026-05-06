@@ -91,6 +91,51 @@ def test_cpp_string_escape(string, expected):
 
 
 @pytest.mark.parametrize(
+    "value, expected",
+    (
+        # Basic underscore→dash conversion.
+        ("Living Room Sensor", "living-room-sensor"),
+        # Already-slugified input passes through with dash output.
+        ("kitchen_light", "kitchen-light"),
+        # Accents are stripped (matches the underlying ``slugify``).
+        ("Café Caché", "cafe-cache"),
+        # Mixed casing + multiple separators collapse correctly.
+        ("Foo  Bar__Baz", "foo-bar-baz"),
+        # Empty input yields empty output.
+        ("", ""),
+        # Numbers survive intact.
+        ("Sensor 42", "sensor-42"),
+    ),
+)
+def test_friendly_name_slugify(value, expected):
+    """Friendly-name → URL-safe dash-slug.
+
+    Stable mapping is part of the cross-tool contract
+    (legacy dashboard + device-builder both depend on it for
+    filename → device-name routing). Lock the cases here so a
+    refactor can't accidentally change a slug shape and break
+    on-disk filenames in already-deployed installs.
+    """
+    assert helpers.friendly_name_slugify(value) == expected
+
+
+def test_friendly_name_slugify_back_compat_shim():
+    """``esphome.dashboard.util.text`` keeps re-exporting for back-compat.
+
+    The function moved to ``esphome.helpers`` so the new
+    device-builder dashboard backend can import it without depending
+    on the legacy dashboard package, but downstream code that still
+    imports from the old path keeps working until the dashboard
+    module is removed.
+    """
+    from esphome.dashboard.util.text import (
+        friendly_name_slugify as legacy_friendly_name_slugify,
+    )
+
+    assert legacy_friendly_name_slugify is helpers.friendly_name_slugify
+
+
+@pytest.mark.parametrize(
     "host",
     (
         "127.0.0",
@@ -280,6 +325,77 @@ def test_sanitize(text, expected):
 
 
 @pytest.mark.parametrize(
+    ("name", "expected_hash"),
+    (
+        # Basic strings - hash of sanitize(snake_case(name))
+        ("foo", 0x408F5E13),
+        ("Foo", 0x408F5E13),  # Same as "foo" (lowercase)
+        ("FOO", 0x408F5E13),  # Same as "foo" (lowercase)
+        # Spaces become underscores
+        ("foo bar", 0x3AE35AA1),  # Transforms to "foo_bar"
+        ("Foo Bar", 0x3AE35AA1),  # Same (lowercase + underscore)
+        # Already snake_case
+        ("foo_bar", 0x3AE35AA1),
+        # Special chars become underscores
+        ("foo!bar", 0x3AE35AA1),  # Transforms to "foo_bar"
+        ("foo@bar", 0x3AE35AA1),  # Transforms to "foo_bar"
+        # Hyphens are preserved
+        ("foo-bar", 0x438B12E3),
+        # Numbers are preserved
+        ("foo123", 0xF3B0067D),
+        # Empty string
+        ("", 0x811C9DC5),  # FNV1_OFFSET_BASIS (no chars processed)
+        # Single char
+        ("a", 0x050C5D7E),
+        # Mixed case and spaces
+        ("My Sensor Name", 0x2760962A),  # Transforms to "my_sensor_name"
+    ),
+)
+def test_fnv1_hash_object_id(name, expected_hash):
+    """Test fnv1_hash_object_id produces expected hashes.
+
+    These expected values were computed to match the C++ implementation
+    in esphome/core/helpers.h. If this test fails after modifying either
+    implementation, ensure both Python and C++ versions stay in sync.
+    """
+    actual = helpers.fnv1_hash_object_id(name)
+
+    assert actual == expected_hash
+
+
+def _fnv1_hash_py(s: str) -> int:
+    """Python implementation of FNV-1 hash for verification."""
+    hash_val = 2166136261  # FNV1_OFFSET_BASIS
+    for c in s:
+        hash_val = (hash_val * 16777619) & 0xFFFFFFFF  # FNV1_PRIME
+        hash_val ^= ord(c)
+    return hash_val
+
+
+@pytest.mark.parametrize(
+    "name",
+    (
+        "Simple",
+        "With Space",
+        "MixedCase",
+        "special!@#chars",
+        "already_snake_case",
+        "123numbers",
+    ),
+)
+def test_fnv1_hash_object_id_matches_manual_calculation(name):
+    """Verify fnv1_hash_object_id matches snake_case + sanitize + standard FNV-1."""
+    # Manual calculation: snake_case -> sanitize -> fnv1_hash
+    transformed = helpers.sanitize(helpers.snake_case(name))
+    expected = _fnv1_hash_py(transformed)
+
+    # Direct calculation via fnv1_hash_object_id
+    actual = helpers.fnv1_hash_object_id(name)
+
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
     "text, expected",
     ((["127.0.0.1", "fe80::1", "2001::2"], ["2001::2", "127.0.0.1", "fe80::1"]),),
 )
@@ -454,9 +570,27 @@ def test_resolve_ip_address_mixed_list() -> None:
         # Mix of IP and hostname - should use async resolver
         result = helpers.resolve_ip_address(["192.168.1.100", "test.local"], 6053)
 
+        assert len(result) == 2
+        assert result[0][4][0] == "192.168.1.100"
+        assert result[1][4][0] == "192.168.1.200"
+        MockResolver.assert_called_once_with(["test.local"], 6053)
+        mock_resolver.resolve.assert_called_once()
+
+
+def test_resolve_ip_address_mixed_list_fail() -> None:
+    """Test resolving a mix of IPs and hostnames with resolve failed."""
+    with patch("esphome.resolver.AsyncResolver") as MockResolver:
+        mock_resolver = MockResolver.return_value
+        mock_resolver.resolve.side_effect = EsphomeError(
+            "Error resolving IP address: [test.local]"
+        )
+
+        # Mix of IP and hostname - should use async resolver
+        result = helpers.resolve_ip_address(["192.168.1.100", "test.local"], 6053)
+
         assert len(result) == 1
-        assert result[0][4][0] == "192.168.1.200"
-        MockResolver.assert_called_once_with(["192.168.1.100", "test.local"], 6053)
+        assert result[0][4][0] == "192.168.1.100"
+        MockResolver.assert_called_once_with(["test.local"], 6053)
         mock_resolver.resolve.assert_called_once()
 
 

@@ -1,16 +1,19 @@
 """Tests for platformio_api.py path functions."""
 
+# pylint: disable=protected-access
+
 import json
 import os
 from pathlib import Path
 import shutil
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 
-from esphome import platformio_api
+from esphome import platformio_api, platformio_runner
 from esphome.core import CORE, EsphomeError
+from esphome.util import FlashImage
 
 
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
@@ -68,7 +71,7 @@ def test_idedata_extra_flash_images(setup_core: Path) -> None:
 
     images = idedata.extra_flash_images
     assert len(images) == 2
-    assert all(isinstance(img, platformio_api.FlashImage) for img in images)
+    assert all(isinstance(img, FlashImage) for img in images)
     assert images[0].path == Path("/path/to/bootloader.bin")
     assert images[0].offset == "0x1000"
     assert images[1].path == Path("/path/to/partition.bin")
@@ -104,7 +107,7 @@ def test_idedata_cc_path(setup_core: Path) -> None:
 
 def test_flash_image_dataclass() -> None:
     """Test FlashImage dataclass stores path and offset correctly."""
-    image = platformio_api.FlashImage(path=Path("/path/to/image.bin"), offset="0x10000")
+    image = FlashImage(path=Path("/path/to/image.bin"), offset="0x10000")
 
     assert image.path == Path("/path/to/image.bin")
     assert image.offset == "0x10000"
@@ -280,13 +283,13 @@ def test_run_idedata_raises_on_invalid_json(
 
 
 def test_run_platformio_cli_sets_environment_variables(
-    setup_core: Path, mock_run_external_command: Mock
+    setup_core: Path, mock_run_external_process: Mock
 ) -> None:
     """Test run_platformio_cli sets correct environment variables."""
     CORE.build_path = str(setup_core / "build" / "test")
 
     with patch.dict(os.environ, {}, clear=False):
-        mock_run_external_command.return_value = 0
+        mock_run_external_process.return_value = 0
         platformio_api.run_platformio_cli("test", "arg")
 
         # Check environment variables were set
@@ -299,12 +302,113 @@ def test_run_platformio_cli_sets_environment_variables(
         assert "PLATFORMIO_LIBDEPS_DIR" in os.environ
         assert "PYTHONWARNINGS" in os.environ
 
-        # Check command was called correctly
-        mock_run_external_command.assert_called_once()
-        args = mock_run_external_command.call_args[0]
-        assert "platformio" in args
+        # Check command was called correctly — runs PlatformIO as a subprocess
+        # via the esphome.platformio_runner entry point.
+        mock_run_external_process.assert_called_once()
+        args = mock_run_external_process.call_args[0]
+        assert "-m" in args
+        assert "esphome.platformio_runner" in args
         assert "test" in args
         assert "arg" in args
+
+
+@pytest.mark.parametrize(
+    ("platform", "input_path", "expected"),
+    [
+        # win32: drive-letter extended-length prefix is stripped
+        (
+            "win32",
+            "\\\\?\\C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+        ),
+        # win32: UNC extended-length prefix is translated to a regular UNC path
+        (
+            "win32",
+            "\\\\?\\UNC\\server\\share\\python.exe",
+            "\\\\server\\share\\python.exe",
+        ),
+        # win32: paths without the prefix are returned unchanged
+        (
+            "win32",
+            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+        ),
+        # non-win32: prefix is left alone (no-op)
+        ("linux", "\\\\?\\C:\\python.exe", "\\\\?\\C:\\python.exe"),
+        ("darwin", "/usr/bin/python3", "/usr/bin/python3"),
+    ],
+)
+def test_strip_win_long_path_prefix(
+    platform: str, input_path: str, expected: str
+) -> None:
+    r"""``\\?\`` and ``\\?\UNC\`` prefixes are stripped only on win32."""
+    with patch("esphome.platformio_api.sys.platform", platform):
+        assert platformio_api._strip_win_long_path_prefix(input_path) == expected
+
+
+def test_run_platformio_cli_strips_win_long_path_prefix(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    r"""Windows ``\\?\`` prefix on sys.executable does not leak into the subprocess.
+
+    The NSIS-installed esphome.exe launcher starts Python with
+    ``sys.executable`` already prefixed by the extended-length path marker.
+    That prefix would otherwise propagate into PlatformIO's ``PYTHONEXE`` and
+    break SCons-emitted command lines run through ``cmd.exe``.
+    """
+    CORE.build_path = str(setup_core / "build" / "test")
+    prefixed_exe = (
+        "\\\\?\\C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe"
+    )
+    stripped_exe = (
+        "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe"
+    )
+
+    with (
+        patch.dict(os.environ, {}, clear=False),
+        patch("esphome.platformio_api.sys.platform", "win32"),
+        patch("esphome.platformio_api.sys.executable", prefixed_exe),
+    ):
+        # Pop any pre-existing PYTHONEXEPATH so the assertion below reflects
+        # what run_platformio_cli set, not whatever the test runner's
+        # environment happened to contain.
+        os.environ.pop("PYTHONEXEPATH", None)
+        mock_run_external_process.return_value = 0
+        platformio_api.run_platformio_cli("test", "arg")
+
+        # The subprocess is invoked with the stripped executable path.
+        mock_run_external_process.assert_called_once()
+        args = mock_run_external_process.call_args[0]
+        assert args[0] == stripped_exe
+        # PYTHONEXEPATH is exported with the stripped path so PlatformIO's
+        # get_pythonexe_path() picks it up in the subprocess.
+        assert os.environ["PYTHONEXEPATH"] == stripped_exe
+
+
+def test_run_platformio_cli_does_not_set_pythonexepath_without_strip(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    r"""PYTHONEXEPATH is not touched when sys.executable has no ``\\?\`` prefix.
+
+    Setting it unconditionally would clobber a user-provided value (or
+    interfere with non-Windows tooling that has no prefix to strip).
+    """
+    CORE.build_path = str(setup_core / "build" / "test")
+    plain_exe = "/usr/bin/python3"
+
+    with (
+        patch.dict(os.environ, {}, clear=False),
+        patch("esphome.platformio_api.sys.platform", "linux"),
+        patch("esphome.platformio_api.sys.executable", plain_exe),
+    ):
+        os.environ.pop("PYTHONEXEPATH", None)
+        mock_run_external_process.return_value = 0
+        platformio_api.run_platformio_cli("test", "arg")
+
+        mock_run_external_process.assert_called_once()
+        args = mock_run_external_process.call_args[0]
+        assert args[0] == plain_exe
+        assert "PYTHONEXEPATH" not in os.environ
 
 
 def test_run_platformio_cli_run_builds_command(
@@ -387,6 +491,42 @@ def test_idedata_addr2line_path_unix(setup_core: Path) -> None:
     assert result == "/usr/bin/addr2line"
 
 
+def test_idedata_objdump_path_windows(setup_core: Path) -> None:
+    """Test IDEData.objdump_path on Windows."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "C:\\tools\\gcc.exe"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.objdump_path
+    assert result == "C:\\tools\\objdump.exe"
+
+
+def test_idedata_objdump_path_unix(setup_core: Path) -> None:
+    """Test IDEData.objdump_path on Unix."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "/usr/bin/gcc"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.objdump_path
+    assert result == "/usr/bin/objdump"
+
+
+def test_idedata_readelf_path_windows(setup_core: Path) -> None:
+    """Test IDEData.readelf_path on Windows."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "C:\\tools\\gcc.exe"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.readelf_path
+    assert result == "C:\\tools\\readelf.exe"
+
+
+def test_idedata_readelf_path_unix(setup_core: Path) -> None:
+    """Test IDEData.readelf_path on Unix."""
+    raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "/usr/bin/gcc"}
+    idedata = platformio_api.IDEData(raw_data)
+
+    result = idedata.readelf_path
+    assert result == "/usr/bin/readelf"
+
+
 def test_patch_structhash(setup_core: Path) -> None:
     """Test patch_structhash monkey patches platformio functions."""
     # Create simple namespace objects to act as modules
@@ -407,7 +547,7 @@ def test_patch_structhash(setup_core: Path) -> None:
         },
     ):
         # Call patch_structhash
-        platformio_api.patch_structhash()
+        platformio_runner.patch_structhash()
 
         # Verify both modules had clean_build_dir patched
         # Check that clean_build_dir was set on both modules
@@ -459,7 +599,7 @@ def test_patched_clean_build_dir_removes_outdated(setup_core: Path) -> None:
         },
     ):
         # Call patch_structhash to install the patched function
-        platformio_api.patch_structhash()
+        platformio_runner.patch_structhash()
 
         # Call the patched function
         mock_helpers.clean_build_dir(str(build_dir), [])
@@ -509,7 +649,7 @@ def test_patched_clean_build_dir_keeps_updated(setup_core: Path) -> None:
         },
     ):
         # Call patch_structhash to install the patched function
-        platformio_api.patch_structhash()
+        platformio_runner.patch_structhash()
 
         # Call the patched function
         mock_helpers.clean_build_dir(str(build_dir), [])
@@ -557,7 +697,7 @@ def test_patched_clean_build_dir_creates_missing(setup_core: Path) -> None:
         },
     ):
         # Call patch_structhash to install the patched function
-        platformio_api.patch_structhash()
+        platformio_runner.patch_structhash()
 
         # Call the patched function
         mock_helpers.clean_build_dir(str(build_dir), [])
@@ -569,68 +709,248 @@ def test_patched_clean_build_dir_creates_missing(setup_core: Path) -> None:
         assert build_dir.exists()
 
 
-def test_process_stacktrace_esp8266_exception(setup_core: Path, caplog) -> None:
-    """Test process_stacktrace handles ESP8266 exceptions."""
-    config = {"name": "test"}
+def test_patch_file_downloader_succeeds_first_try() -> None:
+    """Test patch_file_downloader succeeds on first attempt."""
+    mock_exception_cls = type("PackageException", (Exception,), {})
+    original_init = MagicMock()
 
-    # Test exception type parsing
-    line = "Exception (28):"
-    backtrace_state = False
+    with patch.dict(
+        "sys.modules",
+        {
+            "platformio": MagicMock(),
+            "platformio.package": MagicMock(),
+            "platformio.package.download": SimpleNamespace(
+                FileDownloader=type("FileDownloader", (), {"__init__": original_init})
+            ),
+            "platformio.package.exception": SimpleNamespace(
+                PackageException=mock_exception_cls
+            ),
+        },
+    ):
+        platformio_runner.patch_file_downloader()
 
-    result = platformio_api.process_stacktrace(config, line, backtrace_state)
+        from platformio.package.download import FileDownloader
 
-    assert "Access to invalid address: LOAD (wild pointer?)" in caplog.text
-    assert result is False
+        instance = object.__new__(FileDownloader)
+        FileDownloader.__init__(instance, "http://example.com/file.zip")
 
-
-def test_process_stacktrace_esp8266_backtrace(
-    setup_core: Path, mock_decode_pc: Mock
-) -> None:
-    """Test process_stacktrace handles ESP8266 multi-line backtrace."""
-    config = {"name": "test"}
-
-    # Start of backtrace
-    line1 = ">>>stack>>>"
-    state = platformio_api.process_stacktrace(config, line1, False)
-    assert state is True
-
-    # Backtrace content with addresses
-    line2 = "40201234 40205678"
-    state = platformio_api.process_stacktrace(config, line2, state)
-    assert state is True
-    assert mock_decode_pc.call_count == 2
-
-    # End of backtrace
-    line3 = "<<<stack<<<"
-    state = platformio_api.process_stacktrace(config, line3, state)
-    assert state is False
+        original_init.assert_called_once()
 
 
-def test_process_stacktrace_esp32_backtrace(
-    setup_core: Path, mock_decode_pc: Mock
-) -> None:
-    """Test process_stacktrace handles ESP32 single-line backtrace."""
-    config = {"name": "test"}
+def test_patch_file_downloader_retries_on_failure() -> None:
+    """Test patch_file_downloader retries with backoff on PackageException."""
+    mock_exception_cls = type("PackageException", (Exception,), {})
+    call_count = 0
 
-    line = "Backtrace: 0x40081234:0x3ffb1234 0x40085678:0x3ffb5678"
-    state = platformio_api.process_stacktrace(config, line, False)
+    def failing_init(self, *args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise mock_exception_cls(f"502 error attempt {call_count}")
 
-    # Should decode both addresses
-    assert mock_decode_pc.call_count == 2
-    mock_decode_pc.assert_any_call(config, "40081234")
-    mock_decode_pc.assert_any_call(config, "40085678")
-    assert state is False
+    with (
+        patch.dict(
+            "sys.modules",
+            {
+                "platformio": MagicMock(),
+                "platformio.package": MagicMock(),
+                "platformio.package.download": SimpleNamespace(
+                    FileDownloader=type(
+                        "FileDownloader", (), {"__init__": failing_init}
+                    )
+                ),
+                "platformio.package.exception": SimpleNamespace(
+                    PackageException=mock_exception_cls
+                ),
+            },
+        ),
+        patch("time.sleep") as mock_sleep,
+    ):
+        platformio_runner.patch_file_downloader()
+
+        from platformio.package.download import FileDownloader
+
+        instance = object.__new__(FileDownloader)
+        FileDownloader.__init__(instance, "http://example.com/file.zip")
+
+        # Should have been called 3 times (2 failures + 1 success)
+        assert call_count == 3
+
+        # Should have slept with exponential backoff: 2s, 4s
+        assert mock_sleep.call_count == 2
+        mock_sleep.assert_any_call(2)
+        mock_sleep.assert_any_call(4)
 
 
-def test_process_stacktrace_bad_alloc(
-    setup_core: Path, mock_decode_pc: Mock, caplog
-) -> None:
-    """Test process_stacktrace handles bad alloc messages."""
-    config = {"name": "test"}
+def test_patch_file_downloader_raises_after_max_retries() -> None:
+    """Test patch_file_downloader raises after exhausting all retries."""
+    mock_exception_cls = type("PackageException", (Exception,), {})
 
-    line = "last failed alloc call: 40201234(512)"
-    state = platformio_api.process_stacktrace(config, line, False)
+    def always_failing_init(self, *args, **kwargs):
+        raise mock_exception_cls("502 error")
 
-    assert "Memory allocation of 512 bytes failed at 40201234" in caplog.text
-    mock_decode_pc.assert_called_once_with(config, "40201234")
-    assert state is False
+    with (
+        patch.dict(
+            "sys.modules",
+            {
+                "platformio": MagicMock(),
+                "platformio.package": MagicMock(),
+                "platformio.package.download": SimpleNamespace(
+                    FileDownloader=type(
+                        "FileDownloader", (), {"__init__": always_failing_init}
+                    )
+                ),
+                "platformio.package.exception": SimpleNamespace(
+                    PackageException=mock_exception_cls
+                ),
+            },
+        ),
+        patch("time.sleep") as mock_sleep,
+    ):
+        platformio_runner.patch_file_downloader()
+
+        from platformio.package.download import FileDownloader
+
+        instance = object.__new__(FileDownloader)
+        with pytest.raises(mock_exception_cls, match="502 error"):
+            FileDownloader.__init__(instance, "http://example.com/file.zip")
+
+        # Should have slept 4 times (before attempts 2-5), not on final attempt
+        assert mock_sleep.call_count == 4
+        mock_sleep.assert_has_calls([call(2), call(4), call(8), call(16)])
+
+
+def test_patch_file_downloader_closes_session_and_response_between_retries() -> None:
+    """Test patch_file_downloader closes HTTP session and response between retries."""
+    mock_exception_cls = type("PackageException", (Exception,), {})
+    mock_session = MagicMock()
+    mock_response = MagicMock()
+    call_count = 0
+
+    def failing_init_with_session(self, *args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        self._http_session = mock_session
+        self._http_response = mock_response
+        if call_count < 2:
+            raise mock_exception_cls("502 error")
+
+    with (
+        patch.dict(
+            "sys.modules",
+            {
+                "platformio": MagicMock(),
+                "platformio.package": MagicMock(),
+                "platformio.package.download": SimpleNamespace(
+                    FileDownloader=type(
+                        "FileDownloader",
+                        (),
+                        {"__init__": failing_init_with_session},
+                    )
+                ),
+                "platformio.package.exception": SimpleNamespace(
+                    PackageException=mock_exception_cls
+                ),
+            },
+        ),
+        patch("time.sleep"),
+    ):
+        platformio_runner.patch_file_downloader()
+
+        from platformio.package.download import FileDownloader
+
+        instance = object.__new__(FileDownloader)
+        FileDownloader.__init__(instance, "http://example.com/file.zip")
+
+        # Both response and session should have been closed between retries
+        mock_response.close.assert_called_once()
+        mock_session.close.assert_called_once()
+
+
+def test_patch_file_downloader_idempotent() -> None:
+    """Test patch_file_downloader does not stack wrappers when called multiple times."""
+    mock_exception_cls = type("PackageException", (Exception,), {})
+    call_count = 0
+
+    def counting_init(self, *args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+
+    with patch.dict(
+        "sys.modules",
+        {
+            "platformio": MagicMock(),
+            "platformio.package": MagicMock(),
+            "platformio.package.download": SimpleNamespace(
+                FileDownloader=type("FileDownloader", (), {"__init__": counting_init})
+            ),
+            "platformio.package.exception": SimpleNamespace(
+                PackageException=mock_exception_cls
+            ),
+        },
+    ):
+        # Patch multiple times
+        platformio_runner.patch_file_downloader()
+        platformio_runner.patch_file_downloader()
+        platformio_runner.patch_file_downloader()
+
+        from platformio.package.download import FileDownloader
+
+        instance = object.__new__(FileDownloader)
+        FileDownloader.__init__(instance, "http://example.com/file.zip")
+
+        # Should only be called once, not 3 times from stacked wrappers
+        assert call_count == 1
+
+
+def _filter_through_redirect(line: str) -> str:
+    """Write a line through RedirectText with FILTER_PLATFORMIO_LINES and return what passes."""
+    import io
+
+    from esphome.util import RedirectText
+
+    captured = io.StringIO()
+    redirect = RedirectText(
+        captured, filter_lines=platformio_runner.FILTER_PLATFORMIO_LINES
+    )
+    redirect.write(line + "\n")
+    return captured.getvalue()
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        "Verbose mode can be enabled via `-v, --verbose` option",
+        "Found 5 compatible libraries",
+        "Found 123 compatible libraries",
+        "Building in release mode",
+        "Building in debug mode",
+        "Merged 2 ELF section",
+        "esptool.py v4.7.0",
+        "esptool v4.8.1",
+        "PLATFORM: espressif32 @ 6.4.0",
+        "Using cache: /path/to/cache",
+        "Package configuration completed successfully",
+        "Scanning dependencies...",
+        "Installing dependencies",
+        "Library Manager: Already installed, built-in library",
+        "Memory Usage -> https://bit.ly/pio-memory-usage",
+    ],
+)
+def test_filter_platformio_lines_blocks_noisy_messages(msg: str) -> None:
+    """Test that noisy platformio output lines are filtered out by RedirectText."""
+    assert _filter_through_redirect(msg) == ""
+
+
+@pytest.mark.parametrize(
+    "msg",
+    [
+        "Compiling .pio/build/test/src/main.cpp.o",
+        "Linking .pio/build/test/firmware.elf",
+        "Error: something went wrong",
+        "warning: unused variable",
+    ],
+)
+def test_filter_platformio_lines_allows_other_messages(msg: str) -> None:
+    """Test that non-noisy platformio output lines pass through RedirectText."""
+    assert _filter_through_redirect(msg) == msg + "\n"

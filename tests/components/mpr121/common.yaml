@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_mpr121
-    scl: ${i2c_scl}
-    sda: ${i2c_sda}
-
 mpr121:
+  i2c_id: i2c_bus
   id: mpr121_first
   address: 0x5A
 

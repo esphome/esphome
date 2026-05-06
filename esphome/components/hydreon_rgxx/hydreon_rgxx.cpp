@@ -284,7 +284,5 @@ void HydreonRGxxComponent::process_line_() {
   }
 }
 
-float HydreonRGxxComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace hydreon_rgxx
 }  // namespace esphome

@@ -31,9 +31,11 @@ void LibreTinyPWM::setup() {
 }
 
 void LibreTinyPWM::dump_config() {
-  ESP_LOGCONFIG(TAG, "PWM Output:");
+  ESP_LOGCONFIG(TAG,
+                "PWM Output:\n"
+                "  Frequency: %.1f Hz",
+                this->frequency_);
   LOG_PIN("  Pin ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Frequency: %.1f Hz", this->frequency_);
 }
 
 void LibreTinyPWM::update_frequency(float frequency) {

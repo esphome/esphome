@@ -35,7 +35,6 @@ class Tx20Component : public Component {
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void loop() override;
 
  protected:

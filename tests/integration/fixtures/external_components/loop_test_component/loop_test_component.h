@@ -39,7 +39,7 @@ template<typename... Ts> class EnableAction : public Action<Ts...> {
  public:
   EnableAction(LoopTestComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->service_enable(); }
+  void play(const Ts &...x) override { this->parent_->service_enable(); }
 
  protected:
   LoopTestComponent *parent_;
@@ -49,7 +49,7 @@ template<typename... Ts> class DisableAction : public Action<Ts...> {
  public:
   DisableAction(LoopTestComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->service_disable(); }
+  void play(const Ts &...x) override { this->parent_->service_disable(); }
 
  protected:
   LoopTestComponent *parent_;

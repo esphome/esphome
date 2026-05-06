@@ -7,6 +7,9 @@ namespace modbus_controller {
 
 static const char *const TAG = "modbus_controller.output";
 
+// Maximum bytes to log in verbose hex output
+static constexpr size_t MODBUS_OUTPUT_MAX_LOG_BYTES = 64;
+
 /** Write a value to the device
  *
  */
@@ -31,7 +34,7 @@ void ModbusFloatOutput::write_state(float value) {
   }
   // lambda didn't set payload
   if (data.empty()) {
-    data = float_to_payload(value, this->sensor_value_type);
+    data = modbus::helpers::float_to_payload(value, this->sensor_value_type);
   }
 
   ESP_LOGD(TAG, "Updating register: start address=0x%X register count=%d new value=%.02f (val=%.02f)",
@@ -80,7 +83,11 @@ void ModbusBinaryOutput::write_state(bool state) {
     }
   }
   if (!data.empty()) {
-    ESP_LOGV(TAG, "Modbus binary output write raw: %s", format_hex_pretty(data).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char hex_buf[format_hex_pretty_size(MODBUS_OUTPUT_MAX_LOG_BYTES)];
+#endif
+    ESP_LOGV(TAG, "Modbus binary output write raw: %s",
+             format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     cmd = ModbusCommandItem::create_custom_command(
         this->parent_, data,
         [this, cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {

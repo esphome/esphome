@@ -1,5 +1,8 @@
 substitutions:
-  tx_pin: GPIO17
-  rx_pin: GPIO16
+  tx_pin: GPIO4
+  rx_pin: GPIO5
+
+packages:
+  uart_19200: !include ../../test_build_components/common/uart_19200/esp32-idf.yaml
 
 <<: !include common.yaml

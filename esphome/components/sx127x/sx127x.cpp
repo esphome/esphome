@@ -38,16 +38,22 @@ void SX127x::write_register_(uint8_t reg, uint8_t value) {
 void SX127x::read_fifo_(std::vector<uint8_t> &packet) {
   this->enable();
   this->write_byte(REG_FIFO & 0x7F);
-  this->read_array(packet.data(), packet.size());
+  for (auto &byte : packet) {
+    byte = this->transfer_byte(0x00);
+  }
   this->disable();
 }
 
 void SX127x::write_fifo_(const std::vector<uint8_t> &packet) {
   this->enable();
   this->write_byte(REG_FIFO | 0x80);
-  this->write_array(packet.data(), packet.size());
+  for (const auto &byte : packet) {
+    this->transfer_byte(byte);
+  }
   this->disable();
 }
+
+void IRAM_ATTR SX127x::gpio_intr(SX127x *arg) { arg->enable_loop_soon_any_context(); }
 
 void SX127x::setup() {
   // setup reset
@@ -56,6 +62,7 @@ void SX127x::setup() {
   // setup dio0
   if (this->dio0_pin_) {
     this->dio0_pin_->setup();
+    this->dio0_pin_->attach_interrupt(&SX127x::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
   }
 
   // start spi
@@ -186,7 +193,7 @@ void SX127x::configure_fsk_ook_() {
   } else {
     this->write_register_(REG_PREAMBLE_DETECT, PREAMBLE_DETECTOR_OFF);
   }
-  this->write_register_(REG_PREAMBLE_SIZE_MSB, this->preamble_size_ >> 16);
+  this->write_register_(REG_PREAMBLE_SIZE_MSB, this->preamble_size_ >> 8);
   this->write_register_(REG_PREAMBLE_SIZE_LSB, this->preamble_size_ & 0xFF);
 
   // config sync generation and setup ook threshold
@@ -214,7 +221,7 @@ void SX127x::configure_lora_() {
 
   // config preamble
   if (this->preamble_size_ >= 6) {
-    this->write_register_(REG_PREAMBLE_LEN_MSB, this->preamble_size_ >> 16);
+    this->write_register_(REG_PREAMBLE_LEN_MSB, this->preamble_size_ >> 8);
     this->write_register_(REG_PREAMBLE_LEN_LSB, this->preamble_size_ & 0xFF);
   }
 
@@ -260,6 +267,11 @@ SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
     return SX127xError::INVALID_PARAMS;
   }
 
+  if (this->dio0_pin_ == nullptr) {
+    ESP_LOGE(TAG, "DIO0 pin not configured, cannot wait for transmit completion");
+    return SX127xError::INVALID_PARAMS;
+  }
+
   SX127xError ret = SX127xError::NONE;
   if (this->modulation_ == MOD_LORA) {
     this->set_mode_standby();
@@ -300,10 +312,11 @@ void SX127x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
   for (auto &listener : this->listeners_) {
     listener->on_packet(packet, rssi, snr);
   }
-  this->packet_trigger_->trigger(packet, rssi, snr);
+  this->packet_trigger_.trigger(packet, rssi, snr);
 }
 
 void SX127x::loop() {
+  this->disable_loop();
   if (this->dio0_pin_ == nullptr || !this->dio0_pin_->digital_read()) {
     return;
   }
@@ -374,7 +387,7 @@ void SX127x::set_mode_(uint8_t modulation, uint8_t mode) {
     if (millis() - start > 20) {
       ESP_LOGE(TAG, "Set mode failure");
       this->mark_failed();
-      break;
+      return;
     }
   }
 }
@@ -476,7 +489,9 @@ void SX127x::dump_config() {
       ESP_LOGCONFIG(TAG, "  Payload Length: %" PRIu32, this->payload_length_);
     }
     if (!this->sync_value_.empty()) {
-      ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s", format_hex(this->sync_value_).c_str());
+      char hex_buf[17];  // 8 bytes max = 16 hex chars + null
+      ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s",
+                    format_hex_to(hex_buf, this->sync_value_.data(), this->sync_value_.size()));
     }
     if (this->preamble_size_ > 0 || this->preamble_detect_ > 0) {
       ESP_LOGCONFIG(TAG,

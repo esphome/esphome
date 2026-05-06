@@ -40,7 +40,7 @@ class SX1509Component : public Component,
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return setup_priority::IO; }
   void loop() override;
 
   uint16_t read_key_data();

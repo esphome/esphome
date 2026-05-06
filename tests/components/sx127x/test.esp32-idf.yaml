@@ -1,9 +1,9 @@
 substitutions:
-  clk_pin: GPIO5
-  mosi_pin: GPIO27
-  miso_pin: GPIO19
-  cs_pin: GPIO18
-  rst_pin: GPIO23
+  cs_pin: GPIO12
+  rst_pin: GPIO13
   dio0_pin: GPIO26
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
 
 <<: !include common.yaml

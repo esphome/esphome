@@ -1,0 +1,17 @@
+dlms_meter:
+  decryption_key: "36C66639E48A8CA4D6BC8B282A793BBB"  # change this to your decryption key!
+  provider: netznoe                                   # (optional) key - only set if using evn
+
+sensor:
+  - platform: dlms_meter
+    # EVN
+    power_factor:
+      name: "Power Factor"
+
+text_sensor:
+  - platform: dlms_meter
+    # EVN
+    meternumber:
+      name: "meterNumber"
+
+<<: !include common.yaml

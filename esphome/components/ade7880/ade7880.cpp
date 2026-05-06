@@ -121,7 +121,7 @@ void ADE7880::update() {
     this->update_sensor_from_s32_register16_(chan->forward_active_energy, AFWATTHR, [&chan](float val) {
       return chan->forward_active_energy_total += val / 14400.0f;
     });
-    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, AFWATTHR, [&chan](float val) {
+    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, ARWATTHR, [&chan](float val) {
       return chan->reverse_active_energy_total += val / 14400.0f;
     });
   }
@@ -137,7 +137,7 @@ void ADE7880::update() {
     this->update_sensor_from_s32_register16_(chan->forward_active_energy, BFWATTHR, [&chan](float val) {
       return chan->forward_active_energy_total += val / 14400.0f;
     });
-    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, BFWATTHR, [&chan](float val) {
+    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, BRWATTHR, [&chan](float val) {
       return chan->reverse_active_energy_total += val / 14400.0f;
     });
   }
@@ -153,7 +153,7 @@ void ADE7880::update() {
     this->update_sensor_from_s32_register16_(chan->forward_active_energy, CFWATTHR, [&chan](float val) {
       return chan->forward_active_energy_total += val / 14400.0f;
     });
-    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, CFWATTHR, [&chan](float val) {
+    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, CRWATTHR, [&chan](float val) {
       return chan->reverse_active_energy_total += val / 14400.0f;
     });
   }
@@ -162,11 +162,13 @@ void ADE7880::update() {
 }
 
 void ADE7880::dump_config() {
-  ESP_LOGCONFIG(TAG, "ADE7880:");
+  ESP_LOGCONFIG(TAG,
+                "ADE7880:\n"
+                "  Frequency: %.0f Hz",
+                this->frequency_);
   LOG_PIN("  IRQ0  Pin: ", this->irq0_pin_);
   LOG_PIN("  IRQ1  Pin: ", this->irq1_pin_);
   LOG_PIN("  RESET Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  Frequency: %.0f Hz", this->frequency_);
 
   if (this->channel_a_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Phase A:");

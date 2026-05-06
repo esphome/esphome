@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from esphome import automation, external_files, git
 from esphome.automation import register_action, register_condition
 import esphome.codegen as cg
-from esphome.components import esp32, microphone
+from esphome.components import esp32, microphone, ota
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILE,
@@ -32,6 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@kahrendt", "@jesserockz"]
 DEPENDENCIES = ["microphone"]
+
 DOMAIN = "micro_wake_word"
 
 
@@ -367,7 +368,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_esp_idf,
+    cv.only_on_esp32,
 )
 
 
@@ -404,7 +405,7 @@ def _model_config_to_manifest_data(model_config):
         file = _compute_local_file_path(model_config) / "manifest.json"
 
     else:
-        raise ValueError("Unsupported config type: {model_config[CONF_TYPE]}")
+        raise ValueError(f"Unsupported config type: {model_config[CONF_TYPE]}")
 
     return _load_model_data(file)
 
@@ -447,15 +448,17 @@ async def to_code(config):
     cg.add(var.set_microphone_source(mic_source))
 
     cg.add_define("USE_MICRO_WAKE_WORD")
-    cg.add_define("USE_OTA_STATE_CALLBACK")
+    ota.request_ota_state_listeners()
 
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.3~1")
+    # Pin esp-nn for stable future builds (esp-tflite-micro depends on esp-nn)
+    esp32.add_idf_component(name="espressif/esp-nn", ref="1.1.2")
+
+    esp32.add_idf_component(name="esphome/esp-micro-speech-features", ref="1.2.3")
 
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
     cg.add_build_flag("-DESP_NN")
-
-    cg.add_library("kahrendt/ESPMicroSpeechFeatures", "1.1.0")
 
     if vad_model := config.get(CONF_VAD):
         cg.add_define("USE_MICRO_WAKE_WORD_VAD")
@@ -524,8 +527,15 @@ async def to_code(config):
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})
 
 
-@register_action("micro_wake_word.start", StartAction, MICRO_WAKE_WORD_ACTION_SCHEMA)
-@register_action("micro_wake_word.stop", StopAction, MICRO_WAKE_WORD_ACTION_SCHEMA)
+@register_action(
+    "micro_wake_word.start",
+    StartAction,
+    MICRO_WAKE_WORD_ACTION_SCHEMA,
+    synchronous=True,
+)
+@register_action(
+    "micro_wake_word.stop", StopAction, MICRO_WAKE_WORD_ACTION_SCHEMA, synchronous=True
+)
 @register_condition(
     "micro_wake_word.is_running", IsRunningCondition, MICRO_WAKE_WORD_ACTION_SCHEMA
 )
@@ -546,11 +556,13 @@ MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA = automation.maybe_simple_id(
     "micro_wake_word.enable_model",
     EnableModelAction,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
+    synchronous=True,
 )
 @register_action(
     "micro_wake_word.disable_model",
     DisableModelAction,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
+    synchronous=True,
 )
 @register_condition(
     "micro_wake_word.model_is_enabled",

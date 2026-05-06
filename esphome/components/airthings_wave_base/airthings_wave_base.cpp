@@ -1,4 +1,5 @@
 #include "airthings_wave_base.h"
+#include "esphome/components/esp32_ble/ble_uuid.h"
 
 // All information related to reading battery information came from the sensors.airthings_wave
 // project by Sverre Hamre (https://github.com/sverrham/sensor.airthings_wave)
@@ -93,8 +94,10 @@ void AirthingsWaveBase::update() {
 bool AirthingsWaveBase::request_read_values_() {
   auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->sensors_data_characteristic_uuid_);
   if (chr == nullptr) {
-    ESP_LOGW(TAG, "No sensor characteristic found at service %s char %s", this->service_uuid_.to_string().c_str(),
-             this->sensors_data_characteristic_uuid_.to_string().c_str());
+    char service_buf[esp32_ble::UUID_STR_LEN];
+    char char_buf[esp32_ble::UUID_STR_LEN];
+    ESP_LOGW(TAG, "No sensor characteristic found at service %s char %s", this->service_uuid_.to_str(service_buf),
+             this->sensors_data_characteristic_uuid_.to_str(char_buf));
     return false;
   }
 
@@ -117,17 +120,20 @@ bool AirthingsWaveBase::request_battery_() {
 
   auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->access_control_point_characteristic_uuid_);
   if (chr == nullptr) {
+    char service_buf[esp32_ble::UUID_STR_LEN];
+    char char_buf[esp32_ble::UUID_STR_LEN];
     ESP_LOGW(TAG, "No access control point characteristic found at service %s char %s",
-             this->service_uuid_.to_string().c_str(),
-             this->access_control_point_characteristic_uuid_.to_string().c_str());
+             this->service_uuid_.to_str(service_buf), this->access_control_point_characteristic_uuid_.to_str(char_buf));
     return false;
   }
 
   auto *descr = this->parent()->get_descriptor(this->service_uuid_, this->access_control_point_characteristic_uuid_,
                                                CLIENT_CHARACTERISTIC_CONFIGURATION_DESCRIPTOR_UUID);
   if (descr == nullptr) {
-    ESP_LOGW(TAG, "No CCC descriptor found at service %s char %s", this->service_uuid_.to_string().c_str(),
-             this->access_control_point_characteristic_uuid_.to_string().c_str());
+    char service_buf[esp32_ble::UUID_STR_LEN];
+    char char_buf[esp32_ble::UUID_STR_LEN];
+    ESP_LOGW(TAG, "No CCC descriptor found at service %s char %s", this->service_uuid_.to_str(service_buf),
+             this->access_control_point_characteristic_uuid_.to_str(char_buf));
     return false;
   }
 

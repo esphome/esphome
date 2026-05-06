@@ -10,7 +10,7 @@ namespace haier {
 template<typename... Ts> class DisplayOnAction : public Action<Ts...> {
  public:
   DisplayOnAction(HaierClimateBase *parent) : parent_(parent) {}
-  void play(Ts... x) { this->parent_->set_display_state(true); }
+  void play(const Ts &...x) { this->parent_->set_display_state(true); }
 
  protected:
   HaierClimateBase *parent_;
@@ -19,7 +19,7 @@ template<typename... Ts> class DisplayOnAction : public Action<Ts...> {
 template<typename... Ts> class DisplayOffAction : public Action<Ts...> {
  public:
   DisplayOffAction(HaierClimateBase *parent) : parent_(parent) {}
-  void play(Ts... x) { this->parent_->set_display_state(false); }
+  void play(const Ts &...x) { this->parent_->set_display_state(false); }
 
  protected:
   HaierClimateBase *parent_;
@@ -28,7 +28,7 @@ template<typename... Ts> class DisplayOffAction : public Action<Ts...> {
 template<typename... Ts> class BeeperOnAction : public Action<Ts...> {
  public:
   BeeperOnAction(HonClimate *parent) : parent_(parent) {}
-  void play(Ts... x) { this->parent_->set_beeper_state(true); }
+  void play(const Ts &...x) { this->parent_->set_beeper_state(true); }
 
  protected:
   HonClimate *parent_;
@@ -37,7 +37,7 @@ template<typename... Ts> class BeeperOnAction : public Action<Ts...> {
 template<typename... Ts> class BeeperOffAction : public Action<Ts...> {
  public:
   BeeperOffAction(HonClimate *parent) : parent_(parent) {}
-  void play(Ts... x) { this->parent_->set_beeper_state(false); }
+  void play(const Ts &...x) { this->parent_->set_beeper_state(false); }
 
  protected:
   HonClimate *parent_;
@@ -47,7 +47,7 @@ template<typename... Ts> class VerticalAirflowAction : public Action<Ts...> {
  public:
   VerticalAirflowAction(HonClimate *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(hon_protocol::VerticalSwingMode, direction)
-  void play(Ts... x) { this->parent_->set_vertical_airflow(this->direction_.value(x...)); }
+  void play(const Ts &...x) { this->parent_->set_vertical_airflow(this->direction_.value(x...)); }
 
  protected:
   HonClimate *parent_;
@@ -57,7 +57,7 @@ template<typename... Ts> class HorizontalAirflowAction : public Action<Ts...> {
  public:
   HorizontalAirflowAction(HonClimate *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(hon_protocol::HorizontalSwingMode, direction)
-  void play(Ts... x) { this->parent_->set_horizontal_airflow(this->direction_.value(x...)); }
+  void play(const Ts &...x) { this->parent_->set_horizontal_airflow(this->direction_.value(x...)); }
 
  protected:
   HonClimate *parent_;
@@ -66,7 +66,7 @@ template<typename... Ts> class HorizontalAirflowAction : public Action<Ts...> {
 template<typename... Ts> class HealthOnAction : public Action<Ts...> {
  public:
   HealthOnAction(HaierClimateBase *parent) : parent_(parent) {}
-  void play(Ts... x) { this->parent_->set_health_mode(true); }
+  void play(const Ts &...x) { this->parent_->set_health_mode(true); }
 
  protected:
   HaierClimateBase *parent_;
@@ -75,7 +75,7 @@ template<typename... Ts> class HealthOnAction : public Action<Ts...> {
 template<typename... Ts> class HealthOffAction : public Action<Ts...> {
  public:
   HealthOffAction(HaierClimateBase *parent) : parent_(parent) {}
-  void play(Ts... x) { this->parent_->set_health_mode(false); }
+  void play(const Ts &...x) { this->parent_->set_health_mode(false); }
 
  protected:
   HaierClimateBase *parent_;
@@ -84,7 +84,7 @@ template<typename... Ts> class HealthOffAction : public Action<Ts...> {
 template<typename... Ts> class StartSelfCleaningAction : public Action<Ts...> {
  public:
   StartSelfCleaningAction(HonClimate *parent) : parent_(parent) {}
-  void play(Ts... x) { this->parent_->start_self_cleaning(); }
+  void play(const Ts &...x) { this->parent_->start_self_cleaning(); }
 
  protected:
   HonClimate *parent_;
@@ -93,7 +93,7 @@ template<typename... Ts> class StartSelfCleaningAction : public Action<Ts...> {
 template<typename... Ts> class StartSteriCleaningAction : public Action<Ts...> {
  public:
   StartSteriCleaningAction(HonClimate *parent) : parent_(parent) {}
-  void play(Ts... x) { this->parent_->start_steri_cleaning(); }
+  void play(const Ts &...x) { this->parent_->start_steri_cleaning(); }
 
  protected:
   HonClimate *parent_;
@@ -102,7 +102,7 @@ template<typename... Ts> class StartSteriCleaningAction : public Action<Ts...> {
 template<typename... Ts> class PowerOnAction : public Action<Ts...> {
  public:
   PowerOnAction(HaierClimateBase *parent) : parent_(parent) {}
-  void play(Ts... x) { this->parent_->send_power_on_command(); }
+  void play(const Ts &...x) { this->parent_->send_power_on_command(); }
 
  protected:
   HaierClimateBase *parent_;
@@ -111,7 +111,7 @@ template<typename... Ts> class PowerOnAction : public Action<Ts...> {
 template<typename... Ts> class PowerOffAction : public Action<Ts...> {
  public:
   PowerOffAction(HaierClimateBase *parent) : parent_(parent) {}
-  void play(Ts... x) { this->parent_->send_power_off_command(); }
+  void play(const Ts &...x) { this->parent_->send_power_off_command(); }
 
  protected:
   HaierClimateBase *parent_;
@@ -120,7 +120,7 @@ template<typename... Ts> class PowerOffAction : public Action<Ts...> {
 template<typename... Ts> class PowerToggleAction : public Action<Ts...> {
  public:
   PowerToggleAction(HaierClimateBase *parent) : parent_(parent) {}
-  void play(Ts... x) { this->parent_->toggle_power(); }
+  void play(const Ts &...x) { this->parent_->toggle_power(); }
 
  protected:
   HaierClimateBase *parent_;

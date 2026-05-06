@@ -22,7 +22,6 @@ class DutyCycleSensor : public sensor::Sensor, public PollingComponent {
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
 
   void setup() override;
-  float get_setup_priority() const override;
   void dump_config() override;
   void update() override;
 

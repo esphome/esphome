@@ -15,10 +15,12 @@ void TLC5971::setup() {
   this->pwm_amounts_.resize(this->num_chips_ * N_CHANNELS_PER_CHIP, 0);
 }
 void TLC5971::dump_config() {
-  ESP_LOGCONFIG(TAG, "TLC5971:");
+  ESP_LOGCONFIG(TAG,
+                "TLC5971:\n"
+                "  Number of chips: %u",
+                this->num_chips_);
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
-  ESP_LOGCONFIG(TAG, "  Number of chips: %u", this->num_chips_);
 }
 
 void TLC5971::loop() {
@@ -66,13 +68,8 @@ void TLC5971::transfer_(uint8_t send) {
   uint8_t startbit = 0x80;
 
   bool towrite, lastmosi = !(send & startbit);
-  uint8_t bitdelay_us = (1000000 / 1000000) / 2;
 
   for (uint8_t b = startbit; b != 0; b = b >> 1) {
-    if (bitdelay_us) {
-      delayMicroseconds(bitdelay_us);
-    }
-
     towrite = send & b;
     if ((lastmosi != towrite)) {
       this->data_pin_->digital_write(towrite);
@@ -80,11 +77,6 @@ void TLC5971::transfer_(uint8_t send) {
     }
 
     this->clock_pin_->digital_write(true);
-
-    if (bitdelay_us) {
-      delayMicroseconds(bitdelay_us);
-    }
-
     this->clock_pin_->digital_write(false);
   }
 }

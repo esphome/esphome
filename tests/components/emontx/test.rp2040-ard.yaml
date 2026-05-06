@@ -1,0 +1,4 @@
+packages:
+  uart_115200: !include ../../test_build_components/common/uart_115200/rp2040-ard.yaml
+
+<<: !include common.yaml

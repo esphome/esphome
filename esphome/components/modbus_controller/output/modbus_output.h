@@ -15,7 +15,7 @@ class ModbusFloatOutput : public output::FloatOutput, public Component, public S
     this->register_type = ModbusRegisterType::HOLDING;
     this->start_address = start_address;
     this->offset = offset;
-    this->bitmask = bitmask;
+    this->bitmask = 0xFFFFFFFF;
     this->register_count = register_count;
     this->sensor_value_type = value_type;
     this->skip_updates = 0;
@@ -29,8 +29,8 @@ class ModbusFloatOutput : public output::FloatOutput, public Component, public S
   // Do nothing
   void parse_and_publish(const std::vector<uint8_t> &data) override{};
 
-  using write_transform_func_t = std::function<optional<float>(ModbusFloatOutput *, float, std::vector<uint16_t> &)>;
-  void set_write_template(write_transform_func_t &&f) { this->write_transform_func_ = f; }
+  using write_transform_func_t = optional<float> (*)(ModbusFloatOutput *, float, std::vector<uint16_t> &);
+  void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
@@ -47,7 +47,7 @@ class ModbusBinaryOutput : public output::BinaryOutput, public Component, public
   ModbusBinaryOutput(uint16_t start_address, uint8_t offset) {
     this->register_type = ModbusRegisterType::COIL;
     this->start_address = start_address;
-    this->bitmask = bitmask;
+    this->bitmask = 0xFFFFFFFF;
     this->sensor_value_type = SensorValueType::BIT;
     this->skip_updates = 0;
     this->register_count = 1;
@@ -60,8 +60,8 @@ class ModbusBinaryOutput : public output::BinaryOutput, public Component, public
   // Do nothing
   void parse_and_publish(const std::vector<uint8_t> &data) override{};
 
-  using write_transform_func_t = std::function<optional<bool>(ModbusBinaryOutput *, bool, std::vector<uint8_t> &)>;
-  void set_write_template(write_transform_func_t &&f) { this->write_transform_func_ = f; }
+  using write_transform_func_t = optional<bool> (*)(ModbusBinaryOutput *, bool, std::vector<uint8_t> &);
+  void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:

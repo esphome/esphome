@@ -11,7 +11,6 @@ namespace sx126x {
 class SX126xTransport : public packet_transport::PacketTransport, public Parented<SX126x>, public SX126xListener {
  public:
   void setup() override;
-  void update() override;
   void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 

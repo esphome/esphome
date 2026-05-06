@@ -1,13 +1,20 @@
-#ifdef USE_ESP32_VARIANT_ESP32S3
+#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
 #include "mipi_rgb.h"
-#include "esphome/core/log.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
-#include "esp_lcd_panel_rgb.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include <driver/gpio.h>
+#include <esp_lcd_panel_rgb.h>
+#include <span>
 
 namespace esphome {
 namespace mipi_rgb {
 
 static const uint8_t DELAY_FLAG = 0xFF;
+
+// Maximum bytes to log for init commands (truncated if larger)
+static constexpr size_t MIPI_RGB_MAX_CMD_LOG_BYTES = 64;
 static constexpr uint8_t MADCTL_MY = 0x80;     // Bit 7 Bottom to top
 static constexpr uint8_t MADCTL_MX = 0x40;     // Bit 6 Right to left
 static constexpr uint8_t MADCTL_MV = 0x20;     // Bit 5 Swap axes
@@ -73,7 +80,7 @@ void MipiRgbSpi::write_init_sequence_() {
   auto &vec = this->init_sequence_;
   while (index != vec.size()) {
     if (vec.size() - index < 2) {
-      this->mark_failed("Malformed init sequence");
+      this->mark_failed(LOG_STR("Malformed init sequence"));
       return;
     }
     uint8_t cmd = vec[index++];
@@ -84,15 +91,16 @@ void MipiRgbSpi::write_init_sequence_() {
     } else {
       uint8_t num_args = x & 0x7F;
       if (vec.size() - index < num_args) {
-        this->mark_failed("Malformed init sequence");
+        this->mark_failed(LOG_STR("Malformed init sequence"));
         return;
       }
       if (cmd == SLEEP_OUT) {
         delay(120);  // NOLINT
       }
       const auto *ptr = vec.data() + index;
+      char hex_buf[format_hex_pretty_size(MIPI_RGB_MAX_CMD_LOG_BYTES)];
       ESP_LOGD(TAG, "Write command %02X, length %d, byte(s) %s", cmd, num_args,
-               format_hex_pretty(ptr, num_args, '.', false).c_str());
+               format_hex_pretty_to(hex_buf, ptr, num_args, '.'));
       index += num_args;
       this->write_command_(cmd);
       while (num_args-- != 0)
@@ -110,15 +118,7 @@ void MipiRgbSpi::dump_config() {
   MipiRgb::dump_config();
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
-  ESP_LOGCONFIG(TAG,
-                "  SPI Data rate: %uMHz"
-                "\n  Mirror X: %s"
-                "\n  Mirror Y: %s"
-                "\n  Swap X/Y: %s"
-                "\n  Color Order: %s",
-                (unsigned) (this->data_rate_ / 1000000), YESNO(this->madctl_ & (MADCTL_XFLIP | MADCTL_MX)),
-                YESNO(this->madctl_ & (MADCTL_YFLIP | MADCTL_MY | MADCTL_ML)), YESNO(this->madctl_ & MADCTL_MV),
-                this->madctl_ & MADCTL_BGR ? "BGR" : "RGB");
+  ESP_LOGCONFIG(TAG, "  SPI Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
 }
 
 #endif  // USE_SPI
@@ -146,26 +146,34 @@ void MipiRgb::common_setup_() {
   config.clk_src = LCD_CLK_SRC_PLL160M;
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++) {
-    config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
+    config.data_gpio_nums[i] = static_cast<gpio_num_t>(this->data_pins_[i]->get_pin());
   }
   config.data_width = data_pin_count;
-  config.disp_gpio_num = -1;
-  config.hsync_gpio_num = this->hsync_pin_->get_pin();
-  config.vsync_gpio_num = this->vsync_pin_->get_pin();
-  if (this->de_pin_) {
-    config.de_gpio_num = this->de_pin_->get_pin();
+  config.disp_gpio_num = GPIO_NUM_NC;
+  if (this->hsync_pin_) {
+    config.hsync_gpio_num = static_cast<gpio_num_t>(this->hsync_pin_->get_pin());
   } else {
-    config.de_gpio_num = -1;
+    config.hsync_gpio_num = GPIO_NUM_NC;
   }
-  config.pclk_gpio_num = this->pclk_pin_->get_pin();
+  if (this->vsync_pin_) {
+    config.vsync_gpio_num = static_cast<gpio_num_t>(this->vsync_pin_->get_pin());
+  } else {
+    config.vsync_gpio_num = GPIO_NUM_NC;
+  }
+  if (this->de_pin_) {
+    config.de_gpio_num = static_cast<gpio_num_t>(this->de_pin_->get_pin());
+  } else {
+    config.de_gpio_num = GPIO_NUM_NC;
+  }
+  config.pclk_gpio_num = static_cast<gpio_num_t>(this->pclk_pin_->get_pin());
   esp_err_t err = esp_lcd_new_rgb_panel(&config, &this->handle_);
   if (err == ESP_OK)
     err = esp_lcd_panel_reset(this->handle_);
   if (err == ESP_OK)
     err = esp_lcd_panel_init(this->handle_);
   if (err != ESP_OK) {
-    auto msg = str_sprintf("lcd setup failed: %s", esp_err_to_name(err));
-    this->mark_failed(msg.c_str());
+    ESP_LOGE(TAG, "lcd setup failed: %s", esp_err_to_name(err));
+    this->mark_failed(LOG_STR("lcd setup failed"));
   }
   ESP_LOGCONFIG(TAG, "MipiRgb setup complete");
 }
@@ -249,7 +257,7 @@ bool MipiRgb::check_buffer_() {
   RAMAllocator<uint16_t> allocator;
   this->buffer_ = allocator.allocate(this->height_ * this->width_);
   if (this->buffer_ == nullptr) {
-    this->mark_failed("Could not allocate buffer for display!");
+    this->mark_failed(LOG_STR("Could not allocate buffer for display!"));
     return false;
   }
   return true;
@@ -281,9 +289,7 @@ void MipiRgb::draw_pixel_at(int x, int y, Color color) {
   if (!this->check_buffer_())
     return;
   size_t pos = (y * this->width_) + x;
-  uint8_t hi_byte = static_cast<uint8_t>(color.r & 0xF8) | (color.g >> 5);
-  uint8_t lo_byte = static_cast<uint8_t>((color.g & 0x1C) << 3) | (color.b >> 3);
-  uint16_t new_color = hi_byte | (lo_byte << 8);  // big endian
+  uint16_t new_color = convert_big_endian(display::ColorUtil::color_to_565(color));
   if (this->buffer_[pos] == new_color)
     return;
   this->buffer_[pos] = new_color;
@@ -300,11 +306,20 @@ void MipiRgb::draw_pixel_at(int x, int y, Color color) {
 void MipiRgb::fill(Color color) {
   if (!this->check_buffer_())
     return;
+
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   auto *ptr_16 = reinterpret_cast<uint16_t *>(this->buffer_);
-  uint8_t hi_byte = static_cast<uint8_t>(color.r & 0xF8) | (color.g >> 5);
-  uint8_t lo_byte = static_cast<uint8_t>((color.g & 0x1C) << 3) | (color.b >> 3);
-  uint16_t new_color = lo_byte | (hi_byte << 8);  // little endian
+  uint16_t new_color = convert_big_endian(display::ColorUtil::color_to_565(color));
   std::fill_n(ptr_16, this->width_ * this->height_, new_color);
+  this->x_low_ = 0;
+  this->y_low_ = 0;
+  this->x_high_ = this->width_ - 1;
+  this->y_high_ = this->height_ - 1;
 }
 
 int MipiRgb::get_width() {
@@ -331,25 +346,34 @@ int MipiRgb::get_height() {
   }
 }
 
-static std::string get_pin_name(GPIOPin *pin) {
+static const char *get_pin_name(GPIOPin *pin, std::span<char, GPIO_SUMMARY_MAX_LEN> buffer) {
   if (pin == nullptr)
     return "None";
-  return pin->dump_summary();
+  pin->dump_summary(buffer.data(), buffer.size());
+  return buffer.data();
 }
 
 void MipiRgb::dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset) {
+  char pin_summary[GPIO_SUMMARY_MAX_LEN];
   for (uint8_t i = start; i != end; i++) {
-    ESP_LOGCONFIG(TAG, "  %s pin %d: %s", name, offset++, this->data_pins_[i]->dump_summary().c_str());
+    this->data_pins_[i]->dump_summary(pin_summary, sizeof(pin_summary));
+    ESP_LOGCONFIG(TAG, "  %s pin %d: %s", name, offset++, pin_summary);
   }
 }
 
 void MipiRgb::dump_config() {
+  char reset_buf[GPIO_SUMMARY_MAX_LEN];
+  char de_buf[GPIO_SUMMARY_MAX_LEN];
+  char pclk_buf[GPIO_SUMMARY_MAX_LEN];
+  char hsync_buf[GPIO_SUMMARY_MAX_LEN];
+  char vsync_buf[GPIO_SUMMARY_MAX_LEN];
   ESP_LOGCONFIG(TAG,
                 "MIPI_RGB LCD"
                 "\n  Model: %s"
                 "\n  Width: %u"
                 "\n  Height: %u"
                 "\n  Rotation: %d degrees"
+                "\n  PCLK Inverted: %s"
                 "\n  HSync Pulse Width: %u"
                 "\n  HSync Back Porch: %u"
                 "\n  HSync Front Porch: %u"
@@ -357,32 +381,25 @@ void MipiRgb::dump_config() {
                 "\n  VSync Back Porch: %u"
                 "\n  VSync Front Porch: %u"
                 "\n  Invert Colors: %s"
-                "\n  Pixel Clock: %dMHz"
+                "\n  Pixel Clock: %uMHz"
                 "\n  Reset Pin: %s"
                 "\n  DE Pin: %s"
                 "\n  PCLK Pin: %s"
                 "\n  HSYNC Pin: %s"
                 "\n  VSYNC Pin: %s",
-                this->model_, this->width_, this->height_, this->rotation_, this->hsync_pulse_width_,
-                this->hsync_back_porch_, this->hsync_front_porch_, this->vsync_pulse_width_, this->vsync_back_porch_,
-                this->vsync_front_porch_, YESNO(this->invert_colors_), this->pclk_frequency_ / 1000000,
-                get_pin_name(this->reset_pin_).c_str(), get_pin_name(this->de_pin_).c_str(),
-                get_pin_name(this->pclk_pin_).c_str(), get_pin_name(this->hsync_pin_).c_str(),
-                get_pin_name(this->vsync_pin_).c_str());
+                this->model_, this->width_, this->height_, this->rotation_, YESNO(this->pclk_inverted_),
+                this->hsync_pulse_width_, this->hsync_back_porch_, this->hsync_front_porch_, this->vsync_pulse_width_,
+                this->vsync_back_porch_, this->vsync_front_porch_, YESNO(this->invert_colors_),
+                (unsigned) (this->pclk_frequency_ / 1000000), get_pin_name(this->reset_pin_, reset_buf),
+                get_pin_name(this->de_pin_, de_buf), get_pin_name(this->pclk_pin_, pclk_buf),
+                get_pin_name(this->hsync_pin_, hsync_buf), get_pin_name(this->vsync_pin_, vsync_buf));
 
-  if (this->madctl_ & MADCTL_BGR) {
-    this->dump_pins_(8, 13, "Blue", 0);
-    this->dump_pins_(13, 16, "Green", 0);
-    this->dump_pins_(0, 3, "Green", 3);
-    this->dump_pins_(3, 8, "Red", 0);
-  } else {
-    this->dump_pins_(8, 13, "Red", 0);
-    this->dump_pins_(13, 16, "Green", 0);
-    this->dump_pins_(0, 3, "Green", 3);
-    this->dump_pins_(3, 8, "Blue", 0);
-  }
+  this->dump_pins_(8, 13, "Blue", 0);
+  this->dump_pins_(13, 16, "Green", 0);
+  this->dump_pins_(0, 3, "Green", 3);
+  this->dump_pins_(3, 8, "Red", 0);
 }
 
 }  // namespace mipi_rgb
 }  // namespace esphome
-#endif  // USE_ESP32_VARIANT_ESP32S3
+#endif  // defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)

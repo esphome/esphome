@@ -1,29 +1,22 @@
-spi:
-  id: spi_bus
-  clk_pin: ${clk_pin}
-  mosi_pin: ${mosi_pin}
-  miso_pin: ${miso_pin}
-
 wk2212_spi:
-  - id: bridge_spi
+  - id: wk2212_spi_bridge
     cs_pin: ${cs_pin}
-    spi_id: spi_bus
     crystal: 11059200
     data_rate: 1MHz
     uart:
-      - id: id0
+      - id: wk2212_spi_uart0
         channel: 0
         baud_rate: 115200
         stop_bits: 1
         parity: none
-      - id: id1
+      - id: wk2212_spi_uart1
         channel: 1
         baud_rate: 9600
 
 # Ensures a sensor doesn't break validation
 sensor:
   - platform: a02yyuw
-    uart_id: id1
+    uart_id: wk2212_spi_uart1
     id: distance_sensor
 
 # individual binary_sensor inputs
@@ -31,14 +24,14 @@ binary_sensor:
   - platform: gpio
     name: "pin_0"
     pin:
-      wk2212_spi: bridge_spi
+      wk2212_spi: wk2212_spi_bridge
       number: 0
       mode:
         input: true
   - platform: gpio
     name: "pin_1"
     pin:
-      wk2212_spi: bridge_spi
+      wk2212_spi: wk2212_spi_bridge
       number: 1
       mode:
         input: true
@@ -49,14 +42,14 @@ switch:
   - platform: gpio
     name: "pin_2"
     pin:
-      wk2212_spi: bridge_spi
+      wk2212_spi: wk2212_spi_bridge
       number: 2
       mode:
         output: true
   - platform: gpio
     name: "pin_3"
     pin:
-      wk2212_spi: bridge_spi
+      wk2212_spi: wk2212_spi_bridge
       number: 3
       mode:
         output: true

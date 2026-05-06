@@ -1,4 +1,5 @@
 #include "raw_protocol.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -8,36 +9,30 @@ static const char *const TAG = "remote.raw";
 
 bool RawDumper::dump(RemoteReceiveData src) {
   char buffer[256];
-  uint32_t buffer_offset = 0;
-  buffer_offset += sprintf(buffer, "Received Raw: ");
+  size_t pos = buf_append_printf(buffer, sizeof(buffer), 0, "Received Raw: ");
 
   for (int32_t i = 0; i < src.size() - 1; i++) {
     const int32_t value = src[i];
-    const uint32_t remaining_length = sizeof(buffer) - buffer_offset;
-    int written;
+    size_t prev_pos = pos;
 
     if (i + 1 < src.size() - 1) {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%" PRId32 ", ", value);
+      pos = buf_append_printf(buffer, sizeof(buffer), pos, "%" PRId32 ", ", value);
     } else {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%" PRId32, value);
+      pos = buf_append_printf(buffer, sizeof(buffer), pos, "%" PRId32, value);
     }
 
-    if (written < 0 || written >= int(remaining_length)) {
-      // write failed, flush...
-      buffer[buffer_offset] = '\0';
+    if (pos >= sizeof(buffer) - 1) {
+      // buffer full, flush and continue
+      buffer[prev_pos] = '\0';
       ESP_LOGI(TAG, "%s", buffer);
-      buffer_offset = 0;
-      written = sprintf(buffer, "  ");
       if (i + 1 < src.size() - 1) {
-        written += sprintf(buffer + written, "%" PRId32 ", ", value);
+        pos = buf_append_printf(buffer, sizeof(buffer), 0, "  %" PRId32 ", ", value);
       } else {
-        written += sprintf(buffer + written, "%" PRId32, value);
+        pos = buf_append_printf(buffer, sizeof(buffer), 0, "  %" PRId32, value);
       }
     }
-
-    buffer_offset += written;
   }
-  if (buffer_offset != 0) {
+  if (pos != 0) {
     ESP_LOGI(TAG, "%s", buffer);
   }
   return true;

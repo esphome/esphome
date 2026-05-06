@@ -136,8 +136,6 @@ void ENS210Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-float ENS210Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void ENS210Component::update() {
   // Execute a single measurement
   if (!this->write_byte(ENS210_REGISTER_SENS_RUN, 0x00)) {

@@ -31,6 +31,7 @@ TIMEOUT_GROUP = "timeout"
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
         cv.Inclusive(CONF_TIMEOUT, TIMEOUT_GROUP): number.number_schema(
             MaxDistanceTimeoutNumber,

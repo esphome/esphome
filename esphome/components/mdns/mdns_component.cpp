@@ -9,24 +9,9 @@
 #include <pgmspace.h>
 // Macro to define strings in PROGMEM on ESP8266, regular memory on other platforms
 #define MDNS_STATIC_CONST_CHAR(name, value) static const char name[] PROGMEM = value
-// Helper to get string from PROGMEM - returns a temporary std::string
-// Only define this function if we have services that will use it
-#if defined(USE_API) || defined(USE_PROMETHEUS) || defined(USE_WEBSERVER) || defined(USE_MDNS_EXTRA_SERVICES)
-static std::string mdns_string_p(const char *src) {
-  char buf[64];
-  strncpy_P(buf, src, sizeof(buf) - 1);
-  buf[sizeof(buf) - 1] = '\0';
-  return std::string(buf);
-}
-#define MDNS_STR(name) mdns_string_p(name)
-#else
-// If no services are configured, we still need the fallback service but it uses string literals
-#define MDNS_STR(name) std::string(name)
-#endif
 #else
 // On non-ESP8266 platforms, use regular const char*
-#define MDNS_STATIC_CONST_CHAR(name, value) static constexpr const char *name = value
-#define MDNS_STR(name) name
+#define MDNS_STATIC_CONST_CHAR(name, value) static constexpr const char name[] = value
 #endif
 
 #ifdef USE_API
@@ -36,8 +21,7 @@ static std::string mdns_string_p(const char *src) {
 #include "esphome/components/dashboard_import/dashboard_import.h"
 #endif
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 static const char *const TAG = "mdns";
 
@@ -45,70 +29,74 @@ static const char *const TAG = "mdns";
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
+#ifndef USE_SENDSPIN_PORT
+#define USE_SENDSPIN_PORT 8928  // NOLINT
+#endif
+
 // Define all constant strings using the macro
-MDNS_STATIC_CONST_CHAR(SERVICE_ESPHOMELIB, "_esphomelib");
 MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
-MDNS_STATIC_CONST_CHAR(SERVICE_PROMETHEUS, "_prometheus-http");
-MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
 
-MDNS_STATIC_CONST_CHAR(TXT_FRIENDLY_NAME, "friendly_name");
-MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
-MDNS_STATIC_CONST_CHAR(TXT_MAC, "mac");
-MDNS_STATIC_CONST_CHAR(TXT_PLATFORM, "platform");
-MDNS_STATIC_CONST_CHAR(TXT_BOARD, "board");
-MDNS_STATIC_CONST_CHAR(TXT_NETWORK, "network");
-MDNS_STATIC_CONST_CHAR(TXT_API_ENCRYPTION, "api_encryption");
-MDNS_STATIC_CONST_CHAR(TXT_API_ENCRYPTION_SUPPORTED, "api_encryption_supported");
-MDNS_STATIC_CONST_CHAR(TXT_PROJECT_NAME, "project_name");
-MDNS_STATIC_CONST_CHAR(TXT_PROJECT_VERSION, "project_version");
-MDNS_STATIC_CONST_CHAR(TXT_PACKAGE_IMPORT_URL, "package_import_url");
+// Wrap build-time defines into flash storage
+MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
 
-MDNS_STATIC_CONST_CHAR(PLATFORM_ESP8266, "ESP8266");
-MDNS_STATIC_CONST_CHAR(PLATFORM_ESP32, "ESP32");
-MDNS_STATIC_CONST_CHAR(PLATFORM_RP2040, "RP2040");
-
-MDNS_STATIC_CONST_CHAR(NETWORK_WIFI, "wifi");
-MDNS_STATIC_CONST_CHAR(NETWORK_ETHERNET, "ethernet");
-MDNS_STATIC_CONST_CHAR(NETWORK_THREAD, "thread");
-
-void MDNSComponent::compile_records_() {
-  this->hostname_ = App.get_name();
-
-  // Calculate exact capacity needed for services vector
-  size_t services_count = 0;
-#ifdef USE_API
-  if (api::global_api_server != nullptr) {
-    services_count++;
-  }
+void MDNSComponent::setup_buffers_and_register_(PlatformRegisterFn platform_register) {
+#ifdef USE_MDNS_STORE_SERVICES
+  auto &services = this->services_;
+#else
+  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_storage;
+  auto &services = services_storage;
 #endif
-#ifdef USE_PROMETHEUS
-  services_count++;
-#endif
-#ifdef USE_WEBSERVER
-  services_count++;
-#endif
-#ifdef USE_MDNS_EXTRA_SERVICES
-  services_count += this->services_extra_.size();
-#endif
-  // Reserve for fallback service if needed
-  if (services_count == 0) {
-    services_count = 1;
-  }
-  this->services_.reserve(services_count);
 
 #ifdef USE_API
+#ifdef USE_MDNS_STORE_SERVICES
+  get_mac_address_into_buffer(this->mac_address_);
+  char *mac_ptr = this->mac_address_;
+  format_hex_to(this->config_hash_str_, App.get_config_hash());
+  char *cfg_ptr = this->config_hash_str_;
+#else
+  char mac_address[MAC_ADDRESS_BUFFER_SIZE];
+  char config_hash_str[CONFIG_HASH_STR_SIZE];
+  get_mac_address_into_buffer(mac_address);
+  format_hex_to(config_hash_str, App.get_config_hash());
+  char *mac_ptr = mac_address;
+  char *cfg_ptr = config_hash_str;
+#endif
+#else
+  char *mac_ptr = nullptr;
+  char *cfg_ptr = nullptr;
+#endif
+
+  this->compile_records_(services, mac_ptr, cfg_ptr);
+  platform_register(this, services);
+}
+
+void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf,
+                                     char *config_hash_buf) {
+  // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
+  // in mdns/__init__.py. If you add a new service here, update both locations.
+
+#ifdef USE_API
+  MDNS_STATIC_CONST_CHAR(SERVICE_ESPHOMELIB, "_esphomelib");
+  MDNS_STATIC_CONST_CHAR(TXT_FRIENDLY_NAME, "friendly_name");
+  MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
+  MDNS_STATIC_CONST_CHAR(TXT_CONFIG_HASH, "config_hash");
+  MDNS_STATIC_CONST_CHAR(TXT_MAC, "mac");
+  MDNS_STATIC_CONST_CHAR(TXT_PLATFORM, "platform");
+  MDNS_STATIC_CONST_CHAR(TXT_BOARD, "board");
+  MDNS_STATIC_CONST_CHAR(TXT_NETWORK, "network");
+  MDNS_STATIC_CONST_CHAR(VALUE_BOARD, ESPHOME_BOARD);
+
   if (api::global_api_server != nullptr) {
-    this->services_.emplace_back();
-    auto &service = this->services_.back();
+    auto &service = services.emplace_next();
     service.service_type = MDNS_STR(SERVICE_ESPHOMELIB);
     service.proto = MDNS_STR(SERVICE_TCP);
-    service.port = api::global_api_server->get_port();
+    service.port = []() -> uint16_t { return api::global_api_server->get_port(); };
 
-    const std::string &friendly_name = App.get_friendly_name();
+    const auto &friendly_name = App.get_friendly_name();
     bool friendly_name_empty = friendly_name.empty();
 
     // Calculate exact capacity for txt_records
-    size_t txt_count = 3;  // version, mac, board (always present)
+    size_t txt_count = 4;  // version, config_hash, mac, board (always present)
     if (!friendly_name_empty) {
       txt_count++;  // friendly_name
     }
@@ -129,83 +117,112 @@ void MDNSComponent::compile_records_() {
 #endif
 
     auto &txt_records = service.txt_records;
-    txt_records.reserve(txt_count);
+    txt_records.init(txt_count);
 
     if (!friendly_name_empty) {
-      txt_records.push_back({MDNS_STR(TXT_FRIENDLY_NAME), friendly_name});
+      txt_records.push_back({MDNS_STR(TXT_FRIENDLY_NAME), MDNS_STR(friendly_name.c_str())});
     }
-    txt_records.push_back({MDNS_STR(TXT_VERSION), ESPHOME_VERSION});
-    txt_records.push_back({MDNS_STR(TXT_MAC), get_mac_address()});
+    txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
+
+    // Config hash: passed from caller (either member buffer or stack buffer depending on USE_MDNS_STORE_SERVICES)
+    txt_records.push_back({MDNS_STR(TXT_CONFIG_HASH), MDNS_STR(config_hash_buf)});
+
+    // MAC address: passed from caller (either member buffer or stack buffer depending on USE_MDNS_STORE_SERVICES)
+    txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)});
 
 #ifdef USE_ESP8266
+    MDNS_STATIC_CONST_CHAR(PLATFORM_ESP8266, "ESP8266");
     txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_ESP8266)});
 #elif defined(USE_ESP32)
+    MDNS_STATIC_CONST_CHAR(PLATFORM_ESP32, "ESP32");
     txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_ESP32)});
 #elif defined(USE_RP2040)
+    MDNS_STATIC_CONST_CHAR(PLATFORM_RP2040, "RP2040");
     txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_RP2040)});
 #elif defined(USE_LIBRETINY)
-    txt_records.emplace_back(MDNSTXTRecord{"platform", lt_cpu_get_model_name()});
+    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(lt_cpu_get_model_name())});
 #endif
 
-    txt_records.push_back({MDNS_STR(TXT_BOARD), ESPHOME_BOARD});
+    txt_records.push_back({MDNS_STR(TXT_BOARD), MDNS_STR(VALUE_BOARD)});
 
 #if defined(USE_WIFI)
+    MDNS_STATIC_CONST_CHAR(NETWORK_WIFI, "wifi");
     txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(NETWORK_WIFI)});
 #elif defined(USE_ETHERNET)
+    MDNS_STATIC_CONST_CHAR(NETWORK_ETHERNET, "ethernet");
     txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(NETWORK_ETHERNET)});
 #elif defined(USE_OPENTHREAD)
+    MDNS_STATIC_CONST_CHAR(NETWORK_THREAD, "thread");
     txt_records.push_back({MDNS_STR(TXT_NETWORK), MDNS_STR(NETWORK_THREAD)});
 #endif
 
 #ifdef USE_API_NOISE
+    MDNS_STATIC_CONST_CHAR(TXT_API_ENCRYPTION, "api_encryption");
+    MDNS_STATIC_CONST_CHAR(TXT_API_ENCRYPTION_SUPPORTED, "api_encryption_supported");
     MDNS_STATIC_CONST_CHAR(NOISE_ENCRYPTION, "Noise_NNpsk0_25519_ChaChaPoly_SHA256");
-    if (api::global_api_server->get_noise_ctx()->has_psk()) {
-      txt_records.push_back({MDNS_STR(TXT_API_ENCRYPTION), MDNS_STR(NOISE_ENCRYPTION)});
-    } else {
-      txt_records.push_back({MDNS_STR(TXT_API_ENCRYPTION_SUPPORTED), MDNS_STR(NOISE_ENCRYPTION)});
-    }
+    bool has_psk = api::global_api_server->get_noise_ctx().has_psk();
+    const char *encryption_key = has_psk ? TXT_API_ENCRYPTION : TXT_API_ENCRYPTION_SUPPORTED;
+    txt_records.push_back({MDNS_STR(encryption_key), MDNS_STR(NOISE_ENCRYPTION)});
 #endif
 
 #ifdef ESPHOME_PROJECT_NAME
-    txt_records.push_back({MDNS_STR(TXT_PROJECT_NAME), ESPHOME_PROJECT_NAME});
-    txt_records.push_back({MDNS_STR(TXT_PROJECT_VERSION), ESPHOME_PROJECT_VERSION});
+    MDNS_STATIC_CONST_CHAR(TXT_PROJECT_NAME, "project_name");
+    MDNS_STATIC_CONST_CHAR(TXT_PROJECT_VERSION, "project_version");
+    MDNS_STATIC_CONST_CHAR(VALUE_PROJECT_NAME, ESPHOME_PROJECT_NAME);
+    MDNS_STATIC_CONST_CHAR(VALUE_PROJECT_VERSION, ESPHOME_PROJECT_VERSION);
+    txt_records.push_back({MDNS_STR(TXT_PROJECT_NAME), MDNS_STR(VALUE_PROJECT_NAME)});
+    txt_records.push_back({MDNS_STR(TXT_PROJECT_VERSION), MDNS_STR(VALUE_PROJECT_VERSION)});
 #endif  // ESPHOME_PROJECT_NAME
 
 #ifdef USE_DASHBOARD_IMPORT
-    txt_records.push_back({MDNS_STR(TXT_PACKAGE_IMPORT_URL), dashboard_import::get_package_import_url()});
+    MDNS_STATIC_CONST_CHAR(TXT_PACKAGE_IMPORT_URL, "package_import_url");
+    txt_records.push_back({MDNS_STR(TXT_PACKAGE_IMPORT_URL), MDNS_STR(dashboard_import::get_package_import_url())});
 #endif
   }
 #endif  // USE_API
 
 #ifdef USE_PROMETHEUS
-  this->services_.emplace_back();
-  auto &prom_service = this->services_.back();
+  MDNS_STATIC_CONST_CHAR(SERVICE_PROMETHEUS, "_prometheus-http");
+
+  auto &prom_service = services.emplace_next();
   prom_service.service_type = MDNS_STR(SERVICE_PROMETHEUS);
   prom_service.proto = MDNS_STR(SERVICE_TCP);
-  prom_service.port = USE_WEBSERVER_PORT;
+  prom_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
+#endif
+
+#ifdef USE_SENDSPIN
+  MDNS_STATIC_CONST_CHAR(SERVICE_SENDSPIN, "_sendspin");
+  MDNS_STATIC_CONST_CHAR(TXT_SENDSPIN_PATH, "path");
+  MDNS_STATIC_CONST_CHAR(VALUE_SENDSPIN_PATH, "/sendspin");
+
+  auto &sendspin_service = services.emplace_next();
+  sendspin_service.service_type = MDNS_STR(SERVICE_SENDSPIN);
+  sendspin_service.proto = MDNS_STR(SERVICE_TCP);
+  sendspin_service.port = []() -> uint16_t { return USE_SENDSPIN_PORT; };
+  sendspin_service.txt_records = {{MDNS_STR(TXT_SENDSPIN_PATH), MDNS_STR(VALUE_SENDSPIN_PATH)}};
 #endif
 
 #ifdef USE_WEBSERVER
-  this->services_.emplace_back();
-  auto &web_service = this->services_.back();
+  MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
+
+  auto &web_service = services.emplace_next();
   web_service.service_type = MDNS_STR(SERVICE_HTTP);
   web_service.proto = MDNS_STR(SERVICE_TCP);
-  web_service.port = USE_WEBSERVER_PORT;
+  web_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
 #endif
 
-#ifdef USE_MDNS_EXTRA_SERVICES
-  this->services_.insert(this->services_.end(), this->services_extra_.begin(), this->services_extra_.end());
-#endif
+#if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_WEBSERVER) && \
+    !defined(USE_MDNS_EXTRA_SERVICES)
+  MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
+  MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
 
-#if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_WEBSERVER) && !defined(USE_MDNS_EXTRA_SERVICES)
   // Publish "http" service if not using native API or any other services
   // This is just to have *some* mDNS service so that .local resolution works
-  this->services_.emplace_back();
-  auto &fallback_service = this->services_.back();
-  fallback_service.service_type = "_http";
-  fallback_service.proto = "_tcp";
-  fallback_service.port = USE_WEBSERVER_PORT;
-  fallback_service.txt_records.emplace_back(MDNSTXTRecord{"version", ESPHOME_VERSION});
+  auto &fallback_service = services.emplace_next();
+  fallback_service.service_type = MDNS_STR(SERVICE_HTTP);
+  fallback_service.proto = MDNS_STR(SERVICE_TCP);
+  fallback_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
+  fallback_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)}};
 #endif
 }
 
@@ -213,22 +230,18 @@ void MDNSComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "mDNS:\n"
                 "  Hostname: %s",
-                this->hostname_.c_str());
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+                App.get_name().c_str());
+#ifdef USE_MDNS_STORE_SERVICES
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
-    ESP_LOGV(TAG, "  - %s, %s, %d", service.service_type.c_str(), service.proto.c_str(),
-             const_cast<TemplatableValue<uint16_t> &>(service.port).value());
+    ESP_LOGV(TAG, "  - %s, %s, %d", MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto),
+             service.port.value());
     for (const auto &record : service.txt_records) {
-      ESP_LOGV(TAG, "    TXT: %s = %s", record.key.c_str(),
-               const_cast<TemplatableValue<std::string> &>(record.value).value().c_str());
+      ESP_LOGV(TAG, "    TXT: %s = %s", MDNS_STR_ARG(record.key), MDNS_STR_ARG(record.value));
     }
   }
 #endif
 }
 
-std::vector<MDNSService> MDNSComponent::get_services() { return this->services_; }
-
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 #endif

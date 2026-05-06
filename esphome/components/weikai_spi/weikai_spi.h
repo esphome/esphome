@@ -6,7 +6,6 @@
 ///          wk2124_spi, wk2132_spi, wk2168_spi, wk2204_spi, wk2212_spi,
 
 #pragma once
-#include <bitset>
 #include <memory>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"

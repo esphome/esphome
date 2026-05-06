@@ -24,7 +24,10 @@ class PCA6416AComponent : public Component,
 
   void dump_config() override;
 
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
+
  protected:
+  static void IRAM_ATTR gpio_intr(PCA6416AComponent *arg);
   // Virtual methods from CachedGpioExpander
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
@@ -43,6 +46,7 @@ class PCA6416AComponent : public Component,
   esphome::i2c::ErrorCode last_error_;
   /// Only the PCAL6416A has pull-up resistors
   bool has_pullup_{false};
+  InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
 /// Helper class to expose a PCA6416A pin as an internal input GPIO pin.
@@ -52,7 +56,7 @@ class PCA6416AGPIOPin : public GPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_parent(PCA6416AComponent *parent) { parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }

@@ -152,7 +152,7 @@ void BLEAdvertising::loop() {
   if (now - this->last_advertisement_time_ > this->advertising_cycle_time_) {
     this->stop();
     this->current_adv_index_ += 1;
-    if (this->current_adv_index_ >= this->raw_advertisements_callbacks_.size()) {
+    if (static_cast<size_t>(this->current_adv_index_) >= this->raw_advertisements_callbacks_.size()) {
       this->current_adv_index_ = -1;
     }
     this->start();

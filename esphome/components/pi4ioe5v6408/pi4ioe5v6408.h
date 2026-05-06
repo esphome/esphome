@@ -22,8 +22,11 @@ class PI4IOE5V6408Component : public Component,
 
   /// Indicate if the component should reset the state during setup
   void set_reset(bool reset) { this->reset_ = reset; }
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
  protected:
+  static void IRAM_ATTR gpio_intr(PI4IOE5V6408Component *arg);
+
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
@@ -40,6 +43,7 @@ class PI4IOE5V6408Component : public Component,
   uint8_t pull_up_down_mask_{0x00};
 
   bool reset_{true};
+  InternalGPIOPin *interrupt_pin_{nullptr};
 
   bool read_gpio_modes_();
   bool write_gpio_modes_();
@@ -52,7 +56,7 @@ class PI4IOE5V6408GPIOPin : public GPIOPin, public Parented<PI4IOE5V6408Componen
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }

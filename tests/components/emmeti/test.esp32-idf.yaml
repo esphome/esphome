@@ -1,5 +1,5 @@
-substitutions:
-  remote_transmitter_pin: GPIO33
-  remote_receiver_pin: GPIO32
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-idf.yaml
+  remote_receiver: !include ../../test_build_components/common/remote_receiver/esp32-idf.yaml
 
 <<: !include common.yaml

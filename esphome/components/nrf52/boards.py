@@ -11,10 +11,18 @@ from .const import (
 BOARDS_ZEPHYR = {
     "adafruit_itsybitsy_nrf52840": {
         KEY_BOOTLOADER: [
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+            BOOTLOADER_ADAFRUIT,
+            BOOTLOADER_ADAFRUIT_NRF52_SD132,
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+        ]
+    },
+    "xiao_ble": {
+        KEY_BOOTLOADER: [
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
             BOOTLOADER_ADAFRUIT,
             BOOTLOADER_ADAFRUIT_NRF52_SD132,
             BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
-            BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
         ]
     },
 }
@@ -23,12 +31,15 @@ BOARDS_ZEPHYR = {
 # https://learn.adafruit.com/introducing-the-adafruit-nrf52840-feather?view=all#hathach-memory-map
 BOOTLOADER_CONFIG = {
     BOOTLOADER_ADAFRUIT_NRF52_SD132: [
-        Section("empty_app_offset", 0x0, 0x26000, "flash_primary"),
+        Section("SoftDevice", 0x0, 0x26000, "flash_primary"),
+        Section("Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"),
     ],
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: [
-        Section("empty_app_offset", 0x0, 0x26000, "flash_primary"),
+        Section("SoftDevice", 0x0, 0x26000, "flash_primary"),
+        Section("Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"),
     ],
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: [
-        Section("empty_app_offset", 0x0, 0x27000, "flash_primary"),
+        Section("SoftDevice", 0x0, 0x27000, "flash_primary"),
+        Section("Adafruit_nRF52_Bootloader", 0xF4000, 0xC000, "flash_primary"),
     ],
 }

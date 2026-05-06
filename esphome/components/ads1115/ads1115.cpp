@@ -173,19 +173,8 @@ float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1
   }
 
   if (resolution == ADS1015_12_BITS) {
-    bool negative = (raw_conversion >> 15) == 1;
-
-    // shift raw_conversion as it's only 12-bits, left justified
-    raw_conversion = raw_conversion >> (16 - ADS1015_12_BITS);
-
-    // check if number was negative in order to keep the sign
-    if (negative) {
-      // the number was negative
-      // 1) set the negative bit back
-      raw_conversion |= 0x8000;
-      // 2) reset the former (shifted) negative bit
-      raw_conversion &= 0xF7FF;
-    }
+    // ADS1015 returns 12-bit value left-justified in 16 bits; shift right and sign-extend
+    raw_conversion = static_cast<uint16_t>(static_cast<int16_t>(raw_conversion) >> (16 - ADS1015_12_BITS));
   }
 
   auto signed_conversion = static_cast<int16_t>(raw_conversion);

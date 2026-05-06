@@ -7,6 +7,8 @@ namespace tee501 {
 
 static const char *const TAG = "tee501";
 
+static constexpr size_t TEE501_SERIAL_NUMBER_SIZE = 7;
+
 void TEE501Component::setup() {
   uint8_t address[] = {0x70, 0x29};
   uint8_t identification[9];
@@ -17,7 +19,10 @@ void TEE501Component::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGV(TAG, "    Serial Number: 0x%s", format_hex(identification + 0, 7).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char serial_hex[format_hex_size(TEE501_SERIAL_NUMBER_SIZE)];
+#endif
+  ESP_LOGV(TAG, "    Serial Number: 0x%s", format_hex_to(serial_hex, identification, TEE501_SERIAL_NUMBER_SIZE));
 }
 
 void TEE501Component::dump_config() {
@@ -38,7 +43,6 @@ void TEE501Component::dump_config() {
   LOG_SENSOR("  ", "TEE501", this);
 }
 
-float TEE501Component::get_setup_priority() const { return setup_priority::DATA; }
 void TEE501Component::update() {
   uint8_t address_1[] = {0x2C, 0x1B};
   this->write(address_1, 2);

@@ -14,7 +14,7 @@
 namespace esphome {
 namespace http_request {
 
-class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
+class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
  public:
   void setup() override;
   void update() override;
@@ -29,6 +29,8 @@ class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
+  void on_ota_state(ota::OTAState state, float progress, uint8_t error) override;
+
  protected:
   HttpRequestComponent *request_parent_;
   OtaHttpRequestComponent *ota_parent_;
@@ -38,6 +40,7 @@ class HttpRequestUpdate : public update::UpdateEntity, public PollingComponent {
 #ifdef USE_ESP32
   TaskHandle_t update_task_handle_{nullptr};
 #endif
+  uint8_t initial_check_remaining_{0};
 };
 
 }  // namespace http_request

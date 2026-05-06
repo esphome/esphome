@@ -17,7 +17,6 @@ class SDP3XComponent : public PollingComponent, public sensirion_common::Sensiri
   void setup() override;
   void dump_config() override;
 
-  float get_setup_priority() const override;
   void set_measurement_mode(MeasurementMode mode) { measurement_mode_ = mode; }
 
  protected:

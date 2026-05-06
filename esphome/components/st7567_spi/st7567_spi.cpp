@@ -18,13 +18,15 @@ void SPIST7567::setup() {
 
 void SPIST7567::dump_config() {
   LOG_DISPLAY("", "SPI ST7567", this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
+  ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
+                "  Mirror X: %s\n"
+                "  Mirror Y: %s\n"
+                "  Invert Colors: %s",
+                this->model_str_(), YESNO(this->mirror_x_), YESNO(this->mirror_y_), YESNO(this->invert_colors_));
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  Mirror X: %s", YESNO(this->mirror_x_));
-  ESP_LOGCONFIG(TAG, "  Mirror Y: %s", YESNO(this->mirror_y_));
-  ESP_LOGCONFIG(TAG, "  Invert Colors: %s", YESNO(this->invert_colors_));
   LOG_UPDATE_INTERVAL(this);
 }
 
