@@ -408,6 +408,34 @@ Configuration variables:
 
 This automation will be triggered when a button is pressed in a user-specified sequence.
 
+> [!IMPORTANT]
+> When using `on_multi_click` with a physical button, attach a
+> [debounce filter](/components/binary_sensor/gpio#debouncing-values) to the binary sensor.
+> Mechanical switches bounce on press and release, producing extra ON/OFF transitions
+> inside the timing windows. A bounce edge arriving inside a sequence's final
+> window will cancel the pending trigger, so patterns like double click
+> (and similar that rely on a settled final transition) will be missed.
+>
+> A `delayed_on_off: 20ms` filter is a good starting point for most tactile
+> switches and only takes one extra line:
+>
+> ```yaml
+> binary_sensor:
+>   - platform: gpio
+>     pin: GPIOXX
+>     name: "My Button"
+>     filters:
+>       - delayed_on_off: 20ms
+>     on_multi_click:
+>       - timing:
+>           - ON for at most 1s
+>           - OFF for at most 1s
+>           - ON for at most 1s
+>           - OFF for at least 0.2s
+>         then:
+>           - logger.log: "Double Clicked"
+> ```
+
 ```yaml
 binary_sensor:
   - platform: gpio
