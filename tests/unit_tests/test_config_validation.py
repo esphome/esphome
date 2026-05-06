@@ -908,3 +908,21 @@ def test_polling_component_schema_advanced_update_interval_opt_in() -> None:
     # both shapes.
     assert default_keys["setup_priority"].yaml_only is True
     assert advanced_keys["setup_priority"].yaml_only is True
+
+
+def test_polling_component_schema_no_default_ignores_advanced_flag() -> None:
+    """``advanced_update_interval`` is silently ignored when the field is
+    Required (``default_update_interval=None``).
+
+    Hiding a Required field behind an advanced disclosure is a UX
+    hazard — a collapsed-by-default editor could let the user submit
+    without noticing the form has an unfilled required field. The
+    helper accepts the kwarg unconditionally for caller ergonomics
+    but doesn't honour it on this branch.
+    """
+    schema = config_validation.polling_component_schema(
+        None, advanced_update_interval=True
+    )
+    keys = {str(k): k for k in schema.schema}
+    assert isinstance(keys["update_interval"], config_validation.Required)
+    assert keys["update_interval"].advanced is False

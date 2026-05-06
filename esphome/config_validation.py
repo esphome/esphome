@@ -338,7 +338,7 @@ class Required(vol.Required):
     """Define a field to be required to be set. The validated configuration is guaranteed
     to contain this key.
 
-    All required values should be acceessed with the `config[CONF_<KEY>]` syntax in code
+    All required values should be accessed with the `config[CONF_<KEY>]` syntax in code
     - *not* the `config.get(CONF_<KEY>)` syntax.
 
     See :class:`Optional` for the semantics of ``advanced`` and
@@ -2238,13 +2238,22 @@ def polling_component_schema(
         sync, etc.) — power users can still tune the YAML directly, but
         the field hides behind the editor's advanced disclosure so it
         doesn't crowd the form.
+
+        Only honoured on the optional-default branch. When
+        ``default_update_interval`` is ``None`` the field becomes
+        ``Required`` (the component has no sensible default cadence and
+        needs the user to choose), and hiding a Required field behind
+        an advanced disclosure would be a UX hazard — collapsed-by-default
+        editors could let the user submit without realising the form has
+        an unfilled required field. The flag is silently ignored on that
+        path so callers can pass it unconditionally.
     """
     if default_update_interval is None:
+        # Required → don't honour ``advanced_update_interval``.
+        # See the docstring for the UX rationale.
         return COMPONENT_SCHEMA.extend(
             {
-                Required(
-                    CONF_UPDATE_INTERVAL, advanced=advanced_update_interval
-                ): update_interval,
+                Required(CONF_UPDATE_INTERVAL): update_interval,
             }
         )
     assert isinstance(default_update_interval, str)
