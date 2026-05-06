@@ -123,8 +123,8 @@ ENCODER_SCHEMA = cv.Schema(
 
 POINT_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_X): cv.templatable(cv.int_),
-        cv.Required(CONF_Y): cv.templatable(cv.int_),
+        cv.Required(CONF_X): lvalid.pixels_or_percent,
+        cv.Required(CONF_Y): lvalid.pixels_or_percent,
     }
 )
 
@@ -137,9 +137,13 @@ def point_schema(value):
     """
     if isinstance(value, dict):
         return POINT_SCHEMA(value)
+    if isinstance(value, list):
+        if len(value) != 2:
+            raise cv.Invalid("Invalid point format, should be <x_int>, <y_int>")
+        return POINT_SCHEMA({CONF_X: value[0], CONF_Y: value[1]})
     try:
-        x, y = map(int, value.split(","))
-        return {CONF_X: x, CONF_Y: y}
+        x, y = str(value).split(",")
+        return POINT_SCHEMA({CONF_X: x, CONF_Y: y})
     except ValueError:
         pass
     # not raising this in the catch block because pylint doesn't like it
