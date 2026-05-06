@@ -190,7 +190,7 @@ static void esp_zb_task_(void *pvParameters) {
     ESP_LOGE(TAG, "Could not setup Zigbee");
     vTaskDelete(NULL);
   }
-  if (global_zigbee->basic_cluster_data.power_source == ESP_ZB_ZCL_BASIC_POWER_SOURCE_BATTERY) {
+  if (global_zigbee->is_battery_powered()) {
     ESP_LOGD(TAG, "Battery powered!");
     esp_zb_set_node_descriptor_power_source(0);
   } else {
