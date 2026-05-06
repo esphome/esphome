@@ -11,6 +11,7 @@
 namespace esphome {
 namespace gsl3670 {
 
+static const char *const TAG = "gsl3670.touchscreen";
 // ---------------------------------------------------------------------------
 // Firmware record format
 // Matches `struct fw_data` in the Seeed BSP header:

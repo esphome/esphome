@@ -14,7 +14,7 @@ struct gsl_touch_info {
 uint32_t gsl_mask_tiaoping();
 uint32_t gsl_version_id();
 void gsl_alg_id_main(gsl_touch_info *cinfo);
-void gsl_DataInit(uint32_t *conf_in);
+void gsl_DataInit(const uint32_t *conf_in);
 
 }  // namespace gsl3670
 }  // namespace esphome

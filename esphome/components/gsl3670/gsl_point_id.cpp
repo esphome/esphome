@@ -14,18 +14,11 @@
  * General Public License for more details.
  *
  */
-// #include "bsp/lcd_gsl3670.h"
 #include "gsl_point_id.h"
-#include <cstdio>
+#include "esphome/core/log.h"
 
+static const char *const TAG = "gsl3670.point_id";
 #define GSL_VERSION 0x20160901 /* NO GESTURE VERSION COME FROM VERSION 20150706 */
-
-#ifndef NULL
-#define NULL ((void *) 0)
-#endif
-#ifndef UINT
-#define UINT uint32_t
-#endif
 
 #define POINT_MAX 10
 #define PP_DEEP 10
@@ -318,7 +311,7 @@ static int Sqrt(int d) {
   return ret;
 }
 
-static UINT PointRange(int x0, int y0, int x1, int y1) {
+static uint32_t PointRange(int x0, int y0, int x1, int y1) {
   if (x0 < 1) /* && x1>=1 */ {
     if (x0 != x1)
       y0 = y1 + (y0 - y1) * (1 - x1) / (x0 - x1);
@@ -523,8 +516,8 @@ static void CoordinateCorrect(void) {
   px[0] = coordinate_correct_coe_x;
   py[0] = coordinate_correct_coe_y;
   for (i = 0; i < LINE_SIZE; i++) {
-    px[i + 1] = NULL;
-    py[i + 1] = NULL;
+    px[i + 1] = nullptr;
+    py[i + 1] = nullptr;
     multi_x[i].range = 0;
     multi_x[i].group = 0;
     multi_y[i].range = 0;
@@ -569,7 +562,7 @@ static void CoordinateCorrect(void) {
           point_now[i].other.x = CCO(point_now[i].other.x, px[1], 2);
       } else {
         for (j = 0; j < LINE_SIZE + 1; j++) {
-          if (!(j >= LINE_SIZE || px[j + 1] == NULL || multi_x[j].range == 0 ||
+          if (!(j >= LINE_SIZE || px[j + 1] == nullptr || multi_x[j].range == 0 ||
                 point_now[i].other.x < multi_x[j].range))
             continue;
           point_now[i].other.x = CCO(point_now[i].other.x, px[j], kx);
@@ -589,7 +582,7 @@ static void CoordinateCorrect(void) {
           point_now[i].other.y = CCO(point_now[i].other.y, py[1], 2);
       } else {
         for (j = 0; j < LINE_SIZE + 1; j++) {
-          if (!(j >= LINE_SIZE || py[j + 1] == NULL || multi_y[j].range == 0 ||
+          if (!(j >= LINE_SIZE || py[j + 1] == nullptr || multi_y[j].range == 0 ||
                 point_now[i].other.y < multi_y[j].range))
             continue;
           point_now[i].other.y = CCO(point_now[i].other.y, py[j], ky);
@@ -716,7 +709,7 @@ static uint32_t PointDistance(gsl_POINT_TYPE *p1, gsl_POINT_TYPE *p2) {
   return ret;
 }
 
-static void DistanceInit(struct gsl_DISTANCE_TYPE *p) {
+static void DistanceInit(gsl_DISTANCE_TYPE *p) {
   int i;
   uint32_t *p_int = &(p->d[0][0]);
 
@@ -724,7 +717,7 @@ static void DistanceInit(struct gsl_DISTANCE_TYPE *p) {
     *p_int++ = 0x7fffffff;
 }
 
-static int DistanceMin(struct gsl_DISTANCE_TYPE *p) {
+static int DistanceMin(gsl_DISTANCE_TYPE *p) {
   int i, j;
 
   p->min = 0x7fffffff;
@@ -742,7 +735,7 @@ static int DistanceMin(struct gsl_DISTANCE_TYPE *p) {
   return 1;
 }
 
-static void DistanceIgnore(struct gsl_DISTANCE_TYPE *p) {
+static void DistanceIgnore(gsl_DISTANCE_TYPE *p) {
   int i, j;
 
   for (i = 0; i < POINT_MAX; i++)
@@ -894,7 +887,7 @@ static void GetPointNum(gsl_POINT_TYPE *pt) {
 }
 
 static uint32_t PointDelayAvg(int i) {
-  UINT j, len;
+  uint32_t j, len;
   int sum_x = 0;
   int sum_y = 0;
 
@@ -1210,7 +1203,7 @@ static uint32_t KeyMap(int *drv, int *sen) {
     uint32_t up_down, left_right;
     uint32_t coor;
   };
-  struct KEY_TYPE_RANGE *key_range = (struct KEY_TYPE_RANGE *) key_range_array;
+  KEY_TYPE_RANGE *key_range = (KEY_TYPE_RANGE *) key_range_array;
   int i;
 
   for (i = 0; i < 8; i++) {
@@ -1282,68 +1275,32 @@ static uint32_t ScreenResolution(gsl_POINT_TYPE *p) {
   return ((y << 16) & 0x0fff0000) + (x & 0x0000ffff);
 }
 
-static void PointReport(struct gsl_touch_info *cinfo) {
+static void PointReport(gsl_touch_info *cinfo) {
   int i;
   uint32_t data[POINT_MAX];
   uint32_t dp[POINT_MAX];
   int num = 0;
 
-  if (point_num > point_num_max && global_flag.other.over_report_mask != 0) {
-    point_num = 0;
-    cinfo->finger_num = 0;
-    prec_id.all = 0;
-    return;
-  }
   for (i = 0; i < POINT_MAX; i++)
     data[i] = dp[i] = 0;
   num = 0;
-  if (global_flag.other.id_over) {
-    for (i = 0; i < POINT_MAX && num < point_num_max; i++) {
-      if (point_delay[i].other.mask || point_delay[i].other.able == 0)
-        continue;
-      if (point_delay[i].other.report >= PR_DEEP - 1)
-        continue;
-      if (pr[point_delay[i].other.report + 1][i].other.able == 0)
-        continue;
-      if (pr[point_delay[i].other.report][i].all) {
-        pr[point_delay[i].other.report][i].other.able = 1;
-        data[i] = ScreenResolution(&pr[point_delay[i].other.report][i]);
-        if (data[i]) {
-          dp[i] = pressure_report[i];
-          data[i] |= (i + 1) << 28;
-          num++;
-        }
-      }
+  ESP_LOGD(TAG, "point_num:%d, max %d", num, point_num_max);
+  for (i = 0; i < point_num_max && i < POINT_MAX; i++) {
+    if (point_delay[i].other.mask || point_delay[i].other.able == 0) {
+      if (i == 0)
+        ESP_LOGD(TAG, "point_num:%d ignored: mask %s, able %s", i, TRUEFALSE(point_delay[i].other.mask),
+                 TRUEFALSE(point_delay[i].other.able));
+      continue;
     }
-    for (i = 0; i < POINT_MAX && num < point_num_max; i++) {
-      if (point_delay[i].other.mask || point_delay[i].other.able == 0)
-        continue;
-      if (point_delay[i].other.report >= PR_DEEP)
-        continue;
-      if (pr[point_delay[i].other.report][i].all == 0)
-        continue;
-      if (pr[point_delay[i].other.report][i].other.able == 0) {
-        pr[point_delay[i].other.report][i].other.able = 1;
-        data[i] = ScreenResolution(&pr[point_delay[i].other.report][i]);
-        if (data[i]) {
-          dp[i] = pressure_report[i];
-          data[i] |= (i + 1) << 28;
-          num++;
-        }
-      }
+    if (point_delay[i].other.report >= PR_DEEP) {
+      ESP_LOGD(TAG, "point_num:%d ignored", i);
+      continue;
     }
-  } else {
-    num = 0;
-    for (i = 0; i < point_num_max && i < POINT_MAX; i++) {
-      if (point_delay[i].other.mask || point_delay[i].other.able == 0)
-        continue;
-      if (point_delay[i].other.report >= PR_DEEP)
-        continue;
-      data[num] = ScreenResolution(&pr[point_delay[i].other.report][i]);
-      if (data[num]) {
-        dp[num] = pressure_report[i];
-        data[num++] |= (i + 1) << 28;
-      }
+    data[num] = ScreenResolution(&pr[point_delay[i].other.report][i]);
+    ESP_LOGD(TAG, "point_num:%d data %lu", i, data[num]);
+    if (data[num]) {
+      dp[num] = pressure_report[i];
+      data[num++] |= (i + 1) << 28;
     }
   }
   num = 0;
@@ -1363,31 +1320,7 @@ static void PointReport(struct gsl_touch_info *cinfo) {
   }
   point_num = num;
   cinfo->finger_num = point_num;
-  if (id_flag.other.id_prec_able == FALSE)
-    return;
-  if (prec_id.all == 0 && point_num == 1) {
-    if ((point_now[0].all >> 28) > 1)
-      prec_id.other.id = (point_now[0].all >> 28);
-    else
-      prec_id.other.id = 0xff;
-  }
-  if (prec_id.other.id != 0 && prec_id.other.id != 0xff) {
-    for (i = 0; i < point_num; i++) {
-      if ((point_now[i].all >> 28) == 1) {
-        point_now[i].all &= ~(0xf << 28);
-        point_now[i].all |= prec_id.other.id << 28;
-        cinfo->id[i] = prec_id.other.id;
-      } else if ((point_now[i].all >> 28) == prec_id.other.id) {
-        point_now[i].all &= ~(0xf << 28);
-        point_now[i].all |= 1 << 28;
-        cinfo->id[i] = 1;
-      }
-    }
-  }
-  if (point_num == 0)
-    prec_id.all = 0;
-  else
-    prec_id.other.num = (unsigned char) point_num;
+  ESP_LOGD(TAG, "point_num:%d, prec_able %s", point_num, YESNO(id_flag.other.id_prec_able));
 }
 
 static void PointRound(void) {
@@ -1421,7 +1354,7 @@ static void PointRound(void) {
   }
   if (id == 0)
     return;
-  stretch = (struct STRETCH_TYPE_ALL *) sac;
+  stretch = (STRETCH_TYPE_ALL *) sac;
   for (i = 0; i < 4; i++) {
     if (stretch->up[i].range)
       stretch->up[i].range = stretch->up[i].range * sen_num_nokey * drv_num_nokey * 64 / screen_x_max;
@@ -1536,7 +1469,7 @@ static void PointEdge(void) {
   }
   if (id == 0)
     return;
-  stretch = (struct STRETCH_TYPE_ALL *) sac;
+  stretch = (STRETCH_TYPE_ALL *) sac;
   for (i = 0; i < 4; i++) {
     if (id_flag.other.screen_core)
       break;
@@ -1716,12 +1649,12 @@ static void PointStretch_for(int *dc_p, int *ds_p) {
   }
 }
 
-static void PointStretch(void) {
+static void PointStretch() {
   struct SHAKE_TYPE {
     int dis;
     int coe;
   };
-  struct SHAKE_TYPE *shake_all = (struct SHAKE_TYPE *) shake_all_array;
+  SHAKE_TYPE *shake_all = (SHAKE_TYPE *) shake_all_array;
   int i, j;
   int dn;
   int dr;
@@ -1918,12 +1851,12 @@ static void ResetMask(void) {
   reset_mask_count++;
   if (reset_mask_max == 0)
     reset_mask_max = pp[0][0].all;
-  else if (PointDistance((gsl_POINT_TYPE *) (&reset_mask_max), pp[0]) > (((uint32_t) reset_mask_dis) & 0xffffff) &&
-           reset_mask_count > (((uint32_t) reset_mask_dis) >> 24))
+  else if (PointDistance((gsl_POINT_TYPE *) (&reset_mask_max), pp[0]) > (reset_mask_dis & 0xffffff) &&
+           reset_mask_count > reset_mask_dis >> 24)
     reset_mask_max = 0xfffffff1;
 }
 
-static int ConfigCoorMulti(uint32_t data[]) {
+static int ConfigCoorMulti(const uint32_t data[]) {
   int i, j;
   int n = 0;
 
@@ -1956,7 +1889,7 @@ static int ConfigCoorMulti(uint32_t data[]) {
   return TRUE;
 }
 
-static int ConfigFilter(uint32_t data[]) {
+static int ConfigFilter(const uint32_t data[]) {
   int i;
   uint32_t ps_c[8];
   uint32_t pr_c[8];
@@ -1979,7 +1912,7 @@ static int ConfigFilter(uint32_t data[]) {
   return FALSE;
 }
 
-static int ConfigKeyMap(uint32_t data[]) {
+static int ConfigKeyMap(const uint32_t data[]) {
   int i;
 
   if (data[217] != 1)
@@ -2349,7 +2282,7 @@ static int DataCheck(void) {
   return 1;
 }
 
-void gsl_DataInit(uint32_t *conf_in) {
+void gsl_DataInit(const uint32_t *conf_in) {
   int i, j;
   uint32_t *conf;
   int len;
@@ -2423,7 +2356,7 @@ void gsl_DataInit(uint32_t *conf_in) {
   press_move = 0;
   stretch_mult = 0;
   /* ---------------------------------------------- */
-  if (conf_in == NULL)
+  if (conf_in == nullptr)
     return;
 
   if (conf_in[0] <= 0xfff) {
@@ -2460,6 +2393,7 @@ void gsl_DataInit(uint32_t *conf_in) {
     screen_y_max = conf[15];
     screen_x_max = conf[16];
     point_num_max = conf[17];
+    ESP_LOGD(TAG, "screen_x_max = %d, screen_y_max = %d", screen_x_max, screen_y_max);
     global_flag.all = conf[18];
     for (i = 0; i < 4; i++)
       median_dis[i] = (unsigned char) conf[19 + i];
@@ -2514,6 +2448,7 @@ void gsl_DataInit(uint32_t *conf_in) {
     sen_num_nokey = conf[0x13] >> 16;
     screen_x_max = conf[0x14] & 0xffff;
     screen_y_max = conf[0x14] >> 16;
+    ESP_LOGD(TAG, "screen_x_max = %d, screen_y_max = %d", screen_x_max, screen_y_max);
     average = conf[0x15];
     reset_mask_dis = conf[0x16];
     reset_mask_type = conf[0x17];
@@ -2730,7 +2665,7 @@ static void PointIgnore(void) {
   point_num = x;
 }
 
-void gsl_alg_id_main(struct gsl_touch_info *cinfo) {
+void gsl_alg_id_main(gsl_touch_info *cinfo) {
   int i;
   point_num = cinfo->finger_num;
   for (i = 0; i < POINT_MAX; i++)
