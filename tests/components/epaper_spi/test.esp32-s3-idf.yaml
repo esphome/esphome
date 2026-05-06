@@ -59,6 +59,23 @@ display:
 
   - platform: epaper_spi
     spi_id: spi_bus
+    model: waveshare-7.3in-G
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+
+  - platform: epaper_spi
+    spi_id: spi_bus
     model: waveshare-7.5in-H
     cs_pin:
       allow_other_uses: true
