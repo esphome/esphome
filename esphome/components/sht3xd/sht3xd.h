@@ -4,8 +4,6 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-#include <cinttypes>
-
 namespace esphome {
 namespace sht3xd {
 
@@ -21,13 +19,6 @@ class SHT3XDComponent : public PollingComponent, public sensirion_common::Sensir
   void set_heater_enabled(bool heater_enabled) { heater_enabled_ = heater_enabled; }
 
  protected:
-  enum ErrorCode {
-    NONE = 0,
-    READ_SERIAL_STRETCHED_FAILED,
-    READ_SERIAL_FAILED,
-    WRITE_HEATER_MODE_FAILED,
-  } error_code_{NONE};
-
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   bool heater_enabled_{true};

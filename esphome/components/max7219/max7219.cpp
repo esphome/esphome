@@ -15,7 +15,7 @@ static const uint8_t MAX7219_REGISTER_SHUTDOWN = 0x0C;
 static const uint8_t MAX7219_REGISTER_TEST = 0x0F;
 static const uint8_t MAX7219_UNKNOWN_CHAR = 0b11111111;
 
-const uint8_t MAX7219_ASCII_TO_RAW[95] PROGMEM = {
+constexpr uint8_t MAX7219_ASCII_TO_RAW[95] PROGMEM = {
     0b00000000,            // ' ', ord 0x20
     0b10110000,            // '!', ord 0x21
     0b00100010,            // '"', ord 0x22

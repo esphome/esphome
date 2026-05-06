@@ -70,6 +70,10 @@ float TSL2561Sensor::calculate_lx_(uint16_t ch0, uint16_t ch1) {
     return NAN;
   }
 
+  if (ch0 == 0) {
+    ESP_LOGVV(TAG, "No light detected");
+    return 0.0f;
+  }
   float d0 = ch0, d1 = ch1;
   float ratio = d1 / d0;
 

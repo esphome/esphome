@@ -118,8 +118,8 @@ void TMP1075Sensor::send_alert_limit_high_() {
 }
 
 static uint16_t temp2regvalue(const float temp) {
-  const uint16_t regvalue = temp / 0.0625f;
-  return regvalue << 4;
+  const int16_t regvalue = static_cast<int16_t>(temp / 0.0625f);
+  return static_cast<uint16_t>(regvalue << 4);
 }
 
 static float regvalue2temp(const uint16_t regvalue) {

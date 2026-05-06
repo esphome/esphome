@@ -188,8 +188,8 @@ bool ShellyDimmer::upgrade_firmware_() {
       break;
     }
 
-    std::memcpy(buffer, p, BUFFER_SIZE);
-    p += BUFFER_SIZE;
+    std::memcpy(buffer, p, len);
+    p += len;
 
     if (stm32_write_memory(stm32, addr, buffer, len) != STM32_ERR_OK) {
       ESP_LOGW(TAG, "Failed to write to STM32 flash memory");
@@ -402,7 +402,7 @@ bool ShellyDimmer::handle_frame_() {
   // Handle response.
   switch (cmd) {
     case SHELLY_DIMMER_PROTO_CMD_POLL: {
-      if (payload_len < 16) {
+      if (payload_len < 17) {
         return false;
       }
 

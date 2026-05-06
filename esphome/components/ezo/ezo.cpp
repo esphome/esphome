@@ -35,7 +35,7 @@ void EZOSensor::update() {
     }
 
     if (!found) {
-      std::unique_ptr<EzoCommand> ezo_command(new EzoCommand);
+      auto ezo_command = make_unique<EzoCommand>();
       ezo_command->command = "R";
       ezo_command->command_type = EzoCommandType::EZO_READ;
       ezo_command->delay_ms = 900;
@@ -66,8 +66,9 @@ void EZOSensor::loop() {
 
     if (to_run->command_type == EzoCommandType::EZO_SLEEP ||
         to_run->command_type == EzoCommandType::EZO_I2C) {  // Commands with no return data
+      bool update_address = to_run->command_type == EzoCommandType::EZO_I2C;
       this->commands_.pop_front();
-      if (to_run->command_type == EzoCommandType::EZO_I2C)
+      if (update_address)
         this->address_ = this->new_address_;
       return;
     }
@@ -161,7 +162,7 @@ void EZOSensor::loop() {
 }
 
 void EZOSensor::add_command_(const char *command, EzoCommandType command_type, uint16_t delay_ms) {
-  std::unique_ptr<EzoCommand> ezo_command(new EzoCommand);
+  auto ezo_command = make_unique<EzoCommand>();
   ezo_command->command = command;
   ezo_command->command_type = command_type;
   ezo_command->delay_ms = delay_ms;

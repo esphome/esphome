@@ -6,6 +6,7 @@ namespace esphome {
 namespace bmi160 {
 
 static const char *const TAG = "bmi160";
+static constexpr uint32_t GYRO_WAKEUP_TIMEOUT_MS = 100;
 
 const uint8_t BMI160_REGISTER_CHIPID = 0x00;
 
@@ -144,7 +145,7 @@ void BMI160Component::internal_setup_(int stage) {
       }
       ESP_LOGV(TAG, "  Waiting for gyroscope to wake up");
       // wait between 51 & 81ms, doing 100 to be safe
-      this->set_timeout(10, [this]() { this->internal_setup_(2); });
+      this->set_timeout(GYRO_WAKEUP_TIMEOUT_MS, [this]() { this->internal_setup_(2); });
       break;
 
     case 2:

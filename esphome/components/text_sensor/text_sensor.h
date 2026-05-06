@@ -3,13 +3,16 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_TEXT_SENSOR_FILTER
 #include "esphome/components/text_sensor/filter.h"
+#endif
 
 #include <initializer_list>
 #include <memory>
 
-namespace esphome {
-namespace text_sensor {
+namespace esphome::text_sensor {
+
+class TextSensor;
 
 void log_text_sensor(const char *tag, const char *prefix, const char *type, TextSensor *obj);
 
@@ -22,7 +25,7 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
  public: \
   void set_##name##_text_sensor(text_sensor::TextSensor *text_sensor) { this->name##_text_sensor_ = text_sensor; }
 
-class TextSensor : public EntityBase, public EntityBase_DeviceClass {
+class TextSensor : public EntityBase {
  public:
   std::string state;
 
@@ -45,6 +48,7 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   void publish_state(const char *state);
   void publish_state(const char *state, size_t len);
 
+#ifdef USE_TEXT_SENSOR_FILTER
   /// Add a filter to the filter chain. Will be appended to the back.
   void add_filter(Filter *filter);
 
@@ -56,10 +60,19 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
 
   /// Clear the entire filter chain.
   void clear_filters();
+#endif
 
-  void add_on_state_callback(std::function<void(const std::string &)> callback);
+  template<typename F> void add_on_state_callback(F &&callback) { this->callback_.add(std::forward<F>(callback)); }
   /// Add a callback that will be called every time the sensor sends a raw value.
-  void add_on_raw_state_callback(std::function<void(const std::string &)> callback);
+  /// When USE_TEXT_SENSOR_FILTER is not enabled, delegates to the regular callback
+  /// since raw state equals filtered state without filter support compiled in.
+  template<typename F> void add_on_raw_state_callback(F &&callback) {
+#ifdef USE_TEXT_SENSOR_FILTER
+    this->raw_callback_.add(std::forward<F>(callback));
+#else
+    this->callback_.add(std::forward<F>(callback));
+#endif
+  }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -70,11 +83,14 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
  protected:
   /// Notify frontend that state has changed (assumes this->state is already set)
   void notify_frontend_();
+#ifdef USE_TEXT_SENSOR_FILTER
   LazyCallbackManager<void(const std::string &)> raw_callback_;  ///< Storage for raw state callbacks.
-  LazyCallbackManager<void(const std::string &)> callback_;      ///< Storage for filtered state callbacks.
+#endif
+  LazyCallbackManager<void(const std::string &)> callback_;  ///< Storage for filtered state callbacks.
 
+#ifdef USE_TEXT_SENSOR_FILTER
   Filter *filter_list_{nullptr};  ///< Store all active filters.
+#endif
 };
 
-}  // namespace text_sensor
-}  // namespace esphome
+}  // namespace esphome::text_sensor

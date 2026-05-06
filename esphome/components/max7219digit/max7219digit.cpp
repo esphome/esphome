@@ -6,6 +6,7 @@
 #include "max7219font.h"
 
 #include <algorithm>
+#include <cinttypes>
 
 namespace esphome {
 namespace max7219digit {
@@ -92,7 +93,9 @@ void MAX7219Component::loop() {
   if (this->scroll_mode_ == ScrollMode::STOP) {
     if (static_cast<size_t>(this->stepsleft_ + get_width_internal()) == first_line_size + 1) {
       if (millis_since_last_scroll < this->scroll_dwell_) {
-        ESP_LOGVV(TAG, "Dwell time at end of string in case of stop at end. Step %d, since last scroll %d, dwell %d.",
+        ESP_LOGVV(TAG,
+                  "Dwell time at end of string in case of stop at end. Step %d, since last scroll %" PRIu32
+                  ", dwell %d.",
                   this->stepsleft_, millis_since_last_scroll, this->scroll_dwell_);
         return;
       }

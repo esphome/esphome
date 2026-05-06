@@ -62,7 +62,7 @@ class MideaData {
     this->data_[idx] |= (value << shift);
   }
   void set_mask_(uint8_t idx, bool state, uint8_t mask = 255) { this->set_value_(idx, state ? mask : 0, mask); }
-  static const uint8_t OFFSET_CS = 5;
+  static constexpr uint8_t OFFSET_CS = 5;
   // 48-bits data
   std::array<uint8_t, 6> data_;
   // Calculate checksum

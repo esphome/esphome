@@ -364,11 +364,7 @@ void MSA3xxComponent::setup_offset_(float offset_x, float offset_y, float offset
 }
 
 int64_t MSA3xxComponent::twos_complement_(uint64_t value, uint8_t bits) {
-  if (value > (1ULL << (bits - 1))) {
-    return (int64_t) (value - (1ULL << bits));
-  } else {
-    return (int64_t) value;
-  }
+  return (int64_t) (value << (64 - bits)) >> (64 - bits);
 }
 
 void binary_event_debounce(bool state, bool old_state, uint32_t now, uint32_t &last_ms, Trigger<> &trigger,

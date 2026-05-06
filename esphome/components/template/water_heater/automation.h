@@ -11,12 +11,15 @@ class TemplateWaterHeaterPublishAction : public Action<Ts...>, public Parented<T
   TEMPLATABLE_VALUE(float, current_temperature)
   TEMPLATABLE_VALUE(float, target_temperature)
   TEMPLATABLE_VALUE(water_heater::WaterHeaterMode, mode)
+  TEMPLATABLE_VALUE(bool, away)
+  TEMPLATABLE_VALUE(bool, is_on)
 
   void play(const Ts &...x) override {
     if (this->current_temperature_.has_value()) {
       this->parent_->set_current_temperature(this->current_temperature_.value(x...));
     }
-    bool needs_call = this->target_temperature_.has_value() || this->mode_.has_value();
+    bool needs_call = this->target_temperature_.has_value() || this->mode_.has_value() || this->away_.has_value() ||
+                      this->is_on_.has_value();
     if (needs_call) {
       auto call = this->parent_->make_call();
       if (this->target_temperature_.has_value()) {
@@ -24,6 +27,12 @@ class TemplateWaterHeaterPublishAction : public Action<Ts...>, public Parented<T
       }
       if (this->mode_.has_value()) {
         call.set_mode(this->mode_.value(x...));
+      }
+      if (this->away_.has_value()) {
+        call.set_away(this->away_.value(x...));
+      }
+      if (this->is_on_.has_value()) {
+        call.set_on(this->is_on_.value(x...));
       }
       call.perform();
     } else {

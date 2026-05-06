@@ -24,6 +24,8 @@ class TemplateWaterHeater : public Component, public water_heater::WaterHeater {
     this->target_temperature_f_.set(std::forward<F>(f));
   }
   template<typename F> void set_mode_lambda(F &&f) { this->mode_f_.set(std::forward<F>(f)); }
+  template<typename F> void set_away_lambda(F &&f) { this->away_f_.set(std::forward<F>(f)); }
+  template<typename F> void set_is_on_lambda(F &&f) { this->is_on_f_.set(std::forward<F>(f)); }
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_restore_mode(TemplateWaterHeaterRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
@@ -49,6 +51,8 @@ class TemplateWaterHeater : public Component, public water_heater::WaterHeater {
   TemplateLambda<float> current_temperature_f_;
   TemplateLambda<float> target_temperature_f_;
   TemplateLambda<water_heater::WaterHeaterMode> mode_f_;
+  TemplateLambda<bool> away_f_;
+  TemplateLambda<bool> is_on_f_;
   TemplateWaterHeaterRestoreMode restore_mode_{WATER_HEATER_NO_RESTORE};
   water_heater::WaterHeaterModeMask supported_modes_;
   bool optimistic_{true};

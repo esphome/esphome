@@ -1,6 +1,5 @@
 import base64
 from pathlib import Path
-import random
 import secrets
 import string
 from typing import Literal, NotRequired, TypedDict, Unpack
@@ -130,7 +129,7 @@ def wizard_file(**kwargs: Unpack[WizardFileKwargs]) -> str:
     if len(ap_name) > 32:
         ap_name = ap_name_base
     kwargs["fallback_name"] = ap_name
-    kwargs["fallback_psk"] = "".join(random.choice(letters) for _ in range(12))
+    kwargs["fallback_psk"] = "".join(secrets.choice(letters) for _ in range(12))
 
     base = BASE_CONFIG_FRIENDLY if kwargs.get("friendly_name") else BASE_CONFIG
 

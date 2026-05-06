@@ -12,9 +12,10 @@ const {
   detectTests,
   detectPRTemplateCheckboxes,
   detectDeprecatedComponents,
+  detectMaintainerAccess,
   detectRequirements
 } = require('./detectors');
-const { handleReviews } = require('./reviews');
+const { handleReviews, handleMaintainerAccessComment } = require('./reviews');
 const { applyLabels, removeOldLabels } = require('./labels');
 
 // Fetch API data
@@ -35,6 +36,7 @@ async function fetchApiData() {
 module.exports = async ({ github, context }) => {
   // Environment variables
   const SMALL_PR_THRESHOLD = parseInt(process.env.SMALL_PR_THRESHOLD);
+  const MEDIUM_PR_THRESHOLD = parseInt(process.env.MEDIUM_PR_THRESHOLD);
   const MAX_LABELS = parseInt(process.env.MAX_LABELS);
   const TOO_BIG_THRESHOLD = parseInt(process.env.TOO_BIG_THRESHOLD);
   const COMPONENT_LABEL_THRESHOLD = parseInt(process.env.COMPONENT_LABEL_THRESHOLD);
@@ -113,20 +115,22 @@ module.exports = async ({ github, context }) => {
     codeOwnerLabels,
     testLabels,
     checkboxLabels,
-    deprecatedResult
+    deprecatedResult,
+    maintainerAccess
   ] = await Promise.all([
     detectMergeBranch(context),
     detectComponentPlatforms(changedFiles, apiData),
     detectNewComponents(prFiles),
     detectNewPlatforms(prFiles, apiData),
     detectCoreChanges(changedFiles),
-    detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, TOO_BIG_THRESHOLD),
+    detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD),
     detectDashboardChanges(changedFiles),
     detectGitHubActionsChanges(changedFiles),
     detectCodeOwner(github, context, changedFiles),
     detectTests(changedFiles),
     detectPRTemplateCheckboxes(context),
-    detectDeprecatedComponents(github, context, changedFiles)
+    detectDeprecatedComponents(github, context, changedFiles),
+    detectMaintainerAccess(context)
   ]);
 
   // Extract deprecated component info
@@ -176,8 +180,11 @@ module.exports = async ({ github, context }) => {
 
   console.log('Computed labels:', finalLabels.join(', '));
 
-  // Handle reviews
-  await handleReviews(github, context, finalLabels, originalLabelCount, deprecatedInfo, prFiles, totalAdditions, totalDeletions, MAX_LABELS, TOO_BIG_THRESHOLD);
+  // Handle reviews and org fork comment
+  await Promise.all([
+    handleReviews(github, context, finalLabels, originalLabelCount, deprecatedInfo, prFiles, totalAdditions, totalDeletions, MAX_LABELS, TOO_BIG_THRESHOLD),
+    handleMaintainerAccessComment(github, context, maintainerAccess)
+  ]);
 
   // Apply labels
   await applyLabels(github, context, finalLabels);

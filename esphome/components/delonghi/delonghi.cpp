@@ -64,7 +64,7 @@ uint8_t DelonghiClimate::operation_mode_() {
 
 uint16_t DelonghiClimate::fan_speed_() {
   uint16_t fan_speed;
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed = DELONGHI_FAN_LOW;
       break;

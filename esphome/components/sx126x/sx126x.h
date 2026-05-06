@@ -3,6 +3,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "sx126x_reg.h"
 #include <utility>
 #include <vector>
@@ -78,7 +79,7 @@ class SX126x : public Component,
   void set_mode_rx();
   void set_mode_tx();
   void set_mode_standby(SX126xStandbyMode mode);
-  void set_mode_sleep();
+  void set_mode_sleep(bool cold = false);
   void set_modulation(uint8_t modulation) { this->modulation_ = modulation; }
   void set_pa_power(int8_t power) { this->pa_power_ = power; }
   void set_pa_ramp(uint8_t ramp) { this->pa_ramp_ = ramp; }
@@ -100,6 +101,7 @@ class SX126x : public Component,
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
+  static void IRAM_ATTR gpio_intr(SX126x *arg);
   void configure_fsk_ook_();
   void configure_lora_();
   void set_packet_params_(uint8_t payload_length);

@@ -74,7 +74,9 @@ class HaierClimateBase : public esphome::Component,
   void set_answer_timeout(uint32_t timeout);
   void set_send_wifi(bool send_wifi);
   void send_custom_command(const haier_protocol::HaierMessage &message);
-  void add_status_message_callback(std::function<void(const char *, size_t)> &&callback);
+  template<typename F> void add_status_message_callback(F &&callback) {
+    this->status_message_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   enum class ProtocolPhases {
@@ -173,13 +175,6 @@ class HaierClimateBase : public esphome::Component,
   std::chrono::steady_clock::time_point last_signal_request_;          // To send WiFI signal level
   CallbackManager<void(const char *, size_t)> status_message_callback_{};
   ESPPreferenceObject base_rtc_;
-};
-
-class StatusMessageTrigger : public Trigger<const char *, size_t> {
- public:
-  explicit StatusMessageTrigger(HaierClimateBase *parent) {
-    parent->add_status_message_callback([this](const char *data, size_t data_size) { this->trigger(data, data_size); });
-  }
 };
 
 }  // namespace haier

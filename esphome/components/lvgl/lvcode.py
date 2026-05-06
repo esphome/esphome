@@ -168,6 +168,9 @@ class LambdaContext(CodeContext):
     def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
         return self.parameters
 
+    def get_parameter(self, index: int):
+        return literal(self.parameters[index][1])
+
     async def __aenter__(self):
         await super().__aenter__()
         add_line_marks(self.where)

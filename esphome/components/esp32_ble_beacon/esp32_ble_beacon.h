@@ -35,7 +35,7 @@ using esp_ble_ibeacon_t = struct {
 
 using namespace esp32_ble;
 
-class ESP32BLEBeacon : public Component, public GAPEventHandler, public Parented<ESP32BLE> {
+class ESP32BLEBeacon : public Component {
  public:
   explicit ESP32BLEBeacon(const std::array<uint8_t, 16> &uuid) : uuid_(uuid) {}
 
@@ -51,7 +51,7 @@ class ESP32BLEBeacon : public Component, public GAPEventHandler, public Parented
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   void set_tx_power(esp_power_level_t val) { this->tx_power_ = val; }
 #endif
-  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
  protected:
   void on_advertise_();

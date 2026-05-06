@@ -41,6 +41,18 @@ enum ESP32CameraFrameSize {
   ESP32_CAMERA_SIZE_2560X1920,  // QSXGA
 };
 
+enum ESP32CameraPixelFormat {
+  ESP32_PIXEL_FORMAT_RGB565,
+  ESP32_PIXEL_FORMAT_YUV422,
+  ESP32_PIXEL_FORMAT_YUV420,
+  ESP32_PIXEL_FORMAT_GRAYSCALE,
+  ESP32_PIXEL_FORMAT_JPEG,
+  ESP32_PIXEL_FORMAT_RGB888,
+  ESP32_PIXEL_FORMAT_RAW,
+  ESP32_PIXEL_FORMAT_RGB444,
+  ESP32_PIXEL_FORMAT_RGB555,
+};
+
 enum ESP32AgcGainCeiling {
   ESP32_GAINCEILING_2X = GAINCEILING_2X,
   ESP32_GAINCEILING_4X = GAINCEILING_4X,
@@ -126,6 +138,7 @@ class ESP32Camera : public camera::Camera {
   void set_reset_pin(uint8_t pin);
   void set_power_down_pin(uint8_t pin);
   /* -- image */
+  void set_pixel_format(ESP32CameraPixelFormat format);
   void set_frame_size(ESP32CameraFrameSize size);
   void set_jpeg_quality(uint8_t quality);
   void set_vertical_flip(bool vertical_flip);
@@ -220,6 +233,7 @@ class ESP32Camera : public camera::Camera {
 #ifdef USE_I2C
   i2c::InternalI2CBus *i2c_bus_{nullptr};
 #endif  // USE_I2C
+  RAMAllocator<camera_fb_t> fb_allocator_{RAMAllocator<camera_fb_t>::ALLOC_INTERNAL};
 };
 
 class ESP32CameraImageTrigger : public Trigger<CameraImageData>, public camera::CameraListener {

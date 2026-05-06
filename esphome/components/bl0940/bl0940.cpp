@@ -182,7 +182,10 @@ void BL0940::recalibrate_() {
 
   ESP_LOGD(TAG,
            "Recalibrated reference values:\n"
-           "Voltage: %f\n, Current: %f\n, Power: %f\n, Energy: %f\n",
+           "  Voltage: %f\n"
+           "  Current: %f\n"
+           "  Power: %f\n"
+           "  Energy: %f",
            this->voltage_reference_cal_, this->current_reference_cal_, this->power_reference_cal_,
            this->energy_reference_cal_);
 }

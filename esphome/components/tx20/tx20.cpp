@@ -191,7 +191,7 @@ void IRAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
     arg->tx20_available = true;
     return;
   }
-  if (index <= MAX_BUFFER_SIZE) {
+  if (index < MAX_BUFFER_SIZE) {
     arg->buffer[index] = delay;
   }
   arg->spent_time += delay;

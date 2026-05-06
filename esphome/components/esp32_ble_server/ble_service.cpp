@@ -159,7 +159,7 @@ void BLEService::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t g
       break;
     }
     case ESP_GATTS_STOP_EVT: {
-      if (param->start.service_handle == this->handle_) {
+      if (param->stop.service_handle == this->handle_) {
         this->state_ = STOPPED;
       }
       break;

@@ -49,7 +49,7 @@ void HTE501Component::update() {
   this->set_timeout(50, [this]() {
     uint8_t i2c_response[6];
     this->read(i2c_response, 6);
-    if (i2c_response[2] != crc8(i2c_response, 2, 0xFF, 0x31, true) &&
+    if (i2c_response[2] != crc8(i2c_response, 2, 0xFF, 0x31, true) ||
         i2c_response[5] != crc8(i2c_response + 3, 2, 0xFF, 0x31, true)) {
       this->error_code_ = CRC_CHECK_FAILED;
       this->status_set_warning();

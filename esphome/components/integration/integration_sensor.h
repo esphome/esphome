@@ -32,6 +32,7 @@ class IntegrationSensor : public sensor::Sensor, public Component {
   void set_method(IntegrationMethod method) { method_ = method; }
   void set_restore(bool restore) { restore_ = restore; }
   void reset() { this->publish_and_save_(0.0f); }
+  void set_value(float value) { this->publish_and_save_(value); }
 
  protected:
   void process_sensor_value_(float value);
@@ -71,14 +72,16 @@ class IntegrationSensor : public sensor::Sensor, public Component {
   float last_value_{0.0f};
 };
 
-template<typename... Ts> class ResetAction : public Action<Ts...> {
+template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<IntegrationSensor> {
  public:
-  explicit ResetAction(IntegrationSensor *parent) : parent_(parent) {}
-
   void play(const Ts &...x) override { this->parent_->reset(); }
+};
 
- protected:
-  IntegrationSensor *parent_;
+template<typename... Ts> class SetValueAction : public Action<Ts...>, public Parented<IntegrationSensor> {
+ public:
+  TEMPLATABLE_VALUE(float, value)
+
+  void play(const Ts &...x) override { this->parent_->set_value(this->value_.value(x...)); }
 };
 
 }  // namespace integration

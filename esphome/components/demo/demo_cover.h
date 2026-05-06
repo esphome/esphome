@@ -38,8 +38,9 @@ class DemoCover : public cover::Cover, public Component {
 
  protected:
   void control(const cover::CoverCall &call) override {
-    if (call.get_position().has_value()) {
-      float target = *call.get_position();
+    auto pos = call.get_position();
+    if (pos.has_value()) {
+      float target = *pos;
       this->current_operation =
           target > this->position ? cover::COVER_OPERATION_OPENING : cover::COVER_OPERATION_CLOSING;
 
@@ -49,8 +50,9 @@ class DemoCover : public cover::Cover, public Component {
         this->publish_state();
       });
     }
-    if (call.get_tilt().has_value()) {
-      this->tilt = *call.get_tilt();
+    auto tilt = call.get_tilt();
+    if (tilt.has_value()) {
+      this->tilt = *tilt;
     }
     if (call.get_stop()) {
       this->cancel_timeout("move");

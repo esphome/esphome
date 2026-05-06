@@ -54,7 +54,7 @@ async def to_code(config):
     if config[CONF_USB_SERIAL_STR]:
         cg.add(var.set_usb_desc_serial(config[CONF_USB_SERIAL_STR]))
 
-    add_idf_component(name="espressif/esp_tinyusb", ref="1.7.6~1")
+    add_idf_component(name="espressif/esp_tinyusb", ref="2.1.1")
 
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_USE_ESPRESSIF_VID", False)
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_USE_DEFAULT_PID", False)

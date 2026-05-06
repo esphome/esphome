@@ -1,15 +1,13 @@
 #include "ota_http_request.h"
 
+#include <cctype>
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 
 #include "esphome/components/md5/md5.h"
 #include "esphome/components/watchdog/watchdog.h"
-#include "esphome/components/ota/ota_backend.h"
-#include "esphome/components/ota/ota_backend_esp8266.h"
-#include "esphome/components/ota/ota_backend_arduino_rp2040.h"
-#include "esphome/components/ota/ota_backend_esp_idf.h"
 
 namespace esphome {
 namespace http_request {
@@ -67,8 +65,7 @@ void OtaHttpRequestComponent::flash() {
   }
 }
 
-void OtaHttpRequestComponent::cleanup_(std::unique_ptr<ota::OTABackend> backend,
-                                       const std::shared_ptr<HttpContainer> &container) {
+void OtaHttpRequestComponent::cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container) {
   if (this->update_started_) {
     ESP_LOGV(TAG, "Aborting OTA backend");
     backend->abort();
@@ -105,8 +102,7 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
 
   // we will compute MD5 on the fly for verification -- Arduino OTA seems to ignore it
   md5_receive.init();
-  ESP_LOGV(TAG, "MD5Digest initialized\n"
-                "OTA backend begin");
+  ESP_LOGV(TAG, "MD5Digest initialized, OTA backend begin");
   auto backend = ota::make_ota_backend();
   auto error_code = backend->begin(container->content_length);
   if (error_code != ota::OTA_RESPONSE_OK) {
@@ -209,6 +205,26 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   ESP_LOGI(TAG, "Update complete");
   return ota::OTA_RESPONSE_OK;
 }
+
+// URL-encode characters that are not unreserved per RFC 3986 section 2.3.
+// This is needed for embedding userinfo (username/password) in URLs safely.
+static std::string url_encode(const std::string &str) {
+  std::string result;
+  result.reserve(str.size());
+  for (char c : str) {
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~') {
+      result += c;
+    } else {
+      result += '%';
+      result += format_hex_pretty_char((static_cast<uint8_t>(c) >> 4) & 0x0F);
+      result += format_hex_pretty_char(static_cast<uint8_t>(c) & 0x0F);
+    }
+  }
+  return result;
+}
+
+void OtaHttpRequestComponent::set_password(const std::string &password) { this->password_ = url_encode(password); }
+void OtaHttpRequestComponent::set_username(const std::string &username) { this->username_ = url_encode(username); }
 
 std::string OtaHttpRequestComponent::get_url_with_auth_(const std::string &url) {
   if (this->username_.empty() || this->password_.empty()) {

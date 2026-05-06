@@ -53,7 +53,7 @@ def _cidr_network(value):
     try:
         ipaddress.ip_network(value, strict=False)
     except ValueError as err:
-        raise cv.Invalid(f"Invalid network in CIDR notation: {err}")
+        raise cv.Invalid(f"Invalid network in CIDR notation: {err}") from err
     return value
 
 
@@ -137,7 +137,7 @@ async def to_code(config):
     # the '+1' modifier is relative to the device's own address that will
     # be automatically added to the provided list.
     cg.add_build_flag(f"-DCONFIG_WIREGUARD_MAX_SRC_IPS={len(allowed_ips) + 1}")
-    cg.add_library("droscy/esp_wireguard", "0.4.2")
+    cg.add_library("droscy/esp_wireguard", "0.4.5")
 
     await cg.register_component(var, config)
 
@@ -168,6 +168,7 @@ async def wireguard_enabled_to_code(config, condition_id, template_arg, args):
     "wireguard.enable",
     WireguardEnableAction,
     cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
+    synchronous=True,
 )
 async def wireguard_enable_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -179,6 +180,7 @@ async def wireguard_enable_to_code(config, action_id, template_arg, args):
     "wireguard.disable",
     WireguardDisableAction,
     cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
+    synchronous=True,
 )
 async def wireguard_disable_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

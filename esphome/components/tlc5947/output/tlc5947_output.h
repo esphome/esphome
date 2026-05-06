@@ -11,11 +11,11 @@ namespace tlc5947 {
 
 class TLC5947Channel : public output::FloatOutput, public Parented<TLC5947> {
  public:
-  void set_channel(uint8_t channel) { this->channel_ = channel; }
+  void set_channel(uint16_t channel) { this->channel_ = channel; }
 
  protected:
   void write_state(float state) override;
-  uint8_t channel_;
+  uint16_t channel_;
 };
 
 }  // namespace tlc5947

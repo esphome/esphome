@@ -362,10 +362,8 @@ bool INA2XX::configure_shunt_() {
     ESP_LOGW(TAG, "Shunt value too high");
   }
   this->shunt_cal_ &= 0x7FFF;
-  ESP_LOGV(TAG,
-           "Given Rshunt=%f Ohm and Max_current=%.3f\n"
-           "New CURRENT_LSB=%f, SHUNT_CAL=%u",
-           this->shunt_resistance_ohm_, this->max_current_a_, this->current_lsb_, this->shunt_cal_);
+  ESP_LOGV(TAG, "Rshunt=%f Ohm, max current=%.3f A, current LSB=%f, shunt cal=%u", this->shunt_resistance_ohm_,
+           this->max_current_a_, this->current_lsb_, this->shunt_cal_);
   return this->write_unsigned_16_(RegisterMap::REG_SHUNT_CAL, this->shunt_cal_);
 }
 
@@ -574,9 +572,8 @@ bool INA2XX::write_unsigned_16_(uint8_t reg, uint16_t val) {
 }
 
 bool INA2XX::read_unsigned_(uint8_t reg, uint8_t reg_size, uint64_t &data_out) {
-  static uint8_t rx_buf[5] = {0};  // max buffer size
-
-  if (reg_size > 5) {
+  uint8_t rx_buf[5]{};
+  if (reg_size > sizeof(rx_buf)) {
     return false;
   }
 
@@ -601,11 +598,7 @@ bool INA2XX::read_unsigned_16_(uint8_t reg, uint16_t &out) {
 }
 
 int64_t INA2XX::two_complement_(uint64_t value, uint8_t bits) {
-  if (value > (1ULL << (bits - 1))) {
-    return (int64_t) (value - (1ULL << bits));
-  } else {
-    return (int64_t) value;
-  }
+  return (int64_t) (value << (64 - bits)) >> (64 - bits);
 }
 }  // namespace ina2xx_base
 }  // namespace esphome

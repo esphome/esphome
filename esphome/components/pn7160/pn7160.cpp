@@ -265,10 +265,7 @@ uint8_t PN7160::reset_core_(const bool reset_config, const bool power) {
     return nfc::STATUS_FAILED;
   }
 
-  ESP_LOGD(TAG,
-           "Configuration %s\n"
-           "NCI version: %s\n"
-           "Manufacturer ID: 0x%02X",
+  ESP_LOGD(TAG, "Configuration %s, NCI version: %s, Manufacturer ID: 0x%02X",
            rx.get_message()[4] ? "reset" : "retained", rx.get_message()[5] == 0x20 ? "2.0" : "1.0",
            rx.get_message()[6]);
   rx.get_message().erase(rx.get_message().begin(), rx.get_message().begin() + 8);
@@ -301,11 +298,12 @@ uint8_t PN7160::init_core_() {
 
   char feat_buf[nfc::FORMAT_BYTES_BUFFER_SIZE];
   ESP_LOGD(TAG,
-           "Hardware version: %u\n"
-           "ROM code version: %u\n"
-           "FLASH major version: %u\n"
-           "FLASH minor version: %u\n"
-           "Features: %s",
+           "PN7160 chip info:\n"
+           "  Hardware version: %u\n"
+           "  ROM code version: %u\n"
+           "  FLASH major version: %u\n"
+           "  FLASH minor version: %u\n"
+           "  Features: %s",
            hw_version, rom_code_version, flash_major_version, flash_minor_version,
            nfc::format_bytes_to(feat_buf, features));
 
@@ -591,9 +589,9 @@ optional<size_t> PN7160::find_tag_uid_(const nfc::NfcTagUid &uid) {
 }
 
 void PN7160::purge_old_tags_() {
-  for (size_t i = 0; i < this->discovered_endpoint_.size(); i++) {
-    if (millis() - this->discovered_endpoint_[i].last_seen > this->tag_ttl_) {
-      this->erase_tag_(i);
+  for (size_t i = this->discovered_endpoint_.size(); i > 0; i--) {
+    if (millis() - this->discovered_endpoint_[i - 1].last_seen > this->tag_ttl_) {
+      this->erase_tag_(i - 1);
     }
   }
 }

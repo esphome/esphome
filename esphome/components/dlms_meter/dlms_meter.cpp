@@ -1,12 +1,17 @@
 #include "dlms_meter.h"
 
-#include <cmath>
+#include <cinttypes>
 
 #if defined(USE_ESP8266_FRAMEWORK_ARDUINO)
 #include <bearssl/bearssl.h>
 #elif defined(USE_ESP32)
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include <psa/crypto.h>
+#else
 #include "mbedtls/esp_config.h"
 #include "mbedtls/gcm.h"
+#endif
 #endif
 
 namespace esphome::dlms_meter {
@@ -18,7 +23,7 @@ void DlmsMeterComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "DLMS Meter:\n"
                 "  Provider: %s\n"
-                "  Read Timeout: %u ms",
+                "  Read Timeout: %" PRIu32 " ms",
                 provider_name, this->read_timeout_);
 #define DLMS_METER_LOG_SENSOR(s) LOG_SENSOR("  ", #s, this->s##_sensor_);
   DLMS_METER_SENSOR_LIST(DLMS_METER_LOG_SENSOR, )
@@ -28,15 +33,28 @@ void DlmsMeterComponent::dump_config() {
 
 void DlmsMeterComponent::loop() {
   // Read while data is available, netznoe uses two frames so allow 2x max frame length
-  while (this->available()) {
-    if (this->receive_buffer_.size() >= MBUS_MAX_FRAME_LENGTH * 2) {
+  size_t avail = this->available();
+  if (avail > 0) {
+    size_t remaining = MBUS_MAX_FRAME_LENGTH * 2 - this->receive_buffer_.size();
+    if (remaining == 0) {
       ESP_LOGW(TAG, "Receive buffer full, dropping remaining bytes");
-      break;
+    } else {
+      // Read all available bytes in batches to reduce UART call overhead.
+      // Cap reads to remaining buffer capacity.
+      if (avail > remaining) {
+        avail = remaining;
+      }
+      uint8_t buf[64];
+      while (avail > 0) {
+        size_t to_read = std::min(avail, sizeof(buf));
+        if (!this->read_array(buf, to_read)) {
+          break;
+        }
+        avail -= to_read;
+        this->receive_buffer_.insert(this->receive_buffer_.end(), buf, buf + to_read);
+        this->last_read_ = millis();
+      }
     }
-    uint8_t c;
-    this->read_byte(&c);
-    this->receive_buffer_.push_back(c);
-    this->last_read_ = millis();
   }
 
   if (!this->receive_buffer_.empty() && millis() - this->last_read_ > this->read_timeout_) {
@@ -229,6 +247,35 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
   br_gcm_flip(&gcm_ctx);
   br_gcm_run(&gcm_ctx, 0, payload_ptr, message_length);
 #elif defined(USE_ESP32)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  // PSA Crypto multipart AEAD (no tag verification, matching legacy behavior)
+  psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+  psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
+  psa_set_key_bits(&attributes, this->decryption_key_.size() * 8);
+  psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_DECRYPT);
+  psa_set_key_algorithm(&attributes, PSA_ALG_GCM);
+
+  mbedtls_svc_key_id_t key_id;
+  bool decrypt_failed = true;
+  if (psa_import_key(&attributes, this->decryption_key_.data(), this->decryption_key_.size(), &key_id) == PSA_SUCCESS) {
+    psa_aead_operation_t op = PSA_AEAD_OPERATION_INIT;
+    if (psa_aead_decrypt_setup(&op, key_id, PSA_ALG_GCM) == PSA_SUCCESS &&
+        psa_aead_set_nonce(&op, iv, sizeof(iv)) == PSA_SUCCESS) {
+      size_t outlen = 0;
+      if (psa_aead_update(&op, payload_ptr, message_length, payload_ptr, message_length, &outlen) == PSA_SUCCESS &&
+          outlen == message_length) {
+        decrypt_failed = false;
+      }
+    }
+    psa_aead_abort(&op);
+    psa_destroy_key(key_id);
+  }
+  if (decrypt_failed) {
+    ESP_LOGE(TAG, "Decryption failed");
+    this->receive_buffer_.clear();
+    return false;
+  }
+#else
   size_t outlen = 0;
   mbedtls_gcm_context gcm_ctx;
   mbedtls_gcm_init(&gcm_ctx);
@@ -241,6 +288,7 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
     this->receive_buffer_.clear();
     return false;
   }
+#endif
 #else
 #error "Invalid Platform"
 #endif
@@ -397,7 +445,7 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
       if (current_position + 1 < message_length) {
         int8_t scaler = static_cast<int8_t>(plaintext[current_position + 1]);
         if (scaler != 0) {
-          value *= powf(10.0f, scaler);
+          value *= pow10_int(scaler);
         }
       }
 

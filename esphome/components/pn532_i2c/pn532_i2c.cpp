@@ -49,7 +49,7 @@ bool PN532I2C::read_response(uint8_t command, std::vector<uint8_t> &data) {
     return false;
   }
 
-  if (data[1] != 0x00 && data[2] != 0x00 && data[3] != 0xFF) {
+  if (data[1] != 0x00 || data[2] != 0x00 || data[3] != 0xFF) {
     // invalid packet
     ESP_LOGV(TAG, "read data invalid preamble!");
     return false;
@@ -95,7 +95,7 @@ uint8_t PN532I2C::read_response_length_() {
     return 0;
   }
 
-  if (data[1] != 0x00 && data[2] != 0x00 && data[3] != 0xFF) {
+  if (data[1] != 0x00 || data[2] != 0x00 || data[3] != 0xFF) {
     // invalid packet
     ESP_LOGV(TAG, "read data invalid preamble!");
     return 0;

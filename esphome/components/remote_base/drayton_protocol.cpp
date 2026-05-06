@@ -8,18 +8,18 @@ namespace remote_base {
 
 static const char *const TAG = "remote.drayton";
 
-static const uint32_t BIT_TIME_US = 500;
-static const uint8_t CARRIER_KHZ = 2;
-static const uint8_t NBITS_PREAMBLE = 12;
-static const uint8_t NBITS_SYNC = 4;
-static const uint8_t NBITS_ADDRESS = 16;
-static const uint8_t NBITS_CHANNEL = 5;
-static const uint8_t NBITS_COMMAND = 7;
-static const uint8_t NDATABITS = NBITS_ADDRESS + NBITS_CHANNEL + NBITS_COMMAND;
-static const uint8_t MIN_RX_SRC = (NDATABITS + NBITS_SYNC / 2);
+static constexpr uint32_t BIT_TIME_US = 500;
+static constexpr uint8_t CARRIER_KHZ = 2;
+static constexpr uint8_t NBITS_PREAMBLE = 12;
+static constexpr uint8_t NBITS_SYNC = 4;
+static constexpr uint8_t NBITS_ADDRESS = 16;
+static constexpr uint8_t NBITS_CHANNEL = 5;
+static constexpr uint8_t NBITS_COMMAND = 7;
+static constexpr uint8_t NDATABITS = NBITS_ADDRESS + NBITS_CHANNEL + NBITS_COMMAND;
+static constexpr uint8_t MIN_RX_SRC = (NDATABITS + NBITS_SYNC / 2);
 
-static const uint8_t CMD_ON = 0x41;
-static const uint8_t CMD_OFF = 0x02;
+static constexpr uint8_t CMD_ON = 0x41;
+static constexpr uint8_t CMD_OFF = 0x02;
 
 /*
 Drayton Protocol

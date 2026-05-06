@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE_SOURCE,
     CONF_VOC,
-    CONF_VOC_BASELINE,
     DEVICE_CLASS_AQI,
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
@@ -44,20 +43,27 @@ def validate_sensors(config):
     return config
 
 
-GAS_SENSOR = cv.Schema(
-    {
-        cv.Optional(CONF_ALGORITHM_TUNING): cv.Schema(
-            {
-                cv.Optional(CONF_INDEX_OFFSET, default=100): cv.int_,
-                cv.Optional(CONF_LEARNING_TIME_OFFSET_HOURS, default=12): cv.int_,
-                cv.Optional(CONF_LEARNING_TIME_GAIN_HOURS, default=12): cv.int_,
-                cv.Optional(CONF_GATING_MAX_DURATION_MINUTES, default=720): cv.int_,
-                cv.Optional(CONF_STD_INITIAL, default=50): cv.int_,
-                cv.Optional(CONF_GAIN_FACTOR, default=230): cv.int_,
-            }
-        )
-    }
-)
+def _gas_sensor_schema(index_offset_default: int):
+    return cv.Schema(
+        {
+            cv.Optional(CONF_ALGORITHM_TUNING): cv.Schema(
+                {
+                    cv.Optional(
+                        CONF_INDEX_OFFSET, default=index_offset_default
+                    ): cv.int_,
+                    cv.Optional(CONF_LEARNING_TIME_OFFSET_HOURS, default=12): cv.int_,
+                    cv.Optional(CONF_LEARNING_TIME_GAIN_HOURS, default=12): cv.int_,
+                    cv.Optional(CONF_GATING_MAX_DURATION_MINUTES, default=720): cv.int_,
+                    cv.Optional(CONF_STD_INITIAL, default=50): cv.int_,
+                    cv.Optional(CONF_GAIN_FACTOR, default=230): cv.int_,
+                }
+            )
+        }
+    )
+
+
+VOC_SENSOR = _gas_sensor_schema(100)
+NOX_SENSOR = _gas_sensor_schema(1)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -68,15 +74,14 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(GAS_SENSOR),
+            ).extend(VOC_SENSOR),
             cv.Optional(CONF_NOX): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ).extend(GAS_SENSOR),
+            ).extend(NOX_SENSOR),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
-            cv.Optional(CONF_VOC_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_COMPENSATION): cv.Schema(
                 {
                     cv.Required(CONF_HUMIDITY_SOURCE): cv.use_id(sensor.Sensor),
@@ -104,9 +109,6 @@ async def to_code(config):
         cg.add(var.set_temperature_sensor(sens))
 
     cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
-
-    if CONF_VOC_BASELINE in config:
-        cg.add(var.set_voc_baseline(CONF_VOC_BASELINE))
 
     if CONF_VOC in config:
         sens = await sensor.new_sensor(config[CONF_VOC])

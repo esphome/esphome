@@ -21,14 +21,14 @@ class KeyCollector : public Component {
   void set_back_keys(std::string back_keys) { this->back_keys_ = std::move(back_keys); };
   void set_clear_keys(std::string clear_keys) { this->clear_keys_ = std::move(clear_keys); };
   void set_allowed_keys(std::string allowed_keys) { this->allowed_keys_ = std::move(allowed_keys); };
-  void add_on_progress_callback(std::function<void(const std::string &, uint8_t)> &&callback) {
-    this->progress_callbacks_.add(std::move(callback));
+  template<typename F> void add_on_progress_callback(F &&callback) {
+    this->progress_callbacks_.add(std::forward<F>(callback));
   }
-  void add_on_result_callback(std::function<void(const std::string &, uint8_t, uint8_t)> &&callback) {
-    this->result_callbacks_.add(std::move(callback));
+  template<typename F> void add_on_result_callback(F &&callback) {
+    this->result_callbacks_.add(std::forward<F>(callback));
   }
-  void add_on_timeout_callback(std::function<void(const std::string &, uint8_t)> &&callback) {
-    this->timeout_callbacks_.add(std::move(callback));
+  template<typename F> void add_on_timeout_callback(F &&callback) {
+    this->timeout_callbacks_.add(std::forward<F>(callback));
   }
   void set_timeout(int timeout) { this->timeout_ = timeout; };
   void set_enabled(bool enabled);

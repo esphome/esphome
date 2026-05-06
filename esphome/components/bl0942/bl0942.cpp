@@ -46,18 +46,18 @@ static const uint32_t PKT_TIMEOUT_MS = 200;
 
 void BL0942::loop() {
   DataPacket buffer;
-  int avail = this->available();
+  size_t avail = this->available();
 
   if (!avail) {
     return;
   }
-  if (static_cast<size_t>(avail) < sizeof(buffer)) {
-    if (!this->rx_start_) {
+  if (avail < sizeof(buffer)) {
+    if (!this->rx_start_.has_value()) {
       this->rx_start_ = millis();
-    } else if (millis() > this->rx_start_ + PKT_TIMEOUT_MS) {
-      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message (%d bytes)", avail);
+    } else if (millis() - *this->rx_start_ > PKT_TIMEOUT_MS) {
+      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message (%zu bytes)", avail);
       this->read_array((uint8_t *) &buffer, avail);
-      this->rx_start_ = 0;
+      this->rx_start_.reset();
     }
     return;
   }
@@ -67,7 +67,7 @@ void BL0942::loop() {
       this->received_package_(&buffer);
     }
   }
-  this->rx_start_ = 0;
+  this->rx_start_.reset();
 }
 
 bool BL0942::validate_checksum_(DataPacket *data) {
@@ -161,19 +161,15 @@ void BL0942::received_package_(DataPacket *data) {
     return;
   }
 
-  // cf_cnt is only 24 bits, so track overflows
+  // cf_cnt wraps at 24 bits; total_increasing on the energy sensor handles the
+  // wrap (and any spurious chip resets) downstream.
   uint32_t cf_cnt = (uint24_t) data->cf_cnt;
-  cf_cnt |= this->prev_cf_cnt_ & 0xff000000;
-  if (cf_cnt < this->prev_cf_cnt_) {
-    cf_cnt += 0x1000000;
-  }
-  this->prev_cf_cnt_ = cf_cnt;
 
   float v_rms = (uint24_t) data->v_rms / voltage_reference_;
   float i_rms = (uint24_t) data->i_rms / current_reference_;
   float watt = (int24_t) data->watt / power_reference_;
   float total_energy_consumption = cf_cnt / energy_reference_;
-  float frequency = 1000000.0f / data->frequency;
+  float frequency = data->frequency != 0 ? 1000000.0f / data->frequency : NAN;
 
   if (voltage_sensor_ != nullptr) {
     voltage_sensor_->publish_state(v_rms);
