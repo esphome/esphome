@@ -80,8 +80,8 @@ void Logger::pre_setup() {
       this->uart_dev_ = uart_dev;
 #if defined(USE_LOGGER_WAIT_FOR_CDC) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
       uint32_t dtr = 0;
-      uint32_t count = (10 * 100);  // wait 10 sec for USB CDC to have early logs
-      while (dtr == 0 && count-- != 0) {
+      int32_t count = (10 * 100);  // wait 10 sec for USB CDC to have early logs
+      while (dtr == 0 && count-- > 0) {
         uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr);
         delay(10);
         arch_feed_wdt();
@@ -160,6 +160,11 @@ void Logger::dump_crash_() {
 #if defined(CONFIG_THREAD_NAME)
     ESP_LOGE(TAG, "Thread: %s", crash_buf.thread);
 #endif
+    int32_t count = (2 * 100);  // wait 2 sec to give a chance to print crash
+    while (count-- > 0) {
+      delay(10);
+      arch_feed_wdt();
+    }
   }
 }
 

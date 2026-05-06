@@ -94,13 +94,29 @@ def safe_print(message="", end="\n"):
     except UnicodeEncodeError:
         pass
 
+    # Fall back to the stream's actual encoding (e.g. cp1252 on Windows
+    # redirected pipes). Use "backslashreplace" so unencodable code points
+    # like the wifi signal-bar block characters (U+2582..U+2588) become
+    # readable ``\uXXXX`` escapes, and decode back to ``str`` so ``print``
+    # never receives a ``bytes`` object (which would render as a ``b'...'``
+    # repr).
+    encoding = sys.stdout.encoding or "ascii"
     try:
-        print(message.encode("utf-8", "backslashreplace"), end=end)
+        print(
+            message.encode(encoding, "backslashreplace").decode(encoding),
+            end=end,
+        )
+        return
     except UnicodeEncodeError:
-        try:
-            print(message.encode("ascii", "backslashreplace"), end=end)
-        except UnicodeEncodeError:
-            print("Cannot print line because of invalid locale!")
+        pass
+
+    try:
+        print(
+            message.encode("ascii", "backslashreplace").decode("ascii"),
+            end=end,
+        )
+    except UnicodeEncodeError:
+        print("Cannot print line because of invalid locale!")
 
 
 def safe_input(prompt=""):
