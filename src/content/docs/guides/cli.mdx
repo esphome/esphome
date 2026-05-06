@@ -165,6 +165,15 @@ basis, or set with this option at the time of uploading.
 : Specify the host port to use for legacy Over the Air uploads.
 
 
+**`--ota-platform {esphome,web_server}`**
+: Also accepted by [`run`](#run-command). Force a specific OTA platform when uploading firmware.
+By default, ESPHome uses the OTA platform configured in the device's YAML; if both `platform: esphome`
+and `platform: web_server` are configured, the native `esphome` protocol is preferred. Use
+`--ota-platform web_server` to upload via the
+[Web Server OTA platform](/components/ota/web_server/#using-the-command-line) instead — for example,
+when the OTA password has been lost but the `web_server` `auth` credentials are still known.
+
+
 ### `clean-mqtt` Command
 
 The `esphome clean-mqtt <CONFIG>` cleans retained MQTT discovery messages from the MQTT broker.

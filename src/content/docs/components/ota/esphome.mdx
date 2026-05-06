@@ -83,7 +83,13 @@ If OTA is already enabled without a password, simply add a `password:` line to t
 
   - Remove the OTA password from the configuration
   - Build a new image locally.
-  - Execute the OTA update directly via the ESP web server.
+  - Upload it via the `web_server` OTA platform; either through the
+    [device's web interface](/components/ota/web_server/#using-the-web-interface)
+    or by running
+    `esphome upload <config.yaml> --ota-platform web_server`
+    (see the
+    [Web Server OTA CLI usage](/components/ota/web_server/#using-the-command-line)
+    section).
 
 ## Updating the partition table on ESP32
 
