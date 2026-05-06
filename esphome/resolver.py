@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 from aioesphomeapi.core import ResolveAPIError, ResolveTimeoutAPIError
@@ -10,7 +11,19 @@ import aioesphomeapi.host_resolver as hr
 from esphome.async_thread import AsyncThreadRunner
 from esphome.core import EsphomeError
 
-RESOLVE_TIMEOUT = float(os.environ.get("ESPHOME_RESOLVE_TIMEOUT", 10.0))
+_LOGGER = logging.getLogger(__name__)
+
+_DEFAULT_RESOLVE_TIMEOUT = 10.0
+_env_timeout = os.environ.get("ESPHOME_RESOLVE_TIMEOUT", _DEFAULT_RESOLVE_TIMEOUT)
+try:
+    RESOLVE_TIMEOUT = float(_env_timeout)
+except ValueError:
+    _LOGGER.warning(
+        "ESPHOME_RESOLVE_TIMEOUT=%r is not a valid number; using default %.1fs",
+        _env_timeout,
+        _DEFAULT_RESOLVE_TIMEOUT,
+    )
+    RESOLVE_TIMEOUT = _DEFAULT_RESOLVE_TIMEOUT
 
 
 class AsyncResolver:
