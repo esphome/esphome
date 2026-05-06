@@ -793,3 +793,118 @@ def test_update_interval__never_passes_through() -> None:
     """update_interval: never must still map to SCHEDULER_DONT_RUN."""
     result = config_validation.update_interval("never")
     assert result.total_milliseconds == SCHEDULER_DONT_RUN
+
+
+# ---------------------------------------------------------------------------
+# UI-hint kwargs (advanced / yaml_only)
+# ---------------------------------------------------------------------------
+
+
+def test_optional_default_no_ui_hints() -> None:
+    """An ``Optional`` with no UI-hint kwargs must report both flags as
+    ``False`` (not missing) so consumers can read them with a plain
+    attribute access without ``getattr`` defaults.
+    """
+    o = config_validation.Optional("foo")
+    assert o.advanced is False
+    assert o.yaml_only is False
+
+
+def test_optional_advanced_kwarg() -> None:
+    """``advanced=True`` is recorded on the marker as the visual editor's
+    "show under advanced disclosure" hint.
+    """
+    o = config_validation.Optional("foo", advanced=True)
+    assert o.advanced is True
+    assert o.yaml_only is False
+
+
+def test_optional_yaml_only_kwarg() -> None:
+    """``yaml_only=True`` is recorded on the marker as the "never render
+    in a visual editor" hint.
+    """
+    o = config_validation.Optional("foo", yaml_only=True)
+    assert o.advanced is False
+    assert o.yaml_only is True
+
+
+def test_optional_both_ui_hints() -> None:
+    """Both flags are independent and may be set together. Consumers
+    should treat ``yaml_only`` as the stronger signal, but
+    ``cv.Optional`` itself just records what the caller asked for.
+    """
+    o = config_validation.Optional("foo", advanced=True, yaml_only=True)
+    assert o.advanced is True
+    assert o.yaml_only is True
+
+
+def test_optional_ui_hints_do_not_affect_validation() -> None:
+    """The flags are advisory UI hints — they must not change how the
+    validator behaves. A schema with the flags applied must accept and
+    reject the same values it would without them.
+    """
+    plain = config_validation.Schema(
+        {config_validation.Optional("foo", default=42): config_validation.int_}
+    )
+    flagged = config_validation.Schema(
+        {
+            config_validation.Optional(
+                "foo", default=42, advanced=True, yaml_only=True
+            ): config_validation.int_
+        }
+    )
+    # Same accept / default-fill behavior.
+    assert plain({"foo": 7}) == flagged({"foo": 7}) == {"foo": 7}
+    assert plain({}) == flagged({}) == {"foo": 42}
+    # Same rejection on bad input.
+    with pytest.raises(Invalid):
+        plain({"foo": "not-an-int"})
+    with pytest.raises(Invalid):
+        flagged({"foo": "not-an-int"})
+
+
+def test_required_default_no_ui_hints() -> None:
+    """``Required`` mirrors ``Optional`` for the UI-hint kwargs."""
+    r = config_validation.Required("foo")
+    assert r.advanced is False
+    assert r.yaml_only is False
+
+
+def test_required_advanced_kwarg() -> None:
+    """``Required`` accepts ``advanced=True`` even though required
+    fields rarely need the flag — exposed for symmetry so schema
+    consumers can apply uniform logic across key markers.
+    """
+    r = config_validation.Required("foo", advanced=True)
+    assert r.advanced is True
+    assert r.yaml_only is False
+
+
+def test_required_yaml_only_kwarg() -> None:
+    """``Required`` accepts ``yaml_only=True`` for the same symmetry
+    reasoning as :func:`test_required_advanced_kwarg`.
+    """
+    r = config_validation.Required("foo", yaml_only=True)
+    assert r.advanced is False
+    assert r.yaml_only is True
+
+
+def test_polling_component_schema_advanced_update_interval_opt_in() -> None:
+    """``advanced_update_interval=True`` flips the inherited
+    ``update_interval`` field's ``advanced`` flag without affecting the
+    base helper's existing behaviour. Time platforms opt in; sensors
+    keep the un-flagged shape.
+    """
+    default = config_validation.polling_component_schema("15min")
+    advanced = config_validation.polling_component_schema(
+        "15min", advanced_update_interval=True
+    )
+    default_keys = {str(k): k for k in default.schema}
+    advanced_keys = {str(k): k for k in advanced.schema}
+    assert default_keys["update_interval"].advanced is False
+    assert advanced_keys["update_interval"].advanced is True
+    # The opt-in flag only touches update_interval — setup_priority
+    # still inherits its yaml_only=True from COMPONENT_SCHEMA in
+    # both shapes.
+    assert default_keys["setup_priority"].yaml_only is True
+    assert advanced_keys["setup_priority"].yaml_only is True
