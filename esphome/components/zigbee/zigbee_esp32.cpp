@@ -59,11 +59,13 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
         ESP_LOGD(TAG, "Device started up in %sfactory-reset mode", esp_zb_bdb_is_factory_new() ? "" : "non ");
         global_zigbee->started = true;
         if (esp_zb_bdb_is_factory_new()) {
+          global_zigbee->factory_new = true;
           ESP_LOGD(TAG, "Start network steering");
           esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING);
         } else {
           ESP_LOGD(TAG, "Device rebooted");
-          global_zigbee->connected = true;
+          global_zigbee->joined = true;
+          global_zigbee->enable_loop_soon_any_context();
         }
       } else {
         ESP_LOGE(TAG, "FIRST_START.  Device started up in %sfactory-reset mode with an error %d (%s)",
@@ -290,7 +292,7 @@ void ZigbeeComponent::setup() {
 void ZigbeeComponent::loop() {
   if (this->joined.exchange(false)) {
     this->connected = true;
-    this->join_cb_.call();
+    this->join_cb_.call(this->factory_new);
   }
   this->disable_loop();
 }

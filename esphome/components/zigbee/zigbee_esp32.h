@@ -63,10 +63,10 @@ class ZigbeeComponent : public Component {
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
 
   bool is_started() { return this->started; }
-  bool is_connected() { return this->connected; }
-  std::atomic<bool> connected = false;
+  bool is_connected() { return this->connected_; }
   std::atomic<bool> started = false;
   std::atomic<bool> joined = false;
+  std::atomic<bool> factory_new = false;
 
  protected:
   struct {
@@ -74,6 +74,7 @@ class ZigbeeComponent : public Component {
     uint8_t *manufacturer;
     uint8_t *date;
   } basic_cluster_data_;
+  bool connected_ = false;
 #ifdef ZB_ED_ROLE
   esp_zb_nwk_device_type_t device_role_ = ESP_ZB_DEVICE_TYPE_ED;
 #else
@@ -93,7 +94,7 @@ class ZigbeeComponent : public Component {
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
   esp_zb_ep_list_t *esp_zb_ep_list_ = esp_zb_ep_list_create();
-  CallbackManager<void()> join_cb_{};
+  CallbackManager<void(bool)> join_cb_{};
 };
 
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);

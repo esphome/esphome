@@ -156,7 +156,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 _CALLBACK_AUTOMATIONS = [
-    automation.CallbackAutomation(CONF_ON_JOIN, "add_on_join_callback"),
+    automation.CallbackAutomation(CONF_ON_JOIN, "add_on_join_callback", [(bool, "x")]),
 ]
 
 

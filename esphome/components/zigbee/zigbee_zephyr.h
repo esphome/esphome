@@ -84,13 +84,13 @@ class ZigbeeComponent : public Component {
 
  protected:
   static void zcl_device_cb(zb_bufid_t bufid);
-  void on_join_();
+  void on_join_(bool factory_new);
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
   void erase_flash_(int area);
 #endif
   void dump_reporting_();
   std::array<std::function<void(zb_bufid_t bufid)>, ZIGBEE_ENDPOINTS_COUNT> callbacks_{};
-  CallbackManager<void()> join_cb_;
+  CallbackManager<void(bool)> join_cb_;
   bool force_report_{false};
   uint32_t sleep_time_{};
   uint32_t sleep_remainder_{};
