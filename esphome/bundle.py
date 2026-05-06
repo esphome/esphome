@@ -98,11 +98,13 @@ _KNOWN_FILE_EXTENSIONS = frozenset(
 )
 
 
-# Matches !secret references in YAML text.  This is intentionally a simple
-# regex scan rather than a YAML parse — it may match inside comments or
-# multi-line strings, which is the conservative direction (include more
-# secrets rather than fewer).
-_SECRET_RE = re.compile(r"!secret\s+(\S+)")
+# Matches !secret references in YAML text. The key may be single- or
+# double-quoted; YAML strips those quotes during parsing so the resolved
+# key in secrets.yaml does not contain them. This is intentionally a
+# simple regex scan rather than a YAML parse — it may match inside
+# comments or multi-line strings, which is the conservative direction
+# (include more secrets rather than fewer).
+_SECRET_RE = re.compile(r"""!secret\s+(?:'([^'\n]*)'|"([^"\n]*)"|(\S+))""")
 
 
 def _find_used_secret_keys(yaml_files: list[Path]) -> set[str]:
@@ -114,7 +116,10 @@ def _find_used_secret_keys(yaml_files: list[Path]) -> set[str]:
         except (OSError, UnicodeDecodeError):
             continue
         for match in _SECRET_RE.finditer(text):
-            keys.add(match.group(1))
+            single, double, bare = match.groups()
+            keys.add(
+                single if single is not None else double if double is not None else bare
+            )
     return keys
 
 
