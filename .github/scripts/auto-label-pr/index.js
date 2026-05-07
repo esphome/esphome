@@ -106,8 +106,8 @@ module.exports = async ({ github, context }) => {
   const [
     branchLabels,
     componentLabels,
-    newComponentLabels,
-    newPlatformLabels,
+    newComponentResult,
+    newPlatformResult,
     coreLabels,
     sizeLabels,
     dashboardLabels,
@@ -133,6 +133,13 @@ module.exports = async ({ github, context }) => {
     detectMaintainerAccess(context)
   ]);
 
+  // Extract new-component / new-platform results
+  const newComponentLabels = newComponentResult.labels;
+  const newPlatformLabels = newPlatformResult.labels;
+  // Eligible for needs-docs only if any newly added component or platform file
+  // defines a top-level CONFIG_SCHEMA (i.e. is actually loadable from YAML).
+  const hasYamlLoadable = newComponentResult.hasYamlLoadable || newPlatformResult.hasYamlLoadable;
+
   // Extract deprecated component info
   const deprecatedLabels = deprecatedResult.labels;
   const deprecatedInfo = deprecatedResult.deprecatedInfo;
@@ -154,7 +161,7 @@ module.exports = async ({ github, context }) => {
   ]);
 
   // Detect requirements based on all other labels
-  const requirementLabels = await detectRequirements(allLabels, prFiles, context);
+  const requirementLabels = await detectRequirements(allLabels, prFiles, context, hasYamlLoadable);
   for (const label of requirementLabels) {
     allLabels.add(label);
   }
