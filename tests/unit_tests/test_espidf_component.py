@@ -187,6 +187,39 @@ dependencies:
     )
 
 
+def test_generate_idf_component_yml_arduino_registry_dep(tmp_component):
+    # Synthetic arduino-esp32 dep with no source / no path: should emit a
+    # version-only entry so the IDF component manager resolves it from the
+    # registry instead of via git.
+    dep = IDFComponent("espressif/arduino-esp32", "3.3.8", source=None)
+
+    tmp_component.dependencies = [dep]
+    tmp_component.data = {}
+
+    result = generate_idf_component_yml(tmp_component)
+
+    assert (
+        result
+        == """version: 1.0.0
+dependencies:
+  espressif/arduino-esp32:
+    version: 3.3.8
+"""
+    )
+
+
+def test_generate_idf_component_yml_missing_path_reraises(tmp_component):
+    # A dep without a path and without a recognised source should re-raise
+    # the underlying RuntimeError instead of silently producing a bad manifest.
+    dep = IDFComponent("foo/bar", "1.0", source=None)
+
+    tmp_component.dependencies = [dep]
+    tmp_component.data = {}
+
+    with pytest.raises(RuntimeError):
+        generate_idf_component_yml(tmp_component)
+
+
 def test_check_library_data_valid(esp32_idf_core):
     _check_library_data({"platforms": "*", "frameworks": "*"})
 

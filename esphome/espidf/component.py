@@ -140,7 +140,7 @@ class InvalidIDFComponent(Exception):
 
 
 class IDFComponent:
-    def __init__(self, name: str, version: str, source: Source):
+    def __init__(self, name: str, version: str, source: Source | None):
         self.name = name
         self.version = version
         self.source = source
@@ -293,15 +293,14 @@ def _patch_component(component: IDFComponent, first_pass: bool):
 
     # Patch only on the second step
     if not first_pass and CORE.using_arduino:
-        # Add the missing dependency to Arduino framework
+        # Add the missing dependency to Arduino framework. Source is None so
+        # the IDF component manager resolves it from the registry instead of
+        # cloning the 2 GB arduino-esp32 git history.
         component.dependencies.append(
             IDFComponent(
                 "espressif/arduino-esp32",
                 str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
-                GitSource(
-                    "https://github.com/espressif/arduino-esp32.git",
-                    str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
-                ),
+                None,
             )
         )
 
@@ -699,10 +698,12 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
         try:
             dep["override_path"] = str(dependency.path)
         except RuntimeError as e:
-            # Otherwise we could use Git
+            # No local path; let the IDF component manager resolve.
+            # GitSource gives an explicit URL; arduino-esp32 is resolved by
+            # version from the registry. Anything else is a bug.
             if isinstance(dependency.source, GitSource):
                 dep["git"] = dependency.source.url
-            else:
+            elif dependency.name != "espressif/arduino-esp32":
                 raise e
 
         data["dependencies"][dependency.get_sanitized_name()] = dep
