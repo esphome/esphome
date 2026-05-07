@@ -62,7 +62,12 @@ void Animation::set_frame(int frame) {
 }
 
 void Animation::update_data_start_() {
-  const uint32_t image_size = this->get_width_stride() * this->height_;
+  uint32_t image_size = this->get_width_stride() * this->height_;
+  // RGB565 with an alpha channel stores the alpha plane immediately after the RGB
+  // plane within each frame, so the per-frame stride includes the alpha bytes.
+  if (this->type_ == image::IMAGE_TYPE_RGB565 && this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
+    image_size += static_cast<uint32_t>(this->width_) * this->height_;
+  }
   this->data_start_ = this->animation_data_start_ + image_size * this->current_frame_;
 }
 
