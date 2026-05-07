@@ -42,7 +42,7 @@ void EPaperEpd7In3G::power_on() {}
 bool HOT EPaperEpd7In3G::transfer_data() {
   if (this->xfer_phase_ == 0) {
     ESP_LOGV(TAG, "Power on");
-    this->command(this->CMD_BOOSTER_SOFTSTART);
+    this->command(CMD_BOOSTER_SOFTSTART);
     this->xfer_phase_ = 1;
     return false;
   }
@@ -60,7 +60,7 @@ bool HOT EPaperEpd7In3G::transfer_data() {
   const size_t buffer_length = this->buffer_length_;
   if (this->current_data_index_ == 0) {
     ESP_LOGV(TAG, "Sending data to the display");
-    this->command(this->CMD_TRANSFER);
+    this->command(CMD_TRANSFER);
   }
 
   size_t buf_idx = 0;
@@ -93,17 +93,17 @@ bool HOT EPaperEpd7In3G::transfer_data() {
 void EPaperEpd7In3G::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh");
   (void) partial;
-  this->cmd_data(this->CMD_REFRESH, {this->DATA_REFRESH});
+  this->cmd_data(CMD_REFRESH, {DATA_REFRESH});
 }
 
 void EPaperEpd7In3G::power_off() {
   ESP_LOGV(TAG, "Power off");
-  this->cmd_data(this->CMD_POWEROFF, {this->DATA_POWEROFF});
+  this->cmd_data(CMD_POWEROFF, {DATA_POWEROFF});
 }
 
 void EPaperEpd7In3G::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
-  this->cmd_data(this->CMD_DEEPSLEEP, {this->DATA_DEEPSLEEP_KEY});
+  this->cmd_data(CMD_DEEPSLEEP, {DATA_DEEPSLEEP_KEY});
 }
 
 }  // namespace esphome::epaper_spi
