@@ -15,8 +15,7 @@
 #include <freertos/event_groups.h>
 #include <freertos/queue.h>
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 // Internal sink/source buffers for reader and decoder
 static const size_t DEFAULT_TRANSFER_BUFFER_SIZE = 24 * 1024;
@@ -147,7 +146,6 @@ class AudioPipeline {
   StaticTask decode_task_;
 };
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
 
 #endif
