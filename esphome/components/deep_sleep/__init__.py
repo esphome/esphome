@@ -193,11 +193,14 @@ def _validate_ex1_wakeup_mode(value):
 
 
 def _validate_sleep_duration(value: core.TimePeriod) -> core.TimePeriod:
-    if not CORE.is_bk72xx:
-        return value
-    max_duration = core.TimePeriod(hours=36)
-    if value > max_duration:
-        raise cv.Invalid("sleep duration cannot be more than 36 hours on BK72XX")
+    if CORE.is_bk72xx:
+        max_duration = core.TimePeriod(hours=36)
+        if value > max_duration:
+            raise cv.Invalid("sleep duration cannot be more than 36 hours on BK72XX")
+    elif CORE.using_zephyr:
+        max_duration = core.TimePeriod(days=49)
+        if value > max_duration:
+            raise cv.Invalid("sleep duration cannot be more than 49 days on Zephyr")
     return value
 
 

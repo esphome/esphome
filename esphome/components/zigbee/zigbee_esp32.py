@@ -9,6 +9,7 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     add_partition,
+    idf_version,
     require_vfs_select,
 )
 import esphome.config_validation as cv
@@ -186,6 +187,10 @@ async def _zigbee_add_sdkconfigs(config: ConfigType) -> None:
     # The pre-built Zigbee library uses esp_log_default_level which requires
     # dynamic log level control to be enabled
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", True)
+    # The pre-built Zigbee library is compiled against newlib which requires newlib
+    # reentrancy to be enabled with picolibc compatibility.
+    if idf_version() >= cv.Version(6, 0, 0):
+        add_idf_sdkconfig_option("CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY", True)
 
 
 async def attributes_to_code(

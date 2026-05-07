@@ -9,9 +9,6 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
 )
-from esphome.components.nrf52.boards import BOOTLOADER_CONFIG, Section
-from esphome.components.zephyr import zephyr_add_pm_static, zephyr_data
-from esphome.components.zephyr.const import KEY_BOOTLOADER
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -53,15 +50,6 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@luar123", "@tomaszduda23"]
 
 
-def zigbee_set_core_data(config: ConfigType) -> ConfigType:
-    if CORE.is_nrf52 and zephyr_data()[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
-        zephyr_add_pm_static(
-            [Section("empty_after_zboss_offset", 0xF4000, 0xC000, "flash_primary")]
-        )
-
-    return config
-
-
 BINARY_SENSOR_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_REPORT): cv.All(
@@ -75,6 +63,13 @@ SENSOR_SCHEMA = cv.Schema({}).extend(zephyr_sensor)
 SWITCH_SCHEMA = cv.Schema({}).extend(zephyr_switch)
 NUMBER_SCHEMA = cv.Schema({}).extend(zephyr_number)
 
+
+def _validate_router_sleepy(config: ConfigType) -> ConfigType:
+    if config.get(CONF_ROUTER) and config.get(CONF_SLEEPY):
+        raise cv.Invalid("router and sleepy are mutually exclusive")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -82,10 +77,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MODEL, default=CORE.name): cv.All(
                 cv.string, cv.Length(max=31)
             ),
-            cv.OnlyWith(CONF_ROUTER, "esp32", default=False): cv.All(
-                cv.requires_component("esp32"),
-                cv.boolean,
-            ),
+            cv.Optional(CONF_ROUTER, default=False): cv.boolean,
             cv.Optional(CONF_ON_JOIN): cv.All(
                 cv.requires_component("nrf52"),
                 automation.validate_automation(single=True),
@@ -113,8 +105,8 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    _validate_router_sleepy,
     zigbee_require_vfs_select,
-    zigbee_set_core_data,
     cv.Any(
         cv.All(
             cv.only_on_esp32,

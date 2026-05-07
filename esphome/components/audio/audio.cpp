@@ -55,8 +55,10 @@ const char *audio_file_type_to_string(AudioFileType file_type) {
     case AudioFileType::OPUS:
       return "OPUS";
 #endif
+#ifdef USE_AUDIO_WAV_SUPPORT
     case AudioFileType::WAV:
       return "WAV";
+#endif
     default:
       return "unknown";
   }
@@ -71,9 +73,11 @@ AudioFileType detect_audio_file_type(const char *content_type, const char *url) 
       return AudioFileType::MP3;
     }
 #endif
+#ifdef USE_AUDIO_WAV_SUPPORT
     if (strcasecmp(content_type, "audio/wav") == 0) {
       return AudioFileType::WAV;
     }
+#endif
 #ifdef USE_AUDIO_FLAC_SUPPORT
     if (strcasecmp(content_type, "audio/flac") == 0 || strcasecmp(content_type, "audio/x-flac") == 0) {
       return AudioFileType::FLAC;
@@ -91,9 +95,11 @@ AudioFileType detect_audio_file_type(const char *content_type, const char *url) 
 
   // Fallback to URL extension
   if (url != nullptr && url[0] != '\0') {
+#ifdef USE_AUDIO_WAV_SUPPORT
     if (str_endswith_ignore_case(url, ".wav")) {
       return AudioFileType::WAV;
     }
+#endif
 #ifdef USE_AUDIO_MP3_SUPPORT
     if (str_endswith_ignore_case(url, ".mp3")) {
       return AudioFileType::MP3;
