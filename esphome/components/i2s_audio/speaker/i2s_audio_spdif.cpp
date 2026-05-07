@@ -23,14 +23,6 @@ static const char *const TAG = "i2s_audio.spdif";
 // 15 buffers x 4ms = 60ms of DMA buffering (same as 4 x 15ms for standard)
 static constexpr size_t SPDIF_DMA_BUFFERS_COUNT = 15;
 
-// Duration to wait after preload before entering "silence mode".
-// Allows bursty data delivery to settle without causing audio/silence oscillation.
-static constexpr uint32_t SPDIF_GRACE_PERIOD_MS = 500;
-
-// Duration to wait during preload while buffers fill up.
-// Audio data accumulates during this time before playback starts.
-static constexpr uint32_t SPDIF_PRELOAD_MS = 100;
-
 // Timeout for flushing pending frames if no callback received.
 static constexpr uint32_t SPDIF_FLUSH_TIMEOUT_MS = 20;
 
@@ -113,11 +105,7 @@ void I2SAudioSpeakerSPDIF::dump_config() {
                 this->sample_rate_);
 }
 
-void I2SAudioSpeakerSPDIF::on_task_stopped() {
-  this->spdif_needs_preload_ = true;
-  this->spdif_silence_start_ = 0;
-  this->spdif_preload_ended_ = 0;
-}
+void I2SAudioSpeakerSPDIF::on_task_stopped() { this->spdif_silence_start_ = 0; }
 
 size_t I2SAudioSpeakerSPDIF::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) {
   if (this->is_failed()) {
@@ -259,10 +247,7 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
       if (event_group_bits & SpeakerEventGroupBits::COMMAND_STOP) {
         xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::COMMAND_STOP);
         // In SPDIF continuous mode, don't tear down or expose STOPPED here.
-        // Keep the task alive and transition to silence output; preload will run
-        // when the next audio data arrives.
-        this->spdif_needs_preload_ = true;
-        this->spdif_preload_ended_ = 0;
+        // Keep the task alive and transition to silence output.
         this->spdif_silence_start_ = millis();
         ESP_LOGV(TAG, "COMMAND_STOP received, continuing in silence mode");
       }
@@ -360,29 +345,25 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
         // SPDIF Continuous Silence Mode: always output valid SPDIF stream
         // When no audio data, write silence-encoded blocks to keep receiver happy
         if (this->spdif_encoder_ != nullptr) {
-          // Grace period: After preload completes, don't enter "silence mode" for a while.
-          // This allows bursty data delivery to settle without causing audio/silence oscillation.
-          // We still write silence to DMA, but we don't track it as a prolonged silence event.
-          bool in_grace_period =
-              (this->spdif_preload_ended_ != 0) && (millis() - this->spdif_preload_ended_ < SPDIF_GRACE_PERIOD_MS);
+          // "Graceful stop" means "drain buffered audio, then stop." In SPDIF
+          // continuous mode we never actually stop, so once audio is drained
+          // (we're here), reset the flag to re-enable silence writing and stall
+          // recovery. Without this, stop_gracefully stays true forever and
+          // blocks silence output, causing DMA to degrade on auto_clear zeros.
+          stop_gracefully = false;
 
-          if (!in_grace_period) {
-            // Track when we entered silence mode (only after cooldowns)
-            if (this->spdif_silence_start_ == 0) {
-              this->spdif_silence_start_ = millis();
-              // Brief playback gaps don't require preload; DMA is already primed.
-            }
+          // Track when we entered silence mode
+          if (this->spdif_silence_start_ == 0) {
+            this->spdif_silence_start_ = millis();
+          }
 
-            // In SPDIF continuous mode, don't auto-stop on silence timeout.
-            // During aggressive seek/track changes, brief data gaps can occur; the debounce/grace
-            // logic above avoids transient oscillation. If silence persists past the configured
-            // timeout, stop the task so components expecting timeout semantics can recover.
-            if (this->timeout_.has_value()) {
-              const uint32_t silence_duration = millis() - this->spdif_silence_start_;
-              if (silence_duration >= this->timeout_.value()) {
-                ESP_LOGV(TAG, "Silence timeout reached (%" PRIu32 "ms) - stopping speaker", silence_duration);
-                break;
-              }
+          // If silence persists past the configured timeout, stop the task
+          // so components expecting timeout semantics can recover.
+          if (this->timeout_.has_value()) {
+            const uint32_t silence_duration = millis() - this->spdif_silence_start_;
+            if (silence_duration >= this->timeout_.value()) {
+              ESP_LOGV(TAG, "Silence timeout reached (%" PRIu32 "ms) - stopping speaker", silence_duration);
+              break;
             }
           }
 
@@ -479,38 +460,9 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
         // Have audio data to write
         size_t bytes_written = 0;
 
-        // SPDIF Continuous Mode: channel is ALWAYS running, never disabled
-        // We just write audio or silence - the stream never stops
-
-        // Check if we need preload (startup or after explicit stop), but not brief gaps.
-        const bool needs_preload = this->spdif_needs_preload_;
-
-        // SPDIF Preload: Wait for buffers to stabilize only when needed.
-        // This happens on initial startup or after explicit stop.
-        // Brief gaps during normal playback should NOT trigger preload.
-        if (needs_preload && this->spdif_silence_start_ != 0) {
-          uint32_t silence_duration = millis() - this->spdif_silence_start_;
-          if (silence_duration < SPDIF_PRELOAD_MS) {
-            // Still preloading - write silence to keep DMA fed while we wait
-            // We're in the audio block (have data), but we're not ready to play yet
-            if (tx_dma_underflow && !stop_gracefully) {
-              uint32_t silence_blocks = 0;
-              this->spdif_encoder_->write(reinterpret_cast<const uint8_t *>(SPDIF_SILENCE_BUFFER),
-                                          sizeof(SPDIF_SILENCE_BUFFER), 0, &silence_blocks);
-            }
-            vTaskDelay(pdMS_TO_TICKS(5));  // Small delay to avoid busy loop
-            continue;
-          }
-          // Preload complete - now transition to playing
-          ESP_LOGV(TAG, "Preload complete after %" PRIu32 "ms, starting playback", silence_duration);
-          this->spdif_needs_preload_ = false;     // Clear preload flag
-          this->spdif_preload_ended_ = millis();  // Start grace period
-        }
-
         // Clear silence timer since we have audio data now
         if (this->spdif_silence_start_ != 0) {
           uint32_t silence_duration = millis() - this->spdif_silence_start_;
-          // Only log if we were in silence for >100ms to reduce log spam during oscillation
           if (silence_duration > 100) {
             ESP_LOGV(TAG, "Exiting silence mode after %" PRIu32 "ms, have audio data", silence_duration);
           }
@@ -536,6 +488,11 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
           if (bytes_written > 0) {
             frames_written += blocks_sent * SPDIF_BLOCK_SAMPLES;
             transfer_buffer->decrease_buffer_length(bytes_written);
+            // Audio blocks count as DMA progress for the stall detector.
+            // Without this, a long uninterrupted audio stream makes the
+            // progress timer stale, triggering a spurious re-prime the
+            // instant we transition to silence.
+            spdif_last_block_progress_time = millis();
           }
         }
       }

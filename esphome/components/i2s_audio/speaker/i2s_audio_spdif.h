@@ -27,8 +27,6 @@ class I2SAudioSpeakerSPDIF : public I2SAudioSpeakerBase {
 
   SPDIFEncoder *spdif_encoder_{nullptr};
   uint32_t spdif_silence_start_{0};  // Timestamp when silence mode started (0 = not in silence)
-  uint32_t spdif_preload_ended_{0};  // Timestamp when preload ended (for grace period)
-  bool spdif_needs_preload_{true};   // True when preload is needed (startup or after explicit stop)
 };
 
 }  // namespace esphome::i2s_audio
