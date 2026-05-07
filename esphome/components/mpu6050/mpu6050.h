@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mpu6050 {
+namespace esphome::mpu6050 {
 
 class MPU6050Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -33,5 +32,4 @@ class MPU6050Component : public PollingComponent, public i2c::I2CDevice {
 };
 ;
 
-}  // namespace mpu6050
-}  // namespace esphome
+}  // namespace esphome::mpu6050
