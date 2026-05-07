@@ -546,13 +546,12 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
     }
     // for updates with a small buffer, we repeatedly call the writer_ function, clipping the height to a fraction of
     // the display height,
-    for (this->start_line_ = 0; this->start_line_ < this->get_height_internal();
-         this->start_line_ += this->get_height_internal() / FRACTION) {
+    auto increment = (this->get_height_internal() / FRACTION / ROUNDING) * ROUNDING;
+    for (this->start_line_ = 0; this->start_line_ < this->get_height_internal(); this->start_line_ = this->end_line_) {
 #if ESPHOME_LOG_LEVEL == ESPHOME_LOG_LEVEL_VERBOSE
       auto lap = millis();
 #endif
-      this->end_line_ =
-          clamp_at_most(this->start_line_ + this->get_height_internal() / FRACTION, this->get_height_internal());
+      this->end_line_ = clamp_at_most(this->start_line_ + increment, this->get_height_internal());
       if (this->auto_clear_enabled_) {
         this->clear();
       }
@@ -574,12 +573,13 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
       // Some chips require that the drawing window be aligned on certain boundaries
       this->x_low_ = this->x_low_ / ROUNDING * ROUNDING;
       this->y_low_ = this->y_low_ / ROUNDING * ROUNDING;
-      this->x_high_ = (this->x_high_ + ROUNDING) / ROUNDING * ROUNDING - 1;
-      this->y_high_ = (this->y_high_ + ROUNDING) / ROUNDING * ROUNDING - 1;
+      this->x_high_ = round_buffer(this->x_high_ + 1) - 1;
+      this->y_high_ = clamp_at_most(round_buffer(this->y_high_ + 1) - 1, this->end_line_ - 1);
       int w = this->x_high_ - this->x_low_ + 1;
       int h = this->y_high_ - this->y_low_ + 1;
       this->write_to_display_(this->x_low_, this->y_low_, w, h, this->buffer_, this->x_low_,
-                              this->y_low_ - this->start_line_, round_buffer(this->get_width_internal()) - w);
+                              this->y_low_ - this->start_line_,
+                              round_buffer(this->get_width_internal()) - w - this->x_low_);
       // invalidate watermarks
       this->x_low_ = this->get_width_internal();
       this->y_low_ = this->get_height_internal();

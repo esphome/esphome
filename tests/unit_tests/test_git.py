@@ -236,6 +236,35 @@ def test_clone_or_update_with_never_refresh(
     assert revert is None
 
 
+def test_clone_or_update_skips_when_core_skip_external_update(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """CORE.skip_external_update short-circuits the refresh for existing repos."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = None
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    repo_dir.mkdir(parents=True)
+    git_dir = repo_dir / ".git"
+    git_dir.mkdir()
+    (git_dir / "FETCH_HEAD").write_text("test")
+
+    CORE.skip_external_update = True
+    result_dir, revert = git.clone_or_update(
+        url=url,
+        ref=ref,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+    )
+
+    mock_run_git_command.assert_not_called()
+    assert result_dir == repo_dir
+    assert revert is None
+
+
 def test_clone_or_update_with_refresh_updates_old_repo(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
@@ -782,3 +811,193 @@ def test_clone_or_update_stale_clone_is_retried_after_cleanup(
     assert repo_dir.exists()
     assert call_count["clone"] == 2
     assert call_count["fetch"] == 2
+
+
+def test_clone_with_ref_uses_shallow_fetch(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Clone with a ref should use --depth=1 on both clone and fetch."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "pull/123/head"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            repo_dir.mkdir(parents=True, exist_ok=True)
+            (repo_dir / ".git").mkdir(exist_ok=True)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    git.clone_or_update(url=url, ref=ref, refresh=None, domain=domain)
+
+    call_list = mock_run_git_command.call_args_list
+
+    clone_calls = [c for c in call_list if "clone" in c[0][0]]
+    assert len(clone_calls) == 1
+    assert "--depth=1" in clone_calls[0][0][0]
+
+    fetch_calls = [c for c in call_list if "fetch" in c[0][0]]
+    assert len(fetch_calls) == 1
+    assert "--depth=1" in fetch_calls[0][0][0]
+    # Ref must still be passed so the requested commit/branch is fetched.
+    assert ref in fetch_calls[0][0][0]
+
+
+def test_clone_with_submodules_uses_shallow_submodule_update(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Submodule init on a fresh clone should use --depth=1."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            repo_dir.mkdir(parents=True, exist_ok=True)
+            (repo_dir / ".git").mkdir(exist_ok=True)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=None,
+        domain=domain,
+        submodules=["components/foo"],
+    )
+
+    submodule_calls = [
+        c for c in mock_run_git_command.call_args_list if "submodule" in c[0][0]
+    ]
+    assert len(submodule_calls) == 1
+    cmd = submodule_calls[0][0][0]
+    assert "--depth=1" in cmd
+    assert "components/foo" in cmd
+    # The `--` terminator must precede the submodule paths so a path
+    # beginning with `-` cannot be parsed as an option.
+    assert cmd.index("--") < cmd.index("components/foo")
+
+
+def test_refresh_fetch_is_shallow(tmp_path: Path, mock_run_git_command: Mock) -> None:
+    """The refresh-path fetch should use --depth=1."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    _setup_old_repo(repo_dir)
+    mock_run_git_command.return_value = "abc123"
+
+    git.clone_or_update(
+        url=url, ref=ref, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+
+    fetch_calls = [c for c in mock_run_git_command.call_args_list if "fetch" in c[0][0]]
+    assert len(fetch_calls) == 1
+    cmd = fetch_calls[0][0][0]
+    assert "--depth=1" in cmd
+    # Ref must still be in the refresh fetch so the right tip is updated.
+    assert cmd[-1] == ref
+
+
+def test_refresh_submodule_update_is_shallow(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """The refresh-path submodule update should use --depth=1."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    _setup_old_repo(repo_dir)
+    mock_run_git_command.return_value = "abc123"
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+        submodules=["components/foo"],
+    )
+
+    submodule_calls = [
+        c for c in mock_run_git_command.call_args_list if "submodule" in c[0][0]
+    ]
+    assert len(submodule_calls) == 1
+    cmd = submodule_calls[0][0][0]
+    assert "--depth=1" in cmd
+    assert "components/foo" in cmd
+    assert cmd.index("--") < cmd.index("components/foo")
+
+
+def test_refresh_picks_up_new_remote_commits(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Shallow fetch must still pull new commits when the remote tip moves.
+
+    Simulates a stale local repo at SHA "old" while the remote has advanced
+    to SHA "new". The refresh path must run fetch (with --depth=1) followed
+    by reset --hard FETCH_HEAD so the working tree advances to the new tip.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    _setup_old_repo(repo_dir)
+
+    # rev-parse is called once before fetch to record the pre-update SHA.
+    rev_parse_calls = {"count": 0}
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type == "rev-parse":
+            rev_parse_calls["count"] += 1
+            return "old_sha"
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    _, revert = git.clone_or_update(
+        url=url, ref=ref, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+
+    # Verify the refresh sequence: rev-parse -> stash -> fetch (depth=1) -> reset
+    call_list = mock_run_git_command.call_args_list
+    cmd_sequence = [_get_git_command_type(c[0][0]) for c in call_list]
+    assert cmd_sequence == ["rev-parse", "stash", "fetch", "reset"]
+
+    fetch_cmd = call_list[2][0][0]
+    assert "--depth=1" in fetch_cmd
+    assert fetch_cmd[-1] == ref
+
+    reset_cmd = call_list[3][0][0]
+    assert reset_cmd[-1] == "FETCH_HEAD"
+
+    # revert callback should reset back to the recorded pre-update SHA.
+    assert revert is not None
+    revert()
+    assert mock_run_git_command.call_args_list[-1][0][0] == [
+        "git",
+        "reset",
+        "--hard",
+        "old_sha",
+    ]

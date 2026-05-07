@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/defines.h"
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/output/float_output.h"
 
@@ -40,6 +41,7 @@ template<typename... Ts> class SetLevelAction : public Action<Ts...> {
   FloatOutput *output_;
 };
 
+#ifdef USE_OUTPUT_FLOAT_POWER_SCALING
 template<typename... Ts> class SetMinPowerAction : public Action<Ts...> {
  public:
   SetMinPowerAction(FloatOutput *output) : output_(output) {}
@@ -63,6 +65,7 @@ template<typename... Ts> class SetMaxPowerAction : public Action<Ts...> {
  protected:
   FloatOutput *output_;
 };
+#endif  // USE_OUTPUT_FLOAT_POWER_SCALING
 
 }  // namespace output
 }  // namespace esphome

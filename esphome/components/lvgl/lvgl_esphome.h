@@ -6,7 +6,7 @@
 #endif  // USE_BINARY_SENSOR
 #ifdef USE_IMAGE
 #include "esphome/components/image/image.h"
-#endif  // USE_LVGL_IMAGE
+#endif  // USE_IMAGE
 #ifdef USE_LVGL_ROTARY_ENCODER
 #include "esphome/components/rotary_encoder/rotary_encoder.h"
 #endif  // USE_LVGL_ROTARY_ENCODER
@@ -32,10 +32,10 @@
 
 #ifdef USE_FONT
 #include "esphome/components/font/font.h"
-#endif  // USE_LVGL_FONT
+#endif  // USE_FONT
 #ifdef USE_TOUCHSCREEN
 #include "esphome/components/touchscreen/touchscreen.h"
-#endif  // USE_LVGL_TOUCHSCREEN
+#endif  // USE_TOUCHSCREEN
 
 #if defined(USE_LVGL_BUTTONMATRIX) || defined(USE_LVGL_KEYBOARD)
 #include "esphome/components/key_provider/key_provider.h"
@@ -76,16 +76,23 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
 }
 #endif
 #if defined(USE_LVGL_IMAGE) && defined(USE_IMAGE)
-// Shortcut / overload, so that the source of an image can easily be updated
-// from within a lambda.
-inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) { lv_image_set_src(obj, image->get_lv_image_dsc()); }
+#if LV_USE_IMAGE
+// Shortcut / overload, so that the source of an image widget can easily be updated from within a lambda.
+inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) { ::lv_image_set_src(obj, image->get_lv_image_dsc()); }
+#endif  // LV_USE_IMAGE
 
 inline void lv_obj_set_style_bitmap_mask_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
-  lv_obj_set_style_bitmap_mask_src(obj, image->get_lv_image_dsc(), selector);
+  ::lv_obj_set_style_bitmap_mask_src(obj, image->get_lv_image_dsc(), selector);
 }
 
 inline void lv_obj_set_style_bg_image_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
-  lv_obj_set_style_bg_image_src(obj, image->get_lv_image_dsc(), selector);
+  ::lv_obj_set_style_bg_image_src(obj, image->get_lv_image_dsc(), selector);
+}
+inline void lv_style_set_bg_image_src(lv_style_t *style, image::Image *image) {
+  ::lv_style_set_bg_image_src(style, image->get_lv_image_dsc());
+}
+inline void lv_style_set_bitmap_mask_src(lv_style_t *style, image::Image *image) {
+  ::lv_style_set_bitmap_mask_src(style, image->get_lv_image_dsc());
 }
 #endif  // USE_LVGL_IMAGE
 #ifdef USE_LVGL_ANIMIMG
@@ -105,8 +112,19 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
 #endif  // USE_LVGL_ANIMIMG
 
 #ifdef USE_LVGL_METER
-int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int value);
+int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value);
 #endif
+
+#ifdef USE_LVGL_GRADIENT
+/**
+ *
+ * @param dsc The gradient descriptor containing the color stops
+ * @param pos The current position to calculate the color for
+ * @return The color for the given position
+ */
+
+lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos);
+#endif  // USE_LVGL_GRADIENT
 
 // Parent class for things that wrap an LVGL object
 class LvCompound {
@@ -152,9 +170,9 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
  public:
   explicit ObjUpdateAction(std::function<void(Ts...)> &&lamb) : lamb_(std::move(lamb)) {}
 
+ protected:
   void play(const Ts &...x) override { this->lamb_(x...); }
 
- protected:
   std::function<void(Ts...)> lamb_;
 };
 #ifdef USE_LVGL_ANIMIMG
@@ -173,6 +191,12 @@ class LvglComponent : public PollingComponent {
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
                 bool resume_on_input, bool update_when_display_idle, RotationType rotation_type);
   static void static_flush_cb(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p);
+  /**
+   *
+   * @param obj A widget
+   * @return The position of the last indev point relative to the widget's origin.
+   */
+  static lv_point_t get_touch_relative_to_obj(lv_obj_t *obj);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
   void setup() override;
@@ -294,9 +318,9 @@ class IdleTrigger : public Trigger<> {
 template<typename... Ts> class LvglAction : public Action<Ts...>, public Parented<LvglComponent> {
  public:
   explicit LvglAction(std::function<void(LvglComponent *)> &&lamb) : action_(std::move(lamb)) {}
-  void play(const Ts &...x) override { this->action_(this->parent_); }
 
  protected:
+  void play(const Ts &...x) override { this->action_(this->parent_); }
   std::function<void(LvglComponent *)> action_{};
 };
 

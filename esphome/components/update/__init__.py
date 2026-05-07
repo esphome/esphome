@@ -17,6 +17,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -113,7 +114,7 @@ async def setup_update_core_(var, config):
 async def register_update(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_update(var))
+    queue_entity_register("update", config)
     CORE.register_platform_component("update", var)
     await setup_update_core_(var, config)
 

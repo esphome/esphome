@@ -120,6 +120,24 @@ def slugify(value: str) -> str:
     return "".join(c for c in value if c in ALLOWED_NAME_CHARS)
 
 
+def friendly_name_slugify(value: str) -> str:
+    """Convert a friendly name to a slug with dashes instead of underscores.
+
+    Used by:
+    - esphome.dashboard.web_server (legacy dashboard)
+    - device-builder (esphome/device-builder) — slugifies friendly names
+      into the YAML filename / device name during adoption + wizard flows.
+
+    Lives here rather than in ``esphome.dashboard.util.text`` so it
+    survives the legacy dashboard's eventual removal.
+    The dashboard module re-exports this name as a back-compat shim.
+    Coordinate with the device-builder team before changing the
+    slugification rules — the mapping must stay stable so existing
+    on-disk filenames keep matching across releases.
+    """
+    return slugify(value).replace("_", "-")
+
+
 def indent_all_but_first_and_last(text, padding="  "):
     lines = text.splitlines(True)
     if len(lines) <= 2:
@@ -370,7 +388,11 @@ def rmtree(path: Path | str) -> None:
         os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    shutil.rmtree(path, onerror=_onerror)
+    # ``onerror`` is deprecated in 3.12 in favour of ``onexc`` (different
+    # callable signature); keep the existing handler shape for now and
+    # silence the lint locally so this PR doesn't bundle an unrelated
+    # migration.
+    shutil.rmtree(path, onerror=_onerror)  # pylint: disable=deprecated-argument
 
 
 def walk_files(path: Path):
