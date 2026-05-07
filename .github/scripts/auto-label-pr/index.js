@@ -120,8 +120,8 @@ module.exports = async ({ github, context }) => {
   ] = await Promise.all([
     detectMergeBranch(context),
     detectComponentPlatforms(changedFiles, apiData),
-    detectNewComponents(prFiles),
-    detectNewPlatforms(prFiles, apiData),
+    detectNewComponents(github, context, prFiles),
+    detectNewPlatforms(github, context, prFiles, apiData),
     detectCoreChanges(changedFiles),
     detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD),
     detectDashboardChanges(changedFiles),
