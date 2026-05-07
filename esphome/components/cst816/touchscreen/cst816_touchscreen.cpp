@@ -49,9 +49,6 @@ void CST816Touchscreen::continue_setup_() {
   if (this->y_raw_max_ == this->y_raw_min_) {
     this->y_raw_max_ = this->display_->get_native_height();
   }
-
-  ESP_LOGD(TAG, "Touch bounds x:[%u,%u] y:[%u,%u]", this->x_raw_min_, this->x_raw_max_, this->y_raw_min_,
-           this->y_raw_max_);
 }
 
 void CST816Touchscreen::setup() {
