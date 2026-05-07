@@ -2,8 +2,7 @@
 
 #include "es8311.h"
 
-namespace esphome {
-namespace es8311 {
+namespace esphome::es8311 {
 
 // ES8311 register addresses
 static const uint8_t ES8311_REG00_RESET = 0x00;        // Reset
@@ -191,5 +190,4 @@ static const ES8311Coefficient ES8311_COEFFICIENTS[] = {
     // clang-format on
 };
 
-}  // namespace es8311
-}  // namespace esphome
+}  // namespace esphome::es8311

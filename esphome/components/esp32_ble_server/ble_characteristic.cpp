@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
 static const char *const TAG = "esp32_ble_server.characteristic";
 
@@ -340,7 +339,6 @@ BLECharacteristic::ClientNotificationEntry *BLECharacteristic::find_client_in_no
   return nullptr;
 }
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif
