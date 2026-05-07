@@ -8,7 +8,7 @@ dependencies:
   esphome/micro-decoder:
     version: 0.2.0
   esphome/micro-flac:
-    version: 0.1.1
+    version: 0.2.0
   esphome/micro-mp3:
     version: 0.2.0
   esphome/micro-opus:
