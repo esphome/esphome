@@ -19,7 +19,7 @@ import contextlib
 
 from esphome.const import CONF_KEY, CONF_PORT, __version__
 from esphome.core import CORE, EsphomeError
-from esphome.platformio_api import process_stacktrace
+from esphome.util import safe_print
 
 from . import CONF_ENCRYPTION
 
@@ -60,10 +60,6 @@ class _LogLineProcessor:
             if self._platform_handler is not None:
                 self.backtrace_state = self._platform_handler(
                     self._config, raw_line, self.backtrace_state
-                )
-            else:
-                self.backtrace_state = process_stacktrace(
-                    self._config, raw_line, backtrace_state=self.backtrace_state
                 )
         except EsphomeError as exc:
             self._decode_enabled = False
@@ -106,7 +102,6 @@ async def async_run_logs(
         noise_psk=noise_psk,
         addresses=addresses,  # Pass all addresses for automatic retry
     )
-    dashboard = CORE.dashboard
 
     # Try platform-specific stacktrace handler first, fall back to generic
     platform_process_stacktrace = None
@@ -114,7 +109,10 @@ async def async_run_logs(
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         platform_process_stacktrace = getattr(module, "process_stacktrace")
     except (AttributeError, ImportError):
-        pass
+        _LOGGER.info(
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
+            CORE.target_platform,
+        )
 
     processor = _LogLineProcessor(config, platform_process_stacktrace)
 
@@ -128,7 +126,11 @@ async def async_run_logs(
             f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
         )
         for parsed_msg in parse_log_message(text, timestamp):
-            print(parsed_msg.replace("\033", "\\033") if dashboard else parsed_msg)
+            # safe_print handles the dashboard \033 escaping and falls back
+            # to backslashreplace encoding on stdouts that can't represent
+            # the wifi signal-bar block characters (Windows redirected
+            # cp1252 pipe).
+            safe_print(parsed_msg)
         for raw_line in text.splitlines():
             processor.process_line(raw_line)
 

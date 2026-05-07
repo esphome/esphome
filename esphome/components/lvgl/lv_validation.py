@@ -41,7 +41,7 @@ from .helpers import (
     lv_fonts_used,
     requires_component,
 )
-from .types import lv_gradient_t, lv_opa_t
+from .types import lv_coord_t, lv_gradient_t, lv_opa_t
 
 LV_OPA = LvConstant("LV_OPA_", "TRANSP", "COVER")
 
@@ -277,7 +277,7 @@ def pixels_or_percent_validator(value):
 
 pixels_or_percent = LValidator(
     pixels_or_percent_validator,
-    uint32,
+    lv_coord_t,
     retmapper=lambda x: x if isinstance(x, int) else literal(f"lv_pct({int(x * 100)})"),
 )
 
