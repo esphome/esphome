@@ -270,10 +270,6 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   return OTA_RESPONSE_OK;
 }
 
-
-
-
-
 OTAResponseTypes IDFOTABackend::register_and_validate_partition_table_part_() {
   esp_err_t err = esp_partition_register_external(
       nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE, "PrimaryPrtTable",

@@ -33,8 +33,8 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
   }
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
     if (image_size > ESP_BOOTLOADER_SIZE) {
-      ESP_LOGE(TAG, "Length of received data exceeds the available bootloader size: expected <=%zu bytes, got %zu", ESP_BOOTLOADER_SIZE,
-               image_size);
+      ESP_LOGE(TAG, "Length of received data exceeds the available bootloader size: expected <=%zu bytes, got %zu",
+               ESP_BOOTLOADER_SIZE, image_size);
       return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
     }
     OTAResponseTypes result = this->register_and_validate_bootloader_part_();
