@@ -3544,10 +3544,10 @@ def test_command_rename_does_not_touch_friendly_name_substring(
     tmp_path: Path,
     mock_run_external_process: Mock,
 ) -> None:
-    """Test rename does not match the ``name:`` substring of ``friendly_name:``.
+    r"""Test rename does not match the ``name:`` substring of ``friendly_name:``.
 
     Without anchoring the regex at line start, the pattern
-    ``\\s*name:\\s+<old>`` could match the trailing ``name:``
+    ``\s*name:\s+<old>`` could match the trailing ``name:``
     substring inside ``friendly_name: <old>``. The rewrite would
     flip both lines to the new name, leaving the user with a
     silently corrupted ``friendly_name``.
@@ -3583,11 +3583,11 @@ def test_command_rename_does_not_match_old_name_as_value_prefix(
     tmp_path: Path,
     mock_run_external_process: Mock,
 ) -> None:
-    """Test rename does not match ``old_name`` as a prefix of a longer value.
+    r"""Test rename does not match ``old_name`` as a prefix of a longer value.
 
     With ``old_name = kitchen`` the value ``kitchen2`` (a sensor
     or wifi entry) would otherwise match the unanchored
-    ``[\\\"']?kitchen[\\\"']?`` pattern at the prefix and get
+    ``["']?kitchen["']?`` pattern at the prefix and get
     rewritten to the new name. The end-of-value lookahead keeps
     the match restricted to whole tokens.
     """
