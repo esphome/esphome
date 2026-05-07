@@ -21,7 +21,10 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
 
   void loop() override {
     this->reset_pin_cache_();
-    if (this->interrupt_pin_ != nullptr) {
+    // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
+    // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
+    // stale state forever; keep looping until the line is released so we self-heal.
+    if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
       this->disable_loop();
     }
   }

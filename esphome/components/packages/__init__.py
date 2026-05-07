@@ -42,6 +42,11 @@ DOMAIN = CONF_PACKAGES
 # Guard against infinite include chains (e.g. A includes B includes A).
 MAX_INCLUDE_DEPTH = 20
 
+PackageCallback = Callable[
+    [dict | str | yaml_util.IncludeFile, ContextVars | None, yaml_util.DocumentPath],
+    dict,
+]
+
 
 def is_remote_package(package_config: dict) -> bool:
     """Returns True if the package_config is a remote package definition."""
@@ -200,7 +205,7 @@ CONFIG_SCHEMA = cv.Any(  # under `packages:` we can have either:
 )
 
 
-def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
+def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     """Clone/update a git repo and load the YAML files listed in the package definition.
 
     Returns ``{"packages": {<filename>: <loaded_yaml>, ...}}`` so the caller
@@ -210,11 +215,10 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     If loading fails after cloning, attempts a revert and retry in case
     a prior cached checkout is stale.
     """
-    actual_refresh = git.NEVER_REFRESH if skip_update else config[CONF_REFRESH]
     repo_dir, revert = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
-        refresh=actual_refresh,
+        refresh=config[CONF_REFRESH],
         domain=DOMAIN,
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
@@ -281,8 +285,9 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
 
 def _walk_package_dict(
     packages: dict,
-    callback: Callable[[dict, ContextVars | None], dict],
+    callback: PackageCallback,
     context: ContextVars | None,
+    path: yaml_util.DocumentPath,
 ) -> cv.Invalid | None:
     """Iterate a packages dict in reverse priority order, invoking callback on each entry.
 
@@ -291,7 +296,9 @@ def _walk_package_dict(
     for package_name, package_config in reversed(packages.items()):
         with cv.prepend_path(package_name):
             try:
-                packages[package_name] = callback(package_config, context)
+                packages[package_name] = callback(
+                    package_config, context, path + [package_name]
+                )
             except cv.Invalid as err:
                 return err
     return None
@@ -299,20 +306,22 @@ def _walk_package_dict(
 
 def _walk_package_list(
     packages: list,
-    callback: Callable[[dict, ContextVars | None], dict],
+    callback: PackageCallback,
     context: ContextVars | None,
+    path: yaml_util.DocumentPath,
 ) -> None:
     """Iterate a packages list in reverse priority order, invoking callback on each entry."""
     for idx in reversed(range(len(packages))):
         with cv.prepend_path(idx):
-            packages[idx] = callback(packages[idx], context)
+            packages[idx] = callback(packages[idx], context, path + [idx])
 
 
 def _walk_packages(
     config: dict,
-    callback: Callable[[dict, ContextVars | None], dict],
+    callback: PackageCallback,
     context: ContextVars | None = None,
     validate_deprecated: bool = True,
+    path: yaml_util.DocumentPath | None = None,
 ) -> dict:
     """Walks the packages structure in priority order, invoking ``callback`` on each package definition found.
 
@@ -323,19 +332,24 @@ def _walk_packages(
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
+    packages_path = (path or []) + [CONF_PACKAGES]
 
     with cv.prepend_path(CONF_PACKAGES):
         if isinstance(packages, yaml_util.IncludeFile):
             # If the packages key is an IncludeFile, resolve it first before processing.
-            packages, _ = resolve_include(packages, [], context, strict_undefined=False)
+            packages = resolve_include(
+                packages, packages_path, context, strict_undefined=False
+            )
         if not isinstance(packages, (dict, list)):
             raise cv.Invalid(
                 f"Packages must be a key to value mapping or list, got {type(packages)} instead"
             )
 
         if not isinstance(packages, dict):
-            _walk_package_list(packages, callback, context)
-        elif (result := _walk_package_dict(packages, callback, context)) is not None:
+            _walk_package_list(packages, callback, context, packages_path)
+        elif (
+            result := _walk_package_dict(packages, callback, context, packages_path)
+        ) is not None:
             if not validate_deprecated or any(
                 is_package_definition(v) for v in packages.values()
             ):
@@ -344,14 +358,18 @@ def _walk_packages(
             # This block can be removed once the single-package
             # deprecation period (2026.7.0) is over.
             config[CONF_PACKAGES] = [packages]
-            return _walk_packages(deprecate_single_package(config), callback, context)
+            return _walk_packages(
+                deprecate_single_package(config), callback, context, path=path
+            )
 
     config[CONF_PACKAGES] = packages
     return config
 
 
 def _substitute_package_definition(
-    package_config: dict | str, context_vars: ContextVars | None
+    package_config: dict | str,
+    context_vars: ContextVars | None,
+    path: yaml_util.DocumentPath | None = None,
 ) -> dict | str:
     """Substitute variables in a package definition string or remote package dict.
 
@@ -359,9 +377,8 @@ def _substitute_package_definition(
     Local package contents are left untouched — they will be substituted
     later during the main substitution pass.
     """
-    if isinstance(package_config, str) or (
-        isinstance(package_config, dict) and is_remote_package(package_config)
-    ):
+
+    def do_substitute(package_config: dict | str) -> dict | str:
         # Collect undefined-variable errors (rather than raising strict) so the
         # path walked through a remote-package dict is preserved and the user
         # sees which field (url / path / ref / ...) referenced the undefined
@@ -369,37 +386,67 @@ def _substitute_package_definition(
         errors: ErrList = []
         package_config = substitute(
             item=package_config,
-            path=[],
+            path=path or [],
             parent_context=context_vars or ContextVars(),
             strict_undefined=False,
             errors=errors,
         )
-        raise_first_undefined(errors, package_config, "package definition")
+        raise_first_undefined(errors, "package definition")
+        return package_config
+
+    if isinstance(package_config, str):
+        return do_substitute(package_config)
+
+    if isinstance(package_config, dict) and is_remote_package(package_config):
+        # Mark vars as literal to avoid substituting variables in the vars block itself, since they are meant to be
+        # passed as-is to the package YAML and may contain their own substitution expressions that should not
+        # be prematurely evaluated here.
+        if CONF_FILES in package_config:
+            for file_def in package_config[CONF_FILES]:
+                if isinstance(file_def, dict) and CONF_VARS in file_def:
+                    file_def[CONF_VARS] = yaml_util.make_literal(file_def[CONF_VARS])
+
+        package_config = do_substitute(package_config)
+
     return package_config
 
 
 def _update_substitutions_context(
     parent_context: UserDict,
     package_substitutions: dict[str, Any],
+    eval_context: ContextVars | None = None,
 ) -> None:
     """Resolve and add new substitutions to the parent context.
 
     Skips keys already present (higher-priority sources win).
-    String values are substituted against the current context so that
-    cross-references between substitutions are expanded when possible.
+    String values are substituted against *eval_context* (or *parent_context*
+    if not provided) so that cross-references between substitutions are
+    expanded when possible. Resolved values are written into *parent_context*
+    and back into *package_substitutions* so that subsequent merges into the
+    consolidated ``substitutions:`` block carry the resolved value (the
+    package's ``!include vars`` are no longer in scope after this function
+    returns).
+
+    *eval_context* may layer additional vars (e.g. a package's own ``!include
+    vars``) on top of *parent_context* so that a package's substitutions can
+    reference vars passed in by the parent file.
     """
+    if eval_context is None:
+        eval_context = ContextVars(parent_context)
     for key, value in package_substitutions.items():
         if key in parent_context:
             continue
         if not isinstance(value, str):
             parent_context[key] = value
             continue
-        parent_context[key] = substitute(
+        resolved = substitute(
             item=value,
             path=[CONF_SUBSTITUTIONS, key],
-            parent_context=ContextVars(parent_context),
+            parent_context=eval_context,
             strict_undefined=False,
         )
+        parent_context[key] = resolved
+        package_substitutions[key] = resolved
 
 
 class _PackageProcessor:
@@ -422,16 +469,15 @@ class _PackageProcessor:
         self,
         substitutions: UserDict,
         command_line_substitutions: dict[str, Any] | None,
-        skip_update: bool,
     ) -> None:
         self.substitutions = substitutions
         self.parent_context = UserDict(command_line_substitutions or {})
-        self.skip_update = skip_update
 
     def resolve_package(
         self,
         package_config: dict | str | yaml_util.IncludeFile,
         context_vars: ContextVars | None,
+        path: yaml_util.DocumentPath,
     ) -> dict:
         """Resolve a package definition to a concrete ``dict`` and fetch remote packages.
 
@@ -454,15 +500,15 @@ class _PackageProcessor:
         """
         for _ in range(MAX_INCLUDE_DEPTH):
             if isinstance(package_config, yaml_util.IncludeFile):
-                package_config, _ = resolve_include(
+                package_config = resolve_include(
                     package_config,
-                    [],
+                    path,
                     context_vars or ContextVars(),
                     strict_undefined=False,
                 )
 
             package_config = _substitute_package_definition(
-                package_config, context_vars
+                package_config, context_vars, path
             )
             package_config = PACKAGE_SCHEMA(package_config)
             if isinstance(package_config, dict):
@@ -473,30 +519,58 @@ class _PackageProcessor:
             )
 
         if is_remote_package(package_config):
-            package_config = _process_remote_package(package_config, self.skip_update)
+            package_config = _process_remote_package(package_config)
         return package_config
 
-    def collect_substitutions(self, package_config: dict) -> None:
-        """Extract substitutions from a package and merge into the shared context."""
+    def collect_substitutions(
+        self,
+        package_config: dict,
+        context_vars: ContextVars | None,
+    ) -> ContextVars:
+        """Extract substitutions from a package and merge into the shared context.
+
+        Returns the context updated with the package's ``!include vars`` (or
+        an equivalent of *context_vars* if the package has none) so the caller
+        can reuse it when recursing into nested packages. ``None`` inputs are
+        normalized to an empty :class:`ContextVars`, so the result is always
+        non-``None``.
+        """
+        # Push the package's own !include vars before evaluating its
+        # substitutions so they can reference vars passed in by the parent
+        # (e.g. ``vars: {my_variable: ...}`` on the include entry).
+        package_context = push_context(
+            package_config, context_vars if context_vars is not None else ContextVars()
+        )
         if subs := package_config.pop(CONF_SUBSTITUTIONS, {}):
+            # Resolve before merging so that values referencing the package's
+            # ``!include vars`` are baked into the consolidated substitutions
+            # block; once we return, the package vars are no longer in scope.
+            # ``package_context`` is a ChainMap whose chain already terminates
+            # in ``self.parent_context`` (set up by ``do_packages_pass``), so
+            # ``parent_context`` mutations from ``_update_substitutions_context``
+            # remain visible to evaluation reads.
+            _update_substitutions_context(self.parent_context, subs, package_context)
             self.substitutions.data = merge_config(subs, self.substitutions.data)
-            _update_substitutions_context(self.parent_context, subs)
+        return package_context
 
     def process_package(
-        self, package_config: dict | str, context_vars: ContextVars | None
+        self,
+        package_config: dict | str,
+        context_vars: ContextVars | None,
+        path: yaml_util.DocumentPath,
     ) -> dict:
         """Resolve a single package and recurse into any nested packages."""
         from_remote = isinstance(package_config, dict) and is_remote_package(
             package_config
         )
-        package_config = self.resolve_package(package_config, context_vars)
-        self.collect_substitutions(package_config)
+        package_config = self.resolve_package(package_config, context_vars, path)
+        context_vars = self.collect_substitutions(package_config, context_vars)
 
         if CONF_PACKAGES not in package_config:
             return package_config
 
-        # Push context from !include vars on the package root and on the packages key
-        context_vars = push_context(package_config, context_vars)
+        # Push context from !include vars on the packages key (the package root
+        # was already pushed in collect_substitutions above).
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
         # Disable the deprecated single-package fallback for remote
         # packages.  _process_remote_package returns dicts with
@@ -509,15 +583,15 @@ class _PackageProcessor:
             self.process_package,
             context_vars,
             validate_deprecated=not from_remote,
+            path=path,
         )
 
 
 def do_packages_pass(
-    config: dict,
+    config: dict[str, Any],
     *,
     command_line_substitutions: dict[str, Any] | None = None,
-    skip_update: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Load, validate, and flatten all packages in the config.
 
     Returns the config with all packages loaded in-place (but not yet merged)
@@ -532,9 +606,7 @@ def do_packages_pass(
                 config.pop(CONF_SUBSTITUTIONS, {}), command_line_substitutions
             )
         )
-    processor = _PackageProcessor(
-        substitutions, command_line_substitutions, skip_update
-    )
+    processor = _PackageProcessor(substitutions, command_line_substitutions)
     _update_substitutions_context(processor.parent_context, substitutions)
 
     context_vars = push_context(
@@ -565,14 +637,75 @@ def merge_packages(config: dict) -> dict:
     merge_list: list[dict] = []
 
     def process_package_callback(
-        package_config: dict, context: ContextVars | None
+        package_config: dict,
+        context: ContextVars | None,
+        path: yaml_util.DocumentPath | None = None,
     ) -> dict:
         """This will be called for each package found in the config."""
         merge_list.append(package_config)
-        return _walk_packages(package_config, process_package_callback)
+        return _walk_packages(package_config, process_package_callback, path=path)
 
     _walk_packages(config, process_package_callback, validate_deprecated=False)
     # Merge all packages into the main config:
     config = reduce(lambda new, old: merge_config(old, new), merge_list, config)
     del config[CONF_PACKAGES]
     return config
+
+
+def resolve_packages(
+    config: dict[str, Any],
+    *,
+    command_line_substitutions: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Load and merge ``packages:`` in one call; return the flattened config.
+
+    Convenience wrapper around :func:`do_packages_pass` followed by
+    :func:`merge_packages`. External tools that want the package-
+    merged dict (without going through full schema validation via
+    :func:`esphome.config.read_config`) get one stable seam to call
+    instead of having to chain the two functions and stay in sync
+    with the pipeline order.
+
+    Note: the full :func:`esphome.config.validate_config` pipeline
+    runs two extra passes around the merge that this wrapper
+    deliberately skips:
+
+    1. :func:`esphome.components.substitutions.do_substitution_pass`
+       runs BETWEEN :func:`do_packages_pass` and
+       :func:`merge_packages`, so ``${var}`` placeholders inside
+       package content are NOT resolved here. Callers that need
+       substitution should invoke ``do_substitution_pass``
+       themselves between calls, or go through the full
+       ``validate_config``.
+    2. :func:`esphome.config.resolve_extend_remove` runs AFTER
+       :func:`merge_packages`, so top-level ``!remove`` / ``!extend``
+       markers are NOT applied here. A package-contributed block
+       paired with a top-level ``key: !remove`` will still appear
+       in the returned dict (the marker just sits next to it).
+
+    The wrapper exists for the "what blocks did packages
+    contribute?" question — metadata callers that just need to
+    see merged top-level keys. It is NOT a stand-in for
+    :func:`esphome.config.validate_config` and the two passes
+    above are the reasons why.
+
+    Used by:
+
+    - ``esphome/device-builder`` — the new WebSocket dashboard
+      backend reads device metadata (api / wifi / target-platform
+      flags) off the merged config so packages contribute the same
+      blocks the compiler sees, not just whatever sits at the top
+      of the user's YAML. See
+      https://github.com/esphome/device-builder/issues/288 for the
+      bug this fixes.
+
+    Returns *config* unchanged when ``packages:`` isn't present, so
+    callers can apply this unconditionally without having to peek
+    at the config first.
+    """
+    if CONF_PACKAGES not in config:
+        return config
+    config = do_packages_pass(
+        config, command_line_substitutions=command_line_substitutions
+    )
+    return merge_packages(config)

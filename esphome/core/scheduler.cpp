@@ -14,18 +14,8 @@ namespace esphome {
 
 static const char *const TAG = "scheduler";
 
-// Memory pool configuration constants
-// Pool size of 5 matches typical usage patterns (2-4 active timers)
-// - Minimal memory overhead (~250 bytes on ESP32)
-// - Sufficient for most configs with a couple sensors/components
-// - Still prevents heap fragmentation and allocation stalls
-// - Complex setups with many timers will just allocate beyond the pool
-// See https://github.com/esphome/backlog/issues/52
-static constexpr size_t MAX_POOL_SIZE = 5;
-
 // Maximum number of logically deleted (cancelled) items before forcing cleanup.
-// Set to 5 to match the pool size - when we have as many cancelled items as our
-// pool can hold, it's time to clean up and recycle them.
+// Empirically chosen to balance cleanup overhead against tombstone accumulation in items_.
 static constexpr uint32_t MAX_LOGICALLY_DELETED_ITEMS = 5;
 // max delay to start an interval sequence
 static constexpr uint32_t MAX_INTERVAL_DELAY = 5000;
@@ -35,7 +25,9 @@ static constexpr uint32_t MAX_INTERVAL_DELAY = 5000;
 // Uses a stack buffer to avoid heap allocation
 // Uses ESPHOME_snprintf_P/ESPHOME_PSTR for ESP8266 to keep format strings in flash
 struct SchedulerNameLog {
-  char buffer[20];  // Enough for "id:4294967295" or "hash:0xFFFFFFFF" or "(null)"
+  // Sized for the widest formatted output: "self:0x" + 16 hex digits (64-bit pointer) + nul.
+  // Also covers "id:4294967295", "hash:0xFFFFFFFF", "iid:4294967295", "(null)".
+  char buffer[28];
 
   // Format a scheduler item name for logging
   // Returns pointer to formatted string (either static_name or internal buffer)
@@ -53,8 +45,14 @@ struct SchedulerNameLog {
     } else if (name_type == NameType::NUMERIC_ID) {
       ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("id:%" PRIu32), hash_or_id);
       return buffer;
-    } else {  // NUMERIC_ID_INTERNAL
+    } else if (name_type == NameType::NUMERIC_ID_INTERNAL) {
       ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("iid:%" PRIu32), hash_or_id);
+      return buffer;
+    } else {  // SELF_POINTER
+      // static_name carries the void* key for SELF_POINTER (pointer-width union slot).
+      // %p is specified as void* (not const void*), so strip const for the varargs call.
+      ESPHOME_snprintf_P(buffer, sizeof(buffer), ESPHOME_PSTR("self:%p"),
+                         const_cast<void *>(static_cast<const void *>(static_name)));
       return buffer;
     }
   }
@@ -157,7 +155,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     delay = 1;
   }
 
-  // Take lock early to protect scheduler_item_pool_ access and retry-cancelled check
+  // Take lock early to protect scheduler_item_pool_head_ access and retry-cancelled check
   LockGuard guard{this->lock_};
 
   // For retries, check if there's a cancelled timeout first - before allocating an item.
@@ -235,11 +233,11 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   }
   target->push_back(item);
   if (target == &this->to_add_) {
-    this->to_add_count_increment_();
+    this->to_add_count_increment_locked_();
   }
 #ifndef ESPHOME_THREAD_SINGLE
   else {
-    this->defer_count_increment_();
+    this->defer_count_increment_locked_();
   }
 #endif
 }
@@ -291,6 +289,27 @@ bool HOT Scheduler::cancel_interval(Component *component, const char *name) {
 }
 bool HOT Scheduler::cancel_interval(Component *component, uint32_t id) {
   return this->cancel_item_(component, NameType::NUMERIC_ID, nullptr, id, SchedulerItem::INTERVAL);
+}
+
+// Self-keyed scheduler API. The cancellation key is `self` (typically the caller's `this`),
+// passed through the existing static_name pointer slot. Matching is by raw pointer equality
+// (see matches_item_locked_'s SELF_POINTER branch). No Component pointer is stored, so
+// is_failed() skip and component-based log attribution don't apply.
+void HOT Scheduler::set_timeout(const void *self, uint32_t timeout, std::function<void()> &&func) {
+  this->set_timer_common_(nullptr, SchedulerItem::TIMEOUT, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                          timeout, std::move(func));
+}
+void HOT Scheduler::set_interval(const void *self, uint32_t interval, std::function<void()> &&func) {
+  this->set_timer_common_(nullptr, SchedulerItem::INTERVAL, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                          interval, std::move(func));
+}
+bool HOT Scheduler::cancel_timeout(const void *self) {
+  return this->cancel_item_(nullptr, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                            SchedulerItem::TIMEOUT);
+}
+bool HOT Scheduler::cancel_interval(const void *self) {
+  return this->cancel_item_(nullptr, NameType::SELF_POINTER, static_cast<const char *>(self), 0,
+                            SchedulerItem::INTERVAL);
 }
 
 // Suppress deprecation warnings for RetryResult usage in the still-present (but deprecated) retry implementation.
@@ -414,8 +433,27 @@ bool HOT Scheduler::cancel_retry(Component *component, uint32_t id) {
 
 optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // IMPORTANT: This method should only be called from the main thread (loop task).
-  // It performs cleanup and accesses items_[0] without holding a lock, which is only
-  // safe when called from the main thread. Other threads must not call this method.
+  // Accesses items_[0] and the fast-path empty checks without holding a lock, which
+  // is only safe from the main thread. Other threads must not call this method.
+  //
+  // Note: cleanup_() is only invoked on the items_[0] path below. The early returns
+  // skip it because they don't read items_[0], and Scheduler::call() at the top of
+  // every loop iteration already performs its own cleanup before the next sleep-
+  // duration computation happens.
+
+#ifndef ESPHOME_THREAD_SINGLE
+  // defer() items live in a separate queue that is drained at the top of every
+  // loop tick via process_defer_queue_(). If any are pending, the next loop
+  // iteration has work to do right now -- don't let the caller sleep.
+  if (!this->defer_empty_())
+    return 0;
+#else
+  // On single-threaded builds, defer() routes through set_timeout(..., 0) which
+  // stages in to_add_. process_to_add() runs at the top of every scheduler.call(),
+  // so anything in to_add_ becomes runnable on the next iteration; don't sleep.
+  if (!this->to_add_empty_())
+    return 0;
+#endif
 
   // If no items, return empty optional
   if (!this->cleanup_())
@@ -452,7 +490,7 @@ void Scheduler::full_cleanup_removed_items_() {
   this->items_.erase(this->items_.begin() + write, this->items_.end());
   // Rebuild the heap structure since items are no longer in heap order
   std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
-  this->to_remove_clear_();
+  this->to_remove_clear_locked_();
 }
 
 #ifndef ESPHOME_THREAD_SINGLE
@@ -501,7 +539,7 @@ void HOT Scheduler::process_defer_queue_slow_path_(uint32_t &now) {
 
   this->lock_.lock();
   // Reset counter and snapshot queue end under lock
-  this->defer_count_clear_();
+  this->defer_count_clear_locked_();
   size_t defer_queue_end = this->defer_queue_.size();
   if (this->defer_queue_front_ >= defer_queue_end) {
     this->lock_.unlock();
@@ -551,7 +589,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
   if (now_64 - last_print > 2000) {
     last_print = now_64;
     std::vector<SchedulerItem *> old_items;
-    ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64, this->items_.size(), this->scheduler_item_pool_.size(),
+    ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64, this->items_.size(), this->scheduler_item_pool_size_,
              now_64);
     // Cleanup before debug output
     this->cleanup_();
@@ -621,7 +659,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       LockGuard guard{this->lock_};
       if (is_item_removed_locked_(item)) {
         this->recycle_item_main_loop_(this->pop_raw_locked_());
-        this->to_remove_decrement_();
+        this->to_remove_decrement_locked_();
         continue;
       }
     }
@@ -630,7 +668,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
     if (is_item_removed_(item)) {
       LockGuard guard{this->lock_};
       this->recycle_item_main_loop_(this->pop_raw_locked_());
-      this->to_remove_decrement_();
+      this->to_remove_decrement_locked_();
       continue;
     }
 #endif
@@ -658,7 +696,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
 
     if (this->is_item_removed_locked_(executed_item)) {
       // We were removed/cancelled in the function call, recycle and continue
-      this->to_remove_decrement_();
+      this->to_remove_decrement_locked_();
       this->recycle_item_main_loop_(executed_item);
       continue;
     }
@@ -721,7 +759,7 @@ void HOT Scheduler::process_to_add_slow_path_() {
     std::push_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   }
   this->to_add_.clear();
-  this->to_add_count_clear_();
+  this->to_add_count_clear_locked_();
 }
 bool HOT Scheduler::cleanup_slow_path_() {
   // We must hold the lock for the entire cleanup operation because:
@@ -737,7 +775,7 @@ bool HOT Scheduler::cleanup_slow_path_() {
     SchedulerItem *item = this->items_[0];
     if (!this->is_item_removed_locked_(item))
       break;
-    this->to_remove_decrement_();
+    this->to_remove_decrement_locked_();
     this->recycle_item_main_loop_(this->pop_raw_locked_());
   }
   return !this->items_.empty();
@@ -753,6 +791,8 @@ Scheduler::SchedulerItem *HOT Scheduler::pop_raw_locked_() {
 // Helper to execute a scheduler item
 uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
   App.set_current_component(item->component);
+  // Freshen so callbacks reading App.get_loop_component_start_time() see this item's dispatch time.
+  App.set_loop_component_start_time_(now);
   WarnIfComponentBlockingGuard guard{item->component, now};
   item->callback();
   uint32_t end = guard.finish();
@@ -825,7 +865,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
     size_t heap_cancelled = this->mark_matching_items_removed_locked_(this->items_, component, name_type, static_name,
                                                                       hash_or_id, type, match_retry, find_first);
     total_cancelled += heap_cancelled;
-    this->to_remove_add_(heap_cancelled);
+    this->to_remove_add_locked_(heap_cancelled);
     if (find_first && total_cancelled > 0)
       return true;
   }
@@ -844,30 +884,68 @@ bool HOT Scheduler::SchedulerItem::cmp(SchedulerItem *a, SchedulerItem *b) {
                                                               : (a->next_execution_high_ > b->next_execution_high_);
 }
 
-// Recycle a SchedulerItem back to the pool for reuse.
-// IMPORTANT: Caller must hold the scheduler lock before calling this function.
-// This protects scheduler_item_pool_ from concurrent access by other threads
-// that may be acquiring items from the pool in set_timer_common_().
+// Recycle a SchedulerItem back to the freelist for reuse.
+// IMPORTANT: Caller must hold the scheduler lock.
 void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
   if (item == nullptr)
     return;
 
-  if (this->scheduler_item_pool_.size() < MAX_POOL_SIZE) {
-    // Clear callback to release captured resources
-    item->callback = nullptr;
-    this->scheduler_item_pool_.push_back(item);
+  item->callback = nullptr;  // release captured resources
+  item->next_free = this->scheduler_item_pool_head_;
+  this->scheduler_item_pool_head_ = item;
+  this->scheduler_item_pool_size_++;
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_.size());
+  ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_size_);
 #endif
-  } else {
-#ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Pool full (size: %zu), deleting item", this->scheduler_item_pool_.size());
-#endif
+}
+
+// Shrink a SchedulerItem* vector's capacity to its current size.
+// std::vector::shrink_to_fit() is non-binding and our toolchain ignores it; the classic
+// swap-with-copy idiom (std::vector<T>(other).swap(other)) instantiates the iterator-range
+// constructor which pulls in std::__throw_bad_array_new_length and ~120 B of related
+// stdlib RTTI/typeinfo. Build into a temp via reserve + push_back instead, then move-assign:
+// reserve uses operator new (throws bad_alloc, already linked) and push_back without growth
+// is the noexcept tail path. Move-assign just swaps pointers.
+// Out-of-line + noinline so the callers in trim_freelist() share one body.
+void __attribute__((noinline)) Scheduler::shrink_scheduler_vector_(std::vector<SchedulerItem *> *v) {
+  if (v->capacity() == v->size())
+    return;  // already exact, common after a quiet period
+  std::vector<SchedulerItem *> tmp;
+  tmp.reserve(v->size());
+  for (SchedulerItem *p : *v)
+    tmp.push_back(p);
+  *v = std::move(tmp);
+}
+
+void Scheduler::trim_freelist() {
+  LockGuard guard{this->lock_};
+  SchedulerItem *item = this->scheduler_item_pool_head_;
+  size_t freed = 0;
+  while (item != nullptr) {
+    SchedulerItem *next = item->next_free;
     delete item;
 #ifdef ESPHOME_DEBUG_SCHEDULER
     this->debug_live_items_--;
 #endif
+    item = next;
+    freed++;
   }
+  this->scheduler_item_pool_head_ = nullptr;
+  this->scheduler_item_pool_size_ = 0;
+
+  // items_/to_add_/defer_queue_ retain their boot-peak vector capacity (vector grows
+  // by doubling and otherwise keeps the peak). Reclaim that slack as well.
+  shrink_scheduler_vector_(&this->items_);
+  shrink_scheduler_vector_(&this->to_add_);
+#ifndef ESPHOME_THREAD_SINGLE
+  shrink_scheduler_vector_(&this->defer_queue_);
+#endif
+
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  ESP_LOGD(TAG, "Freelist trimmed (%zu items freed)", freed);
+#else
+  (void) freed;
+#endif
 }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
@@ -892,14 +970,15 @@ void Scheduler::debug_log_timer_(const SchedulerItem *item, NameType name_type, 
 }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
-// Helper to get or create a scheduler item from the pool
-// IMPORTANT: Caller must hold the scheduler lock before calling this function.
+// Pop from freelist or allocate. IMPORTANT: caller must hold the lock and must overwrite
+// `item->component` before releasing it -- the popped slot still holds the freelist link.
 Scheduler::SchedulerItem *Scheduler::get_item_from_pool_locked_() {
-  if (!this->scheduler_item_pool_.empty()) {
-    SchedulerItem *item = this->scheduler_item_pool_.back();
-    this->scheduler_item_pool_.pop_back();
+  if (this->scheduler_item_pool_head_ != nullptr) {
+    SchedulerItem *item = this->scheduler_item_pool_head_;
+    this->scheduler_item_pool_head_ = item->next_free;
+    this->scheduler_item_pool_size_--;
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_.size());
+    ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_size_);
 #endif
     return item;
   }
@@ -917,7 +996,7 @@ Scheduler::SchedulerItem *Scheduler::get_item_from_pool_locked_() {
 bool Scheduler::debug_verify_no_leak_() const {
   // Invariant: every live SchedulerItem must be in exactly one container.
   // debug_live_items_ tracks allocations minus deletions.
-  size_t accounted = this->items_.size() + this->to_add_.size() + this->scheduler_item_pool_.size();
+  size_t accounted = this->items_.size() + this->to_add_.size() + this->scheduler_item_pool_size_;
 #ifndef ESPHOME_THREAD_SINGLE
   accounted += this->defer_queue_.size();
 #endif
@@ -931,7 +1010,7 @@ bool Scheduler::debug_verify_no_leak_() const {
              ")",
              static_cast<uint32_t>(this->debug_live_items_), static_cast<uint32_t>(accounted),
              static_cast<uint32_t>(this->items_.size()), static_cast<uint32_t>(this->to_add_.size()),
-             static_cast<uint32_t>(this->scheduler_item_pool_.size())
+             static_cast<uint32_t>(this->scheduler_item_pool_size_)
 #ifndef ESPHOME_THREAD_SINGLE
                  ,
              static_cast<uint32_t>(this->defer_queue_.size())
