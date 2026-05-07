@@ -1774,11 +1774,24 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     old_name = yaml[CONF_ESPHOME][CONF_NAME]
     match = re.match(r"^\$\{?([a-zA-Z0-9_]+)\}?$", old_name)
     if match is None:
-        new_raw = re.sub(
-            rf"name:\s+[\"']?{old_name}[\"']?",
-            f'name: "{new_name}"',
-            raw_contents,
-        )
+        # Only swap the ``name:`` line that sits directly under the
+        # top-level ``esphome:`` block. A naked ``re.sub`` would
+        # also clobber any other ``name:`` line whose value happens
+        # to match (e.g. a sensor / output / wifi entry sharing the
+        # device's hostname), silently rewriting unrelated user
+        # configuration.
+        name_pattern = re.compile(rf"(\s*name:\s+)[\"']?{re.escape(old_name)}[\"']?")
+        out_lines: list[str] = []
+        in_esphome_block = False
+        for line in raw_contents.splitlines(keepends=True):
+            if line and not line[0].isspace() and line.strip():
+                in_esphome_block = line.lstrip().startswith("esphome:")
+                out_lines.append(line)
+                continue
+            if in_esphome_block:
+                line = name_pattern.sub(rf'\1"{new_name}"', line, count=1)
+            out_lines.append(line)
+        new_raw = "".join(out_lines)
     else:
         old_name = yaml[CONF_SUBSTITUTIONS][match.group(1)]
         if (
@@ -1802,6 +1815,23 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
         )
 
     new_path: Path = CORE.config_dir / (new_name + ".yaml")
+    if new_path.resolve() == CORE.config_path.resolve():
+        print(
+            color(
+                AnsiFore.BOLD_RED,
+                f"'{new_name}' is already the device's name.",
+            )
+        )
+        return 1
+    if new_path.exists():
+        print(
+            color(
+                AnsiFore.BOLD_RED,
+                f"Cannot rename: {new_path} already exists. "
+                "Refusing to overwrite an existing configuration.",
+            )
+        )
+        return 1
     print(
         f"Updating {color(AnsiFore.CYAN, str(CORE.config_path))} to {color(AnsiFore.CYAN, str(new_path))}"
     )
