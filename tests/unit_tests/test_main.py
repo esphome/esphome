@@ -3663,6 +3663,47 @@ esp32:
     assert "already" in captured.out.lower()
 
 
+def test_command_rename_target_path_equals_source_refuses(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename refuses when the new path resolves to the source file.
+
+    Reachable only when the YAML's filename and ``esphome.name``
+    disagree — here ``kitchen.yaml`` holds ``esphome.name: garage``
+    and the user runs ``esphome rename kitchen.yaml kitchen``. The
+    name-equality check above passes (``garage != kitchen``), but
+    ``<config_dir>/kitchen.yaml`` resolves to the source file
+    itself, so the rewrite would clobber the source mid-rename.
+    Refuse rather than silently overwriting.
+    """
+    config_file = tmp_path / "kitchen.yaml"
+    config_file.write_text("""
+esphome:
+  name: garage
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "garage"}}
+
+    args = MockArgs(name="kitchen", dashboard=False)
+
+    result = command_rename(args, {})
+
+    assert result == 1
+    mock_run_external_process.assert_not_called()
+    # Source file still present and unmodified.
+    assert config_file.exists()
+    assert "name: garage" in config_file.read_text()
+
+    captured = capfd.readouterr()
+    assert "already" in captured.out.lower()
+
+
 def test_command_rename_does_not_touch_lookalike_name_in_other_blocks(
     tmp_path: Path,
     mock_run_external_process: Mock,
