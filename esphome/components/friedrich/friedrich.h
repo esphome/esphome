@@ -18,13 +18,17 @@ enum Model {
 const uint8_t TEMP_MIN = 60;  // F, actually 64 For anything but Heating
 const uint8_t TEMP_MAX = 88;  // F
 
+const uint8_t STATE_MESSAGE_LENGTH = 14;
+
 class FriedrichClimate : public climate_ir::ClimateIR {
  public:
   FriedrichClimate()
       : ClimateIR(roundf(fahrenheit_to_celsius(TEMP_MIN)), roundf(fahrenheit_to_celsius(TEMP_MAX)), 1.0f, true, true,
                   {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_HIGH, climate::CLIMATE_FAN_MEDIUM,
                    climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_QUIET},
-                  {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
+                  {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {
+    this->remote_state_.resize(STATE_MESSAGE_LENGTH);
+  }
 
   /// Set use of Fahrenheit units
   void set_fahrenheit(bool value) {
@@ -51,6 +55,8 @@ class FriedrichClimate : public climate_ir::ClimateIR {
 
   /// Calculate checksum for a util message
   uint8_t checksum_util_(std::vector<uint8_t> *message);
+
+  std::vector<uint8_t> remote_state_;
 
   // true if currently on - friedrich transmit an on flag on when the remote moves from off to on
   bool power_{false};

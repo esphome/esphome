@@ -24,7 +24,6 @@ namespace friedrich {
 // clang-format on
 static const char *const TAG = "friedrich";
 
-const uint8_t STATE_MESSAGE_LENGTH = 14;
 const uint8_t STATE_MESSAGE_LENGTH_UTIL = 5;
 const uint16_t CARRIER_ADDRESS = 0x28C6;
 const uint32_t CARRIER_FREQUENCY = 38000;
@@ -80,17 +79,14 @@ void FriedrichClimate::transmit_state() {
 
   ESP_LOGV(TAG, "Transmit state");
 
-  std::vector<uint8_t> remote_state = {};
-  for (uint8_t i = 0; i < STATE_MESSAGE_LENGTH; ++i) {
-    remote_state.push_back(0);
-  }
+  std::fill(this->remote_state_.begin(), this->remote_state_.end(), 0);
 
-  remote_state[0] = BYTE0_FIXED;
-  remote_state[1] = BYTE1_FIXED;
-  remote_state[2] = BYTE2_FIXED;
-  remote_state[3] = BYTE3_FIXED;
-  remote_state[4] = BYTE4_FIXED;
-  remote_state[5] = BYTE5_FIXED;
+  this->remote_state_[0] = BYTE0_FIXED;
+  this->remote_state_[1] = BYTE1_FIXED;
+  this->remote_state_[2] = BYTE2_FIXED;
+  this->remote_state_[3] = BYTE3_FIXED;
+  this->remote_state_[4] = BYTE4_FIXED;
+  this->remote_state_[5] = BYTE5_FIXED;
 
   if (this->fahrenheit_) {
     // Set Temp (F, step to even)
@@ -101,49 +97,49 @@ void FriedrichClimate::transmit_state() {
     }
     switch (temperature_clamped) {
       case 88:
-        remote_state[6] = BYTE6_TEMP_88;
+        this->remote_state_[6] = BYTE6_TEMP_88;
         break;
       case 86:
-        remote_state[6] = BYTE6_TEMP_86;
+        this->remote_state_[6] = BYTE6_TEMP_86;
         break;
       case 84:
-        remote_state[6] = BYTE6_TEMP_84;
+        this->remote_state_[6] = BYTE6_TEMP_84;
         break;
       case 82:
-        remote_state[6] = BYTE6_TEMP_82;
+        this->remote_state_[6] = BYTE6_TEMP_82;
         break;
       case 80:
-        remote_state[6] = BYTE6_TEMP_80;
+        this->remote_state_[6] = BYTE6_TEMP_80;
         break;
       case 78:
-        remote_state[6] = BYTE6_TEMP_78;
+        this->remote_state_[6] = BYTE6_TEMP_78;
         break;
       case 76:
-        remote_state[6] = BYTE6_TEMP_76;
+        this->remote_state_[6] = BYTE6_TEMP_76;
         break;
       case 74:
-        remote_state[6] = BYTE6_TEMP_74;
+        this->remote_state_[6] = BYTE6_TEMP_74;
         break;
       case 72:
-        remote_state[6] = BYTE6_TEMP_72;
+        this->remote_state_[6] = BYTE6_TEMP_72;
         break;
       case 70:
-        remote_state[6] = BYTE6_TEMP_70;
+        this->remote_state_[6] = BYTE6_TEMP_70;
         break;
       case 68:
-        remote_state[6] = BYTE6_TEMP_68;
+        this->remote_state_[6] = BYTE6_TEMP_68;
         break;
       case 66:
-        remote_state[6] = BYTE6_TEMP_66;
+        this->remote_state_[6] = BYTE6_TEMP_66;
         break;
       case 64:
-        remote_state[6] = BYTE6_TEMP_64;
+        this->remote_state_[6] = BYTE6_TEMP_64;
         break;
       case 62:
         if (this->mode == climate::CLIMATE_MODE_HEAT) {
-          remote_state[6] = BYTE6_TEMP_62;
+          this->remote_state_[6] = BYTE6_TEMP_62;
         } else {
-          remote_state[6] = BYTE6_TEMP_64;
+          this->remote_state_[6] = BYTE6_TEMP_64;
           this->target_temperature = fahrenheit_to_celsius(64);
           this->publish_state();
         }
@@ -151,11 +147,11 @@ void FriedrichClimate::transmit_state() {
       case 60:
       default:
         if (this->mode == climate::CLIMATE_MODE_HEAT) {
-          remote_state[6] = BYTE6_TEMP_60;
+          this->remote_state_[6] = BYTE6_TEMP_60;
           this->target_temperature = fahrenheit_to_celsius(60);
           this->publish_state();
         } else {
-          remote_state[6] = BYTE6_TEMP_64;
+          this->remote_state_[6] = BYTE6_TEMP_64;
           this->target_temperature = fahrenheit_to_celsius(64);
           this->publish_state();
         }
@@ -166,25 +162,25 @@ void FriedrichClimate::transmit_state() {
   }
 
   // Set power on
-  remote_state[6] = remote_state[6] + BYTE6_POWER_ON;
+  this->remote_state_[6] = this->remote_state_[6] + BYTE6_POWER_ON;
 
   // Set mode
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
-      remote_state[7] = BYTE7_MODE_COOL;
+      this->remote_state_[7] = BYTE7_MODE_COOL;
       break;
     case climate::CLIMATE_MODE_HEAT:
-      remote_state[7] = BYTE7_MODE_HEAT;
+      this->remote_state_[7] = BYTE7_MODE_HEAT;
       break;
     case climate::CLIMATE_MODE_DRY:
-      remote_state[7] = BYTE7_MODE_DRY;
+      this->remote_state_[7] = BYTE7_MODE_DRY;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      remote_state[7] = BYTE7_MODE_FAN;
+      this->remote_state_[7] = BYTE7_MODE_FAN;
       break;
     case climate::CLIMATE_MODE_HEAT_COOL:
     default:
-      remote_state[7] = BYTE7_MODE_AUTO;
+      this->remote_state_[7] = BYTE7_MODE_AUTO;
       break;
   }
 
@@ -192,24 +188,24 @@ void FriedrichClimate::transmit_state() {
   if (fan_mode.has_value()) {
     switch (this->fan_mode.value()) {
       case climate::CLIMATE_FAN_HIGH:
-        remote_state[8] = BYTE8_FAN_HIGH;
+        this->remote_state_[8] = BYTE8_FAN_HIGH;
         break;
       case climate::CLIMATE_FAN_MEDIUM:
-        remote_state[8] = BYTE8_FAN_MED;
+        this->remote_state_[8] = BYTE8_FAN_MED;
         break;
       case climate::CLIMATE_FAN_LOW:
-        remote_state[8] = BYTE8_FAN_LOW;
+        this->remote_state_[8] = BYTE8_FAN_LOW;
         break;
       case climate::CLIMATE_FAN_QUIET:
-        remote_state[8] = BYTE8_FAN_QUIET;
+        this->remote_state_[8] = BYTE8_FAN_QUIET;
         break;
       case climate::CLIMATE_FAN_AUTO:
       default:
-        remote_state[8] = BYTE8_FAN_AUTO;
+        this->remote_state_[8] = BYTE8_FAN_AUTO;
         break;
     }
   } else {
-    remote_state[8] = BYTE8_FAN_AUTO;
+    this->remote_state_[8] = BYTE8_FAN_AUTO;
   }
 
   // Set swing
@@ -217,21 +213,21 @@ void FriedrichClimate::transmit_state() {
     case climate::CLIMATE_SWING_VERTICAL:
     case climate::CLIMATE_SWING_HORIZONTAL:
     case climate::CLIMATE_SWING_BOTH:
-      remote_state[8] = remote_state[8] + BYTE8_FAN_SWING;
+      this->remote_state_[8] = this->remote_state_[8] + BYTE8_FAN_SWING;
       break;
     case climate::CLIMATE_SWING_OFF:
     default:
       break;
   }
 
-  remote_state[9] = BYTE9_FIXED;
-  remote_state[10] = BYTE10_FIXED;
-  remote_state[11] = BYTE11_FIXED;
-  remote_state[12] = BYTE12_ECO_OFF;  // investigate
+  this->remote_state_[9] = BYTE9_FIXED;
+  this->remote_state_[10] = BYTE10_FIXED;
+  this->remote_state_[11] = BYTE11_FIXED;
+  this->remote_state_[12] = BYTE12_ECO_OFF;  // investigate
 
-  remote_state[STATE_MESSAGE_LENGTH - 1] = this->checksum_state_(&remote_state);
+  this->remote_state_[STATE_MESSAGE_LENGTH - 1] = this->checksum_state_(&this->remote_state_);
 
-  this->transmit_(&remote_state);
+  this->transmit_(&this->remote_state_);
 
   this->power_ = true;
 }
@@ -240,17 +236,14 @@ void FriedrichClimate::transmit_off_() {
   ESP_LOGV(TAG, "Transmit off");
 
   if (this->power_) {
-    std::vector<uint8_t> remote_state = {};
-    for (uint8_t i = 0; i < STATE_MESSAGE_LENGTH_UTIL; ++i) {
-      remote_state.push_back(0);
-    }
-    remote_state[0] = BYTE0_FIXED;
-    remote_state[1] = BYTE1_FIXED;
-    remote_state[2] = BYTE2_FIXED;
-    remote_state[3] = BYTE3_POWER_OFF;
-    remote_state[4] = this->checksum_util_(&remote_state);
+    std::fill(this->remote_state_.begin(), this->remote_state_.end(), 0);
+    this->remote_state_[0] = BYTE0_FIXED;
+    this->remote_state_[1] = BYTE1_FIXED;
+    this->remote_state_[2] = BYTE2_FIXED;
+    this->remote_state_[3] = BYTE3_POWER_OFF;
+    this->remote_state_[4] = this->checksum_util_(&this->remote_state_);
 
-    this->transmit_(&remote_state);
+    this->transmit_(&this->remote_state_);
     this->power_ = false;
   }
 }
