@@ -17,7 +17,7 @@ namespace esphome::rp2040 {}  // namespace esphome::rp2040
 namespace esphome {
 
 // yield(), delay(), micros(), millis(), millis_64(), delayMicroseconds(),
-// arch_feed_wdt(), arch_get_cpu_cycle_count() inlined in core/hal/hal_rp2040.h.
+// arch_feed_wdt(), arch_get_cpu_cycle_count() inlined in components/rp2040/hal.h.
 void arch_restart() {
   watchdog_reboot(0, 0, 10);
   while (1) {
