@@ -51,7 +51,6 @@ bool HOT EPaperEpd7In3G::transfer_data() {
       App.feed_wdt();
       return false;
     }
-    delay(200);  // NOLINT
     this->xfer_phase_ = 2;
     return false;
   }
