@@ -1065,7 +1065,40 @@ def convert_keys(converted, schema, path):
             else:
                 converted["key_type"] = str(k)
 
-        if hasattr(k, "default") and str(k.default) != "...":
+        # ``cv.OnlyWith`` / ``cv.OnlyWithout`` expose ``default`` as
+        # a property that returns ``vol.UNDEFINED`` when the gating
+        # component isn't loaded — and at schema-generation time
+        # ``CORE.loaded_integrations`` is always empty, so the
+        # property never resolves. The unconditional default lives
+        # on ``_default``; expose it under a *new* per-class field
+        # (``default_with`` for ``OnlyWith``, ``default_without`` for
+        # ``OnlyWithout``) that bundles the value with the gating
+        # component(s). Pure addition to the bundle — old consumers
+        # that read only ``default`` see these fields as
+        # default-less (same as today, no regression where they used
+        # to fall back to a hard-coded UI default); new consumers
+        # opt-in to the gated fields and apply the default
+        # *conditionally* on which integrations the user has
+        # loaded. Without the gate info, an ethernet-only config on
+        # ``cv.OnlyWith(K, "wifi", default=True)`` would otherwise
+        # render ``True`` even though ESPHome itself wouldn't apply
+        # the default for that config.
+        if isinstance(k, (cv.OnlyWith, cv.OnlyWithout)):
+            default_value = k._default()
+            if default_value is not None:
+                components = (
+                    list(k._component)
+                    if isinstance(k._component, list)
+                    else [k._component]
+                )
+                gate_field = (
+                    "default_with" if isinstance(k, cv.OnlyWith) else "default_without"
+                )
+                result[gate_field] = {
+                    "value": str(default_value),
+                    "components": components,
+                }
+        elif hasattr(k, "default") and str(k.default) != "...":
             default_value = k.default()
             if default_value is not None:
                 result["default"] = str(default_value)

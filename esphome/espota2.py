@@ -139,9 +139,9 @@ _ERROR_MESSAGES: dict[int, str] = {
     ),
     RESPONSE_ERROR_PARTITION_TABLE_UPDATE: (
         "An error occurred while updating the partition table. The device is now "
-        "in a degraded state (NVS handles are invalid; many components will fail) "
-        "and may not be able to boot. Check the logs, reboot the device, and "
-        "retry the update. If the device fails to boot, recover it via a serial flash."
+        "in a degraded state and may not be able to boot. Open the logs and retry "
+        "the partition table update without rebooting the device. If the device "
+        "fails to boot, recover it via a serial flash."
     ),
     RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
 }
