@@ -200,6 +200,9 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
     // Preload DMA buffers with SPDIF-encoded silence before enabling the channel.
     // This ensures the first data transmitted is valid SPDIF (not raw zeros from
     // auto_clear) and prevents phantom DMA events before real audio is available.
+    // Track how many buffers were preloaded so the DMA event loop can skip
+    // frame accounting until the preloaded silence has fully drained.
+    uint32_t preload_buffers_remaining = 0;
     this->spdif_encoder_->set_preload_mode(true);
     for (size_t i = 0; i < SPDIF_DMA_BUFFERS_COUNT; i++) {
       uint32_t preload_blocks = 0;
@@ -209,6 +212,7 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
       if (preload_err != ESP_OK || preload_blocks == 0) {
         break;  // DMA buffers full or error
       }
+      preload_buffers_remaining += preload_blocks;
     }
     this->spdif_encoder_->set_preload_mode(false);
     this->spdif_encoder_->reset();  // Clean encoder state for the main loop
@@ -276,6 +280,15 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
       int64_t write_timestamp;
       while (xQueueReceive(this->i2s_event_queue_, &write_timestamp, 0)) {
         spdif_last_dma_event_time = millis();
+
+        // Skip frame accounting for preloaded silence buffers still draining.
+        // These DMA events correspond to silence that was preloaded before the
+        // channel was enabled, not real audio written by the task.
+        if (preload_buffers_remaining > 0) {
+          preload_buffers_remaining--;
+          continue;
+        }
+
         // Receives timing events from the I2S on_sent callback. If actual audio data was sent in this event, it passes
         // on the timing info via the audio_output_callback.
         uint32_t frames_sent = frames_to_fill_single_dma_buffer;
@@ -439,6 +452,8 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
 
               if (preload_err == ESP_OK && preload_blocks > 0) {
                 tx_dma_underflow = false;
+                preload_buffers_remaining = preload_blocks;
+                frames_written = 0;  // Stale after channel disable/enable cycle
                 ESP_LOGV(TAG, "DMA re-prime successful (%" PRIu32 " preload blocks)", preload_blocks);
                 spdif_last_block_progress_time = now_ms;
               } else {
