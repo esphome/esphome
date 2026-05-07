@@ -414,25 +414,39 @@ def _substitute_package_definition(
 def _update_substitutions_context(
     parent_context: UserDict,
     package_substitutions: dict[str, Any],
+    eval_context: ContextVars | None = None,
 ) -> None:
     """Resolve and add new substitutions to the parent context.
 
     Skips keys already present (higher-priority sources win).
-    String values are substituted against the current context so that
-    cross-references between substitutions are expanded when possible.
+    String values are substituted against *eval_context* (or *parent_context*
+    if not provided) so that cross-references between substitutions are
+    expanded when possible. Resolved values are written into *parent_context*
+    and back into *package_substitutions* so that subsequent merges into the
+    consolidated ``substitutions:`` block carry the resolved value (the
+    package's ``!include vars`` are no longer in scope after this function
+    returns).
+
+    *eval_context* may layer additional vars (e.g. a package's own ``!include
+    vars``) on top of *parent_context* so that a package's substitutions can
+    reference vars passed in by the parent file.
     """
+    if eval_context is None:
+        eval_context = ContextVars(parent_context)
     for key, value in package_substitutions.items():
         if key in parent_context:
             continue
         if not isinstance(value, str):
             parent_context[key] = value
             continue
-        parent_context[key] = substitute(
+        resolved = substitute(
             item=value,
             path=[CONF_SUBSTITUTIONS, key],
-            parent_context=ContextVars(parent_context),
+            parent_context=eval_context,
             strict_undefined=False,
         )
+        parent_context[key] = resolved
+        package_substitutions[key] = resolved
 
 
 class _PackageProcessor:
@@ -508,11 +522,36 @@ class _PackageProcessor:
             package_config = _process_remote_package(package_config)
         return package_config
 
-    def collect_substitutions(self, package_config: dict) -> None:
-        """Extract substitutions from a package and merge into the shared context."""
+    def collect_substitutions(
+        self,
+        package_config: dict,
+        context_vars: ContextVars | None,
+    ) -> ContextVars:
+        """Extract substitutions from a package and merge into the shared context.
+
+        Returns the context updated with the package's ``!include vars`` (or
+        an equivalent of *context_vars* if the package has none) so the caller
+        can reuse it when recursing into nested packages. ``None`` inputs are
+        normalized to an empty :class:`ContextVars`, so the result is always
+        non-``None``.
+        """
+        # Push the package's own !include vars before evaluating its
+        # substitutions so they can reference vars passed in by the parent
+        # (e.g. ``vars: {my_variable: ...}`` on the include entry).
+        package_context = push_context(
+            package_config, context_vars if context_vars is not None else ContextVars()
+        )
         if subs := package_config.pop(CONF_SUBSTITUTIONS, {}):
+            # Resolve before merging so that values referencing the package's
+            # ``!include vars`` are baked into the consolidated substitutions
+            # block; once we return, the package vars are no longer in scope.
+            # ``package_context`` is a ChainMap whose chain already terminates
+            # in ``self.parent_context`` (set up by ``do_packages_pass``), so
+            # ``parent_context`` mutations from ``_update_substitutions_context``
+            # remain visible to evaluation reads.
+            _update_substitutions_context(self.parent_context, subs, package_context)
             self.substitutions.data = merge_config(subs, self.substitutions.data)
-            _update_substitutions_context(self.parent_context, subs)
+        return package_context
 
     def process_package(
         self,
@@ -525,13 +564,13 @@ class _PackageProcessor:
             package_config
         )
         package_config = self.resolve_package(package_config, context_vars, path)
-        self.collect_substitutions(package_config)
+        context_vars = self.collect_substitutions(package_config, context_vars)
 
         if CONF_PACKAGES not in package_config:
             return package_config
 
-        # Push context from !include vars on the package root and on the packages key
-        context_vars = push_context(package_config, context_vars)
+        # Push context from !include vars on the packages key (the package root
+        # was already pushed in collect_substitutions above).
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
         # Disable the deprecated single-package fallback for remote
         # packages.  _process_remote_package returns dicts with
