@@ -20,8 +20,7 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
 #ifdef USE_OTA_PARTITIONS
   this->ota_type_ = ota_type;
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
-    // Reject any size other than ESP_PARTITION_TABLE_MAX_LEN: under- leaves stale bytes from the
-    // previous table; over- can't fit the reserved region.
+    // Reject any size other than ESP_PARTITION_TABLE_MAX_LEN
     if (image_size != ESP_PARTITION_TABLE_MAX_LEN) {
       ESP_LOGE(TAG, "Wrong partition table size: expected %u bytes, got %zu", ESP_PARTITION_TABLE_MAX_LEN, image_size);
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
