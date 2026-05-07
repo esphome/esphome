@@ -189,8 +189,9 @@ bool validate_macho_(const char *staging_path, const std::string &exe_path) {
     ESP_LOGE(TAG, "Could not parse running exe Mach-O header");
     return false;
   }
-  if (new_id.cputype != cur_id.cputype) {
-    ESP_LOGE(TAG, "Mach-O cputype mismatch (uploaded=0x%x, running=0x%x)", new_id.cputype, cur_id.cputype);
+  if (new_id.cputype != cur_id.cputype || new_id.cpusubtype != cur_id.cpusubtype) {
+    ESP_LOGE(TAG, "Mach-O arch mismatch (uploaded=0x%x/0x%x, running=0x%x/0x%x)", new_id.cputype, new_id.cpusubtype,
+             cur_id.cputype, cur_id.cpusubtype);
     return false;
   }
   return true;
@@ -217,8 +218,11 @@ std::unique_ptr<HostOTABackend> make_ota_backend() { return make_unique<HostOTAB
 OTAResponseTypes HostOTABackend::begin(size_t image_size, OTAType ota_type) {
   if (ota_type != OTA_TYPE_UPDATE_APP)
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
-  if (image_size == 0 || image_size > MAX_OTA_SIZE) {
-    ESP_LOGE(TAG, "Refusing OTA of size %zu", image_size);
+  // image_size == 0 means "size unknown" -- web_server OTA passes 0 for
+  // multipart uploads. Accept up to MAX_OTA_SIZE in that case and verify
+  // only what was actually written in end().
+  if (image_size > MAX_OTA_SIZE) {
+    ESP_LOGE(TAG, "Refusing OTA of size %zu (exceeds %zu)", image_size, MAX_OTA_SIZE);
     return OTA_RESPONSE_ERROR_UPDATE_PREPARE;
   }
 
@@ -256,8 +260,11 @@ void HostOTABackend::set_update_md5(const char *md5) {
 OTAResponseTypes HostOTABackend::write(uint8_t *data, size_t len) {
   if (this->fd_ < 0)
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
-  if (this->bytes_written_ + len > this->expected_size_) {
-    ESP_LOGE(TAG, "Write past expected size");
+  // expected_size_ == 0 means caller didn't know the size at begin() (e.g.
+  // web_server multipart). Cap at MAX_OTA_SIZE in that case.
+  size_t limit = this->expected_size_ != 0 ? this->expected_size_ : MAX_OTA_SIZE;
+  if (this->bytes_written_ + len > limit) {
+    ESP_LOGE(TAG, "Write past size limit (%zu)", limit);
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
   }
 
@@ -283,7 +290,12 @@ OTAResponseTypes HostOTABackend::end() {
   if (this->fd_ < 0)
     return OTA_RESPONSE_ERROR_UPDATE_END;
 
-  if (this->bytes_written_ != this->expected_size_) {
+  if (this->bytes_written_ == 0) {
+    ESP_LOGE(TAG, "OTA ended with no data written");
+    this->abort();
+    return OTA_RESPONSE_ERROR_UPDATE_END;
+  }
+  if (this->expected_size_ != 0 && this->bytes_written_ != this->expected_size_) {
     ESP_LOGE(TAG, "Size mismatch: got %zu, expected %zu", this->bytes_written_, this->expected_size_);
     this->abort();
     return OTA_RESPONSE_ERROR_UPDATE_END;
