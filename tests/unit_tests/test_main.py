@@ -3688,7 +3688,7 @@ esphome:
   name: ${device_name}
 
 # A copy-pasted block that re-declares the substitution at the
-# same indent level — happens when users splice in a packaged
+# same indent level - happens when users splice in a packaged
 # fragment without renaming the variable.
 example:
   device_name: oldname
