@@ -10,7 +10,9 @@ namespace esphome::ota {
 
 std::unique_ptr<HostOTABackend> make_ota_backend() { return make_unique<HostOTABackend>(); }
 
-OTAResponseTypes HostOTABackend::begin(size_t image_size) { return OTA_RESPONSE_ERROR_UPDATE_PREPARE; }
+OTAResponseTypes HostOTABackend::begin(size_t image_size, OTAType ota_type) {
+  return OTA_RESPONSE_ERROR_UPDATE_PREPARE;
+}
 
 void HostOTABackend::set_update_md5(const char *expected_md5) {}
 
