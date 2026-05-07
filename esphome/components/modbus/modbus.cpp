@@ -212,7 +212,7 @@ bool Modbus::parse_modbus_server_frame_() {
   }
 
   // Process before clearing: process_modbus_server_frame (receiving a response or peer message) never sends a reply
-  // synchronously We can safely point directly into rx_buffer_ and avoid a copy.
+  // synchronously. We can safely point directly into rx_buffer_ and avoid a copy.
   uint8_t data_offset = helpers::server_frame_data_offset(this->rx_buffer_.data(), this->rx_buffer_.size());
   const uint8_t *data = this->rx_buffer_.data() + data_offset;
   uint16_t data_len = frame_length - 2 - data_offset;
@@ -529,8 +529,8 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
     return;
   }
 
-  // In the rare case that the server is blocked (turnaround delay is greater than the MODBUS_TX_MAX_DELAY_MS), we delay
-  // the send. This should only happen at low baud rates with long turnaround times.
+  // In the rare case that the server is blocked (frame delay has not elapsed), we delay the send.
+  // This should only happen at low baud rates with long frame delays.
   if (this->tx_blocked()) {
     auto frame = std::make_shared<ModbusFrame>(payload[0], payload + 1, len - 1);
     this->set_timeout(this->tx_delay_remaining(), [this, frame]() { this->send_frame_(*frame); });
