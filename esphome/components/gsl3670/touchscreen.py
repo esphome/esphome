@@ -3,8 +3,24 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, touchscreen
+from esphome.components.touchscreen import (
+    CONF_X_MAX,
+    CONF_X_MIN,
+    CONF_Y_MAX,
+    CONF_Y_MIN,
+    option_with_default,
+    touchscreen_schema,
+)
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_RESET_PIN
+from esphome.const import (
+    CONF_ID,
+    CONF_INTERRUPT_PIN,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_MODEL,
+    CONF_RESET_PIN,
+    CONF_SWAP_XY,
+)
 from esphome.core import ID
 
 DEPENDENCIES = ["i2c"]
@@ -18,6 +34,20 @@ GSL3670Touchscreen = gsl3670_ns.class_(
 )
 GSL3670FwRecord = gsl3670_ns.struct("GSL3670FwRecord")
 
+MODELS = {
+    "SEEED-RETERMINAL-D1001": {
+        CONF_SWAP_XY: True,
+        CONF_MIRROR_X: True,
+        CONF_MIRROR_Y: True,
+        CONF_X_MIN: 20,
+        CONF_Y_MIN: 20,
+        CONF_X_MAX: 872,
+        CONF_Y_MAX: 1644,
+        CONF_RESET_PIN: {"xl9535": None, "number": 14},
+        CONF_INTERRUPT_PIN: 16,
+    },
+    "CUSTOM": {},
+}
 # ---------------------------------------------------------------------------
 # Firmware table – extracted verbatim from:
 #   Seeed-Studio/reTerminal-D1001/components/esp_lcd_touch_gsl3670/include/
@@ -4382,20 +4412,38 @@ _SEEED_FIRMWARE = [
     (0x7C, 0x343A3439),
 ]
 
+
 # ---------------------------------------------------------------------------
 # Config schema
 # ---------------------------------------------------------------------------
-CONFIG_SCHEMA = (
-    touchscreen.TOUCHSCREEN_SCHEMA.extend(
-        {
-            cv.GenerateID(): cv.declare_id(GSL3670Touchscreen),
-            cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
-            cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-        }
+def _config_schema(config):
+    model_option = {
+        cv.Optional(CONF_MODEL, default="CUSTOM"): cv.one_of(*MODELS, upper=True)
+    }
+    config = cv.Schema(model_option, extra=True)(config)
+    print(config)
+    defaults = MODELS[config[CONF_MODEL]]
+    print(defaults)
+    return (
+        touchscreen_schema(cv.UNDEFINED, False, defaults)
+        .extend(
+            {
+                cv.GenerateID(): cv.declare_id(GSL3670Touchscreen),
+                option_with_default(
+                    CONF_INTERRUPT_PIN, defaults
+                ): pins.internal_gpio_input_pin_schema,
+                option_with_default(
+                    CONF_RESET_PIN, defaults
+                ): pins.gpio_output_pin_schema,
+                **model_option,
+            }
+        )
+        .extend(i2c.i2c_device_schema(0x40))
+        .extend(cv.COMPONENT_SCHEMA)(config)
     )
-    .extend(i2c.i2c_device_schema(0x40))
-    .extend(cv.COMPONENT_SCHEMA)
-)
+
+
+CONFIG_SCHEMA = _config_schema
 
 
 # ---------------------------------------------------------------------------

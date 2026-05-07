@@ -24,8 +24,6 @@ void GSL3670Touchscreen::setup() {
     this->attach_interrupt_(interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
 
-  // Initialisation sequence from Seeed BSP esp_lcd_touch_gsl3670_init()
-
   if (this->x_raw_max_ == this->x_raw_min_) {
     this->x_raw_max_ = this->display_->get_native_width();
   }
@@ -44,7 +42,11 @@ void GSL3670Touchscreen::setup() {
 }
 
 void GSL3670Touchscreen::dump_config() {
-  ESP_LOGCONFIG(TAG, "GSL3670 Touchscreen:");
+  ESP_LOGCONFIG(TAG,
+                "GSL3670 Touchscreen:\n"
+                "  X-raw-max: %d\n"
+                "  Y-raw-max: %d\n",
+                this->x_raw_max_, this->y_raw_max_);
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Reset Pin:     ", reset_pin_);
   LOG_PIN("  Interrupt Pin: ", interrupt_pin_);
@@ -65,11 +67,12 @@ void GSL3670Touchscreen::update_touches() {
   // Build gsl_touch_info exactly as the Seeed driver does
   for (int j = 0; j != finger_num; j++) {
     // buf[(j+1)*4 + 0..3]:  byte0=y_lo, byte1=y_hi, byte2=x_lo, byte3=id|x_hi
-    auto x = (int) (((buf[(j + 1) * 4 + 3] & 0x0f) << 8) | buf[(j + 1) * 4 + 2]);
-    auto y = (int) ((buf[(j + 1) * 4 + 1] << 8) | buf[(j + 1) * 4 + 0]);
+    auto x = (uint16_t) (((buf[(j + 1) * 4 + 3] & 0x0f) << 8) | buf[(j + 1) * 4 + 2]);
+    auto y = (uint16_t) ((buf[(j + 1) * 4 + 1] << 8) | buf[(j + 1) * 4 + 0]);
     auto id = (buf[(j + 1) * 4 + 3] >> 4) & 0x0f;
     ESP_LOGV(TAG, "Touch id=%d, x=%d y=%d", id, x, y);
-    this->add_raw_touch_position_(id, x, y);
+    if (x <= 8192 && y <= 8192)
+      this->add_raw_touch_position_(id, x, y);
   }
 }
 
