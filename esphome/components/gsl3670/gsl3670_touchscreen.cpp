@@ -16,7 +16,6 @@ void GSL3670Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);
-    delay(20);
   }
 
   if (this->interrupt_pin_ != nullptr) {
@@ -86,9 +85,9 @@ void GSL3670Touchscreen::clear_reg_() {
   // GPIO reset pulse
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->digital_write(false);
-    delay(20);
+    delay(1);
     this->reset_pin_->digital_write(true);
-    delay(20);
+    delay(5);
   }
 
   this->write_reg8_(0x88, 0x01);
@@ -96,7 +95,7 @@ void GSL3670Touchscreen::clear_reg_() {
   this->write_reg8_(0xe4, 0x04);
   delay(5);
   this->write_reg8_(0xe0, 0x00);
-  delay(20);
+  delay(5);
 }
 
 // ---------------------------------------------------------------------------
@@ -108,60 +107,47 @@ void GSL3670Touchscreen::reset_() {
 
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->digital_write(false);
-    delay(20);
+    delay(1);
     this->reset_pin_->digital_write(true);
-    delay(20);
+    delay(5);
   }
 
   this->write_reg8_(0xe4, 0x04);
-  delay(10);
+  delay(2);
 
   uint8_t zeros[4] = {0, 0, 0, 0};
   this->write_reg_(0xbc, zeros, 4);
-  delay(10);
+  delay(2);
 }
 
-// ---------------------------------------------------------------------------
-// load_firmware_() – mirrors esp_lcd_touch_gsl3670_load_fw()
-//   Iterates the {offset, val} table:
-//   - offset == 0xf0 → write only the low byte to reg 0xf0 (page select)
-//   - otherwise      → write all 4 bytes (LE) to the register
-// ---------------------------------------------------------------------------
 void GSL3670Touchscreen::load_firmware_() {
   if (firmware_ == nullptr || firmware_len_ == 0) {
     ESP_LOGW(TAG, "No firmware supplied – skipping");
     return;
   }
 
-  ESP_LOGD(TAG, "Loading firmware (%zu records)...", firmware_len_);
+  ESP_LOGD(TAG, "Loading firmware (%zu blocks)...", firmware_len_);
 
-  for (size_t i = 0; i < firmware_len_; i++) {
-    uint8_t reg = firmware_[i].offset;
-    uint32_t val = firmware_[i].val;
+  static constexpr size_t FW_BLK_SIZE = 128 + 4;
 
-    if (reg == 0xf0) {
-      // Page select: write only 1 byte
-      write_reg8_(0xf0, (uint8_t) val);
-      ESP_LOGV(TAG, "Address 0x%02" PRIx32, val);
-    } else {
-      // Data write: 4 bytes little-endian
-      write_reg32_(reg, val);
-      if (reg == 0x7C)
-        ESP_LOGV(TAG, "Data 0x%04" PRIx32, val);
-    }
+  for (size_t i = 0; i != this->firmware_len_; i++) {
+    auto offset = i * FW_BLK_SIZE;
+    uint8_t val = this->firmware_[offset + 0];
+    ESP_LOGV(TAG, "Firmware address 0x%02X", val);
+    this->write_reg_(0xf0, &val, 1);
+    this->write_reg_(0, this->firmware_ + offset + 4, 128);
   }
-
   ESP_LOGD(TAG, "Firmware load complete");
 }
 
 // ---------------------------------------------------------------------------
 // startup_chip_() – mirrors esp_lcd_touch_gsl3670_startup_chip()
-//   write 0x00 to 0xe0 → call gsl_DataInit with the config blob
+//   write 0x00 to 0xe0
 // ---------------------------------------------------------------------------
 void GSL3670Touchscreen::startup_chip_() {
   ESP_LOGD(TAG, "startup_chip");
   write_reg8_(0xe0, 0x00);
-  delay(10);
+  delay(5);
 }
 
 // ---------------------------------------------------------------------------
