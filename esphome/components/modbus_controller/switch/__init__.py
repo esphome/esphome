@@ -41,6 +41,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_REGISTER_COUNT, default=1): cv.positive_int,
         }
     ),
     validate_modbus_register,
