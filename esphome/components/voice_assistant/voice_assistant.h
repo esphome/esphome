@@ -7,9 +7,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/ring_buffer.h"
 
 #include "esphome/components/api/api_connection.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/microphone/microphone_source.h"
 #ifdef USE_MEDIA_PLAYER
@@ -301,7 +301,7 @@ class VoiceAssistant : public Component {
 
   std::string wake_word_{""};
 
-  std::shared_ptr<RingBuffer> ring_buffer_;
+  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer_;
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;

@@ -31,7 +31,7 @@ VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
 
 void VoiceAssistant::setup() {
   this->mic_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_;
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_;
     if (this->ring_buffer_.use_count() > 1) {
       temp_ring_buffer->write((void *) data.data(), data.size());
     }
@@ -117,7 +117,7 @@ bool VoiceAssistant::allocate_buffers_() {
 #endif
 
   if (this->ring_buffer_.use_count() == 0) {
-    this->ring_buffer_ = RingBuffer::create(RING_BUFFER_SIZE);
+    this->ring_buffer_ = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
     if (this->ring_buffer_.use_count() == 0) {
       ESP_LOGE(TAG, "Could not allocate ring buffer");
       return false;
