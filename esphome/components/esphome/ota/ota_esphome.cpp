@@ -125,6 +125,10 @@ void ESPHomeOTAComponent::dump_config() {
     it = esp_partition_next(it);
   }
   esp_partition_iterator_release(it);
+  esp_bootloader_desc_t bootloader_desc;
+  esp_err_t err = esp_ota_get_bootloader_description(nullptr, &bootloader_desc);
+  ESP_LOGCONFIG(TAG, "  Bootloader: ESP-IDF %s",
+                (err == ESP_OK) ? bootloader_desc.idf_ver : "version unknown");
 #endif
 #endif
 }

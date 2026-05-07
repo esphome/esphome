@@ -1880,6 +1880,14 @@ def test_upload_program_ota_partition_table_without_allow_flag(
     mock_run_ota.assert_not_called()
 
 
+def _make_bootloader_bytes() -> bytes:
+    """Build a minimal bootloader image accepted by _validate_bootloader_binary."""
+    table = bytearray(b"\xff")
+    # Starts with: ESP_IMAGE_HEADER_MAGIC (0xE9)
+    table[0] = 0xe9
+    return bytes(table)
+
+
 def test_upload_program_ota_bootloader_with_file_arg(
     mock_run_ota: Mock,
     mock_get_port_type: Mock,
@@ -1891,6 +1899,9 @@ def test_upload_program_ota_bootloader_with_file_arg(
     mock_get_port_type.return_value = "NETWORK"
     mock_run_ota.return_value = (0, "192.168.1.100")
 
+    bootloader_file = tmp_path / "bootloader.bin"
+    bootloader_file.write_bytes(_make_bootloader_bytes())
+
     config = {
         CONF_OTA: [
             {
@@ -1900,7 +1911,7 @@ def test_upload_program_ota_bootloader_with_file_arg(
             }
         ]
     }
-    args = MockArgs(file="bootloader.bin", bootloader=True)
+    args = MockArgs(file=str(bootloader_file), bootloader=True)
     devices = ["192.168.1.100"]
 
     exit_code, host = upload_program(config, args, devices)
@@ -1911,7 +1922,7 @@ def test_upload_program_ota_bootloader_with_file_arg(
         ["192.168.1.100"],
         3232,
         None,
-        Path("bootloader.bin"),
+        bootloader_file,
         OTA_TYPE_UPDATE_BOOTLOADER,
     )
 

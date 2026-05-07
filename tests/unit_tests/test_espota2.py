@@ -201,6 +201,14 @@ def test_receive_exactly_socket_error(mock_socket: Mock) -> None:
             espota2.RESPONSE_ERROR_PARTITION_TABLE_UPDATE,
             "Error: An error occurred while updating the partition table",
         ),
+        (
+            espota2.RESPONSE_ERROR_BOOTLOADER_VERIFY,
+            "Error: The bootloader update could not be verified",
+        ),
+        (
+            espota2.RESPONSE_ERROR_BOOTLOADER_UPDATE,
+            "Error: An error occurred while updating the bootloader",
+        ),
         (espota2.RESPONSE_ERROR_UNKNOWN, "Unknown error from ESP"),
     ],
 )

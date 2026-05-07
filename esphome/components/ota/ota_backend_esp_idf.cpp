@@ -94,7 +94,7 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
       esp_ota_abort(this->update_handle_);
       this->update_handle_ = 0;
       ESP_LOGE(TAG, "esp_ota_set_final_partition failed (err=0x%X)", err);
-      return OTA_RESPONSE_ERROR_BOOTLOADER_UPDATE;
+      return OTA_RESPONSE_ERROR_UNKNOWN;
     }
   }
 #endif
@@ -176,6 +176,9 @@ OTAResponseTypes IDFOTABackend::end() {
       this->bootloader_part_ = nullptr;
       return OTA_RESPONSE_OK;
     }
+    // When updating the bootloader:
+    // Only if esp_ota_end failed there's a chance of the device being unbootable
+    return OTA_RESPONSE_ERROR_BOOTLOADER_UPDATE;
   }
 #endif
   if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
