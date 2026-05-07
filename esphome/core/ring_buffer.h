@@ -4,9 +4,6 @@
 
 // Deprecated: include "esphome/components/ring_buffer/ring_buffer.h" and use
 // esphome::ring_buffer::RingBuffer. This shim will be removed in 2026.11.0.
-#pragma message( \
-    "esphome/core/ring_buffer.h is deprecated; include esphome/components/ring_buffer/ring_buffer.h instead. Removed in 2026.11.0.")
-
 #if __has_include("esphome/components/ring_buffer/ring_buffer.h")
 #include "esphome/components/ring_buffer/ring_buffer.h"
 #else
