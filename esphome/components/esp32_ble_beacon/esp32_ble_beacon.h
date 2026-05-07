@@ -35,7 +35,7 @@ using esp_ble_ibeacon_t = struct {
 
 using namespace esp32_ble;
 
-class ESP32BLEBeacon : public Component, public Parented<ESP32BLE> {
+class ESP32BLEBeacon : public Component {
  public:
   explicit ESP32BLEBeacon(const std::array<uint8_t, 16> &uuid) : uuid_(uuid) {}
 

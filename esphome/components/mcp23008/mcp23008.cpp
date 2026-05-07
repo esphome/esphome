@@ -22,9 +22,14 @@ void MCP23008::setup() {
     // enable open-drain interrupt pins, 3.3V-safe
     this->write_reg(mcp23x08_base::MCP23X08_IOCON, iocon | IOCON_ODR);
   }
+
+  this->setup_interrupt_pin_();
 }
 
-void MCP23008::dump_config() { ESP_LOGCONFIG(TAG, "MCP23008:"); }
+void MCP23008::dump_config() {
+  ESP_LOGCONFIG(TAG, "MCP23008:");
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
+}
 
 bool MCP23008::read_reg(uint8_t reg, uint8_t *value) {
   if (this->is_failed())

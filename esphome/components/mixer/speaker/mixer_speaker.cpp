@@ -245,11 +245,9 @@ void SourceSpeaker::send_command_(uint32_t command_bit, bool wake_loop) {
   uint32_t event_bits = xEventGroupGetBits(this->event_group_);
   if (!(event_bits & command_bit)) {
     xEventGroupSetBits(this->event_group_, command_bit);
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
     if (wake_loop) {
       App.wake_loop_threadsafe();
     }
-#endif
   }
 }
 
@@ -533,9 +531,7 @@ esp_err_t MixerSpeaker::start(audio::AudioStreamInfo &stream_info) {
   if (!(event_bits & MIXER_TASK_COMMAND_START)) {
     // Set MIXER_TASK_COMMAND_START bit if not already set, and then immediately wake for low latency
     xEventGroupSetBits(this->event_group_, MIXER_TASK_COMMAND_START);
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
     App.wake_loop_threadsafe();
-#endif
   }
 
   return ESP_OK;
@@ -592,6 +588,7 @@ void MixerSpeaker::mix_audio_samples(const int16_t *primary_buffer, audio::Audio
   }
 }
 
+// NOLINTBEGIN(bugprone-unchecked-optional-access) -- audio_stream_info_ always set before this task is created
 void MixerSpeaker::audio_mixer_task(void *params) {
   MixerSpeaker *this_mixer = static_cast<MixerSpeaker *>(params);
 
@@ -768,6 +765,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
 
   vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
+// NOLINTEND(bugprone-unchecked-optional-access)
 
 }  // namespace esphome::mixer_speaker
 

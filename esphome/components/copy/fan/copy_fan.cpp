@@ -7,6 +7,12 @@ namespace copy {
 static const char *const TAG = "copy.fan";
 
 void CopyFan::setup() {
+  // Copy preset modes once from source fan — stored on Fan base class
+  auto source_traits = source_->get_traits();
+  if (source_traits.supports_preset_modes()) {
+    this->set_supported_preset_modes(source_traits.supported_preset_modes());
+  }
+
   source_->add_on_state_callback([this]() {
     this->copy_state_from_source_();
     this->publish_state();
@@ -39,7 +45,8 @@ fan::FanTraits CopyFan::get_traits() {
   traits.set_speed(base.supports_speed());
   traits.set_supported_speed_count(base.supported_speed_count());
   traits.set_direction(base.supports_direction());
-  traits.set_supported_preset_modes(base.supported_preset_modes());
+  // Preset modes are set once in setup() and wired via wire_preset_modes_()
+  this->wire_preset_modes_(traits);
   return traits;
 }
 

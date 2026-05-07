@@ -21,6 +21,8 @@
 #include "esphome/components/camera/camera.h"
 #endif
 
+#include <array>
+#include <memory>
 #include <vector>
 
 namespace esphome::api {
@@ -63,7 +65,6 @@ class APIServer final : public Component,
   void set_batch_delay(uint16_t batch_delay);
   uint16_t get_batch_delay() const { return batch_delay_; }
   void set_listen_backlog(uint8_t listen_backlog) { this->listen_backlog_ = listen_backlog; }
-  void set_max_connections(uint8_t max_connections) { this->max_connections_ = max_connections; }
 
   // Get reference to shared buffer for API connections
   APIBuffer &get_shared_buffer_ref() { return shared_write_buffer_; }
@@ -182,12 +183,35 @@ class APIServer final : public Component,
 #ifdef USE_ZWAVE_PROXY
   void on_zwave_proxy_request(const ZWaveProxyRequest &msg);
 #endif
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
   void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
 #endif
 
-  bool is_connected() const { return !this->clients_.empty(); }
+  bool is_connected() const { return this->api_connection_count_ != 0; }
   bool is_connected_with_state_subscription() const;
+
+  // Range-for view over the populated slice [0, api_connection_count_). Read-only with respect
+  // to ownership — callers get `const unique_ptr&` so they can invoke non-const methods on the
+  // APIConnection but cannot reset/move the slot and break the count invariant.
+  // Custom deleter is defined out-of-line in api_server.cpp so libc++ does not
+  // eagerly instantiate `delete static_cast<APIConnection *>(p)` here, where
+  // only the forward declaration of APIConnection is visible (incomplete type).
+  struct APIConnectionDeleter {
+    void operator()(APIConnection *p) const;
+  };
+  using APIConnectionPtr = std::unique_ptr<APIConnection, APIConnectionDeleter>;
+  class ActiveClientsView {
+    const APIConnectionPtr *begin_;
+    const APIConnectionPtr *end_;
+
+   public:
+    ActiveClientsView(const APIConnectionPtr *b, const APIConnectionPtr *e) : begin_(b), end_(e) {}
+    const APIConnectionPtr *begin() const { return this->begin_; }
+    const APIConnectionPtr *end() const { return this->end_; }
+  };
+  ActiveClientsView active_clients() const {
+    return {this->clients_.data(), this->clients_.data() + this->api_connection_count_};
+  }
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
@@ -234,8 +258,8 @@ class APIServer final : public Component,
  protected:
   // Accept incoming socket connections. Only called when socket has pending connections.
   void __attribute__((noinline)) accept_new_connections_();
-  // Remove a disconnected client by index. Swaps with last element and pops.
-  void __attribute__((noinline)) remove_client_(size_t client_index);
+  // Remove a disconnected client by index. Swaps with the last populated slot and resets it.
+  void __attribute__((noinline)) remove_client_(uint8_t client_index);
 
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
@@ -273,8 +297,9 @@ class APIServer final : public Component,
   uint32_t reboot_timeout_{300000};
   uint32_t last_connected_{0};
 
+  // Slots [0, api_connection_count_) are populated; trailing slots are always nullptr.
+  std::array<APIConnectionPtr, MAX_API_CONNECTIONS> clients_{};
   // Vectors and strings (12 bytes each on 32-bit)
-  std::vector<std::unique_ptr<APIConnection>> clients_;
   // Shared proto write buffer for all connections.
   // Not pre-allocated: all send paths call prepare_first_message_buffer() which
   // reserves the exact needed size. Pre-allocating here would cause heap fragmentation
@@ -309,10 +334,10 @@ class APIServer final : public Component,
   uint16_t port_{6053};
   uint16_t batch_delay_{100};
   // Connection limits - these defaults will be overridden by config values
-  // from cv.SplitDefault in __init__.py which sets platform-specific defaults
+  // from cv.SplitDefault in __init__.py which sets platform-specific defaults.
   uint8_t listen_backlog_{4};
-  uint8_t max_connections_{8};
   bool shutting_down_ = false;
+  uint8_t api_connection_count_{0};
   // 7 bytes used, 1 byte padding
 
 #ifdef USE_API_NOISE

@@ -9,6 +9,22 @@ namespace fan {
 
 static const char *const TAG = "fan";
 
+// Compat: shared empty vector for getter when no preset modes are set.
+// Remove in 2026.11.0 when deprecated FanTraits setters are removed
+// and getter can return const vector * instead of const vector &.
+static const std::vector<const char *> EMPTY_PRESET_MODES;  // NOLINT
+
+const std::vector<const char *> &FanTraits::supported_preset_modes() const {
+  if (this->preset_modes_) {
+    return *this->preset_modes_;
+  }
+  // Compat: fall back to owned vector from deprecated setters. Remove in 2026.11.0 (change return to const vector *).
+  if (!this->compat_preset_modes_.empty()) {
+    return this->compat_preset_modes_;
+  }
+  return EMPTY_PRESET_MODES;
+}
+
 // Fan direction strings indexed by FanDirection enum (0-1): FORWARD, REVERSE, plus UNKNOWN
 PROGMEM_STRING_TABLE(FanDirectionStrings, "FORWARD", "REVERSE", "UNKNOWN");
 
@@ -148,6 +164,18 @@ const char *Fan::find_preset_mode_(const char *preset_mode) {
 }
 
 const char *Fan::find_preset_mode_(const char *preset_mode, size_t len) {
+  if (preset_mode == nullptr || len == 0) {
+    return nullptr;
+  }
+  if (this->supported_preset_modes_) {
+    for (const char *mode : *this->supported_preset_modes_) {
+      if (strncmp(mode, preset_mode, len) == 0 && mode[len] == '\0') {
+        return mode;
+      }
+    }
+    return nullptr;
+  }
+  // Fallback for deprecated path: external components may set modes on FanTraits directly
   return this->get_traits().find_preset_mode(preset_mode, len);
 }
 
@@ -261,8 +289,6 @@ void Fan::save_state_() {
     return;
   }
 
-  auto traits = this->get_traits();
-
   FanRestoreState state{};
   state.state = this->state;
   state.oscillating = this->oscillating;
@@ -271,12 +297,25 @@ void Fan::save_state_() {
   state.preset_mode = FanRestoreState::NO_PRESET;
 
   if (this->has_preset_mode()) {
-    const auto &preset_modes = traits.supported_preset_modes();
-    // Find index of current preset mode (pointer comparison is safe since preset is from traits)
-    for (size_t i = 0; i < preset_modes.size(); i++) {
-      if (preset_modes[i] == this->preset_mode_) {
-        state.preset_mode = i;
-        break;
+    if (this->supported_preset_modes_) {
+      // New path: search Fan-owned vector directly
+      for (size_t i = 0; i < this->supported_preset_modes_->size(); i++) {
+        if ((*this->supported_preset_modes_)[i] == this->preset_mode_) {
+          state.preset_mode = i;
+          break;
+        }
+      }
+    } else {
+      // Compat: fall back to traits for deprecated path. Remove in 2026.11.0.
+      // Pointer comparison works because preset_mode_ and the compat vector both
+      // hold pointers to string literals in .rodata (stable addresses).
+      auto traits = this->get_traits();
+      const auto &preset_modes = traits.supported_preset_modes();
+      for (size_t i = 0; i < preset_modes.size(); i++) {
+        if (preset_modes[i] == this->preset_mode_) {
+          state.preset_mode = i;
+          break;
+        }
       }
     }
   }

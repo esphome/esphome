@@ -29,52 +29,46 @@ class Filter {
   Deduplicator<bool> dedup_;
 };
 
-class TimeoutFilter : public Filter, public Component {
+class TimeoutFilter : public Filter {
  public:
   optional<bool> new_value(bool value) override { return value; }
   void input(bool value) override;
   template<typename T> void set_timeout_value(T timeout) { this->timeout_delay_ = timeout; }
 
  protected:
-  TemplatableValue<uint32_t> timeout_delay_{};
+  TemplatableFn<uint32_t> timeout_delay_{};
 };
 
-class DelayedOnOffFilter final : public Filter, public Component {
+class DelayedOnOffFilter final : public Filter {
  public:
   optional<bool> new_value(bool value) override;
-
-  float get_setup_priority() const override;
 
   template<typename T> void set_on_delay(T delay) { this->on_delay_ = delay; }
   template<typename T> void set_off_delay(T delay) { this->off_delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> on_delay_{};
-  TemplatableValue<uint32_t> off_delay_{};
+  TemplatableFn<uint32_t> on_delay_{};
+  TemplatableFn<uint32_t> off_delay_{};
 };
 
-class DelayedOnFilter : public Filter, public Component {
+class DelayedOnFilter : public Filter {
  public:
   optional<bool> new_value(bool value) override;
-
-  float get_setup_priority() const override;
 
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> delay_{};
+  TemplatableFn<uint32_t> delay_{};
 };
 
-class DelayedOffFilter : public Filter, public Component {
+class DelayedOffFilter : public Filter {
  public:
   optional<bool> new_value(bool value) override;
-
-  float get_setup_priority() const override;
 
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> delay_{};
+  TemplatableFn<uint32_t> delay_{};
 };
 
 class InvertFilter : public Filter {
@@ -90,10 +84,11 @@ struct AutorepeatFilterTiming {
 
 /// Non-template base for AutorepeatFilter — all methods in filter.cpp.
 /// Lambdas capture this base pointer, so set_timeout/cancel_timeout are instantiated once.
-class AutorepeatFilterBase : public Filter, public Component {
+/// The two scheduled timers are keyed off `this` and `&active_timing_`; since the address
+/// of `active_timing_` is taken as a scheduler key, the class must not be copied or moved.
+class AutorepeatFilterBase : public Filter {
  public:
   optional<bool> new_value(bool value) override;
-  float get_setup_priority() const override;
   AutorepeatFilterBase(const AutorepeatFilterBase &) = delete;
   AutorepeatFilterBase &operator=(const AutorepeatFilterBase &) = delete;
 
@@ -146,16 +141,14 @@ class StatelessLambdaFilter : public Filter {
   optional<bool> (*f_)(bool);
 };
 
-class SettleFilter : public Filter, public Component {
+class SettleFilter : public Filter {
  public:
   optional<bool> new_value(bool value) override;
-
-  float get_setup_priority() const override;
 
   template<typename T> void set_delay(T delay) { this->delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> delay_{};
+  TemplatableFn<uint32_t> delay_{};
   bool steady_{true};
 };
 

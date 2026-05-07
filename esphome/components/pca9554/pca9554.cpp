@@ -34,12 +34,28 @@ void PCA9554Component::setup() {
   this->read_inputs_();
   ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
            this->status_has_error());
-}
 
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&PCA9554Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    // Don't invalidate cache on read — only invalidate when interrupt fires
+    this->set_invalidate_on_read_(false);
+  }
+  // Disable loop until an input pin is configured via pin_mode()
+  // For interrupt-driven mode, loop is re-enabled by the ISR
+  // For polling mode, loop is re-enabled when pin_mode() registers an input pin
+  this->disable_loop();
+}
+void IRAM_ATTR PCA9554Component::gpio_intr(PCA9554Component *arg) { arg->enable_loop_soon_any_context(); }
 void PCA9554Component::loop() {
-  // Invalidate the cache at the start of each loop.
-  // The actual read will happen on demand when digital_read() is called
+  // Invalidate the cache so the next digital_read() triggers a fresh I2C read
   this->reset_pin_cache_();
+  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
+  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
+  // stale state forever; keep looping until the line is released so we self-heal.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
+    this->disable_loop();
+  }
 }
 
 void PCA9554Component::dump_config() {
@@ -47,6 +63,7 @@ void PCA9554Component::dump_config() {
                 "PCA9554:\n"
                 "  I/O Pins: %d",
                 this->pin_count_);
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -76,6 +93,11 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
     // Clear mode mask bit
     this->config_mask_ &= ~(1 << pin);
+    // Enable polling loop for input pins (not needed for interrupt-driven mode
+    // where the ISR handles re-enabling loop)
+    if (this->interrupt_pin_ == nullptr) {
+      this->enable_loop();
+    }
   } else if (flags == gpio::FLAG_OUTPUT) {
     // Set mode mask bit
     this->config_mask_ |= 1 << pin;

@@ -281,6 +281,24 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
   return { labels, deprecatedInfo };
 }
 
+// Strategy: Detect when maintainers cannot modify the PR branch
+function detectMaintainerAccess(context) {
+  const pr = context.payload.pull_request;
+
+  // Only relevant for cross-repo PRs (forks)
+  if (!pr.head.repo || pr.head.repo.full_name === pr.base.repo.full_name) {
+    return null;
+  }
+
+  if (pr.maintainer_can_modify) {
+    return null;
+  }
+
+  const isOrgFork = pr.head.repo.owner.type === 'Organization';
+  console.log(`Maintainer cannot modify PR branch (${isOrgFork ? 'org fork: ' + pr.head.repo.owner.login : 'user disabled'})`);
+  return { isOrgFork, orgName: pr.head.repo.owner.login };
+}
+
 // Strategy: Requirements detection
 async function detectRequirements(allLabels, prFiles, context) {
   const labels = new Set();
@@ -329,5 +347,6 @@ module.exports = {
   detectTests,
   detectPRTemplateCheckboxes,
   detectDeprecatedComponents,
+  detectMaintainerAccess,
   detectRequirements
 };

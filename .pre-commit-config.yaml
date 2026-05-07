@@ -11,7 +11,7 @@ ci:
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.15.9
+    rev: v0.15.12
     hooks:
       # Run the linter.
       - id: ruff
@@ -55,9 +55,10 @@ repos:
     hooks:
       - id: pylint
         name: pylint
-        entry: python3 script/run-in-env.py pylint
+        entry: python script/run-in-env.py pylint
         language: system
         types: [python]
+        files: ^esphome/.+\.py$
       - id: clang-tidy-hash
         name: Update clang-tidy hash
         entry: python script/clang_tidy_hash.py --update-if-changed
@@ -67,5 +68,5 @@ repos:
         additional_dependencies: []
       - id: ci-custom
         name: ci-custom
-        entry: python3 script/run-in-env.py script/ci-custom.py
+        entry: python script/run-in-env.py script/ci-custom.py
         language: system

@@ -333,15 +333,7 @@ climate::ClimateTraits ThermostatClimate::traits() {
     traits.add_supported_preset(entry.preset);
   }
 
-  // Extract custom preset names from the custom_preset_config_ vector
-  if (!this->custom_preset_config_.empty()) {
-    std::vector<const char *> custom_preset_names;
-    custom_preset_names.reserve(this->custom_preset_config_.size());
-    for (const auto &entry : this->custom_preset_config_) {
-      custom_preset_names.push_back(entry.name);
-    }
-    traits.set_supported_custom_presets(custom_preset_names);
-  }
+  // Custom presets are stored on Climate base class and wired via get_traits()
 
   return traits;
 }
@@ -1306,6 +1298,13 @@ void ThermostatClimate::set_preset_config(std::initializer_list<PresetEntry> pre
 
 void ThermostatClimate::set_custom_preset_config(std::initializer_list<CustomPresetEntry> presets) {
   this->custom_preset_config_ = presets;
+  // Populate Climate base class custom presets vector
+  std::vector<const char *> names;
+  names.reserve(presets.size());
+  for (const auto &entry : this->custom_preset_config_) {
+    names.push_back(entry.name);
+  }
+  this->set_supported_custom_presets(names);
 }
 
 ThermostatClimate::ThermostatClimate() = default;
