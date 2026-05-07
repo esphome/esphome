@@ -36,12 +36,6 @@ class GSL3670Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevic
     firmware_len_ = len;
   }
 
-  /// Supply the config blob for gsl_DataInit (the gsl_config_data_id array)
-  void set_config(const uint32_t *cfg, size_t len) {
-    config_ = cfg;
-    config_len_ = len;
-  }
-
   void set_interrupt_pin(InternalGPIOPin *pin) { interrupt_pin_ = pin; }
   void set_reset_pin(GPIOPin *pin) { reset_pin_ = pin; }
 
@@ -70,9 +64,6 @@ class GSL3670Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevic
 
   const GSL3670FwRecord *firmware_{nullptr};
   size_t firmware_len_{0};
-
-  const uint32_t *config_{nullptr};
-  size_t config_len_{0};
 };
 
 }  // namespace gsl3670
