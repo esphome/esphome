@@ -64,7 +64,7 @@ def _validate_firmware_file(value):
     if not path.exists():
         path = Path(__file__).parent / path.name
     if not path.exists():
-        raise cv.Invalid("Firmware file not found: ")
+        raise cv.Invalid(f"Firmware file not found: {path.absolute()}")
     with path.open("rb") as f:
         data = f.read()
     blk_cnt = len(data) // _FW_BLK_SIZE

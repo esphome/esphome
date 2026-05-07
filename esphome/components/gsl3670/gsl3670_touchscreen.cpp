@@ -57,19 +57,19 @@ void GSL3670Touchscreen::dump_config() {
 // ---------------------------------------------------------------------------
 void GSL3670Touchscreen::update_touches() {
   uint8_t buf[44] = {};
-  if (!this->read_reg_(0x80, buf, 44)) {
-    ESP_LOGW(TAG, "I2C read failed");
-    return;
+  auto err = this->read_register(0x80, buf, sizeof(buf));
+  if (err != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "I2C read failed (%d)", err);
   }
-  auto finger_num = clamp((size_t) buf[0], 0U, MAX_TOUCHES);
+  uint8_t finger_num = clamp_at_most(buf[0], MAX_TOUCHES);
 
   // Build gsl_touch_info exactly as the Seeed driver does
-  for (int j = 0; j != finger_num; j++) {
+  for (uint8_t j = 0; j != finger_num; j++) {
     // buf[(j+1)*4 + 0..3]:  byte0=y_lo, byte1=y_hi, byte2=x_lo, byte3=id|x_hi
     auto x = (uint16_t) (((buf[(j + 1) * 4 + 3] & 0x0f) << 8) | buf[(j + 1) * 4 + 2]);
     auto y = (uint16_t) ((buf[(j + 1) * 4 + 1] << 8) | buf[(j + 1) * 4 + 0]);
     auto id = (buf[(j + 1) * 4 + 3] >> 4) & 0x0f;
-    ESP_LOGV(TAG, "Touch id=%d, x=%d y=%d", id, x, y);
+    ESP_LOGV(TAG, "Touch id=%u, x=%u y=%d", id, x, y);
     if (x <= 8192 && y <= 8192)
       this->add_raw_touch_position_(id, x, y);
   }
@@ -91,11 +91,11 @@ void GSL3670Touchscreen::clear_reg_() {
   }
 
   this->write_reg8_(0x88, 0x01);
-  delay(5);
+  // delay(5);
   this->write_reg8_(0xe4, 0x04);
-  delay(5);
+  // delay(5);
   this->write_reg8_(0xe0, 0x00);
-  delay(5);
+  // delay(5);
 }
 
 // ---------------------------------------------------------------------------
@@ -113,11 +113,11 @@ void GSL3670Touchscreen::reset_() {
   }
 
   this->write_reg8_(0xe4, 0x04);
-  delay(2);
+  // delay(2);
 
   uint8_t zeros[4] = {0, 0, 0, 0};
   this->write_reg_(0xbc, zeros, 4);
-  delay(2);
+  // delay(2);
 }
 
 void GSL3670Touchscreen::load_firmware_() {
@@ -155,12 +155,9 @@ void GSL3670Touchscreen::startup_chip_() {
 // ---------------------------------------------------------------------------
 
 bool GSL3670Touchscreen::write_reg_(uint8_t reg, const uint8_t *data, size_t len) {
-  // ESPHome I2CDevice::write_register writes [reg][data...]
   auto err = this->write_register(reg, data, len);
   if (err != i2c::ERROR_OK) {
-    char buf[32];
-    esp_err_to_name_r(err, buf, sizeof(buf));
-    ESP_LOGW(TAG, "I2C write reg 0x%02X len %zu failed (%s)", reg, len, buf);
+    ESP_LOGW(TAG, "I2C write reg 0x%02X len %zu failed (%d)", reg, len, err);
     return false;
   }
   return true;

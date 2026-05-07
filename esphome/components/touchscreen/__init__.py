@@ -71,6 +71,11 @@ _TRANSFORM_KEYS = {CONF_SWAP_XY, CONF_MIRROR_X, CONF_MIRROR_Y}
 
 
 def _calibration_schema(defaults: dict, required: bool) -> dict:
+    """
+    Generate Calibration schema. If defaults are provided for all suboptions,
+    the entire calibration config is optional with a populated default value.
+    Otherwise, it's optional or required as specified.
+    """
     if _CALIBRATION_KEYS.issubset(defaults):
         key = cv.Optional(
             CONF_CALIBRATION,
@@ -84,7 +89,9 @@ def _calibration_schema(defaults: dict, required: bool) -> dict:
         key: cv.All(
             cv.Schema(
                 {
-                    option_with_default(x, defaults): cv.int_range(min=0, max=4095)
+                    option_with_default(x, defaults, True): cv.int_range(
+                        min=0, max=4095
+                    )
                     for x in _CALIBRATION_KEYS
                 }
             ),
@@ -104,7 +111,7 @@ def _transform_schema(defaults: dict) -> dict:
     return {
         key: cv.Schema(
             {
-                option_with_default(x, defaults, True): cv.boolean
+                cv.Optional(x, default=defaults.get(x, False)): cv.boolean
                 for x in _TRANSFORM_KEYS
             }
         )
