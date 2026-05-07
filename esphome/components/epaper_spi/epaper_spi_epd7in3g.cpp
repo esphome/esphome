@@ -12,8 +12,7 @@ void EPaperEpd7In3G::fill(Color color) {
     EPaperBase::fill(color);
     return;
   }
-  const uint8_t p =
-      color_to_bwyr(color, UINT8_C(0), UINT8_C(1), UINT8_C(2), UINT8_C(3));
+  const uint8_t p = color_to_bwyr(color, UINT8_C(0), UINT8_C(1), UINT8_C(2), UINT8_C(3));
   const unsigned pu = static_cast<unsigned>(p);
   const uint8_t packed = static_cast<uint8_t>(pu << 6 | pu << 4 | pu << 2 | pu);
   this->buffer_.fill(packed);
@@ -28,14 +27,13 @@ void EPaperEpd7In3G::clear() { this->fill(COLOR_ON); }
 void HOT EPaperEpd7In3G::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
     return;
-  const uint8_t p =
-      color_to_bwyr(color, UINT8_C(0), UINT8_C(1), UINT8_C(2), UINT8_C(3));
+  const uint8_t p = color_to_bwyr(color, UINT8_C(0), UINT8_C(1), UINT8_C(2), UINT8_C(3));
   const uint16_t row_bytes = this->width_ / 4;
   const uint32_t idx = static_cast<uint32_t>(y) * row_bytes + static_cast<uint32_t>(x >> 2);
   const uint8_t shift = static_cast<uint8_t>((3 - (x & 3)) * 2);
   const auto orig = this->buffer_[idx];
-  this->buffer_[idx] = static_cast<uint8_t>(
-      (orig & static_cast<uint8_t>(~(0x03U << shift))) | static_cast<uint8_t>(static_cast<unsigned>(p) << shift));
+  this->buffer_[idx] = static_cast<uint8_t>((orig & static_cast<uint8_t>(~(0x03U << shift))) |
+                                            static_cast<uint8_t>(static_cast<unsigned>(p) << shift));
 }
 
 // State machine calls power_on after transfer; epd7in3g expects booster soft-start before RAM write.
@@ -74,8 +72,7 @@ bool HOT EPaperEpd7In3G::transfer_data() {
       this->start_data_();
       this->write_array(bytes_to_send, buf_idx);
       this->disable();
-      ESP_LOGV(TAG, "Wrote %u bytes at %ums", static_cast<unsigned>(buf_idx),
-               static_cast<unsigned>(millis()));
+      ESP_LOGV(TAG, "Wrote %u bytes at %ums", static_cast<unsigned>(buf_idx), static_cast<unsigned>(millis()));
       buf_idx = 0;
 
       if (millis() - start_time > MAX_TRANSFER_TIME) {
