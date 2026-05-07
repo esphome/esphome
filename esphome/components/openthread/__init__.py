@@ -18,6 +18,8 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_LOG_LEVEL,
+    CONF_ON_CONNECT,
+    CONF_ON_DISCONNECT,
     CONF_OUTPUT_POWER,
     CONF_USE_ADDRESS,
     PLATFORM_ESP32,
@@ -193,6 +195,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
+            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
+                single=True
+            ),
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
@@ -248,6 +254,18 @@ async def to_code(config):
         cg.add(ot.set_output_power(output_power))
 
     set_sdkconfig_options(config)
+
+    if on_connect_config := config.get(CONF_ON_CONNECT):
+        cg.add_define("USE_OPENTHREAD_CONNECT_TRIGGER")
+        await automation.build_automation(
+            ot.get_connect_trigger(), [], on_connect_config
+        )
+
+    if on_disconnect_config := config.get(CONF_ON_DISCONNECT):
+        cg.add_define("USE_OPENTHREAD_DISCONNECT_TRIGGER")
+        await automation.build_automation(
+            ot.get_disconnect_trigger(), [], on_disconnect_config
+        )
 
 
 # Actions

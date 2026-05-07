@@ -53,6 +53,16 @@ void OpenThreadComponent::on_state_changed_(otChangedFlags flags, void *context)
     otInstance *instance = self->get_openthread_instance_();
     otDeviceRole role = otThreadGetDeviceRole(instance);
     self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
+#ifdef USE_OPENTHREAD_CONNECT_TRIGGER
+    if (self->connected_) {
+      self->connect_trigger_.trigger();
+    }
+#endif
+#ifdef USE_OPENTHREAD_DISCONNECT_TRIGGER
+    if (!self->connected_) {
+      this->disconnect_trigger_.trigger();
+    }
+#endif
   }
 }
 

@@ -50,6 +50,13 @@ class OpenThreadComponent : public Component {
    */
   void apply_linkmode(otInstance *instance);
 
+#ifdef USE_OPENTHREAD_CONNECT_TRIGGER
+  Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
+#endif
+#ifdef USE_OPENTHREAD_DISCONNECT_TRIGGER
+  Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
+#endif
+
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   static void on_state_changed_(otChangedFlags flags, void *context);
@@ -64,6 +71,13 @@ class OpenThreadComponent : public Component {
   bool teardown_started_{false};
   bool teardown_complete_{false};
   bool connected_{false};
+
+#ifdef USE_OPENTHREAD_CONNECT_TRIGGER
+  Trigger<> connect_trigger_;
+#endif
+#ifdef USE_OPENTHREAD_DISCONNECT_TRIGGER
+  Trigger<> disconnect_trigger_;
+#endif
 
  private:
   // Stores a pointer to a string literal (static storage duration).
