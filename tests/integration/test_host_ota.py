@@ -1,12 +1,8 @@
-"""Integration tests for OTA on the host platform.
+"""End-to-end OTA tests on the host platform.
 
-Exercises the full native OTA wire protocol end-to-end against a real host
-binary: handshake, magic, features, MD5 verification, chunked transfer, and
-the post-end re-exec. The host backend stages the new binary to a sibling
-file, validates the executable header against the running exe, atomically
-renames it into place, and arms `arch_restart()` to `execv` instead of
-`exit()`. Re-exec preserves the pid -- the test asserts this to prove the
-process really swapped binaries rather than restarting via supervisor.
+Exercises the native OTA protocol against a real host binary, then asserts
+pid is preserved across the post-OTA execv. A second OTA on the post-exec
+instance covers the FD_CLOEXEC path.
 """
 
 from __future__ import annotations
@@ -77,7 +73,6 @@ async def test_host_ota_self_update(
         def on_log(line: str) -> None:
             if not ota_staged.done() and "OTA staged at" in line:
                 ota_staged.set_result(True)
-            # safe_reboot logs this line just before arch_restart() execs.
             if not rebooted.done() and "Rebooting safely" in line:
                 rebooted.set_result(True)
 
@@ -88,24 +83,17 @@ async def test_host_ota_self_update(
                 info_before = await client.device_info()
                 assert info_before.name == DEVICE_NAME
 
-            # Run OTA in a thread -- espota2 uses blocking sockets. Upload the
-            # very binary that is currently running; on success the device
-            # validates, swaps it in, and execv's itself.
+            # espota2 is blocking; run in executor.
             rc, _ = await loop.run_in_executor(
                 None, espota2.run_ota, LOCALHOST, ota_port, None, binary_path
             )
             assert rc == 0, "espota2 reported failure"
 
-            # The device must report it staged the binary and is rebooting.
             await asyncio.wait_for(ota_staged, timeout=10.0)
             await asyncio.wait_for(rebooted, timeout=10.0)
-
-            # Wait for the new exec to rebind the API port. The old listener
-            # closes during safe_reboot(); the new exec re-opens it.
             await _wait_for_port(LOCALHOST, api_port, PORT_WAIT_TIMEOUT)
 
-            # execv preserves pid. If the process had died and been respawned
-            # by something external, the pid would differ.
+            # execv preserves pid; mismatch means external respawn.
             assert proc.returncode is None, "process exited instead of execing"
             assert proc.pid == pid_before
 
@@ -114,16 +102,11 @@ async def test_host_ota_self_update(
                 assert info_after.name == DEVICE_NAME
                 assert info_after.name == info_before.name
 
-            # Run a second OTA against the post-exec instance. This catches
-            # regressions where the listening socket leaks across execv and
-            # the new image can't bind (errno EADDRINUSE) -- without
-            # FD_CLOEXEC the second OTA's bind would fail and rc would be 1.
+            # Second OTA: catches FD_CLOEXEC regressions (EADDRINUSE on rebind).
             rc, _ = await loop.run_in_executor(
                 None, espota2.run_ota, LOCALHOST, ota_port, None, binary_path
             )
-            assert rc == 0, (
-                "second OTA failed -- listening socket likely leaked across execv"
-            )
+            assert rc == 0, "second OTA failed -- listener leaked across execv"
             await _wait_for_port(LOCALHOST, api_port, PORT_WAIT_TIMEOUT)
             assert proc.pid == pid_before
 
@@ -136,15 +119,14 @@ async def test_host_ota_rejects_garbage(
     reserved_tcp_port: tuple[int, socket.socket],
     integration_test_dir,
 ) -> None:
-    """Truncated/garbage payload must be rejected and the device must keep running."""
+    """Bogus payload is rejected and the device keeps running."""
     api_port, api_socket = reserved_tcp_port
     with _reserve_port() as (ota_port, ota_socket):
         yaml_config = yaml_config.replace("__OTA_PORT__", str(ota_port))
         config_path = await write_yaml_config(yaml_config)
         binary_path = await compile_esphome(config_path)
 
-        # A payload that passes nothing: 200 bytes that are neither valid ELF
-        # nor Mach-O. The device must reject it after the MD5 checks pass.
+        # 192 bytes that are neither ELF nor Mach-O.
         bogus_path = integration_test_dir / "bogus.bin"
         bogus_path.write_bytes(b"NOT-AN-EXECUTABLE-AT-ALL" * 8)
 
@@ -159,10 +141,8 @@ async def test_host_ota_rejects_garbage(
             rc, _ = await loop.run_in_executor(
                 None, espota2.run_ota, LOCALHOST, ota_port, None, bogus_path
             )
-            # espota2 returns 1 on backend rejection.
             assert rc == 1
 
-            # Device must still be alive and answering.
             await asyncio.sleep(0.5)
             assert proc.returncode is None, "process died on rejected OTA"
             assert proc.pid == pid_before

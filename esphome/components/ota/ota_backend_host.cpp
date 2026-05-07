@@ -33,8 +33,6 @@ const char *const TAG = "ota.host";
 constexpr size_t MAX_OTA_SIZE = 256u * 1024u * 1024u;  // 256 MiB
 constexpr size_t HEADER_PEEK_SIZE = 64;
 
-// Read up to `len` bytes from the start of `path`. Returns number of bytes
-// read on success, -1 on failure.
 ssize_t read_header_(const char *path, uint8_t *buf, size_t len) {
   int fd = ::open(path, O_RDONLY);
   if (fd < 0)
@@ -61,8 +59,7 @@ ElfIdent parse_elf_(const uint8_t *buf, size_t len) {
     return out;
   out.ei_class = buf[EI_CLASS];
   out.ei_data = buf[EI_DATA];
-  // e_type is 2 bytes at offset 16; e_machine is 2 bytes at offset 18.
-  // Both are encoded in EI_DATA endianness.
+  // e_type @ 16, e_machine @ 18, both in EI_DATA endianness.
   uint16_t e_type;
   uint16_t e_machine;
   std::memcpy(&e_type, buf + 16, sizeof(e_type));
@@ -132,8 +129,7 @@ MachOIdent parse_macho_(const uint8_t *buf, size_t len) {
     return out;
   uint32_t magic;
   std::memcpy(&magic, buf, sizeof(magic));
-  // Reject fat binaries -- exe path resolution returns the slice on macOS,
-  // so the running exe is a thin Mach-O. An OTA payload should be too.
+  // Thin Mach-O only; the running exe is also thin (slice path).
   if (magic == MH_MAGIC_64 || magic == MH_CIGAM_64) {
     struct mach_header_64 hdr;
     std::memcpy(&hdr, buf, sizeof(hdr));
@@ -218,9 +214,7 @@ std::unique_ptr<HostOTABackend> make_ota_backend() { return make_unique<HostOTAB
 OTAResponseTypes HostOTABackend::begin(size_t image_size, OTAType ota_type) {
   if (ota_type != OTA_TYPE_UPDATE_APP)
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
-  // image_size == 0 means "size unknown" -- web_server OTA passes 0 for
-  // multipart uploads. Accept up to MAX_OTA_SIZE in that case and verify
-  // only what was actually written in end().
+  // 0 = unknown size (web_server multipart); cap at MAX_OTA_SIZE.
   if (image_size > MAX_OTA_SIZE) {
     ESP_LOGE(TAG, "Refusing OTA of size %zu (exceeds %zu)", image_size, MAX_OTA_SIZE);
     return OTA_RESPONSE_ERROR_UPDATE_PREPARE;
@@ -234,7 +228,7 @@ OTAResponseTypes HostOTABackend::begin(size_t image_size, OTAType ota_type) {
   this->final_path_ = exe;
   this->staging_path_ = exe + ".ota.new";
 
-  // Best-effort cleanup of any leftover file from a prior aborted OTA.
+  // Clean up any leftover from a prior aborted OTA.
   ::unlink(this->staging_path_.c_str());
 
   this->fd_ = ::open(this->staging_path_.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0755);
@@ -260,8 +254,6 @@ void HostOTABackend::set_update_md5(const char *md5) {
 OTAResponseTypes HostOTABackend::write(uint8_t *data, size_t len) {
   if (this->fd_ < 0)
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
-  // expected_size_ == 0 means caller didn't know the size at begin() (e.g.
-  // web_server multipart). Cap at MAX_OTA_SIZE in that case.
   size_t limit = this->expected_size_ != 0 ? this->expected_size_ : MAX_OTA_SIZE;
   if (this->bytes_written_ + len > limit) {
     ESP_LOGE(TAG, "Write past size limit (%zu)", limit);
@@ -334,8 +326,7 @@ OTAResponseTypes HostOTABackend::end() {
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
 
-  // Arm the re-exec. arch_restart() (called by App::safe_reboot() after
-  // shutdown hooks) will execv this path with the original argv.
+  // arch_restart() (via App::safe_reboot) will execv this path with the original argv.
   host::arm_reexec(this->final_path_);
   this->staging_path_.clear();
   ESP_LOGI(TAG, "OTA staged at %s; will re-exec on reboot", this->final_path_.c_str());

@@ -17,10 +17,7 @@ BSDSocketImpl::BSDSocketImpl(int fd, bool monitor_loop) {
   if (this->fd_ < 0)
     return;
 #ifdef USE_HOST
-  // On host the process can re-exec itself (OTA on the host platform). Mark all
-  // sockets close-on-exec so listening ports are released to the new image
-  // without relying on per-component on_shutdown hooks. No-op on platforms
-  // without execve(2).
+  // Release listening ports on OTA re-exec.
   int flags = ::fcntl(this->fd_, F_GETFD, 0);
   if (flags >= 0)
     ::fcntl(this->fd_, F_SETFD, flags | FD_CLOEXEC);

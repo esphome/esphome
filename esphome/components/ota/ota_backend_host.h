@@ -10,14 +10,8 @@
 
 namespace esphome::ota {
 
-/// Host platform OTA backend.
-///
-/// Receives the new binary into a sibling temp file (`<exe>.ota.new`),
-/// verifies size, MD5, and that the payload is an executable matching the
-/// running architecture (ELF on Linux, Mach-O on macOS), atomically renames
-/// it over the running executable, and arms a pending re-exec. The actual
-/// execv is performed by `arch_restart()` after `App::safe_reboot()` runs
-/// shutdown hooks -- same lifecycle as a real device reboot.
+/// Host OTA backend: stages new binary to `<exe>.ota.new`, validates ELF/Mach-O
+/// matches the running arch, renames over `<exe>`, and arms execv via arch_restart().
 class HostOTABackend final {
  public:
   OTAResponseTypes begin(size_t image_size, OTAType ota_type = OTA_TYPE_UPDATE_APP);
@@ -28,14 +22,14 @@ class HostOTABackend final {
   bool supports_compression() { return false; }
 
  protected:
-  int fd_{-1};
+  md5::MD5Digest md5_{};
   std::string staging_path_;
   std::string final_path_;
   size_t expected_size_{0};
   size_t bytes_written_{0};
   uint8_t expected_md5_[16]{};
+  int fd_{-1};
   bool md5_set_{false};
-  md5::MD5Digest md5_{};
 };
 
 std::unique_ptr<HostOTABackend> make_ota_backend();
