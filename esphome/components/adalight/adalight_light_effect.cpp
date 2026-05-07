@@ -129,7 +129,7 @@ AdalightLightEffect::Frame AdalightLightEffect::parse_frame_(light::AddressableL
   uint8_t *led_data = &frame_[6];
 
   for (int led = 0; led < accepted_led_count; led++, led_data += 3) {
-    auto white = std::min(std::min(led_data[0], led_data[1]), led_data[2]);
+    auto white = std::min({led_data[0], led_data[1], led_data[2]});
 
     it[led].set(Color(led_data[0], led_data[1], led_data[2], white));
   }
