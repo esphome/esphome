@@ -22,6 +22,7 @@ from esphome.const import (
     UNIT_KILOMETER,
     UNIT_KILOWATT,
     UNIT_KILOWATT_HOURS,
+    UNIT_LITRE_PER_SECOND,
     UNIT_LUX,
     UNIT_METER,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
@@ -110,32 +111,35 @@ BACNET_UNIT_NO_UNITS = 95
 
 
 class AnalogInputType(IntEnum):
-    Temp_Degrees_C = 0x00
-    Relative_Humidity_Percent = 0x01
-    Pressure_Pascal = 0x02
-    Flow_Liters_Per_Sec = 0x03
-    Percentage = 0x04
-    Parts_Per_Million = 0x05
-    Rotational_Speed_RPM = 0x06
-    Current_Amps = 0x07
-    Frequency_Hz = 0x08
-    Power_Watts = 0x09
-    Power_Kilo_Watts = 0x0A
-    Energy_Kilo_Watt_Hours = 0x0B
-    Count = 0x0C
-    Enthalpy_KJoules_Per_Kg = 0x0D
-    Time_Seconds = 0x0E
+    TEMP_DEGREES_C = 0x00
+    RELATIVE_HUMIDITY_PERCENT = 0x01
+    PRESSURE_PASCAL = 0x02
+    FLOW_LITERS_PER_SEC = 0x03
+    PERCENTAGE = 0x04
+    PARTS_PER_MILLION = 0x05
+    ROTATIONAL_SPEED_RPM = 0x06
+    CURRENT_AMPS = 0x07
+    FREQUENCY_HZ = 0x08
+    POWER_WATTS = 0x09
+    POWER_KILO_WATTS = 0x0A
+    ENERGY_KILO_WATT_HOURS = 0x0B
+    COUNT = 0x0C
+    ENTHALPY_KJOULES_PER_KG = 0x0D
+    TIME_SECONDS = 0x0E
 
 
 ANALOG_INPUT_APPTYPE = {
-    (DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS): AnalogInputType.Temp_Degrees_C,
-    (DEVICE_CLASS_HUMIDITY, UNIT_PERCENT): AnalogInputType.Relative_Humidity_Percent,
-    (DEVICE_CLASS_PRESSURE, UNIT_PASCAL): AnalogInputType.Pressure_Pascal,
-    (DEVICE_CLASS_VOLUME_FLOW_RATE, "L/s"): AnalogInputType.Flow_Liters_Per_Sec,
-    (DEVICE_CLASS_CURRENT, UNIT_AMPERE): AnalogInputType.Current_Amps,
-    (DEVICE_CLASS_FREQUENCY, UNIT_HERTZ): AnalogInputType.Frequency_Hz,
-    (DEVICE_CLASS_POWER, UNIT_WATT): AnalogInputType.Power_Watts,
-    (DEVICE_CLASS_POWER, UNIT_KILOWATT): AnalogInputType.Power_Kilo_Watts,
-    (DEVICE_CLASS_ENERGY, UNIT_KILOWATT_HOURS): AnalogInputType.Energy_Kilo_Watt_Hours,
-    (DEVICE_CLASS_DURATION, UNIT_SECOND): AnalogInputType.Time_Seconds,
+    (DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS): AnalogInputType.TEMP_DEGREES_C,
+    (DEVICE_CLASS_HUMIDITY, UNIT_PERCENT): AnalogInputType.RELATIVE_HUMIDITY_PERCENT,
+    (DEVICE_CLASS_PRESSURE, UNIT_PASCAL): AnalogInputType.PRESSURE_PASCAL,
+    (
+        DEVICE_CLASS_VOLUME_FLOW_RATE,
+        UNIT_LITRE_PER_SECOND,
+    ): AnalogInputType.FLOW_LITERS_PER_SEC,
+    (DEVICE_CLASS_CURRENT, UNIT_AMPERE): AnalogInputType.CURRENT_AMPS,
+    (DEVICE_CLASS_FREQUENCY, UNIT_HERTZ): AnalogInputType.FREQUENCY_HZ,
+    (DEVICE_CLASS_POWER, UNIT_WATT): AnalogInputType.POWER_WATTS,
+    (DEVICE_CLASS_POWER, UNIT_KILOWATT): AnalogInputType.POWER_KILO_WATTS,
+    (DEVICE_CLASS_ENERGY, UNIT_KILOWATT_HOURS): AnalogInputType.ENERGY_KILO_WATT_HOURS,
+    (DEVICE_CLASS_DURATION, UNIT_SECOND): AnalogInputType.TIME_SECONDS,
 }

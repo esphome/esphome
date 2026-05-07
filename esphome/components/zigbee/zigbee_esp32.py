@@ -92,13 +92,13 @@ def get_cv_by_type(attr_type: str) -> Any | None:
     raise cv.Invalid(f"Zigbee: type {attr_type} not supported or implemented")
 
 
-def get_default_by_type(attr_type: str) -> str | bool | int:
+def get_default_by_type(attr_type: str) -> str | bool | int | float:
     if attr_type == "CHAR_STRING":
         return ""
     if attr_type == "BOOL":
         return False
     if attr_type in ["SINGLE", "DOUBLE"]:
-        return "nan"
+        return float("nan")
     return 0
 
 
@@ -154,9 +154,7 @@ def final_validate_esp32(config: ConfigType) -> ConfigType:
     return config
 
 
-def setup_attributes(
-    config: ConfigType, clusters: list[dict[str, Any]]
-) -> tuple[ConfigType, list[dict[str, Any]]]:
+def setup_attributes(config: ConfigType, clusters: list[dict[str, Any]]) -> None:
     for cl in clusters:
         for attr in cl[CONF_ATTRIBUTES]:
             if (
@@ -180,7 +178,6 @@ def setup_attributes(
             else:
                 attr[CONF_ID] = None
             validate_attributes(attr)
-    return config, clusters
 
 
 def validate_sensor_esp32(config: ConfigType) -> ConfigType:
@@ -195,19 +192,18 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
         ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
             {
                 CONF_ATTRIBUTE_ID: 0x100,
-                CONF_VALUE: (apptype << 16) + 0xFFFF,
+                CONF_VALUE: (apptype << 16) | 0xFFFF,
                 CONF_TYPE: "U32",
             },
         )
-    if bacunit is not None:
-        ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
-            {
-                CONF_ATTRIBUTE_ID: 0x75,
-                CONF_VALUE: bacunit,
-                CONF_TYPE: "16BIT_ENUM",
-            },
-        )
-    config, ep[CONF_CLUSTERS] = setup_attributes(config, ep[CONF_CLUSTERS])
+    ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
+        {
+            CONF_ATTRIBUTE_ID: 0x75,
+            CONF_VALUE: bacunit,
+            CONF_TYPE: "16BIT_ENUM",
+        },
+    )
+    setup_attributes(config, ep[CONF_CLUSTERS])
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     sensor_ep: list[dict] = zb_data.setdefault(KEY_SENSOR_EP, [])
     sensor_ep.append(ep)
@@ -216,7 +212,7 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
 
 def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
     ep = copy.deepcopy(ep_configs["binary_input"])
-    config, ep[CONF_CLUSTERS] = setup_attributes(config, ep[CONF_CLUSTERS])
+    setup_attributes(config, ep[CONF_CLUSTERS])
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     binary_sensor_ep: list[dict] = zb_data.setdefault(KEY_BS_EP, [])
     binary_sensor_ep.append(ep)
