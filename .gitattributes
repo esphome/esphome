@@ -1,3 +1,6 @@
 # Normalize line endings to LF in the repository
 * text eol=lf
 *.png binary
+*.bin binary
+*.pcf binary
+*.ttf binary
