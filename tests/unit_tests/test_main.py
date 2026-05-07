@@ -1884,7 +1884,7 @@ def _make_bootloader_bytes() -> bytes:
     """Build a minimal bootloader image accepted by _validate_bootloader_binary."""
     table = bytearray(b"\xff")
     # Starts with: ESP_IMAGE_HEADER_MAGIC (0xE9)
-    table[0] = 0xe9
+    table[0] = 0xE9
     return bytes(table)
 
 

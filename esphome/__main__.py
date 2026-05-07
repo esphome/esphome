@@ -1129,10 +1129,12 @@ def upload_program(
     is_bootloader = getattr(args, "bootloader", False)
     if is_partition_table and is_bootloader:
         raise EsphomeError(
-            f"The options --partition-table and --bootloader can't be used together."
+            "The options --partition-table and --bootloader can't be used together."
         )
     option_string = "--partition-table" if is_partition_table else "--bootloader"
-    if port_type in (PortType.SERIAL, PortType.BOOTSEL) and (is_partition_table or is_bootloader):
+    if port_type in (PortType.SERIAL, PortType.BOOTSEL) and (
+        is_partition_table or is_bootloader
+    ):
         raise EsphomeError(
             f"The option {option_string} can only be used for Over The Air updates."
         )
@@ -1348,9 +1350,7 @@ def _validate_bootloader_binary(binary: Path) -> None:
     try:
         data = binary.read_bytes()
     except OSError as err:
-        raise EsphomeError(
-            f"Cannot read bootloader file '{binary}': {err}"
-        ) from err
+        raise EsphomeError(f"Cannot read bootloader file '{binary}': {err}") from err
 
     first_magic = data[0]
     if first_magic != _ESP_IMAGE_HEADER_MAGIC:
