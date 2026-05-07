@@ -30,6 +30,5 @@ class MPU6050Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *gyro_y_sensor_{nullptr};
   sensor::Sensor *gyro_z_sensor_{nullptr};
 };
-;
 
 }  // namespace esphome::mpu6050
