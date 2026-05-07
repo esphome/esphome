@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace cse7761 {
+namespace esphome::cse7761 {
 
 static const char *const TAG = "cse7761";
 
@@ -244,5 +243,4 @@ void CSE7761Component::get_data_() {
   }
 }
 
-}  // namespace cse7761
-}  // namespace esphome
+}  // namespace esphome::cse7761
