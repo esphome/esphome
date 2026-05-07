@@ -55,17 +55,16 @@ static constexpr uint8_t CORE_CONFIG_RW_CE[] = {0x01,   // Number of parameter f
                                                 0x02};  // TOTAL_DURATION (high): 760 ms
 
 static constexpr uint8_t PMU_CFG[] = {
-    0x01,  // Number of parameters
-    0xA0,
-    0x0E,  // ext. tag
-    11,    // length
-    0x11,  // IRQ Enable: PVDD + temp sensor IRQs
-    0x01,  // RFU
-    0x01,  // Power and Clock Configuration, device on (CFG1)
-    0x01,  // Power and Clock Configuration, device off (CFG1)
-    0x00,  // RFU
-    0x00,  // DC-DC 0
-    0x00,  // DC-DC 1
+    0x01,        // Number of parameters
+    0xA0, 0x0E,  // ext. tag
+    11,          // length
+    0x11,        // IRQ Enable: PVDD + temp sensor IRQs
+    0x01,        // RFU
+    0x01,        // Power and Clock Configuration, device on (CFG1)
+    0x01,        // Power and Clock Configuration, device off (CFG1)
+    0x00,        // RFU
+    0x00,        // DC-DC 0
+    0x00,        // DC-DC 1
     // 0x14,        // TXLDO (3.3V / 4.75V)
     // 0xBB,        // TXLDO (4.7V / 4.7V)
     0xFF,  // TXLDO (5.0V / 5.0V)
