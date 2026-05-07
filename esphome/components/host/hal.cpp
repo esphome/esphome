@@ -2,8 +2,10 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "core.h"
 
 #include <time.h>
+#include <unistd.h>
 #include <cerrno>
 #include <cstdlib>
 
@@ -50,7 +52,20 @@ void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
     res = nanosleep(&ts, &ts);
   } while (res != 0 && errno == EINTR);
 }
-void arch_restart() { exit(0); }
+void arch_restart() {
+  // If the host OTA backend has staged a new binary and armed a re-exec, swap
+  // this process for the new binary instead of exiting. App::safe_reboot()
+  // already ran shutdown hooks (preferences flush, API server close), so
+  // sockets are released by the time we get here.
+  if (const char *target = host::get_reexec_path()) {
+    char **argv = host::get_argv();
+    if (argv != nullptr) {
+      execv(target, argv);
+      // execv only returns on failure -- fall through to exit().
+    }
+  }
+  exit(0);
+}
 
 uint32_t arch_get_cpu_cycle_count() {
   struct timespec spec;
