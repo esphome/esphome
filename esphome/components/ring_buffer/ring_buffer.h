@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/ringbuf.h>
 
@@ -120,3 +122,5 @@ class RingBuffer {
 };
 
 }  // namespace esphome::ring_buffer
+
+#endif  // USE_ESP32

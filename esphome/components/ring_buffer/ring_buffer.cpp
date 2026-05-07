@@ -1,5 +1,7 @@
 #include "ring_buffer.h"
 
+#ifdef USE_ESP32
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -134,3 +136,5 @@ bool RingBuffer::discard_bytes_(size_t discard_bytes) {
 }
 
 }  // namespace esphome::ring_buffer
+
+#endif  // USE_ESP32
