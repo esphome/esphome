@@ -7,7 +7,12 @@
 #pragma message( \
     "esphome/core/ring_buffer.h is deprecated; include esphome/components/ring_buffer/ring_buffer.h instead. Removed in 2026.11.0.")
 
+#if __has_include("esphome/components/ring_buffer/ring_buffer.h")
 #include "esphome/components/ring_buffer/ring_buffer.h"
+#else
+#error \
+    "esphome/components/ring_buffer/ring_buffer.h not found. Add 'ring_buffer' to your component's AUTO_LOAD list to use esphome::ring_buffer::RingBuffer."
+#endif
 #include "esphome/core/helpers.h"  // for ESPDEPRECATED
 
 namespace esphome {
