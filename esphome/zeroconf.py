@@ -60,6 +60,18 @@ TXT_RECORD_VERSION = b"version"
 
 @dataclass
 class DiscoveredImport:
+    """An importable device discovered via mDNS ``_esphomelib._tcp.local.``.
+
+    Used by:
+    - esphome.dashboard (legacy dashboard)
+    - device-builder (esphome/device-builder) — surfaces these as
+      "discovered devices" on the new dashboard's adoption flow.
+
+    Fields are populated from TXT records on the broadcast service
+    info (see :class:`DashboardImportDiscovery`). Coordinate before
+    adding/removing fields — both consumers persist them.
+    """
+
     friendly_name: str | None
     device_name: str
     package_import_url: str
@@ -73,6 +85,22 @@ class DashboardBrowser(AsyncServiceBrowser):
 
 
 class DashboardImportDiscovery:
+    """Track importable devices announcing on ``_esphomelib._tcp.local.``.
+
+    Used by:
+    - esphome.dashboard (legacy dashboard)
+    - device-builder (esphome/device-builder) — wired up alongside
+      the dashboard's own ``ServiceBrowser`` to populate the
+      "Discovered devices" panel and the adoption flow.
+
+    The class maintains ``import_state: dict[str, DiscoveredImport]``
+    keyed by the mDNS service name. ``on_update`` is invoked with
+    ``(name, info | None)`` for additions and removals; update events
+    refresh ``import_state`` without firing the callback.
+    Coordinate before changing the callback signature or the keys
+    of ``import_state`` — device-builder reads both directly.
+    """
+
     def __init__(
         self, on_update: Callable[[str, DiscoveredImport | None], None] | None = None
     ) -> None:
@@ -232,6 +260,19 @@ async def async_resolve_hosts(
 
 
 class AsyncEsphomeZeroconf(AsyncZeroconf):
+    """ESPHome-tuned ``AsyncZeroconf`` with a hostname-resolve helper.
+
+    Used by:
+    - esphome.dashboard (legacy dashboard)
+    - device-builder (esphome/device-builder) — drives both the live
+      mDNS browser and the per-sweep ``async_resolve_host`` fallback
+      for non-API devices that don't broadcast esphomelib.
+
+    Coordinate before adding required constructor args or changing
+    the ``async_resolve_host`` signature — device-builder calls it
+    on every ping cycle.
+    """
+
     async def async_resolve_host(
         self, host: str, timeout: float = DEFAULT_TIMEOUT
     ) -> list[str] | None:
