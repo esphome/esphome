@@ -2516,7 +2516,6 @@ def _write_idf_component_yml():
         if CORE.using_toolchain_esp_idf:
             add_idf_component(
                 name="espressif/arduino-esp32",
-                repo="https://github.com/espressif/arduino-esp32.git",
                 ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             )
 
