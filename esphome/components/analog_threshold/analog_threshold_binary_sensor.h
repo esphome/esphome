@@ -5,8 +5,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace analog_threshold {
+namespace esphome::analog_threshold {
 
 class AnalogThresholdBinarySensor : public Component, public binary_sensor::BinarySensor {
  public:
@@ -24,5 +23,4 @@ class AnalogThresholdBinarySensor : public Component, public binary_sensor::Bina
   bool raw_state_{false};  // Pre-filter state for hysteresis logic
 };
 
-}  // namespace analog_threshold
-}  // namespace esphome
+}  // namespace esphome::analog_threshold

@@ -35,8 +35,7 @@
 #include <micro_wav/wav_decoder.h>
 #endif
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 enum class AudioDecoderState : uint8_t {
   DECODING = 0,  // More data is available to decode
@@ -155,7 +154,6 @@ class AudioDecoder {
 
   bool pause_output_{false};
 };
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif
