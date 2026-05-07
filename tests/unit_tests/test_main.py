@@ -3540,6 +3540,129 @@ esp32:
     assert "already" in captured.out.lower()
 
 
+def test_command_rename_does_not_touch_friendly_name_substring(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename does not match the ``name:`` substring of ``friendly_name:``.
+
+    Without anchoring the regex at line start, the pattern
+    ``\\s*name:\\s+<old>`` could match the trailing ``name:``
+    substring inside ``friendly_name: <old>``. The rewrite would
+    flip both lines to the new name, leaving the user with a
+    silently corrupted ``friendly_name``.
+    """
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("""
+esphome:
+  name: oldname
+  friendly_name: oldname
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+
+    args = MockArgs(name="newname", dashboard=False)
+    mock_run_external_process.return_value = 0
+
+    result = command_rename(args, {})
+
+    assert result == 0
+    new_file = tmp_path / "newname.yaml"
+    content = new_file.read_text()
+    # esphome.name swapped.
+    assert 'name: "newname"' in content
+    # friendly_name kept verbatim.
+    assert "friendly_name: oldname" in content
+
+
+def test_command_rename_does_not_match_old_name_as_value_prefix(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename does not match ``old_name`` as a prefix of a longer value.
+
+    With ``old_name = kitchen`` the value ``kitchen2`` (a sensor
+    or wifi entry) would otherwise match the unanchored
+    ``[\\\"']?kitchen[\\\"']?`` pattern at the prefix and get
+    rewritten to the new name. The end-of-value lookahead keeps
+    the match restricted to whole tokens.
+    """
+    config_file = tmp_path / "kitchen.yaml"
+    config_file.write_text("""
+esphome:
+  name: kitchen
+
+esp32:
+  board: nodemcu-32s
+
+wifi:
+  ap:
+    ssid: kitchen2
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
+
+    args = MockArgs(name="garage", dashboard=False)
+    mock_run_external_process.return_value = 0
+
+    result = command_rename(args, {})
+
+    assert result == 0
+    new_file = tmp_path / "garage.yaml"
+    content = new_file.read_text()
+    assert 'name: "garage"' in content
+    # The wifi ssid value is unrelated and stays intact.
+    assert "ssid: kitchen2" in content
+
+
+def test_command_rename_same_resolved_name_refuses(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename refuses when ``new_name`` matches the resolved device name.
+
+    The path-equality check only catches the case where the
+    config filename matches the device name. For a config whose
+    filename and ``esphome.name`` differ (here ``weird-file.yaml``
+    holds ``esphome.name: kitchen``), running
+    ``esphome rename weird-file.yaml kitchen`` would otherwise
+    fall through to the rewrite + install: the YAML's name stays
+    ``kitchen``, the file is renamed to ``kitchen.yaml``, and the
+    device gets a redundant flash. Refuse up-front so the
+    "already the device's name" message matches reality.
+    """
+    config_file = tmp_path / "weird-file.yaml"
+    config_file.write_text("""
+esphome:
+  name: kitchen
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
+
+    args = MockArgs(name="kitchen", dashboard=False)
+
+    result = command_rename(args, {})
+
+    assert result == 1
+    mock_run_external_process.assert_not_called()
+    # Source file untouched, no derived target written.
+    assert config_file.exists()
+    assert not (tmp_path / "kitchen.yaml").exists()
+
+    captured = capfd.readouterr()
+    assert "already" in captured.out.lower()
+
+
 def test_command_rename_does_not_touch_lookalike_name_in_other_blocks(
     tmp_path: Path,
     mock_run_external_process: Mock,
