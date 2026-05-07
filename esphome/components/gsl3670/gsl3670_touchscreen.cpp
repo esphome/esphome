@@ -166,16 +166,6 @@ bool GSL3670Touchscreen::write_reg_(uint8_t reg, const uint8_t *data, size_t len
   return true;
 }
 
-bool GSL3670Touchscreen::write_reg32_(uint8_t reg, uint32_t val) {
-  uint8_t buf[4] = {
-      (uint8_t) (val & 0xff),
-      (uint8_t) ((val >> 8) & 0xff),
-      (uint8_t) ((val >> 16) & 0xff),
-      (uint8_t) ((val >> 24) & 0xff),
-  };
-  return write_reg_(reg, buf, 4);
-}
-
 bool GSL3670Touchscreen::write_reg8_(uint8_t reg, uint8_t val) { return write_reg_(reg, &val, 1); }
 
 bool GSL3670Touchscreen::read_reg_(uint8_t reg, uint8_t *data, size_t len) {

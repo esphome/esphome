@@ -55,7 +55,6 @@ class GSL3670Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevic
 
   // ---------- I2C helpers ----------
   bool write_reg_(uint8_t reg, const uint8_t *data, size_t len);
-  bool write_reg32_(uint8_t reg, uint32_t val);  // writes 4 bytes LE
   bool write_reg8_(uint8_t reg, uint8_t val);
   bool read_reg_(uint8_t reg, uint8_t *data, size_t len);
 
