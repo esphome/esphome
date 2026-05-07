@@ -151,7 +151,7 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   bool pause_state_{false};
 
-  int16_t q15_volume_factor_{INT16_MAX};
+  int32_t q31_volume_factor_{INT32_MAX};
 
   audio::AudioStreamInfo current_stream_info_;  // The currently loaded driver's stream info
 
