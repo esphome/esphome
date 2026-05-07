@@ -11,21 +11,6 @@ namespace gsl3670 {
 
 static const char *const TAG = "gsl3670.touchscreen";
 // ---------------------------------------------------------------------------
-// Firmware record format
-// Matches `struct fw_data` in the Seeed BSP header:
-//   char    offset;   -- register offset within the current page,
-//                        OR 0xf0 to select a new page
-//   uint32_t val;     -- 32-bit value to write (little-endian, 4 bytes)
-//
-// When offset == 0xf0 the driver writes only the low byte of val to reg 0xf0
-// (page select).  All other offsets write all 4 bytes to (page<<7)|offset.
-// ---------------------------------------------------------------------------
-struct GSL3670FwRecord {
-  uint8_t offset;  ///< Register offset, or 0xf0 = page-select
-  uint32_t val;    ///< Value to write
-};
-
-// ---------------------------------------------------------------------------
 // GSL3670 touchscreen ESPHome component
 // ---------------------------------------------------------------------------
 class GSL3670Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
