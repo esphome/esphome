@@ -6,7 +6,7 @@
 #endif  // USE_BINARY_SENSOR
 #ifdef USE_IMAGE
 #include "esphome/components/image/image.h"
-#endif  // USE_LVGL_IMAGE
+#endif  // USE_IMAGE
 #ifdef USE_LVGL_ROTARY_ENCODER
 #include "esphome/components/rotary_encoder/rotary_encoder.h"
 #endif  // USE_LVGL_ROTARY_ENCODER
@@ -32,10 +32,10 @@
 
 #ifdef USE_FONT
 #include "esphome/components/font/font.h"
-#endif  // USE_LVGL_FONT
+#endif  // USE_FONT
 #ifdef USE_TOUCHSCREEN
 #include "esphome/components/touchscreen/touchscreen.h"
-#endif  // USE_LVGL_TOUCHSCREEN
+#endif  // USE_TOUCHSCREEN
 
 #if defined(USE_LVGL_BUTTONMATRIX) || defined(USE_LVGL_KEYBOARD)
 #include "esphome/components/key_provider/key_provider.h"
@@ -124,7 +124,8 @@ int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value);
  */
 
 lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos);
-#endif
+#endif  // USE_LVGL_GRADIENT
+
 // Parent class for things that wrap an LVGL object
 class LvCompound {
  public:
@@ -169,9 +170,9 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
  public:
   explicit ObjUpdateAction(std::function<void(Ts...)> &&lamb) : lamb_(std::move(lamb)) {}
 
+ protected:
   void play(const Ts &...x) override { this->lamb_(x...); }
 
- protected:
   std::function<void(Ts...)> lamb_;
 };
 #ifdef USE_LVGL_ANIMIMG
@@ -190,6 +191,12 @@ class LvglComponent : public PollingComponent {
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
                 bool resume_on_input, bool update_when_display_idle, RotationType rotation_type);
   static void static_flush_cb(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p);
+  /**
+   *
+   * @param obj A widget
+   * @return The position of the last indev point relative to the widget's origin.
+   */
+  static lv_point_t get_touch_relative_to_obj(lv_obj_t *obj);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
   void setup() override;
@@ -311,9 +318,9 @@ class IdleTrigger : public Trigger<> {
 template<typename... Ts> class LvglAction : public Action<Ts...>, public Parented<LvglComponent> {
  public:
   explicit LvglAction(std::function<void(LvglComponent *)> &&lamb) : action_(std::move(lamb)) {}
-  void play(const Ts &...x) override { this->action_(this->parent_); }
 
  protected:
+  void play(const Ts &...x) override { this->action_(this->parent_); }
   std::function<void(LvglComponent *)> action_{};
 };
 
