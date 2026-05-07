@@ -20,7 +20,6 @@
 #endif
 
 #ifdef __APPLE__
-#include <mach-o/fat.h>
 #include <mach-o/loader.h>
 #endif
 
@@ -125,43 +124,32 @@ struct MachOIdent {
 
 MachOIdent parse_macho_(const uint8_t *buf, size_t len) {
   MachOIdent out{};
-  if (len < sizeof(struct mach_header_64))
+  // mach_header is the common prefix of mach_header and mach_header_64;
+  // cputype/cpusubtype/filetype have identical offsets in both.
+  if (len < sizeof(struct mach_header))
     return out;
   uint32_t magic;
   std::memcpy(&magic, buf, sizeof(magic));
-  // Thin Mach-O only; the running exe is also thin (slice path).
-  if (magic == MH_MAGIC_64 || magic == MH_CIGAM_64) {
-    struct mach_header_64 hdr;
-    std::memcpy(&hdr, buf, sizeof(hdr));
-    if (magic == MH_CIGAM_64) {
-      hdr.cputype = OSSwapInt32(hdr.cputype);
-      hdr.cpusubtype = OSSwapInt32(hdr.cpusubtype);
-      hdr.filetype = OSSwapInt32(hdr.filetype);
-    }
-    if (hdr.filetype != MH_EXECUTE)
-      return out;
-    out.cputype = hdr.cputype;
-    out.cpusubtype = hdr.cpusubtype;
-    out.valid = true;
+  bool swap;
+  if (magic == MH_MAGIC || magic == MH_MAGIC_64) {
+    swap = false;
+  } else if (magic == MH_CIGAM || magic == MH_CIGAM_64) {
+    swap = true;
+  } else {
     return out;
   }
-  if (magic == MH_MAGIC || magic == MH_CIGAM) {
-    if (len < sizeof(struct mach_header))
-      return out;
-    struct mach_header hdr;
-    std::memcpy(&hdr, buf, sizeof(hdr));
-    if (magic == MH_CIGAM) {
-      hdr.cputype = OSSwapInt32(hdr.cputype);
-      hdr.cpusubtype = OSSwapInt32(hdr.cpusubtype);
-      hdr.filetype = OSSwapInt32(hdr.filetype);
-    }
-    if (hdr.filetype != MH_EXECUTE)
-      return out;
-    out.cputype = hdr.cputype;
-    out.cpusubtype = hdr.cpusubtype;
-    out.valid = true;
-    return out;
+  struct mach_header hdr;
+  std::memcpy(&hdr, buf, sizeof(hdr));
+  if (swap) {
+    hdr.cputype = OSSwapInt32(hdr.cputype);
+    hdr.cpusubtype = OSSwapInt32(hdr.cpusubtype);
+    hdr.filetype = OSSwapInt32(hdr.filetype);
   }
+  if (hdr.filetype != MH_EXECUTE)
+    return out;
+  out.cputype = hdr.cputype;
+  out.cpusubtype = hdr.cpusubtype;
+  out.valid = true;
   return out;
 }
 
