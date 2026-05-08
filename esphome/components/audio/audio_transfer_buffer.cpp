@@ -242,8 +242,13 @@ void RingBufferAudioSource::consume(size_t bytes) {
   bytes = std::min(bytes, this->current_available_);
   this->current_data_ += bytes;
   this->current_available_ -= bytes;
-  // Release of the held item and promotion of queued data are deferred to fill() so callers see new
-  // data as a fresh return value rather than appearing silently after consume().
+  // Promotion of queued data is deferred to fill() so callers see new data as a fresh return value
+  // rather than appearing silently after consume(). When the held item has nothing left depending
+  // on it (no exposed bytes and no queued region), release it now so the ring buffer can be
+  // reclaimed by writers even if fill() is never called again.
+  if (this->current_available_ == 0 && this->queued_length_ == 0) {
+    this->release_item_();
+  }
 }
 
 bool RingBufferAudioSource::has_buffered_data() const {
