@@ -95,4 +95,4 @@ class ES9038Q2MKatana : public audio_dac::AudioDac, public Component, public i2c
   bool init_complete_{false};
 };
 
-}  // namespace
+}  // namespace esphome::es9038q2m_katana
