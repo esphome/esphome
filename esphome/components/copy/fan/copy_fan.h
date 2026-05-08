@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/fan/fan.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
 class CopyFan : public fan::Fan, public Component {
  public:
@@ -21,5 +20,4 @@ class CopyFan : public fan::Fan, public Component {
   fan::Fan *source_;
 };
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

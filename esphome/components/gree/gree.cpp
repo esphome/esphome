@@ -1,8 +1,7 @@
 #include "gree.h"
 #include "esphome/components/remote_base/remote_base.h"
 
-namespace esphome {
-namespace gree {
+namespace esphome::gree {
 
 static const char *const TAG = "gree.climate";
 
@@ -241,5 +240,4 @@ uint8_t GreeClimate::preset_() {
   return GREE_PRESET_NONE;
 }
 
-}  // namespace gree
-}  // namespace esphome
+}  // namespace esphome::gree

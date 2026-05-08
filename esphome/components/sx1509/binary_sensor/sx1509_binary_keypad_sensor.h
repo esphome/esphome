@@ -3,8 +3,7 @@
 #include "esphome/components/sx1509/sx1509.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace sx1509 {
+namespace esphome::sx1509 {
 
 class SX1509BinarySensor : public sx1509::SX1509Processor, public binary_sensor::BinarySensor {
  public:
@@ -15,5 +14,4 @@ class SX1509BinarySensor : public sx1509::SX1509Processor, public binary_sensor:
   uint16_t key_{0};
 };
 
-}  // namespace sx1509
-}  // namespace esphome
+}  // namespace esphome::sx1509

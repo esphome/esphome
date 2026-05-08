@@ -8,8 +8,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_mjyd02yla {
+namespace esphome::xiaomi_mjyd02yla {
 
 class XiaomiMJYD02YLA : public Component,
                         public binary_sensor::BinarySensorInitiallyOff,
@@ -35,7 +34,6 @@ class XiaomiMJYD02YLA : public Component,
   binary_sensor::BinarySensor *is_light_{nullptr};
 };
 
-}  // namespace xiaomi_mjyd02yla
-}  // namespace esphome
+}  // namespace esphome::xiaomi_mjyd02yla
 
 #endif

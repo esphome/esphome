@@ -6,8 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace integration {
+namespace esphome::integration {
 
 enum IntegrationSensorTime {
   INTEGRATION_SENSOR_TIME_MILLISECOND = 0,
@@ -84,5 +83,4 @@ template<typename... Ts> class SetValueAction : public Action<Ts...>, public Par
   void play(const Ts &...x) override { this->parent_->set_value(this->value_.value(x...)); }
 };
 
-}  // namespace integration
-}  // namespace esphome
+}  // namespace esphome::integration
