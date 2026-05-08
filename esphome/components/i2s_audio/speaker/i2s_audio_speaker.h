@@ -35,7 +35,11 @@ enum SpeakerEventGroupBits : uint32_t {
 
   ERR_ESP_NO_MEM = (1 << 19),
 
-  WARN_DROPPED_EVENT = (1 << 20),
+  ERR_DROPPED_EVENT = (1 << 20),    // ISR overflowed the event queue, dropping a completion event
+  ERR_PARTIAL_WRITE = (1 << 21),    // a DMA write returned fewer bytes than requested (or the encoder
+                                    // failed to commit a complete block), which breaks the lockstep
+                                    // invariant for every subsequent event
+  ERR_LOCKSTEP_DESYNC = (1 << 22),  // i2s_event_queue_ and write_records_queue_ fell out of sync
 
   ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
@@ -141,7 +145,9 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   TaskHandle_t speaker_task_handle_{nullptr};
   EventGroupHandle_t event_group_{nullptr};
 
+  // Lockstepped DMA buffer queues: i2s_event is outgoing, write_records is incoming
   QueueHandle_t i2s_event_queue_{nullptr};
+  QueueHandle_t write_records_queue_{nullptr};
 
   std::weak_ptr<ring_buffer::RingBuffer> audio_ring_buffer_;
 
