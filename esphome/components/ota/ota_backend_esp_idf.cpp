@@ -31,7 +31,13 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
     this->md5_.init();
     return OTA_RESPONSE_OK;
   }
-  if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP) {
+  if (this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
+    OTAResponseTypes result = this->prepare_bootloader_update_(image_size);
+    if (result != OTA_RESPONSE_OK) {
+      return result;
+    }
+  }
+  if (!this->is_app_or_bootloader_update_()) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
 #else
@@ -55,6 +61,7 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
   esp_err_t err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
 
   if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ota_begin failed (err=0x%X)", err);
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
     if (err == ESP_ERR_INVALID_SIZE) {
@@ -64,6 +71,14 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
     }
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }
+#ifdef USE_OTA_PARTITIONS
+  if (this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
+    OTAResponseTypes result = this->setup_bootloader_staging_();
+    if (result != OTA_RESPONSE_OK) {
+      return result;
+    }
+  }
+#endif
   this->md5_.init();
   return OTA_RESPONSE_OK;
 }
@@ -85,13 +100,14 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
     this->md5_.add(data, len);
     return OTA_RESPONSE_OK;
   }
-  if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP) {
+  if (!this->is_app_or_bootloader_update_()) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
 #endif
   esp_err_t err = esp_ota_write(this->update_handle_, data, len);
   this->md5_.add(data, len);
   if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ota_write failed (err=0x%X)", err);
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
       return OTA_RESPONSE_ERROR_MAGIC;
     } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
@@ -114,12 +130,20 @@ OTAResponseTypes IDFOTABackend::end() {
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
     return this->update_partition_table();
   }
-  if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP) {
+  if (!this->is_app_or_bootloader_update_()) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
 #endif
   esp_err_t err = esp_ota_end(this->update_handle_);
   this->update_handle_ = 0;
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X)", err);
+  }
+#ifdef USE_OTA_PARTITIONS
+  if (this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
+    return this->finalize_bootloader_update_(err);
+  }
+#endif
   if (err == ESP_OK) {
     err = esp_ota_set_boot_partition(this->partition_);
     if (err == ESP_OK) {
@@ -145,6 +169,10 @@ void IDFOTABackend::abort() {
   if (this->partition_table_part_ != nullptr) {
     esp_partition_deregister_external(this->partition_table_part_);
     this->partition_table_part_ = nullptr;
+  }
+  if (this->bootloader_part_ != nullptr) {
+    esp_partition_deregister_external(this->bootloader_part_);
+    this->bootloader_part_ = nullptr;
   }
 #endif
   // esp_ota_abort with handle 0 returns ESP_ERR_INVALID_ARG harmlessly, so this is safe whether

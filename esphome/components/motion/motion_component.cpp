@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace motion {
+namespace esphome::motion {
 
 static const char *const TAG = "motion";
 
@@ -23,5 +22,4 @@ void MotionComponent::update() {
            motion_data.angular_rate[Y_AXIS], motion_data.angular_rate[Z_AXIS]);
 }
 
-}  // namespace motion
-}  // namespace esphome
+}  // namespace esphome::motion
