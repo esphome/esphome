@@ -6,7 +6,7 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_TRIGGER_ID,
     CONF_X,
-    CONF_Y,
+    CONF_Y, CONF_ON_UPDATE,
 )
 from esphome.cpp_generator import MockObj, new_Pvariable
 from esphome.cpp_helpers import register_component
@@ -89,6 +89,13 @@ async def generate_triggers():
                     conf,
                     w,
                     LV_EVENT.VALUE_CHANGED,
+                    UPDATE_EVENT,
+                )
+
+            for conf in config.get(CONF_ON_UPDATE, ()):
+                await add_trigger(
+                    conf,
+                    w,
                     UPDATE_EVENT,
                 )
 

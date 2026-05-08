@@ -16,7 +16,7 @@ from esphome.const import (
     CONF_TIME,
     CONF_TRIGGER_ID,
     CONF_X,
-    CONF_Y,
+    CONF_Y, CONF_ON_UPDATE, CONF_ON_RELEASE,
 )
 from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
@@ -31,7 +31,7 @@ from .defines import (
     CONF_TIME_FORMAT,
     LV_GRAD_DIR,
     get_remapped_uses,
-    is_press_event,
+    is_press_event, CONF_TRIGGER, LV_VALUE_EVENTS, VALUE_ON_CHANGE, VALUE_ON_UPDATE, VALUE_ON_VALUE,
 )
 from .helpers import CONF_IF_NAN, validate_printf
 from .layout import (
@@ -41,7 +41,7 @@ from .layout import (
     grid_alignments,
 )
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
-from .lvcode import LvglComponent, lv_event_t_ptr
+from .lvcode import LvglComponent, lv_event_t_ptr, UPDATE_EVENT
 from .types import (
     LVEncoderListener,
     LvType,
@@ -49,7 +49,7 @@ from .types import (
     lv_obj_t,
     lv_point_t,
     lv_pseudo_button_t,
-    lv_style_t,
+    lv_style_t, LV_EVENT,
 )
 from .widgets import WidgetType
 
@@ -355,6 +355,17 @@ SET_STATE_SCHEMA = cv.Schema(
 FLAG_SCHEMA = cv.Schema({cv.Optional(flag): lvalid.lv_bool for flag in df.OBJ_FLAGS})
 FLAG_LIST = cv.ensure_list(df.LV_OBJ_FLAG.one_of)
 
+VALUE_TRIGGER_SCHEMA = {
+    cv.Optional(CONF_TRIGGER, default=CONF_ON_VALUE): cv.one_of(*LV_VALUE_EVENTS, lower=True),
+}
+
+TRIGGER_EVENT_MAP = {
+    VALUE_ON_CHANGE: (LV_EVENT.VALUE_CHANGED,),
+    VALUE_ON_UPDATE: (UPDATE_EVENT,),
+    VALUE_ON_VALUE: (LV_EVENT.VALUE_CHANGED, UPDATE_EVENT),
+    CONF_ON_RELEASE: (LV_EVENT.RELEASED,),
+}
+
 
 def part_schema(parts):
     """
@@ -370,7 +381,7 @@ def part_schema(parts):
 def automation_schema(typ: LvType):
     events = df.LV_EVENT_TRIGGERS + df.SWIPE_TRIGGERS
     if typ.has_on_value:
-        events = events + (CONF_ON_VALUE,)
+        events = events + (CONF_ON_VALUE, CONF_ON_UPDATE)
     args = typ.get_arg_type()
 
     def get_trigger_args(event):
