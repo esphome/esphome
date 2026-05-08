@@ -352,7 +352,11 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
       }
 
       // One block committed to DMA; push exactly one record carrying its real-audio frame count.
-      xQueueSendToBack(this->write_records_queue_, &real_frames_in_block, 0);
+      // Failure here means the records queue is full, which violates the lockstep invariant.
+      if (xQueueSendToBack(this->write_records_queue_, &real_frames_in_block, 0) != pdTRUE) {
+        xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC);
+        break;
+      }
 
       // Silence-timeout tracking and graceful-stop reset.
       if (real_frames_in_block == 0) {
