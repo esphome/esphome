@@ -249,8 +249,11 @@ class RingBufferAudioSource : public AudioReadableBuffer {
   bool has_buffered_data() const override;
   size_t fill(TickType_t ticks_to_wait, bool pre_shift) override;
 
-  /// @brief Returns a mutable pointer to the acquired ring buffer data.
-  /// Use only when the caller is the sole consumer and data will be discarded after use.
+  /// @brief Returns a mutable pointer to the currently exposed audio data.
+  /// The pointer may reference the ring buffer's internal storage or, when exposing a stitched frame
+  /// across a wrap boundary, an internal splice buffer. In either case mutations are safe but data
+  /// should be discarded after use, since the underlying storage will be reused on the next fill().
+  /// Use only when the caller is the sole consumer of this source.
   uint8_t *mutable_data() { return this->current_data_; }
 
  protected:
