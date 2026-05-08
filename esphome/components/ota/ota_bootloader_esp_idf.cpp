@@ -24,7 +24,7 @@ OTAResponseTypes IDFOTABackend::register_and_validate_bootloader_part_() {
   }
 
   // Verify existing bootloader to make sure ESP_PRIMARY_BOOTLOADER_OFFSET is correct
-  esp_image_metadata_t data;
+  esp_image_metadata_t data = {};
   const esp_partition_pos_t part_pos = {
       .offset = this->bootloader_part_->address,
       .size = this->bootloader_part_->size,
@@ -57,7 +57,6 @@ OTAResponseTypes IDFOTABackend::prepare_bootloader_update_(size_t image_size) {
   }
   esp_partition_deregister_external(this->partition_table_part_);
   this->partition_table_part_ = nullptr;
-  this->image_size_ = image_size;
   return OTA_RESPONSE_OK;
 }
 
