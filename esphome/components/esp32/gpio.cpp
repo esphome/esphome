@@ -17,7 +17,8 @@
 #define SOC_GPIO_SUPPORT_RTC_INDEPENDENT 0  // NOLINT
 #endif
 
-namespace esphome::esp32 {
+namespace esphome {
+namespace esp32 {
 
 static const char *const TAG = "esp32";
 

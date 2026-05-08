@@ -3,7 +3,8 @@
 #include <zephyr/drivers/gpio.h>
 #include "esphome/core/log.h"
 
-namespace esphome::zephyr {
+namespace esphome {
+namespace zephyr {
 
 static const char *const TAG = "zephyr";
 

@@ -3,7 +3,8 @@
 #include "gpio.h"
 #include "esphome/core/log.h"
 
-namespace esphome::host {
+namespace esphome {
+namespace host {
 
 static const char *const TAG = "host";
 

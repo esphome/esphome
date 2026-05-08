@@ -6,7 +6,9 @@
 #include "esphome/core/component.h"
 #include <algorithm>
 
-namespace esphome::runtime_stats {
+namespace esphome {
+
+namespace runtime_stats {
 
 RuntimeStatsCollector::RuntimeStatsCollector() : log_interval_(60000), next_log_time_(60000) {
   global_runtime_stats = this;
