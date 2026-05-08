@@ -45,6 +45,12 @@ class IDFOTABackend final {
   OTAResponseTypes prepare_bootloader_update_(size_t image_size);
   OTAResponseTypes setup_bootloader_staging_();
   OTAResponseTypes finalize_bootloader_update_(esp_err_t ota_end_err);
+
+  // The OTA types that flow through esp_ota_begin/write/end. Partition-table updates take a
+  // separate code path that buffers the table in RAM and never touches the OTA handle.
+  bool is_app_or_bootloader_update_() const {
+    return this->ota_type_ == ota::OTA_TYPE_UPDATE_APP || this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER;
+  }
 #endif
 
  private:

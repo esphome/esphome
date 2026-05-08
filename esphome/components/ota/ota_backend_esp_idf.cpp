@@ -37,7 +37,7 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
       return result;
     }
   }
-  if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP && this->ota_type_ != ota::OTA_TYPE_UPDATE_BOOTLOADER) {
+  if (!this->is_app_or_bootloader_update_()) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
 #else
@@ -100,7 +100,7 @@ OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
     this->md5_.add(data, len);
     return OTA_RESPONSE_OK;
   }
-  if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP && this->ota_type_ != ota::OTA_TYPE_UPDATE_BOOTLOADER) {
+  if (!this->is_app_or_bootloader_update_()) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
 #endif
@@ -130,7 +130,7 @@ OTAResponseTypes IDFOTABackend::end() {
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
     return this->update_partition_table();
   }
-  if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP && this->ota_type_ != ota::OTA_TYPE_UPDATE_BOOTLOADER) {
+  if (!this->is_app_or_bootloader_update_()) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
 #endif
