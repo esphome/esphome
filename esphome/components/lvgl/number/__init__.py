@@ -21,7 +21,7 @@ from ..lvcode import (
     lvgl_static,
 )
 from ..schemas import TRIGGER_EVENT_MAP, VALUE_TRIGGER_SCHEMA
-from ..types import LV_EVENT, LvNumber, lvgl_ns
+from ..types import LvNumber, lvgl_ns
 from ..widgets import get_widgets, wait_for_widgets
 
 LVGLNumber = lvgl_ns.class_("LVGLNumber", number.Number, cg.Component)
@@ -58,7 +58,6 @@ async def to_code(config):
         config,
         await control.get_lambda(),
         await value.get_lambda(),
-        event_code,
         config[CONF_RESTORE_VALUE],
         max_value=widget.type.get_max(widget.config),
         min_value=widget.type.get_min(widget.config),
