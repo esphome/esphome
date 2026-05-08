@@ -2,12 +2,14 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "core.h"
 
 #include <time.h>
 #include <unistd.h>
 #include <cerrno>
 #include <cstdlib>
+#include <cstring>
 
 // Empty host namespace block to satisfy ci-custom's lint_namespace check.
 // HAL functions live in namespace esphome (root) — they are not part of the
@@ -57,7 +59,10 @@ void arch_restart() {
   if (const char *target = host::get_reexec_path()) {
     char **argv = host::get_argv();
     if (argv != nullptr) {
-      execv(target, argv);  // only returns on failure
+      execv(target, argv);
+      // execv only returns on failure.
+      ESP_LOGE("host", "execv('%s') failed: %s", target, std::strerror(errno));
+      exit(1);
     }
   }
   exit(0);
