@@ -256,7 +256,7 @@ bool RingBufferAudioSource::has_buffered_data() const {
          (this->ring_buffer_->available() > 0);
 }
 
-size_t RingBufferAudioSource::fill(TickType_t ticks_to_wait, bool pre_shift) {
+size_t RingBufferAudioSource::fill(TickType_t ticks_to_wait, bool /*pre_shift*/) {
   if (this->current_available_ > 0) {
     // Caller has not finished consuming the current exposure
     return 0;
