@@ -24,18 +24,15 @@ speaker:
 
 ## Configuration variables
 
-- **dac_type** (**Required**, enum):
+- **dac_type** (**Required**, enum): Must be `external`. Use an external DAC, for example the [ES8311](/components/audio_dac/es8311) or [ES8388](/components/audio_dac/es8388).
 
-  - `external`  : Use an external DAC, for example the NS4168, or UDA1334A.
-  - `internal`  : Use the internal DAC
+- **i2s_dout_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The GPIO pin to use for the I²S DOUT (Data Out) signal.
 
 - **channel** (*Optional*, enum): The channel of the speaker. One of `left`, `right`, `mono`, or `stereo`. If `stereo`, the input data should be twice as big,
   with each right sample followed by a left sample. `left` and `right` mute the unused channel, while `mono` plays the same samples on both. Defaults to `mono`.
 
 - **sample_rate** (*Optional*, positive integer): I2S sample rate. If in `primary` I²S mode the sample rate of the audio stream is used. Defaults to `16000`.
 - **bits_per_sample** (*Optional*, enum): The bit depth of the audio samples sent to the DAC. One of `8bit`, `16bit`, `24bit`, or `32bit`. Defaults to `16bit`.
-- **bits_per_channel** (*Optional*, enum): The bit depth of the audio channels. This is what is actually send to the DAC and needs to be equal or larger than `bits_per_sample`.
-  See the datasheet of your I2S device for details. Defaults to `bits_per_sample`. Setting is ignored if the legacy driver is not used.
 
 - **mclk_multiple** (*Optional*, enum): The multiple of the MCLK frequency to the sample rate. Must be divisible by 3 if using 24 bits per sample. One of `128`, `256`, `384`, `512`. Defaults to `256`.
 - **use_apll** (*Optional*, boolean): I2S using APLL as main I2S clock, enable it to get accurate clock. Defaults to `false`.
@@ -47,32 +44,62 @@ speaker:
   - `stand_msb`
   - `stand_pcm_short`
   - `stand_pcm_long`
-  - `stand_max` (only with legacy driver)
   - `i2s_msb`
   - `i2s_lsb`
   - `pcm`
   - `pcm_short`
   - `pcm_long`
+
 - **buffer_duration** (*Optional*, [Time](/guides/configuration-types#time)): The duration of the internal ring buffer. Larger values can reduce stuttering but uses more memory. Defaults to `500ms`.
-- **timeout** (*Optional*, [Time](/guides/configuration-types#time)): How long to wait after finishing playback before releasing the bus. Set to `never` to never stop the speaker due to a timeout. Defaults to `500ms`.
+- **timeout** (*Optional*, [Time](/guides/configuration-types#time)): How long to wait after finishing playback before releasing the bus. Set to `never` to never stop the speaker due to a timeout. Defaults to `500ms`. **Note:** With `spdif_mode: true` (see below), buffer underflows are filled with silence frames until the specified interval elapses; this maintains the SPDIF signal to prevent the receiver from detecting a loss of signal/source change, which may otherwise lengthen gaps of silence.
+- **spdif_mode** (*Optional*, boolean): Enable SPDIF (Sony/Philips Digital Interface Format) mode for digital audio output. When enabled, the speaker outputs a SPDIF-encoded bitstream suitable for optical (TOSLINK) or coaxial digital audio transmission. Defaults to `false`.
 - All other options from [Speaker Component](/components/speaker#config-speaker).
 
-### External DAC
+## SPDIF Mode
 
-- **i2s_dout_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The GPIO pin to use for the I²S DOUT (Data Out) signal.
+SPDIF (Sony/Philips Digital Interface Format) mode enables digital audio transmission over optical (TOSLINK) or coaxial connections. This mode encodes PCM audio data into a SPDIF bitstream that can be received by soundbars, A/V receivers, DACs, and other digital audio equipment.
 
-For best results, keep the wires as short as possible.
+### Hardware Setup
 
-### Internal DAC
+For optical SPDIF transmission, you can use:
 
-> [!NOTE]
-> Internal DAC speakers are only supported by the legacy I²S driver on a regular ESP32, not the variants.
+- **Simple LED**: Any LED (even a debug LED on your dev board) can transmit SPDIF audio. Place an optical cable near the LED.
+- **TOSLINK Transmitter Module**: Dedicated optical transmitter modules provide a proper TOSLINK connector for reliable connections.
 
-- **mode** (**Required**, enum): The channel mode of the internal DAC.
+The transmitter is connected to the `i2s_dout_pin` (the same pin used for standard I²S data output).
 
-  - `left`
-  - `right`
-  - `stereo`
+### SPDIF Mode Constraints
+
+When `spdif_mode` is enabled, the following settings are required:
+
+- **Sample Rate**: Only `44100` Hz (CD quality) or `48000` Hz (DVD/DAT quality) are supported
+- **Channels**: Must be set to `stereo` (2 channels)
+- **bits_per_sample**: Must be set to `16bit`
+- **use_apll**: Must be set to `true` for accurate clock generation
+- **i2s_mode**: Must be set to `primary`
+- **i2s_comm_fmt**: Must be set to `stand_i2s`
+- **mclk_multiple**: Must be set to `256`
+
+### Example SPDIF Configuration
+
+```yaml
+# Example SPDIF speaker configuration
+i2s_audio:
+  - id: i2s_output
+
+speaker:
+  - platform: i2s_audio
+    id: spdif_speaker
+    dac_type: external
+    i2s_audio_id: i2s_output
+    i2s_dout_pin: GPIOXX
+    spdif_mode: true
+    use_apll: true
+    sample_rate: 48000
+    bits_per_sample: 16bit
+    channel: stereo
+    timeout: never
+```
 
 ## See Also
 
