@@ -93,10 +93,19 @@ void I2SAudioSpeakerBase::loop() {
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
   }
 
-  // Warn if any playback timestamp events are dropped, which drastically reduces synced playback accuracy
-  if (event_group_bits & SpeakerEventGroupBits::WARN_DROPPED_EVENT) {
-    ESP_LOGW(TAG, "Event dropped, synchronized playback accuracy is reduced");
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::WARN_DROPPED_EVENT);
+  // Once the ISR drops a completion event, the i2s_event_queue_ falls out of lockstep with any
+  // per-buffer record queue maintained by the task; the only safe recovery is to restart the task.
+  if (event_group_bits & SpeakerEventGroupBits::ERR_DROPPED_EVENT) {
+    ESP_LOGE(TAG, "ISR event queue overflow, restarting speaker task to recover timestamp sync");
+    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_DROPPED_EVENT);
+  }
+  if (event_group_bits & SpeakerEventGroupBits::ERR_PARTIAL_WRITE) {
+    ESP_LOGE(TAG, "Partial DMA write broke buffer alignment, restarting speaker task");
+    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_PARTIAL_WRITE);
+  }
+  if (event_group_bits & SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC) {
+    ESP_LOGE(TAG, "Event/record queues desynced, restarting speaker task");
+    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC);
   }
 
   // Handle the speaker's state
@@ -271,6 +280,22 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
     xQueueReset(this->i2s_event_queue_);
   }
 
+  // Lockstep records queue. One record per in-flight DMA buffer; sized to match the I2S event queue
+  // so a fully-saturated DMA pipeline cannot overflow either side before drain.
+  if (this->write_records_queue_ == nullptr) {
+    this->write_records_queue_ = xQueueCreate(event_queue_size, sizeof(uint32_t));
+  } else {
+    xQueueReset(this->write_records_queue_);
+  }
+
+  if (this->i2s_event_queue_ == nullptr || this->write_records_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate I2S event queue(s)");
+    i2s_del_channel(this->tx_handle_);
+    this->tx_handle_ = nullptr;
+    this->parent_->unlock();
+    return ESP_ERR_NO_MEM;
+  }
+
   return ESP_OK;
 }
 
@@ -293,10 +318,16 @@ bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s
   I2SAudioSpeakerBase *this_speaker = (I2SAudioSpeakerBase *) user_ctx;
 
   if (xQueueIsQueueFullFromISR(this_speaker->i2s_event_queue_)) {
-    // Queue is full, so discard the oldest event and set the warning flag to inform the user
+    // Queue is full, so discard the oldest event. Once we drop a completion event, ``i2s_event_queue_``
+    // and any per-buffer record queue maintained by the task are permanently desynced, so the task
+    // must restart to recover. Set both ERR_DROPPED_EVENT (so loop() can log it) and COMMAND_STOP
+    // (so the task bails immediately, closing the race where loop() could clear the error bit
+    // before the task observes it).
     int64_t dummy;
     xQueueReceiveFromISR(this_speaker->i2s_event_queue_, &dummy, &need_yield1);
-    xEventGroupSetBitsFromISR(this_speaker->event_group_, SpeakerEventGroupBits::WARN_DROPPED_EVENT, &need_yield2);
+    xEventGroupSetBitsFromISR(this_speaker->event_group_,
+                              SpeakerEventGroupBits::ERR_DROPPED_EVENT | SpeakerEventGroupBits::COMMAND_STOP,
+                              &need_yield2);
   }
 
   xQueueSendToBackFromISR(this_speaker->i2s_event_queue_, &now, &need_yield3);

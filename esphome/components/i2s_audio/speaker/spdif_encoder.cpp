@@ -366,13 +366,9 @@ esp_err_t SPDIFEncoder::flush_with_silence(TickType_t ticks_to_wait) {
     }
   }
 
-  if (!this->has_pending_data()) {
-    return ESP_OK;  // Nothing to flush
-  }
-
-  // Encode silence (zeros) until the block is complete
+  // Pad with silence until the current block is complete, then send. If no data was pending,
+  // this produces a full silence block. Always emits exactly one block on success.
   static const uint8_t SILENCE[2] = {0, 0};
-
   while (this->spdif_block_ptr_ < &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
     this->encode_sample_(SILENCE);
   }
