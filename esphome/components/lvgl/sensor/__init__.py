@@ -1,5 +1,3 @@
-from itertools import chain
-
 from esphome.components.sensor import Sensor, new_sensor, sensor_schema
 import esphome.config_validation as cv
 
