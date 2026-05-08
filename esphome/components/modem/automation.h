@@ -6,8 +6,7 @@
 
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace modem {
+namespace esphome::modem {
 
 // Triggers
 class ModemOnConnectTrigger : public Trigger<> {
@@ -88,6 +87,5 @@ template<typename... Ts> class ModemEnabledCondition : public Condition<Ts...> {
   }
 };
 
-}  // namespace modem
-}  // namespace esphome
+}  // namespace esphome::modem
 #endif  // USE_ESP32

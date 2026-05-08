@@ -9,8 +9,7 @@
 #include <vector>
 #include <cmath>
 
-namespace esphome {
-namespace modem {
+namespace esphome::modem {
 
 using namespace esp_modem;
 
@@ -71,6 +70,5 @@ class ModemHandler {
   bool prepare_sim();
 };
 
-}  // namespace modem
-}  // namespace esphome
+}  // namespace esphome::modem
 #endif

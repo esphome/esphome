@@ -5,8 +5,7 @@
 #include "esphome/core/application.h"
 #include <cmath>
 
-namespace esphome {
-namespace modem {
+namespace esphome::modem {
 
 using namespace esp_modem;
 
@@ -185,6 +184,5 @@ void ModemHandler::ip_event_handler(void *arg, esp_event_base_t event_base, int3
   }
 }
 
-}  // namespace modem
-}  // namespace esphome
+}  // namespace esphome::modem
 #endif

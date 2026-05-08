@@ -14,8 +14,7 @@
 #include <memory>
 
 #include "modem_handler.h"
-namespace esphome {
-namespace modem {
+namespace esphome::modem {
 
 enum class ModemComponentState {
   MODEM_DISABLED,
@@ -125,7 +124,6 @@ class ModemComponent : public Component {
 
 extern ModemComponent *global_modem_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace modem
-}  // namespace esphome
+}  // namespace esphome::modem
 
 #endif

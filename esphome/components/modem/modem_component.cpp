@@ -28,8 +28,7 @@
     return; \
   }
 
-namespace esphome {
-namespace modem {
+namespace esphome::modem {
 
 static const char *const TAG = "modem";
 
@@ -461,7 +460,6 @@ void ModemComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS backup  : %s", network::IPAddress(&dns_backup.ip.u_addr.ip4).str_to(buffer));
 }
 
-}  // namespace modem
-}  // namespace esphome
+}  // namespace esphome::modem
 
 #endif
