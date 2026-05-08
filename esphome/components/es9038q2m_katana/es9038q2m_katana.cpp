@@ -355,4 +355,4 @@ bool ES9038Q2MKatana::set_mute_state_(bool mute_state) {
   return true;
 }
 
-}  // namespace
+}  // namespace esphome::es9038q2m_katana
