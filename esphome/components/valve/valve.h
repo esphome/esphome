@@ -7,8 +7,7 @@
 #include "esphome/core/preferences.h"
 #include "valve_traits.h"
 
-namespace esphome {
-namespace valve {
+namespace esphome::valve {
 
 const extern float VALVE_OPEN;
 const extern float VALVE_CLOSED;
@@ -147,5 +146,4 @@ class Valve : public EntityBase {
   ESPPreferenceObject rtc_;
 };
 
-}  // namespace valve
-}  // namespace esphome
+}  // namespace esphome::valve

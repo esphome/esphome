@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include <cstring>
 
-namespace esphome {
-namespace sim800l {
+namespace esphome::sim800l {
 
 static const char *const TAG = "sim800l";
 
@@ -492,5 +491,4 @@ void Sim800LComponent::set_registered_(bool registered) {
 #endif
 }
 
-}  // namespace sim800l
-}  // namespace esphome
+}  // namespace esphome::sim800l

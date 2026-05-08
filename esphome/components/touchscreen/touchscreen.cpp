@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace touchscreen {
+namespace esphome::touchscreen {
 
 static const char *const TAG = "touchscreen";
 
@@ -162,5 +161,4 @@ int16_t Touchscreen::normalize_(int16_t val, int16_t min_val, int16_t max_val, b
   return ret;
 }
 
-}  // namespace touchscreen
-}  // namespace esphome
+}  // namespace esphome::touchscreen

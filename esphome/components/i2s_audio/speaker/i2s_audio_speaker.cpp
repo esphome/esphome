@@ -195,7 +195,7 @@ size_t I2SAudioSpeakerBase::play(const uint8_t *data, size_t length, TickType_t 
 
   size_t bytes_written = 0;
   if (this->state_ == speaker::STATE_RUNNING) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
     if (temp_ring_buffer != nullptr) {
       // The weak_ptr locks successfully only while the speaker task owns the ring buffer, so it is safe to write
       bytes_written = temp_ring_buffer->write_without_replacement((void *) data, length, ticks_to_wait);
@@ -207,7 +207,7 @@ size_t I2SAudioSpeakerBase::play(const uint8_t *data, size_t length, TickType_t 
 
 bool I2SAudioSpeakerBase::has_buffered_data() const {
   if (this->audio_ring_buffer_.use_count() > 0) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
     return temp_ring_buffer->available() > 0;
   }
   return false;
