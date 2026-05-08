@@ -1125,11 +1125,18 @@ def upload_program(
 
     # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
     # _resolve_network_devices(). Only SERIAL and BOOTSEL are non-OTA upload paths.
-    if port_type in (PortType.SERIAL, PortType.BOOTSEL) and getattr(
-        args, "partition_table", False
+    is_partition_table = getattr(args, "partition_table", False)
+    is_bootloader = getattr(args, "bootloader", False)
+    if is_partition_table and is_bootloader:
+        raise EsphomeError(
+            "The options --partition-table and --bootloader can't be used together."
+        )
+    option_string = "--partition-table" if is_partition_table else "--bootloader"
+    if port_type in (PortType.SERIAL, PortType.BOOTSEL) and (
+        is_partition_table or is_bootloader
     ):
         raise EsphomeError(
-            "The option --partition-table can only be used for Over The Air updates."
+            f"The option {option_string} can only be used for Over The Air updates."
         )
 
     if port_type == PortType.BOOTSEL:
@@ -1158,9 +1165,9 @@ def upload_program(
     network_devices = _resolve_network_devices(devices, config, args)
 
     if chosen_platform == CONF_WEB_SERVER:
-        if getattr(args, "partition_table", False):
+        if is_partition_table or is_bootloader:
             raise EsphomeError(
-                "--partition-table is only supported with the esphome OTA platform; "
+                f"{option_string} is only supported with the esphome OTA platform; "
                 "the web_server OTA path can only update the firmware image."
             )
         binary = CORE.firmware_bin
@@ -1228,25 +1235,34 @@ def _upload_via_native_api(
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD)
 
+    def check_partition_access(option_string: str) -> None:
+        if not ota_conf.get("allow_partition_access"):
+            raise EsphomeError(
+                f"The option {option_string} requires 'allow_partition_access: true' on the "
+                "esphome OTA platform in the device's YAML configuration. Add it, recompile, "
+                f"flash a build with the option enabled, and then retry {option_string}."
+            )
+
     binary = CORE.firmware_bin
     ota_type = espota2.OTA_TYPE_UPDATE_APP
     if getattr(args, "partition_table", False):
         # Fail fast if the resolved ESPHome OTA config does not enable allow_partition_access.
         # The device-side handshake also rejects this with "Device only supports app updates",
         # but checking here surfaces the misconfiguration before opening a network connection.
-        if not ota_conf.get("allow_partition_access"):
-            raise EsphomeError(
-                "The option --partition-table requires 'allow_partition_access: true' on the "
-                "esphome OTA platform in the device's YAML configuration. Add it, recompile, "
-                "flash a build with the option enabled, and then retry --partition-table."
-            )
+        check_partition_access("--partition-table")
         binary = CORE.partition_table_bin
         ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
+    elif getattr(args, "bootloader", False):
+        check_partition_access("--bootloader")
+        binary = CORE.bootloader_bin
+        ota_type = espota2.OTA_TYPE_UPDATE_BOOTLOADER
     if getattr(args, "file", None) is not None:
         binary = Path(args.file)
 
     if ota_type == espota2.OTA_TYPE_UPDATE_PARTITION_TABLE:
         _validate_partition_table_binary(binary)
+    if ota_type == espota2.OTA_TYPE_UPDATE_BOOTLOADER:
+        _validate_bootloader_binary(binary)
 
     return espota2.run_ota(network_devices, remote_port, password, binary, ota_type)
 
@@ -1281,6 +1297,7 @@ def _upload_via_web_server(
 _PARTITION_TABLE_MAX_LEN = 0xC00
 _ESP_PARTITION_MAGIC = 0x50AA
 _ESP_PARTITION_MAGIC_MD5 = 0xEBEB
+_ESP_IMAGE_HEADER_MAGIC = 0xE9
 
 
 def _validate_partition_table_binary(binary: Path) -> None:
@@ -1323,6 +1340,28 @@ def _validate_partition_table_binary(binary: Path) -> None:
         raise EsphomeError(
             f"Partition table file '{binary}' is missing the MD5 checksum entry. "
             "Regenerate the partition table with gen_esp32part.py or rebuild the project."
+        )
+
+
+def _validate_bootloader_binary(binary: Path) -> None:
+    """Validate that ``binary`` looks like an ESP32 bootloader image."""
+    try:
+        data = binary.read_bytes()
+    except OSError as err:
+        raise EsphomeError(f"Cannot read bootloader file '{binary}': {err}") from err
+
+    if not data:
+        raise EsphomeError(
+            f"Bootloader file '{binary}' is empty. "
+            "This file does not look like an ESP32 bootloader."
+        )
+
+    first_magic = data[0]
+    if first_magic != _ESP_IMAGE_HEADER_MAGIC:
+        raise EsphomeError(
+            f"Bootloader file '{binary}' does not start with the expected "
+            f"image header magic 0x{_ESP_IMAGE_HEADER_MAGIC:02X} (got 0x{first_magic:02X}). "
+            "This file does not look like an ESP32 bootloader."
         )
 
 
@@ -2007,6 +2046,11 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--partition-table",
         help="Upload as partition table (OTA).",
+        action="store_true",
+    )
+    parser_upload.add_argument(
+        "--bootloader",
+        help="Upload as bootloader (OTA).",
         action="store_true",
     )
 

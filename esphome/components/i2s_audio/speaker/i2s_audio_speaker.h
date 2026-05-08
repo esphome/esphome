@@ -18,7 +18,7 @@
 
 namespace esphome::i2s_audio {
 
-// Shared constants for I2S audio speaker implementations
+// Shared constants used by both standard and SPDIF speaker implementations
 static constexpr uint32_t DMA_BUFFER_DURATION_MS = 15;
 static constexpr size_t TASK_STACK_SIZE = 4096;
 static constexpr ssize_t TASK_PRIORITY = 19;
@@ -35,14 +35,18 @@ enum SpeakerEventGroupBits : uint32_t {
 
   ERR_ESP_NO_MEM = (1 << 19),
 
-  WARN_DROPPED_EVENT = (1 << 20),
+  ERR_DROPPED_EVENT = (1 << 20),    // ISR overflowed the event queue, dropping a completion event
+  ERR_PARTIAL_WRITE = (1 << 21),    // a DMA write returned fewer bytes than requested (or the encoder
+                                    // failed to commit a complete block), which breaks the lockstep
+                                    // invariant for every subsequent event
+  ERR_LOCKSTEP_DESYNC = (1 << 22),  // i2s_event_queue_ and write_records_queue_ fell out of sync
 
   ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
 };
 
 /// @brief Abstract base class for I2S audio speaker implementations.
 /// Provides shared infrastructure (event groups, ring buffer, volume control, task lifecycle)
-/// for derived I2S speaker classes.
+/// for derived standard I2S and SPDIF speaker classes.
 class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public Component {
  public:
   float get_setup_priority() const override { return esphome::setup_priority::PROCESSOR; }
@@ -141,7 +145,9 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   TaskHandle_t speaker_task_handle_{nullptr};
   EventGroupHandle_t event_group_{nullptr};
 
+  // Lockstepped DMA buffer queues: i2s_event is outgoing, write_records is incoming
   QueueHandle_t i2s_event_queue_{nullptr};
+  QueueHandle_t write_records_queue_{nullptr};
 
   std::weak_ptr<ring_buffer::RingBuffer> audio_ring_buffer_;
 

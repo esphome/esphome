@@ -676,7 +676,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     case api::enums::VOICE_ASSISTANT_INTENT_PROGRESS: {
       ESP_LOGD(TAG, "Intent progress");
-      std::string tts_url_for_trigger = "";
+      std::string tts_url_for_trigger;
 #ifdef USE_MEDIA_PLAYER
       if (this->media_player_ != nullptr) {
         for (const auto &arg : msg.data) {
@@ -782,8 +782,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     }
     case api::enums::VOICE_ASSISTANT_ERROR: {
-      std::string code = "";
-      std::string message = "";
+      std::string code;
+      std::string message;
       for (const auto &arg : msg.data) {
         if (arg.name == "code") {
           code = arg.value;
