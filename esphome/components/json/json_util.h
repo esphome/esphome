@@ -13,8 +13,7 @@
 
 #include <ArduinoJson.h>
 
-namespace esphome {
-namespace json {
+namespace esphome::json {
 
 /// Buffer for JSON serialization that uses stack allocation for small payloads.
 /// Template parameter STACK_SIZE specifies the stack buffer size (default 512 bytes).
@@ -192,5 +191,4 @@ class JsonBuilder {
   bool root_created_{false};
 };
 
-}  // namespace json
-}  // namespace esphome
+}  // namespace esphome::json

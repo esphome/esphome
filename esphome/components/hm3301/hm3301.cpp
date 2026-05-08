@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "hm3301.h"
 
-namespace esphome {
-namespace hm3301 {
+namespace esphome::hm3301 {
 
 static const char *const TAG = "hm3301.sensor";
 
@@ -94,5 +93,4 @@ uint16_t HM3301Component::get_sensor_value_(const uint8_t *data, uint8_t i) {
   return (uint16_t) data[i * 2] << 8 | data[i * 2 + 1];
 }
 
-}  // namespace hm3301
-}  // namespace esphome
+}  // namespace esphome::hm3301

@@ -5,8 +5,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace tlc59208f {
+namespace esphome::tlc59208f {
 
 // 0*: Group dimming, 1: Group blinking
 inline constexpr uint8_t TLC59208F_MODE2_DMBLNK = (1 << 5);
@@ -65,5 +64,4 @@ class TLC59208FOutput : public Component, public i2c::I2CDevice {
   bool update_{true};
 };
 
-}  // namespace tlc59208f
-}  // namespace esphome
+}  // namespace esphome::tlc59208f

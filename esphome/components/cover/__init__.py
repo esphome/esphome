@@ -328,17 +328,28 @@ async def build_apply_lambda_action(
     Used by both `cover.control` and `cover.template.publish` (and shared
     with the template/cover platform). Constants are emitted as flash
     immediates; user lambdas are invoked inline so trigger args still flow.
-    The trigger arg types are wrapped as `const T &` to match the
-    `void (*)(..., const Ts &...)` ApplyFn signature.
+    Trigger arg types are normalized to `const std::remove_cvref_t<T> &`
+    to match the ApplyFn signature for any T (value, ref, or const-ref).
     """
     paren = await cg.get_variable(config[CONF_ID])
+    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
+    # apply lambda and any inner field lambdas (generated below via
+    # `process_lambda`) share one parameter spelling that's well-formed for
+    # any T.
+    normalized_args = [
+        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
+        for t, n in args
+    ]
+
     fwd_args = ", ".join(name for _, name in args)
     body_lines: list[str] = []
     for field in fields:
         if (value := config.get(field.conf_key)) is None:
             continue
         if isinstance(value, Lambda):
-            inner = await cg.process_lambda(value, args, return_type=field.type_)
+            inner = await cg.process_lambda(
+                value, normalized_args, return_type=field.type_
+            )
             value_expr = f"({inner})({fwd_args})"
         else:
             value_expr = str(cg.safe_exp(value))
@@ -346,7 +357,7 @@ async def build_apply_lambda_action(
 
     apply_args = [
         *prefix_args,
-        *((t.operator("const").operator("ref"), n) for t, n in args),
+        *normalized_args,
     ]
     apply_lambda = LambdaExpression(
         ["\n".join(body_lines)],

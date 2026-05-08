@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace max6956 {
+namespace esphome::max6956 {
 
 /// Modes for MAX6956 pins
 enum MAX6956GPIOMode : uint8_t {
@@ -92,5 +91,4 @@ class MAX6956GPIOPin : public GPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace max6956
-}  // namespace esphome
+}  // namespace esphome::max6956
