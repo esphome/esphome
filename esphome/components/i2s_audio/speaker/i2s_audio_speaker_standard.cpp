@@ -256,7 +256,6 @@ void I2SAudioSpeaker::run_speaker_task() {
           xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_PARTIAL_WRITE);
           break;
         }
-        bytes_written_total += bw;
       }
 
       const uint32_t real_frames_in_buffer = this->current_stream_info_.bytes_to_frames(real_bytes_total);
