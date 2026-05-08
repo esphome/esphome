@@ -315,10 +315,10 @@ void AudioPipeline::read_task(void *params) {
       if (err == ESP_OK) {
         size_t file_ring_buffer_size = this_pipeline->buffer_size_;
 
-        std::shared_ptr<RingBuffer> temp_ring_buffer;
+        std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer;
 
         if (!this_pipeline->raw_file_ring_buffer_.use_count()) {
-          temp_ring_buffer = RingBuffer::create(file_ring_buffer_size);
+          temp_ring_buffer = ring_buffer::RingBuffer::create(file_ring_buffer_size);
           this_pipeline->raw_file_ring_buffer_ = temp_ring_buffer;
         }
 
@@ -502,7 +502,7 @@ void AudioPipeline::decode_task(void *params) {
 
         if (!started_playback && has_stream_info) {
           // Verify enough data is available before starting playback
-          std::shared_ptr<RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
+          std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
           if (temp_ring_buffer != nullptr && temp_ring_buffer->available() >= initial_bytes_to_buffer) {
             started_playback = true;
           }
