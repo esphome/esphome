@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace lsm6ds3 {
+namespace esphome::lsm6ds3 {
 
 static const char *const TAG = "lsm6ds3";
 
@@ -191,5 +190,4 @@ bool LSM6DS3TRCComponent::update_data(motion::MotionData &data) {
   return true;
 }
 
-}  // namespace lsm6ds3
-}  // namespace esphome
+}  // namespace esphome::lsm6ds3

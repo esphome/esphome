@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/motion/motion_component.h"
 
-namespace esphome {
-namespace lsm6ds3 {
+namespace esphome::lsm6ds3 {
 
 // ── Register map (datasheet DocID030071 Rev 3, Table 19) ────────────────────
 static const uint8_t LSM6DS3TRC_REG_WHO_AM_I = 0x0F;
@@ -111,5 +110,4 @@ class LSM6DS3TRCComponent : public motion::MotionComponent, public i2c::I2CDevic
   LazyCallbackManager<void(float)> temperature_callback_{};
 };
 
-}  // namespace lsm6ds3
-}  // namespace esphome
+}  // namespace esphome::lsm6ds3
