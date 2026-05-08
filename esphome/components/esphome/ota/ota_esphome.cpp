@@ -505,15 +505,6 @@ void ESPHomeOTAComponent::handle_data_() {
     // preferences flush would emit ESP_ERR_NVS_INVALID_HANDLE for every entry. Reboot directly.
     App.reboot();
   }
-  if (ota_type == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
-    // Don't reboot after a bootloader update.
-    // Unlike app updates, bootloader updates have no rollback safety net: the bootloader is the
-    // thing that implements rollback, so once a bad image is on flash the only recovery is a
-    // serial flash. The app slot we're running from is unaffected by the copy, so staying alive
-    // on the proven-good bootloader (still in CPU memory) lets the user verify the device is
-    // healthy and choose when to reboot - ideally physically present with a USB cable handy.
-    return;
-  }
 #endif
   App.safe_reboot();
 

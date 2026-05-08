@@ -1264,19 +1264,7 @@ def _upload_via_native_api(
     if ota_type == espota2.OTA_TYPE_UPDATE_BOOTLOADER:
         _validate_bootloader_binary(binary)
 
-    result = espota2.run_ota(network_devices, remote_port, password, binary, ota_type)
-    if result[0] == 0 and ota_type == espota2.OTA_TYPE_UPDATE_BOOTLOADER:
-        # Bootloader OTAs intentionally don't auto-reboot; the running app was loaded by the old
-        # bootloader and the new one only takes effect on next boot. Tell the user so they don't
-        # think the upload silently failed when the device keeps running, and warn them that there
-        # is no rollback if the new bootloader fails to boot.
-        _LOGGER.info(
-            "Bootloader updated. The device did NOT auto-reboot - the running app is still using "
-            "the previous bootloader. Verify the device is healthy, then reboot manually to start "
-            "using the new bootloader. If the new bootloader fails to boot, recover via a serial "
-            "flash."
-        )
-    return result
+    return espota2.run_ota(network_devices, remote_port, password, binary, ota_type)
 
 
 def _upload_via_web_server(
