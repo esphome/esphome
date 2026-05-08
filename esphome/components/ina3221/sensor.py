@@ -99,5 +99,5 @@ async def to_code(config):
         if CONF_POWER in conf:
             sens = await sensor.new_sensor(conf[CONF_POWER])
             cg.add(var.set_power_sensor(i, sens))
-    
+
     cg.add(var.set_power_down_on_shutdown(config[CONF_POWER_DOWN_ON_SHUTDOWN]))
