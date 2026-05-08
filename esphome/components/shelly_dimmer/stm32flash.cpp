@@ -486,10 +486,6 @@ template<typename T> stm32_unique_ptr make_stm32_with_deletor(T ptr) {
 
 }  // Anonymous namespace
 
-}  // namespace esphome::shelly_dimmer
-
-namespace esphome::shelly_dimmer {
-
 /* find newer command by higher code */
 #define newer(prev, a) (((prev) == STM32_CMD_ERR) ? (a) : (((prev) > (a)) ? (prev) : (a)))
 
