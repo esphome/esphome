@@ -43,7 +43,8 @@ async def to_code(config):
         LOGGER.warning(
             "Option 'update_on_release' is deprecated - use 'trigger: on_release' instead"
         )
-        trigger = CONF_ON_RELEASE
+        if config[CONF_UPDATE_ON_RELEASE]:
+            trigger = CONF_ON_RELEASE
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
     await wait_for_widgets()
