@@ -10,8 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/ring_buffer.h"
 
-namespace esphome {
-namespace sound_level {
+namespace esphome::sound_level {
 
 class SoundLevelComponent : public Component {
  public:
@@ -69,6 +68,6 @@ template<typename... Ts> class StopAction : public Action<Ts...>, public Parente
   void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
-}  // namespace sound_level
-}  // namespace esphome
+}  // namespace esphome::sound_level
+
 #endif

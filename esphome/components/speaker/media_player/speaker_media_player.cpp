@@ -9,17 +9,19 @@
 #include "esphome/components/ota/ota_backend.h"
 #endif
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 // Framework:
 //  - Media player that can handle two streams: one for media and one for announcements
 //    - Each stream has an individual speaker component for output
 //  - Each stream is handled by an ``AudioPipeline`` object with two parts/tasks
 //    - ``AudioReader`` handles reading from an HTTP source or from a PROGMEM flash set at compile time
-//    - ``AudioDecoder`` handles decoding the audio file. All formats are limited to two channels and 16 bits per sample
+//    - ``AudioDecoder`` handles decoding the audio file. All formats are limited to two channels and 16 bits per
+//    sample.
+//      Each format is enabled independently at compile time:
 //      - FLAC
 //      - MP3 (based on the libhelix decoder)
+//      - Ogg Opus
 //      - WAV
 //    - Each task runs until it is done processing the file or it receives a stop command
 //    - Inter-task communication uses a FreeRTOS Event Group
@@ -619,7 +621,6 @@ void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
   this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
 }
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
 
 #endif

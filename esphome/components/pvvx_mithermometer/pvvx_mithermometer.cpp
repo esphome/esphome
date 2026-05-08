@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace pvvx_mithermometer {
+namespace esphome::pvvx_mithermometer {
 
 static const char *const TAG = "pvvx_mithermometer";
 
@@ -140,7 +139,6 @@ bool PVVXMiThermometer::report_results_(const optional<ParseResult> &result, con
   return true;
 }
 
-}  // namespace pvvx_mithermometer
-}  // namespace esphome
+}  // namespace esphome::pvvx_mithermometer
 
 #endif

@@ -11,6 +11,7 @@
 #include <esp_ota_ops.h>
 #include <nvs_flash.h>
 
+#include <cinttypes>
 #include <cstring>
 
 namespace esphome::ota {
@@ -135,10 +136,20 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
     // Rejecting here is non-destructive (no flash op has run yet); the user can safely retry with
     // a different .bin. Log enough info that they can pick the right method without guessing.
     ESP_LOGE(TAG,
-             "Running app at 0x%X (%u bytes used) does not fit any compatible slot in the new "
-             "partition table. Pick a migration method whose size limit is at least %u bytes and "
-             "retry; no flash content was modified.",
-             running_app_offset, running_app_size, running_app_size);
+             "The new partition table must contain a compatible app partition with:\n"
+             "  size: at least %" PRIu32 " bytes (0x%" PRIX32 ")\n"
+             "  address: one of",
+             (uint32_t) running_app_size, (uint32_t) running_app_size);
+    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+    while (it != nullptr) {
+      const esp_partition_t *partition = esp_partition_get(it);
+      if (partition->size >= running_app_size) {
+        ESP_LOGE(TAG, "    0x%" PRIX32, partition->address);
+      }
+      it = esp_partition_next(it);
+    }
+    esp_partition_iterator_release(it);
+    ESP_LOGE(TAG, "Upload a different partition table. No flash content was modified.");
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   if (app_partitions_found < 2) {
@@ -154,11 +165,11 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   if (otadata_overlap) {
+    // Unlikely, the otadata partition is before the start of the first app partition in most cases
     ESP_LOGE(TAG,
-             "New otadata partition overlaps with the running app at 0x%X (size %u). The chosen "
-             "partition table is not compatible with this device's current flash layout; pick a "
-             "different migration method.",
-             running_app_offset, running_app_size);
+             "New otadata partition overlaps with the running app at address: 0x%" PRIX32 ", running app size: %" PRIu32
+             " bytes",
+             running_app_offset, (uint32_t) running_app_size);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
@@ -198,8 +209,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   // can leave the device unbootable until it is recovered with a serial flash.
   ESP_LOGE(TAG, "Starting partition table update.\n"
                 "  DO NOT REMOVE POWER until the device reboots successfully.\n"
-                "  Loss of power during this operation may render the device unable to boot until\n"
-                "  it is recovered via a serial flash.");
+                "  Loss of power during this operation may render the device\n"
+                "  unable to boot until it is recovered via a serial flash.");
 
   // One guard over the whole critical section in case an IDF call takes longer than expected on
   // some chip variant.
@@ -214,7 +225,7 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     // which leaves esp_ota_get_running_partition() returning nullptr.
     const esp_partition_t *running_app_part = find_app_partition_at(running_app_offset, running_app_size);
     if (running_app_part == nullptr) {
-      ESP_LOGE(TAG, "Cannot resolve running app partition at offset 0x%X", running_app_offset);
+      ESP_LOGE(TAG, "Cannot resolve running app partition at address 0x%" PRIX32, running_app_offset);
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
     }
     ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,

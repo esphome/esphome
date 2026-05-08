@@ -11,8 +11,7 @@
 
 #include "es8388_const.h"
 
-namespace esphome {
-namespace es8388 {
+namespace esphome::es8388 {
 
 enum DacOutputLine : uint8_t {
   DAC_OUTPUT_LINE1,
@@ -76,5 +75,4 @@ class ES8388 : public audio_dac::AudioDac, public Component, public i2c::I2CDevi
   bool set_mute_state_(bool mute_state);
 };
 
-}  // namespace es8388
-}  // namespace esphome
+}  // namespace esphome::es8388

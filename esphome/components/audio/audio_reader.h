@@ -11,8 +11,7 @@
 
 #include <esp_http_client.h>
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 enum class AudioReaderState : uint8_t {
   READING = 0,  // More data is available to read
@@ -74,7 +73,6 @@ class AudioReader {
   AudioFileType audio_file_type_{AudioFileType::NONE};
   const uint8_t *file_current_{nullptr};
 };
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

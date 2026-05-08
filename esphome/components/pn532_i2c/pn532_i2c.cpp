@@ -7,8 +7,7 @@
 // - https://www.nxp.com/docs/en/nxp/application-notes/AN133910.pdf
 // - https://www.nxp.com/docs/en/nxp/application-notes/153710.pdf
 
-namespace esphome {
-namespace pn532_i2c {
+namespace esphome::pn532_i2c {
 
 static const char *const TAG = "pn532_i2c";
 
@@ -125,5 +124,4 @@ void PN532I2C::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-}  // namespace pn532_i2c
-}  // namespace esphome
+}  // namespace esphome::pn532_i2c

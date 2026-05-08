@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace atc_mithermometer {
+namespace esphome::atc_mithermometer {
 
 static const char *const TAG = "atc_mithermometer";
 
@@ -133,7 +132,6 @@ bool ATCMiThermometer::report_results_(const optional<ParseResult> &result, cons
   return true;
 }
 
-}  // namespace atc_mithermometer
-}  // namespace esphome
+}  // namespace esphome::atc_mithermometer
 
 #endif

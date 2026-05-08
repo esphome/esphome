@@ -4,8 +4,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mqtt_subscribe {
+namespace esphome::mqtt_subscribe {
 
 static const char *const TAG = "mqtt_subscribe.sensor";
 
@@ -32,7 +31,6 @@ void MQTTSubscribeSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Topic: %s", this->topic_.c_str());
 }
 
-}  // namespace mqtt_subscribe
-}  // namespace esphome
+}  // namespace esphome::mqtt_subscribe
 
 #endif  // USE_MQTT

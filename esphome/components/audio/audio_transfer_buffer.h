@@ -12,8 +12,7 @@
 
 #include <freertos/FreeRTOS.h>
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 /// @brief Abstract interface for writing decoded audio data to a sink.
 class AudioSinkCallback {
@@ -213,7 +212,6 @@ class ConstAudioSourceBuffer : public AudioReadableBuffer {
   size_t length_{0};
 };
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

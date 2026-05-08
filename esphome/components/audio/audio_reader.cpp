@@ -11,8 +11,7 @@
 #include "esp_crt_bundle.h"
 #endif
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;
 
@@ -289,7 +288,6 @@ void AudioReader::cleanup_connection_() {
   }
 }
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

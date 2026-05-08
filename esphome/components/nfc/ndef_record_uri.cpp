@@ -1,7 +1,6 @@
 #include "ndef_record_uri.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static const char *const TAG = "nfc.ndef_record_uri";
 
@@ -44,5 +43,4 @@ std::vector<uint8_t> NdefRecordUri::get_encoded_payload() {
   return data;
 }
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

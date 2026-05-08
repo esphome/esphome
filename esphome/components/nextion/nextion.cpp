@@ -641,6 +641,7 @@ void Nextion::process_nextion_commands_() {
         } else {
           ESP_LOGN(TAG, "String resp: '%s' id: %s type: %s", to_process.c_str(), component->get_variable_name().c_str(),
                    component->get_queue_type_string());
+          component->set_state_from_string(to_process, true, false);
         }
 
         delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
