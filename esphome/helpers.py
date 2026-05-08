@@ -465,6 +465,12 @@ def _write_file(
 
 
 def write_file(path: Path, text: str | bytes, private: bool = False) -> None:
+    """Atomically write text or bytes to path. Wraps OSError as EsphomeError.
+
+    Used by esphome-device-builder for in-place YAML rewrites; the
+    atomicity (sibling tempfile + shutil.move) and EsphomeError
+    wrapping are part of the public contract.
+    """
     try:
         _write_file(path, text, private=private)
     except OSError as err:

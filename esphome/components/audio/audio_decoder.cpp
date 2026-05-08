@@ -5,8 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 static const char *const TAG = "audio.decoder";
 
@@ -428,7 +427,6 @@ FileDecoderState AudioDecoder::decode_wav_() {
 }
 #endif
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

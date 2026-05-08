@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace sgp4x {
+namespace esphome::sgp4x {
 
 static const char *const TAG = "sgp4x";
 
@@ -290,5 +289,4 @@ void SGP4xComponent::dump_config() {
   LOG_SENSOR("  ", "NOx", this->nox_sensor_);
 }
 
-}  // namespace sgp4x
-}  // namespace esphome
+}  // namespace esphome::sgp4x

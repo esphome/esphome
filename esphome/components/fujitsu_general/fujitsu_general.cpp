@@ -1,7 +1,6 @@
 #include "fujitsu_general.h"
 
-namespace esphome {
-namespace fujitsu_general {
+namespace esphome::fujitsu_general {
 
 // bytes' bits are reversed for fujitsu, so nibbles are ordered 1, 0, 3, 2, 5, 4, etc...
 
@@ -400,5 +399,4 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace fujitsu_general
-}  // namespace esphome
+}  // namespace esphome::fujitsu_general

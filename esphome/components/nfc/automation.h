@@ -5,13 +5,11 @@
 
 #include "nfc.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 class NfcOnTagTrigger : public Trigger<std::string, NfcTag> {
  public:
   void process(const std::unique_ptr<NfcTag> &tag);
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

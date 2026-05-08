@@ -13,8 +13,7 @@
 
 struct httpd_req;  // NOLINT(readability-identifier-naming)
 
-namespace esphome {
-namespace esp32_camera_web_server {
+namespace esphome::esp32_camera_web_server {
 
 enum Mode { STREAM, SNAPSHOT };
 
@@ -48,7 +47,6 @@ class CameraWebServer : public Component, public camera::CameraListener {
   Mode mode_{STREAM};
 };
 
-}  // namespace esp32_camera_web_server
-}  // namespace esphome
+}  // namespace esphome::esp32_camera_web_server
 
 #endif  // USE_ESP32

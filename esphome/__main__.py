@@ -2301,8 +2301,9 @@ def run_esphome(argv):
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
 
-    # For logs command, skip updating external components
-    skip_external = args.command == "logs"
+    # Commands that don't need fresh external components: logs just connects
+    # to the device, and clean is about to delete the build directory.
+    skip_external = args.command in ("logs", "clean")
     config = read_config(
         dict(args.substitution) if args.substitution else {},
         skip_external_update=skip_external,

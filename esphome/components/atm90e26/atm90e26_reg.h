@@ -1,7 +1,6 @@
 #pragma once
 
-namespace esphome {
-namespace atm90e26 {
+namespace esphome::atm90e26 {
 
 /* Status and Special Register */
 static const uint8_t ATM90E26_REGISTER_SOFTRESET = 0x00;  // Software Reset
@@ -66,5 +65,4 @@ static const uint8_t ATM90E26_REGISTER_POWERF2 = 0x6D;  // N Line Power Factor
 static const uint8_t ATM90E26_REGISTER_PANGLE2 = 0x6E;  // Phase Angle between Voltage and N Line Current
 static const uint8_t ATM90E26_REGISTER_SMEAN2 = 0x6F;   // N Line Mean Apparent Power
 
-}  // namespace atm90e26
-}  // namespace esphome
+}  // namespace esphome::atm90e26
