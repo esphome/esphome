@@ -283,6 +283,14 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
     return ESP_ERR_NO_MEM;
   }
 
+  if (this->i2s_event_queue_ == nullptr || this->write_records_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate I2S event queue(s)");
+    i2s_del_channel(this->tx_handle_);
+    this->tx_handle_ = nullptr;
+    this->parent_->unlock();
+    return ESP_ERR_NO_MEM;
+  }
+
   return ESP_OK;
 }
 
