@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mpl3115a2 {
+namespace esphome::mpl3115a2 {
 
 static const char *const TAG = "mpl3115a2";
 
@@ -94,5 +93,4 @@ void MPL3115A2Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace mpl3115a2
-}  // namespace esphome
+}  // namespace esphome::mpl3115a2

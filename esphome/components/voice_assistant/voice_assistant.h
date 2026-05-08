@@ -26,8 +26,7 @@
 #include <span>
 #include <vector>
 
-namespace esphome {
-namespace voice_assistant {
+namespace esphome::voice_assistant {
 
 // Version 1: Initial version
 // Version 2: Adds raw speaker support
@@ -367,7 +366,6 @@ template<typename... Ts> class ConnectedCondition : public Condition<Ts...>, pub
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace voice_assistant
-}  // namespace esphome
+}  // namespace esphome::voice_assistant
 
 #endif  // USE_VOICE_ASSISTANT

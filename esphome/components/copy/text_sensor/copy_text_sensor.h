@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
 class CopyTextSensor : public text_sensor::TextSensor, public Component {
  public:
@@ -16,5 +15,4 @@ class CopyTextSensor : public text_sensor::TextSensor, public Component {
   text_sensor::TextSensor *source_;
 };
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

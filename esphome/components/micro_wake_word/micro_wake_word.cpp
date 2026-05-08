@@ -13,8 +13,7 @@
 #include "esphome/components/ota/ota_backend.h"
 #endif
 
-namespace esphome {
-namespace micro_wake_word {
+namespace esphome::micro_wake_word {
 
 static const char *const TAG = "micro_wake_word";
 
@@ -468,7 +467,6 @@ bool MicroWakeWord::update_model_probabilities_(const int8_t audio_features[PREP
   return success;
 }
 
-}  // namespace micro_wake_word
-}  // namespace esphome
+}  // namespace esphome::micro_wake_word
 
 #endif  // USE_ESP32

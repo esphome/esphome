@@ -12,8 +12,7 @@
 #include <algorithm>
 #include <cstring>
 
-namespace esphome {
-namespace resampler {
+namespace esphome::resampler {
 
 static const UBaseType_t RESAMPLER_TASK_PRIORITY = 1;
 
@@ -373,7 +372,6 @@ void ResamplerSpeaker::resample_task(void *params) {
   vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
 
-}  // namespace resampler
-}  // namespace esphome
+}  // namespace esphome::resampler
 
 #endif
