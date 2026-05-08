@@ -44,7 +44,11 @@ void I2SAudioSpeaker::run_speaker_task() {
   const uint32_t ring_buffer_duration = std::max(dma_buffers_duration_ms, this->buffer_duration_ms_);
 
   // The DMA buffers may have more bits per sample, so calculate buffer sizes based on the input audio stream info
-  const size_t ring_buffer_size = this->current_stream_info_.ms_to_bytes(ring_buffer_duration);
+  const size_t bytes_per_frame = this->current_stream_info_.frames_to_bytes(1);
+  // Round the ring buffer size down to a multiple of bytes_per_frame so the wrap boundary stays frame-aligned and
+  // avoids unnecessary single-frame splices.
+  const size_t ring_buffer_size =
+      (this->current_stream_info_.ms_to_bytes(ring_buffer_duration) / bytes_per_frame) * bytes_per_frame;
   const uint32_t frames_to_fill_single_dma_buffer = this->current_stream_info_.ms_to_frames(DMA_BUFFER_DURATION_MS);
   const size_t bytes_to_fill_single_dma_buffer =
       this->current_stream_info_.frames_to_bytes(frames_to_fill_single_dma_buffer);
@@ -55,7 +59,7 @@ void I2SAudioSpeaker::run_speaker_task() {
   {
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
     audio_source = audio::RingBufferAudioSource::create(temp_ring_buffer, bytes_to_fill_single_dma_buffer,
-                                                        this->current_stream_info_.frames_to_bytes(1));
+                                                        static_cast<uint8_t>(bytes_per_frame));
     if (audio_source != nullptr) {
       this->audio_ring_buffer_ = temp_ring_buffer;
       successful_setup = true;
