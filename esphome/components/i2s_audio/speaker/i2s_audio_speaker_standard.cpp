@@ -192,9 +192,12 @@ void I2SAudioSpeaker::run_speaker_task() {
         break;
       }
 
-      // Graceful stop: exit only after the source is drained and every real-audio buffer we
-      // submitted has been confirmed played.
-      if (stop_gracefully && audio_source->available() == 0 && pending_real_buffers == 0) {
+      // Graceful stop: exit only after the source's exposed chunk is drained, the underlying ring
+      // buffer has nothing left to hand over, and every real-audio buffer we submitted has been
+      // confirmed played. ``has_buffered_data()`` returns bytes still sitting in the ring buffer
+      // awaiting fill().
+      if (stop_gracefully && audio_source->available() == 0 && !this->has_buffered_data() &&
+          pending_real_buffers == 0) {
         ESP_LOGV(TAG, "Exiting: graceful stop complete");
         break;
       }
