@@ -4,8 +4,7 @@
 #include "esphome/components/light/light_output.h"
 #include "../lvgl_esphome.h"
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 
 class LVLight : public light::LightOutput {
  public:
@@ -44,5 +43,4 @@ class LVLight : public light::LightOutput {
   optional<lv_color_t> initial_value_{};
 };
 
-}  // namespace lvgl
-}  // namespace esphome
+}  // namespace esphome::lvgl

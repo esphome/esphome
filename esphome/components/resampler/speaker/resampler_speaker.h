@@ -11,8 +11,7 @@
 
 #include <freertos/event_groups.h>
 
-namespace esphome {
-namespace resampler {
+namespace esphome::resampler {
 
 class ResamplerSpeaker : public Component, public speaker::Speaker {
  public:
@@ -99,7 +98,6 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   uint64_t callback_remainder_{0};
 };
 
-}  // namespace resampler
-}  // namespace esphome
+}  // namespace esphome::resampler
 
 #endif

@@ -31,6 +31,7 @@ from .defines import (
     CONF_TIME_FORMAT,
     LV_GRAD_DIR,
     get_remapped_uses,
+    is_press_event,
 )
 from .helpers import CONF_IF_NAN, validate_printf
 from .layout import (
@@ -46,6 +47,7 @@ from .types import (
     LvType,
     lv_group_t,
     lv_obj_t,
+    lv_point_t,
     lv_pseudo_button_t,
     lv_style_t,
 )
@@ -123,8 +125,8 @@ ENCODER_SCHEMA = cv.Schema(
 
 POINT_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_X): cv.templatable(cv.int_),
-        cv.Required(CONF_Y): cv.templatable(cv.int_),
+        cv.Required(CONF_X): lvalid.pixels_or_percent,
+        cv.Required(CONF_Y): lvalid.pixels_or_percent,
     }
 )
 
@@ -137,9 +139,13 @@ def point_schema(value):
     """
     if isinstance(value, dict):
         return POINT_SCHEMA(value)
+    if isinstance(value, list):
+        if len(value) != 2:
+            raise cv.Invalid("Invalid point format, should be <x_int>, <y_int>")
+        return POINT_SCHEMA({CONF_X: value[0], CONF_Y: value[1]})
     try:
-        x, y = map(int, value.split(","))
-        return {CONF_X: x, CONF_Y: y}
+        x, y = str(value).split(",")
+        return POINT_SCHEMA({CONF_X: x, CONF_Y: y})
     except ValueError:
         pass
     # not raising this in the catch block because pylint doesn't like it
@@ -366,13 +372,20 @@ def automation_schema(typ: LvType):
     if typ.has_on_value:
         events = events + (CONF_ON_VALUE,)
     args = typ.get_arg_type()
-    args.append(lv_event_t_ptr)
+
+    def get_trigger_args(event):
+        result = args.copy()
+        if is_press_event(event):
+            result.append(lv_point_t)
+        result.append(lv_event_t_ptr)
+        return result
+
     return {
         **{
             cv.Optional(event): validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        Trigger.template(*args)
+                        Trigger.template(*get_trigger_args(event))
                     ),
                 }
             )

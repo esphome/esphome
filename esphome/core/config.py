@@ -568,14 +568,9 @@ async def _add_controller_registry_define() -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_looping_components() -> None:
-    # Emit a constexpr that computes the looping component count at C++ compile time
-    # and pre-init the FixedVector with the exact capacity. Uses std::is_same_v to
-    # detect loop() overrides. The constexpr goes in main.cpp's global section where
-    # all component types are in scope. calculate_looping_components_() then skips
-    # the counting pass and only does the two population passes.
+    # Emit ESPHOME_LOOPING_COMPONENT_COUNT. Sizing of looping_components_
+    # happens in core to_code() so it lands before safe_mode's early return.
     entries = CORE.data.get("looping_component_entries", [])
-    if not entries:
-        return
 
     # Build constexpr sum for the exact count, deduplicating by type
     # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
@@ -583,20 +578,12 @@ async def _add_looping_components() -> None:
     terms = [
         f"({count} * HasLoopOverride<{cpp_type}>::value)"
         for cpp_type, count in type_counts.items()
-    ]
+    ] or ["0"]
     constexpr_expr = " + \\\n  ".join(terms)
     cg.add_global(
         cg.RawStatement(
             f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
             f"  {constexpr_expr};"
-        )
-    )
-
-    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
-    # can skip the counting pass
-    cg.add(
-        cg.RawExpression(
-            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
         )
     )
 
@@ -641,6 +628,14 @@ async def to_code(config: ConfigType) -> None:
     cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
     # Define component count for static allocation
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
+
+    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
+    # can skip the counting pass
+    cg.add(
+        cg.RawExpression(
+            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+        )
+    )
 
     CORE.add_job(_add_platform_defines)
     CORE.add_job(_add_controller_registry_define)
