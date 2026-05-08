@@ -25,8 +25,7 @@
 /// @endcode
 // #define TEST_COMPONENT
 
-namespace esphome {
-namespace weikai {
+namespace esphome::weikai {
 
 /// @brief XFER_MAX_SIZE defines the maximum number of bytes allowed during one transfer.
 #if defined(I2C_BUFFER_LENGTH)
@@ -440,5 +439,4 @@ class WeikaiChannel : public uart::UARTComponent {
   std::string name_;         ///< name of the entity
 };
 
-}  // namespace weikai
-}  // namespace esphome
+}  // namespace esphome::weikai

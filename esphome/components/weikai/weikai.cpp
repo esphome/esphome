@@ -6,8 +6,7 @@
 #include "weikai.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace weikai {
+namespace esphome::weikai {
 
 static const char *const TAG = "weikai";
 
@@ -567,5 +566,4 @@ bool WeikaiChannel::uart_receive_test_(char *message) {
 /// @}
 #endif
 
-}  // namespace weikai
-}  // namespace esphome
+}  // namespace esphome::weikai

@@ -4,8 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_rtcgq02lm {
+namespace esphome::xiaomi_rtcgq02lm {
 
 static const char *const TAG = "xiaomi_rtcgq02lm";
 
@@ -79,7 +78,6 @@ bool XiaomiRTCGQ02LM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
 
 void XiaomiRTCGQ02LM::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
-}  // namespace xiaomi_rtcgq02lm
-}  // namespace esphome
+}  // namespace esphome::xiaomi_rtcgq02lm
 
 #endif
