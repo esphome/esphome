@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace mitsubishi {
+namespace esphome::mitsubishi {
 
 // Temperature
 const uint8_t MITSUBISHI_TEMP_MIN = 16;  // Celsius
@@ -79,5 +78,4 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   climate::ClimateTraits traits() override;
 };
 
-}  // namespace mitsubishi
-}  // namespace esphome
+}  // namespace esphome::mitsubishi

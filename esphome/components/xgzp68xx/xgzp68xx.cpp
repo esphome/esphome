@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace xgzp68xx {
+namespace esphome::xgzp68xx {
 
 static const char *const TAG = "xgzp68xx.sensor";
 
@@ -118,5 +117,4 @@ void XGZP68XXComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace xgzp68xx
-}  // namespace esphome
+}  // namespace esphome::xgzp68xx

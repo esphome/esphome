@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 
 class LVGLNumber : public number::Number, public Component {
  public:
@@ -48,5 +47,4 @@ class LVGLNumber : public number::Number, public Component {
   ESPPreferenceObject pref_{};
 };
 
-}  // namespace lvgl
-}  // namespace esphome
+}  // namespace esphome::lvgl

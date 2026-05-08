@@ -10,8 +10,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace shelly_dimmer {
+namespace esphome::shelly_dimmer {
 
 class ShellyDimmer : public PollingComponent, public light::LightOutput, public uart::UARTDevice {
  private:
@@ -117,7 +116,6 @@ class ShellyDimmer : public PollingComponent, public light::LightOutput, public 
   void reset_dfu_boot_();
 };
 
-}  // namespace shelly_dimmer
-}  // namespace esphome
+}  // namespace esphome::shelly_dimmer
 
 #endif  // USE_ESP8266

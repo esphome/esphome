@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace selec_meter {
+namespace esphome::selec_meter {
 
 static const char *const TAG = "selec_meter";
 
@@ -107,5 +106,4 @@ void SelecMeter::dump_config() {
   LOG_SENSOR("  ", "Maximum Demand Apparent Power", this->maximum_demand_apparent_power_sensor_);
 }
 
-}  // namespace selec_meter
-}  // namespace esphome
+}  // namespace esphome::selec_meter
