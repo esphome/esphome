@@ -9,16 +9,16 @@
 #include <freertos/FreeRTOS.h>
 
 #include "esphome/components/audio/audio.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/ring_buffer.h"
 
 namespace esphome::i2s_audio {
 
-// Shared constants for I2S audio speaker implementations
+// Shared constants used by both standard and SPDIF speaker implementations
 static constexpr uint32_t DMA_BUFFER_DURATION_MS = 15;
 static constexpr size_t TASK_STACK_SIZE = 4096;
 static constexpr ssize_t TASK_PRIORITY = 19;
@@ -42,7 +42,7 @@ enum SpeakerEventGroupBits : uint32_t {
 
 /// @brief Abstract base class for I2S audio speaker implementations.
 /// Provides shared infrastructure (event groups, ring buffer, volume control, task lifecycle)
-/// for derived I2S speaker classes.
+/// for derived standard I2S and SPDIF speaker classes.
 class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public Component {
  public:
   float get_setup_priority() const override { return esphome::setup_priority::PROCESSOR; }
@@ -143,7 +143,7 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   QueueHandle_t i2s_event_queue_{nullptr};
 
-  std::weak_ptr<RingBuffer> audio_ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> audio_ring_buffer_;
 
   uint32_t buffer_duration_ms_;
 
