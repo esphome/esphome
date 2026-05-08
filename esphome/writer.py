@@ -199,7 +199,15 @@ def copy_src_tree():
     # Build #include list for esphome.h
     # X-macro files are included multiple times with different macro definitions
     # and must not be included bare in esphome.h
-    esphome_h_exclude = {Path(ENTITY_TYPES_H_TARGET)}
+    # Deprecated headers that re-export from a relocated component must not be
+    # auto-included, since their #include of the new path only resolves when the
+    # new component is loaded by a consumer.
+    esphome_h_exclude = {
+        Path(ENTITY_TYPES_H_TARGET),
+        Path(
+            "esphome/core/ring_buffer.h"
+        ),  # moved to components/ring_buffer/, removed in 2026.11.0
+    }
     include_l = []
     for target, _ in source_files_l:
         if target.suffix in HEADER_FILE_EXTENSIONS and target not in esphome_h_exclude:

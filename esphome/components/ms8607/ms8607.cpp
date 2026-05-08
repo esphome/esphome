@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ms8607 {
+namespace esphome::ms8607 {
 
 /// TAG used for logging calls
 static const char *const TAG = "ms8607";
@@ -438,5 +437,4 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
   }
 }
 
-}  // namespace ms8607
-}  // namespace esphome
+}  // namespace esphome::ms8607

@@ -4,8 +4,7 @@
 #include "esphome/components/opentherm/input.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 class OpenthermOutput : public output::FloatOutput, public Component, public OpenthermInput {
  protected:
@@ -29,5 +28,4 @@ class OpenthermOutput : public output::FloatOutput, public Component, public Ope
   float get_max_value() { return this->max_value_; }
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

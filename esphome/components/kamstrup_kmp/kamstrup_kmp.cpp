@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace kamstrup_kmp {
+namespace esphome::kamstrup_kmp {
 
 static const char *const TAG = "kamstrup_kmp";
 
@@ -303,5 +302,4 @@ uint16_t crc16_ccitt(const uint8_t *buffer, int len) {
   return (uint16_t) reg;
 }
 
-}  // namespace kamstrup_kmp
-}  // namespace esphome
+}  // namespace esphome::kamstrup_kmp

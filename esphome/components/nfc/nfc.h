@@ -9,8 +9,7 @@
 #include <span>
 #include <vector>
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static constexpr uint8_t MIFARE_CLASSIC_BLOCK_SIZE = 16;
 static constexpr uint8_t MIFARE_CLASSIC_LONG_TLV_SIZE = 4;
@@ -95,5 +94,4 @@ class Nfcc {
   std::vector<NfcTagListener *> tag_listeners_;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

@@ -5,8 +5,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace lightwaverf {
+namespace esphome::lightwaverf {
 
 // LxTx.h
 //
@@ -90,5 +89,4 @@ class LwTx {
   uint32_t duty_off_;
 };
 
-}  // namespace lightwaverf
-}  // namespace esphome
+}  // namespace esphome::lightwaverf

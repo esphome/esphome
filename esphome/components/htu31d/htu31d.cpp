@@ -14,8 +14,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace htu31d {
+namespace esphome::htu31d {
 
 /** Logging prefix */
 static const char *const TAG = "htu31d";
@@ -259,5 +258,4 @@ void HTU31DComponent::set_heater_state(bool desired) {
   }
 }
 
-}  // namespace htu31d
-}  // namespace esphome
+}  // namespace esphome::htu31d

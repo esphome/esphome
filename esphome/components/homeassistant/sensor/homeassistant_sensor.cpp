@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
 static const char *const TAG = "homeassistant.sensor";
 
@@ -34,5 +33,4 @@ void HomeassistantSensor::dump_config() {
 }
 float HomeassistantSensor::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

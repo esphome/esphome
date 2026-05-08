@@ -4,8 +4,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/light/light_output.h"
 
-namespace esphome {
-namespace rgb {
+namespace esphome::rgb {
 
 class RGBLightOutput : public light::LightOutput {
  public:
@@ -32,5 +31,4 @@ class RGBLightOutput : public light::LightOutput {
   output::FloatOutput *blue_;
 };
 
-}  // namespace rgb
-}  // namespace esphome
+}  // namespace esphome::rgb

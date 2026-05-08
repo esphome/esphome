@@ -3,8 +3,7 @@
 #include "fastled_light.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace fastled_base {
+namespace esphome::fastled_base {
 
 static const char *const TAG = "fastled";
 
@@ -39,7 +38,6 @@ void FastLEDLightOutput::write_state(light::LightState *state) {
   this->controller_->showLeds(this->state_parent_->current_values.get_brightness() * 255);
 }
 
-}  // namespace fastled_base
-}  // namespace esphome
+}  // namespace esphome::fastled_base
 
 #endif  // USE_ARDUINO

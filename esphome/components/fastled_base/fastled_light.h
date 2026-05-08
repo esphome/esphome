@@ -15,8 +15,7 @@
 
 #include "FastLED.h"
 
-namespace esphome {
-namespace fastled_base {
+namespace esphome::fastled_base {
 
 class FastLEDLightOutput : public light::AddressableLight {
  public:
@@ -237,7 +236,6 @@ class FastLEDLightOutput : public light::AddressableLight {
   optional<uint32_t> max_refresh_rate_{};
 };
 
-}  // namespace fastled_base
-}  // namespace esphome
+}  // namespace esphome::fastled_base
 
 #endif  // USE_ARDUINO
