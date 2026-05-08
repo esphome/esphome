@@ -1,8 +1,7 @@
 #include "recursive_timeout_component.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace scheduler_recursive_timeout_component {
+namespace esphome::scheduler_recursive_timeout_component {
 
 static const char *const TAG = "scheduler_recursive_timeout";
 
@@ -36,5 +35,4 @@ void SchedulerRecursiveTimeoutComponent::run_recursive_timeout_test() {
   });
 }
 
-}  // namespace scheduler_recursive_timeout_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_recursive_timeout_component
