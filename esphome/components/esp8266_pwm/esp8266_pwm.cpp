@@ -53,4 +53,5 @@ void HOT ESP8266PWM::write_state(float state) {
 }
 
 }  // namespace esphome::esp8266_pwm
+
 #endif

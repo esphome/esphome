@@ -49,4 +49,5 @@ void LibreTinyPWM::update_frequency(float frequency) {
 }
 
 }  // namespace esphome::libretiny_pwm
+
 #endif

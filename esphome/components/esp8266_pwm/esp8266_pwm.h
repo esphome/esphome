@@ -48,4 +48,5 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
 };
 
 }  // namespace esphome::esp8266_pwm
+
 #endif

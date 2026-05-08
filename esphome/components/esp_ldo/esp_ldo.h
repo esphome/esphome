@@ -40,4 +40,5 @@ template<typename... Ts> class AdjustAction : public Action<Ts...> {
 };
 
 }  // namespace esphome::esp_ldo
+
 #endif  // USE_ESP32_VARIANT_ESP32P4

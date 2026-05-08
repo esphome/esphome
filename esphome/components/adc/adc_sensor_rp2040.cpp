@@ -98,4 +98,5 @@ float ADCSensor::sample() {
 }
 
 }  // namespace esphome::adc
+
 #endif  // USE_RP2040

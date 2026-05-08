@@ -2,7 +2,6 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_API
-
 namespace esphome::custom_api_device_component {
 
 static const char *const TAG = "custom_api";
@@ -59,5 +58,4 @@ void CustomAPIDeviceComponent::on_ha_state_changed(std::string entity_id, std::s
 }
 
 }  // namespace esphome::custom_api_device_component
-
 #endif  // USE_API

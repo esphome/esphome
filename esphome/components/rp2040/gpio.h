@@ -33,4 +33,5 @@ class RP2040GPIOPin : public InternalGPIOPin {
 };
 
 }  // namespace esphome::rp2040
+
 #endif  // USE_RP2040

@@ -49,4 +49,5 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
 };
 
 }  // namespace esphome::libretiny_pwm
+
 #endif

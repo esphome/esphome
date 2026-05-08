@@ -125,4 +125,5 @@ stm32_err_t stm32_crc_wrapper(const stm32_unique_ptr &stm, uint32_t address, uin
 uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len);
 
 }  // namespace esphome::shelly_dimmer
+
 #endif  // USE_SHD_FIRMWARE_DATA

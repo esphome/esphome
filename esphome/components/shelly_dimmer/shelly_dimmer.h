@@ -117,4 +117,5 @@ class ShellyDimmer : public PollingComponent, public light::LightOutput, public 
 };
 
 }  // namespace esphome::shelly_dimmer
+
 #endif  // USE_ESP8266

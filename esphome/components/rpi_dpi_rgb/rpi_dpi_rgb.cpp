@@ -160,4 +160,5 @@ void RpiDpiRgb::reset_display_() const {
 }
 
 }  // namespace esphome::rpi_dpi_rgb
+
 #endif  // USE_ESP32_VARIANT_ESP32S3

@@ -60,4 +60,5 @@ void HOT RP2040PWM::write_state(float state) {
 }
 
 }  // namespace esphome::rp2040_pwm
+
 #endif

@@ -210,4 +210,5 @@ void RP2040PIOLEDStripLightOutput::dump_config() {
 float RP2040PIOLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 }  // namespace esphome::rp2040_pio_led_strip
+
 #endif

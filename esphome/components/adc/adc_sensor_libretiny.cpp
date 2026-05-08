@@ -48,4 +48,5 @@ float ADCSensor::sample() {
 }
 
 }  // namespace esphome::adc
+
 #endif  // USE_LIBRETINY

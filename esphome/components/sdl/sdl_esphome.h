@@ -66,4 +66,5 @@ class Sdl : public display::Display {
   std::map<int32_t, CallbackManager<void(bool)>> key_callbacks_{};
 };
 }  // namespace esphome::sdl
+
 #endif

@@ -382,4 +382,5 @@ void BekenSPILEDStripLightOutput::dump_config() {
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 }  // namespace esphome::beken_spi_led_strip
+
 #endif  // USE_BK72XX

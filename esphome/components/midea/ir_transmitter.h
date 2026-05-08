@@ -84,5 +84,6 @@ class IrTransmitter {
 };
 
 }  // namespace esphome::midea
+
 #endif
 #endif  // USE_ARDUINO

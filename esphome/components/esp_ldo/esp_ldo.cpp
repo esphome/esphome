@@ -41,4 +41,5 @@ void EspLdo::adjust_voltage(float voltage) {
 }
 
 }  // namespace esphome::esp_ldo
+
 #endif  // USE_ESP32_VARIANT_ESP32P4

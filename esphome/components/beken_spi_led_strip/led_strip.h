@@ -79,4 +79,5 @@ class BekenSPILEDStripLightOutput : public light::AddressableLight {
 };
 
 }  // namespace esphome::beken_spi_led_strip
+
 #endif  // USE_BK72XX

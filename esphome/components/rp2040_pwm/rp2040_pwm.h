@@ -53,4 +53,5 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
 };
 
 }  // namespace esphome::rp2040_pwm
+
 #endif  // USE_RP2040

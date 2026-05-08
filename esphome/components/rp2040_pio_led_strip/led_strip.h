@@ -127,4 +127,5 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
 };
 
 }  // namespace esphome::rp2040_pio_led_strip
+
 #endif  // USE_RP2040

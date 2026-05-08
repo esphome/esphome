@@ -487,6 +487,7 @@ template<typename T> stm32_unique_ptr make_stm32_with_deletor(T ptr) {
 }  // Anonymous namespace
 
 }  // namespace esphome::shelly_dimmer
+
 namespace esphome::shelly_dimmer {
 
 /* find newer command by higher code */
@@ -1056,4 +1057,5 @@ stm32_err_t stm32_crc_wrapper(const stm32_unique_ptr &stm, uint32_t address, uin
 }
 
 }  // namespace esphome::shelly_dimmer
+
 #endif  // USE_SHD_FIRMWARE_DATA

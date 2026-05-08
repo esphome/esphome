@@ -140,4 +140,5 @@ class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_CO
 };
 
 }  // namespace esphome::neopixelbus
+
 #endif  // USE_ARDUINO

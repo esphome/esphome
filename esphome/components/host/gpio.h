@@ -32,4 +32,5 @@ class HostGPIOPin : public InternalGPIOPin {
 };
 
 }  // namespace esphome::host
+
 #endif  // USE_HOST

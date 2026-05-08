@@ -522,4 +522,5 @@ void ShellyDimmer::reset_dfu_boot_() {
 }
 
 }  // namespace esphome::shelly_dimmer
+
 #endif  // USE_ESP8266

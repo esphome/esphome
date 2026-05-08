@@ -55,4 +55,5 @@ float ADCSensor::sample() {
 }
 
 }  // namespace esphome::adc
+
 #endif  // USE_ESP8266

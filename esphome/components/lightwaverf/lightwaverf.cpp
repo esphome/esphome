@@ -62,4 +62,5 @@ void LightWaveRF::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 }  // namespace esphome::lightwaverf
+
 #endif
