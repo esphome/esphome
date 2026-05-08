@@ -148,12 +148,13 @@ _ERROR_MESSAGES: dict[int, str] = {
     ),
     RESPONSE_ERROR_BOOTLOADER_VERIFY: (
         "The bootloader update could not be verified. No changes were "
-        "made to the flash content. Check the logs for more information and retry."
+        "made to the bootloader. Check the logs for more information and retry."
     ),
     RESPONSE_ERROR_BOOTLOADER_UPDATE: (
-        "An error occurred while updating the bootloader. The device may not be able "
-        "to boot. Check the logs and retry the update. If the device fails to boot, "
-        "recover it via a serial flash."
+        "An error occurred while updating the bootloader. The device is now "
+        "in a degraded state and may not be able to boot. Open the logs and retry "
+        "the bootloader update without rebooting the device. If the device "
+        "fails to boot, recover it via a serial flash."
     ),
     RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
 }

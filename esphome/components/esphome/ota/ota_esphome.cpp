@@ -339,7 +339,6 @@ void ESPHomeOTAComponent::handle_data_() {
   ///                            wakeable_delay() in read();
   ///                            write() always returns immediately
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
-  bool update_started = false;
   size_t total = 0;
   uint32_t last_progress = 0;
   uint32_t last_data_ms = 0;
@@ -402,7 +401,6 @@ void ESPHomeOTAComponent::handle_data_() {
   error_code = this->backend_->begin(ota_size, ota_type);
   if (error_code != ota::OTA_RESPONSE_OK)
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  update_started = true;
 
   // Acknowledge prepare OK - 1 byte
   this->write_byte_(ota::OTA_RESPONSE_UPDATE_PREPARE_OK);
@@ -518,7 +516,7 @@ error:
   this->write_byte_(static_cast<uint8_t>(error_code));
 
   // Abort backend before cleanup - cleanup_connection_() destroys the backend
-  if (this->backend_ != nullptr && update_started) {
+  if (this->backend_ != nullptr) {
     this->backend_->abort();
   }
 
