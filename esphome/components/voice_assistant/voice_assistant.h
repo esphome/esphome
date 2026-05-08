@@ -121,7 +121,7 @@ class VoiceAssistant : public Component {
   void failed_to_start();
 
   void set_microphone_source(microphone::MicrophoneSource *mic_source) { this->mic_source_ = mic_source; }
-  void set_microphone2_source(microphone::MicrophoneSource *mic_source) { this->mic2_source_ = mic_source; }
+  void set_microphone_source2(microphone::MicrophoneSource *mic_source2) { this->mic_source2_ = mic_source2; }
 #ifdef USE_MICRO_WAKE_WORD
   void set_micro_wake_word(micro_wake_word::MicroWakeWord *mww) { this->micro_wake_word_ = mww; }
 #endif
@@ -279,7 +279,7 @@ class VoiceAssistant : public Component {
   bool timer_tick_running_{false};
 
   microphone::MicrophoneSource *mic_source_{nullptr};
-  microphone::MicrophoneSource *mic2_source_{nullptr};
+  microphone::MicrophoneSource *mic_source2_{nullptr};
 #ifdef USE_SPEAKER
   void write_speaker_();
   speaker::Speaker *speaker_{nullptr};

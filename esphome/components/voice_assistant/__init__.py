@@ -211,10 +211,10 @@ async def to_code(config):
     cg.add(var.set_microphone_source(mic_source))
 
     if CONF_MICROPHONE2 in config:
-        mic2_source = await microphone.microphone_source_to_code(
+        mic_source2 = await microphone.microphone_source_to_code(
             config[CONF_MICROPHONE2]
         )
-        cg.add(var.set_microphone2_source(mic2_source))
+        cg.add(var.set_microphone_source2(mic_source2))
 
     if CONF_MICRO_WAKE_WORD in config:
         mww = await cg.get_variable(config[CONF_MICRO_WAKE_WORD])
