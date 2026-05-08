@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace growatt_solar {
+namespace esphome::growatt_solar {
 
 static const float TWO_DEC_UNIT = 0.01;
 static const float ONE_DEC_UNIT = 0.1;
@@ -83,5 +82,4 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
   GrowattProtocolVersion protocol_version_;
 };
 
-}  // namespace growatt_solar
-}  // namespace esphome
+}  // namespace esphome::growatt_solar

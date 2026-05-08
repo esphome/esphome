@@ -17,8 +17,7 @@
 
 #include <resampler.h>  // esp-audio-libs
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 enum class AudioResamplerState : uint8_t {
   RESAMPLING,  // More data is available to resample
@@ -96,7 +95,6 @@ class AudioResampler {
   std::unique_ptr<esp_audio_libs::resampler::Resampler> resampler_;
 };
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

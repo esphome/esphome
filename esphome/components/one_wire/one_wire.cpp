@@ -1,7 +1,6 @@
 #include "one_wire.h"
 
-namespace esphome {
-namespace one_wire {
+namespace esphome::one_wire {
 
 static const char *const TAG = "one_wire";
 
@@ -51,5 +50,4 @@ bool OneWireDevice::check_address_or_index_() {
   return true;
 }
 
-}  // namespace one_wire
-}  // namespace esphome
+}  // namespace esphome::one_wire

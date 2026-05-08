@@ -6,8 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ufire_ec {
+namespace esphome::ufire_ec {
 
 static const uint8_t CONFIG_TEMP_COMPENSATION = 0x02;
 
@@ -83,5 +82,4 @@ template<typename... Ts> class UFireECResetAction : public Action<Ts...> {
   UFireECComponent *parent_;
 };
 
-}  // namespace ufire_ec
-}  // namespace esphome
+}  // namespace esphome::ufire_ec

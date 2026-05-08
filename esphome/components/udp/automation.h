@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace udp {
+namespace esphome::udp {
 
 template<typename... Ts> class UDPWriteAction : public Action<Ts...>, public Parented<UDPComponent> {
  public:
@@ -40,6 +39,6 @@ template<typename... Ts> class UDPWriteAction : public Action<Ts...>, public Par
   } data_;
 };
 
-}  // namespace udp
-}  // namespace esphome
+}  // namespace esphome::udp
+
 #endif

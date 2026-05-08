@@ -9,8 +9,7 @@
 #include <cinttypes>
 #include <cstdio>
 
-namespace esphome {
-namespace voice_assistant {
+namespace esphome::voice_assistant {
 
 static const char *const TAG = "voice_assistant";
 
@@ -1007,7 +1006,6 @@ const Configuration &VoiceAssistant::get_configuration() {
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace voice_assistant
-}  // namespace esphome
+}  // namespace esphome::voice_assistant
 
 #endif  // USE_VOICE_ASSISTANT

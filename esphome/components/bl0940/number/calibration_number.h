@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace bl0940 {
+namespace esphome::bl0940 {
 
 class CalibrationNumber : public number::Number, public Component {
  public:
@@ -22,5 +21,4 @@ class CalibrationNumber : public number::Number, public Component {
   ESPPreferenceObject pref_;
 };
 
-}  // namespace bl0940
-}  // namespace esphome
+}  // namespace esphome::bl0940
