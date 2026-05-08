@@ -22,6 +22,7 @@ DEPENDENCIES = ["i2c"]
 CONF_CHANNEL_1 = "channel_1"
 CONF_CHANNEL_2 = "channel_2"
 CONF_CHANNEL_3 = "channel_3"
+CONF_POWER_DOWN_ON_SHUTDOWN = "power_down_on_shutdown"
 
 ina3221_ns = cg.esphome_ns.namespace("ina3221")
 INA3221Component = ina3221_ns.class_(
@@ -67,6 +68,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CHANNEL_1): INA3221_CHANNEL_SCHEMA,
             cv.Optional(CONF_CHANNEL_2): INA3221_CHANNEL_SCHEMA,
             cv.Optional(CONF_CHANNEL_3): INA3221_CHANNEL_SCHEMA,
+            cv.Optional(CONF_POWER_DOWN_ON_SHUTDOWN, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -97,3 +99,5 @@ async def to_code(config):
         if CONF_POWER in conf:
             sens = await sensor.new_sensor(conf[CONF_POWER])
             cg.add(var.set_power_sensor(i, sens))
+    
+    cg.add(var.set_power_down_on_shutdown(config[CONF_POWER_DOWN_ON_SHUTDOWN]))

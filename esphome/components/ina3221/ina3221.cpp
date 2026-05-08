@@ -127,4 +127,14 @@ bool INA3221Component::INA3221Channel::should_measure_bus_voltage() {
   return this->bus_voltage_sensor_ != nullptr || this->power_sensor_ != nullptr;
 }
 
+void INA3221Component::on_shutdown() {
+  if (this->power_down_on_shutdown_) {
+    ESP_LOGD(TAG, "Putting INA3221 to sleep...");
+    // 0x00 is the config register.
+    // Reading the current register, masking out the mode bits, and writing the power-down bits
+    // is safer, but a hard overwrite to 0x7120 also achieves the baseline power-down state.
+    this->write_byte_16(0x00, 0x7120);
+  }
+}
+
 }  // namespace esphome::ina3221
