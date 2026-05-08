@@ -2,8 +2,7 @@
 
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace modbus {
+namespace esphome::modbus {
 
 /// Modbus definitions from specs:
 /// https://modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf
@@ -75,5 +74,4 @@ static constexpr uint16_t MAX_PDU_SIZE = 253;  // Max PDU size is 256 - address(
 static constexpr uint16_t MAX_RAW_SIZE = 254;  // Max RAW size is 255 - CRC(2) = 254
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
 /// End of Modbus definitions
-}  // namespace modbus
-}  // namespace esphome
+}  // namespace esphome::modbus

@@ -28,8 +28,7 @@
 
 #include <improv.h>
 
-namespace esphome {
-namespace esp32_improv {
+namespace esphome::esp32_improv {
 
 using namespace esp32_ble_server;
 
@@ -124,7 +123,6 @@ class ESP32ImprovComponent : public Component, public improv_base::ImprovBase {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32ImprovComponent *global_improv_component;
 
-}  // namespace esp32_improv
-}  // namespace esphome
+}  // namespace esphome::esp32_improv
 
 #endif

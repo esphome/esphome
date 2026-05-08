@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "tuya_number.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 static const char *const TAG = "tuya.number";
 
@@ -91,5 +90,4 @@ void TuyaNumber::dump_config() {
   ESP_LOGCONFIG(TAG, "  Restore Value: %s", YESNO(this->restore_value_));
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

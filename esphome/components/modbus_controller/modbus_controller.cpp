@@ -2,8 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller";
 
@@ -539,5 +538,4 @@ bool ModbusCommandItem::is_equal(const ModbusCommandItem &other) {
                    other.register_type == this->register_type && other.function_code == this->function_code;
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

@@ -9,8 +9,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace mopeka_std_check {
+namespace esphome::mopeka_std_check {
 
 enum SensorType {
   STANDARD = 0x02,
@@ -74,7 +73,6 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   int8_t parse_temperature_(const mopeka_std_package *message);
 };
 
-}  // namespace mopeka_std_check
-}  // namespace esphome
+}  // namespace esphome::mopeka_std_check
 
 #endif

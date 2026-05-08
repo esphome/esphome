@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus {
+namespace esphome::modbus {
 
 static const char *const TAG = "modbus";
 
@@ -560,5 +559,4 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_t
   }
 }
 
-}  // namespace modbus
-}  // namespace esphome
+}  // namespace esphome::modbus

@@ -12,8 +12,7 @@
 #include <deque>
 #include <optional>
 
-namespace esphome {
-namespace modbus {
+namespace esphome::modbus {
 
 static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 15;
 static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
@@ -214,5 +213,4 @@ class ModbusServerDevice {
   uint8_t address_{0};
 };
 
-}  // namespace modbus
-}  // namespace esphome
+}  // namespace esphome::modbus

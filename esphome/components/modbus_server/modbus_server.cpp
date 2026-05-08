@@ -10,7 +10,7 @@ static const char *const TAG = "modbus_server";
 
 void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t start_address,
                                             uint16_t number_of_registers) {
-  ESP_LOGD(TAG,
+  ESP_LOGV(TAG,
            "Received read holding/input registers for device 0x%X. FC: 0x%X. Start address: 0x%X. Number of registers: "
            "0x%X.",
            this->address_, function_code, start_address, number_of_registers);
@@ -31,7 +31,7 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
         }
         int64_t value = server_register->read_lambda();
         char value_buf[ServerRegister::FORMAT_VALUE_BUF_SIZE];
-        ESP_LOGD(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %s.",
+        ESP_LOGV(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %s.",
                  server_register->address, static_cast<size_t>(server_register->value_type),
                  server_register->register_count, server_register->format_value(value, value_buf, sizeof(value_buf)));
 
@@ -48,7 +48,7 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
     if (!found) {
       if (this->server_courtesy_response_.enabled &&
           (current_address <= this->server_courtesy_response_.register_last_address)) {
-        ESP_LOGD(TAG,
+        ESP_LOGV(TAG,
                  "Could not match any register to address 0x%02X, but default allowed. "
                  "Returning default value: %" PRIu16 ".",
                  current_address, this->server_courtesy_response_.register_value);

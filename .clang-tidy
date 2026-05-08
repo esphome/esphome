@@ -96,7 +96,6 @@ Checks: >-
   -modernize-avoid-variadic-functions,
   -modernize-avoid-c-arrays,
   -modernize-avoid-c-style-cast,
-  -modernize-concat-nested-namespaces,
   -modernize-macro-to-enum,
   -modernize-return-braced-init-list,
   -modernize-type-traits,
