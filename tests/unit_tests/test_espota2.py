@@ -1063,7 +1063,7 @@ def test_perform_ota_partition_access_error_names_bootloader_flag(
 
     with pytest.raises(
         espota2.OTAError,
-        match=r"--bootloader.*esphome upload.*--bootloader.*retry --bootloader",
+        match=r"--bootloader.*recompile and upload.*--bootloader.*retry --bootloader",
     ):
         espota2.perform_ota(
             mock_socket,

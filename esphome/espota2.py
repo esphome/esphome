@@ -346,16 +346,16 @@ def perform_ota(
             raise OTAError(
                 f"Device does not support the extended OTA protocol that "
                 f"{flag_name} requires. The running firmware is too old; "
-                f"build and install a current ESPHome firmware via a regular "
-                f"OTA upload (without {flag_name}), then retry."
+                f"recompile and upload a current ESPHome firmware via a "
+                f"regular OTA (without {flag_name}), then retry."
             )
         if not (features & SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS):
             raise OTAError(
                 f"The running firmware was built without "
                 f"'allow_partition_access: true', so {flag_name} cannot be "
                 f"used. Add the option to the esphome OTA platform in your "
-                f"YAML, run 'esphome upload' (without {flag_name}) to install "
-                f"that build, then retry {flag_name}."
+                f"YAML, recompile and upload (without {flag_name}), then "
+                f"retry {flag_name}."
             )
 
     if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
