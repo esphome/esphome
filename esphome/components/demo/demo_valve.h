@@ -2,8 +2,7 @@
 
 #include "esphome/components/valve/valve.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 enum class DemoValveType {
   TYPE_1,
@@ -53,5 +52,4 @@ class DemoValve : public valve::Valve {
   DemoValveType type_{};
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

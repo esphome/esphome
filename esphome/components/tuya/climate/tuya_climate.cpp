@@ -1,8 +1,7 @@
 #include "tuya_climate.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 static const char *const TAG = "tuya.climate";
 
@@ -533,5 +532,4 @@ void TuyaClimate::switch_to_action_(climate::ClimateAction action) {
   this->action = action;
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

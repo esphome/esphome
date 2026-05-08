@@ -3,8 +3,7 @@
 #ifdef USE_NETWORK
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace e131 {
+namespace esphome::e131 {
 
 static const char *const TAG = "e131_addressable_light_effect";
 static const int MAX_DATA_SIZE = (sizeof(E131Packet::values) - 1);
@@ -91,6 +90,6 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
   return true;
 }
 
-}  // namespace e131
-}  // namespace esphome
+}  // namespace esphome::e131
+
 #endif

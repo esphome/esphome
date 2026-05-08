@@ -12,8 +12,7 @@
 #ifdef USE_RP2040_CRASH_HANDLER
 #include "esphome/components/rp2040/crash_handler.h"
 #endif
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static const char *const TAG = "debug";
 
@@ -84,6 +83,5 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 
 void DebugComponent::update_platform_() {}
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
 #endif

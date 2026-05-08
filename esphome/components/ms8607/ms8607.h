@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ms8607 {
+namespace esphome::ms8607 {
 
 /**
  Class for I2CDevice used to communicate with the Humidity sensor
@@ -108,5 +107,4 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t reset_attempts_remaining_{0};
 };
 
-}  // namespace ms8607
-}  // namespace esphome
+}  // namespace esphome::ms8607

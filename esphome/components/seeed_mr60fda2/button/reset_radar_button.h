@@ -3,8 +3,7 @@
 #include "esphome/components/button/button.h"
 #include "../seeed_mr60fda2.h"
 
-namespace esphome {
-namespace seeed_mr60fda2 {
+namespace esphome::seeed_mr60fda2 {
 
 class ResetRadarButton : public button::Button, public Parented<MR60FDA2Component> {
  public:
@@ -14,5 +13,4 @@ class ResetRadarButton : public button::Button, public Parented<MR60FDA2Componen
   void press_action() override;
 };
 
-}  // namespace seeed_mr60fda2
-}  // namespace esphome
+}  // namespace esphome::seeed_mr60fda2

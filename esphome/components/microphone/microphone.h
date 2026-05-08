@@ -7,8 +7,7 @@
 #include <vector>
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace microphone {
+namespace esphome::microphone {
 
 enum State : uint8_t {
   STATE_STOPPED = 0,
@@ -48,5 +47,4 @@ class Microphone {
   CallbackManager<void(const std::vector<uint8_t> &)> data_callbacks_{};
 };
 
-}  // namespace microphone
-}  // namespace esphome
+}  // namespace esphome::microphone
