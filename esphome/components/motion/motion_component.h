@@ -6,8 +6,7 @@
 #include <functional>
 #include <numbers>
 
-namespace esphome {
-namespace motion {
+namespace esphome::motion {
 
 // ---Data class
 
@@ -52,5 +51,4 @@ class MotionComponent : public PollingComponent {
   LazyCallbackManager<void(MotionData &)> motion_data_callback_{};
 };
 
-}  // namespace motion
-}  // namespace esphome
+}  // namespace esphome::motion
