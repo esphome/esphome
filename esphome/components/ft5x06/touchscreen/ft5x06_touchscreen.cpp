@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ft5x06 {
+namespace esphome::ft5x06 {
 
 static const char *const TAG = "ft5x06.touchscreen";
 
@@ -99,5 +98,4 @@ bool FT5x06Touchscreen::set_mode_(FTMode mode) {
   return this->err_check_(this->write_register(FT5X06_MODE_REG, (uint8_t *) &mode, 1), "Set mode");
 }
 
-}  // namespace ft5x06
-}  // namespace esphome
+}  // namespace esphome::ft5x06

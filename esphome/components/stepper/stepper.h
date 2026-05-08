@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace stepper {
+namespace esphome::stepper {
 
 #define LOG_STEPPER(this) \
   ESP_LOGCONFIG(TAG, \
@@ -108,5 +107,4 @@ template<typename... Ts> class SetDecelerationAction : public Action<Ts...> {
   Stepper *parent_;
 };
 
-}  // namespace stepper
-}  // namespace esphome
+}  // namespace esphome::stepper

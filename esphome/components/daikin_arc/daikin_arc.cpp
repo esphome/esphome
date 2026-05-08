@@ -5,8 +5,7 @@
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace daikin_arc {
+namespace esphome::daikin_arc {
 
 static const char *const TAG = "daikin.climate";
 
@@ -492,5 +491,4 @@ void DaikinArcClimate::control(const climate::ClimateCall &call) {
   climate_ir::ClimateIR::control(call);
 }
 
-}  // namespace daikin_arc
-}  // namespace esphome
+}  // namespace esphome::daikin_arc

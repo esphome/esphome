@@ -3,8 +3,7 @@
 #include "esphome/components/bme280_base/bme280_base.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace bme280_i2c {
+namespace esphome::bme280_i2c {
 
 static const char *const TAG = "bme280_i2c.sensor";
 
@@ -16,5 +15,4 @@ class BME280I2CComponent : public esphome::bme280_base::BME280Component, public 
   void dump_config() override;
 };
 
-}  // namespace bme280_i2c
-}  // namespace esphome
+}  // namespace esphome::bme280_i2c

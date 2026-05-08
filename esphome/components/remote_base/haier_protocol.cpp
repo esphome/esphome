@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.haier";
 
@@ -84,5 +83,4 @@ void HaierProtocol::dump(const HaierData &data) {
   ESP_LOGI(TAG, "Received Haier: %s", format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

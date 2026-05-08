@@ -5,8 +5,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace bl0942 {
+namespace esphome::bl0942 {
 
 // The BL0942 IC is "calibration-free", which means that it doesn't care
 // at all about calibration, and that's left to software. It measures a
@@ -147,5 +146,4 @@ class BL0942 : public PollingComponent, public uart::UARTDevice {
   void write_reg_(uint8_t reg, uint32_t val);
   void received_package_(DataPacket *data);
 };
-}  // namespace bl0942
-}  // namespace esphome
+}  // namespace esphome::bl0942

@@ -13,8 +13,7 @@
 #include <esp_gattc_api.h>
 #include <esp_gatts_api.h>
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
 class BLEServer;
 
@@ -80,7 +79,6 @@ class BLEService {
   } state_{INIT};
 };
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif

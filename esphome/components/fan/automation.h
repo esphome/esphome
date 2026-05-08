@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "fan.h"
 
-namespace esphome {
-namespace fan {
+namespace esphome::fan {
 
 // All configured fields are baked into a single stateless lambda whose
 // constants live in flash. The action only stores one function pointer
@@ -237,5 +236,4 @@ class FanPresetSetTrigger : public Trigger<StringRef> {
   StringRef last_preset_mode_{};
 };
 
-}  // namespace fan
-}  // namespace esphome
+}  // namespace esphome::fan
