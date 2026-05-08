@@ -18,7 +18,7 @@
 
 namespace esphome::i2s_audio {
 
-// Shared constants for I2S audio speaker implementations
+// Shared constants used by both standard and SPDIF speaker implementations
 static constexpr uint32_t DMA_BUFFER_DURATION_MS = 15;
 static constexpr size_t TASK_STACK_SIZE = 4096;
 static constexpr ssize_t TASK_PRIORITY = 19;
@@ -42,7 +42,7 @@ enum SpeakerEventGroupBits : uint32_t {
 
 /// @brief Abstract base class for I2S audio speaker implementations.
 /// Provides shared infrastructure (event groups, ring buffer, volume control, task lifecycle)
-/// for derived I2S speaker classes.
+/// for derived standard I2S and SPDIF speaker classes.
 class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public Component {
  public:
   float get_setup_priority() const override { return esphome::setup_priority::PROCESSOR; }
