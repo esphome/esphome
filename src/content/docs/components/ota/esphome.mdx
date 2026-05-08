@@ -27,7 +27,7 @@ ota:
 ## Configuration variables
 
 - **password** (*Optional*, string): The password to use for updates.
-- **allow_partition_access** (*Optional*, boolean): Only on `esp32`. Allow updating more partition types. Currently only used for updating the partition table. Defaults to `false`.
+- **allow_partition_access** (*Optional*, boolean): Only on `esp32`. Allow updating more partition types. Used for updating the partition table and the bootloader. Defaults to `false`.
 
 > [!IMPORTANT]
 > Always use strong, unique passwords for OTA updates. See the [Security Best Practices](/guides/security_best_practices#3-ota-password-protection) guide for more information.
@@ -119,6 +119,33 @@ esphome upload --partition-table --file partitions.bin name-of-your-config.yaml
 
 > [!CAUTION]
 > When [converting a Tasmota ESP32 device to ESPHome](/guides/migrate_sonoff_tasmota), it is required to add `allow_partition_access: true` on the first ESPHome firmware you upload to the device. Regular OTA updates will not work until the partition table update is completed.
+
+## Updating the bootloader on ESP32
+
+On the ESP32 it is possible to update the bootloader with an OTA update. This is useful on devices that can't be flashed via serial and need a newer bootloader, for example to enable OTA rollback or SRAM1 as IRAM. Before you can update the bootloader you need to add the option `allow_partition_access: true` to the config and install it to your device.
+
+```yaml
+ota:
+  - platform: esphome
+    allow_partition_access: true
+```
+
+> [!CAUTION]
+> There is a risk of soft-bricking the device if the power is interrupted or the ESP is reset during the bootloader update, requiring serial flashing to recover it. Make sure you have a stable power supply, and be ready to reflash via USB if it fails.
+
+Open the ESPHome logs for detailed information about potential errors. To perform the bootloader update, run:
+
+```
+esphome upload --bootloader name-of-your-config.yaml
+```
+
+Without `--file`, the bootloader image from the most recent compile is used (`build/bootloader/bootloader.bin` for native ESP-IDF, or `.pioenvs/<name>/bootloader.bin` for PlatformIO).
+
+To upload a custom bootloader binary, run:
+
+```
+esphome upload --bootloader --file bootloader.bin name-of-your-config.yaml
+```
 
 ## See Also
 
