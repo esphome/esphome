@@ -3,10 +3,11 @@ import esphome.codegen as cg
 from esphome.const import (
     CONF_ID,
     CONF_ON_BOOT,
+    CONF_ON_UPDATE,
     CONF_ON_VALUE,
     CONF_TRIGGER_ID,
     CONF_X,
-    CONF_Y, CONF_ON_UPDATE,
+    CONF_Y,
 )
 from esphome.cpp_generator import MockObj, new_Pvariable
 from esphome.cpp_helpers import register_component

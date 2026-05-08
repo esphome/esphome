@@ -86,7 +86,8 @@ from .types import (
     lv_group_t,
     lv_lambda_t,
     lv_obj_t_ptr,
-    lv_style_t, lvgl_ns,
+    lv_style_t,
+    lvgl_ns,
 )
 from .widgets import (
     LvScrActType,

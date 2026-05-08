@@ -3,14 +3,8 @@ from itertools import chain
 from esphome.components.sensor import Sensor, new_sensor, sensor_schema
 import esphome.config_validation as cv
 
-from ..defines import CONF_WIDGET, CONF_TRIGGER
-from ..lvcode import (
-    EVENT_ARG,
-    LambdaContext,
-    LvContext,
-    lv_add,
-    lvgl_static,
-)
+from ..defines import CONF_TRIGGER, CONF_WIDGET
+from ..lvcode import EVENT_ARG, LambdaContext, LvContext, lv_add, lvgl_static
 from ..schemas import TRIGGER_EVENT_MAP, VALUE_TRIGGER_SCHEMA
 from ..types import LvNumber
 from ..widgets import Widget, get_widgets, wait_for_widgets

@@ -10,13 +10,15 @@ from esphome.const import (
     CONF_GROUP,
     CONF_ID,
     CONF_ON_BOOT,
+    CONF_ON_RELEASE,
+    CONF_ON_UPDATE,
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TEXT,
     CONF_TIME,
     CONF_TRIGGER_ID,
     CONF_X,
-    CONF_Y, CONF_ON_UPDATE, CONF_ON_RELEASE,
+    CONF_Y,
 )
 from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
@@ -29,9 +31,14 @@ from .defines import (
     CONF_SCROLL_SNAP_Y,
     CONF_SCROLLBAR_MODE,
     CONF_TIME_FORMAT,
+    CONF_TRIGGER,
     LV_GRAD_DIR,
+    LV_VALUE_EVENTS,
+    VALUE_ON_CHANGE,
+    VALUE_ON_UPDATE,
+    VALUE_ON_VALUE,
     get_remapped_uses,
-    is_press_event, CONF_TRIGGER, LV_VALUE_EVENTS, VALUE_ON_CHANGE, VALUE_ON_UPDATE, VALUE_ON_VALUE,
+    is_press_event,
 )
 from .helpers import CONF_IF_NAN, validate_printf
 from .layout import (
@@ -41,15 +48,16 @@ from .layout import (
     grid_alignments,
 )
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
-from .lvcode import LvglComponent, lv_event_t_ptr, UPDATE_EVENT
+from .lvcode import UPDATE_EVENT, LvglComponent, lv_event_t_ptr
 from .types import (
+    LV_EVENT,
     LVEncoderListener,
     LvType,
     lv_group_t,
     lv_obj_t,
     lv_point_t,
     lv_pseudo_button_t,
-    lv_style_t, LV_EVENT,
+    lv_style_t,
 )
 from .widgets import WidgetType
 
@@ -356,7 +364,9 @@ FLAG_SCHEMA = cv.Schema({cv.Optional(flag): lvalid.lv_bool for flag in df.OBJ_FL
 FLAG_LIST = cv.ensure_list(df.LV_OBJ_FLAG.one_of)
 
 VALUE_TRIGGER_SCHEMA = {
-    cv.Optional(CONF_TRIGGER, default=CONF_ON_VALUE): cv.one_of(*LV_VALUE_EVENTS, lower=True),
+    cv.Optional(CONF_TRIGGER, default=CONF_ON_VALUE): cv.one_of(
+        *LV_VALUE_EVENTS, lower=True
+    ),
 }
 
 TRIGGER_EVENT_MAP = {

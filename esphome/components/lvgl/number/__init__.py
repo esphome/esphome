@@ -1,10 +1,16 @@
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-from esphome.const import CONF_RESTORE_VALUE, CONF_ON_RELEASE
+from esphome.const import CONF_ON_RELEASE, CONF_RESTORE_VALUE
 from esphome.cpp_generator import MockObj
 
-from ..defines import CONF_ANIMATED, CONF_UPDATE_ON_RELEASE, CONF_WIDGET, CONF_TRIGGER, LOGGER
+from ..defines import (
+    CONF_ANIMATED,
+    CONF_TRIGGER,
+    CONF_UPDATE_ON_RELEASE,
+    CONF_WIDGET,
+    LOGGER,
+)
 from ..lv_validation import animated
 from ..lvcode import (
     EVENT_ARG,
@@ -14,7 +20,7 @@ from ..lvcode import (
     lv_obj,
     lvgl_static,
 )
-from ..schemas import VALUE_TRIGGER_SCHEMA, TRIGGER_EVENT_MAP
+from ..schemas import TRIGGER_EVENT_MAP, VALUE_TRIGGER_SCHEMA
 from ..types import LV_EVENT, LvNumber, lvgl_ns
 from ..widgets import get_widgets, wait_for_widgets
 
@@ -34,7 +40,9 @@ CONFIG_SCHEMA = number.number_schema(LVGLNumber).extend(
 async def to_code(config):
     trigger = config[CONF_TRIGGER]
     if CONF_UPDATE_ON_RELEASE in config:
-        LOGGER.warning("Option 'update_on_release' is deprecated - use 'trigger: on_release' instead")
+        LOGGER.warning(
+            "Option 'update_on_release' is deprecated - use 'trigger: on_release' instead"
+        )
         trigger = CONF_ON_RELEASE
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
@@ -61,7 +69,8 @@ async def to_code(config):
     await cg.register_component(var, config)
     cg.add(
         lvgl_static.add_event_cb(
-            widget.obj, await event.get_lambda(),
+            widget.obj,
+            await event.get_lambda(),
             *TRIGGER_EVENT_MAP[trigger],
         )
     )
