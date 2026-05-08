@@ -214,6 +214,75 @@ class ConstAudioSourceBuffer : public AudioReadableBuffer {
   size_t length_{0};
 };
 
+/// @brief Zero-copy audio source that reads directly from a ring buffer's internal storage.
+///
+/// Optionally enforces a minimum read alignment (e.g. one audio frame). When alignment_bytes > 1, the
+/// source transparently stitches frames that straddle the ring buffer's wrap boundary by buffering the
+/// trailing partial frame from one chunk and joining it with the head of the next chunk in a small
+/// internal splice buffer, so callers always see frame-aligned data.
+class RingBufferAudioSource : public AudioReadableBuffer {
+ public:
+  /// Maximum supported alignment. Sized to cover 32-bit samples across up to 2 channels (8 bytes).
+  static constexpr size_t MAX_ALIGNMENT_BYTES = 8;
+
+  /// @brief Creates a new ring-buffer-backed audio source after validating its parameters.
+  /// @param ring_buffer The ring buffer to read from. Must be non-null.
+  /// @param max_fill_bytes Soft cap on bytes acquired per fill() call. Must be > 0.
+  /// @param alignment_bytes Minimum exposed-region alignment in bytes (defaults to 1, i.e. byte-aligned).
+  ///        Pass bytes_per_frame to make every exposed region a whole number of frames. Must be in
+  ///        [1, MAX_ALIGNMENT_BYTES].
+  /// @return unique_ptr if parameters are valid, nullptr otherwise
+  static std::unique_ptr<RingBufferAudioSource> create(std::shared_ptr<ring_buffer::RingBuffer> ring_buffer,
+                                                       size_t max_fill_bytes, uint8_t alignment_bytes = 1);
+
+  explicit RingBufferAudioSource(std::shared_ptr<ring_buffer::RingBuffer> ring_buffer, size_t max_fill_bytes,
+                                 uint8_t alignment_bytes)
+      : ring_buffer_(std::move(ring_buffer)), max_fill_bytes_(max_fill_bytes), alignment_bytes_(alignment_bytes) {}
+
+  ~RingBufferAudioSource() override;
+
+  // AudioReadableBuffer interface
+  const uint8_t *data() const override { return this->current_data_; }
+  size_t available() const override { return this->current_available_; }
+  size_t free() const override { return 0; }
+  void consume(size_t bytes) override;
+  bool has_buffered_data() const override;
+  size_t fill(TickType_t ticks_to_wait, bool pre_shift) override;
+
+  /// @brief Returns a mutable pointer to the acquired ring buffer data.
+  /// Use only when the caller is the sole consumer and data will be discarded after use.
+  uint8_t *mutable_data() { return this->current_data_; }
+
+ protected:
+  /// @brief Releases the currently held ring buffer item, first copying any trailing sub-frame bytes
+  /// into the splice buffer so they can be stitched with the next chunk.
+  void release_item_();
+
+  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer_;
+  size_t max_fill_bytes_;
+
+  void *acquired_item_{nullptr};
+  uint8_t *current_data_{nullptr};
+
+  // Sub-frame trailing bytes inside the held item that will be copied to splice_buffer_ on release.
+  uint8_t *item_trailing_ptr_{nullptr};
+
+  // After the currently-exposed splice frame is consumed, fill() will promote this region (the aligned
+  // remainder of the new chunk) to the exposed region. queued_length_ == 0 when nothing is queued.
+  uint8_t *queued_data_{nullptr};
+
+  // Splice buffer holds the start of a partial frame whose remainder lives at the head of the next
+  // chunk. While splice_length_ > 0, the buffer is incomplete and waiting for completion bytes.
+  uint8_t splice_buffer_[MAX_ALIGNMENT_BYTES];
+
+  size_t current_available_{0};
+  size_t item_trailing_length_{0};
+  size_t queued_length_{0};
+  size_t splice_length_{0};
+
+  uint8_t alignment_bytes_;
+};
+
 }  // namespace esphome::audio
 
 #endif
