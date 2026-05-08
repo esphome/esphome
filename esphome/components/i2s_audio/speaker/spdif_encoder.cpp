@@ -358,21 +358,15 @@ HOT esp_err_t SPDIFEncoder::write(const uint8_t *src, size_t size, TickType_t ti
 }
 
 esp_err_t SPDIFEncoder::flush_with_silence(TickType_t ticks_to_wait) {
-  // First, send any pending complete block from a previous failed send
-  if (this->spdif_block_ptr_ >= &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
-    esp_err_t err = this->send_block_(ticks_to_wait);
-    if (err != ESP_OK) {
-      return err;
+  // If a complete block is already pending (from a previous failed send), emit just that block.
+  // Otherwise pad the partial block with silence (or generate a full silence block if empty)
+  // and send. Always emits exactly one block on success.
+  if (this->spdif_block_ptr_ < &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
+    static const uint8_t SILENCE[2] = {0, 0};
+    while (this->spdif_block_ptr_ < &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
+      this->encode_sample_(SILENCE);
     }
   }
-
-  // Pad with silence until the current block is complete, then send. If no data was pending,
-  // this produces a full silence block. Always emits exactly one block on success.
-  static const uint8_t SILENCE[2] = {0, 0};
-  while (this->spdif_block_ptr_ < &this->spdif_block_buf_[SPDIF_BLOCK_SIZE_U32]) {
-    this->encode_sample_(SILENCE);
-  }
-
   return this->send_block_(ticks_to_wait);
 }
 
