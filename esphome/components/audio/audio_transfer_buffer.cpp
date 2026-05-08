@@ -212,7 +212,8 @@ std::unique_ptr<RingBufferAudioSource> RingBufferAudioSource::create(
   if (ring_buffer == nullptr || max_fill_bytes == 0 || alignment_bytes == 0 || alignment_bytes > MAX_ALIGNMENT_BYTES) {
     return nullptr;
   }
-  return make_unique<RingBufferAudioSource>(std::move(ring_buffer), max_fill_bytes, alignment_bytes);
+  return std::unique_ptr<RingBufferAudioSource>(
+      new RingBufferAudioSource(std::move(ring_buffer), max_fill_bytes, alignment_bytes));
 }
 
 RingBufferAudioSource::~RingBufferAudioSource() {
