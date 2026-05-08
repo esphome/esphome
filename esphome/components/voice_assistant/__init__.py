@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_SPEAKER,
 )
 
-AUTO_LOAD = ["socket"]
+AUTO_LOAD = ["ring_buffer", "socket"]
 DEPENDENCIES = ["api", "microphone"]
 
 CODEOWNERS = ["@jesserockz", "@kahrendt"]

@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace wiegand {
+namespace esphome::wiegand {
 
 static const char *const TAG = "wiegand";
 static const char *const KEYS = "0123456789*#";
@@ -127,5 +126,4 @@ void Wiegand::dump_config() {
   LOG_PIN("  D1 pin: ", this->d1_pin_);
 }
 
-}  // namespace wiegand
-}  // namespace esphome
+}  // namespace esphome::wiegand

@@ -7,9 +7,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/ring_buffer.h"
 
 #include "esphome/components/api/api_connection.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/microphone/microphone_source.h"
 #ifdef USE_MEDIA_PLAYER
@@ -26,8 +26,7 @@
 #include <span>
 #include <vector>
 
-namespace esphome {
-namespace voice_assistant {
+namespace esphome::voice_assistant {
 
 // Version 1: Initial version
 // Version 2: Adds raw speaker support
@@ -293,7 +292,7 @@ class VoiceAssistant : public Component {
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
-  std::string tts_response_url_{""};
+  std::string tts_response_url_;
   bool started_streaming_tts_{false};
 
   MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
@@ -301,12 +300,12 @@ class VoiceAssistant : public Component {
 
   bool local_output_{false};
 
-  std::string conversation_id_{""};
+  std::string conversation_id_;
 
-  std::string wake_word_{""};
+  std::string wake_word_;
 
-  std::shared_ptr<RingBuffer> ring_buffer_;
-  std::shared_ptr<RingBuffer> ring_buffer2_;
+  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer_;
+  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer2_;
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
@@ -373,7 +372,6 @@ template<typename... Ts> class ConnectedCondition : public Condition<Ts...>, pub
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace voice_assistant
-}  // namespace esphome
+}  // namespace esphome::voice_assistant
 
 #endif  // USE_VOICE_ASSISTANT

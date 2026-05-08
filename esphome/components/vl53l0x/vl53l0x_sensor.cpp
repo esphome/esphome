@@ -12,8 +12,7 @@
  * in the vl53l0x integration directory.
  */
 
-namespace esphome {
-namespace vl53l0x {
+namespace esphome::vl53l0x {
 
 static const char *const TAG = "vl53l0x";
 
@@ -535,5 +534,4 @@ bool VL53L0XSensor::perform_single_ref_calibration_(uint8_t vhv_init_byte) {
   return true;
 }
 
-}  // namespace vl53l0x
-}  // namespace esphome
+}  // namespace esphome::vl53l0x

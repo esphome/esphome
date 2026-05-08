@@ -4,8 +4,7 @@
 
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace update {
+namespace esphome::update {
 
 template<typename... Ts> class PerformAction : public Action<Ts...>, public Parented<UpdateEntity> {
   TEMPLATABLE_VALUE(bool, force)
@@ -24,5 +23,4 @@ template<typename... Ts> class IsAvailableCondition : public Condition<Ts...>, p
   bool check(const Ts &...x) override { return this->parent_->state == UPDATE_STATE_AVAILABLE; }
 };
 
-}  // namespace update
-}  // namespace esphome
+}  // namespace esphome::update

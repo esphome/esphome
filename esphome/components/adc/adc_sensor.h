@@ -17,8 +17,7 @@
 #include <zephyr/drivers/adc.h>
 #endif
 
-namespace esphome {
-namespace adc {
+namespace esphome::adc {
 
 #ifdef USE_ESP32
 // clang-format off
@@ -162,5 +161,4 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
 #endif
 };
 
-}  // namespace adc
-}  // namespace esphome
+}  // namespace esphome::adc

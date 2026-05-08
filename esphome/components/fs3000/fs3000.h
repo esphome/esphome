@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace fs3000 {
+namespace esphome::fs3000 {
 
 // FS3000 has two models, 1005 and 1015
 //  1005 has a max speed detection of 7.23 m/s
@@ -30,5 +29,4 @@ class FS3000Component : public PollingComponent, public i2c::I2CDevice, public s
   float fit_raw_(uint16_t raw_value);
 };
 
-}  // namespace fs3000
-}  // namespace esphome
+}  // namespace esphome::fs3000

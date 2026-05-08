@@ -7,8 +7,7 @@
 using namespace esphome::climate;
 using namespace esphome::uart;
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 static const char *const TAG = "haier.climate";
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
@@ -555,5 +554,4 @@ void Smartair2Climate::set_alternative_swing_control(bool swing_control) {
   this->use_alternative_swing_control_ = swing_control;
 }
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier
