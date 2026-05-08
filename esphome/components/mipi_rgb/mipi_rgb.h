@@ -8,8 +8,7 @@
 #include "esphome/components/spi/spi.h"
 #endif
 
-namespace esphome {
-namespace mipi_rgb {
+namespace esphome::mipi_rgb {
 
 constexpr static const char *const TAG = "display.mipi_rgb";
 const uint8_t SW_RESET_CMD = 0x01;
@@ -120,6 +119,5 @@ class MipiRgbSpi : public MipiRgb,
 };
 #endif
 
-}  // namespace mipi_rgb
-}  // namespace esphome
+}  // namespace esphome::mipi_rgb
 #endif

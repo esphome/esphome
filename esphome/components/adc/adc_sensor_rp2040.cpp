@@ -15,8 +15,7 @@
 #define PICO_VSYS_PIN 29  // NOLINT(cppcoreguidelines-macro-usage)
 #endif
 
-namespace esphome {
-namespace adc {
+namespace esphome::adc {
 
 static const char *const TAG = "adc.rp2040";
 
@@ -98,7 +97,6 @@ float ADCSensor::sample() {
   return aggr.aggregate() * 3.3f / 4096.0f * coeff;
 }
 
-}  // namespace adc
-}  // namespace esphome
+}  // namespace esphome::adc
 
 #endif  // USE_RP2040

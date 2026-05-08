@@ -226,7 +226,7 @@ size_t SourceSpeaker::play(const uint8_t *data, size_t length, TickType_t ticks_
     this->start();
   }
   size_t bytes_written = 0;
-  std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+  std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
   if (temp_ring_buffer.use_count() > 0) {
     // Only write to the ring buffer if the reference is valid
     bytes_written = temp_ring_buffer->write_without_replacement(data, length, ticks_to_wait);
@@ -263,9 +263,9 @@ esp_err_t SourceSpeaker::start_() {
       return ESP_ERR_NO_MEM;
     }
 
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (!temp_ring_buffer) {
-      temp_ring_buffer = RingBuffer::create(ring_buffer_size);
+      temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
       this->ring_buffer_ = temp_ring_buffer;
     }
 

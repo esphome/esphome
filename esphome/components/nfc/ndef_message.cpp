@@ -52,7 +52,7 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     index += type_length;
 
-    std::string id_str = "";
+    std::string id_str;
     if (il) {
       id_str = std::string(data.begin() + index, data.begin() + index + id_length);
       index += id_length;
