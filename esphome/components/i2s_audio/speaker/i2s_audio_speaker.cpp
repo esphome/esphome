@@ -275,12 +275,12 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
     xQueueReset(this->i2s_event_queue_);
   }
 
-  if (this->i2s_event_queue_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate I2S event queue(s)");
-    i2s_del_channel(this->tx_handle_);
-    this->tx_handle_ = nullptr;
-    this->parent_->unlock();
-    return ESP_ERR_NO_MEM;
+  // Lockstep records queue. One record per in-flight DMA buffer; sized to match the I2S event queue
+  // so a fully-saturated DMA pipeline cannot overflow either side before drain.
+  if (this->write_records_queue_ == nullptr) {
+    this->write_records_queue_ = xQueueCreate(event_queue_size, sizeof(uint32_t));
+  } else {
+    xQueueReset(this->write_records_queue_);
   }
 
   if (this->i2s_event_queue_ == nullptr || this->write_records_queue_ == nullptr) {
