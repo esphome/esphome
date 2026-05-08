@@ -366,7 +366,7 @@ class Widget:
 
     def get_args(self):
         if isinstance(self.type.w_type, LvType):
-            return self.type.w_type.args
+            return self.type.w_type.args.copy()
         return [(lv_obj_t_ptr, "obj")]
 
     def get_value(self):

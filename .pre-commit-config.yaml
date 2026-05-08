@@ -55,7 +55,7 @@ repos:
     hooks:
       - id: pylint
         name: pylint
-        entry: python3 script/run-in-env.py pylint
+        entry: python script/run-in-env.py pylint
         language: system
         types: [python]
         files: ^esphome/.+\.py$
@@ -68,5 +68,5 @@ repos:
         additional_dependencies: []
       - id: ci-custom
         name: ci-custom
-        entry: python3 script/run-in-env.py script/ci-custom.py
+        entry: python script/run-in-env.py script/ci-custom.py
         language: system

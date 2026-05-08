@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mics_4514 {
+namespace esphome::mics_4514 {
 
 static const char *const TAG = "mics_4514";
 
@@ -131,5 +130,4 @@ void MICS4514Component::update() {
   }
 }
 
-}  // namespace mics_4514
-}  // namespace esphome
+}  // namespace esphome::mics_4514

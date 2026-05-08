@@ -3,8 +3,7 @@
 
 #include <string>
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 static const char *const TAG = "opentherm";
 namespace message_data {
@@ -419,5 +418,4 @@ void OpenthermHub::dump_config() {
   }
 }
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

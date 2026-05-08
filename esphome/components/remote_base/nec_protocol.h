@@ -2,8 +2,7 @@
 
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct NECData {
   uint16_t address;
@@ -37,5 +36,4 @@ template<typename... Ts> class NECAction : public RemoteTransmitterActionBase<Ts
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

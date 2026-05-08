@@ -28,6 +28,7 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
     CONF_API,
+    CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
@@ -47,6 +48,8 @@ from esphome.const import (
     CONF_PORT,
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
+    CONF_USERNAME,
+    CONF_WEB_SERVER,
     ENV_NOGITIGNORE,
     KEY_CORE,
     KEY_NATIVE_IDF,
@@ -63,6 +66,7 @@ from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
 from esphome.util import (
     PICOTOOL_PACKAGE,
+    FlashImage,
     detect_rp2040_bootsel,
     get_picotool_path,
     get_serial_ports,
@@ -348,6 +352,17 @@ def choose_upload_log_host(
         elif bootsel.permission_error:
             bootsel_permission_error = True
 
+    # Annotate the OTA chooser entry only in the non-default case: when the
+    # config has web_server OTA but no native API OTA, the upload will fall
+    # through to the HTTP path and the user benefits from seeing that
+    # explicitly. The native-API path is the default and gets a plain label
+    # to avoid noise on the most common scenario. For LOGGING the OTA
+    # transport doesn't apply, so always leave the label plain.
+    if purpose == Purpose.UPLOADING and not has_native_ota() and has_web_server_ota():
+        ota_suffix = " via web_server"
+    else:
+        ota_suffix = ""
+
     def add_ota_options() -> None:
         """Add OTA options, using mDNS discovery if name_add_mac_suffix is enabled."""
         if (discovered := _discover_mac_suffix_devices()) is not None:
@@ -355,11 +370,11 @@ def choose_upload_log_host(
             # intentionally skip the base-name fallback since with
             # name_add_mac_suffix on, the base name doesn't exist on the net.
             for host in discovered:
-                options.append((f"Over The Air ({host})", host))
+                options.append((f"Over The Air{ota_suffix} ({host})", host))
         elif has_resolvable_address():
-            options.append((f"Over The Air ({CORE.address})", CORE.address))
+            options.append((f"Over The Air{ota_suffix} ({CORE.address})", CORE.address))
         if has_mqtt_ip_lookup():
-            options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+            options.append((f"Over The Air{ota_suffix} (MQTT IP lookup)", "MQTTIP"))
 
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
@@ -428,11 +443,33 @@ def has_api() -> bool:
 
 
 def has_ota() -> bool:
-    """Check if OTA upload is available (requires platform: esphome)."""
+    """Check if any network OTA upload is available.
+
+    True if the config exposes either ``platform: esphome`` (native API
+    OTA) or ``platform: web_server`` (HTTP OTA). Both reach the device
+    over the same network stack, so the OTA discovery path treats them
+    interchangeably; ``upload_program`` picks the actual transport based
+    on ``--ota-platform`` and what's configured.
+    """
+    return has_native_ota() or has_web_server_ota()
+
+
+def has_native_ota() -> bool:
+    """Check if native API OTA upload is available (``platform: esphome``)."""
     if CONF_OTA not in CORE.config:
         return False
     return any(
         ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
+        for ota_item in CORE.config[CONF_OTA]
+    )
+
+
+def has_web_server_ota() -> bool:
+    """Check if web_server OTA upload is available (``platform: web_server``)."""
+    if CONF_OTA not in CORE.config:
+        return False
+    return any(
+        ota_item.get(CONF_PLATFORM) == CONF_WEB_SERVER
         for ota_item in CORE.config[CONF_OTA]
     )
 
@@ -586,8 +623,6 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     from aioesphomeapi import LogParser
     import serial
 
-    from esphome import platformio_api
-
     if CONF_LOGGER not in config:
         _LOGGER.info("Logger is not enabled. Not starting UART logs.")
         return 1
@@ -602,8 +637,11 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         process_stacktrace = getattr(module, "process_stacktrace")
-    except AttributeError:
-        pass
+    except (AttributeError, ImportError):
+        _LOGGER.info(
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
+            CORE.target_platform,
+        )
 
     backtrace_state = False
     ser = serial.Serial()
@@ -646,13 +684,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                             )
                             safe_print(parser.parse_line(line, time_str))
 
-                            if process_stacktrace:
+                            if process_stacktrace is not None:
                                 backtrace_state = process_stacktrace(
                                     config, line, backtrace_state
-                                )
-                            else:
-                                backtrace_state = platformio_api.process_stacktrace(
-                                    config, line, backtrace_state=backtrace_state
                                 )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
@@ -843,22 +877,20 @@ def _make_crystal_freq_callback(
 def upload_using_esptool(
     config: ConfigType, port: str, file: str, speed: int
 ) -> str | int:
-    from esphome import platformio_api
-
     first_baudrate = speed or config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", os.getenv("ESPHOME_UPLOAD_SPEED", "460800")
     )
 
     if file is not None:
-        flash_images = [platformio_api.FlashImage(path=file, offset="0x0")]
+        flash_images = [FlashImage(path=file, offset="0x0")]
     else:
+        from esphome import platformio_api
+
         idedata = platformio_api.get_idedata(config)
 
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
         flash_images = [
-            platformio_api.FlashImage(
-                path=idedata.firmware_bin_path, offset=firmware_offset
-            ),
+            FlashImage(path=idedata.firmware_bin_path, offset=firmware_offset),
         ]
         for image in idedata.extra_flash_images:
             if not image.path.is_file():
@@ -1119,24 +1151,82 @@ def upload_program(
 
         return exit_code, host if exit_code == 0 else None
 
-    ota_conf = {}
+    requested_platform = getattr(args, "ota_platform", None)
+    chosen_platform = _choose_ota_platform(config, requested_platform)
+
+    # Resolve MQTT magic strings to actual IP addresses
+    network_devices = _resolve_network_devices(devices, config, args)
+
+    if chosen_platform == CONF_WEB_SERVER:
+        if getattr(args, "partition_table", False):
+            raise EsphomeError(
+                "--partition-table is only supported with the esphome OTA platform; "
+                "the web_server OTA path can only update the firmware image."
+            )
+        binary = CORE.firmware_bin
+        if getattr(args, "file", None) is not None:
+            binary = Path(args.file)
+        return _upload_via_web_server(config, network_devices, binary)
+
+    return _upload_via_native_api(config, network_devices, args)
+
+
+def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
+    """Pick the OTA platform to use, optionally honoring ``--ota-platform``.
+
+    Default behavior prefers ``esphome`` (native API) when it is configured.
+    The native API uses challenge-response auth with MD5/SHA256 hashing of a
+    server-issued nonce, so the password is never sent over the wire; the
+    ``web_server`` path uses HTTP Basic auth which transmits credentials in
+    cleartext over the LAN. (The native path also supports gzip compression
+    on ESP8266, where flash space is tight; on ESP32/RP2040/LibreTiny the
+    backend reports ``supports_compression() == false`` and the firmware is
+    sent uncompressed regardless of which platform is used.) Falls back to
+    ``web_server`` only when that is the only available platform.
+    """
+    # Use a dict (insertion-ordered) instead of a list so error messages and
+    # membership checks see one entry per platform even if the user has
+    # multiple ``ota:`` items of the same platform; the web_server OTA
+    # platform's final-validate hook merges duplicates anyway.
+    available: dict[str, None] = {}
     for ota_item in config.get(CONF_OTA, []):
-        if ota_item[CONF_PLATFORM] == CONF_ESPHOME:
+        platform = ota_item.get(CONF_PLATFORM)
+        if platform in (CONF_ESPHOME, CONF_WEB_SERVER):
+            available[platform] = None
+
+    if not available:
+        raise EsphomeError(
+            f"Cannot upload Over the Air as the {CONF_OTA} configuration is not "
+            f"present or does not include {CONF_PLATFORM}: {CONF_ESPHOME} or "
+            f"{CONF_PLATFORM}: {CONF_WEB_SERVER}"
+        )
+
+    if requested is not None:
+        if requested not in available:
+            raise EsphomeError(
+                f"--ota-platform {requested} was requested but the configuration "
+                f"only provides: {', '.join(available)}"
+            )
+        return requested
+
+    if CONF_ESPHOME in available:
+        return CONF_ESPHOME
+    return CONF_WEB_SERVER
+
+
+def _upload_via_native_api(
+    config: ConfigType, network_devices: list[str], args: ArgsProtocol
+) -> tuple[int, str | None]:
+    ota_conf: ConfigType = {}
+    for ota_item in config.get(CONF_OTA, []):
+        if ota_item.get(CONF_PLATFORM) == CONF_ESPHOME:
             ota_conf = ota_item
             break
-
-    if not ota_conf:
-        raise EsphomeError(
-            f"Cannot upload Over the Air as the {CONF_OTA} configuration is not present or does not include {CONF_PLATFORM}: {CONF_ESPHOME}"
-        )
 
     from esphome import espota2
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD)
-
-    # Resolve MQTT magic strings to actual IP addresses
-    network_devices = _resolve_network_devices(devices, config, args)
 
     binary = CORE.firmware_bin
     ota_type = espota2.OTA_TYPE_UPDATE_APP
@@ -1159,6 +1249,28 @@ def upload_program(
         _validate_partition_table_binary(binary)
 
     return espota2.run_ota(network_devices, remote_port, password, binary, ota_type)
+
+
+def _upload_via_web_server(
+    config: ConfigType, network_devices: list[str], binary: Path
+) -> tuple[int, str | None]:
+    web_conf = config.get(CONF_WEB_SERVER)
+    if not web_conf:
+        raise EsphomeError(
+            f"Cannot upload via web_server OTA: the {CONF_WEB_SERVER} component "
+            f"is not configured."
+        )
+
+    remote_port = int(web_conf[CONF_PORT])
+    auth = web_conf.get(CONF_AUTH) or {}
+    username = auth.get(CONF_USERNAME)
+    password = auth.get(CONF_PASSWORD)
+
+    from esphome import web_server_ota
+
+    return web_server_ota.run_ota(
+        network_devices, remote_port, username, password, binary
+    )
 
 
 # Layout of esp_partition_info_t on flash. Each entry is 32 bytes, leading with a
@@ -1882,6 +1994,17 @@ def parse_args(argv):
         help="Manually specify the binary file to upload.",
     )
     parser_upload.add_argument(
+        "--ota-platform",
+        choices=[CONF_ESPHOME, CONF_WEB_SERVER],
+        help=(
+            "OTA platform to use for network uploads. Defaults to "
+            f"'{CONF_ESPHOME}' (native API) when configured because it uses "
+            "challenge-response auth so the password is never sent in "
+            f"cleartext on the wire. Falls back to '{CONF_WEB_SERVER}' "
+            "(HTTP Basic auth) when that is the only configured platform."
+        ),
+    )
+    parser_upload.add_argument(
         "--partition-table",
         help="Upload as partition table (OTA).",
         action="store_true",
@@ -1954,6 +2077,17 @@ def parse_args(argv):
         "--native-idf",
         help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
         action="store_true",
+    )
+    parser_run.add_argument(
+        "--ota-platform",
+        choices=[CONF_ESPHOME, CONF_WEB_SERVER],
+        help=(
+            "OTA platform to use for network uploads. Defaults to "
+            f"'{CONF_ESPHOME}' (native API) when configured because it uses "
+            "challenge-response auth so the password is never sent in "
+            f"cleartext on the wire. Falls back to '{CONF_WEB_SERVER}' "
+            "(HTTP Basic auth) when that is the only configured platform."
+        ),
     )
 
     parser_clean = subparsers.add_parser(
@@ -2167,8 +2301,9 @@ def run_esphome(argv):
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
 
-    # For logs command, skip updating external components
-    skip_external = args.command == "logs"
+    # Commands that don't need fresh external components: logs just connects
+    # to the device, and clean is about to delete the build directory.
+    skip_external = args.command in ("logs", "clean")
     config = read_config(
         dict(args.substitution) if args.substitution else {},
         skip_external_update=skip_external,

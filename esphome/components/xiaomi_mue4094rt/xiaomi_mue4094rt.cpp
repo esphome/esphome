@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_mue4094rt {
+namespace esphome::xiaomi_mue4094rt {
 
 static const char *const TAG = "xiaomi_mue4094rt";
 
@@ -51,7 +50,6 @@ bool XiaomiMUE4094RT::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
   return success;
 }
 
-}  // namespace xiaomi_mue4094rt
-}  // namespace esphome
+}  // namespace esphome::xiaomi_mue4094rt
 
 #endif

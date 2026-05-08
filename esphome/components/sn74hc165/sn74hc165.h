@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace sn74hc165 {
+namespace esphome::sn74hc165 {
 
 class SN74HC165Component : public Component {
  public:
@@ -60,5 +59,4 @@ class SN74HC165GPIOPin : public GPIOPin, public Parented<SN74HC165Component> {
   bool inverted_;
 };
 
-}  // namespace sn74hc165
-}  // namespace esphome
+}  // namespace esphome::sn74hc165
