@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace bmi270 {
+namespace esphome::bmi270 {
 
 static const char *const TAG = "bmi270";
 
@@ -199,5 +198,4 @@ bool BMI270Component::update_data(motion::MotionData &data) {
   return true;
 }
 
-}  // namespace bmi270
-}  // namespace esphome
+}  // namespace esphome::bmi270

@@ -6,8 +6,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include <functional>
 
-namespace esphome {
-namespace bmi270 {
+namespace esphome::bmi270 {
 
 //  Register map
 static const uint8_t BMI270_REG_CHIP_ID = 0x00;
@@ -106,5 +105,4 @@ class BMI270Component : public motion::MotionComponent, public i2c::I2CDevice {
   LazyCallbackManager<void(float)> temperature_callback_{};
 };
 
-}  // namespace bmi270
-}  // namespace esphome
+}  // namespace esphome::bmi270

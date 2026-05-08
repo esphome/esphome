@@ -1,8 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace esphome {
-namespace bmi270 {
+namespace esphome::bmi270 {
 
 // ---------------------------------------------------------------------------
 // BMI270 configuration file (chip ID 0x24, firmware v2.86.1)
@@ -448,5 +447,4 @@ static constexpr uint8_t BMI270_CONFIG_FILE[] = {
 
 };
 
-}  // namespace bmi270
-}  // namespace esphome
+}  // namespace esphome::bmi270
