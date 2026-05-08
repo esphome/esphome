@@ -36,9 +36,7 @@ enum SpeakerEventGroupBits : uint32_t {
   ERR_ESP_NO_MEM = (1 << 19),
 
   ERR_DROPPED_EVENT = (1 << 20),    // ISR overflowed the event queue, dropping a completion event
-  ERR_PARTIAL_WRITE = (1 << 21),    // a DMA write returned fewer bytes than requested (or the encoder
-                                    // failed to commit a complete block), which breaks the lockstep
-                                    // invariant for every subsequent event
+  ERR_PARTIAL_WRITE = (1 << 21),    // i2s_channel_write returned fewer bytes than requested
   ERR_LOCKSTEP_DESYNC = (1 << 22),  // i2s_event_queue_ and write_records_queue_ fell out of sync
 
   ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
@@ -163,6 +161,11 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   gpio_num_t dout_pin_;
   i2s_chan_handle_t tx_handle_{nullptr};
+  // Tracks whether ``i2s_channel_enable`` has succeeded for ``tx_handle_``. The ESP-IDF driver
+  // returns ESP_ERR_INVALID_STATE and logs an error if ``i2s_channel_disable`` is called on a
+  // channel still in INIT state, so we gate the disable call on this flag to keep cleanup paths
+  // (e.g. failed bootstrap) quiet.
+  bool channel_enabled_{false};
 };
 
 }  // namespace esphome::i2s_audio
