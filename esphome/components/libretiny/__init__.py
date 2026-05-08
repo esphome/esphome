@@ -156,6 +156,18 @@ def only_on_family(*, supported=None, unsupported=None):
 
 
 def get_download_types(storage_json: StorageJSON = None):
+    """Binary-download entries for a built LibreTiny firmware.
+
+    Used by:
+    - esphome.dashboard (legacy "Download .bin" button)
+    - device-builder (esphome/device-builder) — same dispatch via
+      ``importlib.import_module(f"esphome.components.{platform}")``
+      then ``module.get_download_types(storage)``. The contract is
+      "returns ``list[dict]`` with at least ``title`` /
+      ``description`` / ``file`` / ``download`` keys"; please keep
+      the shape stable so the new dashboard's download panel
+      doesn't have to special-case per-platform schemas.
+    """
     types = [
         {
             "title": "UF2 package (recommended)",
