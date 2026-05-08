@@ -10,6 +10,7 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome::bme68x_bsec2_i2c {
+
 class BME68xBSEC2I2CComponent : public bme68x_bsec2::BME68xBSEC2Component, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;

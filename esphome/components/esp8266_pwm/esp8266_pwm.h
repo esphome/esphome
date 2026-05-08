@@ -8,6 +8,7 @@
 #include "esphome/components/output/float_output.h"
 
 namespace esphome::esp8266_pwm {
+
 class ESP8266PWM : public output::FloatOutput, public Component {
  public:
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }

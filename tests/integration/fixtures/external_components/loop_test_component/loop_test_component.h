@@ -7,6 +7,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::loop_test_component {
+
 static const char *const TAG = "loop_test_component";
 
 class LoopTestComponent : public Component {

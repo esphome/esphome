@@ -8,6 +8,7 @@
 #include "esphome/core/hal.h"
 
 namespace esphome::rp2040_pwm {
+
 class RP2040PWM : public output::FloatOutput, public Component {
  public:
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }

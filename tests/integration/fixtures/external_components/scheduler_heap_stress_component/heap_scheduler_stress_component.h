@@ -4,6 +4,7 @@
 #include <atomic>
 
 namespace esphome::scheduler_heap_stress_component {
+
 class SchedulerHeapStressComponent : public Component {
  public:
   void setup() override;

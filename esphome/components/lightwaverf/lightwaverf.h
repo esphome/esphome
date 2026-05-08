@@ -12,6 +12,7 @@
 #include "LwTx.h"
 
 namespace esphome::lightwaverf {
+
 #ifdef USE_ESP8266
 
 class LightWaveRF : public PollingComponent {

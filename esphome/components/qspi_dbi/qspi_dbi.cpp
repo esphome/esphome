@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::qspi_dbi {
+
 // Maximum bytes to log in verbose hex output
 static constexpr size_t QSPI_DBI_MAX_LOG_BYTES = 64;
 

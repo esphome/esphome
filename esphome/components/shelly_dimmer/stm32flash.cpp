@@ -113,6 +113,7 @@ constexpr char TAG[] = "stm32flash";
 }  // Anonymous namespace
 
 namespace esphome::shelly_dimmer {
+
 namespace {
 
 int flash_addr_to_page_ceil(const stm32_unique_ptr &stm, uint32_t addr) {
@@ -487,6 +488,7 @@ template<typename T> stm32_unique_ptr make_stm32_with_deletor(T ptr) {
 
 }  // namespace esphome::shelly_dimmer
 namespace esphome::shelly_dimmer {
+
 /* find newer command by higher code */
 #define newer(prev, a) (((prev) == STM32_CMD_ERR) ? (a) : (((prev) > (a)) ? (prev) : (a)))
 

@@ -17,6 +17,7 @@
 #include "esp_lcd_mipi_dsi.h"
 
 namespace esphome::mipi_dsi {
+
 constexpr static const char *const TAG = "display.mipi_dsi";
 const uint8_t SW_RESET_CMD = 0x01;
 const uint8_t SLEEP_OUT = 0x11;

@@ -4,6 +4,7 @@
 #include <atomic>
 
 namespace esphome::scheduler_simultaneous_callbacks_component {
+
 class SchedulerSimultaneousCallbacksComponent : public Component {
  public:
   void setup() override;

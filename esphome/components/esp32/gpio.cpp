@@ -18,6 +18,7 @@
 #endif
 
 namespace esphome::esp32 {
+
 static const char *const TAG = "esp32";
 
 static const gpio_hal_context_t GPIO_HAL = {.dev = GPIO_HAL_GET_HW(GPIO_PORT_0)};

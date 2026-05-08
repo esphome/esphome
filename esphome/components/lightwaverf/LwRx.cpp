@@ -11,6 +11,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::lightwaverf {
+
 /**
   Pin change interrupt routine that identifies 1 and 0 LightwaveRF bits
   and constructs a message when a valid packet of data is received.

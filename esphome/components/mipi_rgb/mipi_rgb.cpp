@@ -9,6 +9,7 @@
 #include <span>
 
 namespace esphome::mipi_rgb {
+
 static const uint8_t DELAY_FLAG = 0xFF;
 
 // Maximum bytes to log for init commands (truncated if larger)

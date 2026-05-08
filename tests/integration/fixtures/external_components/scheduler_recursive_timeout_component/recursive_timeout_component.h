@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 
 namespace esphome::scheduler_recursive_timeout_component {
+
 class SchedulerRecursiveTimeoutComponent : public Component {
  public:
   void setup() override;

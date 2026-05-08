@@ -9,6 +9,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::beken_spi_led_strip {
+
 enum RGBOrder : uint8_t {
   ORDER_RGB,
   ORDER_RBG,

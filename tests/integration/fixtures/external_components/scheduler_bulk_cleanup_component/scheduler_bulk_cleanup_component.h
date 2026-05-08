@@ -4,6 +4,7 @@
 #include "esphome/core/application.h"
 
 namespace esphome::scheduler_bulk_cleanup_component {
+
 class SchedulerBulkCleanupComponent : public Component {
  public:
   void setup() override;

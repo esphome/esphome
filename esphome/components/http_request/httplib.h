@@ -330,6 +330,7 @@ using socket_t = int;
  * Declaration
  */
 namespace httplib::detail {
+
 /*
  * Backport std::make_unique from C++14.
  *

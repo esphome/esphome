@@ -24,6 +24,7 @@
 #include "stm32flash.h"
 
 namespace esphome::shelly_dimmer {
+
 constexpr uint32_t SZ_128 = 0x00000080;
 constexpr uint32_t SZ_256 = 0x00000100;
 constexpr uint32_t SZ_1K = 0x00000400;

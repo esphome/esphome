@@ -4,6 +4,7 @@
 #ifdef USE_LIBRETINY
 
 namespace esphome::libretiny_pwm {
+
 static const char *const TAG = "libretiny.pwm";
 
 void LibreTinyPWM::write_state(float state) {

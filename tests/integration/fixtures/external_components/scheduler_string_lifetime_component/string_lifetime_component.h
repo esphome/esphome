@@ -5,6 +5,7 @@
 #include <string>
 
 namespace esphome::scheduler_string_lifetime_component {
+
 class SchedulerStringLifetimeComponent : public Component {
  public:
   void setup() override;

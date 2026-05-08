@@ -6,6 +6,7 @@
 #include "lightwaverf.h"
 
 namespace esphome::lightwaverf {
+
 static const char *const TAG = "lightwaverf.sensor";
 
 static const uint8_t DEFAULT_REPEAT = 10;

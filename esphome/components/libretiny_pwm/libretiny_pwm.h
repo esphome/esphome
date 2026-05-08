@@ -8,6 +8,7 @@
 #ifdef USE_LIBRETINY
 
 namespace esphome::libretiny_pwm {
+
 class LibreTinyPWM : public output::FloatOutput, public Component {
  public:
   explicit LibreTinyPWM(InternalGPIOPin *pin) : pin_(pin) {}

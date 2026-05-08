@@ -7,6 +7,7 @@
 
 #ifdef USE_API
 namespace esphome::custom_api_device_component {
+
 using namespace api;
 
 class CustomAPIDeviceComponent : public Component, public CustomAPIDevice {

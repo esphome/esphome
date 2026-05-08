@@ -4,6 +4,7 @@
 #include <atomic>
 
 namespace esphome::scheduler_string_name_stress_component {
+
 class SchedulerStringNameStressComponent : public Component {
  public:
   void setup() override;

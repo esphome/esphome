@@ -4,6 +4,7 @@
 #include <Esp.h>
 
 namespace esphome::deep_sleep {
+
 static const char *const TAG = "deep_sleep";
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }

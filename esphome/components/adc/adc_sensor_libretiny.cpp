@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::adc {
+
 static const char *const TAG = "adc.libretiny";
 
 void ADCSensor::setup() {

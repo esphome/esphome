@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::esp_ldo {
+
 static const char *const TAG = "esp_ldo";
 void EspLdo::setup() {
   esp_ldo_channel_config_t config{};

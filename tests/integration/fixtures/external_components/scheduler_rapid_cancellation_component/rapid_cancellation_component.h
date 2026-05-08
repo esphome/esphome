@@ -4,6 +4,7 @@
 #include <atomic>
 
 namespace esphome::scheduler_rapid_cancellation_component {
+
 class SchedulerRapidCancellationComponent : public Component {
  public:
   void setup() override;

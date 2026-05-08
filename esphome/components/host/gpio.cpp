@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::host {
+
 static const char *const TAG = "host";
 
 struct ISRPinArg {

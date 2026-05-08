@@ -3,6 +3,7 @@
 #include "esphome/components/display/display_color_utils.h"
 
 namespace esphome::sdl {
+
 int Sdl::get_width() {
   switch (this->rotation_) {
     case display::DISPLAY_ROTATION_90_DEGREES:

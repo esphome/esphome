@@ -27,6 +27,7 @@
 #include "esphome/components/uart/uart.h"
 
 namespace esphome::shelly_dimmer {
+
 /* flags */
 constexpr auto STREAM_OPT_BYTE = (1 << 0);      /* byte (not frame) oriented */
 constexpr auto STREAM_OPT_GVR_ETX = (1 << 1);   /* cmd GVR returns protection status */

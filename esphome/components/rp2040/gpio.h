@@ -6,6 +6,7 @@
 #include "esphome/core/hal.h"
 
 namespace esphome::rp2040 {
+
 class RP2040GPIOPin : public InternalGPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }

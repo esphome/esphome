@@ -13,6 +13,7 @@
 #include "esp_lcd_panel_rgb.h"
 
 namespace esphome::st7701s {
+
 constexpr static const char *const TAG = "display.st7701s";
 const uint8_t SW_RESET_CMD = 0x01;
 const uint8_t SLEEP_OUT = 0x11;

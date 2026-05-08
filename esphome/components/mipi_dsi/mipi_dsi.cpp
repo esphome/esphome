@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::mipi_dsi {
+
 // Maximum bytes to log for init commands (truncated if larger)
 static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 

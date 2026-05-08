@@ -13,6 +13,7 @@
 #include "esphome/components/rp2040/crash_handler.h"
 #endif
 namespace esphome::debug {
+
 static const char *const TAG = "debug";
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {

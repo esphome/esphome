@@ -13,6 +13,7 @@
 #include <pico/stdlib.h>
 
 namespace esphome::rp2040_pio_led_strip {
+
 static const char *TAG = "rp2040_pio_led_strip";
 
 static uint8_t num_instance_[2] = {0, 0};

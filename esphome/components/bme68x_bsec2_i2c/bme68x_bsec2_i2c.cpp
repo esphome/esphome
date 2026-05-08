@@ -10,6 +10,7 @@
 #include <cinttypes>
 
 namespace esphome::bme68x_bsec2_i2c {
+
 static const char *const TAG = "bme68x_bsec2_i2c.sensor";
 
 void BME68xBSEC2I2CComponent::setup() {

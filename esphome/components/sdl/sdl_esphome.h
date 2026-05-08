@@ -10,6 +10,7 @@
 #include <map>
 
 namespace esphome::sdl {
+
 constexpr static const char *const TAG = "sdl";
 
 class Sdl : public display::Display {

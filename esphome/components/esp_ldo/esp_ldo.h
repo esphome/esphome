@@ -5,6 +5,7 @@
 #include "esp_ldo_regulator.h"
 
 namespace esphome::esp_ldo {
+
 class EspLdo : public Component {
  public:
   EspLdo(int channel) : channel_(channel) {}

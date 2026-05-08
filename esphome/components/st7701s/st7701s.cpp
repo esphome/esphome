@@ -5,6 +5,7 @@
 #include <driver/gpio.h>
 
 namespace esphome::st7701s {
+
 void ST7701S::setup() {
   this->spi_setup();
   this->write_init_sequence_();

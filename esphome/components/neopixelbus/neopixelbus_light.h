@@ -12,6 +12,7 @@
 #include "NeoPixelBus.h"
 
 namespace esphome::neopixelbus {
+
 enum class ESPNeoPixelOrder {
   GBWR = 0b11000110,
   GBRW = 0b10000111,

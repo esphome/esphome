@@ -17,6 +17,7 @@
 #include <map>
 
 namespace esphome::rp2040_pio_led_strip {
+
 enum RGBOrder : uint8_t {
   ORDER_RGB,
   ORDER_RBG,

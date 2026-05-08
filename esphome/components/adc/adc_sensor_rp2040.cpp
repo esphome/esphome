@@ -16,6 +16,7 @@
 #endif
 
 namespace esphome::adc {
+
 static const char *const TAG = "adc.rp2040";
 
 void ADCSensor::setup() {

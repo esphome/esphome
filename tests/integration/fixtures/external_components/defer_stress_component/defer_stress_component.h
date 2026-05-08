@@ -4,6 +4,7 @@
 #include <atomic>
 
 namespace esphome::defer_stress_component {
+
 class DeferStressComponent : public Component {
  public:
   void setup() override;

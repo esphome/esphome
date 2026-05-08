@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::crc8_test_component {
+
 class CRC8TestComponent : public Component {
  public:
   void setup() override;

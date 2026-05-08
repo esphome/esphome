@@ -6,6 +6,7 @@
 #include "hal/nrf_saadc.h"
 
 namespace esphome::adc {
+
 static const char *const TAG = "adc.zephyr";
 
 void ADCSensor::setup() {

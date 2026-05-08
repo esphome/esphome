@@ -57,6 +57,7 @@ template<typename T, size_t N> constexpr size_t size(const T (&/*unused*/)[N]) n
 }  // Anonymous namespace
 
 namespace esphome::shelly_dimmer {
+
 /// Computes a crappy checksum as defined by the Shelly Dimmer protocol.
 uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
   return std::accumulate<decltype(buf), uint16_t>(buf, buf + len, 0);

@@ -5,6 +5,7 @@
 #include "esphome/components/touchscreen/touchscreen.h"
 
 namespace esphome::sdl {
+
 class SdlTouchscreen : public touchscreen::Touchscreen, public Parented<Sdl> {
  public:
   void setup() override {

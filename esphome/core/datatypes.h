@@ -5,6 +5,7 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome::internal {
+
 /// Wrapper class for memory using big endian data layout, transparently converting it to native order.
 template<typename T> class BigEndianLayout {
  public:

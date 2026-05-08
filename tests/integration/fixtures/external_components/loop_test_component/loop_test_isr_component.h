@@ -5,6 +5,7 @@
 #include "esphome/core/hal.h"
 
 namespace esphome::loop_test_component {
+
 class LoopTestISRComponent : public Component {
  public:
   void set_name(const std::string &name) { this->name_ = name; }

@@ -15,6 +15,7 @@
 #include "esp_lcd_panel_rgb.h"
 
 namespace esphome::rpi_dpi_rgb {
+
 constexpr static const char *const TAG = "rpi_dpi_rgb";
 
 class RpiDpiRgb : public display::Display {

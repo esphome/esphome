@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::zephyr {
+
 static const char *const TAG = "zephyr";
 
 static gpio_flags_t flags_to_mode(gpio::Flags flags, bool inverted, bool value) {
