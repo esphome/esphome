@@ -57,7 +57,7 @@ void I2SAudioSpeaker::run_speaker_task() {
     audio_source = audio::RingBufferAudioSource::create(temp_ring_buffer, bytes_to_fill_single_dma_buffer,
                                                         this->current_stream_info_.frames_to_bytes(1));
     if (audio_source != nullptr) {
-      this->audio_ring_buffer_ = std::move(temp_ring_buffer);
+      this->audio_ring_buffer_ = temp_ring_buffer;
       successful_setup = true;
     }
   }
