@@ -1836,6 +1836,13 @@ def test_validate_bootloader_binary_missing_file(tmp_path: Path) -> None:
         _validate_bootloader_binary(tmp_path / "does-not-exist.bin")
 
 
+def test_validate_bootloader_binary_rejects_empty_file(tmp_path: Path) -> None:
+    f = tmp_path / "bootloader.bin"
+    f.write_bytes(b"")
+    with pytest.raises(EsphomeError, match="is empty"):
+        _validate_bootloader_binary(f)
+
+
 def test_upload_program_ota_partition_table_invalid_file(
     mock_run_ota: Mock,
     mock_get_port_type: Mock,
@@ -1889,7 +1896,10 @@ def test_upload_program_ota_partition_table_without_allow_flag(
 
     with pytest.raises(
         EsphomeError,
-        match="requires 'allow_partition_access: true'",
+        match=(
+            r"The option --partition-table requires 'allow_partition_access: true'.*"
+            r"retry --partition-table"
+        ),
     ):
         upload_program(config, args, devices)
     mock_run_ota.assert_not_called()
@@ -1967,6 +1977,38 @@ def test_upload_program_ota_partition_table_and_bootloader_options(
     with pytest.raises(
         EsphomeError,
         match="--partition-table and --bootloader",
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_ota_bootloader_without_allow_flag(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--bootloader must fail fast when allow_partition_access is not enabled in YAML."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ]
+    }
+    args = MockArgs(file="bootloader.bin", bootloader=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match=(
+            r"The option --bootloader requires 'allow_partition_access: true'.*"
+            r"retry --bootloader"
+        ),
     ):
         upload_program(config, args, devices)
     mock_run_ota.assert_not_called()

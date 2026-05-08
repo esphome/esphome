@@ -297,30 +297,6 @@ OTAResponseTypes IDFOTABackend::register_and_validate_partition_table_part_() {
   return OTA_RESPONSE_OK;
 }
 
-OTAResponseTypes IDFOTABackend::register_and_validate_bootloader_part_() {
-  // Register the bootloader partition
-  esp_err_t err = esp_partition_register_external(nullptr, ESP_PRIMARY_BOOTLOADER_OFFSET, ESP_BOOTLOADER_SIZE,
-                                                  "PrimaryBTLDR", ESP_PARTITION_TYPE_BOOTLOADER,
-                                                  ESP_PARTITION_SUBTYPE_BOOTLOADER_PRIMARY, &this->bootloader_part_);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_partition_register_external failed (bootloader) (err=0x%X)", err);
-    return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
-  }
-
-  // Verify existing bootloader to make sure ESP_PRIMARY_BOOTLOADER_OFFSET is correct
-  esp_image_metadata_t data;
-  const esp_partition_pos_t part_pos = {
-      .offset = this->bootloader_part_->address,
-      .size = this->bootloader_part_->size,
-  };
-  err = esp_image_verify(ESP_IMAGE_VERIFY, &part_pos, &data);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_image_verify failed (existing bootloader) (err=0x%X)", err);
-    return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
-  }
-  return OTA_RESPONSE_OK;
-}
-
 // Process-scoped cache. Cannot be a backend member: backends are per-connection but the cache
 // must outlive a connection that called esp_partition_unload_all(), after which
 // esp_ota_get_running_partition() no longer returns valid data.

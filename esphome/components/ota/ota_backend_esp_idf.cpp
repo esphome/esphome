@@ -32,23 +32,10 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
     return OTA_RESPONSE_OK;
   }
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
-    if (image_size > ESP_BOOTLOADER_SIZE) {
-      ESP_LOGE(TAG, "Length of received data exceeds the available bootloader size: expected <=%zu bytes, got %zu",
-               ESP_BOOTLOADER_SIZE, image_size);
-      return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
-    }
-    OTAResponseTypes result = this->register_and_validate_bootloader_part_();
+    OTAResponseTypes result = this->prepare_bootloader_update_(image_size);
     if (result != OTA_RESPONSE_OK) {
-      return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
+      return result;
     }
-    // Validate the partition table to make sure it is at the expected offset, that means the bootloader size is correct
-    result = this->register_and_validate_partition_table_part_();
-    if (result != OTA_RESPONSE_OK) {
-      return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
-    }
-    esp_partition_deregister_external(this->partition_table_part_);
-    this->partition_table_part_ = nullptr;
-    this->image_size_ = image_size;
   }
   if (this->ota_type_ != ota::OTA_TYPE_UPDATE_APP && this->ota_type_ != ota::OTA_TYPE_UPDATE_BOOTLOADER) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
@@ -86,23 +73,9 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
   }
 #ifdef USE_OTA_PARTITIONS
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
-    if (this->partition_->size < this->bootloader_part_->size) {
-      ESP_LOGE(TAG, "Staging partition too small");
-      return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
-    }
-    // Erase full size of the bootloader partition in the staging partition
-    // to avoid copying old data to the bootloader partition later
-    err = esp_partition_erase_range(this->partition_, 0, this->bootloader_part_->size);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "esp_partition_erase_range failed (err=0x%X)", err);
-      // No critical error, don't return
-    }
-    err = esp_ota_set_final_partition(this->update_handle_, this->bootloader_part_, false);
-    if (err != ESP_OK) {
-      esp_ota_abort(this->update_handle_);
-      this->update_handle_ = 0;
-      ESP_LOGE(TAG, "esp_ota_set_final_partition failed (err=0x%X)", err);
-      return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
+    OTAResponseTypes result = this->setup_bootloader_staging_();
+    if (result != OTA_RESPONSE_OK) {
+      return result;
     }
   }
 #endif
@@ -163,57 +136,20 @@ OTAResponseTypes IDFOTABackend::end() {
 #endif
   esp_err_t err = esp_ota_end(this->update_handle_);
   this->update_handle_ = 0;
-  if (err == ESP_OK) {
-#ifdef USE_OTA_PARTITIONS
-    if (this->ota_type_ == ota::OTA_TYPE_UPDATE_APP)
-#endif
-    {
-      err = esp_ota_set_boot_partition(this->partition_);
-      if (err == ESP_OK) {
-        return OTA_RESPONSE_OK;
-      }
-    }
-  } else {
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_end failed (err=0x%X)", err);
   }
 #ifdef USE_OTA_PARTITIONS
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER) {
-    if (err != ESP_OK) {
-      return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
-    }
-    esp_bootloader_desc_t bootloader_desc;
-    esp_err_t desc_err = esp_ota_get_bootloader_description(this->partition_, &bootloader_desc);
-#ifdef USE_ESP32_SRAM1_AS_IRAM
-    if (desc_err != ESP_OK) {
-      ESP_LOGE(TAG, "New bootloader does not support SRAM1 as IRAM");
-      return OTA_RESPONSE_ERROR_BOOTLOADER_VERIFY;
-    }
-#endif
-    ESP_LOGE(TAG, "Starting bootloader update.\n"
-                  "  DO NOT REMOVE POWER until the update completes successfully.\n"
-                  "  Loss of power during this operation may render the device\n"
-                  "  unable to boot until it is recovered via a serial flash.");
-    err = esp_partition_copy(this->bootloader_part_, 0, this->partition_, 0, this->bootloader_part_->size);
-    if (err != ESP_OK) {
-      ESP_LOGE(TAG, "esp_partition_copy failed (err=0x%X)", err);
-      // Only if esp_partition_copy failed there's a chance of the device being unbootable
-      return OTA_RESPONSE_ERROR_BOOTLOADER_UPDATE;
-    }
-    ESP_LOGI(TAG,
-             "Successfully installed the new bootloader\n"
-             "  ESP-IDF %s",
-             (desc_err == ESP_OK) ? bootloader_desc.idf_ver : "version unknown");
-    // Wipe first sector of staging partition to make sure the device can't boot from it
-    err = esp_partition_erase_range(this->partition_, 0, this->partition_->erase_size);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "esp_partition_erase_range failed (err=0x%X)", err);
-      // No critical error, don't return
-    }
-    esp_partition_deregister_external(this->bootloader_part_);
-    this->bootloader_part_ = nullptr;
-    return OTA_RESPONSE_OK;
+    return this->finalize_bootloader_update_(err);
   }
 #endif
+  if (err == ESP_OK) {
+    err = esp_ota_set_boot_partition(this->partition_);
+    if (err == ESP_OK) {
+      return OTA_RESPONSE_OK;
+    }
+  }
   if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
 #ifdef USE_OTA_SIGNED_VERIFICATION
     ESP_LOGE(TAG, "OTA validation failed (err=0x%X) - possible signature verification failure", err);

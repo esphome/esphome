@@ -128,8 +128,8 @@ void ESPHomeOTAComponent::dump_config() {
   esp_bootloader_desc_t bootloader_desc;
   esp_err_t err = esp_ota_get_bootloader_description(nullptr, &bootloader_desc);
   ESP_LOGCONFIG(TAG, "  Bootloader: ESP-IDF %s", (err == ESP_OK) ? bootloader_desc.idf_ver : "version unknown");
-#endif
-#endif
+#endif  // USE_ESP32
+#endif  // USE_OTA_PARTITIONS
 }
 
 void ESPHomeOTAComponent::loop() {
@@ -515,7 +515,11 @@ void ESPHomeOTAComponent::handle_data_() {
 error:
   this->write_byte_(static_cast<uint8_t>(error_code));
 
-  // Abort backend before cleanup - cleanup_connection_() destroys the backend
+  // Abort backend before cleanup - cleanup_connection_() destroys the backend.
+  // Always call abort() unconditionally: backends register external partitions before
+  // esp_ota_begin (partition table / bootloader paths), and abort() is responsible for
+  // releasing those even if begin() failed before an OTA handle was opened. The IDF
+  // backend's esp_ota_abort(0) is documented as harmless.
   if (this->backend_ != nullptr) {
     this->backend_->abort();
   }

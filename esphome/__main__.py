@@ -1235,12 +1235,12 @@ def _upload_via_native_api(
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD)
 
-    def check_partition_access(option_string):
+    def check_partition_access(option_string: str) -> None:
         if not ota_conf.get("allow_partition_access"):
             raise EsphomeError(
-                "The option {option_string} requires 'allow_partition_access: true' on the "
+                f"The option {option_string} requires 'allow_partition_access: true' on the "
                 "esphome OTA platform in the device's YAML configuration. Add it, recompile, "
-                "flash a build with the option enabled, and then retry {option_string}."
+                f"flash a build with the option enabled, and then retry {option_string}."
             )
 
     binary = CORE.firmware_bin
@@ -1349,6 +1349,12 @@ def _validate_bootloader_binary(binary: Path) -> None:
         data = binary.read_bytes()
     except OSError as err:
         raise EsphomeError(f"Cannot read bootloader file '{binary}': {err}") from err
+
+    if not data:
+        raise EsphomeError(
+            f"Bootloader file '{binary}' is empty. "
+            "This file does not look like an ESP32 bootloader."
+        )
 
     first_magic = data[0]
     if first_magic != _ESP_IMAGE_HEADER_MAGIC:
