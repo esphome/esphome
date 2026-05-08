@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <driver/gpio.h>
 
-namespace esphome {
-namespace rpi_dpi_rgb {
+namespace esphome::rpi_dpi_rgb {
 
 void RpiDpiRgb::setup() {
   this->reset_display_();
@@ -160,7 +159,6 @@ void RpiDpiRgb::reset_display_() const {
   }
 }
 
-}  // namespace rpi_dpi_rgb
-}  // namespace esphome
+}  // namespace esphome::rpi_dpi_rgb
 
 #endif  // USE_ESP32_VARIANT_ESP32S3
