@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/climate/climate.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 enum class DemoClimateType {
   TYPE_1,
@@ -158,5 +157,4 @@ class DemoClimate : public climate::Climate, public Component {
   DemoClimateType type_;
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

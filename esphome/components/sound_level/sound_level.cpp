@@ -7,8 +7,7 @@
 #include <cmath>
 #include <cstdint>
 
-namespace esphome {
-namespace sound_level {
+namespace esphome::sound_level {
 
 static const char *const TAG = "sound_level";
 
@@ -190,7 +189,6 @@ bool SoundLevelComponent::start_() {
 
 void SoundLevelComponent::stop_() { this->audio_buffer_.reset(); }
 
-}  // namespace sound_level
-}  // namespace esphome
+}  // namespace esphome::sound_level
 
 #endif

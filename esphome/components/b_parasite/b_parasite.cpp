@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace b_parasite {
+namespace esphome::b_parasite {
 
 static const char *const TAG = "b_parasite";
 
@@ -113,7 +112,6 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return true;
 }
 
-}  // namespace b_parasite
-}  // namespace esphome
+}  // namespace esphome::b_parasite
 
 #endif  // USE_ESP32

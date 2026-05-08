@@ -1,8 +1,7 @@
 #include "adalight_light_effect.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace adalight {
+namespace esphome::adalight {
 
 static const char *const TAG = "adalight_light_effect";
 
@@ -138,5 +137,4 @@ AdalightLightEffect::Frame AdalightLightEffect::parse_frame_(light::AddressableL
   return CONSUMED;
 }
 
-}  // namespace adalight
-}  // namespace esphome
+}  // namespace esphome::adalight

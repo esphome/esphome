@@ -21,8 +21,7 @@
 #include <frontend.h>
 #include <frontend_util.h>
 
-namespace esphome {
-namespace micro_wake_word {
+namespace esphome::micro_wake_word {
 
 enum State {
   STARTING,
@@ -137,7 +136,6 @@ class MicroWakeWord : public Component
   bool update_model_probabilities_(const int8_t audio_features[PREPROCESSOR_FEATURE_SIZE]);
 };
 
-}  // namespace micro_wake_word
-}  // namespace esphome
+}  // namespace esphome::micro_wake_word
 
 #endif  // USE_ESP32

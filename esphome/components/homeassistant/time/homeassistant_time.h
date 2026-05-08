@@ -4,8 +4,7 @@
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/components/api/api_server.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
 class HomeassistantTime final : public time::RealTimeClock {
  public:
@@ -17,5 +16,4 @@ class HomeassistantTime final : public time::RealTimeClock {
 
 extern HomeassistantTime *global_homeassistant_time;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

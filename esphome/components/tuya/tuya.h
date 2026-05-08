@@ -13,8 +13,7 @@
 #include "esphome/core/time.h"
 #endif
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 enum class TuyaDatapointType : uint8_t {
   RAW = 0x00,      // variable length
@@ -162,5 +161,4 @@ class Tuya : public Component, public uart::UARTDevice {
   CallbackManager<void()> initialized_callback_{};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

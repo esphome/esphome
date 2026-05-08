@@ -7,8 +7,7 @@
 
 #include <hal/gpio_hal.h>
 
-namespace esphome {
-namespace inkplate {
+namespace esphome::inkplate {
 
 static const char *const TAG = "inkplate";
 
@@ -820,5 +819,4 @@ void Inkplate::pins_as_outputs_() {
   this->display_data_7_pin_->pin_mode(gpio::FLAG_OUTPUT);
 }
 
-}  // namespace inkplate
-}  // namespace esphome
+}  // namespace esphome::inkplate
