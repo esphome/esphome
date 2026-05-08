@@ -6,8 +6,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace es9038q2m_katana {
+namespace esphome::es9038q2m_katana {
 
 // ESPHome port of the control interface exposed by the Allo Katana board family.
 // The implementation is based on the Raspberry Pi Linux kernel ASoC driver at:
@@ -96,5 +95,4 @@ class ES9038Q2MKatana : public audio_dac::AudioDac, public Component, public i2c
   bool init_complete_{false};
 };
 
-}  // namespace es9038q2m_katana
-}  // namespace esphome
+}  // namespace
