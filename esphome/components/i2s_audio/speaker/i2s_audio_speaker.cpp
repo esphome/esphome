@@ -69,6 +69,17 @@ void I2SAudioSpeakerBase::loop() {
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPING) {
     ESP_LOGV(TAG, "Stopping");
+    // Lockstep-breaking error bits are latched by the task and cleared along with all other bits
+    // when TASK_STOPPED is processed; log them here, exactly once, as the task winds down.
+    if (event_group_bits & SpeakerEventGroupBits::ERR_DROPPED_EVENT) {
+      ESP_LOGE(TAG, "ISR event queue overflow, restarting speaker task to recover timestamp sync");
+    }
+    if (event_group_bits & SpeakerEventGroupBits::ERR_PARTIAL_WRITE) {
+      ESP_LOGE(TAG, "Partial DMA write broke buffer alignment, restarting speaker task");
+    }
+    if (event_group_bits & SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC) {
+      ESP_LOGE(TAG, "Event/record queues desynced, restarting speaker task");
+    }
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::TASK_STOPPING);
     this->state_ = speaker::STATE_STOPPING;
   }
@@ -87,25 +98,9 @@ void I2SAudioSpeakerBase::loop() {
     this->state_ = speaker::STATE_STOPPED;
   }
 
-  // Log any errors encountered by the task
   if (event_group_bits & SpeakerEventGroupBits::ERR_ESP_NO_MEM) {
     ESP_LOGE(TAG, "Not enough memory");
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
-  }
-
-  // Once the ISR drops a completion event, the i2s_event_queue_ falls out of lockstep with any
-  // per-buffer record queue maintained by the task; the only safe recovery is to restart the task.
-  if (event_group_bits & SpeakerEventGroupBits::ERR_DROPPED_EVENT) {
-    ESP_LOGE(TAG, "ISR event queue overflow, restarting speaker task to recover timestamp sync");
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_DROPPED_EVENT);
-  }
-  if (event_group_bits & SpeakerEventGroupBits::ERR_PARTIAL_WRITE) {
-    ESP_LOGE(TAG, "Partial DMA write broke buffer alignment, restarting speaker task");
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_PARTIAL_WRITE);
-  }
-  if (event_group_bits & SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC) {
-    ESP_LOGE(TAG, "Event/record queues desynced, restarting speaker task");
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC);
   }
 
   // Handle the speaker's state
