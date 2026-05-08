@@ -7,8 +7,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace es9038q2m_katana {
+namespace esphome::es9038q2m_katana {
 
 static const char *const TAG = "es9038q2m_katana";
 
@@ -356,5 +355,4 @@ bool ES9038Q2MKatana::set_mute_state_(bool mute_state) {
   return true;
 }
 
-}  // namespace es9038q2m_katana
-}  // namespace esphome
+}  // namespace
