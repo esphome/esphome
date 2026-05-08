@@ -3,9 +3,7 @@
 #include "esphome/core/component.h"
 #include <atomic>
 
-namespace esphome {
-namespace scheduler_rapid_cancellation_component {
-
+namespace esphome::scheduler_rapid_cancellation_component {
 class SchedulerRapidCancellationComponent : public Component {
  public:
   void setup() override;
@@ -18,5 +16,4 @@ class SchedulerRapidCancellationComponent : public Component {
   std::atomic<int> total_executed_{0};
 };
 
-}  // namespace scheduler_rapid_cancellation_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_rapid_cancellation_component

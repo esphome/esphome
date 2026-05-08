@@ -8,9 +8,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace beken_spi_led_strip {
-
+namespace esphome::beken_spi_led_strip {
 enum RGBOrder : uint8_t {
   ORDER_RGB,
   ORDER_RBG,
@@ -79,7 +77,5 @@ class BekenSPILEDStripLightOutput : public light::AddressableLight {
   optional<uint32_t> max_refresh_rate_{};
 };
 
-}  // namespace beken_spi_led_strip
-}  // namespace esphome
-
+}  // namespace esphome::beken_spi_led_strip
 #endif  // USE_BK72XX

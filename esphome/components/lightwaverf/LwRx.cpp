@@ -10,9 +10,7 @@
 #include <cstring>
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace lightwaverf {
-
+namespace esphome::lightwaverf {
 /**
   Pin change interrupt routine that identifies 1 and 0 LightwaveRF bits
   and constructs a message when a valid packet of data is received.
@@ -430,6 +428,5 @@ void LwRx::rx_remove_pair_(uint8_t *buf) {
   }
 }
 
-}  // namespace lightwaverf
-}  // namespace esphome
+}  // namespace esphome::lightwaverf
 #endif

@@ -6,9 +6,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace loop_test_component {
-
+namespace esphome::loop_test_component {
 static const char *const TAG = "loop_test_component";
 
 class LoopTestComponent : public Component {
@@ -79,5 +77,4 @@ class LoopTestUpdateComponent : public PollingComponent {
   int disable_loop_after_{0};
 };
 
-}  // namespace loop_test_component
-}  // namespace esphome
+}  // namespace esphome::loop_test_component

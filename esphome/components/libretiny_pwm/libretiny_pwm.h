@@ -7,9 +7,7 @@
 
 #ifdef USE_LIBRETINY
 
-namespace esphome {
-namespace libretiny_pwm {
-
+namespace esphome::libretiny_pwm {
 class LibreTinyPWM : public output::FloatOutput, public Component {
  public:
   explicit LibreTinyPWM(InternalGPIOPin *pin) : pin_(pin) {}
@@ -49,7 +47,5 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
   LibreTinyPWM *parent_;
 };
 
-}  // namespace libretiny_pwm
-}  // namespace esphome
-
+}  // namespace esphome::libretiny_pwm
 #endif

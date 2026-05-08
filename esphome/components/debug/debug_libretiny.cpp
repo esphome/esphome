@@ -2,9 +2,7 @@
 #ifdef USE_LIBRETINY
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace debug {
-
+namespace esphome::debug {
 static const char *const TAG = "debug";
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
@@ -62,6 +60,5 @@ void DebugComponent::update_platform_() {
 #endif
 }
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
 #endif

@@ -3,9 +3,7 @@
 
 #ifdef USE_LIBRETINY
 
-namespace esphome {
-namespace libretiny_pwm {
-
+namespace esphome::libretiny_pwm {
 static const char *const TAG = "libretiny.pwm";
 
 void LibreTinyPWM::write_state(float state) {
@@ -49,7 +47,5 @@ void LibreTinyPWM::update_frequency(float frequency) {
   this->write_state(this->duty_);
 }
 
-}  // namespace libretiny_pwm
-}  // namespace esphome
-
+}  // namespace esphome::libretiny_pwm
 #endif

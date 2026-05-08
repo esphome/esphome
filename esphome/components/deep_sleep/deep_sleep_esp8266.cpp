@@ -3,9 +3,7 @@
 
 #include <Esp.h>
 
-namespace esphome {
-namespace deep_sleep {
-
+namespace esphome::deep_sleep {
 static const char *const TAG = "deep_sleep";
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
@@ -20,6 +18,5 @@ void DeepSleepComponent::deep_sleep_() {
 
 bool DeepSleepComponent::should_teardown_() { return true; }
 
-}  // namespace deep_sleep
-}  // namespace esphome
+}  // namespace esphome::deep_sleep
 #endif

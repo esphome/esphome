@@ -3,9 +3,7 @@
 #include "gpio.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace rp2040 {
-
+namespace esphome::rp2040 {
 static const char *const TAG = "rp2040";
 
 static int flags_to_mode(gpio::Flags flags, uint8_t pin) {

@@ -3,9 +3,7 @@
 #include "gpio.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace host {
-
+namespace esphome::host {
 static const char *const TAG = "host";
 
 struct ISRPinArg {

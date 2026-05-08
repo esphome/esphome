@@ -6,9 +6,7 @@
 #include "esphome/components/api/custom_api_device.h"
 
 #ifdef USE_API
-namespace esphome {
-namespace custom_api_device_component {
-
+namespace esphome::custom_api_device_component {
 using namespace api;
 
 class CustomAPIDeviceComponent : public Component, public CustomAPIDevice {
@@ -28,6 +26,5 @@ class CustomAPIDeviceComponent : public Component, public CustomAPIDevice {
   void on_ha_state_changed(std::string entity_id, std::string state);
 };
 
-}  // namespace custom_api_device_component
-}  // namespace esphome
+}  // namespace esphome::custom_api_device_component
 #endif  // USE_API

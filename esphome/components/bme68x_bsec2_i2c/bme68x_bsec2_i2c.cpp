@@ -9,9 +9,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace bme68x_bsec2_i2c {
-
+namespace esphome::bme68x_bsec2_i2c {
 static const char *const TAG = "bme68x_bsec2_i2c.sensor";
 
 void BME68xBSEC2I2CComponent::setup() {
@@ -53,6 +51,5 @@ void BME68xBSEC2I2CComponent::delay_us(uint32_t period, void *intfPtr) {
   delayMicroseconds(period);
 }
 
-}  // namespace bme68x_bsec2_i2c
-}  // namespace esphome
+}  // namespace esphome::bme68x_bsec2_i2c
 #endif

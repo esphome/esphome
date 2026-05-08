@@ -4,9 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esp_ldo_regulator.h"
 
-namespace esphome {
-namespace esp_ldo {
-
+namespace esphome::esp_ldo {
 class EspLdo : public Component {
  public:
   EspLdo(int channel) : channel_(channel) {}
@@ -40,7 +38,5 @@ template<typename... Ts> class AdjustAction : public Action<Ts...> {
   EspLdo *ldo_;
 };
 
-}  // namespace esp_ldo
-}  // namespace esphome
-
+}  // namespace esphome::esp_ldo
 #endif  // USE_ESP32_VARIANT_ESP32P4

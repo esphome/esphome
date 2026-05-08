@@ -26,9 +26,7 @@
 #include <memory>
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace shelly_dimmer {
-
+namespace esphome::shelly_dimmer {
 /* flags */
 constexpr auto STREAM_OPT_BYTE = (1 << 0);      /* byte (not frame) oriented */
 constexpr auto STREAM_OPT_GVR_ETX = (1 << 1);   /* cmd GVR returns protection status */
@@ -125,7 +123,5 @@ stm32_err_t stm32_crc_memory(const stm32_unique_ptr &stm, uint32_t address, uint
 stm32_err_t stm32_crc_wrapper(const stm32_unique_ptr &stm, uint32_t address, uint32_t length, uint32_t *crc);
 uint32_t stm32_sw_crc(uint32_t crc, uint8_t *buf, unsigned int len);
 
-}  // namespace shelly_dimmer
-}  // namespace esphome
-
+}  // namespace esphome::shelly_dimmer
 #endif  // USE_SHD_FIRMWARE_DATA

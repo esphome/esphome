@@ -5,9 +5,7 @@
 
 #include "hal/nrf_saadc.h"
 
-namespace esphome {
-namespace adc {
-
+namespace esphome::adc {
 static const char *const TAG = "adc.zephyr";
 
 void ADCSensor::setup() {
@@ -202,6 +200,5 @@ float ADCSensor::sample() {
   return val_mv / 1000.0f;
 }
 
-}  // namespace adc
-}  // namespace esphome
+}  // namespace esphome::adc
 #endif

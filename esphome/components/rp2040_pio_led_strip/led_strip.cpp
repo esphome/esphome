@@ -12,9 +12,7 @@
 #include <pico/sem.h>
 #include <pico/stdlib.h>
 
-namespace esphome {
-namespace rp2040_pio_led_strip {
-
+namespace esphome::rp2040_pio_led_strip {
 static const char *TAG = "rp2040_pio_led_strip";
 
 static uint8_t num_instance_[2] = {0, 0};
@@ -210,7 +208,5 @@ void RP2040PIOLEDStripLightOutput::dump_config() {
 
 float RP2040PIOLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace rp2040_pio_led_strip
-}  // namespace esphome
-
+}  // namespace esphome::rp2040_pio_led_strip
 #endif

@@ -15,9 +15,7 @@ extern uint32_t core_version;
 extern const char *core_release;
 }
 
-namespace esphome {
-namespace debug {
-
+namespace esphome::debug {
 static const char *const TAG = "debug";
 
 // PROGMEM string table for reset reasons, indexed by reason code (0-6), with "Unknown" as fallback
@@ -170,6 +168,5 @@ void DebugComponent::update_platform_() {
 #endif
 }
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
 #endif

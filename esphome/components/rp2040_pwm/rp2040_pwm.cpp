@@ -11,9 +11,7 @@
 #include <hardware/pwm.h>
 #include <cmath>
 
-namespace esphome {
-namespace rp2040_pwm {
-
+namespace esphome::rp2040_pwm {
 static const char *const TAG = "rp2040_pwm";
 
 void RP2040PWM::setup() { this->setup_pwm_(); }
@@ -60,7 +58,5 @@ void HOT RP2040PWM::write_state(float state) {
   pwm_set_gpio_level(this->pin_->get_pin(), state * this->wrap_);
 }
 
-}  // namespace rp2040_pwm
-}  // namespace esphome
-
+}  // namespace esphome::rp2040_pwm
 #endif

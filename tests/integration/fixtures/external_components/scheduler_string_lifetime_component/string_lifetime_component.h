@@ -4,9 +4,7 @@
 #include <vector>
 #include <string>
 
-namespace esphome {
-namespace scheduler_string_lifetime_component {
-
+namespace esphome::scheduler_string_lifetime_component {
 class SchedulerStringLifetimeComponent : public Component {
  public:
   void setup() override;
@@ -33,5 +31,4 @@ class SchedulerStringLifetimeComponent : public Component {
   int tests_failed_{0};
 };
 
-}  // namespace scheduler_string_lifetime_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_string_lifetime_component

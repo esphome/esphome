@@ -2,9 +2,7 @@
 #ifdef USE_HOST
 #include <climits>
 
-namespace esphome {
-namespace debug {
-
+namespace esphome::debug {
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) { return ""; }
 
 const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer) { return ""; }
@@ -15,6 +13,5 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 
 void DebugComponent::update_platform_() {}
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
 #endif

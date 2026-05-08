@@ -4,9 +4,7 @@
 
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace host {
-
+namespace esphome::host {
 class HostGPIOPin : public InternalGPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
@@ -32,7 +30,5 @@ class HostGPIOPin : public InternalGPIOPin {
   gpio::Flags flags_{};
 };
 
-}  // namespace host
-}  // namespace esphome
-
+}  // namespace esphome::host
 #endif  // USE_HOST

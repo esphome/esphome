@@ -23,9 +23,7 @@
 #ifdef USE_SHD_FIRMWARE_DATA
 #include "stm32flash.h"
 
-namespace esphome {
-namespace shelly_dimmer {
-
+namespace esphome::shelly_dimmer {
 constexpr uint32_t SZ_128 = 0x00000080;
 constexpr uint32_t SZ_256 = 0x00000100;
 constexpr uint32_t SZ_1K = 0x00000400;
@@ -153,7 +151,5 @@ constexpr stm32_dev_t DEVICES[] = {
     {0x0, "", 0x0, 0x0, 0x0, 0x0, 0x0, nullptr, 0x0, 0x0, 0x0, 0x0, 0x0},
 };
 
-}  // namespace shelly_dimmer
-}  // namespace esphome
-
+}  // namespace esphome::shelly_dimmer
 #endif  // USE_SHD_FIRMWARE_DATA
