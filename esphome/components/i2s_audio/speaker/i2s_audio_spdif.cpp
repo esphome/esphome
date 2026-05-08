@@ -129,7 +129,7 @@ size_t I2SAudioSpeakerSPDIF::play(const uint8_t *data, size_t length, TickType_t
 
   size_t bytes_written = 0;
   if (this->state_ == speaker::STATE_RUNNING || task_active) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
     if (temp_ring_buffer != nullptr) {
       // In SPDIF mode, a tiny wait helps avoid transient 0-byte writes during short backpressure windows.
       TickType_t effective_ticks_to_wait = ticks_to_wait;
@@ -174,7 +174,7 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
       audio::AudioSourceTransferBuffer::create(bytes_to_fill_single_dma_buffer);
 
   if (transfer_buffer != nullptr) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = RingBuffer::create(ring_buffer_size);
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
     if (temp_ring_buffer.use_count() == 1) {
       transfer_buffer->set_source(temp_ring_buffer);
       this->audio_ring_buffer_ = temp_ring_buffer;
