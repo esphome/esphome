@@ -106,7 +106,7 @@ void MicroWakeWord::setup() {
     if (this->state_ == State::STOPPED) {
       return;
     }
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (this->ring_buffer_.use_count() > 1) {
       size_t bytes_free = temp_ring_buffer->free();
 
@@ -156,7 +156,7 @@ void MicroWakeWord::inference_task(void *params) {
 
     if (!(xEventGroupGetBits(this_mww->event_group_) & ERROR_BITS)) {
       // Allocate ring buffer
-      std::shared_ptr<RingBuffer> temp_ring_buffer = RingBuffer::create(
+      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(
           this_mww->microphone_source_->get_audio_stream_info().ms_to_bytes(RING_BUFFER_DURATION_MS));
       if (temp_ring_buffer.use_count() == 0) {
         xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_MEMORY);
