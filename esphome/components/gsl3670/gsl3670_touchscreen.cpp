@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace gsl3670 {
+namespace esphome::gsl3670 {
 
 static const size_t MAX_TOUCHES = 3;
 // ---------------------------------------------------------------------------
@@ -174,5 +173,4 @@ bool GSL3670Touchscreen::read_reg_(uint8_t reg, uint8_t *data, size_t len) {
   return true;
 }
 
-}  // namespace gsl3670
-}  // namespace esphome
+}  // namespace esphome::gsl3670

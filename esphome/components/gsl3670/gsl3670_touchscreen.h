@@ -6,8 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gsl3670 {
+namespace esphome::gsl3670 {
 
 static const char *const TAG = "gsl3670.touchscreen";
 // ---------------------------------------------------------------------------
@@ -50,5 +49,4 @@ class GSL3670Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevic
   size_t firmware_len_{0};
 };
 
-}  // namespace gsl3670
-}  // namespace esphome
+}  // namespace esphome::gsl3670
