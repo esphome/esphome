@@ -366,46 +366,6 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode functio
                                                       uint16_t number_of_entities, const uint8_t *values = nullptr,
                                                       size_t values_len = 0);
 
-/** Create modbus write multiple registers command
- *  Function 0x10 Write Multiple Registers
- * @param start_address modbus address of the first register to write
- * @param register_count number of registers to write
- * @param values uint16_t register values to write
- * @return PDU (function code + data, no address, no CRC)
- */
-StaticVector<uint8_t, MAX_PDU_SIZE> create_write_multiple_pdu(uint16_t start_address, uint16_t register_count,
-                                                              const std::vector<uint16_t> &values);
-
-/** Create modbus write single register command
- *  Function 0x06 Write Single Register
- * @param start_address modbus address of the register to write
- * @param value uint16_t value to write
- * @return PDU (function code + data, no address, no CRC)
- */
-StaticVector<uint8_t, MAX_PDU_SIZE> create_write_single_pdu(uint16_t start_address, uint16_t value);
-
-/** Create modbus write single coil command
- *  Function 0x05 Write Single Coil
- * @param address modbus address of the coil to write
- * @param value coil value to write
- * @return PDU (function code + data, no address, no CRC)
- */
-StaticVector<uint8_t, MAX_PDU_SIZE> create_write_single_coil_pdu(uint16_t address, bool value);
-
-/** Create modbus write multiple coils command
- *  Function 0x0F Write Multiple Coils
- * @param start_address modbus address of the first coil to write
- * @param values bool vector of coil values to write
- * @return PDU (function code + data, no address, no CRC)
- */
-StaticVector<uint8_t, MAX_PDU_SIZE> create_write_multiple_coils_pdu(uint16_t start_address,
-                                                                    const std::vector<bool> &values);
-
-/** Convert float to vector<uint8_t> response payload.
- * @param value value to convert
- * @param value_type  defines if 16/32/64 bits or FP32 is used
- * @return data payload with data
- */
 inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
   int64_t val;
 
