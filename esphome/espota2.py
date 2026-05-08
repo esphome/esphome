@@ -338,15 +338,24 @@ def perform_ota(
         # Any non-app OTA type requires the extended protocol and the
         # partition-access server feature. Reject up front so the user gets
         # a clear capability error instead of a post-auth 0x8E from the device.
+        flag_name = {
+            OTA_TYPE_UPDATE_PARTITION_TABLE: "--partition-table",
+            OTA_TYPE_UPDATE_BOOTLOADER: "--bootloader",
+        }.get(ota_type, f"OTA type 0x{ota_type:02X}")
         if not extended_proto:
             raise OTAError(
-                f"Device does not support extended OTA protocol; "
-                f"OTA type 0x{ota_type:02X} requires it"
+                f"Device does not support the extended OTA protocol that "
+                f"{flag_name} requires. The running firmware is too old; "
+                f"build and install a current ESPHome firmware via a regular "
+                f"OTA upload (without {flag_name}), then retry."
             )
         if not (features & SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS):
             raise OTAError(
-                f"Device does not support partition access; "
-                f"OTA type 0x{ota_type:02X} cannot be used"
+                f"The running firmware was built without "
+                f"'allow_partition_access: true', so {flag_name} cannot be "
+                f"used. Add the option to the esphome OTA platform in your "
+                f"YAML, run 'esphome upload' (without {flag_name}) to install "
+                f"that build, then retry {flag_name}."
             )
 
     if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:
