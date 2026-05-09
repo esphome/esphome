@@ -6,12 +6,7 @@
 #include <vector>
 #include <memory>
 
-namespace esphome {
-namespace nvm {
-
-/// RTC key for boot loop counter - used to delegate to NVS preferences
-/// TODO: Use safe_mode::RTC_KEY once PR #14121 is merged
-static const uint32_t RTC_KEY = 233825507UL;
+namespace esphome::nvm {
 
 /// Partition types supported by NVM
 enum class PartitionType : uint8_t {
@@ -241,6 +236,10 @@ template<typename Derived> class NvmPreferencesMixin {
   NvmPreferenceObject make_preference(uint32_t type) {
     return static_cast<Derived *>(this)->make_preference(sizeof(T), type);
   }
+
+ private:
+  NvmPreferencesMixin() = default;
+  friend Derived;
 };
 
 /// Specialized partition for preferences storage
@@ -436,5 +435,4 @@ class KeyValuePartition : public NvmDataPartition, public Component {
   void check_usage_();
 };
 
-}  // namespace nvm
-}  // namespace esphome
+}  // namespace esphome::nvm

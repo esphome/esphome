@@ -7,8 +7,7 @@
 #include <cstring>
 #include <utility>
 
-namespace esphome {
-namespace nvm {
+namespace esphome::nvm {
 
 static const char *const TAG = "nvm";
 
@@ -1069,5 +1068,4 @@ bool NvmPreferenceBackend::load(uint8_t *data, size_t len) {
   return hash == hash_from_nvm;
 }
 
-}  // namespace nvm
-}  // namespace esphome
+}  // namespace esphome::nvm

@@ -1,8 +1,7 @@
 #include "fram_i2c.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace fram_i2c {
+namespace esphome::fram_i2c {
 
 static const char *const TAG = "fram_i2c";
 
@@ -160,5 +159,4 @@ bool FramI2cPlatform::write_bytes_ext_(uint32_t memaddr, const uint8_t *data, si
   return true;
 }
 
-}  // namespace fram_i2c
-}  // namespace esphome
+}  // namespace esphome::fram_i2c
