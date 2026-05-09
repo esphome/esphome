@@ -110,13 +110,11 @@ class InstanceLock {
 
   // Returns the global openthread instance guarded by this lock
   otInstance *get_instance();
-  void release();
 
  private:
   // Use a private constructor in order to force the handling
   // of acquisition failure
   InstanceLock() {}
-  bool locked_{true};
 };
 
 }  // namespace esphome::openthread
