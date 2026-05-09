@@ -4,8 +4,7 @@
 
 #include "esphome/core/alloc_helpers.h"
 
-namespace esphome {
-namespace anova {
+namespace esphome::anova {
 
 float ftoc(float f) { return (f - 32.0) * (5.0f / 9.0f); }
 
@@ -132,5 +131,4 @@ void AnovaCodec::decode(const uint8_t *data, uint16_t length) {
   }
 }
 
-}  // namespace anova
-}  // namespace esphome
+}  // namespace esphome::anova

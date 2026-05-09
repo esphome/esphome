@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace smt100 {
+namespace esphome::smt100 {
 
 class SMT100Component : public PollingComponent, public uart::UARTDevice {
   static const uint16_t MAX_LINE_LENGTH = 31;
@@ -40,5 +39,4 @@ class SMT100Component : public PollingComponent, public uart::UARTDevice {
   uint32_t last_transmission_{0};
 };
 
-}  // namespace smt100
-}  // namespace esphome
+}  // namespace esphome::smt100

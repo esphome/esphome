@@ -14,18 +14,8 @@ namespace esphome {
 
 static const char *const TAG = "scheduler";
 
-// Memory pool configuration constants
-// Pool size of 5 matches typical usage patterns (2-4 active timers)
-// - Minimal memory overhead (~250 bytes on ESP32)
-// - Sufficient for most configs with a couple sensors/components
-// - Still prevents heap fragmentation and allocation stalls
-// - Complex setups with many timers will just allocate beyond the pool
-// See https://github.com/esphome/backlog/issues/52
-static constexpr size_t MAX_POOL_SIZE = 5;
-
 // Maximum number of logically deleted (cancelled) items before forcing cleanup.
-// Set to 5 to match the pool size - when we have as many cancelled items as our
-// pool can hold, it's time to clean up and recycle them.
+// Empirically chosen to balance cleanup overhead against tombstone accumulation in items_.
 static constexpr uint32_t MAX_LOGICALLY_DELETED_ITEMS = 5;
 // max delay to start an interval sequence
 static constexpr uint32_t MAX_INTERVAL_DELAY = 5000;
@@ -165,7 +155,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     delay = 1;
   }
 
-  // Take lock early to protect scheduler_item_pool_ access and retry-cancelled check
+  // Take lock early to protect scheduler_item_pool_head_ access and retry-cancelled check
   LockGuard guard{this->lock_};
 
   // For retries, check if there's a cancelled timeout first - before allocating an item.
@@ -599,7 +589,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
   if (now_64 - last_print > 2000) {
     last_print = now_64;
     std::vector<SchedulerItem *> old_items;
-    ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64, this->items_.size(), this->scheduler_item_pool_.size(),
+    ESP_LOGD(TAG, "Items: count=%zu, pool=%zu, now=%" PRIu64, this->items_.size(), this->scheduler_item_pool_size_,
              now_64);
     // Cleanup before debug output
     this->cleanup_();
@@ -894,30 +884,68 @@ bool HOT Scheduler::SchedulerItem::cmp(SchedulerItem *a, SchedulerItem *b) {
                                                               : (a->next_execution_high_ > b->next_execution_high_);
 }
 
-// Recycle a SchedulerItem back to the pool for reuse.
-// IMPORTANT: Caller must hold the scheduler lock before calling this function.
-// This protects scheduler_item_pool_ from concurrent access by other threads
-// that may be acquiring items from the pool in set_timer_common_().
+// Recycle a SchedulerItem back to the freelist for reuse.
+// IMPORTANT: Caller must hold the scheduler lock.
 void Scheduler::recycle_item_main_loop_(SchedulerItem *item) {
   if (item == nullptr)
     return;
 
-  if (this->scheduler_item_pool_.size() < MAX_POOL_SIZE) {
-    // Clear callback to release captured resources
-    item->callback = nullptr;
-    this->scheduler_item_pool_.push_back(item);
+  item->callback = nullptr;  // release captured resources
+  item->next_free = this->scheduler_item_pool_head_;
+  this->scheduler_item_pool_head_ = item;
+  this->scheduler_item_pool_size_++;
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_.size());
+  ESP_LOGD(TAG, "Recycled item to pool (pool size now: %zu)", this->scheduler_item_pool_size_);
 #endif
-  } else {
-#ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Pool full (size: %zu), deleting item", this->scheduler_item_pool_.size());
-#endif
+}
+
+// Shrink a SchedulerItem* vector's capacity to its current size.
+// std::vector::shrink_to_fit() is non-binding and our toolchain ignores it; the classic
+// swap-with-copy idiom (std::vector<T>(other).swap(other)) instantiates the iterator-range
+// constructor which pulls in std::__throw_bad_array_new_length and ~120 B of related
+// stdlib RTTI/typeinfo. Build into a temp via reserve + push_back instead, then move-assign:
+// reserve uses operator new (throws bad_alloc, already linked) and push_back without growth
+// is the noexcept tail path. Move-assign just swaps pointers.
+// Out-of-line + noinline so the callers in trim_freelist() share one body.
+void __attribute__((noinline)) Scheduler::shrink_scheduler_vector_(std::vector<SchedulerItem *> *v) {
+  if (v->capacity() == v->size())
+    return;  // already exact, common after a quiet period
+  std::vector<SchedulerItem *> tmp;
+  tmp.reserve(v->size());
+  for (SchedulerItem *p : *v)
+    tmp.push_back(p);
+  *v = std::move(tmp);
+}
+
+void Scheduler::trim_freelist() {
+  LockGuard guard{this->lock_};
+  SchedulerItem *item = this->scheduler_item_pool_head_;
+  size_t freed = 0;
+  while (item != nullptr) {
+    SchedulerItem *next = item->next_free;
     delete item;
 #ifdef ESPHOME_DEBUG_SCHEDULER
     this->debug_live_items_--;
 #endif
+    item = next;
+    freed++;
   }
+  this->scheduler_item_pool_head_ = nullptr;
+  this->scheduler_item_pool_size_ = 0;
+
+  // items_/to_add_/defer_queue_ retain their boot-peak vector capacity (vector grows
+  // by doubling and otherwise keeps the peak). Reclaim that slack as well.
+  shrink_scheduler_vector_(&this->items_);
+  shrink_scheduler_vector_(&this->to_add_);
+#ifndef ESPHOME_THREAD_SINGLE
+  shrink_scheduler_vector_(&this->defer_queue_);
+#endif
+
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  ESP_LOGD(TAG, "Freelist trimmed (%zu items freed)", freed);
+#else
+  (void) freed;
+#endif
 }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
@@ -942,14 +970,15 @@ void Scheduler::debug_log_timer_(const SchedulerItem *item, NameType name_type, 
 }
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
-// Helper to get or create a scheduler item from the pool
-// IMPORTANT: Caller must hold the scheduler lock before calling this function.
+// Pop from freelist or allocate. IMPORTANT: caller must hold the lock and must overwrite
+// `item->component` before releasing it -- the popped slot still holds the freelist link.
 Scheduler::SchedulerItem *Scheduler::get_item_from_pool_locked_() {
-  if (!this->scheduler_item_pool_.empty()) {
-    SchedulerItem *item = this->scheduler_item_pool_.back();
-    this->scheduler_item_pool_.pop_back();
+  if (this->scheduler_item_pool_head_ != nullptr) {
+    SchedulerItem *item = this->scheduler_item_pool_head_;
+    this->scheduler_item_pool_head_ = item->next_free;
+    this->scheduler_item_pool_size_--;
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_.size());
+    ESP_LOGD(TAG, "Reused item from pool (pool size now: %zu)", this->scheduler_item_pool_size_);
 #endif
     return item;
   }
@@ -967,7 +996,7 @@ Scheduler::SchedulerItem *Scheduler::get_item_from_pool_locked_() {
 bool Scheduler::debug_verify_no_leak_() const {
   // Invariant: every live SchedulerItem must be in exactly one container.
   // debug_live_items_ tracks allocations minus deletions.
-  size_t accounted = this->items_.size() + this->to_add_.size() + this->scheduler_item_pool_.size();
+  size_t accounted = this->items_.size() + this->to_add_.size() + this->scheduler_item_pool_size_;
 #ifndef ESPHOME_THREAD_SINGLE
   accounted += this->defer_queue_.size();
 #endif
@@ -981,7 +1010,7 @@ bool Scheduler::debug_verify_no_leak_() const {
              ")",
              static_cast<uint32_t>(this->debug_live_items_), static_cast<uint32_t>(accounted),
              static_cast<uint32_t>(this->items_.size()), static_cast<uint32_t>(this->to_add_.size()),
-             static_cast<uint32_t>(this->scheduler_item_pool_.size())
+             static_cast<uint32_t>(this->scheduler_item_pool_size_)
 #ifndef ESPHOME_THREAD_SINGLE
                  ,
              static_cast<uint32_t>(this->defer_queue_.size())

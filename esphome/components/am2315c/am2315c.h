@@ -25,8 +25,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace am2315c {
+namespace esphome::am2315c {
 
 class AM2315C : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -45,5 +44,4 @@ class AM2315C : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *humidity_sensor_{nullptr};
 };
 
-}  // namespace am2315c
-}  // namespace esphome
+}  // namespace esphome::am2315c

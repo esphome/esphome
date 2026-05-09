@@ -1,8 +1,8 @@
 #pragma once
 
 #ifdef USE_ESP32
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/ring_buffer.h"
 
 #ifdef USE_SPEAKER
 #include "esphome/components/speaker/speaker.h"
@@ -12,8 +12,7 @@
 
 #include <freertos/FreeRTOS.h>
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 /// @brief Abstract interface for writing decoded audio data to a sink.
 class AudioSinkCallback {
@@ -77,7 +76,7 @@ class AudioTransferBuffer {
   void deallocate_buffer_();
 
   // A possible source or sink for the transfer buffer
-  std::shared_ptr<RingBuffer> ring_buffer_;
+  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer_;
 
   uint8_t *buffer_{nullptr};
   uint8_t *data_start_{nullptr};
@@ -106,7 +105,7 @@ class AudioSinkTransferBuffer : public AudioTransferBuffer {
 
   /// @brief Adds a ring buffer as the transfer buffer's sink.
   /// @param ring_buffer weak_ptr to the allocated ring buffer
-  void set_sink(const std::weak_ptr<RingBuffer> &ring_buffer) { this->ring_buffer_ = ring_buffer.lock(); }
+  void set_sink(const std::weak_ptr<ring_buffer::RingBuffer> &ring_buffer) { this->ring_buffer_ = ring_buffer.lock(); }
 
 #ifdef USE_SPEAKER
   /// @brief Adds a speaker as the transfer buffer's sink.
@@ -180,7 +179,9 @@ class AudioSourceTransferBuffer : public AudioTransferBuffer, public AudioReadab
 
   /// @brief Adds a ring buffer as the transfer buffer's source.
   /// @param ring_buffer weak_ptr to the allocated ring buffer
-  void set_source(const std::weak_ptr<RingBuffer> &ring_buffer) { this->ring_buffer_ = ring_buffer.lock(); };
+  void set_source(const std::weak_ptr<ring_buffer::RingBuffer> &ring_buffer) {
+    this->ring_buffer_ = ring_buffer.lock();
+  };
 
   // AudioReadableBuffer interface
   const uint8_t *data() const override { return this->data_start_; }
@@ -213,7 +214,6 @@ class ConstAudioSourceBuffer : public AudioReadableBuffer {
   size_t length_{0};
 };
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

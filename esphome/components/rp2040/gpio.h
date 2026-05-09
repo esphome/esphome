@@ -5,8 +5,7 @@
 #include <Arduino.h>
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace rp2040 {
+namespace esphome::rp2040 {
 
 class RP2040GPIOPin : public InternalGPIOPin {
  public:
@@ -33,7 +32,6 @@ class RP2040GPIOPin : public InternalGPIOPin {
   gpio::Flags flags_{};
 };
 
-}  // namespace rp2040
-}  // namespace esphome
+}  // namespace esphome::rp2040
 
 #endif  // USE_RP2040

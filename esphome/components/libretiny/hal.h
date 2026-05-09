@@ -61,6 +61,8 @@ extern "C" void lt_wdt_feed(void);
 extern "C" uint32_t lt_cpu_get_cycle_count(void);
 extern "C" uint32_t lt_cpu_get_freq(void);
 
+namespace esphome::libretiny {}
+
 namespace esphome {
 
 /// Returns true when executing inside an interrupt handler.

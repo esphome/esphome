@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace es7243e {
+namespace esphome::es7243e {
 
 static const char *const TAG = "es7243e";
 
@@ -119,5 +118,4 @@ uint8_t ES7243E::es7243e_gain_reg_value_(float mic_gain) {
   return 14;
 }
 
-}  // namespace es7243e
-}  // namespace esphome
+}  // namespace esphome::es7243e

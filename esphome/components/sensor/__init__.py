@@ -4,6 +4,7 @@ import math
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server, zigbee
+from esphome.components.const import CONF_B_CONSTANT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
@@ -32,6 +33,8 @@ from esphome.const import (
     CONF_OPTIMISTIC,
     CONF_PERIOD,
     CONF_QUANTILE,
+    CONF_REFERENCE_RESISTANCE,
+    CONF_REFERENCE_TEMPERATURE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
     CONF_STATE_CLASS,
@@ -266,7 +269,7 @@ StreamingMovingAverageFilter = sensor_ns.class_("StreamingMovingAverageFilter", 
 ExponentialMovingAverageFilter = sensor_ns.class_(
     "ExponentialMovingAverageFilter", Filter
 )
-ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter, cg.Component)
+ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter)
 LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
 StatelessLambdaFilter = sensor_ns.class_("StatelessLambdaFilter", Filter)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
@@ -283,8 +286,8 @@ ThrottleWithPriorityNanFilter = sensor_ns.class_(
 TimeoutFilterBase = sensor_ns.class_("TimeoutFilterBase", Filter, cg.Component)
 TimeoutFilterLast = sensor_ns.class_("TimeoutFilterLast", TimeoutFilterBase)
 TimeoutFilterConfigured = sensor_ns.class_("TimeoutFilterConfigured", TimeoutFilterBase)
-DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
-HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
+DebounceFilter = sensor_ns.class_("DebounceFilter", Filter)
+HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
 OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
@@ -564,12 +567,15 @@ async def exponential_moving_average_filter_to_code(config, filter_id):
 
 
 @FILTER_REGISTRY.register(
-    "throttle_average", ThrottleAverageFilter, cv.positive_time_period_milliseconds
+    "throttle_average",
+    ThrottleAverageFilter,
+    cv.All(
+        cv.positive_time_period_milliseconds,
+        cv.Range(max=cv.TimePeriod(hours=24)),
+    ),
 )
 async def throttle_average_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id, config)
-    await cg.register_component(var, {})
-    return var
+    return cg.new_Pvariable(filter_id, config)
 
 
 @FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
@@ -698,13 +704,10 @@ HEARTBEAT_SCHEMA = cv.Schema(
 async def heartbeat_filter_to_code(config, filter_id):
     if isinstance(config, dict):
         var = cg.new_Pvariable(filter_id, config[CONF_PERIOD])
-        await cg.register_component(var, {})
         cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
         return var
 
-    var = cg.new_Pvariable(filter_id, config)
-    await cg.register_component(var, {})
-    return var
+    return cg.new_Pvariable(filter_id, config)
 
 
 TIMEOUT_SCHEMA = cv.maybe_simple_value(
@@ -738,9 +741,7 @@ async def timeout_filter_to_code(config, filter_id):
     "debounce", DebounceFilter, cv.positive_time_period_milliseconds
 )
 async def debounce_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id, config)
-    await cg.register_component(var, {})
-    return var
+    return cg.new_Pvariable(filter_id, config)
 
 
 CONF_DATAPOINTS = "datapoints"
@@ -1080,16 +1081,44 @@ def ntc_get_abc(value):
     return a, b, c
 
 
+def ntc_calc_b_constant(value):
+    beta = value[CONF_B_CONSTANT]
+    t0 = value[CONF_REFERENCE_TEMPERATURE] + ZERO_POINT
+    r0 = value[CONF_REFERENCE_RESISTANCE]
+
+    a = (1 / t0) - (1 / beta) * math.log(r0)
+    b = 1 / beta
+    c = 0
+    return a, b, c
+
+
 def ntc_process_calibration(value):
     if isinstance(value, dict):
-        value = cv.Schema(
-            {
-                cv.Required(CONF_A): cv.float_,
-                cv.Required(CONF_B): cv.float_,
-                cv.Required(CONF_C): cv.float_,
-            }
-        )(value)
-        a, b, c = ntc_get_abc(value)
+        if CONF_B_CONSTANT in value:
+            value = cv.Schema(
+                {
+                    cv.Required(CONF_B_CONSTANT): cv.All(
+                        cv.float_, cv.Range(min=0, min_included=False)
+                    ),
+                    cv.Required(CONF_REFERENCE_TEMPERATURE): cv.All(
+                        cv.temperature,
+                        cv.Range(min=-ZERO_POINT, min_included=False),
+                    ),
+                    cv.Required(CONF_REFERENCE_RESISTANCE): cv.All(
+                        cv.resistance, cv.Range(min=0, min_included=False)
+                    ),
+                }
+            )(value)
+            a, b, c = ntc_calc_b_constant(value)
+        else:
+            value = cv.Schema(
+                {
+                    cv.Required(CONF_A): cv.float_,
+                    cv.Required(CONF_B): cv.float_,
+                    cv.Required(CONF_C): cv.float_,
+                }
+            )(value)
+            a, b, c = ntc_get_abc(value)
     elif isinstance(value, list):
         if len(value) != 3:
             raise cv.Invalid(
@@ -1099,7 +1128,7 @@ def ntc_process_calibration(value):
         a, b, c = ntc_calc_steinhart_hart(value)
     else:
         raise cv.Invalid(
-            f"Calibration parameter accepts either a list for steinhart-hart calibration, or mapping for b-constant calibration, not {type(value)}"
+            f"Calibration parameter accepts either a list for steinhart-hart calibration, or mapping for b-constant or precomputed (a, b, c) calibration, not {type(value)}"
         )
     _LOGGER.info("Coefficient: a:%s, b:%s, c:%s", a, b, c)
     return {

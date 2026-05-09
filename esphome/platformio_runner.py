@@ -101,7 +101,7 @@ def patch_file_downloader() -> None:
     FileDownloader.__init__ = patched_init
 
 
-_IGNORE_LIB_WARNINGS = f"(?:{'|'.join(['Hash', 'Update'])})"
+_IGNORE_LIB_WARNINGS = "(?:Hash|Update)"
 # Regex patterns matched against each line of PlatformIO output. Lines that
 # match are dropped by RedirectText before they reach the parent process.
 # Patterns are anchored at the start of the line (RedirectText uses

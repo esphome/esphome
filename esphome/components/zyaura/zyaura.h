@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace zyaura {
+namespace esphome::zyaura {
 
 static const uint8_t ZA_MAX_MS = 2;
 static const uint8_t ZA_MSG_LEN = 5;
@@ -81,5 +80,4 @@ class ZyAuraSensor : public PollingComponent {
   bool publish_state_(ZaDataType data_type, sensor::Sensor *sensor, uint16_t *data_value);
 };
 
-}  // namespace zyaura
-}  // namespace esphome
+}  // namespace esphome::zyaura

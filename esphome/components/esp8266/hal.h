@@ -25,6 +25,8 @@ extern "C" unsigned long millis(void);
 // NOLINTNEXTLINE(readability-redundant-declaration)
 extern "C" void system_soft_wdt_feed(void);
 
+namespace esphome::esp8266 {}
+
 namespace esphome {
 
 // Forward decl from helpers.h so this header stays cheap.
