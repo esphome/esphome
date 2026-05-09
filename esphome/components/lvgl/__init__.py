@@ -30,7 +30,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_BUFFER_SIZE,
-    CONF_GROUP,
     CONF_ID,
     CONF_LAMBDA,
     CONF_LOG_LEVEL,
@@ -49,17 +48,12 @@ from esphome.yaml_util import load_yaml
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
 from .automation import focused_widgets, layers_to_code, lvgl_update, refreshed_widgets
-from .defines import CONF_ALIGN_TO_LAMBDA_ID
-from .encoders import (
-    ENCODERS_CONFIG,
-    encoders_to_code,
-    get_default_group,
-    initial_focus_to_code,
-)
+from .defines import CONF_ALIGN_TO_LAMBDA_ID, CONF_DEFAULT_GROUP
+from .encoders import ENCODERS_CONFIG, encoders_to_code, initial_focus_to_code
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .keypads import KEYPADS_CONFIG, keypads_to_code
 from .lv_validation import lv_bool, lv_images_used
-from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
+from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lv_expr, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
@@ -160,13 +154,6 @@ def multi_conf_validate(configs: list[dict]):
     display_list = [disp for disps in displays for disp in disps]
     if len(display_list) != len(set(display_list)):
         raise cv.Invalid("A display ID may be used in only one LVGL instance")
-    for config in configs:
-        for item in (df.CONF_ENCODERS, df.CONF_KEYPADS):
-            for enc in config.get(item, ()):
-                if CONF_GROUP not in enc:
-                    raise cv.Invalid(
-                        f"'{item}' must have an explicit group set when using multiple LVGL instances"
-                    )
     base_config = configs[0]
     for config in configs[1:]:
         for item in (
@@ -316,7 +303,6 @@ async def to_code(configs):
     else:
         df.add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
     cg.add(lvgl_static.esphome_lvgl_init())
-    default_group = get_default_group(config_0)
 
     for config in configs:
         frac = config[CONF_BUFFER_SIZE]
@@ -361,6 +347,12 @@ async def to_code(configs):
             cg.add(lv_component.set_rotation(rotation))
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
+        # Build the default group for this lvgl instance. This CONF_DEFAULT_GROUP is not
+        # intended to be used in configurations
+        default_group = cg.Pvariable(config[CONF_DEFAULT_GROUP], lv_expr.group_create())
+        cg.add(lv_component.set_def_group(default_group))
+        cg.add(lv_expr.group_set_default(default_group))
+
         lv_scr_act = get_screen_active(lv_component)
         async with LvContext():
             cg.add(lv_component.set_big_endian(config[CONF_BYTE_ORDER] == "big_endian"))
@@ -372,10 +364,13 @@ async def to_code(configs):
             await styles_to_code(config)
             await set_obj_properties(lv_scr_act, config)
             await add_widgets(lv_scr_act, config)
-            await add_pages(lv_component, config)
+            # layers_to_code may change the lvgl default group, be careful adding widgets after this call
             await layers_to_code(lv_component, config)
+            # add_pages will change the lvgl default group, be careful adding widgets after this call
+            await add_pages(lv_component, config)
             await lvgl_update(lv_component, config)
-            await msgboxes_to_code(lv_component, config)
+            # msgboxes_to_code will change the lvgl default group, be careful adding widgets after this call
+            await msgboxes_to_code(lv_component, config, default_group)
             # await disp_update(lv_component.get_disp(), config)
     # Set this directly since we are limited in how many methods can be added to the Widget class.
     Widget.widgets_completed = True
@@ -562,8 +557,18 @@ LVGL_SCHEMA = cv.All(
                 },
                 cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
                 cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
-                cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
-                cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
+                cv.Optional(df.CONF_TOP_LAYER): container_schema(
+                    obj_spec,
+                    extras={
+                        cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t)
+                    },
+                ),
+                cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(
+                    obj_spec,
+                    extras={
+                        cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t)
+                    },
+                ),
                 cv.Optional(
                     df.CONF_TRANSPARENCY_KEY, default=0x000400
                 ): lvalid.lv_color,

@@ -42,6 +42,7 @@ void_ptr = cg.void.operator("ptr")
 lv_coord_t = cg.global_ns.namespace("lv_coord_t")
 lv_event_code_t = cg.global_ns.enum("lv_event_code_t")
 lv_indev_type_t = cg.global_ns.enum("lv_indev_type_t")
+lv_indev_t = cg.global_ns.enum("lv_indev_t")
 lv_key_t = cg.global_ns.enum("lv_key_t")
 PlainTrigger = esphome_ns.class_("Trigger<>", automation.Trigger.template())
 DrawEndTrigger = esphome_ns.class_(

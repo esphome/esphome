@@ -67,6 +67,7 @@ async def keypads_to_code(var, config, default_group):
             lv_assign(group, lv_expr.group_create())
         else:
             group = default_group
+            cg.add(var.add_input(listener.get_drv()))
         lv.indev_set_group(listener.get_drv(), group)
 
 

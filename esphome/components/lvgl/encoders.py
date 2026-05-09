@@ -5,7 +5,6 @@ import esphome.config_validation as cv
 from esphome.const import CONF_GROUP, CONF_ID, CONF_SENSOR
 
 from .defines import (
-    CONF_DEFAULT_GROUP,
     CONF_ENCODERS,
     CONF_ENTER_BUTTON,
     CONF_INITIAL_FOCUS,
@@ -40,12 +39,6 @@ ENCODERS_CONFIG = cv.ensure_list(
 )
 
 
-def get_default_group(config):
-    default_group = cg.Pvariable(config[CONF_DEFAULT_GROUP], lv_expr.group_create())
-    cg.add(lv.group_set_default(default_group))
-    return default_group
-
-
 async def encoders_to_code(var, config, default_group):
     for enc_conf in config[CONF_ENCODERS]:
         lvgl_components_required.add("KEY_LISTENER")
@@ -71,6 +64,7 @@ async def encoders_to_code(var, config, default_group):
             lv_assign(group, lv_expr.group_create())
         else:
             group = default_group
+            cg.add(var.add_input(listener.get_drv()))
         lv.indev_set_group(listener.get_drv(), group)
 
 

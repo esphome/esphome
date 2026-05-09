@@ -22,6 +22,7 @@ def add_lv_use(*names):
 lv_fonts_used = set()
 esphome_fonts_used = set()
 lvgl_components_required = set()
+lvgl_msgboxes = {}
 
 # noqa
 f_regex = re.compile(
