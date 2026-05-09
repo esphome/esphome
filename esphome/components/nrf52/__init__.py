@@ -182,7 +182,7 @@ CONFIG_SCHEMA = cv.All(
                 default={},
             ): cv.Schema(
                 {
-                    cv.Optional(CONF_VERSION, default="2.6.1-a"): cv.string_strict,
+                    cv.Optional(CONF_VERSION, default="2.6.1-b"): cv.string_strict,
                     cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                         {
                             cv.Optional(
