@@ -12,8 +12,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace tm1637 {
+namespace esphome::tm1637 {
 
 class TM1637Display;
 #ifdef USE_BINARY_SENSOR
@@ -105,5 +104,4 @@ class TM1637Key : public binary_sensor::BinarySensor {
 };
 #endif
 
-}  // namespace tm1637
-}  // namespace esphome
+}  // namespace esphome::tm1637

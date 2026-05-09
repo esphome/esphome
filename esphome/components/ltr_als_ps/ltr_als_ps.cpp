@@ -6,8 +6,7 @@
 
 using esphome::i2c::ErrorCode;
 
-namespace esphome {
-namespace ltr_als_ps {
+namespace esphome::ltr_als_ps {
 
 static const char *const TAG = "ltr_als_ps";
 
@@ -521,5 +520,4 @@ void LTRAlsPsComponent::publish_data_part_2_(AlsReadings &data) {
     this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.integration_time));
   }
 }
-}  // namespace ltr_als_ps
-}  // namespace esphome
+}  // namespace esphome::ltr_als_ps

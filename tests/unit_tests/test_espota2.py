@@ -201,6 +201,14 @@ def test_receive_exactly_socket_error(mock_socket: Mock) -> None:
             espota2.RESPONSE_ERROR_PARTITION_TABLE_UPDATE,
             "Error: An error occurred while updating the partition table",
         ),
+        (
+            espota2.RESPONSE_ERROR_BOOTLOADER_VERIFY,
+            "Error: The bootloader update could not be verified",
+        ),
+        (
+            espota2.RESPONSE_ERROR_BOOTLOADER_UPDATE,
+            "Error: An error occurred while updating the bootloader",
+        ),
         (espota2.RESPONSE_ERROR_UNKNOWN, "Unknown error from ESP"),
     ],
 )
@@ -992,7 +1000,8 @@ def test_perform_ota_non_app_type_requires_extended_protocol(
     mock_socket.recv.side_effect = recv_responses
 
     with pytest.raises(
-        espota2.OTAError, match="Device does not support extended OTA protocol"
+        espota2.OTAError,
+        match="Device does not support the extended OTA protocol",
     ):
         espota2.perform_ota(
             mock_socket,
@@ -1026,7 +1035,8 @@ def test_perform_ota_non_app_type_requires_partition_access(
     mock_socket.recv.side_effect = recv_responses
 
     with pytest.raises(
-        espota2.OTAError, match="Device does not support partition access"
+        espota2.OTAError,
+        match=(r"running firmware was built without 'allow_partition_access: true'"),
     ):
         espota2.perform_ota(
             mock_socket,
@@ -1034,6 +1044,60 @@ def test_perform_ota_non_app_type_requires_partition_access(
             mock_file,
             "test.bin",
             0xFF,
+        )
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_partition_access_error_names_bootloader_flag(
+    mock_socket: Mock, mock_file: io.BytesIO
+) -> None:
+    """Bootloader OTA against a stale device must point at the --bootloader flag."""
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),
+        bytes([espota2.OTA_VERSION_2_0]),
+        bytes([espota2.RESPONSE_FEATURE_FLAGS]),
+        bytes([0]),  # No partition access
+    ]
+
+    mock_socket.recv.side_effect = recv_responses
+
+    with pytest.raises(
+        espota2.OTAError,
+        match=r"--bootloader.*recompile and upload.*--bootloader.*retry --bootloader",
+    ):
+        espota2.perform_ota(
+            mock_socket,
+            "testpass",
+            mock_file,
+            "test.bin",
+            espota2.OTA_TYPE_UPDATE_BOOTLOADER,
+        )
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_partition_access_error_names_partition_table_flag(
+    mock_socket: Mock, mock_file: io.BytesIO
+) -> None:
+    """Partition-table OTA against a stale device must point at the --partition-table flag."""
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),
+        bytes([espota2.OTA_VERSION_2_0]),
+        bytes([espota2.RESPONSE_FEATURE_FLAGS]),
+        bytes([0]),  # No partition access
+    ]
+
+    mock_socket.recv.side_effect = recv_responses
+
+    with pytest.raises(
+        espota2.OTAError,
+        match=r"--partition-table.*retry --partition-table",
+    ):
+        espota2.perform_ota(
+            mock_socket,
+            "testpass",
+            mock_file,
+            "test.bin",
+            espota2.OTA_TYPE_UPDATE_PARTITION_TABLE,
         )
 
 

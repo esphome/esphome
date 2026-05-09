@@ -7,8 +7,7 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace mipi_spi {
+namespace esphome::mipi_spi {
 
 constexpr static const char *const TAG = "display.mipi_spi";
 
@@ -672,5 +671,4 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
   uint16_t end_line_{1};
 };
 
-}  // namespace mipi_spi
-}  // namespace esphome
+}  // namespace esphome::mipi_spi
