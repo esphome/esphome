@@ -134,7 +134,9 @@ void OpenThreadComponent::setup() {
 int OpenThreadComponent::openthread_stop_() {
   // Clean up - reset lock flag before deinit destroys the semaphore
   this->lock_initialized_ = false;
-  return esp_openthread_stop();
+  int error = esp_openthread_stop();
+  this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_COMPLETED;
+  return error;
 }
 
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
@@ -184,18 +186,8 @@ InstanceLock InstanceLock::acquire() {
 }
 
 otInstance *InstanceLock::get_instance() { return esp_openthread_get_instance(); }
-void InstanceLock::release() {
-  if (this->locked_) {
-    esp_openthread_lock_release();
-    this->locked_ = false;
-  }
-}
 
-InstanceLock::~InstanceLock() {
-  if (this->locked_) {
-    esp_openthread_lock_release();
-  }
-}
+InstanceLock::~InstanceLock() { esp_openthread_lock_release(); }
 
 }  // namespace esphome::openthread
 #endif

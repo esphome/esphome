@@ -37,6 +37,7 @@ from .const import (
     CONF_DEVICE_TYPE,
     CONF_EXT_PAN_ID,
     CONF_FORCE_DATASET,
+    CONF_GRACEFUL_DETACH_ON_SHUTDOWN,
     CONF_MDNS_ID,
     CONF_MESH_LOCAL_PREFIX,
     CONF_NETWORK_KEY,
@@ -134,6 +135,9 @@ def set_sdkconfig_options(config):
     if config.get(CONF_FORCE_DATASET):
         cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
 
+    if config.get(CONF_GRACEFUL_DETACH_ON_SHUTDOWN):
+        cg.add_define("USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN")
+
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
@@ -193,6 +197,7 @@ CONFIG_SCHEMA = cv.All(
                 *CONF_DEVICE_TYPES, upper=True
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
+            cv.Optional(CONF_GRACEFUL_DETACH_ON_SHUTDOWN): cv.boolean,
             cv.Optional(CONF_TLV): cv.string_strict,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
