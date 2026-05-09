@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace wiegand {
+namespace esphome::wiegand {
 
 class Wiegand;
 
@@ -50,5 +49,4 @@ class Wiegand : public key_provider::KeyProvider, public Component {
   std::vector<WiegandKeyTrigger *> key_triggers_;
 };
 
-}  // namespace wiegand
-}  // namespace esphome
+}  // namespace esphome::wiegand

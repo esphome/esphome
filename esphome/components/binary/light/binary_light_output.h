@@ -4,8 +4,7 @@
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/light/light_output.h"
 
-namespace esphome {
-namespace binary {
+namespace esphome::binary {
 
 class BinaryLightOutput : public light::LightOutput {
  public:
@@ -29,5 +28,4 @@ class BinaryLightOutput : public light::LightOutput {
   output::BinaryOutput *output_;
 };
 
-}  // namespace binary
-}  // namespace esphome
+}  // namespace esphome::binary

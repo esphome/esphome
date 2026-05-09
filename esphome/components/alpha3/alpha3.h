@@ -9,8 +9,7 @@
 
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace alpha3 {
+namespace esphome::alpha3 {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -64,7 +63,6 @@ class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponen
   void send_request_(uint8_t *request, size_t len);
   bool is_current_response_type_(const uint8_t *response_type);
 };
-}  // namespace alpha3
-}  // namespace esphome
+}  // namespace esphome::alpha3
 
 #endif

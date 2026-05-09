@@ -1,8 +1,7 @@
 #include "pca9554.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pca9554 {
+namespace esphome::pca9554 {
 
 // for 16 bit expanders, these addresses will be doubled.
 const uint8_t INPUT_REG = 0;
@@ -152,5 +151,4 @@ size_t PCA9554GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via PCA9554", this->pin_);
 }
 
-}  // namespace pca9554
-}  // namespace esphome
+}  // namespace esphome::pca9554

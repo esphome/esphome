@@ -5,8 +5,7 @@
 #include "esphome/components/output/float_output.h"
 #include <vector>
 
-namespace esphome {
-namespace sm16716 {
+namespace esphome::sm16716 {
 
 class SM16716 : public Component {
  public:
@@ -68,5 +67,4 @@ class SM16716 : public Component {
   bool update_{true};
 };
 
-}  // namespace sm16716
-}  // namespace esphome
+}  // namespace esphome::sm16716
