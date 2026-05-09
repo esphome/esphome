@@ -38,6 +38,7 @@ from esphome.const import (
     CONF_OTA,
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
+    CONF_TOOLCHAIN,
     CONF_VERSION,
     CONF_VOLTAGE,
     KEY_CORE,
@@ -46,7 +47,6 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PLATFORM_NRF52,
     ThreadModel,
-    CONF_TOOLCHAIN,
     Toolchain,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
