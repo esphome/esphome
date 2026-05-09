@@ -6,8 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace cst226 {
+namespace esphome::cst226 {
 
 static const uint8_t CST226_REG_STATUS = 0x00;
 
@@ -40,5 +39,4 @@ class CST226Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   bool button_touched_{};
 };
 
-}  // namespace cst226
-}  // namespace esphome
+}  // namespace esphome::cst226

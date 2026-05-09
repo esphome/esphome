@@ -24,6 +24,7 @@ from .defines import (
     LV_SCREEN_EVENT_MAP,
     LV_SCREEN_EVENT_TRIGGERS,
     SWIPE_TRIGGERS,
+    is_press_event,
     literal,
 )
 from .lvcode import (
@@ -34,11 +35,10 @@ from .lvcode import (
     LvConditional,
     lv,
     lv_add,
-    lv_event_t_ptr,
     lv_expr,
     lvgl_static,
 )
-from .types import LV_EVENT
+from .types import LV_EVENT, lv_point_t
 from .widgets import LvScrActType, get_screen_active, widget_map
 
 
@@ -133,19 +133,24 @@ def _get_event_literal(trigger: str | MockObj) -> MockObj:
     return literal("LV_EVENT_" + TRIGGER_MAP[trigger.upper()])
 
 
-async def add_trigger(conf, w, *events, is_selected=None):
+async def add_trigger(conf, w, *events: str | MockObj, is_selected=None):
     is_selected = is_selected or w.is_selected()
     tid = conf[CONF_TRIGGER_ID]
     trigger = cg.new_Pvariable(tid)
-    args = w.get_args() + [(lv_event_t_ptr, "event")]
-    value = w.get_values()
+    args = w.get_args()
+    value: list = w.get_values()
+    if len(events) == 1 and is_press_event(str(events[0])):
+        # Make the touch point available for selected events
+        args.append((lv_point_t, "point"))
+        value.append(lvgl_static.get_touch_relative_to_obj(w.obj))
+    args.extend(EVENT_ARG)
     await automation.build_automation(trigger, args, conf)
     async with LambdaContext(EVENT_ARG, where=tid) as context:
         with LvConditional(is_selected):
             lv_add(trigger.trigger(*value, literal("event")))
     callback = await context.get_lambda()
     event_literals = [_get_event_literal(event) for event in events]
-    if isinstance(events[0], str) and events[0] in DISPLAY_TRIGGERS:
+    if str(events[0]) in DISPLAY_TRIGGERS:
         assert len(events) == 1
         lv.display_add_event_cb(
             lv_expr.obj_get_display(w.obj), callback, event_literals[0], nullptr

@@ -501,14 +501,15 @@ async def _read_stream_lines(
 
 
 @asynccontextmanager
-async def run_binary_and_wait_for_port(
+async def run_binary(
     binary_path: Path,
-    host: str,
-    port: int,
-    timeout: float = PORT_WAIT_TIMEOUT,
     line_callback: Callable[[str], None] | None = None,
-) -> AsyncGenerator[None]:
-    """Run a binary, wait for it to open a port, and clean up on exit."""
+) -> AsyncGenerator[tuple[asyncio.subprocess.Process, list[str]]]:
+    """Run a binary under a PTY, capture log output, and clean up on exit.
+
+    Yields the running ``Process`` and a live list of captured log lines.
+    No port wait -- callers that need that should use
+    ``run_binary_and_wait_for_port``."""
     # Create a pseudo-terminal to make the binary think it's running interactively
     # This is needed because the ESPHome host logger checks isatty()
     controller_fd, device_fd = pty.openpty()
@@ -535,7 +536,6 @@ async def run_binary_and_wait_for_port(
     controller_transport, _ = await loop.connect_read_pipe(
         lambda: controller_protocol, os.fdopen(controller_fd, "rb", 0)
     )
-    output_reader = controller_reader
 
     if process.returncode is not None:
         raise RuntimeError(
@@ -543,27 +543,59 @@ async def run_binary_and_wait_for_port(
             "Ensure the binary is valid and can run successfully."
         )
 
-    # Wait for the API server to start listening
-    loop = asyncio.get_running_loop()
-    start_time = loop.time()
-
-    # Start collecting output
     stdout_lines: list[str] = []
-    output_tasks: list[asyncio.Task] = []
+    output_task = asyncio.create_task(
+        _read_stream_lines(controller_reader, stdout_lines, sys.stdout, line_callback)
+    )
 
     try:
-        # Read from output stream
-        output_tasks = [
-            asyncio.create_task(
-                _read_stream_lines(
-                    output_reader, stdout_lines, sys.stdout, line_callback
-                )
-            )
-        ]
-
         # Small yield to ensure the process has a chance to start
         await asyncio.sleep(0)
+        yield process, stdout_lines
+    finally:
+        output_task.cancel()
+        result = await asyncio.gather(output_task, return_exceptions=True)
+        if isinstance(result[0], Exception) and not isinstance(
+            result[0], asyncio.CancelledError
+        ):
+            print(f"Error reading from PTY: {result[0]}", file=sys.stderr)
 
+        # Close the PTY transport (Unix only)
+        if controller_transport is not None:
+            controller_transport.close()
+
+        # Cleanup: terminate the process gracefully
+        if process.returncode is None:
+            # Send SIGINT (Ctrl+C) for graceful shutdown
+            process.send_signal(signal.SIGINT)
+            try:
+                await asyncio.wait_for(process.wait(), timeout=SIGINT_TIMEOUT)
+            except TimeoutError:
+                # If SIGINT didn't work, try SIGTERM
+                process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=SIGTERM_TIMEOUT)
+                except TimeoutError:
+                    # Last resort: SIGKILL
+                    process.kill()
+                    await process.wait()
+
+
+@asynccontextmanager
+async def run_binary_and_wait_for_port(
+    binary_path: Path,
+    host: str,
+    port: int,
+    timeout: float = PORT_WAIT_TIMEOUT,
+    line_callback: Callable[[str], None] | None = None,
+) -> AsyncGenerator[None]:
+    """Run a binary, wait for it to open a port, and clean up on exit."""
+    async with run_binary(binary_path, line_callback=line_callback) as (
+        process,
+        stdout_lines,
+    ):
+        loop = asyncio.get_running_loop()
+        start_time = loop.time()
         while loop.time() - start_time < timeout:
             try:
                 # Try to connect to the port
@@ -592,41 +624,6 @@ async def run_binary_and_wait_for_port(
             error_msg += "\n".join(stdout_lines[-100:])  # Last 100 lines
 
         raise TimeoutError(error_msg)
-
-    finally:
-        # Cancel output collection tasks
-        for task in output_tasks:
-            task.cancel()
-        # Wait for tasks to complete and check for exceptions
-        results = await asyncio.gather(*output_tasks, return_exceptions=True)
-        for i, result in enumerate(results):
-            if isinstance(result, Exception) and not isinstance(
-                result, asyncio.CancelledError
-            ):
-                print(
-                    f"Error reading from PTY: {result}",
-                    file=sys.stderr,
-                )
-
-        # Close the PTY transport (Unix only)
-        if controller_transport is not None:
-            controller_transport.close()
-
-        # Cleanup: terminate the process gracefully
-        if process.returncode is None:
-            # Send SIGINT (Ctrl+C) for graceful shutdown
-            process.send_signal(signal.SIGINT)
-            try:
-                await asyncio.wait_for(process.wait(), timeout=SIGINT_TIMEOUT)
-            except TimeoutError:
-                # If SIGINT didn't work, try SIGTERM
-                process.terminate()
-                try:
-                    await asyncio.wait_for(process.wait(), timeout=SIGTERM_TIMEOUT)
-                except TimeoutError:
-                    # Last resort: SIGKILL
-                    process.kill()
-                    await process.wait()
 
 
 @asynccontextmanager

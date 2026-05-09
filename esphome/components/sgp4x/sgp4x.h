@@ -11,8 +11,7 @@
 #include <VOCGasIndexAlgorithm.h>
 #include <NOxGasIndexAlgorithm.h>
 
-namespace esphome {
-namespace sgp4x {
+namespace esphome::sgp4x {
 
 struct SGP4xBaselines {
   int32_t state0;
@@ -134,5 +133,4 @@ class SGP4xComponent : public PollingComponent, public sensor::Sensor, public se
   uint32_t seconds_since_last_store_;
   SGP4xBaselines voc_baselines_storage_;
 };
-}  // namespace sgp4x
-}  // namespace esphome
+}  // namespace esphome::sgp4x

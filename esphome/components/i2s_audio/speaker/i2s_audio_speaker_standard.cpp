@@ -54,7 +54,7 @@ void I2SAudioSpeaker::run_speaker_task() {
       audio::AudioSourceTransferBuffer::create(bytes_to_fill_single_dma_buffer);
 
   if (transfer_buffer != nullptr) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = RingBuffer::create(ring_buffer_size);
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
     if (temp_ring_buffer.use_count() == 1) {
       transfer_buffer->set_source(temp_ring_buffer);
       this->audio_ring_buffer_ = temp_ring_buffer;
@@ -280,6 +280,9 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
   }
 #else
   slot_cfg.slot_bit_width = this->slot_bit_width_;
+  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
+    slot_cfg.ws_width = static_cast<uint32_t>(this->slot_bit_width_);
+  }
 #endif  // USE_ESP32_VARIANT_ESP32
   slot_cfg.slot_mask = slot_mask;
 

@@ -2,8 +2,7 @@
 
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace animation {
+namespace esphome::animation {
 
 Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count,
                      image::ImageType type, image::Transparency transparent)
@@ -71,5 +70,4 @@ void Animation::update_data_start_() {
   this->data_start_ = this->animation_data_start_ + image_size * this->current_frame_;
 }
 
-}  // namespace animation
-}  // namespace esphome
+}  // namespace esphome::animation
