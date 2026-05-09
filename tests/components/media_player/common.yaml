@@ -61,3 +61,8 @@ media_player:
       - media_player.volume_up:
       - media_player.volume_down:
       - media_player.volume_set: 50%
+      - media_player.enqueue: http://localhost/media.mp3
+      - media_player.enqueue: !lambda 'return "http://localhost/media.mp3";'
+      - media_player.enqueue:
+          media_url: http://localhost/media.mp3
+          announcement: true

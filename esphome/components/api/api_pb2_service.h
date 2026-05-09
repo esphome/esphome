@@ -12,7 +12,7 @@ class APIServerConnectionBase {
  public:
 #ifdef HAS_PROTO_MESSAGE_DUMP
  protected:
-  void log_send_message_(const char *name, const char *dump);
+  void log_send_message_(const LogString *name, const char *dump);
   void log_receive_message_(const LogString *name, const ProtoMessage &msg);
   void log_receive_message_(const LogString *name);
 
@@ -211,7 +211,7 @@ class APIServerConnectionBase {
   void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
 #endif
 
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
   void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &value){};
 #endif
 

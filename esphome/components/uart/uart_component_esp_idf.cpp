@@ -147,6 +147,20 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
+  // uart_param_config must be called after uart_driver_install and before any
+  // other uart_set_*() calls. The driver installation resets the UART peripheral
+  // registers to their default state, overwriting any previously configured baud
+  // rate or framing settings. Calling uart_param_config here ensures the requested
+  // settings are applied after the reset and before pin routing, inversion, and
+  // threshold configuration.
+  uart_config_t uart_config = this->get_config_();
+  err = uart_param_config(this->uart_num_, &uart_config);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
+
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
   int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
@@ -214,18 +228,11 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
+  // Per ESP-IDF docs, uart_set_mode() must be called only after uart_driver_install().
   auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
-  err = uart_set_mode(this->uart_num_, mode);  // per docs, must be called only after uart_driver_install()
+  err = uart_set_mode(this->uart_num_, mode);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
-
-  uart_config_t uart_config = this->get_config_();
-  err = uart_param_config(this->uart_num_, &uart_config);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
@@ -296,7 +303,7 @@ void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
   int32_t write_len = uart_write_bytes(this->uart_num_, data, len);
   if (write_len != (int32_t) len) {
-    ESP_LOGW(TAG, "uart_write_bytes failed: %d != %zu", write_len, len);
+    ESP_LOGW(TAG, "uart_write_bytes failed: %" PRId32 " != %zu", write_len, len);
     this->mark_failed();
   }
 #ifdef USE_UART_DEBUGGER
@@ -324,6 +331,9 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
 }
 
 bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
+  if (len == 0) {
+    return false;
+  }
   size_t length_to_read = len;
   int32_t read_len = 0;
   if (!this->check_read_timeout_(len))
@@ -331,11 +341,10 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   if (this->has_peek_) {
     length_to_read--;
     *data = this->peek_byte_;
-    data++;
     this->has_peek_ = false;
   }
   if (length_to_read > 0)
-    read_len = uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_PERIOD_MS);
+    read_len = uart_read_bytes(this->uart_num_, data + (len - length_to_read), length_to_read, 20 / portTICK_PERIOD_MS);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_RX, data[i]);

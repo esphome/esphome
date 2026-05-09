@@ -11,10 +11,8 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_ble_server {
 // Interface to interact with ESPHome actions and triggers
-namespace esp32_ble_server_automations {
+namespace esphome::esp32_ble_server::esp32_ble_server_automations {
 
 using namespace esp32_ble;
 
@@ -70,6 +68,7 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
  public:
   BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
   TEMPLATABLE_VALUE(std::vector<uint8_t>, buffer)
+  void set_buffer(std::initializer_list<uint8_t> buffer) { this->buffer_ = std::vector<uint8_t>(buffer); }
   void set_buffer(ByteBuffer buffer) { this->set_buffer(buffer.get_data()); }
   void play(const Ts &...x) override {
     // If the listener is already set, do nothing
@@ -115,6 +114,7 @@ template<typename... Ts> class BLEDescriptorSetValueAction : public Action<Ts...
  public:
   BLEDescriptorSetValueAction(BLEDescriptor *descriptor) : parent_(descriptor) {}
   TEMPLATABLE_VALUE(std::vector<uint8_t>, buffer)
+  void set_buffer(std::initializer_list<uint8_t> buffer) { this->buffer_ = std::vector<uint8_t>(buffer); }
   void set_buffer(ByteBuffer buffer) { this->set_buffer(buffer.get_data()); }
   void play(const Ts &...x) override { this->parent_->set_value(this->buffer_.value(x...)); }
 
@@ -123,8 +123,6 @@ template<typename... Ts> class BLEDescriptorSetValueAction : public Action<Ts...
 };
 #endif  // USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION
 
-}  // namespace esp32_ble_server_automations
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server::esp32_ble_server_automations
 
 #endif

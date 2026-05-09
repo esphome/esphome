@@ -160,9 +160,13 @@ struct ClientStateCounts {
   uint8_t connecting = 0;
   uint8_t discovered = 0;
   uint8_t disconnecting = 0;
+  // CONNECTED + ESTABLISHED clients. Tracked so coex stays at PREFER_BT
+  // while active connections may still need to send/receive GATT traffic.
+  uint8_t active = 0;
 
   bool operator==(const ClientStateCounts &other) const {
-    return connecting == other.connecting && discovered == other.discovered && disconnecting == other.disconnecting;
+    return connecting == other.connecting && discovered == other.discovered && disconnecting == other.disconnecting &&
+           active == other.active;
   }
 
   bool operator!=(const ClientStateCounts &other) const { return !(*this == other); }
@@ -291,10 +295,6 @@ class ESPBTClient : public ESPBTDeviceListener {
 };
 
 class ESP32BLETracker : public Component,
-                        public GAPEventHandler,
-                        public GAPScanEventHandler,
-                        public GATTcEventHandler,
-                        public BLEStatusEventHandler,
 #ifdef USE_OTA_STATE_LISTENER
                         public ota::OTAGlobalStateListener,
 #endif
@@ -325,11 +325,10 @@ class ESP32BLETracker : public Component,
   void start_scan();
   void stop_scan();
 
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override;
-  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
-  void gap_scan_event_handler(const BLEScanResult &scan_result) override;
-  void ble_before_disabled_event_handler() override;
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
+  void gap_scan_event_handler(const BLEScanResult &scan_result);
+  void ble_before_disabled_event_handler();
 
 #ifdef USE_OTA_STATE_LISTENER
   void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
@@ -386,6 +385,10 @@ class ESP32BLETracker : public Component,
         case ClientState::CONNECTING:
           counts.connecting++;
           break;
+        case ClientState::CONNECTED:
+        case ClientState::ESTABLISHED:
+          counts.active++;
+          break;
         default:
           break;
       }
@@ -436,6 +439,9 @@ class ESP32BLETracker : public Component,
   ScannerState scanner_state_{ScannerState::IDLE};
   bool scan_continuous_;
   bool scan_active_;
+#ifdef USE_OTA_STATE_LISTENER
+  bool scan_continuous_before_ota_{false};
+#endif
   bool ble_was_disabled_{true};
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};

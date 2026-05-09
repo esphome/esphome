@@ -4,8 +4,8 @@
 #include "../nextion_component.h"
 #include "../nextion_base.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
+
 class NextionSwitch;
 
 class NextionSwitch : public NextionComponent, public switch_::Switch, public PollingComponent {
@@ -21,7 +21,7 @@ class NextionSwitch : public NextionComponent, public switch_::Switch, public Po
   void set_state(bool state, bool publish, bool send_to_nextion) override;
 
   void send_state_to_nextion() override { this->set_state(this->state, false, true); };
-  NextionQueueType get_queue_type() override { return NextionQueueType::SWITCH; }
+  NextionQueueType get_queue_type() const override { return NextionQueueType::SWITCH; }
   void set_state_from_string(const std::string &state_value, bool publish, bool send_to_nextion) override {}
   void set_state_from_int(int state_value, bool publish, bool send_to_nextion) override {
     this->set_state(state_value != 0, publish, send_to_nextion);
@@ -30,5 +30,4 @@ class NextionSwitch : public NextionComponent, public switch_::Switch, public Po
  protected:
   void write_state(bool state) override;
 };
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

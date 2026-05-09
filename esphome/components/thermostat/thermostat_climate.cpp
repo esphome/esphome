@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome::thermostat {
 
@@ -332,15 +333,7 @@ climate::ClimateTraits ThermostatClimate::traits() {
     traits.add_supported_preset(entry.preset);
   }
 
-  // Extract custom preset names from the custom_preset_config_ vector
-  if (!this->custom_preset_config_.empty()) {
-    std::vector<const char *> custom_preset_names;
-    custom_preset_names.reserve(this->custom_preset_config_.size());
-    for (const auto &entry : this->custom_preset_config_) {
-      custom_preset_names.push_back(entry.name);
-    }
-    traits.set_supported_custom_presets(custom_preset_names);
-  }
+  // Custom presets are stored on Climate base class and wired via get_traits()
 
   return traits;
 }
@@ -606,6 +599,16 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
 }
 
 void ThermostatClimate::switch_to_supplemental_action_(climate::ClimateAction action) {
+  // Always cancel max-runtime timers and clear exceeded flags when transitioning to idle/off,
+  // even if supplemental_action_ is already idle (early-return path). This prevents a stale
+  // heating_max_runtime_exceeded_ flag from triggering supplemental on the next heating cycle
+  // when HEATING_MAX_RUN_TIME fires while the main action is already IDLE.
+  if (action == climate::CLIMATE_ACTION_OFF || action == climate::CLIMATE_ACTION_IDLE) {
+    this->cancel_timer_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME);
+    this->cancel_timer_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME);
+    this->cooling_max_runtime_exceeded_ = false;
+    this->heating_max_runtime_exceeded_ = false;
+  }
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((action == this->supplemental_action_) && this->setup_complete_) {
     // already in target mode
@@ -975,8 +978,10 @@ void ThermostatClimate::cooling_on_timer_callback_() {
 void ThermostatClimate::fan_mode_timer_callback_() {
   ESP_LOGVV(TAG, "fan_mode timer expired");
   this->switch_to_fan_mode_(this->fan_mode.value_or(climate::CLIMATE_FAN_ON));
-  if (this->supports_fan_only_action_uses_fan_mode_timer_)
+  if (this->supports_fan_only_action_uses_fan_mode_timer_) {
     this->switch_to_action_(this->compute_action_());
+    this->switch_to_supplemental_action_(this->compute_supplemental_action_());
+  }
 }
 
 void ThermostatClimate::fanning_off_timer_callback_() {
@@ -1293,6 +1298,13 @@ void ThermostatClimate::set_preset_config(std::initializer_list<PresetEntry> pre
 
 void ThermostatClimate::set_custom_preset_config(std::initializer_list<CustomPresetEntry> presets) {
   this->custom_preset_config_ = presets;
+  // Populate Climate base class custom presets vector
+  std::vector<const char *> names;
+  names.reserve(presets.size());
+  for (const auto &entry : this->custom_preset_config_) {
+    names.push_back(entry.name);
+  }
+  this->set_supported_custom_presets(names);
 }
 
 ThermostatClimate::ThermostatClimate() = default;
@@ -1334,15 +1346,16 @@ void ThermostatClimate::set_timer_duration_in_sec_(ThermostatClimateTimerIndex t
 
     if (elapsed >= new_duration_ms) {
       // Timer should complete immediately (including when new_duration_ms is 0)
-      ESP_LOGVV(TAG, "timer %d completing immediately (elapsed %d >= new %d)", timer_index, elapsed, new_duration_ms);
+      ESP_LOGVV(TAG, "timer %d completing immediately (elapsed %" PRIu32 " >= new %" PRIu32 ")", timer_index, elapsed,
+                new_duration_ms);
       this->timer_[timer_index].active = false;
       // Trigger the timer callback immediately
       this->call_timer_callback_(timer_index);
       return;
     } else {
       // Adjust timer to run for remaining time - keep original start time
-      ESP_LOGVV(TAG, "timer %d adjusted: elapsed %d, new total %d, remaining %d", timer_index, elapsed, new_duration_ms,
-                new_duration_ms - elapsed);
+      ESP_LOGVV(TAG, "timer %d adjusted: elapsed %" PRIu32 ", new total %" PRIu32 ", remaining %" PRIu32, timer_index,
+                elapsed, new_duration_ms, new_duration_ms - elapsed);
       this->timer_[timer_index].time = new_duration_ms;
       return;
     }

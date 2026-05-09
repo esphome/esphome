@@ -6,8 +6,7 @@
 
 const size_t DFPLAYER_READ_BUFFER_LENGTH = 25;  // two messages + some extra
 
-namespace esphome {
-namespace dfplayer {
+namespace esphome::dfplayer {
 
 enum EqPreset {
   NORMAL = 0,
@@ -171,12 +170,4 @@ template<typename... Ts> class DFPlayerIsPlayingCondition : public Condition<Ts.
   bool check(const Ts &...x) override { return this->parent_->is_playing(); }
 };
 
-class DFPlayerFinishedPlaybackTrigger : public Trigger<> {
- public:
-  explicit DFPlayerFinishedPlaybackTrigger(DFPlayer *parent) {
-    parent->add_on_finished_playback_callback([this]() { this->trigger(); });
-  }
-};
-
-}  // namespace dfplayer
-}  // namespace esphome
+}  // namespace esphome::dfplayer

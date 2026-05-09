@@ -3,6 +3,8 @@
 #ifdef USE_SERIAL_PROXY
 
 #include "esphome/core/log.h"
+
+#include <cinttypes>
 #include "esphome/core/util.h"
 
 #ifdef USE_API
@@ -74,7 +76,7 @@ void __attribute__((noinline)) SerialProxy::read_and_send_(size_t available) {
 
 void SerialProxy::dump_config() {
   ESP_LOGCONFIG(TAG,
-                "Serial Proxy [%u]:\n"
+                "Serial Proxy [%" PRIu32 "]:\n"
                 "  Name: %s\n"
                 "  Port Type: %s\n"
                 "  RTS Pin: %s\n"
@@ -89,7 +91,9 @@ void SerialProxy::dump_config() {
 
 void SerialProxy::configure(uint32_t baudrate, bool flow_control, uint8_t parity, uint8_t stop_bits,
                             uint8_t data_size) {
-  ESP_LOGD(TAG, "Configuring serial proxy [%u]: baud=%u, flow_ctrl=%s, parity=%u, stop=%u, data=%u",
+  ESP_LOGD(TAG,
+           "Configuring serial proxy [%" PRIu32 "]: baud=%" PRIu32 ", flow_ctrl=%s, parity=%" PRIu8 ", stop=%" PRIu8
+           ", data=%" PRIu8,
            this->instance_index_, baudrate, YESNO(flow_control), parity, stop_bits, data_size);
 
   auto *uart_comp = this->parent_;
@@ -148,7 +152,7 @@ void SerialProxy::write_from_client(const uint8_t *data, size_t len) {
 void SerialProxy::set_modem_pins(uint32_t line_states) {
   const bool rts = (line_states & SERIAL_PROXY_LINE_STATE_FLAG_RTS) != 0;
   const bool dtr = (line_states & SERIAL_PROXY_LINE_STATE_FLAG_DTR) != 0;
-  ESP_LOGV(TAG, "Setting modem pins [%u]: RTS=%s, DTR=%s", this->instance_index_, ONOFF(rts), ONOFF(dtr));
+  ESP_LOGV(TAG, "Setting modem pins [%" PRIu32 "]: RTS=%s, DTR=%s", this->instance_index_, ONOFF(rts), ONOFF(dtr));
 
   if (this->rts_pin_ != nullptr) {
     this->rts_state_ = rts;
@@ -161,12 +165,12 @@ void SerialProxy::set_modem_pins(uint32_t line_states) {
 }
 
 uint32_t SerialProxy::get_modem_pins() const {
-  return (this->rts_state_ ? SERIAL_PROXY_LINE_STATE_FLAG_RTS : 0u) |
-         (this->dtr_state_ ? SERIAL_PROXY_LINE_STATE_FLAG_DTR : 0u);
+  return (this->rts_state_ ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_RTS) : 0u) |
+         (this->dtr_state_ ? static_cast<uint32_t>(SERIAL_PROXY_LINE_STATE_FLAG_DTR) : 0u);
 }
 
 uart::UARTFlushResult SerialProxy::flush_port() {
-  ESP_LOGV(TAG, "Flushing serial proxy [%u]", this->instance_index_);
+  ESP_LOGV(TAG, "Flushing serial proxy [%" PRIu32 "]", this->instance_index_);
   return this->flush();
 }
 
@@ -180,19 +184,19 @@ void SerialProxy::serial_proxy_request(api::APIConnection *api_connection, api::
       }
       this->api_connection_ = api_connection;
       this->enable_loop();
-      ESP_LOGV(TAG, "API connection subscribed to serial proxy [%u]", this->instance_index_);
+      ESP_LOGV(TAG, "API connection subscribed to serial proxy [%" PRIu32 "]", this->instance_index_);
       break;
     case api::enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
       if (this->api_connection_ != api_connection) {
-        ESP_LOGV(TAG, "API connection is not subscribed to serial proxy [%u]", this->instance_index_);
+        ESP_LOGV(TAG, "API connection is not subscribed to serial proxy [%" PRIu32 "]", this->instance_index_);
         return;
       }
       this->api_connection_ = nullptr;
       this->disable_loop();
-      ESP_LOGV(TAG, "API connection unsubscribed from serial proxy [%u]", this->instance_index_);
+      ESP_LOGV(TAG, "API connection unsubscribed from serial proxy [%" PRIu32 "]", this->instance_index_);
       break;
     default:
-      ESP_LOGW(TAG, "Unknown serial proxy request type: %u", static_cast<uint32_t>(type));
+      ESP_LOGW(TAG, "Unknown serial proxy request type: %" PRIu32, static_cast<uint32_t>(type));
       break;
   }
 }

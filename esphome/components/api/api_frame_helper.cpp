@@ -100,10 +100,17 @@ const LogString *api_error_to_logstr(APIError err) {
   return LOG_STR("UNKNOWN");
 }
 
+#ifdef HELPER_LOG_PACKETS
+void APIFrameHelper::log_packet_sending_(const void *data, uint16_t len) {
+  LOG_PACKET_SENDING(reinterpret_cast<const uint8_t *>(data), len);
+}
+#endif
+
 APIError APIFrameHelper::drain_overflow_and_handle_errors_() {
   if (this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
     int err = errno;
-    if (this->check_socket_write_err_(err) != APIError::WOULD_BLOCK) {
+    if (err != EWOULDBLOCK && err != EAGAIN) {
+      this->state_ = State::FAILED;
       HELPER_LOG("Socket write failed with errno %d", err);
       return APIError::SOCKET_WRITE_FAILED;
     }
@@ -111,45 +118,58 @@ APIError APIFrameHelper::drain_overflow_and_handle_errors_() {
   return APIError::OK;
 }
 
-// Write data to socket, overflow to backlog buffer if LWIP TCP send buffer is full.
-// Returns OK if all data was sent or successfully queued.
-// Returns SOCKET_WRITE_FAILED on hard error (sets state to FAILED).
-APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
+// Single-buffer write path: wraps in iovec and delegates.
+APIError APIFrameHelper::write_raw_buf_(const void *data, uint16_t len, ssize_t sent) {
+  struct iovec iov = {const_cast<void *>(data), len};
+  APIError err = this->write_raw_iov_(&iov, 1, len, sent);
 #ifdef HELPER_LOG_PACKETS
-  for (int i = 0; i < iovcnt; i++) {
-    LOG_PACKET_SENDING(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
-  }
+  // Log after write/enqueue so re-entrant log sends can't corrupt data before it's sent
+  if (err == APIError::OK)
+    LOG_PACKET_SENDING(reinterpret_cast<const uint8_t *>(data), len);
 #endif
+  return err;
+}
 
-  uint16_t skip = 0;
-
-  // Drain any existing backlog first
-  if (!this->overflow_buf_.empty()) [[unlikely]] {
-    APIError err = this->drain_overflow_and_handle_errors_();
-    if (err != APIError::OK)
-      return err;
-  }
-
-  // If backlog is clear, try direct send
-  if (this->overflow_buf_.empty()) [[likely]] {
-    ssize_t sent =
-        (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
-
-    if (sent == -1) [[unlikely]] {
+// Handles partial writes, errors, and overflow buffering.
+// Called when the inline fast path couldn't complete the write,
+// or directly from cold paths (handshake, error handling).
+APIError APIFrameHelper::write_raw_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent) {
+  if (sent <= 0) {
+    if (sent == WRITE_NOT_ATTEMPTED) {
+      // Cold path: no write attempted yet, drain overflow and try
+      if (!this->overflow_buf_.empty()) {
+        APIError err = this->drain_overflow_and_handle_errors_();
+        if (err != APIError::OK)
+          return err;
+      }
+      if (this->overflow_buf_.empty()) {
+        sent = this->write_iov_to_socket_(iov, iovcnt);
+        if (sent == static_cast<ssize_t>(total_write_len))
+          return APIError::OK;
+        // Partial write or -1: fall through to error check / enqueue below
+      } else {
+        // Overflow backlog remains after drain; skip socket write, enqueue everything
+        sent = 0;
+      }
+    }
+    // WRITE_FAILED (-1): fast path or retry write returned -1, check errno
+    if (sent == WRITE_FAILED) {
       int err = errno;
-      if (this->check_socket_write_err_(err) != APIError::WOULD_BLOCK) {
+      if (err != EWOULDBLOCK && err != EAGAIN) {
+        this->state_ = State::FAILED;
         HELPER_LOG("Socket write failed with errno %d", err);
         return APIError::SOCKET_WRITE_FAILED;
       }
-    } else if (static_cast<uint16_t>(sent) >= total_write_len) [[likely]] {
-      return APIError::OK;
-    } else {
-      skip = static_cast<uint16_t>(sent);
+      sent = 0;  // Treat WOULD_BLOCK as zero bytes sent
     }
   }
 
+  // Full write completed (possible when called directly, not via write_raw_fast_buf_)
+  if (sent == static_cast<ssize_t>(total_write_len))
+    return APIError::OK;
+
   // Queue unsent data into overflow buffer
-  if (!this->overflow_buf_.enqueue_iov(iov, iovcnt, total_write_len, skip)) {
+  if (!this->overflow_buf_.enqueue_iov(iov, iovcnt, total_write_len, static_cast<uint16_t>(sent))) {
     HELPER_LOG("Overflow buffer full, dropping connection");
     this->state_ = State::FAILED;
     return APIError::SOCKET_WRITE_FAILED;

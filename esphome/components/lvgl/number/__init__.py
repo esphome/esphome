@@ -12,7 +12,7 @@ from ..lvcode import (
     UPDATE_EVENT,
     LambdaContext,
     ReturnStatement,
-    lv,
+    lv_obj,
     lvgl_static,
 )
 from ..types import LV_EVENT, LvNumber, lvgl_ns
@@ -40,7 +40,7 @@ async def to_code(config):
         await widget.set_property(
             "value", MockObj("v") * MockObj(widget.get_scale()), config[CONF_ANIMATED]
         )
-        lv.event_send(widget.obj, API_EVENT, cg.nullptr)
+        lv_obj.send_event(widget.obj, API_EVENT, cg.nullptr)
     event_code = (
         LV_EVENT.VALUE_CHANGED
         if not config[CONF_UPDATE_ON_RELEASE]

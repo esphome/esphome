@@ -44,3 +44,13 @@ test_list:
   - '{ ${position.x}, ${position.y} }'
   - a: ${a} should be 15, overridden from command line
     b: ${b} should stay as 20, not overridden
+
+  # Test merging lists when substituted keys resolve to an existing key
+  - ${ "aa" }: [1, 2, 3]
+    ${ "a" + "a" }: [4, 5, 6]
+    ${ "bb" }: [7, 8, 9]
+
+  # Test merging dicts when substituted keys resolve to an existing key
+  - ${ "aa" }: {"x": 1, "y": 2}
+    ${ "a" + "a" }: {"y": 3, "z": 4}
+    ${ "bb" }: {"w": 5}

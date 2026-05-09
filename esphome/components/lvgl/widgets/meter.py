@@ -56,11 +56,11 @@ from ..lv_validation import (
     lv_float,
     lv_image,
     lv_int,
+    lv_positive_int,
     opacity,
     padding,
     pixels,
     pixels_or_percent,
-    pixels_or_percent_validator,
     requires_component,
     size,
 )
@@ -73,12 +73,13 @@ from ..types import (
     LvType,
     ObjUpdateAction,
     lv_event_t,
-    lv_img_t,
+    lv_image_t,
     lv_obj_t,
 )
 from . import Widget, WidgetType, get_widgets, widget_to_code
 from .arc import CONF_ARC
 from .img import CONF_IMAGE
+from .label import CONF_LABEL
 from .line import CONF_LINE
 
 CONF_ANGLE_RANGE = "angle_range"
@@ -87,7 +88,10 @@ CONF_COLOR_START = "color_start"
 CONF_DRAW_TICKS_ON_TOP = "draw_ticks_on_top"
 CONF_IMAGE_ID = "image_id"
 CONF_INDICATORS = "indicators"
+CONF_DASH_GAP = "dash_gap"
+CONF_DASH_WIDTH = "dash_width"
 CONF_LINE_ID = "line_id"
+CONF_ROUNDED = "rounded"
 CONF_LABEL_GAP = "label_gap"
 CONF_MAJOR = "major"
 CONF_METER = "meter"
@@ -134,9 +138,12 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): cv.int_,
         cv.Optional(CONF_COLOR, default=0): lv_color,
+        cv.Optional(CONF_ROUNDED, default=True): lv_bool,
+        cv.Optional(CONF_DASH_GAP): lv_positive_int,
+        cv.Optional(CONF_DASH_WIDTH): lv_positive_int,
         cv.Optional(CONF_R_MOD): padding,
-        cv.Optional(CONF_LENGTH): pixels_or_percent_validator,
-        cv.Optional(CONF_RADIAL_OFFSET, 0): pixels_or_percent_validator,
+        cv.Optional(CONF_LENGTH): pixels_or_percent,
+        cv.Optional(CONF_RADIAL_OFFSET): pixels_or_percent,
         cv.Optional(CONF_VALUE, default=0.0): lv_float,
         cv.Optional(CONF_OPA, default=1.0): opacity,
     }
@@ -204,7 +211,7 @@ INDICATOR_SCHEMA = cv.Schema(
             INDICATOR_IMG_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(lv_meter_indicator_image_t),
-                    cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(lv_img_t),
+                    cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(lv_image_t),
                 }
             ),
             requires_component("image"),
@@ -222,24 +229,43 @@ INDICATOR_SCHEMA = cv.Schema(
     }
 )
 
+
+def _scale_validate(config):
+    if indicators := config.get(CONF_INDICATORS):
+        style_index = next(
+            (
+                i
+                for i, indicator in enumerate(indicators)
+                if CONF_TICK_STYLE in indicator
+            ),
+            -1,
+        )
+        if style_index >= 0 and CONF_TICKS not in config:
+            raise cv.Invalid(
+                "'tick_style' can't be applied if the enclosing scale has no 'ticks' configured",
+                path=[CONF_INDICATORS, style_index],
+            )
+    return config
+
+
 SCALE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(lv_scale_t),
         cv.Optional(CONF_TICKS): cv.Schema(
             {
-                cv.Optional(CONF_COUNT, default=12): cv.positive_int,
+                cv.Optional(CONF_COUNT, default=12): cv.int_range(min=2),
                 cv.Optional(CONF_WIDTH, default=2): cv.positive_int,
-                cv.Optional(CONF_LENGTH, default=10): size,
-                cv.Optional(CONF_RADIAL_OFFSET, default=0): size,
+                cv.Optional(CONF_LENGTH, default=10): cv.positive_int,
+                cv.Optional(CONF_RADIAL_OFFSET): cv.positive_int,
                 cv.Optional(CONF_COLOR, default=0x808080): lv_color,
                 cv.Optional(CONF_MAJOR): cv.Schema(
                     {
                         cv.Optional(CONF_STRIDE, default=3): cv.positive_int,
                         cv.Optional(CONF_WIDTH, default=5): size,
-                        cv.Optional(CONF_LENGTH, default="15%"): size,
-                        cv.Optional(CONF_RADIAL_OFFSET, default=0): size,
+                        cv.Optional(CONF_LENGTH, default=12): cv.positive_int,
+                        cv.Optional(CONF_RADIAL_OFFSET): cv.positive_int,
                         cv.Optional(CONF_COLOR, default=0): lv_color,
-                        cv.Optional(CONF_LABEL_GAP, default=4): size,
+                        cv.Optional(CONF_LABEL_GAP, default=4): cv.int_,
                     }
                 ),
             }
@@ -251,7 +277,7 @@ SCALE_SCHEMA = cv.Schema(
         cv.Optional(CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
         cv.Optional(CONF_DRAW_TICKS_ON_TOP, default=True): bool,
     }
-)
+).add_extra(_scale_validate)
 
 METER_SCHEMA = {
     cv.Optional(CONF_PIVOT): STATE_SCHEMA,
@@ -259,17 +285,14 @@ METER_SCHEMA = {
     cv.Optional(CONF_SCALES): cv.ensure_list(SCALE_SCHEMA),
 }
 
+# Only handling light style at the moment
 LIGHT_STYLE = LVStyle(
     "lv_meter_light",
     {
         "bg_opa": 1.0,
-        "bg_color": 0xEEEEEE,
-        "line_width": 1,
-        "line_color": 0xEEEEEE,
-        "arc_width": 2,
-        "arc_color": 0xEEEEEE,
+        "bg_color": 0xFFFFFF,
         "pad_all": 10,
-        "border_width": 2,
+        "border_width": 3,
         "border_color": 0xEEEEEE,
         "radius": "LV_RADIUS_CIRCLE",
     },
@@ -329,7 +352,7 @@ class MeterType(WidgetType):
         )
 
     def get_uses(self):
-        return CONF_SCALE, CONF_LINE, CONF_IMAGE
+        return CONF_SCALE, CONF_LINE, CONF_IMAGE, CONF_LABEL
 
     def validate(self, value):
         return cv.has_at_most_one_key(CONF_INDICATOR, CONF_PIVOT)(value)
@@ -449,11 +472,15 @@ class MeterType(WidgetType):
                         CONF_OPA: v[CONF_OPA],
                         CONF_LINE_WIDTH: v[CONF_WIDTH],
                         "line_color": v[CONF_COLOR],
-                        "line_rounded": True,
+                        "line_rounded": v[CONF_ROUNDED],
                         CONF_ALIGN: CHILD_ALIGNMENTS.TOP_LEFT,
                         CONF_LENGTH: length,
-                        CONF_RADIAL_OFFSET: v[CONF_RADIAL_OFFSET],
                     }
+                    if radial_offset := v.get(CONF_RADIAL_OFFSET):
+                        props[CONF_RADIAL_OFFSET] = radial_offset
+                    for option in (CONF_DASH_WIDTH, CONF_DASH_GAP):
+                        if option in v:
+                            props["line_" + option] = v[option]
                     lw = await widget_to_code(props, line_indicator_type, scale_var)
                     await set_indicator_values(lw, v)
 
@@ -461,10 +488,8 @@ class MeterType(WidgetType):
                     add_lv_use(CONF_IMAGE)
                     src = v[CONF_SRC]
                     src_data = get_image_metadata(src.id)
-                    pivot_x = await pixels.process(v[CONF_PIVOT_X])
-                    pivot_y = await pixels.process(
-                        v.get(CONF_PIVOT_Y, src_data.height // 2)
-                    )
+                    pivot_x = v[CONF_PIVOT_X]
+                    pivot_y = v.get(CONF_PIVOT_Y, src_data.height // 2)
                     props = {
                         CONF_X: src_data.width // 2 - pivot_x,
                         "transform_pivot_x": pivot_x,
@@ -478,6 +503,8 @@ class MeterType(WidgetType):
                     await iw.set_property(CONF_SRC, await lv_image.process(src))
                     await set_indicator_values(iw, v)
 
+            # Hide the scale line
+            lv.obj_set_style_arc_opa(scale_var, LV_OPA.TRANSP, LV_PART.MAIN)
             if ticks := scale_conf.get(CONF_TICKS):
                 # Set total tick count
                 lv.scale_set_total_tick_count(scale_var, ticks[CONF_COUNT])
@@ -492,19 +519,18 @@ class MeterType(WidgetType):
                 lv_obj.set_style_line_width(
                     scale_var, await size.process(ticks[CONF_WIDTH]), LV_PART.ITEMS
                 )
-                lv_obj.set_style_radial_offset(
-                    scale_var,
-                    await size.process(ticks[CONF_RADIAL_OFFSET]),
-                    LV_PART.ITEMS,
-                )
+                if radial_offset := ticks.get(CONF_RADIAL_OFFSET):
+                    lv_obj.set_style_radial_offset(
+                        scale_var,
+                        -radial_offset,
+                        LV_PART.ITEMS,
+                    )
                 lv_obj.set_style_line_color(
                     scale_var,
                     await lv_color.process(ticks[CONF_COLOR]),
                     LV_PART.ITEMS,
                 )
 
-                # Hide the scale line
-                lv.obj_set_style_arc_opa(scale_var, LV_OPA.TRANSP, LV_PART.MAIN)
                 if CONF_MAJOR in ticks:
                     major = ticks[CONF_MAJOR]
                     # Set major tick frequency
@@ -519,11 +545,12 @@ class MeterType(WidgetType):
                         await size.process(major[CONF_LENGTH]),
                         LV_PART.INDICATOR,
                     )
-                    lv_obj.set_style_radial_offset(
-                        scale_var,
-                        await size.process(ticks[CONF_RADIAL_OFFSET]),
-                        LV_PART.INDICATOR,
-                    )
+                    if radial_offset := major.get(CONF_RADIAL_OFFSET):
+                        lv_obj.set_style_radial_offset(
+                            scale_var,
+                            -radial_offset,
+                            LV_PART.INDICATOR,
+                        )
                     lv_obj.set_style_line_width(
                         scale_var,
                         await size.process(major[CONF_WIDTH]),
@@ -536,18 +563,19 @@ class MeterType(WidgetType):
                     )
 
                     # Set label gap (padding)
-                    label_gap = await size.process(major[CONF_LABEL_GAP])
-                    if isinstance(label_gap, int):
-                        label_gap -= DEFAULT_LABEL_GAP
                     lv_obj.set_style_pad_radial(
                         scale_var,
-                        label_gap,
+                        major[CONF_LABEL_GAP] - DEFAULT_LABEL_GAP,
                         LV_PART.INDICATOR,
                     )
                 else:
                     lv.scale_set_major_tick_every(scale_var, 0)
             else:
-                lv.scale_set_total_tick_count(scale_var, 0)
+                # Must have at least 2 ticks otherwise the scale isn't even drawn
+                lv.scale_set_total_tick_count(scale_var, 2)
+                # Hide the ticks by making them 0 width
+                lv_obj.set_style_line_width(scale_var, 0, LV_PART.ITEMS)
+                lv.scale_set_major_tick_every(scale_var, 0)
 
         # Add a pivot
         # Get the default style

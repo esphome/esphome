@@ -10,8 +10,7 @@
 
 #include "esphome/components/audio/audio.h"
 
-namespace esphome {
-namespace i2s_audio {
+namespace esphome::i2s_audio {
 
 static const UBaseType_t MAX_LISTENERS = 16;
 
@@ -426,7 +425,6 @@ void I2SAudioMicrophone::loop() {
   }
 }
 
-}  // namespace i2s_audio
-}  // namespace esphome
+}  // namespace esphome::i2s_audio
 
 #endif  // USE_ESP32

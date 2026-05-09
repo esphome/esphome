@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace canbus {
+namespace esphome::canbus {
 
 static const char *const TAG = "canbus";
 
@@ -169,5 +168,4 @@ void Canbus::log_events_(CanEventFlags events) {
 #endif
 }
 
-}  // namespace canbus
-}  // namespace esphome
+}  // namespace esphome::canbus

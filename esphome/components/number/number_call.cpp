@@ -61,7 +61,7 @@ void NumberCall::perform() {
   float max_value = traits.get_max_value();
 
   if (this->operation_ == NUMBER_OP_SET) {
-    ESP_LOGD(TAG, "'%s': Setting value", name);
+    ESP_LOGV(TAG, "'%s': Setting value", name);
     if (!this->value_.has_value() || std::isnan(*this->value_)) {
       this->log_perform_warning_(LOG_STR("No value"));
       return;
@@ -80,7 +80,7 @@ void NumberCall::perform() {
       target_value = max_value;
     }
   } else if (this->operation_ == NUMBER_OP_INCREMENT) {
-    ESP_LOGD(TAG, "'%s': Increment with%s cycling", name, this->cycle_ ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("out"));
+    ESP_LOGV(TAG, "'%s': Increment with%s cycling", name, this->cycle_ ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("out"));
     if (!parent->has_state()) {
       this->log_perform_warning_(LOG_STR("Can't increment, no state"));
       return;
@@ -90,7 +90,7 @@ void NumberCall::perform() {
     if (target_value > max_value)
       target_value = this->cycle_or_clamp_(max_value, min_value);
   } else if (this->operation_ == NUMBER_OP_DECREMENT) {
-    ESP_LOGD(TAG, "'%s': Decrement with%s cycling", name, this->cycle_ ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("out"));
+    ESP_LOGV(TAG, "'%s': Decrement with%s cycling", name, this->cycle_ ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("out"));
     if (!parent->has_state()) {
       this->log_perform_warning_(LOG_STR("Can't decrement, no state"));
       return;
@@ -110,7 +110,7 @@ void NumberCall::perform() {
     return;
   }
 
-  ESP_LOGD(TAG, "  New value: %f", target_value);
+  ESP_LOGV(TAG, "  New value: %f", target_value);
   this->parent_->control(target_value);
 }
 
