@@ -621,7 +621,7 @@ class EsphomeCore:
         # Toolchain used for building the configuration. None until resolved
         # by CLI (--toolchain) or by `esphome.toolchain:` in YAML during
         # preload_core_config; defaults to PLATFORMIO if neither sets it.
-        self.toolchain: Toolchain | None = Toolchain.PLATFORMIO
+        self.toolchain: Toolchain | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
