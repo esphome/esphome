@@ -1041,6 +1041,3 @@ class TestRojaflexChannelZeroBroadcast(unittest.TestCase):
         self.assertEqual(plan["action"], "none")
         self.assertIn("not calibrated", plan["info"])
 
-
-if __name__ == "__main__":
-    unittest.main()

@@ -260,11 +260,11 @@ void RojaflexComponent::on_packet(const std::vector<uint8_t> &payload, float, fl
   this->last_rx_raw_ = frame.raw;
   this->last_rx_info_ = frame.info;
 
-  if (frame.position_source == PositionSource::None) {
+  if (frame.position_source == PositionSource::NONE) {
     return;
   }
 
-  if (frame.position_source == PositionSource::RemoteInferred && this->last_self_tx_ms_ != 0 &&
+  if (frame.position_source == PositionSource::REMOTE_INFERRED && this->last_self_tx_ms_ != 0 &&
       (millis() - this->last_self_tx_ms_) < SELF_TX_ECHO_GUARD_MS) {
     return;
   }
@@ -279,7 +279,7 @@ void RojaflexComponent::on_packet(const std::vector<uint8_t> &payload, float, fl
     this->cancel_position_interpolation_(frame.channel);
   }
 
-  if (frame.position_source == PositionSource::RemoteInferred) {
+  if (frame.position_source == PositionSource::REMOTE_INFERRED) {
     this->cancel_mid_position_timers_(frame.channel, frame.applies_to_all_channels);
     if (frame.applies_to_all_channels) {
       for (uint8_t ch = 0; ch < 16; ch++) {
@@ -290,7 +290,7 @@ void RojaflexComponent::on_packet(const std::vector<uint8_t> &payload, float, fl
     }
   }
 
-  if (frame.position_source == PositionSource::MotorFeedback) {
+  if (frame.position_source == PositionSource::MOTOR_FEEDBACK) {
     this->try_resolve_calibration_(frame.channel, frame.pct);
   }
 }
@@ -315,9 +315,6 @@ bool RojaflexComponent::send_command(uint8_t channel_id, uint8_t cmd_code, bool 
   bool any_tx_ok = false;
   int last_err = 0;
   for (uint8_t r = 0; r < this->tx_repetitions_; r++) {
-    if (r > 0) {
-      delay(80);
-    }
     const auto err = this->transceiver_->transmit_packet(tx_packet);
     this->last_self_tx_ms_ = millis();
     const bool ok = (err == cc1101::CC1101Error::NONE);
@@ -398,27 +395,27 @@ void RojaflexComponent::set_position(uint8_t channel_id, int target_pct) {
   const uint8_t stop_code = static_cast<uint8_t>(Command::STOP);
 
   switch (plan.action) {
-    case Action::None:
+    case Action::NONE:
       ESP_LOGW(TAG, "set_position channel=%u target=%d -> no action (%s)", static_cast<unsigned>(channel_id), plan.target_pct, plan.info);
       return;
-    case Action::Stop:
+    case Action::STOP:
       if (!this->send_command(channel_id, stop_code)) {
         ESP_LOGW(TAG, "set_position channel=%u target=%d -> STOP send failed", static_cast<unsigned>(channel_id), plan.target_pct);
       }
       return;
-    case Action::UpToEnd:
+    case Action::UP_TO_END:
       if (!this->send_command(channel_id, up_code)) {
         ESP_LOGW(TAG, "set_position channel=%u target=%d -> UP send failed", static_cast<unsigned>(channel_id), plan.target_pct);
       }
       return;
-    case Action::DownToEnd:
+    case Action::DOWN_TO_END:
       if (!this->send_command(channel_id, down_code)) {
         ESP_LOGW(TAG, "set_position channel=%u target=%d -> DOWN send failed", static_cast<unsigned>(channel_id), plan.target_pct);
       }
       return;
-    case Action::UpThenStop:
-    case Action::DownThenStop: {
-      const bool going_up = (plan.action == Action::UpThenStop);
+    case Action::UP_THEN_STOP:
+    case Action::DOWN_THEN_STOP: {
+      const bool going_up = (plan.action == Action::UP_THEN_STOP);
       if (!this->send_command(channel_id, going_up ? up_code : down_code, false)) {
         ESP_LOGW(TAG, "set_position channel=%u target=%d -> initial move send failed", static_cast<unsigned>(channel_id), plan.target_pct);
         return;

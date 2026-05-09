@@ -1,5 +1,6 @@
 #include "rojaflex_text_sensor.h"
 
+#include <cstdio>
 #include <string>
 
 namespace esphome::rojaflex {
@@ -21,9 +22,16 @@ void RojaflexTextSensor::update() {
     case RojaflexTextSensorType::LAST_RX_INFO:
       this->publish_state(this->parent_->get_last_rx_info());
       break;
-    case RojaflexTextSensorType::LAST_TX_ERROR:
-      this->publish_state(this->parent_->get_last_tx_ok() ? "NONE" : std::to_string(this->parent_->get_last_tx_error()));
+    case RojaflexTextSensorType::LAST_TX_ERROR: {
+      if (this->parent_->get_last_tx_ok()) {
+        this->publish_state("NONE");
+        break;
+      }
+      char error_buf[16];
+      snprintf(error_buf, sizeof(error_buf), "%d", this->parent_->get_last_tx_error());
+      this->publish_state(error_buf);
       break;
+    }
     case RojaflexTextSensorType::CHANNEL_STATUS:
       this->publish_state(this->parent_->get_channel_status(this->channel_));
       break;

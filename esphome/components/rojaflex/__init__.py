@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome import automation
 from esphome.components import cc1101
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_ID
+from esphome.const import CONF_CHANNEL, CONF_COMMAND, CONF_ID
 
 CODEOWNERS = ["@sebastianhofmann"]
 DEPENDENCIES = ["cc1101"]
@@ -11,7 +11,6 @@ CONF_ROJAFLEX_ID = "rojaflex_id"
 CONF_CC1101_ID = "cc1101_id"
 CONF_HOUSECODE = "housecode"
 CONF_TX_REPETITIONS = "tx_repetitions"
-CONF_COMMAND = "command"
 CONF_TARGET_PERCENT = "target_percent"
 
 COMMANDS = {

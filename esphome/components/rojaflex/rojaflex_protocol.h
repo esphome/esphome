@@ -99,9 +99,9 @@ inline AutoLearnResult auto_learn_housecode_step(const std::vector<uint8_t> &pay
 }
 
 enum class PositionSource : uint8_t {
-  None,
-  MotorFeedback,
-  RemoteInferred,
+  NONE,
+  MOTOR_FEEDBACK,
+  REMOTE_INFERRED,
 };
 
 struct P109Frame {
@@ -113,7 +113,7 @@ struct P109Frame {
   uint8_t device_type{0};
   uint8_t cmd{0};
   uint8_t cmd_value{0};
-  PositionSource position_source{PositionSource::None};
+  PositionSource position_source{PositionSource::NONE};
   int pct{0};
   std::string raw;
   std::string info;
@@ -150,14 +150,14 @@ inline P109Frame decode_p109_frame(const std::vector<uint8_t> &payload, const st
   f.housecode_match = true;
 
   if (f.device_type == 0x5) {
-    f.position_source = PositionSource::MotorFeedback;
+    f.position_source = PositionSource::MOTOR_FEEDBACK;
     f.pct = f.cmd_value > 100 ? 100 : f.cmd_value;
   } else if (f.device_type == 0xA) {
     if (f.cmd == 0x1) {
-      f.position_source = PositionSource::RemoteInferred;
+      f.position_source = PositionSource::REMOTE_INFERRED;
       f.pct = 0;
     } else if (f.cmd == 0x8) {
-      f.position_source = PositionSource::RemoteInferred;
+      f.position_source = PositionSource::REMOTE_INFERRED;
       f.pct = 100;
     }
   }
@@ -167,14 +167,14 @@ inline P109Frame decode_p109_frame(const std::vector<uint8_t> &payload, const st
 
 struct ShutterMotionPlan {
   enum class Action : uint8_t {
-    None,
-    Stop,
-    UpToEnd,
-    DownToEnd,
-    UpThenStop,
-    DownThenStop,
+    NONE,
+    STOP,
+    UP_TO_END,
+    DOWN_TO_END,
+    UP_THEN_STOP,
+    DOWN_THEN_STOP,
   };
-  Action action{Action::None};
+  Action action{Action::NONE};
   uint32_t duration_ms{0};
   int target_pct{0};
   const char *info{""};
@@ -190,11 +190,11 @@ inline ShutterMotionPlan compute_shutter_motion_plan(int current_pct, int target
   plan.target_pct = target_pct;
 
   if (target_pct == 0) {
-    plan.action = ShutterMotionPlan::Action::UpToEnd;
+    plan.action = ShutterMotionPlan::Action::UP_TO_END;
     return plan;
   }
   if (target_pct == 100) {
-    plan.action = ShutterMotionPlan::Action::DownToEnd;
+    plan.action = ShutterMotionPlan::Action::DOWN_TO_END;
     return plan;
   }
 
@@ -204,7 +204,7 @@ inline ShutterMotionPlan compute_shutter_motion_plan(int current_pct, int target
   }
 
   if (current_pct == target_pct) {
-    plan.action = ShutterMotionPlan::Action::Stop;
+    plan.action = ShutterMotionPlan::Action::STOP;
     return plan;
   }
 
@@ -215,7 +215,7 @@ inline ShutterMotionPlan compute_shutter_motion_plan(int current_pct, int target
     }
     const uint32_t delta = static_cast<uint32_t>(target_pct - current_pct);
     plan.duration_ms = (delta * static_cast<uint32_t>(time_to_close_s) * 1000u) / 100u;
-    plan.action = ShutterMotionPlan::Action::DownThenStop;
+    plan.action = ShutterMotionPlan::Action::DOWN_THEN_STOP;
   } else {
     if (time_to_open_s < 0) {
       plan.info = "open time not calibrated - drive fully open once";
@@ -223,7 +223,7 @@ inline ShutterMotionPlan compute_shutter_motion_plan(int current_pct, int target
     }
     const uint32_t delta = static_cast<uint32_t>(current_pct - target_pct);
     plan.duration_ms = (delta * static_cast<uint32_t>(time_to_open_s) * 1000u) / 100u;
-    plan.action = ShutterMotionPlan::Action::UpThenStop;
+    plan.action = ShutterMotionPlan::Action::UP_THEN_STOP;
   }
   return plan;
 }
