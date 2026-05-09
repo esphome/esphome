@@ -241,6 +241,9 @@ bool OpenThreadComponent::teardown() {
     otInstance *instance = lock->get_instance();
     otSrpClientClearHostAndServices(instance);
     otSrpClientBuffersFreeAllServices(instance);
+    otThreadSetEnabled(instance, false);
+    otIp6SetEnabled(instance, false);
+    lock->release();
     global_openthread_component = nullptr;
     ESP_LOGD(TAG, "Exit main loop ");
     int error = this->openthread_stop_();

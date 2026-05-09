@@ -5,9 +5,9 @@
 #include "audio.h"
 #include "audio_transfer_buffer.h"
 
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/ring_buffer.h"
 
 #ifdef USE_SPEAKER
 #include "esphome/components/speaker/speaker.h"
@@ -17,8 +17,7 @@
 
 #include <resampler.h>  // esp-audio-libs
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 enum class AudioResamplerState : uint8_t {
   RESAMPLING,  // More data is available to resample
@@ -41,12 +40,12 @@ class AudioResampler {
   /// @brief Adds a source ring buffer for audio data. Takes ownership of the ring buffer in a shared_ptr.
   /// @param input_ring_buffer weak_ptr of a shared_ptr of the sink ring buffer to transfer ownership
   /// @return ESP_OK if successsful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
-  esp_err_t add_source(std::weak_ptr<RingBuffer> &input_ring_buffer);
+  esp_err_t add_source(std::weak_ptr<ring_buffer::RingBuffer> &input_ring_buffer);
 
   /// @brief Adds a sink ring buffer for resampled audio. Takes ownership of the ring buffer in a shared_ptr.
   /// @param output_ring_buffer weak_ptr of a shared_ptr of the sink ring buffer to transfer ownership
   /// @return ESP_OK if successsful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
-  esp_err_t add_sink(std::weak_ptr<RingBuffer> &output_ring_buffer);
+  esp_err_t add_sink(std::weak_ptr<ring_buffer::RingBuffer> &output_ring_buffer);
 
 #ifdef USE_SPEAKER
   /// @brief Adds a sink speaker for decoded audio.
@@ -96,7 +95,6 @@ class AudioResampler {
   std::unique_ptr<esp_audio_libs::resampler::Resampler> resampler_;
 };
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

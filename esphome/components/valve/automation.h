@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "valve.h"
 
-namespace esphome {
-namespace valve {
+namespace esphome::valve {
 
 template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
@@ -121,5 +120,4 @@ class ValveClosedTrigger : public Trigger<> {
   Valve *valve_;
 };
 
-}  // namespace valve
-}  // namespace esphome
+}  // namespace esphome::valve

@@ -4,8 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace mopeka_ble {
+namespace esphome::mopeka_ble {
 
 static const char *const TAG = "mopeka_ble";
 
@@ -86,7 +85,6 @@ bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return false;
 }
 
-}  // namespace mopeka_ble
-}  // namespace esphome
+}  // namespace esphome::mopeka_ble
 
 #endif
