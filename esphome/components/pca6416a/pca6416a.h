@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
 
-namespace esphome {
-namespace pca6416a {
+namespace esphome::pca6416a {
 
 class PCA6416AComponent : public Component,
                           public i2c::I2CDevice,
@@ -72,5 +71,4 @@ class PCA6416AGPIOPin : public GPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace pca6416a
-}  // namespace esphome
+}  // namespace esphome::pca6416a

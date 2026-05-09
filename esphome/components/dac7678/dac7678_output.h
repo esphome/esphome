@@ -5,8 +5,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace dac7678 {
+namespace esphome::dac7678 {
 
 class DAC7678Output;
 
@@ -51,5 +50,4 @@ class DAC7678Output : public Component, public i2c::I2CDevice {
   };
 };
 
-}  // namespace dac7678
-}  // namespace esphome
+}  // namespace esphome::dac7678

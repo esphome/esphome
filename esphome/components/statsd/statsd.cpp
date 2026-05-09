@@ -3,8 +3,8 @@
 #include "statsd.h"
 
 #ifdef USE_NETWORK
-namespace esphome {
-namespace statsd {
+
+namespace esphome::statsd {
 
 // send UDP packet if we reach 1Kb packed size
 // this is needed since statsD does not support fragmented UDP packets
@@ -165,6 +165,6 @@ void StatsdComponent::send_(std::string *out) {
 #endif
 }
 
-}  // namespace statsd
-}  // namespace esphome
+}  // namespace esphome::statsd
+
 #endif

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace hmc5883l {
+namespace esphome::hmc5883l {
 
 enum HMC5883LOversampling {
   HMC5883L_OVERSAMPLING_1 = 0b000,
@@ -65,5 +64,4 @@ class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   HighFrequencyLoopRequester high_freq_;
 };
 
-}  // namespace hmc5883l
-}  // namespace esphome
+}  // namespace esphome::hmc5883l

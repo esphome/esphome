@@ -5,8 +5,7 @@
 
 #include "../m5stack_8angle.h"
 
-namespace esphome {
-namespace m5stack_8angle {
+namespace esphome::m5stack_8angle {
 
 static const uint8_t M5STACK_8ANGLE_NUM_LEDS = 9;
 static const uint8_t M5STACK_8ANGLE_BYTES_PER_LED = 4;
@@ -33,5 +32,4 @@ class M5Stack8AngleLightOutput : public light::AddressableLight, public Parented
   uint8_t *effect_data_{nullptr};
 };
 
-}  // namespace m5stack_8angle
-}  // namespace esphome
+}  // namespace esphome::m5stack_8angle

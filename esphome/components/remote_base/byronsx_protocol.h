@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct ByronSXData {
   uint8_t address;
@@ -42,5 +41,4 @@ template<typename... Ts> class ByronSXAction : public RemoteTransmitterActionBas
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base
