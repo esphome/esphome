@@ -7,8 +7,7 @@
 #include <cmath>
 #include <cstdint>
 
-namespace esphome {
-namespace sound_level {
+namespace esphome::sound_level {
 
 static const char *const TAG = "sound_level";
 
@@ -30,7 +29,7 @@ void SoundLevelComponent::dump_config() {
 
 void SoundLevelComponent::setup() {
   this->microphone_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (this->ring_buffer_.use_count() == 2) {
       // ``audio_buffer_`` and ``temp_ring_buffer`` share ownership of a ring buffer, so its safe/useful to write
       temp_ring_buffer->write((void *) data.data(), data.size());
@@ -173,8 +172,8 @@ bool SoundLevelComponent::start_() {
 
   // Allocates a new ring buffer, adds it as a source for the transfer buffer, and points ring_buffer_ to it
   this->ring_buffer_.reset();  // Reset pointer to any previous ring buffer allocation
-  std::shared_ptr<RingBuffer> temp_ring_buffer =
-      RingBuffer::create(this->microphone_source_->get_audio_stream_info().ms_to_bytes(RING_BUFFER_DURATION_MS));
+  std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(
+      this->microphone_source_->get_audio_stream_info().ms_to_bytes(RING_BUFFER_DURATION_MS));
   if (temp_ring_buffer.use_count() == 0) {
     this->status_momentary_error("ring_buffer", 15000);
     this->stop_();
@@ -190,7 +189,6 @@ bool SoundLevelComponent::start_() {
 
 void SoundLevelComponent::stop_() { this->audio_buffer_.reset(); }
 
-}  // namespace sound_level
-}  // namespace esphome
+}  // namespace esphome::sound_level
 
 #endif

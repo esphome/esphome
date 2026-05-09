@@ -4,6 +4,7 @@
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_transfer_buffer.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/component.h"
@@ -11,8 +12,7 @@
 
 #include <freertos/event_groups.h>
 
-namespace esphome {
-namespace resampler {
+namespace esphome::resampler {
 
 class ResamplerSpeaker : public Component, public speaker::Speaker {
  public:
@@ -76,7 +76,7 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
 
   EventGroupHandle_t event_group_{nullptr};
 
-  std::weak_ptr<RingBuffer> ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
 
   speaker::Speaker *output_speaker_{nullptr};
 
@@ -99,7 +99,6 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   uint64_t callback_remainder_{0};
 };
 
-}  // namespace resampler
-}  // namespace esphome
+}  // namespace esphome::resampler
 
 #endif

@@ -4,8 +4,7 @@
 // Datasheet:
 // - https://datasheets.maximintegrated.com/en/ds/DS1307.pdf
 
-namespace esphome {
-namespace pcf85063 {
+namespace esphome::pcf85063 {
 
 static const char *const TAG = "pcf85063";
 
@@ -99,5 +98,4 @@ bool PCF85063Component::write_rtc_() {
            pcf85063_.reg.day_10, pcf85063_.reg.day, ONOFF(!pcf85063_.reg.osc_stop), pcf85063_.reg.clkout_control);
   return true;
 }
-}  // namespace pcf85063
-}  // namespace esphome
+}  // namespace esphome::pcf85063

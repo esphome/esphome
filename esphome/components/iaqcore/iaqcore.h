@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace iaqcore {
+namespace esphome::iaqcore {
 
 class IAQCore : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -23,5 +22,4 @@ class IAQCore : public PollingComponent, public i2c::I2CDevice {
   void publish_nans_();
 };
 
-}  // namespace iaqcore
-}  // namespace esphome
+}  // namespace esphome::iaqcore

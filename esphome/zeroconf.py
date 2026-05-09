@@ -14,7 +14,12 @@ from zeroconf import (
 )
 from zeroconf.asyncio import AsyncServiceBrowser, AsyncServiceInfo, AsyncZeroconf
 
+from esphome.async_thread import AsyncThreadRunner
 from esphome.storage_json import StorageJSON, ext_storage_path
+
+# Length of the MAC suffix appended when name_add_mac_suffix is enabled.
+MAC_SUFFIX_LEN = 6
+_HEX_CHARS = frozenset("0123456789abcdef")
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,6 +60,18 @@ TXT_RECORD_VERSION = b"version"
 
 @dataclass
 class DiscoveredImport:
+    """An importable device discovered via mDNS ``_esphomelib._tcp.local.``.
+
+    Used by:
+    - esphome.dashboard (legacy dashboard)
+    - device-builder (esphome/device-builder) — surfaces these as
+      "discovered devices" on the new dashboard's adoption flow.
+
+    Fields are populated from TXT records on the broadcast service
+    info (see :class:`DashboardImportDiscovery`). Coordinate before
+    adding/removing fields — both consumers persist them.
+    """
+
     friendly_name: str | None
     device_name: str
     package_import_url: str
@@ -68,6 +85,22 @@ class DashboardBrowser(AsyncServiceBrowser):
 
 
 class DashboardImportDiscovery:
+    """Track importable devices announcing on ``_esphomelib._tcp.local.``.
+
+    Used by:
+    - esphome.dashboard (legacy dashboard)
+    - device-builder (esphome/device-builder) — wired up alongside
+      the dashboard's own ``ServiceBrowser`` to populate the
+      "Discovered devices" panel and the adoption flow.
+
+    The class maintains ``import_state: dict[str, DiscoveredImport]``
+    keyed by the mDNS service name. ``on_update`` is invoked with
+    ``(name, info | None)`` for additions and removals; update events
+    refresh ``import_state`` without firing the callback.
+    Coordinate before changing the callback signature or the keys
+    of ``import_state`` — device-builder reads both directly.
+    """
+
     def __init__(
         self, on_update: Callable[[str, DiscoveredImport | None], None] | None = None
     ) -> None:
@@ -188,15 +221,190 @@ class EsphomeZeroconf(Zeroconf):
         return None
 
 
+async def async_resolve_hosts(
+    zeroconf: Zeroconf, hosts: list[str], timeout: float = DEFAULT_TIMEOUT
+) -> dict[str, list[str]]:
+    """Resolve ``hosts`` to IPs using a shared ``Zeroconf`` instance.
+
+    Tries the cache synchronously first (so hosts already primed by a recent
+    browse return immediately with no network round-trip), then issues
+    ``async_request`` for the remaining misses in parallel via
+    ``asyncio.gather``. Returns a dict mapping each host to its list of
+    addresses (empty list when unresolved). Only ``<short>.local`` form is
+    queried, matching the name scheme the resolvers below expect.
+    """
+    resolvers: dict[str, AddressResolver] = {}
+    pending: list[str] = []
+    for host in hosts:
+        resolver = AddressResolver(f"{host.partition('.')[0]}.local.")
+        resolvers[host] = resolver
+        if not resolver.load_from_cache(zeroconf):
+            pending.append(host)
+
+    if pending and timeout:
+        results = await asyncio.gather(
+            *(
+                resolvers[host].async_request(zeroconf, timeout * 1000)
+                for host in pending
+            ),
+            return_exceptions=True,
+        )
+        for host, result in zip(pending, results):
+            if isinstance(result, BaseException):
+                _LOGGER.debug("Failed to resolve %s: %s", host, result)
+
+    return {
+        host: resolver.parsed_scoped_addresses(IPVersion.All)
+        for host, resolver in resolvers.items()
+    }
+
+
 class AsyncEsphomeZeroconf(AsyncZeroconf):
+    """ESPHome-tuned ``AsyncZeroconf`` with a hostname-resolve helper.
+
+    Used by:
+    - esphome.dashboard (legacy dashboard)
+    - device-builder (esphome/device-builder) — drives both the live
+      mDNS browser and the per-sweep ``async_resolve_host`` fallback
+      for non-API devices that don't broadcast esphomelib.
+
+    Coordinate before adding required constructor args or changing
+    the ``async_resolve_host`` signature — device-builder calls it
+    on every ping cycle.
+    """
+
     async def async_resolve_host(
         self, host: str, timeout: float = DEFAULT_TIMEOUT
     ) -> list[str] | None:
         """Resolve a host name to an IP address."""
-        info = AddressResolver(f"{host.partition('.')[0]}.local.")
-        if (
-            info.load_from_cache(self.zeroconf)
-            or (timeout and await info.async_request(self.zeroconf, timeout * 1000))
-        ) and (addresses := info.parsed_scoped_addresses(IPVersion.All)):
-            return addresses
-        return None
+        addresses = (await async_resolve_hosts(self.zeroconf, [host], timeout))[host]
+        return addresses or None
+
+
+def _is_mac_suffix_match(device_name: str, prefix: str) -> bool:
+    """Return True if ``device_name`` is ``prefix`` followed by a 6-char hex MAC."""
+    if not device_name.startswith(prefix):
+        return False
+    suffix = device_name[len(prefix) :]
+    return len(suffix) == MAC_SUFFIX_LEN and all(c in _HEX_CHARS for c in suffix)
+
+
+async def async_discover_mdns_devices(
+    base_name: str, timeout: float = 5.0
+) -> dict[str, list[str]]:
+    """Discover ESPHome devices via mDNS that match the base name + MAC suffix.
+
+    When ``name_add_mac_suffix`` is enabled, devices advertise as
+    ``<base_name>-<6-hex-mac>.local``. This function uses a single
+    ``AsyncEsphomeZeroconf`` lifecycle to both browse for matching services and
+    resolve their IP addresses, so callers get resolved addresses without
+    opening a second Zeroconf client.
+
+    Args:
+        base_name: The base device name (without MAC suffix).
+        timeout: How long to wait for mDNS responses (default 5 seconds).
+
+    Returns:
+        Mapping of ``<device>.local`` hostnames to their resolved IP addresses
+        (may be empty for a device if resolution failed within the timeout).
+    """
+    prefix = f"{base_name}-"
+    # Preserves insertion order for stable output and deduplicates
+    discovered: dict[str, list[str]] = {}
+
+    def on_service_state_change(
+        zeroconf: Zeroconf,
+        service_type: str,
+        name: str,
+        state_change: ServiceStateChange,
+    ) -> None:
+        if state_change not in (ServiceStateChange.Added, ServiceStateChange.Updated):
+            return
+        device_name = name.partition(".")[0]
+        if not _is_mac_suffix_match(device_name, prefix):
+            _LOGGER.debug(
+                "Ignoring %s (%s): does not match '%s<6-hex>'",
+                device_name,
+                state_change.name,
+                prefix,
+            )
+            return
+        host = f"{device_name}.local"
+        if host in discovered:
+            return
+        discovered[host] = []
+        _LOGGER.debug("Discovered %s (%s)", host, state_change.name)
+
+    _LOGGER.debug(
+        "Starting mDNS discovery for '%s<mac>.local' (timeout=%.1fs)",
+        prefix,
+        timeout,
+    )
+    try:
+        aiozc = AsyncEsphomeZeroconf()
+    except Exception as err:  # pylint: disable=broad-except
+        # Zeroconf init can raise OSError, NonUniqueNameException, etc.
+        # Any failure here just means we can't discover — log and move on.
+        _LOGGER.warning("mDNS discovery failed to initialize: %s", err)
+        return {}
+
+    try:
+        browser = AsyncServiceBrowser(
+            aiozc.zeroconf,
+            ESPHOME_SERVICE_TYPE,
+            handlers=[on_service_state_change],
+        )
+        try:
+            await asyncio.sleep(timeout)
+        finally:
+            await browser.async_cancel()
+        _LOGGER.debug(
+            "Browse finished: %d device(s) matched '%s<mac>'",
+            len(discovered),
+            prefix,
+        )
+
+        # Resolve each discovered hostname on the SAME Zeroconf instance so
+        # we don't spin up a second client. ``async_resolve_hosts`` tries the
+        # cache synchronously (the browse usually primes it) before issuing
+        # any ``async_request`` in parallel for misses.
+        resolved = await async_resolve_hosts(aiozc.zeroconf, list(discovered))
+        for host, addresses in resolved.items():
+            if addresses:
+                discovered[host] = addresses
+                _LOGGER.debug("Resolved %s -> %s", host, addresses)
+            else:
+                _LOGGER.debug("No addresses returned for %s", host)
+    finally:
+        await aiozc.async_close()
+
+    return dict(sorted(discovered.items()))
+
+
+def _await_discovery(
+    runner: AsyncThreadRunner[dict[str, list[str]]], timeout: float
+) -> dict[str, list[str]]:
+    """Wait for ``runner`` to finish and return its discovery result.
+
+    Split out of :func:`discover_mdns_devices` so the timeout branch is
+    testable without patching ``asyncio`` or ``threading`` internals — a test
+    passes a stub whose ``event.wait`` returns ``False``.
+    """
+    # Give the discovery an extra second over the browse timeout for the
+    # resolution + cleanup pass.
+    if not runner.event.wait(timeout=timeout + 2.0):
+        _LOGGER.warning("mDNS discovery timed out after %.1fs", timeout)
+        return {}
+    if runner.exception is not None:
+        _LOGGER.warning("mDNS discovery failed: %s", runner.exception)
+        return {}
+    return runner.result or {}
+
+
+def discover_mdns_devices(base_name: str, timeout: float = 5.0) -> dict[str, list[str]]:
+    """Synchronous wrapper around :func:`async_discover_mdns_devices`."""
+    runner = AsyncThreadRunner(
+        lambda: async_discover_mdns_devices(base_name, timeout=timeout)
+    )
+    runner.start()
+    return _await_discovery(runner, timeout)

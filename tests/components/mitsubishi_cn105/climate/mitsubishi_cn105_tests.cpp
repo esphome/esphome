@@ -341,6 +341,17 @@ TEST(MitsubishiCN105Tests, ApplySettingsTemperatureEncodedB) {
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB4, 0x00, 0xC5));
 }
 
+TEST(MitsubishiCN105Tests, ApplySettingsHalfDegreeTemperatureEncodedB) {
+  auto ctx = TestContext{};
+
+  ctx.sut.use_temperature_encoding_b_ = true;
+  ctx.sut.set_target_temperature(26.5f);
+  ctx.sut.apply_settings();
+
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB5, 0x00, 0xC4));
+}
+
 TEST(MitsubishiCN105Tests, ApplyModeCool) {
   auto ctx = TestContext{};
 

@@ -4,8 +4,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace tx20 {
+namespace esphome::tx20 {
 
 static const char *const TAG = "tx20";
 static const uint8_t MAX_BUFFER_SIZE = 41;
@@ -206,5 +205,4 @@ void IRAM_ATTR Tx20ComponentStore::reset() {
   start_time = 0;
 }
 
-}  // namespace tx20
-}  // namespace esphome
+}  // namespace esphome::tx20

@@ -4,8 +4,7 @@
 /// @date Last Modified: 2024/02/18 15:49:18
 #pragma once
 
-namespace esphome {
-namespace weikai {
+namespace esphome::weikai {
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /// Definition of the WeiKai registers
@@ -300,5 +299,4 @@ constexpr uint8_t WKREG_TFI = 0x08;
 
 /// @}
 /// @}
-}  // namespace weikai
-}  // namespace esphome
+}  // namespace esphome::weikai
