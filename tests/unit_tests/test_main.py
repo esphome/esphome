@@ -24,6 +24,7 @@ from esphome.__main__ import (
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
     _resolve_network_devices,
+    _validate_bootloader_binary,
     _validate_partition_table_binary,
     choose_upload_log_host,
     command_analyze_memory,
@@ -89,7 +90,11 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.espota2 import OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE
+from esphome.espota2 import (
+    OTA_TYPE_UPDATE_APP,
+    OTA_TYPE_UPDATE_BOOTLOADER,
+    OTA_TYPE_UPDATE_PARTITION_TABLE,
+)
 from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
@@ -1127,6 +1132,7 @@ class MockArgs:
     output: str | None = None
     ota_platform: str | None = None
     partition_table: bool = False
+    bootloader: bool = False
 
 
 def test_upload_program_serial_esp32(
@@ -1816,6 +1822,27 @@ def test_validate_partition_table_binary_missing_file(tmp_path: Path) -> None:
         _validate_partition_table_binary(tmp_path / "does-not-exist.bin")
 
 
+def test_validate_bootloader_binary_rejects_wrong_magic(tmp_path: Path) -> None:
+    data = bytearray(_make_bootloader_bytes())
+    data[0] = 0x00
+    f = tmp_path / "bootloader.bin"
+    f.write_bytes(bytes(data))
+    with pytest.raises(EsphomeError, match="magic"):
+        _validate_bootloader_binary(f)
+
+
+def test_validate_bootloader_binary_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(EsphomeError, match="Cannot read bootloader file"):
+        _validate_bootloader_binary(tmp_path / "does-not-exist.bin")
+
+
+def test_validate_bootloader_binary_rejects_empty_file(tmp_path: Path) -> None:
+    f = tmp_path / "bootloader.bin"
+    f.write_bytes(b"")
+    with pytest.raises(EsphomeError, match="is empty"):
+        _validate_bootloader_binary(f)
+
+
 def test_upload_program_ota_partition_table_invalid_file(
     mock_run_ota: Mock,
     mock_get_port_type: Mock,
@@ -1869,7 +1896,155 @@ def test_upload_program_ota_partition_table_without_allow_flag(
 
     with pytest.raises(
         EsphomeError,
-        match="requires 'allow_partition_access: true'",
+        match=(
+            r"The option --partition-table requires 'allow_partition_access: true'.*"
+            r"retry --partition-table"
+        ),
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def _make_bootloader_bytes() -> bytes:
+    """Build a minimal bootloader image accepted by _validate_bootloader_binary."""
+    table = bytearray(b"\xff")
+    # Starts with: ESP_IMAGE_HEADER_MAGIC (0xE9)
+    table[0] = 0xE9
+    return bytes(table)
+
+
+def test_upload_program_ota_bootloader_with_file_arg(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with OTA and bootloader."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    bootloader_file = tmp_path / "bootloader.bin"
+    bootloader_file.write_bytes(_make_bootloader_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(bootloader_file), bootloader=True)
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        bootloader_file,
+        OTA_TYPE_UPDATE_BOOTLOADER,
+    )
+
+
+def test_upload_program_ota_partition_table_and_bootloader_options(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table and --bootloader can't be used together."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file="partitions.bin", partition_table=True, bootloader=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match="--partition-table and --bootloader",
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_ota_bootloader_without_allow_flag(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--bootloader must fail fast when allow_partition_access is not enabled in YAML."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ]
+    }
+    args = MockArgs(file="bootloader.bin", bootloader=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match=(
+            r"The option --bootloader requires 'allow_partition_access: true'.*"
+            r"retry --bootloader"
+        ),
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_ota_bootloader_platform_web_server(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test bootloader upload with web_server OTA."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    bootloader_file = tmp_path / "bootloader.bin"
+    bootloader_file.write_bytes(_make_bootloader_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_WEB_SERVER,
+                CONF_WEB_SERVER: {
+                    CONF_PORT: 80,
+                    CONF_AUTH: {CONF_USERNAME: "admin", CONF_PASSWORD: "pw"},
+                },
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(bootloader_file), bootloader=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match="the web_server OTA path can only update the firmware image",
     ):
         upload_program(config, args, devices)
     mock_run_ota.assert_not_called()
