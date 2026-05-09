@@ -19,6 +19,14 @@ namespace esphome::openthread {
 
 class InstanceLock;
 
+enum class OtcTeardownStage : uint8_t {
+  OTC_TEARDOWN_NOT_STARTED = 0,
+  OTC_TEARDOWN_STARTED,
+  OTC_TEARDOWN_DETACH_COMPLETED,
+  OTC_TEARDOWN_STOP_STARTED,
+  OTC_TEARDOWN_STOP_IN_PROCESS,
+  OTC_TEARDOWN_COMPLETED
+};
 class OpenThreadComponent : public Component {
  public:
   OpenThreadComponent();
@@ -34,6 +42,7 @@ class OpenThreadComponent : public Component {
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
   void ot_main();
+  static void detach_callback(void *context);
   void on_factory_reset(std::function<void()> callback);
   void defer_factory_reset_external_callback();
 
@@ -49,6 +58,7 @@ class OpenThreadComponent : public Component {
    * @pre Call while holding lock
    */
   void apply_linkmode(otInstance *instance);
+  OtcTeardownStage teardown_stage{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
@@ -61,8 +71,6 @@ class OpenThreadComponent : public Component {
 #endif
   std::optional<int8_t> output_power_{};
   std::atomic<bool> lock_initialized_{false};
-  bool teardown_started_{false};
-  bool teardown_complete_{false};
   bool connected_{false};
 
  private:

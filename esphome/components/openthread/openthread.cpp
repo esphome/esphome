@@ -220,26 +220,59 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
 
 bool OpenThreadComponent::teardown() {
-  if (!this->teardown_started_) {
-    this->teardown_started_ = true;
-    ESP_LOGD(TAG, "Clear Srp");
-    auto lock = InstanceLock::try_acquire(100);
-    if (!lock) {
-      ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
+  switch (this->teardown_stage) {
+    case OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED: {
+      // start tearing down
+      this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_STARTED;
+      ESP_LOGV(TAG, "Clear Srp");
+      auto lock = InstanceLock::try_acquire(100);
+      if (!lock) {
+        ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
+        return true;
+      }
+      otInstance *instance = lock->get_instance();
+      otSrpClientClearHostAndServices(instance);
+      otSrpClientBuffersFreeAllServices(instance);
+      otThreadDetachGracefully(instance, OpenThreadComponent::detach_callback, this);
+    } break;
+    case OtcTeardownStage::OTC_TEARDOWN_STARTED:
+      // waiting on callback
+      break;
+    case OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED: {
+      this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_STOP_STARTED;
+      auto lock = InstanceLock::try_acquire(100);
+      if (!lock) {
+        ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
+        return true;
+      }
+      otInstance *instance = lock->get_instance();
+      otThreadSetEnabled(instance, false);
+      otIp6SetEnabled(instance, false);
+    } break;
+    case OtcTeardownStage::OTC_TEARDOWN_STOP_STARTED: {
+      // stop openthread
+      this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_STOP_IN_PROCESS;
+      global_openthread_component = nullptr;
+      ESP_LOGV(TAG, "Stop Openthread");
+      int error = this->openthread_stop_();
+      if (error != ESP_OK) {
+        ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
+        return true;
+      }
+    } break;
+    case OtcTeardownStage::OTC_TEARDOWN_STOP_IN_PROCESS:
+      // waiting on openthread stop
+      break;
+    case OtcTeardownStage::OTC_TEARDOWN_COMPLETED:
+      ESP_LOGV(TAG, "OpenthreadComponent Teardown Complete");
       return true;
-    }
-    otInstance *instance = lock->get_instance();
-    otSrpClientClearHostAndServices(instance);
-    otSrpClientBuffersFreeAllServices(instance);
-    global_openthread_component = nullptr;
-    ESP_LOGD(TAG, "Exit main loop ");
-    int error = this->openthread_stop_();
-    if (error != ESP_OK) {
-      ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
-      this->teardown_complete_ = true;
-    }
   }
-  return this->teardown_complete_;
+  return false;
+}
+
+void OpenThreadComponent::detach_callback(void *context) {
+  OpenThreadComponent *obj = (OpenThreadComponent *) context;
+  obj->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
 }
 
 void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
