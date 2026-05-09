@@ -13,8 +13,7 @@
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 static const char *const TAG = "tuya";
 static const int COMMAND_DELAY = 10;
@@ -760,5 +759,4 @@ void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(Tuya
 
 TuyaInitState Tuya::get_init_state() { return this->init_state_; }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

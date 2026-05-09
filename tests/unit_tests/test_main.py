@@ -24,6 +24,8 @@ from esphome.__main__ import (
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
     _resolve_network_devices,
+    _validate_bootloader_binary,
+    _validate_partition_table_binary,
     choose_upload_log_host,
     command_analyze_memory,
     command_bundle,
@@ -42,6 +44,7 @@ from esphome.__main__ import (
     has_non_ip_address,
     has_ota,
     has_resolvable_address,
+    has_web_server_ota,
     mqtt_get_ip,
     run_esphome,
     run_miniterm,
@@ -53,9 +56,11 @@ from esphome.__main__ import (
 )
 from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
+from esphome.components import esp32
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
+    CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DISABLED,
@@ -74,6 +79,8 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     CONF_USE_ADDRESS,
+    CONF_USERNAME,
+    CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
@@ -83,8 +90,12 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.espota2 import OTA_TYPE_UPDATE_APP
-from esphome.util import BootselResult
+from esphome.espota2 import (
+    OTA_TYPE_UPDATE_APP,
+    OTA_TYPE_UPDATE_BOOTLOADER,
+    OTA_TYPE_UPDATE_PARTITION_TABLE,
+)
+from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
 
@@ -208,6 +219,13 @@ def mock_upload_using_picotool() -> Generator[Mock]:
 def mock_run_ota() -> Generator[Mock]:
     """Mock espota2.run_ota for testing."""
     with patch("esphome.espota2.run_ota") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_run_web_server_ota() -> Generator[Mock]:
+    """Mock web_server_ota.run_ota for testing."""
+    with patch("esphome.web_server_ota.run_ota") as mock:
         yield mock
 
 
@@ -1112,6 +1130,9 @@ class MockArgs:
     reset: bool = False
     list_only: bool = False
     output: str | None = None
+    ota_platform: str | None = None
+    partition_table: bool = False
+    bootloader: bool = False
 
 
 def test_upload_program_serial_esp32(
@@ -1179,8 +1200,8 @@ def test_upload_using_esptool_path_conversion(
     mock_idedata = MagicMock(spec=platformio_api.IDEData)
     mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
     mock_idedata.extra_flash_images = [
-        platformio_api.FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
-        platformio_api.FlashImage(path=tmp_path / "partitions.bin", offset="0x8000"),
+        FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        FlashImage(path=tmp_path / "partitions.bin", offset="0x8000"),
     ]
 
     mock_get_idedata.return_value = mock_idedata
@@ -1257,8 +1278,8 @@ def test_upload_using_esptool_skips_missing_extra_flash_images(
     mock_idedata = MagicMock(spec=platformio_api.IDEData)
     mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
     mock_idedata.extra_flash_images = [
-        platformio_api.FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
-        platformio_api.FlashImage(path=missing_path, offset="0x2d0000"),
+        FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        FlashImage(path=missing_path, offset="0x2d0000"),
     ]
     mock_get_idedata.return_value = mock_idedata
 
@@ -1629,6 +1650,406 @@ def test_upload_program_ota_with_file_arg(
     )
 
 
+_PARTITION_TABLE_LEN = 0xC00
+
+
+def _make_partition_table_bytes() -> bytes:
+    """Build a minimal partition table image accepted by _validate_partition_table_binary."""
+    table = bytearray(b"\xff" * _PARTITION_TABLE_LEN)
+    # First entry: ESP_PARTITION_MAGIC (0x50AA) little-endian -> bytes 0xAA, 0x50.
+    table[0] = 0xAA
+    table[1] = 0x50
+    # MD5 checksum entry at offset 32: ESP_PARTITION_MAGIC_MD5 (0xEBEB) little-endian.
+    table[32] = 0xEB
+    table[33] = 0xEB
+    return bytes(table)
+
+
+def test_upload_program_ota_partition_table_with_file_arg(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with OTA and partition table."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    partition_file = tmp_path / "partitions.bin"
+    partition_file.write_bytes(_make_partition_table_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(partition_file), partition_table=True)
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        partition_file,
+        OTA_TYPE_UPDATE_PARTITION_TABLE,
+    )
+
+
+def test_upload_program_serial_partition_table(
+    mock_upload_using_esptool: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test serial upload with partition table option (unsupported)."""
+    setup_core(platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_upload_using_esptool.return_value = 0
+
+    config = {}
+    args = MockArgs(partition_table=True)
+    devices = ["/dev/ttyUSB0"]
+
+    with pytest.raises(
+        EsphomeError,
+        match="The option --partition-table can only be used for Over The Air updates",
+    ):
+        upload_program(config, args, devices)
+
+
+def test_upload_program_ota_partition_table_mqttip(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table is allowed for MQTTIP devices; they resolve to a real IP at OTA time."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "MQTTIP"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    partition_file = tmp_path / "partitions.bin"
+    partition_file.write_bytes(_make_partition_table_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(partition_file), partition_table=True)
+
+    with patch(
+        "esphome.__main__._resolve_network_devices", return_value=["192.168.1.100"]
+    ):
+        exit_code, host = upload_program(config, args, ["MQTTIP"])
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        partition_file,
+        OTA_TYPE_UPDATE_PARTITION_TABLE,
+    )
+
+
+def test_validate_partition_table_binary_accepts_valid(tmp_path: Path) -> None:
+    f = tmp_path / "partitions.bin"
+    f.write_bytes(_make_partition_table_bytes())
+    _validate_partition_table_binary(f)
+
+
+_PARTITION_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "partition_tables"
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        # Stock ESP-IDF gen_esp32part.py output for an ESPHome build.
+        "esphome_default.bin",
+        # ESP-IDF Hello-world example partition table (vendored from espressif/esp-serial-flasher).
+        "esp_idf_hello_world.bin",
+        # Partition table shipped with esphome_dashboard's prebuilt firmware.
+        "esphome_dashboard_firmware.bin",
+    ],
+)
+def test_validate_partition_table_binary_accepts_real_binaries(fixture: str) -> None:
+    """Real-world partition-table binaries from ESP-IDF / ESPHome tooling pass validation."""
+    _validate_partition_table_binary(_PARTITION_FIXTURE_DIR / fixture)
+
+
+def test_validate_partition_table_binary_rejects_wrong_size(tmp_path: Path) -> None:
+    f = tmp_path / "partitions.bin"
+    f.write_bytes(b"\xaa\x50" + b"\xff" * 100)
+    with pytest.raises(EsphomeError, match="wrong size"):
+        _validate_partition_table_binary(f)
+
+
+def test_validate_partition_table_binary_rejects_wrong_magic(tmp_path: Path) -> None:
+    data = bytearray(_make_partition_table_bytes())
+    data[0] = 0x00
+    data[1] = 0x00
+    f = tmp_path / "partitions.bin"
+    f.write_bytes(bytes(data))
+    with pytest.raises(EsphomeError, match="partition magic"):
+        _validate_partition_table_binary(f)
+
+
+def test_validate_partition_table_binary_rejects_missing_md5(tmp_path: Path) -> None:
+    data = bytearray(_make_partition_table_bytes())
+    data[32] = 0xFF
+    data[33] = 0xFF
+    f = tmp_path / "partitions.bin"
+    f.write_bytes(bytes(data))
+    with pytest.raises(EsphomeError, match="missing the MD5 checksum entry"):
+        _validate_partition_table_binary(f)
+
+
+def test_validate_partition_table_binary_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(EsphomeError, match="Cannot read partition table file"):
+        _validate_partition_table_binary(tmp_path / "does-not-exist.bin")
+
+
+def test_validate_bootloader_binary_rejects_wrong_magic(tmp_path: Path) -> None:
+    data = bytearray(_make_bootloader_bytes())
+    data[0] = 0x00
+    f = tmp_path / "bootloader.bin"
+    f.write_bytes(bytes(data))
+    with pytest.raises(EsphomeError, match="magic"):
+        _validate_bootloader_binary(f)
+
+
+def test_validate_bootloader_binary_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(EsphomeError, match="Cannot read bootloader file"):
+        _validate_bootloader_binary(tmp_path / "does-not-exist.bin")
+
+
+def test_validate_bootloader_binary_rejects_empty_file(tmp_path: Path) -> None:
+    f = tmp_path / "bootloader.bin"
+    f.write_bytes(b"")
+    with pytest.raises(EsphomeError, match="is empty"):
+        _validate_bootloader_binary(f)
+
+
+def test_upload_program_ota_partition_table_invalid_file(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table must fail before calling run_ota when the file is not a partition table."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    bad_file = tmp_path / "firmware.bin"
+    bad_file.write_bytes(b"\x00" * 4096)
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(bad_file), partition_table=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="wrong size"):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_ota_partition_table_without_allow_flag(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table must fail fast when allow_partition_access is not enabled in YAML."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ]
+    }
+    args = MockArgs(file="partitions.bin", partition_table=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match=(
+            r"The option --partition-table requires 'allow_partition_access: true'.*"
+            r"retry --partition-table"
+        ),
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def _make_bootloader_bytes() -> bytes:
+    """Build a minimal bootloader image accepted by _validate_bootloader_binary."""
+    table = bytearray(b"\xff")
+    # Starts with: ESP_IMAGE_HEADER_MAGIC (0xE9)
+    table[0] = 0xE9
+    return bytes(table)
+
+
+def test_upload_program_ota_bootloader_with_file_arg(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with OTA and bootloader."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    bootloader_file = tmp_path / "bootloader.bin"
+    bootloader_file.write_bytes(_make_bootloader_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(bootloader_file), bootloader=True)
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        bootloader_file,
+        OTA_TYPE_UPDATE_BOOTLOADER,
+    )
+
+
+def test_upload_program_ota_partition_table_and_bootloader_options(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table and --bootloader can't be used together."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file="partitions.bin", partition_table=True, bootloader=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match="--partition-table and --bootloader",
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_ota_bootloader_without_allow_flag(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--bootloader must fail fast when allow_partition_access is not enabled in YAML."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ]
+    }
+    args = MockArgs(file="bootloader.bin", bootloader=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match=(
+            r"The option --bootloader requires 'allow_partition_access: true'.*"
+            r"retry --bootloader"
+        ),
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_ota_bootloader_platform_web_server(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test bootloader upload with web_server OTA."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    bootloader_file = tmp_path / "bootloader.bin"
+    bootloader_file.write_bytes(_make_bootloader_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_WEB_SERVER,
+                CONF_WEB_SERVER: {
+                    CONF_PORT: 80,
+                    CONF_AUTH: {CONF_USERNAME: "admin", CONF_PASSWORD: "pw"},
+                },
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(bootloader_file), bootloader=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match="the web_server OTA path can only update the firmware image",
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
 def test_upload_program_ota_no_config(
     mock_get_port_type: Mock,
 ) -> None:
@@ -1637,6 +2058,277 @@ def test_upload_program_ota_no_config(
     mock_get_port_type.return_value = "NETWORK"
 
     config = {}  # No OTA config
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="Cannot upload Over the Air"):
+        upload_program(config, args, devices)
+
+
+def test_has_web_server_ota_detects_platform() -> None:
+    """has_web_server_ota returns True when web_server OTA platform is configured."""
+    setup_core(
+        config={
+            CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        }
+    )
+    assert has_web_server_ota() is True
+    assert has_ota() is True
+
+
+def test_has_web_server_ota_returns_false_without_config() -> None:
+    """has_web_server_ota returns False when only native OTA is configured."""
+    setup_core(
+        config={
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+        }
+    )
+    assert has_web_server_ota() is False
+    assert has_ota() is True
+
+
+def test_upload_program_web_server_only_auto_dispatches(
+    mock_run_web_server_ota: Mock,
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """When only web_server OTA is configured, upload_program picks it automatically."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_web_server_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        CONF_WEB_SERVER: {
+            CONF_PORT: 80,
+            CONF_AUTH: {CONF_USERNAME: "admin", CONF_PASSWORD: "pw"},
+        },
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_web_server_ota.assert_called_once_with(
+        ["192.168.1.100"], 80, "admin", "pw", expected_firmware
+    )
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_web_server_no_auth(
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """web_server OTA works without an auth block (passes None for credentials)."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_web_server_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        CONF_WEB_SERVER: {CONF_PORT: 8080},
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_web_server_ota.assert_called_once_with(
+        ["192.168.1.100"], 8080, None, None, expected_firmware
+    )
+
+
+def test_upload_program_both_platforms_default_prefers_native(
+    mock_run_ota: Mock,
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """When both OTA platforms are configured, default selection is native API."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            },
+            {CONF_PLATFORM: CONF_WEB_SERVER},
+        ],
+        CONF_WEB_SERVER: {CONF_PORT: 80},
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once()
+    mock_run_web_server_ota.assert_not_called()
+
+
+def test_upload_program_ota_platform_override_to_web_server(
+    mock_run_ota: Mock,
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--ota-platform web_server forces web_server OTA even when native is configured."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_web_server_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            },
+            {CONF_PLATFORM: CONF_WEB_SERVER},
+        ],
+        CONF_WEB_SERVER: {CONF_PORT: 80},
+    }
+    args = MockArgs(ota_platform=CONF_WEB_SERVER)
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_not_called()
+    mock_run_web_server_ota.assert_called_once()
+
+
+def test_upload_program_ota_platform_unavailable(
+    mock_get_port_type: Mock,
+) -> None:
+    """--ota-platform must reference a platform that is actually configured."""
+    setup_core(platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            }
+        ],
+    }
+    args = MockArgs(ota_platform=CONF_WEB_SERVER)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="--ota-platform web_server"):
+        upload_program(config, args, devices)
+
+
+def test_upload_program_web_server_missing_component(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """web_server OTA without a web_server component fails with a clear error."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        # No CONF_WEB_SERVER
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="web_server.*not configured"):
+        upload_program(config, args, devices)
+
+
+def test_upload_program_unrelated_ota_platform_ignored(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """OTA list entries that are neither esphome nor web_server are ignored.
+
+    Covers the false branch in _choose_ota_platform's filter loop and the
+    no-match branch in _upload_via_native_api's lookup loop.
+    """
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {CONF_PLATFORM: "http_request"},  # unrelated platform; ignored
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            },
+        ],
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once()
+
+
+def test_upload_program_duplicate_platform_dedup_in_error(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Duplicate same-platform OTA entries don't repeat in --ota-platform errors."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232},
+            {CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3233},
+        ],
+    }
+    args = MockArgs(ota_platform=CONF_WEB_SERVER)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError) as excinfo:
+        upload_program(config, args, devices)
+
+    # Error mentions esphome once in the platform list, not "esphome, esphome".
+    msg = str(excinfo.value)
+    assert "esphome, esphome" not in msg
+    assert msg.endswith(": esphome")
+
+
+def test_upload_program_only_unrelated_ota_platforms(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Only unrelated OTA platforms configured -> raises like missing OTA."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: "http_request"}],
+    }
     args = MockArgs()
     devices = ["192.168.1.100"]
 
@@ -3992,7 +4684,7 @@ def test_run_miniterm_batches_lines_with_same_timestamp(
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
     ):
         mock_bt.return_value = False
         result = run_miniterm(config, "/dev/ttyUSB0", args)
@@ -4031,7 +4723,7 @@ def test_run_miniterm_different_chunks_different_timestamps(
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
     ):
         mock_bt.return_value = False
         result = run_miniterm(config, "/dev/ttyUSB0", args)
@@ -4062,7 +4754,7 @@ def test_run_miniterm_handles_split_lines() -> None:
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
         patch("esphome.__main__.safe_print") as mock_print,
     ):
         mock_bt.return_value = False
@@ -4116,7 +4808,7 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
     with (
         patch("serial.Serial", return_value=mock_serial),
         patch.object(
-            platformio_api,
+            esp32,
             "process_stacktrace",
             side_effect=track_backtrace_state,
         ),
@@ -4167,7 +4859,7 @@ def test_run_miniterm_handles_empty_reads(
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
     ):
         mock_bt.return_value = False
         result = run_miniterm(config, "/dev/ttyUSB0", args)
@@ -4240,7 +4932,7 @@ def test_run_miniterm_buffer_limit_prevents_unbounded_growth() -> None:
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
         patch("esphome.__main__.safe_print") as mock_print,
         patch("esphome.__main__.SERIAL_BUFFER_MAX_SIZE", test_buffer_limit),
     ):
@@ -4519,6 +5211,32 @@ def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
     mock_is_bundle.assert_called_once()
     mock_prepare.assert_not_called()
     assert result == 2
+
+
+@pytest.mark.parametrize(
+    ("command", "expected_skip"),
+    [
+        ("logs", True),
+        ("clean", True),
+        ("compile", False),
+        ("config", False),
+        ("run", False),
+        ("clean-mqtt", False),
+    ],
+)
+def test_run_esphome_skip_external_update_per_command(
+    tmp_path: Path, command: str, expected_skip: bool
+) -> None:
+    """read_config is invoked with skip_external_update=True only for commands
+    that don't need fresh external components (logs, clean)."""
+    yaml_file = tmp_path / "device.yaml"
+    yaml_file.write_text("esphome:\n  name: test\n")
+
+    with patch("esphome.__main__.read_config", return_value=None) as mock_read:
+        run_esphome(["esphome", command, str(yaml_file)])
+
+    mock_read.assert_called_once()
+    assert mock_read.call_args.kwargs["skip_external_update"] is expected_skip
 
 
 def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:

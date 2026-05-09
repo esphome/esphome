@@ -1,4 +1,4 @@
-cryptography==47.0.0
+cryptography==48.0.0
 voluptuous==0.16.0
 PyYAML==6.0.3
 paho-mqtt==1.6.1

@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace htu21d {
+namespace esphome::htu21d {
 
 enum HTU21DSensorModels { HTU21D_SENSOR_MODEL_HTU21D = 0, HTU21D_SENSOR_MODEL_SI7021, HTU21D_SENSOR_MODEL_SHT21 };
 
@@ -57,5 +56,4 @@ template<typename... Ts> class SetHeaterAction : public Action<Ts...>, public Pa
   }
 };
 
-}  // namespace htu21d
-}  // namespace esphome
+}  // namespace esphome::htu21d

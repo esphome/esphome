@@ -3,8 +3,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace ags10 {
+namespace esphome::ags10 {
 static const char *const TAG = "ags10";
 
 // Data acquisition.
@@ -192,5 +191,4 @@ template<size_t N> optional<std::array<uint8_t, N>> AGS10Component::read_and_che
 
   return data;
 }
-}  // namespace ags10
-}  // namespace esphome
+}  // namespace esphome::ags10

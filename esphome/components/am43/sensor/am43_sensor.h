@@ -10,8 +10,7 @@
 
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace am43 {
+namespace esphome::am43 {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -38,7 +37,6 @@ class Am43 : public esphome::ble_client::BLEClientNode, public PollingComponent 
   uint32_t last_battery_update_;
 };
 
-}  // namespace am43
-}  // namespace esphome
+}  // namespace esphome::am43
 
 #endif

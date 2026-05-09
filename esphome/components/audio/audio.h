@@ -5,8 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 class AudioStreamInfo {
   /* Class to respresent important parameters of the audio stream that also provides helper function to convert between
@@ -116,7 +115,9 @@ enum class AudioFileType : uint8_t {
 #ifdef USE_AUDIO_OPUS_SUPPORT
   OPUS,
 #endif
+#ifdef USE_AUDIO_WAV_SUPPORT
   WAV,
+#endif
 };
 
 struct AudioFile {
@@ -193,5 +194,4 @@ inline void pack_q31_as_audio_sample(int32_t sample, uint8_t *data, size_t bytes
   }
 }
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio

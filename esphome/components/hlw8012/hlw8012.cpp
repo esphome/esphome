@@ -1,8 +1,7 @@
 #include "hlw8012.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hlw8012 {
+namespace esphome::hlw8012 {
 
 static const char *const TAG = "hlw8012";
 
@@ -104,5 +103,4 @@ void HLW8012Component::update() {
   }
 }
 
-}  // namespace hlw8012
-}  // namespace esphome
+}  // namespace esphome::hlw8012
