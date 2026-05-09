@@ -44,15 +44,8 @@ UART_STOP_BITS_OPTIONS = {
 
 DEFAULT_BAUD_RATE = 9600
 
-
-def _ch934x_max_channels(hw_max):
-    """Return max usable CH934X channels: limited by ESP32 USB endpoint count on non-P4."""
-    variant_max = 8 if get_esp32_variant() == VARIANT_ESP32P4 else 3
-    return min(hw_max, variant_max)
-
-
 class Type:
-    def __init__(self, name, vid, pid, cls, max_channels=1, baud_rate_required=True):
+    def __init__(self, name, vid, pid, cls, max_channels=1, baud_rate_required=True, channel_cls=None):
         self.name = name
         cls = cls or name
         self.cls_name = cls
@@ -62,6 +55,7 @@ class Type:
         # max_channels may be a callable (evaluated lazily during config validation)
         self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
+        self.channel_cls = channel_cls or USBUartChannel
 
     def get_max_channels(self):
         return (
@@ -70,9 +64,9 @@ class Type:
 
 
 uart_types = (
-    Type("CH934X", 0x1A86, 0x55D9, "CH934X", lambda: _ch934x_max_channels(8)),
-    Type("CH9344", 0x1A86, 0xE018, "CH934X", lambda: _ch934x_max_channels(4)),
-    Type("CH348", 0x1A86, 0x55D9, "CH934X", lambda: _ch934x_max_channels(8)),
+    Type("CH934X", 0x1A86, 0x55D9, "CH934X", 8, channel_cls=CH934XChannel),
+    Type("CH9344", 0x1A86, 0xE018, "CH934X", 4, channel_cls=CH934XChannel),
+    Type("CH348", 0x1A86, 0x55D9, "CH934X", 8, channel_cls=CH934XChannel),
     Type("CH34X", 0x1A86, 0x55D5, "CH34X", 3),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
@@ -86,15 +80,13 @@ def channel_schema(type_: "Type", baud_rate_required):
     def validate_channel_count(value):
         return cv.Length(max=type_.get_max_channels())(value)
 
-    channel_cls = CH934XChannel if type_.cls_name == "CH934X" else USBUartChannel
-
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.GenerateID(): cv.declare_id(channel_cls),
+                            cv.GenerateID(): cv.declare_id(type_.channel_cls),
                             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),
