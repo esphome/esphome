@@ -74,8 +74,13 @@ void NvmPlatform::setup() {
     }
   }
 
-  // Note: PreferencesPartition is registered with App in add_partition(),
-  // so its setup() will be called automatically by the Application
+  // PreferencesPartition is a Component but Application::register_component_ is protected,
+  // so we drive its setup() ourselves after the platform itself is ready.
+  for (const auto &partition : partitions_) {
+    if (partition->get_type() == PartitionType::PREFERENCES) {
+      static_cast<PreferencesPartition *>(partition.get())->setup();
+    }
+  }
 
   ESP_LOGCONFIG(TAG, "NVM Platform initialized with %zu partitions", partitions_.size());
 }
@@ -101,15 +106,9 @@ NvmPartition *NvmPlatform::add_partition(const PartitionConfig &config) {
   std::unique_ptr<NvmPartition> partition;
 
   switch (config.type) {
-    case PartitionType::PREFERENCES: {
-      auto pref_partition = std::make_unique<PreferencesPartition>(this, config);
-      // Register with Application so setup() is called automatically
-      // App.register_component_(pref_partition.get()); // App.register_component_ is protected now
-      // App.register_component(pref_partition.get());
-      // We let the platform setup call it or we do it directly
-      partition = std::move(pref_partition);
+    case PartitionType::PREFERENCES:
+      partition = std::make_unique<PreferencesPartition>(this, config);
       break;
-    }
     case PartitionType::RAW:
       partition = std::make_unique<RawPartition>(this, config);
       break;

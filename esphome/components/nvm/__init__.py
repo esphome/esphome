@@ -76,15 +76,16 @@ PARTITION_TYPE_KEY_VALUE = PartitionType.KEY_VALUE
 CONF_PARTITIONS = "partitions"
 
 
+_PARTITION_TYPE_TO_CLASS = {
+    "preferences": PreferencesPartition,
+    "raw": RawPartition,
+    "key_value": KeyValuePartition,
+}
+
+
 def _validate_partition_id(config):
-    """Validate and set the correct ID type based on partition type."""
-    partition_type = config[CONF_TYPE]
-    if partition_type == "preferences":
-        config[CONF_ID] = cv.declare_id(PreferencesPartition)(config[CONF_ID])
-    elif partition_type == "raw":
-        config[CONF_ID] = cv.declare_id(RawPartition)(config[CONF_ID])
-    elif partition_type == "key_value":
-        config[CONF_ID] = cv.declare_id(KeyValuePartition)(config[CONF_ID])
+    """Specialize the declared partition ID to its concrete C++ class."""
+    config[CONF_ID].type = _PARTITION_TYPE_TO_CLASS[config[CONF_TYPE]]
     return config
 
 
@@ -92,7 +93,7 @@ def _validate_partition_id(config):
 PARTITION_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(NvmPartition),
+            cv.Required(CONF_ID): cv.declare_id(NvmPartition),
             cv.Required(CONF_TYPE): cv.one_of(
                 "preferences", "raw", "key_value", lower=True
             ),
