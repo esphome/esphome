@@ -24,7 +24,6 @@ from esphome.components.zephyr.const import (
     CONF_CDC_ACM,
     KEY_BOARD,
     KEY_BOOTLOADER,
-    KEY_NATIVE_BUILD,
     KEY_ZEPHYR,
     CdcAcm,
 )
@@ -85,7 +84,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
 def set_framework(config: ConfigType) -> ConfigType:
     if CONF_VERSION not in config[CONF_FRAMEWORK]:
-        default_version = "2.9.2" if zephyr_data()[KEY_NATIVE_BUILD] else "2.6.1-a"
+        default_version = "2.6.1-a" if CORE.using_toolchain_platformio else "2.9.2"
         config = {
             **config,
             CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
@@ -94,7 +93,7 @@ def set_framework(config: ConfigType) -> ConfigType:
         cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION])
     )
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
-    if zephyr_data()[KEY_NATIVE_BUILD]:
+    if not CORE.using_toolchain_platformio:
         return config
     if framework_ver < cv.Version(2, 9, 2):
         return cv.require_framework_version(
@@ -255,7 +254,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_VARIANT", "NRF52")
     # nRF52 processors are single-core
     cg.add_define(ThreadModel.SINGLE)
-    if not zephyr_data()[KEY_NATIVE_BUILD]:
+    if CORE.using_toolchain_platformio:
         cg.add_platformio_option("board", config[CONF_BOARD])
         cg.add_platformio_option(
             CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
@@ -365,7 +364,7 @@ async def _dfu_to_code(dfu_config):
 def copy_files() -> None:
     """Copy files to the build directory."""
 
-    if not zephyr_data()[KEY_NATIVE_BUILD] and (
+    if CORE.using_toolchain_platformio and (
         zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
         or zephyr_data()[KEY_BOARD] == "xiao_ble"
     ):
@@ -471,7 +470,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
         else:
-            if zephyr_data()[KEY_NATIVE_BUILD]:
+            if not CORE.using_toolchain_platformio:
                 raise EsphomeError("Not implemented yet")
             result = _upload_using_platformio(config, host, ["-t", "upload"])
             if result != 0:

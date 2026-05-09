@@ -54,7 +54,6 @@ class ZephyrData(TypedDict):
     pm_static: list[Section]
     user: dict[str, list[str]]
     kconfig: str
-    native_build: bool
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -69,7 +68,6 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         pm_static=[],
         user={},
         kconfig="",
-        native_build=False,
     )
 
 
