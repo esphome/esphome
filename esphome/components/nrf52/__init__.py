@@ -184,17 +184,7 @@ def set_framework(config: ConfigType) -> ConfigType:
         config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
     version = cv.Version.parse(cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION]))
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = version
-    if version < cv.Version(2, 9, 2):
-        return cv.require_framework_version(
-            nrf52_zephyr=cv.Version(2, 6, 1, "a"),
-        )(config)
-    if version < cv.Version(3, 2, 0):
-        return cv.require_framework_version(
-            nrf52_zephyr=cv.Version(2, 9, 2, "2"),
-        )(config)
-    return cv.require_framework_version(
-        nrf52_zephyr=cv.Version(3, 2, 0, "1"),
-    )(config)
+    return config
 
 
 BOOTLOADERS = [
@@ -384,18 +374,13 @@ async def to_code(config: ConfigType) -> None:
             cg.add_define("USE_NRF52_UICR_ERASE")
 
     conf = config[CONF_FRAMEWORK]
-    advanced = conf[CONF_ADVANCED]
+    advanced = conf.get(CONF_ADVANCED, {})
     # Enable OTA rollback support
-    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+    if advanced.get(CONF_ENABLE_OTA_ROLLBACK):
         cg.add_define("USE_OTA_ROLLBACK")
     # c++ support
-    if framework_ver < cv.Version(2, 9, 2):
-        zephyr_add_prj_conf("CPLUSPLUS", True)
-        zephyr_add_prj_conf("LIB_CPLUSPLUS", True)
-    else:
-        zephyr_add_prj_conf("CPP", True)
-        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
-    zephyr_add_prj_conf("PICOLIBC", True)
+    zephyr_add_prj_conf("CPP", True)
+    zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
@@ -414,16 +399,13 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
     # use NFC pins as GPIO
-    if framework_ver < cv.Version(2, 9, 2):
-        zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
-    else:
-        zephyr_add_overlay(
-            """
-                &uicr {
-                    nfct-pins-as-gpios;
-                };
-            """
-        )
+    zephyr_add_overlay(
+        """
+            &uicr {
+                nfct-pins-as-gpios;
+            };
+        """
+    )
     zephyr_add_prj_conf("REBOOT", True)
     zephyr_add_overlay(
         """

@@ -160,7 +160,7 @@ void OpenThreadSrpComponent::setup() {
     return;
   }
 
-  // Get mdns services and copy their data (strings are copied with strdup below)
+  // Get mdns services and copy their data (strings are copied below)
   const auto &mdns_services = this->mdns_->get_services();
   ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", mdns_services.size());
   for (const auto &service : mdns_services) {
@@ -198,11 +198,14 @@ void OpenThreadSrpComponent::setup() {
     for (size_t i = 0; i < service.txt_records.size(); i++) {
       const auto &txt = service.txt_records[i];
       // Value is either a compile-time string literal in flash or a pointer to dynamic_txt_values_
-      // OpenThread SRP client expects the data to persist, so we strdup it
+      // OpenThread SRP client expects the data to persist, so we copy it
       const char *value_str = MDNS_STR_ARG(txt.value);
       txt_entries[i].mKey = MDNS_STR_ARG(txt.key);
-      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(strdup(value_str));
-      txt_entries[i].mValueLength = strlen(value_str);
+      size_t value_len = strlen(value_str);
+      char *value_copy = new char[value_len + 1];
+      strcpy(value_copy, value_str);
+      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(value_copy);
+      txt_entries[i].mValueLength = value_len;
     }
     entry->mService.mTxtEntries = txt_entries;
     entry->mService.mNumTxtEntries = service.txt_records.size();

@@ -252,7 +252,8 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     # Re-enable openthread IDF component (excluded by default)
-    include_builtin_idf_component("openthread")
+    if CORE.is_esp32:
+        include_builtin_idf_component("openthread")
 
     cg.add_define("USE_OPENTHREAD")
 
@@ -284,4 +285,3 @@ async def to_code(config):
         zephyr_add_prj_conf("OPENTHREAD_DEBUG", False)
         if tlv := config.get(CONF_TLV):
             cg.add_define("USE_OPENTHREAD_TLVS", tlv)
->>>>>>> 32f317af4 ([nrf52] Add OpenThread support for nRF52 platform)

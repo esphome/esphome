@@ -153,8 +153,6 @@ async def _cdc_acm_to_code(config: ConfigType) -> None:
 def zephyr_setup_preferences():
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
-    zephyr_add_prj_conf("SETTINGS_ZMS", True)
-    zephyr_add_prj_conf("ZMS", True)
     zephyr_add_prj_conf("FLASH_MAP", True)
     zephyr_add_prj_conf("FLASH", True)
 
@@ -239,9 +237,10 @@ def copy_files():
         zephyr_data()[KEY_OVERLAY],
     )
 
-    if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT or zephyr_data()[
-        KEY_BOARD
-    ] in ["xiao_ble"]:
+    if (
+        zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
+        or zephyr_data()[KEY_BOARD] == "xiao_ble"
+    ):
         fake_board_manifest = f"""
 {{
     "frameworks": [
