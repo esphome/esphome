@@ -25,8 +25,7 @@
 #include "IPAddress.h"
 #endif
 
-namespace esphome {
-namespace statsd {
+namespace esphome::statsd {
 
 class StatsdComponent : public PollingComponent {
  public:
@@ -82,6 +81,6 @@ class StatsdComponent : public PollingComponent {
   void send_(std::string *out);
 };
 
-}  // namespace statsd
-}  // namespace esphome
+}  // namespace esphome::statsd
+
 #endif

@@ -8,7 +8,6 @@
 ///                 wk2132_i2c, wk2168_i2c, wk2204_i2c, wk2212_i2c
 
 #pragma once
-#include <bitset>
 #include <memory>
 #include <cinttypes>
 #include "esphome/core/component.h"
@@ -26,8 +25,7 @@
 /// @endcode
 // #define TEST_COMPONENT
 
-namespace esphome {
-namespace weikai {
+namespace esphome::weikai {
 
 /// @brief XFER_MAX_SIZE defines the maximum number of bytes allowed during one transfer.
 #if defined(I2C_BUFFER_LENGTH)
@@ -375,13 +373,13 @@ class WeikaiChannel : public uart::UARTComponent {
 
   /// @brief Returns the number of bytes in the receive buffer
   /// @return the number of bytes available in the receiver fifo
-  int available() override;
+  size_t available() override;
 
   /// @brief Flush the output fifo.
   /// @details If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission of outgoing serial data
   /// to complete. (Prior to Arduino 1.0, this the method was removing any buffered incoming serial data.). ** Therefore
   /// we wait until all bytes are gone with a timeout of 100 ms
-  void flush() override;
+  uart::UARTFlushResult flush() override;
 
  protected:
   friend class WeikaiComponent;
@@ -441,5 +439,4 @@ class WeikaiChannel : public uart::UARTComponent {
   std::string name_;         ///< name of the entity
 };
 
-}  // namespace weikai
-}  // namespace esphome
+}  // namespace esphome::weikai

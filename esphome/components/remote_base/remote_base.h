@@ -8,8 +8,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 enum ToleranceMode : uint8_t {
   TOLERANCE_MODE_PERCENTAGE = 0,
@@ -119,6 +118,8 @@ class RemoteComponentBase {
 };
 
 #ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 class RemoteRMTChannel {
  public:
   void set_clock_resolution(uint32_t clock_resolution) { this->clock_resolution_ = clock_resolution; }
@@ -137,7 +138,8 @@ class RemoteRMTChannel {
   uint32_t clock_resolution_{1000000};
   uint32_t rmt_symbols_;
 };
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32
 
 class RemoteTransmitterBase : public RemoteComponentBase {
  public:
@@ -161,7 +163,7 @@ class RemoteTransmitterBase : public RemoteComponentBase {
     return TransmitCall(this);
   }
   template<typename Protocol>
-  void transmit(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
+  void transmit(const Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
     auto call = this->transmit();
     Protocol().encode(call.get_data(), data);
     call.set_send_times(send_times);
@@ -247,10 +249,10 @@ template<typename T> class RemoteReceiverBinarySensor : public RemoteReceiverBin
   }
 
  public:
-  void set_data(typename T::ProtocolData data) { data_ = data; }
+  void set_data(T::ProtocolData data) { data_ = data; }
 
  protected:
-  typename T::ProtocolData data_;
+  T::ProtocolData data_;
 };
 
 template<typename T>
@@ -275,7 +277,7 @@ class RemoteTransmittable {
 
  protected:
   template<typename Protocol>
-  void transmit_(const typename Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
+  void transmit_(const Protocol::ProtocolData &data, uint32_t send_times = 1, uint32_t send_wait = 0) {
     this->transmitter_->transmit<Protocol>(data, send_times, send_wait);
   }
   RemoteTransmitterBase *transmitter_;
@@ -314,5 +316,4 @@ template<typename T> class RemoteReceiverDumper : public RemoteReceiverDumperBas
   using prefix##Dumper = RemoteReceiverDumper<prefix##Protocol>;
 #define DECLARE_REMOTE_PROTOCOL(prefix) DECLARE_REMOTE_PROTOCOL_(prefix)
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

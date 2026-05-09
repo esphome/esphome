@@ -3,6 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 
@@ -19,7 +20,8 @@ static bool was_power_cycled() {
 #endif
 #ifdef USE_ESP8266
   auto reset_reason = EspClass::getResetReason();
-  return strcasecmp(reset_reason.c_str(), "power On") == 0 || strcasecmp(reset_reason.c_str(), "external system") == 0;
+  return ESPHOME_strcasecmp_P(reset_reason.c_str(), ESPHOME_PSTR("power On")) == 0 ||
+         ESPHOME_strcasecmp_P(reset_reason.c_str(), ESPHOME_PSTR("external system")) == 0;
 #endif
 #ifdef USE_LIBRETINY
   auto reason = lt_get_reboot_reason();

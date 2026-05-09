@@ -154,7 +154,7 @@ void BH1750Sensor::loop() {
         break;
       }
 
-      ESP_LOGD(TAG, "'%s': Illuminance=%.1flx", this->get_name().c_str(), lx);
+      ESP_LOGV(TAG, "'%s': Illuminance=%.1flx", this->get_name().c_str(), lx);
       this->status_clear_warning();
       this->publish_state(lx);
       this->state_ = IDLE;
@@ -264,7 +264,5 @@ void BH1750Sensor::fail_and_reset_() {
   this->publish_state(NAN);
   this->state_ = IDLE;
 }
-
-float BH1750Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace esphome::bh1750

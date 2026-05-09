@@ -1,0 +1,10 @@
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    advanced:
+      signed_ota_verification:
+        signing_key: ../../components/esp32/dummy_signing_key.pem
+        signing_scheme: rsa3072
+
+<<: !include common.yaml

@@ -58,3 +58,24 @@ voice_assistant:
     - logger.log:
         format: "Voice assistant error - code %s, message: %s"
         args: [code.c_str(), message.c_str()]
+  on_timer_started:
+    - logger.log:
+        format: "Timer started: %s"
+        args: [timer.id.c_str()]
+  on_timer_updated:
+    - logger.log:
+        format: "Timer updated: %s"
+        args: [timer.id.c_str()]
+  on_timer_cancelled:
+    - logger.log:
+        format: "Timer cancelled: %s"
+        args: [timer.id.c_str()]
+  on_timer_finished:
+    - logger.log:
+        format: "Timer finished: %s"
+        args: [timer.id.c_str()]
+  on_timer_tick:
+    - lambda: |-
+        for (auto &timer : timers) {
+          ESP_LOGD("timer", "Timer %s: %" PRIu32 "s left", timer.name.c_str(), timer.seconds_left);
+        }

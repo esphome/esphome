@@ -5,8 +5,7 @@
 #include "esphome/components/light/light_output.h"
 #include "esphome/components/output/binary_output.h"
 
-namespace esphome {
-namespace status_led {
+namespace esphome::status_led {
 
 class StatusLEDLightOutput : public light::LightOutput, public Component {
  public:
@@ -30,7 +29,6 @@ class StatusLEDLightOutput : public light::LightOutput, public Component {
   void dump_config() override;
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  float get_loop_priority() const override { return 50.0f; }
 
  protected:
   GPIOPin *pin_{nullptr};
@@ -40,5 +38,4 @@ class StatusLEDLightOutput : public light::LightOutput, public Component {
   void output_state_(bool state);
 };
 
-}  // namespace status_led
-}  // namespace esphome
+}  // namespace esphome::status_led

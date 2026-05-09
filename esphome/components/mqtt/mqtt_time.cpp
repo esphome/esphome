@@ -36,7 +36,7 @@ void MQTTTimeComponent::setup() {
 
 void MQTTTimeComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Time '%s':", this->time_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true)
+  LOG_MQTT_COMPONENT(true, true);
 }
 
 MQTT_COMPONENT_TYPE(MQTTTimeComponent, "time")
@@ -53,7 +53,8 @@ bool MQTTTimeComponent::send_initial_state() {
   }
 }
 bool MQTTTimeComponent::publish_state(uint8_t hour, uint8_t minute, uint8_t second) {
-  return this->publish_json(this->get_state_topic_(), [hour, minute, second](JsonObject root) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish_json(this->get_state_topic_to_(topic_buf), [hour, minute, second](JsonObject root) {
     // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root[ESPHOME_F("hour")] = hour;
     root[ESPHOME_F("minute")] = minute;

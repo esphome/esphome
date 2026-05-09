@@ -4,40 +4,22 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace uptime {
+namespace esphome::uptime {
 
 static const char *const TAG = "uptime.sensor";
-
-// Clamp position to valid buffer range when snprintf indicates truncation
-static size_t clamp_buffer_pos(size_t pos, size_t buf_size) { return pos < buf_size ? pos : buf_size - 1; }
 
 static void append_unit(char *buf, size_t buf_size, size_t &pos, const char *separator, unsigned value,
                         const char *label) {
   if (pos > 0) {
-    pos += snprintf(buf + pos, buf_size - pos, "%s", separator);
-    pos = clamp_buffer_pos(pos, buf_size);
+    pos = buf_append_printf(buf, buf_size, pos, "%s", separator);
   }
-  pos += snprintf(buf + pos, buf_size - pos, "%u%s", value, label);
-  pos = clamp_buffer_pos(pos, buf_size);
+  pos = buf_append_printf(buf, buf_size, pos, "%u%s", value, label);
 }
 
-void UptimeTextSensor::setup() {
-  this->last_ms_ = millis();
-  if (this->last_ms_ < 60 * 1000)
-    this->last_ms_ = 0;
-  this->update();
-}
+void UptimeTextSensor::setup() { this->update(); }
 
 void UptimeTextSensor::update() {
-  auto now = millis();
-  // get whole seconds since last update. Note that even if the millis count has overflowed between updates,
-  // the difference will still be correct due to the way twos-complement arithmetic works.
-  uint32_t delta = now - this->last_ms_;
-  this->last_ms_ = now - delta % 1000;  // save remainder for next update
-  delta /= 1000;
-  this->uptime_ += delta;
-  uint32_t uptime = this->uptime_;
+  uint32_t uptime = static_cast<uint32_t>(millis_64() / 1000);
   unsigned interval = this->get_update_interval() / 1000;
 
   // Calculate all time units
@@ -88,11 +70,10 @@ void UptimeTextSensor::update() {
   if (show_seconds)
     append_unit(buf, sizeof(buf), pos, this->separator_, seconds, this->seconds_text_);
 
-  this->publish_state(buf);
+  this->publish_state(buf, pos);
 }
 
 float UptimeTextSensor::get_setup_priority() const { return setup_priority::HARDWARE; }
 void UptimeTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Uptime Text Sensor", this); }
 
-}  // namespace uptime
-}  // namespace esphome
+}  // namespace esphome::uptime

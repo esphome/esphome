@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace hmc5883l {
+namespace esphome::hmc5883l {
 
 enum HMC5883LOversampling {
   HMC5883L_OVERSAMPLING_1 = 0b000,
@@ -39,7 +38,6 @@ class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
   void set_oversampling(HMC5883LOversampling oversampling) { oversampling_ = oversampling; }
@@ -62,9 +60,8 @@ class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
     NONE = 0,
     COMMUNICATION_FAILED,
     ID_REGISTERS,
-  } error_code_;
+  } error_code_{NONE};
   HighFrequencyLoopRequester high_freq_;
 };
 
-}  // namespace hmc5883l
-}  // namespace esphome
+}  // namespace esphome::hmc5883l

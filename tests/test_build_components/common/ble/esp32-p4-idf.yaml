@@ -1,0 +1,21 @@
+# Common BLE tracker configuration for ESP32-P4 IDF tests
+# ESP32-P4 requires ESP-Hosted for Bluetooth via external coprocessor
+# BLE client components share this tracker infrastructure
+# Each component defines its own ble_client with unique MAC address
+
+esp32_hosted:
+  active_high: true
+  variant: ESP32C6
+  reset_pin: GPIO54
+  cmd_pin: GPIO19
+  clk_pin: GPIO18
+  d0_pin: GPIO14
+  d1_pin: GPIO15
+  d2_pin: GPIO16
+  d3_pin: GPIO17
+
+esp32_ble_tracker:
+  scan_parameters:
+    interval: 1100ms
+    window: 1100ms
+    active: true

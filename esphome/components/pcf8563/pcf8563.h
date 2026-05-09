@@ -4,15 +4,13 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/time/real_time_clock.h"
 
-namespace esphome {
-namespace pcf8563 {
+namespace esphome::pcf8563 {
 
 class PCF8563Component : public time::RealTimeClock, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void read_time();
   void write_time();
 
@@ -120,5 +118,4 @@ template<typename... Ts> class ReadAction : public Action<Ts...>, public Parente
  public:
   void play(const Ts &...x) override { this->parent_->read_time(); }
 };
-}  // namespace pcf8563
-}  // namespace esphome
+}  // namespace esphome::pcf8563

@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <algorithm>
 
-namespace esphome {
-namespace tcs34725 {
+namespace esphome::tcs34725 {
 
 static const char *const TAG = "tcs34725";
 
@@ -56,7 +55,6 @@ void TCS34725Component::dump_config() {
   LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
   LOG_SENSOR("  ", "Color Temperature", this->color_temperature_sensor_);
 }
-float TCS34725Component::get_setup_priority() const { return setup_priority::DATA; }
 
 /*!
  *  @brief  Converts the raw R/G/B values to color temperature in degrees
@@ -316,7 +314,7 @@ void TCS34725Component::set_integration_time(TCS34725IntegrationTime integration
     my_integration_time_regval = integration_time;
     this->integration_time_auto_ = false;
   }
-  this->integration_time_ = (256.f - my_integration_time_regval) * 2.4f;
+  this->integration_time_ = (256.f - (float) my_integration_time_regval) * 2.4f;
   ESP_LOGI(TAG, "TCS34725I Integration time set to: %.1fms", this->integration_time_);
 }
 void TCS34725Component::set_gain(TCS34725Gain gain) {
@@ -349,5 +347,4 @@ void TCS34725Component::set_glass_attenuation_factor(float ga) {
   this->glass_attenuation_ = ga;
 }
 
-}  // namespace tcs34725
-}  // namespace esphome
+}  // namespace esphome::tcs34725

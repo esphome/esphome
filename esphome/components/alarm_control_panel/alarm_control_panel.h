@@ -37,25 +37,24 @@ class AlarmControlPanel : public EntityBase {
    *
    * @param callback The callback function
    */
-  void add_on_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
-  /** Add a callback for when the state of the alarm_control_panel clears from triggered
-   *
-   * @param callback The callback function
-   */
-  void add_on_cleared_callback(std::function<void()> &&callback);
+  /** Add a callback for when the state of the alarm_control_panel clears from triggered. */
+  template<typename F> void add_on_cleared_callback(F &&callback) {
+    this->cleared_callback_.add(std::forward<F>(callback));
+  }
 
-  /** Add a callback for when a chime zone goes from closed to open
-   *
-   * @param callback The callback function
-   */
-  void add_on_chime_callback(std::function<void()> &&callback);
+  /** Add a callback for when a chime zone goes from closed to open. */
+  template<typename F> void add_on_chime_callback(F &&callback) {
+    this->chime_callback_.add(std::forward<F>(callback));
+  }
 
-  /** Add a callback for when a ready state changes
-   *
-   * @param callback The callback function
-   */
-  void add_on_ready_callback(std::function<void()> &&callback);
+  /** Add a callback for when a ready state changes. */
+  template<typename F> void add_on_ready_callback(F &&callback) {
+    this->ready_callback_.add(std::forward<F>(callback));
+  }
 
   /** A numeric representation of the supported features as per HomeAssistant
    *
@@ -76,37 +75,53 @@ class AlarmControlPanel : public EntityBase {
    *
    * @param code The code
    */
-  void arm_away(optional<std::string> code = nullopt);
+  void arm_away(const char *code = nullptr);
+  void arm_away(const optional<std::string> &code) {
+    this->arm_away(code.has_value() ? code.value().c_str() : nullptr);
+  }
 
   /** arm the alarm in home mode
    *
    * @param code The code
    */
-  void arm_home(optional<std::string> code = nullopt);
+  void arm_home(const char *code = nullptr);
+  void arm_home(const optional<std::string> &code) {
+    this->arm_home(code.has_value() ? code.value().c_str() : nullptr);
+  }
 
   /** arm the alarm in night mode
    *
    * @param code The code
    */
-  void arm_night(optional<std::string> code = nullopt);
+  void arm_night(const char *code = nullptr);
+  void arm_night(const optional<std::string> &code) {
+    this->arm_night(code.has_value() ? code.value().c_str() : nullptr);
+  }
 
   /** arm the alarm in vacation mode
    *
    * @param code The code
    */
-  void arm_vacation(optional<std::string> code = nullopt);
+  void arm_vacation(const char *code = nullptr);
+  void arm_vacation(const optional<std::string> &code) {
+    this->arm_vacation(code.has_value() ? code.value().c_str() : nullptr);
+  }
 
   /** arm the alarm in custom bypass mode
    *
    * @param code The code
    */
-  void arm_custom_bypass(optional<std::string> code = nullopt);
+  void arm_custom_bypass(const char *code = nullptr);
+  void arm_custom_bypass(const optional<std::string> &code) {
+    this->arm_custom_bypass(code.has_value() ? code.value().c_str() : nullptr);
+  }
 
   /** disarm the alarm
    *
    * @param code The code
    */
-  void disarm(optional<std::string> code = nullopt);
+  void disarm(const char *code = nullptr);
+  void disarm(const optional<std::string> &code) { this->disarm(code.has_value() ? code.value().c_str() : nullptr); }
 
   /** Get the state
    *
@@ -118,6 +133,8 @@ class AlarmControlPanel : public EntityBase {
 
  protected:
   friend AlarmControlPanelCall;
+  // Helper to reduce code duplication for arm/disarm methods
+  void arm_with_code_(AlarmControlPanelCall &(AlarmControlPanelCall::*arm_method)(), const char *code);
   // in order to store last panel state in flash
   ESPPreferenceObject pref_;
   // current state
@@ -128,8 +145,8 @@ class AlarmControlPanel : public EntityBase {
   uint32_t last_update_;
   // the call control function
   virtual void control(const AlarmControlPanelCall &call) = 0;
-  // state callback - triggers check get_state() for specific state
-  LazyCallbackManager<void()> state_callback_{};
+  // state callback - passes the new state to listeners
+  LazyCallbackManager<void(AlarmControlPanelState)> state_callback_{};
   // clear callback - fires when leaving TRIGGERED state
   LazyCallbackManager<void()> cleared_callback_{};
   // chime callback

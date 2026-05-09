@@ -9,8 +9,7 @@
 #include <cinttypes>
 #include <cstdio>
 
-namespace esphome {
-namespace voice_assistant {
+namespace esphome::voice_assistant {
 
 static const char *const TAG = "voice_assistant";
 
@@ -31,7 +30,7 @@ VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
 
 void VoiceAssistant::setup() {
   this->mic_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_;
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_;
     if (this->ring_buffer_.use_count() > 1) {
       temp_ring_buffer->write((void *) data.data(), data.size());
     }
@@ -39,8 +38,8 @@ void VoiceAssistant::setup() {
 
 #ifdef USE_MEDIA_PLAYER
   if (this->media_player_ != nullptr) {
-    this->media_player_->add_on_state_callback([this]() {
-      switch (this->media_player_->state) {
+    this->media_player_->add_on_state_callback([this](media_player::MediaPlayerState state) {
+      switch (state) {
         case media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING:
           if (this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT) {
             // State changed to announcing after receiving the url
@@ -117,7 +116,7 @@ bool VoiceAssistant::allocate_buffers_() {
 #endif
 
   if (this->ring_buffer_.use_count() == 0) {
-    this->ring_buffer_ = RingBuffer::create(RING_BUFFER_SIZE);
+    this->ring_buffer_ = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
     if (this->ring_buffer_.use_count() == 0) {
       ESP_LOGE(TAG, "Could not allocate ring buffer");
       return false;
@@ -197,7 +196,7 @@ void VoiceAssistant::loop() {
   switch (this->state_) {
     case State::IDLE: {
       if (this->continuous_ && this->desired_state_ == State::IDLE) {
-        this->idle_trigger_->trigger();
+        this->idle_trigger_.trigger();
         this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
       } else {
         this->deallocate_buffers_();
@@ -251,10 +250,9 @@ void VoiceAssistant::loop() {
       }
 #endif
 
-      if (this->api_client_ == nullptr ||
-          !this->api_client_->send_message(msg, api::VoiceAssistantRequest::MESSAGE_TYPE)) {
+      if (this->api_client_ == nullptr || !this->api_client_->send_message(msg)) {
         ESP_LOGW(TAG, "Could not request start");
-        this->error_trigger_->trigger("not-connected", "Could not request start");
+        this->error_trigger_.trigger("not-connected", "Could not request start");
         this->continuous_ = false;
         this->set_state_(State::IDLE, State::IDLE);
         break;
@@ -275,7 +273,7 @@ void VoiceAssistant::loop() {
           api::VoiceAssistantAudio msg;
           msg.data = this->send_buffer_;
           msg.data_len = read_bytes;
-          this->api_client_->send_message(msg, api::VoiceAssistantAudio::MESSAGE_TYPE);
+          this->api_client_->send_message(msg);
         } else {
           if (!this->udp_socket_running_) {
             if (!this->start_udp_socket_()) {
@@ -354,7 +352,7 @@ void VoiceAssistant::loop() {
 
           api::VoiceAssistantAnnounceFinished msg;
           msg.success = true;
-          this->api_client_->send_message(msg, api::VoiceAssistantAnnounceFinished::MESSAGE_TYPE);
+          this->api_client_->send_message(msg);
           break;
         }
       }
@@ -384,7 +382,7 @@ void VoiceAssistant::loop() {
         this->wait_for_stream_end_ = false;
         this->stream_ended_ = false;
 
-        this->tts_stream_end_trigger_->trigger();
+        this->tts_stream_end_trigger_.trigger();
       }
 #endif
       if (this->continue_conversation_) {
@@ -425,22 +423,24 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
       return;
     }
     this->api_client_ = nullptr;
-    this->client_disconnected_trigger_->trigger();
+    this->client_disconnected_trigger_.trigger();
     return;
   }
 
   if (this->api_client_ != nullptr) {
+    char current_peername[socket::SOCKADDR_STR_LEN];
+    char new_peername[socket::SOCKADDR_STR_LEN];
     ESP_LOGE(TAG,
              "Multiple API Clients attempting to connect to Voice Assistant\n"
-             "Current client: %s (%s)\n"
-             "New client: %s (%s)",
-             this->api_client_->get_name(), this->api_client_->get_peername(), client->get_name(),
-             client->get_peername());
+             "  Current client: %s (%s)\n"
+             "  New client: %s (%s)",
+             this->api_client_->get_name(), this->api_client_->get_peername_to(current_peername), client->get_name(),
+             client->get_peername_to(new_peername));
     return;
   }
 
   this->api_client_ = client;
-  this->client_connected_trigger_->trigger();
+  this->client_connected_trigger_.trigger();
 }
 
 static const LogString *voice_assistant_state_to_string(State state) {
@@ -491,7 +491,7 @@ void VoiceAssistant::set_state_(State state, State desired_state) {
 
 void VoiceAssistant::failed_to_start() {
   ESP_LOGE(TAG, "Failed to start server. See Home Assistant logs for more details.");
-  this->error_trigger_->trigger("failed-to-start", "Failed to start server. See Home Assistant logs for more details.");
+  this->error_trigger_.trigger("failed-to-start", "Failed to start server. See Home Assistant logs for more details.");
   this->set_state_(State::STOP_MICROPHONE, State::IDLE);
 }
 
@@ -610,7 +610,7 @@ void VoiceAssistant::signal_stop_() {
   ESP_LOGD(TAG, "Signaling stop");
   api::VoiceAssistantRequest msg;
   msg.start = false;
-  this->api_client_->send_message(msg, api::VoiceAssistantRequest::MESSAGE_TYPE);
+  this->api_client_->send_message(msg);
 }
 
 void VoiceAssistant::start_playback_timeout_() {
@@ -618,9 +618,11 @@ void VoiceAssistant::start_playback_timeout_() {
     this->cancel_timeout("speaker-timeout");
     this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
+    if (this->api_client_ == nullptr)
+      return;
     api::VoiceAssistantAnnounceFinished msg;
     msg.success = true;
-    this->api_client_->send_message(msg, api::VoiceAssistantAnnounceFinished::MESSAGE_TYPE);
+    this->api_client_->send_message(msg);
   });
 }
 
@@ -637,18 +639,18 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         }
       }
 #endif
-      this->defer([this]() { this->start_trigger_->trigger(); });
+      this->defer([this]() { this->start_trigger_.trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_WAKE_WORD_START:
       break;
     case api::enums::VOICE_ASSISTANT_WAKE_WORD_END: {
       ESP_LOGD(TAG, "Wake word detected");
-      this->defer([this]() { this->wake_word_detected_trigger_->trigger(); });
+      this->defer([this]() { this->wake_word_detected_trigger_.trigger(); });
       break;
     }
     case api::enums::VOICE_ASSISTANT_STT_START:
       ESP_LOGD(TAG, "STT started");
-      this->defer([this]() { this->listening_trigger_->trigger(); });
+      this->defer([this]() { this->listening_trigger_.trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_STT_END: {
       std::string text;
@@ -665,16 +667,16 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         text += "...";
       }
       ESP_LOGD(TAG, "Speech recognised as: \"%s\"", text.c_str());
-      this->defer([this, text]() { this->stt_end_trigger_->trigger(text); });
+      this->defer([this, text]() { this->stt_end_trigger_.trigger(text); });
       break;
     }
     case api::enums::VOICE_ASSISTANT_INTENT_START:
       ESP_LOGD(TAG, "Intent started");
-      this->defer([this]() { this->intent_start_trigger_->trigger(); });
+      this->defer([this]() { this->intent_start_trigger_.trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_INTENT_PROGRESS: {
       ESP_LOGD(TAG, "Intent progress");
-      std::string tts_url_for_trigger = "";
+      std::string tts_url_for_trigger;
 #ifdef USE_MEDIA_PLAYER
       if (this->media_player_ != nullptr) {
         for (const auto &arg : msg.data) {
@@ -693,7 +695,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         }
       }
 #endif
-      this->defer([this, tts_url_for_trigger]() { this->intent_progress_trigger_->trigger(tts_url_for_trigger); });
+      this->defer([this, tts_url_for_trigger]() { this->intent_progress_trigger_.trigger(tts_url_for_trigger); });
       break;
     }
     case api::enums::VOICE_ASSISTANT_INTENT_END: {
@@ -704,7 +706,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
           this->continue_conversation_ = (arg.value == "1");
         }
       }
-      this->defer([this]() { this->intent_end_trigger_->trigger(); });
+      this->defer([this]() { this->intent_end_trigger_.trigger(); });
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_START: {
@@ -724,7 +726,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       }
       ESP_LOGD(TAG, "Response: \"%s\"", text.c_str());
       this->defer([this, text]() {
-        this->tts_start_trigger_->trigger(text);
+        this->tts_start_trigger_.trigger(text);
 #ifdef USE_SPEAKER
         if (this->speaker_ != nullptr) {
           this->speaker_->start();
@@ -756,7 +758,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         }
         this->started_streaming_tts_ = false;  // Helps indicate reaching the TTS_END stage
 #endif
-        this->tts_end_trigger_->trigger(url);
+        this->tts_end_trigger_.trigger(url);
       });
       State new_state = this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE;
       if (new_state != this->state_) {
@@ -776,12 +778,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         // No TTS start event ("nevermind")
         this->set_state_(State::IDLE, State::IDLE);
       }
-      this->defer([this]() { this->end_trigger_->trigger(); });
+      this->defer([this]() { this->end_trigger_.trigger(); });
       break;
     }
     case api::enums::VOICE_ASSISTANT_ERROR: {
-      std::string code = "";
-      std::string message = "";
+      std::string code;
+      std::string message;
       for (const auto &arg : msg.data) {
         if (arg.name == "code") {
           code = arg.value;
@@ -796,7 +798,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         // Wake word is not set up or not ready on Home Assistant so stop and do not retry until user starts again.
         this->defer([this, code, message]() {
           this->request_stop();
-          this->error_trigger_->trigger(code, message);
+          this->error_trigger_.trigger(code, message);
         });
         return;
       }
@@ -805,7 +807,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         this->signal_stop_();
         this->set_state_(State::STOP_MICROPHONE, State::IDLE);
       }
-      this->defer([this, code, message]() { this->error_trigger_->trigger(code, message); });
+      this->defer([this, code, message]() { this->error_trigger_.trigger(code, message); });
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_STREAM_START: {
@@ -813,7 +815,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       if (this->speaker_ != nullptr) {
         this->wait_for_stream_end_ = true;
         ESP_LOGD(TAG, "TTS stream start");
-        this->defer([this] { this->tts_stream_start_trigger_->trigger(); });
+        this->defer([this] { this->tts_stream_start_trigger_.trigger(); });
       }
 #endif
       break;
@@ -829,12 +831,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     }
     case api::enums::VOICE_ASSISTANT_STT_VAD_START:
       ESP_LOGD(TAG, "Starting STT by VAD");
-      this->defer([this]() { this->stt_vad_start_trigger_->trigger(); });
+      this->defer([this]() { this->stt_vad_start_trigger_.trigger(); });
       break;
     case api::enums::VOICE_ASSISTANT_STT_VAD_END:
       ESP_LOGD(TAG, "STT by VAD end");
       this->set_state_(State::STOP_MICROPHONE, State::AWAITING_RESPONSE);
-      this->defer([this]() { this->stt_vad_end_trigger_->trigger(); });
+      this->defer([this]() { this->stt_vad_end_trigger_.trigger(); });
       break;
     default:
       ESP_LOGD(TAG, "Unhandled event type: %" PRId32, msg.event_type);
@@ -859,35 +861,43 @@ void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
 }
 
 void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse &msg) {
-  Timer timer = {
-      .id = msg.timer_id,
-      .name = msg.name,
-      .total_seconds = msg.total_seconds,
-      .seconds_left = msg.seconds_left,
-      .is_active = msg.is_active,
-  };
-  this->timers_[timer.id] = timer;
+  // Find existing timer or add a new one
+  auto it = this->timers_.begin();
+  for (; it != this->timers_.end(); ++it) {
+    if (it->id == msg.timer_id)
+      break;
+  }
+  if (it == this->timers_.end()) {
+    this->timers_.push_back({});
+    it = this->timers_.end() - 1;
+  }
+  it->id = msg.timer_id;
+  it->name = msg.name;
+  it->total_seconds = msg.total_seconds;
+  it->seconds_left = msg.seconds_left;
+  it->is_active = msg.is_active;
+
   char timer_buf[Timer::TO_STR_BUFFER_SIZE];
   ESP_LOGD(TAG,
            "Timer Event\n"
            "  Type: %" PRId32 "\n"
            "  %s",
-           msg.event_type, timer.to_str(timer_buf));
+           msg.event_type, it->to_str(timer_buf));
 
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_TIMER_STARTED:
-      this->timer_started_trigger_->trigger(timer);
+      this->timer_started_trigger_.trigger(*it);
       break;
     case api::enums::VOICE_ASSISTANT_TIMER_UPDATED:
-      this->timer_updated_trigger_->trigger(timer);
+      this->timer_updated_trigger_.trigger(*it);
       break;
     case api::enums::VOICE_ASSISTANT_TIMER_CANCELLED:
-      this->timer_cancelled_trigger_->trigger(timer);
-      this->timers_.erase(timer.id);
+      this->timer_cancelled_trigger_.trigger(*it);
+      this->timers_.erase(it);
       break;
     case api::enums::VOICE_ASSISTANT_TIMER_FINISHED:
-      this->timer_finished_trigger_->trigger(timer);
-      this->timers_.erase(timer.id);
+      this->timer_finished_trigger_.trigger(*it);
+      this->timers_.erase(it);
       break;
   }
 
@@ -901,22 +911,18 @@ void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse 
 }
 
 void VoiceAssistant::timer_tick_() {
-  std::vector<Timer> res;
-  res.reserve(this->timers_.size());
-  for (auto &pair : this->timers_) {
-    auto &timer = pair.second;
+  for (auto &timer : this->timers_) {
     if (timer.is_active && timer.seconds_left > 0) {
       timer.seconds_left--;
     }
-    res.push_back(timer);
   }
-  this->timer_tick_trigger_->trigger(res);
+  this->timer_tick_trigger_.trigger(this->timers_);
 }
 
 void VoiceAssistant::on_announce(const api::VoiceAssistantAnnounceRequest &msg) {
 #ifdef USE_MEDIA_PLAYER
   if (this->media_player_ != nullptr) {
-    this->tts_start_trigger_->trigger(msg.text);
+    this->tts_start_trigger_.trigger(msg.text);
 
     this->media_player_response_state_ = MediaPlayerResponseState::URL_SENT;
 
@@ -939,8 +945,8 @@ void VoiceAssistant::on_announce(const api::VoiceAssistantAnnounceRequest &msg) 
       this->set_state_(State::STREAMING_RESPONSE, State::STREAMING_RESPONSE);
     }
 
-    this->tts_end_trigger_->trigger(msg.media_id);
-    this->end_trigger_->trigger();
+    this->tts_end_trigger_.trigger(msg.media_id);
+    this->end_trigger_.trigger();
   }
 #endif
 }
@@ -1000,7 +1006,6 @@ const Configuration &VoiceAssistant::get_configuration() {
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace voice_assistant
-}  // namespace esphome
+}  // namespace esphome::voice_assistant
 
 #endif  // USE_VOICE_ASSISTANT

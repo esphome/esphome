@@ -5,14 +5,17 @@ from typing import TypedDict
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
-from esphome.core import CORE
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
+from esphome.types import ConfigType
 
 from .const import (
     BOOTLOADER_MCUBOOT,
+    CONF_CDC_ACM,
     KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
+    KEY_KCONFIG,
     KEY_OVERLAY,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
@@ -53,9 +56,10 @@ class ZephyrData(TypedDict):
     extra_build_files: dict[str, Path]
     pm_static: list[Section]
     user: dict[str, list[str]]
+    kconfig: str
 
 
-def zephyr_set_core_data(config):
+def zephyr_set_core_data(config: ConfigType) -> None:
     CORE.data[KEY_ZEPHYR] = ZephyrData(
         board=config[CONF_BOARD],
         variant="",
@@ -65,8 +69,8 @@ def zephyr_set_core_data(config):
         extra_build_files={},
         pm_static=[],
         user={},
+        kconfig="",
     )
-    return config
 
 
 def zephyr_data() -> ZephyrData:
@@ -112,8 +116,9 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
         cg.add_platformio_option("extra_scripts", [key])
 
 
-def zephyr_to_code(config):
+def zephyr_to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ZEPHYR")
+    cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.set_cpp_standard("gnu++20")
     # build is done by west so bypass board checking in platformio
     cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))
@@ -122,6 +127,8 @@ def zephyr_to_code(config):
     zephyr_add_prj_conf("FPU", True)
     zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
     zephyr_add_prj_conf("STD_CPP20", True)
+    # random_bytes() uses sys_rand_get() which requires the entropy subsystem
+    zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
@@ -133,12 +140,19 @@ def zephyr_to_code(config):
         Path(__file__).parent / "pre_build.py.script",
     )
 
+    CORE.add_job(_cdc_acm_to_code, config)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _cdc_acm_to_code(config: ConfigType) -> None:
+    if "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in zephyr_data()[KEY_PRJ_CONF]:
+        var = cg.new_Pvariable(config[CONF_CDC_ACM])
+        await cg.register_component(var, {})
+
 
 def zephyr_setup_preferences():
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
-    zephyr_add_prj_conf("SETTINGS_ZMS", True)
-    zephyr_add_prj_conf("ZMS", True)
     zephyr_add_prj_conf("FLASH_MAP", True)
     zephyr_add_prj_conf("FLASH", True)
 
@@ -153,7 +167,7 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
     raise ValueError
 
 
-def zephyr_add_cdc_acm(config, id):
+def zephyr_add_cdc_acm(config: ConfigType, id: int) -> None:
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
         zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
@@ -175,8 +189,12 @@ def zephyr_add_cdc_acm(config, id):
     )
 
 
-def zephyr_add_pm_static(section: Section):
-    CORE.data[KEY_ZEPHYR][KEY_PM_STATIC].extend(section)
+def zephyr_add_kconfig(kconfig: str) -> None:
+    zephyr_data()[KEY_KCONFIG] += textwrap.dedent(kconfig) + "\n"
+
+
+def zephyr_add_pm_static(sections: list[Section]) -> None:
+    zephyr_data()[KEY_PM_STATIC].extend(sections)
 
 
 def zephyr_add_user(key, value):
@@ -189,11 +207,14 @@ def zephyr_add_user(key, value):
 def copy_files():
     user = zephyr_data()[KEY_USER]
     if user:
+        entries = " ".join(
+            f"{key} = {', '.join(value)};" for key, value in user.items()
+        )
         zephyr_add_overlay(
             f"""
                 / {{
                     zephyr,user {{
-                        {[f"{key} = {', '.join(value)};" for key, value in user.items()][0]}
+                        {entries}
                     }};
                 }};
             """
@@ -216,9 +237,10 @@ def copy_files():
         zephyr_data()[KEY_OVERLAY],
     )
 
-    if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT or zephyr_data()[
-        KEY_BOARD
-    ] in ["xiao_ble"]:
+    if (
+        zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
+        or zephyr_data()[KEY_BOARD] == "xiao_ble"
+    ):
         fake_board_manifest = f"""
 {{
     "frameworks": [
@@ -262,3 +284,18 @@ def copy_files():
         write_file_if_changed(
             CORE.relative_build_path("zephyr/pm_static.yml"), pm_static
         )
+
+    kconfig = zephyr_data()[KEY_KCONFIG]
+    if kconfig:
+        kconfig = (
+            textwrap.dedent(
+                """
+                menu "Zephyr"
+                source "Kconfig.zephyr"
+                endmenu
+                """
+            )
+            + "\n"
+            + kconfig
+        )
+        write_file_if_changed(CORE.relative_build_path("zephyr/Kconfig"), kconfig)

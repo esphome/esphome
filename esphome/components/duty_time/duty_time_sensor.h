@@ -10,8 +10,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace duty_time_sensor {
+namespace esphome::duty_time_sensor {
 
 class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
  public:
@@ -41,9 +40,9 @@ class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
   sensor::Sensor *last_duty_time_sensor_{nullptr};
   ESPPreferenceObject pref_;
 
-  uint32_t total_sec_;
-  uint32_t last_time_;
-  uint32_t edge_time_;
+  uint32_t total_sec_{0};
+  uint32_t last_time_{0};
+  uint32_t edge_time_{0};
   bool last_state_{false};
   bool restore_;
 };
@@ -71,5 +70,4 @@ template<typename... Ts> class RunningCondition : public Condition<Ts...>, publi
   bool state_;
 };
 
-}  // namespace duty_time_sensor
-}  // namespace esphome
+}  // namespace esphome::duty_time_sensor

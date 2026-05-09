@@ -1,8 +1,7 @@
 #include "xl9535.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace xl9535 {
+namespace esphome::xl9535 {
 
 static const char *const TAG = "xl9535";
 
@@ -111,12 +110,11 @@ void XL9535Component::pin_mode(uint8_t pin, gpio::Flags mode) {
 void XL9535GPIOPin::setup() { this->pin_mode(this->flags_); }
 
 size_t XL9535GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "%u via XL9535", this->pin_);
+  return buf_append_printf(buffer, len, 0, "%u via XL9535", this->pin_);
 }
 
 void XL9535GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool XL9535GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void XL9535GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
 
-}  // namespace xl9535
-}  // namespace esphome
+}  // namespace esphome::xl9535

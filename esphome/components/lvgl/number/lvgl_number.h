@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 
 class LVGLNumber : public number::Number, public Component {
  public:
@@ -21,7 +20,7 @@ class LVGLNumber : public number::Number, public Component {
   void setup() override {
     float value = this->value_lambda_();
     if (this->restore_) {
-      this->pref_ = global_preferences->make_preference<float>(this->get_preference_hash());
+      this->pref_ = this->make_entity_preference<float>();
       if (this->pref_.load(&value)) {
         this->control_lambda_(value);
       }
@@ -48,5 +47,4 @@ class LVGLNumber : public number::Number, public Component {
   ESPPreferenceObject pref_{};
 };
 
-}  // namespace lvgl
-}  // namespace esphome
+}  // namespace esphome::lvgl

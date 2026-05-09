@@ -110,11 +110,11 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.SplitDefault(
             CONF_ENABLE_IPV6,
-            esp8266=False,
-            esp32=False,
-            rp2040=False,
             bk72xx=False,
+            esp32=False,
+            esp8266=False,
             host=False,
+            rp2040=False,
             nrf52=True,
         ): cv.All(
             cv.boolean,
@@ -140,8 +140,7 @@ CONFIG_SCHEMA = cv.Schema(
 @coroutine_with_priority(CoroPriority.NETWORK)
 async def to_code(config):
     cg.add_define("USE_NETWORK")
-    if CORE.using_arduino and CORE.is_esp32:
-        cg.add_library("Networking", None)
+    # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
 
     # Apply high performance networking settings
     # Config can explicitly enable/disable, or default to component-driven behavior
@@ -229,9 +228,9 @@ async def to_code(config):
         elif enable_ipv6:
             cg.add_build_flag("-DCONFIG_LWIP_IPV6")
             cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
-            if CORE.is_rp2040:
-                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
-            if CORE.is_esp8266:
-                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
             if CORE.is_bk72xx:
                 cg.add_build_flag("-DCONFIG_IPV6")
+            if CORE.is_esp8266:
+                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
+            if CORE.is_rp2040:
+                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")

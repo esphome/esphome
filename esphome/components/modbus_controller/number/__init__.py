@@ -1,5 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import number
+from esphome.components.modbus.helpers import (
+    MODBUS_WRITE_REGISTER_TYPE,
+    SENSOR_VALUE_TYPE,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -11,8 +15,6 @@ from esphome.const import (
 )
 
 from .. import (
-    MODBUS_WRITE_REGISTER_TYPE,
-    SENSOR_VALUE_TYPE,
     ModbusItemBaseSchema,
     SensorItem,
     add_modbus_base_properties,

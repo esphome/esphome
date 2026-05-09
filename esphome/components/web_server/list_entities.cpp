@@ -14,8 +14,6 @@ ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, AsyncEventSource
 ListEntitiesIterator::ListEntitiesIterator(const WebServer *ws, DeferredUpdateEventSource *es)
     : web_server_(ws), events_(es) {}
 #endif
-ListEntitiesIterator::~ListEntitiesIterator() {}
-
 #ifdef USE_BINARY_SENSOR
 bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *obj) {
   this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::binary_sensor_all_json_generator);
@@ -143,7 +141,13 @@ bool ListEntitiesIterator::on_water_heater(water_heater::WaterHeater *obj) {
 
 #ifdef USE_INFRARED
 bool ListEntitiesIterator::on_infrared(infrared::Infrared *obj) {
-  // Infrared web_server support not yet implemented - this stub acknowledges the entity
+  this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::infrared_all_json_generator);
+  return true;
+}
+#endif
+#ifdef USE_RADIO_FREQUENCY
+bool ListEntitiesIterator::on_radio_frequency(radio_frequency::RadioFrequency *obj) {
+  this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::radio_frequency_all_json_generator);
   return true;
 }
 #endif
@@ -161,6 +165,10 @@ bool ListEntitiesIterator::on_update(update::UpdateEntity *obj) {
   this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::update_all_json_generator);
   return true;
 }
+#endif
+
+#ifdef USE_MEDIA_PLAYER
+bool ListEntitiesIterator::on_media_player(media_player::MediaPlayer *obj) { return true; }
 #endif
 
 }  // namespace esphome::web_server

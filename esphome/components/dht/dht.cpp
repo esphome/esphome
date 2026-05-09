@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dht {
+namespace esphome::dht {
 
 static const char *const TAG = "dht";
 
@@ -45,16 +44,13 @@ void DHT::update() {
   }
 
   if (success) {
-    ESP_LOGD(TAG, "Temperature %.1f°C Humidity %.1f%%", temperature, humidity);
-
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
     if (this->humidity_sensor_ != nullptr)
       this->humidity_sensor_->publish_state(humidity);
     this->status_clear_warning();
   } else {
-    ESP_LOGW(TAG, "Invalid readings! Check pin number and pull-up resistor%s.",
-             this->is_auto_detect_ ? " and try manually specifying the model" : "");
+    ESP_LOGW(TAG, "Invalid readings");
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(NAN);
     if (this->humidity_sensor_ != nullptr)
@@ -62,8 +58,6 @@ void DHT::update() {
     this->status_set_warning();
   }
 }
-
-float DHT::get_setup_priority() const { return setup_priority::DATA; }
 
 void DHT::set_dht_model(DHTModel model) {
   this->model_ = model;
@@ -75,8 +69,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
   *temperature = NAN;
 
   int error_code = 0;
-  int8_t i = 0;
-  uint8_t data[5] = {0, 0, 0, 0, 0};
+  uint8_t data[5] = {};
 
 #ifndef USE_ESP32
   this->pin_.pin_mode(gpio::FLAG_OUTPUT);
@@ -89,10 +82,8 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     delayMicroseconds(500);
   } else if (this->model_ == DHT_MODEL_DHT22_TYPE2) {
     delayMicroseconds(2000);
-  } else if (this->model_ == DHT_MODEL_AM2120 || this->model_ == DHT_MODEL_AM2302) {
-    delayMicroseconds(1000);
   } else {
-    delayMicroseconds(800);
+    delayMicroseconds(1000);
   }
 
 #ifdef USE_ESP32
@@ -111,7 +102,9 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     uint8_t bit = 7;
     uint8_t byte = 0;
 
-    for (i = -1; i < 40; i++) {
+    // On 32-bit Xtensa/RISC-V cores, int8_t would require masking/sign-extension for comparisons
+    // vs. native int. Using int i is native word size — small win in the timing-critical section.
+    for (int i = -1; i < 40; i++) {
       uint32_t start_time = micros();
 
       // Wait for rising edge
@@ -160,11 +153,9 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
       }
     }
   }
-  if (!report_errors && error_code != 0)
-    return false;
-
-  if (error_code) {
-    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
+  if (error_code != 0) {
+    if (report_errors)
+      ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
     return false;
   }
 
@@ -181,7 +172,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
 
   if (checksum_a != data[4] && checksum_b != data[4]) {
     if (report_errors) {
-      ESP_LOGW(TAG, "Checksum invalid: %u!=%u", checksum_a, data[4]);
+      ESP_LOGW(TAG, "Invalid checksum");
     }
     return false;
   }
@@ -238,5 +229,4 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
   return true;
 }
 
-}  // namespace dht
-}  // namespace esphome
+}  // namespace esphome::dht

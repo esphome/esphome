@@ -1,5 +1,6 @@
 #include "mqtt_text.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -11,6 +12,9 @@ namespace esphome::mqtt {
 static const char *const TAG = "mqtt.text";
 
 using namespace esphome::text;
+
+// Text mode MQTT strings indexed by TextMode enum (0-1): TEXT, PASSWORD
+PROGMEM_STRING_TABLE(TextMqttModeStrings, "text", "password");
 
 MQTTTextComponent::MQTTTextComponent(Text *text) : text_(text) {}
 
@@ -26,7 +30,7 @@ void MQTTTextComponent::setup() {
 
 void MQTTTextComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT text '%s':", this->text_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true)
+  LOG_MQTT_COMPONENT(true, true);
 }
 
 MQTT_COMPONENT_TYPE(MQTTTextComponent, "text")
@@ -34,14 +38,8 @@ const EntityBase *MQTTTextComponent::get_entity() const { return this->text_; }
 
 void MQTTTextComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  switch (this->text_->traits.get_mode()) {
-    case TEXT_MODE_TEXT:
-      root[MQTT_MODE] = "text";
-      break;
-    case TEXT_MODE_PASSWORD:
-      root[MQTT_MODE] = "password";
-      break;
-  }
+  root[MQTT_MODE] = TextMqttModeStrings::get_progmem_str(static_cast<uint8_t>(this->text_->traits.get_mode()),
+                                                         static_cast<uint8_t>(TEXT_MODE_TEXT));
 
   config.command_topic = true;
 }
@@ -53,7 +51,8 @@ bool MQTTTextComponent::send_initial_state() {
   }
 }
 bool MQTTTextComponent::publish_state(const std::string &value) {
-  return this->publish(this->get_state_topic_(), value);
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish(this->get_state_topic_to_(topic_buf), value.data(), value.size());
 }
 
 }  // namespace esphome::mqtt

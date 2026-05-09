@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace sds011 {
+namespace esphome::sds011 {
 
 static const char *const TAG = "sds011";
 
@@ -108,8 +107,6 @@ void SDS011Component::loop() {
   }
 }
 
-float SDS011Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void SDS011Component::set_rx_mode_only(bool rx_mode_only) { this->rx_mode_only_ = rx_mode_only; }
 
 void SDS011Component::sds011_write_command_(const uint8_t *command_data) {
@@ -186,5 +183,4 @@ void SDS011Component::set_update_interval_min(uint8_t update_interval_min) {
   this->update_interval_min_ = update_interval_min;
 }
 
-}  // namespace sds011
-}  // namespace esphome
+}  // namespace esphome::sds011

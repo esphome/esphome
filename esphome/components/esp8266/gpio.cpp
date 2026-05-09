@@ -99,7 +99,7 @@ void ESP8266GPIOPin::pin_mode(gpio::Flags flags) {
 }
 
 size_t ESP8266GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "GPIO%u", this->pin_);
+  return buf_append_printf(buffer, len, 0, "GPIO%u", this->pin_);
 }
 
 bool ESP8266GPIOPin::digital_read() {
@@ -140,6 +140,7 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
 
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- GPIO_REG_WRITE is MMIO at a fixed address
   GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, 1UL << arg->pin);
 }
 

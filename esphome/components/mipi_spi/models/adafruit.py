@@ -26,5 +26,3 @@ ST7789V.extend(
     reset_pin=40,
     invert_colors=True,
 )
-
-models = {}

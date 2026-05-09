@@ -14,8 +14,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
-namespace esphome {
-namespace msa3xx {
+namespace esphome::msa3xx {
 
 // Combined register map of MSA301 and MSA311
 // Differences
@@ -220,8 +219,6 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   void loop() override;
   void update() override;
 
-  float get_setup_priority() const override;
-
   void set_model(Model model) { this->model_ = model; }
   void set_offset(float offset_x, float offset_y, float offset_z);
   void set_range(Range range) { this->range_ = range; }
@@ -307,5 +304,4 @@ class MSA3xxComponent : public PollingComponent, public i2c::I2CDevice {
   void process_motions_(RegMotionInterrupt old);
 };
 
-}  // namespace msa3xx
-}  // namespace esphome
+}  // namespace esphome::msa3xx

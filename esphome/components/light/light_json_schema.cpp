@@ -1,4 +1,5 @@
 #include "light_json_schema.h"
+#include "color_mode.h"
 #include "light_output.h"
 #include "esphome/core/progmem.h"
 
@@ -8,29 +9,19 @@ namespace esphome::light {
 
 // See https://www.home-assistant.io/integrations/light.mqtt/#json-schema for documentation on the schema
 
-// Get JSON string for color mode using linear search (avoids large switch jump table)
-static const char *get_color_mode_json_str(ColorMode mode) {
-  // Parallel arrays: mode values and their corresponding strings
-  // Uses less RAM than a switch jump table on sparse enum values
-  static constexpr ColorMode MODES[] = {
-      ColorMode::ON_OFF,
-      ColorMode::BRIGHTNESS,
-      ColorMode::WHITE,
-      ColorMode::COLOR_TEMPERATURE,
-      ColorMode::COLD_WARM_WHITE,
-      ColorMode::RGB,
-      ColorMode::RGB_WHITE,
-      ColorMode::RGB_COLOR_TEMPERATURE,
-      ColorMode::RGB_COLD_WARM_WHITE,
-  };
-  static constexpr const char *STRINGS[] = {
-      "onoff", "brightness", "white", "color_temp", "cwww", "rgb", "rgbw", "rgbct", "rgbww",
-  };
-  for (size_t i = 0; i < sizeof(MODES) / sizeof(MODES[0]); i++) {
-    if (MODES[i] == mode)
-      return STRINGS[i];
-  }
-  return nullptr;
+// Color mode JSON strings - packed into flash with compile-time generated offsets.
+// Indexed by ColorModeBitPolicy bit index (1-9), so index 0 maps to bit 1 ("onoff").
+PROGMEM_STRING_TABLE(ColorModeStrings, "onoff", "brightness", "white", "color_temp", "cwww", "rgb", "rgbw", "rgbct",
+                     "rgbww");
+
+// Get JSON string for color mode. Returns nullptr for UNKNOWN (bit 0).
+// Returns ProgmemStr so ArduinoJson knows to handle PROGMEM strings on ESP8266.
+static ProgmemStr get_color_mode_json_str(ColorMode mode) {
+  unsigned bit = ColorModeBitPolicy::to_bit(mode);
+  if (bit == 0)
+    return nullptr;
+  // bit is 1-9 for valid modes, so bit-1 is always valid (0-8). LAST_INDEX fallback never used.
+  return ColorModeStrings::get_progmem_str(bit - 1, ColorModeStrings::LAST_INDEX);
 }
 
 void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
@@ -44,7 +35,7 @@ void LightJSONSchema::dump_json(LightState &state, JsonObject root) {
   auto values = state.remote_values;
 
   const auto color_mode = values.get_color_mode();
-  const char *mode_str = get_color_mode_json_str(color_mode);
+  const auto *mode_str = get_color_mode_json_str(color_mode);
   if (mode_str != nullptr) {
     root[ESPHOME_F("color_mode")] = mode_str;
   }

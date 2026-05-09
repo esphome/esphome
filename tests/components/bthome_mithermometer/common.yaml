@@ -3,6 +3,7 @@ esp32_ble_tracker:
 sensor:
   - platform: bthome_mithermometer
     mac_address: A4:C1:38:4E:16:78
+    bindkey: eef418daf699a0c188f3bfd17e4565d9
     temperature:
       name: "BTHome Temperature"
     humidity:

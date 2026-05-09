@@ -4,15 +4,13 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace opt3001 {
+namespace esphome::opt3001 {
 
 /// This class implements support for the i2c-based OPT3001 ambient light sensor.
 class OPT3001Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override;
 
  protected:
   // checks if one-shot is complete before reading the result and returning it
@@ -23,5 +21,4 @@ class OPT3001Sensor : public sensor::Sensor, public PollingComponent, public i2c
   bool updating_{false};
 };
 
-}  // namespace opt3001
-}  // namespace esphome
+}  // namespace esphome::opt3001

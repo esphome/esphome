@@ -1,8 +1,7 @@
 #include "ssd1306_i2c.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ssd1306_i2c {
+namespace esphome::ssd1306_i2c {
 
 static const char *const TAG = "ssd1306_i2c";
 
@@ -28,7 +27,7 @@ void I2CSSD1306::dump_config() {
                 "  Offset X: %d\n"
                 "  Offset Y: %d\n"
                 "  Inverted Color: %s",
-                this->model_str_(), YESNO(this->external_vcc_), YESNO(this->flip_x_), YESNO(this->flip_y_),
+                LOG_STR_ARG(this->model_str_()), YESNO(this->external_vcc_), YESNO(this->flip_x_), YESNO(this->flip_y_),
                 this->offset_x_, this->offset_y_, YESNO(this->invert_));
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
@@ -76,5 +75,4 @@ void HOT I2CSSD1306::write_display_data() {
   }
 }
 
-}  // namespace ssd1306_i2c
-}  // namespace esphome
+}  // namespace esphome::ssd1306_i2c

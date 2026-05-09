@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace ade7953_i2c {
+namespace esphome::ade7953_i2c {
 
 class AdE7953I2c : public ade7953_base::ADE7953, public i2c::I2CDevice {
  public:
@@ -24,5 +23,4 @@ class AdE7953I2c : public ade7953_base::ADE7953, public i2c::I2CDevice {
   bool ade_read_32(uint16_t reg, uint32_t *value) override;
 };
 
-}  // namespace ade7953_i2c
-}  // namespace esphome
+}  // namespace esphome::ade7953_i2c
