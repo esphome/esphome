@@ -1,0 +1,88 @@
+esphome:
+  name: test-rojaflex
+
+esp32:
+  board: esp32dev
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+cc1101:
+  id: transceiver
+  cs_pin: GPIO5
+  gdo0_pin: GPIO4
+  frequency: 433.92MHz
+  if_frequency: 153kHz
+  filter_bandwidth: 203kHz
+  channel: 0
+  channel_spacing: 200kHz
+  symbol_rate: 9992.6
+  modulation_type: GFSK
+  packet_mode: true
+  packet_length: 9
+  crc_enable: false
+  whitening: false
+  sync_mode: "16/16"
+  sync0: 0x91
+  sync1: 0xD3
+  num_preamble: 2
+
+rojaflex:
+  id: rojaflex_core
+  cc1101_id: transceiver
+  housecode: "0000000"
+  tx_repetitions: 2
+
+cover:
+  - platform: rojaflex
+    name: "Shutter ID1"
+    rojaflex_id: rojaflex_core
+    channel: 1
+
+sensor:
+  - platform: rojaflex
+    name: "Shutter ID1 Motor Position"
+    rojaflex_id: rojaflex_core
+    type: motor_pct
+    channel: 1
+
+text_sensor:
+  - platform: rojaflex
+    name: "Rojaflex Status"
+    rojaflex_id: rojaflex_core
+    type: status
+  - platform: rojaflex
+    name: "Configured Housecode"
+    rojaflex_id: rojaflex_core
+    type: configured_housecode
+  - platform: rojaflex
+    name: "Rojaflex Last RX Raw"
+    rojaflex_id: rojaflex_core
+    type: last_rx_raw
+  - platform: rojaflex
+    name: "Rojaflex Last RX Info"
+    rojaflex_id: rojaflex_core
+    type: last_rx_info
+  - platform: rojaflex
+    name: "CC1101 Last TX Error"
+    rojaflex_id: rojaflex_core
+    type: last_tx_error
+  - platform: rojaflex
+    name: "Shutter ID1 Status"
+    rojaflex_id: rojaflex_core
+    type: channel_status
+    channel: 1
+
+binary_sensor:
+  - platform: rojaflex
+    name: "CC1101 Last TX OK"
+    rojaflex_id: rojaflex_core
+    type: last_tx_ok
+
+number:
+  - platform: rojaflex
+    name: "TX Repetitions"
+    rojaflex_id: rojaflex_core
+    type: tx_repetitions
