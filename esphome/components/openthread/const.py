@@ -1,3 +1,4 @@
+CONF_GRACEFUL_DETACH_ON_SHUTDOWN = "graceful_detach_on_shutdown"
 CONF_DEVICE_TYPE = "device_type"
 CONF_EXT_PAN_ID = "ext_pan_id"
 CONF_FORCE_DATASET = "force_dataset"
