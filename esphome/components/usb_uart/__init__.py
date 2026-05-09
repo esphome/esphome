@@ -1,6 +1,5 @@
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
-from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
 from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
 from esphome.components.usb_host import (
     get_max_packet_size,
@@ -44,17 +43,18 @@ UART_STOP_BITS_OPTIONS = {
 
 DEFAULT_BAUD_RATE = 9600
 
+
 class Type:
     def __init__(
-            self,
-            name,
-            vid,
-            pid,
-            cls,
-            max_channels=1,
-            baud_rate_required=True,
-            channel_cls=None,
-        ):
+        self,
+        name,
+        vid,
+        pid,
+        cls,
+        max_channels=1,
+        baud_rate_required=True,
+        channel_cls=None,
+    ):
         self.name = name
         cls = cls or name
         self.cls_name = cls
