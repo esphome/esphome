@@ -135,7 +135,9 @@ def test_receive_exactly_with_error_response(mock_socket: Mock) -> None:
     """Test receive_exactly raises OTAError on error response."""
     mock_socket.recv.return_value = bytes([espota2.RESPONSE_ERROR_AUTH_INVALID])
 
-    with pytest.raises(espota2.OTAError, match="receiving auth:.*Authentication invalid"):
+    with pytest.raises(
+        espota2.OTAError, match="receiving auth:.*Authentication invalid"
+    ):
         espota2.receive_exactly(mock_socket, 1, "auth", [espota2.RESPONSE_OK])
 
     mock_socket.close.assert_called_once()
@@ -417,7 +419,9 @@ def test_perform_ota_md5_auth_wrong_password(
 
     mock_socket.recv.side_effect = recv_responses
 
-    with pytest.raises(espota2.OTAError, match="receiving auth.*Authentication invalid"):
+    with pytest.raises(
+        espota2.OTAError, match="receiving auth.*Authentication invalid"
+    ):
         espota2.perform_ota(mock_socket, "wrongpassword", mock_file, "test.bin")
 
     # Verify the socket was closed after auth failure
@@ -441,7 +445,9 @@ def test_perform_ota_sha256_auth_wrong_password(
 
     mock_socket.recv.side_effect = recv_responses
 
-    with pytest.raises(espota2.OTAError, match="receiving auth.*Authentication invalid"):
+    with pytest.raises(
+        espota2.OTAError, match="receiving auth.*Authentication invalid"
+    ):
         espota2.perform_ota(mock_socket, "wrongpassword", mock_file, "test.bin")
 
     # Verify the socket was closed after auth failure
