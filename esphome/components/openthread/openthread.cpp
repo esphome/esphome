@@ -233,7 +233,12 @@ bool OpenThreadComponent::teardown() {
       otInstance *instance = lock->get_instance();
       otSrpClientClearHostAndServices(instance);
       otSrpClientBuffersFreeAllServices(instance);
+#ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
       otThreadDetachGracefully(instance, OpenThreadComponent::detach_callback, this);
+#else
+      // skip graceful detach, parent will not remove child from its child table
+      this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
+#endif
     } break;
     case OtcTeardownStage::OTC_TEARDOWN_STARTED:
       // waiting on callback
@@ -270,10 +275,12 @@ bool OpenThreadComponent::teardown() {
   return false;
 }
 
+#ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
 void OpenThreadComponent::detach_callback(void *context) {
   OpenThreadComponent *obj = (OpenThreadComponent *) context;
   obj->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
 }
+#endif
 
 void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
   factory_reset_external_callback_ = callback;
