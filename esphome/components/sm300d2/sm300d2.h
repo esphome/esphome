@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace sm300d2 {
+namespace esphome::sm300d2 {
 
 class SM300D2Sensor : public PollingComponent, public uart::UARTDevice {
  public:
@@ -32,5 +31,4 @@ class SM300D2Sensor : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *humidity_sensor_{nullptr};
 };
 
-}  // namespace sm300d2
-}  // namespace esphome
+}  // namespace esphome::sm300d2

@@ -12,8 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 class ModbusController;
 
@@ -391,5 +390,4 @@ inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem
   return float_value;
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.output";
 
@@ -118,5 +117,4 @@ void ModbusBinaryOutput::dump_config() {
                 this->start_address, this->register_count, static_cast<int>(this->sensor_value_type));
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller
