@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace grove_gas_mc_v2 {
+namespace esphome::grove_gas_mc_v2 {
 
 class GroveGasMultichannelV2Component : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(tvoc)
@@ -33,5 +32,4 @@ class GroveGasMultichannelV2Component : public PollingComponent, public i2c::I2C
   bool read_sensor_(uint8_t address, sensor::Sensor *sensor);
 };
 
-}  // namespace grove_gas_mc_v2
-}  // namespace esphome
+}  // namespace esphome::grove_gas_mc_v2

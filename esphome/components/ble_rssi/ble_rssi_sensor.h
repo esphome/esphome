@@ -6,8 +6,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_rssi {
+namespace esphome::ble_rssi {
 
 class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
@@ -120,7 +119,6 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
   bool check_ibeacon_minor_;
 };
 
-}  // namespace ble_rssi
-}  // namespace esphome
+}  // namespace esphome::ble_rssi
 
 #endif

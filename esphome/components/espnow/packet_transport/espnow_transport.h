@@ -9,8 +9,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace espnow {
+namespace esphome::espnow {
 
 class ESPNowTransport : public packet_transport::PacketTransport,
                         public Parented<ESPNowComponent>,
@@ -37,7 +36,6 @@ class ESPNowTransport : public packet_transport::PacketTransport,
   std::vector<uint8_t> packet_buffer_;
 };
 
-}  // namespace espnow
-}  // namespace esphome
+}  // namespace esphome::espnow
 
 #endif  // USE_ESP32

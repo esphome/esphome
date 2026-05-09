@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace ttp229_lsf {
+namespace esphome::ttp229_lsf {
 
 class TTP229Channel : public binary_sensor::BinarySensor {
  public:
@@ -33,5 +32,4 @@ class TTP229LSFComponent : public Component, public i2c::I2CDevice {
   } error_code_{NONE};
 };
 
-}  // namespace ttp229_lsf
-}  // namespace esphome
+}  // namespace esphome::ttp229_lsf

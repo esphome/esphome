@@ -649,11 +649,15 @@ lvgl:
             on_scroll_begin:
               logger.log: Button clicked
             on_release:
-              logger.log: Button clicked
+              logger.log:
+                format: Button released at %d/%d
+                args: [point.x, point.y]
             on_long_press_repeat:
               logger.log: Button clicked
             on_pressing:
-              logger.log: Button pressing
+              logger.log:
+                format: Button pressing at %d/%d
+                args: [point.x, point.y]
             on_press_lost:
               logger.log: Button press lost
             on_single_click:
@@ -925,6 +929,10 @@ lvgl:
                   value: !lambda |-
                       static float yyy = 83.0;
                       return yyy + .8;
+            on_release:
+              logger.log:
+                format: Slider released at %d/%d with value %.0f
+                args: [point.x, point.y, x]
         - button:
             styles: spin_button
             id: spin_up
