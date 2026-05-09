@@ -153,7 +153,7 @@ class SendspinHub final : public Component,
 
   /// @brief Writes the active network interface's MAC into @p buf and returns its data pointer.
   /// Uses the ethernet MAC if ethernet is configured, otherwise the base MAC (used by wifi).
-  static const char *get_client_id_into_buffer_(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
+  static const char *get_client_id_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
 
   // --- SendspinClientListener overrides ---
   void on_group_update(const sendspin::GroupUpdateObject &group) override;
