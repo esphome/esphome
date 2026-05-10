@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include "esphome/core/component.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/components/network/ip_address.h"
@@ -75,8 +75,10 @@ class StatsdComponent : public PollingComponent {
   WiFiUDP sock_;
 #else
   std::unique_ptr<esphome::socket::Socket> sock_;
-  struct sockaddr_in destination_;
-#endif
+};
+
+}  // namespace esphome::statsd
+#endif  // USE_NETWORK && !USE_ZEPHYR
 
   void send_(std::string *out);
 };
