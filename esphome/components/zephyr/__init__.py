@@ -241,6 +241,7 @@ def copy_files():
         zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
         or zephyr_data()[KEY_BOARD] == "xiao_ble"
     ):
+        variant = zephyr_data()["variant"]
         fake_board_manifest = f"""
 {{
     "frameworks": [
@@ -259,7 +260,7 @@ def copy_files():
             "name": "adafruit"
         }},
         "zephyr": {{
-            "variant": "{zephyr_data()["variant"]}"
+            "variant": "{variant}"
         }},
         "softdevice": {{
             "sd_fwid": "0x00B6"

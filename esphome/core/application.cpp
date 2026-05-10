@@ -18,6 +18,7 @@
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
+#include <cerrno>
 #include <ranges>
 
 #ifdef USE_STATUS_LED

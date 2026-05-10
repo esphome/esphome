@@ -45,8 +45,8 @@ def validate_gpio_pin(value):
     if value in EXTRA_ADC:
         return value
     value = _translate_pin(value)
-    if value < 0 or value > 48:
-        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-48)")
+    if value < 0 or value > 47:
+        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-47)")
     return value
 
 
