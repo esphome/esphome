@@ -4,8 +4,7 @@
 
 #ifdef USE_ZEPHYR
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 static const char *const TAG = "mdns.zephyr";
 
@@ -19,7 +18,6 @@ void MDNSComponent::setup() {
   char *mac_ptr = nullptr;
 #endif
   this->compile_records_(this->services_, mac_ptr, nullptr);
-  const auto &services = this->services_;
 #else
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
   char *mac_ptr = nullptr;
@@ -31,7 +29,6 @@ void MDNSComponent::setup() {
 
 void MDNSComponent::on_shutdown() { ESP_LOGD(TAG, "Shutting down mDNS for Zephyr..."); }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif  // USE_ZEPHYR
