@@ -153,6 +153,8 @@ async def _cdc_acm_to_code(config: ConfigType) -> None:
 def zephyr_setup_preferences():
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
+    zephyr_add_prj_conf("NVS", True)
+    zephyr_add_prj_conf("SETTINGS_NVS", True)
     zephyr_add_prj_conf("FLASH_MAP", True)
     zephyr_add_prj_conf("FLASH", True)
 
