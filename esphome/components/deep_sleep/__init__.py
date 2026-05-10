@@ -320,7 +320,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if CONF_OTA_PREVENT_TIMEOUT in config:
+    if CONF_OTA_TIMEOUT in config:
         cg.add(var.set_ota_prevent_timeout(config[CONF_OTA_TIMEOUT]))
         if config[CONF_OTA_TIMEOUT] > 0:
             from esphome.components import ota
