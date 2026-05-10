@@ -37,7 +37,7 @@ static uint8_t gree_yap_checksum(const uint8_t *buffer) {
 
 static uint8_t gree_standard_checksum(const uint8_t *buffer) {
   const uint8_t sum = (buffer[0] & 0x0F) + (buffer[1] & 0x0F) + (buffer[2] & 0x0F) + (buffer[3] & 0x0F) +
-                      ((buffer[5] & 0xF0) >> 4) + ((buffer[6] & 0xF0) >> 4) + 0x0A;
+                      ((buffer[4] & 0xF0) >> 4) + ((buffer[5] & 0xF0) >> 4) + ((buffer[6] & 0xF0) >> 4) + 0x0A;
   return uint8_t(((sum & 0x0F) << 4) | (buffer[7] & 0x0F));
 }
 

@@ -1,6 +1,7 @@
 #include "common.h"
 
 #include <array>
+#include <cstddef>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -103,6 +104,37 @@ std::string state_to_string(const RoundTripState &state) {
   return out.str();
 }
 
+std::array<uint8_t, GREE_STATE_FRAME_SIZE> decode_standard_frame(const remote_base::RawTimings &timings) {
+  std::array<uint8_t, GREE_STATE_FRAME_SIZE> buffer{};
+  size_t pos = 2;  // Header mark/space.
+
+  const auto read_byte = [&timings, &pos]() {
+    uint8_t value = 0;
+    for (uint8_t mask = 1; mask > 0; mask <<= 1) {
+      EXPECT_LT(pos + 1, timings.size());
+      EXPECT_NEAR(timings[pos], GREE_BIT_MARK, 1);
+      const int32_t space = -timings[pos + 1];
+      if (space > static_cast<int32_t>((GREE_ONE_SPACE + GREE_ZERO_SPACE) / 2)) {
+        value |= mask;
+      }
+      pos += 2;
+    }
+    return value;
+  };
+
+  for (size_t i = 0; i < 4; i++) {
+    buffer[i] = read_byte();
+  }
+
+  pos += 8;  // Fixed 010 bits and inter-message gap.
+
+  for (size_t i = 4; i < GREE_STATE_FRAME_SIZE; i++) {
+    buffer[i] = read_byte();
+  }
+
+  return buffer;
+}
+
 }  // namespace
 
 TEST(GreeRoundTripTest, GreeToGreeToGreeRoundTripAcrossAllBuiltinModels) {
@@ -129,6 +161,27 @@ TEST(GreeRoundTripTest, HeatpumpIRCompatibleGreeProtocolsRoundTripWithGreeReceiv
       run_round_trip_once(model, state);
     }
   }
+}
+
+TEST(GreeEncodingTest, YacFixedHorizontalDirectionContributesToStandardChecksum) {
+  MockRemoteTransmitter source_tx;
+  TestableGreeClimate source;
+  source.set_transmitter(&source_tx);
+  source.set_model(GREE_YAC);
+  source.set_horizontal_default(HORIZONTAL_DIRECTION_RIGHT);
+  source.mode = climate::CLIMATE_MODE_COOL;
+  source.target_temperature = 25.0f;
+  source.fan_mode = climate::CLIMATE_FAN_AUTO;
+  source.swing_mode = climate::CLIMATE_SWING_OFF;
+  source.set_mode_bits_for_test(GREE_MODE_BIT_LIGHT);
+
+  source.transmit_state();
+
+  ASSERT_FALSE(source_tx.last_data().empty());
+  const auto frame = decode_standard_frame(source_tx.last_data());
+
+  EXPECT_EQ(frame[4], 0x60);
+  EXPECT_EQ(frame[7], 0x60);
 }
 
 }  // namespace esphome::gree::testing
