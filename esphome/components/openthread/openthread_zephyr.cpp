@@ -45,10 +45,12 @@ void OpenThreadComponent::setup() {
     dataset.mLength = len;
   }
 #endif
-  otError error = otDatasetSetActiveTlvs(context->instance, &dataset);
-  if (error != OT_ERROR_NONE) {
-    ESP_LOGE(TAG, "Failed to set active dataset: %s", otThreadErrorToString(error));
-    return;
+  if (dataset.mLength > 0) {
+    otError error = otDatasetSetActiveTlvs(context->instance, &dataset);
+    if (error != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set active dataset: %s", otThreadErrorToString(error));
+      return;
+    }
   }
   openthread_state_changed_cb_register(context, &ot_state_changed_cb);
   openthread_start(context);
