@@ -184,4 +184,24 @@ TEST(GreeEncodingTest, YacFixedHorizontalDirectionContributesToStandardChecksum)
   EXPECT_EQ(frame[7], 0x60);
 }
 
+TEST(GreeDecodeTest, SwingBitDoesNotMaskReceivedFanSpeed) {
+  MockRemoteTransmitter source_tx;
+  TestableGreeClimate source;
+  source.set_transmitter(&source_tx);
+  source.set_model(GREE_YAC);
+  source.mode = climate::CLIMATE_MODE_COOL;
+  source.target_temperature = 25.0f;
+  source.fan_mode = climate::CLIMATE_FAN_HIGH;
+  source.swing_mode = climate::CLIMATE_SWING_VERTICAL;
+
+  source.transmit_state();
+
+  TestableGreeClimate decoded;
+  decoded.set_model(GREE_YAC);
+  ASSERT_TRUE(decoded.receive(source_tx.last_data()));
+
+  EXPECT_EQ(decoded.fan_mode, climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(decoded.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+}
+
 }  // namespace esphome::gree::testing

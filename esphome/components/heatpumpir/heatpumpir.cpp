@@ -34,6 +34,8 @@ class IRSenderESPHome : public IRSender {
     data->mark(mark_length > 0 ? mark_length : 0);
   }
 
+  bool has_data() { return !this->transmit_.get_data()->get_data().empty(); }
+
   void perform() { this->transmit_.perform(); }
 
  protected:
@@ -114,7 +116,9 @@ void HeatpumpIRClimate::setup() {
 
       IRSenderESPHome esp_sender(this->transmitter_);
       this->heatpump_ir_->send(esp_sender, uint8_t(lround(this->current_temperature)));
-      esp_sender.perform();
+      if (esp_sender.has_data()) {
+        esp_sender.perform();
+      }
 
       // current temperature changed, publish state
       this->publish_state();

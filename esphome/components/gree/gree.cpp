@@ -591,7 +591,7 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
     this->fan_mode = gree_decode_fan(buffer[0] & 0xF0, true);
     this->preset = (buffer[0] & GREE_PRESET_SLEEP_BIT) ? climate::CLIMATE_PRESET_SLEEP : climate::CLIMATE_PRESET_NONE;
   } else {
-    this->fan_mode = gree_decode_fan(buffer[0] & 0xF0, false);
+    this->fan_mode = gree_decode_fan(buffer[0] & 0x30, false);
   }
 
   bool vertical_swing = false;
