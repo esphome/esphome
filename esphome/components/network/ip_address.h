@@ -67,13 +67,7 @@ struct IPAddress {
 
   operator struct in6_addr() const { return ip_addr_; }
 
-  bool is_set() const {
-    for (int i = 0; i < 16; i++) {
-      if (ip_addr_.s6_addr[i] != 0)
-        return true;
-    }
-    return false;
-  }
+  bool is_set() const { return !net_ipv6_is_addr_unspecified(&ip_addr_); }
   bool is_ip4() const { return false; }
   bool is_ip6() const { return this->is_set(); }
   bool is_multicast() const { return ip_addr_.s6_addr[0] == 0xff; }
@@ -86,8 +80,8 @@ struct IPAddress {
     inet_ntop(AF_INET6, &ip_addr_, buf, INET6_ADDRSTRLEN);
     return buf;
   }
-  bool operator==(const IPAddress &other) const { return memcmp(&ip_addr_, &other.ip_addr_, sizeof(ip_addr_)) == 0; }
-  bool operator!=(const IPAddress &other) const { return memcmp(&ip_addr_, &other.ip_addr_, sizeof(ip_addr_)) != 0; }
+  bool operator==(const IPAddress &other) const { return net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
+  bool operator!=(const IPAddress &other) const { return !net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
 
 #elif defined(USE_HOST)
   IPAddress() { ip_addr_.s_addr = 0; }
