@@ -60,7 +60,7 @@ inline struct lwip_sock *hook_fd_for_fast_select(int fd) {
   }
   return sock;
 }
-#else  // USE_HOST or any non-fast-select path
+#else   // USE_HOST or any non-fast-select path
 /// Shared ready() helper for fd-based socket implementations.
 /// Checks if the Application's select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored);
