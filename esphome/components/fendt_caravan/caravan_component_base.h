@@ -29,7 +29,7 @@ template<typename T> class CaravanComponentBase : public Component, public Paren
   void setup() override = 0;
 
  protected:
-  virtual void on_decoded(const T value) {}
+  virtual void on_decoded(const T &value) {}
   Variable<T> *variable_{nullptr};
   std::string key_name_;
 };
