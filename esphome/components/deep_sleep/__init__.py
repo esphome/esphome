@@ -322,7 +322,7 @@ async def to_code(config):
 
     if CONF_OTA_TIMEOUT in config:
         cg.add(var.set_ota_prevent_timeout(config[CONF_OTA_TIMEOUT]))
-        if config[CONF_OTA_TIMEOUT] > 0:
+        if config[CONF_OTA_TIMEOUT] > core.TimePeriod(milliseconds=0):
             from esphome.components import ota
             ota.request_ota_state_listeners()
 
