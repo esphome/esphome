@@ -485,11 +485,13 @@ def copy_files() -> None:
     zephyr_copy_files()
 
 
+DFU_PATH = "firmware.zip"
+
+
 def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     """Get the download types for the firmware."""
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
-    DFU_PATH = "firmware.zip"
     HEX_PATH = "zephyr/zephyr.hex"
     HEX_MERGED_PATH = "zephyr/merged.hex"
     APP_IMAGE_PATH = "zephyr/app_update.bin"
@@ -546,11 +548,14 @@ def _upload_using_platformio(
 
 
 def upload_program(config: ConfigType, args, host: str) -> bool:
-    from esphome.__main__ import check_permissions, get_port_type
+    from esphome.__main__ import PortType, check_permissions, get_port_type
 
     mcumgr_device: str | None = None
 
-    if get_port_type(host) == "SERIAL":
+    if (
+        get_port_type(host) == PortType.SERIAL
+        and config["nrf52"][KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT
+    ):
         check_permissions(host)
         if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
@@ -560,20 +565,32 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
                 import serial
 
-                with serial.Serial(host, baudrate=1200):
-                    time.sleep(0.1)
-                deadline = time.monotonic() + 5
-                while time.monotonic() < deadline:
-                    try:
+                try:
+                    if "://" in host:
+                        with serial.serial_for_url(host, baudrate=1200):
+                            pass
+                    else:
                         with serial.Serial(host, baudrate=1200):
                             pass
-                        break
-                    except serial.SerialException:
-                        pass
+                except serial.serialutil.SerialException:
+                    # It triggers cpu reset. It can fail randomly.
+                    pass
+
+                if "://" in host:
+                    time.sleep(1)
                 else:
-                    raise EsphomeError(
-                        f"Timed out waiting for {host} to reappear after reset"
-                    )
+                    deadline = time.monotonic() + 5
+                    while time.monotonic() < deadline:
+                        try:
+                            with serial.Serial(host, baudrate=1200):
+                                pass
+                            break
+                        except serial.SerialException:
+                            pass
+                    else:
+                        raise EsphomeError(
+                            f"Timed out waiting for {host} to reappear after reset"
+                        )
                 dfu_zip = CORE.relative_build_path("firmware.zip")
                 result = subprocess.run(
                     [
