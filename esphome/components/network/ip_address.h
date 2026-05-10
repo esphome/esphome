@@ -73,11 +73,13 @@ struct IPAddress {
   bool is_multicast() const { return net_ipv6_is_addr_mcast(&ip_addr_); }
   std::string str() const {
     char buffer[INET6_ADDRSTRLEN];
-    inet_ntop(AF_INET6, &ip_addr_, buffer, sizeof(buffer));
+    if (inet_ntop(AF_INET6, &ip_addr_, buffer, sizeof(buffer)) == nullptr)
+      return {};
     return std::string(buffer);
   }
   char *str_to(char *buf) const {
-    inet_ntop(AF_INET6, &ip_addr_, buf, INET6_ADDRSTRLEN);
+    if (inet_ntop(AF_INET6, &ip_addr_, buf, INET6_ADDRSTRLEN) == nullptr)
+      buf[0] = '\0';
     return buf;
   }
   bool operator==(const IPAddress &other) const { return net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
