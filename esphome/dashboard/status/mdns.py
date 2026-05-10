@@ -16,7 +16,7 @@ from esphome.zeroconf import (
     DiscoveredImport,
 )
 
-from ..const import SENTINEL, DashboardEvent
+from ..const import SENTINEL, DASHBOARD_COMMAND, DashboardEvent
 from ..entries import DashboardEntry, EntryStateSource, bool_to_entry_state
 from ..models import build_importable_device_dict
 
@@ -134,6 +134,30 @@ class MDNSStatus:
             # or from mDNS
             self.dashboard.entries.async_set_state_if_source(entry, state)
 
+    async def _trigger_queued_update(self, configuration: str) -> None:
+        """Run the upload command silently in the background for a queued device."""
+        config_file = self.dashboard.settings.rel_path(configuration)
+        
+        # We explicitly target OTA so it doesn't accidentally try to use a plugged-in USB port
+        cmd = [*DASHBOARD_COMMAND, "upload", str(config_file), "--device", "OTA"]
+        
+        _LOGGER.info("Starting background queued update for %s", configuration)
+        
+        # Spawn the upload process
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT
+        )
+        
+        stdout, _ = await proc.communicate()
+        
+        if proc.returncode == 0:
+            _LOGGER.info("Successfully pushed queued update to %s", configuration)
+        else:
+            _LOGGER.error("Failed to push queued update to %s. Output:\n%s", 
+                          configuration, stdout.decode('utf-8', 'replace'))
+
     async def async_run(self) -> None:
         """Run the mdns status."""
         dashboard = self.dashboard
@@ -147,6 +171,17 @@ class MDNSStatus:
                 if matching_entries := entries.get_by_name(name):
                     for entry in matching_entries:
                         self._async_set_state(entry, result)
+                        
+                        # --- NEW QUEUED UPDATE TRIGGER ---
+                        # If the device just came online and we have a queue initialized...
+                        if result and hasattr(dashboard, "queued_updates"):
+                            # Check if this specific device has an update waiting
+                            if entry.filename in dashboard.queued_updates:
+                                _LOGGER.info("Device %s came online! Triggering queued update.", entry.name)
+                                # Remove from queue so we don't trigger it again
+                                dashboard.queued_updates.discard(entry.filename)
+                                # Fire the upload process in the background without blocking the mDNS listener
+                                asyncio.create_task(self._trigger_queued_update(entry.filename))
 
         stat = DashboardStatus(on_update)
 

@@ -491,6 +491,34 @@ class EsphomeCompileHandler(EsphomeCommandWebSocket):
         return command
 
 
+class EsphomeQueueUpdateHandler(EsphomeCommandWebSocket):
+    configuration: str
+
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
+        self.configuration = json_message["configuration"]
+        config_file = settings.rel_path(self.configuration)
+        
+        # We explicitly do NOT use --only-generate because we need the .bin file
+        command = [*DASHBOARD_COMMAND, "compile", config_file]
+        return command
+
+    def _proc_on_exit(self, returncode: int) -> None:
+        # Let the base class send the exit code to the frontend first
+        super()._proc_on_exit(returncode)
+
+        if returncode != 0:
+            _LOGGER.warning("Queue compile failed for %s", self.configuration)
+            return
+
+        # Fallback initialization just in case dashboard.py hasn't fully attached it
+        if not hasattr(DASHBOARD, "queued_updates"):
+            DASHBOARD.queued_updates = set()
+
+        # Add to the queue upon successful compilation
+        DASHBOARD.queued_updates.add(self.configuration)
+        _LOGGER.info("Successfully compiled and queued %s for  update", self.configuration)
+
+
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         config_file = settings.rel_path(json_message["configuration"])
@@ -1572,6 +1600,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}upload", EsphomeUploadHandler),
             (f"{rel}run", EsphomeRunHandler),
             (f"{rel}compile", EsphomeCompileHandler),
+            (f"{rel}queue-update", EsphomeQueueUpdateHandler),
             (f"{rel}validate", EsphomeValidateHandler),
             (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),
             (f"{rel}clean-all", EsphomeCleanAllHandler),

@@ -133,6 +133,10 @@ def start_dashboard(args) -> None:
 async def async_start(args) -> None:
     """Start the dashboard."""
     dashboard = DASHBOARD
+
+    # Initialize the update queue
+    dashboard.queued_updates = set()
+
     await dashboard.async_setup()
     sock: socket.socket | None = args.socket
     address: str | None = args.address
