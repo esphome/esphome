@@ -78,7 +78,7 @@ struct IPAddress {
     return std::string(buffer);
   }
   char *str_to(char *buf) const {
-    if (inet_ntop(AF_INET6, &ip_addr_, buf, INET6_ADDRSTRLEN) == nullptr)
+    if (inet_ntop(AF_INET6, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
       buf[0] = '\0';
     return buf;
   }
