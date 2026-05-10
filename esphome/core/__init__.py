@@ -615,6 +615,9 @@ class EsphomeCore:
         self.address_cache: AddressCache | None = None
         # Cached config hash (computed lazily)
         self._config_hash: int | None = None
+        # When True, skip network freshness checks for cached external files
+        # (e.g. for `esphome logs`, where remote downloads aren't needed)
+        self.skip_external_update: bool = False
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -644,6 +647,7 @@ class EsphomeCore:
         self.current_component = None
         self.address_cache = None
         self._config_hash = None
+        self.skip_external_update = False
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -774,6 +778,23 @@ class EsphomeCore:
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")
+
+    @property
+    def partition_table_bin(self) -> Path:
+        # Native ESP-IDF (--native-idf): the partition table image is emitted under
+        # build/partition_table/partition-table.bin alongside firmware.bin. PlatformIO writes the
+        # equivalent file as partitions.bin in the env-specific .pioenvs directory.
+        if self.data.get(KEY_NATIVE_IDF):
+            return self.relative_build_path(
+                "build", "partition_table", "partition-table.bin"
+            )
+        return self.relative_pioenvs_path(self.name, "partitions.bin")
+
+    @property
+    def bootloader_bin(self) -> Path:
+        if self.data.get(KEY_NATIVE_IDF):
+            return self.relative_build_path("build", "bootloader", "bootloader.bin")
+        return self.relative_pioenvs_path(self.name, "bootloader.bin")
 
     @property
     def target_platform(self):

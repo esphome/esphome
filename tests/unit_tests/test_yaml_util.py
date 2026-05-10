@@ -11,7 +11,13 @@ from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
 from esphome.core import DocumentLocation, DocumentRange, EsphomeError
 from esphome.util import OrderedDict
-from esphome.yaml_util import ESPHomeDataBase, format_path, make_data_base
+from esphome.yaml_util import (
+    ESPHomeDataBase,
+    ESPLiteralValue,
+    format_path,
+    make_data_base,
+    make_literal,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -891,3 +897,57 @@ def test_format_path_empty_path_with_located_current_obj():
     obj = _located("${var}", "main.yaml", 0, 0)
     result = format_path([], obj)
     assert result == "In:  in main.yaml 1:1"
+
+
+def test_make_literal_wraps_dict() -> None:
+    """A dict is wrapped so it becomes an ESPLiteralValue instance."""
+    value = {"key": "${var}"}
+    result = make_literal(value)
+    assert isinstance(result, ESPLiteralValue)
+    assert isinstance(result, dict)
+    assert result == {"key": "${var}"}
+
+
+def test_make_literal_wraps_list() -> None:
+    """A list is wrapped so it becomes an ESPLiteralValue instance."""
+    value = ["${var}", "plain"]
+    result = make_literal(value)
+    assert isinstance(result, ESPLiteralValue)
+    assert isinstance(result, list)
+    assert result == ["${var}", "plain"]
+
+
+def test_make_literal_wraps_string() -> None:
+    """A string is wrapped so it becomes an ESPLiteralValue instance."""
+    result = make_literal("${var}")
+    assert isinstance(result, ESPLiteralValue)
+    assert result == "${var}"
+
+
+def test_make_literal_returns_already_wrapped_value_unchanged() -> None:
+    """Wrapping a value that is already an ESPLiteralValue returns it as-is."""
+    value = make_literal({"key": "value"})
+    assert isinstance(value, ESPLiteralValue)
+    result = make_literal(value)
+    assert result is value
+
+
+def test_make_literal_returns_none_unchanged() -> None:
+    """Values whose class cannot be augmented (e.g. ``None``) are returned as-is."""
+    result = make_literal(None)
+    assert result is None
+
+
+def test_make_literal_blocks_substitution() -> None:
+    """A value wrapped with make_literal is skipped by the substitution pass."""
+    value = make_literal({"pin": "${PIN}"})
+    result = substitutions.substitute(
+        value,
+        path=[],
+        parent_context=substitutions.ContextVars(),
+        strict_undefined=False,
+    )
+    # The literal block must remain untouched, even though the variable is
+    # undefined in the context.
+    assert result == {"pin": "${PIN}"}
+    assert isinstance(result, ESPLiteralValue)

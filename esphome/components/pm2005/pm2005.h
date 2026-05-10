@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace pm2005 {
+namespace esphome::pm2005 {
 
 enum SensorType {
   PM2005,
@@ -40,5 +39,4 @@ class PM2005Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t measuring_value_index_{10};
 };
 
-}  // namespace pm2005
-}  // namespace esphome
+}  // namespace esphome::pm2005

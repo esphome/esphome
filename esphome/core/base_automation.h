@@ -178,7 +178,7 @@ class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
 };
 #endif
 
-template<typename... Ts> class DelayAction : public Action<Ts...>, public Component {
+template<typename... Ts> class DelayAction : public Action<Ts...> {
  public:
   explicit DelayAction() = default;
 
@@ -198,8 +198,8 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
     // to avoid overhead from capturing arguments by value
     if constexpr (sizeof...(Ts) == 0) {
       App.scheduler.set_timer_common_(
-          this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL, nullptr,
-          static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION), this->delay_.value(),
+          /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
+          /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(),
           [this]() { this->play_next_(); },
           /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
     } else {
@@ -208,18 +208,18 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
       // `mutable` is required so captured copies of non-const reference args (e.g. std::string&)
       // are passed as non-const lvalues to play_next_(const Ts&...) where Ts may be `T&`
       auto f = [this, x...]() mutable { this->play_next_(x...); };
-      App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL,
-                                      nullptr, static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION),
-                                      this->delay_.value(x...), std::move(f),
-                                      /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+      App.scheduler.set_timer_common_(
+          /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
+          /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(x...),
+          std::move(f),
+          /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
     }
   }
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
-  void stop() override { this->cancel_timeout(InternalSchedulerID::DELAY_ACTION); }
+  void stop() override { App.scheduler.cancel_timeout(this); }
 };
 
 template<typename... Ts> class LambdaAction : public Action<Ts...> {
@@ -273,18 +273,32 @@ template<typename... Ts> class WhileLoopContinuation : public Action<Ts...> {
   WhileAction<Ts...> *parent_;
 };
 
+// Wraps a ContinuationAction when Enabled, empty otherwise.
+// Lets IfAction elide the else continuation when HasElse is false.
+template<bool Enabled, typename... Ts> struct OptionalContinuation {
+  ContinuationAction<Ts...> action;
+  explicit OptionalContinuation(Action<Ts...> *parent) : action(parent) {}
+};
+template<typename... Ts> struct OptionalContinuation<false, Ts...> {
+  explicit OptionalContinuation(Action<Ts...> * /*parent*/) {}
+};
+
 template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  public:
   explicit IfAction(Condition<Ts...> *condition) : condition_(condition) {}
 
+  // Precondition: add_then/add_else must be called at most once per instance.
+  // Codegen always batches the full action list into a single call. Calling
+  // twice would re-append the same inline continuation pointer and form a
+  // self-loop in the next_ chain.
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new ContinuationAction<Ts...>(this));
+    this->then_.add_action(&this->then_continuation_);
   }
 
   void add_else(const std::initializer_list<Action<Ts...> *> &actions) requires(HasElse) {
     this->else_.add_actions(actions);
-    this->else_.add_action(new ContinuationAction<Ts...>(this));
+    this->else_.add_action(&this->else_continuation_.action);
   }
 
   void play_complex(const Ts &...x) override {
@@ -316,17 +330,20 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
+  ContinuationAction<Ts...> then_continuation_{this};
   struct NoElse {};
   [[no_unique_address]] std::conditional_t<HasElse, ActionList<Ts...>, NoElse> else_;
+  [[no_unique_address]] OptionalContinuation<HasElse, Ts...> else_continuation_{this};
 };
 
 template<typename... Ts> class WhileAction : public Action<Ts...> {
  public:
   WhileAction(Condition<Ts...> *condition) : condition_(condition) {}
 
+  // Precondition: must be called at most once per instance (see IfAction::add_then).
   void add_then(const std::initializer_list<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new WhileLoopContinuation<Ts...>(this));
+    this->then_.add_action(&this->loop_continuation_);
   }
 
   friend class WhileLoopContinuation<Ts...>;
@@ -354,6 +371,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
+  WhileLoopContinuation<Ts...> loop_continuation_{this};
 };
 
 // Implementation of WhileLoopContinuation::play
@@ -386,9 +404,10 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint32_t, count)
 
+  // Precondition: must be called at most once per instance (see IfAction::add_then).
   void add_then(const std::initializer_list<Action<uint32_t, Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new RepeatLoopContinuation<Ts...>(this));
+    this->then_.add_action(&this->loop_continuation_);
   }
 
   friend class RepeatLoopContinuation<Ts...>;
@@ -409,6 +428,7 @@ template<typename... Ts> class RepeatAction : public Action<Ts...> {
 
  protected:
   ActionList<uint32_t, Ts...> then_;
+  RepeatLoopContinuation<Ts...> loop_continuation_{this};
 };
 
 // Implementation of RepeatLoopContinuation::play

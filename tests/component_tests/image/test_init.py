@@ -7,10 +7,12 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+from PIL import Image as PILImage
 import pytest
 
 from esphome import config_validation as cv
 from esphome.components.image import (
+    CONF_ALPHA_CHANNEL,
     CONF_INVERT_ALPHA,
     CONF_OPAQUE,
     CONF_TRANSPARENCY,
@@ -410,4 +412,71 @@ async def test_svg_with_mm_dimensions_succeeds(
     )
     assert 30 < height < 50, (
         f"Height should be around 39 pixels for 10mm at 100dpi, got {height}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_rgb565_alpha_animation_layout_per_frame(
+    tmp_path: Path,
+    mock_progmem_array: MagicMock,
+) -> None:
+    """RGB565+alpha animations must store each frame as a self-contained
+    [RGB plane | alpha plane] block. Animation::update_data_start_ steps frames
+    with a single per-frame stride, so any cross-frame layout (all RGB then all
+    alpha) makes the C++ alpha read land in the next frame's RGB bytes — that
+    was the regression behind issue #15999.
+    """
+    # Build a 2-frame APNG where each frame is a solid color with a known
+    # alpha. APNG preserves full RGBA per pixel (GIF only has 1-bit alpha so
+    # round-tripping mid-range alpha values does not work). Frame 0 is fully
+    # opaque red, frame 1 is fully transparent blue.
+    width = 4
+    height = 3
+    frame0 = PILImage.new("RGBA", (width, height), (255, 0, 0, 0xFF))
+    frame1 = PILImage.new("RGBA", (width, height), (0, 0, 255, 0x00))
+    apng_path = tmp_path / "anim.png"
+    frame0.save(
+        apng_path,
+        format="PNG",
+        save_all=True,
+        append_images=[frame1],
+        duration=100,
+        loop=0,
+    )
+
+    config = {
+        CONF_FILE: str(apng_path),
+        CONF_TYPE: "RGB565",
+        CONF_TRANSPARENCY: CONF_ALPHA_CHANNEL,
+        CONF_DITHER: "NONE",
+        CONF_INVERT_ALPHA: False,
+        CONF_RAW_DATA_ID: "test_raw_data_id",
+    }
+
+    _, _, _, _, _, frame_count = await write_image(config, all_frames=True)
+    assert frame_count == 2
+
+    # Recover the bytes handed to progmem_array. Signature is (id_, rhs).
+    _, raw_data = mock_progmem_array.call_args.args
+    data = [int(x) for x in raw_data]
+
+    rgb_size = width * height * 2
+    alpha_size = width * height
+    frame_size = rgb_size + alpha_size
+    assert len(data) == frame_size * frame_count, (
+        "RGB565+alpha animation buffer must be (RGB + alpha) per frame, not "
+        "all RGB followed by all alpha"
+    )
+
+    # Frame 0: RGB plane is red, alpha plane is 0xFF. Frame 1: alpha plane is
+    # 0x00. If the layout regresses to [all RGB | all alpha], the alpha bytes
+    # would all land at the tail of the buffer and the per-frame slices below
+    # would point at RGB565 noise instead.
+    frame0_alpha = data[rgb_size : rgb_size + alpha_size]
+    frame1_alpha = data[frame_size + rgb_size : frame_size + rgb_size + alpha_size]
+    assert all(a == 0xFF for a in frame0_alpha), (
+        f"Frame 0 alpha plane should be opaque, got {frame0_alpha}"
+    )
+    assert all(a == 0x00 for a in frame1_alpha), (
+        f"Frame 1 alpha plane should be transparent, got {frame1_alpha}"
     )

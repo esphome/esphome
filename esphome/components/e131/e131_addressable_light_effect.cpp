@@ -3,8 +3,7 @@
 #ifdef USE_NETWORK
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace e131 {
+namespace esphome::e131 {
 
 static const char *const TAG = "e131_addressable_light_effect";
 static const int MAX_DATA_SIZE = (sizeof(E131Packet::values) - 1);
@@ -56,8 +55,7 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
   // limit amount of lights per universe and received
   // packet.count is the number of DMX bytes including start code; divide by channels to get the number of lights
   int lights_in_packet = (packet.count > 0) ? (packet.count - 1) / channels_ : 0;
-  int output_end =
-      std::min(it->size(), std::min(output_offset + get_lights_per_universe(), output_offset + lights_in_packet));
+  int output_end = std::min({it->size(), output_offset + get_lights_per_universe(), output_offset + lights_in_packet});
   auto *input_data = packet.values + 1;
 
   auto effect_name = get_name();
@@ -92,6 +90,6 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
   return true;
 }
 
-}  // namespace e131
-}  // namespace esphome
+}  // namespace esphome::e131
+
 #endif

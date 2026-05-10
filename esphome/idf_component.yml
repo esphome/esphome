@@ -2,15 +2,19 @@ dependencies:
   bblanchon/arduinojson:
     version: "7.4.2"
   esphome/esp-audio-libs:
-    version: 2.0.4
+    version: 3.0.0
   esphome/esp-micro-speech-features:
     version: 1.2.3
   esphome/micro-decoder:
-    version: 0.1.1
+    version: 0.2.0
   esphome/micro-flac:
-    version: 0.1.1
+    version: 0.2.0
+  esphome/micro-mp3:
+    version: 0.2.0
   esphome/micro-opus:
-    version: 0.3.6
+    version: 0.4.1
+  esphome/micro-wav:
+    version: 0.2.0
   espressif/esp-dsp:
     version: "1.7.1"
   espressif/esp-tflite-micro:
@@ -20,15 +24,19 @@ dependencies:
   espressif/mdns:
     version: 1.11.0
   espressif/esp_wifi_remote:
-    version: 1.4.0
+    version: 1.5.1
+    rules:
+      - if: "target in [esp32h2, esp32p4]"
+  espressif/wifi_remote_over_eppp:
+    version: 0.3.2
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/eppp_link:
-    version: 1.1.4
+    version: 1.1.5
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/esp_hosted:
-    version: 2.12.1
+    version: 2.12.6
     rules:
       - if: "target in [esp32h2, esp32p4]"
   zorxx/multipart-parser:
@@ -91,5 +99,7 @@ dependencies:
       - if: "idf_version >=6.0.0 && target in [esp32s2, esp32s3, esp32p4]"
   esp32async/asynctcp:
     version: 3.4.91
+  sendspin/sendspin-cpp:
+    version: 0.4.0
   lvgl/lvgl:
     version: 9.5.0

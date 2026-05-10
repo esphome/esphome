@@ -3,8 +3,7 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
 class HomeassistantSwitch : public switch_::Switch, public Component {
  public:
@@ -18,5 +17,4 @@ class HomeassistantSwitch : public switch_::Switch, public Component {
   const char *entity_id_{nullptr};
 };
 
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

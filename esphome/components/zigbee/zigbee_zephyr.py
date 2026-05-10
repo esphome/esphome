@@ -52,6 +52,7 @@ from esphome.types import ConfigType
 from .const import (
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
+    CONF_ROUTER,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
     POWER_SOURCE,
@@ -63,6 +64,7 @@ from .const import (
 )
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
+    CONF_SLEEPY,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
     CONF_ZIGBEE_NUMBER,
@@ -159,7 +161,10 @@ zephyr_number = cv.Schema(
 async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("ZIGBEE", True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
-    zephyr_add_prj_conf("ZIGBEE_ROLE_END_DEVICE", True)
+    if config[CONF_ROUTER]:
+        zephyr_add_prj_conf("ZIGBEE_ROLE_ROUTER", True)
+    else:
+        zephyr_add_prj_conf("ZIGBEE_ROLE_END_DEVICE", True)
 
     zephyr_add_prj_conf("ZIGBEE_CHANNEL_SELECTION_MODE_MULTI", True)
 
@@ -168,6 +173,11 @@ async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("NET_IPV6", False)
     zephyr_add_prj_conf("NET_IP_ADDR_CHECK", False)
     zephyr_add_prj_conf("NET_UDP", False)
+
+    # disable all extra to reduce power and save flash
+    zephyr_add_prj_conf("ZIGBEE_HAVE_SERIAL", False)
+    zephyr_add_prj_conf("ZBOSS_ERROR_PRINT_TO_LOG", False)
+    zephyr_add_prj_conf("DK_LIBRARY", False)
 
     cg.add_build_flag("-Wl,--wrap=zb_zcl_put_reporting_info_from_req")
 
@@ -199,6 +209,8 @@ async def zephyr_to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     CORE.add_job(_ctx_to_code, config)
+
+    cg.add(var.set_sleepy(config[CONF_SLEEPY]))
 
 
 async def _attr_to_code(config: ConfigType) -> None:

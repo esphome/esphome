@@ -309,6 +309,18 @@ bool CompactString::operator==(const StringRef &other) const {
 /// └──────────────────────────────────────────────────────────────────────┘
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
+#ifdef USE_WIFI_PHY_MODE
+// Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
+static const LogString *phy_mode_to_log_string(WiFi8266PhyMode mode) {
+  if (mode == WIFI_8266_PHY_MODE_11B)
+    return LOG_STR("11B");
+  if (mode == WIFI_8266_PHY_MODE_11G)
+    return LOG_STR("11G");
+  if (mode == WIFI_8266_PHY_MODE_11N)
+    return LOG_STR("11N");
+  return LOG_STR("Auto");
+}
+#endif
 // Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   if (phase == WiFiRetryPhase::INITIAL_CONNECT)
@@ -1099,9 +1111,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   }
 
 #ifdef USE_WIFI_WPA2_EAP
-  auto eap_opt = ap.get_eap();
+  const auto &eap_opt = ap.get_eap();
   if (eap_opt.has_value()) {
-    EAPAuth eap_config = *eap_opt;
+    const EAPAuth &eap_config = *eap_opt;
     // clang-format off
     ESP_LOGV(
         TAG,
@@ -1536,6 +1548,9 @@ void WiFiComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Band Mode: %s", band_mode_s);
 #endif
+#ifdef USE_WIFI_PHY_MODE
+  ESP_LOGCONFIG(TAG, "  PHY Mode: %s", LOG_STR_ARG(phy_mode_to_log_string(this->phy_mode_)));
+#endif
   if (this->is_connected()) {
     this->print_connect_params_();
   }
@@ -1579,6 +1594,8 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 #endif
 
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
+    // Refresh is_connected() cache; loop()'s refresh ran before this transition.
+    this->update_connected_state_();
     this->num_retried_ = 0;
     this->print_connect_params_();
 

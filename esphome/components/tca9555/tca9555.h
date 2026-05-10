@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace tca9555 {
+namespace esphome::tca9555 {
 
 class TCA9555Component : public Component,
                          public i2c::I2CDevice,
@@ -67,5 +66,4 @@ class TCA9555GPIOPin : public GPIOPin, public Parented<TCA9555Component> {
   gpio::Flags flags_;
 };
 
-}  // namespace tca9555
-}  // namespace esphome
+}  // namespace esphome::tca9555
