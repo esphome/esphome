@@ -16,8 +16,7 @@
 
 #include "ade7880_registers.h"
 
-namespace esphome {
-namespace ade7880 {
+namespace esphome::ade7880 {
 
 struct NeutralChannel {
   void set_current(sensor::Sensor *sens) { this->current = sens; }
@@ -125,5 +124,4 @@ class ADE7880 : public i2c::I2CDevice, public PollingComponent {
   void write_u32_register16_(uint16_t a_register, uint32_t value);
 };
 
-}  // namespace ade7880
-}  // namespace esphome
+}  // namespace esphome::ade7880

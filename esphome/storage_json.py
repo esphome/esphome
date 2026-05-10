@@ -21,6 +21,14 @@ def storage_path() -> Path:
 
 
 def ext_storage_path(config_filename: str) -> Path:
+    """Path to the per-config StorageJSON sidecar.
+
+    Used by:
+    - device-builder (esphome/device-builder) — locates the sidecar
+      to read board / framework / firmware-bin / loaded_integrations
+      info for the dashboard. Coordinate before changing the path
+      shape; device-builder reads the same file on disk.
+    """
     return CORE.data_dir / "storage" / f"{config_filename}.json"
 
 
@@ -29,6 +37,14 @@ def esphome_storage_path() -> Path:
 
 
 def ignored_devices_storage_path() -> Path:
+    """Path to the dashboard's ignored-devices list.
+
+    Used by:
+    - device-builder (esphome/device-builder) — reads the same
+      ``ignored-devices.json`` so the new dashboard's "ignore" toggle
+      stays compatible with the legacy one. Don't change the file
+      shape without coordinating.
+    """
     return CORE.data_dir / "ignored-devices.json"
 
 
@@ -46,6 +62,18 @@ def _to_path_if_not_none(value: str | None) -> Path | None:
 
 
 class StorageJSON:
+    """Persisted device metadata sidecar.
+
+    Used by:
+    - esphome.dashboard (legacy dashboard)
+    - device-builder (esphome/device-builder) — reads/writes the same
+      JSON file as the legacy dashboard so a single config_dir can be
+      shared between the two during the transition. The schema
+      (``storage_version``, field names, types) must stay backwards
+      compatible — coordinate with the device-builder team before
+      adding required fields or changing semantics of existing ones.
+    """
+
     def __init__(
         self,
         storage_version: int,

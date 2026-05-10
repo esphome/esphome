@@ -17,8 +17,7 @@
 #include <esp_gatts_api.h>
 #include <esp_bt_defs.h>
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
 using namespace esp32_ble;
 using namespace bytebuffer;
@@ -109,7 +108,6 @@ class BLECharacteristic {
   } state_{INIT};
 };
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif

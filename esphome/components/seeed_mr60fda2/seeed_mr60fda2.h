@@ -19,8 +19,7 @@
 
 #include <map>
 
-namespace esphome {
-namespace seeed_mr60fda2 {
+namespace esphome::seeed_mr60fda2 {
 
 static const uint8_t DATA_BUF_MAX_SIZE = 28;
 static const uint8_t FRAME_BUF_MAX_SIZE = 37;
@@ -97,5 +96,4 @@ class MR60FDA2Component : public Component,
   void factory_reset();
 };
 
-}  // namespace seeed_mr60fda2
-}  // namespace esphome
+}  // namespace esphome::seeed_mr60fda2

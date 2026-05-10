@@ -1,7 +1,6 @@
 #include "beeper.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 void BeeperSwitch::write_state(bool state) {
   if (this->parent_->get_beeper_state() != state) {
@@ -10,5 +9,4 @@ void BeeperSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

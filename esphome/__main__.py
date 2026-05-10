@@ -21,13 +21,14 @@ import argcomplete
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
-from esphome import const, writer, yaml_util
+from esphome import const
 import esphome.codegen as cg
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
     CONF_API,
+    CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
@@ -39,6 +40,7 @@ from esphome.const import (
     CONF_MDNS,
     CONF_MQTT,
     CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PLATFORM,
@@ -46,6 +48,8 @@ from esphome.const import (
     CONF_PORT,
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
+    CONF_USERNAME,
+    CONF_WEB_SERVER,
     ENV_NOGITIGNORE,
     KEY_CORE,
     KEY_NATIVE_IDF,
@@ -62,6 +66,7 @@ from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
 from esphome.util import (
     PICOTOOL_PACKAGE,
+    FlashImage,
     detect_rp2040_bootsel,
     get_picotool_path,
     get_serial_ports,
@@ -71,6 +76,12 @@ from esphome.util import (
     run_external_process,
     safe_print,
 )
+
+# Keep expensive imports (zeroconf, writer, yaml_util, etc.) out of this
+# module's top level. Every `esphome` invocation — including fast paths
+# like `esphome version` — pays the cost of what's imported here before
+# any command runs. Import inside the function that needs it instead.
+# `script/check_import_time.py` enforces a budget in CI.
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -204,6 +215,66 @@ def _resolve_with_cache(address: str, purpose: Purpose) -> list[str]:
     return [address]
 
 
+def _populate_mdns_cache(hosts_to_addresses: dict[str, list[str]]) -> None:
+    """Store discovered ``host -> [ips]`` entries in ``CORE.address_cache``.
+
+    Ensures ``CORE.address_cache`` exists, then records each mDNS hostname so
+    the downstream resolution path (``resolve_ip_address``) can skip opening a
+    second Zeroconf client.
+    """
+    from esphome.address_cache import AddressCache
+
+    if CORE.address_cache is None:
+        CORE.address_cache = AddressCache()
+    for host, addresses in hosts_to_addresses.items():
+        if addresses:
+            _LOGGER.debug("Caching mDNS result %s -> %s", host, addresses)
+        CORE.address_cache.add_mdns_addresses(host, addresses)
+
+
+def _discover_mac_suffix_devices() -> list[str] | None:
+    """Discover ``<name>-<mac>.local`` devices and cache their IPs.
+
+    Returns:
+        - ``None`` when discovery isn't applicable (``name_add_mac_suffix`` off,
+          mDNS disabled, or ``CORE.address`` is already an IP). Callers should
+          then fall back to whatever default OTA address they normally use.
+        - ``[]`` when discovery ran but found nothing. Callers should NOT fall
+          back to the base name: with ``name_add_mac_suffix`` enabled, the base
+          name by definition doesn't exist on the network.
+        - A non-empty sorted list of ``.local`` hostnames on success.
+
+    Populates ``CORE.address_cache`` so downstream resolution (``espota2`` or
+    ``aioesphomeapi`` via :func:`_resolve_network_devices`) reuses the IPs we
+    already have without opening a second Zeroconf client.
+    """
+    if not (has_name_add_mac_suffix() and has_mdns() and has_non_ip_address()):
+        return None
+    from esphome.zeroconf import discover_mdns_devices
+
+    _LOGGER.info("Discovering devices...")
+    if not (discovered := discover_mdns_devices(CORE.name)):
+        _LOGGER.warning(
+            "No devices matching '%s-<mac>.local' were discovered.", CORE.name
+        )
+        return []
+    _populate_mdns_cache(discovered)
+    return list(discovered)
+
+
+def _ota_hostnames_for_default(purpose: Purpose) -> list[str]:
+    """Return OTA hostname(s) for the ``--device OTA`` / default-resolve path.
+
+    When ``name_add_mac_suffix`` is enabled, returns discovered
+    ``<name>-<mac>.local`` hostnames (possibly empty — in which case the
+    caller should not fall back to the base name). Otherwise falls back to
+    the cache-resolved ``CORE.address``.
+    """
+    if (discovered := _discover_mac_suffix_devices()) is not None:
+        return discovered
+    return _resolve_with_cache(CORE.address, purpose)
+
+
 def choose_upload_log_host(
     default: list[str] | str | None,
     check_default: str | None,
@@ -242,14 +313,14 @@ def choose_upload_log_host(
                         resolved.append("MQTT")
 
                     if has_api() and has_non_ip_address() and has_resolvable_address():
-                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
+                        resolved.extend(_ota_hostnames_for_default(purpose))
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
                     if has_ota() and has_non_ip_address() and has_resolvable_address():
-                        resolved.extend(_resolve_with_cache(CORE.address, purpose))
+                        resolved.extend(_ota_hostnames_for_default(purpose))
             else:
                 resolved.append(device)
         if not resolved:
@@ -281,22 +352,40 @@ def choose_upload_log_host(
         elif bootsel.permission_error:
             bootsel_permission_error = True
 
+    # Annotate the OTA chooser entry only in the non-default case: when the
+    # config has web_server OTA but no native API OTA, the upload will fall
+    # through to the HTTP path and the user benefits from seeing that
+    # explicitly. The native-API path is the default and gets a plain label
+    # to avoid noise on the most common scenario. For LOGGING the OTA
+    # transport doesn't apply, so always leave the label plain.
+    if purpose == Purpose.UPLOADING and not has_native_ota() and has_web_server_ota():
+        ota_suffix = " via web_server"
+    else:
+        ota_suffix = ""
+
+    def add_ota_options() -> None:
+        """Add OTA options, using mDNS discovery if name_add_mac_suffix is enabled."""
+        if (discovered := _discover_mac_suffix_devices()) is not None:
+            # Discovery was applicable. Use whatever we found — on empty,
+            # intentionally skip the base-name fallback since with
+            # name_add_mac_suffix on, the base name doesn't exist on the net.
+            for host in discovered:
+                options.append((f"Over The Air{ota_suffix} ({host})", host))
+        elif has_resolvable_address():
+            options.append((f"Over The Air{ota_suffix} ({CORE.address})", CORE.address))
+        if has_mqtt_ip_lookup():
+            options.append((f"Over The Air{ota_suffix} (MQTT IP lookup)", "MQTTIP"))
+
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
             mqtt_config = CORE.config[CONF_MQTT]
             options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
 
         if has_api():
-            if has_resolvable_address():
-                options.append((f"Over The Air ({CORE.address})", CORE.address))
-            if has_mqtt_ip_lookup():
-                options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+            add_ota_options()
 
     elif purpose == Purpose.UPLOADING and has_ota():
-        if has_resolvable_address():
-            options.append((f"Over The Air ({CORE.address})", CORE.address))
-        if has_mqtt_ip_lookup():
-            options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+        add_ota_options()
 
     # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
@@ -354,11 +443,33 @@ def has_api() -> bool:
 
 
 def has_ota() -> bool:
-    """Check if OTA upload is available (requires platform: esphome)."""
+    """Check if any network OTA upload is available.
+
+    True if the config exposes either ``platform: esphome`` (native API
+    OTA) or ``platform: web_server`` (HTTP OTA). Both reach the device
+    over the same network stack, so the OTA discovery path treats them
+    interchangeably; ``upload_program`` picks the actual transport based
+    on ``--ota-platform`` and what's configured.
+    """
+    return has_native_ota() or has_web_server_ota()
+
+
+def has_native_ota() -> bool:
+    """Check if native API OTA upload is available (``platform: esphome``)."""
     if CONF_OTA not in CORE.config:
         return False
     return any(
         ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
+        for ota_item in CORE.config[CONF_OTA]
+    )
+
+
+def has_web_server_ota() -> bool:
+    """Check if web_server OTA upload is available (``platform: web_server``)."""
+    if CONF_OTA not in CORE.config:
+        return False
+    return any(
+        ota_item.get(CONF_PLATFORM) == CONF_WEB_SERVER
         for ota_item in CORE.config[CONF_OTA]
     )
 
@@ -407,7 +518,17 @@ def has_resolvable_address() -> bool:
     return not CORE.address.endswith(".local")
 
 
-def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
+def has_name_add_mac_suffix() -> bool:
+    """Check if name_add_mac_suffix is enabled in the config."""
+    if CORE.config is None:
+        return False
+    esphome_config = CORE.config.get(CONF_ESPHOME, {})
+    return esphome_config.get(CONF_NAME_ADD_MAC_SUFFIX, False)
+
+
+def mqtt_get_ip(
+    config: ConfigType, username: str, password: str, client_id: str
+) -> list[str]:
     from esphome import mqtt
 
     return mqtt.get_esphome_device_ip(config, username, password, client_id)
@@ -420,6 +541,9 @@ def _resolve_network_devices(
 
     This function filters the devices list to:
     - Replace MQTT/MQTTIP magic strings with actual IP addresses via MQTT lookup
+    - Expand hostnames that are already in ``CORE.address_cache`` to their
+      cached IPs so downstream code (e.g. aioesphomeapi) doesn't open a second
+      Zeroconf client to resolve them
     - Deduplicate addresses while preserving order
     - Only resolve MQTT once even if multiple MQTT strings are present
     - If MQTT resolution fails, log a warning and continue with other devices
@@ -444,13 +568,29 @@ def _resolve_network_devices(
                     mqtt_ips = mqtt_get_ip(
                         config, args.username, args.password, args.client_id
                     )
-                    network_devices.extend(mqtt_ips)
+                    # pylint can't infer mqtt_get_ip's return through its
+                    # lazy ``from esphome import mqtt`` import, so it flags
+                    # the genexpr below.
+                    network_devices.extend(
+                        addr
+                        for addr in mqtt_ips  # pylint: disable=not-an-iterable
+                        if addr not in network_devices
+                    )
                 except EsphomeError as err:
                     _LOGGER.warning(
                         "MQTT IP discovery failed (%s), will try other devices if available",
                         err,
                     )
                 mqtt_resolved = True
+            continue
+
+        # If the hostname is already in the address cache (e.g. populated by
+        # mDNS discovery), substitute the cached IPs so aioesphomeapi doesn't
+        # open its own Zeroconf to re-resolve it.
+        if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
+            network_devices.extend(
+                addr for addr in cached if addr not in network_devices
+            )
         elif device not in network_devices:
             # Regular network address or IP - add if not already present
             network_devices.append(device)
@@ -483,8 +623,6 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     from aioesphomeapi import LogParser
     import serial
 
-    from esphome import platformio_api
-
     if CONF_LOGGER not in config:
         _LOGGER.info("Logger is not enabled. Not starting UART logs.")
         return 1
@@ -499,8 +637,11 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         process_stacktrace = getattr(module, "process_stacktrace")
-    except AttributeError:
-        pass
+    except (AttributeError, ImportError):
+        _LOGGER.info(
+            'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
+            CORE.target_platform,
+        )
 
     backtrace_state = False
     ser = serial.Serial()
@@ -543,13 +684,9 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                             )
                             safe_print(parser.parse_line(line, time_str))
 
-                            if process_stacktrace:
+                            if process_stacktrace is not None:
                                 backtrace_state = process_stacktrace(
                                     config, line, backtrace_state
-                                )
-                            else:
-                                backtrace_state = platformio_api.process_stacktrace(
-                                    config, line, backtrace_state=backtrace_state
                                 )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
@@ -564,7 +701,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     return 0
 
 
-def wrap_to_code(name, comp):
+def _wrap_to_code(name, comp, yaml_util):
     coro = coroutine(comp.to_code)
 
     @functools.wraps(comp.to_code)
@@ -584,6 +721,8 @@ def wrap_to_code(name, comp):
 
 
 def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
+    from esphome import writer
+
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
@@ -595,17 +734,21 @@ def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
+    from esphome import yaml_util
+
     _LOGGER.info("Generating C++ source...")
 
     for name, component, conf in iter_component_configs(CORE.config):
         if component.to_code is not None:
-            coro = wrap_to_code(name, component)
+            coro = _wrap_to_code(name, component, yaml_util)
             CORE.add_job(coro, conf)
 
     CORE.flush_tasks()
 
 
 def write_cpp_file(native_idf: bool = False) -> int:
+    from esphome import writer
+
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
 
@@ -734,24 +877,29 @@ def _make_crystal_freq_callback(
 def upload_using_esptool(
     config: ConfigType, port: str, file: str, speed: int
 ) -> str | int:
-    from esphome import platformio_api
-
     first_baudrate = speed or config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", os.getenv("ESPHOME_UPLOAD_SPEED", "460800")
     )
 
     if file is not None:
-        flash_images = [platformio_api.FlashImage(path=file, offset="0x0")]
+        flash_images = [FlashImage(path=file, offset="0x0")]
     else:
+        from esphome import platformio_api
+
         idedata = platformio_api.get_idedata(config)
 
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
         flash_images = [
-            platformio_api.FlashImage(
-                path=idedata.firmware_bin_path, offset=firmware_offset
-            ),
-            *idedata.extra_flash_images,
+            FlashImage(path=idedata.firmware_bin_path, offset=firmware_offset),
         ]
+        for image in idedata.extra_flash_images:
+            if not image.path.is_file():
+                _LOGGER.warning(
+                    "Skipping missing flash image declared by platform: %s",
+                    image.path,
+                )
+                continue
+            flash_images.append(image)
 
     mcu = "esp8266"
     if CORE.is_esp32:
@@ -975,6 +1123,22 @@ def upload_program(
 
     port_type = get_port_type(host)
 
+    # MQTT and MQTTIP are also OTA paths; MQTTIP gets resolved to a real IP later by
+    # _resolve_network_devices(). Only SERIAL and BOOTSEL are non-OTA upload paths.
+    is_partition_table = getattr(args, "partition_table", False)
+    is_bootloader = getattr(args, "bootloader", False)
+    if is_partition_table and is_bootloader:
+        raise EsphomeError(
+            "The options --partition-table and --bootloader can't be used together."
+        )
+    option_string = "--partition-table" if is_partition_table else "--bootloader"
+    if port_type in (PortType.SERIAL, PortType.BOOTSEL) and (
+        is_partition_table or is_bootloader
+    ):
+        raise EsphomeError(
+            f"The option {option_string} can only be used for Over The Air updates."
+        )
+
     if port_type == PortType.BOOTSEL:
         exit_code = upload_using_picotool(config)
         # Return None for device - BOOTSEL can't be used for logging,
@@ -994,30 +1158,211 @@ def upload_program(
 
         return exit_code, host if exit_code == 0 else None
 
-    ota_conf = {}
+    requested_platform = getattr(args, "ota_platform", None)
+    chosen_platform = _choose_ota_platform(config, requested_platform)
+
+    # Resolve MQTT magic strings to actual IP addresses
+    network_devices = _resolve_network_devices(devices, config, args)
+
+    if chosen_platform == CONF_WEB_SERVER:
+        if is_partition_table or is_bootloader:
+            raise EsphomeError(
+                f"{option_string} is only supported with the esphome OTA platform; "
+                "the web_server OTA path can only update the firmware image."
+            )
+        binary = CORE.firmware_bin
+        if getattr(args, "file", None) is not None:
+            binary = Path(args.file)
+        return _upload_via_web_server(config, network_devices, binary)
+
+    return _upload_via_native_api(config, network_devices, args)
+
+
+def _choose_ota_platform(config: ConfigType, requested: str | None) -> str:
+    """Pick the OTA platform to use, optionally honoring ``--ota-platform``.
+
+    Default behavior prefers ``esphome`` (native API) when it is configured.
+    The native API uses challenge-response auth with MD5/SHA256 hashing of a
+    server-issued nonce, so the password is never sent over the wire; the
+    ``web_server`` path uses HTTP Basic auth which transmits credentials in
+    cleartext over the LAN. (The native path also supports gzip compression
+    on ESP8266, where flash space is tight; on ESP32/RP2040/LibreTiny the
+    backend reports ``supports_compression() == false`` and the firmware is
+    sent uncompressed regardless of which platform is used.) Falls back to
+    ``web_server`` only when that is the only available platform.
+    """
+    # Use a dict (insertion-ordered) instead of a list so error messages and
+    # membership checks see one entry per platform even if the user has
+    # multiple ``ota:`` items of the same platform; the web_server OTA
+    # platform's final-validate hook merges duplicates anyway.
+    available: dict[str, None] = {}
     for ota_item in config.get(CONF_OTA, []):
-        if ota_item[CONF_PLATFORM] == CONF_ESPHOME:
+        platform = ota_item.get(CONF_PLATFORM)
+        if platform in (CONF_ESPHOME, CONF_WEB_SERVER):
+            available[platform] = None
+
+    if not available:
+        raise EsphomeError(
+            f"Cannot upload Over the Air as the {CONF_OTA} configuration is not "
+            f"present or does not include {CONF_PLATFORM}: {CONF_ESPHOME} or "
+            f"{CONF_PLATFORM}: {CONF_WEB_SERVER}"
+        )
+
+    if requested is not None:
+        if requested not in available:
+            raise EsphomeError(
+                f"--ota-platform {requested} was requested but the configuration "
+                f"only provides: {', '.join(available)}"
+            )
+        return requested
+
+    if CONF_ESPHOME in available:
+        return CONF_ESPHOME
+    return CONF_WEB_SERVER
+
+
+def _upload_via_native_api(
+    config: ConfigType, network_devices: list[str], args: ArgsProtocol
+) -> tuple[int, str | None]:
+    ota_conf: ConfigType = {}
+    for ota_item in config.get(CONF_OTA, []):
+        if ota_item.get(CONF_PLATFORM) == CONF_ESPHOME:
             ota_conf = ota_item
             break
-
-    if not ota_conf:
-        raise EsphomeError(
-            f"Cannot upload Over the Air as the {CONF_OTA} configuration is not present or does not include {CONF_PLATFORM}: {CONF_ESPHOME}"
-        )
 
     from esphome import espota2
 
     remote_port = int(ota_conf[CONF_PORT])
     password = ota_conf.get(CONF_PASSWORD)
+
+    def check_partition_access(option_string: str) -> None:
+        if not ota_conf.get("allow_partition_access"):
+            raise EsphomeError(
+                f"The option {option_string} requires 'allow_partition_access: true' on the "
+                "esphome OTA platform in the device's YAML configuration. Add it, recompile, "
+                f"flash a build with the option enabled, and then retry {option_string}."
+            )
+
+    binary = CORE.firmware_bin
+    ota_type = espota2.OTA_TYPE_UPDATE_APP
+    if getattr(args, "partition_table", False):
+        # Fail fast if the resolved ESPHome OTA config does not enable allow_partition_access.
+        # The device-side handshake also rejects this with "Device only supports app updates",
+        # but checking here surfaces the misconfiguration before opening a network connection.
+        check_partition_access("--partition-table")
+        binary = CORE.partition_table_bin
+        ota_type = espota2.OTA_TYPE_UPDATE_PARTITION_TABLE
+    elif getattr(args, "bootloader", False):
+        check_partition_access("--bootloader")
+        binary = CORE.bootloader_bin
+        ota_type = espota2.OTA_TYPE_UPDATE_BOOTLOADER
     if getattr(args, "file", None) is not None:
         binary = Path(args.file)
-    else:
-        binary = CORE.firmware_bin
 
-    # Resolve MQTT magic strings to actual IP addresses
-    network_devices = _resolve_network_devices(devices, config, args)
+    if ota_type == espota2.OTA_TYPE_UPDATE_PARTITION_TABLE:
+        _validate_partition_table_binary(binary)
+    if ota_type == espota2.OTA_TYPE_UPDATE_BOOTLOADER:
+        _validate_bootloader_binary(binary)
 
-    return espota2.run_ota(network_devices, remote_port, password, binary)
+    return espota2.run_ota(network_devices, remote_port, password, binary, ota_type)
+
+
+def _upload_via_web_server(
+    config: ConfigType, network_devices: list[str], binary: Path
+) -> tuple[int, str | None]:
+    web_conf = config.get(CONF_WEB_SERVER)
+    if not web_conf:
+        raise EsphomeError(
+            f"Cannot upload via web_server OTA: the {CONF_WEB_SERVER} component "
+            f"is not configured."
+        )
+
+    remote_port = int(web_conf[CONF_PORT])
+    auth = web_conf.get(CONF_AUTH) or {}
+    username = auth.get(CONF_USERNAME)
+    password = auth.get(CONF_PASSWORD)
+
+    from esphome import web_server_ota
+
+    return web_server_ota.run_ota(
+        network_devices, remote_port, username, password, binary
+    )
+
+
+# Layout of esp_partition_info_t on flash. Each entry is 32 bytes, leading with a
+# 16-bit little-endian magic. ESP-IDF defines ESP_PARTITION_MAGIC = 0x50AA (stored as
+# bytes 0xAA, 0x50) for partition entries and ESP_PARTITION_MAGIC_MD5 = 0xEBEB for the
+# trailing checksum entry. Padding past the last entry is 0xFF. The full table is
+# exactly ESP_PARTITION_TABLE_MAX_LEN bytes.
+_PARTITION_TABLE_MAX_LEN = 0xC00
+_ESP_PARTITION_MAGIC = 0x50AA
+_ESP_PARTITION_MAGIC_MD5 = 0xEBEB
+_ESP_IMAGE_HEADER_MAGIC = 0xE9
+
+
+def _validate_partition_table_binary(binary: Path) -> None:
+    """Validate that ``binary`` looks like an ESP32 partition table image.
+
+    Catches common mistakes (wrong file, truncated build output, swapped --file path)
+    before opening a network connection so the failure mode is a clear local error
+    instead of a post-handshake device rejection.
+    """
+    try:
+        data = binary.read_bytes()
+    except OSError as err:
+        raise EsphomeError(
+            f"Cannot read partition table file '{binary}': {err}"
+        ) from err
+
+    if len(data) != _PARTITION_TABLE_MAX_LEN:
+        raise EsphomeError(
+            f"Partition table file '{binary}' has wrong size: expected "
+            f"{_PARTITION_TABLE_MAX_LEN} bytes, got {len(data)}. "
+            "Pass the partition table image (e.g. partitions.bin / partition-table.bin), "
+            "not the firmware image."
+        )
+
+    first_magic = data[0] | (data[1] << 8)
+    if first_magic != _ESP_PARTITION_MAGIC:
+        raise EsphomeError(
+            f"Partition table file '{binary}' does not start with the expected "
+            f"partition magic 0x{_ESP_PARTITION_MAGIC:04X} (got 0x{first_magic:04X}). "
+            "This file does not look like an ESP32 partition table."
+        )
+
+    # The MD5 checksum entry is required: without it the device-side
+    # esp_partition_table_verify will accept the table but the bootloader will
+    # refuse to boot from it. Scan the 32-byte entries for the MD5 magic.
+    if not any(
+        (data[off] | (data[off + 1] << 8)) == _ESP_PARTITION_MAGIC_MD5
+        for off in range(0, _PARTITION_TABLE_MAX_LEN, 32)
+    ):
+        raise EsphomeError(
+            f"Partition table file '{binary}' is missing the MD5 checksum entry. "
+            "Regenerate the partition table with gen_esp32part.py or rebuild the project."
+        )
+
+
+def _validate_bootloader_binary(binary: Path) -> None:
+    """Validate that ``binary`` looks like an ESP32 bootloader image."""
+    try:
+        data = binary.read_bytes()
+    except OSError as err:
+        raise EsphomeError(f"Cannot read bootloader file '{binary}': {err}") from err
+
+    if not data:
+        raise EsphomeError(
+            f"Bootloader file '{binary}' is empty. "
+            "This file does not look like an ESP32 bootloader."
+        )
+
+    first_magic = data[0]
+    if first_magic != _ESP_IMAGE_HEADER_MAGIC:
+        raise EsphomeError(
+            f"Bootloader file '{binary}' does not start with the expected "
+            f"image header magic 0x{_ESP_IMAGE_HEADER_MAGIC:02X} (got 0x{first_magic:02X}). "
+            "This file does not look like an ESP32 bootloader."
+        )
 
 
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
@@ -1077,6 +1422,8 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 
 
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome import yaml_util
+
     if not CORE.verbose:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
@@ -1218,6 +1565,8 @@ def command_clean_mqtt(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_clean_all(args: ArgsProtocol) -> int | None:
+    from esphome import writer
+
     try:
         writer.clean_all(args.configuration)
     except OSError as err:
@@ -1233,6 +1582,8 @@ def command_version(args: ArgsProtocol) -> int | None:
 
 
 def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome import writer
+
     try:
         writer.clean_build()
     except OSError as err:
@@ -1435,6 +1786,8 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
 
 def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
+    from esphome import yaml_util
+
     new_name = args.name
     for c in new_name:
         if c not in ALLOWED_NAME_CHARS:
@@ -1679,6 +2032,27 @@ def parse_args(argv):
         "--file",
         help="Manually specify the binary file to upload.",
     )
+    parser_upload.add_argument(
+        "--ota-platform",
+        choices=[CONF_ESPHOME, CONF_WEB_SERVER],
+        help=(
+            "OTA platform to use for network uploads. Defaults to "
+            f"'{CONF_ESPHOME}' (native API) when configured because it uses "
+            "challenge-response auth so the password is never sent in "
+            f"cleartext on the wire. Falls back to '{CONF_WEB_SERVER}' "
+            "(HTTP Basic auth) when that is the only configured platform."
+        ),
+    )
+    parser_upload.add_argument(
+        "--partition-table",
+        help="Upload as partition table (OTA).",
+        action="store_true",
+    )
+    parser_upload.add_argument(
+        "--bootloader",
+        help="Upload as bootloader (OTA).",
+        action="store_true",
+    )
 
     parser_logs = subparsers.add_parser(
         "logs",
@@ -1747,6 +2121,17 @@ def parse_args(argv):
         "--native-idf",
         help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
         action="store_true",
+    )
+    parser_run.add_argument(
+        "--ota-platform",
+        choices=[CONF_ESPHOME, CONF_WEB_SERVER],
+        help=(
+            "OTA platform to use for network uploads. Defaults to "
+            f"'{CONF_ESPHOME}' (native API) when configured because it uses "
+            "challenge-response auth so the password is never sent in "
+            f"cleartext on the wire. Falls back to '{CONF_WEB_SERVER}' "
+            "(HTTP Basic auth) when that is the only configured platform."
+        ),
     )
 
     parser_clean = subparsers.add_parser(
@@ -1960,8 +2345,9 @@ def run_esphome(argv):
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
 
-    # For logs command, skip updating external components
-    skip_external = args.command == "logs"
+    # Commands that don't need fresh external components: logs just connects
+    # to the device, and clean is about to delete the build directory.
+    skip_external = args.command in ("logs", "clean")
     config = read_config(
         dict(args.substitution) if args.substitution else {},
         skip_external_update=skip_external,
