@@ -5,7 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
+namespace esphome::ring_buffer {
 
 static const char *const TAG = "ring_buffer";
 
@@ -36,6 +36,14 @@ std::unique_ptr<RingBuffer> RingBuffer::create(size_t len, MemoryPreference pref
 
   return rb;
 }
+
+void *RingBuffer::receive_acquire(size_t &length, size_t max_length, TickType_t ticks_to_wait) {
+  length = 0;
+  void *buffer_data = xRingbufferReceiveUpTo(this->handle_, &length, ticks_to_wait, max_length);
+  return buffer_data;
+}
+
+void RingBuffer::receive_release(void *item) { vRingbufferReturnItem(this->handle_, item); }
 
 size_t RingBuffer::read(void *data, size_t len, TickType_t ticks_to_wait) {
   size_t bytes_read = 0;
@@ -127,6 +135,6 @@ bool RingBuffer::discard_bytes_(size_t discard_bytes) {
   return (bytes_read == discard_bytes);
 }
 
-}  // namespace esphome
+}  // namespace esphome::ring_buffer
 
-#endif
+#endif  // USE_ESP32

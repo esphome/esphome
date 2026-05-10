@@ -1,8 +1,7 @@
 #include "max6956.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace max6956 {
+namespace esphome::max6956 {
 
 static const char *const TAG = "max6956";
 
@@ -167,5 +166,4 @@ size_t MAX6956GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via Max6956", this->pin_);
 }
 
-}  // namespace max6956
-}  // namespace esphome
+}  // namespace esphome::max6956

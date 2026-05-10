@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/aqi/aqi_calculator_factory.h"
 
-namespace esphome {
-namespace hm3301 {
+namespace esphome::hm3301 {
 
 static const uint8_t SELECT_COMM_CMD = 0x88;
 
@@ -47,5 +46,4 @@ class HM3301Component : public PollingComponent, public i2c::I2CDevice {
   uint16_t get_sensor_value_(const uint8_t *data, uint8_t i);
 };
 
-}  // namespace hm3301
-}  // namespace esphome
+}  // namespace esphome::hm3301

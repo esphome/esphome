@@ -780,6 +780,23 @@ class EsphomeCore:
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property
+    def partition_table_bin(self) -> Path:
+        # Native ESP-IDF (--native-idf): the partition table image is emitted under
+        # build/partition_table/partition-table.bin alongside firmware.bin. PlatformIO writes the
+        # equivalent file as partitions.bin in the env-specific .pioenvs directory.
+        if self.data.get(KEY_NATIVE_IDF):
+            return self.relative_build_path(
+                "build", "partition_table", "partition-table.bin"
+            )
+        return self.relative_pioenvs_path(self.name, "partitions.bin")
+
+    @property
+    def bootloader_bin(self) -> Path:
+        if self.data.get(KEY_NATIVE_IDF):
+            return self.relative_build_path("build", "bootloader", "bootloader.bin")
+        return self.relative_pioenvs_path(self.name, "bootloader.bin")
+
+    @property
     def target_platform(self):
         return self.data[KEY_CORE][KEY_TARGET_PLATFORM]
 

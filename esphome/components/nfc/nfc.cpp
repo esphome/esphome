@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static const char *const TAG = "nfc";
 
@@ -108,5 +107,4 @@ bool mifare_classic_is_trailer_block(uint8_t block_num) {
   }
 }
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

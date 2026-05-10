@@ -7,8 +7,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace rotary_encoder {
+namespace esphome::rotary_encoder {
 
 /// All possible restore modes for the rotary encoder
 enum RotaryEncoderRestoreMode {
@@ -118,5 +117,4 @@ template<typename... Ts> class RotaryEncoderSetValueAction : public Action<Ts...
   RotaryEncoderSensor *encoder_;
 };
 
-}  // namespace rotary_encoder
-}  // namespace esphome
+}  // namespace esphome::rotary_encoder

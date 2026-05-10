@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace growatt_solar {
+namespace esphome::growatt_solar {
 
 static const char *const TAG = "growatt_solar";
 
@@ -141,5 +140,4 @@ void GrowattSolar::dump_config() {
                 this->address_);
 }
 
-}  // namespace growatt_solar
-}  // namespace esphome
+}  // namespace esphome::growatt_solar

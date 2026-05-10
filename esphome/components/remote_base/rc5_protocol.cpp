@@ -1,8 +1,7 @@
 #include "rc5_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.rc5";
 
@@ -87,5 +86,4 @@ void RC5Protocol::dump(const RC5Data &data) {
            YESNO(data.toggle));
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base
