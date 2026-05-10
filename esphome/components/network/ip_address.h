@@ -70,7 +70,7 @@ struct IPAddress {
   bool is_set() const { return !net_ipv6_is_addr_unspecified(&ip_addr_); }
   bool is_ip4() const { return false; }
   bool is_ip6() const { return this->is_set(); }
-  bool is_multicast() const { return ip_addr_.s6_addr[0] == 0xff; }
+  bool is_multicast() const { return net_ipv6_is_addr_mcast(&ip_addr_); }
   std::string str() const {
     char buffer[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, &ip_addr_, buffer, sizeof(buffer));
