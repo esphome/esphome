@@ -209,7 +209,7 @@ async def to_code(config):
         enable_ipv6 = config.get(CONF_ENABLE_IPV6, True)
         zephyr_add_prj_conf("NETWORKING", True)
         zephyr_add_prj_conf("NET_IPV6", enable_ipv6)
-        zephyr_add_prj_conf("NET_IPV4", not enable_ipv6)
+        zephyr_add_prj_conf("NET_IPV4", True)
         zephyr_add_prj_conf("NET_TCP", True)
         zephyr_add_prj_conf("NET_UDP", True)
 

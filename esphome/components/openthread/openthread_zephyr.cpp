@@ -41,7 +41,11 @@ void OpenThreadComponent::setup() {
       ESP_LOGW(TAG, "TLV buffer too small, truncating");
       len = sizeof(dataset.mTlvs);
     }
-    parse_hex(USE_OPENTHREAD_TLVS, sizeof(USE_OPENTHREAD_TLVS) - 1, dataset.mTlvs, len);
+    size_t parsed = parse_hex(USE_OPENTHREAD_TLVS, sizeof(USE_OPENTHREAD_TLVS) - 1, dataset.mTlvs, len);
+    if (parsed != 2 * len) {
+      ESP_LOGE(TAG, "Invalid OpenThread TLV hex string (expected %d hex chars, got %d)", 2 * len, parsed);
+      return;
+    }
     dataset.mLength = len;
   }
 #endif
