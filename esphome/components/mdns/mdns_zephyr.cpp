@@ -2,14 +2,12 @@
 
 #ifdef USE_ZEPHYR
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
 void MDNSComponent::setup() {}
 
 void MDNSComponent::on_shutdown() {}
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif  // USE_ZEPHYR
