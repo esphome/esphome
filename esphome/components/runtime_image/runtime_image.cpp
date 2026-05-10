@@ -162,15 +162,15 @@ void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on,
   // If no image is loaded and no placeholder, nothing to draw
 }
 
-bool RuntimeImage::begin_decode(size_t expected_size) {
+bool RuntimeImage::begin_decode(size_t expected_size, ImageFormat format) {
   if (this->decoder_) {
     ESP_LOGW(TAG, "Decoding already in progress");
     return false;
   }
 
-  this->decoder_ = this->create_decoder_();
+  this->decoder_ = this->create_decoder_(format);
   if (!this->decoder_) {
-    ESP_LOGE(TAG, "Failed to create decoder for format %d", this->format_);
+    ESP_LOGE(TAG, "Failed to create decoder for format %d", format);
     return false;
   }
 
@@ -296,8 +296,14 @@ size_t RuntimeImage::get_buffer_size_(int width, int height) const {
 
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }
 
-std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_() {
-  switch (this->format_) {
+std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) {
+  // For backwards compatibility, if requested format is AUTO (=default), keep old behaviour
+  //   (use format supplied at construction)
+  if (format == AUTO) {
+    format = this->format_;
+  }
+
+  switch (format) {
 #ifdef USE_RUNTIME_IMAGE_BMP
     case BMP:
       return make_unique<BmpDecoder>(this);

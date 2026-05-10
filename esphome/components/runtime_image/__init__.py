@@ -23,6 +23,7 @@ runtime_image_ns = cg.esphome_ns.namespace("runtime_image")
 
 # Base decoder classes
 ImageDecoder = runtime_image_ns.class_("ImageDecoder")
+AutoDecoder = runtime_image_ns.class_("AutoDecoder", ImageDecoder)
 BmpDecoder = runtime_image_ns.class_("BmpDecoder", ImageDecoder)
 JpegDecoder = runtime_image_ns.class_("JpegDecoder", ImageDecoder)
 PngDecoder = runtime_image_ns.class_("PngDecoder", ImageDecoder)
@@ -55,6 +56,18 @@ class Format:
 
     def actions(self) -> None:
         """Add defines and libraries needed for this format."""
+
+
+class AUTOFormat(Format):
+    """AUTO format - detect form Mime Type."""
+
+    def __init__(self):
+        super().__init__("AUTO", None)
+
+    def actions(self) -> None:
+        BMPFormat().actions()
+        JPEGFormat().actions()
+        PNGFormat().actions()
 
 
 class BMPFormat(Format):
@@ -98,10 +111,11 @@ class PNGFormat(Format):
 
 # Registry of available formats
 IMAGE_FORMATS = {
+    "AUTO": AUTOFormat(),
     "BMP": BMPFormat(),
     "JPEG": JPEGFormat(),
-    "PNG": PNGFormat(),
     "JPG": JPEGFormat(),  # Alias for JPEG
+    "PNG": PNGFormat(),
 }
 
 
@@ -125,7 +139,9 @@ def runtime_image_schema(image_class: cg.MockObjClass = RuntimeImage) -> cv.Sche
     return cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(image_class),
-            cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
+            cv.Optional(CONF_FORMAT, default="AUTO"): cv.one_of(
+                *IMAGE_FORMATS, upper=True
+            ),
             cv.Optional(CONF_RESIZE): cv.dimensions,
             cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
             cv.Optional(CONF_BYTE_ORDER): cv.one_of(
