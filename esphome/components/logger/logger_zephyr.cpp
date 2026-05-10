@@ -58,6 +58,7 @@ void Logger::pre_setup() {
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(uart0));
         break;
 #ifdef USE_LOGGER_USB_CDC
+      // NOLINTNEXTLINE(bugprone-branch-clone)
       case UART_SELECTION_USB_CDC:
 #ifdef CONFIG_USB_DEVICE_STACK
         uart_dev = DEVICE_DT_GET_OR_NULL(DT_NODELABEL(cdc_acm_uart0));
