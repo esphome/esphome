@@ -54,8 +54,6 @@ EPaperUpdateAction = epaper_spi_ns.class_("EPaperUpdateAction", automation.Actio
 Transform = epaper_spi_ns.enum("Transform")
 
 CONF_UPDATE_MODE = "update_mode"
-CONF_VCOM = "vcom"
-CONF_FORCE_1BPP = "force_1bpp"
 
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
@@ -104,7 +102,7 @@ def model_schema(config):
             model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
             **(
                 {model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema}
-                if model.get_default(CONF_DC_PIN, None) is not False
+                if model.get_default(CONF_DC_PIN, None) is not None
                 else {}
             ),
             model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
@@ -139,25 +137,6 @@ def model_schema(config):
                 else {}
             ),
             cv.Optional(CONF_UPDATE_MODE): cv.string_strict,
-            **(
-                {
-                    cv.Optional(
-                        CONF_VCOM, default=model.get_default(CONF_VCOM, None)
-                    ): cv.int_range(0, 5000)
-                }
-                if model.get_default(CONF_VCOM, None) is not None
-                else {}
-            ),
-            **(
-                {
-                    cv.Optional(
-                        CONF_FORCE_1BPP,
-                        default=model.get_default(CONF_FORCE_1BPP, False),
-                    ): cv.boolean
-                }
-                if model.get_default(CONF_FORCE_1BPP, None) is not None
-                else {}
-            ),
         }
     )
 
@@ -182,11 +161,8 @@ CONFIG_SCHEMA = customise_schema
 
 
 def _final_validate(config):
-    # Models without a DC pin (e.g. IT8951) use full-duplex SPI and need MISO
-    model = MODELS[config[CONF_MODEL]]
-    needs_miso = model.get_default(CONF_DC_PIN, None) is False
     spi.final_validate_device_schema(
-        "epaper_spi", require_miso=needs_miso, require_mosi=True
+        "epaper_spi", require_miso=False, require_mosi=True
     )(config)
 
     global_config = full_config.get()
@@ -231,9 +207,7 @@ async def to_code(config):
 
     await display.register_display(var, config)
 
-    # Models without DC pin (e.g. IT8951) read from SPI, so must not be write-only
-    write_only = model.get_default(CONF_DC_PIN, None) is not False
-    await spi.register_spi_device(var, config, write_only=write_only)
+    await spi.register_spi_device(var, config, write_only=True)
 
     if dc_pin := config.get(CONF_DC_PIN):
         dc = await cg.gpio_pin_expression(dc_pin)
@@ -259,10 +233,6 @@ async def to_code(config):
         cg.add(var.set_sleep_when_done(config[CONF_SLEEP_WHEN_DONE]))
     if CONF_UPDATE_MODE in config:
         cg.add(var.set_update_mode(config[CONF_UPDATE_MODE]))
-    if CONF_VCOM in config:
-        cg.add(var.set_vcom(config[CONF_VCOM]))
-    if CONF_FORCE_1BPP in config:
-        cg.add(var.set_force_1bpp(config[CONF_FORCE_1BPP]))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False
     else:
