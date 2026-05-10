@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && (USE_ESP32 || USE_ARDUINO)
 #include <map>
 #include <utility>
 
@@ -219,4 +219,4 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
 
 }  // namespace esphome::prometheus
 
-#endif
+#endif  // USE_NETWORK && (USE_ESP32 || USE_ARDUINO)
