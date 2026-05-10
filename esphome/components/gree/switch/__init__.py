@@ -61,6 +61,10 @@ def _validate_model(config):
         raise cv.Invalid(
             "Gree switches are only supported for the " + supported_models + " models"
         )
+    if climate_conf[CONF_MODEL] == "yx1ff" and CONF_TURBO in config:
+        raise cv.Invalid(
+            "Gree YX1FF uses fan high for turbo and does not support a turbo switch"
+        )
 
 
 FINAL_VALIDATE_SCHEMA = _validate_model

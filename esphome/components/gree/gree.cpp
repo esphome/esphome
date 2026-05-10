@@ -290,11 +290,6 @@ void GreeClimate::transmit_state() {
     data->set_carrier_frequency(GREE_YAP_IR_FREQUENCY);
 
     for (size_t pos = 0; pos < 24; pos += 8) {
-      if (pos) {
-        data->mark(GREE_YAP_BIT_MARK);
-        data->space(GREE_YAP_MESSAGE_SPACE);
-      }
-
       data->mark(GREE_YAP_HEADER_MARK);
       data->space(GREE_YAP_HEADER_SPACE);
 
@@ -318,7 +313,7 @@ void GreeClimate::transmit_state() {
       }
 
       data->mark(GREE_YAP_BIT_MARK);
-      data->space(0);
+      data->space(pos + 8 < 24 ? GREE_YAP_MESSAGE_SPACE : 0);
     }
 
     transmit.perform();
@@ -362,7 +357,7 @@ void GreeClimate::transmit_state() {
     if (this->vertical_swing_() == GREE_VDIR_SWING) {
       remote_state[0] |= (1 << 6);  // Enable swing by setting bit 6
     } else if (this->vertical_swing_() != GREE_VDIR_AUTO) {
-      remote_state[5] = this->vertical_swing_();
+      remote_state[5] = (remote_state[5] & 0xF0) | this->vertical_swing_();
     }
   }
 
@@ -447,12 +442,6 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
     uint8_t buffer[25] = {0};
 
     for (size_t pos = 0; pos < 24; pos += 8) {
-      if (pos) {
-        if (!data.expect_item(GREE_YAP_BIT_MARK, GREE_YAP_MESSAGE_SPACE)) {
-          return false;
-        }
-      }
-
       if (!data.expect_item(GREE_YAP_HEADER_MARK, GREE_YAP_HEADER_SPACE)) {
         return false;
       }
@@ -483,9 +472,13 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
         return false;
       }
 
-      // The transmitter may include a zero-length spacer after the trailing mark.
-      // Real receiver captures can omit it, so consume it only when present.
-      if (data.peek_space_at_most(1)) {
+      if (pos + 8 < 24) {
+        if (!data.expect_space(GREE_YAP_MESSAGE_SPACE)) {
+          return false;
+        }
+      } else if (data.peek_space_at_most(1)) {
+        // The transmitter may include a zero-length spacer after the trailing mark.
+        // Real receiver captures can omit it, so consume it only when present.
         data.advance();
       }
     }
@@ -588,7 +581,8 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->target_temperature = float(buffer[1]);
 
   if (this->model_ == GREE_YX1FF) {
-    this->fan_mode = gree_decode_fan(buffer[0] & 0xF0, true);
+    const uint8_t fan_speed = (buffer[2] & GREE_FAN_TURBO_BIT) != 0 ? GREE_FAN_TURBO : (buffer[0] & 0x30);
+    this->fan_mode = gree_decode_fan(fan_speed, true);
     this->preset = (buffer[0] & GREE_PRESET_SLEEP_BIT) ? climate::CLIMATE_PRESET_SLEEP : climate::CLIMATE_PRESET_NONE;
   } else {
     this->fan_mode = gree_decode_fan(buffer[0] & 0x30, false);

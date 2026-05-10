@@ -169,6 +169,7 @@ TEST(GreeEncodingTest, YacFixedHorizontalDirectionContributesToStandardChecksum)
   source.set_transmitter(&source_tx);
   source.set_model(GREE_YAC);
   source.set_horizontal_default(HORIZONTAL_DIRECTION_RIGHT);
+  source.set_vertical_default(VERTICAL_DIRECTION_DOWN);
   source.mode = climate::CLIMATE_MODE_COOL;
   source.target_temperature = 25.0f;
   source.fan_mode = climate::CLIMATE_FAN_AUTO;
@@ -181,7 +182,26 @@ TEST(GreeEncodingTest, YacFixedHorizontalDirectionContributesToStandardChecksum)
   const auto frame = decode_standard_frame(source_tx.last_data());
 
   EXPECT_EQ(frame[4], 0x60);
+  EXPECT_EQ(frame[5], 0x26);
   EXPECT_EQ(frame[7], 0x60);
+}
+
+TEST(GreeEncodingTest, Yap1fUsesTrailingMarksForBlockGaps) {
+  MockRemoteTransmitter source_tx;
+  TestableGreeClimate source;
+  source.set_transmitter(&source_tx);
+  source.set_model(GREE_YAP1F);
+  source.mode = climate::CLIMATE_MODE_COOL;
+  source.target_temperature = 25.0f;
+  source.fan_mode = climate::CLIMATE_FAN_AUTO;
+
+  source.transmit_state();
+
+  ASSERT_FALSE(source_tx.last_data().empty());
+  for (size_t i = 0; i + 1 < source_tx.last_data().size(); i++) {
+    EXPECT_NE(source_tx.last_data()[i], 0);
+  }
+  EXPECT_EQ(source_tx.last_data().back(), 0);
 }
 
 TEST(GreeDecodeTest, SwingBitDoesNotMaskReceivedFanSpeed) {
@@ -230,6 +250,26 @@ TEST(GreeDecodeTest, Yx1ffTurboFanBitDoesNotPersistAsModeBit) {
   ASSERT_FALSE(low_fan_tx.last_data().empty());
   const auto low_fan_frame = decode_standard_frame(low_fan_tx.last_data());
   EXPECT_EQ(low_fan_frame[2] & GREE_FAN_TURBO_BIT, 0);
+}
+
+TEST(GreeDecodeTest, Yx1ffSleepPresetDoesNotChangeFanSpeed) {
+  MockRemoteTransmitter source_tx;
+  TestableGreeClimate source;
+  source.set_transmitter(&source_tx);
+  source.set_model(GREE_YX1FF);
+  source.mode = climate::CLIMATE_MODE_COOL;
+  source.target_temperature = 25.0f;
+  source.fan_mode = climate::CLIMATE_FAN_LOW;
+  source.preset = climate::CLIMATE_PRESET_SLEEP;
+
+  source.transmit_state();
+
+  TestableGreeClimate decoded;
+  decoded.set_model(GREE_YX1FF);
+  ASSERT_TRUE(decoded.receive(source_tx.last_data()));
+
+  EXPECT_EQ(decoded.fan_mode, climate::CLIMATE_FAN_LOW);
+  EXPECT_EQ(decoded.preset, climate::CLIMATE_PRESET_SLEEP);
 }
 
 }  // namespace esphome::gree::testing
