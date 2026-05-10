@@ -85,9 +85,10 @@ class SPDIFEncoder {
   /// @brief Check if there is a partial block pending
   bool has_pending_data() const { return this->spdif_block_ptr_ != this->spdif_block_buf_.get(); }
 
-  /// @brief Flush any pending partial block by padding with silence and sending
+  /// @brief Emit one complete SPDIF block: pad any pending partial block with silence and send,
+  /// or send a full silence block if nothing is pending. Always produces exactly one block on success.
   /// @param ticks_to_wait Timeout for blocking writes
-  /// @return esp_err_t as returned from the callback, or ESP_OK if nothing to flush
+  /// @return esp_err_t as returned from the callback
   esp_err_t flush_with_silence(TickType_t ticks_to_wait);
 
   /// @brief Reset the SPDIF block buffer and position tracking, discarding any partial block

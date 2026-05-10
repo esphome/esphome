@@ -853,6 +853,23 @@ class TestEsphomeCore:
         target.testing_ensure_platform_registered("sensor")
         assert target.platform_counts["sensor"] == 3
 
+    def test_bootloader_bin__native_idf(self, target):
+        """Native ESP-IDF builds emit the bootloader under build/bootloader/bootloader.bin."""
+        target.data[const.KEY_NATIVE_IDF] = True
+
+        assert target.bootloader_bin == Path(
+            "foo/build/build/bootloader/bootloader.bin"
+        )
+
+    def test_bootloader_bin__platformio(self, target):
+        """For PlatformIO builds bootloader.bin lives in the env-specific .pioenvs directory."""
+        target.name = "test-device"
+        target.data[const.KEY_NATIVE_IDF] = False
+
+        assert target.bootloader_bin == Path(
+            "foo/build/.pioenvs/test-device/bootloader.bin"
+        )
+
     def test_add_library__extracts_short_name_from_path(self, target):
         """Test add_library extracts short name from library paths like owner/lib."""
         target.data[const.KEY_CORE] = {
