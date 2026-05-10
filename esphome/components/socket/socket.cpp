@@ -15,6 +15,8 @@ namespace esphome::socket {
 // Shared ready() implementation for fd-based socket implementations (BSD and LWIP sockets).
 // Checks if the host wake select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wake_fd_ready(fd); }
+#else
+bool socket_ready_fd(int fd, bool loop_monitored) { return true; }
 #endif
 
 // Platform-specific inet_ntop wrappers

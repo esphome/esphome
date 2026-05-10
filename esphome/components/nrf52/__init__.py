@@ -384,7 +384,7 @@ async def to_code(config: ConfigType) -> None:
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
-    # disable console
+    # enable console
     zephyr_add_prj_conf("UART_CONSOLE", True)
     zephyr_add_prj_conf("CONSOLE", True)
     zephyr_add_prj_conf("SERIAL", True)

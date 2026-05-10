@@ -32,6 +32,7 @@
 #include <string>
 
 #ifdef LOG_LEVEL_NONE
+#define ESPHOME_SAVED_LOG_LEVEL_NONE
 #pragma push_macro("LOG_LEVEL_NONE")
 #undef LOG_LEVEL_NONE
 #endif
@@ -42,6 +43,7 @@ namespace esphome::api {
 
 }  // namespace esphome::api
 
-#ifdef LOG_LEVEL_NONE
+#ifdef ESPHOME_SAVED_LOG_LEVEL_NONE
 #pragma pop_macro("LOG_LEVEL_NONE")
+#undef ESPHOME_SAVED_LOG_LEVEL_NONE
 #endif

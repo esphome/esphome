@@ -18,7 +18,6 @@ void MDNSComponent::setup() {
   char *mac_ptr = nullptr;
 #endif
   this->compile_records_(this->services_, mac_ptr, nullptr);
-  const auto &services = this->services_;
 #else
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
   char *mac_ptr = nullptr;
