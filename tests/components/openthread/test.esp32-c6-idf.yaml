@@ -10,3 +10,9 @@ openthread:
   mesh_local_prefix: fd53:145f:ed22:ad81::/64
   output_power: 1dBm
   graceful_detach_on_shutdown: true
+  on_connect:
+    then:
+      - logger.log: "openthread connected"
+  on_disconnect:
+    then:
+      - logger.log: "openthread disconnected"
