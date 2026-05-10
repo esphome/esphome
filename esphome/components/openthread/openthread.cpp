@@ -60,7 +60,7 @@ void OpenThreadComponent::on_state_changed_(otChangedFlags flags, void *context)
 #endif
 #ifdef USE_OPENTHREAD_DISCONNECT_TRIGGER
     if (!self->connected_) {
-      this->disconnect_trigger_.trigger();
+      self->disconnect_trigger_.trigger();
     }
 #endif
   }
