@@ -45,7 +45,6 @@ static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) { return inet_pto
 #endif
 
 #ifdef USE_ESP32
-#include <cstring>
 #include <esp_netif.h>
 #endif
 
