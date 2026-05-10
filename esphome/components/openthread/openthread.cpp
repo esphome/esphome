@@ -270,8 +270,8 @@ bool OpenThreadComponent::teardown() {
       global_openthread_component = nullptr;
       ESP_LOGV(TAG, "Stop Openthread");
       int error = this->openthread_stop_();
-      if (error != ESP_OK) {
-        ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
+      if (error != 0) {
+        ESP_LOGW(TAG, "Failed attempt to stop openthread %d", error);
         return true;
       }
     } break;
