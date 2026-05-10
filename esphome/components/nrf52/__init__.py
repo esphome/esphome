@@ -83,65 +83,68 @@ def set_core_data(config: ConfigType) -> ConfigType:
         sections = BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]]
         zephyr_add_pm_static(sections)
 
-        # Derive partition addresses from the SoftDevice and bootloader sections so
-        # that the DTS flash map matches what the Partition Manager produces:
-        #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1.
-        mcuboot_size = 0x10000  # 64 KB
-        sd_end = next(s.address + s.size for s in sections if "SoftDevice" in s.name)
-        bl_start = next(s.address for s in sections if "Adafruit" in s.name)
-        slot0_start = sd_end + mcuboot_size
-        # Align slot size down to a 4 KB sector boundary
-        slot_size = ((bl_start - slot0_start) // 2 // 0x1000) * 0x1000
-        slot1_start = slot0_start + slot_size
+        if config[CONF_SECOND_BOOTLOADER]:
+            # Derive partition addresses from the SoftDevice and bootloader sections so
+            # that the DTS flash map matches what the Partition Manager produces:
+            #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1.
+            mcuboot_size = 0x10000  # 64 KB
+            sd_end = next(
+                s.address + s.size for s in sections if "SoftDevice" in s.name
+            )
+            bl_start = next(s.address for s in sections if "Adafruit" in s.name)
+            slot0_start = sd_end + mcuboot_size
+            # Align slot size down to a 4 KB sector boundary
+            slot_size = ((bl_start - slot0_start) // 2 // 0x1000) * 0x1000
+            slot1_start = slot0_start + slot_size
 
-        print(f"0x{sd_end:08x} ")
-        print(f"0x{slot0_start:08x} ")
+            print(f"0x{sd_end:08x} ")
+            print(f"0x{slot0_start:08x} ")
 
-        def _mcuboot_partition_overlay() -> str:
-            def part(name, start, size):
+            def _mcuboot_partition_overlay() -> str:
+                def part(name, start, size):
+                    return f"""
+                    {name}: partition@{start:x} {{
+                        reg = <0x{start:x} 0x{size:x}>;
+                    }};"""
+
                 return f"""
-                {name}: partition@{start:x} {{
-                    reg = <0x{start:x} 0x{size:x}>;
-                }};"""
+                    /delete-node/ &boot_partition;
+                    /delete-node/ &storage_partition;
+                    /delete-node/ &code_partition;
+                    /delete-node/ &reserved_partition_0;
 
-            return f"""
-                /delete-node/ &boot_partition;
-                /delete-node/ &storage_partition;
-                /delete-node/ &code_partition;
-                /delete-node/ &reserved_partition_0;
-
-                &flash0 {{
-                    partitions {{
-                        compatible = "fixed-partitions";
-                        #address-cells = <1>;
-                        #size-cells = <1>;
-                        {part("slot0_partition", slot0_start, slot_size)}
-                        {part("slot1_partition", slot1_start, slot_size)}
+                    &flash0 {{
+                        partitions {{
+                            compatible = "fixed-partitions";
+                            #address-cells = <1>;
+                            #size-cells = <1>;
+                            {part("slot0_partition", slot0_start, slot_size)}
+                            {part("slot1_partition", slot1_start, slot_size)}
+                        }};
                     }};
-                }};
-            """
+                """
 
-        zephyr_add_overlay(_mcuboot_partition_overlay(), "mcuboot")
-        zephyr_add_overlay(_mcuboot_partition_overlay())
-        zephyr_add_overlay(
-            """
-            / {
-                chosen {
-                    zephyr,code-partition = &slot0_partition;
+            zephyr_add_overlay(_mcuboot_partition_overlay(), "mcuboot")
+            zephyr_add_overlay(_mcuboot_partition_overlay())
+            zephyr_add_overlay(
+                """
+                / {
+                    chosen {
+                        zephyr,code-partition = &slot0_partition;
+                    };
                 };
-            };
-            """
-        )
-        zephyr_add_overlay(
-            """
-            / {
-                chosen {
-                    zephyr,code-partition = &slot0_partition;
+                """
+            )
+            zephyr_add_overlay(
+                """
+                / {
+                    chosen {
+                        zephyr,code-partition = &slot0_partition;
+                    };
                 };
-            };
-            """,
-            "mcuboot",
-        )
+                """,
+                "mcuboot",
+            )
     return config
 
 
