@@ -202,7 +202,7 @@ void OpenThreadSrpComponent::setup() {
       const char *value_str = MDNS_STR_ARG(txt.value);
       txt_entries[i].mKey = MDNS_STR_ARG(txt.key);
       size_t value_len = strlen(value_str);
-      char *value_copy = new char[value_len + 1];
+      char *value_copy = reinterpret_cast<char *>(this->pool_alloc_(value_len + 1));
       strcpy(value_copy, value_str);
       txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(value_copy);
       txt_entries[i].mValueLength = value_len;

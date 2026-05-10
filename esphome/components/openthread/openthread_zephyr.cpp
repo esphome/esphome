@@ -58,9 +58,9 @@ void OpenThreadComponent::ot_main() {}
 
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
-  int addr_count = 0;
-  for (const otNetifAddress *addr = otIp6GetUnicastAddresses(openthread_get_default_instance()); addr != nullptr;
-       addr = addr->mNext) {
+  size_t addr_count = 0;
+  for (const otNetifAddress *addr = otIp6GetUnicastAddresses(openthread_get_default_instance());
+       addr != nullptr && addr_count < addresses.size(); addr = addr->mNext) {
     addresses[addr_count] = network::IPAddress(reinterpret_cast<const struct in6_addr *>(&addr->mAddress));
     addr_count++;
   }
