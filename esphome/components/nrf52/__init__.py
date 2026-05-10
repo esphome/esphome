@@ -576,21 +576,8 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     # It triggers cpu reset. It can fail randomly.
                     pass
 
-                if "://" in host:
-                    time.sleep(1)
-                else:
-                    deadline = time.monotonic() + 5
-                    while time.monotonic() < deadline:
-                        try:
-                            with serial.Serial(host, baudrate=1200):
-                                pass
-                            break
-                        except serial.SerialException:
-                            pass
-                    else:
-                        raise EsphomeError(
-                            f"Timed out waiting for {host} to reappear after reset"
-                        )
+                time.sleep(1)
+
                 dfu_zip = CORE.relative_build_path("firmware.zip")
                 result = subprocess.run(
                     [
