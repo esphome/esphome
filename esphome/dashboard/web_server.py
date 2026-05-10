@@ -516,6 +516,18 @@ class EsphomeQueueUpdateHandler(EsphomeCommandWebSocket):
             _LOGGER.warning("Queued build failed for %s", self.configuration)
 
 
+class EsphomeCancelQueueHandler(BaseHandler):
+    @authenticated
+    def post(self) -> None:
+        data = json.loads(self.request.body.decode())
+        configuration = data.get("configuration")
+        if configuration and hasattr(DASHBOARD, "queued_updates"):
+            DASHBOARD.queued_updates.discard(configuration)
+            _LOGGER.info("User cancelled queued update for %s", configuration)
+        self.set_status(204)
+        self.finish()
+
+
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         config_file = settings.rel_path(json_message["configuration"])
@@ -1360,6 +1372,10 @@ class ArchiveRequestHandler(BaseHandler):
             # Delete build folder (if exists)
             shutil.rmtree(storage_json.build_path, ignore_errors=True)
 
+        # Remove the device from the update queue
+        if configuration and hasattr(DASHBOARD, "queued_updates"):
+            DASHBOARD.queued_updates.discard(configuration)
+
 
 class UnArchiveRequestHandler(BaseHandler):
     @authenticated
@@ -1598,6 +1614,7 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
             (f"{rel}run", EsphomeRunHandler),
             (f"{rel}compile", EsphomeCompileHandler),
             (f"{rel}queue-update", EsphomeQueueUpdateHandler),
+            (f"{rel}cancel-queue", EsphomeCancelQueueHandler),
             (f"{rel}validate", EsphomeValidateHandler),
             (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),
             (f"{rel}clean-all", EsphomeCleanAllHandler),
