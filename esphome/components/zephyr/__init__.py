@@ -259,7 +259,7 @@ def copy_files():
             "name": "adafruit"
         }},
         "zephyr": {{
-            "variant": "{zephyr_data()['variant']}"
+            "variant": "{zephyr_data()["variant"]}"
         }},
         "softdevice": {{
             "sd_fwid": "0x00B6"
