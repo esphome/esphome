@@ -88,10 +88,6 @@ struct IPAddress {
   }
   bool operator==(const IPAddress &other) const { return memcmp(&ip_addr_, &other.ip_addr_, sizeof(ip_addr_)) == 0; }
   bool operator!=(const IPAddress &other) const { return memcmp(&ip_addr_, &other.ip_addr_, sizeof(ip_addr_)) != 0; }
-  IPAddress &operator+=(uint8_t increase) {
-    ip_addr_.s6_addr[15] += increase;
-    return *this;
-  }
 
 #elif defined(USE_HOST)
   IPAddress() { ip_addr_.s_addr = 0; }
