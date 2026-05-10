@@ -29,19 +29,22 @@ def test_schema_accepts_all_builtin_models(
 
     from esphome.components.gree.climate import CONFIG_SCHEMA
 
-    validated = CONFIG_SCHEMA(
-        {
-            "name": f"Gree {model.upper()}",
-            "model": model,
-            "receiver_id": "rcvr",
-            "horizontal_default": "middle",
-            "vertical_default": "up",
-        }
-    )
+    config = {
+        "name": f"Gree {model.upper()}",
+        "model": model,
+        "receiver_id": "rcvr",
+        "horizontal_default": "middle",
+        "vertical_default": "up",
+    }
+    if model == "yap1f":
+        config["horizontal_default"] = "auto"
+        config["vertical_default"] = "auto"
+
+    validated = CONFIG_SCHEMA(config)
 
     assert str(validated["model"]) == model
-    assert str(validated["horizontal_default"]) == "middle"
-    assert str(validated["vertical_default"]) == "up"
+    assert str(validated["horizontal_default"]) == config["horizontal_default"]
+    assert str(validated["vertical_default"]) == config["vertical_default"]
     assert "receiver_id" in validated
 
 
@@ -67,5 +70,25 @@ def test_yap1f_schema_rejects_invalid_direction_values(
                 "name": "Gree YAP1F Invalid",
                 "model": "yap1f",
                 "vertical_default": "invalid",
+            }
+        )
+
+
+def test_yap1f_schema_rejects_configurable_vane_defaults(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """YAP1F does not expose vane defaults because the current frame omits them."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+
+    from esphome.components.gree.climate import CONFIG_SCHEMA
+
+    with pytest.raises(
+        cv.Invalid, match="YAP1F does not support configurable vane defaults"
+    ):
+        CONFIG_SCHEMA(
+            {
+                "name": "Gree YAP1F Directions",
+                "model": "yap1f",
+                "horizontal_default": "middle",
             }
         )

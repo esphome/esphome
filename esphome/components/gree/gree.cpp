@@ -193,6 +193,13 @@ void GreeClimate::set_model(Model model) {
       break;
   }
 
+  if (model == GREE_YAP1F) {
+    this->swing_modes_ = {climate::CLIMATE_SWING_OFF};
+  } else {
+    this->swing_modes_ = {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
+                          climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH};
+  }
+
   this->model_ = model;
 }
 
@@ -263,7 +270,9 @@ void GreeClimate::transmit_state() {
     buffer[1] = uint8_t(clamp<int>(temperature_cmd, GREE_TEMP_MIN, GREE_TEMP_MAX) - GREE_TEMP_MIN);
     buffer[2] = this->mode_bits_;
     buffer[3] = 0x50;
-    buffer[4] = this->vertical_swing_() | (this->horizontal_swing_() << 4);
+    // The YAP frame sends a fixed 010 marker in place of buffer[4].
+    // Keep vane defaults disabled until their serialized location is known.
+    buffer[4] = 0x00;
     buffer[5] = 0xC2;  // 0x82 + WiFi enabled (bit 6)
 
     // Copy blocks (mirrors HeatpumpIR's GreeYAP implementation)
@@ -504,37 +513,9 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
     this->target_temperature = float((buffer[1] & 0x0F) + GREE_TEMP_MIN);
 
     this->fan_mode = gree_decode_fan(buffer[0] & 0xF0, false);
-
-    const uint8_t vdir = buffer[4] & 0x0F;
-    const uint8_t hdir = (buffer[4] >> 4) & 0x0F;
-    const bool vertical_swing = vdir == GREE_VDIR_SWING;
-    const bool horizontal_swing = hdir == GREE_HDIR_SWING;
-
-    if (!vertical_swing) {
-      if (!gree_is_fixed_vertical_direction(vdir)) {
-        GREE_LOG_DECODE("Unsupported vertical direction value: 0x%02X", vdir);
-        return false;
-      }
-      this->default_vertical_direction_ = static_cast<VerticalDirections>(vdir);
-    }
-
-    if (!horizontal_swing) {
-      if (!gree_is_fixed_horizontal_direction(hdir)) {
-        GREE_LOG_DECODE("Unsupported horizontal direction value: 0x%02X", hdir);
-        return false;
-      }
-      this->default_horizontal_direction_ = static_cast<HorizontalDirections>(hdir);
-    }
-
-    if (vertical_swing && horizontal_swing) {
-      this->swing_mode = climate::CLIMATE_SWING_BOTH;
-    } else if (vertical_swing) {
-      this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-    } else if (horizontal_swing) {
-      this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-    } else {
-      this->swing_mode = climate::CLIMATE_SWING_OFF;
-    }
+    this->default_vertical_direction_ = VERTICAL_DIRECTION_AUTO;
+    this->default_horizontal_direction_ = HORIZONTAL_DIRECTION_AUTO;
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
 
     this->mode_bits_ = buffer[2] & 0xF0;
     this->publish_mode_bit_switches_();

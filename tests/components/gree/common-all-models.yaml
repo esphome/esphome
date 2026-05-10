@@ -52,8 +52,8 @@ climate:
     name: GREE YAP1F
     id: my_gree_yap
     model: YAP1F
-    horizontal_default: middle
-    vertical_default: up
+    horizontal_default: auto
+    vertical_default: auto
     transmitter_id: xmitr
 
 switch:

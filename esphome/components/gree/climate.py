@@ -56,6 +56,19 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(GreeClimate).extend(
 )
 
 
+def _validate_direction_defaults(config):
+    if str(config[CONF_MODEL]) == "yap1f" and (
+        str(config[CONF_HORIZONTAL_DEFAULT]) != "auto"
+        or str(config[CONF_VERTICAL_DEFAULT]) != "auto"
+    ):
+        raise cv.Invalid("YAP1F does not support configurable vane defaults")
+
+    return config
+
+
+CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_direction_defaults)
+
+
 async def to_code(config):
     var = await climate_ir.new_climate_ir(config)
     cg.add(var.set_model(config[CONF_MODEL]))
