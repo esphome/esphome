@@ -18,12 +18,12 @@ void MDNSComponent::setup() {
 #else
   char *mac_ptr = nullptr;
 #endif
-  this->compile_records_(this->services_, mac_ptr);
+  this->compile_records_(this->services_, mac_ptr, nullptr);
   const auto &services = this->services_;
 #else
   StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
   char *mac_ptr = nullptr;
-  this->compile_records_(services, mac_ptr);
+  this->compile_records_(services, mac_ptr, nullptr);
 #endif
 
   ESP_LOGI(TAG, "mDNS records compiled, waiting for network connectivity before registering services");
