@@ -18,8 +18,10 @@ BSDSocketImpl::BSDSocketImpl(int fd, bool monitor_loop) {
     return;
 #ifdef USE_LWIP_FAST_SELECT
   this->cached_sock_ = hook_fd_for_fast_select(this->fd_);
-#else
+#elif defined(USE_HOST)
   this->loop_monitored_ = wake_register_fd(this->fd_);
+#else
+  this->loop_monitored_ = false;
 #endif
 }
 
@@ -37,7 +39,7 @@ int BSDSocketImpl::close() {
   // touch an unrelated socket's pcb. No per-socket callback unhook is needed —
   // all LwIP sockets share the same static event_callback.
   this->cached_sock_ = nullptr;
-#else
+#elif defined(USE_HOST)
   if (this->loop_monitored_) {
     wake_unregister_fd(this->fd_);
   }
