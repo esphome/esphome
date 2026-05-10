@@ -204,4 +204,32 @@ TEST(GreeDecodeTest, SwingBitDoesNotMaskReceivedFanSpeed) {
   EXPECT_EQ(decoded.swing_mode, climate::CLIMATE_SWING_VERTICAL);
 }
 
+TEST(GreeDecodeTest, Yx1ffTurboFanBitDoesNotPersistAsModeBit) {
+  MockRemoteTransmitter source_tx;
+  TestableGreeClimate source;
+  source.set_transmitter(&source_tx);
+  source.set_model(GREE_YX1FF);
+  source.mode = climate::CLIMATE_MODE_COOL;
+  source.target_temperature = 25.0f;
+  source.fan_mode = climate::CLIMATE_FAN_HIGH;
+  source.set_mode_bits_for_test(GREE_MODE_BIT_LIGHT | GREE_MODE_BIT_HEALTH);
+
+  source.transmit_state();
+
+  TestableGreeClimate decoded;
+  decoded.set_model(GREE_YX1FF);
+  ASSERT_TRUE(decoded.receive(source_tx.last_data()));
+  EXPECT_EQ(decoded.fan_mode, climate::CLIMATE_FAN_HIGH);
+  EXPECT_EQ(decoded.mode_bits_for_test() & GREE_FAN_TURBO_BIT, 0);
+
+  MockRemoteTransmitter low_fan_tx;
+  decoded.set_transmitter(&low_fan_tx);
+  decoded.fan_mode = climate::CLIMATE_FAN_LOW;
+  decoded.transmit_state();
+
+  ASSERT_FALSE(low_fan_tx.last_data().empty());
+  const auto low_fan_frame = decode_standard_frame(low_fan_tx.last_data());
+  EXPECT_EQ(low_fan_frame[2] & GREE_FAN_TURBO_BIT, 0);
+}
+
 }  // namespace esphome::gree::testing

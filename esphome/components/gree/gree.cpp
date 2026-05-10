@@ -668,7 +668,11 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
     this->swing_mode = vertical_swing ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   }
 
-  this->mode_bits_ = gree_has_mode_bits(this->model_) ? (buffer[2] & 0xF0) : 0;
+  if (this->model_ == GREE_YX1FF) {
+    this->mode_bits_ = (buffer[2] & 0xF0) & ~GREE_FAN_TURBO_BIT;
+  } else {
+    this->mode_bits_ = gree_has_mode_bits(this->model_) ? (buffer[2] & 0xF0) : 0;
+  }
   this->publish_mode_bit_switches_();
 
   this->publish_state();
