@@ -492,31 +492,28 @@ class EsphomeCompileHandler(EsphomeCommandWebSocket):
 
 
 class EsphomeQueueUpdateHandler(EsphomeCommandWebSocket):
+    """Handler for the 'Queue Update' process that runs a build and on success adds to update queue."""
     configuration: str
 
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         self.configuration = json_message["configuration"]
         config_file = settings.rel_path(self.configuration)
         
-        # We explicitly do NOT use --only-generate because we need the .bin file
-        command = [*DASHBOARD_COMMAND, "compile", config_file]
-        return command
+        # This triggers the standard compiler, generating logs for the UI
+        return [*DASHBOARD_COMMAND, "compile", config_file]
 
     def _proc_on_exit(self, returncode: int) -> None:
-        # Let the base class send the exit code to the frontend first
+        # Standard exit handling so the UI knows the process finished
         super()._proc_on_exit(returncode)
 
-        if returncode != 0:
-            _LOGGER.warning("Queue compile failed for %s", self.configuration)
-            return
-
-        # Fallback initialization just in case dashboard.py hasn't fully attached it
-        if not hasattr(DASHBOARD, "queued_updates"):
-            DASHBOARD.queued_updates = set()
-
-        # Add to the queue upon successful compilation
-        DASHBOARD.queued_updates.add(self.configuration)
-        _LOGGER.info("Successfully compiled and queued %s for  update", self.configuration)
+        if returncode == 0:
+            # Only add to the queue if the build actually succeeded
+            DASHBOARD.queued_updates.add(self.configuration)
+            _LOGGER.info("Build successful. %s added to queued updates.", self.configuration)
+            # We send a custom event so the UI can show the 'Queued' status
+            self.write_message({"event": "queued_success", "configuration": self.configuration})
+        else:
+            _LOGGER.warning("Queued build failed for %s", self.configuration)
 
 
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
