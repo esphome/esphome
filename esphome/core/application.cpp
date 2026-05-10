@@ -12,6 +12,9 @@
 #include <esp_ota_ops.h>
 #include <esp_bootloader_desc.h>
 #endif
+#ifdef USE_LWIP_FAST_SELECT
+#include "esphome/core/lwip_fast_select.h"
+#endif
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
