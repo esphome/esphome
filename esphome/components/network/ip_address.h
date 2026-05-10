@@ -12,10 +12,6 @@
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
 #include <lwip/ip_addr.h>
 #endif
-#ifndef USE_ZEPHYR
-#include <cstring>
-#endif
-
 #if USE_ARDUINO
 #include <Arduino.h>
 #include <IPAddress.h>
