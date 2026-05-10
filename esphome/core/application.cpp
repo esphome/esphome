@@ -12,13 +12,9 @@
 #include <esp_ota_ops.h>
 #include <esp_bootloader_desc.h>
 #endif
-#ifdef USE_LWIP_FAST_SELECT
-#include "esphome/core/lwip_fast_select.h"
-#endif
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
-#include <cerrno>
 #include <ranges>
 
 #ifdef USE_STATUS_LED
@@ -501,139 +497,6 @@ void Application::enable_pending_loops_() {
     this->has_pending_enable_loop_requests_ = true;
   }
 }
-
-#ifdef USE_LWIP_FAST_SELECT
-bool Application::register_socket(struct lwip_sock *sock) {
-  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
-  if (sock == nullptr)
-    return false;
-  esphome_lwip_hook_socket(sock);
-  this->monitored_sockets_.push_back(sock);
-  return true;
-}
-
-void Application::unregister_socket(struct lwip_sock *sock) {
-  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
-  for (size_t i = 0; i < this->monitored_sockets_.size(); i++) {
-    if (this->monitored_sockets_[i] != sock)
-      continue;
-
-    // Swap with last element and pop - O(1) removal since order doesn't matter.
-    // No need to unhook the netconn callback — all LwIP sockets share the same
-    // static event_callback, and the socket will be closed by the caller.
-    if (i < this->monitored_sockets_.size() - 1)
-      this->monitored_sockets_[i] = this->monitored_sockets_.back();
-    this->monitored_sockets_.pop_back();
-    return;
-  }
-}
-#elif defined(USE_HOST)
-bool Application::register_socket_fd(int fd) {
-  // WARNING: This function is NOT thread-safe and must only be called from the main loop
-  // It modifies socket_fds_ and related variables without locking
-  if (fd < 0)
-    return false;
-
-  if (fd >= FD_SETSIZE) {
-    ESP_LOGE(TAG, "fd %d exceeds FD_SETSIZE %d", fd, FD_SETSIZE);
-    return false;
-  }
-
-  this->socket_fds_.push_back(fd);
-  this->socket_fds_changed_ = true;
-  if (fd > this->max_fd_) {
-    this->max_fd_ = fd;
-  }
-
-  return true;
-}
-
-void Application::unregister_socket_fd(int fd) {
-  // WARNING: This function is NOT thread-safe and must only be called from the main loop
-  // It modifies socket_fds_ and related variables without locking
-  if (fd < 0)
-    return;
-
-  for (size_t i = 0; i < this->socket_fds_.size(); i++) {
-    if (this->socket_fds_[i] != fd)
-      continue;
-
-    // Swap with last element and pop - O(1) removal since order doesn't matter.
-    if (i < this->socket_fds_.size() - 1)
-      this->socket_fds_[i] = this->socket_fds_.back();
-    this->socket_fds_.pop_back();
-    this->socket_fds_changed_ = true;
-    // Only recalculate max_fd if we removed the current max
-    if (fd == this->max_fd_) {
-      this->max_fd_ = -1;
-      for (int sock_fd : this->socket_fds_) {
-        if (sock_fd > this->max_fd_)
-          this->max_fd_ = sock_fd;
-      }
-    }
-    return;
-  }
-}
-
-bool Application::is_socket_ready(int fd) const {
-  // This function is thread-safe for reading the result of select()
-  // However, it should only be called after select() has been executed in the main loop
-  // The read_fds_ is only modified by select() in the main loop
-  if (fd < 0 || fd >= FD_SETSIZE)
-    return false;
-
-  return FD_ISSET(fd, const_cast<fd_set *>(&this->read_fds_));
-}
-#endif
-
-// Only the select() fallback path remains in the .cpp — all other paths are inlined in application.h
-#ifdef USE_HOST
-void Application::yield_with_select_(uint32_t delay_ms) {
-  // Fallback select() path (host platform and any future platforms without fast select).
-  if (!this->socket_fds_.empty()) [[likely]] {
-    // Update fd_set if socket list has changed
-    if (this->socket_fds_changed_) [[unlikely]] {
-      FD_ZERO(&this->base_read_fds_);
-      // fd bounds are validated in register_socket_fd()
-      for (int fd : this->socket_fds_) {
-        FD_SET(fd, &this->base_read_fds_);
-      }
-      this->socket_fds_changed_ = false;
-    }
-
-    // Copy base fd_set before each select
-    this->read_fds_ = this->base_read_fds_;
-
-    // Convert delay_ms to timeval
-    struct timeval tv;
-    tv.tv_sec = delay_ms / 1000;
-    tv.tv_usec = (delay_ms - tv.tv_sec * 1000) * 1000;
-
-    // Call select with timeout
-    int ret = ::select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
-
-    // Process select() result:
-    // ret > 0: socket(s) have data ready - normal and expected
-    // ret == 0: timeout occurred - normal and expected
-    if (ret >= 0) [[likely]] {
-      // Yield if zero timeout since select(0) only polls without yielding
-      if (delay_ms == 0) [[unlikely]] {
-        yield();
-      }
-      return;
-    }
-    // ret < 0: error (EINTR is normal, anything else is unexpected)
-    const int err = errno;
-    if (err == EINTR) {
-      return;
-    }
-    // select() error - log and fall through to delay()
-    ESP_LOGW(TAG, "select() failed with errno %d", err);
-  }
-  // No sockets registered or select() failed - use regular delay
-  delay(delay_ms);
-}
-#endif  // USE_HOST
 
 // App storage — asm label shares the linker symbol with "extern Application App".
 // char[] is trivially destructible, so no __cxa_atexit or destructor chain is emitted.

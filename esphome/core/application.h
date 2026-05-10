@@ -15,9 +15,6 @@
 #endif
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-#ifdef USE_HOST
-#include <sys/select.h>
-#endif
 #include "esphome/core/preferences.h"
 #include "esphome/core/progmem.h"
 #include "esphome/core/scheduler.h"
@@ -473,10 +470,6 @@ class Application {
   /// for WDT, < 250 ms for LED blink rendering).
   void feed_wdt_slow_(uint32_t time);
 
-#ifdef USE_HOST
-  void yield_with_select_(uint32_t delay_ms);
-#endif
-
 #ifdef USE_STATUS_LED
   /// Slow path for the status_led dispatch rate limit. Runs the status_led
   /// component's loop() based on its state (LOOP / LOOP_DONE with status
@@ -555,17 +548,6 @@ class Application {
 
 #ifdef USE_SERIAL_PROXY
   StaticVector<serial_proxy::SerialProxy *, SERIAL_PROXY_COUNT> serial_proxies_{};
-#endif
-
-#ifdef USE_LWIP_FAST_SELECT
-  std::vector<struct lwip_sock *> monitored_sockets_{};
-#endif
-#ifdef USE_HOST
-  std::vector<int> socket_fds_{};
-  bool socket_fds_changed_{false};
-  int max_fd_{-1};
-  fd_set base_read_fds_{};
-  fd_set read_fds_{};
 #endif
 };
 
