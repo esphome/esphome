@@ -15,6 +15,7 @@
 #elif defined(USE_ESP32)
 #include <esp_ota_ops.h>
 #include <esp_system.h>
+#include <esp_image_format.h>
 #endif
 #endif
 
@@ -34,7 +35,11 @@ void SafeModeComponent::dump_config() {
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
   const char *state_str;
   if (this->ota_state_ == ESP_OTA_IMG_NEW) {
+#ifdef USE_OTA_PARTITIONS
+    state_str = "support unknown";
+#else
     state_str = "not supported";
+#endif
   } else if (this->ota_state_ == ESP_OTA_IMG_PENDING_VERIFY) {
     state_str = "supported";
   } else {
@@ -63,6 +68,18 @@ void SafeModeComponent::dump_config() {
       ESP_LOGW(TAG, "Last reset was due to brownout - check your power supply!\n"
                     " See https://esphome.io/guides/faq.html#brownout-detector-was-triggered");
     }
+  }
+  if (!this->app_ota_possible_) {
+    ESP_LOGW(TAG, "OTA updates are impossible.");
+#ifdef USE_OTA_PARTITIONS
+    ESP_LOGW(TAG, " OTA partition table update or serial flashing is required.");
+#else
+    if (this->safe_mode_rtc_value_ < this->safe_mode_num_attempts_ && this->rollback_part_found_) {
+      ESP_LOGW(TAG, " Activate safe mode to reboot to the recovery app.");
+    } else {
+      ESP_LOGE(TAG, " Serial flashing is required.");
+    }
+#endif
   }
 #endif
 }
@@ -124,8 +141,35 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
 
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
   // Check partition state to detect if bootloader supports rollback
-  const esp_partition_t *running = esp_ota_get_running_partition();
-  esp_ota_get_state_partition(running, &this->ota_state_);
+  const esp_partition_t *running_part = esp_ota_get_running_partition();
+  esp_ota_get_state_partition(running_part, &this->ota_state_);
+  const esp_partition_t *next_part = esp_ota_get_next_update_partition(nullptr);
+  this->app_ota_possible_ = (next_part != nullptr && next_part != running_part);
+#ifndef USE_OTA_PARTITIONS
+  const esp_partition_t *rollback_part = nullptr;
+  if (!this->app_ota_possible_) {
+    // Find valid app partition for rollback
+    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+    while (it != nullptr) {
+      const esp_partition_t *p = esp_partition_get(it);
+      if (p->address != running_part->address) {
+        esp_image_metadata_t data = {};
+        const esp_partition_pos_t part_pos = {
+            .offset = p->address,
+            .size = p->size,
+        };
+        esp_err_t err = esp_image_verify(ESP_IMAGE_VERIFY, &part_pos, &data);
+        if (err == ESP_OK) {
+          rollback_part = p;
+          this->rollback_part_found_ = true;
+          break;
+        }
+      }
+      it = esp_partition_next(it);
+    }
+    esp_partition_iterator_release(it);
+  }
+#endif
 #endif
 
   uint32_t rtc_val = this->read_rtc_();
@@ -150,6 +194,21 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   if (!is_manual) {
     ESP_LOGE(TAG, "Boot loop detected");
   }
+
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK) && !defined(USE_OTA_PARTITIONS)
+  // Allow recovery of soft-bricked devices
+  // Instead of starting safe_mode, reboot to the other app partition if all conditions are met:
+  // - app OTA is impossible (for example because the other app partition has type 'factory')
+  // - the other app partition contains a valid app (for example Tasmota safeboot image or ESPHome)
+  // - allow_partition_access is not configured making recovery via partition table update impossible
+  if (!this->app_ota_possible_) {
+    if (rollback_part != nullptr) {
+      ESP_LOGW(TAG, "OTA updates are impossible. Rebooting to recovery app.");
+      esp_ota_set_boot_partition(rollback_part);
+      App.reboot();
+    }
+  }
+#endif
 
   this->status_set_error();
   this->set_timeout(enable_time, []() {

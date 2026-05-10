@@ -52,6 +52,8 @@ class SafeModeComponent final : public Component {
   bool boot_successful_{false};  ///< set to true after boot is considered successful
   uint8_t safe_mode_num_attempts_{0};
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+  bool app_ota_possible_{true};
+  bool rollback_part_found_{false};
   esp_ota_img_states_t ota_state_{ESP_OTA_IMG_UNDEFINED};
 #endif
   // Larger objects at the end
