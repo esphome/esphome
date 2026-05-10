@@ -22,7 +22,7 @@ class FendtSwitch : public CaravanComponentBase<bool>, public switch_::Switch {
 
  protected:
   void write_state(bool state) override {
-    std::string command = "";
+    std::string command;
     if (this->variable_) {
       this->variable_->set_value(state);
       command = this->variable_->get_command();

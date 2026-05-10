@@ -111,7 +111,7 @@ void FendtCaravan::add_command_(const std::string &cmd) {
   int8_t last_index = cmd.length();
   bool last_chunk = false;
   while (!last_chunk) {
-    std::string chunk = "";
+    std::string chunk;
     if (end_index < last_index) {
       chunk = cmd.substr(0, 17);
       chunk += "@";

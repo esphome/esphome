@@ -28,9 +28,9 @@ class IVariable {
 
 template<class T> class Variable : public IVariable {
  public:
-  Variable(const std::string name, std::function<T(const std::string &)> decode_funct = nullptr,
-           std::function<std::string(const std::string &, T value)> command_funct = nullptr,
-           std::function<std::string(const std::string &, T value)> alt_command_funct = nullptr)
+  Variable(const std::string &name, std::function<T(const std::string &)> decode_funct = nullptr,
+           std::function<std::string(const std::string &, T value)> const &command_funct = nullptr,
+           std::function<std::string(const std::string &, T value)> const &alt_command_funct = nullptr)
       : decode_funct_(std::move(decode_funct)), command_funct_(command_funct), alt_command_funct_(alt_command_funct) {
     name_ = name;
     is_active_ = false;

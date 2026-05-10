@@ -13,7 +13,7 @@ class Commands {
     return command;
   }
   static std::string update_run(const std::string &name, bool value) {
-    std::string ret_value = "";
+    std::string ret_value;
     if (name == "HS_KEY") {
       ret_value = "net-HS_KEY";
     } else if (name == "HS_KEY_LONG") {
