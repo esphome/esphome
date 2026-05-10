@@ -296,10 +296,7 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
 
 void I2SAudioSpeakerBase::stop_i2s_driver_() {
   if (this->tx_handle_ != nullptr) {
-    if (this->channel_enabled_) {
-      i2s_channel_disable(this->tx_handle_);
-      this->channel_enabled_ = false;
-    }
+    i2s_channel_disable(this->tx_handle_);
     i2s_del_channel(this->tx_handle_);
     this->tx_handle_ = nullptr;
   }

@@ -113,8 +113,6 @@ void I2SAudioSpeaker::run_speaker_task() {
     if (i2s_channel_enable(this->tx_handle_) != ESP_OK) {
       ESP_LOGV(TAG, "Failed to enable I2S channel");
       successful_setup = false;
-    } else {
-      this->channel_enabled_ = true;
     }
   }
 

@@ -161,11 +161,6 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   gpio_num_t dout_pin_;
   i2s_chan_handle_t tx_handle_{nullptr};
-  // Tracks whether ``i2s_channel_enable`` has succeeded for ``tx_handle_``. The ESP-IDF driver
-  // returns ESP_ERR_INVALID_STATE and logs an error if ``i2s_channel_disable`` is called on a
-  // channel still in INIT state, so we gate the disable call on this flag to keep cleanup paths
-  // (e.g. failed bootstrap) quiet.
-  bool channel_enabled_{false};
 };
 
 }  // namespace esphome::i2s_audio
