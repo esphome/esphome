@@ -631,7 +631,6 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 }
 #endif  // USE_HOST
 
->>>>>>> c2468f775 ([nrf52] Add OpenThread support for nRF52 platform)
 // App storage — asm label shares the linker symbol with "extern Application App".
 // char[] is trivially destructible, so no __cxa_atexit or destructor chain is emitted.
 // Constructed via placement new in the generated setup().
