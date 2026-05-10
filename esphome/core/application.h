@@ -393,17 +393,6 @@ class Application {
   /// Wake from any context (ISR, thread, callback).
   static void IRAM_ATTR wake_loop_any_context() { esphome::wake_loop_any_context(); }
 
-#ifdef USE_LWIP_FAST_SELECT
-  struct lwip_sock;
-  bool register_socket(struct lwip_sock *sock);
-  void unregister_socket(struct lwip_sock *sock);
-#endif
-#ifdef USE_HOST
-  bool register_socket_fd(int fd);
-  void unregister_socket_fd(int fd);
-  bool is_socket_ready(int fd) const;
-#endif
-
  protected:
   friend Component;
   friend class Scheduler;
