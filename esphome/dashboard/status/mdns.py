@@ -172,16 +172,11 @@ class MDNSStatus:
                     for entry in matching_entries:
                         self._async_set_state(entry, result)
                         
-                        # --- NEW QUEUED UPDATE TRIGGER ---
-                        # If the device just came online and we have a queue initialized...
-                        if result and hasattr(dashboard, "queued_updates"):
-                            # Check if this specific device has an update waiting
-                            if entry.filename in dashboard.queued_updates:
-                                _LOGGER.info("Device %s came online! Triggering queued update.", entry.name)
-                                # Remove from queue so we don't trigger it again
-                                dashboard.queued_updates.discard(entry.filename)
-                                # Fire the upload process in the background without blocking the mDNS listener
-                                asyncio.create_task(self._trigger_queued_update(entry.filename))
+                        # Trigger queued update if device is online
+                        if result and entry.filename in dashboard.queued_updates:
+                            _LOGGER.info("Device %s came online! Triggering queued update.", entry.name)
+                            dashboard.queued_updates.discard(entry.filename)
+                            asyncio.create_task(self._trigger_queued_update(entry.filename))
 
         stat = DashboardStatus(on_update)
 

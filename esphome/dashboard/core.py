@@ -84,6 +84,7 @@ class ESPHomeDashboard:
         "_background_tasks",
         "ignored_devices",
         "_ping_status_task",
+        "queued_updates",
     )
 
     def __init__(self) -> None:
@@ -101,6 +102,7 @@ class ESPHomeDashboard:
         self._background_tasks: set[asyncio.Task] = set()
         self.ignored_devices: set[str] = set()
         self._ping_status_task: asyncio.Task | None = None
+        self.queued_updates: set[str] = set()
 
     async def async_setup(self) -> None:
         """Setup the dashboard."""

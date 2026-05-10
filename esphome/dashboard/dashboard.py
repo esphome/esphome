@@ -137,6 +137,9 @@ async def async_start(args) -> None:
     # Initialize the update queue
     dashboard.queued_updates = set()
 
+    # Hardcoded test - REMOVE
+    dashboard.queued_updates.add("watermeter1.yaml")
+
     await dashboard.async_setup()
     sock: socket.socket | None = args.socket
     address: str | None = args.address
