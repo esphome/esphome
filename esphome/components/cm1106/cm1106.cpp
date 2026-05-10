@@ -3,8 +3,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace cm1106 {
+namespace esphome::cm1106 {
 
 static const char *const TAG = "cm1106";
 static const uint8_t C_M1106_CMD_GET_CO2[4] = {0x11, 0x01, 0x01, 0xED};
@@ -107,5 +106,4 @@ void CM1106Component::dump_config() {
   }
 }
 
-}  // namespace cm1106
-}  // namespace esphome
+}  // namespace esphome::cm1106

@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace selec_meter {
+namespace esphome::selec_meter {
 
 #define SELEC_METER_SENSOR(name) \
  protected: \
@@ -43,5 +42,4 @@ class SelecMeter : public PollingComponent, public modbus::ModbusDevice {
   void dump_config() override;
 };
 
-}  // namespace selec_meter
-}  // namespace esphome
+}  // namespace esphome::selec_meter

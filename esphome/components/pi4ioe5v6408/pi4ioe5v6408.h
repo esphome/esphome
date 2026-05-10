@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace pi4ioe5v6408 {
+namespace esphome::pi4ioe5v6408 {
 class PI4IOE5V6408Component : public Component,
                               public i2c::I2CDevice,
                               public gpio_expander::CachedGpioExpander<uint8_t, 8> {
@@ -70,5 +69,4 @@ class PI4IOE5V6408GPIOPin : public GPIOPin, public Parented<PI4IOE5V6408Componen
   gpio::Flags flags_;
 };
 
-}  // namespace pi4ioe5v6408
-}  // namespace esphome
+}  // namespace esphome::pi4ioe5v6408

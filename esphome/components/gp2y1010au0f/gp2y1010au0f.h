@@ -5,8 +5,7 @@
 #include "esphome/components/voltage_sampler/voltage_sampler.h"
 #include "esphome/components/output/binary_output.h"
 
-namespace esphome {
-namespace gp2y1010au0f {
+namespace esphome::gp2y1010au0f {
 
 class GP2Y1010AU0FSensor : public sensor::Sensor, public PollingComponent {
  public:
@@ -48,5 +47,4 @@ class GP2Y1010AU0FSensor : public sensor::Sensor, public PollingComponent {
   bool is_sampling_ = false;
 };
 
-}  // namespace gp2y1010au0f
-}  // namespace esphome
+}  // namespace esphome::gp2y1010au0f
