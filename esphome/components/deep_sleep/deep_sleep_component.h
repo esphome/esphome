@@ -15,6 +15,10 @@
 
 #include <cinttypes>
 
+#ifdef USE_OTA
+#include "esphome/components/ota/ota_backend.h"
+#endif
+
 namespace esphome::deep_sleep {
 
 #if defined(USE_ESP32) || defined(USE_BK72XX)
@@ -70,7 +74,11 @@ template<typename... Ts> class PreventDeepSleepAction;
  * and set_run_duration, then set how long the deep sleep should last using set_sleep_duration and optionally
  * on the ESP32 set_wakeup_pin.
  */
-class DeepSleepComponent : public Component {
+class DeepSleepComponent : public Component 
+#ifdef USE_OTA
+                         , public ota::OTAGlobalStateListener 
+#endif
+{
  public:
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
   void set_sleep_duration(uint32_t time_ms);
@@ -107,6 +115,12 @@ class DeepSleepComponent : public Component {
 
   /// Set a duration in ms for how long the code should run before entering deep sleep mode.
   void set_run_duration(uint32_t time_ms);
+  
+  void set_ota_prevent_timeout(uint32_t timeout) { this->ota_prevent_timeout_ = timeout; }
+
+#ifdef USE_OTA
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) override;
+#endif
 
   void setup() override;
   void dump_config() override;
@@ -157,6 +171,10 @@ class DeepSleepComponent : public Component {
   optional<uint32_t> run_duration_;
   bool next_enter_deep_sleep_{false};
   bool prevent_{false};
+
+  uint32_t ota_prevent_timeout_{0};
+  uint32_t ota_start_time_{0};
+  bool ota_prevented_{false};
 };
 
 extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -12,6 +12,14 @@ bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const
 
 void DeepSleepComponent::setup() {
   global_has_deep_sleep = true;
+
+#ifdef USE_OTA
+  // Register this component to listen to OTA events if a timeout is configured
+  if (this->ota_prevent_timeout_ > 0) {
+    ota::get_global_ota_callback()->add_global_state_listener(this);
+  }
+#endif
+
   this->schedule_sleep_();
 }
 
@@ -35,10 +43,22 @@ void DeepSleepComponent::dump_config() {
   if (this->run_duration_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Run Duration: %" PRIu32 " ms", *this->run_duration_);
   }
+  if (this->ota_prevent_timeout_ > 0) {
+    ESP_LOGCONFIG(TAG, "  OTA Prevent Timeout: %" PRIu32 " ms", this->ota_prevent_timeout_);
+  }
   this->dump_config_platform_();
 }
 
 void DeepSleepComponent::loop() {
+  // Safety timeout for OTA prevent
+  if (this->ota_prevented_) {
+    if (millis() - this->ota_start_time_ > this->ota_prevent_timeout_) {
+      this->allow_deep_sleep();
+      this->ota_prevented_ = false;
+      ESP_LOGW(TAG, "OTA stalled: Deep sleep timeout reached, resuming normal sleep cycle.");
+    }
+  }
+
   if (this->next_enter_deep_sleep_)
     this->begin_sleep();
 }
@@ -79,5 +99,26 @@ float DeepSleepComponent::get_setup_priority() const { return setup_priority::LA
 void DeepSleepComponent::prevent_deep_sleep() { this->prevent_ = true; }
 
 void DeepSleepComponent::allow_deep_sleep() { this->prevent_ = false; }
+
+#ifdef USE_OTA
+void DeepSleepComponent::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) {
+  if (this->ota_prevent_timeout_ == 0) return;
+
+  if (state == ota::OTA_STARTED) {
+    if (!this->ota_prevented_) {
+      this->prevent_deep_sleep();
+      this->ota_prevented_ = true;
+      this->ota_start_time_ = millis();
+      ESP_LOGD(TAG, "OTA Started: Deep sleep prevented for %u ms", this->ota_prevent_timeout_);
+    }
+  } else if (state == ota::OTA_COMPLETED || state == ota::OTA_ABORT || state == ota::OTA_ERROR) {
+    if (this->ota_prevented_) {
+      this->allow_deep_sleep();
+      this->ota_prevented_ = false;
+      ESP_LOGD(TAG, "OTA Finished/Aborted: Deep sleep allowed");
+    }
+  }
+}
+#endif
 
 }  // namespace esphome::deep_sleep

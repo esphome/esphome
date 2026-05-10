@@ -240,6 +240,7 @@ CONF_TOUCH_WAKEUP = "touch_wakeup"
 CONF_GPIO_WAKEUP_REASON = "gpio_wakeup_reason"
 CONF_TOUCH_WAKEUP_REASON = "touch_wakeup_reason"
 CONF_UNTIL = "until"
+CONF_OTA_TIMEOUT = "ota_timeout"
 
 WAKEUP_CAUSES_SCHEMA = cv.Schema(
     {
@@ -260,6 +261,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DeepSleepComponent),
+            cv.Optional(CONF_OTA_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_RUN_DURATION): cv.Any(
                 cv.All(cv.only_on_esp32, WAKEUP_CAUSES_SCHEMA),
                 cv.positive_time_period_milliseconds,
@@ -317,6 +319,12 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    if CONF_OTA_PREVENT_TIMEOUT in config:
+        cg.add(var.set_ota_prevent_timeout(config[CONF_OTA_PREVENT_TIMEOUT]))
+        if config[CONF_OTA_TIMEOUT] > 0:
+            from esphome.components import ota
+            ota.request_ota_state_listeners()
 
     if CONF_SLEEP_DURATION in config:
         cg.add(var.set_sleep_duration(config[CONF_SLEEP_DURATION]))
