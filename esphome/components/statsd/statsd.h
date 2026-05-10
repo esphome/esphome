@@ -75,14 +75,12 @@ class StatsdComponent : public PollingComponent {
   WiFiUDP sock_;
 #else
   std::unique_ptr<esphome::socket::Socket> sock_;
-};
-
-}  // namespace esphome::statsd
-#endif  // USE_NETWORK && !USE_ZEPHYR
-
-  void send_(std::string *out);
-};
-
-}  // namespace esphome::statsd
-
+  struct sockaddr_in destination_;
 #endif
+
+  void send_(std::string *out);  // NOLINT(readability-identifier-naming)
+};
+
+}  // namespace esphome::statsd
+
+#endif  // USE_NETWORK && !USE_ZEPHYR
