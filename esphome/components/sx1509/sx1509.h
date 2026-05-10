@@ -63,8 +63,8 @@ class SX1509Component : public Component,
 
  protected:
   // Virtual methods from CachedGpioExpander — names come from base class
-  bool digital_read_hw(uint8_t pin) override;      // NOLINT(readability-identifier-naming)
-  bool digital_read_cache(uint8_t pin) override;    // NOLINT(readability-identifier-naming)
+  bool digital_read_hw(uint8_t pin) override;               // NOLINT(readability-identifier-naming)
+  bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)
   void digital_write_hw(uint8_t pin, bool value) override;  // NOLINT(readability-identifier-naming)
 
   uint32_t clk_x_ = 2000000;
