@@ -81,7 +81,7 @@ struct IPAddress {
   std::string str() const {
     char buffer[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, &ip_addr_, buffer, sizeof(buffer));
-    return str_lower_case(buffer);
+    return std::string(buffer);
   }
   char *str_to(char *buf) const {
     inet_ntop(AF_INET6, &ip_addr_, buf, INET6_ADDRSTRLEN);

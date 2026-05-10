@@ -58,9 +58,6 @@ enum SensorStateClass : uint32_t {
   STATE_CLASS_MEASUREMENT_ANGLE = 4,
 };
 #endif
-#ifdef LOG_LEVEL_NONE
-#undef LOG_LEVEL_NONE
-#endif
 enum LogLevel : uint32_t {
   LOG_LEVEL_NONE = 0,
   LOG_LEVEL_ERROR = 1,
@@ -71,9 +68,6 @@ enum LogLevel : uint32_t {
   LOG_LEVEL_VERBOSE = 6,
   LOG_LEVEL_VERY_VERBOSE = 7,
 };
-#ifdef LOG_LEVEL_NONE
-#undef LOG_LEVEL_NONE
-#endif
 enum DSTRuleType : uint32_t {
   DST_RULE_TYPE_NONE = 0,
   DST_RULE_TYPE_MONTH_WEEK_DAY = 1,
