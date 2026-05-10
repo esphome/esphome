@@ -66,7 +66,7 @@ struct IPAddress {
  public:
 #ifdef USE_ZEPHYR
   IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
-  IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
+  IPAddress(const std::string &in_address) : ip_addr_{} { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const struct in6_addr *other_ip) { ip_addr_ = *other_ip; }
   IPAddress(const struct sockaddr_in6 *addr) { ip_addr_ = addr->sin6_addr; }
 
