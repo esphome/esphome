@@ -13,7 +13,7 @@ esptool==5.2.0
 click==8.3.3
 #esphome-dashboard==20260425.0
 #esphome-dashboard @ git+https://github.com/rwalker777/dashboard.git@rwalker777-queued-updates
-esphome-dashboard @ https://raw.githubusercontent.com/rwalker777/dashboard/rwalker777-queued-updates/esphome_dashboard-2026.5.0.dev5-py3-none-any.whl
+esphome-dashboard @ https://raw.githubusercontent.com/rwalker777/esphome/rwalker777-queued-mDNS-triggered-updates/esphome_dashboard-2026.5.0.dev6-py3-none-any.whl
 aioesphomeapi==44.23.0
 zeroconf==0.148.0
 puremagic==1.30
