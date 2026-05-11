@@ -62,7 +62,7 @@ class ZigbeeComponent : public Component {
 
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
 
-  bool is_battery_powered() { return this->basic_cluster_data.power_source == ESP_ZB_ZCL_BASIC_POWER_SOURCE_BATTERY; }
+  bool is_battery_powered() { return this->basic_cluster_data_.power_source == ESP_ZB_ZCL_BASIC_POWER_SOURCE_BATTERY; }
   bool is_started() { return this->started; }
   bool is_connected() { return this->connected_; }
   std::atomic<bool> started = false;
