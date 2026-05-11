@@ -23,7 +23,7 @@ import pytest_asyncio
 
 import esphome.config
 from esphome.core import CORE
-from esphome.platformio_api import get_idedata
+from esphome.platformio.toolchain import get_idedata
 
 from .const import (
     API_CONNECTION_TIMEOUT,

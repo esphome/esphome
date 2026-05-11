@@ -16,11 +16,13 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
     CONF_DEVICE,
+    CONF_DEVICE_CLASS,
     CONF_ID,
     CONF_MAX_LENGTH,
     CONF_MODEL,
     CONF_NAME,
     CONF_TYPE,
+    CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     CONF_WIFI,
 )
@@ -29,7 +31,16 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .const import CONF_REPORT, CONF_ROUTER, KEY_ZIGBEE, REPORT, ZigbeeAttribute
+from .const import (
+    ANALOG_INPUT_APPTYPE,
+    BACNET_UNIT_NO_UNITS,
+    BACNET_UNITS,
+    CONF_REPORT,
+    CONF_ROUTER,
+    KEY_ZIGBEE,
+    REPORT,
+    ZigbeeAttribute,
+)
 from .const_esp32 import (
     ATTR_TYPE,
     CLUSTER_ID,
@@ -40,6 +51,7 @@ from .const_esp32 import (
     DEVICE_ID,
     DEVICE_TYPE,
     KEY_BS_EP,
+    KEY_SENSOR_EP,
     ROLE,
     SCALE,
 )
@@ -55,6 +67,10 @@ def get_c_size(bits: str, options: list[int]) -> str:
 def get_c_type(attr_type: str) -> Any | None:
     if attr_type == "BOOL":
         return cg.bool_
+    if attr_type == "SINGLE":
+        return cg.float_
+    if attr_type == "DOUBLE":
+        return cg.double
     if "STRING" in attr_type:
         return cg.std_string
     test = re.match(r"(^U?)(\d{1,2})(BITMAP$|BIT$|BIT_ENUM$|$)", attr_type)
@@ -66,19 +82,23 @@ def get_c_type(attr_type: str) -> Any | None:
 def get_cv_by_type(attr_type: str) -> Any | None:
     if attr_type == "BOOL":
         return cv.boolean
+    if attr_type in ["SINGLE", "DOUBLE"]:
+        return cv.float_
     if "STRING" in attr_type:
         return cv.string
     test = re.match(r"(^U?)(\d{1,2})(BITMAP$|BIT$|BIT_ENUM$|$)", attr_type)
     if test and test.group(2):
         return cv.positive_int
-    return None
+    raise cv.Invalid(f"Zigbee: type {attr_type} not supported or implemented")
 
 
-def get_default_by_type(attr_type: str) -> str | bool | int:
+def get_default_by_type(attr_type: str) -> str | bool | int | float:
     if attr_type == "CHAR_STRING":
         return ""
     if attr_type == "BOOL":
         return False
+    if attr_type in ["SINGLE", "DOUBLE"]:
+        return float("nan")
     return 0
 
 
@@ -134,9 +154,8 @@ def final_validate_esp32(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
-    ep = copy.deepcopy(ep_configs["binary_input"])
-    for cl in ep.get(CONF_CLUSTERS, []):
+def setup_attributes(config: ConfigType, clusters: list[dict[str, Any]]) -> None:
+    for cl in clusters:
         for attr in cl[CONF_ATTRIBUTES]:
             if (
                 attr[CONF_ATTRIBUTE_ID] == 0x1C
@@ -159,6 +178,41 @@ def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
             else:
                 attr[CONF_ID] = None
             validate_attributes(attr)
+
+
+def validate_sensor_esp32(config: ConfigType) -> ConfigType:
+    ep = copy.deepcopy(ep_configs["analog_input"])
+    # get application type from device class and meas unit
+    # if none get BACNET unit from meas unit
+    dev_class = config.get(CONF_DEVICE_CLASS)
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    apptype = ANALOG_INPUT_APPTYPE.get((dev_class, unit))
+    bacunit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
+    if apptype is not None:
+        ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
+            {
+                CONF_ATTRIBUTE_ID: 0x100,
+                CONF_VALUE: (apptype << 16) | 0xFFFF,
+                CONF_TYPE: "U32",
+            },
+        )
+    ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
+        {
+            CONF_ATTRIBUTE_ID: 0x75,
+            CONF_VALUE: bacunit,
+            CONF_TYPE: "16BIT_ENUM",
+        },
+    )
+    setup_attributes(config, ep[CONF_CLUSTERS])
+    zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
+    sensor_ep: list[dict] = zb_data.setdefault(KEY_SENSOR_EP, [])
+    sensor_ep.append(ep)
+    return config
+
+
+def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
+    ep = copy.deepcopy(ep_configs["binary_input"])
+    setup_attributes(config, ep[CONF_CLUSTERS])
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     binary_sensor_ep: list[dict] = zb_data.setdefault(KEY_BS_EP, [])
     binary_sensor_ep.append(ep)
@@ -254,8 +308,9 @@ async def esp32_to_code(config: ConfigType) -> None:
 
     # create endpoints
     zb_data = CORE.data.get(KEY_ZIGBEE, {})
+    sensor_ep: list[dict] = zb_data.get(KEY_SENSOR_EP, [])
     binary_sensor_ep: list[dict] = zb_data.get(KEY_BS_EP, [])
-    ep_list = create_ep(binary_sensor_ep, config.get(CONF_ROUTER))
+    ep_list = create_ep(sensor_ep + binary_sensor_ep, config.get(CONF_ROUTER))
 
     # setup zigbee components
     var = cg.new_Pvariable(config[CONF_ID])
