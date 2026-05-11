@@ -39,6 +39,18 @@ class IDFOTABackend final {
   OTAResponseTypes validate_new_partition_table_(uint32_t running_app_offset, size_t running_app_size,
                                                  PartitionTablePlan &plan);
   OTAResponseTypes update_partition_table();
+  OTAResponseTypes register_and_validate_partition_table_part_();
+  // Defined in ota_bootloader_esp_idf.cpp:
+  OTAResponseTypes register_and_validate_bootloader_part_();
+  OTAResponseTypes prepare_bootloader_update_(size_t image_size);
+  OTAResponseTypes setup_bootloader_staging_();
+  OTAResponseTypes finalize_bootloader_update_(esp_err_t ota_end_err);
+
+  // The OTA types that flow through esp_ota_begin/write/end. Partition-table updates take a
+  // separate code path that buffers the table in RAM and never touches the OTA handle.
+  bool is_app_or_bootloader_update_() const {
+    return this->ota_type_ == ota::OTA_TYPE_UPDATE_APP || this->ota_type_ == ota::OTA_TYPE_UPDATE_BOOTLOADER;
+  }
 #endif
 
  private:
@@ -55,6 +67,7 @@ class IDFOTABackend final {
   size_t buf_written_{0};
   size_t image_size_{0};
   const esp_partition_t *partition_table_part_{nullptr};
+  const esp_partition_t *bootloader_part_{nullptr};
   ota::OTAType ota_type_{ota::OTA_TYPE_UPDATE_APP};
 #endif
 };

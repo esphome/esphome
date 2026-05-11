@@ -16,6 +16,7 @@ from esphome.const import (
 from esphome.core import CORE
 import esphome.final_validate as fv
 
+AUTO_LOAD = ["ring_buffer"]
 CODEOWNERS = ["@kahrendt"]
 DOMAIN = "audio"
 audio_ns = cg.esphome_ns.namespace("audio")
