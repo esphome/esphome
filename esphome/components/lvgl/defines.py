@@ -19,46 +19,134 @@ from esphome.cpp_generator import (
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
-from .helpers import requires_component
-
 LOGGER = logging.getLogger(__name__)
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
 
 DOMAIN = "lvgl"
 KEY_COLOR_FORMATS = "color_formats"
+KEY_ESPHOME_FONTS_USED = "esphome_fonts_used"
+KEY_FOCUSED_WIDGETS = "focused_widgets"
 KEY_LV_DEFINES = "lv_defines"
+KEY_LV_FONTS_USED = "lv_fonts_used"
+KEY_LV_IMAGES_USED = "lv_images_used"
+KEY_LV_USES = "lv_uses"
+KEY_NAMED_STYLES = "named_styles"
+KEY_REFRESHED_WIDGETS = "refreshed_widgets"
 KEY_REMAPPED_USES = "remapped_uses"
+KEY_STYLES_USED = "styles_used"
+KEY_THEME_WIDGET_MAP = "theme_widget_map"
 KEY_UPDATED_WIDGETS = "updated_widgets"
+KEY_WIDGET_MAP = "widget_map"
+KEY_WIDGETS_COMPLETED = "widgets_completed"
 KEY_OPTIONS = "options"
 KEY_WARNINGS = "warnings"
 
+# Initial set of LVGL features that are always enabled.
+_INITIAL_LV_USES = frozenset(
+    {
+        "USER_DATA",
+        "LOG",
+        "STYLE",
+        "FONT_PLACEHOLDER",
+        "THEME_DEFAULT",
+    }
+)
 
-def get_data(key, default=None):
+
+# These collections accumulate state across a single compilation run.  They
+# are stored under ``CORE.data`` (which ``CORE.reset()`` clears between runs)
+# rather than as module-level globals, otherwise they would leak between
+# successive compilations / unit tests.
+
+
+def _get_data(key: str, default: Any) -> Any:
     """
     Get a data structure from the global data store by key
     :param key: A key for the data
-    :param default: The default data - the default is an empty dict
+    :param default: The default data
     :return:
     """
-    return CORE.data.setdefault(DOMAIN, {}).setdefault(
-        key, {} if default is None else default
-    )
+    return CORE.data.setdefault(DOMAIN, {}).setdefault(key, default)
 
 
-def get_warnings():
-    return get_data(KEY_WARNINGS, set())
+def get_lv_images_used() -> set[ID]:
+    return _get_data(KEY_LV_IMAGES_USED, set())
 
 
-def get_remapped_uses():
-    return get_data(KEY_REMAPPED_USES, set())
+def get_lv_uses() -> set[str]:
+    return _get_data(KEY_LV_USES, set(_INITIAL_LV_USES))
 
 
-def add_warning(msg: str):
+def get_lv_fonts_used() -> set[str]:
+    return _get_data(KEY_LV_FONTS_USED, set())
+
+
+def get_esphome_fonts_used() -> set[ID]:
+    return _get_data(KEY_ESPHOME_FONTS_USED, set())
+
+
+def add_lv_use(*names: str) -> None:
+    uses = get_lv_uses()
+    for name in names:
+        uses.add(name)
+
+
+def get_warnings() -> set[str]:
+    return _get_data(KEY_WARNINGS, set())
+
+
+def get_remapped_uses() -> set[str]:
+    return _get_data(KEY_REMAPPED_USES, set())
+
+
+def add_warning(msg: str) -> None:
     get_warnings().add(msg)
 
 
-def get_options():
-    return get_data(KEY_OPTIONS)
+def get_options() -> dict[str, Any]:
+    return _get_data(KEY_OPTIONS, {})
+
+
+def get_defines() -> dict[str, str]:
+    return _get_data(KEY_LV_DEFINES, {})
+
+
+def get_updated_widgets() -> dict:
+    return _get_data(KEY_UPDATED_WIDGETS, {})
+
+
+def get_theme_widget_map() -> dict[str, Any]:
+    return _get_data(KEY_THEME_WIDGET_MAP, {})
+
+
+def get_styles_used() -> set[str]:
+    return _get_data(KEY_STYLES_USED, set())
+
+
+def get_widget_map() -> dict[str, Any]:
+    return _get_data(KEY_WIDGET_MAP, {})
+
+
+def get_widgets_completed() -> bool:
+    # ``[value]`` rather than the bare value so that we can mutate the
+    # entry in place; ``CORE.data`` is reset for us between runs.
+    return _get_data(KEY_WIDGETS_COMPLETED, [False])[0]
+
+
+def set_widgets_completed(value: bool) -> None:
+    _get_data(KEY_WIDGETS_COMPLETED, [False])[0] = value
+
+
+def is_widget_completed(name: ID) -> bool:
+    return name in get_widget_map()
+
+
+def get_focused_widgets() -> set:
+    return _get_data(KEY_FOCUSED_WIDGETS, set())
+
+
+def get_refreshed_widgets() -> set:
+    return _get_data(KEY_REFRESHED_WIDGETS, set())
 
 
 class StaticCastExpression(Expression):
@@ -72,8 +160,8 @@ class StaticCastExpression(Expression):
         return f"static_cast<{self.type}>({self.exp})"
 
 
-def add_define(macro, value="1"):
-    lv_defines = get_data(KEY_LV_DEFINES)
+def add_define(macro: str, value="1"):
+    lv_defines = get_defines()
     value = str(value)
     if lv_defines.setdefault(macro, value) != value:
         LOGGER.error(
@@ -82,8 +170,8 @@ def add_define(macro, value="1"):
     lv_defines[macro] = value
 
 
-def is_defined(macro):
-    return macro in get_data(KEY_LV_DEFINES)
+def is_defined(macro) -> bool:
+    return macro in get_defines()
 
 
 def literal(arg) -> MockObj:
@@ -96,7 +184,7 @@ def addr(arg) -> MockObj:
     return MockObj(f"&{arg}")
 
 
-def call_lambda(lamb: LambdaExpression):
+def call_lambda(lamb: LambdaExpression) -> Expression:
     """
     Given a lambda, either reduce to a simple expression or call it, possibly with parameters
     from the surrounding context
@@ -135,7 +223,7 @@ class LValidator:
 
     def __call__(self, value):
         if self.requires:
-            value = requires_component(self.requires)(value)
+            value = cv.requires_component(self.requires)(value)
         if isinstance(value, cv.Lambda):
             return cv.returning_lambda(value)
         return self.validator(value)
@@ -196,7 +284,7 @@ class LvConstant(LValidator):
             cv.ensure_list(self.one_of), cg.uint32, retmapper=self.mapper
         )
 
-    def mapper(self, value):
+    def mapper(self, value) -> Any:
         if not isinstance(value, list):
             value = [value]
         value = [

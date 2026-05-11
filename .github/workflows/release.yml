@@ -9,7 +9,7 @@ on:
     - cron: "0 2 * * *"
 
 permissions:
-  contents: read
+  contents: read  # actions/checkout for all jobs; deploy jobs add their own scopes when they need to write
 
 jobs:
   init:
@@ -57,8 +57,8 @@ jobs:
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      id-token: write
+      contents: read   # actions/checkout to build the sdist/wheel
+      id-token: write  # OIDC token for PyPI Trusted Publishing (pypa/gh-action-pypi-publish)
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Set up Python
@@ -78,8 +78,8 @@ jobs:
     name: Build ESPHome ${{ matrix.platform.arch }}
     if: github.repository == 'esphome/esphome'
     permissions:
-      contents: read
-      packages: write
+      contents: read   # actions/checkout to load Dockerfile and build context
+      packages: write  # docker/login-action + build-push-action push image digests to ghcr.io
     runs-on: ${{ matrix.platform.os }}
     needs: [init]
     strategy:
@@ -152,8 +152,8 @@ jobs:
       - deploy-docker
     if: github.repository == 'esphome/esphome'
     permissions:
-      contents: read
-      packages: write
+      contents: read   # actions/checkout to load Dockerfile and build context
+      packages: write  # docker/login-action + build-push-action push image digests to ghcr.io
     strategy:
       fail-fast: false
       matrix:
@@ -227,6 +227,7 @@ jobs:
           private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
           owner: esphome
           repositories: home-assistant-addon
+          permission-actions: write  # actions.createWorkflowDispatch on the target repo (only API call made with this token)
 
       - name: Trigger Workflow
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -262,6 +263,7 @@ jobs:
           private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
           owner: esphome
           repositories: esphome-schema
+          permission-actions: write  # actions.createWorkflowDispatch on the target repo (only API call made with this token)
 
       - name: Trigger Workflow
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -293,6 +295,7 @@ jobs:
           private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
           owner: esphome
           repositories: version-notifier
+          permission-actions: write  # actions.createWorkflowDispatch on the target repo (only API call made with this token)
 
       - name: Trigger Workflow
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
