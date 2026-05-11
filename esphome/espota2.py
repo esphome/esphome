@@ -441,7 +441,7 @@ def perform_ota(
     start_time = time.perf_counter()
 
     offset = 0
-    progress = ProgressBar()
+    progress = ProgressBar("Uploading")
     while True:
         chunk = upload_contents[offset : offset + UPLOAD_BLOCK_SIZE]
         if not chunk:
