@@ -101,8 +101,10 @@ void DeepSleepComponent::prevent_deep_sleep() { this->prevent_ = true; }
 void DeepSleepComponent::allow_deep_sleep() { this->prevent_ = false; }
 
 #ifdef USE_OTA
-void DeepSleepComponent::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) {
-  if (this->ota_prevent_timeout_ == 0) return;
+void DeepSleepComponent::on_ota_global_state(ota::OTAState state, float progress, uint8_t error,
+                                             ota::OTAComponent *component) {
+  if (this->ota_prevent_timeout_ == 0)
+    return;
 
   if (state == ota::OTA_STARTED) {
     if (!this->ota_prevented_) {

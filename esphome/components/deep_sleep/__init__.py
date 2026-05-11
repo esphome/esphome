@@ -261,7 +261,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DeepSleepComponent),
-            cv.Optional(CONF_OTA_TIMEOUT, default="0s"): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_OTA_TIMEOUT, default="0s"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_RUN_DURATION): cv.Any(
                 cv.All(cv.only_on_esp32, WAKEUP_CAUSES_SCHEMA),
                 cv.positive_time_period_milliseconds,
@@ -324,6 +326,7 @@ async def to_code(config):
         cg.add(var.set_ota_prevent_timeout(config[CONF_OTA_TIMEOUT]))
         if config[CONF_OTA_TIMEOUT] > core.TimePeriod(milliseconds=0):
             from esphome.components import ota
+
             ota.request_ota_state_listeners()
 
     if CONF_SLEEP_DURATION in config:
