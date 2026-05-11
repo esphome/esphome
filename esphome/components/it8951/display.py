@@ -59,9 +59,7 @@ UPDATE_MODES = (
 update_mode = cv.one_of(*UPDATE_MODES, upper=False)
 
 it8951_ns = cg.esphome_ns.namespace("it8951")
-IT8951Display = it8951_ns.class_(
-    "IT8951Display", display.Display, spi.SPIDevice
-)
+IT8951Display = it8951_ns.class_("IT8951Display", display.Display, spi.SPIDevice)
 IT8951UpdateAction = it8951_ns.class_("IT8951UpdateAction", automation.Action)
 
 # Transform flag values mirror the C++ TRANSFORM_* constants.
@@ -216,7 +214,11 @@ def _model_schema(config):
 
 def _customise_schema(config):
     config = cv.Schema(
-        {cv.Required(CONF_MODEL): cv.one_of(*IT8951Model.models, upper=True, space="-")},
+        {
+            cv.Required(CONF_MODEL): cv.one_of(
+                *IT8951Model.models, upper=True, space="-"
+            )
+        },
         extra=cv.ALLOW_EXTRA,
     )(config)
     return _model_schema(config)(config)
@@ -227,9 +229,9 @@ CONFIG_SCHEMA = _customise_schema
 
 def _final_validate(config):
     # IT8951 reads from SPI (DevInfo, VCOM, register reads) so MISO is required.
-    spi.final_validate_device_schema(
-        "it8951", require_miso=True, require_mosi=True
-    )(config)
+    spi.final_validate_device_schema("it8951", require_miso=True, require_mosi=True)(
+        config
+    )
 
     global_config = full_config.get()
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN

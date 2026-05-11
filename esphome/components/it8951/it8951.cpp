@@ -75,15 +75,14 @@ void IT8951Display::loop() {
   // we get the controller out of a stuck-busy state in the first place
   // (e.g. during reset, HRDY is undefined/low until ROM boot completes).
   Op op = this->queue_.front();
-  const bool needs_hrdy = !(op.type == OpType::GPIO_RESET_LOW || op.type == OpType::GPIO_RESET_HIGH ||
-                            op.type == OpType::DELAY_MS);
+  const bool needs_hrdy =
+      !(op.type == OpType::GPIO_RESET_LOW || op.type == OpType::GPIO_RESET_HIGH || op.type == OpType::DELAY_MS);
   if (needs_hrdy && this->busy_pin_low_()) {
     // Signed elapsed: any pending DELAY_MS or scheduled work in the near
     // future shows up as <= 0 elapsed and won't trigger a false timeout.
     const int32_t elapsed = static_cast<int32_t>(now - this->phase_started_at_);
     if (elapsed > static_cast<int32_t>(BUSY_TIMEOUT_MS)) {
-      ESP_LOGW(TAG, "Busy timeout (%dms) in phase %u, recovering", elapsed,
-               static_cast<unsigned>(this->phase_));
+      ESP_LOGW(TAG, "Busy timeout (%dms) in phase %u, recovering", elapsed, static_cast<unsigned>(this->phase_));
       this->recover_();
     }
     return;
@@ -186,12 +185,12 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::INIT_DEV_INFO:
-      if (this->dev_info_.panel_width == 0 || this->dev_info_.panel_width > 2048 ||
-          this->dev_info_.panel_height == 0 || this->dev_info_.panel_height > 2048 ||
-          this->dev_info_.panel_width == 0xFFFF || this->dev_info_.panel_height == 0xFFFF) {
+      if (this->dev_info_.panel_width == 0 || this->dev_info_.panel_width > 2048 || this->dev_info_.panel_height == 0 ||
+          this->dev_info_.panel_height > 2048 || this->dev_info_.panel_width == 0xFFFF ||
+          this->dev_info_.panel_height == 0xFFFF) {
         if (++this->dev_info_attempts_ < 5) {
-          ESP_LOGW(TAG, "DevInfo attempt %u returned invalid data (W=%u H=%u), retrying...",
-                   this->dev_info_attempts_, this->dev_info_.panel_width, this->dev_info_.panel_height);
+          ESP_LOGW(TAG, "DevInfo attempt %u returned invalid data (W=%u H=%u), retrying...", this->dev_info_attempts_,
+                   this->dev_info_.panel_width, this->dev_info_.panel_height);
           // Give the controller more time, then re-read.
           this->enqueue_(OpType::DELAY_MS, 100);
           this->enqueue_init_dev_info_();
@@ -330,8 +329,8 @@ void IT8951Display::enqueue_init_reset_() {
   // what most IT8951 reference drivers use for safety.
   this->enqueue_(OpType::DELAY_MS, 300);
   this->enqueue_(OpType::CMD, TCON_SYS_RUN);
-  this->enqueue_(OpType::DELAY_MS, 10);                 // clocks settle after SYS_RUN
-  this->enqueue_(OpType::CMD, TCON_REG_WR);             // packed write mode
+  this->enqueue_(OpType::DELAY_MS, 10);      // clocks settle after SYS_RUN
+  this->enqueue_(OpType::CMD, TCON_REG_WR);  // packed write mode
   this->enqueue_(OpType::WRITE_REG, I80CPCR, 0x0001);
 }
 
@@ -747,8 +746,8 @@ void IT8951Display::recover_() {
     this->disable_loop();
     return;
   }
-  ESP_LOGW(TAG, "Recovering (attempt %u): hardware-resetting controller (was in phase %u)",
-           this->recovery_attempts_, static_cast<unsigned>(this->phase_));
+  ESP_LOGW(TAG, "Recovering (attempt %u): hardware-resetting controller (was in phase %u)", this->recovery_attempts_,
+           static_cast<unsigned>(this->phase_));
   this->queue_.clear();
   this->update_pending_ = false;
   this->transfer_row_ = 0;
