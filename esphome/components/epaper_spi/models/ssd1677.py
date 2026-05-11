@@ -43,3 +43,11 @@ wave_4_26.extend(
         },
     },
 )
+
+
+ssd1677.extend(
+    "waveshare-3.97in",
+    width=800,
+    height=480,
+    mirror_x=True,
+)

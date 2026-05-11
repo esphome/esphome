@@ -1,8 +1,7 @@
 #include "ballu.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ballu {
+namespace esphome::ballu {
 
 static const char *const TAG = "ballu.climate";
 
@@ -235,5 +234,4 @@ bool BalluClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace ballu
-}  // namespace esphome
+}  // namespace esphome::ballu

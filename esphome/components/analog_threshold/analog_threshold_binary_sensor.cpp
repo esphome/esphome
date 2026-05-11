@@ -1,8 +1,7 @@
 #include "analog_threshold_binary_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace analog_threshold {
+namespace esphome::analog_threshold {
 
 static const char *const TAG = "analog_threshold.binary_sensor";
 
@@ -43,5 +42,4 @@ void AnalogThresholdBinarySensor::dump_config() {
                 this->upper_threshold_.value(), this->lower_threshold_.value());
 }
 
-}  // namespace analog_threshold
-}  // namespace esphome
+}  // namespace esphome::analog_threshold

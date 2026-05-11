@@ -1,0 +1,57 @@
+esphome:
+  name: light-cb-test
+host:
+api:  # Port will be automatically injected
+logger:
+  level: DEBUG
+
+output:
+  - platform: template
+    id: cb_cold_white_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "CB_CW_OUTPUT:%.6f"
+          args: [state]
+  - platform: template
+    id: cb_warm_white_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "CB_WW_OUTPUT:%.6f"
+          args: [state]
+  - platform: template
+    id: ncb_cold_white_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "NCB_CW_OUTPUT:%.6f"
+          args: [state]
+  - platform: template
+    id: ncb_warm_white_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "NCB_WW_OUTPUT:%.6f"
+          args: [state]
+
+light:
+  - platform: cwww
+    name: "Test CB Light"
+    id: test_cb_light
+    cold_white: cb_cold_white_output
+    warm_white: cb_warm_white_output
+    cold_white_color_temperature: 6536 K
+    warm_white_color_temperature: 2000 K
+    constant_brightness: true
+    gamma_correct: 2.8
+
+  - platform: cwww
+    name: "Test NCB Light"
+    id: test_ncb_light
+    cold_white: ncb_cold_white_output
+    warm_white: ncb_warm_white_output
+    cold_white_color_temperature: 6536 K
+    warm_white_color_temperature: 2000 K
+    constant_brightness: false
+    gamma_correct: 2.8

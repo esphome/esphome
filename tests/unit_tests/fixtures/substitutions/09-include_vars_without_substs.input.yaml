@@ -1,0 +1,7 @@
+# Test that include_vars with vars works even when there are no substitutions key defined.
+packages:
+  - !include
+    file: inc1.yaml
+    vars:
+      a: 10
+      c: 79

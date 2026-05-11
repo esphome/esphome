@@ -56,8 +56,7 @@ template<typename T, size_t N> constexpr size_t size(const T (&/*unused*/)[N]) n
 
 }  // Anonymous namespace
 
-namespace esphome {
-namespace shelly_dimmer {
+namespace esphome::shelly_dimmer {
 
 /// Computes a crappy checksum as defined by the Shelly Dimmer protocol.
 uint16_t shelly_dimmer_checksum(const uint8_t *buf, int len) {
@@ -402,7 +401,7 @@ bool ShellyDimmer::handle_frame_() {
   // Handle response.
   switch (cmd) {
     case SHELLY_DIMMER_PROTO_CMD_POLL: {
-      if (payload_len < 16) {
+      if (payload_len < 17) {
         return false;
       }
 
@@ -522,7 +521,6 @@ void ShellyDimmer::reset_dfu_boot_() {
   this->reset_(true);
 }
 
-}  // namespace shelly_dimmer
-}  // namespace esphome
+}  // namespace esphome::shelly_dimmer
 
 #endif  // USE_ESP8266

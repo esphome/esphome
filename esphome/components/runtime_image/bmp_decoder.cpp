@@ -6,6 +6,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome::runtime_image {
 
 static const char *const TAG = "image_decoder.bmp";
@@ -107,7 +109,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     }
 
     if (this->compression_method_ != 0) {
-      ESP_LOGE(TAG, "Unsupported compression method: %d", this->compression_method_);
+      ESP_LOGE(TAG, "Unsupported compression method: %" PRIu32, this->compression_method_);
       return DECODE_ERROR_UNSUPPORTED_FORMAT;
     }
 

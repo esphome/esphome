@@ -1,8 +1,7 @@
 #include "gree.h"
 #include "esphome/components/remote_base/remote_base.h"
 
-namespace esphome {
-namespace gree {
+namespace esphome::gree {
 
 static const char *const TAG = "gree.climate";
 
@@ -87,19 +86,12 @@ void GreeClimate::transmit_state() {
   // Calculate the checksum
   if (this->model_ == GREE_YAN || this->model_ == GREE_YX1FF) {
     remote_state[7] = ((remote_state[0] << 4) + (remote_state[1] << 4) + 0xC0);
-  } else if (this->model_ == GREE_YAG) {
+  } else {
     remote_state[7] =
         ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
            ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
           0x0F)
          << 4);
-  } else {
-    remote_state[7] =
-        ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
-           ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + ((remote_state[7] & 0xF0) >> 4) + 0x0A) &
-          0x0F)
-         << 4) |
-        (remote_state[7] & 0x0F);
   }
 
   auto transmit = this->transmitter_->transmit();
@@ -248,5 +240,4 @@ uint8_t GreeClimate::preset_() {
   return GREE_PRESET_NONE;
 }
 
-}  // namespace gree
-}  // namespace esphome
+}  // namespace esphome::gree
