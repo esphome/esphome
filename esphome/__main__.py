@@ -1264,8 +1264,8 @@ def _ensure_platform_packages_for_prebuilt_upload(config: ConfigType) -> int:
         return 0
 
     _LOGGER.info(
-        "%s not found on this host; installing the PlatformIO %s "
-        "platform package so the upload can flash the prebuilt firmware...",
+        "%s not found on this host; configuring the PlatformIO %s "
+        "platform so the upload can flash the prebuilt firmware...",
         tool_label,
         CORE.target_platform,
     )
@@ -1275,7 +1275,10 @@ def _ensure_platform_packages_for_prebuilt_upload(config: ConfigType) -> int:
 
     from esphome import platformio_api
 
-    return platformio_api.run_pkg_install(config, CORE.verbose)
+    result = platformio_api.prepare_platform_for_upload(config, CORE.verbose)
+    # prepare_platform_for_upload returns str on capture_stdout=True or int
+    # on success/failure; in our call we don't capture stdout, so it's int.
+    return result if isinstance(result, int) else 0
 
 
 def upload_program(

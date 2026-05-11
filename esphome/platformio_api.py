@@ -84,20 +84,26 @@ def run_compile(config, verbose):
     return run_platformio_cli_run(config, verbose, *args)
 
 
-def run_pkg_install(config, verbose) -> str | int:
-    """Install the PlatformIO platform + packages declared in platformio.ini
-    for ``CORE.name``'s env, without compiling.
+def prepare_platform_for_upload(config, verbose) -> str | int:
+    """Configure the PlatformIO build environment for ``CORE.name`` without
+    compiling, so platform-specific flashing tools end up on disk.
 
     Used by ``esphome upload --prebuilt-dir`` on hosts that have never
-    compiled the target platform locally: the flash tools we need
-    (``ltchiptool`` for libretiny, ``picotool`` for RP2040) ship inside
-    the PlatformIO platform package, so we trigger a package install to
-    get them on disk without paying for a full compile.
+    compiled the target platform locally. ``pio pkg install`` alone isn't
+    enough on libretiny: the platform package downloads cleanly, but
+    ``ltchiptool`` lives in a platform-managed virtualenv at
+    ``~/.platformio/penv/.libretiny/`` that's only created by libretiny's
+    ``ConfigurePythonVenv`` SCons step, which runs during ``pio run`` (not
+    ``pio pkg install``). So we run ``pio run -t idedata`` instead: it
+    triggers SConscript -- creating the penv on libretiny, installing the
+    picotool tool package on RP2040 -- but skips the actual compile target
+    so this is much cheaper than a full build.
+
+    The idedata JSON gets emitted to stdout as a side effect of the
+    target; we don't filter it out -- the install runs once per cold host
+    and the trailing JSON blob is harmless noise.
     """
-    command = ["pkg", "install", "-e", CORE.name, "-d", str(CORE.build_path)]
-    if verbose:
-        command += ["-v"]
-    return run_platformio_cli(*command)
+    return run_platformio_cli_run(config, verbose, "-t", "idedata")
 
 
 def _run_idedata(config):

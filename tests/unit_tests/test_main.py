@@ -1621,8 +1621,8 @@ def test_upload_program_prebuilt_dir_installs_libretiny_platform_if_missing(
         patch("esphome.__main__.get_ltchiptool_path", return_value=None) as mock_find,
         patch("esphome.__main__.write_cpp", return_value=0) as mock_write_cpp,
         patch(
-            "esphome.platformio_api.run_pkg_install", return_value=0
-        ) as mock_pkg_install,
+            "esphome.platformio_api.prepare_platform_for_upload", return_value=0
+        ) as mock_prep,
         patch("esphome.__main__.upload_using_ltchiptool", return_value=0),
     ):
         exit_code, _ = upload_program({}, args, ["/dev/ttyUSB0"])
@@ -1630,7 +1630,7 @@ def test_upload_program_prebuilt_dir_installs_libretiny_platform_if_missing(
     assert exit_code == 0
     mock_find.assert_called()
     mock_write_cpp.assert_called_once()
-    mock_pkg_install.assert_called_once()
+    mock_prep.assert_called_once()
 
 
 def test_upload_program_prebuilt_dir_skips_install_when_tool_present(
@@ -1655,14 +1655,14 @@ def test_upload_program_prebuilt_dir_skips_install_when_tool_present(
             return_value=tmp_path / "ltchiptool",
         ),
         patch("esphome.__main__.write_cpp") as mock_write_cpp,
-        patch("esphome.platformio_api.run_pkg_install") as mock_pkg_install,
+        patch("esphome.platformio_api.prepare_platform_for_upload") as mock_prep,
         patch("esphome.__main__.upload_using_ltchiptool", return_value=0),
     ):
         exit_code, _ = upload_program({}, args, ["/dev/ttyUSB0"])
 
     assert exit_code == 0
     mock_write_cpp.assert_not_called()
-    mock_pkg_install.assert_not_called()
+    mock_prep.assert_not_called()
 
 
 def test_upload_program_prebuilt_dir_write_cpp_failure_aborts_upload(
@@ -1684,14 +1684,14 @@ def test_upload_program_prebuilt_dir_write_cpp_failure_aborts_upload(
     with (
         patch("esphome.__main__.get_ltchiptool_path", return_value=None),
         patch("esphome.__main__.write_cpp", return_value=3),
-        patch("esphome.platformio_api.run_pkg_install") as mock_pkg_install,
+        patch("esphome.platformio_api.prepare_platform_for_upload") as mock_prep,
         patch("esphome.__main__.upload_using_ltchiptool") as mock_upload,
     ):
         exit_code, host = upload_program({}, args, ["/dev/ttyUSB0"])
 
     assert exit_code == 3
     assert host is None
-    mock_pkg_install.assert_not_called()
+    mock_prep.assert_not_called()
     mock_upload.assert_not_called()
 
 
@@ -1713,7 +1713,7 @@ def test_upload_program_prebuilt_dir_pkg_install_failure_aborts_upload(
     with (
         patch("esphome.__main__._find_picotool", return_value=None),
         patch("esphome.__main__.write_cpp", return_value=0),
-        patch("esphome.platformio_api.run_pkg_install", return_value=2),
+        patch("esphome.platformio_api.prepare_platform_for_upload", return_value=2),
         patch("esphome.__main__.upload_using_picotool") as mock_upload,
         patch("esphome.__main__._rp2040_serial_reset_to_bootsel") as mock_reset,
     ):
