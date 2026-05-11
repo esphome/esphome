@@ -64,6 +64,7 @@ from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
+from esphome.upload_targets import PortType, get_port_type
 from esphome.util import (
     PICOTOOL_PACKAGE,
     FlashImage,
@@ -192,14 +193,6 @@ def choose_prompt(options, purpose: str = None):
 class Purpose(StrEnum):
     UPLOADING = "uploading"
     LOGGING = "logging"
-
-
-class PortType(StrEnum):
-    SERIAL = "SERIAL"
-    NETWORK = "NETWORK"
-    MQTT = "MQTT"
-    MQTTIP = "MQTTIP"
-    BOOTSEL = "BOOTSEL"
 
 
 # Magic MQTT port types that require special handling
@@ -595,27 +588,6 @@ def _resolve_network_devices(
             network_devices.append(device)
 
     return network_devices
-
-
-def get_port_type(port: str) -> PortType:
-    """Determine the type of port/device identifier.
-
-    Returns:
-        PortType.SERIAL for serial ports (/dev/ttyUSB0, COM1, etc.)
-        PortType.BOOTSEL for RP2040 BOOTSEL upload via picotool
-        PortType.MQTT for MQTT logging
-        PortType.MQTTIP for MQTT IP lookup
-        PortType.NETWORK for IP addresses, hostnames, or mDNS names
-    """
-    if port == "BOOTSEL":
-        return PortType.BOOTSEL
-    if port.startswith("/") or port.startswith("COM"):
-        return PortType.SERIAL
-    if port == "MQTT":
-        return PortType.MQTT
-    if port == "MQTTIP":
-        return PortType.MQTTIP
-    return PortType.NETWORK
 
 
 def run_miniterm(config: ConfigType, port: str, args) -> int:
