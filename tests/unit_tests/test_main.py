@@ -1665,6 +1665,36 @@ def test_upload_program_prebuilt_dir_skips_install_when_tool_present(
     mock_pkg_install.assert_not_called()
 
 
+def test_upload_program_prebuilt_dir_write_cpp_failure_aborts_upload(
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+    tmp_path: Path,
+) -> None:
+    """Codegen failure (write_cpp returning non-zero) must short-circuit
+    before pkg install runs; pkg install against a broken platformio.ini
+    would just fail less informatively. Symmetric with the pkg-install
+    failure test below."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "SERIAL"
+
+    prebuilt = tmp_path / "prebuilt"
+    prebuilt.mkdir()
+    args = MockArgs(prebuilt_dir=str(prebuilt))
+
+    with (
+        patch("esphome.__main__.get_ltchiptool_path", return_value=None),
+        patch("esphome.__main__.write_cpp", return_value=3),
+        patch("esphome.platformio_api.run_pkg_install") as mock_pkg_install,
+        patch("esphome.__main__.upload_using_ltchiptool") as mock_upload,
+    ):
+        exit_code, host = upload_program({}, args, ["/dev/ttyUSB0"])
+
+    assert exit_code == 3
+    assert host is None
+    mock_pkg_install.assert_not_called()
+    mock_upload.assert_not_called()
+
+
 def test_upload_program_prebuilt_dir_pkg_install_failure_aborts_upload(
     mock_get_port_type: Mock,
     mock_check_permissions: Mock,
