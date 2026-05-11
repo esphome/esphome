@@ -1211,7 +1211,10 @@ Check out [A numeric input keypad](/cookbook/lvgl#lvgl-cookbook-keypad) in the C
 
 ### `line`
 
-The line widget is capable of drawing straight lines between a set of points.
+The line widget is capable of drawing straight lines between a set of points. Points are expressed in pixels or
+percentages relative to the top left corner of the widget. The line is drawn between the points in the order they
+are defined in the configuration. The line widget can be used to draw simple shapes like triangles or rectangles,
+but also more complex shapes like polygons or zig-zag lines.
 
 <Image src={lvglLineImg} layout="constrained" alt="" />
 
@@ -1219,13 +1222,16 @@ The line widget is capable of drawing straight lines between a set of points.
 
 - **line_color** (*Optional*, [color](/components/lvgl#lvgl-color)): Color for the line.
 - **line_width** (*Optional*, int16): Set the width of the line in pixels.
-- **points** (**Required**, list): A list of `x, y` integer pairs for point coordinates (origin from top left of parent)
+- **points** (**Required**, list): A list of `x, y` pairs of point coordinates (origin from top left of parent)
 - **line_rounded** (*Optional*, boolean): Make the end points of the line rounded. `true` rounded, `false` perpendicular line ending.
 - **line_dash_gap** (*Optional*, int16): Set the width of the gap between the dashes in the line (in pixels).
 - **line_dash_width** (*Optional*, int16): Set the width of the dashes in the line (in pixels).
 - Style options from [Style properties](/components/lvgl#lvgl-styling), all the typical background properties and line style properties.
 
-By default, the Line widget width and height dimensions are set to `SIZE_CONTENT`. This means it will automatically set its size to fit all the points. If the size is set explicitly, parts of the line may not be visible.
+By default, the Line widget width and height dimensions are set to `SIZE_CONTENT`, which means it will automatically set
+its size to fit all the points. If the size is set explicitly, parts of the line outside the widget's area will be clipped.
+Setting the size explicitly also allows you to use percentage values in the points list. Use of percentages without
+a set size will not draw anything useful.
 
 The points list may be defined with constants in the form `x, y` or as a list of dictionaries with `x` and `y` keys. The latter allows for more complex point definitions, such as using a lambda function to calculate the coordinates.
 
@@ -1240,8 +1246,10 @@ The points list may be defined with constants in the form `x, y` or as a list of
 ```yaml
 # Example widget:
 - line:
+    width: 100%
+    height: 100%
     points:
-      - 5, 5
+      - 5%, 5%
       - 70, 70
       - 120, 10
       - x: !lambda return random_uint32() % 100;
