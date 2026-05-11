@@ -616,17 +616,21 @@ def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) ->
     if yaml_loader is None:
         yaml_loader = _load_yaml_internal
     try:
-        return _resolve_include(_load_yaml_internal_with_type(
-            ESPHomeLoader, file_name, file_handle, yaml_loader
-        ))
+        return _resolve_include(
+            _load_yaml_internal_with_type(
+                ESPHomeLoader, file_name, file_handle, yaml_loader
+            )
+        )
     except EsphomeError:
         # Loading failed, so we now load with the Python loader which has more
         # readable exceptions
         # Rewind the stream so we can try again
         file_handle.seek(0, 0)
-        return _resolve_include(_load_yaml_internal_with_type(
-            ESPHomePurePythonLoader, file_name, file_handle, yaml_loader
-        ))
+        return _resolve_include(
+            _load_yaml_internal_with_type(
+                ESPHomePurePythonLoader, file_name, file_handle, yaml_loader
+            )
+        )
 
 
 def _load_yaml_internal_with_type(
