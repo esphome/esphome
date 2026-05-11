@@ -155,13 +155,11 @@ def generate_lv_conf_h():
     build_flags = (
         CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS).get("build_flags", [])
     )
-    # Extract define names from build flags like '-DLV_USE_CHART=1' or '-DLV_USE_CHART'
-    define_pattern = r'-D([A-Z_][A-Z0-9_]*)(?:=[^\s\'"\]]*)?'
+    # Extract define names from build flags like '-DLV_USE_CHART=1', '-D LV_USE_CHART',
+    # or multiple defines in one string.
+    define_pattern = r'-D\s*([A-Z_][A-Z0-9_]*)(?:=[^\s\'"\]]*)?'
     defines_from_flags = {
-        m.group(1)
-        for flag in build_flags
-        for m in [re.search(define_pattern, flag)]
-        if m
+        m.group(1) for flag in build_flags for m in re.finditer(define_pattern, flag)
     }
 
     # Get the defines that are actually used based on the config,
@@ -170,7 +168,7 @@ def generate_lv_conf_h():
     if clashes:
         LOGGER.warning(
             "Some defines are set both by ESPHome build flags and by LVGL configuration which may lead to unexpected behavior: %s",
-            list(clashes),
+            sorted(list(clashes)),
         )
     unused_defines = all_defines - lv_defines.keys() - defines_from_flags
 
