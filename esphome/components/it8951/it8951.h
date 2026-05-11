@@ -70,22 +70,21 @@ struct Op {
 enum class Phase : uint8_t {
   IDLE,
   // Initialisation
-  INIT_RESET,        // reset pulse + wake controller + packed-write enable
-  INIT_DEV_INFO,     // GET_DEV_INFO and validate
-  INIT_VCOM,         // write configured VCOM
-  INIT_DONE,         // allocate framebuffer; transition to IDLE
+  INIT_RESET,     // reset pulse + wake controller + packed-write enable
+  INIT_DEV_INFO,  // GET_DEV_INFO and validate
+  INIT_VCOM,      // write configured VCOM
+  INIT_DONE,      // allocate framebuffer; transition to IDLE
   // Update flow
-  UPDATE_PREPARE,    // do_update_, compute dirty region, decide 4bpp/1bpp
-  UPDATE_TRANSFER,   // chunked LD_IMG_AREA / LD_IMG_END loop
-  UPDATE_REFRESH,    // wait LUT idle, optionally enable 1bpp, send DPY_BUF_AREA
-  UPDATE_RESTORE,    // wait LUT idle, clear UP1SR bit 2 (1bpp only)
-  UPDATE_SLEEP,      // optional deep sleep
+  UPDATE_PREPARE,   // do_update_, compute dirty region, decide 4bpp/1bpp
+  UPDATE_TRANSFER,  // chunked LD_IMG_AREA / LD_IMG_END loop
+  UPDATE_REFRESH,   // wait LUT idle, optionally enable 1bpp, send DPY_BUF_AREA
+  UPDATE_RESTORE,   // wait LUT idle, clear UP1SR bit 2 (1bpp only)
+  UPDATE_SLEEP,     // optional deep sleep
 };
 
-class IT8951Display
-    : public Display,
-      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                            spi::DATA_RATE_2MHZ> {
+class IT8951Display : public Display,
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                            spi::DATA_RATE_2MHZ> {
  public:
   IT8951Display(const char *name, uint16_t width, uint16_t height) : name_(name), width_(width), height_(height) {
     this->row_width_ = static_cast<uint16_t>((static_cast<uint32_t>(width) + 1) / 2);
@@ -156,14 +155,14 @@ class IT8951Display
   void spi_write_word_(uint16_t value);
   void spi_write_reg_(uint16_t addr, uint16_t value);
   void spi_write_args_(const uint16_t *args, uint16_t count);
-  uint16_t spi_read_word_();       // non-blocking: HRDY confirmed by loop gate
-  void spi_read_dev_info_();       // non-blocking: HRDY confirmed by loop gate
+  uint16_t spi_read_word_();  // non-blocking: HRDY confirmed by loop gate
+  void spi_read_dev_info_();  // non-blocking: HRDY confirmed by loop gate
 
   // --- Compound Ops (small bounded helpers) ---
   void op_xfer_lisar_();
   void op_xfer_area_args_();
   void op_xfer_area_end_();
-  bool op_xfer_rows_();   // returns true when current update area fully sent
+  bool op_xfer_rows_();  // returns true when current update area fully sent
   void op_dpy_buf_args_();
   void op_check_lut_idle_();
   void op_set_1bpp_();
