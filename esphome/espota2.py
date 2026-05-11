@@ -203,7 +203,7 @@ def receive_exactly(
     try:
         data += recv_decode(sock, 1, decode=decode)  # type: ignore[operator]
     except OSError as err:
-        raise OTAError(f"receiving acknowledge {msg}: {err}") from err
+        raise OTAError(f"receiving response byte {msg}: {err}") from err
 
     try:
         check_error(data, expect)
