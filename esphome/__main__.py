@@ -1955,7 +1955,7 @@ def parse_args(argv):
         choices=list(Toolchain),
         metavar="{" + ",".join(t.value for t in Toolchain) + "}",
         help=(
-            "Select toolchain for compiling. Overrides 'esphome.toolchain' in YAML. "
+            "Select toolchain for compiling. Overrides '<platform>.toolchain' in YAML. "
             f"Default: {Toolchain.PLATFORMIO.value}."
         ),
     )
