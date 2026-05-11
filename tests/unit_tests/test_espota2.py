@@ -604,7 +604,8 @@ def test_run_ota_wrapper(mock_run_ota_impl: Mock) -> None:
 
 def test_progress_bar(capsys: CaptureFixture[str]) -> None:
     """Test ProgressBar functionality."""
-    progress = espota2.ProgressBar()
+    progress = espota2.ProgressBar("Uploading")
+    progress.enabled = True  # Fake TTY
 
     # Test initial update
     progress.update(0.0)

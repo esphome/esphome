@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 
 from ..defines import CONF_WIDGET
 from ..lvcode import (
-    API_EVENT,
     EVENT_ARG,
     UPDATE_EVENT,
     LambdaContext,
@@ -35,7 +34,6 @@ async def to_code(config):
                 widget.obj,
                 await lamb.get_lambda(),
                 LV_EVENT.VALUE_CHANGED,
-                API_EVENT,
                 UPDATE_EVENT,
             )
         )

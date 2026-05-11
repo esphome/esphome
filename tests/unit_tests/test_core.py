@@ -855,7 +855,7 @@ class TestEsphomeCore:
 
     def test_bootloader_bin__native_idf(self, target):
         """Native ESP-IDF builds emit the bootloader under build/bootloader/bootloader.bin."""
-        target.data[const.KEY_NATIVE_IDF] = True
+        target.toolchain = const.Toolchain.ESP_IDF
 
         assert target.bootloader_bin == Path(
             "foo/build/build/bootloader/bootloader.bin"
@@ -864,7 +864,7 @@ class TestEsphomeCore:
     def test_bootloader_bin__platformio(self, target):
         """For PlatformIO builds bootloader.bin lives in the env-specific .pioenvs directory."""
         target.name = "test-device"
-        target.data[const.KEY_NATIVE_IDF] = False
+        target.toolchain = const.Toolchain.PLATFORMIO
 
         assert target.bootloader_bin == Path(
             "foo/build/.pioenvs/test-device/bootloader.bin"

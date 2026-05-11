@@ -12,6 +12,9 @@
 #include "esp_zigbee_core.h"
 #include "zigbee_esp32.h"
 
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -42,6 +45,9 @@ class ZigbeeAttribute : public Component {
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
   void set_report(bool force);
+#ifdef USE_SENSOR
+  template<typename T> void connect(sensor::Sensor *sensor);
+#endif
 #ifdef USE_BINARY_SENSOR
   template<typename T> void connect(binary_sensor::BinarySensor *sensor);
 #endif
@@ -78,6 +84,11 @@ template<typename T> void ZigbeeAttribute::set_attr(const T &value) {
   this->enable_loop();
 }
 
+#ifdef USE_SENSOR
+template<typename T> void ZigbeeAttribute::connect(sensor::Sensor *sensor) {
+  sensor->add_on_state_callback([this](float value) { this->set_attr((T) (this->scale_ * value)); });
+}
+#endif
 #ifdef USE_BINARY_SENSOR
 template<typename T> void ZigbeeAttribute::connect(binary_sensor::BinarySensor *sensor) {
   sensor->add_on_state_callback([this](bool value) { this->set_attr((T) (this->scale_ * value)); });
