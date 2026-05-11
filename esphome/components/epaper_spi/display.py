@@ -1,7 +1,7 @@
 import importlib
 import pkgutil
 
-from esphome import automation, core, pins
+from esphome import core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
@@ -22,14 +22,11 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
-    CONF_MODE,
     CONF_MODEL,
     CONF_PAGES,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
-    CONF_REVERSED,
     CONF_ROTATION,
-    CONF_SLEEP_WHEN_DONE,
     CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_UPDATE_INTERVAL,
@@ -50,10 +47,7 @@ epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
     "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.Display
 )
-EPaperUpdateAction = epaper_spi_ns.class_("EPaperUpdateAction", automation.Action)
 Transform = epaper_spi_ns.enum("Transform")
-
-CONF_UPDATE_MODE = "update_mode"
 
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
@@ -100,11 +94,7 @@ def model_schema(config):
             cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
             model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
-            **(
-                {model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema}
-                if model.get_default(CONF_DC_PIN, None) is not None
-                else {}
-            ),
+            model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
             model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.GenerateID(): cv.declare_id(class_name),
             cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
@@ -117,26 +107,6 @@ def model_schema(config):
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
-            **(
-                {
-                    cv.Optional(
-                        CONF_REVERSED, default=model.get_default(CONF_REVERSED, False)
-                    ): cv.boolean
-                }
-                if model.get_default(CONF_REVERSED, None) is not None
-                else {}
-            ),
-            **(
-                {
-                    cv.Optional(
-                        CONF_SLEEP_WHEN_DONE,
-                        default=model.get_default(CONF_SLEEP_WHEN_DONE, False),
-                    ): cv.boolean
-                }
-                if model.get_default(CONF_SLEEP_WHEN_DONE, None) is not None
-                else {}
-            ),
-            cv.Optional(CONF_UPDATE_MODE): cv.string_strict,
         }
     )
 
@@ -206,12 +176,10 @@ async def to_code(config):
     )
 
     await display.register_display(var, config)
-
     await spi.register_spi_device(var, config, write_only=True)
 
-    if dc_pin := config.get(CONF_DC_PIN):
-        dc = await cg.gpio_pin_expression(dc_pin)
-        cg.add(var.set_dc_pin(dc))
+    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
+    cg.add(var.set_dc_pin(dc))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
@@ -227,12 +195,6 @@ async def to_code(config):
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
-    if CONF_REVERSED in config:
-        cg.add(var.set_reversed(config[CONF_REVERSED]))
-    if CONF_SLEEP_WHEN_DONE in config:
-        cg.add(var.set_sleep_when_done(config[CONF_SLEEP_WHEN_DONE]))
-    if CONF_UPDATE_MODE in config:
-        cg.add(var.set_update_mode(config[CONF_UPDATE_MODE]))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False
     else:
@@ -246,23 +208,3 @@ async def to_code(config):
     )
     if transform_str:
         cg.add(var.set_transform(RawExpression(transform_str)))
-
-
-@automation.register_action(
-    "epaper_spi.update",
-    EPaperUpdateAction,
-    automation.maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(EPaperBase),
-            cv.Optional(CONF_MODE): cv.templatable(cv.string_strict),
-        }
-    ),
-    synchronous=True,
-)
-async def epaper_update_action_to_code(config, action_id, template_arg, args):
-    display_var = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, display_var)
-    if CONF_MODE in config:
-        template_ = await cg.templatable(config[CONF_MODE], args, cg.std_string)
-        cg.add(var.set_mode(template_))
-    return var

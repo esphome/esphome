@@ -96,12 +96,7 @@ def test_all_predefined_models(
     # Test all models, providing default values where necessary
     for name, model in MODELS.items():
         # SEEED models are designed for ESP32-S3 hardware
-        if name in (
-            "SEEED-EE04-MONO-4.26",
-            "SEEED-RETERMINAL-E1002",
-            "SEEED-RETERMINAL-E1003",
-            "SEEED-EE03",
-        ):
+        if name in ("SEEED-EE04-MONO-4.26", "SEEED-RETERMINAL-E1002"):
             set_core_config(
                 PlatformFramework.ESP32_IDF,
                 platform_data={
@@ -125,10 +120,7 @@ def test_all_predefined_models(
 
         # Add required fields that don't have defaults
         # Use safe GPIO pins that work on ESP32 (avoiding flash pins 6-11)
-        # dc_pin=False means the model doesn't use a DC pin at all (e.g. IT8951E)
-        if model.get_default(CONF_DC_PIN, None) is not False and not model.get_default(
-            CONF_DC_PIN
-        ):
+        if not model.get_default(CONF_DC_PIN):
             config[CONF_DC_PIN] = 21
 
         # Add dimensions if not provided by model
@@ -163,12 +155,7 @@ def test_individual_models(
 ) -> None:
     """Test each epaper model individually to ensure it validates correctly."""
     # SEEED models are designed for ESP32-S3 hardware
-    if model_name in (
-        "SEEED-EE04-MONO-4.26",
-        "SEEED-RETERMINAL-E1002",
-        "SEEED-RETERMINAL-E1003",
-        "SEEED-EE03",
-    ):
+    if model_name in ("SEEED-EE04-MONO-4.26", "SEEED-RETERMINAL-E1002"):
         set_core_config(
             PlatformFramework.ESP32_IDF,
             platform_data={
@@ -190,10 +177,7 @@ def test_individual_models(
 
     # Add required fields based on model defaults
     # Use safe GPIO pins that work on ESP32
-    # dc_pin=False means the model doesn't use a DC pin at all (e.g. IT8951E)
-    if model.get_default(CONF_DC_PIN, None) is not False and not model.get_default(
-        CONF_DC_PIN
-    ):
+    if not model.get_default(CONF_DC_PIN):
         config[CONF_DC_PIN] = 21
 
     if not model.get_default(CONF_WIDTH):

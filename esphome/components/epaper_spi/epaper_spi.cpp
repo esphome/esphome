@@ -38,10 +38,8 @@ bool EPaperBase::init_buffer_(size_t buffer_length) {
 }
 
 void EPaperBase::setup_pins_() const {
-  if (this->dc_pin_ != nullptr) {
-    this->dc_pin_->setup();  // OUTPUT
-    this->dc_pin_->digital_write(false);
-  }
+  this->dc_pin_->setup();  // OUTPUT
+  this->dc_pin_->digital_write(false);
 
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();  // OUTPUT
@@ -57,9 +55,7 @@ float EPaperBase::get_setup_priority() const { return setup_priority::PROCESSOR;
 
 void EPaperBase::command(uint8_t value) {
   ESP_LOGV(TAG, "Command: 0x%02X", value);
-  if (this->dc_pin_ != nullptr) {
-    this->dc_pin_->digital_write(false);
-  }
+  this->dc_pin_->digital_write(false);
   this->enable();
   this->write_byte(value);
   this->disable();
@@ -73,15 +69,11 @@ void EPaperBase::cmd_data(uint8_t command, const uint8_t *ptr, size_t length) {
            format_hex_pretty_to(hex_buf, ptr, length, '.'));
 #endif
 
-  if (this->dc_pin_ != nullptr) {
-    this->dc_pin_->digital_write(false);
-  }
+  this->dc_pin_->digital_write(false);
   this->enable();
   this->write_byte(command);
   if (length > 0) {
-    if (this->dc_pin_ != nullptr) {
-      this->dc_pin_->digital_write(true);
-    }
+    this->dc_pin_->digital_write(true);
     this->write_array(ptr, length);
   }
   this->disable();
@@ -132,12 +124,6 @@ void EPaperBase::update() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   this->update_start_time_ = millis();
 #endif
-}
-
-void EPaperBase::update_mode(const std::string &mode) {
-  // Default: ignore the mode name and call update().
-  // Subclasses override this to map mode names to hardware-specific refresh strategies.
-  this->update();
 }
 
 void EPaperBase::wait_for_idle_(bool should_wait) {
@@ -266,9 +252,7 @@ void EPaperBase::set_state_(EPaperState state, uint16_t delay) {
 }
 
 void EPaperBase::start_data_() {
-  if (this->dc_pin_ != nullptr) {
-    this->dc_pin_->digital_write(true);
-  }
+  this->dc_pin_->digital_write(true);
   this->enable();
 }
 

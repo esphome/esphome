@@ -1,11 +1,8 @@
 #pragma once
 
-#include <string>
-
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome::epaper_spi {
@@ -63,8 +60,6 @@ class EPaperBase : public Display,
     this->update_effective_transform_();
   }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
-  void set_reversed(bool reversed) { this->reversed_ = reversed; }
-  void set_sleep_when_done(bool sleep_when_done) { this->sleep_when_done_ = sleep_when_done; }
   void dump_config() override;
 
   void command(uint8_t value);
@@ -77,17 +72,6 @@ class EPaperBase : public Display,
 
   void update() override;
   void loop() override;
-
-  /**
-   * Trigger an update using a named mode (e.g. "fast", "full", "GC16", "DU").
-   * Subclasses override to map mode names to hardware-specific refresh strategies.
-   * The default implementation ignores the mode and calls update().
-   */
-  virtual void update_mode(const std::string &mode);
-
-  /// Set the default update mode used by update().
-  void set_update_mode(const std::string &mode) { this->update_mode_ = mode; }
-  const std::string &get_update_mode() const { return this->update_mode_; }
 
   void setup() override;
 
@@ -215,29 +199,6 @@ class EPaperBase : public Display,
   EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
   uint8_t full_update_every_{1};
-  bool reversed_{false};
-  bool sleep_when_done_{false};
-  std::string update_mode_{};
-};
-
-// --- Automation action: epaper_spi.update ---
-template<typename... Ts> class EPaperUpdateAction : public Action<Ts...> {
- public:
-  explicit EPaperUpdateAction(EPaperBase *display) : display_(display) {}
-  TEMPLATABLE_VALUE(std::string, mode)
-
-  void play(const Ts &...x) override {
-    if (!this->display_->is_ready())
-      return;
-    if (this->mode_.has_value()) {
-      this->display_->update_mode(this->mode_.value(x...));
-    } else {
-      this->display_->update();
-    }
-  }
-
- protected:
-  EPaperBase *display_;
 };
 
 }  // namespace esphome::epaper_spi
