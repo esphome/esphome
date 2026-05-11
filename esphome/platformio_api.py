@@ -102,6 +102,16 @@ def _run_idedata(config):
 
 
 def _load_idedata(config):
+    # `esphome upload --prebuilt-dir` ships a pre-rendered idedata.json next
+    # to the artifacts. When present we use it verbatim: ``firmware_bin_path``
+    # and ``extra.flash_images[*].path`` already point at absolute paths under
+    # the prebuilt directory, so the esptool / picotool helpers find the right
+    # bytes without re-running PlatformIO or consulting the local build tree.
+    if CORE.prebuilt_dir is not None:
+        prebuilt_idedata = CORE.prebuilt_dir / "idedata.json"
+        if prebuilt_idedata.is_file():
+            return json.loads(prebuilt_idedata.read_text(encoding="utf-8"))
+
     platformio_ini = CORE.relative_build_path("platformio.ini")
     temp_idedata = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
 

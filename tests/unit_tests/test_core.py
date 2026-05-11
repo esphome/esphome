@@ -870,6 +870,89 @@ class TestEsphomeCore:
             "foo/build/.pioenvs/test-device/bootloader.bin"
         )
 
+    def test_prebuilt_artifact_path__none_when_unset(self, target):
+        """prebuilt_artifact_path is the gate on every prebuilt-dir override.
+        When --prebuilt-dir is not set, every consumer must fall back to the
+        local build tree."""
+        assert target.prebuilt_artifact_path("firmware.bin") is None
+
+    def test_prebuilt_artifact_path__returns_first_existing(self, target, tmp_path):
+        """firmware.bin (ESP) and firmware.uf2 (RP2040/libretiny) are both
+        canonical names, so callers pass them in priority order and get the
+        first one that actually exists."""
+        target.prebuilt_dir = tmp_path
+        (tmp_path / "firmware.uf2").write_bytes(b"uf2")
+
+        assert (
+            target.prebuilt_artifact_path("firmware.bin", "firmware.uf2")
+            == tmp_path / "firmware.uf2"
+        )
+
+    def test_prebuilt_artifact_path__none_when_no_candidate_exists(
+        self, target, tmp_path
+    ):
+        """If --prebuilt-dir is set but the directory is empty for the asked
+        names, return None so the caller falls through to the local build
+        tree rather than asserting."""
+        target.prebuilt_dir = tmp_path
+
+        assert target.prebuilt_artifact_path("firmware.bin") is None
+
+    def test_firmware_bin__prebuilt_override(self, target, tmp_path):
+        """CORE.firmware_bin is the single resolution point every OTA path
+        reads. With --prebuilt-dir set and firmware.bin present, it must
+        return the prebuilt path instead of the (non-existent) local build
+        path."""
+        target.name = "test-device"
+        target.toolchain = const.Toolchain.PLATFORMIO
+        target.prebuilt_dir = tmp_path
+        (tmp_path / "firmware.bin").write_bytes(b"fw")
+
+        assert target.firmware_bin == tmp_path / "firmware.bin"
+
+    def test_firmware_bin__prebuilt_override_uf2(self, target, tmp_path):
+        """RP2040 / libretiny ship firmware.uf2; firmware_bin returns it when
+        firmware.bin is absent so the dashboard only needs to ship one file."""
+        target.name = "test-device"
+        target.toolchain = const.Toolchain.PLATFORMIO
+        target.prebuilt_dir = tmp_path
+        (tmp_path / "firmware.uf2").write_bytes(b"uf2")
+
+        assert target.firmware_bin == tmp_path / "firmware.uf2"
+
+    def test_partition_table_bin__prebuilt_override(self, target, tmp_path):
+        target.name = "test-device"
+        target.toolchain = const.Toolchain.PLATFORMIO
+        target.prebuilt_dir = tmp_path
+        (tmp_path / "partitions.bin").write_bytes(b"pt")
+
+        assert target.partition_table_bin == tmp_path / "partitions.bin"
+
+    def test_bootloader_bin__prebuilt_override(self, target, tmp_path):
+        target.name = "test-device"
+        target.toolchain = const.Toolchain.PLATFORMIO
+        target.prebuilt_dir = tmp_path
+        (tmp_path / "bootloader.bin").write_bytes(b"bl")
+
+        assert target.bootloader_bin == tmp_path / "bootloader.bin"
+
+    def test_firmware_bin__prebuilt_dir_set_but_file_missing_falls_through(
+        self, target, tmp_path
+    ):
+        """Setting --prebuilt-dir alone must not break devices that don't ship
+        every artifact (e.g. OTA-only uploads with no bootloader.bin). When
+        the canonical file isn't in the directory, fall back to the local
+        build path so the caller's existing error messages still apply."""
+        target.name = "test-device"
+        target.toolchain = const.Toolchain.PLATFORMIO
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
+        target.prebuilt_dir = tmp_path
+        # No firmware.bin in tmp_path on purpose.
+
+        assert target.firmware_bin == Path(
+            "foo/build/.pioenvs/test-device/firmware.bin"
+        )
+
     def test_add_library__extracts_short_name_from_path(self, target):
         """Test add_library extracts short name from library paths like owner/lib."""
         target.data[const.KEY_CORE] = {

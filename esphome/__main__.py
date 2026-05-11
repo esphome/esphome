@@ -881,7 +881,15 @@ def upload_using_esptool(
     elif CORE.using_toolchain_esp_idf:
         from esphome.espidf import api
 
-        flash_images = [FlashImage(path=api.get_factory_firmware_path(), offset="0x0")]
+        # For ESP-IDF the upload is a single factory image at 0x0 (it bundles
+        # bootloader + partitions + app). The prebuilt-dir form ships that
+        # single file at the canonical name so the dashboard can flash it
+        # without re-deriving the ESP-IDF build path.
+        factory_path = (
+            CORE.prebuilt_artifact_path("firmware.factory.bin")
+            or api.get_factory_firmware_path()
+        )
+        flash_images = [FlashImage(path=factory_path, offset="0x0")]
     else:
         from esphome import platformio_api
 
@@ -960,6 +968,23 @@ def upload_using_esptool(
 def upload_using_platformio(config: ConfigType, port: str) -> int:
     from esphome import platformio_api
 
+    # --prebuilt-dir for libretiny / RP2040 serial routes PlatformIO at the
+    # prebuilt tree by repointing CORE.build_path. The dashboard must ship a
+    # build tree shape (platformio.ini plus .pioenvs/<name>/...) under
+    # --prebuilt-dir for this path because PlatformIO needs platformio.ini and
+    # the env-specific .pioenvs/<name> directory to run -t upload -t nobuild.
+    # Upload is terminal so mutating build_path here has no downstream effect.
+    if CORE.prebuilt_dir is not None:
+        platformio_ini = CORE.prebuilt_dir / "platformio.ini"
+        if not platformio_ini.is_file():
+            raise EsphomeError(
+                f"--prebuilt-dir {CORE.prebuilt_dir} is missing platformio.ini. "
+                "Uploads on this platform re-invoke PlatformIO, so the prebuilt "
+                "directory must contain platformio.ini plus the env-specific "
+                ".pioenvs/<name>/ build tree."
+            )
+        CORE.build_path = CORE.prebuilt_dir
+
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
     # the upload target, but 'nobuild' skips the build phase that creates it.
     # Create it here so the upload doesn't fail.
@@ -998,13 +1023,23 @@ def upload_using_picotool(config: ConfigType) -> int:
     from esphome import platformio_api
 
     idedata = platformio_api.get_idedata(config)
-    firmware_elf = Path(idedata.firmware_elf_path)
 
-    if not firmware_elf.is_file():
+    # --prebuilt-dir ships canonical artifacts at the root of the directory,
+    # not the full PlatformIO build tree, so the ELF may not be present.
+    # picotool's "load" target accepts .uf2 / .bin / .elf, so fall back to
+    # CORE.firmware_bin (which resolves to the prebuilt firmware.uf2 when set)
+    # when no ELF is available.
+    firmware_file: Path
+    elf_path = Path(idedata.firmware_elf_path)
+    if elf_path.is_file():
+        firmware_file = elf_path
+    elif CORE.prebuilt_dir is not None and CORE.firmware_bin.is_file():
+        firmware_file = CORE.firmware_bin
+    else:
         _LOGGER.error(
             "Firmware ELF file not found at %s. "
             "Make sure the project has been compiled first.",
-            firmware_elf,
+            elf_path,
         )
         return 1
 
@@ -1023,7 +1058,7 @@ def upload_using_picotool(config: ConfigType) -> int:
         # so progress bars display in real-time with \r updates.
         # Capture stderr only so we can detect permission errors.
         result = subprocess.run(
-            [str(picotool), "load", "-v", "-x", str(firmware_elf)],
+            [str(picotool), "load", "-v", "-x", str(firmware_file)],
             stderr=subprocess.PIPE,
             timeout=60,
             check=False,
@@ -1113,6 +1148,19 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
+
+    # --prebuilt-dir routes every per-platform upload helper at a directory of
+    # prebuilt artifacts instead of the local build tree. Validate once here
+    # so failures surface before we dispatch into platform-specific code that
+    # would otherwise produce confusing "file not found" errors deep in the
+    # esptool / picotool / PlatformIO call stacks.
+    prebuilt_dir = getattr(args, "prebuilt_dir", None)
+    if prebuilt_dir is not None:
+        prebuilt_path = Path(prebuilt_dir).expanduser()
+        if not prebuilt_path.is_dir():
+            raise EsphomeError(f"--prebuilt-dir {prebuilt_dir} is not a directory")
+        CORE.prebuilt_dir = prebuilt_path
+
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         if getattr(module, "upload_program")(config, args, host):
@@ -2117,6 +2165,17 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--file",
         help="Manually specify the binary file to upload.",
+    )
+    parser_upload.add_argument(
+        "--prebuilt-dir",
+        help=(
+            "Directory of prebuilt artifacts to flash instead of re-deriving "
+            "paths from the local build tree. The configuration is still read "
+            "(to load OTA settings, target platform, esp32 variant, etc.) but "
+            "the upload path reads bytes from this directory. Layout is "
+            "documented at "
+            "https://developers.esphome.io/architecture/upload-prebuilt-dir/."
+        ),
     )
     parser_upload.add_argument(
         "--ota-platform",

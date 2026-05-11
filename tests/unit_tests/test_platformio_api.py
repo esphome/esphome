@@ -236,6 +236,61 @@ def test_load_idedata_regenerates_on_corrupted_cache(
     assert result["prog_path"] == "/new/firmware.elf"
 
 
+def test_load_idedata_uses_prebuilt_dir_when_set(
+    setup_core: Path, mock_run_platformio_cli_run: Mock
+) -> None:
+    """`esphome upload --prebuilt-dir <path>` is expected to ship the rendered
+    idedata.json next to the artifacts and bypass PlatformIO entirely. Verify
+    that _load_idedata returns the prebuilt copy verbatim without consulting
+    platformio.ini mtime or invoking ``platformio run -t idedata``."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
+
+    prebuilt_dir = setup_core / "prebuilt"
+    prebuilt_dir.mkdir()
+    prebuilt_idedata = prebuilt_dir / "idedata.json"
+    prebuilt_idedata.write_text(
+        json.dumps({"prog_path": str(prebuilt_dir / "firmware.elf")})
+    )
+
+    CORE.prebuilt_dir = prebuilt_dir
+
+    result = platformio_api._load_idedata({"name": "test"})
+
+    assert result["prog_path"] == str(prebuilt_dir / "firmware.elf")
+    # Never re-runs PlatformIO when prebuilt idedata is supplied: the dashboard
+    # ships these artifacts from a paired build server with no local PIO tree.
+    mock_run_platformio_cli_run.assert_not_called()
+
+
+def test_load_idedata_falls_back_when_prebuilt_idedata_missing(
+    setup_core: Path, mock_run_platformio_cli_run: Mock
+) -> None:
+    """If --prebuilt-dir is set but the directory has no idedata.json, the
+    normal local-build-tree path runs. Lets the dashboard skip idedata for
+    OTA-only uploads (where firmware.bin alone is enough) without breaking."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
+
+    prebuilt_dir = setup_core / "prebuilt"
+    prebuilt_dir.mkdir()
+    # Intentionally no idedata.json in prebuilt_dir.
+    CORE.prebuilt_dir = prebuilt_dir
+
+    platformio_ini = setup_core / "build" / "test" / "platformio.ini"
+    platformio_ini.parent.mkdir(parents=True, exist_ok=True)
+    platformio_ini.write_text("content")
+
+    mock_run_platformio_cli_run.return_value = json.dumps(
+        {"prog_path": "/local/firmware.elf"}
+    )
+
+    result = platformio_api._load_idedata({"name": "test"})
+
+    assert result["prog_path"] == "/local/firmware.elf"
+    mock_run_platformio_cli_run.assert_called_once()
+
+
 def test_run_idedata_parses_json_from_output(
     setup_core: Path, mock_run_platformio_cli_run: Mock
 ) -> None:

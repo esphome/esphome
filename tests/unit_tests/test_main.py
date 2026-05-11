@@ -1135,6 +1135,7 @@ class MockArgs:
     ota_platform: str | None = None
     partition_table: bool = False
     bootloader: bool = False
+    prebuilt_dir: str | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -1410,6 +1411,95 @@ def test_upload_using_platformio_skips_signed_bin_for_non_rp2040(
         result = upload_using_platformio({}, "/dev/ttyUSB0")
 
     assert result == 0
+
+
+def test_upload_program_prebuilt_dir_sets_core_attr(
+    mock_upload_using_esptool: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+    tmp_path: Path,
+) -> None:
+    """--prebuilt-dir must stash the validated path on CORE before dispatching
+    so that all per-platform helpers and CORE.firmware_bin / etc. resolve to
+    the prebuilt artifacts."""
+    setup_core(platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_upload_using_esptool.return_value = 0
+
+    prebuilt = tmp_path / "artifacts"
+    prebuilt.mkdir()
+
+    config = {}
+    args = MockArgs(prebuilt_dir=str(prebuilt))
+    devices = ["/dev/ttyUSB0"]
+
+    exit_code, _ = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert CORE.prebuilt_dir == prebuilt
+
+
+def test_upload_program_prebuilt_dir_missing_raises(
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+    tmp_path: Path,
+) -> None:
+    """Catch a missing --prebuilt-dir before dispatching to a per-platform
+    helper; deferring would surface as a confusing "file not found" deep in
+    esptool / picotool / PlatformIO."""
+    setup_core(platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "SERIAL"
+
+    missing = tmp_path / "does-not-exist"
+
+    config = {}
+    args = MockArgs(prebuilt_dir=str(missing))
+    devices = ["/dev/ttyUSB0"]
+
+    with pytest.raises(EsphomeError, match="not a directory"):
+        upload_program(config, args, devices)
+
+
+def test_upload_using_picotool_falls_back_to_firmware_bin_when_elf_missing(
+    tmp_path: Path,
+) -> None:
+    """`--prebuilt-dir` ships a flat firmware.uf2, not the build tree's ELF.
+    picotool load accepts uf2/bin/elf, so when the idedata ELF is missing
+    fall through to CORE.firmware_bin (the prebuilt .uf2) instead of failing.
+    """
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    prebuilt = tmp_path / "prebuilt"
+    prebuilt.mkdir()
+    firmware_uf2 = prebuilt / "firmware.uf2"
+    firmware_uf2.write_bytes(b"uf2-data")
+    CORE.prebuilt_dir = prebuilt
+
+    # idedata points at an ELF that doesn't exist on disk (typical for
+    # prebuilt-dir flat layouts).
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(tmp_path / "build" / "firmware.elf")
+    mock_idedata.cc_path = "/fake/path/gcc"
+
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stderr = b""
+
+    # Stub the picotool lookup to short-circuit the toolchain probe.
+    with (
+        patch("esphome.platformio_api.get_idedata", return_value=mock_idedata),
+        patch(
+            "esphome.__main__.get_picotool_path",
+            return_value=tmp_path / "picotool",
+        ),
+        patch("subprocess.run", return_value=mock_result) as mock_run,
+    ):
+        exit_code = upload_using_picotool({})
+
+    assert exit_code == 0
+    # Verify picotool was handed the prebuilt .uf2, not the missing ELF.
+    cmd = mock_run.call_args[0][0]
+    assert str(firmware_uf2) in cmd
 
 
 def test_upload_program_serial_upload_failed(

@@ -567,6 +567,11 @@ class EsphomeCore:
         self.config_path: Path | None = None
         # The relative path to where all build files are stored
         self.build_path: Path | None = None
+        # Directory of prebuilt artifacts for `esphome upload --prebuilt-dir`.
+        # When set, firmware/partition/bootloader resolution and the idedata
+        # cache prefer files under this directory over the local build tree.
+        # See docs/architecture/upload-prebuilt-dir.
+        self.prebuilt_dir: Path | None = None
         # The validated configuration, this is None until the config has been validated
         self.config: ConfigType | None = None
         # The pending tasks in the task queue (mostly for C++ generation)
@@ -633,6 +638,7 @@ class EsphomeCore:
         self.data = {}
         self.config_path = None
         self.build_path = None
+        self.prebuilt_dir = None
         self.config = None
         self.event_loop = _FakeEventLoop()
         self.task_counter = 0
@@ -775,8 +781,28 @@ class EsphomeCore:
     def relative_piolibdeps_path(self, *path: str | Path) -> Path:
         return self.relative_build_path(".piolibdeps", *path)
 
+    def prebuilt_artifact_path(self, *names: str) -> Path | None:
+        # Return the first existing prebuilt artifact among ``names``, or None
+        # when no prebuilt dir is configured or none of the candidates exist.
+        # Callers pass canonical basenames (e.g. "firmware.bin", "firmware.uf2")
+        # and the upload helpers fall back to the local build tree when this
+        # returns None.
+        if self.prebuilt_dir is None:
+            return None
+        for name in names:
+            candidate = self.prebuilt_dir / name
+            if candidate.is_file():
+                return candidate
+        return None
+
     @property
     def firmware_bin(self) -> Path:
+        # Prebuilt override: prefer firmware.bin then firmware.uf2 so the
+        # dashboard can ship a single canonical name per platform.
+        if (
+            prebuilt := self.prebuilt_artifact_path("firmware.bin", "firmware.uf2")
+        ) is not None:
+            return prebuilt
         # Check if using ESP-IDF toolchain
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", f"{self.name}.bin")
@@ -789,6 +815,12 @@ class EsphomeCore:
         # Native ESP-IDF (--toolchain esp-idf): the partition table image is emitted under
         # build/partition_table/partition-table.bin alongside firmware.bin. PlatformIO writes the
         # equivalent file as partitions.bin in the env-specific .pioenvs directory.
+        if (
+            prebuilt := self.prebuilt_artifact_path(
+                "partitions.bin", "partition-table.bin"
+            )
+        ) is not None:
+            return prebuilt
         if self.using_toolchain_esp_idf:
             return self.relative_build_path(
                 "build", "partition_table", "partition-table.bin"
@@ -797,6 +829,8 @@ class EsphomeCore:
 
     @property
     def bootloader_bin(self) -> Path:
+        if (prebuilt := self.prebuilt_artifact_path("bootloader.bin")) is not None:
+            return prebuilt
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", "bootloader", "bootloader.bin")
         return self.relative_pioenvs_path(self.name, "bootloader.bin")
