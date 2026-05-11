@@ -153,7 +153,7 @@ void ZigbeeComponent::add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint
   this->attribute_list_[{endpoint_id, cluster_id, role}] = attr_list;
 }
 
-void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufacturer) {
+void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufacturer, uint8_t power_source) {
   char date_buf[16];
   time_t time_val = App.get_build_time();
   struct tm *timeinfo = localtime(&time_val);
@@ -162,13 +162,14 @@ void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufactu
       .model = get_zcl_string(model, 31),
       .manufacturer = get_zcl_string(manufacturer, 31),
       .date = get_zcl_string(date_buf, 15),
+      .power_source = power_source,
   };
 }
 
 esp_zb_attribute_list_t *ZigbeeComponent::create_basic_cluster_() {
   esp_zb_basic_cluster_cfg_t basic_cluster_cfg = {
       .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
-      .power_source = 0,
+      .power_source = this->basic_cluster_data_.power_source,
   };
   esp_zb_attribute_list_t *attr_list = esp_zb_basic_cluster_create(&basic_cluster_cfg);
   esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID,
@@ -192,7 +193,12 @@ static void esp_zb_task_(void *pvParameters) {
     ESP_LOGE(TAG, "Could not setup Zigbee");
     vTaskDelete(NULL);
   }
-  esp_zb_set_node_descriptor_power_source(1);
+  if (global_zigbee->is_battery_powered()) {
+    ESP_LOGD(TAG, "Battery powered!");
+    esp_zb_set_node_descriptor_power_source(0);
+  } else {
+    esp_zb_set_node_descriptor_power_source(1);
+  }
   esp_zb_stack_main_loop();
 }
 

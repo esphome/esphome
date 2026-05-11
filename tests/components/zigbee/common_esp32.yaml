@@ -12,6 +12,7 @@ binary_sensor:
 zigbee:
   model: zigbee_test
   router: true
+  power_source: MAINS_SINGLE_PHASE
   on_join:
     then:
       - logger.log: "Joined network"
