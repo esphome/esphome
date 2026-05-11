@@ -702,6 +702,7 @@ class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHand
                         entry.filename: entry_state_to_bool(entry.state)
                         for entry in entries
                     },
+                    "queued": {conf: True for conf in DASHBOARD.queued_updates},
                 },
             }
         )
@@ -733,6 +734,9 @@ class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHand
                 DashboardEvent.IMPORTABLE_DEVICE_REMOVED,
                 self._on_importable_removed,
             ),
+            async_add_listener(
+                "queued_state_changed", self._on_queued_state_changed
+            ),
         ]
 
     def _on_entry_state_changed(self, event: Event) -> None:
@@ -747,6 +751,15 @@ class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHand
                     "name": entry.name,
                     "state": entry_state_to_bool(state),
                 },
+            }
+        )
+
+    def _on_queued_state_changed(self, event: Event) -> None:
+        """Handle queue state change event."""
+        self._safe_send_message(
+            {
+                "event": "queued_state_changed",
+                "data": event.data,
             }
         )
 
@@ -802,6 +815,15 @@ class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHand
             # Signal the polling loop to refresh immediately
             _LOGGER.debug("Received refresh request, signaling polling loop")
             DASHBOARD_SUBSCRIBER.request_refresh()
+        elif event == "esphome-device-queue-clear":
+            configuration = data.get("configuration")
+            if configuration and hasattr(DASHBOARD, "queued_updates"):
+                DASHBOARD.queued_updates.discard(configuration)
+                # Fire the event so the UI badge disappears immediately
+                DASHBOARD.bus.async_fire("queued_state_changed", {
+                    "filename": configuration,
+                    "state": False
+                })
 
     def on_close(self) -> None:
         """Handle WebSocket close."""
