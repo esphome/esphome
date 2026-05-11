@@ -158,7 +158,7 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
             .offset = p->address,
             .size = p->size,
         };
-        esp_err_t err = esp_image_verify(ESP_IMAGE_VERIFY, &part_pos, &data);
+        esp_err_t err = esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &part_pos, &data);
         if (err == ESP_OK) {
           rollback_part = p;
           this->rollback_part_found_ = true;
@@ -203,9 +203,11 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   // - allow_partition_access is not configured making recovery via partition table update impossible
   if (!this->app_ota_possible_) {
     if (rollback_part != nullptr) {
-      ESP_LOGW(TAG, "OTA updates are impossible. Rebooting to recovery app.");
-      esp_ota_set_boot_partition(rollback_part);
-      App.reboot();
+      esp_err_t err = esp_ota_set_boot_partition(rollback_part);
+      if (err == ESP_OK) {
+        ESP_LOGW(TAG, "OTA updates are impossible. Rebooting to recovery app.");
+        App.reboot();
+      }
     }
   }
 #endif
