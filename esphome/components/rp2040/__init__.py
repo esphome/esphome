@@ -118,7 +118,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 
     # format the given arduino (https://github.com/earlephilhower/arduino-pico/releases) version to
     # a PIO earlephilhower/framework-arduinopico value
-    # List of package versions: https://toolchain.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
+    # List of package versions: https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
     # return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
 
@@ -138,7 +138,7 @@ def _parse_platform_version(value):
 
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
-#  - https://toolchain.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
+#  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
 RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(5, 5, 1)
 
 # The raspberrypi platform version to use for arduino frameworks
