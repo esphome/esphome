@@ -5,6 +5,7 @@ import io
 import logging
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 from typing import TYPE_CHECKING, Any
@@ -400,6 +401,39 @@ def get_serial_ports() -> list[SerialPort]:
 
 
 PICOTOOL_PACKAGE = "tool-picotool-rp2040-earlephilhower"
+
+# PlatformIO ships ltchiptool inside a libretiny-specific virtualenv under
+# `~/.platformio/penv/.libretiny/`, separate from the toolchain packages
+# layout that picotool uses, so it needs its own lookup helper.
+LTCHIPTOOL_PIO_PENV_NAME = ".libretiny"
+
+
+def get_ltchiptool_path() -> Path | None:
+    """Find the ltchiptool executable.
+
+    Order:
+      1. ``ltchiptool`` on PATH (pip-installed system-wide or in a virtualenv).
+      2. PlatformIO's libretiny penv at ``~/.platformio/penv/.libretiny/bin``
+         (where platform-libretiny installs it during its package init).
+
+    Returns None if neither is available; callers should surface an
+    actionable error pointing the user at one of those install paths.
+    """
+    on_path = shutil.which("ltchiptool")
+    if on_path is not None:
+        return Path(on_path)
+    binary_name = "ltchiptool.exe" if sys.platform == "win32" else "ltchiptool"
+    pio_penv = (
+        Path.home()
+        / ".platformio"
+        / "penv"
+        / LTCHIPTOOL_PIO_PENV_NAME
+        / "bin"
+        / binary_name
+    )
+    if pio_penv.is_file():
+        return pio_penv
+    return None
 
 
 def get_picotool_path(cc_path: str) -> Path | None:

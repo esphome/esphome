@@ -68,6 +68,7 @@ from esphome.util import (
     PICOTOOL_PACKAGE,
     FlashImage,
     detect_rp2040_bootsel,
+    get_ltchiptool_path,
     get_picotool_path,
     get_serial_ports,
     is_picotool_usb_permission_error,
@@ -965,21 +966,61 @@ def upload_using_esptool(
     return run_esptool(115200)
 
 
+def upload_using_ltchiptool(config: ConfigType, port: str) -> int:
+    """Upload a libretiny ``.uf2`` directly via ``ltchiptool flash write``.
+
+    Bypasses PlatformIO so the dashboard's transparent install can flash a
+    libretiny device from just a prebuilt ``.uf2`` and a serial port; no
+    local build tree, ``platformio.ini`` or libretiny package install on the
+    machine running ``esphome upload`` is required (ltchiptool itself is
+    still required, but it ships with the libretiny PlatformIO platform or
+    can be ``pip install``-ed independently).
+
+    Chip family is auto-detected from the UF2 header so we don't need to
+    plumb through ``CORE.data[KEY_LIBRETINY][KEY_FAMILY]``.
+    """
+    firmware = CORE.firmware_bin
+    if not firmware.is_file():
+        _LOGGER.error(
+            "LibreTiny firmware file not found at %s. "
+            "Make sure the project has been compiled first or that "
+            "--prebuilt-dir points at a directory containing firmware.uf2.",
+            firmware,
+        )
+        return 1
+
+    ltchiptool = get_ltchiptool_path()
+    if ltchiptool is None:
+        _LOGGER.error(
+            "ltchiptool not found. Install the libretiny PlatformIO platform "
+            "(esphome compile <yaml> with a libretiny board pulls it in) or "
+            "run `pip install ltchiptool` in this environment."
+        )
+        return 1
+
+    _LOGGER.info("Uploading firmware to LibreTiny device via ltchiptool...")
+    cmd = [str(ltchiptool), "flash", "write", "-d", port, str(firmware)]
+    return run_external_process(*cmd)
+
+
 def upload_using_platformio(config: ConfigType, port: str) -> int:
     from esphome import platformio_api
 
-    # --prebuilt-dir for libretiny / RP2040 serial routes PlatformIO at the
-    # prebuilt tree by repointing CORE.build_path. The dashboard must ship a
-    # build tree shape (platformio.ini plus .pioenvs/<name>/...) under
-    # --prebuilt-dir for this path because PlatformIO needs platformio.ini and
-    # the env-specific .pioenvs/<name> directory to run -t upload -t nobuild.
-    # Upload is terminal so mutating build_path here has no downstream effect.
+    # --prebuilt-dir for RP2040 serial routes PlatformIO at the prebuilt tree
+    # by repointing CORE.build_path. The dashboard must ship a build tree
+    # shape (platformio.ini plus .pioenvs/<name>/...) under --prebuilt-dir
+    # because `pio run -t upload -t nobuild` reads platformio.ini and the
+    # env-specific .pioenvs/<name> directory. Upload is terminal so mutating
+    # build_path here has no downstream effect.
+    # (LibreTiny serial avoids this path entirely when --prebuilt-dir is set
+    # by going through upload_using_ltchiptool; RP2040 BOOTSEL goes through
+    # upload_using_picotool.)
     if CORE.prebuilt_dir is not None:
         platformio_ini = CORE.prebuilt_dir / "platformio.ini"
         if not platformio_ini.is_file():
             raise EsphomeError(
                 f"--prebuilt-dir {CORE.prebuilt_dir} is missing platformio.ini. "
-                "Uploads on this platform re-invoke PlatformIO, so the prebuilt "
+                "RP2040 serial uploads re-invoke PlatformIO, so the prebuilt "
                 "directory must contain platformio.ini plus the env-specific "
                 ".pioenvs/<name>/ build tree."
             )
@@ -1199,6 +1240,13 @@ def upload_program(
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
             file = getattr(args, "file", None)
             exit_code = upload_using_esptool(config, host, file, args.upload_speed)
+        elif CORE.is_libretiny and CORE.prebuilt_dir is not None:
+            # Dashboard transparent-install case: flash a prebuilt .uf2 with
+            # ltchiptool directly so the build tree isn't required. Without
+            # --prebuilt-dir, the normal PlatformIO path is still used so this
+            # is purely additive and existing libretiny serial flows are
+            # unchanged.
+            exit_code = upload_using_ltchiptool(config, host)
         elif CORE.target_platform == PLATFORM_RP2040 or CORE.is_libretiny:
             exit_code = upload_using_platformio(config, host)
         # else: Unknown target platform, exit_code remains 1

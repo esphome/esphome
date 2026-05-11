@@ -582,6 +582,47 @@ def test_run_external_process_line_callbacks() -> None:
     assert any("from subprocess" in r for r in results)
 
 
+def test_get_ltchiptool_path_on_path(tmp_path: Path) -> None:
+    """Verify ltchiptool installed via pip (system or venv) wins over the PIO
+    penv lookup; that's how a dashboard packaging strategy is most likely to
+    install it."""
+    fake_ltchiptool = tmp_path / "ltchiptool"
+    fake_ltchiptool.touch()
+
+    with patch("esphome.util.shutil.which", return_value=str(fake_ltchiptool)):
+        assert util.get_ltchiptool_path() == fake_ltchiptool
+
+
+def test_get_ltchiptool_path_pio_penv(tmp_path: Path) -> None:
+    """Fall back to PlatformIO's libretiny penv when ltchiptool isn't on
+    PATH; this is the install location platform-libretiny uses."""
+    fake_home = tmp_path / "home"
+    binary_name = "ltchiptool.exe" if sys.platform == "win32" else "ltchiptool"
+    pio_bin = fake_home / ".platformio" / "penv" / ".libretiny" / "bin"
+    pio_bin.mkdir(parents=True)
+    expected = pio_bin / binary_name
+    expected.touch()
+
+    with (
+        patch("esphome.util.shutil.which", return_value=None),
+        patch("esphome.util.Path.home", return_value=fake_home),
+    ):
+        assert util.get_ltchiptool_path() == expected
+
+
+def test_get_ltchiptool_path_not_found(tmp_path: Path) -> None:
+    """Return None when ltchiptool isn't anywhere we know how to find so
+    callers can surface an install hint instead of guessing a wrong path."""
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+
+    with (
+        patch("esphome.util.shutil.which", return_value=None),
+        patch("esphome.util.Path.home", return_value=fake_home),
+    ):
+        assert util.get_ltchiptool_path() is None
+
+
 def test_get_picotool_path_found(tmp_path: Path) -> None:
     """Test picotool path derivation from cc_path."""
     # Create the expected directory structure

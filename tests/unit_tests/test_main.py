@@ -51,6 +51,7 @@ from esphome.__main__ import (
     show_logs,
     upload_program,
     upload_using_esptool,
+    upload_using_ltchiptool,
     upload_using_picotool,
     upload_using_platformio,
 )
@@ -1371,6 +1372,122 @@ def test_upload_program_serial_platformio_platforms(
     assert host == device
     mock_check_permissions.assert_called_once_with(device)
     mock_upload_using_platformio.assert_called_once_with(config, device)
+
+
+def test_upload_program_libretiny_serial_with_prebuilt_dir_uses_ltchiptool(
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+    tmp_path: Path,
+) -> None:
+    """Verify LibreTiny serial + --prebuilt-dir bypasses upload_using_platformio
+    entirely so the dashboard doesn't have to ship a PlatformIO build tree;
+    ltchiptool can flash the prebuilt .uf2 directly. Verify the dispatch."""
+    setup_core(platform=PLATFORM_BK72XX)
+    mock_get_port_type.return_value = "SERIAL"
+
+    prebuilt = tmp_path / "prebuilt"
+    prebuilt.mkdir()
+    (prebuilt / "firmware.uf2").write_bytes(b"uf2")
+
+    args = MockArgs(prebuilt_dir=str(prebuilt))
+    devices = ["/dev/ttyUSB0"]
+
+    with (
+        patch("esphome.__main__.upload_using_ltchiptool", return_value=0) as mock_lt,
+        patch("esphome.__main__.upload_using_platformio") as mock_pio,
+    ):
+        exit_code, host = upload_program({}, args, devices)
+
+    assert exit_code == 0
+    assert host == "/dev/ttyUSB0"
+    mock_lt.assert_called_once_with({}, "/dev/ttyUSB0")
+    mock_pio.assert_not_called()
+
+
+def test_upload_program_libretiny_serial_without_prebuilt_dir_uses_platformio(
+    mock_upload_using_platformio: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+) -> None:
+    """Regression guard: without --prebuilt-dir, libretiny serial still goes
+    through upload_using_platformio. The ltchiptool path is purely additive."""
+    setup_core(platform=PLATFORM_BK72XX)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_upload_using_platformio.return_value = 0
+
+    args = MockArgs()
+    devices = ["/dev/ttyUSB0"]
+
+    with patch("esphome.__main__.upload_using_ltchiptool") as mock_lt:
+        exit_code, _ = upload_program({}, args, devices)
+
+    assert exit_code == 0
+    mock_upload_using_platformio.assert_called_once_with({}, "/dev/ttyUSB0")
+    mock_lt.assert_not_called()
+
+
+def test_upload_using_ltchiptool_success(tmp_path: Path) -> None:
+    """Verify the ltchiptool helper invokes the binary with the firmware uf2 path."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+
+    prebuilt = tmp_path / "prebuilt"
+    prebuilt.mkdir()
+    firmware_uf2 = prebuilt / "firmware.uf2"
+    firmware_uf2.write_bytes(b"uf2-data")
+    CORE.prebuilt_dir = prebuilt
+
+    fake_ltchiptool = tmp_path / "ltchiptool"
+    fake_ltchiptool.touch()
+
+    with (
+        patch("esphome.__main__.get_ltchiptool_path", return_value=fake_ltchiptool),
+        patch("esphome.__main__.run_external_process", return_value=0) as mock_run,
+    ):
+        exit_code = upload_using_ltchiptool({}, "/dev/ttyUSB0")
+
+    assert exit_code == 0
+    mock_run.assert_called_once_with(
+        str(fake_ltchiptool),
+        "flash",
+        "write",
+        "-d",
+        "/dev/ttyUSB0",
+        str(firmware_uf2),
+    )
+
+
+def test_upload_using_ltchiptool_missing_firmware(tmp_path: Path) -> None:
+    """Surface a clear error when the resolved firmware path doesn't exist,
+    rather than letting ltchiptool fail with an obscure 'no such file'."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+
+    prebuilt = tmp_path / "prebuilt"
+    prebuilt.mkdir()
+    # No firmware.uf2 written.
+    CORE.prebuilt_dir = prebuilt
+
+    with patch("esphome.__main__.get_ltchiptool_path") as mock_find:
+        exit_code = upload_using_ltchiptool({}, "/dev/ttyUSB0")
+
+    assert exit_code == 1
+    # get_ltchiptool_path is short-circuited; firmware-missing fails first.
+    mock_find.assert_not_called()
+
+
+def test_upload_using_ltchiptool_not_found(tmp_path: Path) -> None:
+    """When ltchiptool isn't installed anywhere we know how to find, surface
+    an actionable install hint instead of an ENOENT from subprocess."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+
+    prebuilt = tmp_path / "prebuilt"
+    prebuilt.mkdir()
+    (prebuilt / "firmware.uf2").write_bytes(b"uf2")
+    CORE.prebuilt_dir = prebuilt
+
+    with patch("esphome.__main__.get_ltchiptool_path", return_value=None):
+        exit_code = upload_using_ltchiptool({}, "/dev/ttyUSB0")
+
+    assert exit_code == 1
 
 
 def test_upload_using_platformio_creates_signed_bin_for_rp2040(
