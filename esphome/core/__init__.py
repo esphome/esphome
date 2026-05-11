@@ -797,7 +797,7 @@ class EsphomeCore:
 
     @property
     def bootloader_bin(self) -> Path:
-        if self.data.get(KEY_NATIVE_IDF):
+        if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", "bootloader", "bootloader.bin")
         return self.relative_pioenvs_path(self.name, "bootloader.bin")
 
