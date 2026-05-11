@@ -1,13 +1,5 @@
 """
 ESPHome configuration for the IT8951 e-paper controller.
-
-The IT8951 differs significantly from the SPI e-paper drivers handled by the
-`epaper_spi` component: it has no DC pin (commands are framed by 16-bit SPI
-preambles), reports its panel geometry over SPI, supports up to 16 grayscale
-levels via on-chip waveform LUTs, and requires a non-trivial async handshake
-during init. It lives in its own component to keep its queue-based state
-machine independent from the simpler model-driven framework used by
-`epaper_spi`.
 """
 
 from esphome import automation, core, pins

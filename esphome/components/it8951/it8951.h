@@ -141,7 +141,6 @@ class IT8951Display
   uint8_t color_to_nibble_(const Color &color) const;
 
   // --- 1bpp helpers ---
-  bool framebuffer_is_binary_();
   uint8_t get_pixel_nibble_(uint16_t x, uint16_t y);
 
   // --- Op queue / loop machinery ---
@@ -199,6 +198,7 @@ class IT8951Display
   uint16_t area_x_{0}, area_y_{0}, area_w_{0}, area_h_{0};
   uint16_t transfer_row_{0};
   bool use_1bpp_{false};
+  bool has_grayscale_{false};
   bool initialised_{false};
   uint32_t partial_update_count_{0};
   uint32_t update_started_at_{0};

@@ -51,7 +51,73 @@ static constexpr uint8_t LDIMG_B_ENDIAN = 1;
 static constexpr uint32_t SPI_PROBE_FREQUENCY = 1'000'000;
 
 // --- Refresh modes ---
-// See IT8951 datasheet for descriptions of the available waveform modes.
+/*
+ INIT The initialization (INIT) mode is
+ used to completely erase the display and leave it in the white state. It is
+ useful for situations where the display information in memory is not a faithful
+ representation of the optical state of the display, for example, after the
+ device receives power after it has been fully powered down. This waveform
+ switches the display several times and leaves it in the white state.
+
+ DU
+ The direct update (DU) is a very fast, non-flashy update. This mode supports
+ transitions from any graytone to black or white only. It cannot be used to
+ update to any graytone other than black or white. The fast update time for this
+ mode makes it useful for response to touch sensor or pen input or menu selection
+ indictors.
+
+ GC16
+ The grayscale clearing (GC16) mode is used to update the full display and
+ provide a high image quality. When GC16 is used with Full Display Update the
+ entire display will update as the new image is written. If a Partial Update
+ command is used the only pixels with changing graytone values will update. The
+ GC16 mode has 16 unique gray levels.
+
+ GL16
+ The GL16 waveform is primarily used to update sparse content on a white
+ background, such as a page of anti-aliased text, with reduced flash. The
+ GL16 waveform has 16 unique gray levels.
+
+ GLR16
+ The GLR16 mode is used in conjunction with an image preprocessing algorithm to
+ update sparse content on a white background with reduced flash and reduced image
+ artifacts. The GLR16 mode supports 16 graytones. If only the even pixel states
+ are used (0, 2, 4, … 30), the mode will behave exactly as a traditional GL16
+ waveform mode. If a separately-supplied image preprocessing algorithm is used,
+ the transitions invoked by the pixel states 29 and 31 are used to improve
+ display quality. For the AF waveform, it is assured that the GLR16 waveform data
+ will point to the same voltage lists as the GL16 data and does not need to be
+ stored in a separate memory.
+
+ GLD16
+ The GLD16 mode is used in conjunction with an image preprocessing algorithm to
+ update sparse content on a white background with reduced flash and reduced image
+ artifacts. It is recommended to be used only with the full display update. The
+ GLD16 mode supports 16 graytones. If only the even pixel states are used (0, 2,
+ 4, … 30), the mode will behave exactly as a traditional GL16 waveform mode. If a
+ separately-supplied image preprocessing algorithm is used, the transitions
+ invoked by the pixel states 29 and 31 are used to refresh the background with a
+ lighter flash compared to GC16 mode following a predetermined pixel map as
+ encoded in the waveform file, and reduce image artifacts even more compared to
+ the GLR16 mode. For the AF waveform, it is assured that the GLD16 waveform data
+ will point to the same voltage lists as the GL16 data and does not need to be
+ stored in a separate memory.
+
+ DU4
+ The DU4 is a fast update time (similar to DU), non-flashy waveform. This mode
+ supports transitions from any gray tone to gray tones 1,6,11,16 represented by
+ pixel states [0 10 20 30]. The combination of fast update time and four gray
+ tones make it useful for anti-aliased text in menus. There is a moderate
+ increase in ghosting compared with GC16.
+
+ A2
+ The A2 mode is a fast, non-flash update mode designed for fast paging turning or
+ simple black/white animation. This mode supports transitions from and to black
+ or white only. It cannot be used to update to any graytone other than black or
+ white. The recommended update sequence to transition into repeated A2 updates is
+ shown in Figure 1. The use of a white image in the transition from 4-bit to
+ 1-bit images will reduce ghosting and improve image quality for A2 updates.
+ */
 enum UpdateMode : uint16_t {
   UPDATE_MODE_INIT = 0,
   UPDATE_MODE_DU = 1,

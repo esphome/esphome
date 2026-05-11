@@ -227,6 +227,7 @@ void IT8951Display::advance_phase_() {
         this->set_phase_(Phase::IDLE);
         return;
       }
+      this->buffer_.fill(this->reversed_ ? 0x00 : 0xFF);
       if (this->configured_data_rate_ != 0 && this->configured_data_rate_ != this->data_rate_) {
         this->spi_teardown();
         this->set_data_rate(this->configured_data_rate_);
@@ -240,6 +241,7 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::UPDATE_PREPARE: {
+      this->has_grayscale_ = false;
       this->do_update_();
       UpdateMode mode = this->active_mode_;
       if (!this->prepare_update_region_(mode)) {
@@ -681,7 +683,7 @@ bool IT8951Display::prepare_update_region_(UpdateMode &mode) {
   this->area_w_ = width;
   this->area_h_ = height;
   this->transfer_row_ = 0;
-  this->use_1bpp_ = this->force_1bpp_ || this->framebuffer_is_binary_();
+  this->use_1bpp_ = this->force_1bpp_ || !this->has_grayscale_;
 
   this->reset_dirty_region_();
 
@@ -837,6 +839,8 @@ void IT8951Display::fill(Color color) {
   uint8_t packed = this->color_to_nibble_(color);
   if (!this->reversed_)
     packed = 0x0F - packed;
+  if (packed != 0x00 && packed != 0x0F)
+    this->has_grayscale_ = true;
   const uint8_t fill_byte = static_cast<uint8_t>((packed << 4) | packed);
   this->buffer_.fill(fill_byte);
   this->x_low_ = 0;
@@ -851,6 +855,8 @@ void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
   uint8_t internal_color = this->color_to_nibble_(color) & 0x0F;
   if (!this->reversed_)
     internal_color = 0x0F - internal_color;
+  if (internal_color != 0x00 && internal_color != 0x0F)
+    this->has_grayscale_ = true;
   const uint32_t index = static_cast<uint32_t>(y) * this->row_width_ + (static_cast<uint32_t>(x) >> 1);
   uint8_t buf = this->buffer_[index];
   if (x & 0x1) {
@@ -859,17 +865,6 @@ void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
     buf = (buf & 0x0F) | (internal_color << 4);
   }
   this->buffer_[index] = buf;
-}
-
-bool IT8951Display::framebuffer_is_binary_() {
-  for (size_t i = 0; i < this->buffer_length_; i++) {
-    const uint8_t byte = this->buffer_[i];
-    const uint8_t hi = byte >> 4;
-    const uint8_t lo = byte & 0x0F;
-    if ((hi != 0x00 && hi != 0x0F) || (lo != 0x00 && lo != 0x0F))
-      return false;
-  }
-  return true;
 }
 
 uint8_t IT8951Display::get_pixel_nibble_(uint16_t x, uint16_t y) {
