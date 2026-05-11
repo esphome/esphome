@@ -356,6 +356,7 @@ By default the whole area of the widget is interactive. If the `adv_hittest` [fl
 
 - `on_value` [trigger](/automations/actions#actions-trigger) is activated when the arc value changes, either by user interaction or programmatically. The new value is returned in the variable `x`.
 - `on_change` [trigger](/automations/actions#actions-trigger) is activated when the arc value is changed by user interaction. The new value is returned in the variable `x`.
+- `on_update` [trigger](/automations/actions#actions-trigger) is activated when the arc value is changed programmatically (e.g. via `lvgl.arc.update`). The new value is returned in the variable `x`.
 - [interaction](#lvgl-automation-triggers) LVGL event triggers which also return the value in `x`.
 
 **Example:**
@@ -478,6 +479,7 @@ A notable state is `checked` (boolean) which can have different styles applied.
 
 - `on_change` [trigger](/automations/actions#actions-trigger) is activated after clicking. If `checkable` is `true`, the boolean variable `x`, representing the checked state, may be used by lambdas within this trigger.
 - `on_value` [trigger](/automations/actions#actions-trigger) is activated when the checked value changes, either by user interaction or programmatically. The new value is returned in the variable `x`.
+- `on_update` [trigger](/automations/actions#actions-trigger) is activated when the checked value is changed programmatically (e.g. via `lvgl.widget.update`). The new value is returned in the variable `x`.
 - [interaction](#lvgl-automation-triggers) LVGL event triggers.
 
 **Example:**
@@ -829,6 +831,7 @@ The checkbox widget is made internally from a *tick box* and a label. When the c
 
 - `on_change` [trigger](/automations/actions#actions-trigger) is activated when interactively toggling the checkbox. The boolean variable `x`, representing the checkbox's state, may be used by lambdas within this trigger.
 - `on_value` [trigger](/automations/actions#actions-trigger) is activated when the checkbox is toggled, either by user interaction or programmatically. The new value is returned in the variable `x`.
+- `on_update` [trigger](/automations/actions#actions-trigger) is activated when the checkbox is toggled programmatically (e.g. via `lvgl.checkbox.update`). The new value is returned in the variable `x`.
 - [interaction](#lvgl-automation-triggers) LVGL event triggers which also return the value in `x`.
 
 **Example:**
@@ -926,6 +929,7 @@ The Dropdown widget is built internally from a *button* part and a *list* part (
 
 - `on_change` [trigger](/automations/actions#actions-trigger) is activated only when the user selects an item from the list. The new selected index is returned in the variable `x`. The [interaction](#lvgl-automation-triggers) LVGL event triggers also apply, and they also return the selected index in `x`.
 - `on_value` [trigger](/automations/actions#actions-trigger) is activated the selection changes, either by user interaction or programmatically. The new value is returned in the variable `x`.
+- `on_update` [trigger](/automations/actions#actions-trigger) is activated when the selection is changed programmatically (e.g. via `lvgl.dropdown.update`). The new value is returned in the variable `x`.
 - `on_cancel` [trigger](/automations/actions#actions-trigger) is also activated when you close the dropdown without selecting an item from the list. The currently selected index is returned in the variable `x`.
 - [interaction](#lvgl-automation-triggers) LVGL event triggers which also return the value in `x`.
 
@@ -1546,6 +1550,7 @@ Roller allows you to simply select one option from a list by scrolling.
 
 - `on_change` [trigger](/automations/actions#actions-trigger) is activated only when the user selects an item from the list. The new selected index is returned in the variable `x`. The [interaction](#lvgl-automation-triggers) LVGL event triggers also apply, and they also return the selected index in `x`.
 - `on_value` [trigger](/automations/actions#actions-trigger) is activated the selection changes, either by user interaction or programmatically. The new value is returned in the variable `x`.
+- `on_update` [trigger](/automations/actions#actions-trigger) is activated when the selection is changed programmatically (e.g. via `lvgl.roller.update`). The new value is returned in the variable `x`.
 - [interaction](#lvgl-automation-triggers) LVGL event triggers which also return the selected index in `x`.
 
 **Example:**
@@ -1614,6 +1619,7 @@ If your slider is narrow, you can use `ext_click_area` styling property to incre
 
 - `on_value` [trigger](/automations/actions#actions-trigger) is activated when the slider value changes, either by user interaction or programmatically. The new value is returned in the variable `x`.
 - `on_change` [trigger](/automations/actions#actions-trigger) is activated when the slider value is changed by user interaction. The new value is returned in the variable `x`.
+- `on_update` [trigger](/automations/actions#actions-trigger) is activated when the slider value is changed programmatically (e.g. via `lvgl.slider.update`). The new value is returned in the variable `x`.
 - [interaction](#lvgl-automation-triggers) LVGL event triggers which also return the value in `x`.
 
 **Example:**
@@ -1690,6 +1696,7 @@ The spinbox contains a numeric value (as text) which can be increased or decreas
 **Triggers:**
 
 - `on_value` [trigger](/automations/actions#actions-trigger) is activated when the spinbox value changes, either by user interaction or programmatically. The new value is returned in the variable `x`.
+- `on_update` [trigger](/automations/actions#actions-trigger) is activated when the spinbox value is changed programmatically (e.g. via `lvgl.spinbox.update`). The new value is returned in the variable `x`.
 - [interaction](#lvgl-automation-triggers) LVGL event triggers which also return the value in `x`.
 
 **Example:**
@@ -1796,6 +1803,7 @@ The switch looks like a little slider and can be used to turn something on and o
 
 - `on_value` [trigger](/automations/actions#actions-trigger) is activated when the switch value changes, either by user interaction or programmatically. The new value is returned in the variable `x`.
 - `on_change` [trigger](/automations/actions#actions-trigger) is activated when the switch value is changed by user interaction. The new value is returned in the variable `x`.
+- `on_update` [trigger](/automations/actions#actions-trigger) is activated when the switch value is changed programmatically (e.g. via `lvgl.widget.update`). The new value is returned in the variable `x`.
 - [interaction](#lvgl-automation-triggers) LVGL event triggers which also return the value in `x`.
 
 **Example:**
@@ -1850,8 +1858,9 @@ The tabs are indexed (zero-based) in the order they appear in the configuration 
 
 **Triggers:**
 
-- `on_value` [trigger](/automations/actions#actions-trigger) is activated when the tab value changes, either by user interaction or programmatically. The new value is returned in the variable `x`.
-- `on_change` [trigger](/automations/actions#actions-trigger) is activated when the tab value is changed by user interaction. The new value is returned in the variable `x`.
+- `on_value` [trigger](/automations/actions#actions-trigger) is activated when the tab value changes, either by user interaction or programmatically. The id of the new tab is returned in the variable `tab`.
+- `on_change` [trigger](/automations/actions#actions-trigger) is activated when the tab value is changed by user interaction. The id of the new tab is returned in the variable `tab`.
+- `on_update` [trigger](/automations/actions#actions-trigger) is activated when the tab is changed programmatically (e.g. via `lvgl.tabview.select`). The id of the new tab is returned in the variable `tab`.
 - [interaction](#lvgl-automation-triggers) LVGL event triggers.
 
 **Example:**
@@ -1922,6 +1931,7 @@ The textarea is an extended label widget which displays a cursor and allows the 
 **Triggers:**
 
 - `on_value` [trigger](/automations/actions#actions-trigger) is activated on every keystroke.
+- `on_update` [trigger](/automations/actions#actions-trigger) is activated when the text is changed programmatically (e.g. via `lvgl.textarea.update`).
 - `on_ready` [trigger](/automations/actions#actions-trigger) is activated when `one_line` is configured as `true` and the newline character is received (Enter/Ready key on the keyboard).
 - [interaction](#lvgl-automation-triggers) LVGL event triggers.
 
@@ -1986,6 +1996,7 @@ If the tileview is screen sized, the user interface resembles what you may have 
 **Triggers:**
 
 - `on_value` [trigger](/automations/actions#actions-trigger) is activated when displayed tile changes. The new value is returned in the variable `tile` as the ID of the now-visible tile.
+- `on_update` [trigger](/automations/actions#actions-trigger) is activated when the tile is changed programmatically (e.g. via `lvgl.tileview.select`). The new value is returned in the variable `tile`.
 - [interaction](#lvgl-automation-triggers) LVGL event triggers.
 
 **Example:**
@@ -2229,6 +2240,7 @@ These triggers can be attached to any widget, but they will only be activated if
 ### Special events
 
 - `on_change`: The widget's value has changed (i.e. slider moved).
+- `on_update`: The widget's value has been changed programmatically (e.g. via an `lvgl.*.update` action). Only available for widgets that have a value.
 - `on_insert`: Text has been inserted into the widget.
 - `on_refresh`: Notify the widget to refresh something.
 - `on_ready`: A process has finished.
