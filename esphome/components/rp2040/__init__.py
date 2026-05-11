@@ -48,7 +48,21 @@ def board_has_wifi() -> bool:
     Returns True for unknown/custom boards to avoid rejecting valid
     configurations for boards not in the generated list.
     """
-    board_info = boards.BOARDS.get(get_board())
+    return board_id_has_wifi(get_board())
+
+
+def board_id_has_wifi(board_id: str) -> bool:
+    """Return True if *board_id* has WiFi (CYW43 wireless chip).
+
+    Returns True for unknown/custom boards to avoid rejecting valid
+    configurations for boards not in the generated list.
+
+    Used by device-builder (esphome/device-builder) — separate
+    explicit-arg helper so callers outside the compile pipeline
+    don't need ``CORE`` set up to query the board map. Please keep
+    the signature stable.
+    """
+    board_info = boards.BOARDS.get(board_id)
     if board_info is None:
         return True
     return board_info.get("wifi", False)
