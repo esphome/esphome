@@ -397,11 +397,11 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
 def _upload_using_platformio(
     config: ConfigType, port: str, upload_args: list[str]
 ) -> int | str:
-    from esphome import platformio_api
+    from esphome.platformio import toolchain
 
     if port is not None:
         upload_args += ["--upload-port", port]
-    return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+    return toolchain.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
 
 def upload_program(config: ConfigType, args, host: str) -> bool:

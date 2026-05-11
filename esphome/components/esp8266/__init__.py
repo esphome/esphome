@@ -120,7 +120,7 @@ def get_download_types(storage_json):
 def _format_framework_arduino_version(ver: cv.Version) -> str:
     # format the given arduino (https://github.com/esp8266/Arduino/releases) version to
     # a PIO platformio/framework-arduinoespressif8266 value
-    # List of package versions: https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif8266
+    # List of package versions: https://toolchain.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif8266
     if ver <= cv.Version(2, 4, 1):
         return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
     if ver <= cv.Version(2, 6, 2):
@@ -137,11 +137,11 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 
 # The default/recommended arduino framework version
 #  - https://github.com/esp8266/Arduino/releases
-#  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif8266
+#  - https://toolchain.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif8266
 RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 1, 2)
 # The platformio/espressif8266 version to use for arduino 2 framework versions
 #  - https://github.com/platformio/platform-espressif8266/releases
-#  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif8266
+#  - https://toolchain.registry.platformio.org/v3/packages/platformio/platform/espressif8266
 ARDUINO_2_PLATFORM_VERSION = cv.Version(2, 6, 3)
 # for arduino 3 framework versions
 ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 2, 0)
@@ -463,9 +463,9 @@ ESP8266_EXCEPTION_CODES = {
 
 
 def _decode_pc(config, addr):
-    from esphome import platformio_api
+    from esphome.platformio import toolchain
 
-    idedata = platformio_api.get_idedata(config)
+    idedata = toolchain.get_idedata(config)
     if not idedata.addr2line_path or not idedata.firmware_elf_path:
         _LOGGER.debug("decode_pc no addr2line")
         return

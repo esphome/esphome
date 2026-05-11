@@ -15,7 +15,7 @@ from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 
 _LOGGER = logging.getLogger(__name__)
 
-DOMAIN = "espidf_api"
+DOMAIN = "espidf_toolchain"
 
 
 @dataclass
