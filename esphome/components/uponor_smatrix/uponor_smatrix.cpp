@@ -5,8 +5,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace uponor_smatrix {
+namespace esphome::uponor_smatrix {
 
 static const char *const TAG = "uponor_smatrix";
 
@@ -221,5 +220,4 @@ bool UponorSmatrixComponent::do_send_time_() {
 }
 #endif
 
-}  // namespace uponor_smatrix
-}  // namespace esphome
+}  // namespace esphome::uponor_smatrix

@@ -17,6 +17,7 @@ from esphome.helpers import ProgressBar, resolve_ip_address
 
 OTA_TYPE_UPDATE_APP = 0x00
 OTA_TYPE_UPDATE_PARTITION_TABLE = 0x01
+OTA_TYPE_UPDATE_BOOTLOADER = 0x02
 
 RESPONSE_OK = 0x00
 RESPONSE_REQUEST_AUTH = 0x01
@@ -49,6 +50,8 @@ RESPONSE_ERROR_SIGNATURE_INVALID = 0x8D
 RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE = 0x8E
 RESPONSE_ERROR_PARTITION_TABLE_VERIFY = 0x8F
 RESPONSE_ERROR_PARTITION_TABLE_UPDATE = 0x90
+RESPONSE_ERROR_BOOTLOADER_VERIFY = 0x91
+RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -66,7 +69,7 @@ SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
 # updates extend this set. Anything outside the set is rejected up front so callers
 # of perform_ota/run_ota get a clear error instead of a post-auth 0x8E from the device.
 _SUPPORTED_OTA_TYPES: frozenset[int] = frozenset(
-    {OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE}
+    {OTA_TYPE_UPDATE_APP, OTA_TYPE_UPDATE_PARTITION_TABLE, OTA_TYPE_UPDATE_BOOTLOADER}
 )
 
 UPLOAD_BLOCK_SIZE = 8192
@@ -141,6 +144,16 @@ _ERROR_MESSAGES: dict[int, str] = {
         "An error occurred while updating the partition table. The device is now "
         "in a degraded state and may not be able to boot. Open the logs and retry "
         "the partition table update without rebooting the device. If the device "
+        "fails to boot, recover it via a serial flash."
+    ),
+    RESPONSE_ERROR_BOOTLOADER_VERIFY: (
+        "The bootloader update could not be verified. No changes were "
+        "made to the bootloader. Check the logs for more information and retry."
+    ),
+    RESPONSE_ERROR_BOOTLOADER_UPDATE: (
+        "An error occurred while updating the bootloader. The device is now "
+        "in a degraded state and may not be able to boot. Open the logs and retry "
+        "the bootloader update without rebooting the device. If the device "
         "fails to boot, recover it via a serial flash."
     ),
     RESPONSE_ERROR_UNKNOWN: "Unknown error from ESP",
@@ -325,15 +338,24 @@ def perform_ota(
         # Any non-app OTA type requires the extended protocol and the
         # partition-access server feature. Reject up front so the user gets
         # a clear capability error instead of a post-auth 0x8E from the device.
+        flag_name = {
+            OTA_TYPE_UPDATE_PARTITION_TABLE: "--partition-table",
+            OTA_TYPE_UPDATE_BOOTLOADER: "--bootloader",
+        }.get(ota_type, f"OTA type 0x{ota_type:02X}")
         if not extended_proto:
             raise OTAError(
-                f"Device does not support extended OTA protocol; "
-                f"OTA type 0x{ota_type:02X} requires it"
+                f"Device does not support the extended OTA protocol that "
+                f"{flag_name} requires. The running firmware is too old; "
+                f"recompile and upload a current ESPHome firmware via a "
+                f"regular OTA (without {flag_name}), then retry."
             )
         if not (features & SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS):
             raise OTAError(
-                f"Device does not support partition access; "
-                f"OTA type 0x{ota_type:02X} cannot be used"
+                f"The running firmware was built without "
+                f"'allow_partition_access: true', so {flag_name} cannot be "
+                f"used. Add the option to the esphome OTA platform in your "
+                f"YAML, recompile and upload (without {flag_name}), then "
+                f"retry {flag_name}."
             )
 
     if features & SERVER_FEATURE_SUPPORTS_COMPRESSION:

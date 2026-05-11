@@ -30,6 +30,7 @@ from esphome.core import CORE, HexInt
 
 _LOGGER = logging.getLogger(__name__)
 
+AUTO_LOAD = ["ring_buffer"]
 CODEOWNERS = ["@kahrendt", "@jesserockz"]
 DEPENDENCIES = ["microphone"]
 

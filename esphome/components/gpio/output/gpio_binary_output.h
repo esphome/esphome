@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/output/binary_output.h"
 
-namespace esphome {
-namespace gpio {
+namespace esphome::gpio {
 
 class GPIOBinaryOutput : public output::BinaryOutput, public Component {
  public:
@@ -25,5 +24,4 @@ class GPIOBinaryOutput : public output::BinaryOutput, public Component {
   GPIOPin *pin_;
 };
 
-}  // namespace gpio
-}  // namespace esphome
+}  // namespace esphome::gpio

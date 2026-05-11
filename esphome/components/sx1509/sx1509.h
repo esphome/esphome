@@ -10,8 +10,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace sx1509 {
+namespace esphome::sx1509 {
 
 // These are used for clock config:
 const uint8_t INTERNAL_CLOCK_2MHZ = 2;
@@ -97,5 +96,4 @@ class SX1509Component : public Component,
   void clock_(uint8_t osc_source = 2, uint8_t osc_pin_function = 1, uint8_t osc_freq_out = 0, uint8_t osc_divider = 0);
 };
 
-}  // namespace sx1509
-}  // namespace esphome
+}  // namespace esphome::sx1509

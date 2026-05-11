@@ -5,8 +5,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct DooyaData {
   uint32_t id;
@@ -45,5 +44,4 @@ template<typename... Ts> class DooyaAction : public RemoteTransmitterActionBase<
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

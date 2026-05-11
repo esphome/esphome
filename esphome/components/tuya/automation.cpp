@@ -4,8 +4,7 @@
 
 static const char *const TAG = "tuya.automation";
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 void check_expected_datapoint(const TuyaDatapoint &dp, TuyaDatapointType expected) {
   if (dp.type != expected) {
@@ -63,5 +62,4 @@ TuyaBitmaskDatapointUpdateTrigger::TuyaBitmaskDatapointUpdateTrigger(Tuya *paren
   });
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya
