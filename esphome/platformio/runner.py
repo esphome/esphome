@@ -1,6 +1,6 @@
 """Subprocess entry point that applies ESPHome's PlatformIO patches.
 
-Invoked via ``python -m esphome.platformio_runner`` instead of
+Invoked via ``python -m esphome.platformio.runner`` instead of
 ``python -m platformio`` so that the patches (incremental rebuild
 preservation, download retries) apply inside the subprocess. Running
 PlatformIO in a subprocess keeps its ``sys.path`` mutations and other

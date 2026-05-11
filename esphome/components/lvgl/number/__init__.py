@@ -7,7 +7,6 @@ from esphome.cpp_generator import MockObj
 from ..defines import CONF_ANIMATED, CONF_UPDATE_ON_RELEASE, CONF_WIDGET
 from ..lv_validation import animated
 from ..lvcode import (
-    API_EVENT,
     EVENT_ARG,
     UPDATE_EVENT,
     LambdaContext,
@@ -40,7 +39,7 @@ async def to_code(config):
         await widget.set_property(
             "value", MockObj("v") * MockObj(widget.get_scale()), config[CONF_ANIMATED]
         )
-        lv_obj.send_event(widget.obj, API_EVENT, cg.nullptr)
+        lv_obj.send_event(widget.obj, UPDATE_EVENT, cg.nullptr)
     event_code = (
         LV_EVENT.VALUE_CHANGED
         if not config[CONF_UPDATE_ON_RELEASE]

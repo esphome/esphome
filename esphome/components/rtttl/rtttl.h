@@ -72,7 +72,7 @@ class Rtttl : public Component {
   void set_state_(State state);
 
   /// The RTTTL string to play.
-  std::string rtttl_{""};
+  std::string rtttl_;
   /// The current position in the RTTTL string.
   size_t position_{0};
   /// The default duration of a note (e.g. 4 for a quarter note).

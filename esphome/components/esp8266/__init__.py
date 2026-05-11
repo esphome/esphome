@@ -463,9 +463,9 @@ ESP8266_EXCEPTION_CODES = {
 
 
 def _decode_pc(config, addr):
-    from esphome import platformio_api
+    from esphome.platformio import toolchain
 
-    idedata = platformio_api.get_idedata(config)
+    idedata = toolchain.get_idedata(config)
     if not idedata.addr2line_path or not idedata.firmware_elf_path:
         _LOGGER.debug("decode_pc no addr2line")
         return
