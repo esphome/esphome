@@ -1006,25 +1006,9 @@ def upload_using_ltchiptool(config: ConfigType, port: str) -> int:
 def upload_using_platformio(config: ConfigType, port: str) -> int:
     from esphome import platformio_api
 
-    # --prebuilt-dir for RP2040 serial routes PlatformIO at the prebuilt tree
-    # by repointing CORE.build_path. The dashboard must ship a build tree
-    # shape (platformio.ini plus .pioenvs/<name>/...) under --prebuilt-dir
-    # because `pio run -t upload -t nobuild` reads platformio.ini and the
-    # env-specific .pioenvs/<name> directory. Upload is terminal so mutating
-    # build_path here has no downstream effect.
-    # (LibreTiny serial avoids this path entirely when --prebuilt-dir is set
-    # by going through upload_using_ltchiptool; RP2040 BOOTSEL goes through
-    # upload_using_picotool.)
-    if CORE.prebuilt_dir is not None:
-        platformio_ini = CORE.prebuilt_dir / "platformio.ini"
-        if not platformio_ini.is_file():
-            raise EsphomeError(
-                f"--prebuilt-dir {CORE.prebuilt_dir} is missing platformio.ini. "
-                "RP2040 serial uploads re-invoke PlatformIO, so the prebuilt "
-                "directory must contain platformio.ini plus the env-specific "
-                ".pioenvs/<name>/ build tree."
-            )
-        CORE.build_path = CORE.prebuilt_dir
+    # `upload_program` routes around this helper when --prebuilt-dir is set
+    # (libretiny→ltchiptool, RP2040→1200bps-touch+picotool), so PlatformIO
+    # is only invoked when a local build tree is available.
 
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
     # the upload target, but 'nobuild' skips the build phase that creates it.
@@ -1126,6 +1110,57 @@ def upload_using_picotool(config: ConfigType) -> int:
         return 1
 
     return 0
+
+
+def _rp2040_serial_reset_to_bootsel(port: str, timeout: float = 10.0) -> bool:
+    """Reboot an arduino-pico RP2040 from running firmware into BOOTSEL mode.
+
+    arduino-pico's USB CDC handler treats a 1200bps "touch" (open the port at
+    1200 baud, then close it) as a request to reboot into the rp2040
+    bootloader, exposing the device as a picotool-loadable BOOTSEL endpoint.
+    This is the same mechanism the arduino-pico PlatformIO recipe uses for
+    serial uploads, lifted out so --prebuilt-dir uploads don't need to
+    re-invoke PlatformIO.
+
+    Returns True once a BOOTSEL device shows up on the USB bus.
+    """
+    import serial
+
+    _LOGGER.info("Rebooting %s into BOOTSEL via 1200bps touch...", port)
+    try:
+        ser = serial.Serial()
+        ser.baudrate = 1200
+        ser.port = port
+        ser.open()
+        # Small wait so the firmware sees the open before we close it; on a
+        # fast host the open+close can otherwise happen inside a single USB
+        # frame and the touch is missed.
+        time.sleep(0.1)
+        ser.close()
+    except (OSError, serial.SerialException) as err:
+        _LOGGER.error("Failed to open %s at 1200 baud for BOOTSEL reset: %s", port, err)
+        return False
+
+    picotool = _find_picotool()
+    if picotool is None:
+        _LOGGER.error(
+            "picotool not found; cannot detect BOOTSEL after 1200bps touch. "
+            "Ensure the RP2040 PlatformIO platform is installed (%s).",
+            PICOTOOL_PACKAGE,
+        )
+        return False
+
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
+        if detect_rp2040_bootsel(picotool).device_count > 0:
+            return True
+        time.sleep(0.2)
+    _LOGGER.error(
+        "RP2040 did not enter BOOTSEL within %.0fs after 1200bps touch on %s.",
+        timeout,
+        port,
+    )
+    return False
 
 
 def _wait_for_serial_port(
@@ -1247,6 +1282,14 @@ def upload_program(
             # is purely additive and existing libretiny serial flows are
             # unchanged.
             exit_code = upload_using_ltchiptool(config, host)
+        elif CORE.target_platform == PLATFORM_RP2040 and CORE.prebuilt_dir is not None:
+            # RP2040 serial + --prebuilt-dir: 1200bps-touch reboot into BOOTSEL,
+            # then flash with picotool. Avoids the PlatformIO build-tree
+            # requirement that upload_using_platformio imposes, mirroring the
+            # libretiny→ltchiptool path. Without --prebuilt-dir the original
+            # PlatformIO path is preserved for back-compat.
+            if _rp2040_serial_reset_to_bootsel(host):
+                exit_code = upload_using_picotool(config)
         elif CORE.target_platform == PLATFORM_RP2040 or CORE.is_libretiny:
             exit_code = upload_using_platformio(config, host)
         # else: Unknown target platform, exit_code remains 1

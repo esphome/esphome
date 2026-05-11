@@ -1641,6 +1641,135 @@ def test_upload_program_serial_upload_failed(
     mock_upload_using_esptool.assert_called_once()
 
 
+def test_upload_program_rp2040_serial_with_prebuilt_dir_uses_picotool(
+    mock_upload_using_picotool: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+    tmp_path: Path,
+) -> None:
+    """RP2040 serial + --prebuilt-dir reboots into BOOTSEL via 1200bps
+    touch and flashes with picotool, avoiding upload_using_platformio's
+    build-tree requirement."""
+    setup_core(platform=PLATFORM_RP2040)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_upload_using_picotool.return_value = 0
+
+    prebuilt = tmp_path / "prebuilt"
+    prebuilt.mkdir()
+    (prebuilt / "firmware.uf2").write_bytes(b"uf2")
+
+    args = MockArgs(prebuilt_dir=str(prebuilt))
+    devices = ["/dev/ttyACM0"]
+
+    with (
+        patch(
+            "esphome.__main__._rp2040_serial_reset_to_bootsel",
+            return_value=True,
+        ) as mock_reset,
+        patch("esphome.__main__.upload_using_platformio") as mock_pio,
+    ):
+        exit_code, host = upload_program({}, args, devices)
+
+    assert exit_code == 0
+    assert host == "/dev/ttyACM0"
+    mock_reset.assert_called_once_with("/dev/ttyACM0")
+    mock_upload_using_picotool.assert_called_once_with({})
+    mock_pio.assert_not_called()
+
+
+def test_upload_program_rp2040_serial_with_prebuilt_dir_reset_fails(
+    mock_upload_using_picotool: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+    tmp_path: Path,
+) -> None:
+    """If 1200bps touch fails to put the RP2040 into BOOTSEL, the upload
+    must abort (not fall through to a generic exit_code = 1 with no
+    diagnostic)."""
+    setup_core(platform=PLATFORM_RP2040)
+    mock_get_port_type.return_value = "SERIAL"
+
+    prebuilt = tmp_path / "prebuilt"
+    prebuilt.mkdir()
+    args = MockArgs(prebuilt_dir=str(prebuilt))
+
+    with patch("esphome.__main__._rp2040_serial_reset_to_bootsel", return_value=False):
+        exit_code, host = upload_program({}, args, ["/dev/ttyACM0"])
+
+    assert exit_code == 1
+    assert host is None
+    mock_upload_using_picotool.assert_not_called()
+
+
+def test_upload_program_rp2040_serial_without_prebuilt_dir_uses_platformio(
+    mock_upload_using_platformio: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+) -> None:
+    """Regression guard: without --prebuilt-dir, RP2040 serial still goes
+    through upload_using_platformio. The 1200bps-touch path is purely
+    additive."""
+    setup_core(platform=PLATFORM_RP2040)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_upload_using_platformio.return_value = 0
+
+    with patch("esphome.__main__._rp2040_serial_reset_to_bootsel") as mock_reset:
+        exit_code, _ = upload_program({}, MockArgs(), ["/dev/ttyACM0"])
+
+    assert exit_code == 0
+    mock_upload_using_platformio.assert_called_once_with({}, "/dev/ttyACM0")
+    mock_reset.assert_not_called()
+
+
+def test_rp2040_serial_reset_to_bootsel_success(tmp_path: Path) -> None:
+    """The 1200bps-touch helper opens then closes the port at 1200 baud
+    (arduino-pico's USB CDC interprets that as a request to enter BOOTSEL),
+    then polls picotool until a BOOTSEL device shows up."""
+    from esphome.__main__ import _rp2040_serial_reset_to_bootsel
+    from esphome.util import BootselResult
+
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    mock_serial_instance = MagicMock()
+
+    with (
+        patch("serial.Serial", return_value=mock_serial_instance),
+        patch("esphome.__main__._find_picotool", return_value=tmp_path / "picotool"),
+        patch(
+            "esphome.__main__.detect_rp2040_bootsel",
+            return_value=BootselResult(device_count=1),
+        ),
+    ):
+        assert _rp2040_serial_reset_to_bootsel("/dev/ttyACM0") is True
+
+    # The open/close at 1200 baud is what triggers the reset; verify both happened.
+    assert mock_serial_instance.baudrate == 1200
+    assert mock_serial_instance.port == "/dev/ttyACM0"
+    mock_serial_instance.open.assert_called_once()
+    mock_serial_instance.close.assert_called_once()
+
+
+def test_rp2040_serial_reset_to_bootsel_no_bootsel(tmp_path: Path) -> None:
+    """When BOOTSEL never appears (e.g. firmware doesn't implement the
+    1200bps touch handler) return False with a clear timeout log instead
+    of hanging."""
+    from esphome.__main__ import _rp2040_serial_reset_to_bootsel
+    from esphome.util import BootselResult
+
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    with (
+        patch("serial.Serial", return_value=MagicMock()),
+        patch("esphome.__main__._find_picotool", return_value=tmp_path / "picotool"),
+        patch(
+            "esphome.__main__.detect_rp2040_bootsel",
+            return_value=BootselResult(device_count=0),
+        ),
+    ):
+        # Short timeout so the test doesn't sit on the wall clock.
+        assert _rp2040_serial_reset_to_bootsel("/dev/ttyACM0", timeout=0.1) is False
+
+
 def test_upload_program_bootsel(
     mock_upload_using_picotool: Mock,
     mock_get_port_type: Mock,
