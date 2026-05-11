@@ -101,13 +101,43 @@ def _run_idedata(config):
         raise
 
 
+def _resolve_prebuilt_idedata_paths(data: dict, prebuilt_dir: Path) -> None:
+    """Resolve relative paths in a prebuilt idedata.json against prebuilt_dir.
+
+    The dashboard's transparent-install pipeline rewrites ``prog_path`` and
+    ``extra.flash_images[*].path`` to bare basenames before shipping the
+    tarball (the receiver's build-host absolute paths don't resolve on the
+    offloader). Accept both shapes: absolute paths pass through unchanged
+    so a hand-built --prebuilt-dir with absolute paths still works, and
+    bare basenames or other relative paths resolve to ``prebuilt_dir / p``.
+
+    Mutates ``data`` in place. ``cc_path`` is left alone because it points
+    at a PlatformIO toolchain binary (~/.platformio/packages/...) that
+    lives outside the prebuilt dir; the offloader's local PIO install
+    provides the matching binary by virtue of running on the same machine
+    as ``esphome upload``.
+    """
+    prog = data.get("prog_path")
+    if prog is not None and not Path(prog).is_absolute():
+        data["prog_path"] = str(prebuilt_dir / prog)
+
+    extra = data.get("extra")
+    if isinstance(extra, dict):
+        for image in extra.get("flash_images", []) or []:
+            path = image.get("path") if isinstance(image, dict) else None
+            if path is not None and not Path(path).is_absolute():
+                image["path"] = str(prebuilt_dir / path)
+
+
 def _load_idedata(config):
     # `esphome upload --prebuilt-dir` ships a pre-rendered idedata.json next
-    # to the artifacts. When present we use it verbatim: ``firmware_bin_path``
-    # (i.e. ``prog_path`` with the ``.bin`` suffix), ``firmware_elf_path``,
-    # ``cc_path`` and ``extra.flash_images[*].path`` are expected to be
-    # absolute paths that resolve under ``CORE.prebuilt_dir``. The dashboard
-    # is responsible for rewriting those paths when it stages the directory.
+    # to the artifacts. When present we use it as-is, with one rewrite pass:
+    # ``prog_path`` and ``extra.flash_images[*].path`` may be either absolute
+    # paths (hand-built directories) or bare basenames (the dashboard's wire
+    # format) -- relative paths are resolved against ``CORE.prebuilt_dir`` so
+    # both shapes work without the dashboard having to write a fresh
+    # idedata.json with absolute paths on every install.
+    #
     # No schema validation or referenced-path existence check happens here;
     # a malformed prebuilt idedata.json will surface as a downstream
     # "file not found" from esptool / picotool. That's an acceptable trade
@@ -115,7 +145,9 @@ def _load_idedata(config):
     if CORE.prebuilt_dir is not None:
         prebuilt_idedata = CORE.prebuilt_dir / "idedata.json"
         if prebuilt_idedata.is_file():
-            return json.loads(prebuilt_idedata.read_text(encoding="utf-8"))
+            data = json.loads(prebuilt_idedata.read_text(encoding="utf-8"))
+            _resolve_prebuilt_idedata_paths(data, CORE.prebuilt_dir)
+            return data
 
     platformio_ini = CORE.relative_build_path("platformio.ini")
     temp_idedata = CORE.relative_internal_path("idedata", f"{CORE.name}.json")

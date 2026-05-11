@@ -263,6 +263,79 @@ def test_load_idedata_uses_prebuilt_dir_when_set(
     mock_run_platformio_cli_run.assert_not_called()
 
 
+def test_load_idedata_resolves_basenames_against_prebuilt_dir(
+    setup_core: Path, mock_run_platformio_cli_run: Mock
+) -> None:
+    """The dashboard's wire format ships idedata.json with bare basenames in
+    prog_path and extra.flash_images[*].path (the receiver's build-host
+    absolute paths don't resolve on the offloader). Verify upstream resolves
+    those basenames against CORE.prebuilt_dir so the offloader doesn't have
+    to write a fresh idedata.json on every install. Tracks the request in
+    esphome/device-builder#570."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
+
+    prebuilt_dir = setup_core / "prebuilt"
+    prebuilt_dir.mkdir()
+    prebuilt_idedata = prebuilt_dir / "idedata.json"
+    prebuilt_idedata.write_text(
+        json.dumps(
+            {
+                "prog_path": "firmware.elf",
+                "extra": {
+                    "flash_images": [
+                        {"path": "bootloader.bin", "offset": "0x1000"},
+                        {"path": "partitions.bin", "offset": "0x8000"},
+                    ]
+                },
+            }
+        )
+    )
+    CORE.prebuilt_dir = prebuilt_dir
+
+    result = platformio_api._load_idedata({"name": "test"})
+
+    assert result["prog_path"] == str(prebuilt_dir / "firmware.elf")
+    images = result["extra"]["flash_images"]
+    assert images[0]["path"] == str(prebuilt_dir / "bootloader.bin")
+    assert images[1]["path"] == str(prebuilt_dir / "partitions.bin")
+    mock_run_platformio_cli_run.assert_not_called()
+
+
+def test_load_idedata_absolute_paths_in_prebuilt_pass_through(
+    setup_core: Path, mock_run_platformio_cli_run: Mock
+) -> None:
+    """A hand-built --prebuilt-dir with absolute paths in idedata.json still
+    works: absolute paths pass through unchanged so we don't break the
+    documented-but-rarer shape just to support the dashboard's wire format.
+    """
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
+
+    prebuilt_dir = setup_core / "prebuilt"
+    prebuilt_dir.mkdir()
+    abs_bootloader = "/somewhere/else/bootloader.bin"
+    prebuilt_idedata = prebuilt_dir / "idedata.json"
+    prebuilt_idedata.write_text(
+        json.dumps(
+            {
+                "prog_path": str(prebuilt_dir / "firmware.elf"),
+                "extra": {
+                    "flash_images": [
+                        {"path": abs_bootloader, "offset": "0x1000"},
+                    ]
+                },
+            }
+        )
+    )
+    CORE.prebuilt_dir = prebuilt_dir
+
+    result = platformio_api._load_idedata({"name": "test"})
+
+    assert result["prog_path"] == str(prebuilt_dir / "firmware.elf")
+    assert result["extra"]["flash_images"][0]["path"] == abs_bootloader
+
+
 def test_load_idedata_falls_back_when_prebuilt_idedata_missing(
     setup_core: Path, mock_run_platformio_cli_run: Mock
 ) -> None:
