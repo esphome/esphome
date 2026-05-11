@@ -7,9 +7,9 @@ on:
     types: [completed]
 
 permissions:
-  contents: read
-  pull-requests: write
-  actions: read
+  contents: read        # actions/checkout of the base repo at the PR's target branch
+  pull-requests: write  # gh api to look up the PR by head SHA and post/update the memory-impact comment
+  actions: read         # gh run download for the memory-analysis artifacts produced by the CI workflow run
 
 jobs:
   memory-impact-comment:

@@ -190,7 +190,7 @@ def main() -> int:
 
     script_path = sys.argv[1]
 
-    # Mirror the platformio_runner behaviour: verbose mode disables the
+    # Mirror the platformio runner behaviour: verbose mode disables the
     # line filter so all output reaches the user.
     is_verbose = any(arg in ("-v", "--verbose") for arg in sys.argv[2:])
     filter_lines = None if is_verbose else FILTER_IDF_LINES or None
