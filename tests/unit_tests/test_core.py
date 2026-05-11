@@ -929,6 +929,7 @@ class TestEsphomeCore:
         path."""
         target.name = "test-device"
         target.toolchain = const.Toolchain.PLATFORMIO
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
         target.prebuilt_dir = tmp_path
         (tmp_path / "firmware.bin").write_bytes(b"fw")
 
@@ -939,10 +940,39 @@ class TestEsphomeCore:
         firmware.bin is absent so the dashboard only needs to ship one file."""
         target.name = "test-device"
         target.toolchain = const.Toolchain.PLATFORMIO
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "bk72xx"}
         target.prebuilt_dir = tmp_path
         (tmp_path / "firmware.uf2").write_bytes(b"uf2")
 
         assert target.firmware_bin == tmp_path / "firmware.uf2"
+
+    def test_firmware_bin__prebuilt_prefers_uf2_on_rp2040(self, target, tmp_path):
+        """Critical for RP2040: when both firmware.bin and firmware.uf2 are
+        staged, return the .uf2. picotool's load command needs the UF2
+        header (address + family); a raw .bin would flash to the wrong
+        offset (or refuse to flash). The dashboard's wire format ships only
+        the canonical name, but a hand-staged dir might carry both."""
+        target.name = "test-device"
+        target.toolchain = const.Toolchain.PLATFORMIO
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: const.PLATFORM_RP2040}
+        target.prebuilt_dir = tmp_path
+        (tmp_path / "firmware.bin").write_bytes(b"raw")
+        (tmp_path / "firmware.uf2").write_bytes(b"uf2-wrapped")
+
+        assert target.firmware_bin == tmp_path / "firmware.uf2"
+
+    def test_firmware_bin__prebuilt_prefers_bin_on_esp32(self, target, tmp_path):
+        """Mirror of the above for ESP32: the canonical artifact is .bin
+        (esptool flashes raw images at fixed offsets); if both are shipped
+        the .uf2 is the irrelevant one."""
+        target.name = "test-device"
+        target.toolchain = const.Toolchain.PLATFORMIO
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
+        target.prebuilt_dir = tmp_path
+        (tmp_path / "firmware.bin").write_bytes(b"raw")
+        (tmp_path / "firmware.uf2").write_bytes(b"uf2-wrapped")
+
+        assert target.firmware_bin == tmp_path / "firmware.bin"
 
     def test_partition_table_bin__prebuilt_override(self, target, tmp_path):
         target.name = "test-device"

@@ -959,8 +959,10 @@ def upload_using_ltchiptool(_config: ConfigType, port: str) -> int:
     if not firmware.is_file():
         _LOGGER.error(
             "LibreTiny firmware file not found at %s. "
-            "Make sure the project has been compiled first or that "
-            "--prebuilt-dir points at a directory containing firmware.uf2.",
+            "Make sure the project has been compiled first, or that "
+            "--prebuilt-dir points at a directory containing firmware.uf2 "
+            "(or firmware.bin -- libretiny emits the same UF2 content under "
+            "both names).",
             firmware,
         )
         return 1
@@ -1110,6 +1112,19 @@ def _rp2040_serial_reset_to_bootsel(port: str, timeout: float = 10.0) -> bool:
     """
     import serial
 
+    # Look picotool up *before* triggering the reset. If it's missing, the
+    # touch would leave the device stranded in BOOTSEL with nothing able to
+    # flash it; bail out early so the user can recover (the device is still
+    # running the old firmware and re-enumerates as the same serial port).
+    picotool = _find_picotool()
+    if picotool is None:
+        _LOGGER.error(
+            "picotool not found; cannot flash RP2040 after BOOTSEL reset. "
+            "Ensure the RP2040 PlatformIO platform is installed (%s).",
+            PICOTOOL_PACKAGE,
+        )
+        return False
+
     _LOGGER.info("Rebooting %s into BOOTSEL via 1200bps touch...", port)
     try:
         ser = serial.Serial()
@@ -1123,15 +1138,6 @@ def _rp2040_serial_reset_to_bootsel(port: str, timeout: float = 10.0) -> bool:
         ser.close()
     except (OSError, serial.SerialException) as err:
         _LOGGER.error("Failed to open %s at 1200 baud for BOOTSEL reset: %s", port, err)
-        return False
-
-    picotool = _find_picotool()
-    if picotool is None:
-        _LOGGER.error(
-            "picotool not found; cannot detect BOOTSEL after 1200bps touch. "
-            "Ensure the RP2040 PlatformIO platform is installed (%s).",
-            PICOTOOL_PACKAGE,
-        )
         return False
 
     start = time.monotonic()
@@ -1247,10 +1253,7 @@ def _ensure_platform_packages_for_prebuilt_upload(config: ConfigType) -> int:
 
     from esphome.platformio import toolchain
 
-    result = toolchain.prepare_platform_for_upload(config, CORE.verbose)
-    # prepare_platform_for_upload returns str on capture_stdout=True or int
-    # on success/failure; in our call we don't capture stdout, so it's int.
-    return result if isinstance(result, int) else 0
+    return toolchain.prepare_platform_for_upload(config, CORE.verbose)
 
 
 def upload_program(

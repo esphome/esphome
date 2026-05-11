@@ -340,6 +340,37 @@ def test_load_idedata_absolute_paths_in_prebuilt_pass_through(
     assert result["extra"]["flash_images"][0]["path"] == abs_bootloader
 
 
+def test_resolve_prebuilt_idedata_paths_missing_prog_path(tmp_path: Path) -> None:
+    """Defensive: a prebuilt idedata.json without prog_path (e.g. when the
+    dashboard only ships extra.flash_images) must not raise -- the resolver
+    skips fields that aren't present so partial-idedata shapes don't crash
+    upload dispatch."""
+    data = {"extra": {"flash_images": []}, "cc_path": "/some/cc"}
+    toolchain._resolve_prebuilt_idedata_paths(data, tmp_path)
+    assert "prog_path" not in data
+    assert data["cc_path"] == "/some/cc"  # left alone
+
+
+def test_resolve_prebuilt_idedata_paths_no_extra_section(tmp_path: Path) -> None:
+    """Defensive: idedata.json without an `extra` section at all (some
+    platforms don't ship flash_images) must not crash."""
+    data = {"prog_path": "firmware.elf"}
+    toolchain._resolve_prebuilt_idedata_paths(data, tmp_path)
+    assert data["prog_path"] == str(tmp_path / "firmware.elf")
+
+
+def test_resolve_prebuilt_idedata_paths_empty_flash_images(tmp_path: Path) -> None:
+    """Defensive: empty extra.flash_images (libretiny / ESP8266 / nRF52 ship
+    this; whole image is one file at offset 0x0). Resolver must not raise."""
+    data = {
+        "prog_path": "firmware.elf",
+        "extra": {"flash_images": []},
+    }
+    toolchain._resolve_prebuilt_idedata_paths(data, tmp_path)
+    assert data["prog_path"] == str(tmp_path / "firmware.elf")
+    assert data["extra"]["flash_images"] == []
+
+
 def test_load_idedata_prebuilt_malformed_json_raises_esphomeerror(
     setup_core: Path, mock_run_platformio_cli_run: Mock
 ) -> None:

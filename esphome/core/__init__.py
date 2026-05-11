@@ -799,11 +799,16 @@ class EsphomeCore:
 
     @property
     def firmware_bin(self) -> Path:
-        # Prebuilt override: prefer firmware.bin then firmware.uf2 so the
-        # dashboard can ship a single canonical name per platform.
-        if (
-            prebuilt := self.prebuilt_artifact_path("firmware.bin", "firmware.uf2")
-        ) is not None:
+        # Prebuilt override priority is platform-aware: on RP2040 and libretiny
+        # the canonical flash artifact is the UF2 (raw firmware.bin won't have
+        # the address/family header picotool / ltchiptool need); on ESP* it's
+        # firmware.bin. When the dashboard ships only the canonical name, the
+        # other entry is a harmless no-op.
+        if self.is_rp2040 or self.is_libretiny:
+            prebuilt_names = ("firmware.uf2", "firmware.bin")
+        else:
+            prebuilt_names = ("firmware.bin", "firmware.uf2")
+        if (prebuilt := self.prebuilt_artifact_path(*prebuilt_names)) is not None:
             return prebuilt
         # Check if using ESP-IDF toolchain
         if self.using_toolchain_esp_idf:

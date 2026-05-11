@@ -84,26 +84,34 @@ def run_compile(config, verbose):
     return run_platformio_cli_run(config, verbose, *args)
 
 
-def prepare_platform_for_upload(config, verbose) -> str | int:
+def prepare_platform_for_upload(config, verbose) -> int:
     """Configure the PlatformIO build environment for ``CORE.name`` without
     compiling, so platform-specific flashing tools end up on disk.
 
     Used by ``esphome upload --prebuilt-dir`` on hosts that have never
-    compiled the target platform locally. ``pio pkg install`` alone isn't
-    enough on libretiny: the platform package downloads cleanly, but
-    ``ltchiptool`` lives in a platform-managed virtualenv at
-    ``~/.platformio/penv/.libretiny/`` that's only created by libretiny's
-    ``ConfigurePythonVenv`` SCons step, which runs during ``pio run`` (not
-    ``pio pkg install``). So we run ``pio run -t idedata`` instead: it
-    triggers SConscript -- creating the penv on libretiny, installing the
-    picotool tool package on RP2040 -- but skips the actual compile target
-    so this is much cheaper than a full build.
+    compiled the target platform locally. Runs ``pio run -t idedata``: the
+    target fires SConscript (which on libretiny triggers
+    ``ConfigurePythonVenv`` and pip-installs ``ltchiptool`` into the
+    platform's virtualenv, and on RP2040 installs the picotool tool
+    package) but skips the actual compile, so this is much cheaper than a
+    full build.
 
     The idedata JSON gets emitted to stdout as a side effect of the
-    target; we don't filter it out -- the install runs once per cold host
-    and the trailing JSON blob is harmless noise.
+    target; we don't filter it out because the install runs once per cold
+    host and the trailing JSON blob is harmless noise.
+
+    Returns the subprocess exit code; non-zero means the platform install
+    failed and the upload caller should abort.
     """
-    return run_platformio_cli_run(config, verbose, "-t", "idedata")
+    # ``capture_stdout`` is intentionally False so run_platformio_cli_run
+    # returns the int exit code (str only when capture_stdout=True).
+    result = run_platformio_cli_run(config, verbose, "-t", "idedata")
+    # Belt-and-suspenders: assert we got an int rather than silently
+    # treating a captured stdout string as success.
+    assert isinstance(result, int), (
+        f"prepare_platform_for_upload expected int, got {type(result).__name__}"
+    )
+    return result
 
 
 def _run_idedata(config):
@@ -130,14 +138,19 @@ def _resolve_prebuilt_idedata_paths(data: dict, prebuilt_dir: Path) -> None:
     ``extra.flash_images[*].path`` to bare basenames before shipping the
     tarball (the receiver's build-host absolute paths don't resolve on the
     offloader). Accept both shapes: absolute paths pass through unchanged
-    so a hand-built --prebuilt-dir with absolute paths still works, and
-    bare basenames or other relative paths resolve to ``prebuilt_dir / p``.
+    so a hand-built ``--prebuilt-dir`` still works, and basenames / other
+    relative paths resolve to ``prebuilt_dir / p``. Mutates ``data`` in
+    place.
 
-    Mutates ``data`` in place. ``cc_path`` is left alone because it points
-    at a PlatformIO toolchain binary (~/.platformio/packages/...) that
-    lives outside the prebuilt dir; the offloader's local PIO install
-    provides the matching binary by virtue of running on the same machine
-    as ``esphome upload``.
+    ``cc_path`` is left alone because it points at a PlatformIO toolchain
+    binary (``~/.platformio/packages/...``) that lives outside the prebuilt
+    dir; the offloader's local PIO install provides the matching binary.
+
+    Absoluteness follows ``pathlib.Path.is_absolute`` semantics: on Windows
+    a leading slash without a drive letter (e.g. ``/foo/bar``) is rooted
+    but **not** absolute, and will be resolved against ``prebuilt_dir``.
+    Hand-staged directories should use OS-appropriate absolute paths if
+    they want passthrough.
     """
     prog = data.get("prog_path")
     if prog is not None and not Path(prog).is_absolute():
@@ -152,19 +165,12 @@ def _resolve_prebuilt_idedata_paths(data: dict, prebuilt_dir: Path) -> None:
 
 
 def _load_idedata(config):
-    # `esphome upload --prebuilt-dir` ships a pre-rendered idedata.json next
-    # to the artifacts. When present we use it as-is, with one rewrite pass:
-    # ``prog_path`` and ``extra.flash_images[*].path`` may be either absolute
-    # paths (hand-built directories) or bare basenames (the dashboard's wire
-    # format) -- relative paths are resolved against ``CORE.prebuilt_dir`` so
-    # both shapes work without the dashboard having to write a fresh
-    # idedata.json with absolute paths on every install.
-    #
-    # No schema validation or referenced-path existence check happens here;
-    # a missing path inside the idedata will surface later as a "file not
-    # found" from esptool / picotool. A malformed JSON file is caught here
-    # and surfaced as EsphomeError so the failure mode is a one-line
-    # diagnostic instead of an unhandled JSONDecodeError stack trace.
+    # --prebuilt-dir override: read the shipped idedata.json, resolve any
+    # relative paths inside it against the prebuilt dir, return it directly.
+    # Malformed JSON -> EsphomeError (clean one-line diagnostic, not a raw
+    # JSONDecodeError trace). No schema or path-existence validation; any
+    # missing artifact surfaces later as a "file not found" from the
+    # downstream flasher.
     if CORE.prebuilt_dir is not None:
         prebuilt_idedata = CORE.prebuilt_dir / "idedata.json"
         if prebuilt_idedata.is_file():
