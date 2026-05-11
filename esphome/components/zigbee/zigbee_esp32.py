@@ -34,7 +34,6 @@ from esphome.types import ConfigType
 from .const import (
     ANALOG_INPUT_APPTYPE,
     BACNET_UNIT_NO_UNITS,
-    BACNET_UNIIT,
     CONF_POWER_SOURCE,
     CONF_REPORT,
     CONF_ROUTER,
