@@ -510,7 +510,7 @@ def process_stacktrace(config, line: str, backtrace_state: bool) -> bool:
 
     if backtrace_state:
         if match := _CRASH_ADDR_RE.search(line):
-            from esphome.platformio_api import get_idedata
+            from esphome.platformio.toolchain import get_idedata
 
             idedata = get_idedata(config)
             if idedata.addr2line_path:

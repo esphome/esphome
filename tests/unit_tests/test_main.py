@@ -18,7 +18,6 @@ import pytest
 from pytest import CaptureFixture
 from zeroconf import ServiceStateChange
 
-from esphome import platformio_api
 from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
@@ -96,6 +95,7 @@ from esphome.espota2 import (
     OTA_TYPE_UPDATE_BOOTLOADER,
     OTA_TYPE_UPDATE_PARTITION_TABLE,
 )
+from esphome.platformio import toolchain
 from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
@@ -287,7 +287,7 @@ def mock_run_external_process() -> Generator[Mock]:
 
 @pytest.fixture
 def mock_run_external_command_main() -> Generator[Mock]:
-    """Mock run_external_command in __main__ module (different from platformio_api)."""
+    """Mock run_external_command in __main__ module (different from platformio toolchain)."""
     with patch("esphome.__main__.run_external_command") as mock:
         mock.return_value = 0  # Default to success
         yield mock
@@ -1199,7 +1199,7 @@ def test_upload_using_esptool_path_conversion(
     CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
 
     # Create mock IDEData with Path objects
-    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata = MagicMock(spec=toolchain.IDEData)
     mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
     mock_idedata.extra_flash_images = [
         FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
@@ -1277,7 +1277,7 @@ def test_upload_using_esptool_skips_missing_extra_flash_images(
 
     missing_path = tmp_path / "variants" / "tasmota" / "tinyuf2.bin"
 
-    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata = MagicMock(spec=toolchain.IDEData)
     mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
     mock_idedata.extra_flash_images = [
         FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
@@ -1389,8 +1389,8 @@ def test_upload_using_platformio_creates_signed_bin_for_rp2040(
     mock_idedata.firmware_elf_path = str(firmware_elf)
 
     with (
-        patch("esphome.platformio_api.get_idedata", return_value=mock_idedata),
-        patch("esphome.platformio_api.run_platformio_cli_run", return_value=0),
+        patch("esphome.platformio.toolchain.get_idedata", return_value=mock_idedata),
+        patch("esphome.platformio.toolchain.run_platformio_cli_run", return_value=0),
     ):
         result = upload_using_platformio({}, "/dev/ttyACM0")
 
@@ -1406,7 +1406,7 @@ def test_upload_using_platformio_skips_signed_bin_for_non_rp2040(
     """Test that upload_using_platformio doesn't create signed bin for non-RP2040."""
     setup_core(platform=PLATFORM_ESP32)
 
-    with patch("esphome.platformio_api.run_platformio_cli_run", return_value=0):
+    with patch("esphome.platformio.toolchain.run_platformio_cli_run", return_value=0):
         result = upload_using_platformio({}, "/dev/ttyUSB0")
 
     assert result == 0
@@ -1504,7 +1504,7 @@ def test_upload_using_picotool_success(tmp_path: Path) -> None:
 
     config = {}
     with (
-        patch("esphome.platformio_api.get_idedata", return_value=mock_idedata),
+        patch("esphome.platformio.toolchain.get_idedata", return_value=mock_idedata),
         patch("subprocess.run", return_value=mock_result),
     ):
         exit_code = upload_using_picotool(config)
@@ -1524,7 +1524,7 @@ def test_upload_using_picotool_no_elf(tmp_path: Path) -> None:
     mock_idedata.cc_path = "/fake/path/gcc"
 
     config = {}
-    with patch("esphome.platformio_api.get_idedata", return_value=mock_idedata):
+    with patch("esphome.platformio.toolchain.get_idedata", return_value=mock_idedata):
         exit_code = upload_using_picotool(config)
 
     assert exit_code == 1
@@ -1544,7 +1544,7 @@ def test_upload_using_picotool_not_found(tmp_path: Path) -> None:
     mock_idedata.cc_path = "/fake/path/gcc"
 
     config = {}
-    with patch("esphome.platformio_api.get_idedata", return_value=mock_idedata):
+    with patch("esphome.platformio.toolchain.get_idedata", return_value=mock_idedata):
         exit_code = upload_using_picotool(config)
 
     assert exit_code == 1
@@ -1578,7 +1578,7 @@ def test_upload_using_picotool_permission_error(tmp_path: Path) -> None:
 
     config = {}
     with (
-        patch("esphome.platformio_api.get_idedata", return_value=mock_idedata),
+        patch("esphome.platformio.toolchain.get_idedata", return_value=mock_idedata),
         patch("subprocess.run", return_value=mock_result),
     ):
         exit_code = upload_using_picotool(config)
@@ -4696,7 +4696,7 @@ def test_command_analyze_memory_success(
     firmware_elf.write_text("mock elf file")
 
     # Mock idedata
-    mock_idedata_obj = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata_obj = MagicMock(spec=toolchain.IDEData)
     mock_idedata_obj.firmware_elf_path = str(firmware_elf)
     mock_idedata_obj.objdump_path = "/path/to/objdump"
     mock_idedata_obj.readelf_path = "/path/to/readelf"
@@ -4768,7 +4768,7 @@ def test_command_analyze_memory_with_external_components(
     firmware_elf.write_text("mock elf file")
 
     # Mock idedata
-    mock_idedata_obj = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata_obj = MagicMock(spec=toolchain.IDEData)
     mock_idedata_obj.firmware_elf_path = str(firmware_elf)
     mock_idedata_obj.objdump_path = "/path/to/objdump"
     mock_idedata_obj.readelf_path = "/path/to/readelf"
@@ -4859,16 +4859,18 @@ def test_command_analyze_memory_no_idedata(
 
 @pytest.fixture
 def mock_compile_build_info_run_compile() -> Generator[Mock]:
-    """Mock platformio_api.run_compile for build_info tests."""
-    with patch("esphome.platformio_api.run_compile", return_value=0) as mock:
+    """Mock toolchain.run_compile for build_info tests."""
+    with patch("esphome.platformio.toolchain.run_compile", return_value=0) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_compile_build_info_get_idedata() -> Generator[Mock]:
-    """Mock platformio_api.get_idedata for build_info tests."""
+    """Mock toolchain.get_idedata for build_info tests."""
     mock_idedata = MagicMock()
-    with patch("esphome.platformio_api.get_idedata", return_value=mock_idedata) as mock:
+    with patch(
+        "esphome.platformio.toolchain.get_idedata", return_value=mock_idedata
+    ) as mock:
         yield mock
 
 
@@ -5778,7 +5780,7 @@ def test_upload_using_esptool_passes_crystal_callback(
     sdkconfig = build_dir / "sdkconfig.test"
     sdkconfig.write_text("CONFIG_XTAL_FREQ=40\n")
 
-    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata = MagicMock(spec=toolchain.IDEData)
     mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
     mock_idedata.extra_flash_images = []
     mock_get_idedata.return_value = mock_idedata
@@ -5808,7 +5810,7 @@ def test_upload_using_esptool_subprocess_passes_crystal_callback(
     sdkconfig = build_dir / "sdkconfig.test"
     sdkconfig.write_text("CONFIG_XTAL_FREQ=40\n")
 
-    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata = MagicMock(spec=toolchain.IDEData)
     mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
     mock_idedata.extra_flash_images = []
     mock_get_idedata.return_value = mock_idedata

@@ -4,19 +4,29 @@ on:
   pull_request_target:
     types: [opened, synchronize]
 
-permissions:
-  issues: write        # issues.createComment / updateComment to post the external-component usage instructions on the PR
-  pull-requests: read  # pulls.listFiles to enumerate which components changed
+# All API calls (pulls.listFiles + issues.{list,create,update}Comment) are performed with
+# the App token minted below, so the workflow's GITHUB_TOKEN does not need any scopes.
+permissions: {}
 
 jobs:
   external-comment:
     name: External component comment
     runs-on: ubuntu-latest
     steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+          # pulls.listFiles + issues.{list,create,update}Comment on PRs. For PR resources
+          # the issues.*Comment APIs require the pull-requests scope, not issues.
+          permission-pull-requests: write
+
       - name: Add external component comment
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.generate-token.outputs.token }}
           script: |
             // Generate external component usage instructions
             function generateExternalComponentInstructions(prNumber, componentNames, owner, repo) {
