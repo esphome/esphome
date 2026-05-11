@@ -118,7 +118,7 @@ void OnlineImage::update() {
   size_t total_size = this->downloader_->content_length;
   ESP_LOGV(TAG, "Content-Length: %zu", total_size);
 
-  if (this->get_format() == runtime_image::AUTO) {
+  if (format == runtime_image::AUTO) {
     // Try to auto-detect format from Content-Type header
     auto content_type = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
     ESP_LOGV(TAG, "Content-Type: %s", content_type.c_str());
@@ -139,7 +139,7 @@ void OnlineImage::update() {
 
   // Initialize decoder with the known format
   if (!this->begin_decode(total_size, format)) {
-    ESP_LOGE(TAG, "Failed to initialize decoder for format %d", this->get_format());
+    ESP_LOGE(TAG, "Failed to initialize decoder for format %d", format);
     this->end_connection_();
     this->download_error_callback_.call();
     return;
