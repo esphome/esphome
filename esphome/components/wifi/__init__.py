@@ -67,9 +67,66 @@ _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["network"]
 
-_LOGGER = logging.getLogger(__name__)
-
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
+
+
+def variant_has_wifi(variant: str) -> bool:
+    """Return True if *variant* has a native WiFi PHY.
+
+    Variants without a native PHY (ESP32-H2, ESP32-P4) need the
+    ``esp32_hosted`` co-processor to use ``wifi:``.
+
+    Used by device-builder (esphome/device-builder) to decide whether
+    its basic-setup wizard emits a ``wifi:`` block — please keep the
+    signature stable.
+    """
+    return variant not in NO_WIFI_VARIANTS
+
+
+_WIFI_FIRST_PLATFORMS: frozenset[str] = frozenset(
+    {
+        Platform.ESP8266,
+        Platform.BK72XX,
+        Platform.RTL87XX,
+        Platform.LN882X,
+        # Legacy umbrella key for the LibreTiny families (bk72xx /
+        # rtl87xx / ln882x); still produced by older configs that
+        # haven't migrated to the per-family keys.
+        Platform.LIBRETINY_OLDSTYLE,
+    }
+)
+
+
+def has_native_wifi(
+    *, platform: str, board: str | None = None, variant: str | None = None
+) -> bool:
+    """Return True when the given platform/board/variant has native WiFi.
+
+    Single dispatch entry point for tooling that needs to decide
+    whether emitting a ``wifi:`` block produces a compilable
+    config. Caller passes whichever platform-relevant fields they
+    have (``variant`` for ESP32, ``board`` for RP2040), and this
+    function routes to the right per-platform check internally.
+
+    Allowlist-based: unknown / Wi-Fi-less platforms (``host``,
+    ``nrf52``) return False so a future platform added to ESPHome
+    fails closed in external tooling rather than silently emitting
+    a ``wifi:`` block the new platform's component would reject.
+
+    Used by device-builder (esphome/device-builder)'s basic-setup
+    wizard. Centralised here so callers don't have to special-case
+    each platform — as ESPHome adds new platforms, this dispatcher
+    is the one place to teach them about Wi-Fi capability.
+    """
+    if platform == Platform.ESP32:
+        return variant_has_wifi(variant) if variant else True
+    if platform == Platform.RP2040:
+        from esphome.components.rp2040 import board_id_has_wifi
+
+        return board_id_has_wifi(board) if board else True
+    return platform in _WIFI_FIRST_PLATFORMS
+
+
 CONF_SAVE = "save"
 CONF_BAND_MODE = "band_mode"
 CONF_MIN_AUTH_MODE = "min_auth_mode"

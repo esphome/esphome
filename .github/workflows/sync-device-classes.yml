@@ -6,12 +6,27 @@ on:
   schedule:
     - cron: "45 6 * * *"
 
+# Repo writes (branch push, PR open) happen via the App token minted below,
+# so the workflow's GITHUB_TOKEN does not need any write scopes.
+permissions:
+  contents: read  # actions/checkout for this repo and home-assistant/core
+
 jobs:
   sync:
     name: Sync Device Classes
     runs-on: ubuntu-latest
     if: github.repository == 'esphome/esphome'
     steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+          # Scope the minted App token to the minimum needed by peter-evans/create-pull-request.
+          permission-contents: write       # git.createCommit + refs.create/update to push the sync/device-classes branch
+          permission-pull-requests: write  # pulls.create / pulls.update to open or refresh the sync PR
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -50,4 +65,4 @@ jobs:
           delete-branch: true
           title: "Synchronise Device Classes from Home Assistant"
           body-path: .github/PULL_REQUEST_TEMPLATE.md
-          token: ${{ secrets.DEVICE_CLASS_SYNC_TOKEN }}
+          token: ${{ steps.generate-token.outputs.token }}

@@ -150,7 +150,7 @@ class Tuya : public Component, public uart::UARTDevice {
   int reset_pin_reported_ = -1;
   uint32_t last_command_timestamp_ = 0;
   uint32_t last_rx_char_timestamp_ = 0;
-  std::string product_ = "";
+  std::string product_;
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
   std::vector<uint8_t> rx_message_;
