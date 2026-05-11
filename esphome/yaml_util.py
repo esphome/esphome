@@ -589,7 +589,7 @@ def load_yaml(fname: Path, clear_secrets: bool = True) -> Any:
     if clear_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
-    return _load_yaml_internal(fname)
+    return _resolve_include(_load_yaml_internal(fname))
 
 
 def _load_yaml_internal(fname: Path) -> Any:
@@ -598,9 +598,12 @@ def _load_yaml_internal(fname: Path) -> Any:
         listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
-            res = parse_yaml(fname, f_handle)
+            return parse_yaml(fname, f_handle)
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
+
+
+def _resolve_include(res) -> Any:
     # Top-level !include returns a deferred IncludeFile; resolve it so
     # callers always receive the final content.
     if isinstance(res, IncludeFile):
@@ -613,17 +616,17 @@ def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) ->
     if yaml_loader is None:
         yaml_loader = _load_yaml_internal
     try:
-        return _load_yaml_internal_with_type(
+        return _resolve_include(_load_yaml_internal_with_type(
             ESPHomeLoader, file_name, file_handle, yaml_loader
-        )
+        ))
     except EsphomeError:
         # Loading failed, so we now load with the Python loader which has more
         # readable exceptions
         # Rewind the stream so we can try again
         file_handle.seek(0, 0)
-        return _load_yaml_internal_with_type(
+        return _resolve_include(_load_yaml_internal_with_type(
             ESPHomePurePythonLoader, file_name, file_handle, yaml_loader
-        )
+        ))
 
 
 def _load_yaml_internal_with_type(
