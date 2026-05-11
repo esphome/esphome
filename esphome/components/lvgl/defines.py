@@ -8,7 +8,7 @@ import logging
 from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
-from esphome.const import CONF_ITEMS, CONF_ON_RELEASE
+from esphome.const import CONF_ITEMS
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import (
     CallExpression,
@@ -402,8 +402,9 @@ LV_PRESS_EVENTS = ("PRESS", "PRESSING", "RELEASE")
 VALUE_ON_CHANGE = "on_change"
 VALUE_ON_UPDATE = "on_update"
 VALUE_ON_VALUE = "on_value"
+VALUE_ON_RELEASE = "on_release"
 
-LV_VALUE_EVENTS = (VALUE_ON_CHANGE, VALUE_ON_UPDATE, VALUE_ON_VALUE, CONF_ON_RELEASE)
+LV_VALUE_EVENTS = (VALUE_ON_CHANGE, VALUE_ON_UPDATE, VALUE_ON_VALUE, VALUE_ON_RELEASE)
 
 
 def is_press_event(event: str) -> bool:

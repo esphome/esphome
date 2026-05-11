@@ -41,7 +41,7 @@ async def to_code(config):
     trigger = config[CONF_TRIGGER]
     if CONF_UPDATE_ON_RELEASE in config:
         LOGGER.warning(
-            "Option 'update_on_release' is deprecated - use 'trigger: on_release' instead"
+            "Option 'update_on_release' is deprecated and will be removed in 2026.11.0 - use 'trigger: on_release' instead"
         )
         if config[CONF_UPDATE_ON_RELEASE]:
             trigger = CONF_ON_RELEASE
