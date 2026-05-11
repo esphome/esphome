@@ -18,8 +18,7 @@
 #include "haier_base.h"
 #include "hon_packet.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 enum class CleaningState : uint8_t {
   NO_CLEANING = 0,
@@ -201,5 +200,4 @@ class HonClimate : public HaierClimateBase {
   SwitchState quiet_mode_state_{SwitchState::OFF};
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

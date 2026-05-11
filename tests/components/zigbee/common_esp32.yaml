@@ -1,10 +1,10 @@
+packages:
+  - !include common.yaml
+
 binary_sensor:
   - platform: template
     name: "Garage Door Open 10"
     report: "enable"
-  - platform: template
-    name: "Garage Door Open 11"
-    report: "coordinator"
   - platform: template
     name: "Garage Door Open 12"
     report: "force"

@@ -1,8 +1,7 @@
 #include "zhlt01.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace zhlt01 {
+namespace esphome::zhlt01 {
 
 static const char *const TAG = "zhlt01.climate";
 
@@ -234,5 +233,4 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace zhlt01
-}  // namespace esphome
+}  // namespace esphome::zhlt01

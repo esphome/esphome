@@ -5,7 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
+namespace esphome::ring_buffer {
 
 static const char *const TAG = "ring_buffer";
 
@@ -135,6 +135,6 @@ bool RingBuffer::discard_bytes_(size_t discard_bytes) {
   return (bytes_read == discard_bytes);
 }
 
-}  // namespace esphome
+}  // namespace esphome::ring_buffer
 
-#endif
+#endif  // USE_ESP32

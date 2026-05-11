@@ -31,8 +31,9 @@ from .defines import (
     CONF_TIME_FORMAT,
     LV_GRAD_DIR,
     get_remapped_uses,
+    is_press_event,
 )
-from .helpers import CONF_IF_NAN, requires_component, validate_printf
+from .helpers import CONF_IF_NAN, validate_printf
 from .layout import (
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
@@ -46,6 +47,7 @@ from .types import (
     LvType,
     lv_group_t,
     lv_obj_t,
+    lv_point_t,
     lv_pseudo_button_t,
     lv_style_t,
 )
@@ -110,7 +112,7 @@ PRESS_TIME = cv.All(
 ENCODER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.All(
-            cv.declare_id(LVEncoderListener), requires_component("binary_sensor")
+            cv.declare_id(LVEncoderListener), cv.requires_component("binary_sensor")
         ),
         cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
         cv.Optional(df.CONF_INITIAL_FOCUS): cv.All(
@@ -370,13 +372,20 @@ def automation_schema(typ: LvType):
     if typ.has_on_value:
         events = events + (CONF_ON_VALUE,)
     args = typ.get_arg_type()
-    args.append(lv_event_t_ptr)
+
+    def get_trigger_args(event):
+        result = args.copy()
+        if is_press_event(event):
+            result.append(lv_point_t)
+        result.append(lv_event_t_ptr)
+        return result
+
     return {
         **{
             cv.Optional(event): validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        Trigger.template(*args)
+                        Trigger.template(*get_trigger_args(event))
                     ),
                 }
             )
@@ -397,7 +406,7 @@ def _update_widget(widget_type: WidgetType) -> Callable[[dict], dict]:
     """
 
     def validator(value: dict) -> dict:
-        df.get_data(df.KEY_UPDATED_WIDGETS).setdefault(widget_type, []).append(value)
+        df.get_updated_widgets().setdefault(widget_type, []).append(value)
         return value
 
     return validator
@@ -564,7 +573,7 @@ def any_widget_schema(extras=None):
             container_validator = container_schema(widget_type, extras=extras)
             if required := widget_type.required_component:
                 container_validator = cv.All(
-                    container_validator, requires_component(required)
+                    container_validator, cv.requires_component(required)
                 )
             # Apply custom validation
             path = [key] if is_dict else [index, key]

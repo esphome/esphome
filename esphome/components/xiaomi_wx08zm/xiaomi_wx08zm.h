@@ -8,8 +8,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_wx08zm {
+namespace esphome::xiaomi_wx08zm {
 
 class XiaomiWX08ZM : public Component,
                      public binary_sensor::BinarySensorInitiallyOff,
@@ -29,7 +28,6 @@ class XiaomiWX08ZM : public Component,
   sensor::Sensor *battery_level_{nullptr};
 };
 
-}  // namespace xiaomi_wx08zm
-}  // namespace esphome
+}  // namespace esphome::xiaomi_wx08zm
 
 #endif

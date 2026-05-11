@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace ina226 {
+namespace esphome::ina226 {
 
 static const char *const TAG = "ina226";
 
@@ -161,5 +160,4 @@ int32_t INA226Component::twos_complement_(int32_t val, uint8_t bits) {
   return val;
 }
 
-}  // namespace ina226
-}  // namespace esphome
+}  // namespace esphome::ina226

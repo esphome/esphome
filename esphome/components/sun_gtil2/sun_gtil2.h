@@ -13,8 +13,7 @@
 #endif
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace sun_gtil2 {
+namespace esphome::sun_gtil2 {
 
 class SunGTIL2 : public Component, public uart::UARTDevice {
  public:
@@ -58,5 +57,4 @@ class SunGTIL2 : public Component, public uart::UARTDevice {
   std::vector<uint8_t> rx_message_;
 };
 
-}  // namespace sun_gtil2
-}  // namespace esphome
+}  // namespace esphome::sun_gtil2

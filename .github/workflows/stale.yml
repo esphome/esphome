@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  issues: write
-  pull-requests: write
+  issues: write         # actions/stale labels, comments on, and closes stale issues
+  pull-requests: write  # actions/stale labels, comments on, and closes stale pull requests
 
 concurrency:
   group: lock

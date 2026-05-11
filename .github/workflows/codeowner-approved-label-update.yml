@@ -15,9 +15,9 @@ on:
       - beta
 
 permissions:
-  issues: write
-  pull-requests: read
-  contents: read
+  issues: write       # issues.addLabels / removeLabel to manage the 'code-owner-approved' label on the PR
+  pull-requests: read  # listReviews to determine whether a codeowner has approved
+  contents: read       # actions/checkout to read CODEOWNERS and the shared codeowners.js helper
 
 jobs:
   codeowner-approved:
