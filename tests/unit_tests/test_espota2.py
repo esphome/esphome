@@ -147,7 +147,7 @@ def test_receive_exactly_socket_error(mock_socket: Mock) -> None:
     """Test receive_exactly handles socket errors."""
     mock_socket.recv.side_effect = OSError("Connection reset")
 
-    with pytest.raises(espota2.OTAError, match="receiving acknowledge test"):
+    with pytest.raises(espota2.OTAError, match="receiving test response"):
         espota2.receive_exactly(mock_socket, 1, "test", espota2.RESPONSE_OK)
 
 
@@ -526,7 +526,7 @@ def test_perform_ota_upload_error(mock_socket: Mock, mock_file: io.BytesIO) -> N
 
     mock_socket.recv.side_effect = recv_responses
 
-    with pytest.raises(espota2.OTAError, match="receiving acknowledge chunk"):
+    with pytest.raises(espota2.OTAError, match="receiving chunk result response"):
         espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
 
 
