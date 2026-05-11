@@ -29,7 +29,7 @@ class FendtSwitch : public CaravanComponentBase<bool>, public switch_::Switch {
     }
     this->parent_->on_state_change_command(this->key_name_, command);
   }
-  void on_decoded(bool value) override { this->publish_state(value); }
+  void on_decoded(const bool &value) override { this->publish_state(value); }
 
  private:
 };
