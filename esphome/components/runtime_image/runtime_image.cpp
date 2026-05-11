@@ -317,7 +317,7 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) 
       return make_unique<PngDecoder>(this);
 #endif
     default:
-      ESP_LOGE(TAG, "Unsupported image format: %d", this->format_);
+      ESP_LOGE(TAG, "Unsupported image format: %d", format);
       return nullptr;
   }
 }
