@@ -104,9 +104,14 @@ def _run_idedata(config):
 def _load_idedata(config):
     # `esphome upload --prebuilt-dir` ships a pre-rendered idedata.json next
     # to the artifacts. When present we use it verbatim: ``firmware_bin_path``
-    # and ``extra.flash_images[*].path`` already point at absolute paths under
-    # the prebuilt directory, so the esptool / picotool helpers find the right
-    # bytes without re-running PlatformIO or consulting the local build tree.
+    # (i.e. ``prog_path`` with the ``.bin`` suffix), ``firmware_elf_path``,
+    # ``cc_path`` and ``extra.flash_images[*].path`` are expected to be
+    # absolute paths that resolve under ``CORE.prebuilt_dir``. The dashboard
+    # is responsible for rewriting those paths when it stages the directory.
+    # No schema validation or referenced-path existence check happens here;
+    # a malformed prebuilt idedata.json will surface as a downstream
+    # "file not found" from esptool / picotool. That's an acceptable trade
+    # for keeping this path zero-cost when the dashboard's contract is met.
     if CORE.prebuilt_dir is not None:
         prebuilt_idedata = CORE.prebuilt_dir / "idedata.json"
         if prebuilt_idedata.is_file():

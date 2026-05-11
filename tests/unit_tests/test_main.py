@@ -1343,6 +1343,41 @@ def test_upload_using_esptool_with_file_path(
     assert firmware_path.endswith("custom_firmware.bin")
 
 
+def test_upload_using_esptool_idf_prebuilt_factory_bin(
+    tmp_path: Path,
+    mock_run_external_command_main: Mock,
+) -> None:
+    """ESP-IDF builds flash a single ``firmware.factory.bin`` (bootloader +
+    partitions + app bundled) at offset 0x0. With --prebuilt-dir set the
+    esptool helper must pick up ``<prebuilt-dir>/firmware.factory.bin``
+    instead of ``CORE.relative_build_path("build", "firmware.factory.bin")``
+    so the dashboard can flash an ESP-IDF device without a local build."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    prebuilt = tmp_path / "prebuilt"
+    prebuilt.mkdir()
+    factory_bin = prebuilt / "firmware.factory.bin"
+    factory_bin.write_bytes(b"\x00" * 1024)
+    CORE.prebuilt_dir = prebuilt
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+
+    result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    assert result == 0
+    cmd_list = list(mock_run_external_command_main.call_args[0][1:])
+
+    # ESP-IDF prebuilt: single image at offset 0x0 pointing at the prebuilt
+    # factory file, not the local build tree's <build>/firmware.factory.bin.
+    write_flash_idx = cmd_list.index("write-flash")
+    offset_idx = write_flash_idx + 4
+    assert cmd_list[offset_idx] == "0x0"
+    path_arg = cmd_list[offset_idx + 1]
+    assert path_arg == str(factory_bin)
+
+
 @pytest.mark.parametrize(
     "platform,device",
     [

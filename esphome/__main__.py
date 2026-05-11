@@ -966,7 +966,7 @@ def upload_using_esptool(
     return run_esptool(115200)
 
 
-def upload_using_ltchiptool(config: ConfigType, port: str) -> int:
+def upload_using_ltchiptool(_config: ConfigType, port: str) -> int:
     """Upload a libretiny ``.uf2`` directly via ``ltchiptool flash write``.
 
     Bypasses PlatformIO so the dashboard's transparent install can flash a
@@ -978,6 +978,10 @@ def upload_using_ltchiptool(config: ConfigType, port: str) -> int:
 
     Chip family is auto-detected from the UF2 header so we don't need to
     plumb through ``CORE.data[KEY_LIBRETINY][KEY_FAMILY]``.
+
+    The ``_config`` parameter is unused but kept for signature parity with
+    ``upload_using_platformio`` / ``upload_using_picotool`` so the dispatch
+    in ``upload_program`` can stay symmetric.
     """
     firmware = CORE.firmware_bin
     if not firmware.is_file():
@@ -1060,6 +1064,14 @@ def upload_using_picotool(config: ConfigType) -> int:
         firmware_file = elf_path
     elif CORE.prebuilt_dir is not None and CORE.firmware_bin.is_file():
         firmware_file = CORE.firmware_bin
+    elif CORE.prebuilt_dir is not None:
+        _LOGGER.error(
+            "No firmware found for picotool: neither %s (from idedata) nor "
+            "%s (prebuilt) exists.",
+            elf_path,
+            CORE.firmware_bin,
+        )
+        return 1
     else:
         _LOGGER.error(
             "Firmware ELF file not found at %s. "
@@ -1290,6 +1302,12 @@ def upload_program(
             # PlatformIO path is preserved for back-compat.
             if _rp2040_serial_reset_to_bootsel(host):
                 exit_code = upload_using_picotool(config)
+            else:
+                # Touch reset failed: the helper already logged a specific
+                # error (port open failure, picotool missing, or BOOTSEL
+                # never enumerated). Be explicit about the failed exit code
+                # rather than relying on the function-level default of 1.
+                exit_code = 1
         elif CORE.target_platform == PLATFORM_RP2040 or CORE.is_libretiny:
             exit_code = upload_using_platformio(config, host)
         # else: Unknown target platform, exit_code remains 1
@@ -2260,12 +2278,11 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--prebuilt-dir",
         help=(
-            "Directory of prebuilt artifacts to flash instead of re-deriving "
-            "paths from the local build tree. The configuration is still read "
-            "(to load OTA settings, target platform, esp32 variant, etc.) but "
-            "the upload path reads bytes from this directory. Layout is "
-            "documented at "
-            "https://developers.esphome.io/architecture/upload-prebuilt-dir/."
+            "Advanced: directory of prebuilt artifacts to flash instead of "
+            "re-deriving paths from the local build tree. Intended for the "
+            "ESPHome dashboard's transparent install flow on hosts that "
+            "don't compile firmware themselves. End users should not need "
+            "this flag."
         ),
     )
     parser_upload.add_argument(
