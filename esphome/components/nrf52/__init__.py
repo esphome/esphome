@@ -72,6 +72,30 @@ AUTO_LOAD = ["zephyr", "preferences"]
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 
+FAKE_BOARD_MANIFEST = """
+{
+    "frameworks": [
+        "zephyr"
+    ],
+    "name": "esphome nrf52",
+    "upload": {
+        "maximum_ram_size": 248832,
+        "maximum_size": 815104,
+        "speed": 115200
+    },
+    "url": "https://esphome.io/",
+    "vendor": "esphome",
+    "build": {
+        "bsp": {
+            "name": "adafruit"
+        },
+        "softdevice": {
+            "sd_fwid": "0x00B6"
+        }
+    }
+}
+"""
+
 
 def set_core_data(config: ConfigType) -> ConfigType:
     # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
@@ -373,33 +397,9 @@ def copy_files() -> None:
         zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
         or zephyr_data()[KEY_BOARD] == "xiao_ble"
     ):
-        fake_board_manifest = """
-    {
-        "frameworks": [
-            "zephyr"
-        ],
-        "name": "esphome nrf52",
-        "upload": {
-            "maximum_ram_size": 248832,
-            "maximum_size": 815104,
-            "speed": 115200
-        },
-        "url": "https://esphome.io/",
-        "vendor": "esphome",
-        "build": {
-            "bsp": {
-                "name": "adafruit"
-            },
-            "softdevice": {
-                "sd_fwid": "0x00B6"
-            }
-        }
-    }
-    """
-
         write_file_if_changed(
             CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD]}.json"),
-            fake_board_manifest,
+            FAKE_BOARD_MANIFEST,
         )
 
     zephyr_copy_files()
