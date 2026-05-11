@@ -36,6 +36,24 @@ inline bool is_color_on(const Color &color) {
   return ((color.r >> 2) + (color.g >> 1) + (color.b >> 2)) & 0x80;
 }
 
+const char *get_mime_type_for_format(ImageFormat format) {
+  for (const auto &entry : MIME_LOOKUP_TABLE) {
+    if (entry.format == format) {
+      return entry.mime_type;
+    }
+  }
+  return "image/*";  // Default fallback
+}
+
+std::optional<ImageFormat> get_format_for_mime_type(const char *mime_type) {
+  for (const auto &entry : MIME_LOOKUP_TABLE) {
+    if (strcasestr(mime_type, entry.mime_type)) {
+      return entry.format;
+    }
+  }
+  return std::nullopt;
+}
+
 RuntimeImage::RuntimeImage(ImageFormat format, image::ImageType type, image::Transparency transparency,
                            image::Image *placeholder, bool is_big_endian, int fixed_width, int fixed_height)
     : Image(nullptr, 0, 0, type, transparency),
