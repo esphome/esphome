@@ -793,3 +793,187 @@ def test_update_interval__never_passes_through() -> None:
     """update_interval: never must still map to SCHEDULER_DONT_RUN."""
     result = config_validation.update_interval("never")
     assert result.total_milliseconds == SCHEDULER_DONT_RUN
+
+
+# ---------------------------------------------------------------------------
+# Visibility UI-hint kwarg
+# ---------------------------------------------------------------------------
+
+
+def test_optional_default_visibility_is_none() -> None:
+    """An ``Optional`` with no ``visibility`` kwarg reports ``None``.
+
+    Consumers can read the attribute directly with plain attribute
+    access; absence (``None``) means "render on the editor's main
+    form."
+    """
+    o = config_validation.Optional("foo")
+    assert o.visibility is None
+
+
+def test_optional_visibility_advanced() -> None:
+    """``visibility=Visibility.ADVANCED`` is recorded on the marker."""
+    o = config_validation.Optional(
+        "foo", visibility=config_validation.Visibility.ADVANCED
+    )
+    assert o.visibility is config_validation.Visibility.ADVANCED
+
+
+def test_optional_visibility_yaml_only() -> None:
+    """``visibility=Visibility.YAML_ONLY`` is recorded on the marker."""
+    o = config_validation.Optional(
+        "foo", visibility=config_validation.Visibility.YAML_ONLY
+    )
+    assert o.visibility is config_validation.Visibility.YAML_ONLY
+
+
+def test_visibility_str_values_match_dump_emission() -> None:
+    """``Visibility`` is a ``StrEnum`` whose values are the literal
+    strings the schema dumper emits.
+
+    The schema bundle consumers (catalog generators, third-party
+    schema-aware tooling) shouldn't need an enum import to read the
+    field — pinning the on-the-wire spelling here keeps the dump
+    contract stable.
+    """
+    assert str(config_validation.Visibility.ADVANCED) == "advanced"
+    assert str(config_validation.Visibility.YAML_ONLY) == "yaml_only"
+
+
+def test_optional_visibility_does_not_affect_validation() -> None:
+    """The kwarg is an advisory UI hint — it must not change how the
+    validator behaves. A schema with ``visibility`` applied must
+    accept and reject the same values it would without it.
+    """
+    plain = config_validation.Schema(
+        {config_validation.Optional("foo", default=42): config_validation.int_}
+    )
+    flagged = config_validation.Schema(
+        {
+            config_validation.Optional(
+                "foo",
+                default=42,
+                visibility=config_validation.Visibility.YAML_ONLY,
+            ): config_validation.int_
+        }
+    )
+    # Same accept / default-fill behavior.
+    assert plain({"foo": 7}) == flagged({"foo": 7}) == {"foo": 7}
+    assert plain({}) == flagged({}) == {"foo": 42}
+    # Same rejection on bad input.
+    with pytest.raises(Invalid):
+        plain({"foo": "not-an-int"})
+    with pytest.raises(Invalid):
+        flagged({"foo": "not-an-int"})
+
+
+def test_required_default_visibility_is_none() -> None:
+    """``Required`` mirrors ``Optional`` for the ``visibility`` kwarg."""
+    r = config_validation.Required("foo")
+    assert r.visibility is None
+
+
+def test_required_visibility_kwarg() -> None:
+    """``Required`` accepts ``visibility`` for symmetry with ``Optional``.
+
+    Required fields rarely need the kwarg, but exposing it lets
+    consumers apply uniform logic across key markers.
+    """
+    r = config_validation.Required(
+        "foo", visibility=config_validation.Visibility.ADVANCED
+    )
+    assert r.visibility is config_validation.Visibility.ADVANCED
+
+
+def test_polling_component_schema_visibility_opt_in() -> None:
+    """``visibility=`` propagates to the inherited ``update_interval``.
+
+    Time platforms pass ``Visibility.ADVANCED``; sensors and other
+    polling components leave it ``None`` and keep the un-flagged shape.
+    """
+    default = config_validation.polling_component_schema("15min")
+    advanced = config_validation.polling_component_schema(
+        "15min", visibility=config_validation.Visibility.ADVANCED
+    )
+    default_keys = {str(k): k for k in default.schema}
+    advanced_keys = {str(k): k for k in advanced.schema}
+    assert default_keys["update_interval"].visibility is None
+    assert (
+        advanced_keys["update_interval"].visibility
+        is config_validation.Visibility.ADVANCED
+    )
+    # The opt-in only touches update_interval — setup_priority
+    # still inherits its YAML_ONLY visibility from COMPONENT_SCHEMA
+    # in both shapes.
+    assert (
+        default_keys["setup_priority"].visibility
+        is config_validation.Visibility.YAML_ONLY
+    )
+    assert (
+        advanced_keys["setup_priority"].visibility
+        is config_validation.Visibility.YAML_ONLY
+    )
+
+
+def test_polling_component_schema_no_default_ignores_visibility() -> None:
+    """``visibility`` is silently ignored when the field is Required.
+
+    When ``default_update_interval=None`` the field becomes
+    ``Required``. Hiding a Required field behind an advanced
+    disclosure is a UX hazard — a collapsed-by-default editor could
+    let the user submit without noticing the form has an unfilled
+    required field. The helper accepts the kwarg unconditionally
+    for caller ergonomics but doesn't honour it on this branch.
+    """
+    schema = config_validation.polling_component_schema(
+        None, visibility=config_validation.Visibility.ADVANCED
+    )
+    keys = {str(k): k for k in schema.schema}
+    assert isinstance(keys["update_interval"], config_validation.Required)
+    assert keys["update_interval"].visibility is None
+
+
+def test_visibility_marker_is_per_field_no_mutation() -> None:
+    """Each field's ``visibility`` is recorded as the author wrote it.
+
+    Cascading semantics — "a stricter parent forces its descendants
+    at-least as strict" — live on the consumer side, not in the
+    marker itself. The schema marker stays as-written so consumers
+    can walk the parent chain and compute the effective visibility
+    themselves; mutating the marker would lose the per-field author
+    intent.
+
+    Pin both directions of the no-mutation contract: an inner
+    ``YAML_ONLY`` under an ``ADVANCED`` parent stays ``YAML_ONLY``
+    on the marker (the consumer's effective-visibility cascade
+    would also report ``YAML_ONLY`` since it's stricter), and an
+    un-marked inner field stays ``None`` on the marker (the
+    cascade's job is to compute ``ADVANCED`` from the parent — a
+    detail this test deliberately doesn't pin, since it's a
+    consumer concern).
+    """
+    inner_unset = config_validation.Optional("baz")
+    inner_yaml_only = config_validation.Optional(
+        "qux", visibility=config_validation.Visibility.YAML_ONLY
+    )
+    parent = config_validation.Optional(
+        "foo", visibility=config_validation.Visibility.ADVANCED
+    )
+
+    # Wire them into a nested schema — none of the markers' own
+    # ``visibility`` should change as a result.
+    schema = config_validation.Schema(
+        {
+            parent: config_validation.Schema(
+                {
+                    inner_unset: config_validation.int_,
+                    inner_yaml_only: config_validation.string,
+                }
+            )
+        }
+    )
+    assert schema  # touch the schema so any deferred mutation runs
+
+    assert parent.visibility is config_validation.Visibility.ADVANCED
+    assert inner_unset.visibility is None
+    assert inner_yaml_only.visibility is config_validation.Visibility.YAML_ONLY

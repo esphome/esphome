@@ -5,9 +5,8 @@ on:
     types: [opened, synchronize]
 
 permissions:
-  contents: read       #  Needed to fetch PR details
-  issues: write        #  Needed to create and update comments (PR comments are managed via the issues REST API)
-  pull-requests: write  # also needed?
+  issues: write        # issues.createComment / updateComment to post the external-component usage instructions on the PR
+  pull-requests: read  # pulls.listFiles to enumerate which components changed
 
 jobs:
   external-comment:

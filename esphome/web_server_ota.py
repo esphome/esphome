@@ -60,7 +60,7 @@ class _MultipartStreamer:
         self._idx = 0
         self._total = len(prefix) + file_size + len(suffix)
         self._sent = 0
-        self.progress = ProgressBar()
+        self.progress = ProgressBar("Uploading")
 
     def __len__(self) -> int:
         return self._total
