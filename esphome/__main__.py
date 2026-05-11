@@ -52,12 +52,12 @@ from esphome.const import (
     CONF_WEB_SERVER,
     ENV_NOGITIGNORE,
     KEY_CORE,
-    KEY_NATIVE_IDF,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
     SECRETS_FILES,
+    Toolchain,
 )
 from esphome.core import CORE, EsphomeError, coroutine
 from esphome.enum import StrEnum
@@ -155,7 +155,6 @@ class ArgsProtocol(Protocol):
     configuration: str
     name: str
     upload_speed: str | None
-    native_idf: bool
 
 
 def choose_prompt(options, purpose: str = None):
@@ -720,17 +719,14 @@ def _wrap_to_code(name, comp, yaml_util):
     return wrapped
 
 
-def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
+def write_cpp(config: ConfigType) -> int:
     from esphome import writer
 
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
-    # Store native_idf flag so esp32 component can check it
-    CORE.data[KEY_NATIVE_IDF] = native_idf
-
     generate_cpp_contents(config)
-    return write_cpp_file(native_idf=native_idf)
+    return write_cpp_file()
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
@@ -746,13 +742,13 @@ def generate_cpp_contents(config: ConfigType) -> None:
     CORE.flush_tasks()
 
 
-def write_cpp_file(native_idf: bool = False) -> int:
+def write_cpp_file() -> int:
     from esphome import writer
 
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
 
-    if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
+    if CORE.using_toolchain_esp_idf:
         from esphome.build_gen import espidf
 
         espidf.write_project()
@@ -765,22 +761,21 @@ def write_cpp_file(native_idf: bool = False) -> int:
 
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
-    native_idf = getattr(args, "native_idf", False)
-
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
 
-    if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
-        from esphome import espidf_api
+    if CORE.using_toolchain_esp_idf:
+        from esphome.espidf import api
 
-        rc = espidf_api.run_compile(config, CORE.verbose)
+        rc = api.run_compile(config, CORE.verbose)
         if rc != 0:
             return rc
 
-        # Create factory.bin and ota.bin
-        espidf_api.create_factory_bin()
-        espidf_api.create_ota_bin()
+        # Create factory.bin, ota.bin, and firmware.elf copy
+        api.create_factory_bin()
+        api.create_ota_bin()
+        api.create_elf_copy()
     else:
         from esphome import platformio_api
 
@@ -883,6 +878,10 @@ def upload_using_esptool(
 
     if file is not None:
         flash_images = [FlashImage(path=file, offset="0x0")]
+    elif CORE.using_toolchain_esp_idf:
+        from esphome.espidf import api
+
+        flash_images = [FlashImage(path=api.get_factory_firmware_path(), offset="0x0")]
     else:
         from esphome import platformio_api
 
@@ -1447,8 +1446,7 @@ def command_vscode(args: ArgsProtocol) -> int | None:
 
 
 def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
-    native_idf = getattr(args, "native_idf", False)
-    exit_code = write_cpp(config, native_idf=native_idf)
+    exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
     if args.only_generate:
@@ -1458,9 +1456,14 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     if exit_code != 0:
         return exit_code
     if CORE.is_host:
-        from esphome.platformio_api import get_idedata
+        if CORE.using_toolchain_esp_idf:
+            from esphome.espidf import api
 
-        program_path = str(get_idedata(config).firmware_elf_path)
+            program_path = str(api.get_elf_path())
+        else:
+            from esphome.platformio_api import get_idedata
+
+            program_path = str(get_idedata(config).firmware_elf_path)
         _LOGGER.info("Successfully compiled program to path '%s'", program_path)
     else:
         _LOGGER.info("Successfully compiled program.")
@@ -1503,8 +1506,7 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
-    native_idf = getattr(args, "native_idf", False)
-    exit_code = write_cpp(config, native_idf=native_idf)
+    exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
     exit_code = compile_program(args, config)
@@ -1512,9 +1514,14 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         return exit_code
     _LOGGER.info("Successfully compiled program.")
     if CORE.is_host:
-        from esphome.platformio_api import get_idedata
+        if CORE.using_toolchain_esp_idf:
+            from esphome.espidf import api
 
-        program_path = str(get_idedata(config).firmware_elf_path)
+            program_path = str(api.get_elf_path())
+        else:
+            from esphome.platformio_api import get_idedata
+
+            program_path = str(get_idedata(config).firmware_elf_path)
         _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
@@ -1705,6 +1712,13 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
 
+    if not CORE.using_toolchain_platformio:
+        _LOGGER.error(
+            "The idedata command is not compatible with %s toolchain",
+            CORE.toolchain.value,
+        )
+        return 1
+
     from esphome import platformio_api
 
     logging.disable(logging.INFO)
@@ -1724,7 +1738,6 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     This command compiles the configuration and performs memory analysis.
     Compilation is fast if sources haven't changed (just relinking).
     """
-    from esphome import platformio_api
     from esphome.analyze_memory.cli import MemoryAnalyzerCLI
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
@@ -1738,12 +1751,25 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     _LOGGER.info("Successfully compiled program.")
 
     # Get idedata for analysis
-    idedata = platformio_api.get_idedata(config)
-    if idedata is None:
-        _LOGGER.error("Failed to get IDE data for memory analysis")
-        return 1
+    idedata = None
+    if CORE.using_toolchain_esp_idf:
+        from esphome.espidf import api
 
-    firmware_elf = Path(idedata.firmware_elf_path)
+        objdump_path = str(api.get_objdump_path())
+        readelf_path = str(api.get_readelf_path())
+
+        firmware_elf = api.get_elf_path()
+    else:
+        from esphome import platformio_api
+
+        idedata = platformio_api.get_idedata(config)
+        if idedata is None:
+            _LOGGER.error("Failed to get IDE data for memory analysis")
+            return 1
+        objdump_path = idedata.objdump_path
+        readelf_path = idedata.readelf_path
+
+        firmware_elf = Path(idedata.firmware_elf_path)
 
     # Extract external components from config
     external_components = detect_external_components(config)
@@ -1753,8 +1779,8 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     _LOGGER.info("Analyzing memory usage...")
     analyzer = MemoryAnalyzerCLI(
         str(firmware_elf),
-        idedata.objdump_path,
-        idedata.readelf_path,
+        objdump_path,
+        readelf_path,
         external_components,
         idedata=idedata,
     )
@@ -1770,7 +1796,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     try:
         ram_analyzer = RamStringsAnalyzer(
             str(firmware_elf),
-            objdump_path=idedata.objdump_path,
+            objdump_path=objdump_path,
             platform=CORE.target_platform,
         )
         ram_analyzer.analyze()
@@ -1813,11 +1839,32 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
     old_name = yaml[CONF_ESPHOME][CONF_NAME]
     match = re.match(r"^\$\{?([a-zA-Z0-9_]+)\}?$", old_name)
     if match is None:
-        new_raw = re.sub(
-            rf"name:\s+[\"']?{old_name}[\"']?",
-            f'name: "{new_name}"',
-            raw_contents,
+        # Only swap the ``name:`` line that sits directly under the
+        # top-level ``esphome:`` block. A naked ``re.sub`` would
+        # also clobber any other ``name:`` line whose value happens
+        # to match (e.g. a sensor / output / wifi entry sharing the
+        # device's hostname), silently rewriting unrelated user
+        # configuration. The pattern anchors:
+        # - at the start of the line so ``friendly_name:``,
+        #   ``device_name:`` etc. don't match the trailing ``name:``
+        #   substring; and
+        # - at the end of the value (lookahead for whitespace +
+        #   comment + EOL) so ``old_name`` doesn't match as a
+        #   prefix of a longer value (``kitchen`` vs ``kitchen2``).
+        name_pattern = re.compile(
+            rf"^(\s*)name:\s+[\"']?{re.escape(old_name)}[\"']?(?=\s*(?:#|$))"
         )
+        out_lines: list[str] = []
+        in_esphome_block = False
+        for line in raw_contents.splitlines(keepends=True):
+            if line and not line[0].isspace() and line.strip():
+                in_esphome_block = line.lstrip().startswith("esphome:")
+                out_lines.append(line)
+                continue
+            if in_esphome_block:
+                line = name_pattern.sub(rf'\1name: "{new_name}"', line, count=1)
+            out_lines.append(line)
+        new_raw = "".join(out_lines)
     else:
         old_name = yaml[CONF_SUBSTITUTIONS][match.group(1)]
         if (
@@ -1840,7 +1887,40 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
             flags=re.MULTILINE,
         )
 
+    # ``new_name == old_name`` (after substitution resolution) is
+    # a no-op rewrite that would still queue a pointless re-flash.
+    # Catch it before the path-equality check below — covers the
+    # case where the config filename doesn't match the device name
+    # (e.g. ``weird-file.yaml`` whose ``esphome.name`` is
+    # ``kitchen``; running ``esphome rename weird-file.yaml kitchen``
+    # would otherwise just re-flash the same hostname).
+    if new_name == old_name:
+        print(
+            color(
+                AnsiFore.BOLD_RED,
+                f"'{new_name}' is already the device's name.",
+            )
+        )
+        return 1
+
     new_path: Path = CORE.config_dir / (new_name + ".yaml")
+    if new_path.resolve() == CORE.config_path.resolve():
+        print(
+            color(
+                AnsiFore.BOLD_RED,
+                f"'{new_name}' is already the device's name.",
+            )
+        )
+        return 1
+    if new_path.exists():
+        print(
+            color(
+                AnsiFore.BOLD_RED,
+                f"Cannot rename: {new_path} already exists. "
+                "Refusing to overwrite an existing configuration.",
+            )
+        )
+        return 1
     print(
         f"Updating {color(AnsiFore.CYAN, str(CORE.config_path))} to {color(AnsiFore.CYAN, str(new_path))}"
     )
@@ -1961,6 +2041,17 @@ def parse_args(argv):
         action="store_true",
         default=False,
     )
+    options_parser.add_argument(
+        "--toolchain",
+        type=Toolchain,
+        default=None,
+        choices=list(Toolchain),
+        metavar="{" + ",".join(t.value for t in Toolchain) + "}",
+        help=(
+            "Select toolchain for compiling. Overrides '<platform>.toolchain' in YAML. "
+            f"Default: {Toolchain.PLATFORMIO.value}."
+        ),
+    )
 
     parser = argparse.ArgumentParser(
         description=f"ESPHome {const.__version__}", parents=[options_parser]
@@ -2003,11 +2094,6 @@ def parse_args(argv):
     parser_compile.add_argument(
         "--only-generate",
         help="Only generate source code, do not compile.",
-        action="store_true",
-    )
-    parser_compile.add_argument(
-        "--native-idf",
-        help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
         action="store_true",
     )
 
@@ -2116,11 +2202,6 @@ def parse_args(argv):
         action="store_true",
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
-    )
-    parser_run.add_argument(
-        "--native-idf",
-        help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
-        action="store_true",
     )
     parser_run.add_argument(
         "--ota-platform",
@@ -2344,6 +2425,9 @@ def run_esphome(argv):
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
+    if args.toolchain is not None:
+        # CLI toolchain wins over esp32.toolchain in YAML.
+        CORE.toolchain = args.toolchain
 
     # Commands that don't need fresh external components: logs just connects
     # to the device, and clean is about to delete the build directory.
@@ -2355,6 +2439,12 @@ def run_esphome(argv):
     if config is None:
         return 2
     CORE.config = config
+
+    # Fallback for platforms whose validators didn't set the toolchain
+    # (only the esp32 component reads esp32.framework.toolchain). All
+    # other platforms only support PlatformIO today.
+    if CORE.toolchain is None:
+        CORE.toolchain = Toolchain.PLATFORMIO
 
     if args.command not in POST_CONFIG_ACTIONS:
         safe_print(f"Unknown command {args.command}")
