@@ -89,7 +89,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
 def set_framework(config: ConfigType) -> ConfigType:
     if CONF_VERSION not in config[CONF_FRAMEWORK]:
-        default_version = "2.6.1-a" if CORE.using_toolchain_platformio else "2.9.2"
+        default_version = "2.6.1-b" if CORE.using_toolchain_platformio else "2.9.2"
         config = {
             **config,
             CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
@@ -466,11 +466,12 @@ def _upload_using_platformio(
 
 
 def upload_program(config: ConfigType, args, host: str) -> bool:
-    from esphome.__main__ import check_permissions, get_port_type
+    from esphome.__main__ import check_permissions
+    from esphome.upload_targets import PortType, get_port_type
 
     mcumgr_device: str | None = None
 
-    if get_port_type(host) == "SERIAL":
+    if get_port_type(host) == PortType.SERIAL:
         check_permissions(host)
         if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
             mcumgr_device = host

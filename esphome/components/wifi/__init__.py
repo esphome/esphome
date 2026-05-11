@@ -76,11 +76,17 @@ def variant_has_wifi(variant: str) -> bool:
     Variants without a native PHY (ESP32-H2, ESP32-P4) need the
     ``esp32_hosted`` co-processor to use ``wifi:``.
 
+    Case-insensitive on *variant* so external callers can pass either
+    the upstream uppercase form (e.g. ``"ESP32H2"`` from
+    ``const.VARIANT_ESP32H2``) or a lowercase form their own enum
+    surfaces (e.g. ``"esp32h2"`` from device-builder's
+    ``Esp32Variant``). Both classify identically.
+
     Used by device-builder (esphome/device-builder) to decide whether
     its basic-setup wizard emits a ``wifi:`` block — please keep the
     signature stable.
     """
-    return variant not in NO_WIFI_VARIANTS
+    return variant.upper() not in NO_WIFI_VARIANTS
 
 
 _WIFI_FIRST_PLATFORMS: frozenset[str] = frozenset(

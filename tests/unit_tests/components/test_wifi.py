@@ -10,27 +10,44 @@ from esphome.const import Platform
 @pytest.mark.parametrize(
     "variant",
     [
+        # Upstream's canonical uppercase form.
         const.VARIANT_ESP32,
         const.VARIANT_ESP32S2,
         const.VARIANT_ESP32S3,
         const.VARIANT_ESP32C3,
         const.VARIANT_ESP32C6,
+        # Lowercase form external callers (e.g. device-builder's
+        # ``Esp32Variant`` StrEnum) surface.
+        "esp32",
+        "esp32s3",
+        "esp32c3",
+        # Mixed-case — defence in depth against future callers that
+        # pull the value off some other serialisation.
+        "Esp32",
     ],
 )
 def test_variant_has_wifi_for_native_phy_variants(variant: str) -> None:
-    """Variants with a native WiFi PHY → True."""
+    """Variants with a native WiFi PHY → True, case-insensitive."""
     assert variant_has_wifi(variant) is True
 
 
 @pytest.mark.parametrize(
     "variant",
     [
+        # Upstream's canonical uppercase form.
         const.VARIANT_ESP32H2,
         const.VARIANT_ESP32P4,
+        # Lowercase form external callers (e.g. device-builder's
+        # ``Esp32Variant`` StrEnum) surface.
+        "esp32h2",
+        "esp32p4",
+        # Mixed-case — defence in depth against future callers that
+        # pull the value off some other serialisation.
+        "Esp32H2",
     ],
 )
 def test_variant_has_wifi_for_no_phy_variants(variant: str) -> None:
-    """Variants that need ``esp32_hosted`` → False."""
+    """Variants that need ``esp32_hosted`` → False, case-insensitive."""
     assert variant_has_wifi(variant) is False
 
 
@@ -42,6 +59,18 @@ def test_has_native_wifi_dispatches_esp32_to_variant_check() -> None:
     assert (
         has_native_wifi(platform=Platform.ESP32, variant=const.VARIANT_ESP32H2) is False
     )
+
+
+def test_has_native_wifi_esp32_variant_case_insensitive() -> None:
+    """has_native_wifi accepts lowercase variant input.
+
+    External callers (device-builder's wizard, etc.) may surface
+    variant strings from their own enums that don't match upstream's
+    uppercase convention. The dispatcher should classify them
+    identically.
+    """
+    assert has_native_wifi(platform=Platform.ESP32, variant="esp32h2") is False
+    assert has_native_wifi(platform=Platform.ESP32, variant="esp32c3") is True
 
 
 def test_has_native_wifi_dispatches_rp2040_to_board_check() -> None:
