@@ -314,7 +314,11 @@ def test_load_idedata_absolute_paths_in_prebuilt_pass_through(
 
     prebuilt_dir = setup_core / "prebuilt"
     prebuilt_dir.mkdir()
-    abs_bootloader = "/somewhere/else/bootloader.bin"
+    # Use a tmp-rooted absolute path so the test passes on Windows too;
+    # Path.is_absolute() requires a drive letter on win32, so a bare
+    # "/somewhere/else/..." string would be classified as relative there
+    # and trigger the wrong code path.
+    abs_bootloader = str(setup_core / "elsewhere" / "bootloader.bin")
     prebuilt_idedata = prebuilt_dir / "idedata.json"
     prebuilt_idedata.write_text(
         json.dumps(
