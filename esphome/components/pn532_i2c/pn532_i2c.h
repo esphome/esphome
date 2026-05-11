@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace pn532_i2c {
+namespace esphome::pn532_i2c {
 
 class PN532I2C : public pn532::PN532, public i2c::I2CDevice {
  public:
@@ -21,5 +20,4 @@ class PN532I2C : public pn532::PN532, public i2c::I2CDevice {
   uint8_t read_response_length_();
 };
 
-}  // namespace pn532_i2c
-}  // namespace esphome
+}  // namespace esphome::pn532_i2c

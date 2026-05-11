@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace pipsolar {
+namespace esphome::pipsolar {
 
 class Pipsolar;
 
@@ -40,5 +39,4 @@ template<typename... Ts> class SetOutputAction : public Action<Ts...> {
   PipsolarOutput *output_;
 };
 
-}  // namespace pipsolar
-}  // namespace esphome
+}  // namespace esphome::pipsolar

@@ -7,8 +7,7 @@
 #include "esphome/core/hal.h"
 #include <vector>
 
-namespace esphome {
-namespace sx127x {
+namespace esphome::sx127x {
 
 enum SX127xBw : uint8_t {
   SX127X_BW_2_6,
@@ -126,5 +125,4 @@ class SX127x : public Component,
   bool rx_start_{false};
 };
 
-}  // namespace sx127x
-}  // namespace esphome
+}  // namespace esphome::sx127x

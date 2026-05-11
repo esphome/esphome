@@ -5,9 +5,7 @@
 #include "esphome/core/automation.h"
 #include "air_conditioner.h"
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 template<typename... Ts> class MideaActionBase : public Action<Ts...> {
  public:
@@ -63,8 +61,6 @@ template<typename... Ts> class PowerToggleAction : public MideaActionBase<Ts...>
   void play(const Ts &...x) override { this->parent_->do_power_toggle(); }
 };
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
 #endif  // USE_ARDUINO

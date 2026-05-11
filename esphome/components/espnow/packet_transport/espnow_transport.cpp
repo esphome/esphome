@@ -5,8 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace espnow {
+namespace esphome::espnow {
 
 static const char *const TAG = "espnow.transport";
 
@@ -86,7 +85,6 @@ bool ESPNowTransport::on_broadcast(const ESPNowRecvInfo &info, const uint8_t *da
   return false;  // Allow other handlers to run
 }
 
-}  // namespace espnow
-}  // namespace esphome
+}  // namespace esphome::espnow
 
 #endif  // USE_ESP32

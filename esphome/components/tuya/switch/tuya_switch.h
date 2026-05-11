@@ -4,8 +4,7 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 class TuyaSwitch : public switch_::Switch, public Component {
  public:
@@ -22,5 +21,4 @@ class TuyaSwitch : public switch_::Switch, public Component {
   uint8_t switch_id_{0};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya
