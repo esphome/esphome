@@ -595,10 +595,18 @@ def test_get_ltchiptool_path_on_path(tmp_path: Path) -> None:
 
 def test_get_ltchiptool_path_pio_penv(tmp_path: Path) -> None:
     """Fall back to PlatformIO's libretiny penv when ltchiptool isn't on
-    PATH; this is the install location platform-libretiny uses."""
+    PATH; this is the install location platform-libretiny uses. The
+    script subdir follows the CPython venv convention -- ``Scripts/``
+    on Windows, ``bin/`` elsewhere -- which matches what PlatformIO
+    creates."""
     fake_home = tmp_path / "home"
-    binary_name = "ltchiptool.exe" if sys.platform == "win32" else "ltchiptool"
-    pio_bin = fake_home / ".platformio" / "penv" / ".libretiny" / "bin"
+    if sys.platform == "win32":
+        bin_subdir = "Scripts"
+        binary_name = "ltchiptool.exe"
+    else:
+        bin_subdir = "bin"
+        binary_name = "ltchiptool"
+    pio_bin = fake_home / ".platformio" / "penv" / ".libretiny" / bin_subdir
     pio_bin.mkdir(parents=True)
     expected = pio_bin / binary_name
     expected.touch()

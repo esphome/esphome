@@ -413,8 +413,10 @@ def get_ltchiptool_path() -> Path | None:
 
     Order:
       1. ``ltchiptool`` on PATH (pip-installed system-wide or in a virtualenv).
-      2. PlatformIO's libretiny penv at ``~/.platformio/penv/.libretiny/bin``
-         (where platform-libretiny installs it during its package init).
+      2. PlatformIO's libretiny penv (where platform-libretiny installs it
+         during its package init). The script subdirectory follows the
+         CPython venv convention: ``Scripts/`` on Windows, ``bin/``
+         elsewhere.
 
     Returns None if neither is available; callers should surface an
     actionable error pointing the user at one of those install paths.
@@ -422,13 +424,18 @@ def get_ltchiptool_path() -> Path | None:
     on_path = shutil.which("ltchiptool")
     if on_path is not None:
         return Path(on_path)
-    binary_name = "ltchiptool.exe" if sys.platform == "win32" else "ltchiptool"
+    if sys.platform == "win32":
+        bin_subdir = "Scripts"
+        binary_name = "ltchiptool.exe"
+    else:
+        bin_subdir = "bin"
+        binary_name = "ltchiptool"
     pio_penv = (
         Path.home()
         / ".platformio"
         / "penv"
         / LTCHIPTOOL_PIO_PENV_NAME
-        / "bin"
+        / bin_subdir
         / binary_name
     )
     if pio_penv.is_file():

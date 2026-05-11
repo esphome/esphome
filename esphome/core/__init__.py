@@ -570,7 +570,9 @@ class EsphomeCore:
         # Directory of prebuilt artifacts for `esphome upload --prebuilt-dir`.
         # When set, firmware/partition/bootloader resolution and the idedata
         # cache prefer files under this directory over the local build tree.
-        # See docs/architecture/upload-prebuilt-dir.
+        # User-facing docs live in esphome/esphome-docs#6600
+        # (`guides/cli.mdx`); see esphome/device-builder#572 for the
+        # cross-platform layout contract that motivates the flag.
         self.prebuilt_dir: Path | None = None
         # The validated configuration, this is None until the config has been validated
         self.config: ConfigType | None = None

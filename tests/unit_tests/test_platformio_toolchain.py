@@ -336,6 +336,26 @@ def test_load_idedata_absolute_paths_in_prebuilt_pass_through(
     assert result["extra"]["flash_images"][0]["path"] == abs_bootloader
 
 
+def test_load_idedata_prebuilt_malformed_json_raises_esphomeerror(
+    setup_core: Path, mock_run_platformio_cli_run: Mock
+) -> None:
+    """A malformed prebuilt idedata.json must surface as a one-line
+    EsphomeError, not an unhandled JSONDecodeError stack trace; the
+    dashboard's transparent-install flow needs a clean diagnostic to
+    bubble back to the operator, not the contents of the broken file."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.name = "test"
+
+    prebuilt_dir = setup_core / "prebuilt"
+    prebuilt_dir.mkdir()
+    (prebuilt_dir / "idedata.json").write_text("{not valid json")
+    CORE.prebuilt_dir = prebuilt_dir
+
+    with pytest.raises(EsphomeError, match="Failed to parse"):
+        toolchain._load_idedata({"name": "test"})
+    mock_run_platformio_cli_run.assert_not_called()
+
+
 def test_load_idedata_falls_back_when_prebuilt_idedata_missing(
     setup_core: Path, mock_run_platformio_cli_run: Mock
 ) -> None:

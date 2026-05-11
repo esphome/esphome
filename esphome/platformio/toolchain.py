@@ -161,13 +161,21 @@ def _load_idedata(config):
     # idedata.json with absolute paths on every install.
     #
     # No schema validation or referenced-path existence check happens here;
-    # a malformed prebuilt idedata.json will surface as a downstream
-    # "file not found" from esptool / picotool. That's an acceptable trade
-    # for keeping this path zero-cost when the dashboard's contract is met.
+    # a missing path inside the idedata will surface later as a "file not
+    # found" from esptool / picotool. A malformed JSON file is caught here
+    # and surfaced as EsphomeError so the failure mode is a one-line
+    # diagnostic instead of an unhandled JSONDecodeError stack trace.
     if CORE.prebuilt_dir is not None:
         prebuilt_idedata = CORE.prebuilt_dir / "idedata.json"
         if prebuilt_idedata.is_file():
-            data = json.loads(prebuilt_idedata.read_text(encoding="utf-8"))
+            try:
+                data = json.loads(prebuilt_idedata.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as err:
+                raise EsphomeError(
+                    f"Failed to parse {prebuilt_idedata}: {err}. The dashboard "
+                    "must stage a syntactically valid idedata.json under "
+                    "--prebuilt-dir; the upload cannot proceed without it."
+                ) from err
             _resolve_prebuilt_idedata_paths(data, CORE.prebuilt_dir)
             return data
 
