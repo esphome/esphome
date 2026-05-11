@@ -137,10 +137,10 @@ The following components are exposed over Zigbee if they have a name and if they
 
 - [Binary Sensor](/components/binary_sensor#config-binary_sensor): only **state** and **name** are exposed over Zigbee.
 
-Only on `nRF52`:
-
 - [Sensor](/components/sensor#config-sensor): **state**, **name** and **unit_of_measurement** are exposed
   over Zigbee. If no unit is given or if it is not supported it will fall back to unitless.
+
+Only on `nRF52`:
 
 - [Switch](/components/switch#config-switch): only **state** and **name** are exposed over Zigbee.
 
@@ -158,7 +158,7 @@ Only on `nRF52`:
 ### Sensor
 
 [Sensors](/components/sensor#config-sensor) are implemented as analog input clusters with description, engineering_units,
-and present_value attributes. Available only on `nRF52` platforms.
+and present_value attributes. On `ESP32` additionally the application type attribute is set if applicable.
 
 #### Additional configuration variables
 
