@@ -5,8 +5,10 @@ on:
     types: [opened, synchronize]
 
 permissions:
-  issues: write        # issues.createComment / updateComment to post the external-component usage instructions on the PR
-  pull-requests: read  # pulls.listFiles to enumerate which components changed
+  # pull-requests: write covers pulls.listFiles and creating/updating PR comments via the
+  # issues.*Comment APIs. For PR resources, GitHub Actions requires the pull-requests scope
+  # for comment writes -- issues: write is only sufficient for comments on real issues.
+  pull-requests: write
 
 jobs:
   external-comment:
