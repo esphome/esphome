@@ -182,7 +182,7 @@ CONFIG_SCHEMA = cv.All(
                 default={},
             ): cv.Schema(
                 {
-                    cv.Optional(CONF_VERSION, default="2.6.1-a"): cv.string_strict,
+                    cv.Optional(CONF_VERSION, default="2.6.1-b"): cv.string_strict,
                     cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                         {
                             cv.Optional(
@@ -397,19 +397,20 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
 def _upload_using_platformio(
     config: ConfigType, port: str, upload_args: list[str]
 ) -> int | str:
-    from esphome import platformio_api
+    from esphome.platformio import toolchain
 
     if port is not None:
         upload_args += ["--upload-port", port]
-    return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+    return toolchain.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
 
 def upload_program(config: ConfigType, args, host: str) -> bool:
-    from esphome.__main__ import check_permissions, get_port_type
+    from esphome.__main__ import check_permissions
+    from esphome.upload_targets import PortType, get_port_type
 
     mcumgr_device: str | None = None
 
-    if get_port_type(host) == "SERIAL":
+    if get_port_type(host) == PortType.SERIAL:
         check_permissions(host)
         if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
