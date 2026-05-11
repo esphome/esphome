@@ -504,17 +504,24 @@ class EsphomeQueueUpdateHandler(EsphomeCommandWebSocket):
         return [*DASHBOARD_COMMAND, "compile", config_file]
 
     def _proc_on_exit(self, returncode: int) -> None:
-        # Standard exit handling so the UI knows the process finished
-        super()._proc_on_exit(returncode)
-
         if returncode == 0:
             # Only add to the queue if the build actually succeeded
             DASHBOARD.queued_updates.add(self.configuration)
             _LOGGER.info("Build successful. %s added to queued updates.", self.configuration)
-            # We send a custom event so the UI can show the 'Queued' status
+            
+            # 1. Send custom success event BEFORE the base class closes the socket
             self.write_message({"event": "queued_success", "configuration": self.configuration})
+            
+            # 2. Fire the global event bus so the dashboard UI updates the badge instantly
+            DASHBOARD.bus.async_fire("queued_state_changed", {
+                "filename": self.configuration,
+                "state": True
+            })
         else:
             _LOGGER.warning("Queued build failed for %s", self.configuration)
+
+        # 3. Standard exit handling MUST go last because it closes the WebSocket
+        super()._proc_on_exit(returncode)
 
 
 class EsphomeCancelQueueHandler(BaseHandler):
