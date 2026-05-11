@@ -1428,6 +1428,11 @@ def test_upload_program_libretiny_serial_with_prebuilt_dir_uses_ltchiptool(
     devices = ["/dev/ttyUSB0"]
 
     with (
+        # Pretend ltchiptool is already installed so we skip the pkg-install
+        # prep branch and exercise the dispatch we actually care about here.
+        patch(
+            "esphome.__main__.get_ltchiptool_path", return_value=tmp_path / "fake-lt"
+        ),
         patch("esphome.__main__.upload_using_ltchiptool", return_value=0) as mock_lt,
         patch("esphome.__main__.upload_using_platformio") as mock_pio,
     ):
@@ -1591,6 +1596,105 @@ def test_upload_program_prebuilt_dir_sets_core_attr(
     assert CORE.prebuilt_dir == prebuilt
 
 
+def test_upload_program_prebuilt_dir_installs_libretiny_platform_if_missing(
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+    tmp_path: Path,
+) -> None:
+    """The dashboard's transparent-install scenario: ltchiptool isn't on
+    disk yet (this host has never compiled a libretiny config locally), so
+    upload_program triggers `pio pkg install` to download the libretiny
+    platform package -- same prep as compile, no actual compile -- before
+    dispatching the upload helper."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "SERIAL"
+
+    prebuilt = tmp_path / "prebuilt"
+    prebuilt.mkdir()
+    (prebuilt / "firmware.uf2").write_bytes(b"uf2")
+    args = MockArgs(prebuilt_dir=str(prebuilt))
+
+    with (
+        # First call: ltchiptool missing -> install. After install, the
+        # upload_using_ltchiptool dispatch finds it (we mock that helper
+        # to skip the actual flash).
+        patch("esphome.__main__.get_ltchiptool_path", return_value=None) as mock_find,
+        patch("esphome.__main__.write_cpp", return_value=0) as mock_write_cpp,
+        patch(
+            "esphome.platformio_api.run_pkg_install", return_value=0
+        ) as mock_pkg_install,
+        patch("esphome.__main__.upload_using_ltchiptool", return_value=0),
+    ):
+        exit_code, _ = upload_program({}, args, ["/dev/ttyUSB0"])
+
+    assert exit_code == 0
+    mock_find.assert_called()
+    mock_write_cpp.assert_called_once()
+    mock_pkg_install.assert_called_once()
+
+
+def test_upload_program_prebuilt_dir_skips_install_when_tool_present(
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+    tmp_path: Path,
+) -> None:
+    """When ltchiptool is already on disk (e.g. HA add-on dashboards with
+    PIO platforms pre-warmed), don't run codegen or pkg install -- that
+    would surprise the user with a heavy side effect on every upload."""
+    setup_core(platform=PLATFORM_BK72XX, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "SERIAL"
+
+    prebuilt = tmp_path / "prebuilt"
+    prebuilt.mkdir()
+    (prebuilt / "firmware.uf2").write_bytes(b"uf2")
+    args = MockArgs(prebuilt_dir=str(prebuilt))
+
+    with (
+        patch(
+            "esphome.__main__.get_ltchiptool_path",
+            return_value=tmp_path / "ltchiptool",
+        ),
+        patch("esphome.__main__.write_cpp") as mock_write_cpp,
+        patch("esphome.platformio_api.run_pkg_install") as mock_pkg_install,
+        patch("esphome.__main__.upload_using_ltchiptool", return_value=0),
+    ):
+        exit_code, _ = upload_program({}, args, ["/dev/ttyUSB0"])
+
+    assert exit_code == 0
+    mock_write_cpp.assert_not_called()
+    mock_pkg_install.assert_not_called()
+
+
+def test_upload_program_prebuilt_dir_pkg_install_failure_aborts_upload(
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+    tmp_path: Path,
+) -> None:
+    """If `pio pkg install` fails (network error, registry outage, etc.),
+    bail out with that exit code rather than dispatching the upload helper
+    against an environment that's known to be missing the flash tool."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "SERIAL"
+
+    prebuilt = tmp_path / "prebuilt"
+    prebuilt.mkdir()
+    args = MockArgs(prebuilt_dir=str(prebuilt))
+
+    with (
+        patch("esphome.__main__._find_picotool", return_value=None),
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.platformio_api.run_pkg_install", return_value=2),
+        patch("esphome.__main__.upload_using_picotool") as mock_upload,
+        patch("esphome.__main__._rp2040_serial_reset_to_bootsel") as mock_reset,
+    ):
+        exit_code, host = upload_program({}, args, ["/dev/ttyACM0"])
+
+    assert exit_code == 2
+    assert host is None
+    mock_upload.assert_not_called()
+    mock_reset.assert_not_called()
+
+
 def test_upload_program_prebuilt_dir_missing_raises(
     mock_get_port_type: Mock,
     mock_check_permissions: Mock,
@@ -1697,6 +1801,11 @@ def test_upload_program_rp2040_serial_with_prebuilt_dir_uses_picotool(
     devices = ["/dev/ttyACM0"]
 
     with (
+        # Pretend picotool is already installed so the pkg-install prep
+        # branch short-circuits and we exercise the dispatch we care about.
+        patch(
+            "esphome.__main__._find_picotool", return_value=tmp_path / "fake-picotool"
+        ),
         patch(
             "esphome.__main__._rp2040_serial_reset_to_bootsel",
             return_value=True,
@@ -1728,7 +1837,12 @@ def test_upload_program_rp2040_serial_with_prebuilt_dir_reset_fails(
     prebuilt.mkdir()
     args = MockArgs(prebuilt_dir=str(prebuilt))
 
-    with patch("esphome.__main__._rp2040_serial_reset_to_bootsel", return_value=False):
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=tmp_path / "fake-picotool"
+        ),
+        patch("esphome.__main__._rp2040_serial_reset_to_bootsel", return_value=False),
+    ):
         exit_code, host = upload_program({}, args, ["/dev/ttyACM0"])
 
     assert exit_code == 1

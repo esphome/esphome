@@ -1232,6 +1232,52 @@ def check_permissions(port: str):
             )
 
 
+def _ensure_platform_packages_for_prebuilt_upload(config: ConfigType) -> int:
+    """Make sure the per-platform flash tool is available before a
+    ``--prebuilt-dir`` upload dispatches.
+
+    The libretiny + RP2040 prebuilt-dir paths use ``ltchiptool`` and
+    ``picotool`` respectively. Both binaries live inside the PlatformIO
+    platform package, not in esphome's Python deps. On a host that has
+    never compiled the target platform locally (the dashboard's
+    transparent-install scenario), they won't be on disk yet.
+
+    Mirror what ``esphome compile`` would do up to the platform-install
+    step (codegen + write platformio.ini), then run ``pio pkg install``
+    instead of ``pio run`` so the platform is downloaded without paying
+    for an actual compile. After this returns, the flash-tool lookups
+    (``get_ltchiptool_path``, ``_find_picotool``) succeed and the upload
+    helper takes over.
+
+    Returns 0 if no install was needed or the install succeeded; non-zero
+    on failure so the upload bails out with a clear status.
+    """
+    if CORE.is_libretiny:
+        if get_ltchiptool_path() is not None:
+            return 0
+        tool_label = "ltchiptool"
+    elif CORE.target_platform == PLATFORM_RP2040:
+        if _find_picotool() is not None:
+            return 0
+        tool_label = "picotool"
+    else:
+        return 0
+
+    _LOGGER.info(
+        "%s not found on this host; installing the PlatformIO %s "
+        "platform package so the upload can flash the prebuilt firmware...",
+        tool_label,
+        CORE.target_platform,
+    )
+    rc = write_cpp(config)
+    if rc != 0:
+        return rc
+
+    from esphome import platformio_api
+
+    return platformio_api.run_pkg_install(config, CORE.verbose)
+
+
 def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
@@ -1248,6 +1294,9 @@ def upload_program(
         if not prebuilt_path.is_dir():
             raise EsphomeError(f"--prebuilt-dir {prebuilt_dir} is not a directory")
         CORE.prebuilt_dir = prebuilt_path
+        rc = _ensure_platform_packages_for_prebuilt_upload(config)
+        if rc != 0:
+            return rc, None
 
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
