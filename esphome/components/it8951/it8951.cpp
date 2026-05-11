@@ -648,10 +648,13 @@ bool IT8951Display::prepare_update_region_(UpdateMode &mode) {
     this->x_high_ = this->width_;
     this->y_high_ = this->height_;
   } else {
-    // IT8951 partial-write requires x and width to be multiples of 4 pixels.
-    this->x_low_ &= 0xFFFC;
+    // IT8951 requires x and width to be multiples of 4 pixels (4bpp).
+    // For the 1bpp trick (8BPP with area_w/8), we need area_w to be a
+    // multiple of 16 so that the byte count sent (word-padded) matches
+    // what the IT8951 expects.  16-alignment satisfies both constraints.
+    this->x_low_ &= 0xFFF0;
     uint16_t temp_max = this->x_high_ > 0 ? static_cast<uint16_t>(this->x_high_ - 1) : 0;
-    temp_max = static_cast<uint16_t>(temp_max | 0x0003);
+    temp_max = static_cast<uint16_t>(temp_max | 0x000F);
     if (temp_max >= this->width_)
       temp_max = static_cast<uint16_t>(this->width_ - 1);
     this->x_high_ = static_cast<uint16_t>(temp_max + 1);
