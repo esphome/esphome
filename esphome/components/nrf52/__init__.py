@@ -405,11 +405,12 @@ def _upload_using_platformio(
 
 
 def upload_program(config: ConfigType, args, host: str) -> bool:
-    from esphome.__main__ import check_permissions, get_port_type
+    from esphome.__main__ import check_permissions
+    from esphome.upload_targets import PortType, get_port_type
 
     mcumgr_device: str | None = None
 
-    if get_port_type(host) == "SERIAL":
+    if get_port_type(host) == PortType.SERIAL:
         check_permissions(host)
         if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
