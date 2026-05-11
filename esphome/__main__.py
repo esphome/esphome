@@ -1032,26 +1032,25 @@ def upload_using_picotool(config: ConfigType) -> int:
     # picotool's "load" target accepts .uf2 / .bin / .elf, so fall back to
     # CORE.firmware_bin (which resolves to the prebuilt firmware.uf2 when set)
     # when no ELF is available.
-    firmware_file: Path
     elf_path = Path(idedata.firmware_elf_path)
     if elf_path.is_file():
-        firmware_file = elf_path
+        firmware_file: Path = elf_path
     elif CORE.prebuilt_dir is not None and CORE.firmware_bin.is_file():
         firmware_file = CORE.firmware_bin
-    elif CORE.prebuilt_dir is not None:
-        _LOGGER.error(
-            "No firmware found for picotool: neither %s (from idedata) nor "
-            "%s (prebuilt) exists.",
-            elf_path,
-            CORE.firmware_bin,
-        )
-        return 1
     else:
-        _LOGGER.error(
-            "Firmware ELF file not found at %s. "
-            "Make sure the project has been compiled first.",
-            elf_path,
-        )
+        if CORE.prebuilt_dir is not None:
+            _LOGGER.error(
+                "No firmware found for picotool: neither %s (from idedata) "
+                "nor %s (prebuilt) exists.",
+                elf_path,
+                CORE.firmware_bin,
+            )
+        else:
+            _LOGGER.error(
+                "Firmware ELF file not found at %s. "
+                "Make sure the project has been compiled first.",
+                elf_path,
+            )
         return 1
 
     picotool = get_picotool_path(idedata.cc_path)
@@ -1210,41 +1209,43 @@ def check_permissions(port: str):
             )
 
 
+def _missing_prebuilt_flash_tool() -> str | None:
+    """Return the name of the platform-specific flash tool that's expected
+    but not yet on disk, or None if no install step is needed.
+
+    ESP* paths use bundled esptool / smpclient. Libretiny + RP2040 paths
+    use ltchiptool / picotool, which ship inside the PlatformIO platform
+    package and aren't pip-installable on their own.
+    """
+    if CORE.is_libretiny and get_ltchiptool_path() is None:
+        return "ltchiptool"
+    if CORE.target_platform == PLATFORM_RP2040 and _find_picotool() is None:
+        return "picotool"
+    return None
+
+
 def _ensure_platform_packages_for_prebuilt_upload(config: ConfigType) -> int:
     """Make sure the per-platform flash tool is available before a
     ``--prebuilt-dir`` upload dispatches.
 
-    The libretiny + RP2040 prebuilt-dir paths use ``ltchiptool`` and
-    ``picotool`` respectively. Both binaries live inside the PlatformIO
-    platform package, not in esphome's Python deps. On a host that has
-    never compiled the target platform locally (the dashboard's
-    transparent-install scenario), they won't be on disk yet.
-
-    Mirror what ``esphome compile`` would do up to the platform-install
-    step (codegen + write platformio.ini), then run ``pio pkg install``
-    instead of ``pio run`` so the platform is downloaded without paying
-    for an actual compile. After this returns, the flash-tool lookups
-    (``get_ltchiptool_path``, ``_find_picotool``) succeed and the upload
-    helper takes over.
+    On a host that has never compiled the target platform locally (the
+    dashboard's transparent-install scenario), the flash tool isn't on
+    disk yet. Mirror what ``esphome compile`` would do up to the
+    platform-install step (codegen + write platformio.ini), then run
+    ``pio run -t idedata`` so the platform is downloaded without paying
+    for an actual compile.
 
     Returns 0 if no install was needed or the install succeeded; non-zero
     on failure so the upload bails out with a clear status.
     """
-    if CORE.is_libretiny:
-        if get_ltchiptool_path() is not None:
-            return 0
-        tool_label = "ltchiptool"
-    elif CORE.target_platform == PLATFORM_RP2040:
-        if _find_picotool() is not None:
-            return 0
-        tool_label = "picotool"
-    else:
+    tool_name = _missing_prebuilt_flash_tool()
+    if tool_name is None:
         return 0
 
     _LOGGER.info(
         "%s not found on this host; configuring the PlatformIO %s "
         "platform so the upload can flash the prebuilt firmware...",
-        tool_label,
+        tool_name,
         CORE.target_platform,
     )
     rc = write_cpp(config)
