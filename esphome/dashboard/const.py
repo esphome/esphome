@@ -15,6 +15,7 @@ class DashboardEvent(StrEnum):
     ENTRY_STATE_CHANGED = "entry_state_changed"
     IMPORTABLE_DEVICE_ADDED = "importable_device_added"
     IMPORTABLE_DEVICE_REMOVED = "importable_device_removed"
+    QUEUED_STATE_CHANGED = "queued_state_changed"
     INITIAL_STATE = "initial_state"  # Sent on WebSocket connection
     PONG = "pong"  # Response to client ping
 
