@@ -71,7 +71,9 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         board=config[CONF_BOARD],
         bootloader=config[KEY_BOOTLOADER],
         prj_conf={},
-        overlay={},
+        overlay={
+            "": "",
+        },  # set empty to make sure that overlay is cleared after config change
         extra_build_files={},
         pm_static=[],
         user={},
@@ -82,13 +84,6 @@ def zephyr_set_core_data(config: ConfigType) -> None:
 
 def zephyr_data() -> ZephyrData:
     return CORE.data[KEY_ZEPHYR]
-
-
-def zephyr_add_overlay(content: str, image: str = "") -> None:
-    data = zephyr_data()
-    if image not in data[KEY_OVERLAY]:
-        data[KEY_OVERLAY][image] = ""
-    data[KEY_OVERLAY][image] += textwrap.dedent(content)
 
 
 def zephyr_add_prj_conf(
@@ -110,6 +105,13 @@ def zephyr_add_prj_conf(
         )
     if required:
         prj_conf[name] = (value, required)
+
+
+def zephyr_add_overlay(content: str, image: str = "") -> None:
+    data = zephyr_data()
+    if image not in data[KEY_OVERLAY]:
+        data[KEY_OVERLAY][image] = ""
+    data[KEY_OVERLAY][image] += textwrap.dedent(content)
 
 
 def add_extra_build_file(filename: str, path: Path) -> bool:
@@ -237,10 +239,8 @@ def copy_files():
             )
             + "\n"
         )
-
         if image == "mcuboot":
             mcuboot = True
-
         if image:
             path = CORE.relative_build_path(f"sysbuild/{image}.conf")
             sysbuild = True
@@ -292,7 +292,7 @@ def copy_files():
             "SB_CONFIG_BOOTLOADER_MCUBOOT=y\n",
         )
 
-    # if mcuboot and pm_static:
-    #     write_file_if_changed(
-    #         CORE.relative_build_path("sysbuild/mcuboot.yml"), pm_static
-    #     )
+    if mcuboot and pm_static:
+        write_file_if_changed(
+            CORE.relative_build_path("sysbuild/mcuboot.yml"), pm_static
+        )

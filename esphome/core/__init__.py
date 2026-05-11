@@ -17,7 +17,6 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
-    KEY_NATIVE_IDF,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
@@ -28,6 +27,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
+    Toolchain,
 )
 
 # pylint: disable=unused-import
@@ -618,6 +618,10 @@ class EsphomeCore:
         # When True, skip network freshness checks for cached external files
         # (e.g. for `esphome logs`, where remote downloads aren't needed)
         self.skip_external_update: bool = False
+        # Toolchain used for building the configuration. None until resolved
+        # by CLI (--toolchain) or by `esphome.toolchain:` in YAML during
+        # preload_core_config; defaults to PLATFORMIO if neither sets it.
+        self.toolchain: Toolchain | None = None
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -648,6 +652,7 @@ class EsphomeCore:
         self.address_cache = None
         self._config_hash = None
         self.skip_external_update = False
+        self.toolchain = None
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
@@ -772,8 +777,8 @@ class EsphomeCore:
 
     @property
     def firmware_bin(self) -> Path:
-        # Check if using native ESP-IDF build (--native-idf)
-        if self.data.get(KEY_NATIVE_IDF, False):
+        # Check if using ESP-IDF toolchain
+        if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
@@ -781,10 +786,10 @@ class EsphomeCore:
 
     @property
     def partition_table_bin(self) -> Path:
-        # Native ESP-IDF (--native-idf): the partition table image is emitted under
+        # Native ESP-IDF (--toolchain esp-idf): the partition table image is emitted under
         # build/partition_table/partition-table.bin alongside firmware.bin. PlatformIO writes the
         # equivalent file as partitions.bin in the env-specific .pioenvs directory.
-        if self.data.get(KEY_NATIVE_IDF):
+        if self.using_toolchain_esp_idf:
             return self.relative_build_path(
                 "build", "partition_table", "partition-table.bin"
             )
@@ -792,7 +797,7 @@ class EsphomeCore:
 
     @property
     def bootloader_bin(self) -> Path:
-        if self.data.get(KEY_NATIVE_IDF):
+        if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", "bootloader", "bootloader.bin")
         return self.relative_pioenvs_path(self.name, "bootloader.bin")
 
@@ -852,6 +857,14 @@ class EsphomeCore:
             "Use CORE.is_esp32 and/or CORE.using_arduino instead."
         )
         return self.target_framework == "esp-idf"
+
+    @property
+    def using_toolchain_esp_idf(self):
+        return self.toolchain == Toolchain.ESP_IDF
+
+    @property
+    def using_toolchain_platformio(self):
+        return self.toolchain == Toolchain.PLATFORMIO
 
     @property
     def using_zephyr(self):

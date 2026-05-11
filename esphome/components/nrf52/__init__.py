@@ -41,6 +41,7 @@ from esphome.const import (
     CONF_OTA,
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
+    CONF_TOOLCHAIN,
     CONF_VERSION,
     CONF_VOLTAGE,
     KEY_CORE,
@@ -49,6 +50,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PLATFORM_NRF52,
     ThreadModel,
+    Toolchain,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.core.config import BOARD_MAX_LENGTH
@@ -73,8 +75,35 @@ AUTO_LOAD = ["zephyr", "preferences"]
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 
+FAKE_BOARD_MANIFEST = """
+{
+    "frameworks": [
+        "zephyr"
+    ],
+    "name": "esphome nrf52",
+    "upload": {
+        "maximum_ram_size": 248832,
+        "maximum_size": 815104,
+        "speed": 115200
+    },
+    "url": "https://esphome.io/",
+    "vendor": "esphome",
+    "build": {
+        "bsp": {
+            "name": "adafruit"
+        },
+        "softdevice": {
+            "sd_fwid": "0x00B6"
+        }
+    }
+}
+"""
+
 
 def set_core_data(config: ConfigType) -> ConfigType:
+    # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
+    if CORE.toolchain is None:
+        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
     zephyr_set_core_data(config)
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
@@ -159,11 +188,17 @@ def _set_framework_defaults(config: ConfigType) -> ConfigType:
 
 
 def set_framework(config: ConfigType) -> ConfigType:
+    if CONF_VERSION not in config[CONF_FRAMEWORK]:
+        default_version = "2.6.1-b" if CORE.using_toolchain_platformio else "2.9.2"
+        config = {
+            **config,
+            CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
+        }
     framework_ver = cv.Version.parse(
         cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION])
     )
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
-    if config[CONF_NATIVE_BUILD]:
+    if not CORE.using_toolchain_platformio:
         return config
     if framework_ver < cv.Version(2, 9, 2):
         return cv.require_framework_version(
@@ -328,7 +363,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_VARIANT", "NRF52")
     # nRF52 processors are single-core
     cg.add_define(ThreadModel.SINGLE)
-    if not config[CONF_NATIVE_BUILD]:
+    if CORE.using_toolchain_platformio:
         cg.add_platformio_option("board", config[CONF_BOARD])
         cg.add_platformio_option(
             CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
@@ -452,37 +487,13 @@ async def _dfu_to_code(dfu_config):
 def copy_files() -> None:
     """Copy files to the build directory."""
 
-    if not zephyr_data()[KEY_NATIVE_BUILD] and (
+    if CORE.using_toolchain_platformio and (
         zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
         or zephyr_data()[KEY_BOARD] == "xiao_ble"
     ):
-        fake_board_manifest = """
-    {
-        "frameworks": [
-            "zephyr"
-        ],
-        "name": "esphome nrf52",
-        "upload": {
-            "maximum_ram_size": 248832,
-            "maximum_size": 815104,
-            "speed": 115200
-        },
-        "url": "https://esphome.io/",
-        "vendor": "esphome",
-        "build": {
-            "bsp": {
-                "name": "adafruit"
-            },
-            "softdevice": {
-                "sd_fwid": "0x00B6"
-            }
-        }
-    }
-    """
-
         write_file_if_changed(
             CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD]}.json"),
-            fake_board_manifest,
+            FAKE_BOARD_MANIFEST,
         )
 
     zephyr_copy_files()
@@ -543,11 +554,11 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
 def _upload_using_platformio(
     config: ConfigType, port: str, upload_args: list[str]
 ) -> int | str:
-    from esphome import platformio_api
+    from esphome.platformio import toolchain
 
     if port is not None:
         upload_args += ["--upload-port", port]
-    return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+    return toolchain.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
 
 def upload_program(config: ConfigType, args, host: str) -> bool:

@@ -11,7 +11,7 @@ import shutil
 import stat
 import sys
 import tempfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TextIO
 from urllib.parse import urlparse
 
 from esphome.const import __version__ as ESPHOME_VERSION
@@ -617,10 +617,15 @@ def sanitize(value):
 class ProgressBar:
     """A simple terminal progress bar for upload operations."""
 
-    def __init__(self) -> None:
+    def __init__(self, header: str, stream: TextIO | None = None) -> None:
+        self.header = header
+        self.stream = stream or sys.stderr
         self.last_progress: int | None = None
+        self.enabled = hasattr(self.stream, "isatty") and self.stream.isatty()
 
     def update(self, progress: float) -> None:
+        if not self.enabled:
+            return
         bar_length = 60
         status = ""
         if progress >= 1:
@@ -631,11 +636,13 @@ class ProgressBar:
             return
         self.last_progress = new_progress
         block = int(round(bar_length * progress))
-        text = f"\rUploading: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
+        text = f"\r{self.header}: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
         sys.stderr.write(text)
         sys.stderr.flush()
 
     def done(self) -> None:
+        if not self.enabled:
+            return
         sys.stderr.write("\n")
         sys.stderr.flush()
 
