@@ -22,7 +22,6 @@ from esphome.types import ConfigType
 from .const import (
     BACNET_UNIT_NO_UNITS,
     BACNET_UNITS,
-    CONF_ON_JOIN,
     CONF_POWER_SOURCE,
     CONF_ROUTER,
     CONF_WIPE_ON_BOOT,
