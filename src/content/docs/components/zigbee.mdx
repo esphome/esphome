@@ -53,7 +53,9 @@ zigbee:
   id: my_zigbee
   on_join:
     then:
-      - logger.log: "Joined network"
+      - logger.log:
+          format: "%s network."
+          args: ['x ? "Joined" : "Rejoined"']
   power_source: BATTERY
 ```
 
@@ -66,6 +68,9 @@ zigbee:
 - **router** (*Optional*, boolean): If true the Zigbee role will be `router` instead of `end device` and it will
   forward Zigbee packets from other devices. Don't use this for battery-powered devices. Defaults to `false`.
 
+- **on_join** (*Optional*, [Automation](/automations#automation)): Automation to run when the device joins the network.
+  In [Lambdas](/automations/templates#config-lambda) you can get the join type with `x`. It is `true` for join and `false` for rejoin.
+
 Only on `nRF52`:
 
 - **wipe_on_boot** (*Optional*): Erases all non-volatile memory data on boot, including
@@ -74,8 +79,6 @@ Only on `nRF52`:
   - `true`: Erase all data on every boot. Use only for recovery from boot loops when
     you don't have an SWD programmer.
   - `once`: Erase data only on first boot after flashing new firmware, then preserve.
-
-- **on_join** (*Optional*, [Automation](/automations#automation)): Automation to run when the device joins the network.
 
 - **power_source** (*Optional*, enum): Indicates what kind of power the device uses. Affects
   sleep behavior. One of `UNKNOWN`, `MAINS_SINGLE_PHASE`, `MAINS_THREE_PHASE`, `BATTERY`,
