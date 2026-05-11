@@ -436,9 +436,17 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         mcumgr_device = host
 
     if mcumgr_device:
-        firmware = Path(
-            CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
-        ).resolve()
+        # `esphome upload --prebuilt-dir <path>` ships the MCUboot-signed
+        # update image at the root of the prebuilt directory; prefer that so
+        # the dashboard's transparent BLE install on a Bluetooth proxy works
+        # without a local Zephyr build tree.
+        prebuilt = CORE.prebuilt_artifact_path("app_update.bin")
+        if prebuilt is not None:
+            firmware = prebuilt.resolve()
+        else:
+            firmware = Path(
+                CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+            ).resolve()
         asyncio.run(smpmgr_upload(mcumgr_device, firmware))
         return True  # Handled: mcumgr OTA upload
 
