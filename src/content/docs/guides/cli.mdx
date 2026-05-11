@@ -54,6 +54,21 @@ Can also be enabled via environment variable `ESPHOME_VERBOSE=true`.
 
 Please see [command line substitutions](/components/substitutions#command-line-substitutions) for details.
 
+<span id="cli-toolchain"></span>
+### `--toolchain` Option
+
+**`--toolchain TOOLCHAIN`**
+: Selects which toolchain to use for compiling the project. Supported values are:
+
+* `platformio` (default)
+* `esp-idf`
+
+The toolchain can be configured using `esp32.toolchain` (see the [ESP32 toolchain configuration](/components/esp32#esp32-toolchain)).
+If not specified, `platformio` is used by default.
+If both `esp32.toolchain` and the `--toolchain` CLI option are set, the CLI option takes precedence.
+
+Please see [ESP-IDF toolchain documentation](/guides/esp_idf/) for details on using the ESP-IDF integration.
+
 ## Commands
 
 ### `run` Command
