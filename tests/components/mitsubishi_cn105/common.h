@@ -42,10 +42,13 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
  public:
   using MitsubishiCN105::MitsubishiCN105;
   using MitsubishiCN105::State;
+  using MitsubishiCN105::UpdateFlag;
   using MitsubishiCN105::state_;
   using MitsubishiCN105::write_timeout_start_ms_;
   using MitsubishiCN105::status_update_start_ms_;
   using MitsubishiCN105::use_temperature_encoding_b_;
+  using MitsubishiCN105::status_update_wait_credit_ms_;
+  using MitsubishiCN105::pending_updates_;
 
   void set_state(State s) { this->set_state_(s); }
   void apply_settings() { this->apply_settings_(); }
