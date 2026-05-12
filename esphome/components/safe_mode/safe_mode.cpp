@@ -23,6 +23,37 @@ namespace esphome::safe_mode {
 
 static const char *const TAG = "safe_mode";
 
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK) && !defined(USE_OTA_PARTITIONS)
+// Find a non-running app partition. If verify is true, only returns a partition
+// whose image passes verification (expensive: reads flash). Returns nullptr if none found.
+static const esp_partition_t *find_alternate_app_partition(bool verify) {
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  const esp_partition_t *result = nullptr;
+  esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+  while (it != nullptr) {
+    const esp_partition_t *p = esp_partition_get(it);
+    if (p->address != running->address) {
+      if (!verify) {
+        result = p;
+        break;
+      }
+      esp_image_metadata_t data = {};
+      const esp_partition_pos_t part_pos = {
+          .offset = p->address,
+          .size = p->size,
+      };
+      if (esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &part_pos, &data) == ESP_OK) {
+        result = p;
+        break;
+      }
+    }
+    it = esp_partition_next(it);
+  }
+  esp_partition_iterator_release(it);
+  return result;
+}
+#endif
+
 void SafeModeComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Safe Mode:\n"
@@ -74,7 +105,11 @@ void SafeModeComponent::dump_config() {
 #ifdef USE_OTA_PARTITIONS
     ESP_LOGW(TAG, " OTA partition table update or serial flashing is required.");
 #else
-    ESP_LOGW(TAG, " Activate safe mode to attempt recovery to a factory app, if present.");
+    if (find_alternate_app_partition(false) != nullptr) {
+      ESP_LOGW(TAG, " Activate safe mode to reboot to the recovery partition.");
+    } else {
+      ESP_LOGE(TAG, " No recovery partition available; serial flashing is required.");
+    }
 #endif
   }
 #endif
@@ -175,24 +210,7 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   // Image verification is deferred until here so the cost is only paid when entering safe mode,
   // not on every boot.
   if (!this->app_ota_possible_) {
-    const esp_partition_t *rollback_part = nullptr;
-    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
-    while (it != nullptr) {
-      const esp_partition_t *p = esp_partition_get(it);
-      if (p->address != running_part->address) {
-        esp_image_metadata_t data = {};
-        const esp_partition_pos_t part_pos = {
-            .offset = p->address,
-            .size = p->size,
-        };
-        if (esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &part_pos, &data) == ESP_OK) {
-          rollback_part = p;
-          break;
-        }
-      }
-      it = esp_partition_next(it);
-    }
-    esp_partition_iterator_release(it);
+    const esp_partition_t *rollback_part = find_alternate_app_partition(true);
     if (rollback_part != nullptr) {
       esp_err_t err = esp_ota_set_boot_partition(rollback_part);
       if (err == ESP_OK) {
