@@ -18,7 +18,7 @@ import pytest
 from pytest import CaptureFixture
 from zeroconf import ServiceStateChange
 
-from esphome import const, platformio_api
+from esphome import const
 from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
