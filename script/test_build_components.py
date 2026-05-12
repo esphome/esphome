@@ -39,7 +39,11 @@ from script.analyze_component_buses import (
     merge_compatible_bus_groups,
     uses_local_file_references,
 )
-from script.helpers import get_component_test_files, split_conflicting_groups
+from script.helpers import (
+    get_component_test_files,
+    is_validate_only_file,
+    split_conflicting_groups,
+)
 from script.merge_component_configs import merge_component_configs
 
 
@@ -83,7 +87,10 @@ def show_disk_space_if_ci(esphome_command: str) -> None:
 
 
 def find_component_tests(
-    components_dir: Path, component_pattern: str = "*", base_only: bool = False
+    components_dir: Path,
+    component_pattern: str = "*",
+    base_only: bool = False,
+    include_validate: bool = False,
 ) -> dict[str, list[Path]]:
     """Find all component test files.
 
@@ -91,6 +98,8 @@ def find_component_tests(
         components_dir: Path to tests/components directory
         component_pattern: Glob pattern for component names
         base_only: If True, only find base test files (test.*.yaml), not variant files (test-*.yaml)
+        include_validate: If True, also include config-only files (validate.*.yaml).
+            These are run with `esphome config` only and never compiled.
 
     Returns:
         Dictionary mapping component name to list of test files
@@ -102,7 +111,11 @@ def find_component_tests(
             continue
 
         # Get test files using helper function
-        test_files = get_component_test_files(comp_dir.name, all_variants=not base_only)
+        test_files = get_component_test_files(
+            comp_dir.name,
+            all_variants=not base_only,
+            include_validate=include_validate,
+        )
         if test_files:
             component_tests[comp_dir.name] = test_files
 
@@ -937,8 +950,13 @@ def run_individual_component_test(
         tested_components: Set of already tested components
         test_results: List to append test results
     """
-    # Skip if already tested in a group
-    if (component, platform_with_version) in tested_components:
+    # Validate files (validate.*.yaml) are config-only and never participate
+    # in compile-time bus grouping, so always run them individually even when
+    # the (component, platform) pair was covered by a group test.
+    if (
+        not is_validate_only_file(test_file)
+        and (component, platform_with_version) in tested_components
+    ):
         return
 
     test_result = run_esphome_test(
@@ -992,13 +1010,23 @@ def test_components(
     # Get platform base files
     platform_bases = get_platform_base_files(build_components_dir)
 
+    # Validate files (validate.*.yaml) are config-only -- they exercise
+    # schema/validation paths but are never compiled. Include them when running
+    # `config` or `clean`; exclude them under `compile` so they never reach a
+    # toolchain build.
+    include_validate = esphome_command != "compile"
+
     # Find all component tests
     all_tests = {}
     for pattern in component_patterns:
         # Skip empty patterns (happens when components list is empty string)
         if not pattern:
             continue
-        all_tests.update(find_component_tests(tests_dir, pattern, base_only))
+        all_tests.update(
+            find_component_tests(
+                tests_dir, pattern, base_only, include_validate=include_validate
+            )
+        )
 
     # If no components found, build a reference configuration for baseline comparison
     # Create a synthetic "empty" component test that will build just the base config

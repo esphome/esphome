@@ -283,6 +283,13 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool, 
 
     # Analyze all YAML files in the component directory
     for yaml_file in component_dir.glob("*.yaml"):
+        # validate.*.yaml files are config-only -- they don't compile, so
+        # their contents must not influence compile-time grouping decisions
+        # (e.g. a !extend used only to exercise schema validation must not
+        # disqualify the whole component from being grouped).
+        if yaml_file.name.startswith(("validate.", "validate-")):
+            continue
+
         analysis = analyze_yaml_file(yaml_file)
 
         # Track if any file uses extend/remove

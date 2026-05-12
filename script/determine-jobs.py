@@ -29,6 +29,8 @@ The CI workflow uses this information to:
 - Skip or run downstream esphome/device-builder tests against the PR's Python code
 - Determine which components to test individually
 - Decide how to split component tests (if there are many)
+- Identify directly-changed components whose only edits are validate.*.yaml files,
+  so CI can skip the compile stage for them and run config validation only
 - Run memory impact analysis whenever there are changed components (merged config), and also for core-only changes
 
 Usage:
@@ -600,14 +602,44 @@ def _component_has_tests(component: str) -> bool:
     """Check if a component has test files.
 
     Cached to avoid repeated filesystem operations for the same component.
+    Validate files (validate.*.yaml) count -- they exercise schema validation
+    in CI even though they are never compiled.
 
     Args:
         component: Component name to check
 
     Returns:
-        True if the component has test YAML files
+        True if the component has test or validate YAML files
     """
-    return bool(get_component_test_files(component, all_variants=True))
+    return bool(
+        get_component_test_files(component, all_variants=True, include_validate=True)
+    )
+
+
+def _component_change_is_validate_only(component: str, changed: list[str]) -> bool:
+    """Return True if every changed file for this component is a validate.*.yaml.
+
+    Used to decide whether a directly-changed component can skip the compile
+    stage in CI. A component qualifies when:
+    - at least one file under ``tests/components/<component>/`` changed, AND
+    - no source file under ``esphome/components/<component>/`` changed, AND
+    - every changed test file is a ``validate.*.yaml`` or
+      ``validate-*.yaml`` (i.e. no regular ``test.*.yaml`` was touched).
+    """
+    test_prefix = f"tests/components/{component}/"
+    src_prefix = f"esphome/components/{component}/"
+    test_changes: list[str] = []
+    for path in changed:
+        if path.startswith(src_prefix):
+            return False
+        if path.startswith(test_prefix):
+            test_changes.append(path[len(test_prefix) :])
+    if not test_changes:
+        return False
+    return all(
+        rel.startswith("validate.") or rel.startswith("validate-")
+        for rel in test_changes
+    )
 
 
 def _select_platform_by_preference(
@@ -977,6 +1009,17 @@ def main() -> None:
         if component not in directly_changed_components
     ]
 
+    # Components whose only changes are validate.*.yaml files can skip the
+    # compile stage in CI -- their source and test fixtures didn't move, so
+    # rebuilding firmware adds no signal. Only directly-changed components
+    # qualify: a component pulled in transitively (because a dependency
+    # changed) still needs the compile to catch regressions.
+    validate_only_components = sorted(
+        component
+        for component in directly_changed_with_tests
+        if _component_change_is_validate_only(component, changed)
+    )
+
     # Detect components for memory impact analysis (merged config)
     memory_impact = detect_memory_impact_config(args.branch)
 
@@ -1073,6 +1116,7 @@ def main() -> None:
         "cpp_unit_tests_run_all": cpp_run_all,
         "cpp_unit_tests_components": cpp_components,
         "component_test_batches": component_test_batches,
+        "validate_only_components": validate_only_components,
         "benchmarks": run_benchmarks,
     }
 
