@@ -4,8 +4,7 @@
 #include "esphome/components/atm90e32/atm90e32.h"
 #include "esphome/components/button/button.h"
 
-namespace esphome {
-namespace atm90e32 {
+namespace esphome::atm90e32 {
 
 class ATM90E32GainCalibrationButton : public button::Button, public Parented<ATM90E32Component> {
  public:
@@ -55,5 +54,4 @@ class ATM90E32ClearPowerOffsetCalibrationButton : public button::Button, public 
   void press_action() override;
 };
 
-}  // namespace atm90e32
-}  // namespace esphome
+}  // namespace esphome::atm90e32

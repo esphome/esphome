@@ -30,6 +30,7 @@ from esphome.core import CORE, HexInt
 
 _LOGGER = logging.getLogger(__name__)
 
+AUTO_LOAD = ["ring_buffer"]
 CODEOWNERS = ["@kahrendt", "@jesserockz"]
 DEPENDENCIES = ["microphone"]
 
@@ -454,11 +455,11 @@ async def to_code(config):
     # Pin esp-nn for stable future builds (esp-tflite-micro depends on esp-nn)
     esp32.add_idf_component(name="espressif/esp-nn", ref="1.1.2")
 
+    esp32.add_idf_component(name="esphome/esp-micro-speech-features", ref="1.2.3")
+
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
     cg.add_build_flag("-DESP_NN")
-
-    cg.add_library("kahrendt/ESPMicroSpeechFeatures", "1.1.0")
 
     if vad_model := config.get(CONF_VAD):
         cg.add_define("USE_MICRO_WAKE_WORD_VAD")

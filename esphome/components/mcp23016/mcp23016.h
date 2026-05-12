@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
 
-namespace esphome {
-namespace mcp23016 {
+namespace esphome::mcp23016 {
 
 enum MCP23016GPIORegisters {
   // 0 side
@@ -79,5 +78,4 @@ class MCP23016GPIOPin : public GPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace mcp23016
-}  // namespace esphome
+}  // namespace esphome::mcp23016

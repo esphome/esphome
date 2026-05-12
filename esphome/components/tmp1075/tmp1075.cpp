@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "tmp1075.h"
 
-namespace esphome {
-namespace tmp1075 {
+namespace esphome::tmp1075 {
 
 static const char *const TAG = "tmp1075";
 
@@ -127,5 +126,4 @@ static float regvalue2temp(const uint16_t regvalue) {
   return (signed_value >> 4) * 0.0625f;
 }
 
-}  // namespace tmp1075
-}  // namespace esphome
+}  // namespace esphome::tmp1075
