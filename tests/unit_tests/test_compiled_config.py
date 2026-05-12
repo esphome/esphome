@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from unittest.mock import patch
@@ -24,11 +25,8 @@ _VALIDATED_CONFIG_YAML = """\
 esphome:
   name: lite_test
   friendly_name: Lite Test Device
-  build_path: build/lite_test
 esp32:
   board: nodemcu-32s
-  framework:
-    type: arduino
 logger:
   baud_rate: 115200
 api:
@@ -43,6 +41,30 @@ wifi:
   ssid: ssid
   use_address: 192.168.1.42
 """
+
+
+def _write_storage(storage_path: Path) -> None:
+    """Write a vanilla StorageJSON sidecar for the cache tests."""
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "storage_version": 1,
+        "name": "lite_test",
+        "friendly_name": "Lite Test Device",
+        "comment": None,
+        "esphome_version": "2026.1.0",
+        "src_version": 1,
+        "address": "192.168.1.42",
+        "web_port": None,
+        "esp_platform": "ESP32",
+        "build_path": "/build/lite_test",
+        "firmware_bin_path": "/build/lite_test/firmware.bin",
+        "loaded_integrations": ["api", "logger", "ota", "wifi"],
+        "loaded_platforms": [],
+        "no_mdns": False,
+        "framework": "arduino",
+        "core_platform": "esp32",
+    }
+    storage_path.write_text(json.dumps(data))
 
 
 def _write_cache(cache_path: Path, body: str = _VALIDATED_CONFIG_YAML) -> Path:
@@ -63,14 +85,14 @@ def _set_cache_mtime(cache_path: Path, yaml_path: Path, *, offset: int) -> None:
 
 @pytest.fixture
 def fresh_cache_files(tmp_path: Path) -> Path:
-    """YAML + cache, both consistent and fresh."""
+    """YAML + StorageJSON + cache, all consistent and fresh."""
     yaml_path = tmp_path / "lite_test.yaml"
     yaml_path.write_text("esphome:\n  name: lite_test\n")
     CORE.config_path = yaml_path
 
-    cache = _write_cache(
-        tmp_path / ".esphome" / "storage" / "lite_test.yaml.validated.yaml"
-    )
+    storage_dir = tmp_path / ".esphome" / "storage"
+    _write_storage(storage_dir / "lite_test.yaml.json")
+    cache = _write_cache(storage_dir / "lite_test.yaml.validated.yaml")
     _set_cache_mtime(cache, yaml_path, offset=5)
 
     return yaml_path
@@ -84,7 +106,7 @@ def test_compiled_config_path_lives_alongside_sidecar(setup_core: Path) -> None:
 
 
 def test_load_compiled_config_happy_path(fresh_cache_files: Path) -> None:
-    """Fresh cache → returns the config and populates CORE from it."""
+    """Fresh cache + sidecar → returns config and populates CORE."""
     config = load_compiled_config(fresh_cache_files)
 
     assert config is not None
@@ -92,37 +114,40 @@ def test_load_compiled_config_happy_path(fresh_cache_files: Path) -> None:
     assert config[CONF_API]["encryption"]["key"] == "6dGhpcyBpcyBhIHRlc3Q="
     assert config["ota"][0]["password"] == "secret"
 
-    # CORE state derives from the cached config dict -- same source
-    # `read_config` uses, no separate sidecar schema.
+    # apply_to_core ran as part of the orchestration.
     assert CORE.name == "lite_test"
-    assert CORE.friendly_name == "Lite Test Device"
-    assert CORE.build_path == CORE.data_dir / "build/lite_test"
+    assert CORE.build_path == Path("/build/lite_test")
     assert CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] == "esp32"
     assert CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] == "arduino"
+    assert "api" in CORE.loaded_integrations
 
 
 @pytest.mark.parametrize(
     "scenario",
-    ["missing_cache", "stale_cache", "corrupt_cache", "missing_esphome_block"],
+    ["missing_cache", "stale_cache", "corrupt_cache", "missing_sidecar"],
 )
 def test_load_compiled_config_falls_back(tmp_path: Path, scenario: str) -> None:
     """All non-happy cases return None so the caller falls back."""
     yaml_path = tmp_path / "lite_test.yaml"
     yaml_path.write_text("esphome:\n  name: lite_test\n")
     CORE.config_path = yaml_path
-    cache_path = tmp_path / ".esphome" / "storage" / "lite_test.yaml.validated.yaml"
+    storage_dir = tmp_path / ".esphome" / "storage"
+    cache_path = storage_dir / "lite_test.yaml.validated.yaml"
+    sidecar_path = storage_dir / "lite_test.yaml.json"
 
     if scenario == "missing_cache":
-        pass  # no cache
+        pass  # no cache, no sidecar
     elif scenario == "stale_cache":
+        _write_storage(sidecar_path)
         _set_cache_mtime(_write_cache(cache_path), yaml_path, offset=-60)
     elif scenario == "corrupt_cache":
+        _write_storage(sidecar_path)
         _set_cache_mtime(
             _write_cache(cache_path, "not: valid: yaml: ["), yaml_path, offset=5
         )
-    elif scenario == "missing_esphome_block":
-        # Parseable YAML but no esphome: block -- can't populate CORE.
-        _set_cache_mtime(_write_cache(cache_path, "logger:\n"), yaml_path, offset=5)
+    elif scenario == "missing_sidecar":
+        # Cache fresh + parseable, but no StorageJSON → can't populate CORE.
+        _set_cache_mtime(_write_cache(cache_path), yaml_path, offset=5)
 
     assert load_compiled_config(yaml_path) is None
 
