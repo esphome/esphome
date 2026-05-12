@@ -13,8 +13,7 @@ paths) round-trip cleanly, and so the small ``StorageJSON`` sidecar
 isn't bloated by configs that can grow past a megabyte. Staleness
 is gated by an mtime check against the source YAML; the loader
 falls back to ``None`` (and the caller to ``read_config()``) whenever
-the cache is missing, stale, unparseable, or the companion
-``StorageJSON`` sidecar can't be loaded.
+the cache is missing, stale, unparseable, or structurally incomplete.
 """
 
 from __future__ import annotations
@@ -22,12 +21,61 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from esphome.const import (
+    CONF_BUILD_PATH,
+    CONF_ESPHOME,
+    CONF_FRAMEWORK,
+    CONF_FRIENDLY_NAME,
+    CONF_NAME,
+    CONF_TYPE,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+)
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
-from esphome.storage_json import StorageJSON, ext_storage_path
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _populate_core_from_validated_config(config: ConfigType) -> None:
+    """Set up ``CORE`` from an already-validated config dict.
+
+    Reads from the same config keys ``preload_core_config`` and the
+    target-platform component validator would write into during a full
+    ``read_config`` -- using the cached config dict as the canonical
+    source instead of duplicating the field list in a separate sidecar
+    schema. ``CORE.address`` and ``CORE.web_port`` aren't set here:
+    they're already properties that derive themselves from
+    ``CORE.config`` on access, which the dispatcher assigns next.
+    """
+    from esphome.core.config import _is_target_platform
+
+    esphome_block = config[CONF_ESPHOME]
+    CORE.name = esphome_block[CONF_NAME]
+    CORE.friendly_name = esphome_block.get(CONF_FRIENDLY_NAME)
+    if (build_path := esphome_block.get(CONF_BUILD_PATH)) is not None:
+        CORE.build_path = CORE.data_dir / build_path
+
+    CORE.data.setdefault(KEY_CORE, {})
+    for domain, sub in config.items():
+        if not isinstance(domain, str) or not _is_target_platform(domain):
+            continue
+        CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = domain
+        # Every platform component follows the
+        # `<platform>.framework.type` convention to express which
+        # framework the binary was built against (esp-idf, arduino,
+        # zephyr). A platform without a framework block (host) just
+        # leaves KEY_TARGET_FRAMEWORK unset, matching what
+        # `read_config` would do.
+        if (
+            isinstance(sub, dict)
+            and isinstance((framework := sub.get(CONF_FRAMEWORK)), dict)
+            and (framework_type := framework.get(CONF_TYPE)) is not None
+        ):
+            CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = framework_type
+        break
 
 
 def compiled_config_path(config_filename: str) -> Path:
@@ -64,17 +112,19 @@ def save_compiled_config(config: ConfigType) -> None:
 
 
 def load_compiled_config(conf_path: Path) -> ConfigType | None:
-    """Load the cached validated config and apply storage metadata to CORE.
+    """Load the cached validated config and set up ``CORE``.
 
-    Single entry point for the ``upload`` / ``logs`` fast path: loads
-    the cache, applies the ``StorageJSON`` sidecar's platform / build
-    metadata to ``CORE``, and returns the config dict. Returns
+    Single entry point for the ``upload`` / ``logs`` fast path. Returns
     ``None`` (so the caller falls back to ``read_config``) when the
     cache is missing, older than the source YAML, unparseable, or
-    when the sidecar can't be loaded. The mtime check catches the
-    common "user edited the YAML and forgot to recompile" case;
-    deeper drift (an edited ``!include`` whose parent YAML mtime
-    didn't change) is the user's responsibility.
+    structurally incomplete. The mtime check catches the common "user
+    edited the YAML and forgot to recompile" case; deeper drift (an
+    edited ``!include`` whose parent YAML mtime didn't change) is the
+    user's responsibility.
+
+    CORE state is derived from the cached config dict directly --
+    same source ``read_config`` uses -- so there's no separate sidecar
+    schema to keep in sync.
     """
     cache_path = compiled_config_path(conf_path.name)
     if not _cache_is_fresh(cache_path, conf_path):
@@ -89,8 +139,11 @@ def load_compiled_config(conf_path: Path) -> ConfigType | None:
     except Exception:  # pylint: disable=broad-except
         return None
 
-    storage = StorageJSON.load(ext_storage_path(conf_path.name))
-    if storage is None:
+    if not isinstance(config, dict) or CONF_ESPHOME not in config:
         return None
-    storage.apply_to_core()
+
+    try:
+        _populate_core_from_validated_config(config)
+    except (KeyError, TypeError):
+        return None
     return config

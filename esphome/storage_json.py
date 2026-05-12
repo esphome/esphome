@@ -256,33 +256,6 @@ class StorageJSON:
         except Exception:  # pylint: disable=broad-except
             return None
 
-    def apply_to_core(self) -> None:
-        """Populate ``CORE`` from this sidecar.
-
-        Used by the ``--from-storage-json`` fast path in
-        ``esphome upload`` / ``esphome logs``: those subcommands read
-        a handful of ``CORE`` attributes (``target_platform``,
-        ``build_path``, ``name``, ``loaded_integrations``) that the
-        normal flow populates during ``read_config``. Lifting them off
-        the sidecar lets us skip the validation pass entirely.
-        """
-        from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
-
-        CORE.name = self.name
-        CORE.friendly_name = self.friendly_name
-        CORE.build_path = self.build_path
-        CORE.loaded_integrations = set(self.loaded_integrations)
-        CORE.loaded_platforms = set(self.loaded_platforms)
-
-        core_platform = self.core_platform or (
-            self.target_platform.lower() if self.target_platform else None
-        )
-        CORE.data.setdefault(KEY_CORE, {})
-        if core_platform is not None:
-            CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = core_platform
-        if self.framework is not None:
-            CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = self.framework
-
     def __eq__(self, o) -> bool:
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()
 
