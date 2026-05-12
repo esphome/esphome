@@ -4,8 +4,7 @@
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
 
-namespace esphome {
-namespace wake_on_lan {
+namespace esphome::wake_on_lan {
 
 static const char *const TAG = "wake_on_lan.button";
 static const uint8_t PREFIX[6] = {255, 255, 255, 255, 255, 255};
@@ -84,6 +83,6 @@ void WakeOnLanButton::setup() {
 #endif
 }
 
-}  // namespace wake_on_lan
-}  // namespace esphome
+}  // namespace esphome::wake_on_lan
+
 #endif

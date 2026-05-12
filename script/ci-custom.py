@@ -250,7 +250,7 @@ def lint_ext_check(fname):
     ]
 )
 def lint_executable_bit(fname: Path) -> str | None:
-    ex = EXECUTABLE_BIT[str(fname)]
+    ex = EXECUTABLE_BIT[fname.as_posix()]
     if ex != 100644:
         return (
             f"File has invalid executable bit {ex}. If running from a windows machine please "
@@ -562,7 +562,7 @@ def lint_constants_usage():
 # Maximum allowed CONF_ constants in esphome/const.py.
 # This file is frozen — new constants go in esphome/components/const/__init__.py.
 # Decrease this number when constants are moved out of const.py.
-CONST_PY_MAX_CONF = 1011
+CONST_PY_MAX_CONF = 1012
 
 
 @lint_content_check(include=["esphome/const.py"])

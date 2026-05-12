@@ -4,8 +4,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace es7243e {
+namespace esphome::es7243e {
 
 class ES7243E : public audio_adc::AudioAdc, public Component, public i2c::I2CDevice {
   /* Class for configuring an ES7243E ADC for microphone input.
@@ -32,5 +31,4 @@ class ES7243E : public audio_adc::AudioAdc, public Component, public i2c::I2CDev
   float mic_gain_{0};
 };
 
-}  // namespace es7243e
-}  // namespace esphome
+}  // namespace esphome::es7243e

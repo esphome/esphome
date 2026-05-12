@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/sx127x/sx127x.h"
 
-namespace esphome {
-namespace sx127x {
+namespace esphome::sx127x {
 
 template<typename... Ts> class RunImageCalAction : public Action<Ts...>, public Parented<SX127x> {
  public:
@@ -64,5 +63,4 @@ template<typename... Ts> class SetModeStandbyAction : public Action<Ts...>, publ
   void play(const Ts &...x) override { this->parent_->set_mode_standby(); }
 };
 
-}  // namespace sx127x
-}  // namespace esphome
+}  // namespace esphome::sx127x
