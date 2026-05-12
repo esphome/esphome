@@ -78,27 +78,6 @@ ConnectedCondition = voice_assistant_ns.class_(
 Timer = voice_assistant_ns.struct("Timer")
 
 
-def _microphone_sources_schema(value):
-    # An empty/omitted config keeps the legacy behavior of auto-resolving a single microphone
-    if not value:
-        value = [{}]
-    return cv.All(
-        cv.ensure_list(
-            microphone.microphone_source_schema(
-                min_bits_per_sample=16,
-                max_bits_per_sample=16,
-                min_channels=1,
-                max_channels=1,
-            )
-        ),
-        cv.Length(
-            min=1,
-            max=MAX_MICROPHONE_SOURCES,
-            msg=f"Voice Assistant supports at most {MAX_MICROPHONE_SOURCES} microphone sources",
-        ),
-    )(value)
-
-
 def tts_stream_validate(config):
     if CONF_SPEAKER not in config and (
         CONF_ON_TTS_STREAM_START in config or CONF_ON_TTS_STREAM_END in config
@@ -113,7 +92,21 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(VoiceAssistant),
-            cv.Optional(CONF_MICROPHONE, default={}): _microphone_sources_schema,
+            cv.Optional(CONF_MICROPHONE, default=[{}]): cv.All(
+                cv.ensure_list(
+                    microphone.microphone_source_schema(
+                        min_bits_per_sample=16,
+                        max_bits_per_sample=16,
+                        min_channels=1,
+                        max_channels=1,
+                    )
+                ),
+                cv.Length(
+                    min=1,
+                    max=MAX_MICROPHONE_SOURCES,
+                    msg=f"Voice Assistant supports at most {MAX_MICROPHONE_SOURCES} microphone sources",
+                ),
+            ),
             cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(
                 media_player.MediaPlayer
             ),
