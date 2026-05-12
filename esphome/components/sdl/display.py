@@ -124,7 +124,7 @@ async def to_code(config):
         cg.add(var.set_window_options(create_flags))
 
         if position := window_options.get(CONF_POSITION):
-            if centered := position.get(CONF_CENTERED_ON_DISPLAY):
+            if (centered := position.get(CONF_CENTERED_ON_DISPLAY)) is not None:
                 cg.add(
                     var.set_position(
                         SDL_WINDOWPOS_CENTERED_DISPLAY | centered,
