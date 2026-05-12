@@ -85,7 +85,6 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
-    KEY_NATIVE_IDF,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
@@ -2126,7 +2125,13 @@ def test_upload_program_web_server_only_auto_dispatches(
     assert exit_code == 0
     assert host == "192.168.1.100"
     expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+        tmp_path
+        / ".esphome"
+        / "build"
+        / "test"
+        / ".pioenvs"
+        / PLATFORMIO_ENV_NAME
+        / "firmware.bin"
     )
     mock_run_web_server_ota.assert_called_once_with(
         ["192.168.1.100"], 80, "admin", "pw", expected_firmware
@@ -2156,7 +2161,13 @@ def test_upload_program_web_server_no_auth(
     assert exit_code == 0
     assert host == "192.168.1.100"
     expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+        tmp_path
+        / ".esphome"
+        / "build"
+        / "test"
+        / ".pioenvs"
+        / PLATFORMIO_ENV_NAME
+        / "firmware.bin"
     )
     mock_run_web_server_ota.assert_called_once_with(
         ["192.168.1.100"], 8080, None, None, expected_firmware
@@ -5824,14 +5835,14 @@ def test_get_configured_xtal_freq_native_idf_uses_device_sdkconfig(
     """Native ESP-IDF should keep reading sdkconfig by device name."""
     CORE.name = "test-device"
     CORE.build_path = tmp_path
-    CORE.data[KEY_NATIVE_IDF] = True
+    CORE.toolchain = Toolchain.ESP_IDF
     sdkconfig = tmp_path / "sdkconfig.test-device"
     sdkconfig.write_text("CONFIG_XTAL_FREQ=40\n")
 
     try:
         assert _get_configured_xtal_freq() == 40
     finally:
-        CORE.data.pop(KEY_NATIVE_IDF, None)
+        CORE.toolchain = Toolchain.PLATFORMIO
 
 
 def test_crystal_freq_callback_mismatch() -> None:

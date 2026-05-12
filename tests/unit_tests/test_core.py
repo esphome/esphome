@@ -662,7 +662,7 @@ class TestEsphomeCore:
             const.KEY_TARGET_PLATFORM: "esp32",
             const.KEY_TARGET_FRAMEWORK: "esp-idf",
         }
-        target.data[const.KEY_NATIVE_IDF] = True
+        target.toolchain = const.Toolchain.ESP_IDF
 
         assert target.sdkconfig_name == "test-device"
 
@@ -937,12 +937,12 @@ class TestEsphomeCore:
         )
 
     def test_bootloader_bin__platformio(self, target):
-        """For PlatformIO builds bootloader.bin lives in the env-specific .pioenvs directory."""
+        """For PlatformIO builds bootloader.bin lives in the stable .pioenvs env."""
         target.name = "test-device"
         target.toolchain = const.Toolchain.PLATFORMIO
 
         assert target.bootloader_bin == Path(
-            "foo/build/.pioenvs/test-device/bootloader.bin"
+            f"foo/build/.pioenvs/{const.PLATFORMIO_ENV_NAME}/bootloader.bin"
         )
 
     def test_add_library__extracts_short_name_from_path(self, target):

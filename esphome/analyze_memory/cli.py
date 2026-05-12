@@ -6,8 +6,11 @@ from collections import defaultdict
 from collections.abc import Callable
 import heapq
 from operator import itemgetter
+from pathlib import Path
 import sys
 from typing import TYPE_CHECKING
+
+from esphome.const import PLATFORMIO_ENV_NAME
 
 from . import (
     _COMPONENT_API,
@@ -720,6 +723,18 @@ def analyze_elf(
     return analyzer.generate_report(detailed)
 
 
+def _find_firmware_elf(build_path: Path) -> str | None:
+    """Find firmware.elf in current and legacy PlatformIO build layouts."""
+    for elf_candidate in [
+        build_path / "firmware.elf",
+        build_path / ".pioenvs" / PLATFORMIO_ENV_NAME / "firmware.elf",
+        build_path / ".pioenvs" / build_path.name / "firmware.elf",
+    ]:
+        if elf_candidate.exists():
+            return str(elf_candidate)
+    return None
+
+
 def main():
     """CLI entrypoint for memory analysis."""
     if len(sys.argv) < 2:
@@ -737,7 +752,6 @@ def main():
 
     # Load build directory
     import json
-    from pathlib import Path
 
     from esphome.platformio.toolchain import IDEData
 
@@ -759,15 +773,7 @@ def main():
         print(f"Error: {build_path} is not a directory", file=sys.stderr)
         sys.exit(1)
 
-    # Find firmware.elf
-    elf_file = None
-    for elf_candidate in [
-        build_path / "firmware.elf",
-        build_path / ".pioenvs" / build_path.name / "firmware.elf",
-    ]:
-        if elf_candidate.exists():
-            elf_file = str(elf_candidate)
-            break
+    elf_file = _find_firmware_elf(build_path)
 
     if not elf_file:
         print(f"Error: firmware.elf not found in {build_dir}", file=sys.stderr)

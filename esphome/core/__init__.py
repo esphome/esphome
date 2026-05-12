@@ -792,7 +792,7 @@ class EsphomeCore:
 
     @property
     def sdkconfig_name(self) -> str:
-        if self.data.get(KEY_NATIVE_IDF, False):
+        if self.using_toolchain_esp_idf:
             return self.name
         return self.pioenv_name
 
@@ -817,13 +817,13 @@ class EsphomeCore:
             return self.relative_build_path(
                 "build", "partition_table", "partition-table.bin"
             )
-        return self.relative_pioenvs_path(self.name, "partitions.bin")
+        return self.relative_pioenvs_path(self.pioenv_name, "partitions.bin")
 
     @property
     def bootloader_bin(self) -> Path:
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", "bootloader", "bootloader.bin")
-        return self.relative_pioenvs_path(self.name, "bootloader.bin")
+        return self.relative_pioenvs_path(self.pioenv_name, "bootloader.bin")
 
     @property
     def target_platform(self):

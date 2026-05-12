@@ -437,8 +437,8 @@ def test_run_platformio_cli_scopes_default_build_cache_by_toolchain(
 
     with patch.dict(os.environ, {}, clear=True):
         mock_run_external_process.return_value = 0
-        platformio_api._PLATFORMIO_ENV_DEFAULTS.clear()
-        platformio_api.run_platformio_cli("test")
+        toolchain._PLATFORMIO_ENV_DEFAULTS.clear()
+        toolchain.run_platformio_cli("test")
 
         assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(
             setup_core / ".esphome" / "platformio" / "build-cache" / "rp2040-arduino"
@@ -459,8 +459,8 @@ def test_run_platformio_cli_retargets_managed_cache_defaults_between_configs(
 
     with patch.dict(os.environ, {}, clear=True):
         mock_run_external_process.return_value = 0
-        platformio_api._PLATFORMIO_ENV_DEFAULTS.clear()
-        platformio_api.run_platformio_cli("test")
+        toolchain._PLATFORMIO_ENV_DEFAULTS.clear()
+        toolchain.run_platformio_cli("test")
 
         assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(
             setup_core / ".esphome" / "platformio" / "build-cache" / "esp32-esp-idf"
@@ -471,7 +471,7 @@ def test_run_platformio_cli_retargets_managed_cache_defaults_between_configs(
             KEY_TARGET_PLATFORM: "esp8266",
             KEY_TARGET_FRAMEWORK: "arduino",
         }
-        platformio_api.run_platformio_cli("test")
+        toolchain.run_platformio_cli("test")
 
         assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(
             setup_core / ".esphome" / "platformio" / "build-cache" / "esp8266-arduino"
@@ -502,8 +502,8 @@ def test_run_platformio_cli_removes_legacy_flat_build_cache_shards(
 
     with patch.dict(os.environ, {}, clear=True):
         mock_run_external_process.return_value = 0
-        platformio_api._PLATFORMIO_ENV_DEFAULTS.clear()
-        platformio_api.run_platformio_cli("test")
+        toolchain._PLATFORMIO_ENV_DEFAULTS.clear()
+        toolchain.run_platformio_cli("test")
 
         assert not legacy_shard.exists()
         assert scoped_cache.exists()
@@ -533,8 +533,8 @@ def test_run_platformio_cli_removes_unversioned_managed_build_cache_scope(
 
     with patch.dict(os.environ, {}, clear=True):
         mock_run_external_process.return_value = 0
-        platformio_api._PLATFORMIO_ENV_DEFAULTS.clear()
-        platformio_api.run_platformio_cli("test")
+        toolchain._PLATFORMIO_ENV_DEFAULTS.clear()
+        toolchain.run_platformio_cli("test")
 
         assert not stale_object.exists()
         assert scoped_cache.exists()
@@ -564,8 +564,8 @@ def test_run_platformio_cli_leaves_managed_cache_when_build_cache_is_overridden(
         os.environ, {"PLATFORMIO_BUILD_CACHE_DIR": str(custom_cache)}, clear=True
     ):
         mock_run_external_process.return_value = 0
-        platformio_api._PLATFORMIO_ENV_DEFAULTS.clear()
-        platformio_api.run_platformio_cli("test")
+        toolchain._PLATFORMIO_ENV_DEFAULTS.clear()
+        toolchain.run_platformio_cli("test")
 
         assert os.environ["PLATFORMIO_BUILD_CACHE_DIR"] == str(custom_cache)
         assert stale_object.exists()
@@ -591,8 +591,8 @@ def test_run_platformio_cli_honors_build_cache_opt_out(
 
     with patch.dict(os.environ, {ENV_NO_PLATFORMIO_BUILD_CACHE: "1"}, clear=True):
         mock_run_external_process.return_value = 0
-        platformio_api._PLATFORMIO_ENV_DEFAULTS.clear()
-        platformio_api.run_platformio_cli("test")
+        toolchain._PLATFORMIO_ENV_DEFAULTS.clear()
+        toolchain.run_platformio_cli("test")
 
         assert "PLATFORMIO_BUILD_CACHE_DIR" not in os.environ
 
