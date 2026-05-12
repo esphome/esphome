@@ -61,6 +61,7 @@ climate:
     name: "Living Room AC"
     uart_id: ac_uart
     update_interval: 1s
+    current_temperature_min_interval: 60s
 ```
 
 > [!WARNING]
@@ -104,6 +105,52 @@ climate:
   Defaults to `60s`.
 
 - All other options from [Climate](/components/climate#config-climate).
+
+## Remote temperature actions
+
+- **climate.mitsubishi_cn105.set_remote_temperature**
+  - Sends an external (remote) room temperature to the indoor unit.
+  - Overrides the unit’s internal temperature sensor.
+  - Supported temperature range: `8.0–39.5 °C`.
+
+- **climate.mitsubishi_cn105.clear_remote_temperature**
+  - Clears the externally provided temperature.
+  - Restores use of the unit’s internal temperature sensor.
+
+**Example:**
+
+```yaml
+climate:
+  - platform: mitsubishi_cn105
+    id: ac
+    # ...
+
+sensor:
+  - platform: homeassistant
+    id: living_room_temp
+    entity_id: sensor.living_room_temperature
+    on_value:
+      then:
+        - climate.mitsubishi_cn105.set_remote_temperature:
+            id: ac
+            temperature: !lambda 'return x;'
+```
+
+> [!NOTE]
+> This does not modify the temperature reported by the A/C unit in its status/room temperature packets. 
+> The reported current temperature remains the value provided by the unit itself. Some units may reflect 
+> the externally provided temperature, while others may continue to report their internal sensor value.
+>
+> Some units may automatically fall back to the internal sensor if no external temperature is sent. In such cases, 
+> the external temperature should be sent periodically (for example using an `interval`). Alternatively, 
+> `climate.mitsubishi_cn105.clear_remote_temperature` can be called if the external sensor becomes unavailable
+> for an extended period.
+>
+> It is the user’s responsibility to tailor the update strategy and usage to their specific A/C unit and setup.
+>
+> This is an advanced feature; users are expected to understand the implications of overriding the internal sensor. Depending 
+> on the unit, it may be necessary to explicitly call `climate.mitsubishi_cn105.clear_remote_temperature` to restore normal 
+> operation. Improper use may lead to unexpected behavior.
 
 ## See Also
 
