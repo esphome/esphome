@@ -40,8 +40,9 @@ import voluptuous as vol
 import yaml
 from yaml.nodes import Node
 
-from esphome import const, platformio_api, yaml_util
+from esphome import const, yaml_util
 from esphome.helpers import get_bool_env, mkdir_p, sort_ip_addresses
+from esphome.platformio import toolchain
 from esphome.storage_json import (
     StorageJSON,
     archive_storage_path,
@@ -437,7 +438,11 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
-        return await self.build_device_command(["logs"], json_message)
+        cmd = await self.build_device_command(["logs"], json_message)
+        if json_message.get("no_states"):
+            cmd.append("--no-states")
+            _LOGGER.debug("Built command: %s", cmd)
+        return cmd
 
 
 class EsphomeRenameHandler(EsphomeCommandWebSocket):
@@ -1086,7 +1091,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 self.send_error(404 if rc == 2 else 500)
                 return
 
-            idedata = platformio_api.IDEData(json.loads(stdout))
+            idedata = toolchain.IDEData(json.loads(stdout))
 
             found = False
             for image in idedata.extra_flash_images:

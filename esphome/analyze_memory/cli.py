@@ -739,7 +739,7 @@ def main():
     import json
     from pathlib import Path
 
-    from esphome.platformio_api import IDEData
+    from esphome.platformio.toolchain import IDEData
 
     build_path = Path(build_dir)
 

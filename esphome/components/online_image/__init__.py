@@ -100,7 +100,7 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
         cg.add(var.set_url(template_))
     if CONF_UPDATE in config:
-        template_ = await cg.templatable(config[CONF_UPDATE], args, bool)
+        template_ = await cg.templatable(config[CONF_UPDATE], args, cg.bool_)
         cg.add(var.set_update(template_))
     return var
 

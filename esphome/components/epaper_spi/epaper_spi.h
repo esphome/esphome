@@ -110,12 +110,14 @@ class EPaperBase : public Display,
     this->fill(COLOR_ON);
   }
 
- protected:
-  int get_height_internal() override { return this->height_; };
-  int get_width_internal() override { return this->width_; };
   int get_width() override { return this->effective_transform_ & SWAP_XY ? this->height_ : this->width_; }
   int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
   void draw_pixel_at(int x, int y, Color color) override;
+
+ protected:
+  int get_height_internal() override { return this->height_; };
+  int get_width_internal() override { return this->width_; };
+  bool is_using_partial_update_() const { return this->full_update_every_ > 1; }
   void process_state_();
 
   const char *epaper_state_to_string_();

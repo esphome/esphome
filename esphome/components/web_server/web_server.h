@@ -462,6 +462,12 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 
   static json::SerializationBuffer<> infrared_all_json_generator(WebServer *web_server, void *source);
 #endif
+#ifdef USE_RADIO_FREQUENCY
+  /// Handle a radio frequency request under '/radio_frequency/<id>/transmit'.
+  void handle_radio_frequency_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  static json::SerializationBuffer<> radio_frequency_all_json_generator(WebServer *web_server, void *source);
+#endif
 
 #ifdef USE_EVENT
   void on_event(event::Event *obj) override;
@@ -653,6 +659,9 @@ class WebServer final : public Controller, public Component, public AsyncWebHand
 #endif
 #ifdef USE_INFRARED
   json::SerializationBuffer<> infrared_json_(infrared::Infrared *obj, JsonDetail start_config);
+#endif
+#ifdef USE_RADIO_FREQUENCY
+  json::SerializationBuffer<> radio_frequency_json_(radio_frequency::RadioFrequency *obj, JsonDetail start_config);
 #endif
 #ifdef USE_UPDATE
   json::SerializationBuffer<> update_json_(update::UpdateEntity *obj, JsonDetail start_config);

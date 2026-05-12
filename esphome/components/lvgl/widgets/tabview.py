@@ -2,6 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BUTTON,
     CONF_ID,
     CONF_INDEX,
     CONF_ITEMS,
@@ -21,7 +22,7 @@ from ..defines import (
     literal,
 )
 from ..lv_validation import animated, lv_int, size
-from ..lvcode import LocalVariable, lv, lv_assign, lv_expr, lv_obj
+from ..lvcode import LocalVariable, lv, lv_assign, lv_expr, lv_obj, lv_Pvariable
 from ..schemas import container_schema, part_schema
 from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
 from . import Widget, WidgetType, add_widgets, get_widgets, set_obj_properties
@@ -73,7 +74,7 @@ class TabviewType(WidgetType):
         )
 
     def get_uses(self):
-        return CONF_BUTTONMATRIX, TYPE_FLEX
+        return CONF_BUTTONMATRIX, TYPE_FLEX, CONF_BUTTON
 
     async def to_code(self, w: Widget, config: dict):
         await w.set_property(
@@ -82,8 +83,8 @@ class TabviewType(WidgetType):
         await w.set_property("tab_bar_size", await size.process(config[CONF_SIZE]))
         for tab_conf in config[CONF_TABS]:
             w_id = tab_conf[CONF_ID]
-            tab_obj = cg.Pvariable(w_id, cg.nullptr, type_=lv_tab_t)
-            tab_widget = Widget.create(w_id, tab_obj, obj_spec)
+            tab_obj = lv_Pvariable(lv_tab_t, w_id)
+            tab_widget = Widget.create(w_id, tab_obj, obj_spec, tab_conf)
             lv_assign(tab_obj, lv_expr.tabview_add_tab(w.obj, tab_conf[CONF_NAME]))
             await set_obj_properties(tab_widget, tab_conf)
             await add_widgets(tab_widget, tab_conf)

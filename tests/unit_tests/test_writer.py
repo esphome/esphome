@@ -7,6 +7,7 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
+import re
 import stat
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -32,6 +33,7 @@ from esphome.writer import (
     clean_build,
     clean_cmake_cache,
     copy_src_tree,
+    generate_build_info_data_cpp,
     generate_build_info_data_h,
     get_build_info,
     storage_should_clean,
@@ -1615,49 +1617,62 @@ def test_get_build_info_build_time_str_format(
 
 def test_generate_build_info_data_h_format() -> None:
     """Test generate_build_info_data_h produces correct header content."""
-    config_hash = 0x12345678
-    build_time = 1700000000
-    build_time_str = "2023-11-14 22:13:20 +0000"
-    comment = "Test comment"
-
-    result = generate_build_info_data_h(
-        config_hash, build_time, build_time_str, comment
-    )
+    result = generate_build_info_data_h()
 
     assert "#pragma once" in result
-    assert "#define ESPHOME_CONFIG_HASH 0x12345678U" in result
-    assert "#define ESPHOME_BUILD_TIME 1700000000" in result
-    assert "#define ESPHOME_COMMENT_SIZE 13" in result  # len("Test comment") + 1
-    assert 'ESPHOME_BUILD_TIME_STR[] = "2023-11-14 22:13:20 +0000"' in result
-    assert 'ESPHOME_COMMENT_STR[] = "Test comment"' in result
+    assert "extern const uint32_t ESPHOME_CONFIG_HASH;" in result
+    assert "extern const time_t ESPHOME_BUILD_TIME;" in result
+    assert "extern const size_t ESPHOME_COMMENT_SIZE;" in result
+    assert "extern const char ESPHOME_BUILD_TIME_STR[]" in result
+    assert "extern const char ESPHOME_COMMENT_STR[]" in result
 
 
 def test_generate_build_info_data_h_esp8266_progmem() -> None:
     """Test generate_build_info_data_h includes PROGMEM for ESP8266."""
-    result = generate_build_info_data_h(0xABCDEF01, 1700000000, "test", "comment")
+    result = generate_build_info_data_h()
 
     # Should have ESP8266 PROGMEM conditional
     assert "#ifdef USE_ESP8266" in result
     assert "#include <pgmspace.h>" in result
     assert "PROGMEM" in result
-    # Both build time and comment should have PROGMEM versions
+
+
+def test_generate_build_info_data_cpp_format() -> None:
+    """Test generate_build_info_data_cpp produces correct data definitions."""
+    result = generate_build_info_data_cpp(
+        0x12345678, 1700000000, "2023-11-14 22:13:20 +0000", "Test comment"
+    )
+
+    assert '#include "esphome/core/build_info_data.h"' in result
+    assert "const uint32_t ESPHOME_CONFIG_HASH = 0x12345678U;" in result
+    assert "const time_t ESPHOME_BUILD_TIME = 1700000000;" in result
+    assert "const size_t ESPHOME_COMMENT_SIZE = 13;" in result
+    assert 'ESPHOME_BUILD_TIME_STR[] = "2023-11-14 22:13:20 +0000"' in result
+    assert 'ESPHOME_COMMENT_STR[] = "Test comment"' in result
+
+
+def test_generate_build_info_data_cpp_esp8266_progmem() -> None:
+    """Test generate_build_info_data_cpp includes PROGMEM definitions."""
+    result = generate_build_info_data_cpp(0xABCDEF01, 1700000000, "test", "comment")
+
+    assert "#ifdef USE_ESP8266" in result
     assert 'ESPHOME_BUILD_TIME_STR[] PROGMEM = "test"' in result
     assert 'ESPHOME_COMMENT_STR[] PROGMEM = "comment"' in result
 
 
-def test_generate_build_info_data_h_hash_formatting() -> None:
-    """Test generate_build_info_data_h formats hash with leading zeros."""
+def test_generate_build_info_data_cpp_hash_formatting() -> None:
+    """Test generate_build_info_data_cpp formats hash with leading zeros."""
     # Test with small hash value that needs leading zeros
-    result = generate_build_info_data_h(0x00000001, 0, "test", "")
-    assert "#define ESPHOME_CONFIG_HASH 0x00000001U" in result
+    result = generate_build_info_data_cpp(0x00000001, 0, "test", "")
+    assert "const uint32_t ESPHOME_CONFIG_HASH = 0x00000001U;" in result
 
     # Test with larger hash value
-    result = generate_build_info_data_h(0xFFFFFFFF, 0, "test", "")
-    assert "#define ESPHOME_CONFIG_HASH 0xffffffffU" in result
+    result = generate_build_info_data_cpp(0xFFFFFFFF, 0, "test", "")
+    assert "const uint32_t ESPHOME_CONFIG_HASH = 0xffffffffU;" in result
 
 
-def test_generate_build_info_data_h_comment_escaping() -> None:
-    r"""Test generate_build_info_data_h properly escapes special characters in comment.
+def test_generate_build_info_data_cpp_comment_escaping() -> None:
+    r"""Test generate_build_info_data_cpp properly escapes special characters in comment.
 
     Uses cpp_string_escape which outputs octal escapes for special characters:
     - backslash (ASCII 92) -> \134
@@ -1665,24 +1680,50 @@ def test_generate_build_info_data_h_comment_escaping() -> None:
     - newline (ASCII 10) -> \012
     """
     # Test backslash escaping (ASCII 92 = octal 134)
-    result = generate_build_info_data_h(0, 0, "test", "backslash\\here")
+    result = generate_build_info_data_cpp(0, 0, "test", "backslash\\here")
     assert 'ESPHOME_COMMENT_STR[] = "backslash\\134here"' in result
 
     # Test quote escaping (ASCII 34 = octal 042)
-    result = generate_build_info_data_h(0, 0, "test", 'has "quotes"')
+    result = generate_build_info_data_cpp(0, 0, "test", 'has "quotes"')
     assert 'ESPHOME_COMMENT_STR[] = "has \\042quotes\\042"' in result
 
     # Test newline escaping (ASCII 10 = octal 012)
-    result = generate_build_info_data_h(0, 0, "test", "line1\nline2")
+    result = generate_build_info_data_cpp(0, 0, "test", "line1\nline2")
     assert 'ESPHOME_COMMENT_STR[] = "line1\\012line2"' in result
 
 
-def test_generate_build_info_data_h_empty_comment() -> None:
-    """Test generate_build_info_data_h handles empty comment."""
-    result = generate_build_info_data_h(0, 0, "test", "")
+def test_generate_build_info_data_cpp_empty_comment() -> None:
+    """Test generate_build_info_data_cpp handles empty comment."""
+    result = generate_build_info_data_cpp(0, 0, "test", "")
 
-    assert "#define ESPHOME_COMMENT_SIZE 1" in result  # Just null terminator
+    assert "const size_t ESPHOME_COMMENT_SIZE = 1;" in result  # Just null terminator
     assert 'ESPHOME_COMMENT_STR[] = ""' in result
+
+
+def test_generate_build_info_data_cpp_comment_size_counts_utf8_bytes() -> None:
+    """Comment size is in encoded UTF-8 bytes, not characters."""
+    # "héllo" = 6 UTF-8 bytes + NUL.
+    result = generate_build_info_data_cpp(0, 0, "test", "héllo")
+    assert "const size_t ESPHOME_COMMENT_SIZE = 7;" in result
+
+
+def test_generate_build_info_data_cpp_comment_clamped_to_buffer() -> None:
+    """Generator clamps at byte level and never truncates mid-codepoint."""
+    # 100 thermometer-with-VS-16 sequences = 700 bytes, past the 256 buffer.
+    result = generate_build_info_data_cpp(0, 0, "test", "🌡️" * 100)
+
+    match = re.search(r"ESPHOME_COMMENT_SIZE = (\d+);", result)
+    assert match is not None
+    size = int(match.group(1))
+    assert 1 < size <= 256
+
+    lit_match = re.search(r'ESPHOME_COMMENT_STR\[\] = "([^"]*)"', result)
+    assert lit_match is not None
+    raw = re.sub(
+        r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), lit_match.group(1)
+    ).encode("latin-1")
+    raw.decode("utf-8")  # raises if truncation left a partial UTF-8 sequence
+    assert len(raw) == size - 1
 
 
 @patch("esphome.writer.CORE")
@@ -1758,15 +1799,21 @@ def test_copy_src_tree_writes_build_info_files(
     ):
         copy_src_tree()
 
-    # Verify build_info_data.h was written
+    # Verify build_info_data.h declarations and build_info_data.cpp values were written
     build_info_h_path = esphome_core_path / "build_info_data.h"
     assert build_info_h_path.exists()
     build_info_h_content = build_info_h_path.read_text()
-    assert "#define ESPHOME_CONFIG_HASH 0xdeadbeefU" in build_info_h_content
-    assert "#define ESPHOME_BUILD_TIME" in build_info_h_content
+    assert "extern const uint32_t ESPHOME_CONFIG_HASH;" in build_info_h_content
     assert "ESPHOME_BUILD_TIME_STR" in build_info_h_content
-    assert "#define ESPHOME_COMMENT_SIZE" in build_info_h_content
+    assert "extern const size_t ESPHOME_COMMENT_SIZE;" in build_info_h_content
     assert "ESPHOME_COMMENT_STR" in build_info_h_content
+    build_info_cpp_path = esphome_core_path / "build_info_data.cpp"
+    assert build_info_cpp_path.exists()
+    build_info_cpp_content = build_info_cpp_path.read_text()
+    assert "const uint32_t ESPHOME_CONFIG_HASH = 0xdeadbeefU;" in build_info_cpp_content
+    assert "const time_t ESPHOME_BUILD_TIME" in build_info_cpp_content
+    assert "const size_t ESPHOME_COMMENT_SIZE" in build_info_cpp_content
+    assert "ESPHOME_COMMENT_STR" in build_info_cpp_content
 
     # Verify build_info.json was written
     build_info_json_path = build_path / "build_info.json"
@@ -1833,7 +1880,9 @@ def test_copy_src_tree_detects_config_hash_change(
 
     # Verify build_info files were updated due to config_hash change
     assert build_info_h_path.exists()
-    new_content = build_info_h_path.read_text()
+    build_info_cpp_path = esphome_core_path / "build_info_data.cpp"
+    assert build_info_cpp_path.exists()
+    new_content = build_info_cpp_path.read_text()
     assert "0xdeadbeef" in new_content.lower()
 
     new_json = json.loads(build_info_json_path.read_text())

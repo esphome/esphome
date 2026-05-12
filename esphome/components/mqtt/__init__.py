@@ -504,7 +504,7 @@ async def mqtt_publish_action_to_code(config, action_id, template_arg, args):
     cg.add(var.set_payload(template_))
     template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
     cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, bool)
+    template_ = await cg.templatable(config[CONF_RETAIN], args, cg.bool_)
     cg.add(var.set_retain(template_))
     return var
 
@@ -537,7 +537,7 @@ async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args
     cg.add(var.set_payload(lambda_))
     template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
     cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, bool)
+    template_ = await cg.templatable(config[CONF_RETAIN], args, cg.bool_)
     cg.add(var.set_retain(template_))
     return var
 

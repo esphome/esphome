@@ -4,6 +4,7 @@
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_transfer_buffer.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/component.h"
@@ -106,7 +107,7 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   MixerSpeaker *parent_;
 
   std::shared_ptr<audio::AudioSourceTransferBuffer> transfer_buffer_;
-  std::weak_ptr<RingBuffer> ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
 
   uint32_t buffer_duration_ms_;
   uint32_t last_seen_data_ms_{0};

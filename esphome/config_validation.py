@@ -75,7 +75,6 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
-    VALID_SUBSTITUTIONS_CHARACTERS,
     Framework,
     __version__ as ESPHOME_VERSION,
 )
@@ -90,6 +89,8 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
+from esphome.enum import StrEnum
+from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
 from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
@@ -103,11 +104,6 @@ from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
 _LOGGER = logging.getLogger(__name__)
-
-# pylint: disable=consider-using-f-string
-VARIABLE_PROG = re.compile(
-    f"\\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+|\\{{[{VALID_SUBSTITUTIONS_CHARACTERS}]*\\}})"
-)
 
 # pylint: disable=invalid-name
 
@@ -286,6 +282,54 @@ RESERVED_IDS = [
 ]
 
 
+class Visibility(StrEnum):
+    """Schema-driven UI hint for visual editors.
+
+    The values describe how a schema-aware editor (e.g. the
+    device-builder dashboard catalog via
+    ``script/build_language_schema.py``) should render the field.
+    They do NOT affect validation — the YAML still accepts the key
+    the same way. ESPHome itself ignores the value at runtime;
+    consumers downstream of the schema dump act on it.
+
+    A field with no ``visibility`` set (the default) renders on the
+    editor's main form. The two values below are points along a
+    single axis of "how prominently to surface this":
+
+    - ``ADVANCED`` — render under the editor's "advanced settings"
+      disclosure. Use for fields whose default is right for ~all
+      users (e.g. ``update_interval`` on time platforms — 15 min is
+      universally correct, but power users can still tune the YAML
+      directly).
+    - ``YAML_ONLY`` — never render in a visual editor. Use for
+      knobs that are dangerous to expose in a UI even as advanced
+      (``setup_priority`` is the canonical example — casual UI
+      tweaks can break boot). The YAML escape hatch stays
+      available for the rare power-user override.
+
+    The single-axis shape encodes "yaml-only is strictly stronger
+    than advanced" at the type level — there's no way to ask for
+    both at once, and no way to set a contradictory state like
+    "advanced=False, yaml_only=True".
+
+    Per-field; the dumper walks recursively into nested schemas
+    and emits each field's setting independently. Cascading
+    semantics — "a stricter parent makes its descendants at-least
+    as strict" — belong on the consumer side: the schema marker
+    is faithfully what the field author wrote, and a consumer that
+    cares about effective visibility walks the parent chain and
+    takes the strictest setting. ``YAML_ONLY`` is strictly stronger
+    than ``ADVANCED``, which is strictly stronger than no setting.
+    Inner fields can declare their own visibility; an inner
+    ``YAML_ONLY`` under an ``ADVANCED`` parent stays ``YAML_ONLY``,
+    and the consumer's cascade keeps siblings under the parent at
+    ``ADVANCED`` regardless of their own (less-strict) setting.
+    """
+
+    ADVANCED = "advanced"
+    YAML_ONLY = "yaml_only"
+
+
 class Optional(vol.Optional):
     """Mark a field as optional and optionally define a default for the field.
 
@@ -300,22 +344,45 @@ class Optional(vol.Optional):
     In ESPHome, all configuration defaults should be defined with the Optional class
     during config validation - specifically *not* in the C++ code or the code generation
     phase.
+
+    See :class:`Visibility` for the ``visibility`` kwarg — a UI
+    hint for schema-driven editors that doesn't affect validation.
     """
 
-    def __init__(self, key, default=UNDEFINED):
+    def __init__(
+        self,
+        key,
+        default=UNDEFINED,
+        *,
+        visibility: Visibility | None = None,
+    ):
         super().__init__(key, default=default)
+        self.visibility: Visibility | None = visibility
 
 
 class Required(vol.Required):
     """Define a field to be required to be set. The validated configuration is guaranteed
     to contain this key.
 
-    All required values should be acceessed with the `config[CONF_<KEY>]` syntax in code
+    All required values should be accessed with the `config[CONF_<KEY>]` syntax in code
     - *not* the `config.get(CONF_<KEY>)` syntax.
+
+    See :class:`Visibility` for the ``visibility`` kwarg — a UI
+    hint for schema-driven editors that doesn't affect validation.
+    Required fields rarely need it (a required field by definition
+    needs the user's attention) but the kwarg is exposed for
+    symmetry so consumers can apply uniform logic across key markers.
     """
 
-    def __init__(self, key, msg=None):
+    def __init__(
+        self,
+        key,
+        msg=None,
+        *,
+        visibility: Visibility | None = None,
+    ):
         super().__init__(key, msg=msg)
+        self.visibility: Visibility | None = visibility
 
 
 class FinalExternalInvalid(Invalid):
@@ -549,8 +616,9 @@ def int_(value):
     try:
         return int(value, base)
     except ValueError:
-        # pylint: disable=raise-missing-from
-        raise Invalid(f"Expected integer, but cannot parse {value} as an integer")
+        raise Invalid(
+            f"Expected integer, but cannot parse {value} as an integer"
+        ) from None
 
 
 def int_range(min=None, max=None, min_included=True, max_included=True):
@@ -849,8 +917,7 @@ def time_period_str_colon(value):
     try:
         parsed = [int(x) for x in value.split(":")]
     except ValueError:
-        # pylint: disable=raise-missing-from
-        raise Invalid(TIME_PERIOD_ERROR.format(value))
+        raise Invalid(TIME_PERIOD_ERROR.format(value)) from None
 
     if len(parsed) == 2:
         hour, minute = parsed
@@ -948,7 +1015,26 @@ def time_period_in_minutes_(value):
 def update_interval(value):
     if value == "never":
         return TimePeriodMilliseconds(milliseconds=SCHEDULER_DONT_RUN)
-    return positive_time_period_milliseconds(value)
+    result = positive_time_period_milliseconds(value)
+    # 0ms was historically (mis)used as a pseudo-loop() mechanism for
+    # PollingComponents. Under the hood it calls set_interval(0), which
+    # causes Scheduler::call() to spin (WDT reset in the field). Coerce
+    # to 1ms so existing configs keep working at ~1kHz instead of
+    # spinning. Don't hard-fail so configs don't break on upgrade;
+    # authors should migrate to HighFrequencyLoopRequester (C++) for
+    # true run-every-loop behaviour.
+    if result.total_milliseconds == 0:
+        _LOGGER.warning(
+            "update_interval of 0ms is not supported - coercing to 1ms. "
+            "A literal 0ms schedule would spin the main loop (the scheduled "
+            "item would always be due, so the scheduler would never yield "
+            "back) and trigger a watchdog reset. Set update_interval to a "
+            "non-zero value such as 1ms or higher. (Custom C++ components "
+            "that need true run-every-loop behaviour should override loop() "
+            "with HighFrequencyLoopRequester instead.)"
+        )
+        return TimePeriodMilliseconds(milliseconds=1)
+    return result
 
 
 time_period = Any(time_period_str_unit, time_period_str_colon, time_period_dict)
@@ -1052,8 +1138,7 @@ def date_time(date: bool, time: bool):
         try:
             date_obj = datetime.strptime(value, format)
         except ValueError as err:
-            # pylint: disable=raise-missing-from
-            raise Invalid(f"Invalid {exc_message}: {err}")
+            raise Invalid(f"Invalid {exc_message}: {err}") from err
 
         return_value = {}
         if date:
@@ -1083,8 +1168,9 @@ def mac_address(value):
         try:
             parts_int.append(int(part, 16))
         except ValueError:
-            # pylint: disable=raise-missing-from
-            raise Invalid("MAC Address parts must be hexadecimal values from 00 to FF")
+            raise Invalid(
+                "MAC Address parts must be hexadecimal values from 00 to FF"
+            ) from None
 
     return core.MACAddress(*parts_int)
 
@@ -1101,8 +1187,7 @@ def bind_key(value, *, name="Bind key"):
         try:
             parts_int.append(int(part, 16))
         except ValueError:
-            # pylint: disable=raise-missing-from
-            raise Invalid(f"{name} must be hex values from 00 to FF")
+            raise Invalid(f"{name} must be hex values from 00 to FF") from None
 
     return "".join(f"{part:02X}" for part in parts_int)
 
@@ -1430,8 +1515,7 @@ def mqtt_qos(value):
     try:
         value = int(value)
     except (TypeError, ValueError):
-        # pylint: disable=raise-missing-from
-        raise Invalid(f"MQTT Quality of Service must be integer, got {value}")
+        raise Invalid(f"MQTT Quality of Service must be integer, got {value}") from None
     return one_of(0, 1, 2)(value)
 
 
@@ -1523,8 +1607,7 @@ def _parse_percentage(value: object) -> float:
             else:
                 value = float(value)
         except ValueError:
-            # pylint: disable=raise-missing-from
-            raise Invalid("invalid number")
+            raise Invalid("invalid number") from None
     try:
         if not has_percent_sign and (value > 1 or value < -1):
             raise Invalid(
@@ -1532,9 +1615,7 @@ def _parse_percentage(value: object) -> float:
                 "outside -1.0 to 1.0. Please put a percent sign after the number!"
             )
     except TypeError:
-        raise Invalid(  # pylint: disable=raise-missing-from
-            "Expected percentage or float"
-        )
+        raise Invalid("Expected percentage or float") from None
     return float(value)
 
 
@@ -1707,8 +1788,7 @@ def dimensions(value):
         try:
             width, height = int(value[0]), int(value[1])
         except ValueError:
-            # pylint: disable=raise-missing-from
-            raise Invalid("Width and height dimensions must be integers")
+            raise Invalid("Width and height dimensions must be integers") from None
         if width <= 0 or height <= 0:
             raise Invalid("Width and height must at least be 1")
         return [width, height]
@@ -2154,16 +2234,45 @@ ENTITY_BASE_SCHEMA = Schema(
 
 ENTITY_BASE_SCHEMA.add_extra(_entity_base_validator)
 
-COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
+COMPONENT_SCHEMA = Schema(
+    {
+        # ``setup_priority`` controls the relative order in which
+        # components are brought up at boot. Wrong values can break
+        # the boot sequence in subtle ways (e.g. an i2c device set
+        # to higher priority than the bus). Mark it ``YAML_ONLY`` so
+        # visual editors never render it — the YAML escape hatch
+        # stays available for the rare component author who really
+        # needs to override the default.
+        Optional(CONF_SETUP_PRIORITY, visibility=Visibility.YAML_ONLY): float_,
+    }
+)
 
 
-def polling_component_schema(default_update_interval):
+def polling_component_schema(
+    default_update_interval, *, visibility: Visibility | None = None
+):
     """Validate that this component represents a PollingComponent with a configurable
     update_interval.
 
     :param default_update_interval: The default update interval to set for the integration.
+    :param visibility: When set, propagate to the inherited
+        ``update_interval`` field's :class:`Visibility` UI hint. Set
+        this for components whose default cadence is already correct
+        for ~all users (e.g. time platforms — pass
+        ``Visibility.ADVANCED``).
+
+        Only honoured on the optional-default branch. When
+        ``default_update_interval`` is ``None`` the field becomes
+        ``Required`` (the component has no sensible default cadence and
+        needs the user to choose), and hiding a Required field behind
+        an advanced disclosure would be a UX hazard — collapsed-by-default
+        editors could let the user submit without realising the form has
+        an unfilled required field. The kwarg is silently ignored on that
+        path so callers can pass it unconditionally.
     """
     if default_update_interval is None:
+        # Required → don't honour ``visibility``.
+        # See the docstring for the UX rationale.
         return COMPONENT_SCHEMA.extend(
             {
                 Required(CONF_UPDATE_INTERVAL): update_interval,
@@ -2173,7 +2282,9 @@ def polling_component_schema(default_update_interval):
     return COMPONENT_SCHEMA.extend(
         {
             Optional(
-                CONF_UPDATE_INTERVAL, default=default_update_interval
+                CONF_UPDATE_INTERVAL,
+                default=default_update_interval,
+                visibility=visibility,
             ): update_interval,
         }
     )
