@@ -2423,7 +2423,7 @@ def run_esphome(argv):
     # last compile wrote. Falls back to read_config when missing/stale.
     # Skipped when -s overrides are passed, since the cache was written
     # against the previous substitution set.
-    config = None
+    config: ConfigType | None = None
     if args.command in ("upload", "logs") and not command_line_substitutions:
         from esphome.compiled_config import load_compiled_config
 
