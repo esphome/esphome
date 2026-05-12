@@ -6,7 +6,7 @@ from esphome.enum import StrEnum
 
 
 class DashboardEvent(StrEnum):
-    """Dashboard WebSocket event types."""
+    """Dashboard WebSocket event types (legacy dashboard)."""
 
     # Server -> Client events (backend sends to frontend)
     ENTRY_ADDED = "entry_added"
