@@ -59,7 +59,7 @@ def _validate_position(config: dict) -> dict:
                 f"Cannot specify '{CONF_CENTERED_ON_DISPLAY}' with '{CONF_X}' and '{CONF_Y}' options"
             )
     elif (CONF_X in config) != (CONF_Y in config):
-        raise cv.Invalid("Must specify both 'x' and 'x' options")
+        raise cv.Invalid(f"Must specify both '${CONF_X}' and '${CONF_Y}' options")
     return config
 
 
