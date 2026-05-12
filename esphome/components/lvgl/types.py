@@ -3,8 +3,6 @@ from esphome.const import CONF_TEXT, CONF_VALUE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import Component, esphome_ns
 
-from .defines import lvgl_ns
-
 
 class LvType(cg.MockObjClass):
     def __init__(self, *args, **kwargs):
@@ -47,6 +45,7 @@ PlainTrigger = esphome_ns.class_("Trigger<>", automation.Trigger.template())
 DrawEndTrigger = esphome_ns.class_(
     "Trigger<uint32_t, uint32_t>", automation.Trigger.template(cg.uint32, cg.uint32)
 )
+lvgl_ns = cg.esphome_ns.namespace("lvgl")
 IdleTrigger = lvgl_ns.class_("IdleTrigger", automation.Trigger.template())
 ObjUpdateAction = lvgl_ns.class_("ObjUpdateAction", automation.Action)
 LvglCondition = lvgl_ns.class_("LvglCondition", automation.Condition)
