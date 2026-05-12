@@ -3,7 +3,9 @@ import esphome.codegen as cg
 from esphome.components import climate, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphome.types import ConfigType
+from esphome.core import ID
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType, TemplateArgsType
 
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["climate"]
@@ -85,8 +87,11 @@ async def to_code(config: ConfigType) -> None:
     synchronous=True,
 )
 async def set_remote_temperature_action_to_code(
-    config: ConfigType, action_id, template_arg, args
-):
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
@@ -107,8 +112,11 @@ async def set_remote_temperature_action_to_code(
     synchronous=True,
 )
 async def clear_remote_temperature_action_to_code(
-    config: ConfigType, action_id, template_arg, args
-):
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
