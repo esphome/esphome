@@ -53,6 +53,14 @@ def load_compiled_config(conf_path: Path) -> ConfigType | None:
     Returns None (caller falls back to read_config) when the cache is
     missing, older than the source YAML, unparseable, or the sidecar
     is incomplete.
+
+    Known limitation: the mtime check only stats the top-level YAML.
+    A package / !include / !secret edit that changes a CLI-side key
+    (e.g. wifi.use_address pinned to a manual IP) without re-touching
+    the main YAML or recompiling would keep the stale address in the
+    cache. Realistic workflows recompile when anything material
+    changes, so this is YAGNI -- revisit if someone actually trips
+    over it.
     """
     cache_path = compiled_config_path(conf_path.name)
     if not _cache_is_fresh(cache_path, conf_path):
