@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#if defined(USE_NETWORK) && (USE_ESP32 || USE_ARDUINO)
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include <utility>
 #include <vector>
 
@@ -147,4 +147,4 @@ class WebServerBase {
 };
 
 }  // namespace esphome::web_server_base
-#endif  // USE_NETWORK && (USE_ESP32 || USE_ARDUINO)
+#endif  // USE_NETWORK && !USE_ZEPHYR
