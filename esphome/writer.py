@@ -7,6 +7,7 @@ import re
 import time
 
 from esphome import loader
+from esphome.compiled_config import save_compiled_config
 from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
     HEADER_FILE_EXTENSIONS,
@@ -24,7 +25,7 @@ from esphome.helpers import (
     walk_files,
     write_file_if_changed,
 )
-from esphome.storage_json import StorageJSON, save_compiled_config, storage_path
+from esphome.storage_json import StorageJSON, storage_path
 
 _LOGGER = logging.getLogger(__name__)
 

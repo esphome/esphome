@@ -2419,33 +2419,23 @@ def run_esphome(argv):
     skip_external = args.command in ("logs", "clean")
     command_line_substitutions = dict(args.substitution) if args.substitution else {}
 
-    # Fast path for `upload` and `logs`: the caller already has a binary
-    # on disk and only needs the CLI to ship bytes to a device or stream
-    # logs back. Re-running the full `read_config()` pipeline (parse +
-    # schema validate + final-validate + external component refresh) is
-    # dead work and produces a wall of "Reading configuration ..." log
-    # lines on every install. Reload the validated config the last
-    # compile cached alongside the StorageJSON sidecar; fall back to
-    # full validation if the cache is missing or older than the YAML so
-    # a cold cache never produces a worse outcome.
+    # Fast path for `upload` and `logs`: reuse the validated config the
+    # last compile cached on disk. Skips parse + schema validate +
+    # final-validate + external-component refresh, which is dead work
+    # for those subcommands -- the binary on disk is already known good
+    # and the caller already knows the device address. Falls back to a
+    # full `read_config()` when the cache is missing/stale/corrupt so a
+    # cold cache never produces a worse outcome than today.
     config = None
     if args.command in ("upload", "logs"):
-        from esphome.storage_json import (
-            StorageJSON,
-            ext_storage_path,
-            load_compiled_config,
-        )
+        from esphome.compiled_config import load_compiled_config
 
-        cached = load_compiled_config(conf_path)
-        if cached is not None:
-            storage = StorageJSON.load(ext_storage_path(conf_path.name))
-            if storage is not None:
-                storage.apply_to_core()
-                config = cached
-                _LOGGER.info(
-                    "Loaded validated config cache for %s, skipping validation.",
-                    conf_path.name,
-                )
+        config = load_compiled_config(conf_path)
+        if config is not None:
+            _LOGGER.info(
+                "Loaded validated config cache for %s, skipping validation.",
+                conf_path.name,
+            )
 
     if config is None:
         config = read_config(
