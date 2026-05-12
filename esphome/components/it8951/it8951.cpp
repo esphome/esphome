@@ -50,11 +50,11 @@ static UpdateMode parse_update_mode(const std::string &mode) {
 // --- Loop / scheduling -------------------------------------------------------
 
 void IT8951Display::enqueue_(OpType type, uint16_t a, uint16_t b) {
-    if (!this->queue_.push_back(Op{type, a, b})) {
-      ESP_LOGE("it8951", "Op queue overflow (cap=%u); dropping op type=%u", static_cast<unsigned>(OP_QUEUE_SIZE),
-               static_cast<unsigned>(type));
-    }
+  if (!this->queue_.push_back(Op{type, a, b})) {
+    ESP_LOGE("it8951", "Op queue overflow (cap=%u); dropping op type=%u", static_cast<unsigned>(OP_QUEUE_SIZE),
+             static_cast<unsigned>(type));
   }
+}
 
 bool IT8951Display::busy_pin_low_() const {
   // IT8951 HRDY: HIGH = ready, LOW = busy.
