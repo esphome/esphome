@@ -74,11 +74,7 @@ void SafeModeComponent::dump_config() {
 #ifdef USE_OTA_PARTITIONS
     ESP_LOGW(TAG, " OTA partition table update or serial flashing is required.");
 #else
-    if (this->safe_mode_rtc_value_ < this->safe_mode_num_attempts_ && this->rollback_part_found_) {
-      ESP_LOGW(TAG, " Activate safe mode to reboot to the recovery app.");
-    } else {
-      ESP_LOGE(TAG, " Serial flashing is required.");
-    }
+    ESP_LOGW(TAG, " Activate safe mode to attempt recovery to a factory app, if present.");
 #endif
   }
 #endif
@@ -145,31 +141,6 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   esp_ota_get_state_partition(running_part, &this->ota_state_);
   const esp_partition_t *next_part = esp_ota_get_next_update_partition(nullptr);
   this->app_ota_possible_ = (next_part != nullptr && next_part != running_part);
-#ifndef USE_OTA_PARTITIONS
-  const esp_partition_t *rollback_part = nullptr;
-  if (!this->app_ota_possible_) {
-    // Find valid app partition for rollback
-    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
-    while (it != nullptr) {
-      const esp_partition_t *p = esp_partition_get(it);
-      if (p->address != running_part->address) {
-        esp_image_metadata_t data = {};
-        const esp_partition_pos_t part_pos = {
-            .offset = p->address,
-            .size = p->size,
-        };
-        esp_err_t err = esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &part_pos, &data);
-        if (err == ESP_OK) {
-          rollback_part = p;
-          this->rollback_part_found_ = true;
-          break;
-        }
-      }
-      it = esp_partition_next(it);
-    }
-    esp_partition_iterator_release(it);
-  }
-#endif
 #endif
 
   uint32_t rtc_val = this->read_rtc_();
@@ -201,12 +172,34 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
   // - app OTA is impossible (for example because the other app partition has type 'factory')
   // - the other app partition contains a valid app (for example Tasmota safeboot image or ESPHome)
   // - allow_partition_access is not configured making recovery via partition table update impossible
+  // Image verification is deferred until here so the cost is only paid when entering safe mode,
+  // not on every boot.
   if (!this->app_ota_possible_) {
+    const esp_partition_t *rollback_part = nullptr;
+    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+    while (it != nullptr) {
+      const esp_partition_t *p = esp_partition_get(it);
+      if (p->address != running_part->address) {
+        esp_image_metadata_t data = {};
+        const esp_partition_pos_t part_pos = {
+            .offset = p->address,
+            .size = p->size,
+        };
+        if (esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &part_pos, &data) == ESP_OK) {
+          rollback_part = p;
+          break;
+        }
+      }
+      it = esp_partition_next(it);
+    }
+    esp_partition_iterator_release(it);
     if (rollback_part != nullptr) {
       esp_err_t err = esp_ota_set_boot_partition(rollback_part);
       if (err == ESP_OK) {
         ESP_LOGW(TAG, "OTA updates are impossible. Rebooting to recovery app.");
         App.reboot();
+      } else {
+        ESP_LOGE(TAG, "Failed to set recovery boot partition: %s", esp_err_to_name(err));
       }
     }
   }
