@@ -216,7 +216,7 @@ def test_run_esphome_upload_with_substitution_skips_cache(
 
 
 def test_run_esphome_compile_does_not_use_cache(fresh_cache_files: Path) -> None:
-    """compile always re-validates -- it's what writes the cache."""
+    """The compile subcommand always re-validates -- it's what writes the cache."""
     with (
         patch("esphome.__main__.read_config", return_value=None) as mock_read,
         patch.dict(
