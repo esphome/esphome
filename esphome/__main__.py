@@ -2170,6 +2170,13 @@ def parse_args(argv):
     parser_run.add_argument(
         "--no-logs", help="Disable starting logs.", action="store_true"
     )
+
+    parser_run.add_argument(
+        "--no-states",
+        action="store_true",
+        help="Do not show entity state changes in log output.",
+    )
+
     parser_run.add_argument(
         "--reset",
         "-r",
