@@ -114,12 +114,18 @@ def test_load_compiled_config_happy_path(fresh_cache_files: Path) -> None:
     assert config[CONF_API]["encryption"]["key"] == "6dGhpcyBpcyBhIHRlc3Q="
     assert config["ota"][0]["password"] == "secret"
 
-    # apply_to_core ran as part of the orchestration.
+    # apply_to_core populated exactly what upload/logs read off CORE.
     assert CORE.name == "lite_test"
     assert CORE.build_path == Path("/build/lite_test")
     assert CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] == "esp32"
     assert CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] == "arduino"
-    assert "api" in CORE.loaded_integrations
+
+    # The validator-only attributes are deliberately left at their
+    # CORE.__init__ defaults. The fast path skips validation, so
+    # nothing reads these.
+    assert CORE.loaded_integrations == set()
+    assert CORE.loaded_platforms == set()
+    assert CORE.friendly_name is None
 
 
 @pytest.mark.parametrize(

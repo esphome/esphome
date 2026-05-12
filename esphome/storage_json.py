@@ -8,7 +8,13 @@ import os
 from pathlib import Path
 
 from esphome import const
-from esphome.const import CONF_DISABLED, CONF_MDNS
+from esphome.const import (
+    CONF_DISABLED,
+    CONF_MDNS,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+)
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
 from esphome.types import CoreType
@@ -257,31 +263,23 @@ class StorageJSON:
             return None
 
     def apply_to_core(self) -> None:
-        """Populate ``CORE`` from this sidecar.
+        """Populate CORE with the metadata upload/logs read.
 
-        Used by the ``--from-storage-json`` fast path in
-        ``esphome upload`` / ``esphome logs``: those subcommands read
-        a handful of ``CORE`` attributes (``target_platform``,
-        ``build_path``, ``name``, ``loaded_integrations``) that the
-        normal flow populates during ``read_config``. Lifting them off
-        the sidecar lets us skip the validation pass entirely.
+        Inverse of :meth:`from_esphome_core`'s CORE→StorageJSON
+        projection. Keep paired -- a new CORE attribute the
+        ``upload`` / ``logs`` fast path needs has to be captured by
+        ``from_esphome_core`` too. Validators (``loaded_integrations``,
+        ``loaded_platforms``, ``friendly_name``) are deliberately not
+        restored: they're consumed by component validation, which the
+        fast path skips, and ``CORE.__init__`` already leaves them at
+        safe defaults.
         """
-        from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
-
         CORE.name = self.name
-        CORE.friendly_name = self.friendly_name
         CORE.build_path = self.build_path
-        CORE.loaded_integrations = set(self.loaded_integrations)
-        CORE.loaded_platforms = set(self.loaded_platforms)
-
-        core_platform = self.core_platform or (
-            self.target_platform.lower() if self.target_platform else None
-        )
-        CORE.data.setdefault(KEY_CORE, {})
-        if core_platform is not None:
-            CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = core_platform
-        if self.framework is not None:
-            CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = self.framework
+        CORE.data[KEY_CORE] = {
+            KEY_TARGET_PLATFORM: self.core_platform or self.target_platform.lower(),
+            KEY_TARGET_FRAMEWORK: self.framework,
+        }
 
     def __eq__(self, o) -> bool:
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()

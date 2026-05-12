@@ -92,5 +92,10 @@ def load_compiled_config(conf_path: Path) -> ConfigType | None:
     storage = StorageJSON.load(ext_storage_path(conf_path.name))
     if storage is None:
         return None
+    # `apply_to_core` assumes the sidecar was written by `from_esphome_core`
+    # after a real compile, which always sets at least one of these. A
+    # wizard-only sidecar (no compile) can't drive upload/logs.
+    if not storage.core_platform and not storage.target_platform:
+        return None
     storage.apply_to_core()
     return config
