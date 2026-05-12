@@ -53,7 +53,7 @@ CONF_ON_TIMER_CANCELLED = "on_timer_cancelled"
 CONF_ON_TIMER_FINISHED = "on_timer_finished"
 CONF_ON_TIMER_TICK = "on_timer_tick"
 
-CONF_MICROPHONE2 = "microphone2"
+MAX_MICROPHONE_SOURCES = 2
 
 
 voice_assistant_ns = cg.esphome_ns.namespace("voice_assistant")
@@ -78,6 +78,27 @@ ConnectedCondition = voice_assistant_ns.class_(
 Timer = voice_assistant_ns.struct("Timer")
 
 
+def _microphone_sources_schema(value):
+    # An empty/omitted config keeps the legacy behavior of auto-resolving a single microphone
+    if not value:
+        value = [{}]
+    return cv.All(
+        cv.ensure_list(
+            microphone.microphone_source_schema(
+                min_bits_per_sample=16,
+                max_bits_per_sample=16,
+                min_channels=1,
+                max_channels=1,
+            )
+        ),
+        cv.Length(
+            min=1,
+            max=MAX_MICROPHONE_SOURCES,
+            msg=f"Voice Assistant supports at most {MAX_MICROPHONE_SOURCES} microphone sources",
+        ),
+    )(value)
+
+
 def tts_stream_validate(config):
     if CONF_SPEAKER not in config and (
         CONF_ON_TTS_STREAM_START in config or CONF_ON_TTS_STREAM_END in config
@@ -92,20 +113,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(VoiceAssistant),
-            cv.Optional(
-                CONF_MICROPHONE, default={}
-            ): microphone.microphone_source_schema(
-                min_bits_per_sample=16,
-                max_bits_per_sample=16,
-                min_channels=1,
-                max_channels=1,
-            ),
-            cv.Optional(CONF_MICROPHONE2): microphone.microphone_source_schema(
-                min_bits_per_sample=16,
-                max_bits_per_sample=16,
-                min_channels=1,
-                max_channels=1,
-            ),
+            cv.Optional(CONF_MICROPHONE, default={}): _microphone_sources_schema,
             cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(
                 media_player.MediaPlayer
             ),
@@ -187,15 +195,10 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(
-                CONF_MICROPHONE
-            ): microphone.final_validate_microphone_source_schema(
-                "voice_assistant", sample_rate=16000
-            ),
-            cv.Optional(
-                CONF_MICROPHONE2
-            ): microphone.final_validate_microphone_source_schema(
-                "voice_assistant", sample_rate=16000
+            cv.Optional(CONF_MICROPHONE): cv.ensure_list(
+                microphone.final_validate_microphone_source_schema(
+                    "voice_assistant", sample_rate=16000
+                )
             ),
         },
         extra=cv.ALLOW_EXTRA,
@@ -207,13 +210,12 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    mic_source = await microphone.microphone_source_to_code(config[CONF_MICROPHONE])
+    mic_sources = config[CONF_MICROPHONE]
+    mic_source = await microphone.microphone_source_to_code(mic_sources[0])
     cg.add(var.set_microphone_source(mic_source))
 
-    if CONF_MICROPHONE2 in config:
-        mic_source2 = await microphone.microphone_source_to_code(
-            config[CONF_MICROPHONE2]
-        )
+    if len(mic_sources) > 1:
+        mic_source2 = await microphone.microphone_source_to_code(mic_sources[1])
         cg.add(var.set_microphone_source2(mic_source2))
 
     if CONF_MICRO_WAKE_WORD in config:
