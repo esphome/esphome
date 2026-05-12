@@ -68,7 +68,7 @@ void ESPHomeOTAComponent::setup() {
     return;
   }
 
-  err = this->server_->bind((struct sockaddr *) &server, sizeof(server));
+  err = this->server_->bind((struct sockaddr *) &server, sl);
   if (err != 0) {
     this->server_failed_(LOG_STR("bind"));
     return;
@@ -133,12 +133,12 @@ void ESPHomeOTAComponent::dump_config() {
 }
 
 void ESPHomeOTAComponent::loop() {
-  // Self-disabling idle loop. Runs when a wake path marks us pending-enable (fast-select
-  // listener filter, raw-TCP accept_fn_, or host select), finds no work, and goes back
-  // to sleep. cleanup_connection_() deliberately leaves the loop enabled for one more
-  // iteration so a connection queued mid-session is still caught here.
+  // Self-disable idle loop where a wake path re-enables on listener readiness
+  // (fast-select, raw-TCP accept_fn_). Host BSD select doesn't, so stay enabled.
   if (this->client_ == nullptr && !this->server_->ready()) {
+#ifndef USE_HOST
     this->disable_loop();
+#endif
     return;
   }
   this->handle_handshake_();

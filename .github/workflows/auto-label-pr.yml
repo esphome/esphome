@@ -6,9 +6,10 @@ on:
   pull_request_target:
     types: [labeled, opened, reopened, synchronize, edited]
 
+# All PR/label/review writes are performed with the App token minted below,
+# so the workflow's GITHUB_TOKEN only needs read access for checkout.
 permissions:
-  pull-requests: write
-  contents: read
+  contents: read  # actions/checkout reads the workflow source
 
 env:
   SMALL_PR_THRESHOLD: 30
@@ -31,6 +32,10 @@ jobs:
         with:
           client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
           private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+          # Scope the minted App token to the minimum needed by auto-label-pr/*.js.
+          permission-contents: read       # repos.getContent for CODEOWNERS and file lookups in detectors.js
+          permission-issues: write        # listLabelsOnIssue, addLabels, removeLabel, list/createComment
+          permission-pull-requests: write  # pulls.listFiles, list/create/update/dismissReview
 
       - name: Auto Label PR
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0

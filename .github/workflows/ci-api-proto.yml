@@ -12,8 +12,8 @@ on:
       - ".github/workflows/ci-api-proto.yml"
 
 permissions:
-  contents: read
-  pull-requests: write
+  contents: read        # actions/checkout for the PR head
+  pull-requests: write  # pulls.createReview / listReviews / dismissReview when generated proto files are stale
 
 jobs:
   check:
