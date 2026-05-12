@@ -4,8 +4,7 @@
 #include "../sml_parser.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
 static const char *const TAG = "sml_text_sensor";
 
@@ -60,5 +59,4 @@ void SmlTextSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  OBIS Code: %s", this->obis_code.c_str());
 }
 
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

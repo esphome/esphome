@@ -25,6 +25,7 @@ class CC1101Component : public Component,
   void setup() override;
   void loop() override;
   void dump_config() override;
+  void configure();
 
   // Actions
   void begin_tx();

@@ -283,7 +283,7 @@ async def to_code(config):
             try:
                 return Image.open(path)
             except Exception as e:
-                raise core.EsphomeError(f"Could not load image file {path}: {e}")
+                raise core.EsphomeError(f"Could not load image file {path}: {e}") from e
 
         # make a wide horizontal combined image.
         images = [load_image(x) for x in config[CONF_COLOR_PALETTE_IMAGES]]

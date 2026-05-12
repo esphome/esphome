@@ -17,9 +17,18 @@ binary_sensor:
   - id: left_sensor
     platform: template
   - platform: lvgl
+    name: Button A pressed
+    widget: button_a
+    state: pressed
+  - platform: lvgl
+    name: Button A checked
+    widget: button_a
+    state: checked
+  - platform: lvgl
     id: button_checker
     name: LVGL button
     widget: button_button
+    state: checked
     on_state:
       then:
         - lvgl.checkbox.update:
@@ -28,6 +37,12 @@ binary_sensor:
               checked: !lambda |-
                   auto y = x; // block inlining of one line return
                   return y;
+
+  - platform: lvgl
+    id: button_presser
+    name: Button pressed
+    widget: button_button
+    state: pressed
 
 lvgl:
   id: lvgl_id
@@ -293,6 +308,11 @@ lvgl:
               then:
                 - logger.log:
                     format: "Roller changed = %d: %s"
+                    args: [x, text.c_str()]
+            on_update:
+              then:
+                - logger.log:
+                    format: "Roller updated = %d: %s"
                     args: [x, text.c_str()]
         - animimg:
             height: 60
@@ -615,6 +635,10 @@ lvgl:
               logger.log:
                 format: "state now %d"
                 args: [x]
+            on_update:
+              logger.log:
+                format: "button updated %d"
+                args: [x]
             on_short_click:
               lvgl.widget.hide: hello_label
             on_long_press:
@@ -634,11 +658,15 @@ lvgl:
             on_scroll_begin:
               logger.log: Button clicked
             on_release:
-              logger.log: Button clicked
+              logger.log:
+                format: Button released at %d/%d
+                args: [point.x, point.y]
             on_long_press_repeat:
               logger.log: Button clicked
             on_pressing:
-              logger.log: Button pressing
+              logger.log:
+                format: Button pressing at %d/%d
+                args: [point.x, point.y]
             on_press_lost:
               logger.log: Button press lost
             on_single_click:
@@ -739,6 +767,9 @@ lvgl:
                       lambda: return tile == id(tile_1);
                     then:
                       - logger.log: "tile 1 is now showing"
+            on_update:
+              then:
+                - logger.log: "tileview updated programmatically"
             tiles:
               - id: tile_1
                 scroll_snap_y: center
@@ -910,6 +941,10 @@ lvgl:
                   value: !lambda |-
                       static float yyy = 83.0;
                       return yyy + .8;
+            on_release:
+              logger.log:
+                format: Slider released at %d/%d with value %.0f
+                args: [point.x, point.y, x]
         - button:
             styles: spin_button
             id: spin_up
@@ -959,6 +994,11 @@ lvgl:
               then:
                 - logger.log:
                     format: "Arc value is %f"
+                    args: [x]
+            on_update:
+              then:
+                - logger.log:
+                    format: "Arc updated to %f"
                     args: [x]
             scroll_on_focus: true
             value: 75
@@ -1023,7 +1063,10 @@ lvgl:
               - 5, 5
               - x: !lambda return random_uint32() % 100;
                 y: !lambda return random_uint32() % 100;
-              - 70, 70
+              - x: 10%
+                y: 50%
+              - 70%, 70%
+              - [75%, 75%]
               - 120, 10
               - 180, 60
               - 240, 10
@@ -1058,6 +1101,11 @@ lvgl:
               then:
                 - logger.log:
                     format: "slider value %f"
+                    args: [x]
+            on_update:
+              then:
+                - logger.log:
+                    format: "slider updated to %f"
                     args: [x]
             on_click:
               then:
@@ -1098,6 +1146,8 @@ lvgl:
                   pad_row: 6px
                   pad_column: 0
                   multiple_widgets_per_cell: true
+                  grid_cell_x_align: center
+                  grid_cell_y_align: center
                 widgets:
                   - image:
                       grid_cell_row_pos: 0
@@ -1168,6 +1218,10 @@ lvgl:
                       on_value:
                         logger.log:
                           format: "Dropdown changed = %d: %s"
+                          args: [x, text.c_str()]
+                      on_update:
+                        logger.log:
+                          format: "Dropdown updated = %d: %s"
                           args: [x, text.c_str()]
                       on_cancel:
                         logger.log:
@@ -1290,6 +1344,87 @@ lvgl:
                 hidden: true
                 mode: text_lower
 
+        # Grid shorthand "<rows>x": 3 rows specified, columns derived
+        # from widget count (4 widgets / 3 rows -> 2 columns)
+        - obj:
+            id: grid_rows_only_shorthand
+            layout: 3x
+            widgets:
+              - label:
+                  text: "r1"
+              - label:
+                  text: "r2"
+              - label:
+                  text: "r3"
+              - label:
+                  text: "r4"
+
+        # Grid shorthand "x<cols>": 4 columns specified, rows derived
+        # from widget count (5 widgets / 4 cols -> 2 rows)
+        - obj:
+            id: grid_cols_only_shorthand
+            layout: x4
+            widgets:
+              - label:
+                  text: "a"
+              - label:
+                  text: "b"
+              - label:
+                  text: "c"
+              - label:
+                  text: "d"
+              - label:
+                  text: "e"
+
+        # Grid dict form with grid_rows as a plain integer; columns derived
+        - obj:
+            id: grid_rows_int
+            layout:
+              type: grid
+              grid_rows: 2
+            widgets:
+              - label:
+                  text: "1"
+              - label:
+                  text: "2"
+              - label:
+                  text: "3"
+
+        # Grid dict form with grid_columns as a plain integer; rows derived
+        - obj:
+            id: grid_cols_int
+            layout:
+              type: grid
+              grid_columns: 3
+            widgets:
+              - label:
+                  text: "x"
+              - label:
+                  text: "y"
+              - label:
+                  text: "z"
+              - label:
+                  text: "w"
+              - label:
+                  text: "v"
+
+        # Grid dict form with both grid_rows and grid_columns as plain integers
+        - obj:
+            id: grid_both_int
+            layout:
+              type: grid
+              grid_rows: 2
+              grid_columns: 2
+            widgets:
+              - label:
+                  text: "1,1"
+              - label:
+                  text: "1,2"
+              - label:
+                  text: "2,1"
+              - label:
+                  text: "2,2"
+
 font:
   - file: "gfonts://Roboto"
     id: space16
@@ -1327,6 +1462,30 @@ color:
     green_int: 123
     blue_int: 64
     white_int: 255
+
+sensor:
+  - platform: lvgl
+    widget: lv_arc_1
+    id: lvgl_arc1_sensor_on_change
+    name: LVGL Arc1 Sensor on_change
+    trigger: on_change
+  - platform: lvgl
+    widget: bar_id
+    id: lvgl_bar_sensor_on_release
+    name: LVGL Bar Sensor on_release
+    trigger: on_release
+
+number:
+  - platform: lvgl
+    widget: lv_arc_1
+    id: lvgl_arc1_number_on_update
+    name: LVGL Arc1 Number on_update
+    trigger: on_update
+  - platform: lvgl
+    widget: spinbox_id
+    id: lvgl_spinbox_number_on_change
+    name: LVGL Spinbox Number on_change
+    trigger: on_change
 
 select:
   - platform: lvgl

@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 
 static const char *const TAG = "display";
 
@@ -90,5 +89,4 @@ void Rect::info(const std::string &prefix) {
   }
 }
 
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

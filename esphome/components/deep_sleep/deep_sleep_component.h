@@ -4,7 +4,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-
 #ifdef USE_ESP32
 #include <esp_sleep.h>
 #endif
@@ -16,8 +15,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace deep_sleep {
+namespace esphome::deep_sleep {
 
 #if defined(USE_ESP32) || defined(USE_BK72XX)
 
@@ -129,6 +127,8 @@ class DeepSleepComponent : public Component {
   void dump_config_platform_();
   bool prepare_to_sleep_();
   void deep_sleep_();
+  void schedule_sleep_();
+  bool should_teardown_();
 
 #ifdef USE_BK72XX
   bool pin_prevents_sleep_(WakeUpPinItem &pinItem) const;
@@ -243,5 +243,4 @@ template<typename... Ts> class AllowDeepSleepAction : public Action<Ts...>, publ
   void play(const Ts &...x) override { this->parent_->allow_deep_sleep(); }
 };
 
-}  // namespace deep_sleep
-}  // namespace esphome
+}  // namespace esphome::deep_sleep

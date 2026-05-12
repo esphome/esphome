@@ -299,13 +299,13 @@ void ESPNowComponent::loop() {
                    format_hex_pretty_to(hex_buf, packet->packet_.receive.data, packet->packet_.receive.size));
 #endif
           if (memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0) {
-            for (auto *handler : this->broadcasted_handlers_) {
-              if (handler->on_broadcasted(info, packet->packet_.receive.data, packet->packet_.receive.size))
+            for (auto *handler : this->broadcast_handlers_) {
+              if (handler->on_broadcast(info, packet->packet_.receive.data, packet->packet_.receive.size))
                 break;  // If a handler returns true, stop processing further handlers
             }
           } else {
-            for (auto *handler : this->received_handlers_) {
-              if (handler->on_received(info, packet->packet_.receive.data, packet->packet_.receive.size))
+            for (auto *handler : this->receive_handlers_) {
+              if (handler->on_receive(info, packet->packet_.receive.data, packet->packet_.receive.size))
                 break;  // If a handler returns true, stop processing further handlers
             }
           }
