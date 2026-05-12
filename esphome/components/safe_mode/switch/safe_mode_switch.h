@@ -4,8 +4,7 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace safe_mode {
+namespace esphome::safe_mode {
 
 class SafeModeSwitch : public switch_::Switch, public Component {
  public:
@@ -17,5 +16,4 @@ class SafeModeSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override;
 };
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode

@@ -9,8 +9,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 
 class DisplayBuffer : public Display {
  public:
@@ -30,5 +29,4 @@ class DisplayBuffer : public Display {
   uint8_t *buffer_{nullptr};
 };
 
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

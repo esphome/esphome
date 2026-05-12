@@ -6,8 +6,7 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 AudioTransferBuffer::~AudioTransferBuffer() { this->deallocate_buffer_(); };
 
@@ -208,7 +207,6 @@ void ConstAudioSourceBuffer::consume(size_t bytes) {
   this->data_start_ += bytes;
 }
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif
