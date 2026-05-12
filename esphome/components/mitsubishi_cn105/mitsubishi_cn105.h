@@ -2,6 +2,7 @@
 
 #include <optional>
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/finite_set_mask.h"
 
 namespace esphome::mitsubishi_cn105 {
 
@@ -60,6 +61,8 @@ class MitsubishiCN105 {
   void set_target_temperature(float target_temperature);
   void set_mode(Mode mode);
   void set_fan_mode(FanMode fan_mode);
+  void set_remote_temperature(float temperature);
+  void clear_remote_temperature();
 
  protected:
   enum class State : uint8_t {
@@ -91,20 +94,25 @@ class MitsubishiCN105 {
   };
 
   enum class UpdateFlag : uint8_t {
-    TEMPERATURE = 1 << 0,
-    POWER = 1 << 1,
-    MODE = 1 << 2,
-    FAN = 1 << 3,
+    TEMPERATURE = 0,
+    POWER = 1,
+    MODE = 2,
+    FAN = 3,
+    REMOTE_TEMPERATURE = 4,
   };
 
   struct UpdateFlags {
-    void set(UpdateFlag f) { flags_ |= static_cast<uint8_t>(f); }
-    void clear() { flags_ = 0; }
-    bool any() const { return flags_ != 0; }
-    bool has(UpdateFlag f) const { return (flags_ & static_cast<uint8_t>(f)) != 0; }
+    template<typename... Flags> void set(Flags... flags) { (this->mask_.insert(flags), ...); }
+    template<typename... Flags> void clear(Flags... flags) { (this->mask_.erase(flags), ...); }
+    bool any() const { return !this->mask_.empty(); }
+    bool contains(UpdateFlag flag) const { return this->mask_.count(flag); }
+    bool contains_only(UpdateFlag flag) const { return this->mask_.get_mask() == Mask{flag}.get_mask(); }
 
    protected:
-    uint8_t flags_{0};
+    using Mask =
+        FiniteSetMask<UpdateFlag, DefaultBitPolicy<UpdateFlag, static_cast<int>(UpdateFlag::REMOTE_TEMPERATURE) + 1>>;
+
+    Mask mask_;
   };
 
   void set_state_(State new_state);
@@ -119,12 +127,14 @@ class MitsubishiCN105 {
   void cancel_waiting_and_transition_to_(State state);
   bool should_request_room_temperature_() const;
   void apply_settings_();
+  void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
   template<typename T> void send_packet_(const T &packet) { this->send_packet_(packet.data(), packet.size()); }
   static bool should_transition(State from, State to);
   static const LogString *state_to_string(State state);
 
   uart::UARTDevice &device_;
   uint32_t update_interval_ms_{1000};
+  uint32_t status_update_wait_credit_ms_{0};
   uint32_t room_temperature_min_interval_ms_{60000};
   std::optional<uint32_t> write_timeout_start_ms_;
   std::optional<uint32_t> status_update_start_ms_;
@@ -133,8 +143,11 @@ class MitsubishiCN105 {
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;
   bool use_temperature_encoding_b_{false};
-  uint8_t current_status_msg_type_{0};
   FrameParser frame_parser_;
+  uint8_t current_status_msg_type_{0};
+
+  static constexpr uint8_t REMOTE_TEMPERATURE_DISABLED = 0;
+  uint8_t remote_temperature_half_deg_{REMOTE_TEMPERATURE_DISABLED};
 };
 
 }  // namespace esphome::mitsubishi_cn105

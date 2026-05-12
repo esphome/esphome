@@ -1415,6 +1415,15 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     return 0
 
 
+def command_config_hash(args: ArgsProtocol, config: ConfigType) -> int | None:
+    # generating code might modify config, so it must be done in order to generate
+    # a hash that will match what was generated when compiling and then running
+    # on the device
+    generate_cpp_contents(config)
+    safe_print(f"0x{CORE.config_hash:08x}")
+    return 0
+
+
 def command_vscode(args: ArgsProtocol) -> int | None:
     from esphome import vscode
 
@@ -1950,6 +1959,7 @@ PRE_CONFIG_ACTIONS = {
 
 POST_CONFIG_ACTIONS = {
     "config": command_config,
+    "config-hash": command_config_hash,
     "compile": command_compile,
     "upload": command_upload,
     "logs": command_logs,
@@ -2061,6 +2071,13 @@ def parse_args(argv):
     )
     parser_config.add_argument(
         "--show-secrets", help="Show secrets in output.", action="store_true"
+    )
+
+    parser_config_hash = subparsers.add_parser(
+        "config-hash", help="Calculate the hash of the configuration."
+    )
+    parser_config_hash.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
     parser_compile = subparsers.add_parser(
