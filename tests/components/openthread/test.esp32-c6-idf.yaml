@@ -10,9 +10,28 @@ openthread:
   mesh_local_prefix: fd53:145f:ed22:ad81::/64
   output_power: 1dBm
   graceful_detach_on_shutdown: true
-  on_connect:
+  on_state:
     then:
-      - logger.log: "openthread connected"
-  on_disconnect:
+      - logger.log:
+          format: "on_state: state is %d"
+          args: [x]
+  on_state_change:
     then:
-      - logger.log: "openthread disconnected"
+      - logger.log:
+          format: "on_state_change: old state is %d, old state is %d"
+          args: [x, x_previous]
+  on_disabled:
+    then:
+      - logger.log: "on_disabled"
+  on_detached:
+    then:
+      - logger.log: "on_detached"
+  on_child:
+    then:
+      - logger.log: "on_child"
+  on_router:
+    then:
+      - logger.log: "on_router"
+  on_leader:
+    then:
+      - logger.log: "on_leader"
