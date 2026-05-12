@@ -64,12 +64,9 @@ async def to_code(config):
         if CORE.is_libretiny:
             CORE.add_platformio_option("lib_ignore", ["ESPAsyncTCP", "RPAsyncTCP"])
         if CORE.is_rp2040:
-            # Ignore bundled AsyncTCP and WebServer libraries - we use RPAsyncTCP from
-            # async_tcp component and ESPAsyncWebServer from an external library.
-            # The framework's WebServer pulls in WiFiServer.h which doesn't exist on rp2040.
+            # Ignore bundled AsyncTCP libraries - we use RPAsyncTCP from async_tcp component
             CORE.add_platformio_option(
-                "lib_ignore",
-                ["ESPAsyncTCP", "AsyncTCP", "AsyncTCP_RP2040W", "WebServer"],
+                "lib_ignore", ["ESPAsyncTCP", "AsyncTCP", "AsyncTCP_RP2040W"]
             )
             # ESPAsyncWebServer uses Hash library for sha1() on RP2040
             cg.add_library("Hash", None)
