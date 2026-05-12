@@ -48,6 +48,7 @@ from ..defines import (
     join_enums,
     literal,
 )
+from ..lv_validation import lv_int
 from ..lvcode import (
     LvConditional,
     add_line_marks,
@@ -207,10 +208,10 @@ class WidgetType:
         """
         return ()
 
-    def get_max(self, config: dict):
+    async def get_max(self, config: dict):
         return sys.maxsize
 
-    def get_min(self, config: dict):
+    async def get_min(self, config: dict):
         return -sys.maxsize
 
     def get_step(self, config: dict):
@@ -637,8 +638,8 @@ async def widget_to_code(w_cnfig, w_type: WidgetType | str, parent) -> Widget:
 
 
 class NumberType(WidgetType):
-    def get_max(self, config: dict):
-        return int(config.get(CONF_MAX_VALUE, 100))
+    async def get_max(self, config: dict):
+        return await lv_int.process(config.get(CONF_MAX_VALUE, 100))
 
-    def get_min(self, config: dict):
-        return int(config.get(CONF_MIN_VALUE, 0))
+    async def get_min(self, config: dict):
+        return await lv_int.process(config.get(CONF_MIN_VALUE, 0))

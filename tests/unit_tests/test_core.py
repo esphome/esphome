@@ -591,6 +591,30 @@ class TestEsphomeCore:
         assert target.is_esp32 is False
         assert target.is_esp8266 is True
 
+    def test_firmware_bin__default(self, target):
+        """Default platforms produce <pioenvs>/<name>/firmware.bin."""
+        target.name = "test-device"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
+        assert target.firmware_bin == Path(
+            "foo/build/.pioenvs/test-device/firmware.bin"
+        )
+
+    def test_firmware_bin__libretiny(self, target):
+        """The libretiny platform produces firmware.uf2."""
+        target.name = "test-device"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "bk72xx"}
+        assert target.firmware_bin == Path(
+            "foo/build/.pioenvs/test-device/firmware.uf2"
+        )
+
+    def test_firmware_bin__host(self, target):
+        """Host platform produces a native ELF/Mach-O named `program`,
+        not firmware.bin -- needed for `esphome upload` to find the
+        right artifact for the host OTA backend."""
+        target.name = "test-device"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "host"}
+        assert target.firmware_bin == Path("foo/build/.pioenvs/test-device/program")
+
     @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
     def test_data_dir_default_unix(self, target):
         """Test data_dir returns .esphome in config directory by default on Unix."""

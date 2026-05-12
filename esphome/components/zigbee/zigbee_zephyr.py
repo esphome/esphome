@@ -1,7 +1,6 @@
 import datetime
 import random
 
-from esphome import automation
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
@@ -23,7 +22,6 @@ from esphome.types import ConfigType
 from .const import (
     BACNET_UNIT_NO_UNITS,
     BACNET_UNITS,
-    CONF_ON_JOIN,
     CONF_POWER_SOURCE,
     CONF_ROUTER,
     CONF_WIPE_ON_BOOT,
@@ -96,7 +94,7 @@ zephyr_number = cv.Schema(
 )
 
 
-async def zephyr_to_code(config: ConfigType) -> None:
+async def zephyr_to_code(config: ConfigType) -> "MockObj":
     zephyr_add_prj_conf("ZIGBEE", True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
     if config[CONF_ROUTER]:
@@ -141,14 +139,13 @@ async def zephyr_to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
 
-    if on_join_config := config.get(CONF_ON_JOIN):
-        await automation.build_automation(var.get_join_trigger(), [], on_join_config)
-
     await cg.register_component(var, config)
 
     CORE.add_job(_ctx_to_code, config)
 
     cg.add(var.set_sleepy(config[CONF_SLEEPY]))
+
+    return var
 
 
 async def _attr_to_code(config: ConfigType) -> None:

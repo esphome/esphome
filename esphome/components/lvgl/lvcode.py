@@ -20,7 +20,8 @@ from esphome.cpp_generator import (
 )
 from esphome.yaml_util import ESPHomeDataBase
 
-from .defines import literal, lvgl_ns
+from .defines import literal
+from .types import lvgl_ns
 
 LVGL_COMP = "lv_component"  # used as a lambda argument in lvgl_comp()
 
