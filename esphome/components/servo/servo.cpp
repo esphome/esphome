@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace servo {
+namespace esphome::servo {
 
 static const char *const TAG = "servo";
 
@@ -106,5 +105,4 @@ void Servo::save_level_(float v) {
     this->rtc_.save(&v);
 }
 
-}  // namespace servo
-}  // namespace esphome
+}  // namespace esphome::servo

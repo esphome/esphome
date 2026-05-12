@@ -3,8 +3,7 @@
 #include "../vbus.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace vbus {
+namespace esphome::vbus {
 
 class DeltaSolBSPlusSensor : public VBusListener, public Component {
  public:
@@ -243,5 +242,4 @@ class VBusCustomSubSensor : public sensor::Sensor, public Component {
   message_parser_t message_parser_;
 };
 
-}  // namespace vbus
-}  // namespace esphome
+}  // namespace esphome::vbus

@@ -8,6 +8,8 @@ DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["climate"]
 CODEOWNERS = ["@crnjan"]
 
+CONF_CURRENT_TEMPERATURE_MIN_INTERVAL = "current_temperature_min_interval"
+
 mitsubishi_ns = cg.esphome_ns.namespace("mitsubishi_cn105")
 
 MitsubishiCN105Climate = mitsubishi_ns.class_(
@@ -20,7 +22,14 @@ MitsubishiCN105Climate = mitsubishi_ns.class_(
 CONFIG_SCHEMA = (
     climate.climate_schema(MitsubishiCN105Climate)
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend({cv.Optional(CONF_UPDATE_INTERVAL, default="1s"): cv.update_interval})
+    .extend(
+        {
+            cv.Optional(CONF_UPDATE_INTERVAL, default="1s"): cv.update_interval,
+            cv.Optional(
+                CONF_CURRENT_TEMPERATURE_MIN_INTERVAL, default="60s"
+            ): cv.update_interval,
+        }
+    )
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -39,3 +48,8 @@ async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+    cg.add(
+        var.set_current_temperature_min_interval(
+            config[CONF_CURRENT_TEMPERATURE_MIN_INTERVAL]
+        )
+    )

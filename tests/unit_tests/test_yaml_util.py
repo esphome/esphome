@@ -1,3 +1,4 @@
+import io
 from pathlib import Path
 import shutil
 from unittest.mock import patch
@@ -7,8 +8,16 @@ import pytest
 from esphome import core, yaml_util
 from esphome.components import substitutions
 from esphome.config_helpers import Extend, Remove
-from esphome.core import EsphomeError
+import esphome.config_validation as cv
+from esphome.core import DocumentLocation, DocumentRange, EsphomeError
 from esphome.util import OrderedDict
+from esphome.yaml_util import (
+    ESPHomeDataBase,
+    ESPLiteralValue,
+    format_path,
+    make_data_base,
+    make_literal,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -74,7 +83,9 @@ def test_parsing_with_custom_loader(fixture_path):
         loader_calls.append(fname)
 
     with yaml_file.open(encoding="utf-8") as f_handle:
-        yaml_util.parse_yaml(yaml_file, f_handle, custom_loader)
+        config = yaml_util.parse_yaml(yaml_file, f_handle, custom_loader)
+        # substitute config to expand includes:
+        substitutions.substitute(config, [], substitutions.ContextVars(), False)
 
     assert len(loader_calls) == 3
     assert loader_calls[0].parts[-2:] == ("includes", "included.yaml")
@@ -323,6 +334,62 @@ def test_dump_sort_keys() -> None:
     assert sorted_dump.index("a_key:") < sorted_dump.index("z_key:")
 
 
+# ---------------------------------------------------------------------------
+# track_yaml_loads
+# ---------------------------------------------------------------------------
+
+
+def test_track_yaml_loads_records_files(tmp_path: Path) -> None:
+    """track_yaml_loads records every file loaded inside the context."""
+    yaml_file = tmp_path / "test.yaml"
+    yaml_file.write_text("key: value\n")
+
+    with yaml_util.track_yaml_loads() as loaded:
+        yaml_util.load_yaml(yaml_file)
+
+    assert len(loaded) == 1
+    assert loaded[0] == yaml_file.resolve()
+
+
+def test_track_yaml_loads_records_includes(tmp_path: Path) -> None:
+    """track_yaml_loads records nested !include files."""
+    inc = tmp_path / "included.yaml"
+    inc.write_text("included_key: 42\n")
+    main = tmp_path / "main.yaml"
+    main.write_text("child: !include included.yaml\n")
+
+    with yaml_util.track_yaml_loads() as loaded:
+        result = yaml_util.load_yaml(main)
+        # !include is deferred; resolve it to trigger the nested load
+        result["child"].load()
+
+    resolved = [p.name for p in loaded]
+    assert "main.yaml" in resolved
+    assert "included.yaml" in resolved
+
+
+def test_track_yaml_loads_empty_outside_context(tmp_path: Path) -> None:
+    """Files loaded outside the context are not recorded."""
+    yaml_file = tmp_path / "test.yaml"
+    yaml_file.write_text("key: value\n")
+
+    with yaml_util.track_yaml_loads() as loaded:
+        pass  # load nothing inside
+
+    yaml_util.load_yaml(yaml_file)
+    assert loaded == []
+
+
+def test_track_yaml_loads_cleanup_on_exception(tmp_path: Path) -> None:
+    """Listener is removed even if the body raises."""
+    before = len(yaml_util._load_listeners)
+
+    with pytest.raises(RuntimeError), yaml_util.track_yaml_loads():
+        raise RuntimeError("boom")
+
+    assert len(yaml_util._load_listeners) == before
+
+
 @pytest.mark.parametrize(
     "data",
     [
@@ -446,3 +513,441 @@ def test_represent_extend() -> None:
 def test_represent_remove() -> None:
     """Test that Remove objects are dumped as plain !remove scalars."""
     assert yaml_util.dump({"key": Remove("my_id")}) == "key: !remove 'my_id'\n"
+
+
+def test_represent_include_file() -> None:
+    """Test that IncludeFile objects are dumped as !include scalars."""
+    include = yaml_util.IncludeFile(
+        Path("/fake/main.yaml"), "path/to/file.yaml", None, lambda _: {}
+    )
+    assert yaml_util.dump({"key": include}) == "key: !include 'path/to/file.yaml'\n"
+
+
+def test_represent_include_file_with_vars() -> None:
+    """Test that IncludeFile with vars is dumped as !include mapping form."""
+    include = yaml_util.IncludeFile(
+        Path("/fake/main.yaml"),
+        "path/to/file.yaml",
+        {"key": "value"},
+        lambda _: {},
+    )
+    result = yaml_util.dump({"key": include})
+    assert "!include" in result
+    assert "file: path/to/file.yaml" in result
+    assert "key: value" in result
+
+
+def test_represent_include_file_with_data_base_mixin() -> None:
+    """Test that IncludeFile wrapped with ESPHomeDataBase mixin is also dumped correctly.
+
+    The YAML loader wraps IncludeFile via add_class_to_obj, creating a dynamic
+    subclass. add_multi_representer must match this subclass through the MRO.
+    """
+    include = yaml_util.IncludeFile(
+        Path("/fake/main.yaml"), "common/spi.yaml", None, lambda _: {}
+    )
+    wrapped = yaml_util.make_data_base(include)
+    assert isinstance(wrapped, yaml_util.ESPHomeDataBase)
+    assert yaml_util.dump({"pkg": wrapped}) == "pkg: !include 'common/spi.yaml'\n"
+
+
+# ── IncludeFile unit tests ──────────────────────────────────────────────────
+
+
+def test_include_file_repr(tmp_path: Path) -> None:
+    """repr() includes the filename so it appears usefully in error messages."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(parent, "some/nested.yaml", None, lambda _: {})
+    assert repr(include) == "IncludeFile(some/nested.yaml)"
+
+
+def test_include_file_load_caches_result(tmp_path: Path) -> None:
+    """load() invokes the yaml_loader only once; subsequent calls return the cached object."""
+    parent = tmp_path / "main.yaml"
+    content = {"key": "value"}
+    call_count = 0
+
+    def counting_loader(_):
+        nonlocal call_count
+        call_count += 1
+        return content
+
+    include = yaml_util.IncludeFile(parent, "child.yaml", None, counting_loader)
+    first = include.load()
+    second = include.load()
+
+    assert call_count == 1
+    assert first is second
+
+
+def test_include_file_load_caches_none_result(tmp_path: Path) -> None:
+    """load() caches None content (empty YAML files) and does not re-invoke the loader."""
+    parent = tmp_path / "main.yaml"
+    call_count = 0
+
+    def counting_loader(_):
+        nonlocal call_count
+        call_count += 1
+
+    include = yaml_util.IncludeFile(parent, "empty.yaml", None, counting_loader)
+    first = include.load()
+    second = include.load()
+
+    assert call_count == 1
+    assert first is None
+    assert second is None
+
+
+def test_include_file_load_raises_on_unresolved_expressions(tmp_path: Path) -> None:
+    """load() raises if the filename contains unresolved substitutions or expressions."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(parent, "${undefined_var}.yaml", None, lambda _: {})
+    with pytest.raises(cv.Invalid, match="unresolved"):
+        include.load()
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [
+        ("device-${platform}.yaml", True),
+        ("$platform.yaml", True),
+        ("${a + b}.yaml", True),  # Jinja expression
+        ("device.yaml", False),
+        ("path/to/device.yaml", False),
+        ("my$file.yaml", True),  # $file is a valid substitution
+        ("price-100$.yaml", False),  # $ at end, not followed by valid substitution
+    ],
+)
+def test_include_file_has_unresolved_expressions(
+    tmp_path: Path, filename: str, expected: bool
+) -> None:
+    """has_unresolved_expressions() detects substitution patterns in the filename."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(parent, filename, None, lambda _: {})
+    assert include.has_unresolved_expressions() == expected
+
+
+def test_include_in_list_context() -> None:
+    """!include of a file returning a list is handled correctly,
+    including when that list itself contains a nested IncludeFile."""
+    parent = Path("/fake/main.yaml")
+
+    # The nested IncludeFile resolves to a plain string value
+    inner = yaml_util.IncludeFile(parent, "inner.yaml", None, lambda _: "gamma")
+
+    # The outer IncludeFile returns a list whose last element is itself an IncludeFile,
+    # exercising the substitution pass's ability to recurse into loaded content.
+    outer = yaml_util.IncludeFile(
+        parent, "items.yaml", None, lambda _: ["alpha", "beta", inner]
+    )
+
+    config = OrderedDict({"values": outer})
+    config = substitutions.do_substitution_pass(config)
+
+    assert config["values"] == ["alpha", "beta", "gamma"]
+
+
+def test_top_level_include_resolved_by_load_yaml(tmp_path: Path) -> None:
+    """load_yaml resolves a top-level !include so callers always get a dict."""
+    child = tmp_path / "child.yaml"
+    child.write_text("key: value\n")
+    main = tmp_path / "main.yaml"
+    main.write_text("!include child.yaml\n")
+
+    result = yaml_util.load_yaml(main)
+    assert isinstance(result, dict)
+    assert result["key"] == "value"
+
+
+def test_include_plain_filename_loads_after_deferred_refactor() -> None:
+    """!include with a plain filename (no $ expressions) still loads correctly.
+
+    Regression guard: the deferred-loading refactor must not break the simple case.
+    """
+    parent = Path("/fake/main.yaml")
+    include = yaml_util.IncludeFile(
+        parent, "child.yaml", None, lambda _: {"answer": 42}
+    )
+
+    config = OrderedDict({"result": include})
+    config = substitutions.do_substitution_pass(config)
+
+    assert config["result"]["answer"] == 42
+
+
+def test_yaml_merge_include_with_filename_substitution_raises() -> None:
+    """<<: !include ${expr} raises a clear error — substitutions in merge-key filenames
+    are not yet supported, and the error message must say so."""
+    yaml_text = "base:\n  existing: value\n  <<: !include ${filename}.yaml\n"
+    with pytest.raises(EsphomeError, match="not supported yet"):
+        yaml_util.parse_yaml(
+            Path("/fake/main.yaml"), io.StringIO(yaml_text), lambda _: {}
+        )
+
+
+def test_yaml_merge_list_include_with_filename_substitution_raises() -> None:
+    """Substitutions in include filenames within merge-key lists raise a clear error."""
+    yaml_text = "base:\n  existing: value\n  <<:\n    - !include ${filename}.yaml\n"
+    with pytest.raises(EsphomeError, match="not supported yet"):
+        yaml_util.parse_yaml(
+            Path("/fake/main.yaml"), io.StringIO(yaml_text), lambda _: {}
+        )
+
+
+def test_yaml_merge_chain_include_resolves() -> None:
+    """Chained includes in merge keys resolve through multiple IncludeFile layers."""
+    parent = Path("/fake/main.yaml")
+
+    inner = yaml_util.IncludeFile(parent, "inner.yaml", None, lambda _: {"x": 1})
+    outer = yaml_util.IncludeFile(parent, "outer.yaml", None, lambda _: inner)
+
+    yaml_text = "base:\n  existing: value\n  <<: !include outer.yaml\n"
+    config = yaml_util.parse_yaml(parent, io.StringIO(yaml_text), lambda _: outer)
+    config = substitutions.do_substitution_pass(config)
+
+    assert config["base"]["x"] == 1
+    assert config["base"]["existing"] == "value"
+
+
+def test_yaml_merge_chain_include_depth_exceeded() -> None:
+    """Chain includes in merge keys exceeding depth limit raise a clear error."""
+    parent = Path("/fake/main.yaml")
+
+    def self_referencing_loader(path: Path) -> yaml_util.IncludeFile:
+        return yaml_util.IncludeFile(parent, path.name, None, self_referencing_loader)
+
+    yaml_text = "base:\n  <<: !include loop.yaml\n"
+    with pytest.raises(EsphomeError, match="Maximum include chain depth"):
+        yaml_util.parse_yaml(parent, io.StringIO(yaml_text), self_referencing_loader)
+
+
+def _located(value, doc: str, line: int, col: int):
+    """Return *value* wrapped with a fake ESPHomeDataBase source location."""
+    loc = DocumentLocation(doc, line, col)
+    obj = make_data_base(value)
+    if isinstance(obj, ESPHomeDataBase):
+        obj._esp_range = DocumentRange(loc, loc)
+    return obj
+
+
+def test_format_path_no_location_info_returns_flat_path():
+    """Plain path items with no esp_range produce a simple flat 'In:' line."""
+    result = format_path(["wifi", "ssid"], None)
+    assert result == "In: wifi->ssid"
+
+
+def test_format_path_no_location_info_current_obj_adds_file():
+    """When path has no location but current_obj does, its location is shown."""
+    obj = _located("${var}", "main.yaml", 5, 10)
+    result = format_path(["wifi", "ssid"], obj)
+    assert result == "In: wifi->ssid in main.yaml 6:11"
+
+
+def test_format_path_single_frame_no_include_boundary():
+    """All located keys from the same document → single 'In:' line, no 'Included from'."""
+    path = ["packages", _located("pkg1", "root.yaml", 5, 2)]
+    result = format_path(path, None)
+    assert result.startswith("In: packages->pkg1 in root.yaml 6:3")
+    assert "Included from" not in result
+
+
+def test_format_path_two_frames_shows_included_from():
+    """Keys from two different documents produce 'In:' + one 'Included from' line."""
+    path = [
+        "packages",
+        _located("device", "root.yaml", 10, 2),
+        "packages",
+        _located("inner", "hardware.yaml", 3, 2),
+    ]
+    result = format_path(path, None)
+    assert "In: packages->inner in hardware.yaml 4:3" in result
+    assert "Included from packages->device in root.yaml 11:3" in result
+
+
+def test_format_path_three_frames_full_include_stack():
+    """Three document levels produce two 'Included from' lines in correct order."""
+    path = [
+        "packages",
+        _located("device", "root.yaml", 10, 2),
+        "packages",
+        _located("_wifi_", "hardware.yaml", 43, 2),
+        "packages",
+        _located("_roam_", "wifi.yaml", 25, 2),
+    ]
+    result = format_path(path, None)
+    lines = result.splitlines()
+    assert lines[0].startswith("In: packages->_roam_ in wifi.yaml")
+    assert lines[1].startswith("  Included from packages->_wifi_ in hardware.yaml")
+    assert lines[2].startswith("  Included from packages->device in root.yaml")
+
+
+def test_format_path_current_obj_overrides_innermost_location():
+    """current_obj's esp_range replaces the key's column for the 'In:' line."""
+    path = ["packages", _located("pkg1", "root.yaml", 5, 2)]
+    # Value (the expression) sits at column 10, not column 2 like the key
+    value = _located("${undefined}", "root.yaml", 5, 10)
+    result = format_path(path, value)
+    assert "6:11" in result
+    assert "6:3" not in result
+
+
+def test_format_path_empty_path_with_no_location():
+    """Empty path with no location info returns 'In: '."""
+    result = format_path([], None)
+    assert result == "In: "
+
+
+def test_format_path_integer_path_items_formatted_as_subscript():
+    """Integer indices are rendered as [n] subscripts in the flat fallback."""
+    result = format_path(["packages", 0], None)
+    assert result == "In: packages[0]"
+
+
+def test_format_path_integer_list_index_attached_to_previous_frame():
+    """A list index between two include boundaries attaches to the outer frame."""
+    path = [
+        "packages",
+        _located("packages", "main.yaml", 5, 0),
+        0,
+        _located("packages", "level1.yaml", 2, 0),
+        0,
+        _located("esphome", "level2.yaml", 0, 0),
+        _located("name", "level2.yaml", 1, 8),
+    ]
+    result = format_path(path, None)
+    lines = result.splitlines()
+    assert lines[0].startswith("In: esphome->name in level2.yaml")
+    assert "packages[0]" in lines[1] and "level1.yaml" in lines[1]
+    assert "packages[0]" in lines[2] and "main.yaml" in lines[2]
+
+
+def test_format_path_trailing_unlocated_string_after_located_key():
+    """Plain string keys after the last located key must still appear in output."""
+    path = [_located("packages", "main.yaml", 5, 0), "sub", "key"]
+    result = format_path(path, None)
+    assert result == "In: packages->sub->key in main.yaml 6:1"
+
+
+def test_format_path_trailing_unlocated_int_attaches_to_current_frame():
+    """Trailing ints attach to the open frame's last key (subscript), strings
+    buffer until end-of-path and then flush behind."""
+    path = [_located("packages", "main.yaml", 5, 0), 0, "sub"]
+    result = format_path(path, None)
+    # Int attaches to 'packages' as [0] subscript; trailing 'sub' is flushed
+    # at end and appears after.
+    assert result == "In: packages[0]->sub in main.yaml 6:1"
+
+
+def test_format_path_only_trailing_unlocated_strings_are_preserved():
+    """Trailing pending items must not be silently dropped after the last frame."""
+    path = [
+        _located("packages", "main.yaml", 5, 0),
+        _located("inner", "hardware.yaml", 3, 0),
+        "tail1",
+        "tail2",
+    ]
+    result = format_path(path, None)
+    lines = result.splitlines()
+    assert lines[0] == "In: inner->tail1->tail2 in hardware.yaml 4:1"
+    assert lines[1] == "  Included from packages in main.yaml 6:1"
+
+
+def test_format_path_leading_int_with_no_current_doc_goes_to_pending():
+    """An int before any located key is buffered and shown in the first frame."""
+    path = [0, _located("name", "main.yaml", 1, 0)]
+    result = format_path(path, None)
+    # Leading ints have no preceding name to subscript onto, so they render
+    # as bare [n] in the formatted segment.
+    assert result == "In: [0]->name in main.yaml 2:1"
+
+
+def test_format_path_only_unlocated_int_returns_flat_fallback():
+    """Path with only an int and no location info renders via the flat fallback."""
+    result = format_path([0], None)
+    assert result == "In: [0]"
+
+
+def test_format_path_current_obj_in_different_doc_than_innermost_frame():
+    """current_obj's location is preferred even when its document differs from the frame's."""
+    path = [_located("packages", "root.yaml", 1, 0)]
+    value = _located("${var}", "other.yaml", 9, 4)
+    result = format_path(path, value)
+    # Innermost line uses current_obj's mark (other.yaml 10:5), not the key's.
+    assert result == "In: packages in other.yaml 10:5"
+
+
+def test_format_path_current_obj_without_location_falls_back_to_key():
+    """An ESPHomeDataBase current_obj with no esp_range falls back to the key's location."""
+
+    class _NoRange(ESPHomeDataBase, str):
+        pass
+
+    obj = _NoRange.__new__(_NoRange, "value")
+    str.__init__(obj)
+    # No _esp_range set on this instance.
+    assert obj.esp_range is None
+
+    path = [_located("packages", "main.yaml", 5, 2)]
+    result = format_path(path, obj)
+    assert result == "In: packages in main.yaml 6:3"
+
+
+def test_format_path_empty_path_with_located_current_obj():
+    """An empty path with a located current_obj still surfaces the location."""
+    obj = _located("${var}", "main.yaml", 0, 0)
+    result = format_path([], obj)
+    assert result == "In:  in main.yaml 1:1"
+
+
+def test_make_literal_wraps_dict() -> None:
+    """A dict is wrapped so it becomes an ESPLiteralValue instance."""
+    value = {"key": "${var}"}
+    result = make_literal(value)
+    assert isinstance(result, ESPLiteralValue)
+    assert isinstance(result, dict)
+    assert result == {"key": "${var}"}
+
+
+def test_make_literal_wraps_list() -> None:
+    """A list is wrapped so it becomes an ESPLiteralValue instance."""
+    value = ["${var}", "plain"]
+    result = make_literal(value)
+    assert isinstance(result, ESPLiteralValue)
+    assert isinstance(result, list)
+    assert result == ["${var}", "plain"]
+
+
+def test_make_literal_wraps_string() -> None:
+    """A string is wrapped so it becomes an ESPLiteralValue instance."""
+    result = make_literal("${var}")
+    assert isinstance(result, ESPLiteralValue)
+    assert result == "${var}"
+
+
+def test_make_literal_returns_already_wrapped_value_unchanged() -> None:
+    """Wrapping a value that is already an ESPLiteralValue returns it as-is."""
+    value = make_literal({"key": "value"})
+    assert isinstance(value, ESPLiteralValue)
+    result = make_literal(value)
+    assert result is value
+
+
+def test_make_literal_returns_none_unchanged() -> None:
+    """Values whose class cannot be augmented (e.g. ``None``) are returned as-is."""
+    result = make_literal(None)
+    assert result is None
+
+
+def test_make_literal_blocks_substitution() -> None:
+    """A value wrapped with make_literal is skipped by the substitution pass."""
+    value = make_literal({"pin": "${PIN}"})
+    result = substitutions.substitute(
+        value,
+        path=[],
+        parent_context=substitutions.ContextVars(),
+        strict_undefined=False,
+    )
+    # The literal block must remain untouched, even though the variable is
+    # undefined in the context.
+    assert result == {"pin": "${PIN}"}
+    assert isinstance(result, ESPLiteralValue)

@@ -7,8 +7,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace pulse_meter {
+namespace esphome::pulse_meter {
 
 class PulseMeterSensor : public sensor::Sensor, public Component {
  public:
@@ -77,5 +76,4 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   PulseState pulse_state_{};
 };
 
-}  // namespace pulse_meter
-}  // namespace esphome
+}  // namespace esphome::pulse_meter

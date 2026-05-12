@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mmc5983 {
+namespace esphome::mmc5983 {
 
 class MMC5983Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -23,5 +22,4 @@ class MMC5983Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *z_sensor_{nullptr};
 };
 
-}  // namespace mmc5983
-}  // namespace esphome
+}  // namespace esphome::mmc5983

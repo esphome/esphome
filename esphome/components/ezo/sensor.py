@@ -38,33 +38,30 @@ CONFIG_SCHEMA = (
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM, "add_custom_callback", [(cg.std_string, "x")]
+    ),
+    automation.CallbackAutomation(CONF_ON_LED, "add_led_state_callback", [(bool, "x")]),
+    automation.CallbackAutomation(
+        CONF_ON_DEVICE_INFORMATION,
+        "add_device_infomation_callback",
+        [(cg.std_string, "x")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_SLOPE, "add_slope_callback", [(cg.std_string, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CALIBRATION, "add_calibration_callback", [(cg.std_string, "x")]
+    ),
+    automation.CallbackAutomation(CONF_ON_T, "add_t_callback", [(cg.std_string, "x")]),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
     await i2c.register_i2c_device(var, config)
 
-    for conf in config.get(CONF_ON_CUSTOM, []):
-        await automation.build_callback_automation(
-            var, "add_custom_callback", [(cg.std_string, "x")], conf
-        )
-    for conf in config.get(CONF_ON_LED, []):
-        await automation.build_callback_automation(
-            var, "add_led_state_callback", [(bool, "x")], conf
-        )
-    for conf in config.get(CONF_ON_DEVICE_INFORMATION, []):
-        await automation.build_callback_automation(
-            var, "add_device_infomation_callback", [(cg.std_string, "x")], conf
-        )
-    for conf in config.get(CONF_ON_SLOPE, []):
-        await automation.build_callback_automation(
-            var, "add_slope_callback", [(cg.std_string, "x")], conf
-        )
-    for conf in config.get(CONF_ON_CALIBRATION, []):
-        await automation.build_callback_automation(
-            var, "add_calibration_callback", [(cg.std_string, "x")], conf
-        )
-    for conf in config.get(CONF_ON_T, []):
-        await automation.build_callback_automation(
-            var, "add_t_callback", [(cg.std_string, "x")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

@@ -1,9 +1,10 @@
+import io
 import logging
 import os
 from pathlib import Path
 import socket
 import stat
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
 from hypothesis import given
@@ -12,7 +13,8 @@ import pytest
 
 from esphome import helpers
 from esphome.address_cache import AddressCache
-from esphome.core import EsphomeError
+from esphome.core import CORE, EsphomeError
+from esphome.helpers import ProgressBar
 
 
 @pytest.mark.parametrize(
@@ -88,6 +90,51 @@ def test_cpp_string_escape(string, expected):
     actual = helpers.cpp_string_escape(string)
 
     assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    (
+        # Basic underscore→dash conversion.
+        ("Living Room Sensor", "living-room-sensor"),
+        # Already-slugified input passes through with dash output.
+        ("kitchen_light", "kitchen-light"),
+        # Accents are stripped (matches the underlying ``slugify``).
+        ("Café Caché", "cafe-cache"),
+        # Mixed casing + multiple separators collapse correctly.
+        ("Foo  Bar__Baz", "foo-bar-baz"),
+        # Empty input yields empty output.
+        ("", ""),
+        # Numbers survive intact.
+        ("Sensor 42", "sensor-42"),
+    ),
+)
+def test_friendly_name_slugify(value, expected):
+    """Friendly-name → URL-safe dash-slug.
+
+    Stable mapping is part of the cross-tool contract
+    (legacy dashboard + device-builder both depend on it for
+    filename → device-name routing). Lock the cases here so a
+    refactor can't accidentally change a slug shape and break
+    on-disk filenames in already-deployed installs.
+    """
+    assert helpers.friendly_name_slugify(value) == expected
+
+
+def test_friendly_name_slugify_back_compat_shim():
+    """``esphome.dashboard.util.text`` keeps re-exporting for back-compat.
+
+    The function moved to ``esphome.helpers`` so the new
+    device-builder dashboard backend can import it without depending
+    on the legacy dashboard package, but downstream code that still
+    imports from the old path keeps working until the dashboard
+    module is removed.
+    """
+    from esphome.dashboard.util.text import (
+        friendly_name_slugify as legacy_friendly_name_slugify,
+    )
+
+    assert legacy_friendly_name_slugify is helpers.friendly_name_slugify
 
 
 @pytest.mark.parametrize(
@@ -979,3 +1026,39 @@ def test_resolve_ip_address_mixed_cached_uncached() -> None:
         assert "192.168.1.10" in addresses  # Direct IP
         assert "192.168.1.50" in addresses  # From cache
         assert "192.168.1.100" in addresses  # From resolver
+
+
+def test_progressbar_enabled_on_tty(monkeypatch) -> None:
+    """Interactive TTY: progress writes through (pre-existing behaviour)."""
+    stream = MagicMock(spec=io.TextIOWrapper)
+    stream.isatty.return_value = True
+    monkeypatch.setattr(CORE, "dashboard", False)
+
+    bar = ProgressBar("Uploading", stream=stream)
+    assert bar.enabled is True
+
+
+def test_progressbar_disabled_on_pipe_without_dashboard(monkeypatch) -> None:
+    """Piped output without --dashboard: progress suppressed."""
+    stream = MagicMock(spec=io.TextIOWrapper)
+    stream.isatty.return_value = False
+    monkeypatch.setattr(CORE, "dashboard", False)
+
+    bar = ProgressBar("Uploading", stream=stream)
+    assert bar.enabled is False
+
+
+def test_progressbar_enabled_on_pipe_with_dashboard(monkeypatch) -> None:
+    r"""Piped output under --dashboard: progress writes through.
+
+    The dashboard captures stderr through a pipe (so ``isatty()`` is False)
+    and parses ``\rUploading: NN%`` frames to drive its progress UI.
+    Gating purely on ``isatty()`` silently disables every dashboard-side
+    flash-progress indicator.
+    """
+    stream = MagicMock(spec=io.TextIOWrapper)
+    stream.isatty.return_value = False
+    monkeypatch.setattr(CORE, "dashboard", True)
+
+    bar = ProgressBar("Uploading", stream=stream)
+    assert bar.enabled is True

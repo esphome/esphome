@@ -79,6 +79,7 @@ from esphome.cpp_types import (  # noqa: F401
     float_,
     global_ns,
     gpio_Flags,
+    int8,
     int16,
     int32,
     int64,

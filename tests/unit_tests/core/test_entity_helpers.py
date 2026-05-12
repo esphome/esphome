@@ -28,6 +28,7 @@ from esphome.core.entity_helpers import (
     get_base_entity_object_id,
     register_device_class,
     register_icon,
+    register_unit_of_measurement,
     setup_device_class,
     setup_entity,
     setup_unit_of_measurement,
@@ -923,6 +924,22 @@ def test_register_device_class_max_length() -> None:
 
     # Empty string returns 0
     assert register_device_class("") == 0
+
+
+def test_register_unit_of_measurement_max_length() -> None:
+    """Test register_unit_of_measurement rejects units exceeding 63 characters."""
+    # 63 chars should succeed
+    max_uom = "a" * 63
+    idx = register_unit_of_measurement(max_uom)
+    assert idx > 0
+
+    # 64 chars should fail
+    too_long = "a" * 64
+    with pytest.raises(ValueError, match="Unit of measurement string too long"):
+        register_unit_of_measurement(too_long)
+
+    # Empty string returns 0
+    assert register_unit_of_measurement("") == 0
 
 
 @pytest.mark.asyncio

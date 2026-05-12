@@ -2,10 +2,8 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_ble_server {
 // Interface to interact with ESPHome automations and triggers
-namespace esp32_ble_server_automations {
+namespace esphome::esp32_ble_server::esp32_ble_server_automations {
 
 using namespace esp32_ble;
 
@@ -86,8 +84,6 @@ void BLECharacteristicSetValueActionManager::remove_listener_(BLECharacteristic 
 }
 #endif
 
-}  // namespace esp32_ble_server_automations
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server::esp32_ble_server_automations
 
 #endif

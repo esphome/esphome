@@ -233,11 +233,24 @@ DEVICE_CLASS_MAX_LENGTH = 47
 # Keep in sync with MAX_ICON_LENGTH in esphome/core/entity_base.h
 ICON_MAX_LENGTH = 63
 
+# Max unit of measurement string length
+UNIT_OF_MEASUREMENT_MAX_LENGTH = 63
+
+# Max project name/version string length (must fit in single-byte varint for proto encoding)
+PROJECT_MAX_LENGTH = 127
+
+# Max board/model string length (must fit in single-byte varint for proto encoding)
+BOARD_MAX_LENGTH = 127
+
+# Keep in sync with ESPHOME_COMMENT_SIZE_MAX in esphome/core/application.h
+# (C++ side includes the null terminator).
+COMMENT_MAX_LEN = 255
+
 AREA_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Area),
         cv.Required(CONF_NAME): cv.All(
-            cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+            cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
     }
 )
@@ -246,7 +259,7 @@ DEVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Device),
         cv.Required(CONF_NAME): cv.All(
-            cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+            cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
     }
@@ -263,10 +276,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NAME): cv.valid_name,
             # Keep max=120 in sync with OBJECT_ID_MAX_LEN in esphome/core/entity_base.h
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(
-                cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+                cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
             ),
             cv.Optional(CONF_AREA): validate_area_config,
-            cv.Optional(CONF_COMMENT): cv.All(cv.string, cv.Length(max=255)),
+            cv.Optional(CONF_COMMENT): cv.All(
+                cv.string, cv.ByteLength(max=COMMENT_MAX_LEN)
+            ),
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
                 {
@@ -303,9 +318,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
                     cv.Required(CONF_NAME): cv.All(
-                        cv.string_strict, valid_project_name
+                        cv.string_strict,
+                        valid_project_name,
+                        cv.ByteLength(max=PROJECT_MAX_LENGTH),
                     ),
-                    cv.Required(CONF_VERSION): cv.string_strict,
+                    cv.Required(CONF_VERSION): cv.All(
+                        cv.string_strict, cv.ByteLength(max=PROJECT_MAX_LENGTH)
+                    ),
                     cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -549,14 +568,9 @@ async def _add_controller_registry_define() -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_looping_components() -> None:
-    # Emit a constexpr that computes the looping component count at C++ compile time
-    # and pre-init the FixedVector with the exact capacity. Uses std::is_same_v to
-    # detect loop() overrides. The constexpr goes in main.cpp's global section where
-    # all component types are in scope. calculate_looping_components_() then skips
-    # the counting pass and only does the two population passes.
+    # Emit ESPHOME_LOOPING_COMPONENT_COUNT. Sizing of looping_components_
+    # happens in core to_code() so it lands before safe_mode's early return.
     entries = CORE.data.get("looping_component_entries", [])
-    if not entries:
-        return
 
     # Build constexpr sum for the exact count, deduplicating by type
     # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
@@ -564,20 +578,12 @@ async def _add_looping_components() -> None:
     terms = [
         f"({count} * HasLoopOverride<{cpp_type}>::value)"
         for cpp_type, count in type_counts.items()
-    ]
+    ] or ["0"]
     constexpr_expr = " + \\\n  ".join(terms)
     cg.add_global(
         cg.RawStatement(
             f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
             f"  {constexpr_expr};"
-        )
-    )
-
-    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
-    # can skip the counting pass
-    cg.add(
-        cg.RawExpression(
-            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
         )
     )
 
@@ -622,6 +628,14 @@ async def to_code(config: ConfigType) -> None:
     cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
     # Define component count for static allocation
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
+
+    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
+    # can skip the counting pass
+    cg.add(
+        cg.RawExpression(
+            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+        )
+    )
 
     CORE.add_job(_add_platform_defines)
     CORE.add_job(_add_controller_registry_define)
@@ -745,19 +759,52 @@ async def to_code(config: ConfigType) -> None:
 # Platform-specific source files for core
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "ring_buffer.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
         "static_task.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
+        },
+        "main_task.c": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "lwip_fast_select.c": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
         },
         "time_64.cpp": {
             PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
+        },
+        # Per-platform wake implementations — wake.h dispatches to exactly one of
+        # these based on USE_*, so the others can be skipped at the source level
+        # too. Header files next to each .cpp are always copied (the dispatcher
+        # #include's them) but compile to empty TUs on the wrong platform anyway.
+        "wake/wake_freertos.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "wake/wake_esp8266.cpp": {
+            PlatformFramework.ESP8266_ARDUINO,
+        },
+        "wake/wake_rp2040.cpp": {
+            PlatformFramework.RP2040_ARDUINO,
+        },
+        "wake/wake_host.cpp": {
+            PlatformFramework.HOST_NATIVE,
+        },
+        "wake/wake_zephyr.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
         },
         # Note: lock_free_queue.h and event_pool.h are header files and don't need to be filtered
         # as they are only included when needed by the preprocessor
