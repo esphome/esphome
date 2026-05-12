@@ -240,7 +240,6 @@ class RingBufferAudioSource : public AudioReadableBuffer {
   // AudioReadableBuffer interface
   const uint8_t *data() const override { return this->current_data_; }
   size_t available() const override { return this->current_available_; }
-  size_t free() const override { return 0; }
   void consume(size_t bytes) override;
   bool has_buffered_data() const override;
   size_t fill(TickType_t ticks_to_wait, bool pre_shift) override;
@@ -281,11 +280,12 @@ class RingBufferAudioSource : public AudioReadableBuffer {
   uint8_t splice_buffer_[MAX_ALIGNMENT_BYTES];
 
   size_t current_available_{0};
-  size_t item_trailing_length_{0};
   size_t queued_length_{0};
-  size_t splice_length_{0};
 
+  // item_trailing_length_ and splice_length_ are bounded by MAX_ALIGNMENT_BYTES.
   uint8_t alignment_bytes_;
+  uint8_t item_trailing_length_{0};
+  uint8_t splice_length_{0};
 };
 
 }  // namespace esphome::audio

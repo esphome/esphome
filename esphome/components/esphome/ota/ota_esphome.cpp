@@ -68,7 +68,7 @@ void ESPHomeOTAComponent::setup() {
     return;
   }
 
-  err = this->server_->bind((struct sockaddr *) &server, sizeof(server));
+  err = this->server_->bind((struct sockaddr *) &server, sl);
   if (err != 0) {
     this->server_failed_(LOG_STR("bind"));
     return;
@@ -125,17 +125,20 @@ void ESPHomeOTAComponent::dump_config() {
     it = esp_partition_next(it);
   }
   esp_partition_iterator_release(it);
-#endif
-#endif
+  esp_bootloader_desc_t bootloader_desc;
+  esp_err_t err = esp_ota_get_bootloader_description(nullptr, &bootloader_desc);
+  ESP_LOGCONFIG(TAG, "  Bootloader: ESP-IDF %s", (err == ESP_OK) ? bootloader_desc.idf_ver : "version unknown");
+#endif  // USE_ESP32
+#endif  // USE_OTA_PARTITIONS
 }
 
 void ESPHomeOTAComponent::loop() {
-  // Self-disabling idle loop. Runs when a wake path marks us pending-enable (fast-select
-  // listener filter, raw-TCP accept_fn_, or host select), finds no work, and goes back
-  // to sleep. cleanup_connection_() deliberately leaves the loop enabled for one more
-  // iteration so a connection queued mid-session is still caught here.
+  // Self-disable idle loop where a wake path re-enables on listener readiness
+  // (fast-select, raw-TCP accept_fn_). Host BSD select doesn't, so stay enabled.
   if (this->client_ == nullptr && !this->server_->ready()) {
+#ifndef USE_HOST
     this->disable_loop();
+#endif
     return;
   }
   this->handle_handshake_();
@@ -336,7 +339,6 @@ void ESPHomeOTAComponent::handle_data_() {
   ///                            wakeable_delay() in read();
   ///                            write() always returns immediately
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
-  bool update_started = false;
   size_t total = 0;
   uint32_t last_progress = 0;
   uint32_t last_data_ms = 0;
@@ -399,7 +401,6 @@ void ESPHomeOTAComponent::handle_data_() {
   error_code = this->backend_->begin(ota_size, ota_type);
   if (error_code != ota::OTA_RESPONSE_OK)
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  update_started = true;
 
   // Acknowledge prepare OK - 1 byte
   this->write_byte_(ota::OTA_RESPONSE_UPDATE_PREPARE_OK);
@@ -510,8 +511,12 @@ void ESPHomeOTAComponent::handle_data_() {
 error:
   this->write_byte_(static_cast<uint8_t>(error_code));
 
-  // Abort backend before cleanup - cleanup_connection_() destroys the backend
-  if (this->backend_ != nullptr && update_started) {
+  // Abort backend before cleanup - cleanup_connection_() destroys the backend.
+  // Always call abort() unconditionally: backends register external partitions before
+  // esp_ota_begin (partition table / bootloader paths), and abort() is responsible for
+  // releasing those even if begin() failed before an OTA handle was opened. The IDF
+  // backend's esp_ota_abort(0) is documented as harmless.
+  if (this->backend_ != nullptr) {
     this->backend_->abort();
   }
 

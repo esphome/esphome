@@ -8,8 +8,8 @@ on:
       - beta
 
 permissions:
-  contents: read
-  pull-requests: read
+  contents: read       # actions/checkout to load detect-tags.js
+  pull-requests: read  # pulls.listFiles to map changed files to component/core/dashboard/ci tags
 
 jobs:
   check:

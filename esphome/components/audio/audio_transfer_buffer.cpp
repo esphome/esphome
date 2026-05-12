@@ -253,8 +253,11 @@ void RingBufferAudioSource::consume(size_t bytes) {
 }
 
 bool RingBufferAudioSource::has_buffered_data() const {
-  return (this->current_available_ > 0) || (this->queued_length_ > 0) || (this->splice_length_ > 0) ||
-         (this->ring_buffer_->available() > 0);
+  // splice_length_ is deliberately not considered here. It holds an incomplete frame whose completion
+  // bytes must still arrive through the ring buffer, which ring_buffer_->available() already reports.
+  // Counting it separately would strand a drain loop when a stream ends mid-frame and those completion
+  // bytes never come.
+  return (this->current_available_ > 0) || (this->queued_length_ > 0) || (this->ring_buffer_->available() > 0);
 }
 
 size_t RingBufferAudioSource::fill(TickType_t ticks_to_wait, bool /*pre_shift*/) {
