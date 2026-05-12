@@ -1103,6 +1103,18 @@ def convert_keys(converted, schema, path):
             if default_value is not None:
                 result["default"] = str(default_value)
 
+        # UI hint from ``cv.Optional`` / ``cv.Required`` — surfaced
+        # for schema consumers (visual editors) that want to render
+        # advanced / yaml-only fields differently. ESPHome itself
+        # ignores it at runtime; emitting only when set keeps the
+        # dump compact and backwards-compatible with markers that
+        # don't carry the attribute. The value is the str form of
+        # ``cv.Visibility`` (e.g. ``"advanced"`` / ``"yaml_only"``)
+        # so consumers don't need an enum import to read it.
+        visibility = getattr(k, "visibility", None)
+        if visibility is not None:
+            result["visibility"] = str(visibility)
+
         # Do value
         convert(v, result, path + f"/{str(k)}")
         if "schema" not in converted:
