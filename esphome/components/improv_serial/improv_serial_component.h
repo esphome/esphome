@@ -24,8 +24,7 @@
 #include <HardwareSerial.h>
 #endif
 
-namespace esphome {
-namespace improv_serial {
+namespace esphome::improv_serial {
 
 // TX buffer layout constants
 static constexpr uint8_t TX_HEADER_SIZE = 6;  // Bytes 0-5 = "IMPROV"
@@ -147,6 +146,6 @@ class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
 extern ImprovSerialComponent
     *global_improv_serial_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace improv_serial
-}  // namespace esphome
+}  // namespace esphome::improv_serial
+
 #endif

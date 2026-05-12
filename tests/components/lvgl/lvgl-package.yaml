@@ -309,6 +309,11 @@ lvgl:
                 - logger.log:
                     format: "Roller changed = %d: %s"
                     args: [x, text.c_str()]
+            on_update:
+              then:
+                - logger.log:
+                    format: "Roller updated = %d: %s"
+                    args: [x, text.c_str()]
         - animimg:
             height: 60
             id: anim_img
@@ -630,6 +635,10 @@ lvgl:
               logger.log:
                 format: "state now %d"
                 args: [x]
+            on_update:
+              logger.log:
+                format: "button updated %d"
+                args: [x]
             on_short_click:
               lvgl.widget.hide: hello_label
             on_long_press:
@@ -758,6 +767,9 @@ lvgl:
                       lambda: return tile == id(tile_1);
                     then:
                       - logger.log: "tile 1 is now showing"
+            on_update:
+              then:
+                - logger.log: "tileview updated programmatically"
             tiles:
               - id: tile_1
                 scroll_snap_y: center
@@ -983,6 +995,11 @@ lvgl:
                 - logger.log:
                     format: "Arc value is %f"
                     args: [x]
+            on_update:
+              then:
+                - logger.log:
+                    format: "Arc updated to %f"
+                    args: [x]
             scroll_on_focus: true
             value: 75
             min_value: 1
@@ -1084,6 +1101,11 @@ lvgl:
               then:
                 - logger.log:
                     format: "slider value %f"
+                    args: [x]
+            on_update:
+              then:
+                - logger.log:
+                    format: "slider updated to %f"
                     args: [x]
             on_click:
               then:
@@ -1196,6 +1218,10 @@ lvgl:
                       on_value:
                         logger.log:
                           format: "Dropdown changed = %d: %s"
+                          args: [x, text.c_str()]
+                      on_update:
+                        logger.log:
+                          format: "Dropdown updated = %d: %s"
                           args: [x, text.c_str()]
                       on_cancel:
                         logger.log:
@@ -1436,6 +1462,30 @@ color:
     green_int: 123
     blue_int: 64
     white_int: 255
+
+sensor:
+  - platform: lvgl
+    widget: lv_arc_1
+    id: lvgl_arc1_sensor_on_change
+    name: LVGL Arc1 Sensor on_change
+    trigger: on_change
+  - platform: lvgl
+    widget: bar_id
+    id: lvgl_bar_sensor_on_release
+    name: LVGL Bar Sensor on_release
+    trigger: on_release
+
+number:
+  - platform: lvgl
+    widget: lv_arc_1
+    id: lvgl_arc1_number_on_update
+    name: LVGL Arc1 Number on_update
+    trigger: on_update
+  - platform: lvgl
+    widget: spinbox_id
+    id: lvgl_spinbox_number_on_change
+    name: LVGL Spinbox Number on_change
+    trigger: on_change
 
 select:
   - platform: lvgl

@@ -4,8 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace pylontech {
+namespace esphome::pylontech {
 
 static const uint8_t NUM_BUFFERS = 20;
 static const uint8_t TEXT_SENSOR_MAX_LEN = 14;
@@ -48,5 +47,4 @@ class PylontechComponent : public PollingComponent, public uart::UARTDevice {
   std::vector<PylontechListener *> listeners_{};
 };
 
-}  // namespace pylontech
-}  // namespace esphome
+}  // namespace esphome::pylontech

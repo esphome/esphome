@@ -74,9 +74,7 @@ void Logger::pre_setup() {
         break;
 #endif
     }
-    if (!device_is_ready(uart_dev)) {
-      ESP_LOGE(TAG, "%s is not ready.", LOG_STR_ARG(get_uart_selection_()));
-    } else {
+    if (device_is_ready(uart_dev)) {
       this->uart_dev_ = uart_dev;
 #if defined(USE_LOGGER_WAIT_FOR_CDC) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
       uint32_t dtr = 0;

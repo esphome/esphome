@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace qmc5883l {
+namespace esphome::qmc5883l {
 
 enum QMC5883LDatarate {
   QMC5883L_DATARATE_10_HZ = 0b00,
@@ -66,5 +65,4 @@ class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   HighFrequencyLoopRequester high_freq_;
 };
 
-}  // namespace qmc5883l
-}  // namespace esphome
+}  // namespace esphome::qmc5883l

@@ -23,7 +23,7 @@ from esphome.config import validate_config
 from esphome.const import CONF_PLATFORM
 from esphome.core import CORE
 from esphome.loader import get_component, get_platform
-from esphome.platformio_api import get_idedata
+from esphome.platformio.toolchain import get_idedata
 from tests.testing_helpers import ComponentManifestOverride, set_testing_manifest
 
 # This must coincide with the version in /platformio.ini

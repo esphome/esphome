@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dac7678 {
+namespace esphome::dac7678 {
 
 static const char *const TAG = "dac7678";
 
@@ -82,5 +81,4 @@ void DAC7678Channel::write_state(float state) {
   this->parent_->set_channel_value_(this->channel_, input);
 }
 
-}  // namespace dac7678
-}  // namespace esphome
+}  // namespace esphome::dac7678

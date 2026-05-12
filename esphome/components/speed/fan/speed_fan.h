@@ -5,8 +5,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/fan/fan.h"
 
-namespace esphome {
-namespace speed {
+namespace esphome::speed {
 
 class SpeedFan : public Component, public fan::Fan {
  public:
@@ -33,5 +32,4 @@ class SpeedFan : public Component, public fan::Fan {
   fan::FanTraits traits_;
 };
 
-}  // namespace speed
-}  // namespace esphome
+}  // namespace esphome::speed
