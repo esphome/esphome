@@ -1,10 +1,17 @@
 #include "dlms_meter.h"
 
+#include <cinttypes>
+
 #if defined(USE_ESP8266_FRAMEWORK_ARDUINO)
 #include <bearssl/bearssl.h>
 #elif defined(USE_ESP32)
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include <psa/crypto.h>
+#else
 #include "mbedtls/esp_config.h"
 #include "mbedtls/gcm.h"
+#endif
 #endif
 
 namespace esphome::dlms_meter {
@@ -16,7 +23,7 @@ void DlmsMeterComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "DLMS Meter:\n"
                 "  Provider: %s\n"
-                "  Read Timeout: %u ms",
+                "  Read Timeout: %" PRIu32 " ms",
                 provider_name, this->read_timeout_);
 #define DLMS_METER_LOG_SENSOR(s) LOG_SENSOR("  ", #s, this->s##_sensor_);
   DLMS_METER_SENSOR_LIST(DLMS_METER_LOG_SENSOR, )
@@ -240,6 +247,35 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
   br_gcm_flip(&gcm_ctx);
   br_gcm_run(&gcm_ctx, 0, payload_ptr, message_length);
 #elif defined(USE_ESP32)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  // PSA Crypto multipart AEAD (no tag verification, matching legacy behavior)
+  psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+  psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
+  psa_set_key_bits(&attributes, this->decryption_key_.size() * 8);
+  psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_DECRYPT);
+  psa_set_key_algorithm(&attributes, PSA_ALG_GCM);
+
+  mbedtls_svc_key_id_t key_id;
+  bool decrypt_failed = true;
+  if (psa_import_key(&attributes, this->decryption_key_.data(), this->decryption_key_.size(), &key_id) == PSA_SUCCESS) {
+    psa_aead_operation_t op = PSA_AEAD_OPERATION_INIT;
+    if (psa_aead_decrypt_setup(&op, key_id, PSA_ALG_GCM) == PSA_SUCCESS &&
+        psa_aead_set_nonce(&op, iv, sizeof(iv)) == PSA_SUCCESS) {
+      size_t outlen = 0;
+      if (psa_aead_update(&op, payload_ptr, message_length, payload_ptr, message_length, &outlen) == PSA_SUCCESS &&
+          outlen == message_length) {
+        decrypt_failed = false;
+      }
+    }
+    psa_aead_abort(&op);
+    psa_destroy_key(key_id);
+  }
+  if (decrypt_failed) {
+    ESP_LOGE(TAG, "Decryption failed");
+    this->receive_buffer_.clear();
+    return false;
+  }
+#else
   size_t outlen = 0;
   mbedtls_gcm_context gcm_ctx;
   mbedtls_gcm_init(&gcm_ctx);
@@ -252,6 +288,7 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
     this->receive_buffer_.clear();
     return false;
   }
+#endif
 #else
 #error "Invalid Platform"
 #endif

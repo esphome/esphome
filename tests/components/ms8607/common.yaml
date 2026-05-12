@@ -1,0 +1,11 @@
+sensor:
+  - platform: ms8607
+    i2c_id: i2c_bus
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity
+    pressure:
+      name: Pressure
+    address: 0x76
+    update_interval: 15s

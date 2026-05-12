@@ -14,11 +14,19 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
     CONF_ENABLE_IPV6,
+    CONF_FRAMEWORK,
     CONF_ID,
+    CONF_LOG_LEVEL,
     CONF_OUTPUT_POWER,
     CONF_USE_ADDRESS,
+    PLATFORM_ESP32,
 )
-from esphome.core import CORE, TimePeriodMilliseconds
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    TimePeriodMilliseconds,
+    coroutine_with_priority,
+)
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -45,6 +53,15 @@ AUTO_LOAD = ["network"]
 # TODO: Doesn't conflict with wifi if you're using another ESP as an RCP (radio coprocessor), but this isn't implemented yet
 CONFLICTS_WITH = ["wifi"]
 DEPENDENCIES = ["esp32"]
+
+IDF_TO_OT_LOG_LEVEL = {
+    "NONE": "NONE",
+    "ERROR": "CRIT",
+    "WARN": "WARN",
+    "INFO": "NOTE",
+    "DEBUG": "INFO",
+    "VERBOSE": "DEBG",
+}
 
 CONF_DEVICE_TYPES = [
     "FTD",
@@ -198,10 +215,20 @@ def _final_validate(_):
             "Please set `enable_ipv6: true` in the `network` configuration."
         )
 
+    if (
+        (esp32_config := full_config.get(PLATFORM_ESP32)) is not None
+        and (fw_config := esp32_config.get(CONF_FRAMEWORK)) is not None
+        and (log_level := fw_config.get(CONF_LOG_LEVEL)) is not None
+    ):
+        add_idf_sdkconfig_option("CONFIG_OPENTHREAD_LOG_LEVEL_DYNAMIC", False)
+        ot_log_level = IDF_TO_OT_LOG_LEVEL.get(log_level, log_level)
+        add_idf_sdkconfig_option(f"CONFIG_OPENTHREAD_LOG_LEVEL_{ot_log_level}", True)
+
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+@coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     # Re-enable openthread IDF component (excluded by default)
     include_builtin_idf_component("openthread")

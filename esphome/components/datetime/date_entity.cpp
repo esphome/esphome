@@ -30,7 +30,7 @@ void DateEntity::publish_state() {
     return;
   }
   this->set_has_state(true);
-  ESP_LOGD(TAG, "'%s' >> %d-%d-%d", this->get_name().c_str(), this->year_, this->month_, this->day_);
+  ESP_LOGV(TAG, "'%s' >> %d-%d-%d", this->get_name().c_str(), this->year_, this->month_, this->day_);
   this->state_callback_.call();
 #if defined(USE_DATETIME_DATE) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_date_update(this);
@@ -83,16 +83,16 @@ void DateCall::validate_() {
 
 void DateCall::perform() {
   this->validate_();
-  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
 
   if (this->year_.has_value()) {
-    ESP_LOGD(TAG, " Year: %d", *this->year_);
+    ESP_LOGV(TAG, " Year: %d", *this->year_);
   }
   if (this->month_.has_value()) {
-    ESP_LOGD(TAG, " Month: %d", *this->month_);
+    ESP_LOGV(TAG, " Month: %d", *this->month_);
   }
   if (this->day_.has_value()) {
-    ESP_LOGD(TAG, " Day: %d", *this->day_);
+    ESP_LOGV(TAG, " Day: %d", *this->day_);
   }
   this->parent_->control(*this);
 }

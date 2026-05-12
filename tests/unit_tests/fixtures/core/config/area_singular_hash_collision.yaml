@@ -1,0 +1,10 @@
+esphome:
+  name: test
+  area:
+    id: test_2258
+    name: "Area 1"
+  areas:
+    - id: d6ka
+      name: "Area 2"
+
+host:

@@ -2,8 +2,7 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace noblex {
+namespace esphome::noblex {
 
 // Temperature
 const uint8_t NOBLEX_TEMP_MIN = 16;  // Celsius
@@ -41,8 +40,8 @@ class NoblexClimate : public climate_ir::ClimateIR {
   /// Handle received IR Buffer.
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool send_swing_cmd_{false};
-  bool receiving_ = false;
+  bool receiving_{false};
+  uint8_t remote_state_[8]{};
 };
 
-}  // namespace noblex
-}  // namespace esphome
+}  // namespace esphome::noblex

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ina260 {
+namespace esphome::ina260 {
 
 class INA260Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -33,5 +32,4 @@ class INA260Component : public PollingComponent, public i2c::I2CDevice {
   } error_code_{NONE};
 };
 
-}  // namespace ina260
-}  // namespace esphome
+}  // namespace esphome::ina260

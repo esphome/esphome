@@ -17,8 +17,7 @@
 #include <WiFiUdp.h>
 #endif
 
-namespace esphome {
-namespace wled {
+namespace esphome::wled {
 
 // Description of protocols:
 // https://github.com/Aircoookie/WLED/wiki/UDP-Realtime-Control
@@ -161,7 +160,7 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
   // https://kno.wled.ge/interfaces/udp-notifier/
   // https://github.com/Aircoookie/WLED/blob/main/wled00/udp.cpp
 
-  if (size < 34) {
+  if (size <= 34) {
     return false;
   }
 
@@ -284,7 +283,6 @@ bool WLEDLightEffect::parse_dnrgb_frame_(light::AddressableLight &it, const uint
   return true;
 }
 
-}  // namespace wled
-}  // namespace esphome
+}  // namespace esphome::wled
 
 #endif  // USE_ARDUINO

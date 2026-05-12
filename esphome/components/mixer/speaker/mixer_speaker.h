@@ -4,6 +4,7 @@
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_transfer_buffer.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/component.h"
@@ -14,8 +15,7 @@
 
 #include <atomic>
 
-namespace esphome {
-namespace mixer_speaker {
+namespace esphome::mixer_speaker {
 
 /* Classes for mixing several source speaker audio streams and writing it to another speaker component.
  *  - Volume controls are passed through to the output speaker
@@ -107,7 +107,7 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   MixerSpeaker *parent_;
 
   std::shared_ptr<audio::AudioSourceTransferBuffer> transfer_buffer_;
-  std::weak_ptr<RingBuffer> ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
 
   uint32_t buffer_duration_ms_;
   uint32_t last_seen_data_ms_{0};
@@ -200,9 +200,9 @@ class MixerSpeaker : public Component {
   optional<audio::AudioStreamInfo> audio_stream_info_;
 
   std::atomic<uint32_t> frames_in_pipeline_{0};  // Frames written to output but not yet played
+  uint32_t all_stopped_since_ms_{0};             // Debounce transient all-stopped windows before stopping task
 };
 
-}  // namespace mixer_speaker
-}  // namespace esphome
+}  // namespace esphome::mixer_speaker
 
 #endif

@@ -1,0 +1,19 @@
+remote_transmitter:
+  id: rf_transmitter
+  pin: ${tx_pin}
+  carrier_duty_percent: 100%
+
+# Test radio_frequency platform with transmitter
+radio_frequency:
+  # RF 433MHz transmitter
+  - platform: ir_rf_proxy
+    id: rf_433_tx
+    name: "RF 433 Transmitter"
+    frequency: 433 MHz
+    remote_transmitter_id: rf_transmitter
+
+  # RF transmitter (no frequency specified)
+  - platform: ir_rf_proxy
+    id: rf_tx
+    name: "RF Transmitter"
+    remote_transmitter_id: rf_transmitter
