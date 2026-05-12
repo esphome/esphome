@@ -587,6 +587,11 @@ async def to_code(config):
             cg.add(var.set_phy_mode(config[CONF_PHY_MODE]))
     elif CORE.is_rp2040:
         cg.add_library("WiFi", None)
+        # WiFi's library.properties depends=MD5Header,Updater,LWIPEthernet
+        # With lib_ldf_mode=off, LDF won't resolve these. Add them explicitly
+        # so headers like lwIP_CYW43.h (from LWIPEthernet) are available.
+        for dep in ("MD5Header", "LWIPEthernet", "Updater"):
+            cg.add_library(dep, None)
 
     if CORE.is_esp32:
         if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:
