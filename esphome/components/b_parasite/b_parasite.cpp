@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace b_parasite {
+namespace esphome::b_parasite {
 
 static const char *const TAG = "b_parasite";
 
@@ -38,6 +37,11 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 
   const auto &data = service_data.data;
 
+  if (data.size() < 10) {
+    ESP_LOGW(TAG, "Service data too short: %zu", data.size());
+    return false;
+  }
+
   const uint8_t protocol_version = data[0] >> 4;
   if (protocol_version != 1 && protocol_version != 2) {
     ESP_LOGE(TAG, "Unsupported protocol version: %u", protocol_version);
@@ -46,6 +50,11 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 
   // Some b-parasite versions have an (optional) illuminance sensor.
   bool has_illuminance = data[0] & 0x1;
+
+  if (has_illuminance && data.size() < 18) {
+    ESP_LOGW(TAG, "Service data too short for illuminance: %zu", data.size());
+    return false;
+  }
 
   // Counter for deduplicating messages.
   uint8_t counter = data[1] & 0x0f;
@@ -103,7 +112,6 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return true;
 }
 
-}  // namespace b_parasite
-}  // namespace esphome
+}  // namespace esphome::b_parasite
 
 #endif  // USE_ESP32

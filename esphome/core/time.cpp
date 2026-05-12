@@ -2,6 +2,9 @@
 #include "helpers.h"
 
 #include <algorithm>
+#ifdef USE_TIME_TIMEZONE
+#include "esphome/components/time/posix_tz.h"
+#endif
 
 namespace esphome {
 
@@ -14,12 +17,59 @@ uint8_t days_in_month(uint8_t month, uint16_t year) {
 
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   struct tm c_tm = this->to_c_tm();
+#ifdef USE_TIME_TIMEZONE
+  // ::strftime uses libc's internal timezone state for %Z and %z, but we
+  // eliminated setenv("TZ")/tzset() on embedded platforms to save flash.
+  // Substitute %Z and %z with correct values from our parsed timezone.
+  // Quick scan: does format contain %Z or %z (but not %%Z/%%z)?
+  bool needs_subst = false;
+  for (const char *p = format; *p; p++) {
+    if (*p == '%' && *(p + 1)) {
+      p++;
+      if (*p == '%')
+        continue;  // %% is a literal %, skip
+      if (*p == 'Z' || *p == 'z') {
+        needs_subst = true;
+        break;
+      }
+    }
+  }
+  if (needs_subst) {
+    const auto &tz = time::get_global_tz();
+    char designation[6];  // "+HHMM" + null
+    int32_t offset = c_tm.tm_isdst > 0 ? tz.dst_offset_seconds : tz.std_offset_seconds;
+    time::format_designation(offset, designation, sizeof(designation));
+
+    char modified[STRFTIME_BUFFER_SIZE];
+    char *out = modified;
+    char *out_end = modified + sizeof(modified) - 1;
+    for (const char *p = format; *p && out < out_end; p++) {
+      if (*p == '%') {
+        if (*(p + 1) == '%') {
+          // %% → copy both percent signs (literal %)
+          *out++ = *p++;
+          if (out < out_end)
+            *out++ = *p;
+        } else if (*(p + 1) == 'Z' || *(p + 1) == 'z') {
+          p++;  // skip the Z/z
+          for (const char *d = designation; *d && out < out_end; d++)
+            *out++ = *d;
+        } else {
+          *out++ = *p;
+        }
+      } else {
+        *out++ = *p;
+      }
+    }
+    *out = '\0';
+    return ::strftime(buffer, buffer_len, modified, &c_tm);
+  }
+#endif
   return ::strftime(buffer, buffer_len, format, &c_tm);
 }
 
 size_t ESPTime::strftime_to(std::span<char, STRFTIME_BUFFER_SIZE> buffer, const char *format) {
-  struct tm c_tm = this->to_c_tm();
-  size_t len = ::strftime(buffer.data(), buffer.size(), format, &c_tm);
+  size_t len = this->strftime(buffer.data(), buffer.size(), format);
   if (len > 0) {
     return len;
   }
@@ -231,7 +281,7 @@ void ESPTime::increment_day() {
 
 void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   time_t res = 0;
-  if (!this->fields_in_range()) {
+  if (!this->fields_in_range(false, use_day_of_year)) {
     this->timestamp = -1;
     return;
   }
@@ -283,19 +333,15 @@ void ESPTime::recalc_timestamp_local() {
   bool dst_valid = time::is_in_dst(utc_if_dst, tz);
   bool std_valid = !time::is_in_dst(utc_if_std, tz);
 
-  if (dst_valid && std_valid) {
-    // Ambiguous time (repeated hour during fall-back) - prefer standard time
-    this->timestamp = utc_if_std;
-  } else if (dst_valid) {
+  if (dst_valid && !std_valid) {
     // Only DST interpretation is valid
     this->timestamp = utc_if_dst;
-  } else if (std_valid) {
-    // Only standard interpretation is valid
-    this->timestamp = utc_if_std;
   } else {
-    // Invalid time (skipped hour during spring-forward)
-    // libc normalizes forward: 02:30 CST -> 08:30 UTC -> 03:30 CDT
-    // Using std offset achieves this since the UTC result falls during DST
+    // All other cases use standard offset:
+    // - Both valid (ambiguous fall-back repeated hour): prefer standard time
+    // - Only standard valid: straightforward
+    // - Neither valid (spring-forward skipped hour): std offset normalizes
+    //   forward to match libc mktime(), e.g. 02:30 CST -> 03:30 CDT
     this->timestamp = utc_if_std;
   }
 #else

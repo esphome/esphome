@@ -5,8 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 static const char *const TAG = "display";
 
 // COLOR_OFF and COLOR_ON are now inline constexpr in display.h
@@ -661,6 +660,9 @@ void Display::printf(int x, int y, BaseFont *font, const char *format, ...) {
 void Display::set_writer(display_writer_t &&writer) { this->writer_ = writer; }
 
 void Display::set_pages(std::vector<DisplayPage *> pages) {
+  if (pages.empty())
+    return;
+
   for (auto *page : pages)
     page->set_parent(this);
 
@@ -924,5 +926,4 @@ const LogString *text_align_to_string(TextAlign textalign) {
       return LOG_STR("UNKNOWN");
   }
 }
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

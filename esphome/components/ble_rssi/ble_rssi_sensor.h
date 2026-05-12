@@ -6,8 +6,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_rssi {
+namespace esphome::ble_rssi {
 
 class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
@@ -74,11 +73,12 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
         }
         break;
       case MATCH_BY_IBEACON_UUID:
-        if (!device.get_ibeacon().has_value()) {
+        auto maybe_ibeacon = device.get_ibeacon();
+        if (!maybe_ibeacon.has_value()) {
           return false;
         }
 
-        auto ibeacon = device.get_ibeacon().value();
+        auto ibeacon = *maybe_ibeacon;
 
         if (this->ibeacon_uuid_ != ibeacon.get_uuid()) {
           return false;
@@ -119,7 +119,6 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
   bool check_ibeacon_minor_;
 };
 
-}  // namespace ble_rssi
-}  // namespace esphome
+}  // namespace esphome::ble_rssi
 
 #endif

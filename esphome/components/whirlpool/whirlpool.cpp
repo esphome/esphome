@@ -1,8 +1,7 @@
 #include "whirlpool.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace whirlpool {
+namespace esphome::whirlpool {
 
 static const char *const TAG = "whirlpool.climate";
 
@@ -31,6 +30,13 @@ const uint8_t WHIRLPOOL_FAN_LOW = 3;
 const uint8_t WHIRLPOOL_SWING_MASK = 128;
 
 const uint8_t WHIRLPOOL_POWER = 0x04;
+
+WhirlpoolClimate::WhirlpoolClimate()
+    : climate_ir::ClimateIR(
+          WHIRLPOOL_DG11J1_3A_TEMP_MIN, WHIRLPOOL_DG11J1_3A_TEMP_MAX, 1.0f, true, true,
+          {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
+          {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}),
+      model_(MODEL_DG11J1_3A) {}
 
 void WhirlpoolClimate::transmit_state() {
   this->last_transmit_time_ = millis();  // setting the time of the last transmission.
@@ -82,7 +88,7 @@ void WhirlpoolClimate::transmit_state() {
   remote_state[3] |= (uint8_t) (temp - this->temperature_min_()) << 4;
 
   // Fan speed
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_HIGH:
       remote_state[2] |= WHIRLPOOL_FAN_HIGH;
       break;
@@ -300,5 +306,4 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace whirlpool
-}  // namespace esphome
+}  // namespace esphome::whirlpool

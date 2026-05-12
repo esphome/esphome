@@ -3,14 +3,13 @@
 
 #include <cmath>
 
-namespace esphome {
-namespace ufire_ise {
+namespace esphome::ufire_ise {
 
 static const char *const TAG = "ufire_ise";
 
 void UFireISEComponent::setup() {
   uint8_t version;
-  if (!this->read_byte(REGISTER_VERSION, &version) && version != 0xFF) {
+  if (!this->read_byte(REGISTER_VERSION, &version) || version == 0xFF) {
     this->mark_failed();
     return;
   }
@@ -147,5 +146,4 @@ void UFireISEComponent::dump_config() {
   LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_);
 }
 
-}  // namespace ufire_ise
-}  // namespace esphome
+}  // namespace esphome::ufire_ise

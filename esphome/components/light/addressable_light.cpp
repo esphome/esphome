@@ -58,6 +58,12 @@ void AddressableLightTransformer::start() {
   // our transition will handle brightness, disable brightness in correction.
   this->light_.correction_.set_local_brightness(255);
   this->target_color_ *= to_uint8_scale(end_values.get_brightness() * end_values.get_state());
+
+  // Uniformity scan is deferred to the first apply() call. start() can run before the underlying
+  // LED output's setup() has allocated its frame buffer (e.g. on_boot at priority > HARDWARE
+  // triggering a transition), and reading through ESPColorView would deref a null buffer.
+  this->uniform_start_scanned_ = false;
+  this->uniform_start_is_uniform_ = false;
 }
 
 inline constexpr uint8_t subtract_scaled_difference(uint8_t a, uint8_t b, int32_t scale) {
@@ -97,12 +103,57 @@ optional<LightColorValues> AddressableLightTransformer::apply() {
   // non-linear when applying small deltas.
 
   if (smoothed_progress > this->last_transition_progress_ && this->last_transition_progress_ < 1.f) {
-    int32_t scale = int32_t(256.f * std::max((1.f - smoothed_progress) / (1.f - this->last_transition_progress_), 0.f));
-    for (auto led : this->light_) {
-      led.set_rgbw(subtract_scaled_difference(this->target_color_.red, led.get_red(), scale),
-                   subtract_scaled_difference(this->target_color_.green, led.get_green(), scale),
-                   subtract_scaled_difference(this->target_color_.blue, led.get_blue(), scale),
-                   subtract_scaled_difference(this->target_color_.white, led.get_white(), scale));
+    // Lazy uniformity scan: deferred from start() so the LED output's setup() has run and the
+    // frame buffer is valid. When every LED already has the same color (the common case: plain
+    // turn_on/turn_off on a uniform strip), interpolate math-only against a single start color.
+    // Avoiding the per-step read-back through the 8-bit stored byte prevents gamma round-trip
+    // quantization from stalling the fade at low values (e.g. gamma 2.8 pre-gamma values <27
+    // round to stored 0, freezing progress).
+    if (!this->uniform_start_scanned_) {
+      this->uniform_start_scanned_ = true;
+      if (this->light_.size() > 0) {
+        Color first = this->light_[0].get();
+        bool uniform = true;
+        for (int32_t i = 1; i < this->light_.size(); i++) {
+          if (this->light_[i].get() != first) {
+            uniform = false;
+            break;
+          }
+        }
+        if (uniform) {
+          this->uniform_start_color_ = first;
+          this->uniform_start_is_uniform_ = true;
+        }
+      }
+    }
+    if (this->uniform_start_is_uniform_) {
+      // All LEDs started at the same color: compute the interpolated value once and write it to
+      // every LED. No read-back, so each LED's stored byte advances through every gamma threshold
+      // as smoothed_progress crosses it, instead of stalling at 0 for low pre-gamma values.
+      //
+      // Trade-off: any mid-transition writes to individual LEDs (e.g. from a user lambda) will be
+      // overwritten on the next apply() here. The fallback path below would have respected them
+      // via its read-back. Concurrent per-LED mutation during a transition isn't a pattern we
+      // support, so this is acceptable.
+      // lerp(start, target, progress) via existing helper: target - (target-start)*(1-progress).
+      const Color &start = this->uniform_start_color_;
+      int32_t remaining = int32_t(256.f * (1.f - smoothed_progress));
+      uint8_t r = subtract_scaled_difference(this->target_color_.red, start.red, remaining);
+      uint8_t g = subtract_scaled_difference(this->target_color_.green, start.green, remaining);
+      uint8_t b = subtract_scaled_difference(this->target_color_.blue, start.blue, remaining);
+      uint8_t w = subtract_scaled_difference(this->target_color_.white, start.white, remaining);
+      for (auto led : this->light_) {
+        led.set_rgbw(r, g, b, w);
+      }
+    } else {
+      int32_t scale =
+          int32_t(256.f * std::max((1.f - smoothed_progress) / (1.f - this->last_transition_progress_), 0.f));
+      for (auto led : this->light_) {
+        led.set_rgbw(subtract_scaled_difference(this->target_color_.red, led.get_red(), scale),
+                     subtract_scaled_difference(this->target_color_.green, led.get_green(), scale),
+                     subtract_scaled_difference(this->target_color_.blue, led.get_blue(), scale),
+                     subtract_scaled_difference(this->target_color_.white, led.get_white(), scale));
+      }
     }
     this->last_transition_progress_ = smoothed_progress;
     this->light_.schedule_show();

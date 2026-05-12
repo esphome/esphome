@@ -49,8 +49,7 @@ const uint8_t TRIGGER_KEEP_TIME_ADDR = 0x42;  // 4 bytes, so up to 0x45
 const uint8_t TIME41_VALUE = 1;
 const uint8_t SELF_CHECK_TIME_ADDR = 0x38;  // 2 bytes, up to 0x39
 
-namespace esphome {
-namespace at581x {
+namespace esphome::at581x {
 
 static const char *const TAG = "at581x";
 
@@ -135,6 +134,11 @@ bool AT581XComponent::i2c_write_config() {
   }
 
   // Set gain
+  if (this->gain_ < 0 || static_cast<size_t>(this->gain_) >= ARRAY_SIZE(GAIN5C_TABLE) ||
+      static_cast<size_t>(this->gain_ >> 1) >= ARRAY_SIZE(GAIN63_TABLE)) {
+    ESP_LOGE(TAG, "AT581X gain index out of range: %d", this->gain_);
+    return false;
+  }
   if (!this->i2c_write_reg(GAIN_ADDR_TABLE[0], GAIN5C_TABLE[this->gain_]) ||
       !this->i2c_write_reg(GAIN_ADDR_TABLE[1], GAIN63_TABLE[this->gain_ >> 1])) {
     ESP_LOGE(TAG, "Failed to write AT581X gain registers");
@@ -194,5 +198,4 @@ void AT581XComponent::set_rf_mode(bool enable) {
   }
 }
 
-}  // namespace at581x
-}  // namespace esphome
+}  // namespace esphome::at581x

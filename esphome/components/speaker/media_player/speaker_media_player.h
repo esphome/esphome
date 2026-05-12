@@ -21,8 +21,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 struct MediaCallCommand {
   optional<media_player::MediaPlayerCommand> command;
@@ -144,6 +143,9 @@ class SpeakerMediaPlayer : public Component,
 
   bool is_paused_{false};
   bool is_muted_{false};
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+  bool is_turn_off_{false};
+#endif
   uint8_t unpause_media_remaining_{0};
   uint8_t unpause_announcement_remaining_{0};
 
@@ -164,7 +166,6 @@ class SpeakerMediaPlayer : public Component,
   Trigger<float> volume_trigger_;
 };
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
 
 #endif

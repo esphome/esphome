@@ -1,6 +1,8 @@
 #include "rd03d.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <cinttypes>
 #include <cmath>
 
 namespace esphome::rd03d {
@@ -56,7 +58,7 @@ void RD03DComponent::dump_config() {
                   *this->tracking_mode_ == TrackingMode::SINGLE_TARGET ? "single" : "multi");
   }
   if (this->throttle_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Throttle: %ums", this->throttle_);
+    ESP_LOGCONFIG(TAG, "  Throttle: %" PRIu32 "ms", this->throttle_);
   }
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Target Count", this->target_count_sensor_);

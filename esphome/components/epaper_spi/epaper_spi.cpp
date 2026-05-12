@@ -97,6 +97,23 @@ bool EPaperBase::reset() {
   return true;
 }
 
+void EPaperBase::update_effective_transform_() {
+  switch (this->rotation_) {
+    case DISPLAY_ROTATION_90_DEGREES:
+      this->effective_transform_ = this->transform_ ^ (SWAP_XY | MIRROR_X);
+      break;
+    case DISPLAY_ROTATION_180_DEGREES:
+      this->effective_transform_ = this->transform_ ^ (MIRROR_Y | MIRROR_X);
+      break;
+    case DISPLAY_ROTATION_270_DEGREES:
+      this->effective_transform_ = this->transform_ ^ (SWAP_XY | MIRROR_Y);
+      break;
+    default:
+      this->effective_transform_ = this->transform_;
+      break;
+  }
+}
+
 void EPaperBase::update() {
   if (this->state_ != EPaperState::IDLE) {
     ESP_LOGE(TAG, "Display already in state %s", epaper_state_to_string_());
@@ -280,11 +297,11 @@ bool EPaperBase::initialise(bool partial) {
 bool EPaperBase::rotate_coordinates_(int &x, int &y) {
   if (!this->get_clipping().inside(x, y))
     return false;
-  if (this->transform_ & SWAP_XY)
+  if (this->effective_transform_ & SWAP_XY)
     std::swap(x, y);
-  if (this->transform_ & MIRROR_X)
+  if (this->effective_transform_ & MIRROR_X)
     x = this->width_ - x - 1;
-  if (this->transform_ & MIRROR_Y)
+  if (this->effective_transform_ & MIRROR_Y)
     y = this->height_ - y - 1;
   if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
     return false;

@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_OUTPUT_ID,
     CONF_RGB_ORDER,
 )
+from esphome.core import CORE
 
 CODEOWNERS = ["@OttoWinter"]
 fastled_base_ns = cg.esphome_ns.namespace("fastled_base")
@@ -41,5 +42,9 @@ async def new_fastled_light(config):
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     cg.add_library("fastled/FastLED", "3.9.16")
+    if CORE.is_esp32:
+        from esphome.components.esp32 import include_builtin_idf_component
+
+        include_builtin_idf_component("esp_lcd")
     await light.register_light(var, config)
     return var

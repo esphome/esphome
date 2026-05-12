@@ -4,8 +4,7 @@
 #include "../touchscreen/cst226_touchscreen.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace cst226 {
+namespace esphome::cst226 {
 
 class CST226Button : public binary_sensor::BinarySensor,
                      public Component,
@@ -18,5 +17,4 @@ class CST226Button : public binary_sensor::BinarySensor,
   void update_button(bool state) override;
 };
 
-}  // namespace cst226
-}  // namespace esphome
+}  // namespace esphome::cst226

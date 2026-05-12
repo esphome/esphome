@@ -33,8 +33,7 @@ static const uint32_t CTRL_NSSMD_3 = 1 << 17;
 static const uint32_t SPI_TX_FINISH_EN = 1 << 2;
 static const uint32_t SPI_RX_FINISH_EN = 1 << 3;
 
-namespace esphome {
-namespace beken_spi_led_strip {
+namespace esphome::beken_spi_led_strip {
 
 static const char *const TAG = "beken_spi_led_strip";
 
@@ -78,7 +77,7 @@ static void spi_set_clock(uint32_t max_hz) {
   int source_clk = 0;
   int spi_clk = 0;
   int div = 0;
-  uint32_t param;
+  uint32_t param = PWD_SPI_CLK_BIT;
   if (max_hz > 4333000) {
     if (max_hz > 30000000) {
       spi_clk = 30000000;
@@ -382,7 +381,6 @@ void BekenSPILEDStripLightOutput::dump_config() {
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace beken_spi_led_strip
-}  // namespace esphome
+}  // namespace esphome::beken_spi_led_strip
 
 #endif  // USE_BK72XX
