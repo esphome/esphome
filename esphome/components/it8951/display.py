@@ -42,25 +42,30 @@ CONF_VCOM = "vcom"
 CONF_FORCE_1BPP = "force_1bpp"
 CONF_UPDATE_MODE = "update_mode"
 
-# Hardware waveform modes the IT8951 controller knows about.
-# "fast" and "full" are convenience aliases for DU and GC16.
-UPDATE_MODES = (
-    "INIT",
-    "DU",
-    "GC16",
-    "GL16",
-    "GLR16",
-    "GLD16",
-    "DU4",
-    "A2",
-    "fast",
-    "full",
-)
-update_mode = cv.one_of(*UPDATE_MODES, upper=False)
-
 it8951_ns = cg.esphome_ns.namespace("it8951")
 IT8951Display = it8951_ns.class_("IT8951Display", display.Display, spi.SPIDevice)
 IT8951UpdateAction = it8951_ns.class_("IT8951UpdateAction", automation.Action)
+
+# Hardware waveform modes exposed to YAML. Strings are mapped to the C++
+# UpdateMode enum so the runtime can store the mode as a uint16_t rather
+# than a std::string (avoiding a heap-resident member; see ESPHome
+# CLAUDE.md "STL Container Guidelines"). "fast" and "full" are
+# convenience aliases for DU and GC16 respectively.
+UpdateMode = it8951_ns.enum("UpdateMode")
+UPDATE_MODE_OPTIONS = {
+    "INIT": UpdateMode.UPDATE_MODE_INIT,
+    "DU": UpdateMode.UPDATE_MODE_DU,
+    "GC16": UpdateMode.UPDATE_MODE_GC16,
+    "GL16": UpdateMode.UPDATE_MODE_GL16,
+    "GLR16": UpdateMode.UPDATE_MODE_GLR16,
+    "GLD16": UpdateMode.UPDATE_MODE_GLD16,
+    "DU4": UpdateMode.UPDATE_MODE_DU4,
+    "A2": UpdateMode.UPDATE_MODE_A2,
+    "fast": UpdateMode.UPDATE_MODE_DU,
+    "full": UpdateMode.UPDATE_MODE_GC16,
+}
+# Validator preserves case as written (matches existing user-facing strings).
+update_mode = cv.one_of(*UPDATE_MODE_OPTIONS, upper=False)
 
 # Transform flag values mirror the C++ TRANSFORM_* constants.
 _TRANSFORM_NONE = 0
@@ -278,7 +283,7 @@ async def to_code(config):
     cg.add(var.set_vcom(config[CONF_VCOM]))
     cg.add(var.set_force_1bpp(config[CONF_FORCE_1BPP]))
     if CONF_UPDATE_MODE in config:
-        cg.add(var.set_update_mode(config[CONF_UPDATE_MODE]))
+        cg.add(var.set_update_mode(UPDATE_MODE_OPTIONS[config[CONF_UPDATE_MODE]]))
 
     transform = config.get(CONF_TRANSFORM, {})
     transform_value = sum(

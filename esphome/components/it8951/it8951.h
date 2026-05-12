@@ -1,6 +1,6 @@
 #pragma once
 
-#include <deque>
+#include <cstddef>
 #include <string>
 
 #include "esphome/components/display/display.h"
@@ -8,12 +8,68 @@
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/log.h"
 
 #include "it8951_defs.h"
 
 namespace esphome::it8951 {
 
 using namespace display;
+
+// --- Bounded op queue --------------------------------------------------------
+// Fixed-capacity ring buffer used by the loop scheduler. Replaces std::deque
+// to comply with ESPHome's STL container guidelines (std::deque allocates in
+// 512-byte blocks regardless of element size). Size analysis: the deepest
+// observed scenario is UPDATE_REFRESH (10 enqueued ops) + CHECK_LUT_IDLE's
+// 5 push_front rescheduling = 14 simultaneous entries. We use 32 for a
+// comfortable margin while keeping RAM cost low (~192 bytes per instance vs
+// 512+ bytes for std::deque).
+template<typename T, size_t N> class StaticOpQueue {
+ public:
+  bool empty() const { return this->count_ == 0; }
+  size_t size() const { return this->count_; }
+  static constexpr size_t capacity() { return N; }
+
+  bool push_back(const T &value) {
+    if (this->count_ >= N)
+      return false;
+    this->data_[(this->head_ + this->count_) % N] = value;
+    this->count_++;
+    return true;
+  }
+
+  bool push_front(const T &value) {
+    if (this->count_ >= N)
+      return false;
+    this->head_ = (this->head_ + N - 1) % N;
+    this->data_[this->head_] = value;
+    this->count_++;
+    return true;
+  }
+
+  void pop_front() {
+    if (this->count_ == 0)
+      return;
+    this->head_ = (this->head_ + 1) % N;
+    this->count_--;
+  }
+
+  const T &front() const { return this->data_[this->head_]; }
+  T &front() { return this->data_[this->head_]; }
+
+  void clear() {
+    this->head_ = 0;
+    this->count_ = 0;
+  }
+
+ private:
+  T data_[N]{};
+  size_t head_{0};
+  size_t count_{0};
+};
+
+// Op queue capacity. See StaticOpQueue comment for sizing analysis.
+static constexpr size_t OP_QUEUE_SIZE = 32;
 
 // --- Op queue ---------------------------------------------------------------
 // Each Op is a single CS-asserted SPI transaction (or a tiny bookkeeping
@@ -107,7 +163,7 @@ class IT8951Display : public Display,
   void set_sleep_when_done(bool s) { this->sleep_when_done_ = s; }
   void set_vcom(uint16_t vcom_mv) { this->vcom_ = vcom_mv; }
   void set_force_1bpp(bool f) { this->force_1bpp_ = f; }
-  void set_update_mode(const std::string &m) { this->default_update_mode_ = m; }
+  void set_update_mode(uint16_t m) { this->default_update_mode_ = static_cast<UpdateMode>(m); }
   void set_transform(uint8_t t) {
     this->transform_ = t;
     this->update_effective_transform_();
@@ -143,7 +199,12 @@ class IT8951Display : public Display,
   uint8_t get_pixel_nibble_(uint16_t x, uint16_t y);
 
   // --- Op queue / loop machinery ---
-  void enqueue_(OpType type, uint16_t a = 0, uint16_t b = 0) { this->queue_.push_back(Op{type, a, b}); }
+  void enqueue_(OpType type, uint16_t a = 0, uint16_t b = 0) {
+    if (!this->queue_.push_back(Op{type, a, b})) {
+      ESP_LOGE("it8951", "Op queue overflow (cap=%u); dropping op type=%u", static_cast<unsigned>(OP_QUEUE_SIZE),
+               static_cast<unsigned>(type));
+    }
+  }
   bool busy_pin_low_() const;
   void process_op_(const Op &op);
   void advance_phase_();
@@ -185,7 +246,7 @@ class IT8951Display : public Display,
   // --- State ---
   static constexpr uint32_t BUSY_TIMEOUT_MS = 5000;
 
-  std::deque<Op> queue_;
+  StaticOpQueue<Op, OP_QUEUE_SIZE> queue_;
   Phase phase_{Phase::IDLE};
   uint32_t delay_until_{0};
   uint32_t phase_started_at_{0};
@@ -225,7 +286,7 @@ class IT8951Display : public Display,
   bool reversed_{false};
   bool sleep_when_done_{false};
   bool force_1bpp_{false};
-  std::string default_update_mode_{};
+  UpdateMode default_update_mode_{UPDATE_MODE_NONE};
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *busy_pin_{nullptr};
 

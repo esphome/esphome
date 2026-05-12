@@ -716,8 +716,8 @@ void IT8951Display::start_update_(UpdateMode mode) {
 void IT8951Display::update() {
   if (!this->is_ready())
     return;
-  if (!this->default_update_mode_.empty()) {
-    this->update_mode(this->default_update_mode_);
+  if (this->default_update_mode_ != UPDATE_MODE_NONE) {
+    this->start_update_(this->default_update_mode_);
     return;
   }
   this->start_update_(UPDATE_MODE_GC16);
