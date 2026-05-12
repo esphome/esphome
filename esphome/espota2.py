@@ -239,7 +239,7 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     dat = data[0]
     error_msg = _ERROR_MESSAGES.get(dat)
     if error_msg is not None:
-        raise OTAError(f"{error_msg}")
+        raise OTAError(error_msg)
     if expect is None:
         return
     if not isinstance(expect, (list, tuple)):
