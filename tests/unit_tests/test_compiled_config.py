@@ -157,7 +157,9 @@ def test_load_compiled_config_falls_back(tmp_path: Path, scenario: str) -> None:
 
 @pytest.mark.parametrize("command", ["upload", "logs"])
 def test_run_esphome_upload_and_logs_use_cache_when_fresh(
-    command: str, fresh_cache_files: Path
+    command: str,
+    fresh_cache_files: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """upload/logs skip read_config() when the cache is fresh."""
     captured: dict = {}
@@ -167,6 +169,7 @@ def test_run_esphome_upload_and_logs_use_cache_when_fresh(
         return 0
 
     with (
+        caplog.at_level("INFO", logger="esphome.__main__"),
         patch("esphome.__main__.read_config") as mock_read,
         patch.dict("esphome.__main__.POST_CONFIG_ACTIONS", {command: _stub}),
     ):
@@ -175,6 +178,9 @@ def test_run_esphome_upload_and_logs_use_cache_when_fresh(
     mock_read.assert_not_called()
     assert captured["config"][CONF_ESPHOME][CONF_NAME] == "lite_test"
     assert captured["config"][CONF_API]["encryption"]["key"] == "6dGhpcyBpcyBhIHRlc3Q="
+    # The success-branch log line is part of the patch; assert on it so
+    # branch coverage stays unambiguous in CI.
+    assert "Loaded validated config cache" in caplog.text
 
 
 @pytest.mark.parametrize("command", ["upload", "logs"])
