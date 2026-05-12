@@ -313,8 +313,8 @@ void OpenThreadComponent::apply_linkmode(otInstance *instance) {
 
   uint16_t poll_period_sec = (this->poll_period_ + 500) / 1000;
   otThreadSetChildTimeout(instance, std::max(poll_period_sec * 4, 240));
-  otChildSupervisionSetCheckTimeout(instance, std::max(poll_period_sec * 2, 129));
-  otChildSupervisionSetInterval(instance, std::max((uint16_t) (poll_period_sec * 1.5), (uint16_t) 190));
+  otChildSupervisionSetCheckTimeout(instance, std::max(poll_period_sec * 2, 190));
+  otChildSupervisionSetInterval(instance, std::max((uint16_t) (poll_period_sec * 1.5), (uint16_t) 129));
   ESP_LOGD(TAG, "Child Timeout: %d sec, Child Supervision Check Timeout: %d sec, Child Supervision Interval: %d sec",
            otThreadGetChildTimeout(instance), otChildSupervisionGetCheckTimeout(instance),
            otChildSupervisionGetInterval(instance));
