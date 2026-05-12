@@ -50,11 +50,7 @@ bool MQTTLockComponent::send_initial_state() { return this->publish_state(); }
 
 bool MQTTLockComponent::publish_state() {
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-#ifdef USE_ESP8266
-  // lock_state_to_string returns a pointer into a PROGMEM_STRING_TABLE blob,
-  // which lives in flash on ESP8266 independently of USE_STORE_LOG_STR_IN_FLASH.
-  // Must copy with strncpy_P; passing the raw pointer to publish() would call
-  // strlen on an unaligned flash address and crash (issue #16356).
+#ifdef USE_STORE_LOG_STR_IN_FLASH
   char buf[LOCK_STATE_STR_SIZE];
   strncpy_P(buf, (PGM_P) lock_state_to_string(this->lock_->state), sizeof(buf) - 1);
   buf[sizeof(buf) - 1] = '\0';

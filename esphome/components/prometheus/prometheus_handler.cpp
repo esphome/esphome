@@ -903,11 +903,7 @@ void PrometheusHandler::valve_row_(AsyncResponseStream *stream, valve::Valve *ob
   stream->print(ESPHOME_F("\",name=\""));
   stream->print(relabel_name_(obj).c_str());
   stream->print(ESPHOME_F("\",operation=\""));
-#ifdef USE_ESP8266
-  // valve_operation_to_str returns a pointer into a PROGMEM_STRING_TABLE blob,
-  // which lives in flash on ESP8266 independently of USE_STORE_LOG_STR_IN_FLASH.
-  // Print::print(const char *) would call strlen on an unaligned flash address
-  // and crash; use the __FlashStringHelper * overload (issue #16356).
+#ifdef USE_STORE_LOG_STR_IN_FLASH
   stream->print((const __FlashStringHelper *) valve::valve_operation_to_str(obj->current_operation));
 #else
   stream->print((const char *) valve::valve_operation_to_str(obj->current_operation));
@@ -951,13 +947,7 @@ void PrometheusHandler::climate_setting_row_(AsyncResponseStream *stream, climat
   stream->print(ESPHOME_F("\",category=\""));
   stream->print(setting.c_str());
   stream->print(ESPHOME_F("\",setting_value=\""));
-#ifdef USE_ESP8266
-  // climate_*_to_string returns a pointer into a PROGMEM_STRING_TABLE blob.
-  // See note on valve_operation_to_str above and issue #16356.
-  stream->print(reinterpret_cast<const __FlashStringHelper *>(setting_value));
-#else
   stream->print(LOG_STR_ARG(setting_value));
-#endif
   stream->print(ESPHOME_F("\"} "));
   stream->print(ESPHOME_F("1.0"));
   stream->print(ESPHOME_F("\n"));
