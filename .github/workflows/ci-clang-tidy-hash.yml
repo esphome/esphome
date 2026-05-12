@@ -12,8 +12,8 @@ on:
       - ".github/workflows/ci-clang-tidy-hash.yml"
 
 permissions:
-  contents: read
-  pull-requests: write
+  contents: read        # actions/checkout for the PR head
+  pull-requests: write  # pulls.createReview / listReviews / dismissReview when the clang-tidy hash is out of date
 
 jobs:
   verify-hash:
