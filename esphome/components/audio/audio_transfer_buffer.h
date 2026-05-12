@@ -240,7 +240,6 @@ class RingBufferAudioSource : public AudioReadableBuffer {
   // AudioReadableBuffer interface
   const uint8_t *data() const override { return this->current_data_; }
   size_t available() const override { return this->current_available_; }
-  size_t free() const override { return 0; }
   void consume(size_t bytes) override;
   bool has_buffered_data() const override;
   size_t fill(TickType_t ticks_to_wait, bool pre_shift) override;
