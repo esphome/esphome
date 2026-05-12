@@ -24,7 +24,7 @@ from esphome.helpers import (
     walk_files,
     write_file_if_changed,
 )
-from esphome.storage_json import StorageJSON, storage_path
+from esphome.storage_json import StorageJSON, save_compiled_config, storage_path
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -109,6 +109,14 @@ def update_storage_json() -> None:
     path = storage_path()
     old = StorageJSON.load(path)
     new = StorageJSON.from_esphome_core(CORE, old)
+
+    # Always refresh the validated-config cache so `esphome upload
+    # --from-storage-json` and `esphome logs --from-storage-json` can
+    # skip re-validating after this compile. Lives in its own file
+    # next to the sidecar; mtime gates staleness on the read side.
+    if CORE.config is not None:
+        save_compiled_config(CORE.config)
+
     if old == new:
         return
 

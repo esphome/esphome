@@ -2445,25 +2445,38 @@ def run_esphome(argv):
     # `read_config()` pipeline (parse + schema validate + final-validate +
     # external component refresh) for those two subcommands is dead work and
     # produces a wall of "Reading configuration ..." log lines for every
-    # remote install. Source the platform / build metadata from the
-    # StorageJSON sidecar instead; fall back to full validation if it's
-    # missing or stale so a cold cache never produces a worse outcome.
+    # remote install. Reload the validated config that the last compile
+    # cached alongside the StorageJSON sidecar; fall back to full
+    # validation if the cache is missing or older than the YAML so a
+    # cold cache never produces a worse outcome.
     config = None
     if getattr(args, "from_storage_json", False) and args.command in (
         "upload",
         "logs",
     ):
-        from esphome.lite_config import load_lite_config_from_storage
+        from esphome.storage_json import (
+            StorageJSON,
+            ext_storage_path,
+            load_compiled_config,
+        )
 
-        config = load_lite_config_from_storage(conf_path, command_line_substitutions)
+        config = load_compiled_config(conf_path)
+        if config is not None:
+            storage = StorageJSON.load(ext_storage_path(conf_path.name))
+            if storage is None:
+                config = None
+            else:
+                storage.apply_to_core()
+                _LOGGER.info(
+                    "Loaded validated config cache for %s, skipping validation.",
+                    conf_path.name,
+                )
         if config is None:
             _LOGGER.warning(
-                "StorageJSON sidecar missing or stale for %s; falling back to "
-                "full config validation.",
+                "Validated config cache for %s is missing or older than the "
+                "YAML; falling back to full config validation.",
                 conf_path,
             )
-        else:
-            _LOGGER.info("Loaded device metadata from StorageJSON sidecar.")
 
     if config is None:
         config = read_config(

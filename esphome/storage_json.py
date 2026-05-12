@@ -11,7 +11,7 @@ from esphome import const
 from esphome.const import CONF_DISABLED, CONF_MDNS
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
-from esphome.types import CoreType
+from esphome.types import ConfigType, CoreType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,6 +54,82 @@ def trash_storage_path() -> Path:
 
 def archive_storage_path() -> Path:
     return CORE.relative_config_path("archive")
+
+
+def compiled_config_path(config_filename: str) -> Path:
+    """Path to the cached validated config alongside the storage sidecar.
+
+    Written after every successful compile from the validated config
+    dict (via ``yaml_util.dump``). Powers the dispatcher's
+    ``--from-storage-json`` fast path in ``esphome upload`` and
+    ``esphome logs`` so they can skip the full ``read_config()``
+    validation pipeline.
+
+    Lives next to the existing JSON sidecar (``<filename>.json``) but
+    in its own file so the small metadata sidecar isn't bloated by
+    configs that can reach a megabyte or more once packages and
+    substitutions are expanded.
+    """
+    return CORE.data_dir / "storage" / f"{config_filename}.validated.yaml"
+
+
+def save_compiled_config(config: ConfigType) -> None:
+    """Dump the validated config to its sidecar YAML file.
+
+    Called by the writer at the end of ``compile`` so the next call
+    to ``esphome upload --from-storage-json`` / ``esphome logs
+    --from-storage-json`` for this YAML can skip validation. Failures
+    here are non-fatal: the worst case is that the fast path falls
+    back to a full ``read_config`` next time.
+    """
+    from esphome import yaml_util
+
+    try:
+        # show_secrets=True so the cache is self-contained; the file
+        # lives next to the binary it describes, in the same trust zone
+        # as the rest of .esphome/storage/.
+        rendered = yaml_util.dump(config, show_secrets=True)
+    except Exception as err:  # pylint: disable=broad-except
+        _LOGGER.debug("Skipping compiled config cache write: %s", err)
+        return
+    try:
+        write_file_if_changed(compiled_config_path(CORE.config_filename), rendered)
+    except OSError as err:
+        _LOGGER.debug("Skipping compiled config cache write: %s", err)
+
+
+def load_compiled_config(config_path: Path) -> ConfigType | None:
+    """Load the cached validated config for ``--from-storage-json``.
+
+    Returns ``None`` (so the caller falls back to ``read_config``) if
+    the cache is missing or older than the source YAML. The mtime
+    check catches the common "user edited the YAML and forgot to
+    recompile" case; deeper drift (an edited ``!include`` whose
+    parent YAML mtime didn't change) is the user's responsibility —
+    this flag is opt-in and assumes the caller knows the binary on
+    disk matches the cache.
+    """
+    cache_path = compiled_config_path(config_path.name)
+    try:
+        yaml_mtime = config_path.stat().st_mtime
+    except OSError:
+        return None
+    try:
+        cache_mtime = cache_path.stat().st_mtime
+    except OSError:
+        return None
+    if cache_mtime < yaml_mtime:
+        return None
+
+    from esphome import yaml_util
+
+    try:
+        # clear_secrets=False so we don't disturb any in-flight secret
+        # state; the cache is self-contained and resolves no !secret
+        # references.
+        return yaml_util.load_yaml(cache_path, clear_secrets=False)
+    except Exception:  # pylint: disable=broad-except
+        return None
 
 
 def _to_path_if_not_none(value: str | None) -> Path | None:
@@ -255,6 +331,33 @@ class StorageJSON:
             return StorageJSON._load_impl(path)
         except Exception:  # pylint: disable=broad-except
             return None
+
+    def apply_to_core(self) -> None:
+        """Populate ``CORE`` from this sidecar.
+
+        Used by the ``--from-storage-json`` fast path in
+        ``esphome upload`` / ``esphome logs``: those subcommands read
+        a handful of ``CORE`` attributes (``target_platform``,
+        ``build_path``, ``name``, ``loaded_integrations``) that the
+        normal flow populates during ``read_config``. Lifting them off
+        the sidecar lets us skip the validation pass entirely.
+        """
+        from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+        CORE.name = self.name
+        CORE.friendly_name = self.friendly_name
+        CORE.build_path = self.build_path
+        CORE.loaded_integrations = set(self.loaded_integrations)
+        CORE.loaded_platforms = set(self.loaded_platforms)
+
+        core_platform = self.core_platform or (
+            self.target_platform.lower() if self.target_platform else None
+        )
+        CORE.data.setdefault(KEY_CORE, {})
+        if core_platform is not None:
+            CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = core_platform
+        if self.framework is not None:
+            CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = self.framework
 
     def __eq__(self, o) -> bool:
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()
