@@ -8,7 +8,7 @@ namespace esphome::mitsubishi_cn105 {
 
 static const char *const TAG = "mitsubishi_cn105.driver";
 
-static constexpr uint32_t WRITE_TIMEOUT_MS = 2000;
+static constexpr uint32_t RESPONSE_TIMEOUT_MS = 2000;
 
 static constexpr uint8_t TARGET_TEMPERATURE_ENC_A_OFFSET = 31;
 
@@ -91,25 +91,31 @@ static constexpr auto CONNECT_PACKET = make_packet(PACKET_TYPE_CONNECT_REQUEST, 
 void MitsubishiCN105::initialize() { this->set_state_(State::CONNECTING); }
 
 bool MitsubishiCN105::update() {
-  if (const auto start = this->status_update_start_ms_) {
-    if (this->pending_updates_.any()) {
-      this->status_update_wait_credit_ms_ = std::min(this->update_interval_ms_, get_loop_time_ms() - *start);
-      this->cancel_waiting_and_transition_to_(State::APPLYING_SETTINGS);
-      return false;
-    }
+  switch (this->state_) {
+    case State::WAITING_FOR_SCHEDULED_STATUS_UPDATE:
+      if (this->pending_updates_.any()) {
+        this->status_update_wait_credit_ms_ =
+            std::min(this->update_interval_ms_, get_loop_time_ms() - this->operation_start_ms_);
+        this->set_state_(State::APPLYING_SETTINGS);
+        return false;
+      }
+      if (this->has_timed_out_(this->update_interval_ms_)) {
+        this->set_state_(State::UPDATING_STATUS);
+        return false;
+      }
+      break;
 
-    if ((get_loop_time_ms() - *start) >= this->update_interval_ms_) {
-      this->cancel_waiting_and_transition_to_(State::UPDATING_STATUS);
-      return false;
-    }
-  }
+    case State::CONNECTING:
+    case State::UPDATING_STATUS:
+    case State::APPLYING_SETTINGS:
+      if (this->has_timed_out_(RESPONSE_TIMEOUT_MS)) {
+        this->set_state_(State::READ_TIMEOUT);
+        return false;
+      }
+      break;
 
-  if (const auto start = this->write_timeout_start_ms_; start && (get_loop_time_ms() - *start) >= WRITE_TIMEOUT_MS) {
-    this->write_timeout_start_ms_.reset();
-    this->frame_parser_.reset();
-    this->status_update_wait_credit_ms_ = 0;
-    this->set_state_(State::READ_TIMEOUT);
-    return false;
+    default:
+      break;
   }
 
   return this->frame_parser_.read_and_parse(this->device_, [this](uint8_t type, const uint8_t *payload, size_t len) {
@@ -171,7 +177,6 @@ void MitsubishiCN105::did_transition_(State to) {
       break;
 
     case State::CONNECTED:
-      this->write_timeout_start_ms_.reset();
       this->current_status_msg_type_ = STATUS_MSG_SETTINGS;
       this->set_state_(State::UPDATING_STATUS);
       break;
@@ -181,7 +186,6 @@ void MitsubishiCN105::did_transition_(State to) {
       break;
 
     case State::STATUS_UPDATED: {
-      this->write_timeout_start_ms_.reset();
       if (this->pending_updates_.any() && this->is_status_initialized()) {
         this->set_state_(State::APPLYING_SETTINGS);
       } else if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_room_temperature_()) {
@@ -194,7 +198,7 @@ void MitsubishiCN105::did_transition_(State to) {
     }
 
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
-      this->status_update_start_ms_ = get_loop_time_ms() - this->status_update_wait_credit_ms_;
+      this->operation_start_ms_ = get_loop_time_ms() - this->status_update_wait_credit_ms_;
       this->status_update_wait_credit_ms_ = 0;
       this->current_status_msg_type_ = STATUS_MSG_SETTINGS;
       this->set_state_(State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
@@ -205,11 +209,12 @@ void MitsubishiCN105::did_transition_(State to) {
       break;
 
     case State::SETTINGS_APPLIED:
-      this->write_timeout_start_ms_.reset();
       this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
       break;
 
     case State::READ_TIMEOUT:
+      this->frame_parser_.reset();
+      this->status_update_wait_credit_ms_ = 0;
       this->set_state_(State::CONNECTING);
       break;
 
@@ -233,17 +238,12 @@ bool MitsubishiCN105::should_request_room_temperature_() const {
 void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t len) {
   FrameParser::dump_buffer_vv("TX", packet, len);
   this->device_.write_array(packet, len);
-  this->write_timeout_start_ms_ = get_loop_time_ms();
+  this->operation_start_ms_ = get_loop_time_ms();
 }
 
 void MitsubishiCN105::update_status_() {
   std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload = {this->current_status_msg_type_};
   this->send_packet_(make_packet(PACKET_TYPE_STATUS_REQUEST, payload));
-}
-
-void MitsubishiCN105::cancel_waiting_and_transition_to_(State state) {
-  this->status_update_start_ms_.reset();
-  this->set_state_(state);
 }
 
 bool MitsubishiCN105::process_rx_packet_(uint8_t type, const uint8_t *payload, size_t len) {
