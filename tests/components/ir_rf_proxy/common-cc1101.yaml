@@ -1,0 +1,41 @@
+cc1101:
+  id: cc1101_radio
+  cs_pin: ${cs_pin}
+  # Shared with remote_transmitter and remote_receiver — both must set allow_other_uses
+  gdo0_pin:
+    number: ${gdo0_pin}
+    allow_other_uses: true
+  frequency: 433.92MHz
+  modulation_type: ASK/OOK
+  output_power: 10
+
+remote_transmitter:
+  id: rf_tx
+  pin:
+    number: ${gdo0_pin}
+    allow_other_uses: true
+  carrier_duty_percent: 100%
+
+remote_receiver:
+  id: rf_rx
+  pin:
+    number: ${gdo0_pin}
+    allow_other_uses: true
+    inverted: true
+
+# Combined TX + RX on a single CC1101 with the shared GDO0 pin.
+# At boot the chip is parked in RX state; the TX entity transparently switches
+# the chip to TX for each transmission and back to RX afterwards.
+radio_frequency:
+  - platform: ir_rf_proxy
+    id: rf_proxy_cc1101_tx
+    name: "CC1101 RF Transmitter"
+    frequency: 433.92MHz
+    remote_transmitter_id: rf_tx
+    cc1101_id: cc1101_radio
+  - platform: ir_rf_proxy
+    id: rf_proxy_cc1101_rx
+    name: "CC1101 RF Receiver"
+    frequency: 433.92MHz
+    remote_receiver_id: rf_rx
+    cc1101_id: cc1101_radio
