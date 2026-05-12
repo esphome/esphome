@@ -104,9 +104,9 @@ def fresh_cache_files(tmp_path: Path) -> Path:
 
 def test_compiled_config_path_lives_alongside_sidecar(setup_core: Path) -> None:
     """The cache file shape is predictable from the YAML filename."""
-    assert str(compiled_config_path("device.yaml")).endswith(
-        "storage/device.yaml.validated.yaml"
-    )
+    path = compiled_config_path("device.yaml")
+    assert path.name == "device.yaml.validated.yaml"
+    assert path.parent.name == "storage"
 
 
 def test_load_compiled_config_happy_path(fresh_cache_files: Path) -> None:
