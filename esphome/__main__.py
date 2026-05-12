@@ -737,7 +737,11 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
 
-    if CORE.using_toolchain_esp_idf:
+    module = importlib.import_module("esphome.components." + CORE.target_platform)
+    platform_run_compile = getattr(module, "run_compile", None)
+    if platform_run_compile is not None and platform_run_compile(args, config):
+        pass
+    elif CORE.using_toolchain_esp_idf:
         from esphome.espidf import toolchain
 
         rc = toolchain.run_compile(config, CORE.verbose)
