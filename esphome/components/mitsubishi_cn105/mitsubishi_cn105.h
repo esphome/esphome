@@ -101,8 +101,19 @@ class MitsubishiCN105 {
     REMOTE_TEMPERATURE = 4,
   };
 
-  using UpdateFlagMask =
-      FiniteSetMask<UpdateFlag, DefaultBitPolicy<UpdateFlag, static_cast<int>(UpdateFlag::REMOTE_TEMPERATURE) + 1>>;
+  struct UpdateFlags {
+    template<typename... Flags> void set(Flags... flags) { (this->mask_.insert(flags), ...); }
+    template<typename... Flags> void clear(Flags... flags) { (this->mask_.erase(flags), ...); }
+    bool any() const { return !this->mask_.empty(); }
+    bool contains(UpdateFlag flag) const { return this->mask_.count(flag); }
+    bool contains_only(UpdateFlag flag) const { return this->mask_.get_mask() == Mask{flag}.get_mask(); }
+
+   protected:
+    using Mask =
+        FiniteSetMask<UpdateFlag, DefaultBitPolicy<UpdateFlag, static_cast<int>(UpdateFlag::REMOTE_TEMPERATURE) + 1>>;
+
+    Mask mask_;
+  };
 
   void set_state_(State new_state);
   void did_transition_(State to);
@@ -130,7 +141,7 @@ class MitsubishiCN105 {
   std::optional<uint32_t> last_room_temperature_update_ms_;
   Status status_{};
   State state_{State::NOT_CONNECTED};
-  UpdateFlagMask pending_updates_;
+  UpdateFlags pending_updates_;
   bool use_temperature_encoding_b_{false};
   FrameParser frame_parser_;
   uint8_t current_status_msg_type_{0};

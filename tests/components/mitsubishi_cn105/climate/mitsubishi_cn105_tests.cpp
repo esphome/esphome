@@ -470,11 +470,11 @@ TEST(MitsubishiCN105Tests, ApplyQueuedSettingsThenRemoteRoomTempInSecondWrite) {
 
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x0F, 0x00, 0x00, 0x01, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB2, 0x00, 0xBB));
-  EXPECT_TRUE(ctx.sut.pending_updates_.count(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
-  EXPECT_FALSE(ctx.sut.pending_updates_.count(TestableMitsubishiCN105::UpdateFlag::POWER));
-  EXPECT_FALSE(ctx.sut.pending_updates_.count(TestableMitsubishiCN105::UpdateFlag::TEMPERATURE));
-  EXPECT_FALSE(ctx.sut.pending_updates_.count(TestableMitsubishiCN105::UpdateFlag::MODE));
-  EXPECT_FALSE(ctx.sut.pending_updates_.count(TestableMitsubishiCN105::UpdateFlag::FAN));
+  EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::POWER));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::TEMPERATURE));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::MODE));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::FAN));
 
   // ACK the first write. Remote temperature should still be pending afterward.
   ctx.uart.tx.clear();
@@ -482,7 +482,7 @@ TEST(MitsubishiCN105Tests, ApplyQueuedSettingsThenRemoteRoomTempInSecondWrite) {
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
   ASSERT_FALSE(ctx.sut.update());
 
-  EXPECT_TRUE(ctx.sut.pending_updates_.count(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
 
   // The next apply sends the remote-temperature packet and clears the last pending flag.
   ctx.uart.tx.clear();
@@ -490,7 +490,7 @@ TEST(MitsubishiCN105Tests, ApplyQueuedSettingsThenRemoteRoomTempInSecondWrite) {
 
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x07, 0x01, 0x29, 0xB9, 0x00, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x94));
-  EXPECT_TRUE(ctx.sut.pending_updates_.empty());
+  EXPECT_FALSE(ctx.sut.pending_updates_.any());
 }
 
 TEST(MitsubishiCN105Tests, WriteTimeoutClearsStatusUpdateWaitCreditOnReconnect) {
@@ -530,25 +530,25 @@ TEST(MitsubishiCN105Tests, SetOutOfRangeRemoteRoomTempIsIgnored) {
   auto ctx = TestContext{};
 
   ctx.sut.set_remote_temperature(7.0f);
-  EXPECT_FALSE(ctx.sut.pending_updates_.count(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
 
   ctx.sut.set_remote_temperature(40.0f);
-  EXPECT_FALSE(ctx.sut.pending_updates_.count(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
 
   ctx.sut.set_remote_temperature(NAN);
-  EXPECT_FALSE(ctx.sut.pending_updates_.count(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
 }
 
 TEST(MitsubishiCN105Tests, SetMinRemoteRoomTemp) {
   auto ctx = TestContext{};
   ctx.sut.set_remote_temperature(8.0f);
-  EXPECT_TRUE(ctx.sut.pending_updates_.count(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
 }
 
 TEST(MitsubishiCN105Tests, SetMaxRemoteRoomTemp) {
   auto ctx = TestContext{};
   ctx.sut.set_remote_temperature(39.5f);
-  EXPECT_TRUE(ctx.sut.pending_updates_.count(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
 }
 
 }  // namespace esphome::mitsubishi_cn105::testing
