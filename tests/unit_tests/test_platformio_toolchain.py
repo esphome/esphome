@@ -434,10 +434,12 @@ def test_run_platformio_cli_scopes_zephyr_ccache_when_available(
 
     with (
         patch.dict(os.environ, {}, clear=True),
-        patch("esphome.platformio_api.shutil.which", return_value="/usr/bin/ccache"),
+        patch(
+            "esphome.platformio.toolchain.shutil.which", return_value="/usr/bin/ccache"
+        ),
     ):
         mock_run_external_process.return_value = 0
-        platformio_api.run_platformio_cli("test")
+        toolchain.run_platformio_cli("test")
 
         assert os.environ["CMAKE_C_COMPILER_LAUNCHER"] == "/usr/bin/ccache"
         assert os.environ["CMAKE_CXX_COMPILER_LAUNCHER"] == "/usr/bin/ccache"
@@ -463,10 +465,10 @@ def test_run_platformio_cli_skips_zephyr_ccache_when_unavailable(
 
     with (
         patch.dict(os.environ, {}, clear=True),
-        patch("esphome.platformio_api.shutil.which", return_value=None),
+        patch("esphome.platformio.toolchain.shutil.which", return_value=None),
     ):
         mock_run_external_process.return_value = 0
-        platformio_api.run_platformio_cli("test")
+        toolchain.run_platformio_cli("test")
 
         assert "CMAKE_C_COMPILER_LAUNCHER" not in os.environ
         assert "CMAKE_CXX_COMPILER_LAUNCHER" not in os.environ
@@ -491,10 +493,12 @@ def test_run_platformio_cli_preserves_user_zephyr_ccache_overrides(
     }
     with (
         patch.dict(os.environ, user_env, clear=True),
-        patch("esphome.platformio_api.shutil.which", return_value="/usr/bin/ccache"),
+        patch(
+            "esphome.platformio.toolchain.shutil.which", return_value="/usr/bin/ccache"
+        ),
     ):
         mock_run_external_process.return_value = 0
-        platformio_api.run_platformio_cli("test")
+        toolchain.run_platformio_cli("test")
 
         assert os.environ["CMAKE_C_COMPILER_LAUNCHER"] == "/opt/custom/ccache"
         assert os.environ["CCACHE_DIR"] == "/opt/custom/cache"
@@ -506,7 +510,7 @@ def test_run_platformio_cli_preserves_user_zephyr_ccache_overrides(
             KEY_TARGET_PLATFORM: "esp32",
             KEY_TARGET_FRAMEWORK: "arduino",
         }
-        platformio_api.run_platformio_cli("test")
+        toolchain.run_platformio_cli("test")
 
         assert os.environ["CMAKE_C_COMPILER_LAUNCHER"] == "/opt/custom/ccache"
         assert os.environ["CCACHE_DIR"] == "/opt/custom/cache"
@@ -528,10 +532,12 @@ def test_run_platformio_cli_clears_managed_zephyr_ccache_for_non_zephyr(
 
     with (
         patch.dict(os.environ, {}, clear=True),
-        patch("esphome.platformio_api.shutil.which", return_value="/usr/bin/ccache"),
+        patch(
+            "esphome.platformio.toolchain.shutil.which", return_value="/usr/bin/ccache"
+        ),
     ):
         mock_run_external_process.return_value = 0
-        platformio_api.run_platformio_cli("test")
+        toolchain.run_platformio_cli("test")
         assert os.environ["CCACHE_DIR"].endswith("nrf52-zephyr")
 
         CORE.build_path = setup_core / "build" / "esp32-test"
@@ -539,7 +545,7 @@ def test_run_platformio_cli_clears_managed_zephyr_ccache_for_non_zephyr(
             KEY_TARGET_PLATFORM: "esp32",
             KEY_TARGET_FRAMEWORK: "arduino",
         }
-        platformio_api.run_platformio_cli("test")
+        toolchain.run_platformio_cli("test")
 
         assert "CMAKE_C_COMPILER_LAUNCHER" not in os.environ
         assert "CMAKE_CXX_COMPILER_LAUNCHER" not in os.environ
