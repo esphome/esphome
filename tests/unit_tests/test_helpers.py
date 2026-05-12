@@ -1,9 +1,10 @@
+import io
 import logging
 import os
 from pathlib import Path
 import socket
 import stat
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
 from hypothesis import given
@@ -12,7 +13,8 @@ import pytest
 
 from esphome import helpers
 from esphome.address_cache import AddressCache
-from esphome.core import EsphomeError
+from esphome.core import CORE, EsphomeError
+from esphome.helpers import ProgressBar
 
 
 @pytest.mark.parametrize(
@@ -1024,3 +1026,39 @@ def test_resolve_ip_address_mixed_cached_uncached() -> None:
         assert "192.168.1.10" in addresses  # Direct IP
         assert "192.168.1.50" in addresses  # From cache
         assert "192.168.1.100" in addresses  # From resolver
+
+
+def test_progressbar_enabled_on_tty(monkeypatch) -> None:
+    """Interactive TTY: progress writes through (pre-existing behaviour)."""
+    stream = MagicMock(spec=io.TextIOWrapper)
+    stream.isatty.return_value = True
+    monkeypatch.setattr(CORE, "dashboard", False)
+
+    bar = ProgressBar("Uploading", stream=stream)
+    assert bar.enabled is True
+
+
+def test_progressbar_disabled_on_pipe_without_dashboard(monkeypatch) -> None:
+    """Piped output without --dashboard: progress suppressed."""
+    stream = MagicMock(spec=io.TextIOWrapper)
+    stream.isatty.return_value = False
+    monkeypatch.setattr(CORE, "dashboard", False)
+
+    bar = ProgressBar("Uploading", stream=stream)
+    assert bar.enabled is False
+
+
+def test_progressbar_enabled_on_pipe_with_dashboard(monkeypatch) -> None:
+    r"""Piped output under --dashboard: progress writes through.
+
+    The dashboard captures stderr through a pipe (so ``isatty()`` is False)
+    and parses ``\rUploading: NN%`` frames to drive its progress UI.
+    Gating purely on ``isatty()`` silently disables every dashboard-side
+    flash-progress indicator.
+    """
+    stream = MagicMock(spec=io.TextIOWrapper)
+    stream.isatty.return_value = False
+    monkeypatch.setattr(CORE, "dashboard", True)
+
+    bar = ProgressBar("Uploading", stream=stream)
+    assert bar.enabled is True

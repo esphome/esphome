@@ -2,8 +2,6 @@
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
 
-#include <freertos/portmacro.h>
-
 #include <openthread/cli.h>
 #include <openthread/instance.h>
 #include <openthread/logging.h>
