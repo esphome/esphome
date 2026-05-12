@@ -49,6 +49,13 @@ static UpdateMode parse_update_mode(const std::string &mode) {
 
 // --- Loop / scheduling -------------------------------------------------------
 
+void IT8951Display::enqueue_(OpType type, uint16_t a, uint16_t b) {
+    if (!this->queue_.push_back(Op{type, a, b})) {
+      ESP_LOGE("it8951", "Op queue overflow (cap=%u); dropping op type=%u", static_cast<unsigned>(OP_QUEUE_SIZE),
+               static_cast<unsigned>(type));
+    }
+  }
+
 bool IT8951Display::busy_pin_low_() const {
   // IT8951 HRDY: HIGH = ready, LOW = busy.
   return this->busy_pin_ != nullptr && !this->busy_pin_->digital_read();
@@ -221,12 +228,16 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::INIT_DONE:
-      if (!this->buffer_.init(this->buffer_length_)) {
-        this->mark_failed(LOG_STR("Failed to allocate IT8951 framebuffer"));
-        this->set_phase_(Phase::IDLE);
-        return;
+      if (!this->buffer_.is_valid()) {
+        if (!this->buffer_.init(this->buffer_length_)) {
+          this->mark_failed(LOG_STR("Failed to allocate IT8951 framebuffer"));
+          this->set_phase_(Phase::IDLE);
+          return;
+        }
+        // Fresh buffer is zero-filled by SplitBuffer, which maps to all-black.
+        // Fill with white so the first update doesn't flash a black background.
+        this->buffer_.fill(this->reversed_ ? 0x00 : 0xFF);
       }
-      this->buffer_.fill(this->reversed_ ? 0x00 : 0xFF);
       if (this->configured_data_rate_ != 0 && this->configured_data_rate_ != this->data_rate_) {
         this->spi_teardown();
         this->set_data_rate(this->configured_data_rate_);

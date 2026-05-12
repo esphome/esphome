@@ -199,12 +199,7 @@ class IT8951Display : public Display,
   uint8_t get_pixel_nibble_(uint16_t x, uint16_t y);
 
   // --- Op queue / loop machinery ---
-  void enqueue_(OpType type, uint16_t a = 0, uint16_t b = 0) {
-    if (!this->queue_.push_back(Op{type, a, b})) {
-      ESP_LOGE("it8951", "Op queue overflow (cap=%u); dropping op type=%u", static_cast<unsigned>(OP_QUEUE_SIZE),
-               static_cast<unsigned>(type));
-    }
-  }
+  void enqueue_(OpType type, uint16_t a = 0, uint16_t b = 0);
   bool busy_pin_low_() const;
   void process_op_(const Op &op);
   void advance_phase_();
