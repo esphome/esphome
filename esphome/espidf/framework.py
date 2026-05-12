@@ -513,6 +513,21 @@ def _tar_extract_all(
                 if os.path.isabs(linkname):
                     continue
 
+                if member.islnk() and strip_prefix is not None:
+                    # Hard-link linknames reference another archive member
+                    # by its archive name. We've stripped the wrapper prefix
+                    # from member.name above (step 3); strip it here too so
+                    # tarfile._find_link_target can resolve the target during
+                    # extraction. Symlink linknames are filesystem-relative
+                    # paths, not archive-member references, so they don't
+                    # need this treatment.
+                    norm_link = linkname.replace("\\", "/")
+                    if norm_link in (strip_root, strip_prefix):
+                        continue
+                    if not norm_link.startswith(strip_prefix):
+                        continue
+                    linkname = norm_link[len(strip_prefix) :]
+
                 # Strip leading slashes
                 linkname = os.path.normpath(linkname)
 

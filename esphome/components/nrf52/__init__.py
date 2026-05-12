@@ -63,6 +63,7 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
+from .framework import check_and_install
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa
@@ -562,3 +563,10 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
             _LOGGER.error("LR: %s", _addr2line(addr2line, elf, lr))
 
     return False
+
+
+def run_compile(args, config: ConfigType) -> bool:
+    if CORE.using_toolchain_platformio:
+        return False
+    check_and_install()
+    raise EsphomeError("Native build for nRF52 is not implemented yet")
