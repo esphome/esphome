@@ -2419,15 +2419,12 @@ def run_esphome(argv):
     skip_external = args.command in ("logs", "clean")
     command_line_substitutions = dict(args.substitution) if args.substitution else {}
 
-    # Fast path for `upload` and `logs`: reuse the validated config the
-    # last compile cached on disk. Skips parse + schema validate +
-    # final-validate + external-component refresh, which is dead work
-    # for those subcommands -- the binary on disk is already known good
-    # and the caller already knows the device address. Falls back to a
-    # full `read_config()` when the cache is missing/stale/corrupt so a
-    # cold cache never produces a worse outcome than today.
+    # Fast path for upload/logs: reuse the validated-config cache the
+    # last compile wrote. Falls back to read_config when missing/stale.
+    # Skipped when -s overrides are passed, since the cache was written
+    # against the previous substitution set.
     config = None
-    if args.command in ("upload", "logs"):
+    if args.command in ("upload", "logs") and not command_line_substitutions:
         from esphome.compiled_config import load_compiled_config
 
         config = load_compiled_config(conf_path)

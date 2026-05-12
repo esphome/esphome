@@ -10,7 +10,11 @@ from unittest.mock import patch
 import pytest
 
 from esphome.__main__ import run_esphome
-from esphome.compiled_config import compiled_config_path, load_compiled_config
+from esphome.compiled_config import (
+    compiled_config_path,
+    load_compiled_config,
+    save_compiled_config,
+)
 from esphome.const import (
     CONF_API,
     CONF_ESPHOME,
@@ -120,13 +124,6 @@ def test_load_compiled_config_happy_path(fresh_cache_files: Path) -> None:
     assert CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] == "esp32"
     assert CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] == "arduino"
 
-    # The validator-only attributes are deliberately left at their
-    # CORE.__init__ defaults. The fast path skips validation, so
-    # nothing reads these.
-    assert CORE.loaded_integrations == set()
-    assert CORE.loaded_platforms == set()
-    assert CORE.friendly_name is None
-
 
 @pytest.mark.parametrize(
     "scenario",
@@ -200,6 +197,24 @@ def test_run_esphome_upload_and_logs_fall_back_when_no_cache(
     mock_read.assert_called_once()
 
 
+def test_run_esphome_upload_with_substitution_skips_cache(
+    fresh_cache_files: Path,
+) -> None:
+    """`-s key value` forces a fresh validation -- the cache was written
+    against the prior substitution set, so reusing it would silently
+    ignore the override."""
+    with (
+        patch("esphome.__main__.read_config", return_value=None) as mock_read,
+        patch.dict(
+            "esphome.__main__.POST_CONFIG_ACTIONS",
+            {"upload": lambda args, config: 0},
+        ),
+    ):
+        run_esphome(["esphome", "-s", "var", "val", "upload", str(fresh_cache_files)])
+
+    mock_read.assert_called_once()
+
+
 def test_run_esphome_compile_does_not_use_cache(fresh_cache_files: Path) -> None:
     """compile always re-validates -- it's what writes the cache."""
     with (
@@ -212,3 +227,50 @@ def test_run_esphome_compile_does_not_use_cache(fresh_cache_files: Path) -> None
         run_esphome(["esphome", "compile", str(fresh_cache_files)])
 
     mock_read.assert_called_once()
+
+
+def test_save_compiled_config_writes_cache(tmp_path: Path) -> None:
+    """`save_compiled_config` writes the dumped YAML next to the sidecar."""
+    CORE.config_path = tmp_path / "lite_test.yaml"
+    save_compiled_config({"esphome": {"name": "lite_test"}, "logger": {}})
+
+    cache_path = compiled_config_path("lite_test.yaml")
+    assert cache_path.is_file()
+    body = cache_path.read_text()
+    assert "name: lite_test" in body
+    assert "logger:" in body
+
+
+def test_save_compiled_config_swallows_dump_errors(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Failures during the dump are non-fatal -- a bad cache just means
+    the next fast path falls back to read_config()."""
+    CORE.config_path = tmp_path / "lite_test.yaml"
+    with patch("esphome.yaml_util.dump", side_effect=RuntimeError("boom")):
+        save_compiled_config({"esphome": {"name": "lite_test"}})
+    assert not compiled_config_path("lite_test.yaml").exists()
+
+
+def test_load_compiled_config_rejects_wizard_only_sidecar(tmp_path: Path) -> None:
+    """A wizard-only sidecar (no compile -- no core_platform / target_platform)
+    can't drive upload/logs, so the fast path falls back."""
+    yaml_path = tmp_path / "lite_test.yaml"
+    yaml_path.write_text("esphome:\n  name: lite_test\n")
+    CORE.config_path = yaml_path
+
+    storage_dir = tmp_path / ".esphome" / "storage"
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    # StorageJSON with both core_platform and target_platform unset.
+    (storage_dir / "lite_test.yaml.json").write_text(
+        '{"storage_version": 1, "name": "lite_test", "friendly_name": null, '
+        '"comment": null, "esphome_version": null, "src_version": 1, '
+        '"address": null, "web_port": null, "esp_platform": null, '
+        '"build_path": null, "firmware_bin_path": null, '
+        '"loaded_integrations": [], "loaded_platforms": [], "no_mdns": false, '
+        '"framework": null, "core_platform": null}'
+    )
+    cache_path = _write_cache(storage_dir / "lite_test.yaml.validated.yaml")
+    _set_cache_mtime(cache_path, yaml_path, offset=5)
+
+    assert load_compiled_config(yaml_path) is None

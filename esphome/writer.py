@@ -111,10 +111,7 @@ def update_storage_json() -> None:
     old = StorageJSON.load(path)
     new = StorageJSON.from_esphome_core(CORE, old)
 
-    # Refresh the validated-config cache. `esphome upload` and
-    # `esphome logs` look for it next time they run and skip the full
-    # validation pipeline when it's present and fresh (mtime >= YAML
-    # mtime). Cheap to write, big win to read.
+    # Refresh the cache upload/logs read on the next call.
     if CORE.config is not None:
         save_compiled_config(CORE.config)
 

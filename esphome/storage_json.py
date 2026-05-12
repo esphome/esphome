@@ -265,14 +265,11 @@ class StorageJSON:
     def apply_to_core(self) -> None:
         """Populate CORE with the metadata upload/logs read.
 
-        Inverse of :meth:`from_esphome_core`'s CORE→StorageJSON
-        projection. Keep paired -- a new CORE attribute the
-        ``upload`` / ``logs`` fast path needs has to be captured by
-        ``from_esphome_core`` too. Validators (``loaded_integrations``,
-        ``loaded_platforms``, ``friendly_name``) are deliberately not
-        restored: they're consumed by component validation, which the
-        fast path skips, and ``CORE.__init__`` already leaves them at
-        safe defaults.
+        Inverse of :meth:`from_esphome_core`. Keep paired -- a new
+        attribute upload/logs needs has to be captured there too.
+        Validator-only fields (loaded_integrations/platforms,
+        friendly_name) are skipped; the fast path doesn't run
+        validation and CORE.__init__ defaults them.
         """
         CORE.name = self.name
         CORE.build_path = self.build_path
