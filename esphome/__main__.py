@@ -2117,16 +2117,6 @@ def parse_args(argv):
         help="Upload as bootloader (OTA).",
         action="store_true",
     )
-    parser_upload.add_argument(
-        "--from-storage-json",
-        action="store_true",
-        help=(
-            "Skip YAML schema validation by loading device metadata from "
-            "the .esphome/storage/<file>.json sidecar produced by the last "
-            "successful compile. Falls back to a full validation pass when "
-            "the sidecar is missing or older than the YAML."
-        ),
-    )
 
     parser_logs = subparsers.add_parser(
         "logs",
@@ -2153,16 +2143,6 @@ def parse_args(argv):
         "--no-states",
         action="store_true",
         help="Do not show entity state changes in log output.",
-    )
-    parser_logs.add_argument(
-        "--from-storage-json",
-        action="store_true",
-        help=(
-            "Skip YAML schema validation by loading device metadata from "
-            "the .esphome/storage/<file>.json sidecar produced by the last "
-            "successful compile. Falls back to a full validation pass when "
-            "the sidecar is missing or older than the YAML."
-        ),
     )
 
     parser_discover = subparsers.add_parser(
@@ -2439,44 +2419,33 @@ def run_esphome(argv):
     skip_external = args.command in ("logs", "clean")
     command_line_substitutions = dict(args.substitution) if args.substitution else {}
 
-    # Fast path for `upload --from-storage-json` and `logs --from-storage-json`:
-    # the caller already has a binary on disk and only needs the CLI to ship
-    # bytes to a device or stream logs back. Re-running the full
-    # `read_config()` pipeline (parse + schema validate + final-validate +
-    # external component refresh) for those two subcommands is dead work and
-    # produces a wall of "Reading configuration ..." log lines for every
-    # remote install. Reload the validated config that the last compile
-    # cached alongside the StorageJSON sidecar; fall back to full
-    # validation if the cache is missing or older than the YAML so a
-    # cold cache never produces a worse outcome.
+    # Fast path for `upload` and `logs`: the caller already has a binary
+    # on disk and only needs the CLI to ship bytes to a device or stream
+    # logs back. Re-running the full `read_config()` pipeline (parse +
+    # schema validate + final-validate + external component refresh) is
+    # dead work and produces a wall of "Reading configuration ..." log
+    # lines on every install. Reload the validated config the last
+    # compile cached alongside the StorageJSON sidecar; fall back to
+    # full validation if the cache is missing or older than the YAML so
+    # a cold cache never produces a worse outcome.
     config = None
-    if getattr(args, "from_storage_json", False) and args.command in (
-        "upload",
-        "logs",
-    ):
+    if args.command in ("upload", "logs"):
         from esphome.storage_json import (
             StorageJSON,
             ext_storage_path,
             load_compiled_config,
         )
 
-        config = load_compiled_config(conf_path)
-        if config is not None:
+        cached = load_compiled_config(conf_path)
+        if cached is not None:
             storage = StorageJSON.load(ext_storage_path(conf_path.name))
-            if storage is None:
-                config = None
-            else:
+            if storage is not None:
                 storage.apply_to_core()
+                config = cached
                 _LOGGER.info(
                     "Loaded validated config cache for %s, skipping validation.",
                     conf_path.name,
                 )
-        if config is None:
-            _LOGGER.warning(
-                "Validated config cache for %s is missing or older than the "
-                "YAML; falling back to full config validation.",
-                conf_path,
-            )
 
     if config is None:
         config = read_config(

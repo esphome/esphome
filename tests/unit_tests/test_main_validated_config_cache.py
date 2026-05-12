@@ -1,4 +1,4 @@
-"""Tests for the `--from-storage-json` validated-config cache fast path."""
+"""Tests for the validated-config cache fast path used by upload/logs."""
 
 from __future__ import annotations
 
@@ -169,10 +169,10 @@ def test_storage_json_apply_to_core_populates_target_platform(tmp_path: Path) ->
 
 
 @pytest.mark.parametrize("command", ["upload", "logs"])
-def test_run_esphome_from_storage_json_skips_read_config(
+def test_run_esphome_upload_and_logs_use_cache_when_fresh(
     command: str, fresh_cache_files: Path
 ) -> None:
-    """`--from-storage-json` makes the dispatcher skip read_config()."""
+    """When the cache is fresh, upload/logs skip read_config() entirely."""
     yaml_path = fresh_cache_files
 
     captured = {}
@@ -185,9 +185,7 @@ def test_run_esphome_from_storage_json_skips_read_config(
         patch("esphome.__main__.read_config") as mock_read,
         patch.dict("esphome.__main__.POST_CONFIG_ACTIONS", {command: _stub}),
     ):
-        result = run_esphome(
-            ["esphome", command, "--from-storage-json", str(yaml_path)]
-        )
+        result = run_esphome(["esphome", command, str(yaml_path)])
 
     mock_read.assert_not_called()
     assert result == 0
@@ -197,7 +195,7 @@ def test_run_esphome_from_storage_json_skips_read_config(
 
 
 @pytest.mark.parametrize("command", ["upload", "logs"])
-def test_run_esphome_from_storage_json_falls_back_when_missing(
+def test_run_esphome_upload_and_logs_fall_back_when_no_cache(
     tmp_path: Path, command: str
 ) -> None:
     """With no cache on disk, the dispatcher falls back to read_config()."""
@@ -211,17 +209,13 @@ def test_run_esphome_from_storage_json_falls_back_when_missing(
             {command: lambda args, config: 0},
         ),
     ):
-        result = run_esphome(
-            ["esphome", command, "--from-storage-json", str(yaml_path)]
-        )
+        result = run_esphome(["esphome", command, str(yaml_path)])
 
     mock_read.assert_called_once()
     assert result == 2
 
 
-def test_run_esphome_from_storage_json_falls_back_when_stale(
-    tmp_path: Path,
-) -> None:
+def test_run_esphome_upload_falls_back_when_cache_stale(tmp_path: Path) -> None:
     """If YAML mtime > cache mtime, dispatcher falls back to read_config()."""
     yaml_path = tmp_path / "lite_test.yaml"
     yaml_path.write_text("esphome:\n  name: lite_test\n")
@@ -241,24 +235,27 @@ def test_run_esphome_from_storage_json_falls_back_when_stale(
             {"upload": lambda args, config: 0},
         ),
     ):
-        run_esphome(["esphome", "upload", "--from-storage-json", str(yaml_path)])
+        run_esphome(["esphome", "upload", str(yaml_path)])
 
     mock_read.assert_called_once()
 
 
-def test_run_esphome_without_flag_still_calls_read_config(
-    fresh_cache_files: Path,
-) -> None:
-    """Sanity: omitting the flag preserves the current behaviour."""
+def test_run_esphome_compile_does_not_use_cache(fresh_cache_files: Path) -> None:
+    """`compile` always re-validates, even with a fresh cache on disk.
+
+    The fast path is only for upload / logs -- compile is what writes
+    the cache in the first place, and it needs a fully validated
+    config to drive code generation.
+    """
     yaml_path = fresh_cache_files
 
     with (
         patch("esphome.__main__.read_config", return_value=None) as mock_read,
         patch.dict(
             "esphome.__main__.POST_CONFIG_ACTIONS",
-            {"upload": lambda args, config: 0},
+            {"compile": lambda args, config: 0},
         ),
     ):
-        run_esphome(["esphome", "upload", str(yaml_path)])
+        run_esphome(["esphome", "compile", str(yaml_path)])
 
     mock_read.assert_called_once()
