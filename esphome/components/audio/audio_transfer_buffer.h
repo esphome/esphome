@@ -246,6 +246,8 @@ class RingBufferAudioSource : public AudioReadableBuffer {
   size_t available() const override { return this->current_available_; }
   void consume(size_t bytes) override;
   bool has_buffered_data() const override;
+  /// pre_shift is ignored: there is no intermediate transfer buffer to compact, so an unconsumed
+  /// exposure stays in place and fill() returns 0 until it is fully consumed.
   size_t fill(TickType_t ticks_to_wait, bool pre_shift) override;
 
   /// @brief Returns a mutable pointer to the currently exposed audio data.
