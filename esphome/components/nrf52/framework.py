@@ -21,7 +21,7 @@ _WEST_VERSION = "1.5.0"
 _TOOLCHAIN_VERSION = "0.17.4"
 
 SDK_NG_TOOLCHAIN_MIRRORS = _str_to_lst_of_str(
-    "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_{sysname}-{machine}_arm-zephyr-eabi.tar.xz",
+    "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
 )
 
 
@@ -103,16 +103,25 @@ def check_and_install() -> None:
         with tempfile.NamedTemporaryFile() as tmp:
             _LOGGER.info("Downloading %s toolchain ...", _TOOLCHAIN_VERSION)
 
+            extension = "tar.xz"
             sysname = platform.system().lower()
-            if sysname == "darwin":
-                sysname = "macos"
             machine = platform.machine()
             if machine == "arm64":
                 machine = "aarch64"
+            if sysname == "darwin":
+                sysname = "macos"
+            elif sysname == "windows":
+                machine = "x86_64"
+                extension = "7z"
 
             download_from_mirrors(
                 SDK_NG_TOOLCHAIN_MIRRORS,
-                {"VERSION": _TOOLCHAIN_VERSION, "sysname": sysname, "machine": machine},
+                {
+                    "VERSION": _TOOLCHAIN_VERSION,
+                    "sysname": sysname,
+                    "machine": machine,
+                    "extension": extension,
+                },
                 tmp.file,
             )
             archive_extract_all(tmp.file, toolchains_dir, progress_header="Extracting")
