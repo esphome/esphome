@@ -5,8 +5,7 @@
 
 #include "../m5stack_8angle.h"
 
-namespace esphome {
-namespace m5stack_8angle {
+namespace esphome::m5stack_8angle {
 
 class M5Stack8AngleKnobSensor : public sensor::Sensor,
                                 public PollingComponent,
@@ -23,5 +22,4 @@ class M5Stack8AngleKnobSensor : public sensor::Sensor,
   bool raw_;
 };
 
-}  // namespace m5stack_8angle
-}  // namespace esphome
+}  // namespace esphome::m5stack_8angle

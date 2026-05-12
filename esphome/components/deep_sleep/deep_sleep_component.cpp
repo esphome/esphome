@@ -2,8 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace deep_sleep {
+namespace esphome::deep_sleep {
 
 static const char *const TAG = "deep_sleep";
 // 5 seconds for deep sleep to ensure clean disconnect from Home Assistant
@@ -81,5 +80,4 @@ void DeepSleepComponent::prevent_deep_sleep() { this->prevent_ = true; }
 
 void DeepSleepComponent::allow_deep_sleep() { this->prevent_ = false; }
 
-}  // namespace deep_sleep
-}  // namespace esphome
+}  // namespace esphome::deep_sleep

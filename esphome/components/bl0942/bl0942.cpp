@@ -4,8 +4,7 @@
 
 // Datasheet: https://www.belling.com.cn/media/file_object/bel_product/BL0942/datasheet/BL0942_V1.06_en.pdf
 
-namespace esphome {
-namespace bl0942 {
+namespace esphome::bl0942 {
 
 static const char *const TAG = "bl0942";
 
@@ -210,5 +209,4 @@ void BL0942::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   LOG_SENSOR("", "Frequency", this->frequency_sensor_);
 }
 
-}  // namespace bl0942
-}  // namespace esphome
+}  // namespace esphome::bl0942

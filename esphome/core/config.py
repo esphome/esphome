@@ -759,10 +759,6 @@ async def to_code(config: ConfigType) -> None:
 # Platform-specific source files for core
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "ring_buffer.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
         "static_task.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,

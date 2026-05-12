@@ -9,8 +9,7 @@
 #include "SDL.h"
 #include <map>
 
-namespace esphome {
-namespace sdl {
+namespace esphome::sdl {
 
 constexpr static const char *const TAG = "sdl";
 
@@ -66,7 +65,6 @@ class Sdl : public display::Display {
   uint16_t y_high_{0};
   std::map<int32_t, CallbackManager<void(bool)>> key_callbacks_{};
 };
-}  // namespace sdl
-}  // namespace esphome
+}  // namespace esphome::sdl
 
 #endif
