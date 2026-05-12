@@ -70,6 +70,7 @@ from helpers import (
     get_integration_test_files_for_components,
     get_target_branch,
     git_ls_files,
+    is_validate_only_file,
     parse_test_filename,
     root_path,
 )
@@ -628,18 +629,15 @@ def _component_change_is_validate_only(component: str, changed: list[str]) -> bo
     """
     test_prefix = f"tests/components/{component}/"
     src_prefix = f"esphome/components/{component}/"
-    test_changes: list[str] = []
+    test_changes: list[Path] = []
     for path in changed:
         if path.startswith(src_prefix):
             return False
         if path.startswith(test_prefix):
-            test_changes.append(path[len(test_prefix) :])
+            test_changes.append(Path(path))
     if not test_changes:
         return False
-    return all(
-        rel.startswith("validate.") or rel.startswith("validate-")
-        for rel in test_changes
-    )
+    return all(is_validate_only_file(p) for p in test_changes)
 
 
 def _select_platform_by_preference(

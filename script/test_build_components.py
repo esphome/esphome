@@ -849,12 +849,25 @@ def run_grouped_component_tests(
     # With grouping:
     # - 1 build per group (regardless of how many components)
     # - Individual components still need all their platform builds
+    # - Validate files of grouped components still run individually
+    #   (they're config-only and bypass the grouped compile, see
+    #   run_individual_component_test), so each adds one more invocation.
     individual_test_file_count = sum(
         len(all_tests[comp]) for comp in individual_tests if comp in all_tests
     )
 
+    grouped_component_set = {c for _, _, comps in groups_to_test for c in comps}
+    grouped_validate_file_count = sum(
+        1
+        for comp in grouped_component_set
+        for test_file in all_tests.get(comp, [])
+        if is_validate_only_file(test_file)
+    )
+
     total_grouped_components = sum(len(comps) for _, _, comps in groups_to_test)
-    total_builds_with_grouping = len(groups_to_test) + individual_test_file_count
+    total_builds_with_grouping = (
+        len(groups_to_test) + individual_test_file_count + grouped_validate_file_count
+    )
     builds_saved = total_test_files - total_builds_with_grouping
 
     print(f"\n{'=' * 80}")
@@ -867,6 +880,10 @@ def run_grouped_component_tests(
     print(
         f"  • {individual_test_file_count} individual builds ({len(individual_tests)} components)"
     )
+    if grouped_validate_file_count:
+        print(
+            f"  • {grouped_validate_file_count} validate-only invocations for grouped components"
+        )
     if total_test_files > 0:
         reduction_pct = (builds_saved / total_test_files) * 100
         print(f"  • Saves {builds_saved} builds ({reduction_pct:.1f}% reduction)")
