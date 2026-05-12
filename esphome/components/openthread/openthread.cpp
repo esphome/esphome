@@ -51,16 +51,7 @@ void OpenThreadComponent::on_state_changed_(otChangedFlags flags, void *context)
     otInstance *instance = self->get_openthread_instance_();
     otDeviceRole role = otThreadGetDeviceRole(instance);
     self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
-#ifdef USE_OPENTHREAD_CONNECT_TRIGGER
-    if (self->connected_) {
-      self->connect_trigger_.trigger();
-    }
-#endif
-#ifdef USE_OPENTHREAD_DISCONNECT_TRIGGER
-    if (!self->connected_) {
-      self->disconnect_trigger_.trigger();
-    }
-#endif
+    self->publish_state(role);
   }
 }
 
@@ -332,6 +323,13 @@ void OpenThreadComponent::apply_linkmode(otInstance *instance) {
            TRUEFALSE(link_mode_config.mDeviceType), TRUEFALSE(link_mode_config.mNetworkData),
            TRUEFALSE(link_mode_config.mRxOnWhenIdle));
 #endif
+}
+
+void OpenThreadComponent::publish_state(otDeviceRole role) {
+  ESP_LOGD(TAG, "Publish State: %d", role);
+  this->state_callbacks_.call(role);
+  this->full_state_callbacks_.call(this->active_role_, role);
+  this->active_role_ = role;
 }
 
 }  // namespace esphome::openthread

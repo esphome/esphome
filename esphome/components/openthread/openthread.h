@@ -62,12 +62,13 @@ class OpenThreadComponent : public Component {
   void apply_linkmode(otInstance *instance);
   OtcTeardownStage teardown_stage{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
 
-#ifdef USE_OPENTHREAD_CONNECT_TRIGGER
-  Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
-#endif
-#ifdef USE_OPENTHREAD_DISCONNECT_TRIGGER
-  Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
-#endif
+  void publish_state(otDeviceRole role);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callbacks_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_full_state_callback(F &&callback) {
+    this->full_state_callbacks_.add(std::forward<F>(callback));
+  }
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
@@ -82,12 +83,10 @@ class OpenThreadComponent : public Component {
   std::atomic<bool> lock_initialized_{false};
   bool connected_{false};
 
-#ifdef USE_OPENTHREAD_CONNECT_TRIGGER
-  Trigger<> connect_trigger_;
-#endif
-#ifdef USE_OPENTHREAD_DISCONNECT_TRIGGER
-  Trigger<> disconnect_trigger_;
-#endif
+  otDeviceRole active_role_{OT_DEVICE_ROLE_DISABLED};
+
+  LazyCallbackManager<void(otDeviceRole)> state_callbacks_{};
+  LazyCallbackManager<void(otDeviceRole previous, otDeviceRole current)> full_state_callbacks_;
 
  private:
   // Stores a pointer to a string literal (static storage duration).

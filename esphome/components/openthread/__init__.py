@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_ON_STATE_CHANGE
 from esphome.components.esp32 import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
@@ -18,8 +19,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_LOG_LEVEL,
-    CONF_ON_CONNECT,
-    CONF_ON_DISCONNECT,
+    CONF_ON_STATE,
     CONF_OUTPUT_POWER,
     CONF_USE_ADDRESS,
     PLATFORM_ESP32,
@@ -42,6 +42,11 @@ from .const import (
     CONF_MESH_LOCAL_PREFIX,
     CONF_NETWORK_KEY,
     CONF_NETWORK_NAME,
+    CONF_ON_CHILD,
+    CONF_ON_DETACHED,
+    CONF_ON_DISABLED,
+    CONF_ON_LEADER,
+    CONF_ON_ROUTER,
     CONF_PAN_ID,
     CONF_POLL_PERIOD,
     CONF_PSKC,
@@ -149,6 +154,7 @@ def set_sdkconfig_options(config):
 openthread_ns = cg.esphome_ns.namespace("openthread")
 OpenThreadComponent = openthread_ns.class_("OpenThreadComponent", cg.Component)
 OpenThreadSrpComponent = openthread_ns.class_("OpenThreadSrpComponent", cg.Component)
+StateEnterForwarder = openthread_ns.class_("StateEnterForwarder")
 
 _CONNECTION_SCHEMA = cv.Schema(
     {
@@ -205,16 +211,55 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
-            cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
-            cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
-                single=True
-            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DISABLED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DETACHED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CHILD): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ROUTER): automation.validate_automation({}),
+            cv.Optional(CONF_ON_LEADER): automation.validate_automation({}),
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
     only_on_variant(supported=[VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32H2]),
     _validate,
     _require_vfs_select,
+)
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", [(cg.uint8, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STATE_CHANGE,
+        "add_full_state_callback",
+        [(cg.uint8, "x_previous"), (cg.uint8, "x")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_DISABLED,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(0),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_DETACHED,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(1),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CHILD,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(2),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ROUTER,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(3),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_LEADER,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(4),
+    ),
 )
 
 
@@ -266,17 +311,7 @@ async def to_code(config):
 
     set_sdkconfig_options(config)
 
-    if on_connect_config := config.get(CONF_ON_CONNECT):
-        cg.add_define("USE_OPENTHREAD_CONNECT_TRIGGER")
-        await automation.build_automation(
-            ot.get_connect_trigger(), [], on_connect_config
-        )
-
-    if on_disconnect_config := config.get(CONF_ON_DISCONNECT):
-        cg.add_define("USE_OPENTHREAD_DISCONNECT_TRIGGER")
-        await automation.build_automation(
-            ot.get_disconnect_trigger(), [], on_disconnect_config
-        )
+    await automation.build_callback_automations(ot, config, _CALLBACK_AUTOMATIONS)
 
 
 # Actions
