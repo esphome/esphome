@@ -61,7 +61,11 @@ void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
     root[MQTT_FORCE_UPDATE] = true;
 
   if (this->sensor_->get_state_class() != STATE_CLASS_NONE) {
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
+    // state_class_to_string returns a pointer into a PROGMEM_STRING_TABLE blob,
+    // which lives in flash on ESP8266 independently of USE_STORE_LOG_STR_IN_FLASH.
+    // ArduinoJson must see it as __FlashStringHelper* or strlen on the unaligned
+    // flash pointer will crash with LoadStoreError (issue #16356).
     root[MQTT_STATE_CLASS] = (const __FlashStringHelper *) state_class_to_string(this->sensor_->get_state_class());
 #else
     root[MQTT_STATE_CLASS] = LOG_STR_ARG(state_class_to_string(this->sensor_->get_state_class()));
