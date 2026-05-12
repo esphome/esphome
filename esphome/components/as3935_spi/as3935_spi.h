@@ -4,8 +4,7 @@
 #include "esphome/components/as3935/as3935.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace as3935_spi {
+namespace esphome::as3935_spi {
 
 enum AS3935RegisterMasks { SPI_READ_M = 0x40 };
 
@@ -21,5 +20,4 @@ class SPIAS3935Component : public as3935::AS3935Component,
   uint8_t read_register(uint8_t reg) override;
 };
 
-}  // namespace as3935_spi
-}  // namespace esphome
+}  // namespace esphome::as3935_spi

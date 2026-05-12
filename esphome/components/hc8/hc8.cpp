@@ -24,12 +24,16 @@ void HC8Component::setup() {
 }
 
 void HC8Component::update() {
-  uint32_t now_ms = App.get_loop_component_start_time();
-  uint32_t warmup_ms = this->warmup_seconds_ * 1000;
-  if (now_ms < warmup_ms) {
-    ESP_LOGW(TAG, "HC8 warming up, %" PRIu32 " s left", (warmup_ms - now_ms) / 1000);
-    this->status_set_warning();
-    return;
+  if (!this->warmup_complete_) {
+    uint32_t now_ms = App.get_loop_component_start_time();
+    uint32_t warmup_ms = this->warmup_seconds_ * 1000;
+    if (now_ms < warmup_ms) {
+      ESP_LOGW(TAG, "HC8 warming up, %" PRIu32 " s left", (warmup_ms - now_ms) / 1000);
+      this->status_set_warning();
+      return;
+    }
+    this->warmup_complete_ = true;
+    this->status_clear_warning();
   }
 
   while (this->available())

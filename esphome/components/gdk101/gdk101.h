@@ -13,8 +13,7 @@
 #endif  // USE_TEXT_SENSOR
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace gdk101 {
+namespace esphome::gdk101 {
 
 static const uint8_t GDK101_REG_READ_FIRMWARE = 0xB4;        // Firmware version
 static const uint8_t GDK101_REG_RESET = 0xA0;                // Reset register - reading its value triggers reset
@@ -44,13 +43,15 @@ class GDK101Component : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   bool read_bytes_with_retry_(uint8_t a_register, uint8_t *data, uint8_t len);
+  bool try_reset_();
   bool reset_sensor_(uint8_t *data);
   bool read_dose_1m_(uint8_t *data);
   bool read_dose_10m_(uint8_t *data);
   bool read_status_(uint8_t *data);
   bool read_fw_version_(uint8_t *data);
   bool read_measurement_duration_(uint8_t *data);
+  bool reset_complete_{false};
+  uint8_t reset_retries_remaining_{0};
 };
 
-}  // namespace gdk101
-}  // namespace esphome
+}  // namespace esphome::gdk101

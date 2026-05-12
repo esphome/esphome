@@ -35,8 +35,7 @@
 #include "pronto_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.pronto";
 
@@ -44,9 +43,13 @@ bool ProntoData::operator==(const ProntoData &rhs) const {
   std::vector<uint16_t> data1 = encode_pronto(data);
   std::vector<uint16_t> data2 = encode_pronto(rhs.data);
 
+  if (data1.size() != data2.size() || data1.empty()) {
+    return false;
+  }
+
   uint32_t total_diff = 0;
   // Don't need to check the last one, it's the large gap at the end.
-  for (std::vector<uint16_t>::size_type i = 0; i < data1.size() - 1; ++i) {
+  for (size_t i = 0; i < data1.size() - 1; ++i) {
     int diff = data2[i] - data1[i];
     diff *= diff;
     if (rhs.delta == -1 && diff > 9)
@@ -239,5 +242,4 @@ void ProntoProtocol::dump(const ProntoData &data) {
   } while (remaining > 0);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include <driver/gpio.h>
 
-namespace esphome {
-namespace esp32 {
+namespace esphome::esp32 {
 
 // Static assertions to ensure our bit-packed fields can hold the enum values
 static_assert(GPIO_NUM_MAX <= 256, "gpio_num_t has too many values for uint8_t");
@@ -51,7 +50,6 @@ class ESP32InternalGPIOPin : public InternalGPIOPin {
   static bool isr_service_installed;
 };
 
-}  // namespace esp32
-}  // namespace esphome
+}  // namespace esphome::esp32
 
 #endif  // USE_ESP32

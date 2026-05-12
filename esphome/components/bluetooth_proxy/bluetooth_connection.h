@@ -24,6 +24,10 @@ class BluetoothConnection final : public esp32_ble_client::BLEClientBase {
 
   esp_err_t notify_characteristic(uint16_t handle, bool enable);
 
+  esp_err_t update_connection_params(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout) {
+    return this->update_conn_params_(min_interval, max_interval, latency, timeout, "custom");
+  }
+
   void set_address(uint64_t address) override;
 
  protected:

@@ -9,7 +9,11 @@ from esphome.const import (
     CONF_VISUAL,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
@@ -69,10 +73,9 @@ def water_heater_schema(
     return _WATER_HEATER_SCHEMA.extend(schema)
 
 
+@setup_entity("water_heater")
 async def setup_water_heater_core_(var: cg.Pvariable, config: ConfigType) -> None:
     """Set up the core water heater properties in C++."""
-    await setup_entity(var, config, "water_heater")
-
     visual = config[CONF_VISUAL]
     if (min_temp := visual.get(CONF_MIN_TEMPERATURE)) is not None:
         cg.add_define("USE_WATER_HEATER_VISUAL_OVERRIDES")
@@ -91,7 +94,7 @@ async def register_water_heater(var: cg.Pvariable, config: ConfigType) -> cg.Pva
 
     cg.add_define("USE_WATER_HEATER")
 
-    cg.add(cg.App.register_water_heater(var))
+    queue_entity_register("water_heater", config)
 
     CORE.register_platform_component("water_heater", var)
     await setup_water_heater_core_(var, config)

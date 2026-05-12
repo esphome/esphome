@@ -5,8 +5,7 @@
 #include "esphome/components/wifi/wifi_component.h"
 #include "captive_index.h"
 
-namespace esphome {
-namespace captive_portal {
+namespace esphome::captive_portal {
 
 static const char *const TAG = "captive_portal";
 
@@ -61,7 +60,7 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   // Defer save to main loop thread to avoid NVS operations from HTTP thread
   this->defer([ssid, psk]() { wifi::global_wifi_component->save_wifi_sta(ssid.c_str(), psk.c_str()); });
 #endif
-  request->redirect(ESPHOME_F("/?save"));
+  request->send(200, ESPHOME_F("text/plain"), ESPHOME_F("Saved. Connecting..."));
 }
 
 void CaptivePortal::setup() {
@@ -71,7 +70,7 @@ void CaptivePortal::setup() {
 void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {
-    this->base_->add_handler(this);
+    this->base_->add_handler_without_auth(this);
   }
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
@@ -135,6 +134,6 @@ void CaptivePortal::dump_config() { ESP_LOGCONFIG(TAG, "Captive Portal:"); }
 
 CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace captive_portal
-}  // namespace esphome
+}  // namespace esphome::captive_portal
+
 #endif

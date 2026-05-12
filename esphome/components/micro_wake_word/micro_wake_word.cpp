@@ -13,8 +13,7 @@
 #include "esphome/components/ota/ota_backend.h"
 #endif
 
-namespace esphome {
-namespace micro_wake_word {
+namespace esphome::micro_wake_word {
 
 static const char *const TAG = "micro_wake_word";
 
@@ -107,7 +106,7 @@ void MicroWakeWord::setup() {
     if (this->state_ == State::STOPPED) {
       return;
     }
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (this->ring_buffer_.use_count() > 1) {
       size_t bytes_free = temp_ring_buffer->free();
 
@@ -157,7 +156,7 @@ void MicroWakeWord::inference_task(void *params) {
 
     if (!(xEventGroupGetBits(this_mww->event_group_) & ERROR_BITS)) {
       // Allocate ring buffer
-      std::shared_ptr<RingBuffer> temp_ring_buffer = RingBuffer::create(
+      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(
           this_mww->microphone_source_->get_audio_stream_info().ms_to_bytes(RING_BUFFER_DURATION_MS));
       if (temp_ring_buffer.use_count() == 0) {
         xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_MEMORY);
@@ -431,9 +430,7 @@ void MicroWakeWord::process_probabilities_() {
           xQueueSend(this->detection_queue_, &wake_word_state, portMAX_DELAY);
 
           // Wake main loop immediately to process wake word detection
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
           App.wake_loop_threadsafe();
-#endif
 
           model->reset_probabilities();
 #ifdef USE_MICRO_WAKE_WORD_VAD
@@ -470,7 +467,6 @@ bool MicroWakeWord::update_model_probabilities_(const int8_t audio_features[PREP
   return success;
 }
 
-}  // namespace micro_wake_word
-}  // namespace esphome
+}  // namespace esphome::micro_wake_word
 
 #endif  // USE_ESP32

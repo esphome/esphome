@@ -1,18 +1,16 @@
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_CHANNEL,
-    CONF_DATA_BITS,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
     CONF_OUTPUT,
-    CONF_PARITY,
-    CONF_STOP_BITS,
 )
 
 CODEOWNERS = ["@DrCoolZic"]

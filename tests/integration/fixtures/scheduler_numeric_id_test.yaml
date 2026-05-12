@@ -1,4 +1,5 @@
 esphome:
+  debug_scheduler: true  # Enable scheduler leak detection
   name: scheduler-numeric-id-test
   on_boot:
     priority: -100

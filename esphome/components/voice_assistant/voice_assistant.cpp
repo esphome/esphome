@@ -9,8 +9,7 @@
 #include <cinttypes>
 #include <cstdio>
 
-namespace esphome {
-namespace voice_assistant {
+namespace esphome::voice_assistant {
 
 static const char *const TAG = "voice_assistant";
 
@@ -31,7 +30,7 @@ VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
 
 void VoiceAssistant::setup() {
   this->mic_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_;
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_;
     if (this->ring_buffer_.use_count() > 1) {
       temp_ring_buffer->write((void *) data.data(), data.size());
     }
@@ -39,8 +38,8 @@ void VoiceAssistant::setup() {
 
 #ifdef USE_MEDIA_PLAYER
   if (this->media_player_ != nullptr) {
-    this->media_player_->add_on_state_callback([this]() {
-      switch (this->media_player_->state) {
+    this->media_player_->add_on_state_callback([this](media_player::MediaPlayerState state) {
+      switch (state) {
         case media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING:
           if (this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT) {
             // State changed to announcing after receiving the url
@@ -117,7 +116,7 @@ bool VoiceAssistant::allocate_buffers_() {
 #endif
 
   if (this->ring_buffer_.use_count() == 0) {
-    this->ring_buffer_ = RingBuffer::create(RING_BUFFER_SIZE);
+    this->ring_buffer_ = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
     if (this->ring_buffer_.use_count() == 0) {
       ESP_LOGE(TAG, "Could not allocate ring buffer");
       return false;
@@ -251,8 +250,7 @@ void VoiceAssistant::loop() {
       }
 #endif
 
-      if (this->api_client_ == nullptr ||
-          !this->api_client_->send_message(msg, api::VoiceAssistantRequest::MESSAGE_TYPE)) {
+      if (this->api_client_ == nullptr || !this->api_client_->send_message(msg)) {
         ESP_LOGW(TAG, "Could not request start");
         this->error_trigger_.trigger("not-connected", "Could not request start");
         this->continuous_ = false;
@@ -275,7 +273,7 @@ void VoiceAssistant::loop() {
           api::VoiceAssistantAudio msg;
           msg.data = this->send_buffer_;
           msg.data_len = read_bytes;
-          this->api_client_->send_message(msg, api::VoiceAssistantAudio::MESSAGE_TYPE);
+          this->api_client_->send_message(msg);
         } else {
           if (!this->udp_socket_running_) {
             if (!this->start_udp_socket_()) {
@@ -354,7 +352,7 @@ void VoiceAssistant::loop() {
 
           api::VoiceAssistantAnnounceFinished msg;
           msg.success = true;
-          this->api_client_->send_message(msg, api::VoiceAssistantAnnounceFinished::MESSAGE_TYPE);
+          this->api_client_->send_message(msg);
           break;
         }
       }
@@ -612,7 +610,7 @@ void VoiceAssistant::signal_stop_() {
   ESP_LOGD(TAG, "Signaling stop");
   api::VoiceAssistantRequest msg;
   msg.start = false;
-  this->api_client_->send_message(msg, api::VoiceAssistantRequest::MESSAGE_TYPE);
+  this->api_client_->send_message(msg);
 }
 
 void VoiceAssistant::start_playback_timeout_() {
@@ -620,9 +618,11 @@ void VoiceAssistant::start_playback_timeout_() {
     this->cancel_timeout("speaker-timeout");
     this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
+    if (this->api_client_ == nullptr)
+      return;
     api::VoiceAssistantAnnounceFinished msg;
     msg.success = true;
-    this->api_client_->send_message(msg, api::VoiceAssistantAnnounceFinished::MESSAGE_TYPE);
+    this->api_client_->send_message(msg);
   });
 }
 
@@ -676,7 +676,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     case api::enums::VOICE_ASSISTANT_INTENT_PROGRESS: {
       ESP_LOGD(TAG, "Intent progress");
-      std::string tts_url_for_trigger = "";
+      std::string tts_url_for_trigger;
 #ifdef USE_MEDIA_PLAYER
       if (this->media_player_ != nullptr) {
         for (const auto &arg : msg.data) {
@@ -782,8 +782,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     }
     case api::enums::VOICE_ASSISTANT_ERROR: {
-      std::string code = "";
-      std::string message = "";
+      std::string code;
+      std::string message;
       for (const auto &arg : msg.data) {
         if (arg.name == "code") {
           code = arg.value;
@@ -1006,7 +1006,6 @@ const Configuration &VoiceAssistant::get_configuration() {
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace voice_assistant
-}  // namespace esphome
+}  // namespace esphome::voice_assistant
 
 #endif  // USE_VOICE_ASSISTANT

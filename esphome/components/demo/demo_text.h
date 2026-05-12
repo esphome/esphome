@@ -3,8 +3,7 @@
 #include "esphome/components/text/text.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 class DemoText : public text::Text, public Component {
  public:
@@ -14,5 +13,4 @@ class DemoText : public text::Text, public Component {
   void control(const std::string &value) override { this->publish_state(value); }
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

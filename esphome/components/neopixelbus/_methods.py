@@ -344,7 +344,7 @@ def _spi_extra_validate(config):
     if CORE.is_esp32:
         return
 
-    if config[CONF_DATA_PIN] != 13 and config[CONF_CLOCK_PIN] != 14:
+    if config[CONF_DATA_PIN] != 13 or config[CONF_CLOCK_PIN] != 14:
         raise cv.Invalid(
             "SPI only supports pins GPIO13 for data and GPIO14 for clock on ESP8266"
         )

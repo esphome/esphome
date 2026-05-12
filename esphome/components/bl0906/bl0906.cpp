@@ -3,14 +3,15 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bl0906 {
+namespace esphome::bl0906 {
 
 static const char *const TAG = "bl0906";
 
 constexpr uint32_t to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
 
-constexpr int32_t to_int32_t(sbe24_t input) { return input.h << 16 | input.m << 8 | input.l; }
+constexpr int32_t to_int32_t(sbe24_t input) {
+  return static_cast<int32_t>(encode_uint32((uint8_t) input.h, input.m, input.l, 0)) >> 8;
+}
 
 // The SUM byte is (Addr+Data_L+Data_M+Data_H)&0xFF negated;
 constexpr uint8_t bl0906_checksum(const uint8_t address, const DataPacket *data) {
@@ -18,56 +19,75 @@ constexpr uint8_t bl0906_checksum(const uint8_t address, const DataPacket *data)
 }
 
 void BL0906::loop() {
-  if (this->current_channel_ == UINT8_MAX) {
-    return;
-  }
-
   while (this->available())
     this->flush();
 
-  if (this->current_channel_ == 0) {
+  if (this->current_stage_ == STAGE_IDLE) {
+    // Woken up between cycles to drain the action queue. Go back to sleep.
+    this->handle_actions_();
+    this->disable_loop();
+    return;
+  }
+
+  if (this->current_stage_ == STAGE_TEMP) {
     // Temperature
     this->read_data_(BL0906_TEMPERATURE, BL0906_TREF, this->temperature_sensor_);
-  } else if (this->current_channel_ == 1) {
+  } else if (this->current_stage_ == STAGE_CHANNEL_1) {
     this->read_data_(BL0906_I_1_RMS, BL0906_IREF, this->current_1_sensor_);
     this->read_data_(BL0906_WATT_1, BL0906_PREF, this->power_1_sensor_);
     this->read_data_(BL0906_CF_1_CNT, BL0906_EREF, this->energy_1_sensor_);
-  } else if (this->current_channel_ == 2) {
+  } else if (this->current_stage_ == STAGE_CHANNEL_2) {
     this->read_data_(BL0906_I_2_RMS, BL0906_IREF, this->current_2_sensor_);
     this->read_data_(BL0906_WATT_2, BL0906_PREF, this->power_2_sensor_);
     this->read_data_(BL0906_CF_2_CNT, BL0906_EREF, this->energy_2_sensor_);
-  } else if (this->current_channel_ == 3) {
+  } else if (this->current_stage_ == STAGE_CHANNEL_3) {
     this->read_data_(BL0906_I_3_RMS, BL0906_IREF, this->current_3_sensor_);
     this->read_data_(BL0906_WATT_3, BL0906_PREF, this->power_3_sensor_);
     this->read_data_(BL0906_CF_3_CNT, BL0906_EREF, this->energy_3_sensor_);
-  } else if (this->current_channel_ == 4) {
+  } else if (this->current_stage_ == STAGE_CHANNEL_4) {
     this->read_data_(BL0906_I_4_RMS, BL0906_IREF, this->current_4_sensor_);
     this->read_data_(BL0906_WATT_4, BL0906_PREF, this->power_4_sensor_);
     this->read_data_(BL0906_CF_4_CNT, BL0906_EREF, this->energy_4_sensor_);
-  } else if (this->current_channel_ == 5) {
+  } else if (this->current_stage_ == STAGE_CHANNEL_5) {
     this->read_data_(BL0906_I_5_RMS, BL0906_IREF, this->current_5_sensor_);
     this->read_data_(BL0906_WATT_5, BL0906_PREF, this->power_5_sensor_);
     this->read_data_(BL0906_CF_5_CNT, BL0906_EREF, this->energy_5_sensor_);
-  } else if (this->current_channel_ == 6) {
+  } else if (this->current_stage_ == STAGE_CHANNEL_6) {
     this->read_data_(BL0906_I_6_RMS, BL0906_IREF, this->current_6_sensor_);
     this->read_data_(BL0906_WATT_6, BL0906_PREF, this->power_6_sensor_);
     this->read_data_(BL0906_CF_6_CNT, BL0906_EREF, this->energy_6_sensor_);
-  } else if (this->current_channel_ == UINT8_MAX - 2) {
+  } else if (this->current_stage_ == STAGE_FREQ) {
     // Frequency
-    this->read_data_(BL0906_FREQUENCY, BL0906_FREF, frequency_sensor_);
+    this->read_data_(BL0906_FREQUENCY, BL0906_FREF, this->frequency_sensor_);
     // Voltage
-    this->read_data_(BL0906_V_RMS, BL0906_UREF, voltage_sensor_);
-  } else if (this->current_channel_ == UINT8_MAX - 1) {
+    this->read_data_(BL0906_V_RMS, BL0906_UREF, this->voltage_sensor_);
+  } else if (this->current_stage_ == STAGE_POWER) {
     // Total power
     this->read_data_(BL0906_WATT_SUM, BL0906_WATT, this->total_power_sensor_);
     // Total Energy
     this->read_data_(BL0906_CF_SUM_CNT, BL0906_CF, this->total_energy_sensor_);
-  } else {
-    this->current_channel_ = UINT8_MAX - 2;  // Go to frequency and voltage
-    return;
   }
-  this->current_channel_++;
+  this->advance_stage_();
   this->handle_actions_();
+}
+
+void BL0906::advance_stage_() {
+  switch (this->current_stage_) {
+    case STAGE_CHANNEL_6:
+      this->current_stage_ = STAGE_FREQ;
+      break;
+    case STAGE_FREQ:
+      this->current_stage_ = STAGE_POWER;
+      break;
+    case STAGE_POWER:
+      // Cycle complete; sleep until the next update().
+      this->current_stage_ = STAGE_IDLE;
+      this->disable_loop();
+      break;
+    default:
+      this->current_stage_ = static_cast<BL0906Stage>(this->current_stage_ + 1);
+      break;
+  }
 }
 
 void BL0906::setup() {
@@ -83,12 +103,20 @@ void BL0906::setup() {
   this->bias_correction_(BL0906_RMSOS_6, 0.01200, 0);  // Calibration current_6
 
   this->write_array(USR_WRPROT_ONLYREAD, sizeof(USR_WRPROT_ONLYREAD));
+
+  // Loop stays idle until the first update() or enqueued action.
+  this->disable_loop();
 }
 
-void BL0906::update() { this->current_channel_ = 0; }
+void BL0906::update() {
+  this->current_stage_ = STAGE_TEMP;
+  this->enable_loop();
+}
 
 size_t BL0906::enqueue_action_(ActionCallbackFuncPtr function) {
   this->action_queue_.push_back(function);
+  // Ensure the queue is serviced even if the read cycle has already completed.
+  this->enable_loop();
   return this->action_queue_.size();
 }
 
@@ -136,23 +164,24 @@ void BL0906::read_data_(const uint8_t address, const float reference, sensor::Se
 
   this->write_byte(BL0906_READ_COMMAND);
   this->write_byte(address);
-  if (this->read_array((uint8_t *) &buffer, sizeof(buffer) - 1)) {
-    if (bl0906_checksum(address, &buffer) == buffer.checksum) {
-      if (signed_result) {
-        data_s24.l = buffer.l;
-        data_s24.m = buffer.m;
-        data_s24.h = buffer.h;
-      } else {
-        data_u24.l = buffer.l;
-        data_u24.m = buffer.m;
-        data_u24.h = buffer.h;
-      }
-    } else {
-      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message");
-      while (read() >= 0)
-        ;
-      return;
-    }
+  if (!this->read_array((uint8_t *) &buffer, sizeof(buffer) - 1)) {
+    ESP_LOGW(TAG, "Read failed");
+    return;
+  }
+  if (bl0906_checksum(address, &buffer) != buffer.checksum) {
+    ESP_LOGW(TAG, "Junk on wire. Throwing away partial message");
+    while (read() >= 0)
+      ;
+    return;
+  }
+  if (signed_result) {
+    data_s24.l = buffer.l;
+    data_s24.m = buffer.m;
+    data_s24.h = buffer.h;
+  } else {
+    data_u24.l = buffer.l;
+    data_u24.m = buffer.m;
+    data_u24.h = buffer.h;
   }
   // Power
   if (reference == BL0906_PREF) {
@@ -188,11 +217,9 @@ void BL0906::bias_correction_(uint8_t address, float measurements, float correct
   float i_rms0 = measurements * ki;
   float i_rms = correction * ki;
   int32_t value = (i_rms * i_rms - i_rms0 * i_rms0) / 256;
-  data.l = value << 24 >> 24;
-  data.m = value << 16 >> 24;
-  if (value < 0) {
-    data.h = (value << 8 >> 24) | 0b10000000;
-  }
+  data.l = value & 0xFF;
+  data.m = (value >> 8) & 0xFF;
+  data.h = (value >> 16) & 0xFF;
   data.address = bl0906_checksum(address, &data);
   ESP_LOGV(TAG, "RMSOS:%02X%02X%02X%02X%02X%02X", BL0906_WRITE_COMMAND, address, data.l, data.m, data.h, data.address);
   this->write_byte(BL0906_WRITE_COMMAND);
@@ -234,5 +261,4 @@ void BL0906::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
 
-}  // namespace bl0906
-}  // namespace esphome
+}  // namespace esphome::bl0906

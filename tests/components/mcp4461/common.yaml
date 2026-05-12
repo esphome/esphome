@@ -22,3 +22,11 @@ output:
     id: digipot_wiper_4
     mcp4461_id: mcp4461_digipot_01
     channel: D
+
+  - platform: mcp4461
+    id: digipot_wiper_5
+    mcp4461_id: mcp4461_digipot_01
+    channel: A
+    terminal_a: false
+    terminal_b: false
+    terminal_w: false
