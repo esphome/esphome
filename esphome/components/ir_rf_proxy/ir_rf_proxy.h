@@ -77,6 +77,11 @@ class RfProxy : public radio_frequency::RadioFrequency {
   remote_base::RemoteReceiverBase *receiver_{nullptr};
 #ifdef USE_CC1101
   cc1101::CC1101Component *cc1101_{nullptr};
+  // Tracks the last frequency we asked the CC1101 to tune to so we can skip
+  // redundant retunes when the API client sends back-to-back transmits at the
+  // same frequency.  Initialized at setup() from the entity's configured
+  // frequency (if any) so the first matching transmit doesn't retune.
+  uint32_t last_cc1101_frequency_hz_{0};
 #endif
 };
 #endif  // USE_RADIO_FREQUENCY

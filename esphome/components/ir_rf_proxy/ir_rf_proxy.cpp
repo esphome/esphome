@@ -108,6 +108,9 @@ void RfProxy::setup() {
   // and defers a GDO0 pin-mode change to the next loop iteration; defer ours so
   // it runs after that, otherwise our state change would be clobbered.
   if (this->cc1101_ != nullptr) {
+    // Seed the last-known frequency from the entity's configured frequency (if any)
+    // so the first matching transmit doesn't retune unnecessarily.
+    this->last_cc1101_frequency_hz_ = this->traits_.get_frequency_min_hz();
     this->defer([this]() {
       if (this->transmitter_ != nullptr) {
         this->cc1101_->begin_tx();
@@ -146,6 +149,22 @@ void RfProxy::dump_config() {
 }
 
 void RfProxy::control(const radio_frequency::RadioFrequencyCall &call) {
+#ifdef USE_CC1101
+  // If a CC1101 is the RF front-end and the call carries a non-zero carrier
+  // frequency, retune the chip before transmitting.  Skip if the requested
+  // frequency matches what we last tuned to — each retune costs a PLL
+  // calibration cycle (~1.5 ms across the two state transitions).
+  if (this->cc1101_ != nullptr) {
+    const auto &freq = call.get_frequency();
+    if (freq.has_value() && *freq > 0 && *freq != this->last_cc1101_frequency_hz_) {
+      ESP_LOGD(TAG, "Retuning CC1101 to %" PRIu32 " Hz", *freq);
+      this->cc1101_->set_frequency(static_cast<float>(*freq));
+      // CC1101::set_frequency() ends in RX state — switch back to TX for transmission.
+      this->cc1101_->begin_tx();
+      this->last_cc1101_frequency_hz_ = *freq;
+    }
+  }
+#endif
   // RF: no IR carrier modulation
   transmit_raw_timings(this->transmitter_, 0, call);
 }
