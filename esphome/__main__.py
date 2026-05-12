@@ -2117,6 +2117,16 @@ def parse_args(argv):
         help="Upload as bootloader (OTA).",
         action="store_true",
     )
+    parser_upload.add_argument(
+        "--from-storage-json",
+        action="store_true",
+        help=(
+            "Skip YAML schema validation by loading device metadata from "
+            "the .esphome/storage/<file>.json sidecar produced by the last "
+            "successful compile. Falls back to a full validation pass when "
+            "the sidecar is missing or older than the YAML."
+        ),
+    )
 
     parser_logs = subparsers.add_parser(
         "logs",
@@ -2143,6 +2153,16 @@ def parse_args(argv):
         "--no-states",
         action="store_true",
         help="Do not show entity state changes in log output.",
+    )
+    parser_logs.add_argument(
+        "--from-storage-json",
+        action="store_true",
+        help=(
+            "Skip YAML schema validation by loading device metadata from "
+            "the .esphome/storage/<file>.json sidecar produced by the last "
+            "successful compile. Falls back to a full validation pass when "
+            "the sidecar is missing or older than the YAML."
+        ),
     )
 
     parser_discover = subparsers.add_parser(
@@ -2417,10 +2437,39 @@ def run_esphome(argv):
     # Commands that don't need fresh external components: logs just connects
     # to the device, and clean is about to delete the build directory.
     skip_external = args.command in ("logs", "clean")
-    config = read_config(
-        dict(args.substitution) if args.substitution else {},
-        skip_external_update=skip_external,
-    )
+    command_line_substitutions = dict(args.substitution) if args.substitution else {}
+
+    # Fast path for `upload --from-storage-json` and `logs --from-storage-json`:
+    # the caller already has a binary on disk and only needs the CLI to ship
+    # bytes to a device or stream logs back. Re-running the full
+    # `read_config()` pipeline (parse + schema validate + final-validate +
+    # external component refresh) for those two subcommands is dead work and
+    # produces a wall of "Reading configuration ..." log lines for every
+    # remote install. Source the platform / build metadata from the
+    # StorageJSON sidecar instead; fall back to full validation if it's
+    # missing or stale so a cold cache never produces a worse outcome.
+    config = None
+    if getattr(args, "from_storage_json", False) and args.command in (
+        "upload",
+        "logs",
+    ):
+        from esphome.lite_config import load_lite_config_from_storage
+
+        config = load_lite_config_from_storage(conf_path, command_line_substitutions)
+        if config is None:
+            _LOGGER.warning(
+                "StorageJSON sidecar missing or stale for %s; falling back to "
+                "full config validation.",
+                conf_path,
+            )
+        else:
+            _LOGGER.info("Loaded device metadata from StorageJSON sidecar.")
+
+    if config is None:
+        config = read_config(
+            command_line_substitutions,
+            skip_external_update=skip_external,
+        )
     if config is None:
         return 2
     CORE.config = config
