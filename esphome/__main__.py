@@ -741,11 +741,10 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
 
     module = importlib.import_module("esphome.components." + CORE.target_platform)
-    platform_compile_program = getattr(module, "compile_program", None)
-    if platform_compile_program is not None and platform_compile_program(args, config):
-        return 0
-
-    if CORE.using_toolchain_esp_idf:
+    platform_run_compile = getattr(module, "run_compile", None)
+    if platform_run_compile is not None and platform_run_compile(args, config):
+        pass
+    elif CORE.using_toolchain_esp_idf:
         from esphome.espidf import toolchain
 
         rc = toolchain.run_compile(config, CORE.verbose)
