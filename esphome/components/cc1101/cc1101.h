@@ -35,6 +35,11 @@ class CC1101Component : public Component,
 
   // GDO Pin Configuration
   void set_gdo0_pin(InternalGPIOPin *pin) { this->gdo0_pin_ = pin; }
+  /// Set true when another component (e.g. remote_transmitter/remote_receiver via
+  /// ir_rf_proxy) owns the GDO0 pin's direction and routing.  In that case CC1101
+  /// will not call pin_mode() or attach/detach interrupts on GDO0 — doing so would
+  /// detach the pin from the RMT peripheral and silently break transmission/reception.
+  void set_gdo0_managed_externally(bool managed_externally) { this->gdo0_managed_externally_ = managed_externally; }
 
   // Configuration Setters
   void set_output_power(float value);
@@ -94,6 +99,8 @@ class CC1101Component : public Component,
 
   // GDO pin for packet reception
   InternalGPIOPin *gdo0_pin_{nullptr};
+  // When true, another component owns GDO0's pin matrix routing — skip pin_mode/interrupt calls
+  bool gdo0_managed_externally_{false};
   static void IRAM_ATTR gpio_intr(CC1101Component *arg);
 
   // Packet handling

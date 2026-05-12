@@ -14,6 +14,10 @@
 #include "esphome/components/radio_frequency/radio_frequency.h"
 #endif
 
+#if defined(USE_RADIO_FREQUENCY) && defined(USE_CC1101)
+#include "esphome/components/cc1101/cc1101.h"
+#endif
+
 namespace esphome::ir_rf_proxy {
 
 #ifdef USE_IR_RF
@@ -59,11 +63,21 @@ class RfProxy : public radio_frequency::RadioFrequency {
   /// Set the fixed carrier frequency in Hz (metadata: advertised via traits, does not tune hardware)
   void set_frequency_hz(uint32_t freq_hz) { this->traits_.set_fixed_frequency_hz(freq_hz); }
 
+#ifdef USE_CC1101
+  /// Set the CC1101 RF front-end that shares the GDO0 pin with the linked
+  /// remote_transmitter or remote_receiver.  When set, the CC1101 is placed in
+  /// TX or RX mode at setup() so the chip is ready for raw-timing operation.
+  void set_cc1101(cc1101::CC1101Component *cc1101) { this->cc1101_ = cc1101; }
+#endif
+
  protected:
   void control(const radio_frequency::RadioFrequencyCall &call) override;
 
   remote_base::RemoteTransmitterBase *transmitter_{nullptr};
   remote_base::RemoteReceiverBase *receiver_{nullptr};
+#ifdef USE_CC1101
+  cc1101::CC1101Component *cc1101_{nullptr};
+#endif
 };
 #endif  // USE_RADIO_FREQUENCY
 

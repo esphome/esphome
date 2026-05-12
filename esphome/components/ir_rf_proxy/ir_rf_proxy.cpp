@@ -101,15 +101,37 @@ void RfProxy::setup() {
   if (this->receiver_ != nullptr) {
     this->receiver_->register_listener(this);
   }
+
+#ifdef USE_CC1101
+  // If a CC1101 is configured as the RF front-end, drive it into the correct
+  // state once everything is set up.  CC1101::setup() ends with the chip in RX
+  // and defers a GDO0 pin-mode change to the next loop iteration; defer ours so
+  // it runs after that, otherwise our state change would be clobbered.
+  if (this->cc1101_ != nullptr) {
+    this->defer([this]() {
+      if (this->transmitter_ != nullptr) {
+        this->cc1101_->begin_tx();
+      } else {
+        this->cc1101_->begin_rx();
+      }
+    });
+  }
+#endif
 }
 
 void RfProxy::dump_config() {
+#ifdef USE_CC1101
+  const char *backend =
+      this->cc1101_ != nullptr ? "remote_transmitter/receiver via CC1101" : "remote_transmitter/receiver";
+#else
+  const char *backend = "remote_transmitter/receiver";
+#endif
   ESP_LOGCONFIG(TAG,
                 "RF Proxy '%s'\n"
-                "  Backend: remote_transmitter/receiver\n"
+                "  Backend: %s\n"
                 "  Supports Transmitter: %s\n"
                 "  Supports Receiver: %s",
-                this->get_name().c_str(), YESNO(this->traits_.get_supports_transmitter()),
+                this->get_name().c_str(), backend, YESNO(this->traits_.get_supports_transmitter()),
                 YESNO(this->traits_.get_supports_receiver()));
 
   const auto &traits = this->traits_;
