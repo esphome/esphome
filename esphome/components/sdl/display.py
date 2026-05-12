@@ -32,7 +32,7 @@ WINDOW_OPTIONS = (
     "resizable",
 )
 
-SDL_WINDOWPOS_CENTERED_DISPLAY = 0x2FFF0000
+SDL_WINDOWPOS_CENTERED_MASK = 0x2FFF0000
 
 
 def get_sdl_options(value):
@@ -59,7 +59,7 @@ def _validate_position(config: dict) -> dict:
                 f"Cannot specify '{CONF_CENTERED_ON_DISPLAY}' with '{CONF_X}' and '{CONF_Y}' options"
             )
     elif (CONF_X in config) != (CONF_Y in config):
-        raise cv.Invalid("Must specify both 'X' and 'Y' options")
+        raise cv.Invalid("Must specify both 'x' and 'x' options")
     return config
 
 
@@ -127,8 +127,8 @@ async def to_code(config):
             if (centered := position.get(CONF_CENTERED_ON_DISPLAY)) is not None:
                 cg.add(
                     var.set_position(
-                        SDL_WINDOWPOS_CENTERED_DISPLAY | centered,
-                        SDL_WINDOWPOS_CENTERED_DISPLAY | centered,
+                        SDL_WINDOWPOS_CENTERED_MASK | centered,
+                        SDL_WINDOWPOS_CENTERED_MASK | centered,
                     )
                 )
             else:
