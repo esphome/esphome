@@ -12,8 +12,14 @@ from esphome.const import (
 from esphome.core import ID
 from esphome.cpp_generator import MockObj
 
-from .defines import CONF_GRADIENTS, CONF_OPA, LV_DITHER, add_define, add_warning
-from .helpers import add_lv_use
+from .defines import (
+    CONF_GRADIENTS,
+    CONF_OPA,
+    LV_DITHER,
+    add_define,
+    add_lv_use,
+    add_warning,
+)
 from .lv_validation import lv_color, lv_percentage, opacity
 from .lvcode import lv
 from .types import lv_color_t, lv_gradient_t, lv_opa_t
