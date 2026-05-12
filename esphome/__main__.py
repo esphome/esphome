@@ -64,6 +64,7 @@ from esphome.enum import StrEnum
 from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
+from esphome.upload_targets import PortType, get_port_type
 from esphome.util import (
     PICOTOOL_PACKAGE,
     FlashImage,
@@ -192,14 +193,6 @@ def choose_prompt(options, purpose: str = None):
 class Purpose(StrEnum):
     UPLOADING = "uploading"
     LOGGING = "logging"
-
-
-class PortType(StrEnum):
-    SERIAL = "SERIAL"
-    NETWORK = "NETWORK"
-    MQTT = "MQTT"
-    MQTTIP = "MQTTIP"
-    BOOTSEL = "BOOTSEL"
 
 
 # Magic MQTT port types that require special handling
@@ -597,27 +590,6 @@ def _resolve_network_devices(
     return network_devices
 
 
-def get_port_type(port: str) -> PortType:
-    """Determine the type of port/device identifier.
-
-    Returns:
-        PortType.SERIAL for serial ports (/dev/ttyUSB0, COM1, etc.)
-        PortType.BOOTSEL for RP2040 BOOTSEL upload via picotool
-        PortType.MQTT for MQTT logging
-        PortType.MQTTIP for MQTT IP lookup
-        PortType.NETWORK for IP addresses, hostnames, or mDNS names
-    """
-    if port == "BOOTSEL":
-        return PortType.BOOTSEL
-    if port.startswith("/") or port.startswith("COM"):
-        return PortType.SERIAL
-    if port == "MQTT":
-        return PortType.MQTT
-    if port == "MQTTIP":
-        return PortType.MQTTIP
-    return PortType.NETWORK
-
-
 def run_miniterm(config: ConfigType, port: str, args) -> int:
     from aioesphomeapi import LogParser
     import serial
@@ -771,24 +743,24 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         return 0
 
     if CORE.using_toolchain_esp_idf:
-        from esphome.espidf import api
+        from esphome.espidf import toolchain
 
-        rc = api.run_compile(config, CORE.verbose)
+        rc = toolchain.run_compile(config, CORE.verbose)
         if rc != 0:
             return rc
 
         # Create factory.bin, ota.bin, and firmware.elf copy
-        api.create_factory_bin()
-        api.create_ota_bin()
-        api.create_elf_copy()
+        toolchain.create_factory_bin()
+        toolchain.create_ota_bin()
+        toolchain.create_elf_copy()
     else:
-        from esphome import platformio_api
+        from esphome.platformio import toolchain
 
-        rc = platformio_api.run_compile(config, CORE.verbose)
+        rc = toolchain.run_compile(config, CORE.verbose)
         if rc != 0:
             return rc
 
-        idedata = platformio_api.get_idedata(config)
+        idedata = toolchain.get_idedata(config)
         if idedata is None:
             return 1
 
@@ -884,13 +856,15 @@ def upload_using_esptool(
     if file is not None:
         flash_images = [FlashImage(path=file, offset="0x0")]
     elif CORE.using_toolchain_esp_idf:
-        from esphome.espidf import api
+        from esphome.espidf import toolchain
 
-        flash_images = [FlashImage(path=api.get_factory_firmware_path(), offset="0x0")]
+        flash_images = [
+            FlashImage(path=toolchain.get_factory_firmware_path(), offset="0x0")
+        ]
     else:
-        from esphome import platformio_api
+        from esphome.platformio import toolchain
 
-        idedata = platformio_api.get_idedata(config)
+        idedata = toolchain.get_idedata(config)
 
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
         flash_images = [
@@ -963,13 +937,13 @@ def upload_using_esptool(
 
 
 def upload_using_platformio(config: ConfigType, port: str) -> int:
-    from esphome import platformio_api
+    from esphome.platformio import toolchain
 
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
     # the upload target, but 'nobuild' skips the build phase that creates it.
     # Create it here so the upload doesn't fail.
     if CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040:
-        idedata = platformio_api.get_idedata(config)
+        idedata = toolchain.get_idedata(config)
         build_dir = Path(idedata.firmware_elf_path).parent
         firmware_bin = build_dir / "firmware.bin"
         signed_bin = build_dir / "firmware.bin.signed"
@@ -979,15 +953,15 @@ def upload_using_platformio(config: ConfigType, port: str) -> int:
     upload_args = ["-t", "upload", "-t", "nobuild"]
     if port is not None:
         upload_args += ["--upload-port", port]
-    return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+    return toolchain.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
 
 def _find_picotool() -> Path | None:
     """Find the picotool binary from PlatformIO packages."""
-    from esphome import platformio_api
+    from esphome.platformio import toolchain
 
     try:
-        idedata = platformio_api.get_idedata(CORE.config)
+        idedata = toolchain.get_idedata(CORE.config)
     except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         return None
     return get_picotool_path(idedata.cc_path)
@@ -1000,9 +974,9 @@ def upload_using_picotool(config: ConfigType) -> int:
     the mass storage copy approach that causes "disk not ejected properly"
     warnings on macOS.
     """
-    from esphome import platformio_api
+    from esphome.platformio import toolchain
 
-    idedata = platformio_api.get_idedata(config)
+    idedata = toolchain.get_idedata(config)
     firmware_elf = Path(idedata.firmware_elf_path)
 
     if not firmware_elf.is_file():
@@ -1462,11 +1436,11 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
         return exit_code
     if CORE.is_host:
         if CORE.using_toolchain_esp_idf:
-            from esphome.espidf import api
+            from esphome.espidf import toolchain
 
-            program_path = str(api.get_elf_path())
+            program_path = str(toolchain.get_elf_path())
         else:
-            from esphome.platformio_api import get_idedata
+            from esphome.platformio.toolchain import get_idedata
 
             program_path = str(get_idedata(config).firmware_elf_path)
         _LOGGER.info("Successfully compiled program to path '%s'", program_path)
@@ -1520,11 +1494,11 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     _LOGGER.info("Successfully compiled program.")
     if CORE.is_host:
         if CORE.using_toolchain_esp_idf:
-            from esphome.espidf import api
+            from esphome.espidf import toolchain
 
-            program_path = str(api.get_elf_path())
+            program_path = str(toolchain.get_elf_path())
         else:
-            from esphome.platformio_api import get_idedata
+            from esphome.platformio.toolchain import get_idedata
 
             program_path = str(get_idedata(config).firmware_elf_path)
         _LOGGER.info("Running program from path '%s'", program_path)
@@ -1724,12 +1698,12 @@ def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
         )
         return 1
 
-    from esphome import platformio_api
+    from esphome.platformio import toolchain
 
     logging.disable(logging.INFO)
     logging.disable(logging.WARNING)
 
-    idedata = platformio_api.get_idedata(config)
+    idedata = toolchain.get_idedata(config)
     if idedata is None:
         return 1
 
@@ -1758,16 +1732,16 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     # Get idedata for analysis
     idedata = None
     if CORE.using_toolchain_esp_idf:
-        from esphome.espidf import api
+        from esphome.espidf import toolchain
 
-        objdump_path = str(api.get_objdump_path())
-        readelf_path = str(api.get_readelf_path())
+        objdump_path = str(toolchain.get_objdump_path())
+        readelf_path = str(toolchain.get_readelf_path())
 
-        firmware_elf = api.get_elf_path()
+        firmware_elf = toolchain.get_elf_path()
     else:
-        from esphome import platformio_api
+        from esphome.platformio import toolchain
 
-        idedata = platformio_api.get_idedata(config)
+        idedata = toolchain.get_idedata(config)
         if idedata is None:
             _LOGGER.error("Failed to get IDE data for memory analysis")
             return 1

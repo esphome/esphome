@@ -618,10 +618,19 @@ class ProgressBar:
     """A simple terminal progress bar for upload operations."""
 
     def __init__(self, header: str, stream: TextIO | None = None) -> None:
+        # Local import to avoid a top-level cycle with esphome.core.
+        from esphome.core import CORE
+
         self.header = header
         self.stream = stream or sys.stderr
         self.last_progress: int | None = None
-        self.enabled = hasattr(self.stream, "isatty") and self.stream.isatty()
+        # Enable when writing to an interactive TTY *or* when running under
+        # ``--dashboard``. The dashboard captures our stderr via
+        # ``stdout=PIPE, stderr=STDOUT`` and parses the ``\rUploading: NN%``
+        # frames to drive its own progress UI -- gating purely on ``isatty()``
+        # silently disables every dashboard-side flash-progress indicator.
+        is_tty = hasattr(self.stream, "isatty") and self.stream.isatty()
+        self.enabled = is_tty or CORE.dashboard
 
     def update(self, progress: float) -> None:
         if not self.enabled:

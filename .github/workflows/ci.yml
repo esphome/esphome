@@ -17,7 +17,7 @@ on:
   merge_group:
 
 permissions:
-  contents: read
+  contents: read  # actions/checkout for all jobs; individual jobs add their own scopes when they need to write
 
 env:
   DEFAULT_PYTHON: "3.11"
@@ -804,7 +804,7 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESPHome
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.esphome-idf
           key: ${{ runner.os }}-esphome-${{ needs.common.outputs.cache-key }}
@@ -863,7 +863,7 @@ jobs:
 
       - name: Save ESPHome cache
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.esphome-idf
           key: ${{ runner.os }}-esphome-${{ needs.common.outputs.cache-key }}
@@ -1147,8 +1147,8 @@ jobs:
       - memory-impact-pr-branch
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && fromJSON(needs.determine-jobs.outputs.memory_impact).should_run == 'true' && needs.memory-impact-target-branch.outputs.skip != 'true'
     permissions:
-      contents: read
-      pull-requests: write
+      contents: read        # actions/checkout to load the comment-posting script
+      pull-requests: write  # ci_memory_impact_comment.py posts/updates the memory-impact comment on the PR
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
