@@ -7,6 +7,7 @@ import re
 import time
 
 from esphome import loader
+from esphome.compiled_config import save_compiled_config
 from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
     HEADER_FILE_EXTENSIONS,
@@ -109,6 +110,11 @@ def update_storage_json() -> None:
     path = storage_path()
     old = StorageJSON.load(path)
     new = StorageJSON.from_esphome_core(CORE, old)
+
+    # Refresh the cache upload/logs read on the next call.
+    if CORE.config is not None:
+        save_compiled_config(CORE.config)
+
     if old == new:
         return
 
