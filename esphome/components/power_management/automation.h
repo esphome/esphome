@@ -1,6 +1,7 @@
 #pragma once
 
 #include "power_management.h"
+#include "esphome/core/automation.h"
 
 namespace esphome {
 namespace power_management {
