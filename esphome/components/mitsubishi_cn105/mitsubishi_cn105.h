@@ -124,9 +124,9 @@ class MitsubishiCN105 {
   bool parse_status_room_temperature_(const uint8_t *payload, size_t len);
   void send_packet_(const uint8_t *packet, size_t len);
   void update_status_();
-  void cancel_waiting_and_transition_to_(State state);
   bool should_request_room_temperature_() const;
   void apply_settings_();
+  bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
   template<typename T> void send_packet_(const T &packet) { this->send_packet_(packet.data(), packet.size()); }
   static bool should_transition(State from, State to);
@@ -135,9 +135,8 @@ class MitsubishiCN105 {
   uart::UARTDevice &device_;
   uint32_t update_interval_ms_{1000};
   uint32_t status_update_wait_credit_ms_{0};
+  uint32_t operation_start_ms_{0};
   uint32_t room_temperature_min_interval_ms_{60000};
-  std::optional<uint32_t> write_timeout_start_ms_;
-  std::optional<uint32_t> status_update_start_ms_;
   std::optional<uint32_t> last_room_temperature_update_ms_;
   Status status_{};
   State state_{State::NOT_CONNECTED};
