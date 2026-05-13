@@ -3,7 +3,8 @@
 # provides HTTP_Method.h in its WebServer library, which we ignore via
 # lib_ignore because it fails to compile.
 #
-# Provide a minimal replacement that defines HTTP_GET, HTTP_POST, etc.
+# Provide a minimal replacement — the real file just typedefs http_method
+# as HTTPMethod and defines HTTP_ANY.
 import os
 
 Import("env")
@@ -13,28 +14,12 @@ stub_dir = os.path.join(build_dir, "http_method_stub")
 os.makedirs(stub_dir, exist_ok=True)
 
 stub_path = os.path.join(stub_dir, "HTTP_Method.h")
-if not os.path.exists(stub_path):
-    with open(stub_path, "w") as f:
-        f.write("""#pragma once
-// Minimal HTTP_Method.h — provided because the Arduino Pico framework's
-// WebServer library (which normally provides this) is ignored via lib_ignore.
-// ESPAsyncWebServer includes this to integrate with other HTTP libraries.
+with open(stub_path, "w") as f:
+    f.write("""#pragma once
+#include "http_parser.h"
 
-#ifdef ASYNCWEBSERVER_NO_GLOBAL_HTTP_METHODS
-// If ESPAsyncWebServer is managing HTTP methods itself, do nothing
-#else
-#ifndef HTTP_ANY
-enum HTTPMethod {
-  HTTP_ANY = 0,
-  HTTP_GET = 1,
-  HTTP_POST = 2,
-  HTTP_PUT = 3,
-  HTTP_PATCH = 4,
-  HTTP_DELETE = 5,
-  HTTP_OPTIONS = 6
-};
-#endif
-#endif
+typedef enum http_method HTTPMethod;
+#define HTTP_ANY (HTTPMethod)(255)
 """)
 
 env.Prepend(CPPPATH=[stub_dir])
