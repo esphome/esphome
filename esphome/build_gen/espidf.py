@@ -10,13 +10,15 @@ from esphome.writer import update_storage_json
 
 
 def get_available_components() -> list[str] | None:
-    """Get list of available ESP-IDF components from project_description.json.
+    """Get list of built-in ESP-IDF components from project_description.json.
 
-    Returns only internal ESP-IDF components, excluding external/managed
-    components (from idf_component.yml). Returns ``None`` whenever the
-    list isn't available yet -- either because the build dir hasn't been
-    set up (``CORE.build_path is None``) or because IDF's discovery pass
-    hasn't run yet (``project_description.json`` doesn't exist).
+    Excludes our ``src`` component, IDF-managed components (from
+    ``idf_component.yml``, under ``managed_components/``), and PIO
+    libraries we converted into IDF components (under
+    ``pio_components/``). Returns ``None`` whenever the list isn't
+    available yet -- either because the build dir hasn't been set up
+    (``CORE.build_path is None``) or because IDF's discovery pass hasn't
+    run yet (``project_description.json`` doesn't exist).
     """
     if CORE.build_path is None:
         return None
@@ -36,9 +38,11 @@ def get_available_components() -> list[str] | None:
             if name == "src":
                 continue
 
-            # Exclude managed/external components
+            # Exclude external components: IDF-managed (managed_components/)
+            # and PIO libraries we converted to IDF components
+            # (pio_components/ -- see esphome.espidf.component.DOMAIN).
             comp_dir = info.get("dir", "")
-            if "managed_components" in comp_dir:
+            if "managed_components" in comp_dir or "pio_components" in comp_dir:
                 continue
 
             result.append(name)
