@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include <cmath>
 
-namespace esphome {
-namespace qmc5883l {
+namespace esphome::qmc5883l {
 
 static const char *const TAG = "qmc5883l";
 
@@ -24,6 +23,8 @@ static const uint8_t QMC5883L_REGISTER_CONTROL_1 = 0x09;
 static const uint8_t QMC5883L_REGISTER_CONTROL_2 = 0x0A;
 static const uint8_t QMC5883L_REGISTER_PERIOD = 0x0B;
 
+void IRAM_ATTR QMC5883LComponent::gpio_intr(QMC5883LComponent *arg) { arg->enable_loop_soon_any_context(); }
+
 void QMC5883LComponent::setup() {
   // Soft Reset
   if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, 1 << 7)) {
@@ -35,6 +36,12 @@ void QMC5883LComponent::setup() {
 
   if (this->drdy_pin_) {
     this->drdy_pin_->setup();
+    if (this->drdy_pin_->is_internal()) {
+      static_cast<InternalGPIOPin *>(this->drdy_pin_)
+          ->attach_interrupt(&QMC5883LComponent::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
+      this->drdy_use_isr_ = true;
+      this->stop_poller();
+    }
   }
 
   uint8_t control_1 = 0;
@@ -65,8 +72,8 @@ void QMC5883LComponent::setup() {
     return;
   }
 
-  if (this->get_update_interval() < App.get_loop_interval()) {
-    high_freq_.start();
+  if (!this->drdy_use_isr_ && this->get_update_interval() < App.get_loop_interval()) {
+    this->high_freq_.start();
   }
 }
 
@@ -84,16 +91,32 @@ void QMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_PIN("  DRDY Pin: ", this->drdy_pin_);
+  if (this->drdy_pin_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  DRDY mode: %s",
+                  this->drdy_use_isr_ ? LOG_STR_LITERAL("interrupt") : LOG_STR_LITERAL("polling"));
+  }
 }
 
 void QMC5883LComponent::update() {
-  i2c::ErrorCode err;
-  uint8_t status = false;
-
-  // If DRDY pin is configured and the data is not ready return.
+  // If DRDY is on an external expander we keep the polling path and early-return
+  // if data is not ready yet. Internal DRDY pins take the ISR path via loop().
   if (this->drdy_pin_ && !this->drdy_pin_->digital_read()) {
     return;
   }
+  this->read_sensor_();
+}
+
+void QMC5883LComponent::loop() {
+  this->disable_loop();
+  if (!this->drdy_use_isr_ || !this->drdy_pin_->digital_read()) {
+    return;
+  }
+  this->read_sensor_();
+}
+
+void QMC5883LComponent::read_sensor_() {
+  i2c::ErrorCode err;
+  uint8_t status = false;
 
   // Status byte gets cleared when data is read, so we have to read this first.
   // If status and two axes are desired, it's possible to save one byte of traffic by enabling
@@ -189,5 +212,4 @@ i2c::ErrorCode QMC5883LComponent::read_bytes_16_le_(uint8_t a_register, uint16_t
   return err;
 }
 
-}  // namespace qmc5883l
-}  // namespace esphome
+}  // namespace esphome::qmc5883l

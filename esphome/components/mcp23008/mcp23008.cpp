@@ -1,8 +1,7 @@
 #include "mcp23008.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp23008 {
+namespace esphome::mcp23008 {
 
 static const char *const TAG = "mcp23008";
 
@@ -45,5 +44,4 @@ bool MCP23008::write_reg(uint8_t reg, uint8_t value) {
   return this->write_byte(reg, value);
 }
 
-}  // namespace mcp23008
-}  // namespace esphome
+}  // namespace esphome::mcp23008

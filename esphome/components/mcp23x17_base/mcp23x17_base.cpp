@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp23x17_base {
+namespace esphome::mcp23x17_base {
 
 static const char *const TAG = "mcp23x17_base";
 
@@ -108,5 +107,4 @@ void MCP23X17Base::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   }
 }
 
-}  // namespace mcp23x17_base
-}  // namespace esphome
+}  // namespace esphome::mcp23x17_base

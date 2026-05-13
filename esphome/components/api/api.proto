@@ -1025,6 +1025,13 @@ message CameraImageRequest {
   bool stream = 2;
 }
 
+// ==================== TEMPERATURE UNIT ====================
+enum TemperatureUnit {
+  TEMPERATURE_UNIT_CELSIUS = 0;
+  TEMPERATURE_UNIT_FAHRENHEIT = 1;
+  TEMPERATURE_UNIT_KELVIN = 2;
+}
+
 // ==================== CLIMATE ====================
 enum ClimateMode {
   CLIMATE_MODE_OFF = 0;
@@ -1110,6 +1117,7 @@ message ListEntitiesClimateResponse {
   float visual_max_humidity = 25;
   uint32 device_id = 26 [(field_ifdef) = "USE_DEVICES"];
   uint32 feature_flags = 27;
+  TemperatureUnit temperature_unit = 28;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -1203,6 +1211,7 @@ message ListEntitiesWaterHeaterResponse {
   repeated WaterHeaterMode supported_modes = 11 [(container_pointer_no_template) = "water_heater::WaterHeaterModeMask"];
   // Bitmask of WaterHeaterFeature flags
   uint32 supported_features = 12;
+  TemperatureUnit temperature_unit = 13;
 }
 
 message WaterHeaterStateResponse {
@@ -1410,6 +1419,8 @@ enum LockState {
   LOCK_STATE_JAMMED = 3;
   LOCK_STATE_LOCKING = 4;
   LOCK_STATE_UNLOCKING = 5;
+  LOCK_STATE_OPENING = 6;
+  LOCK_STATE_OPEN = 7;
 }
 enum LockCommand  {
   LOCK_UNLOCK = 0;
@@ -1628,7 +1639,7 @@ message BluetoothLEAdvertisementResponse {
 
 message BluetoothLERawAdvertisement {
   option (inline_encode) = true;
-  uint64 address = 1 [(force) = true];
+  uint64 address = 1 [(force) = true, (mac_address) = true];
   sint32 rssi = 2 [(force) = true];
   uint32 address_type = 3 [(max_value) = 4];
 
@@ -2015,6 +2026,7 @@ message VoiceAssistantAudio {
 
   bytes data = 1 [(pointer_to_buffer) = true];
   bool end = 2;
+  bytes data2 = 3 [(pointer_to_buffer) = true];
 }
 
 enum VoiceAssistantTimerEvent {
@@ -2500,6 +2512,7 @@ message ZWaveProxyFrame {
   option (source) = SOURCE_BOTH;
   option (ifdef) = "USE_ZWAVE_PROXY";
   option (no_delay) = true;
+  option (speed_optimized) = true;
 
   bytes data = 1;
 }
@@ -2544,25 +2557,49 @@ message ListEntitiesInfraredResponse {
 message InfraredRFTransmitRawTimingsRequest {
   option (id) = 136;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_IR_RF";
+  option (ifdef) = "USE_IR_RF || USE_RADIO_FREQUENCY";
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
-  fixed32 key = 2 [(force) = true];                                       // Key identifying the transmitter instance
-  uint32 carrier_frequency = 3;                          // Carrier frequency in Hz
-  uint32 repeat_count = 4;                               // Number of times to transmit (1 = once, 2 = twice, etc.)
+  fixed32 key = 2 [(force) = true];     // Key identifying the transmitter instance
+  uint32 carrier_frequency = 3;         // Carrier frequency in Hz
+  uint32 repeat_count = 4;              // Number of times to transmit (1 = once, 2 = twice, etc.)
   repeated sint32 timings = 5 [packed = true, (packed_buffer) = true];  // Raw timings in microseconds (zigzag-encoded): positive = mark (LED/TX on), negative = space (LED/TX off)
+  uint32 modulation = 6;  // RadioFrequencyModulation enum value (0 = OOK; ignored for IR entities)
 }
 
 // Event message for received infrared/RF data
 message InfraredRFReceiveEvent {
   option (id) = 137;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_IR_RF";
+  option (ifdef) = "USE_IR_RF || USE_RADIO_FREQUENCY";
   option (no_delay) = true;
+  option (speed_optimized) = true;
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
-  fixed32 key = 2 [(force) = true];                                    // Key identifying the receiver instance
+  fixed32 key = 2 [(force) = true];     // Key identifying the receiver instance
   repeated sint32 timings = 3 [packed = true, (container_pointer_no_template) = "std::vector<int32_t>"];  // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
+}
+
+// ==================== RADIO FREQUENCY ====================
+
+// Lists available radio frequency entity instances
+message ListEntitiesRadioFrequencyResponse {
+  option (id) = 148;
+  option (base_class) = "InfoResponseProtoMessage";
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_RADIO_FREQUENCY";
+
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
+  fixed32 key = 2 [(force) = true];
+  string name = 3 [(max_data_length) = 120, (force) = true];
+  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
+  bool disabled_by_default = 5;
+  EntityCategory entity_category = 6;
+  uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
+  uint32 capabilities = 8;           // Bitmask of RadioFrequencyCapabilityFlags: bit 0 = transmitter, bit 1 = receiver
+  uint32 frequency_min = 9;          // Minimum tunable frequency in Hz; if min == max (non-zero): fixed frequency; 0 = unspecified
+  uint32 frequency_max = 10;         // Maximum tunable frequency in Hz; 0 = unspecified
+  uint32 supported_modulations = 11; // Bitmask of supported RadioFrequencyModulation values (bit N = modulation N supported)
 }
 
 // ==================== SERIAL PROXY ====================
@@ -2593,6 +2630,7 @@ message SerialProxyDataReceived {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_SERIAL_PROXY";
   option (no_delay) = true;
+  option (speed_optimized) = true;
 
   uint32 instance = 1;          // Instance index (0-based)
   bytes data = 2;               // Raw data received from the serial device

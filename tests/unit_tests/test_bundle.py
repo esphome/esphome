@@ -170,6 +170,23 @@ def test_find_used_secret_keys_deduplicates(tmp_path: Path) -> None:
     assert keys == {"key1"}
 
 
+def test_find_used_secret_keys_quoted(tmp_path: Path) -> None:
+    """Quoted !secret keys should resolve to the same key as unquoted form.
+
+    YAML strips surrounding quotes during parsing, so the secrets.yaml
+    lookup uses the unquoted key. The bundle scan must do the same.
+    """
+    yaml1 = tmp_path / "a.yaml"
+    yaml1.write_text(
+        "single: !secret 'wifi_ssid'\n"
+        'double: !secret "wifi_pw"\n'
+        "bare: !secret api_key\n"
+    )
+
+    keys = _find_used_secret_keys([yaml1])
+    assert keys == {"wifi_ssid", "wifi_pw", "api_key"}
+
+
 # ---------------------------------------------------------------------------
 # _add_bytes_to_tar
 # ---------------------------------------------------------------------------
@@ -1215,6 +1232,35 @@ def test_create_bundle_filters_secrets(tmp_path: Path) -> None:
     assert "wifi_pw" in secrets_data
     assert "unused" not in secrets_data
     assert "should_not_appear" not in secrets_data
+
+
+def test_create_bundle_filters_secrets_quoted(tmp_path: Path) -> None:
+    """Bundling must include secrets.yaml when !secret keys are quoted.
+
+    Regression test for issue 16259: quoted !secret references previously
+    captured the quotes as part of the key, so no key matched secrets.yaml
+    entries and the secrets file was dropped from the bundle entirely.
+    """
+    config_dir = _setup_config_dir(tmp_path)
+
+    secrets = config_dir / "secrets.yaml"
+    secrets.write_text("ota_password: hunter2\nunused: should_not_appear\n")
+
+    config_yaml = "ota:\n  password: !secret 'ota_password'\n"
+    (config_dir / "test.yaml").write_text(config_yaml)
+
+    creator = ConfigBundleCreator({})
+    result = creator.create_bundle()
+
+    assert result.manifest[ManifestKey.HAS_SECRETS] is True
+
+    buf = io.BytesIO(result.data)
+    with tarfile.open(fileobj=buf, mode="r:gz") as tar:
+        secrets_data = tar.extractfile("secrets.yaml").read().decode()
+
+    assert "ota_password" in secrets_data
+    assert "hunter2" in secrets_data
+    assert "unused" not in secrets_data
 
 
 def test_create_bundle_no_secrets(tmp_path: Path) -> None:

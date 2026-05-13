@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-namespace esphome {
-namespace gpio {
+namespace esphome::gpio {
 
 static const char *const TAG = "gpio.binary_sensor";
 
@@ -86,5 +85,4 @@ void GPIOBinarySensor::loop() {
 
 float GPIOBinarySensor::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace gpio
-}  // namespace esphome
+}  // namespace esphome::gpio
