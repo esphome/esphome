@@ -867,6 +867,56 @@ def test_patch_file_downloader_closes_session_and_response_between_retries() -> 
         mock_session.close.assert_called_once()
 
 
+def test_patch_file_downloader_retries_on_connection_error() -> None:
+    """Test patch_file_downloader retries on transport-layer errors (OSError subclasses).
+
+    ``requests.exceptions.ConnectionError`` and ``ReadTimeout`` subclass
+    ``OSError`` and are raised when the connection is aborted before any HTTP
+    response is parsed -- e.g. ``RemoteDisconnected`` mid-download. These must
+    retry too, not just ``PackageException``.
+    """
+    mock_exception_cls = type("PackageException", (Exception,), {})
+    call_count = 0
+
+    def failing_init(self, *args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise ConnectionError(
+                f"Connection aborted attempt {call_count}: RemoteDisconnected"
+            )
+
+    with (
+        patch.dict(
+            "sys.modules",
+            {
+                "platformio": MagicMock(),
+                "platformio.package": MagicMock(),
+                "platformio.package.download": SimpleNamespace(
+                    FileDownloader=type(
+                        "FileDownloader", (), {"__init__": failing_init}
+                    )
+                ),
+                "platformio.package.exception": SimpleNamespace(
+                    PackageException=mock_exception_cls
+                ),
+            },
+        ),
+        patch("time.sleep") as mock_sleep,
+    ):
+        runner.patch_file_downloader()
+
+        from platformio.package.download import FileDownloader
+
+        instance = object.__new__(FileDownloader)
+        FileDownloader.__init__(instance, "http://example.com/file.zip")
+
+        assert call_count == 3
+        assert mock_sleep.call_count == 2
+        mock_sleep.assert_any_call(2)
+        mock_sleep.assert_any_call(4)
+
+
 def test_patch_file_downloader_idempotent() -> None:
     """Test patch_file_downloader does not stack wrappers when called multiple times."""
     mock_exception_cls = type("PackageException", (Exception,), {})
