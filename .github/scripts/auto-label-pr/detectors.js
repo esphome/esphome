@@ -103,11 +103,16 @@ async function detectCoreChanges(changedFiles) {
 }
 
 // Strategy: PR size detection
-async function detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, TOO_BIG_THRESHOLD) {
+async function detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD) {
   const labels = new Set();
 
   if (totalChanges <= SMALL_PR_THRESHOLD) {
     labels.add('small-pr');
+    return labels;
+  }
+
+  if (totalChanges <= MEDIUM_PR_THRESHOLD) {
+    labels.add('medium-pr');
     return labels;
   }
 

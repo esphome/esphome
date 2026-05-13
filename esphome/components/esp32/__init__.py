@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_BOARD,
     CONF_COMPONENTS,
     CONF_DISABLED,
+    CONF_ENABLE_FULL_PRINTF,
     CONF_ENABLE_OTA_ROLLBACK,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
@@ -954,7 +955,6 @@ CONF_HEAP_IN_IRAM = "heap_in_iram"
 CONF_LOOP_TASK_STACK_SIZE = "loop_task_stack_size"
 CONF_USE_FULL_CERTIFICATE_BUNDLE = "use_full_certificate_bundle"
 CONF_DISABLE_DEBUG_STUBS = "disable_debug_stubs"
-CONF_ENABLE_FULL_PRINTF = "enable_full_printf"
 CONF_DISABLE_OCD_AWARE = "disable_ocd_aware"
 CONF_DISABLE_USB_SERIAL_JTAG_SECONDARY = "disable_usb_serial_jtag_secondary"
 CONF_DISABLE_DEV_NULL_VFS = "disable_dev_null_vfs"

@@ -91,6 +91,7 @@ UFIRE_ISE_CALIBRATE_PROBE_SCHEMA = cv.Schema(
     "ufire_ise.calibrate_probe_low",
     UFireISECalibrateProbeLowAction,
     UFIRE_ISE_CALIBRATE_PROBE_SCHEMA,
+    synchronous=True,
 )
 async def ufire_ise_calibrate_probe_low_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -104,6 +105,7 @@ async def ufire_ise_calibrate_probe_low_to_code(config, action_id, template_arg,
     "ufire_ise.calibrate_probe_high",
     UFireISECalibrateProbeHighAction,
     UFIRE_ISE_CALIBRATE_PROBE_SCHEMA,
+    synchronous=True,
 )
 async def ufire_ise_calibrate_probe_high_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -120,6 +122,7 @@ UFIRE_ISE_RESET_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(UFireISEComponent
     "ufire_ise.reset",
     UFireISEResetAction,
     UFIRE_ISE_RESET_SCHEMA,
+    synchronous=True,
 )
 async def ufire_ise_reset_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

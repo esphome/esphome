@@ -106,9 +106,14 @@ RELEASE_IMAGE_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action("online_image.set_url", SetUrlAction, SET_URL_SCHEMA)
 @automation.register_action(
-    "online_image.release", ReleaseImageAction, RELEASE_IMAGE_SCHEMA
+    "online_image.set_url", SetUrlAction, SET_URL_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "online_image.release",
+    ReleaseImageAction,
+    RELEASE_IMAGE_SCHEMA,
+    synchronous=True,
 )
 async def online_image_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

@@ -59,12 +59,12 @@ void MCP23X17Base::pin_interrupt_mode(uint8_t pin, mcp23xxx_base::MCP23XXXInterr
     case mcp23xxx_base::MCP23XXX_RISING:
       this->update_reg(pin, true, gpinten);
       this->update_reg(pin, true, intcon);
-      this->update_reg(pin, true, defval);
+      this->update_reg(pin, false, defval);
       break;
     case mcp23xxx_base::MCP23XXX_FALLING:
       this->update_reg(pin, true, gpinten);
       this->update_reg(pin, true, intcon);
-      this->update_reg(pin, false, defval);
+      this->update_reg(pin, true, defval);
       break;
     case mcp23xxx_base::MCP23XXX_NO_INTERRUPT:
       this->update_reg(pin, false, gpinten);

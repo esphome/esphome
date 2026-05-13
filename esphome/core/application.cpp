@@ -32,7 +32,7 @@
 #include "esphome/components/status_led/status_led.h"
 #endif
 
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 #include "esphome/components/socket/socket.h"
 #endif
 
@@ -713,8 +713,10 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   }
   // No sockets registered or select() failed - use regular delay
   delay(delay_ms);
-#elif defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  // No select support but can wake on socket activity via esp_schedule()
+#elif (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  // No select support but can wake on socket activity
+  // ESP8266: via esp_schedule()
+  // RP2040: via __sev()/__wfe() hardware sleep/wake
   socket::socket_delay(delay_ms);
 #else
   // No select support, use regular delay

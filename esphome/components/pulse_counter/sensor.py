@@ -155,6 +155,7 @@ async def to_code(config):
             cv.Required(CONF_VALUE): cv.templatable(cv.uint32_t),
         }
     ),
+    synchronous=True,
 )
 async def set_total_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

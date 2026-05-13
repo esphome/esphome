@@ -245,6 +245,7 @@ buttonmatrix_spec = ButtonMatrixType()
             cv.Optional(CONF_SELECTED): lv_bool,
         }
     ),
+    synchronous=True,
 )
 async def button_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config[CONF_ID])

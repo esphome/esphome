@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "esphome/core/defines.h"
+
 #ifdef USE_ESP32
 
 #include <string.h>

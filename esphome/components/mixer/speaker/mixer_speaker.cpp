@@ -11,14 +11,14 @@
 #include <array>
 #include <cstring>
 
-namespace esphome {
-namespace mixer_speaker {
+namespace esphome::mixer_speaker {
 
 static const UBaseType_t MIXER_TASK_PRIORITY = 10;
 
 static const uint32_t STOPPING_TIMEOUT_MS = 5000;
 static const uint32_t TRANSFER_BUFFER_DURATION_MS = 50;
 static const uint32_t TASK_DELAY_MS = 25;
+static const uint32_t MIXER_AUTO_STOP_DEBOUNCE_MS = 200;
 
 static const size_t TASK_STACK_SIZE = 4096;
 
@@ -471,6 +471,7 @@ void MixerSpeaker::loop() {
     this->task_.deallocate();
     ESP_LOGD(TAG, "Stopped");
     xEventGroupClearBits(this->event_group_, MIXER_TASK_ALL_BITS);
+    this->all_stopped_since_ms_ = 0;
   }
 
   if (this->task_.is_created()) {
@@ -483,8 +484,18 @@ void MixerSpeaker::loop() {
     }
 
     if (all_stopped) {
-      // Send stop command signal to the mixer task since no source speakers are active
-      xEventGroupSetBits(this->event_group_, MIXER_TASK_COMMAND_STOP);
+      if (this->all_stopped_since_ms_ == 0) {
+        this->all_stopped_since_ms_ = millis();
+      } else if ((millis() - this->all_stopped_since_ms_) >= MIXER_AUTO_STOP_DEBOUNCE_MS) {
+        // Send stop command only after a short debounce to avoid stop/start thrash during rapid seeks.
+        xEventGroupSetBits(this->event_group_, MIXER_TASK_COMMAND_STOP);
+      }
+    } else {
+      this->all_stopped_since_ms_ = 0;
+      // New activity detected; clear any stale auto-stop request before it can stop the running task.
+      if (event_group_bits & MIXER_TASK_COMMAND_STOP) {
+        xEventGroupClearBits(this->event_group_, MIXER_TASK_COMMAND_STOP);
+      }
     }
   } else {
     // Task is fully stopped and cleaned up, check if we can disable loop
@@ -514,6 +525,9 @@ esp_err_t MixerSpeaker::start(audio::AudioStreamInfo &stream_info) {
   }
 
   this->enable_loop_soon_any_context();  // ensure loop processes command
+
+  // Starting a new stream supersedes any previously queued stop request.
+  xEventGroupClearBits(this->event_group_, MIXER_TASK_COMMAND_STOP);
 
   uint32_t event_bits = xEventGroupGetBits(this->event_group_);
   if (!(event_bits & MIXER_TASK_COMMAND_START)) {
@@ -755,7 +769,6 @@ void MixerSpeaker::audio_mixer_task(void *params) {
   vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
 
-}  // namespace mixer_speaker
-}  // namespace esphome
+}  // namespace esphome::mixer_speaker
 
 #endif

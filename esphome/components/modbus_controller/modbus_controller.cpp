@@ -59,6 +59,10 @@ bool ModbusController::send_next_command_() {
 
 // Queue incoming response
 void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
+  if (this->command_queue_.empty()) {
+    ESP_LOGW(TAG, "Received modbus data but command queue is empty");
+    return;
+  }
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
     if (this->module_offline_) {
@@ -92,6 +96,9 @@ void ModbusController::process_modbus_data_(const ModbusCommandItem *response) {
 
 void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
   ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, exception_code);
+  if (this->command_queue_.empty()) {
+    return;
+  }
   // Remove pending command waiting for a response
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
@@ -175,6 +182,11 @@ void ModbusController::on_modbus_write_registers(uint8_t function_code, const st
   uint16_t payload_offset;
 
   if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+    if (data.size() < 5) {
+      ESP_LOGW(TAG, "Write multiple registers data too short (%zu bytes)", data.size());
+      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+      return;
+    }
     number_of_registers = uint16_t(data[3]) | (uint16_t(data[2]) << 8);
     if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_WRITE) {
       ESP_LOGW(TAG, "Invalid number of registers %d. Sending exception response.", number_of_registers);
@@ -188,8 +200,19 @@ void ModbusController::on_modbus_write_registers(uint8_t function_code, const st
       this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
       return;
     }
+    if (data.size() < 5 + payload_size) {
+      ESP_LOGW(TAG, "Write multiple registers payload truncated (%zu bytes, expected %u)", data.size(),
+               5 + payload_size);
+      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+      return;
+    }
     payload_offset = 5;
   } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
+    if (data.size() < 4) {
+      ESP_LOGW(TAG, "Write single register data too short (%zu bytes)", data.size());
+      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+      return;
+    }
     number_of_registers = 1;
     payload_offset = 2;
   } else {

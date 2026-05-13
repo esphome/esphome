@@ -31,15 +31,22 @@ SET_VOLUME_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action("audio_dac.mute_off", MuteOffAction, MUTE_ACTION_SCHEMA)
-@automation.register_action("audio_dac.mute_on", MuteOnAction, MUTE_ACTION_SCHEMA)
+@automation.register_action(
+    "audio_dac.mute_off", MuteOffAction, MUTE_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "audio_dac.mute_on", MuteOnAction, MUTE_ACTION_SCHEMA, synchronous=True
+)
 async def audio_dac_mute_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
-    "audio_dac.set_volume", SetVolumeAction, SET_VOLUME_ACTION_SCHEMA
+    "audio_dac.set_volume",
+    SetVolumeAction,
+    SET_VOLUME_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def audio_dac_set_volume_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

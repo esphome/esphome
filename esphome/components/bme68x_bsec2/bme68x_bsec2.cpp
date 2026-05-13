@@ -438,6 +438,7 @@ void BME68xBSEC2Component::publish_(const bsec_output_t *outputs, uint8_t num_ou
     }
   }
   if (update_accuracy) {
+    max_accuracy = std::min<uint8_t>(max_accuracy, std::size(IAQ_ACCURACY_STATES) - 1);
 #ifdef USE_SENSOR
     this->queue_push_(
         [this, max_accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, max_accuracy, true); });

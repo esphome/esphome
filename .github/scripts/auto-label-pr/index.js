@@ -35,6 +35,7 @@ async function fetchApiData() {
 module.exports = async ({ github, context }) => {
   // Environment variables
   const SMALL_PR_THRESHOLD = parseInt(process.env.SMALL_PR_THRESHOLD);
+  const MEDIUM_PR_THRESHOLD = parseInt(process.env.MEDIUM_PR_THRESHOLD);
   const MAX_LABELS = parseInt(process.env.MAX_LABELS);
   const TOO_BIG_THRESHOLD = parseInt(process.env.TOO_BIG_THRESHOLD);
   const COMPONENT_LABEL_THRESHOLD = parseInt(process.env.COMPONENT_LABEL_THRESHOLD);
@@ -120,7 +121,7 @@ module.exports = async ({ github, context }) => {
     detectNewComponents(prFiles),
     detectNewPlatforms(prFiles, apiData),
     detectCoreChanges(changedFiles),
-    detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, TOO_BIG_THRESHOLD),
+    detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD),
     detectDashboardChanges(changedFiles),
     detectGitHubActionsChanges(changedFiles),
     detectCodeOwner(github, context, changedFiles),

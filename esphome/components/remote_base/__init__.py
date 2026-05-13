@@ -163,7 +163,10 @@ BASE_REMOTE_TRANSMITTER_SCHEMA = cv.Schema(
 def register_action(name, type_, schema):
     validator = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
     registerer = automation.register_action(
-        f"remote_transmitter.transmit_{name}", type_, validator
+        f"remote_transmitter.transmit_{name}",
+        type_,
+        validator,
+        synchronous=True,
     )
 
     def decorator(func):

@@ -23,7 +23,10 @@ SET_MIC_GAIN_ACTION_SCHEMA = cv.maybe_simple_value(
 
 
 @automation.register_action(
-    "audio_adc.set_mic_gain", SetMicGainAction, SET_MIC_GAIN_ACTION_SCHEMA
+    "audio_adc.set_mic_gain",
+    SetMicGainAction,
+    SET_MIC_GAIN_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def audio_adc_set_mic_gain_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

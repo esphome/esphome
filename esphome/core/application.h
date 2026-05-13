@@ -34,7 +34,7 @@
 #endif
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 namespace esphome::socket {
 void socket_wake();  // NOLINT(readability-redundant-declaration)
 }  // namespace esphome::socket
@@ -102,6 +102,9 @@ void socket_wake();  // NOLINT(readability-redundant-declaration)
 #ifdef USE_INFRARED
 #include "esphome/components/infrared/infrared.h"
 #endif
+#ifdef USE_SERIAL_PROXY
+#include "esphome/components/serial_proxy/serial_proxy.h"
+#endif
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif
@@ -139,6 +142,7 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 class Application {
  public:
 #ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
+  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
   /// Pre-setup with MAC suffix: overwrites placeholder in mutable static buffers with actual MAC.
   void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -160,6 +164,7 @@ class Application {
     this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
   }
 #else
+  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
   /// Pre-setup without MAC suffix: StringRef points directly at const string literals in flash.
   void pre_setup(const char *name, size_t name_len, const char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -265,6 +270,13 @@ class Application {
 
 #ifdef USE_INFRARED
   void register_infrared(infrared::Infrared *infrared) { this->infrareds_.push_back(infrared); }
+#endif
+
+#ifdef USE_SERIAL_PROXY
+  void register_serial_proxy(serial_proxy::SerialProxy *proxy) {
+    proxy->set_instance_index(this->serial_proxies_.size());
+    this->serial_proxies_.push_back(proxy);
+  }
 #endif
 
 #ifdef USE_EVENT
@@ -498,6 +510,10 @@ class Application {
   GET_ENTITY_METHOD(infrared::Infrared, infrared, infrareds)
 #endif
 
+#ifdef USE_SERIAL_PROXY
+  auto &get_serial_proxies() const { return this->serial_proxies_; }
+#endif
+
 #ifdef USE_EVENT
   auto &get_events() const { return this->events_; }
   GET_ENTITY_METHOD(event::Event, event, events)
@@ -551,8 +567,12 @@ class Application {
 
 #if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
   /// Wake the main event loop from any context (ISR, thread, or main loop).
-  /// On ESP8266: sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
+  /// Sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
   static void IRAM_ATTR wake_loop_any_context() { socket::socket_wake(); }
+#elif defined(USE_RP2040) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  /// Wake the main event loop from any context.
+  /// Sets the socket wake flag and calls __sev() to exit __wfe() early.
+  static void wake_loop_any_context() { socket::socket_wake(); }
 #endif
 
  protected:
@@ -746,6 +766,9 @@ class Application {
 #endif
 #ifdef USE_INFRARED
   StaticVector<infrared::Infrared *, ESPHOME_ENTITY_INFRARED_COUNT> infrareds_{};
+#endif
+#ifdef USE_SERIAL_PROXY
+  StaticVector<serial_proxy::SerialProxy *, SERIAL_PROXY_COUNT> serial_proxies_{};
 #endif
 #ifdef USE_UPDATE
   StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};

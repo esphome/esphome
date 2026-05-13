@@ -81,7 +81,10 @@ EzoPMPArbitraryCommandAction = ezo_pmp_ns.class_(
 
 
 @automation.register_action(
-    "ezo_pmp.find", EzoPMPFindAction, EZO_PMP_NO_ARGS_ACTION_SCHEMA
+    "ezo_pmp.find",
+    EzoPMPFindAction,
+    EZO_PMP_NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ezo_pmp_find_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -92,6 +95,7 @@ async def ezo_pmp_find_to_code(config, action_id, template_arg, args):
     "ezo_pmp.dose_continuously",
     EzoPMPDoseContinuouslyAction,
     EZO_PMP_NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ezo_pmp_dose_continuously_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -102,6 +106,7 @@ async def ezo_pmp_dose_continuously_to_code(config, action_id, template_arg, arg
     "ezo_pmp.clear_total_volume_dosed",
     EzoPMPClearTotalVolumeDispensedAction,
     EZO_PMP_NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ezo_pmp_clear_total_volume_dosed_to_code(
     config, action_id, template_arg, args
@@ -114,6 +119,7 @@ async def ezo_pmp_clear_total_volume_dosed_to_code(
     "ezo_pmp.clear_calibration",
     EzoPMPClearCalibrationAction,
     EZO_PMP_NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ezo_pmp_clear_calibration_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -121,7 +127,10 @@ async def ezo_pmp_clear_calibration_to_code(config, action_id, template_arg, arg
 
 
 @automation.register_action(
-    "ezo_pmp.pause_dosing", EzoPMPPauseDosingAction, EZO_PMP_NO_ARGS_ACTION_SCHEMA
+    "ezo_pmp.pause_dosing",
+    EzoPMPPauseDosingAction,
+    EZO_PMP_NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ezo_pmp_pause_dosing_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -129,7 +138,10 @@ async def ezo_pmp_pause_dosing_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "ezo_pmp.stop_dosing", EzoPMPStopDosingAction, EZO_PMP_NO_ARGS_ACTION_SCHEMA
+    "ezo_pmp.stop_dosing",
+    EzoPMPStopDosingAction,
+    EZO_PMP_NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ezo_pmp_stop_dosing_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -149,7 +161,10 @@ EZO_PMP_DOSE_VOLUME_ACTION_SCHEMA = cv.All(
 
 
 @automation.register_action(
-    "ezo_pmp.dose_volume", EzoPMPDoseVolumeAction, EZO_PMP_DOSE_VOLUME_ACTION_SCHEMA
+    "ezo_pmp.dose_volume",
+    EzoPMPDoseVolumeAction,
+    EZO_PMP_DOSE_VOLUME_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ezo_pmp_dose_volume_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -178,6 +193,7 @@ EZO_PMP_DOSE_VOLUME_OVER_TIME_ACTION_SCHEMA = cv.All(
     "ezo_pmp.dose_volume_over_time",
     EzoPMPDoseVolumeOverTimeAction,
     EZO_PMP_DOSE_VOLUME_OVER_TIME_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ezo_pmp_dose_volume_over_time_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -209,6 +225,7 @@ EZO_PMP_DOSE_WITH_CONSTANT_FLOW_RATE_ACTION_SCHEMA = cv.All(
     "ezo_pmp.dose_with_constant_flow_rate",
     EzoPMPDoseWithConstantFlowRateAction,
     EZO_PMP_DOSE_WITH_CONSTANT_FLOW_RATE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ezo_pmp_dose_with_constant_flow_rate_to_code(
     config, action_id, template_arg, args
@@ -239,6 +256,7 @@ EZO_PMP_SET_CALIBRATION_VOLUME_ACTION_SCHEMA = cv.All(
     "ezo_pmp.set_calibration_volume",
     EzoPMPSetCalibrationVolumeAction,
     EZO_PMP_SET_CALIBRATION_VOLUME_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ezo_pmp_set_calibration_volume_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -262,6 +280,7 @@ EZO_PMP_CHANGE_I2C_ADDRESS_ACTION_SCHEMA = cv.All(
     "ezo_pmp.change_i2c_address",
     EzoPMPChangeI2CAddressAction,
     EZO_PMP_CHANGE_I2C_ADDRESS_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ezo_pmp_change_i2c_address_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -285,6 +304,7 @@ EZO_PMP_ARBITRARY_COMMAND_ACTION_SCHEMA = cv.All(
     "ezo_pmp.arbitrary_command",
     EzoPMPArbitraryCommandAction,
     EZO_PMP_ARBITRARY_COMMAND_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ezo_pmp_arbitrary_command_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

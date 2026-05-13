@@ -110,9 +110,17 @@ void KamstrupKMPComponent::send_message_(const uint8_t *msg, int msg_len) {
 
   for (int i = 0; i < buffer_len; i++) {
     if (buffer[i] == 0x06 || buffer[i] == 0x0d || buffer[i] == 0x1b || buffer[i] == 0x40 || buffer[i] == 0x80) {
+      if (tx_msg_len + 2 >= static_cast<int>(sizeof(tx_msg))) {
+        ESP_LOGE(TAG, "TX message overflow");
+        return;
+      }
       tx_msg[tx_msg_len++] = 0x1b;
       tx_msg[tx_msg_len++] = buffer[i] ^ 0xff;
     } else {
+      if (tx_msg_len + 1 >= static_cast<int>(sizeof(tx_msg))) {
+        ESP_LOGE(TAG, "TX message overflow");
+        return;
+      }
       tx_msg[tx_msg_len++] = buffer[i];
     }
   }
@@ -216,8 +224,8 @@ void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_
   uint8_t unit_idx = msg[4];
   uint8_t mantissa_range = msg[5];
 
-  if (mantissa_range > 4) {
-    ESP_LOGE(TAG, "Received invalid message (mantissa size too large %d, expected 4)", mantissa_range);
+  if (mantissa_range > 4 || msg_len < 7 + mantissa_range) {
+    ESP_LOGE(TAG, "Received invalid message (mantissa size %d, msg_len %d)", mantissa_range, msg_len);
     return;
   }
 

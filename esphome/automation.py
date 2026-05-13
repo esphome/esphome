@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -57,22 +59,41 @@ def maybe_conf(conf, *validators):
     return validate
 
 
+_LOGGER = logging.getLogger(__name__)
+
+
 def register_action(
     name: str,
     action_type: MockObjClass,
     schema: cv.Schema,
     *,
-    synchronous: bool = False,
+    synchronous: bool | None = None,
 ):
     """Register an action type.
 
-    Actions default to ``synchronous=False`` (safe default), meaning string
-    arguments use owning std::string to prevent dangling references.
+    All callers must pass ``synchronous`` explicitly.
 
-    Set ``synchronous=True`` only for actions that complete synchronously
-    and never store trigger arguments for later execution.  This allows
-    the code generator to use non-owning StringRef for zero-copy access.
+    ``synchronous=True`` — the action never defers ``play_next_()`` to a
+    later point (callback, timer, or ``loop()``).  Trigger arguments are
+    only used during the initial call, so string args can use non-owning
+    StringRef for zero-copy access.
+
+    ``synchronous=False`` — the action defers ``play_next_()`` via a
+    callback, timer, or ``Component::loop()``.  Trigger arguments must
+    outlive the initial call, so string args use owning std::string to
+    prevent dangling references.
     """
+    if synchronous is None:
+        _LOGGER.warning(
+            "register_action('%s', ...) is missing the synchronous= parameter. "
+            "Defaulting to synchronous=False (safe but prevents StringRef "
+            "optimization). Check the C++ class: use synchronous=False if "
+            "play_next_() is deferred to a callback, timer, or loop(); "
+            "use synchronous=True if play_next_() always runs before the "
+            "initial play/play_complex call returns",
+            name,
+        )
+        synchronous = False
     return ACTION_REGISTRY.register(name, action_type, schema, synchronous=synchronous)
 
 
@@ -353,6 +374,7 @@ async def component_is_idle_condition_to_code(
     "delay",
     DelayAction,
     cv.templatable(cv.positive_time_period_milliseconds),
+    synchronous=False,
 )
 async def delay_action_to_code(
     config: ConfigType,
@@ -465,7 +487,7 @@ _validate_wait_until = cv.maybe_simple_value(
 )
 
 
-@register_action("wait_until", WaitUntilAction, _validate_wait_until)
+@register_action("wait_until", WaitUntilAction, _validate_wait_until, synchronous=False)
 async def wait_until_action_to_code(
     config: ConfigType,
     action_id: ID,
@@ -611,7 +633,7 @@ def has_non_synchronous_actions(actions: ConfigType) -> bool:
 
     Non-synchronous actions (delay, wait_until, script.wait, etc.) store
     trigger args for later execution, making non-owning types like StringRef
-    unsafe.  Actions that haven't been audited default to non-synchronous.
+    unsafe.
     """
     if isinstance(actions, list):
         return any(has_non_synchronous_actions(item) for item in actions)

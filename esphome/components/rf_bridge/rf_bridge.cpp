@@ -145,6 +145,9 @@ void RFBridgeComponent::loop() {
     }
     avail -= to_read;
     for (size_t i = 0; i < to_read; i++) {
+      if (this->rx_buffer_.size() > MAX_RX_BUFFER_SIZE) {
+        this->rx_buffer_.clear();
+      }
       if (this->parse_bridge_byte_(buf[i])) {
         ESP_LOGVV(TAG, "Parsed: 0x%02X", buf[i]);
         this->last_bridge_byte_ = now;

@@ -15,6 +15,8 @@ from typing import Any
 
 import colorama
 
+from esphome.loader import get_platform
+
 root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
 basepath = os.path.join(root_path, "esphome")
 temp_folder = os.path.join(root_path, ".temp")
@@ -624,11 +626,15 @@ def get_usable_cpu_count() -> int:
     )
 
 
-def get_all_dependencies(component_names: set[str]) -> set[str]:
+def get_all_dependencies(
+    component_names: set[str], cpp_testing: bool = False
+) -> set[str]:
     """Get all dependencies for a set of components.
 
     Args:
         component_names: Set of component names to get dependencies for
+        cpp_testing: If True, set CORE.cpp_testing so AUTO_LOAD callables that
+                     conditionally include testing-only dependencies work correctly
 
     Returns:
         Set of all components including dependencies and auto-loaded components
@@ -646,6 +652,7 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
 
     # Reset CORE to ensure clean state
     CORE.reset()
+    CORE.cpp_testing = cpp_testing
 
     # Set up fake config path for component loading
     root = Path(__file__).parent.parent
@@ -660,7 +667,11 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
         new_components: set[str] = set()
 
         for comp_name in all_components:
-            comp = get_component(comp_name)
+            if "." in comp_name:
+                domain, platform = comp_name.split(".", maxsplit=1)
+                comp = get_platform(domain, platform)
+            else:
+                comp = get_component(comp_name)
             if not comp:
                 continue
 
@@ -705,8 +716,10 @@ def get_components_from_integration_fixtures() -> set[str]:
         if not config:
             continue
 
-        # Add all top-level component keys
-        components.update(config.keys())
+        # Add all top-level component keys (skip YAML anchor keys starting with '.')
+        components.update(
+            k for k in config if isinstance(k, str) and not k.startswith(".")
+        )
 
         # Add platform components (e.g., output.template)
         for value in config.values():

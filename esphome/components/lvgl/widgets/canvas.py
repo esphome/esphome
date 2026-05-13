@@ -97,6 +97,7 @@ canvas_spec = CanvasType()
             cv.Optional(CONF_OPA, default="COVER"): opacity,
         },
     ),
+    synchronous=True,
 )
 async def canvas_fill(config, action_id, template_arg, args):
     widget = await get_widgets(config)
@@ -120,6 +121,7 @@ async def canvas_fill(config, action_id, template_arg, args):
             cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
         },
     ),
+    synchronous=True,
 )
 async def canvas_set_pixel(config, action_id, template_arg, args):
     widget = await get_widgets(config)
@@ -229,6 +231,7 @@ RECT_PROPS = {
             **{cv.Optional(prop): STYLE_PROPS[prop] for prop in RECT_PROPS},
         }
     ),
+    synchronous=True,
 )
 async def canvas_draw_rect(config, action_id, template_arg, args):
     width = await pixels.process(config[CONF_WIDTH])
@@ -268,6 +271,7 @@ TEXT_PROPS = {
             **{cv.Optional(prop): STYLE_PROPS[f"text_{prop}"] for prop in TEXT_PROPS},
         },
     ),
+    synchronous=True,
 )
 async def canvas_draw_text(config, action_id, template_arg, args):
     text = await lv_text.process(config[CONF_TEXT])
@@ -302,6 +306,7 @@ IMG_PROPS = {
             **{cv.Optional(prop): validator for prop, validator in IMG_PROPS.items()},
         }
     ),
+    synchronous=True,
 )
 async def canvas_draw_image(config, action_id, template_arg, args):
     src = await lv_image.process(config[CONF_SRC])
@@ -341,6 +346,7 @@ LINE_PROPS = {
             **{cv.Optional(prop): validator for prop, validator in LINE_PROPS.items()},
         }
     ),
+    synchronous=True,
 )
 async def canvas_draw_line(config, action_id, template_arg, args):
     points = [
@@ -369,6 +375,7 @@ async def canvas_draw_line(config, action_id, template_arg, args):
             **{cv.Optional(prop): STYLE_PROPS[prop] for prop in RECT_PROPS},
         },
     ),
+    synchronous=True,
 )
 async def canvas_draw_polygon(config, action_id, template_arg, args):
     points = [
@@ -408,6 +415,7 @@ ARC_PROPS = {
             **{cv.Optional(prop): validator for prop, validator in ARC_PROPS.items()},
         }
     ),
+    synchronous=True,
 )
 async def canvas_draw_arc(config, action_id, template_arg, args):
     radius = await size.process(config[CONF_RADIUS])

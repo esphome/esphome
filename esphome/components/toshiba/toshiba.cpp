@@ -951,10 +951,10 @@ void ToshibaClimate::transmit_ras_2819t_() {
 }
 
 uint8_t ToshibaClimate::is_valid_rac_pt1411hwru_header_(const uint8_t *message) {
-  const std::vector<uint8_t> header{RAC_PT1411HWRU_MESSAGE_HEADER0, RAC_PT1411HWRU_CS_HEADER,
-                                    RAC_PT1411HWRU_SWING_HEADER};
+  static constexpr uint8_t HEADERS[] = {RAC_PT1411HWRU_MESSAGE_HEADER0, RAC_PT1411HWRU_CS_HEADER,
+                                        RAC_PT1411HWRU_SWING_HEADER};
 
-  for (auto i : header) {
+  for (auto i : HEADERS) {
     if ((message[0] == i) && (message[1] == static_cast<uint8_t>(~i)))
       return i;
   }

@@ -14,11 +14,26 @@ void SMT100Component::update() {
 void SMT100Component::loop() {
   while (this->available() != 0) {
     if (this->readline_(this->read(), this->readline_buffer_, MAX_LINE_LENGTH) > 0) {
-      int counts = (int) strtol((strtok(this->readline_buffer_, ",")), nullptr, 10);
-      float permittivity = (float) strtod((strtok(nullptr, ",")), nullptr);
-      float moisture = (float) strtod((strtok(nullptr, ",")), nullptr);
-      float temperature = (float) strtod((strtok(nullptr, ",")), nullptr);
-      float voltage = (float) strtod((strtok(nullptr, ",")), nullptr);
+      char *token = strtok(this->readline_buffer_, ",");
+      if (!token)
+        continue;
+      int counts = (int) strtol(token, nullptr, 10);
+      token = strtok(nullptr, ",");
+      if (!token)
+        continue;
+      float permittivity = (float) strtod(token, nullptr);
+      token = strtok(nullptr, ",");
+      if (!token)
+        continue;
+      float moisture = (float) strtod(token, nullptr);
+      token = strtok(nullptr, ",");
+      if (!token)
+        continue;
+      float temperature = (float) strtod(token, nullptr);
+      token = strtok(nullptr, ",");
+      if (!token)
+        continue;
+      float voltage = (float) strtod(token, nullptr);
 
       if (this->counts_sensor_ != nullptr) {
         counts_sensor_->publish_state(counts);

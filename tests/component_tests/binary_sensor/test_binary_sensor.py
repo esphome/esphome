@@ -1,5 +1,7 @@
 """Tests for the binary sensor component."""
 
+from tests.component_tests.helpers import INTERNAL_BIT, extract_packed_value
+
 
 def test_binary_sensor_is_setup(generate_main):
     """
@@ -44,9 +46,9 @@ def test_binary_sensor_config_value_internal_set(generate_main):
         "tests/component_tests/binary_sensor/test_binary_sensor.yaml"
     )
 
-    # Then
-    assert "bs_1->set_internal(true);" in main_cpp
-    assert "bs_2->set_internal(false);" in main_cpp
+    # Then: bs_1 has internal: true, bs_2 has internal: false
+    assert extract_packed_value(main_cpp, "bs_1") & INTERNAL_BIT != 0
+    assert extract_packed_value(main_cpp, "bs_2") & INTERNAL_BIT == 0
 
 
 def test_binary_sensor_config_value_use_raw_set(generate_main):

@@ -9,6 +9,7 @@ from .. import (
     MicroNova,
     MicroNovaListener,
     micronova_ns,
+    register_micronova_writer,
     to_code_micronova_listener,
 )
 
@@ -48,6 +49,7 @@ async def to_code(config):
     mv = await cg.get_variable(config[CONF_MICRONOVA_ID])
 
     if stove_config := config.get(CONF_STOVE):
+        register_micronova_writer()
         sw = await switch.new_switch(stove_config, mv)
         await to_code_micronova_listener(mv, sw, stove_config)
         cg.add(sw.set_memory_data_on(stove_config[CONF_MEMORY_DATA_ON]))

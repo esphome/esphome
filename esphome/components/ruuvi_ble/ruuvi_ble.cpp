@@ -21,11 +21,11 @@ bool parse_ruuvi_data_byte(const esp32_ble_tracker::adv_data_t &adv_data, RuuviP
       const float temperature = temp_sign == 0 ? temp_val : -1 * temp_val;
 
       const float humidity = data[0] * 0.5f;
-      const float pressure = (uint16_t(data[3] << 8) + uint16_t(data[4]) + 50000.0f) / 100.0f;
-      const float acceleration_x = (int16_t(data[5] << 8) + int16_t(data[6])) / 1000.0f;
-      const float acceleration_y = (int16_t(data[7] << 8) + int16_t(data[8])) / 1000.0f;
-      const float acceleration_z = (int16_t(data[9] << 8) + int16_t(data[10])) / 1000.0f;
-      const float battery_voltage = (uint16_t(data[11] << 8) + uint16_t(data[12])) / 1000.0f;
+      const float pressure = (encode_uint16(data[3], data[4]) + 50000.0f) / 100.0f;
+      const float acceleration_x = static_cast<int16_t>(encode_uint16(data[5], data[6])) / 1000.0f;
+      const float acceleration_y = static_cast<int16_t>(encode_uint16(data[7], data[8])) / 1000.0f;
+      const float acceleration_z = static_cast<int16_t>(encode_uint16(data[9], data[10])) / 1000.0f;
+      const float battery_voltage = encode_uint16(data[11], data[12]) / 1000.0f;
 
       result.humidity = humidity;
       result.temperature = temperature;
@@ -43,19 +43,19 @@ bool parse_ruuvi_data_byte(const esp32_ble_tracker::adv_data_t &adv_data, RuuviP
       if (adv_data.size() != 24)
         return false;
 
-      const float temperature = (int16_t(data[0] << 8) + int16_t(data[1])) * 0.005f;
-      const float humidity = (uint16_t(data[2] << 8) | uint16_t(data[3])) / 400.0f;
-      const float pressure = ((uint16_t(data[4] << 8) | uint16_t(data[5])) + 50000.0f) / 100.0f;
-      const float acceleration_x = (int16_t(data[6] << 8) + int16_t(data[7])) / 1000.0f;
-      const float acceleration_y = (int16_t(data[8] << 8) + int16_t(data[9])) / 1000.0f;
-      const float acceleration_z = (int16_t(data[10] << 8) + int16_t(data[11])) / 1000.0f;
+      const float temperature = static_cast<int16_t>(encode_uint16(data[0], data[1])) * 0.005f;
+      const float humidity = encode_uint16(data[2], data[3]) / 400.0f;
+      const float pressure = (encode_uint16(data[4], data[5]) + 50000.0f) / 100.0f;
+      const float acceleration_x = static_cast<int16_t>(encode_uint16(data[6], data[7])) / 1000.0f;
+      const float acceleration_y = static_cast<int16_t>(encode_uint16(data[8], data[9])) / 1000.0f;
+      const float acceleration_z = static_cast<int16_t>(encode_uint16(data[10], data[11])) / 1000.0f;
 
-      const uint16_t power_info = (uint16_t(data[12] << 8) | data[13]);
+      const uint16_t power_info = encode_uint16(data[12], data[13]);
       const float battery_voltage = ((power_info >> 5) + 1600.0f) / 1000.0f;
       const float tx_power = ((power_info & 0x1F) * 2.0f) - 40.0f;
 
       const float movement_counter = float(data[14]);
-      const float measurement_sequence_number = float(uint16_t(data[15] << 8) | uint16_t(data[16]));
+      const float measurement_sequence_number = float(encode_uint16(data[15], data[16]));
 
       result.temperature = data[0] == 0x7F && data[1] == 0xFF ? NAN : temperature;
       result.humidity = data[2] == 0xFF && data[3] == 0xFF ? NAN : humidity;

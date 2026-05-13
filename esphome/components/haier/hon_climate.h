@@ -188,6 +188,7 @@ class HonClimate : public HaierClimateBase {
   float active_alarm_count_{NAN};
   std::chrono::steady_clock::time_point last_alarm_request_;
   int big_data_sensors_{0};
+  uint8_t big_data_counter_{0};
   esphome::optional<hon_protocol::VerticalSwingMode> current_vertical_swing_{};
   esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
   HonSettings settings_{};

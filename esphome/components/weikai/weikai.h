@@ -380,7 +380,7 @@ class WeikaiChannel : public uart::UARTComponent {
   /// @details If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission of outgoing serial data
   /// to complete. (Prior to Arduino 1.0, this the method was removing any buffered incoming serial data.). ** Therefore
   /// we wait until all bytes are gone with a timeout of 100 ms
-  void flush() override;
+  uart::FlushResult flush() override;
 
  protected:
   friend class WeikaiComponent;

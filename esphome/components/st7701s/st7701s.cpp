@@ -36,11 +36,13 @@ void ST7701S::setup() {
   config.de_gpio_num = this->de_pin_->get_pin();
   config.pclk_gpio_num = this->pclk_pin_->get_pin();
   esp_err_t err = esp_lcd_new_rgb_panel(&config, &this->handle_);
-  ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
-  ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
   if (err != ESP_OK) {
     esph_log_e(TAG, "lcd_new_rgb_panel failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
   }
+  ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
+  ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
 }
 
 void ST7701S::loop() {

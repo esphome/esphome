@@ -492,6 +492,11 @@ bool USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
     ESP_LOGE(TAG, "Too many requests queued");
     return false;
   }
+  if (length > trq->transfer->data_buffer_size) {
+    ESP_LOGE(TAG, "transfer_in: data length %u exceeds buffer size %u", length, trq->transfer->data_buffer_size);
+    this->release_trq(trq);
+    return false;
+  }
   trq->callback = callback;
   trq->transfer->callback = transfer_callback;
   trq->transfer->bEndpointAddress = ep_address | USB_DIR_IN;

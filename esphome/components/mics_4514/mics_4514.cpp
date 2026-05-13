@@ -59,6 +59,12 @@ void MICS4514Component::update() {
     return;
   }
 
+  if (this->red_calibration_ == 0 || this->ox_calibration_ == 0) {
+    ESP_LOGW(TAG, "Calibration values are zero, retrying");
+    this->status_set_warning();
+    this->initial_ = true;
+    return;
+  }
   float red_f = (float) (power - red) / this->red_calibration_;
   float ox_f = (float) (power - ox) / this->ox_calibration_;
 

@@ -71,6 +71,11 @@ class ComponentManifest:
 
     @property
     def to_code(self) -> Callable[[Any], None] | None:
+        if CORE.cpp_testing:
+            # During C++ testing, only run to_code for allowlisted components
+            name = self.module.__package__.rsplit(".", 1)[-1]
+            if name not in CORE.cpp_testing_codegen:
+                return None
         return getattr(self.module, "to_code", None)
 
     @property

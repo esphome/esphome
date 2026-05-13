@@ -168,7 +168,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint32_t presence_millis_ = 0;
   uint32_t still_presence_millis_ = 0;
   uint32_t moving_presence_millis_ = 0;
-  uint16_t timeout_ = 5;
+  uint32_t timeout_ = 5;
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   uint8_t mac_address_[6] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};

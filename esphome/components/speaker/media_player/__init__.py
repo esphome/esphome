@@ -505,6 +505,7 @@ async def to_code(config):
         },
         key=CONF_MEDIA_FILE,
     ),
+    synchronous=True,
 )
 async def play_on_device_media_media_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

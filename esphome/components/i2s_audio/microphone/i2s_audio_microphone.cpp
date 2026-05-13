@@ -281,7 +281,7 @@ bool I2SAudioMicrophone::start_driver_() {
   }
 
   /* Before reading data, start the RX channel first */
-  i2s_channel_enable(this->rx_handle_);
+  err = i2s_channel_enable(this->rx_handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Enabling failed: %s", esp_err_to_name(err));
     return false;
@@ -454,13 +454,14 @@ size_t I2SAudioMicrophone::read_(uint8_t *buf, size_t len, TickType_t ticks_to_w
   }
   this->status_clear_warning();
 #if defined(USE_ESP32_VARIANT_ESP32) and not defined(USE_I2S_LEGACY)
-  // For ESP32 8/16 bit standard mono mode samples need to be switched.
-  if (this->slot_mode_ == I2S_SLOT_MODE_MONO && this->slot_bit_width_ <= 16 && !this->pdm_) {
-    size_t samples_read = bytes_read / sizeof(int16_t);
-    for (int i = 0; i < samples_read; i += 2) {
-      int16_t tmp = buf[i];
-      buf[i] = buf[i + 1];
-      buf[i + 1] = tmp;
+  // For ESP32 16-bit standard mono mode, adjacent samples need to be swapped.
+  if (this->slot_mode_ == I2S_SLOT_MODE_MONO && this->slot_bit_width_ == I2S_SLOT_BIT_WIDTH_16BIT && !this->pdm_) {
+    int16_t *samples = reinterpret_cast<int16_t *>(buf);
+    size_t sample_count = bytes_read / sizeof(int16_t);
+    for (size_t i = 0; i + 1 < sample_count; i += 2) {
+      int16_t tmp = samples[i];
+      samples[i] = samples[i + 1];
+      samples[i + 1] = tmp;
     }
   }
 #endif

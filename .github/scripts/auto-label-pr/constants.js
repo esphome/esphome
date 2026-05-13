@@ -14,6 +14,7 @@ module.exports = {
     'chained-pr',
     'core',
     'small-pr',
+    'medium-pr',
     'dashboard',
     'github-actions',
     'by-code-owner',

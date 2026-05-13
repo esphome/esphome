@@ -187,6 +187,7 @@ async def to_code(config):
             ),
         }
     ),
+    synchronous=True,
 )
 async def datetime_date_set_to_code(config, action_id, template_arg, args):
     action_var = cg.new_Pvariable(action_id, template_arg)
@@ -218,6 +219,7 @@ async def datetime_date_set_to_code(config, action_id, template_arg, args):
             ),
         }
     ),
+    synchronous=True,
 )
 async def datetime_time_set_to_code(config, action_id, template_arg, args):
     action_var = cg.new_Pvariable(action_id, template_arg)
@@ -249,6 +251,7 @@ async def datetime_time_set_to_code(config, action_id, template_arg, args):
             ),
         },
     ),
+    synchronous=True,
 )
 async def datetime_datetime_set_to_code(config, action_id, template_arg, args):
     action_var = cg.new_Pvariable(action_id, template_arg)

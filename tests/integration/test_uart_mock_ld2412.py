@@ -14,6 +14,12 @@ test_uart_mock_ld2412_engineering (engineering mode):
   2. Multi-byte still distance (291cm) using high byte > 0
   3. Gate energy sensor values
   4. Detection distance computed from target state
+
+test_uart_mock_ld2412_engineering_truncated (truncated engineering mode):
+  1. Valid engineering frame establishes baseline sensor values
+  2. Truncated engineering frame (24 bytes) is rejected — gate/light sensors
+     must not receive garbage from stale buffer data or frame footer bytes
+  3. Recovery frame with different values proves the component survived
 """
 
 from __future__ import annotations
@@ -273,3 +279,122 @@ async def test_uart_mock_ld2412_engineering(
             )
 
         assert pytest.approx(291.0) in collector.sensor_states["detection_distance"]
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_ld2412_engineering_truncated(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that truncated engineering mode frames don't corrupt sensor values.
+
+    Without the fix, a 24-byte engineering mode frame passes the old buffer_pos_ >= 12
+    check but reads indices 17-45 from stale buffer data, publishing garbage values
+    (e.g. frame footer bytes 0xF8=248 as gate energy).
+    """
+    external_components_path = str(
+        Path(__file__).parent / "fixtures" / "external_components"
+    )
+    yaml_config = yaml_config.replace(
+        "EXTERNAL_COMPONENT_PATH", external_components_path
+    )
+
+    loop = asyncio.get_running_loop()
+
+    # Track the truncated frame warning
+    truncated_warning_seen = loop.create_future()
+
+    def line_callback(line: str) -> None:
+        if (
+            "Engineering mode packet too short" in line
+            and not truncated_warning_seen.done()
+        ):
+            truncated_warning_seen.set_result(True)
+
+    collector = SensorStateCollector(
+        sensor_names=[
+            "moving_distance",
+            "still_distance",
+            "moving_energy",
+            "still_energy",
+            "detection_distance",
+            "light",
+            "gate_0_move_energy",
+            "gate_0_still_energy",
+        ],
+        binary_sensor_names=[
+            "has_target",
+            "has_moving_target",
+            "has_still_target",
+        ],
+    )
+
+    # Signal when we see Phase 3 recovery values (gate_0_move=50)
+    recovery_received = collector.add_waiter(
+        lambda: pytest.approx(50.0) in collector.sensor_states["gate_0_move_energy"]
+    )
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+        collector.build_key_mapping(entities)
+
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(
+            initial_state_helper.on_state_wrapper(collector.on_state)
+        )
+
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
+
+        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
+        assert start_btn is not None, "Start Scenario button not found"
+        client.button_command(start_btn.key)
+
+        # Wait for Phase 1 — valid engineering frame establishes baseline
+        try:
+            await collector.wait_for_all(timeout=3.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for Phase 1 frame. Received:\n"
+                f"  sensor_states: {collector.sensor_states}\n"
+                f"  binary_states: {collector.binary_states}"
+            )
+
+        # Phase 1 baseline: gate_0_move=100, light=87
+        assert collector.sensor_states["gate_0_move_energy"][0] == pytest.approx(100.0)
+        assert collector.sensor_states["light"][0] == pytest.approx(87.0)
+
+        # Wait for Phase 3 recovery frame (gate_0_move=50)
+        try:
+            await asyncio.wait_for(recovery_received, timeout=3.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for recovery frame. Received:\n"
+                f"  gate_0_move_energy: {collector.sensor_states['gate_0_move_energy']}\n"
+                f"  light: {collector.sensor_states['light']}"
+            )
+
+        # Verify the truncated frame warning was logged
+        assert truncated_warning_seen.done(), (
+            "Expected 'Engineering mode packet too short' warning in logs"
+        )
+
+        # Phase 3 recovery: gate_0_move=50, light=42
+        assert pytest.approx(50.0) in collector.sensor_states["gate_0_move_energy"]
+        assert pytest.approx(42.0) in collector.sensor_states["light"]
+
+        # The critical assertion: gate_0_move_energy must never have received
+        # garbage values from the truncated frame. Without the fix,
+        # buffer_data_[17] = 0xFF = 255 would be published as gate_0_move.
+        for value in collector.sensor_states["gate_0_move_energy"]:
+            assert value == pytest.approx(100.0) or value == pytest.approx(50.0), (
+                f"gate_0_move_energy got unexpected value {value} — "
+                f"truncated frame likely leaked stale buffer data. "
+                f"All values: {collector.sensor_states['gate_0_move_energy']}"
+            )

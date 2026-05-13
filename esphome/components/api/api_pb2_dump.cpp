@@ -789,6 +789,22 @@ template<> const char *proto_enum_to_string<enums::SerialProxyRequestType>(enums
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::SerialProxyStatus>(enums::SerialProxyStatus value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_STATUS_OK:
+      return "SERIAL_PROXY_STATUS_OK";
+    case enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS:
+      return "SERIAL_PROXY_STATUS_ASSUMED_SUCCESS";
+    case enums::SERIAL_PROXY_STATUS_ERROR:
+      return "SERIAL_PROXY_STATUS_ERROR";
+    case enums::SERIAL_PROXY_STATUS_TIMEOUT:
+      return "SERIAL_PROXY_STATUS_TIMEOUT";
+    case enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED:
+      return "SERIAL_PROXY_STATUS_NOT_SUPPORTED";
+    default:
+      return "UNKNOWN";
+  }
+}
 #endif
 
 const char *HelloRequest::dump_to(DumpBuffer &out) const {
@@ -2607,6 +2623,14 @@ const char *SerialProxyRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SerialProxyRequest");
   dump_field(out, "instance", this->instance);
   dump_field(out, "type", static_cast<enums::SerialProxyRequestType>(this->type));
+  return out.c_str();
+}
+const char *SerialProxyRequestResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyRequestResponse");
+  dump_field(out, "instance", this->instance);
+  dump_field(out, "type", static_cast<enums::SerialProxyRequestType>(this->type));
+  dump_field(out, "status", static_cast<enums::SerialProxyStatus>(this->status));
+  dump_field(out, "error_message", this->error_message);
   return out.c_str();
 }
 #endif

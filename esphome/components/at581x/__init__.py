@@ -89,6 +89,7 @@ AT581XSettingsAction = at581x_ns.class_("AT581XSettingsAction", automation.Actio
             cv.Required(CONF_ID): cv.use_id(AT581XComponent),
         }
     ),
+    synchronous=True,
 )
 async def at581x_reset_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -160,6 +161,7 @@ RADAR_SETTINGS_SCHEMA = cv.Schema(
     "at581x.settings",
     AT581XSettingsAction,
     RADAR_SETTINGS_SCHEMA,
+    synchronous=True,
 )
 async def at581x_settings_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

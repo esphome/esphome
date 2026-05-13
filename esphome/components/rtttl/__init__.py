@@ -117,6 +117,7 @@ async def to_code(config):
         },
         key=CONF_RTTTL,
     ),
+    synchronous=True,
 )
 async def rtttl_play_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -134,6 +135,7 @@ async def rtttl_play_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(Rtttl),
         }
     ),
+    synchronous=True,
 )
 async def rtttl_stop_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

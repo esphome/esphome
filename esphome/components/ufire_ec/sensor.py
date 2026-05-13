@@ -97,6 +97,7 @@ UFIRE_EC_CALIBRATE_PROBE_SCHEMA = cv.Schema(
     "ufire_ec.calibrate_probe",
     UFireECCalibrateProbeAction,
     UFIRE_EC_CALIBRATE_PROBE_SCHEMA,
+    synchronous=True,
 )
 async def ufire_ec_calibrate_probe_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -119,6 +120,7 @@ UFIRE_EC_RESET_SCHEMA = cv.Schema(
     "ufire_ec.reset",
     UFireECResetAction,
     UFIRE_EC_RESET_SCHEMA,
+    synchronous=True,
 )
 async def ufire_ec_reset_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

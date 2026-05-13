@@ -214,7 +214,7 @@ class EthernetComponent : public Component {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
 
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 #endif
 

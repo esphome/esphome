@@ -413,24 +413,29 @@ void LD2412Component::handle_periodic_data_() {
     this->detection_distance_sensor_->publish_state_if_not_dup(new_detect_distance);
   }
   if (engineering_mode) {
-    /*
-      Moving distance range: 18th byte
-      Still distance range: 19th byte
-      Moving energy: 20~28th bytes
-    */
-    for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-      SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i])
+    // Engineering mode needs at least LIGHT_SENSOR + 1 bytes
+    if (this->buffer_pos_ < LIGHT_SENSOR + 1) {
+      ESP_LOGW(TAG, "Engineering mode packet too short: %u", this->buffer_pos_);
+    } else {
+      /*
+        Moving distance range: 18th byte
+        Still distance range: 19th byte
+        Moving energy: 20~28th bytes
+      */
+      for (uint8_t i = 0; i < TOTAL_GATES; i++) {
+        SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i])
+      }
+      /*
+        Still energy: 29~37th bytes
+      */
+      for (uint8_t i = 0; i < TOTAL_GATES; i++) {
+        SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i])
+      }
+      /*
+        Light sensor value
+      */
+      SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR])
     }
-    /*
-      Still energy: 29~37th bytes
-    */
-    for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-      SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i])
-    }
-    /*
-      Light sensor: 38th bytes
-    */
-    SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR])
   } else {
     for (auto &gate_move_sensor : this->gate_move_sensors_) {
       SAFE_PUBLISH_SENSOR_UNKNOWN(gate_move_sensor)

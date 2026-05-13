@@ -514,6 +514,11 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint8_t len) {
       continue;  // Possible zero padded advertisement data
     }
 
+    // Validate field fits in remaining payload
+    if (offset + field_length > len) {
+      break;
+    }
+
     // first byte of adv record is adv record type
     const uint8_t record_type = payload[offset++];
     const uint8_t *record = &payload[offset];
@@ -544,7 +549,7 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint8_t len) {
         // CSS 1.5 TX POWER LEVEL
         // "The TX Power Level data type indicates the transmitted power level of the packet containing the data type."
         // CSS 1: Optional in this context (may appear more than once in a block).
-        this->tx_powers_.push_back(*payload);
+        this->tx_powers_.push_back(*record);
         break;
       }
       case ESP_BLE_AD_TYPE_APPEARANCE: {

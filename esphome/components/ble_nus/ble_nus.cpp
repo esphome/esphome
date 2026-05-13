@@ -71,7 +71,10 @@ bool BLENUS::read_array(uint8_t *data, size_t len) {
     this->has_peek_ = false;
     data++;
     if (--len == 0) {  // Decrement len first, then check it...
-      return true;     // No more to read
+#ifdef USE_UART_DEBUGGER
+      this->debug_callback_.call(uart::UART_DIRECTION_RX, this->peek_buffer_);
+#endif
+      return true;  // No more to read
     }
   }
 
@@ -100,16 +103,17 @@ size_t BLENUS::available() {
 #endif
 }
 
-void BLENUS::flush() {
-  constexpr uint32_t timeout_5sec = 5000;
+uart::FlushResult BLENUS::flush() {
+  constexpr uint32_t timeout_500ms = 500;
   uint32_t start = millis();
   while (atomic_get(&this->tx_status_) != TX_DISABLED && !ring_buf_is_empty(&global_ble_tx_ring_buf)) {
-    if (millis() - start > timeout_5sec) {
+    if (millis() - start > timeout_500ms) {
       ESP_LOGW(TAG, "Flush timeout");
-      return;
+      return uart::FlushResult::TIMEOUT;
     }
     delay(1);
   }
+  return uart::FlushResult::SUCCESS;
 }
 
 void BLENUS::connected(bt_conn *conn, uint8_t err) {

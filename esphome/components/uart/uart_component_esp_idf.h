@@ -31,7 +31,9 @@ class IDFUARTComponent : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
 
   size_t available() override;
-  void flush() override;
+  FlushResult flush() override;
+
+  void set_flush_timeout(uint32_t flush_timeout_ms) override { this->flush_timeout_ms_ = flush_timeout_ms; }
 
   uint8_t get_hw_serial_number() { return this->uart_num_; }
 
@@ -57,6 +59,7 @@ class IDFUARTComponent : public UARTComponent, public Component {
 
   bool has_peek_{false};
   uint8_t peek_byte_;
+  uint32_t flush_timeout_ms_{0};  ///< 0 means wait indefinitely (portMAX_DELAY).
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   // ISR callback for UART RX data notification — wakes the main loop directly.

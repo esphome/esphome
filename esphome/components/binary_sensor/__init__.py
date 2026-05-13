@@ -685,6 +685,7 @@ async def to_code(config):
         },
         key=CONF_ID,
     ),
+    synchronous=True,
 )
 async def binary_sensor_invalidate_state_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
