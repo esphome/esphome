@@ -9,10 +9,9 @@
 #include "espnow_compat.h"
 #include "espnow_packet.h"
 
-#if defined(USE_ESP8266)
-#else
 #include "esphome/core/event_pool.h"
 
+#if !defined(USE_ESP8266)
 #include <esp_idf_version.h>
 #include <esp_mac.h>
 #endif
@@ -26,89 +25,9 @@
 
 namespace esphome::espnow {
 
-#if defined(USE_ESP8266)
-template<class T, uint8_t SIZE> class EventPool {
- public:
-  T *allocate() {
-    for (uint8_t i = 0; i < SIZE; i++) {
-      if (!this->used_[i]) {
-        this->used_[i] = true;
-        T *obj = &this->storage_[i];
-        // Reset the object to a default-constructed state to match heap semantics.
-        this->reset_object(obj);
-        return obj;
-      }
-    }
-    // Pool exhausted
-    return nullptr;
-  }
-
-  void release(T *event) {
-    if (event == nullptr)
-      return;
-    // Find the slot corresponding to this pointer and mark it as free again.
-    for (uint8_t i = 0; i < SIZE; i++) {
-      if (&this->storage_[i] == event) {
-        this->used_[i] = false;
-        break;
-      }
-    }
-  }
-
- protected:
-  static void reset_object(T *obj) {
-    obj->~T();
-    new (obj) T();
-  }
-
-  T storage_[SIZE];
-  bool used_[SIZE]{false};
-};
-
-template<class T, uint8_t SIZE> class EventQueue {
- public:
-  bool push(T *item) {
-    uint8_t next = (this->tail_ + 1) % SIZE;
-    if (next == this->head_) {
-      this->increment_dropped_count();
-      return false;
-    }
-    this->items_[this->tail_] = item;
-    this->tail_ = next;
-    return true;
-  }
-
-  T *pop() {
-    if (this->head_ == this->tail_) {
-      return nullptr;
-    }
-    T *item = this->items_[this->head_];
-    this->head_ = (this->head_ + 1) % SIZE;
-    return item;
-  }
-
-  void increment_dropped_count() { this->dropped_count_++; }
-
-  uint16_t get_and_reset_dropped_count() {
-    uint16_t count = this->dropped_count_;
-    this->dropped_count_ = 0;
-    return count;
-  }
-
- protected:
-  T *items_[SIZE]{nullptr};
-  uint8_t head_{0};
-  uint8_t tail_{0};
-  uint16_t dropped_count_{0};
-};
-
-template<class T, uint8_t SIZE> using PacketQueue = EventQueue<T, SIZE>;
-#else
 template<class T, uint8_t SIZE> using PacketQueue = LockFreeQueue<T, SIZE>;
-#endif
 
-// Maximum size of the ESPNow event queue.
-// Note: When PacketQueue aliases LockFreeQueue (e.g. on ESP32), the size must be a power of 2.
+// Maximum size of the ESPNow event queue (must be a power of 2).
 static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 16;
 static constexpr size_t MAX_ESP_NOW_RECEIVE_QUEUE_SIZE = 16;
 

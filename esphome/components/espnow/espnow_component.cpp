@@ -10,8 +10,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#if defined(USE_ESP8266)
-#else
+#if defined(USE_ESP32)
 #include <esp_event.h>
 #include <esp_mac.h>
 #include <esp_netif.h>
@@ -77,8 +76,7 @@ static const LogString *espnow_error_to_str(espnow_err_t error) {
       return LOG_STR("Out of memory");
     case ESPNOW_OK:
       return LOG_STR("OK");
-#if defined(USE_ESP8266)
-#else
+#if defined(USE_ESP32)
     case ESP_ERR_ESPNOW_ARG:
       return LOG_STR("Invalid argument");
     case ESP_ERR_ESPNOW_INTERNAL:
@@ -195,8 +193,7 @@ ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
 
 void ESPNowComponent::dump_config() {
   uint32_t version = 0;
-#if defined(USE_ESP8266)
-#else
+#if !defined(USE_ESP8266)
   esp_now_get_version(&version);
 #endif
 
@@ -226,8 +223,7 @@ bool ESPNowComponent::is_wifi_enabled() {
 }
 
 void ESPNowComponent::setup() {
-#if defined(USE_ESP8266)
-#else
+#if !defined(USE_ESP8266)
 #ifndef USE_WIFI
   // Initialize LwIP stack for wake_loop_threadsafe() socket support
   // When WiFi component is present, it handles esp_netif_init()
@@ -310,8 +306,7 @@ void ESPNowComponent::enable_() {
 #endif
 
 #ifdef USE_DEEP_SLEEP
-#if defined(USE_ESP8266)
-#else
+#if !defined(USE_ESP8266)
   esp_now_set_wake_window(CONFIG_ESPNOW_WAKE_WINDOW);
   esp_wifi_connectionless_module_set_wake_interval(CONFIG_ESPNOW_WAKE_INTERVAL);
 #endif
