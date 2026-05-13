@@ -12,13 +12,9 @@ from esphome.writer import update_storage_json
 def get_available_components() -> list[str] | None:
     """Get list of built-in ESP-IDF components from project_description.json.
 
-    Excludes our ``src`` component, IDF-managed components (from
-    ``idf_component.yml``, under ``managed_components/``), and PIO
-    libraries we converted into IDF components (under
-    ``pio_components/``). Returns ``None`` whenever the list isn't
-    available yet -- either because the build dir hasn't been set up
-    (``CORE.build_path is None``) or because IDF's discovery pass hasn't
-    run yet (``project_description.json`` doesn't exist).
+    Excludes ``src``, IDF-managed components (``managed_components/``), and
+    converted PIO libs (``pio_components/``). Returns ``None`` if the build
+    dir or ``project_description.json`` isn't ready yet.
     """
     if CORE.build_path is None:
         return None
@@ -38,9 +34,7 @@ def get_available_components() -> list[str] | None:
             if name == "src":
                 continue
 
-            # Exclude external components: IDF-managed (managed_components/)
-            # and PIO libraries we converted to IDF components
-            # (pio_components/ -- see esphome.espidf.component.DOMAIN).
+            # Exclude IDF-managed and converted-PIO components (external).
             comp_dir = info.get("dir", "")
             if "managed_components" in comp_dir or "pio_components" in comp_dir:
                 continue
@@ -60,11 +54,8 @@ def has_discovered_components() -> bool:
 def get_project_cmakelists(minimal: bool = False) -> str:
     """Generate the top-level CMakeLists.txt for ESP-IDF project.
 
-    When ``minimal`` is true, omit ``__COMPONENT_REQUIRES_COMMON`` -- the
-    component list comes from ``project_description.json`` which may be
-    stale on the first write (from a previous build), and reading it then
-    can inject components the current project doesn't actually pull in.
-    The post-reconfigure write reads the fresh manifest.
+    When ``minimal`` is true, omit ``__COMPONENT_REQUIRES_COMMON`` since
+    ``project_description.json`` may be stale on the first write.
     """
     # Get IDF target from ESP32 variant (e.g., ESP32S3 -> esp32s3)
     variant = get_esp32_variant()
@@ -88,12 +79,9 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         for flag in project_compile_opts
     )
 
-    # Project-managed IDF components (registered via the esp32 component's
-    # ``add_idf_component``) are exposed to converted PIO libraries via a
-    # CMake variable rather than per-lib REQUIRES so the lib's CMakeLists
-    # in ``pio_components/`` stays project-agnostic and shareable across
-    # builds. Each lib references ``${ESPHOME_PROJECT_MANAGED_COMPONENTS}``
-    # which expands to this project's list at configure time.
+    # Per-project list exposed as a CMake variable so converted PIO libs
+    # can reference ${ESPHOME_PROJECT_MANAGED_COMPONENTS} without baking
+    # project-specific names into their cached CMakeLists.
     from esphome.components.esp32 import KEY_COMPONENTS, KEY_ESP32
 
     esp32_data = CORE.data.get(KEY_ESP32, {})
@@ -104,11 +92,9 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         f"set(ESPHOME_PROJECT_MANAGED_COMPONENTS {' '.join(managed_names)})"
     )
 
-    # Inject built-in IDF components into ``__COMPONENT_REQUIRES_COMMON`` so
-    # every component sees them in its include path (mirrors PlatformIO's
-    # global header visibility). Only emitted post-discovery (``minimal=False``):
-    # the list comes from ``project_description.json`` which may be stale
-    # on the first write from a previous build.
+    # Built-ins propagate to every component via __COMPONENT_REQUIRES_COMMON
+    # (mirrors PIO's global header visibility). Skipped on minimal writes
+    # because project_description.json may be stale from a previous build.
     common_requires = (
         ""
         if minimal
@@ -166,9 +152,9 @@ add_custom_command(
 def get_component_cmakelists() -> str:
     """Generate the main component CMakeLists.txt.
 
-    No ``REQUIRES`` here -- every component (including src) gets the full
-    discovered IDF component list appended via ``__COMPONENT_REQUIRES_COMMON``
-    set by ``get_project_cmakelists`` in the top-level CMakeLists.
+    REQUIRES is empty: every component (including src) inherits the
+    discovered IDF component list via __COMPONENT_REQUIRES_COMMON set
+    in the top-level CMakeLists.
     """
     # Extract linker options (-Wl, flags). Compile flags (-D, -W) are
     # emitted project-wide via idf_build_set_property in

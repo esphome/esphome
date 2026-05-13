@@ -509,14 +509,13 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
         component.path / Path(build_src_dir), build_src_filter
     )
 
-    # Lib-declared dependencies (from library.json's ``dependencies``).
+    # Only bake library.json-declared deps here. Project-managed and
+    # built-in components come in via the top-level CMakeLists (CMake
+    # variable / __COMPONENT_REQUIRES_COMMON) so this file stays
+    # project-agnostic when shared from the pio_components cache.
     requires: set[str] = {
         dependency.get_require_name() for dependency in component.dependencies
     }
-    # Project-managed IDF components and built-in components are injected
-    # via CMake variables in the top-level CMakeLists -- not baked here --
-    # because this CMakeLists is cached under pio_components/<hash>/ and
-    # shared across projects. See build_gen.espidf.get_project_cmakelists.
 
     # Only keep sources
     build_src_files = [os.path.relpath(p, component.path) for p in build_src_files]
@@ -555,11 +554,8 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     if build_include_dirs:
         str_include_dirs = " ".join([escape_entry(p) for p in build_include_dirs])
         content += f"  INCLUDE_DIRS {str_include_dirs}\n"
-    # Always emit REQUIRES with ``${ESPHOME_PROJECT_MANAGED_COMPONENTS}``
-    # so the project-managed components are picked up at configure time
-    # from the per-project top-level CMakeLists. Lib-specific requires
-    # (detected includes + lib-declared deps) come first; the variable
-    # expands to whatever the current project registered.
+    # ${ESPHOME_PROJECT_MANAGED_COMPONENTS} is set per-project in the
+    # top-level CMakeLists; expanded here at configure time.
     str_requires = " ".join(
         [*sorted(requires), "${ESPHOME_PROJECT_MANAGED_COMPONENTS}"]
     )
@@ -807,12 +803,9 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
     cmakelists_txt_path = component.path / "CMakeLists.txt"
     idf_component_yml_path = component.path / "idf_component.yml"
 
-    # Bundled CMakeLists.txt / idf_component.yml shipped by the library are
-    # ignored: we always regenerate from library.json + library.properties.
-    # Library authors' attempts at IDF support are frequently broken
-    # (bogus REQUIRES, hard-coded arduino-esp32, etc.) and ESPHome's
-    # converter already produces correct REQUIRES via project-managed
-    # components and ``_detect_requires``.
+    # Bundled CMakeLists.txt / idf_component.yml are ignored -- library
+    # authors' IDF support is frequently broken (bogus REQUIRES, hard-coded
+    # arduino-esp32, etc.). We always regenerate.
 
     if library_json_path.is_file():
         component.data = _parse_library_json(library_json_path)
@@ -837,10 +830,6 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
     # Handle the dependencies (convert PlatformIO library to ESP-IDF component if needed)
     _process_dependencies(component)
 
-    # Generate files. The CMakeLists is written once -- built-in IDF
-    # components are added globally via ``__COMPONENT_REQUIRES_COMMON``
-    # in the top-level CMakeLists once IDF's discovery pass has run, so
-    # we don't need to regenerate per-component CMakeLists after discovery.
     _LOGGER.debug("Generating CMakeLists.txt for %s@%s  ...", name, version)
     write_file_if_changed(
         cmakelists_txt_path,
