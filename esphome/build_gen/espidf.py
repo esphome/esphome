@@ -54,11 +54,22 @@ def get_project_cmakelists() -> str:
     variant = get_esp32_variant()
     idf_target = variant.lower().replace("-", "")
 
-    # Extract compile definitions from build flags (-DXXX -> XXX)
-    compile_defs = [flag for flag in sorted(CORE.build_flags) if flag.startswith("-D")]
+    # Project-wide compile options: -D defines and -W warning flags (skip
+    # -Wl, linker flags — those go on the src component via
+    # target_link_options below). Emitted via idf_build_set_property so the
+    # flags propagate to every IDF component (including managed ones like
+    # esphome__micro-mp3) rather than just src/. Required so suppressions
+    # like ``-Wno-error=maybe-uninitialized`` actually silence warnings in
+    # third-party components we don't author.
+    project_compile_opts = [
+        flag
+        for flag in sorted(CORE.build_flags)
+        if flag.startswith("-D")
+        or (flag.startswith("-W") and not flag.startswith("-Wl,"))
+    ]
     extra_compile_options = "\n".join(
-        f'idf_build_set_property(COMPILE_OPTIONS "{compile_def}" APPEND)'
-        for compile_def in compile_defs
+        f'idf_build_set_property(COMPILE_OPTIONS "{flag}" APPEND)'
+        for flag in project_compile_opts
     )
 
     return f"""\
@@ -107,15 +118,9 @@ def get_component_cmakelists(minimal: bool = False) -> str:
     idf_requires = [] if minimal else (get_available_components() or [])
     requires_str = " ".join(idf_requires)
 
-    # Extract compile options (-W flags, excluding linker flags)
-    compile_opts = [
-        flag
-        for flag in CORE.build_flags
-        if flag.startswith("-W") and not flag.startswith("-Wl,")
-    ]
-    compile_opts_str = "\n    ".join(sorted(compile_opts)) if compile_opts else ""
-
-    # Extract linker options (-Wl, flags)
+    # Extract linker options (-Wl, flags). Compile flags (-D, -W) are
+    # emitted project-wide via idf_build_set_property in
+    # get_project_cmakelists so they reach every component, not just src/.
     link_opts = [flag for flag in CORE.build_flags if flag.startswith("-Wl,")]
     link_opts_str = "\n    ".join(sorted(link_opts)) if link_opts else ""
 
@@ -136,11 +141,6 @@ idf_component_register(
 
 # Apply C++ standard
 target_compile_features(${{COMPONENT_LIB}} PUBLIC cxx_std_20)
-
-# ESPHome compile options
-target_compile_options(${{COMPONENT_LIB}} PUBLIC
-    {compile_opts_str}
-)
 
 # ESPHome linker options
 target_link_options(${{COMPONENT_LIB}} PUBLIC
