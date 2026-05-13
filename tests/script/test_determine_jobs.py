@@ -2215,3 +2215,230 @@ def test_should_run_benchmarks_with_branch() -> None:
         mock_changed.return_value = []
         determine_jobs.should_run_benchmarks("release")
         mock_changed.assert_called_with("release")
+
+
+# ---------------------------------------------------------------------------
+# _component_change_is_validate_only
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("component", "changed", "expected"),
+    [
+        # Only a base validate file changed.
+        (
+            "foo",
+            ["tests/components/foo/validate.esp32-idf.yaml"],
+            True,
+        ),
+        # Only a validate variant changed.
+        (
+            "foo",
+            ["tests/components/foo/validate-legacy.esp32-idf.yaml"],
+            True,
+        ),
+        # Multiple validate files (all validate).
+        (
+            "foo",
+            [
+                "tests/components/foo/validate.esp32-idf.yaml",
+                "tests/components/foo/validate-legacy.esp32-idf.yaml",
+            ],
+            True,
+        ),
+        # Mixed: validate + regular test must NOT be classified as validate-only.
+        (
+            "foo",
+            [
+                "tests/components/foo/validate.esp32-idf.yaml",
+                "tests/components/foo/test.esp32-idf.yaml",
+            ],
+            False,
+        ),
+        # Regular test only.
+        (
+            "foo",
+            ["tests/components/foo/test.esp32-idf.yaml"],
+            False,
+        ),
+        # Source change disqualifies even if a validate file is also touched.
+        (
+            "foo",
+            [
+                "esphome/components/foo/foo.cpp",
+                "tests/components/foo/validate.esp32-idf.yaml",
+            ],
+            False,
+        ),
+        # No matching files at all.
+        ("foo", ["esphome/core/helpers.cpp"], False),
+        # Filenames merely starting with "validate" but not following the
+        # grammar must not match (defensive against accidental classification).
+        (
+            "foo",
+            ["tests/components/foo/validatesomething.yaml"],
+            False,
+        ),
+        # An unrelated component's validate change doesn't affect this one.
+        (
+            "foo",
+            ["tests/components/bar/validate.esp32-idf.yaml"],
+            False,
+        ),
+        # common.yaml change in the component dir disqualifies.
+        (
+            "foo",
+            [
+                "tests/components/foo/common.yaml",
+                "tests/components/foo/validate.esp32-idf.yaml",
+            ],
+            False,
+        ),
+    ],
+)
+def test_component_change_is_validate_only(
+    component: str, changed: list[str], expected: bool
+) -> None:
+    """The validate-only classifier rejects anything beyond validate.* edits."""
+    assert (
+        determine_jobs._component_change_is_validate_only(component, changed)
+        is expected
+    )
+
+
+def test_main_emits_validate_only_components(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Directly-changed components whose only edits are validate.*.yaml are
+    listed in `validate_only_components` so CI can skip their compile stage.
+    """
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+
+    # foo: only validate file changed (qualifies)
+    # bar: test file changed (does not qualify)
+    mock_changed_files.return_value = [
+        "tests/components/foo/validate.esp32-idf.yaml",
+        "tests/components/bar/test.esp32-idf.yaml",
+    ]
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(
+            determine_jobs,
+            "get_changed_components",
+            return_value=["foo", "bar"],
+        ),
+        patch.object(
+            determine_jobs,
+            "filter_component_and_test_files",
+            side_effect=lambda f: f.startswith("tests/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            side_effect=lambda files, deps: ["foo", "bar"],
+        ),
+        patch.object(determine_jobs, "_component_has_tests", return_value=True),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs,
+            "create_intelligent_batches",
+            return_value=([["foo", "bar"]], {}),
+        ),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["validate_only_components"] == ["foo"]
+
+
+def test_main_validate_only_excludes_transitive_components(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A component pulled in only as a dependency must NOT be considered
+    validate-only, even if it has no source changes -- its dependency moved,
+    so the compile is still required.
+    """
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+
+    # Only foo's validate file changed directly. bar is a transitive dep.
+    mock_changed_files.return_value = [
+        "tests/components/foo/validate.esp32-idf.yaml",
+    ]
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(
+            determine_jobs,
+            "get_changed_components",
+            return_value=["foo", "bar"],  # bar pulled in via dependencies
+        ),
+        patch.object(
+            determine_jobs,
+            "filter_component_and_test_files",
+            side_effect=lambda f: f.startswith("tests/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            # deps=False -> directly_changed = [foo]; deps=True -> [foo, bar]
+            side_effect=lambda files, deps: ["foo", "bar"] if deps else ["foo"],
+        ),
+        patch.object(determine_jobs, "_component_has_tests", return_value=True),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs,
+            "create_intelligent_batches",
+            return_value=([["foo", "bar"]], {}),
+        ),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+    # Only foo (directly changed, validate-only). bar is a transitive dep
+    # and still needs compile despite no source change of its own.
+    assert output["validate_only_components"] == ["foo"]

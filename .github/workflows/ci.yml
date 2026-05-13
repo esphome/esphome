@@ -261,6 +261,7 @@ jobs:
       cpp-unit-tests-run-all: ${{ steps.determine.outputs.cpp-unit-tests-run-all }}
       cpp-unit-tests-components: ${{ steps.determine.outputs.cpp-unit-tests-components }}
       component-test-batches: ${{ steps.determine.outputs.component-test-batches }}
+      validate-only-components: ${{ steps.determine.outputs.validate-only-components }}
       benchmarks: ${{ steps.determine.outputs.benchmarks }}
     steps:
       - name: Check out code from GitHub
@@ -305,6 +306,7 @@ jobs:
           echo "cpp-unit-tests-run-all=$(echo "$output" | jq -r '.cpp_unit_tests_run_all')" >> $GITHUB_OUTPUT
           echo "cpp-unit-tests-components=$(echo "$output" | jq -c '.cpp_unit_tests_components')" >> $GITHUB_OUTPUT
           echo "component-test-batches=$(echo "$output" | jq -c '.component_test_batches')" >> $GITHUB_OUTPUT
+          echo "validate-only-components=$(echo "$output" | jq -c '.validate_only_components')" >> $GITHUB_OUTPUT
           echo "benchmarks=$(echo "$output" | jq -r '.benchmarks')" >> $GITHUB_OUTPUT
       - name: Save components graph cache
         if: github.ref == 'refs/heads/dev'
@@ -775,13 +777,45 @@ jobs:
           echo "Config validation passed! Starting compilation..."
           echo ""
 
+          # Compute the compile-stage component list. Components whose only
+          # changes are validate.*.yaml files are config-only -- their source
+          # and test fixtures didn't move, so rebuilding firmware adds no
+          # signal. Subtract them from this batch before invoking compile.
+          validate_only_json='${{ needs.determine-jobs.outputs.validate-only-components }}'
+          if [ -z "$validate_only_json" ]; then
+            validate_only_json='[]'
+          fi
+          if ! validate_only_csv=$(echo "$validate_only_json" | jq -r 'join(",")'); then
+            echo "::error::Failed to render validate-only-components as CSV from: $validate_only_json"
+            exit 1
+          fi
+          if [ -z "$validate_only_csv" ]; then
+            compile_csv="$components_csv"
+          else
+            components_sorted=$(echo "$components_csv" | tr ',' '\n' | sort -u)
+            validate_sorted=$(echo "$validate_only_csv" | tr ',' '\n' | sort -u)
+            if ! diff_out=$(comm -23 <(echo "$components_sorted") <(echo "$validate_sorted")); then
+              echo "::error::Failed to compute compile component subset."
+              exit 1
+            fi
+            compile_csv=$(echo "$diff_out" | paste -sd ',' -)
+            skipped=$(comm -12 <(echo "$components_sorted") <(echo "$validate_sorted") | paste -sd ',' -)
+            if [ -n "$skipped" ]; then
+              echo "Validate-only components in this batch (skipping compile): $skipped"
+            fi
+          fi
+
           # Show disk space before compilation
           echo "Disk space before compilation:"
           df -h
           echo ""
 
-          # Run compilation with grouping and isolation
-          python3 script/test_build_components.py -e compile -c "$components_csv" -f --isolate "$directly_changed_csv"
+          if [ -n "$compile_csv" ]; then
+            # Run compilation with grouping and isolation
+            python3 script/test_build_components.py -e compile -c "$compile_csv" -f --isolate "$directly_changed_csv"
+          else
+            echo "All components in this batch are validate-only -- skipping compile stage."
+          fi
 
   test-native-idf:
     name: Test components with native ESP-IDF
