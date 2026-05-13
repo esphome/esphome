@@ -23,10 +23,8 @@ from esphome.components.zephyr import (
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     CONF_CDC_ACM,
-    CONF_NATIVE_BUILD,
     KEY_BOARD,
     KEY_BOOTLOADER,
-    KEY_NATIVE_BUILD,
     KEY_ZEPHYR,
     CdcAcm,
 )
@@ -100,6 +98,8 @@ FAKE_BOARD_MANIFEST = """
 }
 """
 
+CONF_SECOND_BOOTLOADER = "second_bootloader"
+
 
 def set_core_data(config: ConfigType) -> ConfigType:
     # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
@@ -113,7 +113,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
         sections = BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]]
         zephyr_add_pm_static(sections)
 
-        if config[CONF_SECOND_BOOTLOADER]:
+        if CONF_SECOND_BOOTLOADER in config and config[CONF_SECOND_BOOTLOADER]:
             # Derive partition addresses from the SoftDevice and bootloader sections so
             # that the DTS flash map matches what the Partition Manager produces:
             #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1.
@@ -175,16 +175,6 @@ def set_core_data(config: ConfigType) -> ConfigType:
                 """,
                 "mcuboot",
             )
-    return config
-
-
-def _set_framework_defaults(config: ConfigType) -> ConfigType:
-    if CONF_VERSION not in config[CONF_FRAMEWORK]:
-        default_version = "2.9.2" if config[CONF_NATIVE_BUILD] else "2.6.1-a"
-        config = {
-            **config,
-            CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
-        }
     return config
 
 
@@ -295,7 +285,6 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_UICR_ERASE, default=False): cv.boolean,
                 }
             ),
-            cv.Optional(CONF_NATIVE_BUILD, default=False): cv.boolean,
             cv.Optional(CONF_SECOND_BOOTLOADER, default=False): cv.boolean,
             cv.Optional(
                 CONF_FRAMEWORK,
@@ -315,7 +304,6 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
         }
     ),
-    _set_framework_defaults,
     set_framework,
 )
 
@@ -710,43 +698,6 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
-def _build_env_dir(platform_config: ConfigType) -> Path:
-    """Root of the build environment directory (west build dir or PlatformIO env dir)."""
-    if platform_config[CONF_NATIVE_BUILD]:
-        return CORE.relative_build_path(
-            ".west_build_sysbuild"
-            if platform_config[CONF_SECOND_BOOTLOADER]
-            else ".west_build"
-        )
-    return CORE.relative_pioenvs_path(CORE.name)
-
-
-def _app_image_dir(platform_config: ConfigType) -> Path:
-    """Directory containing main application image artifacts (zephyr/, firmware.elf, ...).
-
-    With sysbuild, west creates per-image subdirectories named after the application
-    source directory basename; without sysbuild the artifacts sit at the build root.
-    """
-    build_dir = _build_env_dir(platform_config)
-    if platform_config[CONF_NATIVE_BUILD] and platform_config[CONF_SECOND_BOOTLOADER]:
-        return build_dir / CORE.build_path.name
-    return build_dir
-
-
-def _firmware_image_path(platform_config: ConfigType) -> Path:
-    app_dir = _app_image_dir(platform_config)
-    if platform_config[CONF_NATIVE_BUILD] and platform_config[CONF_SECOND_BOOTLOADER]:
-        return app_dir / "zephyr" / "zephyr.signed.bin"
-    return app_dir / "zephyr" / "app_update.bin"
-
-
-def _elf_path(platform_config: ConfigType) -> Path:
-    app_dir = _app_image_dir(platform_config)
-    if platform_config[CONF_NATIVE_BUILD]:
-        return app_dir / "zephyr" / "zephyr.elf"
-    return app_dir / "firmware.elf"
-
-
 def compile_program(args, config: ConfigType) -> bool:
     platform_config = config[CORE.target_platform]
     if not platform_config[CONF_NATIVE_BUILD]:
@@ -793,5 +744,5 @@ def compile_program(args, config: ConfigType) -> bool:
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         return False
-    check_and_install()
+    python_path, env = check_and_install()
     raise EsphomeError("Native build for nRF52 is not implemented yet")

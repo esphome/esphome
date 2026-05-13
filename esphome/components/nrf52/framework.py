@@ -41,11 +41,13 @@ def _get_toolchain_path(version: str) -> Path:
     return _get_tools_path() / "toolchains" / f"{version}"
 
 
-def check_and_install() -> None:
+def check_and_install() -> (Path, dict[str, str]):
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     version = f"v{framework_ver.major}.{framework_ver.minor}.{framework_ver.patch}"
     python_env_path = _get_python_env_path(version)
     env_python_path = _get_python_env_executable_path(python_env_path, "python")
+    framework_path = _get_framework_path(version)
+    west_env = {"ZEPHYR_BASE": str(framework_path)}
     sentinel = python_env_path / ".ready"
     install_venv = not sentinel.exists()
     if install_venv:
@@ -61,7 +63,6 @@ def check_and_install() -> None:
             raise EsphomeError(f"Upgrade {version} Python environment packages failure")
         sentinel.touch()
 
-    framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"
     if install_venv or not sentinel.exists():
         rmdir(framework_path, msg=f"Clean up {version} framework environment")
@@ -90,7 +91,7 @@ def check_and_install() -> None:
             "--narrow",
             "--fetch-opt=--depth=1",
         ]
-        if not _exec_ok(cmd, env={"ZEPHYR_BASE": str(framework_path)}):
+        if not _exec_ok(cmd, env=west_env):
             raise EsphomeError(f"Can't update nRF Connect SDK {version}")
         sentinel.touch()
 
@@ -126,3 +127,5 @@ def check_and_install() -> None:
             )
             archive_extract_all(tmp.file, toolchains_dir, progress_header="Extracting")
         sentinel.touch()
+
+    return (env_python_path, west_env)
