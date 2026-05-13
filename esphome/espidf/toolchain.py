@@ -302,10 +302,21 @@ def run_compile(config, verbose: bool) -> int:
             return rc
         _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
         write_project(minimal=False)
+        # The post-discovery rewrite leaves CMakeLists newer than
+        # CMakeCache.txt. CMake won't re-touch CMakeCache.txt on a
+        # configure that only changes idf_build_set_property values
+        # (those aren't cache variables), so has_outdated_files() would
+        # return True on every subsequent build, perpetually retriggering
+        # the two-pass. Touch CMakeCache.txt now so its mtime stays past
+        # the rewritten CMakeLists.
+        cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
+        if cmakecache.is_file():
+            os.utime(cmakecache)
         if CORE.testing_mode:
-            # Reconfigure again so cmake is up to date with the full component
-            # list. This ensures idf.py build won't re-run cmake, which would
-            # regenerate memory.ld and wipe the DRAM/IRAM patches applied below.
+            # Reconfigure again so cmake is up to date with the full
+            # component list before the build's idf.py invocation runs --
+            # idf.py build would otherwise re-run cmake and regenerate
+            # memory.ld, wiping the DRAM/IRAM patches applied below.
             rc = run_reconfigure()
             if rc != 0:
                 _LOGGER.error("Reconfigure with discovered components failed")
