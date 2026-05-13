@@ -121,7 +121,7 @@ def run_extra_script(
             },
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
-        _LOGGER.debug("PIO extra-script %s raised %s; skipping", script_path, e)
+        _LOGGER.warning("PIO extra-script %s raised %s; skipping", script_path, e)
         return ExtraScriptResult()
     finally:
         os.chdir(old_cwd)
