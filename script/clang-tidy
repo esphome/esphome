@@ -231,6 +231,9 @@ def main():
 
     cwd = os.getcwd()
     files = [os.path.relpath(path, cwd) for path in git_ls_files(["*.cpp"])]
+    # Exclude benchmark files — they require google benchmark headers not
+    # available in the ESP32 toolchain and use different naming conventions.
+    files = [f for f in files if not f.startswith("tests/benchmarks/")]
 
     # Print initial file count if it's large
     if len(files) > 50:
@@ -292,7 +295,7 @@ def main():
 
     failed_files = []
     try:
-        executable = get_binary("clang-tidy", 18)
+        executable = get_binary("clang-tidy", 22)
         task_queue = queue.Queue(args.jobs)
         lock = threading.Lock()
         for _ in range(args.jobs):
@@ -338,13 +341,13 @@ def main():
         try:
             try:
                 subprocess.call(
-                    ["clang-apply-replacements-18", tmpdir], close_fds=False
+                    ["clang-apply-replacements-22", tmpdir], close_fds=False
                 )
             except FileNotFoundError:
                 subprocess.call(["clang-apply-replacements", tmpdir], close_fds=False)
         except FileNotFoundError:
             print(
-                "Error please install clang-apply-replacements-18 or clang-apply-replacements.\n",
+                "Error please install clang-apply-replacements-22 or clang-apply-replacements.\n",
                 file=sys.stderr,
             )
         except:

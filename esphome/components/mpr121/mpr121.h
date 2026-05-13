@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace mpr121 {
+namespace esphome::mpr121 {
 
 enum {
   MPR121_TOUCHSTATUS_L = 0x00,
@@ -125,5 +124,4 @@ class MPR121GPIOPin : public GPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace mpr121
-}  // namespace esphome
+}  // namespace esphome::mpr121

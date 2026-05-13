@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include <string>
 
-namespace esphome {
-namespace bme680_bsec {
+namespace esphome::bme680_bsec {
 #ifdef USE_BSEC
 static const char *const TAG = "bme680_bsec.sensor";
 
@@ -521,7 +520,7 @@ int BME680BSECComponent::reinit_bsec_lib_() {
 }
 
 void BME680BSECComponent::load_state_() {
-  uint32_t hash = fnv1_hash("bme680_bsec_state_" + this->device_id_);
+  uint32_t hash = fnv1_hash_extend(fnv1_hash("bme680_bsec_state_"), this->device_id_);
   this->bsec_state_ = global_preferences->make_preference<uint8_t[BSEC_MAX_STATE_BLOB_SIZE]>(hash, true);
 
   if (!this->bsec_state_.load(&this->bsec_state_data_)) {
@@ -565,5 +564,4 @@ void BME680BSECComponent::save_state_(uint8_t accuracy) {
   ESP_LOGI(TAG, "Saved state");
 }
 #endif
-}  // namespace bme680_bsec
-}  // namespace esphome
+}  // namespace esphome::bme680_bsec

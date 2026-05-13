@@ -1,12 +1,12 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 
-#include <vector>
+#include <functional>
 
-namespace esphome {
-namespace combination {
+namespace esphome::combination {
 
 class CombinationComponent : public Component, public sensor::Sensor {
  public:
@@ -41,14 +41,21 @@ class CombinationNoParameterComponent : public CombinationComponent {
 // Base class for opertions that require one parameter to compute the combination
 class CombinationOneParameterComponent : public CombinationComponent {
  public:
-  void add_source(Sensor *sensor, std::function<float(float)> const &stddev);
-  void add_source(Sensor *sensor, float stddev);
+  void set_source_count(size_t count) { this->sensor_sources_.init(count); }
+  void add_source(Sensor *sensor, std::function<float(float)> const &compute);
+  void add_source(Sensor *sensor, float value);
 
-  /// @brief Logs all source sensor's names in sensor_pairs_
+  /// @brief Logs all source sensors' names in sensor_sources_
   void log_source_sensors() override;
 
  protected:
-  std::vector<std::pair<Sensor *, std::function<float(float)>>> sensor_pairs_;
+  struct SensorSource {
+    sensor::Sensor *sensor;
+    std::function<float(float)> compute;
+    CombinationOneParameterComponent *parent;
+  };
+
+  FixedVector<SensorSource> sensor_sources_;
 };
 
 class KalmanCombinationComponent : public CombinationOneParameterComponent {
@@ -135,5 +142,4 @@ class SumCombinationComponent : public CombinationNoParameterComponent {
   void handle_new_value(float value) override;
 };
 
-}  // namespace combination
-}  // namespace esphome
+}  // namespace esphome::combination

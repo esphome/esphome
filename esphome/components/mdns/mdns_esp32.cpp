@@ -37,7 +37,7 @@ static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_S
       txt_records.get()[i].key = MDNS_STR_ARG(record.key);
       txt_records.get()[i].value = MDNS_STR_ARG(record.value);
     }
-    uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
+    uint16_t port = service.port.value();
     err = mdns_service_add(nullptr, MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto), port,
                            txt_records.get(), service.txt_records.size());
 

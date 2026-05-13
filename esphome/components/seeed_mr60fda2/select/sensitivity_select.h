@@ -3,8 +3,7 @@
 #include "esphome/components/select/select.h"
 #include "../seeed_mr60fda2.h"
 
-namespace esphome {
-namespace seeed_mr60fda2 {
+namespace esphome::seeed_mr60fda2 {
 
 class SensitivitySelect : public select::Select, public Parented<MR60FDA2Component> {
  public:
@@ -14,5 +13,4 @@ class SensitivitySelect : public select::Select, public Parented<MR60FDA2Compone
   void control(size_t index) override;
 };
 
-}  // namespace seeed_mr60fda2
-}  // namespace esphome
+}  // namespace esphome::seeed_mr60fda2

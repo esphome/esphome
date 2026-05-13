@@ -30,6 +30,8 @@ espnow:
     - espnow.broadcast:
         data: "Hello, World!"
     - espnow.broadcast:
+        data: "it's a test"
+    - espnow.broadcast:
         data: [0x01, 0x02, 0x03, 0x04, 0x05]
     - espnow.broadcast:
         data: !lambda 'return {0x01, 0x02, 0x03, 0x04, 0x05};'

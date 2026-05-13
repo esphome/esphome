@@ -13,8 +13,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace ade7880 {
+namespace esphome::ade7880 {
 
 static const char *const TAG = "ade7880";
 
@@ -313,5 +312,4 @@ void ADE7880::reset_device_() {
   this->store_.reset_pending = true;
 }
 
-}  // namespace ade7880
-}  // namespace esphome
+}  // namespace esphome::ade7880

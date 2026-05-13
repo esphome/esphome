@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace coolix {
+namespace esphome::coolix {
 
 // Temperature
 const uint8_t COOLIX_TEMP_MIN = 17;  // Celsius
@@ -42,5 +41,4 @@ class CoolixClimate : public climate_ir::ClimateIR {
   bool send_swing_cmd_{false};
 };
 
-}  // namespace coolix
-}  // namespace esphome
+}  // namespace esphome::coolix

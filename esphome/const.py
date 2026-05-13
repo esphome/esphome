@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.4.0-dev"
+__version__ = "2026.5.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -13,6 +13,13 @@ VALID_SUBSTITUTIONS_CHARACTERS = (
 
 # CLI Help Text Constants
 ARGUMENT_HELP_DEVICE = "Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses. Use 'OTA' for resolving from MQTT, DNS or mDNS and avoiding the interactive prompt."
+
+
+class Toolchain(StrEnum):
+    """Toolchain identifiers for ESPHome."""
+
+    PLATFORMIO = "platformio"
+    ESP_IDF = "esp-idf"
 
 
 class Platform(StrEnum):
@@ -1036,6 +1043,7 @@ CONF_TO = "to"
 CONF_TO_NTC_RESISTANCE = "to_ntc_resistance"
 CONF_TO_NTC_TEMPERATURE = "to_ntc_temperature"
 CONF_TOLERANCE = "tolerance"
+CONF_TOOLCHAIN = "toolchain"
 CONF_TOPIC = "topic"
 CONF_TOPIC_PREFIX = "topic_prefix"
 CONF_TOTAL = "total"
@@ -1232,9 +1240,11 @@ UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kvarh"
 UNIT_KILOWATT = "kW"
 UNIT_KILOWATT_HOURS = "kWh"
 UNIT_LITRE = "L"
+UNIT_LITRE_PER_SECOND = "L/s"
 UNIT_LUX = "lx"
 UNIT_MEGAJOULE = "MJ"
 UNIT_METER = "m"
+UNIT_METER_PER_SECOND = "m/s"
 UNIT_METER_PER_SECOND_SQUARED = "m/s²"
 UNIT_MICROAMP = "µA"
 UNIT_MICROGRAMS_PER_CUBIC_METER = "µg/m³"
@@ -1244,6 +1254,7 @@ UNIT_MICROSILVERTS_PER_HOUR = "µSv/h"
 UNIT_MICROTESLA = "µT"
 UNIT_MILLIAMP = "mA"
 UNIT_MILLIGRAMS_PER_CUBIC_METER = "mg/m³"
+UNIT_MILLILITRE = "mL"
 UNIT_MILLIMETER = "mm"
 UNIT_MILLISECOND = "ms"
 UNIT_MILLISIEMENS_PER_CENTIMETER = "mS/cm"
@@ -1255,6 +1266,7 @@ UNIT_PARTS_PER_MILLION = "ppm"
 UNIT_PASCAL = "Pa"
 UNIT_PERCENT = "%"
 UNIT_PH = "pH"
+UNIT_POUND = "lb"
 UNIT_PULSES = "pulses"
 UNIT_PULSES_PER_MINUTE = "pulses/min"
 UNIT_REVOLUTIONS_PER_MINUTE = "RPM"
@@ -1390,7 +1402,6 @@ KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
-KEY_NATIVE_IDF = "native_idf"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""

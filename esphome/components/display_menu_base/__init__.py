@@ -119,7 +119,7 @@ DisplayMenuOnPrevTrigger = display_menu_base_ns.class_(
 
 
 def validate_format(format):
-    if re.search(r"^%([+-])*(\d+)*(\.\d+)*[fg]$", format) is None:
+    if re.search(r"^%[+-]*(\d+)?(\.\d+)?[fg]$", format) is None:
         raise cv.Invalid(
             f"{CONF_FORMAT}: has to specify a printf-like format string specifying exactly one f or g type conversion, '{format}' provided"
         )

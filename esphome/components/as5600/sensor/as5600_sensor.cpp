@@ -1,8 +1,7 @@
 #include "as5600_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace as5600 {
+namespace esphome::as5600 {
 
 static const char *const TAG = "as5600.sensor";
 
@@ -25,27 +24,10 @@ static const uint8_t REGISTER_MAGNITUDE = 0x1B;  // 16 bytes / R
 void AS5600Sensor::dump_config() {
   LOG_SENSOR("", "AS5600 Sensor", this);
   ESP_LOGCONFIG(TAG, "  Out of Range Mode: %u", this->out_of_range_mode_);
-  if (this->angle_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Angle Sensor", this->angle_sensor_);
-  }
-  if (this->raw_angle_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Raw Angle Sensor", this->raw_angle_sensor_);
-  }
-  if (this->position_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Position Sensor", this->position_sensor_);
-  }
-  if (this->raw_position_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Raw Position Sensor", this->raw_position_sensor_);
-  }
-  if (this->gain_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Gain Sensor", this->gain_sensor_);
-  }
-  if (this->magnitude_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Magnitude Sensor", this->magnitude_sensor_);
-  }
-  if (this->status_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Status Sensor", this->status_sensor_);
-  }
+  LOG_SENSOR("  ", "Raw Position Sensor", this->raw_position_sensor_);
+  LOG_SENSOR("  ", "Gain Sensor", this->gain_sensor_);
+  LOG_SENSOR("  ", "Magnitude Sensor", this->magnitude_sensor_);
+  LOG_SENSOR("  ", "Status Sensor", this->status_sensor_);
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -92,5 +74,4 @@ void AS5600Sensor::update() {
   this->status_clear_warning();
 }
 
-}  // namespace as5600
-}  // namespace esphome
+}  // namespace esphome::as5600
