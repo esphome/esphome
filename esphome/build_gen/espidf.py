@@ -89,6 +89,16 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 {extra_compile_options}
 
 project({CORE.name})
+
+# Emit raw JSON size data for ESPHome to read post-build.
+add_custom_command(
+    TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
+    COMMAND ${{PYTHON}} -m esp_idf_size --ng --format=raw
+            -o ${{CMAKE_BINARY_DIR}}/esp_idf_size.json
+            ${{CMAKE_PROJECT_NAME}}.map
+    WORKING_DIRECTORY ${{CMAKE_BINARY_DIR}}
+    VERBATIM
+)
 """
 
 

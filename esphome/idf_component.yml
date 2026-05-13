@@ -100,6 +100,6 @@ dependencies:
   esp32async/asynctcp:
     version: 3.4.91
   sendspin/sendspin-cpp:
-    version: 0.4.0
+    version: 0.5.0
   lvgl/lvgl:
     version: 9.5.0
