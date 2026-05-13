@@ -10,7 +10,7 @@ from esphome.core import CORE
 
 
 @pytest.fixture(autouse=True)
-def reset_core_state() -> Generator[None, None, None]:
+def reset_core_state() -> Generator[None]:
     """Reset CORE before and after every benchmark.
 
     Per-iteration setups inside benchmarks reset CORE for the loop body;
