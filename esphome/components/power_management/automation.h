@@ -3,8 +3,7 @@
 #include "power_management.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace power_management {
+namespace esphome::power_management {
 
 template<typename... Ts> class AcquireLockAction : public Action<Ts...>, public Parented<PowerManagement> {
  public:
@@ -38,5 +37,4 @@ template<typename... Ts> class ReleaseLockAction : public Action<Ts...>, public 
   }
 };
 
-}  // namespace power_management
-}  // namespace esphome
+}  // namespace esphome::power_management
