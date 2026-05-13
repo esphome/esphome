@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace inkbird_ibsth1_mini {
+namespace esphome::inkbird_ibsth1_mini {
 
 static const char *const TAG = "inkbird_ibsth1_mini";
 
@@ -104,7 +103,6 @@ bool InkbirdIbstH1Mini::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
   return true;
 }
 
-}  // namespace inkbird_ibsth1_mini
-}  // namespace esphome
+}  // namespace esphome::inkbird_ibsth1_mini
 
 #endif

@@ -5,8 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 static const char *const TAG = "audio.decoder";
 
@@ -20,7 +19,7 @@ AudioDecoder::AudioDecoder(size_t input_buffer_size, size_t output_buffer_size)
   this->output_transfer_buffer_ = AudioSinkTransferBuffer::create(output_buffer_size);
 }
 
-esp_err_t AudioDecoder::add_source(std::weak_ptr<RingBuffer> &input_ring_buffer) {
+esp_err_t AudioDecoder::add_source(std::weak_ptr<ring_buffer::RingBuffer> &input_ring_buffer) {
   auto source = AudioSourceTransferBuffer::create(this->input_buffer_size_);
   if (source == nullptr) {
     return ESP_ERR_NO_MEM;
@@ -37,7 +36,7 @@ esp_err_t AudioDecoder::add_source(const uint8_t *data_pointer, size_t length) {
   return ESP_OK;
 }
 
-esp_err_t AudioDecoder::add_sink(std::weak_ptr<RingBuffer> &output_ring_buffer) {
+esp_err_t AudioDecoder::add_sink(std::weak_ptr<ring_buffer::RingBuffer> &output_ring_buffer) {
   if (this->output_transfer_buffer_ != nullptr) {
     this->output_transfer_buffer_->set_sink(output_ring_buffer);
     return ESP_OK;
@@ -428,7 +427,6 @@ FileDecoderState AudioDecoder::decode_wav_() {
 }
 #endif
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

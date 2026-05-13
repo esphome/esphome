@@ -3,6 +3,9 @@
 #ifdef USE_ESP32
 
 #include "esphome/components/network/util.h"
+#ifdef USE_ETHERNET
+#include "esphome/components/ethernet/ethernet_component.h"
+#endif
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
 #endif
@@ -63,7 +66,7 @@ void SendspinHub::dump_config() {
                 "Sendspin Hub:\n"
                 "  Client ID: %s\n"
                 "  Task stack in PSRAM: %s",
-                get_mac_address_pretty_into_buffer(mac_buf), YESNO(this->task_stack_in_psram_));
+                get_client_id_into_buffer(mac_buf), YESNO(this->task_stack_in_psram_));
 }
 
 // --- Delegating methods ---
@@ -89,11 +92,23 @@ void SendspinHub::update_state(sendspin::SendspinClientState state) {
   }
 }
 
+const char *SendspinHub::get_client_id_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
+  // The server matches client_id against the L2 source MAC of the device's multicast traffic.
+  // ESP-IDF derives the ethernet MAC as base+3 by default on ESP32-S3, so we cannot use the
+  // eFuse base MAC when ethernet is the active interface.
+#ifdef USE_ETHERNET
+  if (ethernet::global_eth_component != nullptr) {
+    return ethernet::global_eth_component->get_eth_mac_address_pretty_into_buffer(buf);
+  }
+#endif
+  return get_mac_address_pretty_into_buffer(buf);
+}
+
 sendspin::SendspinClientConfig SendspinHub::build_client_config_() {
   sendspin::SendspinClientConfig config;
 
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  config.client_id = get_mac_address_pretty_into_buffer(mac_buf);
+  config.client_id = SendspinHub::get_client_id_into_buffer(mac_buf);
   config.name = App.get_friendly_name();
   config.product_name = App.get_name();
   config.manufacturer = "ESPHome";

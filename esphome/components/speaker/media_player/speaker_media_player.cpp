@@ -9,8 +9,7 @@
 #include "esphome/components/ota/ota_backend.h"
 #endif
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 // Framework:
 //  - Media player that can handle two streams: one for media and one for announcements
@@ -622,7 +621,6 @@ void SpeakerMediaPlayer::set_volume_(float volume, bool publish) {
   this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
 }
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker
 
 #endif

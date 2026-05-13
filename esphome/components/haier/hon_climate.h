@@ -21,8 +21,7 @@
 #include "haier_base.h"
 #include "hon_packet.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 #ifdef USE_SELECT
 extern const std::vector<hon_protocol::HorizontalSwingMode> HORIZONTAL_SWING_MODES_ORDER;
@@ -222,5 +221,4 @@ class HonClimate : public HaierClimateBase {
   SwitchState quiet_mode_state_{SwitchState::OFF};
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

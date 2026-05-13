@@ -41,10 +41,10 @@ from ..defines import (
     LV_OBJ_FLAG,
     LV_PART,
     LV_SCALE_MODE,
+    add_lv_use,
     get_remapped_uses,
     get_warnings,
 )
-from ..helpers import add_lv_use
 from ..lv_validation import (
     LV_OPA,
     LV_RADIUS,
@@ -61,7 +61,6 @@ from ..lv_validation import (
     padding,
     pixels,
     pixels_or_percent,
-    requires_component,
     size,
 )
 from ..lvcode import LambdaContext, LocalVariable, lv, lv_add, lv_expr, lv_obj
@@ -214,7 +213,7 @@ INDICATOR_SCHEMA = cv.Schema(
                     cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(lv_image_t),
                 }
             ),
-            requires_component("image"),
+            cv.requires_component("image"),
         ),
         cv.Exclusive(CONF_ARC, CONF_INDICATORS): INDICATOR_ARC_SCHEMA.extend(
             {
