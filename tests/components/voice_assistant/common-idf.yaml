@@ -31,6 +31,11 @@ microphone:
     i2s_din_pin: ${i2s_din_pin}
     adc_type: external
     pdm: false
+  - platform: i2s_audio
+    id: mic_id_external2
+    i2s_din_pin: ${i2s_din_pin2}
+    adc_type: external
+    pdm: false
 
 speaker:
   - platform: i2s_audio
@@ -40,9 +45,12 @@ speaker:
 
 voice_assistant:
   microphone:
-    microphone: mic_id_external
-    gain_factor: 4
-    channels: 0
+    - microphone: mic_id_external
+      gain_factor: 4
+      channels: 0
+    - microphone: mic_id_external2
+      gain_factor: 4
+      channels: 0
   speaker: speaker_id
   micro_wake_word: mww_id
   conversation_timeout: 60s

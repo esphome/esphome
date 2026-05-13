@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace hbridge {
+namespace esphome::hbridge {
 
 class HBridgeLightOutput : public Component, public light::LightOutput {
  public:
@@ -68,5 +67,4 @@ class HBridgeLightOutput : public Component, public light::LightOutput {
   HighFrequencyLoopRequester high_freq_;
 };
 
-}  // namespace hbridge
-}  // namespace esphome
+}  // namespace esphome::hbridge

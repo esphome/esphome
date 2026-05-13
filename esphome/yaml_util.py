@@ -139,7 +139,7 @@ def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
         value.set_context({**value.vars, **(context_vars or {})})
         return value
 
-    if context_vars and isinstance(value, (dict, list, str)):
+    if context_vars and isinstance(value, (dict, list, str, Lambda)):
         value = add_class_to_obj(value, ConfigContext)
         value.set_context(context_vars)
     return value

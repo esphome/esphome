@@ -1,4 +1,3 @@
-const fs = require('fs');
 const { DOCS_PR_PATTERNS } = require('./constants');
 const {
   COMPONENT_REGEX,
@@ -8,6 +7,31 @@ const {
   hasGitHubActionsChanges,
 } = require('../detect-tags');
 const { loadCodeowners, getEffectiveOwners } = require('../codeowners');
+
+// Top-level `CONFIG_SCHEMA = ...` (assignment) or `CONFIG_SCHEMA: ConfigType = ...` (annotation).
+// Ruff/Black enforce exactly one space around `=` and no space before `:`,
+// so we can match strictly: `CONFIG_SCHEMA ` or `CONFIG_SCHEMA:`.
+const CONFIG_SCHEMA_REGEX = /^CONFIG_SCHEMA[ :]/m;
+
+// Fetch a file's contents from the PR head SHA via the GitHub API.
+// The auto-label workflow runs on `pull_request_target`, which checks out the
+// base branch — files added by the PR don't exist in the workspace, so we have
+// to fetch them from the head SHA. Returns null if the file can't be fetched.
+async function fetchPrFileContent(github, context, path) {
+  try {
+    const { owner, repo } = context.repo;
+    const { data } = await github.rest.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref: context.payload.pull_request.head.sha,
+    });
+    return Buffer.from(data.content, 'base64').toString('utf8');
+  } catch (error) {
+    console.log(`Failed to fetch ${path} from PR head:`, error.message);
+    return null;
+  }
+}
 
 // Strategy: Merge branch detection
 async function detectMergeBranch(context) {
@@ -45,52 +69,64 @@ async function detectComponentPlatforms(changedFiles, apiData) {
 }
 
 // Strategy: New component detection
-async function detectNewComponents(prFiles) {
+async function detectNewComponents(github, context, prFiles) {
   const labels = new Set();
+  let hasYamlLoadable = false;
   const addedFiles = prFiles.filter(file => file.status === 'added').map(file => file.filename);
 
   for (const file of addedFiles) {
     const componentMatch = file.match(/^esphome\/components\/([^\/]+)\/__init__\.py$/);
-    if (componentMatch) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        if (content.includes('IS_TARGET_PLATFORM = True')) {
-          labels.add('new-target-platform');
-        }
-      } catch (error) {
-        console.log(`Failed to read content of ${file}:`, error.message);
-      }
-      labels.add('new-component');
+    if (!componentMatch) continue;
+
+    labels.add('new-component');
+    const content = await fetchPrFileContent(github, context, file);
+    if (content === null) {
+      // Safe default: assume YAML-loadable so needs-docs behaviour is unchanged on fetch failure
+      hasYamlLoadable = true;
+      continue;
+    }
+    if (content.includes('IS_TARGET_PLATFORM = True')) {
+      labels.add('new-target-platform');
+    }
+    if (CONFIG_SCHEMA_REGEX.test(content)) {
+      hasYamlLoadable = true;
     }
   }
 
-  return labels;
+  return { labels, hasYamlLoadable };
 }
 
 // Strategy: New platform detection
-async function detectNewPlatforms(prFiles, apiData) {
+async function detectNewPlatforms(github, context, prFiles, apiData) {
   const labels = new Set();
+  let hasYamlLoadable = false;
   const addedFiles = prFiles.filter(file => file.status === 'added').map(file => file.filename);
 
-  for (const file of addedFiles) {
-    const platformFileMatch = file.match(/^esphome\/components\/([^\/]+)\/([^\/]+)\.py$/);
-    if (platformFileMatch) {
-      const [, component, platform] = platformFileMatch;
-      if (apiData.platformComponents.includes(platform)) {
-        labels.add('new-platform');
-      }
-    }
+  const platformPathPatterns = [
+    /^esphome\/components\/([^\/]+)\/([^\/]+)\.py$/,
+    /^esphome\/components\/([^\/]+)\/([^\/]+)\/__init__\.py$/,
+  ];
 
-    const platformDirMatch = file.match(/^esphome\/components\/([^\/]+)\/([^\/]+)\/__init__\.py$/);
-    if (platformDirMatch) {
-      const [, component, platform] = platformDirMatch;
-      if (apiData.platformComponents.includes(platform)) {
-        labels.add('new-platform');
+  for (const file of addedFiles) {
+    for (const re of platformPathPatterns) {
+      const match = file.match(re);
+      if (!match) continue;
+      const platform = match[2];
+      if (!apiData.platformComponents.includes(platform)) break;
+
+      labels.add('new-platform');
+      const content = await fetchPrFileContent(github, context, file);
+      if (content === null) {
+        // Safe default: assume YAML-loadable so needs-docs behaviour is unchanged on fetch failure
+        hasYamlLoadable = true;
+      } else if (CONFIG_SCHEMA_REGEX.test(content)) {
+        hasYamlLoadable = true;
       }
+      break;
     }
   }
 
-  return labels;
+  return { labels, hasYamlLoadable };
 }
 
 // Strategy: Core files detection
@@ -300,7 +336,7 @@ function detectMaintainerAccess(context) {
 }
 
 // Strategy: Requirements detection
-async function detectRequirements(allLabels, prFiles, context) {
+async function detectRequirements(allLabels, prFiles, context, hasYamlLoadable) {
   const labels = new Set();
 
   // Check for missing tests
@@ -308,8 +344,15 @@ async function detectRequirements(allLabels, prFiles, context) {
     labels.add('needs-tests');
   }
 
-  // Check for missing docs
-  if (allLabels.has('new-component') || allLabels.has('new-platform') || allLabels.has('new-feature')) {
+  // Check for missing docs.
+  // `new-feature` (PR-body checkbox) always counts. `new-component` / `new-platform`
+  // only count when at least one newly added file defines a top-level CONFIG_SCHEMA,
+  // i.e. the new component/platform is actually loadable from YAML.
+  const docsEligible =
+    allLabels.has('new-feature') ||
+    ((allLabels.has('new-component') || allLabels.has('new-platform')) && hasYamlLoadable);
+
+  if (docsEligible) {
     const prBody = context.payload.pull_request.body || '';
     const hasDocsLink = DOCS_PR_PATTERNS.some(pattern => pattern.test(prBody));
 

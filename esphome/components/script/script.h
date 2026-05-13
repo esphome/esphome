@@ -7,8 +7,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-namespace esphome {
-namespace script {
+
+namespace esphome::script {
 
 class ScriptLogger {
  protected:
@@ -338,5 +338,4 @@ template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>,
   std::list<std::tuple<Ts...>> param_queue_;
 };
 
-}  // namespace script
-}  // namespace esphome
+}  // namespace esphome::script

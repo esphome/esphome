@@ -7,6 +7,12 @@ esphome:
           prefix: "Test"
           param2: 0
           param3: true
+      - script.execute:
+          id: my_script_with_array_params
+          ints: [42, 100]
+          floats: [1.5, 2.5]
+          bools: [true, false]
+          strings: ["a", "b"]
       - script.wait: my_script
       - script.stop: my_script
       - if:
@@ -34,6 +40,16 @@ script:
     mode: restart
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_with_array_params
+    parameters:
+      ints: int[]
+      floats: float[]
+      bools: bool[]
+      strings: string[]
+    then:
+      - lambda: |-
+          ESP_LOGD("main", "ints=%d floats=%f bools=%d strings=%s",
+                   ints[0], floats[0], bools[0], strings[0].c_str());
   - id: my_script_with_params
     parameters:
       prefix: string

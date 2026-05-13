@@ -12,8 +12,7 @@
 #include "esphome/core/log.h"
 #endif
 
-namespace esphome {
-namespace prometheus {
+namespace esphome::prometheus {
 
 class PrometheusHandler : public AsyncWebHandler, public Component {
  public:
@@ -218,6 +217,6 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   std::map<EntityBase *, std::string> relabel_map_name_;
 };
 
-}  // namespace prometheus
-}  // namespace esphome
+}  // namespace esphome::prometheus
+
 #endif

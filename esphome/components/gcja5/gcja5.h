@@ -5,8 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace gcja5 {
+namespace esphome::gcja5 {
 
 class GCJA5Component : public Component, public uart::UARTDevice {
  public:
@@ -52,5 +51,4 @@ class GCJA5Component : public Component, public uart::UARTDevice {
   sensor::Sensor *pmc_10_0_sensor_{nullptr};
 };
 
-}  // namespace gcja5
-}  // namespace esphome
+}  // namespace esphome::gcja5
