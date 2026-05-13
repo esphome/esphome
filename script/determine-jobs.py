@@ -559,7 +559,7 @@ def native_idf_components_to_test(branch: str | None = None) -> list[str]:
     component in the test list -- the regular ``component-test`` matrix
     already covers them via PlatformIO. So we narrow to the intersection
     of ``NATIVE_IDF_TEST_COMPONENTS`` and the changed-component dependency
-    closure from ``get_changed_components()``.
+    closure.
 
     Returns the full list (sorted) when we can't safely narrow:
 
@@ -568,10 +568,16 @@ def native_idf_components_to_test(branch: str | None = None) -> list[str]:
        ``esphome/build_gen/espidf.py``).
     3. The test harness or workflow itself changed
        (``script/test_build_components.py``, ``.github/workflows/ci.yml``).
-    4. ``get_changed_components()`` returned the full-scan sentinel.
 
     Otherwise returns the intersection (sorted), which may be empty -- an
     empty list signals the job should be skipped.
+
+    The dependency closure is derived from ``files`` via
+    ``get_components_with_dependencies()`` (the same primitive ``main()``
+    uses) so the result honors ``branch``. ``get_changed_components()``
+    is deliberately not used here: it re-invokes ``changed_files()`` with
+    its own default branch, which would silently ignore our ``branch``
+    argument.
 
     Args:
         branch: Branch to compare against. If None, uses default.
@@ -584,13 +590,10 @@ def native_idf_components_to_test(branch: str | None = None) -> list[str]:
     if core_changed(files) or _native_idf_path_or_file_trigger(files):
         return sorted(NATIVE_IDF_TEST_COMPONENTS)
 
-    changed_components_result = get_changed_components()
-    if changed_components_result is None:
-        # Defensive: core_changed() above already catches the documented
-        # None case (core C++ changes). Fall back to the full list.
-        return sorted(NATIVE_IDF_TEST_COMPONENTS)
+    component_files = [f for f in files if filter_component_and_test_files(f)]
+    changed = get_components_with_dependencies(component_files, True)
 
-    return sorted(NATIVE_IDF_TEST_COMPONENTS & set(changed_components_result))
+    return sorted(NATIVE_IDF_TEST_COMPONENTS & set(changed))
 
 
 def should_run_native_idf(branch: str | None = None) -> bool:

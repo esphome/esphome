@@ -873,32 +873,18 @@ def test_native_idf_components_to_test_returns_full_list_on_infrastructure(
     """Infrastructure / core / harness changes fall back to the full component list."""
     with (
         patch.object(determine_jobs, "changed_files", return_value=changed_files),
-        # get_changed_components shouldn't even be consulted; if it is, surface
-        # an obviously-wrong value so the assertion below would catch it.
-        patch.object(determine_jobs, "get_changed_components", return_value=["wifi"]),
-    ):
-        result = determine_jobs.native_idf_components_to_test()
-        assert result == sorted(determine_jobs.NATIVE_IDF_TEST_COMPONENTS)
-
-
-def test_native_idf_components_to_test_full_list_when_get_components_none() -> None:
-    """get_changed_components returning None falls back to the full list."""
-    with (
-        # Pick a non-core file so core_changed() is False; force the full-scan
-        # sentinel from get_changed_components.
+        # The dep-closure path shouldn't be consulted at all -- if it is,
+        # the obviously-wrong "wifi" sneaks in and the assertion catches it.
         patch.object(
-            determine_jobs,
-            "changed_files",
-            return_value=["esphome/components/wifi/wifi_component.cpp"],
+            determine_jobs, "get_components_with_dependencies", return_value=["wifi"]
         ),
-        patch.object(determine_jobs, "get_changed_components", return_value=None),
     ):
         result = determine_jobs.native_idf_components_to_test()
         assert result == sorted(determine_jobs.NATIVE_IDF_TEST_COMPONENTS)
 
 
 @pytest.mark.parametrize(
-    ("changed_files", "changed_components", "expected"),
+    ("changed_files", "dependency_closure", "expected"),
     [
         # Single tested component changed -- narrow to just that component.
         (
@@ -938,14 +924,16 @@ def test_native_idf_components_to_test_full_list_when_get_components_none() -> N
 )
 def test_native_idf_components_to_test_narrowing(
     changed_files: list[str],
-    changed_components: list[str],
+    dependency_closure: list[str],
     expected: list[str],
 ) -> None:
     """Component changes narrow the test list to the intersection."""
     with (
         patch.object(determine_jobs, "changed_files", return_value=changed_files),
         patch.object(
-            determine_jobs, "get_changed_components", return_value=changed_components
+            determine_jobs,
+            "get_components_with_dependencies",
+            return_value=dependency_closure,
         ),
     ):
         result = determine_jobs.native_idf_components_to_test()
@@ -953,10 +941,19 @@ def test_native_idf_components_to_test_narrowing(
 
 
 def test_native_idf_components_to_test_with_branch() -> None:
-    """native_idf_components_to_test passes branch argument through."""
+    """native_idf_components_to_test passes branch argument through.
+
+    Regression test: an earlier version called ``get_changed_components()``,
+    which silently ignored the branch argument because that helper re-runs
+    ``changed_files()`` with its own default. The current implementation
+    derives the closure from ``files = changed_files(branch)`` directly,
+    so a branch arg has to flow through ``changed_files``.
+    """
     with (
         patch.object(determine_jobs, "changed_files") as mock_changed,
-        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
     ):
         mock_changed.return_value = []
         determine_jobs.native_idf_components_to_test("release")
