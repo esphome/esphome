@@ -534,7 +534,7 @@ def _split_list_by_condition(
     return matched, non_matched
 
 
-def generate_cmakelists_txt(component: IDFComponent) -> str:
+def generate_cmakelists_txt(component: IDFComponent, minimal: bool = False) -> str:
     """
     Generate a CMakeLists.txt file for an ESP-IDF component.
 
@@ -544,6 +544,9 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
 
     Args:
         component: The IDFComponent object containing library metadata and path
+        minimal: When True, emit an empty REQUIRES list. Used during the
+            first-pass write before IDF's component-discovery run, mirroring
+            ``build_gen.espidf.get_component_cmakelists(minimal=True)``.
 
     Returns:
         str: The complete CMakeLists.txt content as a string
@@ -576,22 +579,35 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
         component.path / Path(build_src_dir), build_src_filter
     )
 
-    # Detect in the files which requirements to add
-    # By default in platformio, all the components are added: we need to detect them when using ESP-IDF
-    requires = _detect_requires(build_src_files)
+    # REQUIRES is only populated on the post-discovery pass. The first pass
+    # writes an empty REQUIRES so IDF can discover the component without
+    # needing the full requirements graph (matches the main src CMakeLists
+    # behaviour in build_gen.espidf.get_component_cmakelists(minimal=True)).
+    requires: set[str] = set()
+    if not minimal:
+        # Detect in the files which requirements to add. By default in
+        # platformio, all the components are added: we need to detect them
+        # when using ESP-IDF.
+        requires |= _detect_requires(build_src_files)
+        # Lib-declared dependencies.
+        for dependency in component.dependencies:
+            requires.add(dependency.get_require_name())
+        # Mirror PlatformIO's global header visibility: REQUIRES every
+        # project-managed component plus every built-in IDF component
+        # (e.g. JPEGDEC's S3 SIMD asm needs ``dsps_fft2r_platform.h`` from
+        # ``espressif/esp-dsp``; FastLED's I2SClockLessLedDriver needs
+        # ``esp_lcd_panel_interface.h`` from the built-in ``esp_lcd``).
+        own_deps = {d.get_sanitized_name() for d in component.dependencies}
+        for name in _get_project_managed_components():
+            if name == component.name or name in own_deps:
+                continue
+            requires.add(name.replace("/", "__"))
+        from esphome.build_gen.espidf import get_available_components
 
-    # Dependencies are required
-    for dependency in component.dependencies:
-        requires.add(dependency.get_require_name())
-
-    # Mirror PlatformIO's global header visibility: REQUIRES every
-    # project-level managed component so headers propagate (e.g. JPEGDEC's
-    # S3 SIMD asm needs ``dsps_fft2r_platform.h`` from ``espressif/esp-dsp``).
-    own_deps = {d.get_sanitized_name() for d in component.dependencies}
-    for name in _get_project_managed_components():
-        if name == component.name or name in own_deps:
-            continue
-        requires.add(name.replace("/", "__"))
+        for name in get_available_components() or []:
+            if name == component.name:
+                continue
+            requires.add(name)
 
     # Only keep sources
     build_src_files = [os.path.relpath(p, component.path) for p in build_src_files]
@@ -906,12 +922,20 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
     # Handle the dependencies (convert PlatformIO library to ESP-IDF component if needed)
     _process_dependencies(component)
 
-    # Generate files
+    # Write a minimal CMakeLists.txt (no REQUIRES) so IDF discovers the
+    # component during its initial configure pass. The real REQUIRES list
+    # gets filled in by ``regenerate_converted_lib_cmakelists`` once the
+    # built-in components are known. This mirrors how
+    # ``build_gen.espidf.write_project`` handles the main src component.
     _LOGGER.debug("Generating CMakeLists.txt for %s@%s  ...", name, version)
     write_file_if_changed(
         cmakelists_txt_path,
-        generate_cmakelists_txt(component),
+        generate_cmakelists_txt(component, minimal=True),
     )
+
+    # Remember the component so we can regenerate its CMakeLists later
+    # once IDF's discovery pass has populated the built-in-components list.
+    CORE.data.setdefault(DOMAIN, {}).setdefault("generated", []).append(component)
 
     _LOGGER.debug("Generating idf_component.yml for %s@%s  ...", name, version)
     write_file_if_changed(
@@ -940,3 +964,16 @@ def generate_idf_component(
     """
     component = _generate_idf_component(library, force)
     return component.get_sanitized_name(), component.version, component.path
+
+
+def regenerate_converted_lib_cmakelists() -> None:
+    """Rewrite CMakeLists.txt for every PIO library we converted to an IDF
+    component, picking up the full REQUIRES list now that IDF's discovery
+    pass has populated the built-in components.
+
+    Called from ``build_gen.espidf.write_project(minimal=False)``.
+    """
+    for component in CORE.data.get(DOMAIN, {}).get("generated", []):
+        cmakelists_path = component.path / "CMakeLists.txt"
+        _LOGGER.debug("Regenerating CMakeLists.txt for %s", component.name)
+        write_file_if_changed(cmakelists_path, generate_cmakelists_txt(component))

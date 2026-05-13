@@ -15,6 +15,8 @@ def get_available_components() -> list[str] | None:
     Returns only internal ESP-IDF components, excluding external/managed
     components (from idf_component.yml).
     """
+    if CORE.build_path is None:
+        return None
     project_desc = Path(CORE.build_path) / "build" / "project_description.json"
     if not project_desc.exists():
         return None
@@ -170,3 +172,12 @@ def write_project(minimal: bool = False) -> None:
         CORE.relative_src_path("CMakeLists.txt"),
         get_component_cmakelists(minimal=minimal),
     )
+
+    # On the post-discovery pass, the built-in IDF components list is
+    # finally available - rewrite the CMakeLists for every converted PIO
+    # library so they REQUIRES the built-ins too (propagates esp_lcd,
+    # esp_driver_rmt, etc. into libs like FastLED).
+    if not minimal:
+        from esphome.espidf.component import regenerate_converted_lib_cmakelists
+
+        regenerate_converted_lib_cmakelists()
