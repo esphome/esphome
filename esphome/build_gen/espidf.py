@@ -15,8 +15,6 @@ def get_available_components() -> list[str] | None:
     Returns only internal ESP-IDF components, excluding external/managed
     components (from idf_component.yml).
     """
-    if CORE.build_path is None:
-        return None
     project_desc = Path(CORE.build_path) / "build" / "project_description.json"
     if not project_desc.exists():
         return None
@@ -50,8 +48,15 @@ def has_discovered_components() -> bool:
     return get_available_components() is not None
 
 
-def get_project_cmakelists() -> str:
-    """Generate the top-level CMakeLists.txt for ESP-IDF project."""
+def get_project_cmakelists(minimal: bool = False) -> str:
+    """Generate the top-level CMakeLists.txt for ESP-IDF project.
+
+    When ``minimal`` is true, omit ``__COMPONENT_REQUIRES_COMMON`` -- the
+    component list comes from ``project_description.json`` which may be
+    stale on the first write (from a previous build), and reading it then
+    can inject components the current project doesn't actually pull in.
+    The post-reconfigure write reads the fresh manifest.
+    """
     # Get IDF target from ESP32 variant (e.g., ESP32S3 -> esp32s3)
     variant = get_esp32_variant()
     idf_target = variant.lower().replace("-", "")
@@ -72,6 +77,20 @@ def get_project_cmakelists() -> str:
     extra_compile_options = "\n".join(
         f'idf_build_set_property(COMPILE_OPTIONS "{flag}" APPEND)'
         for flag in project_compile_opts
+    )
+
+    # Inject every built-in IDF component as a global REQUIRES so converted
+    # PIO libraries see them in their include path automatically (mirrors
+    # PlatformIO's global header visibility). Only emitted post-discovery
+    # (``minimal=False``) once the freshly-regenerated
+    # ``project_description.json`` reflects the current project.
+    common_requires = (
+        ""
+        if minimal
+        else "\n".join(
+            f"idf_build_set_property(__COMPONENT_REQUIRES_COMMON {name} APPEND)"
+            for name in sorted(get_available_components() or [])
+        )
     )
 
     return f"""\
@@ -100,6 +119,8 @@ set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 {extra_compile_options}
+
+{common_requires}
 
 project({CORE.name})
 
@@ -164,7 +185,7 @@ def write_project(minimal: bool = False) -> None:
     # Write top-level CMakeLists.txt
     write_file_if_changed(
         CORE.relative_build_path("CMakeLists.txt"),
-        get_project_cmakelists(),
+        get_project_cmakelists(minimal=minimal),
     )
 
     # Write component CMakeLists.txt in src/
@@ -172,12 +193,3 @@ def write_project(minimal: bool = False) -> None:
         CORE.relative_src_path("CMakeLists.txt"),
         get_component_cmakelists(minimal=minimal),
     )
-
-    # On the post-discovery pass, the built-in IDF components list is
-    # finally available - rewrite the CMakeLists for every converted PIO
-    # library so they REQUIRES the built-ins too (propagates esp_lcd,
-    # esp_driver_rmt, etc. into libs like FastLED).
-    if not minimal:
-        from esphome.espidf.component import regenerate_converted_lib_cmakelists
-
-        regenerate_converted_lib_cmakelists()
