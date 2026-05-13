@@ -1,0 +1,113 @@
+name: Add Dashboard Deprecation Comment
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+# All API calls (pulls.listFiles + issues.{list,create,update}Comment) are performed with
+# the App token minted below, so the workflow's GITHUB_TOKEN does not need any scopes.
+permissions: {}
+
+jobs:
+  dashboard-deprecation-comment:
+    name: Dashboard deprecation comment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+          # pulls.listFiles + issues.{list,create,update}Comment on PRs. For PR resources
+          # the issues.*Comment APIs require the pull-requests scope, not issues.
+          permission-pull-requests: write
+
+      - name: Add dashboard deprecation comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          script: |
+            const commentMarker = "<!-- This comment was generated automatically by the dashboard-deprecation-comment workflow. -->";
+
+            const commentBody = `Thanks for opening this PR!
+
+            Heads up: the legacy ESPHome dashboard (\`esphome/dashboard/\` and \`tests/dashboard/\`) is **deprecated** and is being replaced by [ESPHome Device Builder](https://github.com/esphome/device-builder). We are not adding new features to the legacy dashboard and it will eventually be removed from this repository.
+
+            What this means for your PR:
+
+            - **New features / enhancements**: please port the change to [esphome/device-builder](https://github.com/esphome/device-builder) instead. We are unlikely to review or merge new dashboard features here.
+            - **Bug fixes**: small fixes may still be considered, but please check first whether the same issue exists in Device Builder, where the fix will have a longer life.
+            - **Security issues**: please do not file a public PR. Report privately via [GitHub security advisories](https://github.com/esphome/esphome/security/advisories/new) so we can coordinate a fix.
+
+            We appreciate the contribution and apologize for the friction; flagging this early so your time isn't spent on a change that may not land.
+
+            ---
+            (Added by the PR bot)
+
+            ${commentMarker}`;
+
+            async function getDashboardChanges(github, owner, repo, prNumber) {
+                const changedFiles = await github.paginate(
+                    github.rest.pulls.listFiles,
+                    {
+                        owner: owner,
+                        repo: repo,
+                        pull_number: prNumber,
+                        per_page: 100,
+                    }
+                );
+
+                return changedFiles.filter(file =>
+                    file.filename.startsWith('esphome/dashboard/') ||
+                    file.filename.startsWith('tests/dashboard/')
+                );
+            }
+
+            async function findBotComment(github, owner, repo, prNumber) {
+                const comments = await github.paginate(
+                    github.rest.issues.listComments,
+                    {
+                        owner: owner,
+                        repo: repo,
+                        issue_number: prNumber,
+                        per_page: 100,
+                    }
+                );
+
+                return comments.find(comment =>
+                    comment.body.includes(commentMarker) && comment.user.type === "Bot"
+                );
+            }
+
+            const prNumber = context.payload.pull_request.number;
+            const { owner, repo } = context.repo;
+
+            const dashboardChanges = await getDashboardChanges(github, owner, repo, prNumber);
+            const existingComment = await findBotComment(github, owner, repo, prNumber);
+
+            if (dashboardChanges.length === 0) {
+                // PR doesn't (or no longer) touches the legacy dashboard. If we previously
+                // commented (e.g. files were removed in a later push), leave the comment in
+                // place for history rather than thrash on edit/delete.
+                return;
+            }
+
+            if (existingComment) {
+                if (existingComment.body === commentBody) {
+                    return;
+                }
+                await github.rest.issues.updateComment({
+                    owner: owner,
+                    repo: repo,
+                    comment_id: existingComment.id,
+                    body: commentBody,
+                });
+            } else {
+                await github.rest.issues.createComment({
+                    owner: owner,
+                    repo: repo,
+                    issue_number: prNumber,
+                    body: commentBody,
+                });
+            }

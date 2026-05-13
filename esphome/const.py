@@ -15,6 +15,13 @@ VALID_SUBSTITUTIONS_CHARACTERS = (
 ARGUMENT_HELP_DEVICE = "Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses. Use 'OTA' for resolving from MQTT, DNS or mDNS and avoiding the interactive prompt."
 
 
+class Toolchain(StrEnum):
+    """Toolchain identifiers for ESPHome."""
+
+    PLATFORMIO = "platformio"
+    ESP_IDF = "esp-idf"
+
+
 class Platform(StrEnum):
     """Platform identifiers for ESPHome."""
 
@@ -1036,6 +1043,7 @@ CONF_TO = "to"
 CONF_TO_NTC_RESISTANCE = "to_ntc_resistance"
 CONF_TO_NTC_TEMPERATURE = "to_ntc_temperature"
 CONF_TOLERANCE = "tolerance"
+CONF_TOOLCHAIN = "toolchain"
 CONF_TOPIC = "topic"
 CONF_TOPIC_PREFIX = "topic_prefix"
 CONF_TOTAL = "total"
@@ -1232,6 +1240,7 @@ UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kvarh"
 UNIT_KILOWATT = "kW"
 UNIT_KILOWATT_HOURS = "kWh"
 UNIT_LITRE = "L"
+UNIT_LITRE_PER_SECOND = "L/s"
 UNIT_LUX = "lx"
 UNIT_MEGAJOULE = "MJ"
 UNIT_METER = "m"
@@ -1393,7 +1402,6 @@ KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
-KEY_NATIVE_IDF = "native_idf"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""
