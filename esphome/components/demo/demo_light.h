@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/light/light_output.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 enum class DemoLightType {
   // binary
@@ -64,5 +63,4 @@ class DemoLight : public light::LightOutput, public Component {
   DemoLightType type_;
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

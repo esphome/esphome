@@ -10,12 +10,14 @@ AUTO_LOAD = ["web_server_base"]
 prometheus_ns = cg.esphome_ns.namespace("prometheus")
 PrometheusHandler = prometheus_ns.class_("PrometheusHandler", cg.Component)
 
-CUSTOMIZED_ENTITY = cv.Schema(
-    {
-        cv.Optional(CONF_ID): cv.string_strict,
-        cv.Optional(CONF_NAME): cv.string_strict,
-    },
-    cv.has_at_least_one_key,
+CUSTOMIZED_ENTITY = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_ID): cv.string_strict,
+            cv.Optional(CONF_NAME): cv.string_strict,
+        },
+    ),
+    cv.has_at_least_one_key(CONF_ID, CONF_NAME),
 )
 
 CONFIG_SCHEMA = cv.Schema(

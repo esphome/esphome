@@ -4,3 +4,14 @@ sensor:
     tvoc:
       name: AGS10 TVOC
     update_interval: 60s
+
+button:
+  - platform: template
+    name: "Test AGS10 Actions"
+    on_press:
+      - ags10.set_zero_point:
+          id: ags10_1
+          mode: CURRENT_VALUE
+      - ags10.new_i2c_address:
+          id: ags10_1
+          address: 0x1A

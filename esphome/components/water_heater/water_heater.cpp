@@ -1,10 +1,13 @@
 #include "water_heater.h"
 #include "esphome/core/log.h"
+
+#include <cinttypes>
 #include "esphome/core/application.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/progmem.h"
 
 #include <cmath>
+#include <cstring>
 
 namespace esphome::water_heater {
 
@@ -23,23 +26,25 @@ WaterHeaterCall &WaterHeaterCall::set_mode(WaterHeaterMode mode) {
   return *this;
 }
 
-WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode) {
-  if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("OFF")) == 0) {
+WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode) { return this->set_mode(mode, strlen(mode)); }
+
+WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode, size_t len) {
+  if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("OFF"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_OFF);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("ECO")) == 0) {
+  } else if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("ECO"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_ECO);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("ELECTRIC")) == 0) {
+  } else if (len == 8 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("ELECTRIC"), 8) == 0) {
     this->set_mode(WATER_HEATER_MODE_ELECTRIC);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("PERFORMANCE")) == 0) {
+  } else if (len == 11 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("PERFORMANCE"), 11) == 0) {
     this->set_mode(WATER_HEATER_MODE_PERFORMANCE);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("HIGH_DEMAND")) == 0) {
+  } else if (len == 11 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("HIGH_DEMAND"), 11) == 0) {
     this->set_mode(WATER_HEATER_MODE_HIGH_DEMAND);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("HEAT_PUMP")) == 0) {
+  } else if (len == 9 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("HEAT_PUMP"), 9) == 0) {
     this->set_mode(WATER_HEATER_MODE_HEAT_PUMP);
-  } else if (ESPHOME_strcasecmp_P(mode, ESPHOME_PSTR("GAS")) == 0) {
+  } else if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("GAS"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_GAS);
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized mode %s", this->parent_->get_name().c_str(), mode);
+    ESP_LOGW(TAG, "'%s' - Unrecognized mode %.*s", this->parent_->get_name().c_str(), (int) len, mode);
   }
   return *this;
 }
@@ -80,25 +85,25 @@ WaterHeaterCall &WaterHeaterCall::set_on(bool on) {
 }
 
 void WaterHeaterCall::perform() {
-  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
   if (this->mode_.has_value()) {
-    ESP_LOGD(TAG, "  Mode: %s", LOG_STR_ARG(water_heater_mode_to_string(*this->mode_)));
+    ESP_LOGV(TAG, "  Mode: %s", LOG_STR_ARG(water_heater_mode_to_string(*this->mode_)));
   }
   if (!std::isnan(this->target_temperature_)) {
-    ESP_LOGD(TAG, "  Target Temperature: %.2f", this->target_temperature_);
+    ESP_LOGV(TAG, "  Target Temperature: %.2f", this->target_temperature_);
   }
   if (!std::isnan(this->target_temperature_low_)) {
-    ESP_LOGD(TAG, "  Target Temperature Low: %.2f", this->target_temperature_low_);
+    ESP_LOGV(TAG, "  Target Temperature Low: %.2f", this->target_temperature_low_);
   }
   if (!std::isnan(this->target_temperature_high_)) {
-    ESP_LOGD(TAG, "  Target Temperature High: %.2f", this->target_temperature_high_);
+    ESP_LOGV(TAG, "  Target Temperature High: %.2f", this->target_temperature_high_);
   }
   if (this->state_mask_ & WATER_HEATER_STATE_AWAY) {
-    ESP_LOGD(TAG, "  Away: %s", (this->state_ & WATER_HEATER_STATE_AWAY) ? "YES" : "NO");
+    ESP_LOGV(TAG, "  Away: %s", (this->state_ & WATER_HEATER_STATE_AWAY) ? "YES" : "NO");
   }
   if (this->state_mask_ & WATER_HEATER_STATE_ON) {
-    ESP_LOGD(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? "YES" : "NO");
+    ESP_LOGV(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? "YES" : "NO");
   }
   this->parent_->control(*this);
 }
@@ -107,7 +112,8 @@ void WaterHeaterCall::validate_() {
   auto traits = this->parent_->get_traits();
   if (this->mode_.has_value()) {
     if (!traits.supports_mode(*this->mode_)) {
-      ESP_LOGW(TAG, "'%s' - Mode %d not supported", this->parent_->get_name().c_str(), *this->mode_);
+      ESP_LOGW(TAG, "'%s' - Mode %" PRIu32 " not supported", this->parent_->get_name().c_str(),
+               static_cast<uint32_t>(*this->mode_));
       this->mode_.reset();
     }
   }
@@ -155,24 +161,24 @@ void WaterHeaterCall::validate_() {
 
 void WaterHeater::publish_state() {
   auto traits = this->get_traits();
-  ESP_LOGD(TAG,
+  ESP_LOGV(TAG,
            "'%s' >>\n"
            "  Mode: %s",
            this->name_.c_str(), LOG_STR_ARG(water_heater_mode_to_string(this->mode_)));
   if (!std::isnan(this->current_temperature_)) {
-    ESP_LOGD(TAG, "  Current Temperature: %.2f°C", this->current_temperature_);
+    ESP_LOGV(TAG, "  Current Temperature: %.2f°C", this->current_temperature_);
   }
   if (traits.get_supports_two_point_target_temperature()) {
-    ESP_LOGD(TAG, "  Target Temperature: Low: %.2f°C High: %.2f°C", this->target_temperature_low_,
+    ESP_LOGV(TAG, "  Target Temperature: Low: %.2f°C High: %.2f°C", this->target_temperature_low_,
              this->target_temperature_high_);
   } else if (!std::isnan(this->target_temperature_)) {
-    ESP_LOGD(TAG, "  Target Temperature: %.2f°C", this->target_temperature_);
+    ESP_LOGV(TAG, "  Target Temperature: %.2f°C", this->target_temperature_);
   }
   if (this->state_ & WATER_HEATER_STATE_AWAY) {
-    ESP_LOGD(TAG, "  Away: YES");
+    ESP_LOGV(TAG, "  Away: YES");
   }
   if (traits.has_feature_flags(WATER_HEATER_SUPPORTS_ON_OFF)) {
-    ESP_LOGD(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? "YES" : "NO");
+    ESP_LOGV(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? "YES" : "NO");
   }
 
 #if defined(USE_WATER_HEATER) && defined(USE_CONTROLLER_REGISTRY)

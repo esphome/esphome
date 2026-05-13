@@ -4,8 +4,7 @@
 #include "esphome/core/application.h"
 #include <cfloat>
 
-namespace esphome {
-namespace current_based {
+namespace esphome::current_based {
 
 static const char *const TAG = "current_based.cover";
 
@@ -37,8 +36,9 @@ void CurrentBasedCover::control(const CoverCall &call) {
       }
     }
   }
-  if (call.get_position().has_value()) {
-    auto pos = *call.get_position();
+  auto opt_pos = call.get_position();
+  if (opt_pos.has_value()) {
+    auto pos = *opt_pos;
     if (fabsf(this->position - pos) < 0.01) {
       // already at target
     } else {
@@ -148,14 +148,14 @@ void CurrentBasedCover::dump_config() {
   }
   ESP_LOGCONFIG(TAG,
                 "  Close Duration: %.1fs\n"
-                "Obstacle Rollback: %.1f%%",
+                "  Obstacle Rollback: %.1f%%",
                 this->close_duration_ / 1e3f, this->obstacle_rollback_ * 100);
   if (this->max_duration_ != UINT32_MAX) {
-    ESP_LOGCONFIG(TAG, "Maximum duration: %.1fs", this->max_duration_ / 1e3f);
+    ESP_LOGCONFIG(TAG, "  Maximum duration: %.1fs", this->max_duration_ / 1e3f);
   }
   ESP_LOGCONFIG(TAG,
-                "Start sensing delay: %.1fs\n"
-                "Malfunction detection: %s",
+                "  Start sensing delay: %.1fs\n"
+                "  Malfunction detection: %s",
                 this->start_sensing_delay_ / 1e3f, YESNO(this->malfunction_detection_));
 }
 
@@ -270,5 +270,4 @@ void CurrentBasedCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace current_based
-}  // namespace esphome
+}  // namespace esphome::current_based

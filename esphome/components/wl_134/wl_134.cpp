@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace wl_134 {
+namespace esphome::wl_134 {
 
 static const char *const TAG = "wl_134.sensor";
 static const uint8_t ASCII_CR = 0x0D;
@@ -70,12 +69,13 @@ Wl134Component::Rfid134Error Wl134Component::read_packet_() {
                                                      RFID134_PACKET_CHECKSUM - RFID134_PACKET_RESERVED1);
 
   ESP_LOGV(TAG,
-           "Tag id:    %012lld\n"
-           "Country:   %03d\n"
-           "isData:    %s\n"
-           "isAnimal:  %s\n"
-           "Reserved0: %d\n"
-           "Reserved1: %" PRId32,
+           "RFID134 Tag:\n"
+           "  Tag id:    %012lld\n"
+           "  Country:   %03d\n"
+           "  isData:    %s\n"
+           "  isAnimal:  %s\n"
+           "  Reserved0: %d\n"
+           "  Reserved1: %" PRId32,
            reading.id, reading.country, reading.isData ? "true" : "false", reading.isAnimal ? "true" : "false",
            reading.reserved0, reading.reserved1);
 
@@ -113,5 +113,4 @@ void Wl134Component::dump_config() {
   // As specified in the sensor's data sheet
   this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
 }
-}  // namespace wl_134
-}  // namespace esphome
+}  // namespace esphome::wl_134

@@ -35,3 +35,99 @@ button:
             data: [0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef]
         - cc1101.send_packet: !lambda |-
             return {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+
+        - cc1101.set_frequency: !lambda |-
+            return 433.91e6;
+        - cc1101.set_frequency:
+            value: "433.91MHz"
+        - cc1101.set_frequency:
+            value: 433911000
+        - cc1101.set_frequency: 433912000
+
+        - cc1101.set_output_power: !lambda |-
+            return -29.9;
+        - cc1101.set_output_power:
+            value: "-28"
+        - cc1101.set_output_power:
+            value: 10
+        - cc1101.set_output_power: 11
+
+        - cc1101.set_modulation_type: !lambda |-
+            return cc1101::Modulation::MODULATION_2_FSK;
+        - cc1101.set_modulation_type:
+            value: "4-FSK"
+        - cc1101.set_modulation_type: "GFSK"
+
+        - cc1101.set_symbol_rate: !lambda |-
+            return 6000.0;
+        - cc1101.set_symbol_rate:
+            value: "7000.0"
+        - cc1101.set_symbol_rate:
+            value: 8000.0
+        - cc1101.set_symbol_rate: 9000
+
+        - cc1101.set_rx_attenuation: !lambda |-
+            return cc1101::RxAttenuation::RX_ATTENUATION_0DB;
+        - cc1101.set_rx_attenuation:
+            value: "6dB"
+        - cc1101.set_rx_attenuation: "12dB"
+
+        - cc1101.set_dc_blocking_filter: !lambda |-
+            return false;
+        - cc1101.set_dc_blocking_filter:
+            value: true
+        - cc1101.set_dc_blocking_filter: false
+
+        - cc1101.set_manchester: !lambda |-
+            return false;
+        - cc1101.set_manchester:
+            value: true
+        - cc1101.set_manchester: false
+
+        - cc1101.set_filter_bandwidth: !lambda |-
+            return 58e3;
+        - cc1101.set_filter_bandwidth:
+            value: "59kHz"
+        - cc1101.set_filter_bandwidth:
+            value: 60000
+        - cc1101.set_filter_bandwidth: "61kHz"
+
+        - cc1101.set_fsk_deviation: !lambda |-
+            return 1.5e3;
+        - cc1101.set_fsk_deviation:
+            value: "1.6kHz"
+        - cc1101.set_fsk_deviation:
+            value: 1700
+        - cc1101.set_fsk_deviation: "1.8kHz"
+
+        - cc1101.set_msk_deviation: !lambda |-
+            return 1;
+        - cc1101.set_msk_deviation:
+            value: "2"
+        - cc1101.set_msk_deviation:
+            value: 3
+        - cc1101.set_msk_deviation: "4"
+
+        - cc1101.set_channel: !lambda |-
+            return 0;
+        - cc1101.set_channel:
+            value: "1"
+        - cc1101.set_channel:
+            value: 3
+        - cc1101.set_channel: 3
+
+        - cc1101.set_channel_spacing: !lambda |-
+            return 25e3;
+        - cc1101.set_channel_spacing:
+            value: "26kHz"
+        - cc1101.set_channel_spacing:
+            value: 27000
+        - cc1101.set_channel_spacing: "28kHz"
+
+        - cc1101.set_if_frequency: !lambda |-
+            return 25e3;
+        - cc1101.set_if_frequency:
+            value: "26kHz"
+        - cc1101.set_if_frequency:
+            value: 27000
+        - cc1101.set_if_frequency: "28kHz"

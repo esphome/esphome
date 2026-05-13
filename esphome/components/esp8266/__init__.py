@@ -1,11 +1,14 @@
 import logging
 from pathlib import Path
+import re
+import subprocess
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_BOARD_FLASH_MODE,
+    CONF_ENABLE_FULL_PRINTF,
     CONF_FRAMEWORK,
     CONF_PLATFORM_VERSION,
     CONF_SOURCE,
@@ -17,8 +20,10 @@ from esphome.const import (
     PLATFORM_ESP8266,
     ThreadModel,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed
+from esphome.types import ConfigType
 
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
 from .const import (
@@ -39,10 +44,40 @@ from .const import (
 )
 from .gpio import PinInitialState, add_pin_initial_states_array
 
+CONF_ENABLE_SCANF_FLOAT = "enable_scanf_float"
+# Heuristically matches scanf/sscanf calls with float format specifiers.
+# Standard scanf float conversions: %f %F %e %E %g %G %a %A
+# With optional modifiers: %*f (suppression), %8f (width), %lf %Lf (length)
+# Also matches non-standard patterns like %.2f as a heuristic — these are
+# invalid in scanf but users may write them by analogy with printf.
+# Uses [^;]*? to stay within a single statement, preventing false positives
+# from e.g. sscanf(buf, "%d", &x); printf("%f", val);
+_SCANF_FLOAT_RE = re.compile(r"scanf\s*\([^;]*?%[*\d.]*[hlL]*[feEgGaAF]")
+
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
+
+
+def lambdas_use_scanf_float(config: ConfigType) -> bool:
+    """Check if any lambda in the config uses scanf with a float format specifier.
+
+    Comments are stripped before matching to avoid false positives from
+    commented-out code. The cost of a false positive is only ~8KB flash.
+    """
+    stack: list = [config]
+    while stack:
+        obj = stack.pop()
+        if isinstance(obj, Lambda):
+            src = obj.comment_remover(obj.value)
+            if _SCANF_FLOAT_RE.search(src):
+                return True
+        elif isinstance(obj, dict):
+            stack.extend(obj.values())
+        elif isinstance(obj, list):
+            stack.extend(obj)
+    return False
 
 
 def set_core_data(config):
@@ -60,6 +95,18 @@ def set_core_data(config):
 
 
 def get_download_types(storage_json):
+    """Binary-download entries for a built ESP8266 firmware.
+
+    Used by:
+    - esphome.dashboard (legacy "Download .bin" button)
+    - device-builder (esphome/device-builder) — same dispatch via
+      ``importlib.import_module(f"esphome.components.{platform}")``
+      then ``module.get_download_types(storage)``. The contract is
+      "returns ``list[dict]`` with at least ``title`` /
+      ``description`` / ``file`` / ``download`` keys"; please keep
+      the shape stable so the new dashboard's download panel
+      doesn't have to special-case per-platform schemas.
+    """
     return [
         {
             "title": "Standard format",
@@ -170,7 +217,9 @@ BUILD_FLASH_MODES = ["qio", "qout", "dio", "dout"]
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Required(CONF_BOARD): cv.string_strict,
+            cv.Required(CONF_BOARD): cv.All(
+                cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
+            ),
             cv.Optional(CONF_FRAMEWORK, default={}): ARDUINO_FRAMEWORK_SCHEMA,
             cv.Optional(CONF_RESTORE_FROM_FLASH, default=False): cv.boolean,
             cv.Optional(CONF_EARLY_PIN_INIT, default=True): cv.boolean,
@@ -179,6 +228,8 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ENABLE_SERIAL): cv.boolean,
             cv.Optional(CONF_ENABLE_SERIAL1): cv.boolean,
+            cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
+            cv.Optional(CONF_ENABLE_SCANF_FLOAT): cv.boolean,
         }
     ),
     set_core_data,
@@ -198,16 +249,25 @@ async def to_code(config):
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
     cg.add_define(ThreadModel.SINGLE)
+    cg.add_define("USE_ESP8266_CRASH_HANDLER")
 
-    cg.add_platformio_option(
-        "extra_scripts",
-        [
-            "pre:testing_mode.py",
-            "pre:exclude_updater.py",
-            "pre:exclude_waveform.py",
-            "post:post_build.py",
-        ],
-    )
+    enable_scanf_float = config.get(CONF_ENABLE_SCANF_FLOAT)
+    if enable_scanf_float is None and lambdas_use_scanf_float(CORE.config):
+        enable_scanf_float = True
+        _LOGGER.warning(
+            "Lambda uses scanf with a float format specifier; "
+            "enabling scanf float support (~8KB flash)"
+        )
+
+    extra_scripts = [
+        "pre:testing_mode.py",
+        "pre:exclude_updater.py",
+        "pre:exclude_waveform.py",
+    ]
+    if not enable_scanf_float:
+        extra_scripts.append("pre:remove_float_scanf.py")
+    extra_scripts.append("post:post_build.py")
+    cg.add_platformio_option("extra_scripts", extra_scripts)
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -258,6 +318,19 @@ async def to_code(config):
     # we pretend it has much larger memory to test that components compile together
     if CORE.testing_mode:
         cg.add_build_flag("-DESPHOME_TESTING_MODE")
+
+    # Wrap FILE*-based printf functions to eliminate newlib's _vfiprintf_r
+    # (~1.6 KB). See printf_stubs.cpp for implementation.
+    if config.get(CONF_ENABLE_FULL_PRINTF):
+        cg.add_define("USE_FULL_PRINTF")
+    else:
+        for symbol in ("vprintf", "printf", "fprintf"):
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
+
+    # Wrap Arduino's millis() so all callers (including Arduino libraries and ISR
+    # handlers) use our fast accumulator instead of the expensive 4x 64-bit multiply
+    # implementation in the Arduino ESP8266 core.
+    cg.add_build_flag("-Wl,--wrap=millis")
 
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
@@ -342,3 +415,122 @@ def copy_files() -> None:
         exclude_waveform_file,
         CORE.relative_build_path("exclude_waveform.py"),
     )
+    remove_float_scanf_file = dir / "remove_float_scanf.py.script"
+    copy_file_if_changed(
+        remove_float_scanf_file,
+        CORE.relative_build_path("remove_float_scanf.py"),
+    )
+
+
+# ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder
+ESP8266_EXCEPTION_CODES = {
+    0: "Illegal instruction (Is the flash damaged?)",
+    1: "SYSCALL instruction",
+    2: "InstructionFetchError: Processor internal physical address or data error during "
+    "instruction fetch",
+    3: "LoadStoreError: Processor internal physical address or data error during load or store",
+    4: "Level1Interrupt: Level-1 interrupt as indicated by set level-1 bits in the INTERRUPT "
+    "register",
+    5: "Alloca: MOVSP instruction, if caller's registers are not in the register file",
+    6: "Integer Divide By Zero",
+    7: "reserved",
+    8: "Privileged: Attempt to execute a privileged operation when CRING ? 0",
+    9: "LoadStoreAlignmentCause: Load or store to an unaligned address",
+    10: "reserved",
+    11: "reserved",
+    12: "InstrPIFDataError: PIF data error during instruction fetch",
+    13: "LoadStorePIFDataError: Synchronous PIF data error during LoadStore access",
+    14: "InstrPIFAddrError: PIF address error during instruction fetch",
+    15: "LoadStorePIFAddrError: Synchronous PIF address error during LoadStore access",
+    16: "InstTLBMiss: Error during Instruction TLB refill",
+    17: "InstTLBMultiHit: Multiple instruction TLB entries matched",
+    18: "InstFetchPrivilege: An instruction fetch referenced a virtual address at a ring level "
+    "less than CRING",
+    19: "reserved",
+    20: "InstFetchProhibited: An instruction fetch referenced a page mapped with an attribute "
+    "that does not permit instruction fetch",
+    21: "reserved",
+    22: "reserved",
+    23: "reserved",
+    24: "LoadStoreTLBMiss: Error during TLB refill for a load or store",
+    25: "LoadStoreTLBMultiHit: Multiple TLB entries matched for a load or store",
+    26: "LoadStorePrivilege: A load or store referenced a virtual address at a ring level less "
+    "than ",
+    27: "reserved",
+    28: "Access to invalid address: LOAD (wild pointer?)",
+    29: "Access to invalid address: STORE (wild pointer?)",
+}
+
+
+def _decode_pc(config, addr):
+    from esphome.platformio import toolchain
+
+    idedata = toolchain.get_idedata(config)
+    if not idedata.addr2line_path or not idedata.firmware_elf_path:
+        _LOGGER.debug("decode_pc no addr2line")
+        return
+    command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
+    try:
+        translation = subprocess.check_output(command, close_fds=False).decode().strip()
+    except Exception:  # pylint: disable=broad-except
+        _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
+        return
+
+    if "?? ??:0" in translation:
+        # Nothing useful
+        return
+    translation = translation.replace(" at ??:?", "").replace(":?", "")
+    _LOGGER.warning("Decoded %s", translation)
+
+
+def _parse_register(config, regex, line):
+    match = regex.match(line)
+    if match is not None:
+        _decode_pc(config, match.group(1))
+
+
+STACKTRACE_ESP8266_EXCEPTION_TYPE_RE = re.compile(r"[eE]xception \((\d+)\):")
+STACKTRACE_ESP8266_PC_RE = re.compile(r"epc1=0x(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP8266_EXCVADDR_RE = re.compile(r"excvaddr=0x(4[0-9a-fA-F]{7})")
+STACKTRACE_BAD_ALLOC_RE = re.compile(
+    r"^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$"
+)
+STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
+
+
+def process_stacktrace(config, line, backtrace_state):
+    line = line.strip()
+    # ESP8266 Exception type
+    match = re.match(STACKTRACE_ESP8266_EXCEPTION_TYPE_RE, line)
+    if match is not None:
+        code = int(match.group(1))
+        _LOGGER.warning(
+            "Exception type: %s", ESP8266_EXCEPTION_CODES.get(code, "unknown")
+        )
+
+    # ESP8266 PC/EXCVADDR
+    _parse_register(config, STACKTRACE_ESP8266_PC_RE, line)
+    _parse_register(config, STACKTRACE_ESP8266_EXCVADDR_RE, line)
+
+    # bad alloc
+    match = re.match(STACKTRACE_BAD_ALLOC_RE, line)
+    if match is not None:
+        _LOGGER.warning(
+            "Memory allocation of %s bytes failed at %s", match.group(2), match.group(1)
+        )
+        _decode_pc(config, match.group(1))
+
+    # ESP8266 multi-line backtrace
+    if ">>>stack>>>" in line:
+        # Start of backtrace
+        backtrace_state = True
+        _LOGGER.warning("Found stack trace! Trying to decode it")
+    elif "<<<stack<<<" in line:
+        # End of backtrace
+        backtrace_state = False
+
+    if backtrace_state:
+        for addr in re.finditer(STACKTRACE_ESP8266_BACKTRACE_PC_RE, line):
+            _decode_pc(config, addr.group())
+
+    return backtrace_state

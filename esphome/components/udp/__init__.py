@@ -14,6 +14,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
 from esphome.core import ID
 from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
 DEPENDENCIES = ["network"]
@@ -65,33 +66,47 @@ RELOCATED = {
     )
 }
 
-CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(UDPComponent),
-        cv.Optional(CONF_PORT, default=18511): cv.Any(
-            cv.port,
-            cv.Schema(
+
+def _consume_udp_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for UDP component."""
+    from esphome.components import socket
+
+    # UDP uses up to 2 sockets: 1 broadcast + 1 listen
+    # Whether each is used depends on code generation, so register worst case
+    socket.consume_sockets(2, "udp", socket.SocketType.UDP)(config)
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.COMPONENT_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(UDPComponent),
+            cv.Optional(CONF_PORT, default=18511): cv.Any(
+                cv.port,
+                cv.Schema(
+                    {
+                        cv.Required(CONF_LISTEN_PORT): cv.port,
+                        cv.Required(CONF_BROADCAST_PORT): cv.port,
+                    }
+                ),
+            ),
+            cv.Optional(
+                CONF_LISTEN_ADDRESS, default="255.255.255.255"
+            ): cv.ipv4address_multi_broadcast,
+            cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
+                cv.ipv4address,
+            ),
+            cv.Optional(CONF_ON_RECEIVE): automation.validate_automation(
                 {
-                    cv.Required(CONF_LISTEN_PORT): cv.port,
-                    cv.Required(CONF_BROADCAST_PORT): cv.port,
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        Trigger.template(trigger_args)
+                    ),
                 }
             ),
-        ),
-        cv.Optional(
-            CONF_LISTEN_ADDRESS, default="255.255.255.255"
-        ): cv.ipv4address_multi_broadcast,
-        cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
-            cv.ipv4address,
-        ),
-        cv.Optional(CONF_ON_RECEIVE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    Trigger.template(trigger_args)
-                ),
-            }
-        ),
-    }
-).extend(RELOCATED)
+        }
+    ).extend(RELOCATED),
+    _consume_udp_sockets,
+)
 
 
 async def register_udp_client(var, config):
@@ -115,12 +130,9 @@ async def to_code(config):
     if (listen_address := str(config[CONF_LISTEN_ADDRESS])) != "255.255.255.255":
         cg.add(var.set_listen_address(listen_address))
     cg.add(var.set_addresses([str(addr) for addr in config[CONF_ADDRESSES]]))
-    if on_receive := config.get(CONF_ON_RECEIVE):
-        on_receive = on_receive[0]
-        trigger_id = cg.new_Pvariable(on_receive[CONF_TRIGGER_ID])
-        trigger = await automation.build_automation(
-            trigger_id, trigger_argtype, on_receive
-        )
+    for conf in config.get(CONF_ON_RECEIVE, []):
+        trigger_id = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+        trigger = await automation.build_automation(trigger_id, trigger_argtype, conf)
         trigger_lambda = await cg.process_lambda(
             trigger.trigger(
                 cg.std_vector.template(cg.uint8)(
@@ -131,6 +143,7 @@ async def to_code(config):
             listener_argtype,
         )
         cg.add(var.add_listener(trigger_lambda))
+    if config.get(CONF_ON_RECEIVE):
         cg.add(var.set_should_listen())
 
 
@@ -156,6 +169,7 @@ def validate_raw_data(value):
         },
         key=CONF_DATA,
     ),
+    synchronous=True,
 )
 async def udp_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

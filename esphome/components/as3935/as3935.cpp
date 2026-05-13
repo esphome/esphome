@@ -1,8 +1,7 @@
 #include "as3935.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace as3935 {
+namespace esphome::as3935 {
 
 static const char *const TAG = "as3935";
 
@@ -307,9 +306,9 @@ void AS3935Component::tune_antenna() {
   uint8_t tune_val = this->read_capacitance();
   ESP_LOGI(TAG,
            "Starting antenna tuning\n"
-           "Division Ratio is set to: %d\n"
-           "Internal Capacitor is set to: %d\n"
-           "Displaying oscillator on INT pin. Measure its frequency - multiply value by Division Ratio",
+           "  Division Ratio is set to: %d\n"
+           "  Internal Capacitor is set to: %d\n"
+           "  Displaying oscillator on INT pin. Measure its frequency - multiply value by Division Ratio",
            div_ratio, tune_val);
   this->display_oscillator(true, ANTFREQ);
 }
@@ -320,5 +319,4 @@ uint8_t AS3935Component::read_register_(uint8_t reg, uint8_t mask) {
   return value;
 }
 
-}  // namespace as3935
-}  // namespace esphome
+}  // namespace esphome::as3935

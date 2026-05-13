@@ -89,7 +89,7 @@ void ScanResultsWiFiInfo::on_wifi_scan_results(const wifi::wifi_scan_vector_t<wi
   for (const auto &scan : results) {
     if (scan.get_is_hidden())
       continue;
-    const std::string &ssid = scan.get_ssid();
+    const auto &ssid = scan.get_ssid();
     // Max space: ssid + ": " (2) + "-128" (4) + "dB\n" (3) = ssid + 9
     if (ptr + ssid.size() + 9 > end)
       break;

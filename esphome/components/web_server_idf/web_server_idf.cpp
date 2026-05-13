@@ -74,12 +74,13 @@ int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_
   // Use MSG_DONTWAIT to prevent blocking when TCP send buffer is full
   int ret = send(sockfd, buf, buf_len, flags | MSG_DONTWAIT);
   if (ret < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    const int err = errno;
+    if (err == EAGAIN || err == EWOULDBLOCK) {
       // Buffer full - retry later
       return HTTPD_SOCK_ERR_TIMEOUT;
     }
     // Real error
-    ESP_LOGD(TAG, "send error: errno %d", errno);
+    ESP_LOGD(TAG, "send error: errno %d", err);
     return HTTPD_SOCK_ERR_FAIL;
   }
   return ret;
@@ -120,7 +121,10 @@ void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
   }
+  // Default httpd stack is defined by ESP-IDF. Increase to accommodate SerializationBuffer's
+  // 640-byte stack buffer used by web_server JSON request handlers.
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.stack_size = config.stack_size + 256;
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.
@@ -171,10 +175,11 @@ esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
     const char *content_type_char = content_type.value().c_str();
 
     // Check most common case first
-    if (stristr(content_type_char, "application/x-www-form-urlencoded") != nullptr) {
+    size_t content_type_len = strlen(content_type_char);
+    if (strcasestr_n(content_type_char, content_type_len, "application/x-www-form-urlencoded") != nullptr) {
       // Normal form data - proceed with regular handling
 #ifdef USE_WEBSERVER_OTA
-    } else if (stristr(content_type_char, "multipart/form-data") != nullptr) {
+    } else if (strcasestr_n(content_type_char, content_type_len, "multipart/form-data") != nullptr) {
       auto *server = static_cast<AsyncWebServer *>(r->user_ctx);
       return server->handle_multipart_upload_(r, content_type_char);
 #endif
@@ -255,19 +260,6 @@ StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) co
   // Decode URL-encoded characters in-place (e.g., %20 -> space)
   size_t decoded_len = url_decode(buffer.data());
   return StringRef(buffer.data(), decoded_len);
-}
-
-void AsyncWebServerRequest::send(AsyncWebServerResponse *response) {
-  httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
-}
-
-void AsyncWebServerRequest::send(int code, const char *content_type, const char *content) {
-  this->init_response_(nullptr, code, content_type);
-  if (content) {
-    httpd_resp_send(*this, content, HTTPD_RESP_USE_STRLEN);
-  } else {
-    httpd_resp_send(*this, nullptr, 0);
-  }
 }
 
 void AsyncWebServerRequest::redirect(const std::string &url) {
@@ -352,7 +344,26 @@ bool AsyncWebServerRequest::authenticate(const char *username, const char *passw
   esp_crypto_base64_encode(reinterpret_cast<uint8_t *>(digest), max_digest_len, &out,
                            reinterpret_cast<const uint8_t *>(user_info), user_info_len);
 
-  return strcmp(digest, auth_str + auth_prefix_len) == 0;
+  // Constant-time comparison to avoid timing side channels.
+  // No early return on length mismatch — the length difference is folded
+  // into the accumulator so any mismatch is rejected.
+  const char *provided = auth_str + auth_prefix_len;
+  size_t digest_len = out;  // length from esp_crypto_base64_encode
+  // Derive provided_len from the already-sized std::string rather than
+  // rescanning with strlen (avoids attacker-controlled scan length).
+  size_t provided_len = auth.value().size() - auth_prefix_len;
+  // Use full-width XOR so any bit difference in the lengths is preserved
+  // (uint8_t truncation would miss differences in higher bytes, e.g.
+  // digest_len vs digest_len + 256).
+  volatile size_t result = digest_len ^ provided_len;
+  // Iterate over the expected digest length only — the full-width length
+  // XOR above already rejects any length mismatch, and bounding the loop
+  // prevents a long Authorization header from forcing extra work.
+  for (size_t i = 0; i < digest_len; i++) {
+    char provided_ch = (i < provided_len) ? provided[i] : 0;
+    result |= static_cast<uint8_t>(digest[i] ^ provided_ch);
+  }
+  return result == 0;
 }
 
 void AsyncWebServerRequest::requestAuthentication(const char *realm) const {
@@ -373,13 +384,7 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   }
 
   // Look up value from query strings
-  optional<std::string> val = query_key_value(this->post_query_.c_str(), this->post_query_.size(), name);
-  if (!val.has_value()) {
-    auto url_query = request_get_url_query(*this);
-    if (url_query.has_value()) {
-      val = query_key_value(url_query.value().c_str(), url_query.value().size(), name);
-    }
-  }
+  auto val = this->find_query_value_(name);
 
   // Don't cache misses to avoid wasting memory when handlers check for
   // optional parameters that don't exist in the request
@@ -390,6 +395,50 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const char *name) {
   auto *param = new AsyncWebParameter(name, val.value());  // NOLINT(cppcoreguidelines-owning-memory)
   this->params_.push_back(param);
   return param;
+}
+
+/// Search post_query then URL query with a callback.
+/// Returns first truthy result, or value-initialized default.
+/// URL query is accessed directly from req->uri (same pattern as url_to()).
+template<typename Func>
+static auto search_query_sources(httpd_req_t *req, const std::string &post_query, const char *name, Func func)
+    -> decltype(func(nullptr, size_t{0}, name)) {
+  if (!post_query.empty()) {
+    auto result = func(post_query.c_str(), post_query.size(), name);
+    if (result) {
+      return result;
+    }
+  }
+  // Use httpd API for query length, then access string directly from URI.
+  // http_parser identifies components by offset/length without modifying the URI string.
+  // This is the same pattern used by url_to().
+  auto len = httpd_req_get_url_query_len(req);
+  if (len == 0) {
+    return {};
+  }
+  const char *query = strchr(req->uri, '?');
+  if (query == nullptr) {
+    return {};
+  }
+  query++;  // skip '?'
+  return func(query, len, name);
+}
+
+optional<std::string> AsyncWebServerRequest::find_query_value_(const char *name) const {
+  return search_query_sources(this->req_, this->post_query_, name,
+                              [](const char *q, size_t len, const char *k) { return query_key_value(q, len, k); });
+}
+
+bool AsyncWebServerRequest::hasArg(const char *name) {
+  return search_query_sources(this->req_, this->post_query_, name, query_has_key);
+}
+
+std::string AsyncWebServerRequest::arg(const char *name) {
+  auto val = this->find_query_value_(name);
+  if (val.has_value()) {
+    return std::move(val.value());
+  }
+  return {};
 }
 
 void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
@@ -423,21 +472,36 @@ void AsyncResponseStream::printf(const char *fmt, ...) {
 
 #ifdef USE_WEBSERVER
 AsyncEventSource::~AsyncEventSource() {
-  for (auto *ses : this->sessions_) {
-    delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
+  LockGuard guard{this->pending_mutex_};
+  for (auto *vec : {&this->sessions_, &this->pending_sessions_}) {
+    for (auto *ses : *vec) {
+      delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
+    }
   }
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
+  // Httpd task: set up the live httpd_req_t and park the session; main loop does the rest.
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
   auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);
-  if (this->on_connect_) {
-    this->on_connect_(rsp);
+  {
+    LockGuard guard{this->pending_mutex_};
+    this->pending_sessions_.push_back(rsp);
+    this->has_pending_sessions_.store(true, std::memory_order_release);
   }
-  this->sessions_.push_back(rsp);
+  this->web_server_->enable_loop_soon_any_context();
 }
 
-void AsyncEventSource::loop() {
+// clang-analyzer traces a false-positive leak path from loop() through
+// adopt_pending_sessions_main_loop_() into start_session_main_loop_() and
+// finally ArduinoJson. Suppress along the entire in-our-code call chain.
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks)
+bool AsyncEventSource::loop() {
+  // Fast path: one atomic load per tick. Slow path is out-of-line on connect.
+  if (this->has_pending_sessions_.load(std::memory_order_acquire)) {
+    this->adopt_pending_sessions_main_loop_();
+  }
+
   // Clean up dead sessions safely
   // This follows the ESP-IDF pattern where free_ctx marks resources as dead
   // and the main loop handles the actual cleanup to avoid race conditions
@@ -445,7 +509,7 @@ void AsyncEventSource::loop() {
     auto *ses = this->sessions_[i];
     // If the session has a dead socket (marked by destroy callback)
     if (ses->fd_.load() == 0) {
-      ESP_LOGD(TAG, "Removing dead event source session");
+      // destroy() already logged the close with the fd; don't double-log here.
       delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
       // Remove by swapping with last element (O(1) removal, order doesn't matter for sessions)
       this->sessions_[i] = this->sessions_.back();
@@ -455,7 +519,32 @@ void AsyncEventSource::loop() {
       ++i;
     }
   }
+  return !this->sessions_.empty();
 }
+
+void AsyncEventSource::adopt_pending_sessions_main_loop_() {
+  std::vector<AsyncEventSourceResponse *> incoming;
+  {
+    LockGuard guard{this->pending_mutex_};
+    incoming.swap(this->pending_sessions_);
+    this->has_pending_sessions_.store(false, std::memory_order_relaxed);
+  }
+  for (auto *rsp : incoming) {
+    // Already disconnected? Drop it; skip on_connect_/session start on a dead session.
+    if (rsp->fd_.load() == 0) {
+      delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
+      continue;
+    }
+    this->sessions_.push_back(rsp);
+    // Prime first so on_connect_ observes a session that has already sent its
+    // initial ping/config/sorting_groups, matching the pre-refactor ordering.
+    rsp->start_session_main_loop_();
+    if (this->on_connect_) {
+      this->on_connect_(rsp);
+    }
+  }
+}
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void AsyncEventSource::try_send_nodefer(const char *message, const char *event, uint32_t id, uint32_t reconnect) {
   for (auto *ses : this->sessions_) {
@@ -481,6 +570,7 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
                                                    esphome::web_server_idf::AsyncEventSource *server,
                                                    esphome::web_server::WebServer *ws)
     : server_(server), web_server_(ws), entities_iterator_(ws, server) {
+  // Httpd task only. start_session_main_loop_() handles event_buffer_ / iterator setup.
   httpd_req_t *req = *request;
 
   httpd_resp_set_status(req, HTTPD_200);
@@ -502,21 +592,23 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 
   // Use non-blocking send to prevent watchdog timeouts when TCP buffers are full
   httpd_sess_set_send_override(this->hd_, this->fd_.load(), nonblocking_send);
+}
 
-  // Configure reconnect timeout and send config
-  // this should always go through since the tcp send buffer is empty on connect
-  std::string message = ws->get_config_json();
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+void AsyncEventSourceResponse::start_session_main_loop_() {
+  auto *ws = this->web_server_;
+
+  // tcp send buffer is empty on connect, so these should always go through
+  auto message = ws->get_config_json();
   this->try_send_nodefer(message.c_str(), "ping", millis(), 30000);
 
 #ifdef USE_WEBSERVER_SORTING
   for (auto &group : ws->sorting_groups_) {
-    // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     json::JsonBuilder builder;
     JsonObject root = builder.root();
     root["name"] = group.second.name;
     root["sorting_weight"] = group.second.weight;
     message = builder.serialize();
-    // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
     // a (very) large number of these should be able to be queued initially without defer
     // since the only thing in the send buffer at this point is the initial ping/config
@@ -525,13 +617,8 @@ AsyncEventSourceResponse::AsyncEventSourceResponse(const AsyncWebServerRequest *
 #endif
 
   this->entities_iterator_.begin(ws->include_internal_);
-
-  // just dump them all up-front and take advantage of the deferred queue
-  //     on second thought that takes too long, but leaving the commented code here for debug purposes
-  // while(!this->entities_iterator_.completed()) {
-  //  this->entities_iterator_.advance();
-  //}
 }
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void AsyncEventSourceResponse::destroy(void *ptr) {
   auto *rsp = static_cast<AsyncEventSourceResponse *>(ptr);
@@ -559,7 +646,7 @@ void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_g
 void AsyncEventSourceResponse::process_deferred_queue_() {
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
-    std::string message = de.message_generator_(web_server_, de.source_);
+    auto message = de.message_generator_(web_server_, de.source_);
     if (this->try_send_nodefer(message.c_str(), "state")) {
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
@@ -796,7 +883,7 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
     // trying to send first
     deq_push_back_with_dedup_(source, message_generator);
   } else {
-    std::string message = message_generator(web_server_, source);
+    auto message = message_generator(web_server_, source);
     if (!this->try_send_nodefer(message.c_str(), "state")) {
       deq_push_back_with_dedup_(source, message_generator);
     }
@@ -862,12 +949,12 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
     }
   });
 
-  // Process data - use stack buffer to avoid heap allocation
-  char buffer[MULTIPART_CHUNK_SIZE];
+  // Use heap buffer - 1460 bytes is too large for the httpd task stack
+  auto buffer = std::make_unique_for_overwrite<char[]>(MULTIPART_CHUNK_SIZE);
   size_t bytes_since_yield = 0;
 
   for (size_t remaining = r->content_len; remaining > 0;) {
-    int recv_len = httpd_req_recv(r, buffer, std::min(remaining, MULTIPART_CHUNK_SIZE));
+    int recv_len = httpd_req_recv(r, buffer.get(), std::min(remaining, MULTIPART_CHUNK_SIZE));
 
     if (recv_len <= 0) {
       httpd_resp_send_err(r, recv_len == HTTPD_SOCK_ERR_TIMEOUT ? HTTPD_408_REQ_TIMEOUT : HTTPD_400_BAD_REQUEST,
@@ -875,7 +962,7 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
       return recv_len == HTTPD_SOCK_ERR_TIMEOUT ? ESP_ERR_TIMEOUT : ESP_FAIL;
     }
 
-    if (reader->parse(buffer, recv_len) != static_cast<size_t>(recv_len)) {
+    if (reader->parse(buffer.get(), recv_len) != static_cast<size_t>(recv_len)) {
       ESP_LOGW(TAG, "Multipart parser error");
       httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, nullptr);
       return ESP_FAIL;

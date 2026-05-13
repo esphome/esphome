@@ -2,7 +2,6 @@
 
 #include "esphome/core/defines.h"
 #include <cstring>
-#include <memory>
 #include <string>
 #include <vector>
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
@@ -10,7 +9,9 @@
 #endif
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/time_64.h"
 
 namespace esphome {
 
@@ -33,7 +34,7 @@ class Scheduler {
   // std::string overload - deprecated, use const char* or uint32_t instead
   // Remove before 2026.7.0
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> &&func);
 
   /** Set a timeout with a const char* name.
    *
@@ -43,11 +44,11 @@ class Scheduler {
    *   - A static const char* variable
    *   - A pointer with lifetime >= the scheduled task
    */
-  void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, const char *name, uint32_t timeout, std::function<void()> &&func);
   /// Set a timeout with a numeric ID (zero heap allocation)
-  void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, uint32_t id, uint32_t timeout, std::function<void()> &&func);
   /// Set a timeout with an internal scheduler ID (separate namespace from component NUMERIC_ID)
-  void set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout, std::function<void()> func) {
+  void set_timeout(Component *component, InternalSchedulerID id, uint32_t timeout, std::function<void()> &&func) {
     this->set_timer_common_(component, SchedulerItem::TIMEOUT, NameType::NUMERIC_ID_INTERNAL, nullptr,
                             static_cast<uint32_t>(id), timeout, std::move(func));
   }
@@ -62,7 +63,7 @@ class Scheduler {
   }
 
   ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> &&func);
 
   /** Set an interval with a const char* name.
    *
@@ -72,11 +73,11 @@ class Scheduler {
    *   - A static const char* variable
    *   - A pointer with lifetime >= the scheduled task
    */
-  void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, const char *name, uint32_t interval, std::function<void()> &&func);
   /// Set an interval with a numeric ID (zero heap allocation)
-  void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, uint32_t id, uint32_t interval, std::function<void()> &&func);
   /// Set an interval with an internal scheduler ID (separate namespace from component NUMERIC_ID)
-  void set_interval(Component *component, InternalSchedulerID id, uint32_t interval, std::function<void()> func) {
+  void set_interval(Component *component, InternalSchedulerID id, uint32_t interval, std::function<void()> &&func) {
     this->set_timer_common_(component, SchedulerItem::INTERVAL, NameType::NUMERIC_ID_INTERNAL, nullptr,
                             static_cast<uint32_t>(id), interval, std::move(func));
   }
@@ -116,36 +117,82 @@ class Scheduler {
   ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(Component *component, uint32_t id);
 
-  // Calculate when the next scheduled item should run
-  // @param now Fresh timestamp from millis() - must not be stale/cached
-  // Returns the time in milliseconds until the next scheduled item, or nullopt if no items
-  // This method performs cleanup of removed items before checking the schedule
+  /// Get 64-bit millisecond timestamp (handles 32-bit millis() rollover)
+  uint64_t millis_64() { return esphome::millis_64(); }
+
+  // Calculate when the next scheduled item should run.
+  // @param now On ESP32, unused for 64-bit extension (native); on other platforms, extended to 64-bit via rollover.
+  // Returns the time in milliseconds until the next scheduled item, or nullopt if no items.
+  // This method performs cleanup of removed items before checking the schedule.
   // IMPORTANT: This method should only be called from the main thread (loop task).
   optional<uint32_t> next_schedule_in(uint32_t now);
 
   // Execute all scheduled items that are ready
   // @param now Fresh timestamp from millis() - must not be stale/cached
-  void call(uint32_t now);
+  // @return Timestamp of the last item that ran, or `now` unchanged if none ran.
+  uint32_t call(uint32_t now);
 
-  void process_to_add();
+  // Reclaim memory held by the post-boot peak. Frees every SchedulerItem in the
+  // recycle freelist and shrinks items_/to_add_/defer_queue_ vector capacity to
+  // their current sizes (std::vector grows by doubling and otherwise retains the
+  // peak). Live items in those vectors are preserved.
+  void trim_freelist();
+
+  // Move items from to_add_ into the main heap.
+  // IMPORTANT: This method should only be called from the main thread (loop task).
+  // Inlined: the fast path (nothing to add) is just an atomic load / empty check.
+  // The lock-free fast path uses to_add_count_ (atomic) or to_add_.empty()
+  // (single-threaded). This is safe because the main loop is the only thread
+  // that reads to_add_ without holding lock_; other threads may read it only
+  // while holding the mutex (e.g. cancel_item_locked_).
+  inline void ESPHOME_ALWAYS_INLINE HOT process_to_add() {
+    if (this->to_add_empty_())
+      return;
+    this->process_to_add_slow_path_();
+  }
 
   // Name storage type discriminator for SchedulerItem
-  // Used to distinguish between static strings, hashed strings, numeric IDs, and internal numeric IDs
+  // Used to distinguish between static strings, hashed strings, numeric IDs, internal numeric IDs,
+  // and self-keyed pointers (caller-supplied `void *`, typically `this`).
   enum class NameType : uint8_t {
-    STATIC_STRING = 0,       // const char* pointer to static/flash storage
-    HASHED_STRING = 1,       // uint32_t FNV-1a hash of a runtime string
-    NUMERIC_ID = 2,          // uint32_t numeric identifier (component-level)
-    NUMERIC_ID_INTERNAL = 3  // uint32_t numeric identifier (core/internal, separate namespace)
+    STATIC_STRING = 0,        // const char* pointer to static/flash storage
+    HASHED_STRING = 1,        // uint32_t FNV-1a hash of a runtime string
+    NUMERIC_ID = 2,           // uint32_t numeric identifier (component-level)
+    NUMERIC_ID_INTERNAL = 3,  // uint32_t numeric identifier (core/internal, separate namespace)
+    SELF_POINTER = 4          // void* caller-supplied key (typically `this`); pointer equality
   };
+
+  /** Self-keyed timeout. The cancellation key is `self` (typically the caller's `this`).
+   *
+   * Use this when the caller schedules at most one timer of a single purpose at a time and
+   * does not need a `Component` for `is_failed()` skip or log source attribution. Lets
+   * small classes drop `Component` inheritance entirely when their only Component dependency
+   * was the per-instance scheduler key.
+   *
+   * NOT applied for self-keyed items:
+   *  - `is_failed()` skip — callbacks always fire (no Component to consult).
+   *  - Log source attribution — logs use a generic "self:0x…" label.
+   *
+   * If you need either of those, use the existing `(Component *, id)` overloads.
+   */
+  void set_timeout(const void *self, uint32_t timeout, std::function<void()> &&func);
+  /// Self-keyed interval. See set_timeout(const void *, ...) for semantics.
+  void set_interval(const void *self, uint32_t interval, std::function<void()> &&func);
+  bool cancel_timeout(const void *self);
+  bool cancel_interval(const void *self);
 
  protected:
   struct SchedulerItem {
-    // Ordered by size to minimize padding
-    Component *component;
+    // Ordered by size to minimize padding.
+    // `component` while live; `next_free` while in scheduler_item_pool_head_ (mutually exclusive).
+    union {
+      Component *component;
+      SchedulerItem *next_free;
+    };
     // Optimized name storage using tagged union - zero heap allocation
     union {
-      const char *static_name;  // For STATIC_STRING (string literals, no allocation)
-      uint32_t hash_or_id;      // For HASHED_STRING or NUMERIC_ID
+      const char *static_name;  // For STATIC_STRING (string literals) and SELF_POINTER (caller's `this`)
+      uint32_t hash_or_id;      // For HASHED_STRING, NUMERIC_ID, and NUMERIC_ID_INTERNAL
     } name_;
     uint32_t interval;
     // Split time to handle millis() rollover. The scheduler combines the 32-bit millis()
@@ -160,23 +207,25 @@ class Scheduler {
     uint16_t next_execution_high_;  // Upper 16 bits (millis_major counter)
 
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    // Multi-threaded with atomics: use atomic for lock-free access
-    // Place atomic<bool> separately since it can't be packed with bit fields
-    std::atomic<bool> remove{false};
+    // Multi-threaded with atomics: use atomic uint8_t for lock-free access.
+    // std::atomic<bool> is not used because GCC on Xtensa generates an indirect
+    // function call for std::atomic<bool>::load() instead of inlining it.
+    // std::atomic<uint8_t> inlines correctly on all platforms.
+    std::atomic<uint8_t> remove{0};
 
-    // Bit-packed fields (4 bits used, 4 bits padding in 1 byte)
-    enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
-    NameType name_type_ : 2;  // Discriminator for name_ union (0–3, see NameType enum)
-    bool is_retry : 1;        // True if this is a retry timeout
-                              // 4 bits padding
-#else
-    // Single-threaded or multi-threaded without atomics: can pack all fields together
     // Bit-packed fields (5 bits used, 3 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
-    bool remove : 1;
-    NameType name_type_ : 2;  // Discriminator for name_ union (0–3, see NameType enum)
+    NameType name_type_ : 3;  // Discriminator for name_ union (0–4, see NameType enum)
     bool is_retry : 1;        // True if this is a retry timeout
                               // 3 bits padding
+#else
+    // Single-threaded or multi-threaded without atomics: can pack all fields together
+    // Bit-packed fields (6 bits used, 2 bits padding in 1 byte)
+    enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
+    bool remove : 1;
+    NameType name_type_ : 3;  // Discriminator for name_ union (0–4, see NameType enum)
+    bool is_retry : 1;        // True if this is a retry timeout
+                              // 2 bits padding
 #endif
 
     // Constructor
@@ -186,7 +235,7 @@ class Scheduler {
           next_execution_low_(0),
           next_execution_high_(0),
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-          // remove is initialized in the member declaration as std::atomic<bool>{false}
+          // remove is initialized in the member declaration
           type(TIMEOUT),
           name_type_(NameType::STATIC_STRING),
           is_retry(false) {
@@ -199,30 +248,37 @@ class Scheduler {
       name_.static_name = nullptr;
     }
 
-    // Destructor - no dynamic memory to clean up
+    // Destructor - no dynamic memory to clean up (callback's std::function handles its own)
     ~SchedulerItem() = default;
 
     // Delete copy operations to prevent accidental copies
     SchedulerItem(const SchedulerItem &) = delete;
     SchedulerItem &operator=(const SchedulerItem &) = delete;
 
-    // Delete move operations: SchedulerItem objects are only managed via unique_ptr, never moved directly
+    // Delete move operations: SchedulerItem objects are managed via raw pointers, never moved directly
     SchedulerItem(SchedulerItem &&) = delete;
     SchedulerItem &operator=(SchedulerItem &&) = delete;
 
-    // Helper to get the static name (only valid for STATIC_STRING type)
-    const char *get_name() const { return (name_type_ == NameType::STATIC_STRING) ? name_.static_name : nullptr; }
+    // Helper to get the pointer-slot value (valid for STATIC_STRING and SELF_POINTER types).
+    // Both share the same union member, so callers (e.g. log formatters) can read either uniformly.
+    const char *get_name() const {
+      return (name_type_ == NameType::STATIC_STRING || name_type_ == NameType::SELF_POINTER) ? name_.static_name
+                                                                                             : nullptr;
+    }
 
-    // Helper to get the hash or numeric ID (only valid for HASHED_STRING or NUMERIC_ID types)
-    uint32_t get_name_hash_or_id() const { return (name_type_ != NameType::STATIC_STRING) ? name_.hash_or_id : 0; }
+    // Helper to get the hash or numeric ID (only valid for HASHED_STRING / NUMERIC_ID / NUMERIC_ID_INTERNAL types)
+    uint32_t get_name_hash_or_id() const {
+      return (name_type_ != NameType::STATIC_STRING && name_type_ != NameType::SELF_POINTER) ? name_.hash_or_id : 0;
+    }
 
     // Helper to get the name type
     NameType get_name_type() const { return name_type_; }
 
-    // Set name storage: for STATIC_STRING stores the pointer, for all other types stores hash_or_id.
-    // Both union members occupy the same offset, so only one store is needed.
+    // Set name storage. STATIC_STRING/SELF_POINTER use the static_name pointer slot
+    // (both are pointer-width); other types use hash_or_id. Both union members occupy
+    // the same offset, so only one store is needed.
     void set_name(NameType type, const char *static_name, uint32_t hash_or_id) {
-      if (type == NameType::STATIC_STRING) {
+      if (type == NameType::STATIC_STRING || type == NameType::SELF_POINTER) {
         name_.static_name = static_name;
       } else {
         name_.hash_or_id = hash_or_id;
@@ -230,7 +286,7 @@ class Scheduler {
       name_type_ = type;
     }
 
-    static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
+    static bool cmp(SchedulerItem *a, SchedulerItem *b);
 
     // Note: We use 48 bits total (32 + 16), stored in a 64-bit value for API compatibility.
     // The upper 16 bits of the 64-bit value are always zero, which is fine since
@@ -252,7 +308,7 @@ class Scheduler {
   // Common implementation for both timeout and interval
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
   void set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type, const char *static_name,
-                         uint32_t hash_or_id, uint32_t delay, std::function<void()> func, bool is_retry = false,
+                         uint32_t hash_or_id, uint32_t delay, std::function<void()> &&func, bool is_retry = false,
                          bool skip_cancel = false);
 
   // Common implementation for retry - Remove before 2026.8.0
@@ -266,23 +322,61 @@ class Scheduler {
   // Common implementation for cancel_retry
   bool cancel_retry_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
 
-  uint64_t millis_64_(uint32_t now);
+  // Extend a 32-bit millis() value to 64-bit. Use when the caller already has a fresh now.
+  // On platforms with native 64-bit time (ESP32, Host, Zephyr, RP2040 — see
+  // USE_NATIVE_64BIT_TIME in defines.h), ignores now and uses millis_64() directly, so the
+  // Scheduler always works in 64-bit time regardless of what the caller's 32-bit now came
+  // from. On ESP32 specifically, millis() comes from xTaskGetTickCount while millis_64()
+  // comes from esp_timer — two different clocks — but that is safe because scheduling
+  // compares millis_64 values against millis_64 only, never against millis().
+  // On platforms without native 64-bit time (e.g. ESP8266), extends now to 64-bit using
+  // rollover tracking, so both millis() and scheduling use the same underlying clock.
+  uint64_t ESPHOME_ALWAYS_INLINE millis_64_from_(uint32_t now) {
+#ifdef USE_NATIVE_64BIT_TIME
+    (void) now;
+    return millis_64();
+#else
+    return Millis64Impl::compute(now);
+#endif
+  }
   // Cleanup logically deleted items from the scheduler
-  // Returns the number of items remaining after cleanup
+  // Returns true if items remain after cleanup
   // IMPORTANT: This method should only be called from the main thread (loop task).
-  size_t cleanup_();
-  // Remove and return the front item from the heap
+  // Inlined: the fast path (nothing to remove) is just an atomic load + empty check.
+  // Reading items_.empty() without the lock is safe here because only the main
+  // loop thread structurally modifies items_ (push/pop/erase). Other threads may
+  // iterate items_ and mark items removed under lock_, but never change the
+  // vector's size or data pointer.
+  inline bool ESPHOME_ALWAYS_INLINE HOT cleanup_() {
+    if (this->to_remove_empty_())
+      return !this->items_.empty();
+    return this->cleanup_slow_path_();
+  }
+  // Slow path for cleanup_() when there are items to remove - defined in scheduler.cpp
+  bool cleanup_slow_path_();
+  // Slow path for process_to_add() when there are items to merge - defined in scheduler.cpp
+  void process_to_add_slow_path_();
+  // Remove and return the front item from the heap as a raw pointer.
+  // Caller takes ownership and must either recycle or delete the item.
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  std::unique_ptr<SchedulerItem> pop_raw_locked_();
+  SchedulerItem *pop_raw_locked_();
   // Get or create a scheduler item from the pool
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  std::unique_ptr<SchedulerItem> get_item_from_pool_locked_();
+  SchedulerItem *get_item_from_pool_locked_();
 
  private:
-  // Helper to cancel items - must be called with lock held
+  // Out-of-line helper that shrinks a SchedulerItem* vector's capacity to its current
+  // size. Centralised so trim_freelist() doesn't pay flash cost per call site.
+  void shrink_scheduler_vector_(std::vector<SchedulerItem *> *v);
+
+  // Helper to cancel matching items - must be called with lock held.
+  // When find_first=true, stops after the first match (used by set_timer_common_ where
+  // the cancel-before-add invariant guarantees at most one match).
+  // When find_first=false (default), cancels ALL matches (needed for DelayAction parallel
+  // mode where skip_cancel=true allows multiple items with the same key).
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   bool cancel_item_locked_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                           SchedulerItem::Type type, bool match_retry = false);
+                           SchedulerItem::Type type, bool match_retry = false, bool find_first = false);
 
   // Common implementation for cancel operations - handles locking
   bool cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
@@ -300,27 +394,28 @@ class Scheduler {
   // Helper function to check if item matches criteria for cancellation
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   // IMPORTANT: Must be called with scheduler lock held
-  inline bool HOT matches_item_locked_(const std::unique_ptr<SchedulerItem> &item, Component *component,
-                                       NameType name_type, const char *static_name, uint32_t hash_or_id,
-                                       SchedulerItem::Type type, bool match_retry, bool skip_removed = true) const {
+  inline bool HOT matches_item_locked_(SchedulerItem *item, Component *component, NameType name_type,
+                                       const char *static_name, uint32_t hash_or_id, SchedulerItem::Type type,
+                                       bool match_retry, bool skip_removed = true) const {
     // THREAD SAFETY: Check for nullptr first to prevent LoadProhibited crashes. On multi-threaded
-    // platforms, items can be moved out of defer_queue_ during processing, leaving nullptr entries.
-    // PR #11305 added nullptr checks in callers (mark_matching_items_removed_locked_() and
-    // has_cancelled_timeout_in_container_locked_()), but this check provides defense-in-depth: helper
-    // functions should be safe regardless of caller behavior.
+    // platforms, items can be nulled in defer_queue_ during processing.
     // Fixes: https://github.com/esphome/esphome/issues/11940
-    if (!item)
+    if (item == nullptr)
       return false;
-    if (item->component != component || item->type != type || (skip_removed && item->remove) ||
+    if (item->component != component || item->type != type || (skip_removed && this->is_item_removed_locked_(item)) ||
         (match_retry && !item->is_retry)) {
       return false;
     }
     // Name type must match
     if (item->get_name_type() != name_type)
       return false;
-    // For static strings, compare the string content; for hash/ID, compare the value
+    // STATIC_STRING: compare string content. SELF_POINTER: raw pointer equality (no strcmp).
+    // Other types: compare hash/ID value.
     if (name_type == NameType::STATIC_STRING) {
       return this->names_match_static_(item->get_name(), static_name);
+    }
+    if (name_type == NameType::SELF_POINTER) {
+      return item->name_.static_name == static_name;
     }
     return item->get_name_hash_or_id() == hash_or_id;
   }
@@ -334,10 +429,12 @@ class Scheduler {
   }
 
   // Helper to recycle a SchedulerItem back to the pool.
+  // Takes a raw pointer — caller transfers ownership. The item is either added to the
+  // pool or deleted if the pool is full.
   // IMPORTANT: Only call from main loop context! Recycling clears the callback,
   // so calling from another thread while the callback is executing causes use-after-free.
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  void recycle_item_main_loop_(std::unique_ptr<SchedulerItem> item);
+  void recycle_item_main_loop_(SchedulerItem *item);
 
   // Helper to perform full cleanup when too many items are cancelled
   void full_cleanup_removed_items_();
@@ -360,65 +457,23 @@ class Scheduler {
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
 #ifndef ESPHOME_THREAD_SINGLE
-  // Helper to process defer queue - inline for performance in hot path
-  inline void process_defer_queue_(uint32_t &now) {
-    // Process defer queue first to guarantee FIFO execution order for deferred items.
-    // Previously, defer() used the heap which gave undefined order for equal timestamps,
-    // causing race conditions on multi-core systems (ESP32, BK7200).
-    // With the defer queue:
-    // - Deferred items (delay=0) go directly to defer_queue_ in set_timer_common_
-    // - Items execute in exact order they were deferred (FIFO guarantee)
-    // - No deferred items exist in to_add_, so processing order doesn't affect correctness
-    // Single-core platforms don't use this queue and fall back to the heap-based approach.
-    //
-    // Note: Items cancelled via cancel_item_locked_() are marked with remove=true but still
-    // processed here. They are skipped during execution by should_skip_item_().
-    // This is intentional - no memory leak occurs.
-    //
-    // We use an index (defer_queue_front_) to track the read position instead of calling
-    // erase() on every pop, which would be O(n). The queue is processed once per loop -
-    // any items added during processing are left for the next loop iteration.
-
-    // Snapshot the queue end point - only process items that existed at loop start
-    // Items added during processing (by callbacks or other threads) run next loop
-    // No lock needed: single consumer (main loop), stale read just means we process less this iteration
-    size_t defer_queue_end = this->defer_queue_.size();
-
-    while (this->defer_queue_front_ < defer_queue_end) {
-      std::unique_ptr<SchedulerItem> item;
-      {
-        LockGuard lock(this->lock_);
-        // SAFETY: Moving out the unique_ptr leaves a nullptr in the vector at defer_queue_front_.
-        // This is intentional and safe because:
-        // 1. The vector is only cleaned up by cleanup_defer_queue_locked_() at the end of this function
-        // 2. Any code iterating defer_queue_ MUST check for nullptr items (see mark_matching_items_removed_locked_
-        //    and has_cancelled_timeout_in_container_locked_ in scheduler.h)
-        // 3. The lock protects concurrent access, but the nullptr remains until cleanup
-        item = std::move(this->defer_queue_[this->defer_queue_front_]);
-        this->defer_queue_front_++;
-      }
-
-      // Execute callback without holding lock to prevent deadlocks
-      // if the callback tries to call defer() again
-      if (!this->should_skip_item_(item.get())) {
-        now = this->execute_item_(item.get(), now);
-      }
-      // Recycle the defer item after execution
-      {
-        LockGuard lock(this->lock_);
-        this->recycle_item_main_loop_(std::move(item));
-      }
-    }
-
-    // If we've consumed all items up to the snapshot point, clean up the dead space
-    // Single consumer (main loop), so no lock needed for this check
-    if (this->defer_queue_front_ >= defer_queue_end) {
-      LockGuard lock(this->lock_);
-      this->cleanup_defer_queue_locked_();
-    }
+  // Process defer queue for FIFO execution of deferred items.
+  // IMPORTANT: This method should only be called from the main thread (loop task).
+  // Inlined: the fast path (nothing deferred) is just an atomic load check.
+  inline void ESPHOME_ALWAYS_INLINE HOT process_defer_queue_(uint32_t &now) {
+    // Fast path: nothing to process, avoid lock entirely.
+    // Worst case is a one-loop-iteration delay before newly deferred items are processed.
+    if (this->defer_empty_())
+      return;
+    this->process_defer_queue_slow_path_(now);
   }
 
-  // Helper to cleanup defer_queue_ after processing
+  // Slow path for process_defer_queue_() - defined in scheduler.cpp
+  void process_defer_queue_slow_path_(uint32_t &now);
+
+  // Helper to cleanup defer_queue_ after processing.
+  // Keeps the common clear() path inline, outlines the rare compaction to keep
+  // cold code out of the hot instruction cache lines.
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
   inline void cleanup_defer_queue_locked_() {
     // Check if new items were added by producers during processing
@@ -426,27 +481,17 @@ class Scheduler {
       // Common case: no new items - clear everything
       this->defer_queue_.clear();
     } else {
-      // Rare case: new items were added during processing - compact the vector
-      // This only happens when:
-      // 1. A deferred callback calls defer() again, or
-      // 2. Another thread calls defer() while we're processing
-      //
-      // Move unprocessed items (added during this loop) to the front for next iteration
-      //
-      // SAFETY: Compacted items may include cancelled items (marked for removal via
-      // cancel_item_locked_() during execution). This is safe because should_skip_item_()
-      // checks is_item_removed_() before executing, so cancelled items will be skipped
-      // and recycled on the next loop iteration.
-      size_t remaining = this->defer_queue_.size() - this->defer_queue_front_;
-      for (size_t i = 0; i < remaining; i++) {
-        this->defer_queue_[i] = std::move(this->defer_queue_[this->defer_queue_front_ + i]);
-      }
-      // Use erase() instead of resize() to avoid instantiating _M_default_append
-      // (saves ~156 bytes flash). Erasing from the end is O(1) - no shifting needed.
-      this->defer_queue_.erase(this->defer_queue_.begin() + remaining, this->defer_queue_.end());
+      // Rare case: new items were added during processing - outlined to keep cold code
+      // out of the hot instruction cache lines
+      this->compact_defer_queue_locked_();
     }
     this->defer_queue_front_ = 0;
   }
+
+  // Cold path for compacting defer_queue_ when new items were added during processing.
+  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
+  // IMPORTANT: Must not be inlined - rare path, outlined to keep it out of the hot instruction cache lines.
+  void __attribute__((noinline)) compact_defer_queue_locked_();
 #endif /* not ESPHOME_THREAD_SINGLE */
 
   // Helper to check if item is marked for removal (platform-specific)
@@ -465,6 +510,18 @@ class Scheduler {
 #endif
   }
 
+  // Helper to check if item is marked for removal when lock is already held.
+  // Uses relaxed ordering since the mutex provides all necessary synchronization.
+  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
+  bool is_item_removed_locked_(SchedulerItem *item) const {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    // Lock already held - relaxed is sufficient, mutex provides ordering
+    return item->remove.load(std::memory_order_relaxed);
+#else
+    return item->remove;
+#endif
+  }
+
   // Helper to set item removal flag (platform-specific)
   // For ESPHOME_THREAD_MULTI_NO_ATOMICS platforms, the caller must hold the scheduler lock before calling this
   // function. Uses memory_order_release when setting to true (for cancellation synchronization),
@@ -474,7 +531,7 @@ class Scheduler {
     // Multi-threaded with atomics: use atomic store with appropriate ordering
     // Release ordering when setting to true ensures cancellation is visible to other threads
     // Relaxed ordering when setting to false is sufficient for initialization
-    item->remove.store(removed, removed ? std::memory_order_release : std::memory_order_relaxed);
+    item->remove.store(removed ? 1 : 0, removed ? std::memory_order_release : std::memory_order_relaxed);
 #else
     // Single-threaded (ESPHOME_THREAD_SINGLE) or
     // multi-threaded without atomics (ESPHOME_THREAD_MULTI_NO_ATOMICS): direct write
@@ -483,103 +540,209 @@ class Scheduler {
 #endif
   }
 
-  // Helper to mark matching items in a container as removed
+  // Helper to mark matching items in a container as removed.
+  // When find_first=true, stops after the first match (used by set_timer_common_ where
+  // the cancel-before-add invariant guarantees at most one match).
+  // When find_first=false, marks ALL matches (needed for public cancel path where
+  // DelayAction parallel mode with skip_cancel=true can create multiple items with the same key).
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
-  // Returns the number of items marked for removal
+  // Returns the number of items marked for removal.
   // IMPORTANT: Must be called with scheduler lock held
-  template<typename Container>
-  size_t mark_matching_items_removed_locked_(Container &container, Component *component, NameType name_type,
-                                             const char *static_name, uint32_t hash_or_id, SchedulerItem::Type type,
-                                             bool match_retry) {
-    size_t count = 0;
-    for (auto &item : container) {
-      // Skip nullptr items (can happen in defer_queue_ when items are being processed)
-      // The defer_queue_ uses index-based processing: items are std::moved out but left in the
-      // vector as nullptr until cleanup. Even though this function is called with lock held,
-      // the vector can still contain nullptr items from the processing loop. This check prevents crashes.
-      if (!item)
-        continue;
-      if (this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type, match_retry)) {
-        this->set_item_removed_(item.get(), true);
-        count++;
-      }
-    }
-    return count;
+  // Inlined: the fast path (empty container) avoids calling the out-of-line scan.
+  inline size_t HOT mark_matching_items_removed_locked_(std::vector<SchedulerItem *> &container, Component *component,
+                                                        NameType name_type, const char *static_name,
+                                                        uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry,
+                                                        bool find_first = false) {
+    if (container.empty())
+      return 0;
+    return this->mark_matching_items_removed_slow_locked_(container, component, name_type, static_name, hash_or_id,
+                                                          type, match_retry, find_first);
   }
 
-  // Template helper to check if any item in a container matches our criteria
-  // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
+  // Out-of-line slow path for mark_matching_items_removed_locked_ when container is non-empty.
   // IMPORTANT: Must be called with scheduler lock held
-  template<typename Container>
-  bool has_cancelled_timeout_in_container_locked_(const Container &container, Component *component, NameType name_type,
-                                                  const char *static_name, uint32_t hash_or_id,
-                                                  bool match_retry) const {
-    for (const auto &item : container) {
-      // Skip nullptr items (can happen in defer_queue_ when items are being processed)
-      // The defer_queue_ uses index-based processing: items are std::moved out but left in the
-      // vector as nullptr until cleanup. If this function is called during defer queue processing,
-      // it will iterate over these nullptr items. This check prevents crashes.
-      if (!item)
-        continue;
-      if (is_item_removed_(item.get()) &&
-          this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, SchedulerItem::TIMEOUT,
-                                     match_retry, /* skip_removed= */ false)) {
-        return true;
-      }
-    }
-    return false;
-  }
+  __attribute__((noinline)) size_t mark_matching_items_removed_slow_locked_(
+      std::vector<SchedulerItem *> &container, Component *component, NameType name_type, const char *static_name,
+      uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry, bool find_first);
 
   Mutex lock_;
-  std::vector<std::unique_ptr<SchedulerItem>> items_;
-  std::vector<std::unique_ptr<SchedulerItem>> to_add_;
+  std::vector<SchedulerItem *> items_;
+  std::vector<SchedulerItem *> to_add_;
+
+#ifndef ESPHOME_THREAD_SINGLE
+  // Fast-path counter for process_to_add() to skip taking the lock when there
+  // is nothing to add. std::atomic on ATOMICS; plain uint32_t on NO_ATOMICS
+  // (BK72xx — ARMv5TE single-core, lacks LDREX/STREX so std::atomic RMW would
+  // require libatomic). Reads use __atomic_load_n(__ATOMIC_RELAXED) on
+  // NO_ATOMICS — compiles to a plain LDR (aligned 32-bit load is naturally
+  // atomic on ARMv5TE) but expresses the concurrent-access intent in the C++
+  // memory model. Writes live behind *_locked_ helpers and must hold lock_.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  std::atomic<uint32_t> to_add_count_{0};
+#else
+  uint32_t to_add_count_{0};
+#endif
+#endif /* ESPHOME_THREAD_SINGLE */
+
+  // Fast-path helper for process_to_add() to decide if it can skip the lock.
+  bool to_add_empty_() const {
+#ifdef ESPHOME_THREAD_SINGLE
+    return this->to_add_.empty();
+#elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
+    return this->to_add_count_.load(std::memory_order_relaxed) == 0;
+#else
+  return __atomic_load_n(&this->to_add_count_, __ATOMIC_RELAXED) == 0;
+#endif
+  }
+
+  // Increment to_add_count_ (no-op on single-threaded platforms).
+  // On NO_ATOMICS the caller must hold lock_; both load and store go through
+  // __atomic_*_n with __ATOMIC_RELAXED to keep every access to the counter
+  // explicitly atomic in the C++ memory model (same ARMv5TE codegen as
+  // plain LDR+STR).
+  void to_add_count_increment_locked_() {
+#if defined(ESPHOME_THREAD_SINGLE)
+    // No counter needed — to_add_empty_() checks the vector directly
+#elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
+    this->to_add_count_.fetch_add(1, std::memory_order_relaxed);
+#else
+  uint32_t v = __atomic_load_n(&this->to_add_count_, __ATOMIC_RELAXED);
+  __atomic_store_n(&this->to_add_count_, v + 1, __ATOMIC_RELAXED);
+#endif
+  }
+
+  // Reset to_add_count_ (no-op on single-threaded platforms)
+  void to_add_count_clear_locked_() {
+#if defined(ESPHOME_THREAD_SINGLE)
+    // No counter needed — to_add_empty_() checks the vector directly
+#elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
+    this->to_add_count_.store(0, std::memory_order_relaxed);
+#else
+  __atomic_store_n(&this->to_add_count_, 0, __ATOMIC_RELAXED);
+#endif
+  }
+
 #ifndef ESPHOME_THREAD_SINGLE
   // Single-core platforms don't need the defer queue and save ~32 bytes of RAM
   // Using std::vector instead of std::deque avoids 512-byte chunked allocations
   // Index tracking avoids O(n) erase() calls when draining the queue each loop
-  std::vector<std::unique_ptr<SchedulerItem>> defer_queue_;  // FIFO queue for defer() calls
-  size_t defer_queue_front_{0};  // Index of first valid item in defer_queue_ (tracks consumed items)
-#endif                           /* ESPHOME_THREAD_SINGLE */
+  std::vector<SchedulerItem *> defer_queue_;  // FIFO queue for defer() calls
+  size_t defer_queue_front_{0};               // Index of first valid item in defer_queue_ (tracks consumed items)
+
+  // Fast-path counter for process_defer_queue_() to skip lock when nothing to
+  // process. See to_add_count_ above for the NO_ATOMICS rationale.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  std::atomic<uint32_t> defer_count_{0};
+#else
+  uint32_t defer_count_{0};
+#endif
+
+  bool defer_empty_() const {
+    // defer_queue_ only exists on multi-threaded platforms, so no ESPHOME_THREAD_SINGLE path
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    return this->defer_count_.load(std::memory_order_relaxed) == 0;
+#else
+    return __atomic_load_n(&this->defer_count_, __ATOMIC_RELAXED) == 0;
+#endif
+  }
+
+  void defer_count_increment_locked_() {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    this->defer_count_.fetch_add(1, std::memory_order_relaxed);
+#else
+    uint32_t v = __atomic_load_n(&this->defer_count_, __ATOMIC_RELAXED);
+    __atomic_store_n(&this->defer_count_, v + 1, __ATOMIC_RELAXED);
+#endif
+  }
+
+  void defer_count_clear_locked_() {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    this->defer_count_.store(0, std::memory_order_relaxed);
+#else
+    __atomic_store_n(&this->defer_count_, 0, __ATOMIC_RELAXED);
+#endif
+  }
+
+#endif /* ESPHOME_THREAD_SINGLE */
+
+  // Counter for items marked for removal. Incremented cross-thread in
+  // cancel_item_locked_(). See to_add_count_ above for the NO_ATOMICS
+  // rationale.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  std::atomic<uint32_t> to_remove_{0};
+#else
   uint32_t to_remove_{0};
+#endif
 
-  // Memory pool for recycling SchedulerItem objects to reduce heap churn.
-  // Design decisions:
-  // - std::vector is used instead of a fixed array because many systems only need 1-2 scheduler items
-  // - The vector grows dynamically up to MAX_POOL_SIZE (5) only when needed, saving memory on simple setups
-  // - Pool size of 5 matches typical usage (2-4 timers) while keeping memory overhead low (~250 bytes on ESP32)
-  // - The pool significantly reduces heap fragmentation which is critical because heap allocation/deallocation
-  //   can stall the entire system, causing timing issues and dropped events for any components that need
-  //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
-  std::vector<std::unique_ptr<SchedulerItem>> scheduler_item_pool_;
+  // Lock-free check if there are items to remove (for fast-path in cleanup_)
+  bool to_remove_empty_() const {
+#if defined(ESPHOME_THREAD_MULTI_ATOMICS)
+    return this->to_remove_.load(std::memory_order_relaxed) == 0;
+#elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
+    return __atomic_load_n(&this->to_remove_, __ATOMIC_RELAXED) == 0;
+#else
+  return this->to_remove_ == 0;
+#endif
+  }
 
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
-  /*
-   * Multi-threaded platforms with atomic support: last_millis_ needs atomic for lock-free updates
-   *
-   * MEMORY-ORDERING NOTE
-   * --------------------
-   * `last_millis_` and `millis_major_` form a single 64-bit timestamp split in half.
-   * Writers publish `last_millis_` with memory_order_release and readers use
-   * memory_order_acquire. This ensures that once a reader sees the new low word,
-   * it also observes the corresponding increment of `millis_major_`.
-   */
-  std::atomic<uint32_t> last_millis_{0};
-#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
-  // Platforms without atomic support or single-threaded platforms
-  uint32_t last_millis_{0};
-#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
+  void to_remove_add_locked_(uint32_t count) {
+#if defined(ESPHOME_THREAD_MULTI_ATOMICS)
+    this->to_remove_.fetch_add(count, std::memory_order_relaxed);
+#elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
+    uint32_t v = __atomic_load_n(&this->to_remove_, __ATOMIC_RELAXED);
+    __atomic_store_n(&this->to_remove_, v + count, __ATOMIC_RELAXED);
+#else
+  this->to_remove_ += count;
+#endif
+  }
 
-  /*
-   * Upper 16 bits of the 64-bit millis counter. Incremented only while holding
-   * `lock_`; read concurrently. Atomic (relaxed) avoids a formal data race.
-   * Ordering relative to `last_millis_` is provided by its release store and the
-   * corresponding acquire loads.
-   */
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
-  std::atomic<uint16_t> millis_major_{0};
-#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
-  uint16_t millis_major_{0};
-#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
+  void to_remove_decrement_locked_() {
+#if defined(ESPHOME_THREAD_MULTI_ATOMICS)
+    this->to_remove_.fetch_sub(1, std::memory_order_relaxed);
+#elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
+    uint32_t v = __atomic_load_n(&this->to_remove_, __ATOMIC_RELAXED);
+    __atomic_store_n(&this->to_remove_, v - 1, __ATOMIC_RELAXED);
+#else
+  this->to_remove_--;
+#endif
+  }
+
+  void to_remove_clear_locked_() {
+#if defined(ESPHOME_THREAD_MULTI_ATOMICS)
+    this->to_remove_.store(0, std::memory_order_relaxed);
+#elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
+    __atomic_store_n(&this->to_remove_, 0, __ATOMIC_RELAXED);
+#else
+  this->to_remove_ = 0;
+#endif
+  }
+
+  uint32_t to_remove_count_() const {
+#if defined(ESPHOME_THREAD_MULTI_ATOMICS)
+    return this->to_remove_.load(std::memory_order_relaxed);
+#elif defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
+    return __atomic_load_n(&this->to_remove_, __ATOMIC_RELAXED);
+#else
+  return this->to_remove_;
+#endif
+  }
+
+  // Intrusive freelist threaded through SchedulerItem::next_free. Unbounded so it quiesces at the
+  // app's concurrent-timer high-water mark; the previous fixed cap caused steady-state new/delete
+  // churn on devices with many timers (see https://github.com/esphome/backlog/issues/52).
+  SchedulerItem *scheduler_item_pool_head_{nullptr};
+  size_t scheduler_item_pool_size_{0};
+
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  // Leak detection: tracks total live SchedulerItem allocations.
+  // Invariant: debug_live_items_ == items_.size() + to_add_.size() + defer_queue_.size() + scheduler_item_pool_size_
+  // Verified periodically in call() to catch leaks early.
+  size_t debug_live_items_{0};
+
+  // Verify the scheduler memory invariant: all allocated items are accounted for.
+  // Returns true if no leak detected. Logs an error and asserts on failure.
+  bool debug_verify_no_leak_() const;
+#endif
 };
 
 }  // namespace esphome

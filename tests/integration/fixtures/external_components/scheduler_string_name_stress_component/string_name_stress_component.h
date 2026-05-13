@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include <atomic>
 
-namespace esphome {
-namespace scheduler_string_name_stress_component {
+namespace esphome::scheduler_string_name_stress_component {
 
 class SchedulerStringNameStressComponent : public Component {
  public:
@@ -18,5 +17,4 @@ class SchedulerStringNameStressComponent : public Component {
   std::atomic<int> executed_callbacks_{0};
 };
 
-}  // namespace scheduler_string_name_stress_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_string_name_stress_component

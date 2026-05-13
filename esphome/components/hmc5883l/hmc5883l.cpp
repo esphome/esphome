@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace hmc5883l {
+namespace esphome::hmc5883l {
 
 static const char *const TAG = "hmc5883l";
 static const uint8_t HMC5883L_ADDRESS = 0x1E;
@@ -95,7 +94,7 @@ void HMC5883LComponent::update() {
   float mg_per_bit;
   switch (this->range_) {
     case HMC5883L_RANGE_88_UT:
-      mg_per_bit = 0.073f;
+      mg_per_bit = 0.73f;
       break;
     case HMC5883L_RANGE_130_UT:
       mg_per_bit = 0.92f;
@@ -140,5 +139,4 @@ void HMC5883LComponent::update() {
     this->heading_sensor_->publish_state(heading);
 }
 
-}  // namespace hmc5883l
-}  // namespace esphome
+}  // namespace esphome::hmc5883l

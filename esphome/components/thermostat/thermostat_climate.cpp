@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome::thermostat {
 
@@ -84,7 +85,7 @@ void ThermostatClimate::refresh() {
   this->switch_to_mode_(this->mode, false);
   this->switch_to_action_(this->compute_action_(), false);
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
-  this->switch_to_fan_mode_(this->fan_mode.value(), false);
+  this->switch_to_fan_mode_(this->fan_mode.value_or(climate::CLIMATE_FAN_ON), false);
   this->switch_to_swing_mode_(this->swing_mode, false);
   this->switch_to_humidity_control_action_(this->compute_humidity_control_action_());
   this->check_humidity_change_trigger_();
@@ -211,12 +212,13 @@ void ThermostatClimate::validate_target_humidity() {
 void ThermostatClimate::control(const climate::ClimateCall &call) {
   bool target_temperature_high_changed = false;
 
-  if (call.get_preset().has_value()) {
+  auto preset = call.get_preset();
+  if (preset.has_value()) {
     // setup_complete_ blocks modifying/resetting the temps immediately after boot
     if (this->setup_complete_) {
-      this->change_preset_(call.get_preset().value());
+      this->change_preset_(*preset);
     } else {
-      this->preset = call.get_preset().value();
+      this->preset = preset;
     }
   }
   if (call.has_custom_preset()) {
@@ -229,34 +231,41 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
     }
   }
 
-  if (call.get_mode().has_value()) {
-    this->mode = call.get_mode().value();
+  auto mode = call.get_mode();
+  if (mode.has_value()) {
+    this->mode = *mode;
   }
-  if (call.get_fan_mode().has_value()) {
-    this->fan_mode = call.get_fan_mode().value();
+  auto fan_mode = call.get_fan_mode();
+  if (fan_mode.has_value()) {
+    this->fan_mode = fan_mode;
   }
-  if (call.get_swing_mode().has_value()) {
-    this->swing_mode = call.get_swing_mode().value();
+  auto swing_mode = call.get_swing_mode();
+  if (swing_mode.has_value()) {
+    this->swing_mode = *swing_mode;
   }
   if (this->supports_two_points_) {
-    if (call.get_target_temperature_low().has_value()) {
-      this->target_temperature_low = call.get_target_temperature_low().value();
+    auto target_temp_low = call.get_target_temperature_low();
+    if (target_temp_low.has_value()) {
+      this->target_temperature_low = *target_temp_low;
     }
-    if (call.get_target_temperature_high().has_value()) {
-      target_temperature_high_changed = this->target_temperature_high != call.get_target_temperature_high().value();
-      this->target_temperature_high = call.get_target_temperature_high().value();
+    auto target_temp_high = call.get_target_temperature_high();
+    if (target_temp_high.has_value()) {
+      target_temperature_high_changed = this->target_temperature_high != *target_temp_high;
+      this->target_temperature_high = *target_temp_high;
     }
     // ensure the two set points are valid and adjust one of them if necessary
     this->validate_target_temperatures(target_temperature_high_changed ||
                                        (this->prev_mode_ == climate::CLIMATE_MODE_COOL));
   } else {
-    if (call.get_target_temperature().has_value()) {
-      this->target_temperature = call.get_target_temperature().value();
+    auto target_temp = call.get_target_temperature();
+    if (target_temp.has_value()) {
+      this->target_temperature = *target_temp;
       this->validate_target_temperature();
     }
   }
-  if (call.get_target_humidity().has_value()) {
-    this->target_humidity = call.get_target_humidity().value();
+  auto target_humidity = call.get_target_humidity();
+  if (target_humidity.has_value()) {
+    this->target_humidity = *target_humidity;
     this->validate_target_humidity();
   }
   // make any changes happen
@@ -324,15 +333,7 @@ climate::ClimateTraits ThermostatClimate::traits() {
     traits.add_supported_preset(entry.preset);
   }
 
-  // Extract custom preset names from the custom_preset_config_ vector
-  if (!this->custom_preset_config_.empty()) {
-    std::vector<const char *> custom_preset_names;
-    custom_preset_names.reserve(this->custom_preset_config_.size());
-    for (const auto &entry : this->custom_preset_config_) {
-      custom_preset_names.push_back(entry.name);
-    }
-    traits.set_supported_custom_presets(custom_preset_names);
-  }
+  // Custom presets are stored on Climate base class and wired via get_traits()
 
   return traits;
 }
@@ -505,8 +506,10 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
     case climate::CLIMATE_ACTION_IDLE:
       if (this->idle_action_ready_()) {
         this->start_timer_(thermostat::THERMOSTAT_TIMER_IDLE_ON);
-        if (this->action == climate::CLIMATE_ACTION_COOLING)
+        if (this->action == climate::CLIMATE_ACTION_COOLING) {
           this->start_timer_(thermostat::THERMOSTAT_TIMER_COOLING_OFF);
+          this->cancel_timer_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME);
+        }
         if (this->action == climate::CLIMATE_ACTION_FAN) {
           if (this->supports_fan_only_action_uses_fan_mode_timer_) {
             this->start_timer_(thermostat::THERMOSTAT_TIMER_FAN_MODE);
@@ -514,8 +517,10 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
             this->start_timer_(thermostat::THERMOSTAT_TIMER_FANNING_OFF);
           }
         }
-        if (this->action == climate::CLIMATE_ACTION_HEATING)
+        if (this->action == climate::CLIMATE_ACTION_HEATING) {
           this->start_timer_(thermostat::THERMOSTAT_TIMER_HEATING_OFF);
+          this->cancel_timer_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME);
+        }
         // trig = this->idle_action_trigger_;
         ESP_LOGVV(TAG, "Switching to IDLE/OFF action");
         this->cooling_max_runtime_exceeded_ = false;
@@ -967,8 +972,10 @@ void ThermostatClimate::cooling_on_timer_callback_() {
 void ThermostatClimate::fan_mode_timer_callback_() {
   ESP_LOGVV(TAG, "fan_mode timer expired");
   this->switch_to_fan_mode_(this->fan_mode.value_or(climate::CLIMATE_FAN_ON));
-  if (this->supports_fan_only_action_uses_fan_mode_timer_)
+  if (this->supports_fan_only_action_uses_fan_mode_timer_) {
     this->switch_to_action_(this->compute_action_());
+    this->switch_to_supplemental_action_(this->compute_supplemental_action_());
+  }
 }
 
 void ThermostatClimate::fanning_off_timer_callback_() {
@@ -1264,9 +1271,9 @@ bool ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTem
     something_changed = true;
   }
 
-  if (config.fan_mode_.has_value() && (this->fan_mode != config.fan_mode_.value())) {
+  if (config.fan_mode_.has_value() && (this->fan_mode != config.fan_mode_)) {
     ESP_LOGV(TAG, "Setting fan mode to %s", LOG_STR_ARG(climate::climate_fan_mode_to_string(*config.fan_mode_)));
-    this->fan_mode = *config.fan_mode_;
+    this->fan_mode = config.fan_mode_;
     something_changed = true;
   }
 
@@ -1285,6 +1292,13 @@ void ThermostatClimate::set_preset_config(std::initializer_list<PresetEntry> pre
 
 void ThermostatClimate::set_custom_preset_config(std::initializer_list<CustomPresetEntry> presets) {
   this->custom_preset_config_ = presets;
+  // Populate Climate base class custom presets vector
+  std::vector<const char *> names;
+  names.reserve(presets.size());
+  for (const auto &entry : this->custom_preset_config_) {
+    names.push_back(entry.name);
+  }
+  this->set_supported_custom_presets(names);
 }
 
 ThermostatClimate::ThermostatClimate() = default;
@@ -1326,15 +1340,16 @@ void ThermostatClimate::set_timer_duration_in_sec_(ThermostatClimateTimerIndex t
 
     if (elapsed >= new_duration_ms) {
       // Timer should complete immediately (including when new_duration_ms is 0)
-      ESP_LOGVV(TAG, "timer %d completing immediately (elapsed %d >= new %d)", timer_index, elapsed, new_duration_ms);
+      ESP_LOGVV(TAG, "timer %d completing immediately (elapsed %" PRIu32 " >= new %" PRIu32 ")", timer_index, elapsed,
+                new_duration_ms);
       this->timer_[timer_index].active = false;
       // Trigger the timer callback immediately
       this->call_timer_callback_(timer_index);
       return;
     } else {
       // Adjust timer to run for remaining time - keep original start time
-      ESP_LOGVV(TAG, "timer %d adjusted: elapsed %d, new total %d, remaining %d", timer_index, elapsed, new_duration_ms,
-                new_duration_ms - elapsed);
+      ESP_LOGVV(TAG, "timer %d adjusted: elapsed %" PRIu32 ", new total %" PRIu32 ", remaining %" PRIu32, timer_index,
+                elapsed, new_duration_ms, new_duration_ms - elapsed);
       this->timer_[timer_index].time = new_duration_ms;
       return;
     }

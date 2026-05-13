@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from esphome import config_validation as cv, core
+from esphome.components.safe_mode import to_code as safe_mode_to_code
 from esphome.const import (
     CONF_AREA,
     CONF_AREAS,
@@ -23,6 +24,7 @@ from esphome.const import (
 from esphome.core import CORE, config
 from esphome.core.config import (
     Area,
+    make_app_name_cpp,
     preload_core_config,
     valid_include,
     valid_project_name,
@@ -247,6 +249,24 @@ def test_area_id_hash_collision(
     )
 
 
+def test_area_singular_hash_collision(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that area hash collisions between singular area: and areas: list are detected."""
+    result = load_config_from_fixture(
+        yaml_file, "area_singular_hash_collision.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert (
+        "Area ID 'd6ka' with hash 3082558663 collides with existing area ID 'test_2258'"
+        in captured.out
+    )
+    # Error path should point to 'areas' (where the colliding entry is), not 'area'
+    assert "areas" in captured.out
+
+
 def test_device_duplicate_id(
     yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -291,6 +311,75 @@ def test_add_platform_defines_priority() -> None:
         f"_add_platform_defines priority ({config._add_platform_defines.priority}) must be lower than "
         f"globals priority ({globals_to_code.priority}) to fix issue #10431 (sensor count bug with lambdas)"
     )
+
+
+def test_to_code_priority_above_safe_mode() -> None:
+    """Test that core to_code emits the looping_components_ init before safe_mode.
+
+    Regression test for https://github.com/esphome/esphome/issues/16262.
+    safe_mode emits an `if (should_enter_safe_mode(...)) return;` line in main()
+    at APPLICATION priority. The `App.looping_components_.init(...)` call must be
+    emitted at a higher priority than APPLICATION so it lands in main() before
+    the early return; otherwise the FixedVector is never sized when safe mode is
+    active and loop() never runs (Wi-Fi never connects).
+    """
+    assert config.to_code.priority > safe_mode_to_code.priority, (
+        f"core to_code priority ({config.to_code.priority}) must be greater than "
+        f"safe_mode to_code priority ({safe_mode_to_code.priority}) so that "
+        "App.looping_components_.init() is emitted before safe_mode's early return"
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_looping_components_handles_empty_entries() -> None:
+    """Test that _add_looping_components emits a valid constexpr when there are
+    no looping component entries.
+
+    With zero entries the generated constexpr must still be syntactically valid
+    C++ (`= 0;`), not an empty expression (`= ;`). This guards the empty-list
+    case that would otherwise produce uncompilable main.cpp output.
+    """
+    CORE.data["looping_component_entries"] = []
+
+    await config._add_looping_components()
+
+    constexpr_lines = [
+        str(s)
+        for s in CORE.global_statements
+        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+    ]
+    assert len(constexpr_lines) == 1
+    text = constexpr_lines[0]
+    assert "static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in text
+    # The right-hand side must contain a literal `0`, not be empty.
+    rhs = text.split("=", 1)[1]
+    assert "0" in rhs
+    assert rhs.strip().rstrip(";").strip(), (
+        f"constexpr right-hand side must not be empty, got: {text!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_looping_components_with_entries() -> None:
+    """Test that _add_looping_components builds a HasLoopOverride sum from entries."""
+    CORE.data["looping_component_entries"] = [
+        "esphome::wifi::WiFiComponent",
+        "esphome::logger::Logger",
+        "esphome::wifi::WiFiComponent",
+    ]
+
+    await config._add_looping_components()
+
+    constexpr_lines = [
+        str(s)
+        for s in CORE.global_statements
+        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+    ]
+    assert len(constexpr_lines) == 1
+    text = constexpr_lines[0]
+    # Deduplicated by type, with per-type counts as multiplier.
+    assert "(2 * HasLoopOverride<esphome::wifi::WiFiComponent>::value)" in text
+    assert "(1 * HasLoopOverride<esphome::logger::Logger>::value)" in text
 
 
 def test_valid_include_with_angle_brackets() -> None:
@@ -969,3 +1058,79 @@ def test_config_hash_different_for_different_configs() -> None:
     hash2 = CORE.config_hash
 
     assert hash1 != hash2
+
+
+def test_make_app_name_cpp_no_mac_simple() -> None:
+    """Test simple name without MAC suffix returns string literal."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "my-device", "buf", "-", add_mac_suffix=False
+    )
+    assert cpp_expr == '"my-device"'
+    assert global_decl is None
+    assert byte_len == 9
+
+
+def test_make_app_name_cpp_no_mac_empty() -> None:
+    """Test empty name without MAC suffix."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "", "buf", "-", add_mac_suffix=False
+    )
+    assert cpp_expr == '""'
+    assert global_decl is None
+    assert byte_len == 0
+
+
+def test_make_app_name_cpp_mac_suffix() -> None:
+    """Test name with MAC suffix emits static buffer."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "my-device", "esphome_app_name_buf", "-", add_mac_suffix=True
+    )
+    assert cpp_expr == "esphome_app_name_buf"
+    assert global_decl is not None
+    assert "static char esphome_app_name_buf[]" in global_decl
+    assert "my-device-XXXXXX" in global_decl
+    assert byte_len == len("my-device-XXXXXX")
+
+
+def test_make_app_name_cpp_mac_suffix_empty() -> None:
+    """Test empty name with MAC suffix emits empty static buffer."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "", "esphome_app_name_buf", "-", add_mac_suffix=True
+    )
+    assert cpp_expr == "esphome_app_name_buf"
+    assert global_decl is not None
+    assert "static char esphome_app_name_buf[]" in global_decl
+    assert byte_len == 0
+
+
+def test_make_app_name_cpp_mac_suffix_space_sep() -> None:
+    """Test friendly name uses space separator for MAC suffix."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "My Device", "esphome_app_friendly_name_buf", " ", add_mac_suffix=True
+    )
+    assert cpp_expr == "esphome_app_friendly_name_buf"
+    assert global_decl is not None
+    assert "My Device XXXXXX" in global_decl
+    assert byte_len == len("My Device XXXXXX")
+
+
+def test_make_app_name_cpp_non_ascii_utf8_length() -> None:
+    """Test non-ASCII characters use UTF-8 byte length."""
+    _, global_decl, byte_len = make_app_name_cpp(
+        "café", "buf", "-", add_mac_suffix=False
+    )
+    assert byte_len == len("café".encode())  # 5 bytes, not 4 chars
+    assert global_decl is None
+
+
+def test_make_app_name_cpp_non_ascii_mac_suffix_utf8_length() -> None:
+    """Test non-ASCII with MAC suffix uses UTF-8 byte length."""
+    _, _, byte_len = make_app_name_cpp("café", "buf", "-", add_mac_suffix=True)
+    assert byte_len == len("café-XXXXXX".encode())
+
+
+def test_make_app_name_cpp_special_chars_escaped() -> None:
+    """Test special characters are properly escaped in C++ string."""
+    cpp_expr, _, _ = make_app_name_cpp('my "device"', "buf", "-", add_mac_suffix=False)
+    # cpp_string_escape uses octal escapes for quotes
+    assert '"' not in cpp_expr[1:-1]  # no unescaped quotes inside the outer quotes
