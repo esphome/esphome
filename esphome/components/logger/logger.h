@@ -144,9 +144,6 @@ enum UARTSelection : uint8_t {
 class Logger final : public Component {
  public:
   explicit Logger(uint32_t baud_rate);
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  void init_log_buffer(size_t total_buffer_size);
-#endif
 #if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
   void loop() override;
 #endif
@@ -352,10 +349,6 @@ class Logger final : public Component {
 #ifdef USE_LOGGER_LEVEL_LISTENERS
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
 #endif
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  logger::TaskLogBuffer *log_buffer_{nullptr};  // Allocated once, never freed
-#endif
-
   // Group smaller types together at the end
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
@@ -373,8 +366,11 @@ class Logger final : public Component {
   bool global_recursion_guard_{false};                    // Simple global recursion guard for single-task platforms
 #endif
 
-  // Large buffer placed last to keep frequently-accessed member offsets small
+  // Large buffers placed last to keep frequently-accessed member offsets small
   char tx_buffer_[ESPHOME_LOGGER_TX_BUFFER_SIZE + 1];  // +1 for null terminator
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  logger::TaskLogBuffer log_buffer_;  // Embedded in Logger (no separate heap allocation)
+#endif
 
   // --- get_thread_name_ overloads (per-platform) ---
 

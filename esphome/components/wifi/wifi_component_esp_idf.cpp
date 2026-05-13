@@ -47,7 +47,6 @@ namespace esphome::wifi {
 static const char *const TAG = "wifi_esp32";
 
 static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static QueueHandle_t s_event_queue;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #ifdef USE_WIFI_AP
 static esp_netif_t *s_ap_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -132,11 +131,10 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     return;
   }
 
-  // copy to heap to keep queue object small
+  // copy to heap — WiFi events are rare so heap alloc is fine
   auto *to_send = new IDFWiFiEvent;  // NOLINT(cppcoreguidelines-owning-memory)
   memcpy(to_send, &event, sizeof(IDFWiFiEvent));
-  // don't block, we may miss events but the core can handle that
-  if (xQueueSend(s_event_queue, &to_send, 0L) != pdPASS) {
+  if (!global_wifi_component->event_queue_.push(to_send)) {
     delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
@@ -155,12 +153,6 @@ void WiFiComponent::wifi_pre_setup_() {
   s_wifi_event_group = xEventGroupCreate();
   if (s_wifi_event_group == nullptr) {
     ESP_LOGE(TAG, "xEventGroupCreate failed");
-    return;
-  }
-  // NOLINTNEXTLINE(bugprone-sizeof-expression)
-  s_event_queue = xQueueCreate(64, sizeof(IDFWiFiEvent *));
-  if (s_event_queue == nullptr) {
-    ESP_LOGE(TAG, "xQueueCreate failed");
     return;
   }
   err = esp_event_loop_create_default();
@@ -187,7 +179,10 @@ void WiFiComponent::wifi_pre_setup_() {
 #endif  // USE_WIFI_AP
 
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  // cfg.nvs_enable = false;
+  if (global_preferences->nvs_handle == 0) {
+    ESP_LOGW(TAG, "starting wifi without nvs");
+    cfg.nvs_enable = false;
+  }
   err = esp_wifi_init(&cfg);
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_wifi_init failed: %s", esp_err_to_name(err));
@@ -412,10 +407,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
-  auto eap_opt = ap.get_eap();
+  const auto &eap_opt = ap.get_eap();
   if (eap_opt.has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
-    EAPAuth eap = *eap_opt;
+    const EAPAuth &eap = *eap_opt;
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
     err = esp_eap_client_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
 #else
@@ -723,19 +718,25 @@ const char *get_disconnect_reason_str(uint8_t reason) {
   }
 }
 
-void WiFiComponent::wifi_loop_() {
-  while (true) {
-    IDFWiFiEvent *data;
-    if (xQueueReceive(s_event_queue, &data, 0L) != pdTRUE) {
-      // no event ready
-      break;
-    }
+bool WiFiComponent::wifi_loop_() {
+  // Use pop() directly instead of empty() — pop() costs 1 memw (acquire on tail_),
+  // while empty() costs 2 memw (acquire on both head_ and tail_) on Xtensa.
+  IDFWiFiEvent *data = this->event_queue_.pop();
+  if (data == nullptr)
+    return false;
 
-    // process event
+  do {
     wifi_process_event_(data);
-
     delete data;  // NOLINT(cppcoreguidelines-owning-memory)
+  } while ((data = this->event_queue_.pop()) != nullptr);
+
+  // Drops only occur when the queue is full, and only this loop drains it,
+  // so if pop() returned nullptr above we can skip this check.
+  uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
+  if (dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u WiFi events due to buffer overflow", dropped);
   }
+  return true;
 }
 // Events are processed from queue in main loop context, but listener notifications
 // must be deferred until after the state machine transitions (in check_connecting_finished)
@@ -806,6 +807,8 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     s_sta_connected = false;
     s_sta_connecting = false;
     error_from_callback_ = true;
+    // Refresh is_connected() cache; error_from_callback_ makes it false.
+    this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     this->notify_disconnect_state_listeners_();
 #endif
@@ -987,6 +990,13 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
     config.scan_time.active.min = 100;
     config.scan_time.active.max = 300;
   }
+  // When scanning while connected (roaming), return to home channel between
+  // each scanned channel to maintain the connection (helps with BLE/WiFi coexistence)
+#ifdef CONFIG_SOC_WIFI_SUPPORTED
+  if (this->roaming_state_ == RoamingState::SCANNING) {
+    config.coex_background_scan = true;
+  }
+#endif
 
   esp_err_t err = esp_wifi_scan_start(&config, false);
   if (err != ESP_OK) {

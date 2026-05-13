@@ -273,26 +273,64 @@ text_sensor:
 display:
   - platform: nextion
     id: main_lcd
+    auto_wake_on_touch: true
+    brightness: 80%
+    command_spacing: 5ms
+    dump_device_info: true
+    exit_reparse_on_start: true
+    lambda: |-
+        ESP_LOGD("display","Display is being tested!");
     max_commands_per_loop: 20
+    max_queue_age: 5000ms         # Remove queue items after 5s
     max_queue_size: 50
-    update_interval: 5s
-    on_sleep:
-      then:
-        lambda: 'ESP_LOGD("display","Display went to sleep");'
-    on_wake:
-      then:
-        lambda: 'ESP_LOGD("display","Display woke up");'
-    on_setup:
-      then:
-        lambda: 'ESP_LOGD("display","Display setup completed");'
-    on_page:
-      then:
-        lambda: 'ESP_LOGD("display","Display shows new page %u", x);'
     on_buffer_overflow:
       then:
         logger.log: "Nextion reported a buffer overflow!"
-
-    command_spacing: 5ms
-    dump_device_info: true
-    max_queue_age: 5000ms         # Remove queue items after 5s
+    on_custom_text_sensor:
+      then:
+        - lambda: |-
+            // key: StringRef, value: StringRef
+            if (key == "csv") {
+              // parse value here, or forward to your own component
+              ESP_LOGD("nextion.csv", "Got CSV: %s", value.c_str());
+            }
+    on_custom_sensor:
+      then:
+        - lambda: |-
+            // key: StringRef, value: int32_t
+            if (key == "temperature_raw") {
+              ESP_LOGD("nextion.custom", "%s=%d", key.c_str(), value);
+            }
+    on_custom_binary_sensor:
+      then:
+        - lambda: |-
+            if (key == "btn1") {
+              ESP_LOGD("nextion.btn", "btn1=%s", ONOFF(value));
+            }
+    on_custom_switch:
+      then:
+        - lambda: |-
+            ESP_LOGD("nextion.sw", "%s=%s", key.c_str(), ONOFF(value));
+    on_page:
+      then:
+        lambda: 'ESP_LOGD("display","Display shows new page %u", x);'
+    on_setup:
+      then:
+        lambda: 'ESP_LOGD("display","Display setup completed");'
+    on_sleep:
+      then:
+        lambda: 'ESP_LOGD("display","Display went to sleep");'
+    on_touch:
+      then:
+        lambda: |-
+            ESP_LOGD("display",
+                "Display was touched at page %u, component %u, touch event: %s",
+                page_id, component_id, touch_event ? "press" : "release");
+    on_wake:
+      then:
+        lambda: 'ESP_LOGD("display","Display woke up");'
+    start_up_page: 1
     startup_override_ms: 10000ms  # Wait 10s for display ready
+    touch_sleep_timeout: 3
+    update_interval: 5s
+    wake_up_page: 2

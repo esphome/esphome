@@ -59,6 +59,59 @@ static inline bool is_return_addr(uint32_t addr) {
 }
 #endif
 
+// --- Architecture-specific backtrace helpers ---
+// These run from IRAM during panic (no flash access).
+
+#if CONFIG_IDF_TARGET_ARCH_XTENSA
+// Walk Xtensa backtrace from an exception frame, writing PCs to out[].
+// Returns number of entries written.
+static uint8_t IRAM_ATTR walk_xtensa_backtrace(XtExcFrame *frame, uint32_t *out, uint8_t max) {
+  esp_backtrace_frame_t bt_frame = {
+      .pc = (uint32_t) frame->pc,
+      .sp = (uint32_t) frame->a1,
+      .next_pc = (uint32_t) frame->a0,
+      .exc_frame = frame,
+  };
+  uint8_t count = 0;
+  uint32_t first_pc = esp_cpu_process_stack_pc(bt_frame.pc);
+  if (is_code_addr(first_pc)) {
+    out[count++] = first_pc;
+  }
+  while (count < max && bt_frame.next_pc != 0) {
+    if (!esp_backtrace_get_next_frame(&bt_frame))
+      break;
+    uint32_t pc = esp_cpu_process_stack_pc(bt_frame.pc);
+    if (is_code_addr(pc)) {
+      out[count++] = pc;
+    }
+  }
+  return count;
+}
+#endif
+
+#if CONFIG_IDF_TARGET_ARCH_RISCV
+// Capture RISC-V backtrace: MEPC + RA from registers, then stack scan.
+// Returns total count; *reg_count receives number of register-sourced entries.
+static uint8_t IRAM_ATTR capture_riscv_backtrace(RvExcFrame *frame, uint32_t *out, uint8_t max, uint8_t *reg_count) {
+  uint8_t count = 0;
+  if (is_code_addr(frame->mepc)) {
+    out[count++] = frame->mepc;
+  }
+  if (is_code_addr(frame->ra) && frame->ra != frame->mepc) {
+    out[count++] = frame->ra;
+  }
+  *reg_count = count;
+  auto *scan_start = (uint32_t *) frame->sp;
+  for (uint32_t i = 0; i < 64 && count < max; i++) {
+    uint32_t val = scan_start[i];
+    if (is_code_addr(val) && val != frame->mepc && val != frame->ra) {
+      out[count++] = val;
+    }
+  }
+  return count;
+}
+#endif
+
 // Raw crash data written by the panic handler wrapper.
 // Lives in .noinit so it survives software reset but contains garbage after power cycle.
 // Validated by magic marker. Static linkage since it's only used within this file.
@@ -66,7 +119,7 @@ static inline bool is_return_addr(uint32_t addr) {
 // Magic is second to validate the data. Remaining fields can change between versions.
 // Version is uint32_t because it would be padded to 4 bytes anyway before the next
 // uint32_t field, so we use the full width rather than wasting 3 bytes of padding.
-static constexpr uint32_t CRASH_DATA_VERSION = 1;
+static constexpr uint32_t CRASH_DATA_VERSION = 2;
 struct RawCrashData {
   uint32_t version;
   uint32_t magic;
@@ -77,6 +130,13 @@ struct RawCrashData {
   uint8_t pseudo_excause;   // Whether cause is a pseudo exception (Xtensa SoC-level panic)
   uint32_t backtrace[MAX_BACKTRACE];
   uint32_t cause;  // Architecture-specific: exccause (Xtensa) or mcause (RISC-V)
+  uint8_t crashed_core;
+#if SOC_CPU_CORES_NUM > 1
+  static_assert(SOC_CPU_CORES_NUM == 2, "Dual-core logic assumes exactly 2 cores");
+  uint8_t other_backtrace_count;
+  uint8_t other_reg_frame_count;
+  uint32_t other_backtrace[MAX_BACKTRACE];
+#endif
 };
 static RawCrashData __attribute__((section(".noinit")))
 s_raw_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -100,12 +160,27 @@ void crash_handler_read_and_clear() {
       s_raw_crash_data.exception = 4;    // Default to PANIC_EXCEPTION_FAULT
     if (s_raw_crash_data.pseudo_excause > 1)
       s_raw_crash_data.pseudo_excause = 0;
+    if (s_raw_crash_data.crashed_core >= SOC_CPU_CORES_NUM)
+      s_raw_crash_data.crashed_core = 0;
+#if SOC_CPU_CORES_NUM > 1
+    if (s_raw_crash_data.other_backtrace_count > MAX_BACKTRACE)
+      s_raw_crash_data.other_backtrace_count = MAX_BACKTRACE;
+    if (s_raw_crash_data.other_reg_frame_count > s_raw_crash_data.other_backtrace_count)
+      s_raw_crash_data.other_reg_frame_count = s_raw_crash_data.other_backtrace_count;
+#endif
   }
-  // Clear magic regardless so we don't re-report on next normal reboot
-  s_raw_crash_data.magic = 0;
+  // Don't clear magic here — crash data must survive OTA rollback reboots.
+  // Magic is cleared by crash_handler_clear() after an API client receives the data.
 }
 
 bool crash_handler_has_data() { return s_crash_data_valid; }
+
+void crash_handler_clear() {
+  // Only clear the magic so data doesn't survive the next reboot.
+  // Keep s_crash_data_valid so crash_handler_log() still works for
+  // additional API clients connecting during this boot session.
+  s_raw_crash_data.magic = 0;
+}
 
 // Look up the exception cause as a human-readable string.
 // Tables mirror ESP-IDF's panic_arch_fill_info() which uses local static arrays
@@ -212,6 +287,36 @@ static const char *get_exception_type() {
   return "Unknown";
 }
 
+// Log backtrace entries, filtering stack-scanned addresses on RISC-V.
+static void log_backtrace(const uint32_t *addrs, uint8_t count, uint8_t reg_frame_count) {
+  uint8_t bt_num = 0;
+  for (uint8_t i = 0; i < count; i++) {
+    uint32_t addr = addrs[i];
+#if CONFIG_IDF_TARGET_ARCH_RISCV
+    if (i >= reg_frame_count && !is_return_addr(addr))
+      continue;
+    const char *source = (i < reg_frame_count) ? "backtrace" : "stack scan";
+#else
+    const char *source = "backtrace";
+#endif
+    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (%s)", bt_num++, addr, source);
+  }
+}
+
+// Append backtrace addresses to the addr2line hint buffer.
+static int append_addrs_to_hint(char *buf, int size, int pos, const uint32_t *addrs, uint8_t count,
+                                uint8_t reg_frame_count) {
+  for (uint8_t i = 0; i < count && pos < size - 12; i++) {
+    uint32_t addr = addrs[i];
+#if CONFIG_IDF_TARGET_ARCH_RISCV
+    if (i >= reg_frame_count && !is_return_addr(addr))
+      continue;
+#endif
+    pos += snprintf(buf + pos, size - pos, " 0x%08" PRIX32, addr);
+  }
+  return pos;
+}
+
 // Intentionally uses separate ESP_LOGE calls per line instead of combining into
 // one multi-line log message. This ensures each address appears as its own line
 // on the serial console, making it possible to see partial output if the device
@@ -228,33 +333,28 @@ void crash_handler_log() {
   } else {
     ESP_LOGE(TAG, "  Reason: %s", get_exception_type());
   }
+  ESP_LOGE(TAG, "  Crashed core: %d", s_raw_crash_data.crashed_core);
   ESP_LOGE(TAG, "  PC:  0x%08" PRIX32 "  (fault location)", s_raw_crash_data.pc);
-  uint8_t bt_num = 0;
-  for (uint8_t i = 0; i < s_raw_crash_data.backtrace_count; i++) {
-    uint32_t addr = s_raw_crash_data.backtrace[i];
-#if CONFIG_IDF_TARGET_ARCH_RISCV
-    // Register-sourced entries (MEPC/RA) are trusted; only filter stack-scanned ones.
-    if (i >= s_raw_crash_data.reg_frame_count && !is_return_addr(addr))
-      continue;
-#endif
-#if CONFIG_IDF_TARGET_ARCH_RISCV
-    const char *source = (i < s_raw_crash_data.reg_frame_count) ? "backtrace" : "stack scan";
-#else
-    const char *source = "backtrace";
-#endif
-    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (%s)", bt_num++, addr, source);
+  log_backtrace(s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count, s_raw_crash_data.reg_frame_count);
+
+#if SOC_CPU_CORES_NUM > 1
+  if (s_raw_crash_data.other_backtrace_count > 0) {
+    int other_core = 1 - s_raw_crash_data.crashed_core;
+    ESP_LOGE(TAG, "  Other core (%d) backtrace:", other_core);
+    log_backtrace(s_raw_crash_data.other_backtrace, s_raw_crash_data.other_backtrace_count,
+                  s_raw_crash_data.other_reg_frame_count);
   }
+#endif
+
   // Build addr2line hint with all captured addresses for easy copy-paste
   char hint[256];
   int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32, s_raw_crash_data.pc);
-  for (uint8_t i = 0; i < s_raw_crash_data.backtrace_count && pos < (int) sizeof(hint) - 12; i++) {
-    uint32_t addr = s_raw_crash_data.backtrace[i];
-#if CONFIG_IDF_TARGET_ARCH_RISCV
-    if (i >= s_raw_crash_data.reg_frame_count && !is_return_addr(addr))
-      continue;
+  pos = append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count,
+                             s_raw_crash_data.reg_frame_count);
+#if SOC_CPU_CORES_NUM > 1
+  append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.other_backtrace,
+                       s_raw_crash_data.other_backtrace_count, s_raw_crash_data.other_reg_frame_count);
 #endif
-    pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, addr);
-  }
   ESP_LOGE(TAG, "%s", hint);
 }
 
@@ -276,68 +376,54 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   s_raw_crash_data.reg_frame_count = 0;
   s_raw_crash_data.exception = (uint8_t) info->exception;
   s_raw_crash_data.pseudo_excause = info->pseudo_excause ? 1 : 0;
+  s_raw_crash_data.crashed_core = (uint8_t) info->core;
+#if SOC_CPU_CORES_NUM > 1
+  s_raw_crash_data.other_backtrace_count = 0;
+  s_raw_crash_data.other_reg_frame_count = 0;
+#endif
 
 #if CONFIG_IDF_TARGET_ARCH_XTENSA
   // Xtensa: walk the backtrace using the public API
   if (info->frame != nullptr) {
     auto *xt_frame = (XtExcFrame *) info->frame;
     s_raw_crash_data.cause = xt_frame->exccause;
-    esp_backtrace_frame_t bt_frame = {
-        .pc = (uint32_t) xt_frame->pc,
-        .sp = (uint32_t) xt_frame->a1,
-        .next_pc = (uint32_t) xt_frame->a0,
-        .exc_frame = xt_frame,
-    };
-
-    uint8_t count = 0;
-    // First frame PC
-    uint32_t first_pc = esp_cpu_process_stack_pc(bt_frame.pc);
-    if (is_code_addr(first_pc)) {
-      s_raw_crash_data.backtrace[count++] = first_pc;
-    }
-    // Walk remaining frames
-    while (count < MAX_BACKTRACE && bt_frame.next_pc != 0) {
-      if (!esp_backtrace_get_next_frame(&bt_frame)) {
-        break;
-      }
-      uint32_t pc = esp_cpu_process_stack_pc(bt_frame.pc);
-      if (is_code_addr(pc)) {
-        s_raw_crash_data.backtrace[count++] = pc;
-      }
-    }
-    s_raw_crash_data.backtrace_count = count;
+    s_raw_crash_data.backtrace_count = walk_xtensa_backtrace(xt_frame, s_raw_crash_data.backtrace, MAX_BACKTRACE);
   }
+
+#if SOC_CPU_CORES_NUM > 1
+  // Capture the other core's backtrace from the global frame array.
+  // Both cores save their frames to g_exc_frames[] before esp_panic_handler
+  // is called, so the other core's frame is available here.
+  if (info->core >= 0 && info->core < SOC_CPU_CORES_NUM) {
+    int other_core = 1 - info->core;
+    auto *other_frame = (XtExcFrame *) g_exc_frames[other_core];
+    if (other_frame != nullptr) {
+      s_raw_crash_data.other_backtrace_count =
+          walk_xtensa_backtrace(other_frame, s_raw_crash_data.other_backtrace, MAX_BACKTRACE);
+    }
+  }
+#endif
 
 #elif CONFIG_IDF_TARGET_ARCH_RISCV
   // RISC-V: capture MEPC + RA, then scan stack for code addresses
   if (info->frame != nullptr) {
     auto *rv_frame = (RvExcFrame *) info->frame;
     s_raw_crash_data.cause = rv_frame->mcause;
-    uint8_t count = 0;
-
-    // Save MEPC (fault PC) and RA (return address)
-    if (is_code_addr(rv_frame->mepc)) {
-      s_raw_crash_data.backtrace[count++] = rv_frame->mepc;
-    }
-    if (is_code_addr(rv_frame->ra) && rv_frame->ra != rv_frame->mepc) {
-      s_raw_crash_data.backtrace[count++] = rv_frame->ra;
-    }
-
-    // Track how many entries came from registers (MEPC/RA) so we can
-    // skip return-address validation for them at log time.
-    s_raw_crash_data.reg_frame_count = count;
-
-    // Scan stack for code addresses — captures broadly during panic,
-    // filtered by is_return_addr() at log time when flash is accessible.
-    auto *scan_start = (uint32_t *) rv_frame->sp;
-    for (uint32_t i = 0; i < 64 && count < MAX_BACKTRACE; i++) {
-      uint32_t val = scan_start[i];
-      if (is_code_addr(val) && val != rv_frame->mepc && val != rv_frame->ra) {
-        s_raw_crash_data.backtrace[count++] = val;
-      }
-    }
-    s_raw_crash_data.backtrace_count = count;
+    s_raw_crash_data.backtrace_count =
+        capture_riscv_backtrace(rv_frame, s_raw_crash_data.backtrace, MAX_BACKTRACE, &s_raw_crash_data.reg_frame_count);
   }
+
+#if SOC_CPU_CORES_NUM > 1
+  // Capture the other core's backtrace from the global frame array.
+  if (info->core >= 0 && info->core < SOC_CPU_CORES_NUM) {
+    int other_core = 1 - info->core;
+    auto *other_frame = (RvExcFrame *) g_exc_frames[other_core];
+    if (other_frame != nullptr) {
+      s_raw_crash_data.other_backtrace_count = capture_riscv_backtrace(
+          other_frame, s_raw_crash_data.other_backtrace, MAX_BACKTRACE, &s_raw_crash_data.other_reg_frame_count);
+    }
+  }
+#endif
 #endif
 
   // Write version and magic last — ensures all data is written before we mark it valid

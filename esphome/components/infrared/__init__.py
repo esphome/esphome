@@ -12,7 +12,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE, coroutine_with_priority
-from esphome.core.entity_helpers import setup_entity
+from esphome.core.entity_helpers import queue_entity_register, setup_entity
 from esphome.coroutine import CoroPriority
 from esphome.types import ConfigType
 
@@ -54,8 +54,8 @@ async def register_infrared(var: cg.Pvariable, config: ConfigType) -> None:
     """Register an infrared device with the core."""
     cg.add_define("USE_IR_RF")
     await cg.register_component(var, config)
+    queue_entity_register("infrared", config)
     await setup_infrared_core_(var, config)
-    cg.add(cg.App.register_infrared(var))
     CORE.register_platform_component("infrared", var)
 
 

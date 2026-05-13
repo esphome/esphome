@@ -3,8 +3,7 @@
 
 // https://download.epsondevice.com/td/pdf/app/RX8130CE_en.pdf
 
-namespace esphome {
-namespace rx8130 {
+namespace esphome::rx8130 {
 
 static const uint8_t RX8130_REG_SEC = 0x10;
 static const uint8_t RX8130_REG_MIN = 0x11;
@@ -77,14 +76,11 @@ void RX8130Component::read_time() {
       .hour = bcd2dec(date[2] & 0x3f),
       .day_of_week = static_cast<uint8_t>((date[3] & 0x7f) ? __builtin_ctz(date[3] & 0x7f) + 1 : 1),
       .day_of_month = bcd2dec(date[4] & 0x3f),
-      .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
       .month = bcd2dec(date[5] & 0x1f),
       .year = static_cast<uint16_t>(bcd2dec(date[6]) + 2000),
-      .is_dst = false,  // not used
-      .timestamp = 0    // overwritten by recalc_timestamp_utc(false)
   };
   rtc_time.recalc_timestamp_utc(false);
-  if (!rtc_time.is_valid()) {
+  if (!rtc_time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false)) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");
     return;
   }
@@ -124,5 +120,4 @@ void RX8130Component::stop_(bool stop) {
   }
 }
 
-}  // namespace rx8130
-}  // namespace esphome
+}  // namespace esphome::rx8130

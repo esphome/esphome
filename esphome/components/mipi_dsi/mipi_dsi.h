@@ -16,8 +16,7 @@
 
 #include "esp_lcd_mipi_dsi.h"
 
-namespace esphome {
-namespace mipi_dsi {
+namespace esphome::mipi_dsi {
 
 constexpr static const char *const TAG = "display.mipi_dsi";
 const uint8_t SW_RESET_CMD = 0x01;
@@ -60,7 +59,6 @@ class MIPI_DSI : public display::Display {
   void set_model(const char *model) { this->model_ = model; }
   void set_lane_bit_rate(float lane_bit_rate) { this->lane_bit_rate_ = lane_bit_rate; }
   void set_lanes(uint8_t lanes) { this->lanes_ = lanes; }
-  void set_madctl(uint8_t madctl) { this->madctl_ = madctl; }
 
   void smark_failed(const LogString *message, esp_err_t err);
 
@@ -86,7 +84,6 @@ class MIPI_DSI : public display::Display {
   std::vector<GPIOPin *> enable_pins_{};
   size_t width_{};
   size_t height_{};
-  uint8_t madctl_{};
   uint16_t hsync_pulse_width_ = 10;
   uint16_t hsync_back_porch_ = 10;
   uint16_t hsync_front_porch_ = 20;
@@ -115,6 +112,5 @@ class MIPI_DSI : public display::Display {
   uint16_t y_high_{0};
 };
 
-}  // namespace mipi_dsi
-}  // namespace esphome
+}  // namespace esphome::mipi_dsi
 #endif

@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 import argparse
+from functools import partial
+import os
 from pathlib import Path
 import sys
 
-from helpers import get_all_components, root_path
-from test_helpers import (
-    BASE_CODEGEN_COMPONENTS,
+from build_helpers import (
     PLATFORMIO_GOOGLE_TEST_LIB,
-    USE_TIME_TIMEZONE_FLAG,
     build_and_run,
+    load_test_manifest_overrides,
 )
+from helpers import get_all_components, root_path
 
 # Path to /tests/components
 COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
@@ -21,7 +22,6 @@ PLATFORMIO_OPTIONS = {
     ],
     "build_flags": [
         "-Og",  # optimize for debug
-        USE_TIME_TIMEZONE_FLAG,
         "-DESPHOME_DEBUG",  # enable debug assertions
         # Enable the address and undefined behavior sanitizers
         "-fsanitize=address",
@@ -36,10 +36,13 @@ PLATFORMIO_OPTIONS = {
 
 
 def run_tests(selected_components: list[str]) -> int:
+    os.environ["ASAN_OPTIONS"] = "detect_leaks=0"
     return build_and_run(
         selected_components=selected_components,
         tests_dir=COMPONENTS_TESTS_DIR,
-        codegen_components=BASE_CODEGEN_COMPONENTS,
+        manifest_override_loader=partial(
+            load_test_manifest_overrides, tests_dir=COMPONENTS_TESTS_DIR
+        ),
         config_prefix="cpptests",
         friendly_name="CPP Unit Tests",
         libraries=PLATFORMIO_GOOGLE_TEST_LIB,

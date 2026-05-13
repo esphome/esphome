@@ -39,7 +39,11 @@ from script.analyze_component_buses import (
     merge_compatible_bus_groups,
     uses_local_file_references,
 )
-from script.helpers import get_component_test_files
+from script.helpers import (
+    get_component_test_files,
+    is_validate_only_file,
+    split_conflicting_groups,
+)
 from script.merge_component_configs import merge_component_configs
 
 
@@ -83,7 +87,10 @@ def show_disk_space_if_ci(esphome_command: str) -> None:
 
 
 def find_component_tests(
-    components_dir: Path, component_pattern: str = "*", base_only: bool = False
+    components_dir: Path,
+    component_pattern: str = "*",
+    base_only: bool = False,
+    include_validate: bool = False,
 ) -> dict[str, list[Path]]:
     """Find all component test files.
 
@@ -91,6 +98,8 @@ def find_component_tests(
         components_dir: Path to tests/components directory
         component_pattern: Glob pattern for component names
         base_only: If True, only find base test files (test.*.yaml), not variant files (test-*.yaml)
+        include_validate: If True, also include config-only files (validate.*.yaml).
+            These are run with `esphome config` only and never compiled.
 
     Returns:
         Dictionary mapping component name to list of test files
@@ -102,7 +111,11 @@ def find_component_tests(
             continue
 
         # Get test files using helper function
-        test_files = get_component_test_files(comp_dir.name, all_variants=not base_only)
+        test_files = get_component_test_files(
+            comp_dir.name,
+            all_variants=not base_only,
+            include_validate=include_validate,
+        )
         if test_files:
             component_tests[comp_dir.name] = test_files
 
@@ -175,7 +188,7 @@ def group_components_by_platform(
     }
 
 
-def format_github_summary(test_results: list[TestResult]) -> str:
+def format_github_summary(test_results: list[TestResult], toolchain=None) -> str:
     """Format test results as GitHub Actions job summary markdown.
 
     Args:
@@ -225,11 +238,12 @@ def format_github_summary(test_results: list[TestResult]) -> str:
         lines.append("```bash\n")
 
         # Generate one command per platform and test type
+        extra_arguments = f" --toolchain {toolchain}" if toolchain else ""
         platform_components = group_components_by_platform(failed_results)
         for platform, test_type in sorted(platform_components.keys()):
             components_csv = ",".join(platform_components[(platform, test_type)])
             lines.append(
-                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}\n"
+                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}{extra_arguments}\n"
             )
 
         lines.append("```\n")
@@ -274,13 +288,15 @@ def format_github_summary(test_results: list[TestResult]) -> str:
     return "".join(lines)
 
 
-def write_github_summary(test_results: list[TestResult]) -> None:
+def write_github_summary(
+    test_results: list[TestResult], toolchain: str | None = None
+) -> None:
     """Write GitHub Actions job summary with test results and timing.
 
     Args:
         test_results: List of all test results
     """
-    summary_content = format_github_summary(test_results)
+    summary_content = format_github_summary(test_results, toolchain)
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
         f.write(summary_content)
 
@@ -308,6 +324,7 @@ def run_esphome_test(
     esphome_command: str,
     continue_on_fail: bool,
     use_testing_mode: bool = False,
+    toolchain: str | None = None,
 ) -> TestResult:
     """Run esphome test for a single component.
 
@@ -367,8 +384,14 @@ def run_esphome_test(
         ]
     )
 
-    # Add command and config file
-    cmd.extend([esphome_command, str(output_file)])
+    if toolchain:
+        cmd.extend(["--toolchain", toolchain])
+
+    # Add command
+    cmd.append(esphome_command)
+
+    # Add config file
+    cmd.append(str(output_file))
 
     # Build command string for display/logging
     cmd_str = " ".join(cmd)
@@ -432,6 +455,7 @@ def run_grouped_test(
     tests_dir: Path,
     esphome_command: str,
     continue_on_fail: bool,
+    toolchain: str | None = None,
 ) -> TestResult:
     """Run esphome test for a group of components with shared bus configs.
 
@@ -510,9 +534,15 @@ def run_grouped_test(
         "-s",
         "target_platform",
         platform,
-        esphome_command,
-        str(output_file),
     ]
+
+    if toolchain:
+        cmd.extend(["--toolchain", toolchain])
+
+    # Add command
+    cmd.append(esphome_command)
+
+    cmd.append(str(output_file))
 
     # Build command string for display/logging
     cmd_str = " ".join(cmd)
@@ -576,6 +606,7 @@ def run_grouped_component_tests(
     esphome_command: str,
     continue_on_fail: bool,
     additional_isolated: set[str] | None = None,
+    toolchain: str | None = None,
 ) -> tuple[set[tuple[str, str]], list[TestResult]]:
     """Run grouped component tests.
 
@@ -674,6 +705,13 @@ def run_grouped_component_tests(
     # This allows mixing components with different buses (e.g., ble + uart)
     # as long as they don't have conflicting configurations for the same bus type
     grouped_components = merge_compatible_bus_groups(grouped_components)
+
+    # Split groups that contain components declaring CONFLICTS_WITH each other.
+    # The bus-level merge above only considers shared bus configs; components
+    # with the same bus signature (e.g. both I2C) can still be mutually
+    # incompatible (e.g. bme680_bsec vs. bme68x_bsec2_i2c which auto-loads
+    # bme68x_bsec2). Those must end up in separate builds.
+    grouped_components = split_conflicting_groups(grouped_components)
 
     # Print detailed grouping plan
     print("\nGrouping Plan:")
@@ -811,12 +849,25 @@ def run_grouped_component_tests(
     # With grouping:
     # - 1 build per group (regardless of how many components)
     # - Individual components still need all their platform builds
+    # - Validate files of grouped components still run individually
+    #   (they're config-only and bypass the grouped compile, see
+    #   run_individual_component_test), so each adds one more invocation.
     individual_test_file_count = sum(
         len(all_tests[comp]) for comp in individual_tests if comp in all_tests
     )
 
+    grouped_component_set = {c for _, _, comps in groups_to_test for c in comps}
+    grouped_validate_file_count = sum(
+        1
+        for comp in grouped_component_set
+        for test_file in all_tests.get(comp, [])
+        if is_validate_only_file(test_file)
+    )
+
     total_grouped_components = sum(len(comps) for _, _, comps in groups_to_test)
-    total_builds_with_grouping = len(groups_to_test) + individual_test_file_count
+    total_builds_with_grouping = (
+        len(groups_to_test) + individual_test_file_count + grouped_validate_file_count
+    )
     builds_saved = total_test_files - total_builds_with_grouping
 
     print(f"\n{'=' * 80}")
@@ -829,6 +880,10 @@ def run_grouped_component_tests(
     print(
         f"  • {individual_test_file_count} individual builds ({len(individual_tests)} components)"
     )
+    if grouped_validate_file_count:
+        print(
+            f"  • {grouped_validate_file_count} validate-only invocations for grouped components"
+        )
     if total_test_files > 0:
         reduction_pct = (builds_saved / total_test_files) * 100
         print(f"  • Saves {builds_saved} builds ({reduction_pct:.1f}% reduction)")
@@ -872,6 +927,7 @@ def run_grouped_component_tests(
                 tests_dir=tests_dir,
                 esphome_command=esphome_command,
                 continue_on_fail=continue_on_fail,
+                toolchain=toolchain,
             )
 
             # Mark all components as tested
@@ -895,6 +951,7 @@ def run_individual_component_test(
     continue_on_fail: bool,
     tested_components: set[tuple[str, str]],
     test_results: list[TestResult],
+    toolchain: str | None = None,
 ) -> None:
     """Run an individual component test if not already tested in a group.
 
@@ -910,8 +967,13 @@ def run_individual_component_test(
         tested_components: Set of already tested components
         test_results: List to append test results
     """
-    # Skip if already tested in a group
-    if (component, platform_with_version) in tested_components:
+    # Validate files (validate.*.yaml) are config-only and never participate
+    # in compile-time bus grouping, so always run them individually even when
+    # the (component, platform) pair was covered by a group test.
+    if (
+        not is_validate_only_file(test_file)
+        and (component, platform_with_version) in tested_components
+    ):
         return
 
     test_result = run_esphome_test(
@@ -923,6 +985,7 @@ def run_individual_component_test(
         build_dir=build_dir,
         esphome_command=esphome_command,
         continue_on_fail=continue_on_fail,
+        toolchain=toolchain,
     )
     test_results.append(test_result)
 
@@ -935,6 +998,7 @@ def test_components(
     enable_grouping: bool = True,
     isolated_components: set[str] | None = None,
     base_only: bool = False,
+    toolchain: str | None = None,
 ) -> int:
     """Test components with optional intelligent grouping.
 
@@ -963,13 +1027,23 @@ def test_components(
     # Get platform base files
     platform_bases = get_platform_base_files(build_components_dir)
 
+    # Validate files (validate.*.yaml) are config-only -- they exercise
+    # schema/validation paths but are never compiled. Include them when running
+    # `config` or `clean`; exclude them under `compile` so they never reach a
+    # toolchain build.
+    include_validate = esphome_command != "compile"
+
     # Find all component tests
     all_tests = {}
     for pattern in component_patterns:
         # Skip empty patterns (happens when components list is empty string)
         if not pattern:
             continue
-        all_tests.update(find_component_tests(tests_dir, pattern, base_only))
+        all_tests.update(
+            find_component_tests(
+                tests_dir, pattern, base_only, include_validate=include_validate
+            )
+        )
 
     # If no components found, build a reference configuration for baseline comparison
     # Create a synthetic "empty" component test that will build just the base config
@@ -1011,6 +1085,7 @@ def test_components(
             esphome_command=esphome_command,
             continue_on_fail=continue_on_fail,
             additional_isolated=isolated_components,
+            toolchain=toolchain,
         )
         test_results.extend(grouped_results)
 
@@ -1039,6 +1114,7 @@ def test_components(
                             continue_on_fail=continue_on_fail,
                             tested_components=tested_components,
                             test_results=test_results,
+                            toolchain=toolchain,
                         )
             else:
                 # Platform-specific test
@@ -1071,6 +1147,7 @@ def test_components(
                         continue_on_fail=continue_on_fail,
                         tested_components=tested_components,
                         test_results=test_results,
+                        toolchain=toolchain,
                     )
 
     # Separate results into passed and failed
@@ -1091,17 +1168,18 @@ def test_components(
         print("\n" + "=" * 80)
         print("Commands to reproduce failures (copy-paste to reproduce locally):")
         print("=" * 80)
+        extra_arguments = f" --toolchain {toolchain}" if toolchain else ""
         platform_components = group_components_by_platform(failed_results)
         for platform, test_type in sorted(platform_components.keys()):
             components_csv = ",".join(platform_components[(platform, test_type)])
             print(
-                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}"
+                f"script/test_build_components.py -c {components_csv} -t {platform} -e {test_type}{extra_arguments}"
             )
         print()
 
     # Write GitHub Actions job summary if in CI
     if os.environ.get("GITHUB_STEP_SUMMARY"):
-        write_github_summary(test_results)
+        write_github_summary(test_results, toolchain=toolchain)
 
     if failed_results:
         return 1
@@ -1154,6 +1232,10 @@ def main() -> int:
         action="store_true",
         help="Only test base test files (test.*.yaml), not variant files (test-*.yaml)",
     )
+    parser.add_argument(
+        "--toolchain",
+        help="Select toolchain for compiling.",
+    )
 
     args = parser.parse_args()
 
@@ -1173,6 +1255,7 @@ def main() -> int:
         enable_grouping=not args.no_grouping,
         isolated_components=isolated_components,
         base_only=args.base_only,
+        toolchain=args.toolchain,
     )
 
 

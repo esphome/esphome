@@ -457,6 +457,19 @@ RP2040_BOARD_PINS = {
         "SS": 17,
         "TX": 12,
     },
+    "challenger_2350_nbiot": {
+        "LED": 15,
+        "MISO": 16,
+        "MOSI": 19,
+        "RX": 13,
+        "SCK": 18,
+        "SCL": 21,
+        "SCL1": 31,
+        "SDA": 20,
+        "SDA1": 31,
+        "SS": 17,
+        "TX": 12,
+    },
     "challenger_2350_wifi6_ble5": {
         "LED": 7,
         "MISO": 16,
@@ -1711,6 +1724,11 @@ BOARDS = {
         "mcu": "rp2350",
         "max_pin": 47,
     },
+    "challenger_2350_nbiot": {
+        "name": "iLabs Challenger 2350 NB-IoT",
+        "mcu": "rp2350",
+        "max_pin": 47,
+    },
     "challenger_2350_wifi6_ble5": {
         "name": "iLabs Challenger 2350 WiFi/BLE",
         "mcu": "rp2350",
@@ -1910,6 +1928,7 @@ BOARDS = {
         "name": "Pimoroni PicoPlus2W",
         "mcu": "rp2350",
         "max_pin": 47,
+        "wifi": True,
         "max_virtual_pin": 64,
     },
     "pimoroni_plasma2040": {
@@ -1926,6 +1945,7 @@ BOARDS = {
         "name": "Pimoroni Plasma2350W",
         "mcu": "rp2350",
         "max_pin": 47,
+        "wifi": True,
     },
     "pimoroni_servo2040": {
         "name": "Pimoroni Servo2040",
@@ -1976,12 +1996,14 @@ BOARDS = {
         "name": "Raspberry Pi Pico 2W",
         "mcu": "rp2350",
         "max_pin": 47,
+        "wifi": True,
         "max_virtual_pin": 64,
     },
     "rpipicow": {
         "name": "Raspberry Pi Pico W",
         "mcu": "rp2040",
         "max_pin": 29,
+        "wifi": True,
         "max_virtual_pin": 64,
     },
     "sea_picro": {
@@ -2013,6 +2035,7 @@ BOARDS = {
         "name": "Soldered Electronics NULA RP2350",
         "mcu": "rp2350",
         "max_pin": 47,
+        "wifi": True,
     },
     "solderparty_rp2040_stamp": {
         "name": "Solder Party RP2040 Stamp",
@@ -2038,6 +2061,7 @@ BOARDS = {
         "name": "SparkFun IoT RedBoard RP2350",
         "mcu": "rp2350",
         "max_pin": 47,
+        "wifi": True,
     },
     "sparkfun_micromodrp2040": {
         "name": "SparkFun MicroMod RP2040",
@@ -2063,18 +2087,21 @@ BOARDS = {
         "name": "SparkFun Thing Plus RP2350",
         "mcu": "rp2350",
         "max_pin": 47,
+        "wifi": True,
         "max_virtual_pin": 64,
     },
     "sparkfun_xrp_controller": {
         "name": "SparkFun XRP Controller",
         "mcu": "rp2350",
         "max_pin": 47,
+        "wifi": True,
         "max_virtual_pin": 64,
     },
     "sparkfun_xrp_controller_beta": {
         "name": "SparkFun XRP Controller (Beta)",
         "mcu": "rp2040",
         "max_pin": 29,
+        "wifi": True,
         "max_virtual_pin": 64,
     },
     "upesy_rp2040_devkit": {
@@ -2161,6 +2188,7 @@ BOARDS = {
         "name": "Waveshare RP2350B Plus W",
         "mcu": "rp2350",
         "max_pin": 47,
+        "wifi": True,
     },
     "wiznet_5100s_evb_pico": {
         "name": "WIZnet W5100S-EVB-Pico",

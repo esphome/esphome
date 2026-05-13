@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from functools import partial
 import hashlib
 import logging
 from pathlib import Path
@@ -19,7 +20,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, HexInt
 from esphome.cpp_generator import MockObj
-from esphome.external_files import download_content
+from esphome.external_files import download_web_files_in_config
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,15 +62,6 @@ def _compute_local_file_path(value: ConfigType) -> Path:
     base_dir = external_files.compute_local_file_dir(DOMAIN)
     _LOGGER.debug("_compute_local_file_path: base_dir=%s", base_dir / key)
     return base_dir / key
-
-
-def _download_web_file(value: ConfigType) -> ConfigType:
-    url = value[CONF_URL]
-    path = _compute_local_file_path(value)
-
-    download_content(url, path)
-    _LOGGER.debug("download_web_file: path=%s", path)
-    return value
 
 
 def _file_schema(value: ConfigType | str) -> ConfigType:
@@ -116,7 +108,7 @@ def read_audio_file_and_type(file_config: ConfigType) -> tuple[bytes, MockObj]:
         raise cv.Invalid(
             f"Unable to determine audio file type of '{path}'. "
             f"Try re-encoding the file into a supported format. Details: {e}"
-        )
+        ) from e
 
     media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
     if file_type == "wav":
@@ -142,11 +134,10 @@ LOCAL_SCHEMA = cv.Schema(
     }
 )
 
-WEB_SCHEMA = cv.All(
+WEB_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_URL): cv.url,
-    },
-    _download_web_file,
+    }
 )
 
 
@@ -202,54 +193,66 @@ def _validate_supported_local_file(config: list[ConfigType]) -> list[ConfigType]
             audio.request_mp3_support()
         elif media_file_type_str == str(audio.AUDIO_FILE_TYPE_ENUM["OPUS"]):
             audio.request_opus_support()
+        elif media_file_type_str == str(audio.AUDIO_FILE_TYPE_ENUM["WAV"]):
+            audio.request_wav_support()
 
     return config
 
 
+def audio_files_schema() -> cv.All:
+    """Schema for a list of audio file entries.
+
+    Validates each entry, downloads any web files, and detects the audio file
+    type while requesting codec support. Reusable by other components (e.g.
+    speaker media_player) that embed audio files in firmware without going
+    through the audio_file component's C++ registry.
+    """
+    return cv.All(
+        cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
+        partial(download_web_files_in_config, path_for=_compute_local_file_path),
+        _validate_supported_local_file,
+    )
+
+
+def generate_audio_file_code(file_config: ConfigType) -> MockObj:
+    """Generate the progmem data, AudioFile struct, and Pvariable for one file.
+
+    Returns the created Pvariable. Caller is responsible for any further
+    registration (the audio_file component additionally registers each file in
+    its named C++ registry; other consumers may skip that).
+    """
+    cache = _get_data().file_cache
+    file_id = str(file_config[CONF_ID])
+    if file_id in cache:
+        data, media_file_type = cache[file_id]
+    else:
+        data, media_file_type = read_audio_file_and_type(file_config)
+
+    rhs = [HexInt(x) for x in data]
+    prog_arr = cg.progmem_array(file_config[CONF_RAW_DATA_ID], rhs)
+
+    media_files_struct = cg.StructInitializer(
+        audio.AudioFile,
+        ("data", prog_arr),
+        ("length", len(rhs)),
+        ("file_type", media_file_type),
+    )
+
+    return cg.new_Pvariable(file_config[CONF_ID], media_files_struct)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.only_on_esp32,
-    cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
-    _validate_supported_local_file,
+    audio_files_schema(),
 )
 
 
 async def to_code(config: list[ConfigType]) -> None:
-    cache = _get_data().file_cache
-
     for file_config in config:
         file_id = str(file_config[CONF_ID])
-        data, media_file_type = cache[file_id]
-
-        rhs = [HexInt(x) for x in data]
-        prog_arr = cg.progmem_array(file_config[CONF_RAW_DATA_ID], rhs)
-
-        media_files_struct = cg.StructInitializer(
-            audio.AudioFile,
-            (
-                "data",
-                prog_arr,
-            ),
-            (
-                "length",
-                len(rhs),
-            ),
-            (
-                "file_type",
-                media_file_type,
-            ),
-        )
-
-        cg.new_Pvariable(
-            file_config[CONF_ID],
-            media_files_struct,
-        )
-
-        # Store file ID for cross-component access
+        file_var = generate_audio_file_code(file_config)
         _get_data().file_ids[file_id] = file_config[CONF_ID]
+        cg.add(audio_file_ns.add_named_audio_file(file_var, file_id))
 
     # Register all files in the shared C++ registry
     cg.add_define("AUDIO_FILE_MAX_FILES", len(config))
-    for file_config in config:
-        file_id = str(file_config[CONF_ID])
-        file_var = await cg.get_variable(file_config[CONF_ID])
-        cg.add(audio_file_ns.add_named_audio_file(file_var, file_id))

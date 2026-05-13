@@ -9,8 +9,7 @@
 #include "pid_controller.h"
 #include "pid_autotuner.h"
 
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
 class PIDClimate : public climate::Climate, public Component {
  public:
@@ -72,8 +71,8 @@ class PIDClimate : public climate::Climate, public Component {
   // float get_deadband() const { return controller_.deadband; }
   // float get_proportional_deadband_multiplier() const { return controller_.proportional_deadband_multiplier; }
 
-  void add_on_pid_computed_callback(std::function<void()> &&callback) {
-    pid_computed_callback_.add(std::move(callback));
+  template<typename F> void add_on_pid_computed_callback(F &&callback) {
+    this->pid_computed_callback_.add(std::forward<F>(callback));
   }
   void set_default_target_temperature(float default_target_temperature) {
     default_target_temperature_ = default_target_temperature;
@@ -164,5 +163,4 @@ template<typename... Ts> class PIDSetControlParametersAction : public Action<Ts.
   PIDClimate *parent_;
 };
 
-}  // namespace pid
-}  // namespace esphome
+}  // namespace esphome::pid

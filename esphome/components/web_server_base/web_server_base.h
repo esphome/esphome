@@ -135,7 +135,7 @@ class WebServerBase {
   uint16_t get_port() const { return port_; }
 
  protected:
-  int initialized_{0};
+  uint8_t initialized_{0};
   uint16_t port_{80};
   AsyncWebServer *server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;

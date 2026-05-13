@@ -181,7 +181,8 @@ async def process_runtime_image_config(config: dict) -> RuntimeImageSettings:
     transparent = get_transparency_enum(config.get(CONF_TRANSPARENCY, "OPAQUE"))
 
     # Get byte order (True for big endian, False for little endian)
-    byte_order_big_endian = config.get(CONF_BYTE_ORDER) != "LITTLE_ENDIAN"
+    # If unspecified, use little endian
+    byte_order_big_endian = config.get(CONF_BYTE_ORDER) == "BIG_ENDIAN"
 
     # Get placeholder if specified
     placeholder = None

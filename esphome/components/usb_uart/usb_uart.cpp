@@ -157,7 +157,7 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
       ESP_LOGE(TAG, "Output pool full - lost %zu bytes", len);
       break;
     }
-    size_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
+    uint16_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
     memcpy(chunk->data, data, chunk_len);
     chunk->length = static_cast<uint8_t>(chunk_len);
     // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
@@ -169,7 +169,7 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
   this->parent_->start_output(this);
 }
 
-uart::FlushResult USBUartChannel::flush() {
+uart::UARTFlushResult USBUartChannel::flush() {
   // Spin until the output queue is drained and the last USB transfer completes.
   // Safe to call from the main loop only.
   // The flush_timeout_ms_ timeout guards against a device that stops responding mid-flush;
@@ -181,8 +181,8 @@ uart::FlushResult USBUartChannel::flush() {
     yield();
   }
   if (!this->output_queue_.empty() || this->output_started_.load())
-    return uart::FlushResult::TIMEOUT;
-  return uart::FlushResult::SUCCESS;
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 bool USBUartChannel::peek_byte(uint8_t *data) {
@@ -222,7 +222,7 @@ void USBUartComponent::loop() {
 
 #ifdef USE_UART_DEBUGGER
     if (channel->debug_) {
-      char buf[4 + format_hex_pretty_size(UsbDataChunk::MAX_CHUNK_SIZE)];  // "<<< " + hex
+      char buf[4 + format_hex_pretty_size(usb_host::USB_MAX_PACKET_SIZE)];  // "<<< " + hex
       memcpy(buf, "<<< ", 4);
       format_hex_pretty_to(buf + 4, sizeof(buf) - 4, chunk->data, chunk->length, ',');
       ESP_LOGD(TAG, "%s%s", channel->debug_prefix_.c_str(), buf);
@@ -325,10 +325,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       // Re-enable component loop to process the queued data
       this->enable_loop_soon_any_context();
 
-      // Wake main loop immediately to process USB data instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+      // Wake main loop immediately to process USB data
       App.wake_loop_threadsafe();
-#endif
     }
 
     // On success, restart input immediately from USB task for performance
@@ -379,7 +377,7 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
     this->start_output(channel);
   };
 
-  const uint8_t len = chunk->length;
+  const auto len = chunk->length;
   if (!this->transfer_out(ep->bEndpointAddress, callback, chunk->data, len)) {
     // Transfer submission failed — return chunk and release flag so callers can retry.
     channel->output_pool_.release(chunk);
@@ -396,10 +394,10 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
 static void fix_mps(const usb_ep_desc_t *ep) {
   if (ep != nullptr) {
     auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
-    if (ep->wMaxPacketSize > 64) {
-      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to 64", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
-               ep->wMaxPacketSize);
-      ep_mutable->wMaxPacketSize = 64;
+    if (ep->wMaxPacketSize > usb_host::USB_MAX_PACKET_SIZE) {
+      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to %u", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
+               ep->wMaxPacketSize, usb_host::USB_MAX_PACKET_SIZE);
+      ep_mutable->wMaxPacketSize = usb_host::USB_MAX_PACKET_SIZE;
     }
   }
 }

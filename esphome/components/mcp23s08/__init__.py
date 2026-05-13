@@ -18,7 +18,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(mcp23S08),
-            cv.Optional(CONF_DEVICEADDRESS, default=0): cv.uint8_t,
+            cv.Optional(CONF_DEVICEADDRESS, default=0): cv.int_range(min=0, max=3),
         }
     )
     .extend(mcp23xxx_base.MCP23XXX_CONFIG_SCHEMA)

@@ -6,8 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace jsn_sr04t {
+namespace esphome::jsn_sr04t {
 
 enum Model {
   JSN_SR04T,
@@ -30,5 +29,4 @@ class Jsnsr04tComponent : public sensor::Sensor, public PollingComponent, public
   std::vector<uint8_t> buffer_;
 };
 
-}  // namespace jsn_sr04t
-}  // namespace esphome
+}  // namespace esphome::jsn_sr04t

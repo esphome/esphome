@@ -37,8 +37,12 @@ CONFIG_SCHEMA = cv.Schema(
         )
         .extend(
             {
-                cv.Optional(CONF_MEMORY_DATA_OFF, default=0x06): cv.hex_int_range(),
-                cv.Optional(CONF_MEMORY_DATA_ON, default=0x01): cv.hex_int_range(),
+                cv.Optional(CONF_MEMORY_DATA_OFF, default=0x06): cv.hex_int_range(
+                    min=0x00, max=0xFF
+                ),
+                cv.Optional(CONF_MEMORY_DATA_ON, default=0x01): cv.hex_int_range(
+                    min=0x00, max=0xFF
+                ),
             }
         ),
     }

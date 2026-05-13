@@ -193,7 +193,9 @@ void LEDCOutput::setup() {
   chan_conf.gpio_num = static_cast<gpio_num_t>(this->pin_->get_pin());
   chan_conf.speed_mode = speed_mode;
   chan_conf.channel = chan_num;
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
   chan_conf.intr_type = LEDC_INTR_DISABLE;
+#endif
   chan_conf.timer_sel = timer_num;
   chan_conf.duty = this->inverted_ == this->pin_->is_inverted() ? 0 : (1U << this->bit_depth_);
   chan_conf.hpoint = hpoint;
