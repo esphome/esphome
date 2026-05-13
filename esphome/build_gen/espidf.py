@@ -13,8 +13,13 @@ def get_available_components() -> list[str] | None:
     """Get list of available ESP-IDF components from project_description.json.
 
     Returns only internal ESP-IDF components, excluding external/managed
-    components (from idf_component.yml).
+    components (from idf_component.yml). Returns ``None`` whenever the
+    list isn't available yet -- either because the build dir hasn't been
+    set up (``CORE.build_path is None``) or because IDF's discovery pass
+    hasn't run yet (``project_description.json`` doesn't exist).
     """
+    if CORE.build_path is None:
+        return None
     project_desc = Path(CORE.build_path) / "build" / "project_description.json"
     if not project_desc.exists():
         return None

@@ -219,6 +219,41 @@ def test_generate_cmakelists_txt_skips_own_dependencies(
     assert content.count("owner__dep") == 1
 
 
+def test_generate_idf_component_overwrites_bundled_files(
+    tmp_path, monkeypatch, esp32_idf_core
+):
+    # A library that ships its own CMakeLists.txt + idf_component.yml must
+    # have both replaced by ESPHome's generated content. Library authors'
+    # bundled IDF metadata is frequently broken (bogus REQUIRES, hard-coded
+    # frameworks), so we always regenerate from library.json.
+    from esphome.espidf.component import _generate_idf_component
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.cpp").write_text("// dummy\n")
+    (tmp_path / "library.json").write_text(json.dumps({"name": "tripwire-lib"}))
+    (tmp_path / "CMakeLists.txt").write_text("# TRIPWIRE_BUNDLED_CMAKELISTS\n")
+    (tmp_path / "idf_component.yml").write_text("# TRIPWIRE_BUNDLED_MANIFEST\n")
+
+    fake_component = IDFComponent(
+        "owner/tripwire-lib", "1.0.0", source=URLSource("http://dummy")
+    )
+    fake_component.path = tmp_path
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_convert_library_to_component",
+        lambda _lib: fake_component,
+    )
+    monkeypatch.setattr(fake_component, "download", lambda force=False: None)
+
+    _generate_idf_component(Library("owner/tripwire-lib", "1.0.0", None))
+
+    cml = (tmp_path / "CMakeLists.txt").read_text()
+    manifest = (tmp_path / "idf_component.yml").read_text()
+    assert "TRIPWIRE_BUNDLED_CMAKELISTS" not in cml
+    assert "TRIPWIRE_BUNDLED_MANIFEST" not in manifest
+    assert "idf_component_register" in cml
+
+
 def test_generate_idf_component_yml_basic(tmp_component):
     tmp_component.data = {"description": "test", "repository": {"url": "http://aaa"}}
     result = generate_idf_component_yml(tmp_component)
