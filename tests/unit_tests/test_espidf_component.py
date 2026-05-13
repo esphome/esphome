@@ -160,6 +160,65 @@ target_link_libraries(${{COMPONENT_LIB}} INTERFACE
     )
 
 
+def test_generate_cmakelists_txt_includes_managed_components_as_requires(
+    tmp_component, monkeypatch
+):
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    tmp_component.data = {}
+
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_get_project_managed_components",
+        lambda: ["espressif/esp-dsp", "espressif/arduino-esp32"],
+    )
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert "REQUIRES" in content
+    assert "espressif__esp-dsp" in content
+    assert "espressif__arduino-esp32" in content
+
+
+def test_generate_cmakelists_txt_does_not_self_require(tmp_component, monkeypatch):
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    tmp_component.data = {}
+
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_get_project_managed_components",
+        lambda: [tmp_component.name, "espressif/esp-dsp"],
+    )
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert "owner__name" not in content
+    assert "espressif__esp-dsp" in content
+
+
+def test_generate_cmakelists_txt_skips_own_dependencies(
+    tmp_component, tmp_path, monkeypatch
+):
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    tmp_component.data = {}
+
+    dep = IDFComponent("owner/dep", "1.0", source=URLSource("http://dummy.com"))
+    dep.path = tmp_path / "dep"
+    tmp_component.dependencies = [dep]
+
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_get_project_managed_components",
+        lambda: ["owner/dep"],
+    )
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert content.count("owner__dep") == 1
+
+
 def test_generate_idf_component_yml_basic(tmp_component):
     tmp_component.data = {"description": "test", "repository": {"url": "http://aaa"}}
     result = generate_idf_component_yml(tmp_component)
@@ -183,27 +242,6 @@ dependencies:
   dep:
     version: '1.0'
     override_path: {dep.path}
-"""
-    )
-
-
-def test_generate_idf_component_yml_arduino_registry_dep(tmp_component):
-    # Synthetic arduino-esp32 dep with no source / no path: should emit a
-    # version-only entry so the IDF component manager resolves it from the
-    # registry instead of via git.
-    dep = IDFComponent("espressif/arduino-esp32", "3.3.8", source=None)
-
-    tmp_component.dependencies = [dep]
-    tmp_component.data = {}
-
-    result = generate_idf_component_yml(tmp_component)
-
-    assert (
-        result
-        == """version: 1.0.0
-dependencies:
-  espressif/arduino-esp32:
-    version: 3.3.8
 """
     )
 

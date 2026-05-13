@@ -12,7 +12,6 @@ from typing import TypeVar
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
 from esphome import git, yaml_util
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, Library
 from esphome.espidf.framework import archive_extract_all, download_from_mirrors, rmdir
 from esphome.helpers import write_file_if_changed
@@ -282,46 +281,6 @@ def _get_package_from_pio_registry(
     return owner, name, version["name"], pkgfile["download_url"]
 
 
-def _patch_component(component: IDFComponent, first_pass: bool):
-    """
-    Apply patches/workarounds to specific components that have known issues.
-
-    This function modifies component data to fix compatibility issues or missing
-    dependencies for certain libraries. It applies different patches based on
-    whether it's the first or second pass of processing.
-
-    Args:
-        component: The IDFComponent object to potentially patch
-        first_pass: Boolean indicating if this is the first pass of processing
-    """
-
-    # Patch only on the second step
-    if not first_pass and CORE.using_arduino:
-        # Add the missing dependency to Arduino framework. Source is None so
-        # the IDF component manager resolves it from the registry instead of
-        # cloning the 2 GB arduino-esp32 git history.
-        component.dependencies.append(
-            IDFComponent(
-                "espressif/arduino-esp32",
-                str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
-                None,
-            )
-        )
-
-    #
-    # fastled/FastLED
-    #
-
-    # Patch only on the first step
-    if (
-        first_pass
-        and component.name == _owner_pkgname_to_name("fastled", "FastLED")
-        and not (component.path / "idf_component.yml").is_file()
-    ):
-        # Force fake idf_component: This project already support ESP-IDF
-        (component.path / "idf_component.yml").write_text("")
-
-
 def _apply_extra_script(component: IDFComponent) -> None:
     """Run a PIO ``extraScript`` and fold its captured env vars into
     ``component.data["build"]["flags"]`` so the existing -L/-l/-D
@@ -353,6 +312,14 @@ def _apply_extra_script(component: IDFComponent) -> None:
 
 
 T = TypeVar("T")
+
+
+def _get_project_managed_components() -> list[str]:
+    """Names of IDF components registered via esp32's ``add_idf_component``."""
+    from esphome.components.esp32 import KEY_COMPONENTS, KEY_ESP32
+
+    esp32_data = CORE.data.get(KEY_ESP32, {})
+    return list(esp32_data.get(KEY_COMPONENTS, {}).keys())
 
 
 def _ensure_list(obj: T | list[T]) -> list[T]:
@@ -617,6 +584,15 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     for dependency in component.dependencies:
         requires.add(dependency.get_require_name())
 
+    # Mirror PlatformIO's global header visibility: REQUIRES every
+    # project-level managed component so headers propagate (e.g. JPEGDEC's
+    # S3 SIMD asm needs ``dsps_fft2r_platform.h`` from ``espressif/esp-dsp``).
+    own_deps = {d.get_sanitized_name() for d in component.dependencies}
+    for name in _get_project_managed_components():
+        if name == component.name or name in own_deps:
+            continue
+        requires.add(name.replace("/", "__"))
+
     # Only keep sources
     build_src_files = [os.path.relpath(p, component.path) for p in build_src_files]
     build_src_files = [
@@ -732,13 +708,10 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
         try:
             dep["override_path"] = str(dependency.path)
         except RuntimeError as e:
-            # No local path; let the IDF component manager resolve.
-            # GitSource gives an explicit URL; arduino-esp32 is resolved by
-            # version from the registry. Anything else is a bug.
-            if isinstance(dependency.source, GitSource):
-                dep["git"] = dependency.source.url
-            elif dependency.name != "espressif/arduino-esp32":
+            # No local path: only a GitSource can substitute its URL.
+            if not isinstance(dependency.source, GitSource):
                 raise e
+            dep["git"] = dependency.source.url
 
         data["dependencies"][dependency.get_sanitized_name()] = dep
 
@@ -903,12 +876,12 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
     cmakelists_txt_path = component.path / "CMakeLists.txt"
     idf_component_yml_path = component.path / "idf_component.yml"
 
-    # Apply patches to the library metadata
-    _patch_component(component, True)
-
-    if cmakelists_txt_path.is_file() and idf_component_yml_path.is_file():
-        # Already an ESP-IDF component
-        return component
+    # Bundled CMakeLists.txt / idf_component.yml shipped by the library are
+    # ignored: we always regenerate from library.json + library.properties.
+    # Library authors' attempts at IDF support are frequently broken
+    # (bogus REQUIRES, hard-coded arduino-esp32, etc.) and ESPHome's
+    # converter already produces correct REQUIRES via project-managed
+    # components and ``_detect_requires``.
 
     if library_json_path.is_file():
         component.data = _parse_library_json(library_json_path)
@@ -918,9 +891,6 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
         raise RuntimeError(
             "Invalid PIO library: missing library.json and/or library.properties"
         )
-
-    # Apply additional patches to the library metadata
-    _patch_component(component, False)
 
     # Check if the component is usable with ESP-IDF before executing any
     # third-party Python from the library (``_apply_extra_script`` below).
