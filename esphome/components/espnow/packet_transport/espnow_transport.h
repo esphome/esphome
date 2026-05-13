@@ -9,16 +9,14 @@
 
 #include <vector>
 
-namespace esphome {
-namespace espnow {
+namespace esphome::espnow {
 
 class ESPNowTransport : public packet_transport::PacketTransport,
                         public Parented<ESPNowComponent>,
                         public ESPNowReceivedPacketHandler,
-                        public ESPNowBroadcastedHandler {
+                        public ESPNowBroadcastHandler {
  public:
   void setup() override;
-  void update() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   void set_peer_address(peer_address_t address) {
@@ -26,8 +24,8 @@ class ESPNowTransport : public packet_transport::PacketTransport,
   }
 
   // ESPNow handler interface
-  bool on_received(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override;
-  bool on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override;
+  bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override;
+  bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override;
 
  protected:
   void send_packet(const std::vector<uint8_t> &buf) const override;
@@ -38,7 +36,6 @@ class ESPNowTransport : public packet_transport::PacketTransport,
   std::vector<uint8_t> packet_buffer_;
 };
 
-}  // namespace espnow
-}  // namespace esphome
+}  // namespace esphome::espnow
 
 #endif  // USE_ESP32

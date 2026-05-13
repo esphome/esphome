@@ -74,7 +74,7 @@ async def test_wait_until_on_boot(
         )
         assert set_flag_service is not None, "set_test_flag service not found"
 
-        client.execute_service(set_flag_service, {})
+        await client.execute_service(set_flag_service, {})
 
         # If the fix works, wait_until's loop() will check the condition and proceed
         # If the bug exists, wait_until is stuck with disabled loop and will timeout

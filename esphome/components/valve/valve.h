@@ -7,8 +7,7 @@
 #include "esphome/core/preferences.h"
 #include "valve_traits.h"
 
-namespace esphome {
-namespace valve {
+namespace esphome::valve {
 
 const extern float VALVE_OPEN;
 const extern float VALVE_CLOSED;
@@ -20,9 +19,7 @@ const extern float VALVE_CLOSED;
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
-    if (!(obj)->get_device_class_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class_ref().c_str()); \
-    } \
+    LOG_ENTITY_DEVICE_CLASS(TAG, prefix, *(obj)); \
   }
 
 class Valve;
@@ -103,7 +100,7 @@ const LogString *valve_operation_to_str(ValveOperation op);
  * to control all values of the valve. Also implement get_traits() to return what operations
  * the valve supports.
  */
-class Valve : public EntityBase, public EntityBase_DeviceClass {
+class Valve : public EntityBase {
  public:
   explicit Valve();
 
@@ -119,7 +116,7 @@ class Valve : public EntityBase, public EntityBase_DeviceClass {
   /// Construct a new valve call used to control the valve.
   ValveCall make_call();
 
-  void add_on_state_callback(std::function<void()> &&f);
+  template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
 
   /** Publish the current state of the valve.
    *
@@ -144,10 +141,9 @@ class Valve : public EntityBase, public EntityBase_DeviceClass {
 
   optional<ValveRestoreState> restore_state_();
 
-  CallbackManager<void()> state_callback_{};
+  LazyCallbackManager<void()> state_callback_{};
 
   ESPPreferenceObject rtc_;
 };
 
-}  // namespace valve
-}  // namespace esphome
+}  // namespace esphome::valve

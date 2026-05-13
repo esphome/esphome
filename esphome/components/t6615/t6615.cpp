@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace t6615 {
+namespace esphome::t6615 {
 
 static const char *const TAG = "t6615";
 
@@ -86,12 +85,10 @@ void T6615Component::query_ppm_() {
   this->send_ppm_command_();
 }
 
-float T6615Component::get_setup_priority() const { return setup_priority::DATA; }
 void T6615Component::dump_config() {
   ESP_LOGCONFIG(TAG, "T6615:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   this->check_uart_settings(19200);
 }
 
-}  // namespace t6615
-}  // namespace esphome
+}  // namespace esphome::t6615

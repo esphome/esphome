@@ -34,7 +34,7 @@ def _set_stream_limits(config):
     return config
 
 
-def _validate_audio_compatability(config):
+def _validate_audio_compatibility(config):
     inherit_property_from(CONF_BITS_PER_SAMPLE, CONF_OUTPUT_SPEAKER)(config)
     inherit_property_from(CONF_NUM_CHANNELS, CONF_OUTPUT_SPEAKER)(config)
     inherit_property_from(CONF_SAMPLE_RATE, CONF_OUTPUT_SPEAKER)(config)
@@ -63,9 +63,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_BUFFER_DURATION, default="100ms"
             ): cv.positive_time_period_milliseconds,
-            cv.SplitDefault(CONF_TASK_STACK_IN_PSRAM, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
-            ),
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
             cv.Optional(CONF_FILTERS, default=16): cv.int_range(min=2, max=1024),
             cv.Optional(CONF_TAPS, default=16): _validate_taps,
         }
@@ -75,7 +73,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-FINAL_VALIDATE_SCHEMA = _validate_audio_compatability
+FINAL_VALIDATE_SCHEMA = _validate_audio_compatibility
 
 
 async def to_code(config):
@@ -88,12 +86,11 @@ async def to_code(config):
 
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))
 
-    if task_stack_in_psram := config.get(CONF_TASK_STACK_IN_PSRAM):
-        cg.add(var.set_task_stack_in_psram(task_stack_in_psram))
-        if task_stack_in_psram and config[CONF_TASK_STACK_IN_PSRAM]:
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
-            )
+    if config.get(CONF_TASK_STACK_IN_PSRAM):
+        cg.add(var.set_task_stack_in_psram(True))
+        esp32.add_idf_sdkconfig_option(
+            "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
+        )
 
     cg.add(var.set_target_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
     cg.add(var.set_target_sample_rate(config[CONF_SAMPLE_RATE]))

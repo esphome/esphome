@@ -108,9 +108,6 @@ def register_trigger(name, type, data_type):
     validator = automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(type),
-            cv.Optional(CONF_RECEIVER_ID): cv.invalid(
-                "This has been removed in ESPHome 2022.3.0 and the trigger attaches directly to the parent receiver."
-            ),
         }
     )
     registerer = TRIGGER_REGISTRY.register(f"on_{name}", validator)
@@ -166,7 +163,10 @@ BASE_REMOTE_TRANSMITTER_SCHEMA = cv.Schema(
 def register_action(name, type_, schema):
     validator = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
     registerer = automation.register_action(
-        f"remote_transmitter.transmit_{name}", type_, validator
+        f"remote_transmitter.transmit_{name}",
+        type_,
+        validator,
+        synchronous=True,
     )
 
     def decorator(func):
@@ -207,13 +207,7 @@ validate_binary_sensor = cv.validate_registry_entry(
     "remote receiver", BINARY_SENSOR_REGISTRY
 )
 TRIGGER_REGISTRY = SimpleRegistry()
-DUMPER_REGISTRY = Registry(
-    {
-        cv.Optional(CONF_RECEIVER_ID): cv.invalid(
-            "This has been removed in ESPHome 1.20.0 and the dumper attaches directly to the parent receiver."
-        ),
-    }
-)
+DUMPER_REGISTRY = Registry()
 
 
 def validate_dumpers(value):
@@ -314,6 +308,50 @@ async def beo4_action(var, config, args):
     cg.add(var.set_command(template_))
     template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint8)
     cg.add(var.set_repeats(template_))
+
+
+# Brennenstuhl
+(
+    BrennenstuhlData,
+    BrennenstuhlBinarySensor,
+    BrennenstuhlTrigger,
+    BrennenstuhlAction,
+    BrennenstuhlDumper,
+) = declare_protocol("Brennenstuhl")
+
+BRENNENSTUHL_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.hex_uint32_t,
+    }
+)
+
+
+@register_binary_sensor("brennenstuhl", BrennenstuhlBinarySensor, BRENNENSTUHL_SCHEMA)
+def brennenstuhl_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                BrennenstuhlData,
+                ("code", config[CONF_CODE]),
+            )
+        )
+    )
+
+
+@register_trigger("brennenstuhl", BrennenstuhlTrigger, BrennenstuhlData)
+def brennenstuhl_trigger(var, config):
+    pass
+
+
+@register_dumper("brennenstuhl", BrennenstuhlDumper)
+def brennenstuhl_dumper(var, config):
+    pass
+
+
+@register_action("brennenstuhl", BrennenstuhlAction, BRENNENSTUHL_SCHEMA)
+async def brennenstuhl_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint32)
+    cg.add(var.set_code(template_))
 
 
 # ByronSX
@@ -432,7 +470,7 @@ CANALSATLD_SCHEMA = cv.Schema(
 )
 
 
-@register_binary_sensor("canalsatld", CanalSatLDBinarySensor, CANALSAT_SCHEMA)
+@register_binary_sensor("canalsatld", CanalSatLDBinarySensor, CANALSATLD_SCHEMA)
 def canalsatld_binary_sensor(var, config):
     cg.add(
         var.set_data(
@@ -480,10 +518,6 @@ COOLIX_BASE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_FIRST): cv.hex_int_range(0, 16777215),
         cv.Optional(CONF_SECOND, default=0): cv.hex_int_range(0, 16777215),
-        cv.Optional(CONF_DATA): cv.invalid(
-            "'data' option has been removed in ESPHome 2023.8. "
-            "Use the 'first' and 'second' options instead."
-        ),
     }
 )
 
@@ -834,7 +868,7 @@ async def keeloq_action(var, config, args):
     cg.add(var.set_encrypted(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
-    template_ = await cg.templatable(config[CONF_LEVEL], args, bool)
+    template_ = await cg.templatable(config[CONF_LEVEL], args, cg.bool_)
     cg.add(var.set_vlow(template_))
 
 
@@ -1096,7 +1130,7 @@ def sony_dumper(var, config):
 async def sony_action(var, config, args):
     template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
-    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint8)
     cg.add(var.set_nbits(template_))
 
 
@@ -1140,7 +1174,7 @@ def symphony_dumper(var, config):
 async def symphony_action(var, config, args):
     template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
-    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint8)
     cg.add(var.set_nbits(template_))
     template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint8)
     cg.add(var.set_repeats(template_))
@@ -1154,7 +1188,7 @@ def validate_raw_alternating(value):
         this_negative = val < 0
         if i != 0 and this_negative == last_negative:
             raise cv.Invalid(
-                f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
+                f"Values must alternate between being positive and negative, please see index {i - 1} and {i}",
                 [i],
             )
         last_negative = this_negative
@@ -1546,7 +1580,7 @@ async def rc_switch_type_a_action(var, config, args):
     cg.add(
         var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.std_string))
     )
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
@@ -1571,7 +1605,7 @@ async def rc_switch_type_b_action(var, config, args):
     cg.add(var.set_protocol(proto))
     cg.add(var.set_address(await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)))
     cg.add(var.set_channel(await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
@@ -1604,7 +1638,7 @@ async def rc_switch_type_c_action(var, config, args):
     )
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.uint8)))
     cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_binary_sensor(
@@ -1629,7 +1663,7 @@ async def rc_switch_type_d_action(var, config, args):
     cg.add(var.set_protocol(proto))
     cg.add(var.set_group(await cg.templatable(config[CONF_GROUP], args, cg.std_string)))
     cg.add(var.set_device(await cg.templatable(config[CONF_DEVICE], args, cg.uint8)))
-    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, bool)))
+    cg.add(var.set_state(await cg.templatable(config[CONF_STATE], args, cg.bool_)))
 
 
 @register_trigger("rc_switch", RCSwitchTrigger, RCSwitchData)
@@ -2071,12 +2105,12 @@ async def abbwelcome_action(var, config, args):
     )
     cg.add(
         var.set_source_address(
-            await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint16)
+            await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint32)
         )
     )
     cg.add(
         var.set_destination_address(
-            await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint16)
+            await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint32)
         )
     )
     cg.add(
@@ -2089,7 +2123,8 @@ async def abbwelcome_action(var, config, args):
             await cg.templatable(config[CONF_MESSAGE_TYPE], args, cg.uint8)
         )
     )
-    cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
+    template_ = await cg.templatable(CONF_MESSAGE_ID not in config, args, cg.bool_)
+    cg.add(var.set_auto_message_id(template_))
     if CONF_MESSAGE_ID in config:
         cg.add(
             var.set_message_id(
@@ -2197,3 +2232,9 @@ async def Toto_action(var, config, args):
     cg.add(var.set_rc_code_2(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
+    # Set toto-specific defaults (only if user didn't configure repeat)
+    if CONF_REPEAT not in config:
+        template_ = await cg.templatable(3, args, cg.uint32)
+        cg.add(var.set_send_times(template_))
+        template_ = await cg.templatable(36000, args, cg.uint32)
+        cg.add(var.set_send_wait(template_))

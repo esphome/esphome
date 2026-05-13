@@ -32,7 +32,7 @@ async def register_one_wire_device(var, config):
 
     Sets the 1-wire bus to use and the 1-wire address.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
     """
     parent = await cg.get_variable(config[CONF_ONE_WIRE_ID])
     cg.add(var.set_one_wire_bus(parent))

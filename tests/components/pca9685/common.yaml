@@ -2,6 +2,7 @@ pca9685:
   i2c_id: i2c_bus
   frequency: 500
   address: 0x0
+  phase_balancer: linear
 
 output:
   - platform: pca9685

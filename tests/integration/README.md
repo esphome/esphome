@@ -252,7 +252,7 @@ my_service = next((s for s in services if s.name == "my_service"), None)
 assert my_service is not None
 
 # Execute with parameters
-client.execute_service(my_service, {"param1": "value1", "param2": 42})
+await client.execute_service(my_service, {"param1": "value1", "param2": 42})
 ```
 
 ##### Multiple Entity Tracking

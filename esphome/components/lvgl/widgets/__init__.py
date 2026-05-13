@@ -1,5 +1,4 @@
 import sys
-from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.automation import register_action
@@ -16,6 +15,7 @@ from esphome.const import (
 from esphome.core import ID, EsphomeError, TimePeriod
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObj
+from esphome.types import Expression
 
 from ..defines import (
     CONF_FLEX_ALIGN_CROSS,
@@ -39,11 +39,16 @@ from ..defines import (
     TYPE_FLEX,
     TYPE_GRID,
     LValidator,
+    add_lv_use,
     call_lambda,
+    get_styles_used,
+    get_theme_widget_map,
+    get_widget_map,
+    get_widgets_completed,
     join_enums,
     literal,
 )
-from ..helpers import add_lv_use
+from ..lv_validation import lv_int
 from ..lvcode import (
     LvConditional,
     add_line_marks,
@@ -53,6 +58,7 @@ from ..lvcode import (
     lv_expr,
     lv_obj,
     lv_Pvariable,
+    lvgl_static,
 )
 from ..types import (
     LV_STATE,
@@ -66,8 +72,170 @@ from ..types import (
 
 EVENT_LAMB = "event_lamb__"
 
-theme_widget_map = {}
-styles_used = set()
+
+class WidgetType:
+    """
+    Describes a type of Widget, e.g. "bar" or "line"
+    """
+
+    def __init__(
+        self,
+        name: str,
+        w_type: LvType,
+        parts: tuple,
+        schema=None,
+        modify_schema=None,
+        lv_name=None,
+        is_mock: bool = False,
+    ):
+        """
+        :param name: The widget name, e.g. "bar"
+        :param w_type: The C type of the widget
+        :param parts: What parts this widget supports
+        :param schema: The config schema for defining a widget
+        :param modify_schema: A schema to update the widget, defaults to the same as the schema
+        :param lv_name: The name of the LVGL widget in the LVGL library, if different from the name
+        :param is_mock: Whether this widget is a mock widget, i.e. not a real LVGL widget
+        """
+        self.name = name
+        self.lv_name = lv_name or name
+        self.w_type = w_type
+        self.parts = parts
+        if not isinstance(schema, Schema):
+            schema = Schema(schema or {})
+        self.schema = schema
+        if modify_schema is None:
+            modify_schema = schema
+        if not isinstance(modify_schema, Schema):
+            modify_schema = Schema(modify_schema)
+        self.modify_schema = modify_schema
+        self.mock_obj = MockObj(f"lv_{self.lv_name}", "_")
+
+        # Local import to avoid circular import
+        from ..automation import update_to_code
+        from ..schemas import WIDGET_TYPES, base_update_schema
+
+        if not is_mock:
+            if self.name in WIDGET_TYPES:
+                raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
+            WIDGET_TYPES[self.name] = self
+
+            # Register the update action automatically, adding widget-specific properties
+            register_action(
+                f"lvgl.{self.name}.update",
+                ObjUpdateAction,
+                base_update_schema(self, self.parts).extend(self.modify_schema),
+                synchronous=True,
+            )(update_to_code)
+
+    @property
+    def animated(self):
+        return False
+
+    @property
+    def required_component(self):
+        return None
+
+    def is_compound(self):
+        return self.w_type.inherits_from(LvCompound)
+
+    async def create_to_code(self, config: dict, parent: MockObj) -> "Widget":
+        """
+        Generate code for a widget creation.
+        :param config: The configuration for the widget
+        :param parent: The parent to which it should be attached
+        """
+
+        creator = await self.obj_creator(parent, config)
+        add_lv_use(self.name)
+        add_lv_use(*self.get_uses())
+        wid = config[CONF_ID]
+        add_line_marks(wid)
+        if self.is_compound():
+            var = cg.new_Pvariable(wid)
+            lv_add(var.set_obj(creator))
+            await self.on_create(var.obj, config)
+        else:
+            var = lv_Pvariable(lv_obj_t, wid)
+            lv_assign(var, creator)
+            await self.on_create(var, config)
+
+        w = Widget.create(wid, var, self, config)
+        if theme := get_theme_widget_map().get(self.name):
+            for part, states in theme.items():
+                part = "LV_PART_" + part.upper()
+                for state, style in states.items():
+                    state = "LV_STATE_" + state.upper()
+                    if state == "LV_STATE_DEFAULT":
+                        lv_state = literal(part)
+                    elif part == "LV_PART_MAIN":
+                        lv_state = literal(state)
+                    else:
+                        lv_state = join_enums((state, part))
+                    w.add_style(style, lv_state)
+        await set_obj_properties(w, config)
+        await add_widgets(w, config)
+        await self.to_code(w, config)
+        return w
+
+    async def to_code(self, w: "Widget", config: dict):
+        """
+        Update a widget, also called when creating
+        :param config:
+        :return:
+        """
+
+    async def obj_creator(self, parent: MockObj, config: dict):
+        """
+        Create an instance of the widget type
+        :param parent: The parent to which it should be attached
+        :param config:  Its configuration
+        :return: Generated code as a single text line
+        """
+        return lv_expr.call(f"{self.lv_name}_create", parent)
+
+    async def on_create(self, var: MockObj, config: dict):
+        """
+        Called from to_code when the widget is created, to set up any initial properties
+        :param var: The variable representing the widget
+        :param config: Its configuration
+        """
+
+    def get_uses(self):
+        """
+        Get a list of other widgets used by this one
+        :return:
+        """
+        return ()
+
+    async def get_max(self, config: dict):
+        return sys.maxsize
+
+    async def get_min(self, config: dict):
+        return -sys.maxsize
+
+    def get_step(self, config: dict):
+        return 1
+
+    def get_scale(self, config: dict):
+        return 1.0
+
+    def validate(self, value):
+        """
+        Provides an opportunity for custom validation for a given widget type
+        :param value:
+        :return:
+        """
+        return value
+
+    def final_validate(self, widget, update_config, widget_config, path):
+        """
+        Allow final validation for a given widget type update action
+        :param widget: A widget
+        :param update_config: The configuration for the update action
+        :param widget_config: The configuration for the widget itself
+        :param path: The path to the widget, for error reporting
+        """
 
 
 class WidgetType:
@@ -240,8 +408,6 @@ class Widget:
     This class has a lot of methods. Adding any more runs foul of lint checks ("too many public methods").
     """
 
-    widgets_completed = False
-
     def __init__(self, var, wtype: WidgetType, config: dict = None):
         self.var = var
         self.type = wtype
@@ -262,21 +428,14 @@ class Widget:
     @staticmethod
     def create(name, var, wtype: WidgetType, config: dict = None):
         w = Widget(var, wtype, config)
-        widget_map[name] = w
+        get_widget_map()[name] = w
         return w
 
-    def add_state(self, state):
-        if "|" in state:
-            state = f"(lv_state_t)({state})"
-        return lv_obj.add_state(self.obj, literal(state))
+    def set_state(self, state: MockObj, value: bool | Expression):
+        lv_add(lvgl_static.lv_obj_set_state_value(self.obj, state, value))
 
-    def clear_state(self, state):
-        if "|" in state:
-            state = f"(lv_state_t)({state})"
-        return lv_obj.remove_state(self.obj, literal(state))
-
-    def has_state(self, state):
-        return (lv_expr.obj_get_state(self.obj) & literal(state)) != 0
+    def has_state(self, state: MockObj):
+        return lv_expr.obj_has_state(self.obj, state)
 
     def add_flag(self, flag):
         if "|" in flag:
@@ -340,10 +499,10 @@ class Widget:
         ltype = ltype or self.__type_base()
         return cg.RawExpression(f"lv_{ltype}_get_{prop}({self.obj})")
 
-    def set_style(self, prop, value, state=LV_STATE.DEFAULT):
+    def set_style(self, prop: str, value, state=LV_STATE.DEFAULT):
         if value is None:
             return
-        styles_used.add(prop)
+        get_styles_used().add(prop)
         if isinstance(value, str):
             value = literal(value)
         lv.call(f"obj_set_style_{prop}", self.obj, value, state)
@@ -360,7 +519,7 @@ class Widget:
 
     def get_args(self):
         if isinstance(self.type.w_type, LvType):
-            return self.type.w_type.args
+            return self.type.w_type.args.copy()
         return [(lv_obj_t_ptr, "obj")]
 
     def get_value(self):
@@ -397,10 +556,6 @@ class Widget:
         return self.type.get_scale(self.config)
 
 
-# Map of widgets to their config, used for trigger generation
-widget_map: dict[Any, Widget] = {}
-
-
 class LvScrActType(WidgetType):
     """
     A "widget" representing the active screen.
@@ -423,10 +578,11 @@ def get_widget_generator(wid):
     :param wid:
     :return:
     """
+    widget_map = get_widget_map()
     while True:
         if obj := widget_map.get(wid):
             return obj
-        if Widget.widgets_completed:
+        if get_widgets_completed():
             raise Invalid(
                 f"Widget {wid} not found, yet all widgets should be defined by now"
             )
@@ -434,20 +590,20 @@ def get_widget_generator(wid):
 
 
 async def get_widget_(wid):
-    if obj := widget_map.get(wid):
+    if obj := get_widget_map().get(wid):
         return obj
     return await FakeAwaitable(get_widget_generator(wid))
 
 
 def widgets_wait_generator():
     while True:
-        if Widget.widgets_completed:
+        if get_widgets_completed():
             return
         yield
 
 
 async def wait_for_widgets():
-    if Widget.widgets_completed:
+    if get_widgets_completed():
         return
     await FakeAwaitable(widgets_wait_generator())
 
@@ -506,6 +662,12 @@ def collect_parts(config):
     return parts
 
 
+def _size_to_str(value):
+    if isinstance(value, float):
+        return f"lv_pct({int(value * 100)})"
+    return str(value)
+
+
 async def set_obj_properties(w: Widget, config):
     """Generate a list of C++ statements to apply properties to an lv_obj_t"""
 
@@ -521,12 +683,12 @@ async def set_obj_properties(w: Widget, config):
             w.set_style(CONF_PAD_COLUMN, pad_column)
         if layout_type == TYPE_GRID:
             wid = config[CONF_ID]
-            rows = [str(x) for x in layout[CONF_GRID_ROWS]]
+            rows = [_size_to_str(x) for x in layout[CONF_GRID_ROWS]]
             rows = "{" + ",".join(rows) + ", LV_GRID_TEMPLATE_LAST}"
             row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=lv_coord_t)
             row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
             w.set_style("grid_row_dsc_array", row_array)
-            columns = [str(x) for x in layout[CONF_GRID_COLUMNS]]
+            columns = [_size_to_str(x) for x in layout[CONF_GRID_COLUMNS]]
             columns = "{" + ",".join(columns) + ", LV_GRID_TEMPLATE_LAST}"
             column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=lv_coord_t)
             column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
@@ -592,30 +754,14 @@ async def set_obj_properties(w: Widget, config):
             cond.else_()
             w.clear_flag(flag)
 
-    if states := config.get(CONF_STATE):
-        adds = set()
-        clears = set()
-        lambs = {}
-        for key, value in states.items():
-            if isinstance(value, cv.Lambda):
-                lambs[key] = value
-            elif value:
-                adds.add(key)
-            else:
-                clears.add(key)
-        if adds:
-            adds = join_enums(adds, "LV_STATE_")
-            w.add_state(adds)
-        if clears:
-            clears = join_enums(clears, "LV_STATE_")
-            w.clear_state(clears)
-        for key, value in lambs.items():
-            lamb = await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
-            state = f"LV_STATE_{key.upper()}"
-            with LvConditional(call_lambda(lamb)) as cond:
-                w.add_state(state)
-                cond.else_()
-                w.clear_state(state)
+    for key, value in config.get(CONF_STATE, {}).items():
+        if isinstance(value, cv.Lambda):
+            value = call_lambda(
+                await cg.process_lambda(value, [], capture="=", return_type=cg.bool_)
+            )
+        state = getattr(LV_STATE, key.upper())
+        w.set_state(state, value)
+
     for property in OBJ_PROPERTIES:
         await w.set_property(property, config, lv_name="obj")
 
@@ -650,8 +796,8 @@ async def widget_to_code(w_cnfig, w_type: WidgetType | str, parent) -> Widget:
 
 
 class NumberType(WidgetType):
-    def get_max(self, config: dict):
-        return int(config.get(CONF_MAX_VALUE, 100))
+    async def get_max(self, config: dict):
+        return await lv_int.process(config.get(CONF_MAX_VALUE, 100))
 
-    def get_min(self, config: dict):
-        return int(config.get(CONF_MIN_VALUE, 0))
+    async def get_min(self, config: dict):
+        return await lv_int.process(config.get(CONF_MIN_VALUE, 0))

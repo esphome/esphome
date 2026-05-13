@@ -1,6 +1,8 @@
 #include "hub75_component.h"
 #include "esphome/core/application.h"
 
+#include <cinttypes>
+
 #ifdef USE_ESP32
 
 namespace esphome::hub75 {
@@ -58,7 +60,7 @@ void HUB75Display::dump_config() {
                 config_.pins.oe, config_.pins.clk);
 
   ESP_LOGCONFIG(TAG,
-                "  Clock Speed: %u MHz\n"
+                "  Clock Speed: %" PRIu32 " MHz\n"
                 "  Latch Blanking: %i\n"
                 "  Clock Phase: %s\n"
                 "  Min Refresh Rate: %i Hz\n"
@@ -92,14 +94,25 @@ void HUB75Display::fill(Color color) {
   if (!this->enabled_) [[unlikely]]
     return;
 
-  // Special case: black (off) - use fast hardware clear
-  if (!color.is_on()) {
+  // Start with full display rect
+  display::Rect fill_rect(0, 0, this->get_width_internal(), this->get_height_internal());
+
+  // Apply clipping using Rect::shrink() to intersect
+  display::Rect clip = this->get_clipping();
+  if (clip.is_set()) {
+    fill_rect.shrink(clip);
+    if (!fill_rect.is_set())
+      return;  // Completely clipped
+  }
+
+  // Fast path: black filling entire display
+  if (!color.is_on() && fill_rect.x == 0 && fill_rect.y == 0 && fill_rect.w == this->get_width_internal() &&
+      fill_rect.h == this->get_height_internal()) {
     driver_->clear();
     return;
   }
 
-  // For non-black colors, fall back to base class (pixel-by-pixel)
-  Display::fill(color);
+  driver_->fill(fill_rect.x, fill_rect.y, fill_rect.w, fill_rect.h, color.r, color.g, color.b);
 }
 
 void HOT HUB75Display::draw_pixel_at(int x, int y, Color color) {
@@ -109,6 +122,9 @@ void HOT HUB75Display::draw_pixel_at(int x, int y, Color color) {
     return;
 
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) [[unlikely]]
+    return;
+
+  if (!this->get_clipping().inside(x, y))
     return;
 
   driver_->set_pixel(x, y, color.r, color.g, color.b);
@@ -179,7 +195,7 @@ void HOT HUB75Display::draw_pixels_at(int x_start, int y_start, int w, int h, co
   }
 }
 
-void HUB75Display::set_brightness(int brightness) {
+void HUB75Display::set_brightness(uint8_t brightness) {
   this->brightness_ = brightness;
   this->enabled_ = (brightness > 0);
   if (this->driver_ != nullptr) {

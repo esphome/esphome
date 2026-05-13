@@ -1,23 +1,27 @@
 #pragma once
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "preprocessor_settings.h"
 #include "streaming_model.h"
 
 #include "esphome/components/microphone/microphone_source.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/ring_buffer.h"
+#include "esphome/core/defines.h"
+
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 #include <freertos/event_groups.h>
 
 #include <frontend.h>
 #include <frontend_util.h>
 
-namespace esphome {
-namespace micro_wake_word {
+namespace esphome::micro_wake_word {
 
 enum State {
   STARTING,
@@ -26,12 +30,21 @@ enum State {
   STOPPED,
 };
 
-class MicroWakeWord : public Component {
+class MicroWakeWord : public Component
+#ifdef USE_OTA_STATE_LISTENER
+    ,
+                      public ota::OTAGlobalStateListener
+#endif
+{
  public:
   void setup() override;
   void loop() override;
   float get_setup_priority() const override;
   void dump_config() override;
+
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
+#endif
 
   void start();
   void stop();
@@ -46,7 +59,7 @@ class MicroWakeWord : public Component {
 
   void set_stop_after_detection(bool stop_after_detection) { this->stop_after_detection_ = stop_after_detection; }
 
-  Trigger<std::string> *get_wake_word_detected_trigger() const { return this->wake_word_detected_trigger_; }
+  Trigger<std::string> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
 
   void add_wake_word_model(WakeWordModel *model);
 
@@ -64,10 +77,10 @@ class MicroWakeWord : public Component {
 
  protected:
   microphone::MicrophoneSource *microphone_source_{nullptr};
-  Trigger<std::string> *wake_word_detected_trigger_ = new Trigger<std::string>();
+  Trigger<std::string> wake_word_detected_trigger_;
   State state_{State::STOPPED};
 
-  std::weak_ptr<RingBuffer> ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
   std::vector<WakeWordModel *> wake_word_models_;
 
 #ifdef USE_MICRO_WAKE_WORD_VAD
@@ -123,7 +136,6 @@ class MicroWakeWord : public Component {
   bool update_model_probabilities_(const int8_t audio_features[PREPROCESSOR_FEATURE_SIZE]);
 };
 
-}  // namespace micro_wake_word
-}  // namespace esphome
+}  // namespace esphome::micro_wake_word
 
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

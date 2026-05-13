@@ -2,15 +2,15 @@
 
 namespace esphome::micronova {
 
+static const char *const TAG = "micronova.button";
+
+void MicroNovaButton::dump_config() {
+  LOG_BUTTON("", "Micronova button", this);
+  this->dump_base_config();
+}
+
 void MicroNovaButton::press_action() {
-  switch (this->get_function()) {
-    case MicroNovaFunctions::STOVE_FUNCTION_CUSTOM:
-      this->micronova_->write_address(this->memory_location_, this->memory_address_, this->memory_data_);
-      break;
-    default:
-      break;
-  }
-  this->micronova_->update();
+  this->micronova_->queue_write_command(this->memory_location_, this->memory_address_, this->memory_data_);
 }
 
 }  // namespace esphome::micronova

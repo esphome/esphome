@@ -5,8 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/voltage_sampler/voltage_sampler.h"
 
-namespace esphome {
-namespace ct_clamp {
+namespace esphome::ct_clamp {
 
 class CTClampSensor : public sensor::Sensor, public PollingComponent {
  public:
@@ -50,5 +49,4 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
   bool is_sampling_ = false;
 };
 
-}  // namespace ct_clamp
-}  // namespace esphome
+}  // namespace esphome::ct_clamp

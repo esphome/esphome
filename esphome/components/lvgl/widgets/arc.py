@@ -74,7 +74,14 @@ class ArcType(NumberType):
     async def to_code(self, w: Widget, config):
         for prop, validator in ARC_MODIFY_SCHEMA.schema.items():
             if prop != CONF_VALUE:
-                await w.set_property(prop, config, processor=validator)
+                # start_angle and end_angle are mapped to bg_start_angle and bg_end_angle
+                prop = str(prop)
+                if prop.endswith("_angle"):
+                    await w.set_property(
+                        "bg_" + prop, await validator.process(config.get(prop))
+                    )
+                else:
+                    await w.set_property(prop, config, processor=validator)
         if CONF_ADJUSTABLE in config:
             if not config[CONF_ADJUSTABLE]:
                 lv_obj.remove_style(w.obj, nullptr, LV_PART.KNOB)

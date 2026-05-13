@@ -9,9 +9,9 @@ from .defines import (
     CONF_KEYPADS,
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
+    add_lv_use,
     literal,
 )
-from .helpers import lvgl_components_required
 from .lvcode import lv, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA
 from .types import lv_group_t, lv_indev_type_t
@@ -52,7 +52,7 @@ KEYPADS_CONFIG = cv.ensure_list(
 
 async def keypads_to_code(var, config, default_group):
     for enc_conf in config[CONF_KEYPADS]:
-        lvgl_components_required.add("KEY_LISTENER")
+        add_lv_use("KEY_LISTENER")
         lpt = enc_conf[CONF_LONG_PRESS_TIME].total_milliseconds
         lprt = enc_conf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
         listener = cg.new_Pvariable(

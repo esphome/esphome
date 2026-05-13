@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+from dataclasses import dataclass
 import hashlib
 import io
 import logging
@@ -11,7 +12,7 @@ from PIL import Image, UnidentifiedImageError
 
 from esphome import core, external_files
 import esphome.codegen as cg
-from esphome.components.const import CONF_BYTE_ORDER
+from esphome.components.const import CONF_BYTE_ORDER, KEY_METADATA
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEFAULTS,
@@ -39,6 +40,15 @@ DEPENDENCIES = ["display"]
 image_ns = cg.esphome_ns.namespace("image")
 
 ImageType = image_ns.enum("ImageType")
+
+
+@dataclass(frozen=True)
+class ImageMetaData:
+    width: int
+    height: int
+    image_type: str
+    transparency: str
+
 
 CONF_OPAQUE = "opaque"
 CONF_CHROMA_KEY = "chroma_key"
@@ -392,23 +402,6 @@ def is_svg_file(file):
         return "<svg" in str(f.read(1024))
 
 
-def validate_cairosvg_installed():
-    try:
-        import cairosvg
-    except ImportError as err:
-        raise cv.Invalid(
-            "Please install the cairosvg python package to use this feature. "
-            "(pip install cairosvg)"
-        ) from err
-
-    major, minor, _ = cairosvg.__version__.split(".")
-    if major < "2" or major == "2" and minor < "2":
-        raise cv.Invalid(
-            "Please update your cairosvg installation to at least 2.2.0. "
-            "(pip install -U cairosvg)"
-        )
-
-
 def validate_file_shorthand(value):
     value = cv.string_strict(value)
     parts = value.strip().split(":")
@@ -508,9 +501,7 @@ def validate_settings(value, path=()):
         )
     if file := value.get(CONF_FILE):
         file = Path(file)
-        if is_svg_file(file):
-            validate_cairosvg_installed()
-        else:
+        if not is_svg_file(file):
             try:
                 Image.open(file)
             except UnidentifiedImageError as exc:
@@ -687,12 +678,16 @@ def _final_validate(config):
     :param config:
     :return:
     """
-    fv = full_config.get()
-    if "lvgl" in fv and not all(x.get(CONF_BYTE_ORDER) in x for x in config):
-        config = config.copy()
-        for c in config:
-            if not c.get(CONF_BYTE_ORDER):
-                c[CONF_BYTE_ORDER] = "LITTLE_ENDIAN"
+    config = config.copy()
+    for c in config:
+        if byte_order := c.get(CONF_BYTE_ORDER):
+            if byte_order == "BIG_ENDIAN":
+                _LOGGER.warning(
+                    "The image '%s' is configured with big-endian byte order, little-endian is expected",
+                    c.get(CONF_FILE),
+                )
+        else:
+            c[CONF_BYTE_ORDER] = "LITTLE_ENDIAN"
     return config
 
 
@@ -705,44 +700,30 @@ async def write_image(config, all_frames=False):
         raise core.EsphomeError(f"Could not load image file {path}")
 
     resize = config.get(CONF_RESIZE)
-    if is_svg_file(path):
-        # Local import so use of non-SVG files needn't require cairosvg installed
-        from pyexpat import ExpatError
-        from xml.etree.ElementTree import ParseError
+    try:
+        if is_svg_file(path):
+            import resvg_py
 
-        from cairosvg import svg2png
-        from cairosvg.helpers import PointError
+            resize = resize or (None, None)
+            image_data = resvg_py.svg_to_bytes(
+                svg_path=str(path), width=resize[0], height=resize[1], dpi=100
+            )
 
-        if not resize:
-            resize = (None, None)
-        try:
-            with open(path, "rb") as file:
-                image = svg2png(
-                    file_obj=file,
-                    output_width=resize[0],
-                    output_height=resize[1],
-                )
-            image = Image.open(io.BytesIO(image))
+            # Convert bytes to Pillow Image
+            image = Image.open(io.BytesIO(image_data))
             width, height = image.size
-        except (
-            ValueError,
-            ParseError,
-            IndexError,
-            ExpatError,
-            AttributeError,
-            TypeError,
-            PointError,
-        ) as e:
-            raise core.EsphomeError(f"Could not load SVG image {path}: {e}") from e
-    else:
-        image = Image.open(path)
-        width, height = image.size
-        if resize:
-            # Preserve aspect ratio
-            new_width_max = min(width, resize[0])
-            new_height_max = min(height, resize[1])
-            ratio = min(new_width_max / width, new_height_max / height)
-            width, height = int(width * ratio), int(height * ratio)
+
+        else:
+            image = Image.open(path)
+            width, height = image.size
+            if resize:
+                # Preserve aspect ratio
+                new_width_max = min(width, resize[0])
+                new_height_max = min(height, resize[1])
+                ratio = min(new_width_max / width, new_height_max / height)
+                width, height = int(width * ratio), int(height * ratio)
+    except (OSError, UnidentifiedImageError, ValueError) as exc:
+        raise core.EsphomeError(f"Could not read image file {path}: {exc}") from exc
 
     if not resize and (width > 500 or height > 500):
         _LOGGER.warning(
@@ -766,21 +747,28 @@ async def write_image(config, all_frames=False):
         if frame_count <= 1:
             _LOGGER.warning("Image file %s has no animation frames", path)
 
-    total_rows = height * frame_count
-    encoder = IMAGE_TYPE[type](width, total_rows, transparency, dither, invert_alpha)
-    if byte_order := config.get(CONF_BYTE_ORDER):
-        # Check for valid type has already been done in validate_settings
-        encoder.set_big_endian(byte_order == "BIG_ENDIAN")
+    # Encode each frame with its own encoder and concatenate. This keeps every
+    # frame self-contained on disk (e.g. RGB565+alpha emits [RGB plane | alpha plane]
+    # per frame) so animation frame stepping in image.cpp / animation.cpp stays
+    # correct without needing to know the total frame count.
+    byte_order = config.get(CONF_BYTE_ORDER)
+    combined_data: list[int] = []
+    encoder: ImageEncoder | None = None
     for frame_index in range(frame_count):
         image.seek(frame_index)
+        encoder = IMAGE_TYPE[type](width, height, transparency, dither, invert_alpha)
+        if byte_order is not None:
+            # Check for valid type has already been done in validate_settings
+            encoder.set_big_endian(byte_order == "BIG_ENDIAN")
         pixels = encoder.convert(image.resize((width, height)), path).getdata()
         for row in range(height):
             for col in range(width):
                 encoder.encode(pixels[row * width + col])
             encoder.end_row()
         encoder.end_image()
+        combined_data.extend(encoder.data)
 
-    rhs = [HexInt(x) for x in encoder.data]
+    rhs = [HexInt(x) for x in combined_data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
     image_type = get_image_type_enum(type)
     trans_value = get_transparency_enum(encoder.transparency)
@@ -788,18 +776,31 @@ async def write_image(config, all_frames=False):
     return prog_arr, width, height, image_type, trans_value, frame_count
 
 
+def add_metadata(id: str, width: int, height: int, image_type: str, transparency):
+    all_metadata = CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_METADATA, {})
+    all_metadata[str(id)] = ImageMetaData(
+        width=width, height=height, image_type=image_type, transparency=transparency
+    )
+
+
 async def to_code(config):
     cg.add_define("USE_IMAGE")
-    CORE.data[DOMAIN] = {}
-    # By now the config should be a simple list.
+    # By now the config will be a simple list.
     for entry in config:
         prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
         cg.new_Pvariable(
             entry[CONF_ID], prog_arr, width, height, image_type, trans_value
         )
-        CORE.data[DOMAIN][entry[CONF_ID].id] = {
-            CONF_WIDTH: width,
-            CONF_HEIGHT: height,
-            CONF_TYPE: image_type,
-            CONF_TRANSPARENCY: trans_value,
-        }
+        add_metadata(
+            entry[CONF_ID], width, height, entry[CONF_TYPE], entry[CONF_TRANSPARENCY]
+        )
+
+
+def get_all_image_metadata() -> dict[str, ImageMetaData]:
+    """Get all image metadata."""
+    return CORE.data.get(DOMAIN, {}).get(KEY_METADATA, {})
+
+
+def get_image_metadata(image_id: str) -> ImageMetaData | None:
+    """Get image metadata by ID for use by other components."""
+    return get_all_image_metadata().get(image_id)

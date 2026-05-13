@@ -71,7 +71,7 @@ async def test_automation_wait_actions(
         # Test 1: wait_until in automation - trigger 5 times rapidly
         test_service = next((s for s in services if s.name == "test_wait_until"), None)
         assert test_service is not None, "test_wait_until service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test1_complete, timeout=3.0)
 
         # Verify Test 1: All 5 triggers should complete
@@ -82,7 +82,7 @@ async def test_automation_wait_actions(
         # Test 2: script.wait in automation - trigger 5 times rapidly
         test_service = next((s for s in services if s.name == "test_script_wait"), None)
         assert test_service is not None, "test_script_wait service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test2_complete, timeout=3.0)
 
         # Verify Test 2: All 5 triggers should complete
@@ -95,7 +95,7 @@ async def test_automation_wait_actions(
             (s for s in services if s.name == "test_wait_timeout"), None
         )
         assert test_service is not None, "test_wait_timeout service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test3_complete, timeout=3.0)
 
         # Verify Test 3: All 5 triggers should timeout and complete

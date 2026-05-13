@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) || defined(USE_ESP32)
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
@@ -8,8 +8,7 @@
 // that conflict with ESPHome.
 class HeatpumpIR;
 
-namespace esphome {
-namespace heatpumpir {
+namespace esphome::heatpumpir {
 
 // Simple enum to represent protocols.
 enum Protocol {
@@ -126,7 +125,6 @@ class HeatpumpIRClimate : public climate_ir::ClimateIR {
   float min_temperature_;
 };
 
-}  // namespace heatpumpir
-}  // namespace esphome
+}  // namespace esphome::heatpumpir
 
 #endif

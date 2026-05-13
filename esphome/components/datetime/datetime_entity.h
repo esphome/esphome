@@ -15,9 +15,7 @@ namespace esphome::datetime {
 #define LOG_DATETIME_DATETIME(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
-    } \
+    LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
 class DateTimeCall;
@@ -71,7 +69,11 @@ class DateTimeCall {
   void perform();
   DateTimeCall &set_datetime(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second);
   DateTimeCall &set_datetime(ESPTime datetime);
-  DateTimeCall &set_datetime(const std::string &datetime);
+  DateTimeCall &set_datetime(const char *datetime, size_t len);
+  DateTimeCall &set_datetime(const char *datetime) { return this->set_datetime(datetime, strlen(datetime)); }
+  DateTimeCall &set_datetime(const std::string &datetime) {
+    return this->set_datetime(datetime.c_str(), datetime.size());
+  }
   DateTimeCall &set_datetime(time_t epoch_seconds);
 
   DateTimeCall &set_year(uint16_t year) {

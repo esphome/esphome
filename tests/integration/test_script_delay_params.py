@@ -90,7 +90,7 @@ async def test_script_delay_with_params(
         assert test_service is not None, "test_repeat_with_delay service not found"
 
         # Execute the test
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
 
         # Wait for test to complete (10 iterations * ~100ms each + margin)
         try:

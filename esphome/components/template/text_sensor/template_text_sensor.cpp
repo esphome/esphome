@@ -1,8 +1,7 @@
 #include "template_text_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 static const char *const TAG = "template.text_sensor";
 
@@ -20,5 +19,4 @@ float TemplateTextSensor::get_setup_priority() const { return setup_priority::HA
 
 void TemplateTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Template Sensor", this); }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

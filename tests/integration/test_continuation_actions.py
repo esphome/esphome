@@ -142,7 +142,7 @@ async def test_continuation_actions(
         # Test 1: IfAction with then branch
         test_service = next((s for s in services if s.name == "test_if_action"), None)
         assert test_service is not None, "test_if_action service not found"
-        client.execute_service(test_service, {"condition": True, "value": 42})
+        await client.execute_service(test_service, {"condition": True, "value": 42})
         await asyncio.wait_for(test1_complete, timeout=2.0)
         assert test_results["if_then"], "IfAction then branch not executed"
         assert test_results["if_complete"], "IfAction did not complete"
@@ -150,7 +150,7 @@ async def test_continuation_actions(
         # Test 1b: IfAction with else branch
         test1_complete = loop.create_future()
         test_results["if_complete"] = False
-        client.execute_service(test_service, {"condition": False, "value": 99})
+        await client.execute_service(test_service, {"condition": False, "value": 99})
         await asyncio.wait_for(test1_complete, timeout=2.0)
         assert test_results["if_else"], "IfAction else branch not executed"
         assert test_results["if_complete"], "IfAction did not complete"
@@ -160,14 +160,14 @@ async def test_continuation_actions(
         assert test_service is not None, "test_nested_if service not found"
 
         # Both true
-        client.execute_service(test_service, {"outer": True, "inner": True})
+        await client.execute_service(test_service, {"outer": True, "inner": True})
         await asyncio.wait_for(test2_complete, timeout=2.0)
         assert test_results["nested_both_true"], "Nested both true not executed"
 
         # Outer true, inner false
         test2_complete = loop.create_future()
         test_results["nested_complete"] = False
-        client.execute_service(test_service, {"outer": True, "inner": False})
+        await client.execute_service(test_service, {"outer": True, "inner": False})
         await asyncio.wait_for(test2_complete, timeout=2.0)
         assert test_results["nested_outer_true_inner_false"], (
             "Nested outer true inner false not executed"
@@ -176,7 +176,7 @@ async def test_continuation_actions(
         # Outer false
         test2_complete = loop.create_future()
         test_results["nested_complete"] = False
-        client.execute_service(test_service, {"outer": False, "inner": True})
+        await client.execute_service(test_service, {"outer": False, "inner": True})
         await asyncio.wait_for(test2_complete, timeout=2.0)
         assert test_results["nested_outer_false"], "Nested outer false not executed"
 
@@ -185,7 +185,7 @@ async def test_continuation_actions(
             (s for s in services if s.name == "test_while_action"), None
         )
         assert test_service is not None, "test_while_action service not found"
-        client.execute_service(test_service, {"max_count": 3})
+        await client.execute_service(test_service, {"max_count": 3})
         await asyncio.wait_for(test3_complete, timeout=2.0)
         assert test_results["while_iterations"] == 3, (
             f"WhileAction expected 3 iterations, got {test_results['while_iterations']}"
@@ -197,7 +197,7 @@ async def test_continuation_actions(
             (s for s in services if s.name == "test_repeat_action"), None
         )
         assert test_service is not None, "test_repeat_action service not found"
-        client.execute_service(test_service, {"count": 5})
+        await client.execute_service(test_service, {"count": 5})
         await asyncio.wait_for(test4_complete, timeout=2.0)
         assert test_results["repeat_iterations"] == 5, (
             f"RepeatAction expected 5 iterations, got {test_results['repeat_iterations']}"
@@ -207,7 +207,7 @@ async def test_continuation_actions(
         # Test 5: Combined (if + repeat + while)
         test_service = next((s for s in services if s.name == "test_combined"), None)
         assert test_service is not None, "test_combined service not found"
-        client.execute_service(test_service, {"do_loop": True, "loop_count": 2})
+        await client.execute_service(test_service, {"do_loop": True, "loop_count": 2})
         await asyncio.wait_for(test5_complete, timeout=2.0)
         # Should execute: repeat 2 times, each iteration does while from iteration down to 0
         # iteration 0: while 0 times = 0
@@ -221,7 +221,7 @@ async def test_continuation_actions(
         # Test 6: Rapid triggers (tests memory efficiency of ContinuationAction)
         test_service = next((s for s in services if s.name == "test_rapid_if"), None)
         assert test_service is not None, "test_rapid_if service not found"
-        client.execute_service(test_service, {})
+        await client.execute_service(test_service, {})
         await asyncio.wait_for(test6_complete, timeout=2.0)
         # Values 1, 2 should hit else (<=2), values 3, 4, 5 should hit then (>2)
         assert test_results["rapid_else"] == 2, (

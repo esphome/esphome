@@ -1,14 +1,13 @@
 #include "esphome/core/log.h"
 #include "tuya_number.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 static const char *const TAG = "tuya.number";
 
 void TuyaNumber::setup() {
   if (this->restore_value_) {
-    this->pref_ = global_preferences->make_preference<float>(this->get_preference_hash());
+    this->pref_ = this->make_entity_preference<float>();
   }
 
   this->parent_->register_listener(this->number_id_, [this](const TuyaDatapoint &datapoint) {
@@ -91,5 +90,4 @@ void TuyaNumber::dump_config() {
   ESP_LOGCONFIG(TAG, "  Restore Value: %s", YESNO(this->restore_value_));
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

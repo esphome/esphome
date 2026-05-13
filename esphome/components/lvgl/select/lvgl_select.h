@@ -8,8 +8,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/components/lvgl/lvgl_esphome.h"
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 
 class LVGLSelect : public select::Select, public Component {
  public:
@@ -20,7 +19,7 @@ class LVGLSelect : public select::Select, public Component {
     this->set_options_();
     if (this->restore_) {
       size_t index;
-      this->pref_ = global_preferences->make_preference<size_t>(this->get_preference_hash());
+      this->pref_ = this->make_entity_preference<size_t>();
       if (this->pref_.load(&index))
         this->widget_->set_selected_index(index, LV_ANIM_OFF);
     }
@@ -71,5 +70,4 @@ class LVGLSelect : public select::Select, public Component {
   ESPPreferenceObject pref_{};
 };
 
-}  // namespace lvgl
-}  // namespace esphome
+}  // namespace esphome::lvgl

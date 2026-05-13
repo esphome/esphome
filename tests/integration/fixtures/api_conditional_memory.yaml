@@ -24,6 +24,14 @@ api:
     - logger.log:
         format: "Client %s disconnected from %s"
         args: [client_info.c_str(), client_address.c_str()]
+    # Verify fix for issue #11131: api.connected should reflect true state in trigger
+    - if:
+        condition:
+          api.connected:
+        then:
+          - logger.log: "Other clients still connected"
+        else:
+          - logger.log: "No clients remaining"
 
 logger:
   level: DEBUG

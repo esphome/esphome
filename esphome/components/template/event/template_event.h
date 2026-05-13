@@ -3,10 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/event/event.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 class TemplateEvent final : public Component, public event::Event {};
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

@@ -1,5 +1,5 @@
 import re
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import image
@@ -31,17 +31,15 @@ from .defines import (
     LValidator,
     LvConstant,
     StaticCastExpression,
+    add_lv_use,
     call_lambda,
+    get_esphome_fonts_used,
+    get_lv_fonts_used,
+    get_lv_images_used,
     literal,
 )
-from .helpers import (
-    CONF_IF_NAN,
-    add_lv_use,
-    esphome_fonts_used,
-    lv_fonts_used,
-    requires_component,
-)
-from .types import lv_gradient_t, lv_opa_t
+from .helpers import CONF_IF_NAN
+from .types import lv_coord_t, lv_gradient_t, lv_opa_t
 
 LV_OPA = LvConstant("LV_OPA_", "TRANSP", "COVER")
 
@@ -277,7 +275,7 @@ def pixels_or_percent_validator(value):
 
 pixels_or_percent = LValidator(
     pixels_or_percent_validator,
-    uint32,
+    lv_coord_t,
     retmapper=lambda x: x if isinstance(x, int) else literal(f"lv_pct({int(x * 100)})"),
 )
 
@@ -338,9 +336,9 @@ def size_validator(value):
 size = LValidator(
     size_validator,
     uint32,
-    retmapper=lambda x: literal(x)
-    if isinstance(x, str)
-    else pixels_or_percent.retmapper(x),
+    retmapper=lambda x: (
+        literal(x) if isinstance(x, str) else pixels_or_percent.retmapper(x)
+    ),
 )
 
 
@@ -370,14 +368,11 @@ def stop_value(value):
     return cv.int_range(0, 255)(value)
 
 
-lv_images_used = set()
-
-
 def image_validator(value):
-    value = requires_component("image")(value)
+    value = cv.requires_component("image")(value)
     value = cv.use_id(Image_)(value)
-    lv_images_used.add(value)
-    add_lv_use("img", "label")
+    get_lv_images_used().add(value)
+    add_lv_use("label")
     return value
 
 
@@ -418,20 +413,16 @@ class TextValidator(LValidator):
         self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
     ) -> Expression:
         # Local import to avoid circular import at module level
+        from .lvcode import get_lambda_context_args
 
-        from .lvcode import CodeContext, LambdaContext
-
-        if TYPE_CHECKING:
-            # CodeContext does not have get_automation_parameters
-            # so we need to assert the type here
-            assert isinstance(CodeContext.code_context, LambdaContext)
-        args = args or CodeContext.code_context.get_automation_parameters()
+        args = args or get_lambda_context_args()
 
         if isinstance(value, dict):
             if format_str := value.get(CONF_FORMAT):
                 str_args = [str(x) for x in value[CONF_ARGS]]
                 arg_expr = cg.RawExpression(",".join(str_args))
                 format_str = cpp_string_escape(format_str)
+                # str_sprintf justified: user-defined format, can't optimize without permanent RAM cost
                 sprintf_str = f"str_sprintf({format_str}, {arg_expr}).c_str()"
                 if nanval := value.get(CONF_IF_NAN):
                     nanval = cpp_string_escape(nanval)
@@ -463,7 +454,7 @@ class TextValidator(LValidator):
             ):
                 return value
             # Either a std::string or a lambda call returning that. We need const char*
-            return MockObj(value).c_str()
+            return MockObj(f"({value}).c_str()")
         return await super().process(value, args)
 
 
@@ -500,7 +491,7 @@ class LvFont(LValidator):
     def __init__(self):
         def lv_builtin_font(value):
             fontval = cv.one_of(*LV_FONTS, lower=True)(value)
-            lv_fonts_used.add(fontval)
+            get_lv_fonts_used().add(fontval)
             return fontval
 
         def validator(value):
@@ -510,8 +501,8 @@ class LvFont(LValidator):
                 return lv_builtin_font(value)
             add_lv_use("font")
             fontval = cv.use_id(Font)(value)
-            esphome_fonts_used.add(fontval)
-            return requires_component("font")(fontval)
+            get_esphome_fonts_used().add(fontval)
+            return cv.requires_component("font")(fontval)
 
         # Use font::Font* as return type for lambdas returning ESPHome fonts
         # The inline overloads in lvgl_esphome.h handle conversion to lv_font_t*

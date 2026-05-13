@@ -4,8 +4,7 @@
 
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 template<typename... Ts> class TemplateValvePublishAction : public Action<Ts...>, public Parented<TemplateValve> {
   TEMPLATABLE_VALUE(float, position)
@@ -20,5 +19,4 @@ template<typename... Ts> class TemplateValvePublishAction : public Action<Ts...>
   }
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

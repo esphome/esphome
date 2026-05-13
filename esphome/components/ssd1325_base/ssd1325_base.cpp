@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ssd1325_base {
+namespace esphome::ssd1325_base {
 
 static const char *const TAG = "ssd1325";
 
@@ -202,7 +201,7 @@ void HOT SSD1325::draw_absolute_pixel_internal(int x, int y, Color color) {
   // ensure 'color4' is valid (only 4 bits aka 1 nibble) and shift the bits left when necessary
   color4 = (color4 & SSD1325_COLORMASK) << shift;
   // first mask off the nibble we must change...
-  this->buffer_[pos] &= (~SSD1325_COLORMASK >> shift);
+  this->buffer_[pos] &= (static_cast<uint8_t>(~SSD1325_COLORMASK) >> shift);
   // ...then lay the new nibble back on top. done!
   this->buffer_[pos] |= color4;
 }
@@ -241,5 +240,4 @@ const char *SSD1325::model_str_() {
   }
 }
 
-}  // namespace ssd1325_base
-}  // namespace esphome
+}  // namespace esphome::ssd1325_base

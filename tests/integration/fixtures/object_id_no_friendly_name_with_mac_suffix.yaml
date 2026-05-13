@@ -1,0 +1,26 @@
+esphome:
+  name: test-device
+  # No friendly_name set, MAC suffix enabled
+  # OLD behavior: object_id = "" (empty) because is_object_id_dynamic_() used App.get_friendly_name() directly
+  name_add_mac_suffix: true
+
+host:
+
+api:
+
+logger:
+
+sensor:
+  # Empty name entity - OLD behavior produced empty object_id when MAC suffix enabled
+  - platform: template
+    name: ""
+    id: sensor_empty_name
+    lambda: return 42.0;
+    update_interval: 60s
+
+  # Named entity for comparison
+  - platform: template
+    name: "Temperature"
+    id: sensor_named
+    lambda: return 43.0;
+    update_interval: 60s

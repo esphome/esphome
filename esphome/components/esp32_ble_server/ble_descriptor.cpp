@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
 static const char *const TAG = "esp32_ble_server.descriptor";
 
@@ -34,7 +33,11 @@ void BLEDescriptor::do_create(BLECharacteristic *characteristic) {
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_AUTO_RSP;
 
-  ESP_LOGV(TAG, "Creating descriptor - %s", this->uuid_.to_string().c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char uuid_buf[esp32_ble::UUID_STR_LEN];
+  this->uuid_.to_str(uuid_buf);
+  ESP_LOGV(TAG, "Creating descriptor - %s", uuid_buf);
+#endif
   esp_bt_uuid_t uuid = this->uuid_.get_uuid();
   esp_err_t err = esp_ble_gatts_add_char_descr(this->characteristic_->get_service()->get_handle(), &uuid,
                                                this->permissions_, &this->value_, &control);
@@ -87,7 +90,6 @@ void BLEDescriptor::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
   }
 }
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif
