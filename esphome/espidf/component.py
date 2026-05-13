@@ -86,7 +86,10 @@ class URLSource(Source):
         self.url = url
 
     def download(self, dir_suffix: str, force: bool = False) -> Path:
-        base_dir = Path(CORE.data_dir) / DOMAIN
+        # Partition by framework: generated idf_component.yml content
+        # depends on CORE.using_arduino, so caches can't be shared.
+        framework = "arduino" if CORE.using_arduino else "idf"
+        base_dir = Path(CORE.data_dir) / DOMAIN / framework
         h = hashlib.new("sha256")
         h.update(self.url.encode())
         path = base_dir / h.hexdigest()[:8] / dir_suffix
@@ -121,11 +124,12 @@ class GitSource(Source):
         self.ref = ref
 
     def download(self, dir_suffix: str, force: bool = False) -> Path:
+        framework = "arduino" if CORE.using_arduino else "idf"
         path, _ = git.clone_or_update(
             url=self.url,
             ref=self.ref,
             refresh=git.NEVER_REFRESH if not force else None,
-            domain=DOMAIN,
+            domain=f"{DOMAIN}/{framework}",
             submodules=[],
             subpath=Path(dir_suffix),
         )
