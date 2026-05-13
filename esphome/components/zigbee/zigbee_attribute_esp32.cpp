@@ -32,10 +32,9 @@ void ZigbeeAttribute::report_(bool has_lock) {
     return;
   }
   if (has_lock or esp_zb_lock_acquire(10 / portTICK_PERIOD_MS)) {
-    esp_zb_zcl_report_attr_cmd_t cmd = {
-        .address_mode = ESP_ZB_APS_ADDR_MODE_16_ENDP_PRESENT,
-        .direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_CLI,
-    };
+    esp_zb_zcl_report_attr_cmd_t cmd = {};
+    cmd.address_mode = ESP_ZB_APS_ADDR_MODE_16_ENDP_PRESENT;
+    cmd.direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_CLI;
     cmd.zcl_basic_cmd.dst_addr_u.addr_short = 0x0000;
     cmd.zcl_basic_cmd.dst_endpoint = 1;
     cmd.zcl_basic_cmd.src_endpoint = this->endpoint_id_;
@@ -50,14 +49,13 @@ void ZigbeeAttribute::report_(bool has_lock) {
 }
 
 esp_zb_zcl_reporting_info_t ZigbeeAttribute::get_reporting_info() {
-  esp_zb_zcl_reporting_info_t reporting_info = {
-      .direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_SRV,
-      .ep = this->endpoint_id_,
-      .cluster_id = this->cluster_id_,
-      .cluster_role = this->role_,
-      .attr_id = this->attr_id_,
-      .manuf_code = ESP_ZB_ZCL_ATTR_NON_MANUFACTURER_SPECIFIC,
-  };
+  esp_zb_zcl_reporting_info_t reporting_info = {};
+  reporting_info.direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_SRV;
+  reporting_info.ep = this->endpoint_id_;
+  reporting_info.cluster_id = this->cluster_id_;
+  reporting_info.cluster_role = this->role_;
+  reporting_info.attr_id = this->attr_id_;
+  reporting_info.manuf_code = ESP_ZB_ZCL_ATTR_NON_MANUFACTURER_SPECIFIC;
   reporting_info.dst.profile_id = ESP_ZB_AF_HA_PROFILE_ID;
   reporting_info.u.send_info.min_interval = 10;     /*!< Actual minimum reporting interval */
   reporting_info.u.send_info.max_interval = 0;      /*!< Actual maximum reporting interval */

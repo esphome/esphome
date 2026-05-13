@@ -9,8 +9,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace tm1638 {
+namespace esphome::tm1638 {
 
 class KeyListener {
  public:
@@ -75,5 +74,4 @@ class TM1638Component : public PollingComponent {
   std::vector<KeyListener *> listeners_{};
 };
 
-}  // namespace tm1638
-}  // namespace esphome
+}  // namespace esphome::tm1638

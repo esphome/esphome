@@ -22,8 +22,7 @@ on:
       - "script/platformio_install_deps.py"
 
 permissions:
-  contents: read
-  packages: read
+  contents: read  # actions/checkout only; the build does not push images
 
 concurrency:
   # yamllint disable-line rule:line-length

@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace max7219digit {
+namespace esphome::max7219digit {
 
 enum ChipLinesStyle {
   ZIGZAG = 0,
@@ -120,5 +119,4 @@ class MAX7219Component : public display::DisplayBuffer,
   max7219_writer_t writer_local_{};
 };
 
-}  // namespace max7219digit
-}  // namespace esphome
+}  // namespace esphome::max7219digit

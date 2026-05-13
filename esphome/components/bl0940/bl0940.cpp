@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace bl0940 {
+namespace esphome::bl0940 {
 
 static const char *const TAG = "bl0940";
 
@@ -274,5 +273,4 @@ void BL0940::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   LOG_SENSOR("", "External temperature", this->external_temperature_sensor_);
 }
 
-}  // namespace bl0940
-}  // namespace esphome
+}  // namespace esphome::bl0940

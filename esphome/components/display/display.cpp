@@ -5,8 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 static const char *const TAG = "display";
 
 // COLOR_OFF and COLOR_ON are now inline constexpr in display.h
@@ -927,5 +926,4 @@ const LogString *text_align_to_string(TextAlign textalign) {
       return LOG_STR("UNKNOWN");
   }
 }
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display
