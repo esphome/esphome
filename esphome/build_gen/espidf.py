@@ -94,7 +94,7 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # runs as a separate CMake script invocation that doesn't load the
     # project's top-level CMakeLists; without this, ${ESPHOME_PROJECT_
     # MANAGED_COMPONENTS} in a converted-lib REQUIRES expands to empty).
-    project_managed_set = "\n".join(
+    managed_components_property = "\n".join(
         f"idf_build_set_property(ESPHOME_PROJECT_MANAGED_COMPONENTS {name} APPEND)"
         for name in managed_names
     )
@@ -104,7 +104,7 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # component's REQUIRES including real IDF components). Only converted
     # PIO libs reference ${ESPHOME_PROJECT_BUILTIN_COMPONENTS}. Skipped on
     # minimal writes because project_description.json may be stale.
-    builtin_components = (
+    builtin_components_property = (
         ""
         if minimal
         else "\n".join(
@@ -140,9 +140,9 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 {extra_compile_options}
 
-{project_managed_set}
+{managed_components_property}
 
-{builtin_components}
+{builtin_components_property}
 
 project({CORE.name})
 
