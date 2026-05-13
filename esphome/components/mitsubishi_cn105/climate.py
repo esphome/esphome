@@ -3,7 +3,12 @@ import esphome.codegen as cg
 from esphome.components import climate, uart
 from esphome.components.climate import ClimateSwingMode
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TEMPERATURE, CONF_SUPPORTED_SWING_MODES, CONF_UPDATE_INTERVAL
+from esphome.const import (
+    CONF_ID,
+    CONF_SUPPORTED_SWING_MODES,
+    CONF_TEMPERATURE,
+    CONF_UPDATE_INTERVAL,
+)
 from esphome.core import ID
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType, TemplateArgsType
