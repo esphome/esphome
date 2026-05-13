@@ -393,14 +393,7 @@ def test_track_yaml_loads_cleanup_on_exception(tmp_path: Path) -> None:
 def test_track_yaml_loads_no_duplicate_load_on_top_level_include_failure(
     tmp_path: Path,
 ) -> None:
-    """A failing top-level !include must not cause the same file to be loaded twice.
-
-    Loaders driven by a request/response protocol (e.g. the VS Code loader, which
-    asks the editor for file content over stdin) cannot tolerate the same path
-    being requested more than once for a single load. ``track_yaml_loads`` is the
-    public hook for observing those requests, so this also locks in that
-    invariant for any future caller that aggregates by load count.
-    """
+    """A failed top-level !include must not record any file twice in track_yaml_loads."""
     main = tmp_path / "main.yaml"
     main.write_text("!include missing.yaml\n")
 
