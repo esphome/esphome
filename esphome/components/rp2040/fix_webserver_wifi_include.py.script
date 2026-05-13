@@ -1,13 +1,16 @@
 # The Arduino Pico framework's WebServer library includes "WiFiServer.h" but
-# does not declare a dependency on the WiFi library. WiFi's headers transitively
-# include <lwIP_CYW43.h>. Without these include paths, both WebServer and
-# things that include WebServer headers (ESPAsyncWebServer) fail to compile.
+# does not declare a dependency on the WiFi library. Without this, WebServer
+# compilation fails because WiFi's transitive header chain (WiFiServer.h ->
+# WiFiClass.h -> lwIP_CYW43.h -> LwipIntfDev.h) can't be resolved.
+#
+# Add all framework libraries' src/ directories to CXXFLAGS so the full
+# transitive include chain is available.
 import os
 
 Import("env")
 framework_dir = env.PioPlatform().get_package_dir("framework-arduinopico")
 libs_dir = os.path.join(framework_dir, "libraries")
-env.Prepend(CXXFLAGS=[
-    "-I" + os.path.join(libs_dir, "WiFi", "src"),
-    "-I" + os.path.join(libs_dir, "lwIP_CYW43", "src"),
-])
+for lib_name in os.listdir(libs_dir):
+    src_dir = os.path.join(libs_dir, lib_name, "src")
+    if os.path.isdir(src_dir):
+        env.Prepend(CXXFLAGS=["-I" + src_dir])
