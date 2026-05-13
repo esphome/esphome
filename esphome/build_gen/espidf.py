@@ -101,9 +101,9 @@ def get_project_cmakelists(minimal: bool = False) -> str:
 
     # Built-in IDF components exposed via our own property (not IDF's
     # __COMPONENT_REQUIRES_COMMON, which would append them to every
-    # component's REQUIRES including real IDF components). Only converted
-    # PIO libs reference ${ESPHOME_PROJECT_BUILTIN_COMPONENTS}. Skipped on
-    # minimal writes because project_description.json may be stale.
+    # component's REQUIRES including real IDF components). Referenced by
+    # src/CMakeLists and by each converted PIO lib's CMakeLists. Skipped
+    # on minimal writes because project_description.json may be stale.
     builtin_components_property = (
         ""
         if minimal

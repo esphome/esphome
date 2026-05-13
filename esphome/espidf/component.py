@@ -506,9 +506,10 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     )
 
     # Only bake library.json-declared deps here. Project-managed and
-    # built-in components come in via the top-level CMakeLists (CMake
-    # variable / __COMPONENT_REQUIRES_COMMON) so this file stays
-    # project-agnostic when shared from the pio_components cache.
+    # built-in components come in via ${ESPHOME_PROJECT_MANAGED_COMPONENTS}
+    # / ${ESPHOME_PROJECT_BUILTIN_COMPONENTS} set in the top-level
+    # CMakeLists, so this file stays project-agnostic when shared from
+    # the pio_components cache.
     requires: set[str] = {
         dependency.get_require_name() for dependency in component.dependencies
     }
