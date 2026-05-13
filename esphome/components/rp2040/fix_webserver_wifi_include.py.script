@@ -1,13 +1,40 @@
-# The Arduino Pico framework's WebServer library includes "WiFiServer.h"
-# without declaring a dependency on WiFi. Add the include paths needed
-# for WebServer to compile through the full transitive chain:
-#   WebServer -> WiFi -> lwIP_CYW43 -> lwIP_Ethernet
+# ESPAsyncWebServer conditionally includes <HTTP_Method.h> when http_parser_h
+# is defined (from the http-parser library). The Arduino Pico framework only
+# provides HTTP_Method.h in its WebServer library, which we ignore via
+# lib_ignore because it fails to compile.
+#
+# Provide a minimal replacement that defines HTTP_GET, HTTP_POST, etc.
 import os
 
 Import("env")
-framework_dir = env.PioPlatform().get_package_dir("framework-arduinopico")
-libs_dir = os.path.join(framework_dir, "libraries")
-for lib in ("WiFi", "lwIP_CYW43", "lwIP_Ethernet"):
-    src_dir = os.path.join(libs_dir, lib, "src")
-    if os.path.isdir(src_dir):
-        env.Prepend(CXXFLAGS=["-I" + src_dir])
+
+build_dir = env.subst("$BUILD_DIR")
+stub_dir = os.path.join(build_dir, "http_method_stub")
+os.makedirs(stub_dir, exist_ok=True)
+
+stub_path = os.path.join(stub_dir, "HTTP_Method.h")
+if not os.path.exists(stub_path):
+    with open(stub_path, "w") as f:
+        f.write("""#pragma once
+// Minimal HTTP_Method.h — provided because the Arduino Pico framework's
+// WebServer library (which normally provides this) is ignored via lib_ignore.
+// ESPAsyncWebServer includes this to integrate with other HTTP libraries.
+
+#ifdef ASYNCWEBSERVER_NO_GLOBAL_HTTP_METHODS
+// If ESPAsyncWebServer is managing HTTP methods itself, do nothing
+#else
+#ifndef HTTP_ANY
+enum HTTPMethod {
+  HTTP_ANY = 0,
+  HTTP_GET = 1,
+  HTTP_POST = 2,
+  HTTP_PUT = 3,
+  HTTP_PATCH = 4,
+  HTTP_DELETE = 5,
+  HTTP_OPTIONS = 6
+};
+#endif
+#endif
+""")
+
+env.Prepend(CPPPATH=[stub_dir])

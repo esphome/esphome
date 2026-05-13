@@ -204,6 +204,11 @@ async def to_code(config):
     # Allow LDF to properly discover dependency including those in preprocessor
     # conditionals
     cg.add_platformio_option("lib_ldf_mode", "chain+")
+    # The Arduino Pico framework's WebServer library fails to compile (lacks
+    # WiFi dependency). Ignore it — ESPHome uses ESPAsyncWebServer instead.
+    # A pre-build script provides a minimal HTTP_Method.h that ESPAsyncWebServer
+    # includes from WebServer.
+    cg.add_platformio_option("lib_ignore", ["WebServer"])
     cg.add_platformio_option("lib_compat_mode", "strict")
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_RP2040")
