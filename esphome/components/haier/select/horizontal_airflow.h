@@ -3,8 +3,7 @@
 #include "esphome/components/select/select.h"
 #include "../hon_climate.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 class HorizontalAirflowSelect : public select::Select, public Parented<HonClimate> {
  public:
@@ -14,5 +13,4 @@ class HorizontalAirflowSelect : public select::Select, public Parented<HonClimat
   void control(const std::string &value) override;
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier
