@@ -39,24 +39,14 @@ ESPNowComponent *global_esp_now = nullptr;  // NOLINT(cppcoreguidelines-avoid-no
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 static const LogString *espnow_send_status_to_str(espnow_send_status_t status) {
-#if defined(USE_ESP8266)
   switch (status) {
-    case 0:
+    case ESP_NOW_SEND_SUCCESS:
       return LOG_STR("Send Success (ACK)");
-    case 1:
+    case ESP_NOW_SEND_FAIL:
       return LOG_STR("Send Failed (No ACK/Peer Unreachable)");
     default:
       return LOG_STR("Send Unknown");
   }
-#else
-  if (status == ESP_NOW_SEND_SUCCESS) {
-    return LOG_STR("Send Success (ACK)");
-  }
-  if (status == ESP_NOW_SEND_FAIL) {
-    return LOG_STR("Send Failed");
-  }
-  return LOG_STR("Send Unknown");
-#endif
 }
 #endif
 
@@ -78,7 +68,6 @@ static const LogString *espnow_error_to_str(espnow_err_t error) {
       return LOG_STR("Out of memory");
     case ESPNOW_OK:
       return LOG_STR("OK");
-#if defined(USE_ESP32)
     case ESP_ERR_ESPNOW_ARG:
       return LOG_STR("Invalid argument");
     case ESP_ERR_ESPNOW_INTERNAL:
@@ -89,7 +78,6 @@ static const LogString *espnow_error_to_str(espnow_err_t error) {
       return LOG_STR("Interface does not match");
     case ESP_NOW_SEND_FAIL:
       return LOG_STR("Failed");
-#endif
     default:
       return LOG_STR("Unknown Error");
   }
