@@ -82,21 +82,18 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # Per-project list exposed as a CMake variable so converted PIO libs
     # can reference ${ESPHOME_PROJECT_MANAGED_COMPONENTS} without baking
     # project-specific names into their cached CMakeLists.
-    from esphome.components.esp32 import KEY_COMPONENTS, KEY_ESP32
-
-    esp32_data = CORE.data.get(KEY_ESP32, {})
-    managed_names = sorted(
-        name.replace("/", "__") for name in esp32_data.get(KEY_COMPONENTS, {})
-    )
+    #
     # Emit via idf_build_set_property (not plain set()) so the value is
     # serialised into build_properties.temp.cmake and visible to IDF's
     # early requirements-expansion pass (component_get_requirements.cmake
     # runs as a separate CMake script invocation that doesn't load the
     # project's top-level CMakeLists; without this, ${ESPHOME_PROJECT_
     # MANAGED_COMPONENTS} in a converted-lib REQUIRES expands to empty).
+    from esphome.components.esp32 import get_managed_component_require_names
+
     managed_components_property = "\n".join(
         f"idf_build_set_property(ESPHOME_PROJECT_MANAGED_COMPONENTS {name} APPEND)"
-        for name in managed_names
+        for name in get_managed_component_require_names()
     )
 
     # Built-in IDF components exposed via our own property (not IDF's

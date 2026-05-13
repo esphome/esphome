@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -147,8 +148,8 @@ target_link_libraries(${{COMPONENT_LIB}} INTERFACE
 
 
 def test_generate_cmakelists_txt_references_project_managed_components_variable(
-    tmp_component,
-):
+    tmp_component: IDFComponent,
+) -> None:
     # The CMakeLists is cached under pio_components/<hash>/ and shared
     # across projects, so the project-managed REQUIRES list is exposed via
     # a CMake variable expanded at configure time rather than baked here.
@@ -162,8 +163,10 @@ def test_generate_cmakelists_txt_references_project_managed_components_variable(
 
 
 def test_generate_idf_component_overwrites_bundled_files(
-    tmp_path, monkeypatch, esp32_idf_core
-):
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
     # A library that ships its own CMakeLists.txt + idf_component.yml must
     # have both replaced by ESPHome's generated content. Library authors'
     # bundled IDF metadata is frequently broken (bogus REQUIRES, hard-coded
