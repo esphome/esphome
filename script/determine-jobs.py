@@ -495,6 +495,100 @@ def should_run_device_builder(branch: str | None = None) -> bool:
     return False
 
 
+# Components tested by the native ESP-IDF compile-test job. Kept in sync with
+# the TEST_COMPONENTS env var on the `test-native-idf` job in
+# .github/workflows/ci.yml.
+NATIVE_IDF_TEST_COMPONENTS = frozenset(
+    {
+        "esp32",
+        "api",
+        "heatpumpir",
+        "bme280_i2c",
+        "bh1750",
+        "aht10",
+        "esp32_ble",
+        "esp32_ble_beacon",
+        "esp32_ble_client",
+        "esp32_ble_server",
+        "esp32_ble_tracker",
+        "ble_client",
+        "ble_presence",
+        "ble_rssi",
+        "ble_scanner",
+    }
+)
+
+# Path prefixes whose changes always trigger the native ESP-IDF compile test:
+# anything under esphome/espidf/ (the native IDF runner / API / framework /
+# component generator) and esphome/build_gen/ (the espidf build generator).
+NATIVE_IDF_TRIGGER_PATH_PREFIXES = (
+    "esphome/espidf/",
+    "esphome/build_gen/",
+)
+
+# Standalone files that, when changed, also trigger the native ESP-IDF
+# compile test. `test_build_components.py` is the harness the job invokes;
+# the workflow file itself is the job's definition.
+NATIVE_IDF_TRIGGER_FILES = frozenset(
+    {
+        "script/test_build_components.py",
+        ".github/workflows/ci.yml",
+    }
+)
+
+
+def should_run_native_idf(branch: str | None = None) -> bool:
+    """Determine if the `test-native-idf` compile-test job should run.
+
+    The job builds a fixed list of components with the native ESP-IDF
+    toolchain (no PlatformIO). Skipping it on unrelated Python-only PRs
+    avoids ~5 min of CI per PR (worse on cold caches). The regular
+    `component-test` matrix still exercises the same components through
+    PlatformIO when those components change.
+
+    Runs when ANY of the following is true:
+
+    1. Core C++/Python files changed (``esphome/core/*``) -- core changes
+       can affect every compile path, including the native IDF one.
+    2. Native IDF infrastructure changed (``esphome/espidf/*``,
+       ``esphome/build_gen/*``).
+    3. The test harness or workflow itself changed
+       (``script/test_build_components.py``, ``.github/workflows/ci.yml``).
+    4. One of the components in ``NATIVE_IDF_TEST_COMPONENTS`` (or any
+       component in its dependency closure as resolved by
+       ``get_changed_components()``) changed.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        True if the native ESP-IDF compile test should run, False otherwise.
+    """
+    files = changed_files(branch)
+
+    if core_changed(files):
+        return True
+
+    for file in files:
+        if file in NATIVE_IDF_TRIGGER_FILES:
+            return True
+        if any(file.startswith(prefix) for prefix in NATIVE_IDF_TRIGGER_PATH_PREFIXES):
+            return True
+
+    # Check whether any of the tested components (or anything they depend on)
+    # is in the changed set. ``get_changed_components()`` already expands the
+    # dependency closure for us.
+    changed_components_result = get_changed_components()
+    if changed_components_result is None:
+        # get_changed_components() returns None only on core C++ changes,
+        # which core_changed() above already caught. Safety fallback.
+        return True
+    return any(
+        component in NATIVE_IDF_TEST_COMPONENTS
+        for component in changed_components_result
+    )
+
+
 def determine_cpp_unit_tests(
     branch: str | None = None,
 ) -> tuple[bool, list[str]]:
@@ -957,6 +1051,7 @@ def main() -> None:
     run_python_linters = should_run_python_linters(args.branch)
     run_import_time = should_run_import_time(args.branch)
     run_device_builder = should_run_device_builder(args.branch)
+    run_native_idf = should_run_native_idf(args.branch)
     changed_cpp_file_count = count_changed_cpp_files(args.branch)
 
     # Get changed components
@@ -1102,6 +1197,7 @@ def main() -> None:
         "python_linters": run_python_linters,
         "import_time": run_import_time,
         "device_builder": run_device_builder,
+        "native_idf": run_native_idf,
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
         "directly_changed_components_with_tests": list(directly_changed_with_tests),
