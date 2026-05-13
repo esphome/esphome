@@ -63,10 +63,7 @@ class URLSource(Source):
         self.url = url
 
     def download(self, dir_suffix: str, force: bool = False) -> Path:
-        # Partition by framework: generated idf_component.yml content
-        # depends on CORE.using_arduino, so caches can't be shared.
-        framework = "arduino" if CORE.using_arduino else "idf"
-        base_dir = Path(CORE.data_dir) / DOMAIN / framework
+        base_dir = Path(CORE.data_dir) / DOMAIN
         h = hashlib.new("sha256")
         h.update(self.url.encode())
         path = base_dir / h.hexdigest()[:8] / dir_suffix
@@ -101,12 +98,11 @@ class GitSource(Source):
         self.ref = ref
 
     def download(self, dir_suffix: str, force: bool = False) -> Path:
-        framework = "arduino" if CORE.using_arduino else "idf"
         path, _ = git.clone_or_update(
             url=self.url,
             ref=self.ref,
             refresh=git.NEVER_REFRESH if not force else None,
-            domain=f"{DOMAIN}/{framework}",
+            domain=DOMAIN,
             submodules=[],
             subpath=Path(dir_suffix),
         )
@@ -554,10 +550,17 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     if build_include_dirs:
         str_include_dirs = " ".join([escape_entry(p) for p in build_include_dirs])
         content += f"  INCLUDE_DIRS {str_include_dirs}\n"
-    # ${ESPHOME_PROJECT_MANAGED_COMPONENTS} is set per-project in the
-    # top-level CMakeLists; expanded here at configure time.
+    # Project-managed and built-in component lists are set per-project
+    # via idf_build_set_property in the top-level CMakeLists; expanded
+    # here at configure time. Keeping them out of the per-lib REQUIRES
+    # means this CMakeLists is project-agnostic and reusable from the
+    # pio_components cache across builds.
     str_requires = " ".join(
-        [*sorted(requires), "${ESPHOME_PROJECT_MANAGED_COMPONENTS}"]
+        [
+            *sorted(requires),
+            "${ESPHOME_PROJECT_MANAGED_COMPONENTS}",
+            "${ESPHOME_PROJECT_BUILTIN_COMPONENTS}",
+        ]
     )
     content += f"  REQUIRES {str_requires}\n"
     content += ")\n"

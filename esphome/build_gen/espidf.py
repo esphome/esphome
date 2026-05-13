@@ -54,8 +54,8 @@ def has_discovered_components() -> bool:
 def get_project_cmakelists(minimal: bool = False) -> str:
     """Generate the top-level CMakeLists.txt for ESP-IDF project.
 
-    When ``minimal`` is true, omit ``__COMPONENT_REQUIRES_COMMON`` since
-    ``project_description.json`` may be stale on the first write.
+    When ``minimal`` is true, omit ``ESPHOME_PROJECT_BUILTIN_COMPONENTS``
+    since ``project_description.json`` may be stale on the first write.
     """
     # Get IDF target from ESP32 variant (e.g., ESP32S3 -> esp32s3)
     variant = get_esp32_variant()
@@ -99,14 +99,16 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         for name in managed_names
     )
 
-    # Built-ins propagate to every component via __COMPONENT_REQUIRES_COMMON
-    # (mirrors PIO's global header visibility). Skipped on minimal writes
-    # because project_description.json may be stale from a previous build.
-    common_requires = (
+    # Built-in IDF components exposed via our own property (not IDF's
+    # __COMPONENT_REQUIRES_COMMON, which would append them to every
+    # component's REQUIRES including real IDF components). Only converted
+    # PIO libs reference ${ESPHOME_PROJECT_BUILTIN_COMPONENTS}. Skipped on
+    # minimal writes because project_description.json may be stale.
+    builtin_components = (
         ""
         if minimal
         else "\n".join(
-            f"idf_build_set_property(__COMPONENT_REQUIRES_COMMON {name} APPEND)"
+            f"idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS {name} APPEND)"
             for name in sorted(get_available_components() or [])
         )
     )
@@ -140,7 +142,7 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 {project_managed_set}
 
-{common_requires}
+{builtin_components}
 
 project({CORE.name})
 
@@ -159,9 +161,8 @@ add_custom_command(
 def get_component_cmakelists() -> str:
     """Generate the main component CMakeLists.txt.
 
-    REQUIRES is empty: every component (including src) inherits the
-    discovered IDF component list via __COMPONENT_REQUIRES_COMMON set
-    in the top-level CMakeLists.
+    REQUIRES pulls in the discovered built-in IDF components via the
+    project-level variables set in the top-level CMakeLists.
     """
     # Extract linker options (-Wl, flags). Compile flags (-D, -W) are
     # emitted project-wide via idf_build_set_property in
@@ -181,6 +182,7 @@ file(GLOB_RECURSE app_sources
 idf_component_register(
     SRCS ${{app_sources}}
     INCLUDE_DIRS "." "esphome"
+    REQUIRES ${{ESPHOME_PROJECT_BUILTIN_COMPONENTS}}
 )
 
 # Apply C++ standard

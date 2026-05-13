@@ -128,7 +128,7 @@ def test_generate_cmakelists_txt_with_flags(tmp_component, tmp_path):
         == f"""idf_component_register(
   SRCS "src{sep}main.c"
   INCLUDE_DIRS "src"
-  REQUIRES dep ${{ESPHOME_PROJECT_MANAGED_COMPONENTS}}
+  REQUIRES dep ${{ESPHOME_PROJECT_MANAGED_COMPONENTS}} ${{ESPHOME_PROJECT_BUILTIN_COMPONENTS}}
 )
 target_compile_options(${{COMPONENT_LIB}} PUBLIC
   "-DTEST"
