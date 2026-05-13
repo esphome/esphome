@@ -4,8 +4,7 @@
 
 #include <protocol/haier_protocol.h>
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 void VerticalAirflowSelect::control(const std::string &value) {
   hon_protocol::VerticalSwingMode state;
@@ -23,5 +22,4 @@ void VerticalAirflowSelect::control(const std::string &value) {
   this->publish_state(value);
 }
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier
