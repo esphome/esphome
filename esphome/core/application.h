@@ -219,7 +219,7 @@ class Application {
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
   void set_loop_interval(uint32_t loop_interval) {
-    this->loop_interval_ = std::min(loop_interval, static_cast<uint32_t>(std::numeric_limits<uint16_t>::max()));
+    this->loop_interval_ = std::min(loop_interval, static_cast<uint32_t>(3600000));  // max = 1 hour
   }
 
   uint32_t get_loop_interval() const { return static_cast<uint32_t>(this->loop_interval_); }
@@ -525,7 +525,7 @@ class Application {
 
   // 2-byte members (grouped together for alignment)
   uint16_t dump_config_at_{std::numeric_limits<uint16_t>::max()};  // Index into components_ for dump_config progress
-  uint16_t loop_interval_{16};                                     // Loop interval in ms (max 65535ms = 65.5 seconds)
+  uint32_t loop_interval_{16};                                     // Loop interval in ms (max 3600000ms = 1 hour)
   uint16_t looping_components_active_end_{0};  // Index marking end of active components in looping_components_
   uint16_t current_loop_index_{0};             // For safe reentrant modifications during iteration
 
