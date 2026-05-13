@@ -39,7 +39,7 @@ template<auto Unknown, size_t N> struct LookupMap {
 
   constexpr bool reverse_lookup(value_type value, uint8_t &out) const {
     static_assert(N <= std::numeric_limits<uint8_t>::max());
-    for (uint8_t i = 0; i < N; ++i) {
+    for (uint8_t i = 0; i < static_cast<uint8_t>(N); ++i) {
       if (this->table[i] == value) {
         out = i;
         return true;
