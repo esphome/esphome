@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sx126x {
+namespace esphome::sx126x {
 
 static const char *const TAG = "sx126x";
 static const uint16_t RAMP[8] = {10, 20, 40, 80, 200, 800, 1700, 3400};
@@ -547,5 +546,4 @@ void SX126x::dump_config() {
   }
 }
 
-}  // namespace sx126x
-}  // namespace esphome
+}  // namespace esphome::sx126x

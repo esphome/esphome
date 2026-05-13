@@ -135,7 +135,9 @@ def test_receive_exactly_with_error_response(mock_socket: Mock) -> None:
     """Test receive_exactly raises OTAError on error response."""
     mock_socket.recv.return_value = bytes([espota2.RESPONSE_ERROR_AUTH_INVALID])
 
-    with pytest.raises(espota2.OTAError, match="Error auth:.*Authentication invalid"):
+    with pytest.raises(
+        espota2.OTAError, match="receiving auth:.*Authentication invalid"
+    ):
         espota2.receive_exactly(mock_socket, 1, "auth", [espota2.RESPONSE_OK])
 
     mock_socket.close.assert_called_once()
@@ -145,53 +147,69 @@ def test_receive_exactly_socket_error(mock_socket: Mock) -> None:
     """Test receive_exactly handles socket errors."""
     mock_socket.recv.side_effect = OSError("Connection reset")
 
-    with pytest.raises(espota2.OTAError, match="Error receiving acknowledge test"):
+    with pytest.raises(espota2.OTAError, match="receiving test response"):
         espota2.receive_exactly(mock_socket, 1, "test", espota2.RESPONSE_OK)
 
 
 @pytest.mark.parametrize(
     ("error_code", "expected_msg"),
     [
-        (espota2.RESPONSE_ERROR_MAGIC, "Error: Invalid magic byte"),
-        (espota2.RESPONSE_ERROR_UPDATE_PREPARE, "Error: Couldn't prepare flash memory"),
-        (espota2.RESPONSE_ERROR_AUTH_INVALID, "Error: Authentication invalid"),
+        (espota2.RESPONSE_ERROR_MAGIC, "Invalid magic byte"),
+        (espota2.RESPONSE_ERROR_UPDATE_PREPARE, "Couldn't prepare flash memory"),
+        (espota2.RESPONSE_ERROR_AUTH_INVALID, "Authentication invalid"),
         (
             espota2.RESPONSE_ERROR_WRITING_FLASH,
-            "Error: Writing OTA data to flash memory failed",
+            "Writing OTA data to flash memory failed",
         ),
-        (espota2.RESPONSE_ERROR_UPDATE_END, "Error: Finishing update failed"),
+        (espota2.RESPONSE_ERROR_UPDATE_END, "Finishing update failed"),
         (
             espota2.RESPONSE_ERROR_INVALID_BOOTSTRAPPING,
-            "Error: Please press the reset button",
+            "Please press the reset button",
         ),
         (
             espota2.RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG,
-            "Error: ESP has been flashed with wrong flash size",
+            "ESP has been flashed with wrong flash size",
         ),
         (
             espota2.RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG,
-            "Error: ESP does not have the requested flash size",
+            "ESP does not have the requested flash size",
         ),
         (
             espota2.RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE,
-            "Error: ESP does not have enough space",
+            "ESP does not have enough space",
         ),
         (
             espota2.RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE,
-            "Error: The OTA partition on the ESP is too small",
+            "The OTA partition on the ESP is too small",
         ),
         (
             espota2.RESPONSE_ERROR_NO_UPDATE_PARTITION,
-            "Error: The OTA partition on the ESP couldn't be found",
+            "The OTA partition on the ESP couldn't be found",
         ),
-        (espota2.RESPONSE_ERROR_MD5_MISMATCH, "Error: Application MD5 code mismatch"),
+        (espota2.RESPONSE_ERROR_MD5_MISMATCH, "Application MD5 code mismatch"),
         (
             espota2.RESPONSE_ERROR_SIGNATURE_INVALID,
-            "Error: Firmware signature verification failed",
+            "Firmware signature verification failed",
         ),
         (
             espota2.RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE,
-            "Error: The requested OTA type is not supported by the device",
+            "The requested OTA type is not supported by the device",
+        ),
+        (
+            espota2.RESPONSE_ERROR_PARTITION_TABLE_VERIFY,
+            "The partition table update could not be verified",
+        ),
+        (
+            espota2.RESPONSE_ERROR_PARTITION_TABLE_UPDATE,
+            "An error occurred while updating the partition table",
+        ),
+        (
+            espota2.RESPONSE_ERROR_BOOTLOADER_VERIFY,
+            "The bootloader update could not be verified",
+        ),
+        (
+            espota2.RESPONSE_ERROR_BOOTLOADER_UPDATE,
+            "An error occurred while updating the bootloader",
         ),
         (espota2.RESPONSE_ERROR_UNKNOWN, "Unknown error from ESP"),
     ],
@@ -246,7 +264,7 @@ def test_send_check_socket_error(mock_socket: Mock) -> None:
     """Test send_check handles socket errors."""
     mock_socket.sendall.side_effect = OSError("Broken pipe")
 
-    with pytest.raises(espota2.OTAError, match="Error sending test"):
+    with pytest.raises(espota2.OTAError, match="sending test"):
         espota2.send_check(mock_socket, b"data", "test")
 
 
@@ -401,7 +419,9 @@ def test_perform_ota_md5_auth_wrong_password(
 
     mock_socket.recv.side_effect = recv_responses
 
-    with pytest.raises(espota2.OTAError, match="Error auth.*Authentication invalid"):
+    with pytest.raises(
+        espota2.OTAError, match="receiving auth.*Authentication invalid"
+    ):
         espota2.perform_ota(mock_socket, "wrongpassword", mock_file, "test.bin")
 
     # Verify the socket was closed after auth failure
@@ -425,7 +445,9 @@ def test_perform_ota_sha256_auth_wrong_password(
 
     mock_socket.recv.side_effect = recv_responses
 
-    with pytest.raises(espota2.OTAError, match="Error auth.*Authentication invalid"):
+    with pytest.raises(
+        espota2.OTAError, match="receiving auth.*Authentication invalid"
+    ):
         espota2.perform_ota(mock_socket, "wrongpassword", mock_file, "test.bin")
 
     # Verify the socket was closed after auth failure
@@ -468,7 +490,7 @@ def test_perform_ota_unexpected_auth_response(mock_socket: Mock) -> None:
 
     # This will actually raise "Unexpected response from ESP" from check_error
     with pytest.raises(
-        espota2.OTAError, match=r"Error auth: Unexpected response from ESP: 0x03"
+        espota2.OTAError, match=r"receiving auth: Unexpected response from ESP: 0x03"
     ):
         espota2.perform_ota(mock_socket, "password", mock_file, "test.bin")
 
@@ -504,7 +526,7 @@ def test_perform_ota_upload_error(mock_socket: Mock, mock_file: io.BytesIO) -> N
 
     mock_socket.recv.side_effect = recv_responses
 
-    with pytest.raises(espota2.OTAError, match="Error receiving acknowledge chunk OK"):
+    with pytest.raises(espota2.OTAError, match="receiving chunk result response"):
         espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
 
 
@@ -588,7 +610,8 @@ def test_run_ota_wrapper(mock_run_ota_impl: Mock) -> None:
 
 def test_progress_bar(capsys: CaptureFixture[str]) -> None:
     """Test ProgressBar functionality."""
-    progress = espota2.ProgressBar()
+    progress = espota2.ProgressBar("Uploading")
+    progress.enabled = True  # Fake TTY
 
     # Test initial update
     progress.update(0.0)
@@ -832,6 +855,66 @@ def test_perform_ota_extended_protocol_app(
 
 
 @pytest.mark.usefixtures("mock_time")
+def test_perform_ota_successful_partition_table(
+    mock_socket: Mock, mock_file: io.BytesIO
+) -> None:
+    """Test OTA partition table update.
+
+    The mocked server advertises both COMPRESSION and PARTITION_ACCESS to exercise
+    the full extended-protocol negotiation path. Real IDFOTABackend devices return
+    ``supports_compression() == false`` and never set the COMPRESSION flag for a
+    partition-table OTA; the flag here is intentional protocol-coverage, not a
+    description of on-device behaviour.
+    """
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),  # First byte of version response
+        bytes([espota2.OTA_VERSION_2_0]),  # Version number
+        bytes([espota2.RESPONSE_FEATURE_FLAGS]),  # Device supports extended protocol
+        bytes(
+            [
+                espota2.SERVER_FEATURE_SUPPORTS_COMPRESSION
+                | espota2.SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS
+            ]
+        ),  # Device feature flags (compression flag is unrealistic; see docstring)
+        bytes([espota2.RESPONSE_AUTH_OK]),  # No auth required
+        bytes([espota2.RESPONSE_UPDATE_PREPARE_OK]),  # Binary size OK
+        bytes([espota2.RESPONSE_BIN_MD5_OK]),  # MD5 checksum OK
+        bytes([espota2.RESPONSE_CHUNK_OK]),  # Chunk OK
+        bytes([espota2.RESPONSE_RECEIVE_OK]),  # Receive OK
+        bytes([espota2.RESPONSE_UPDATE_END_OK]),  # Update end OK
+    ]
+
+    mock_socket.recv.side_effect = recv_responses
+
+    espota2.perform_ota(
+        mock_socket,
+        "testpass",
+        mock_file,
+        "partitions.bin",
+        espota2.OTA_TYPE_UPDATE_PARTITION_TABLE,
+    )
+
+    # Verify magic bytes were sent
+    assert mock_socket.sendall.call_args_list[0] == call(bytes(espota2.MAGIC_BYTES))
+
+    # Verify features were sent (compression + SHA256 support + extended protocol)
+    assert mock_socket.sendall.call_args_list[1] == call(
+        bytes(
+            [
+                espota2.CLIENT_FEATURE_SUPPORTS_COMPRESSION
+                | espota2.CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
+                | espota2.CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+            ]
+        )
+    )
+
+    # Verify ota type was sent
+    assert mock_socket.sendall.call_args_list[2] == call(
+        bytes([espota2.OTA_TYPE_UPDATE_PARTITION_TABLE])
+    )
+
+
+@pytest.mark.usefixtures("mock_time")
 def test_perform_ota_device_rejects_with_unsupported_ota_type(
     mock_socket: Mock, mock_file: io.BytesIO
 ) -> None:
@@ -924,7 +1007,8 @@ def test_perform_ota_non_app_type_requires_extended_protocol(
     mock_socket.recv.side_effect = recv_responses
 
     with pytest.raises(
-        espota2.OTAError, match="Device does not support extended OTA protocol"
+        espota2.OTAError,
+        match="Device does not support the extended OTA protocol",
     ):
         espota2.perform_ota(
             mock_socket,
@@ -958,7 +1042,8 @@ def test_perform_ota_non_app_type_requires_partition_access(
     mock_socket.recv.side_effect = recv_responses
 
     with pytest.raises(
-        espota2.OTAError, match="Device does not support partition access"
+        espota2.OTAError,
+        match=(r"running firmware was built without 'allow_partition_access: true'"),
     ):
         espota2.perform_ota(
             mock_socket,
@@ -969,6 +1054,60 @@ def test_perform_ota_non_app_type_requires_partition_access(
         )
 
 
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_partition_access_error_names_bootloader_flag(
+    mock_socket: Mock, mock_file: io.BytesIO
+) -> None:
+    """Bootloader OTA against a stale device must point at the --bootloader flag."""
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),
+        bytes([espota2.OTA_VERSION_2_0]),
+        bytes([espota2.RESPONSE_FEATURE_FLAGS]),
+        bytes([0]),  # No partition access
+    ]
+
+    mock_socket.recv.side_effect = recv_responses
+
+    with pytest.raises(
+        espota2.OTAError,
+        match=r"--bootloader.*recompile and upload.*--bootloader.*retry --bootloader",
+    ):
+        espota2.perform_ota(
+            mock_socket,
+            "testpass",
+            mock_file,
+            "test.bin",
+            espota2.OTA_TYPE_UPDATE_BOOTLOADER,
+        )
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_partition_access_error_names_partition_table_flag(
+    mock_socket: Mock, mock_file: io.BytesIO
+) -> None:
+    """Partition-table OTA against a stale device must point at the --partition-table flag."""
+    recv_responses = [
+        bytes([espota2.RESPONSE_OK]),
+        bytes([espota2.OTA_VERSION_2_0]),
+        bytes([espota2.RESPONSE_FEATURE_FLAGS]),
+        bytes([0]),  # No partition access
+    ]
+
+    mock_socket.recv.side_effect = recv_responses
+
+    with pytest.raises(
+        espota2.OTAError,
+        match=r"--partition-table.*retry --partition-table",
+    ):
+        espota2.perform_ota(
+            mock_socket,
+            "testpass",
+            mock_file,
+            "test.bin",
+            espota2.OTA_TYPE_UPDATE_PARTITION_TABLE,
+        )
+
+
 def test_check_error_detects_errors_when_expect_is_none() -> None:
     """check_error must surface device error bytes even when expect is None.
 
@@ -976,7 +1115,7 @@ def test_check_error_detects_errors_when_expect_is_none() -> None:
     during feature negotiation and nonce reads) silently passed error bytes
     through, turning clean device errors into confusing later failures.
     """
-    with pytest.raises(espota2.OTAError, match="Error: Authentication invalid"):
+    with pytest.raises(espota2.OTAError, match="Authentication invalid"):
         espota2.check_error([espota2.RESPONSE_ERROR_AUTH_INVALID], None)
 
 

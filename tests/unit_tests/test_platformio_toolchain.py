@@ -1,4 +1,4 @@
-"""Tests for platformio_api.py path functions."""
+"""Tests for esphome.platformio.toolchain path functions."""
 
 # pylint: disable=protected-access
 
@@ -11,8 +11,9 @@ from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 
-from esphome import platformio_api, platformio_runner
 from esphome.core import CORE, EsphomeError
+from esphome.platformio import runner, toolchain
+from esphome.util import FlashImage
 
 
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
@@ -20,7 +21,7 @@ def test_idedata_firmware_elf_path(setup_core: Path) -> None:
     CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
     raw_data = {"prog_path": "/path/to/firmware.elf"}
-    idedata = platformio_api.IDEData(raw_data)
+    idedata = toolchain.IDEData(raw_data)
 
     assert idedata.firmware_elf_path == Path("/path/to/firmware.elf")
 
@@ -31,7 +32,7 @@ def test_idedata_firmware_bin_path(setup_core: Path) -> None:
     CORE.name = "test"
     prog_path = str(Path("/path/to/firmware.elf"))
     raw_data = {"prog_path": prog_path}
-    idedata = platformio_api.IDEData(raw_data)
+    idedata = toolchain.IDEData(raw_data)
 
     result = idedata.firmware_bin_path
     assert isinstance(result, Path)
@@ -46,7 +47,7 @@ def test_idedata_firmware_bin_path_preserves_directory(setup_core: Path) -> None
     CORE.name = "test"
     prog_path = str(Path("/complex/path/to/build/firmware.elf"))
     raw_data = {"prog_path": prog_path}
-    idedata = platformio_api.IDEData(raw_data)
+    idedata = toolchain.IDEData(raw_data)
 
     result = idedata.firmware_bin_path
     expected = Path("/complex/path/to/build/firmware.bin")
@@ -66,11 +67,11 @@ def test_idedata_extra_flash_images(setup_core: Path) -> None:
             ]
         },
     }
-    idedata = platformio_api.IDEData(raw_data)
+    idedata = toolchain.IDEData(raw_data)
 
     images = idedata.extra_flash_images
     assert len(images) == 2
-    assert all(isinstance(img, platformio_api.FlashImage) for img in images)
+    assert all(isinstance(img, FlashImage) for img in images)
     assert images[0].path == Path("/path/to/bootloader.bin")
     assert images[0].offset == "0x1000"
     assert images[1].path == Path("/path/to/partition.bin")
@@ -82,7 +83,7 @@ def test_idedata_extra_flash_images_empty(setup_core: Path) -> None:
     CORE.build_path = setup_core / "build" / "test"
     CORE.name = "test"
     raw_data = {"prog_path": "/path/to/firmware.elf", "extra": {"flash_images": []}}
-    idedata = platformio_api.IDEData(raw_data)
+    idedata = toolchain.IDEData(raw_data)
 
     images = idedata.extra_flash_images
     assert images == []
@@ -96,7 +97,7 @@ def test_idedata_cc_path(setup_core: Path) -> None:
         "prog_path": "/path/to/firmware.elf",
         "cc_path": "/Users/test/.platformio/packages/toolchain-xtensa32/bin/xtensa-esp32-elf-gcc",
     }
-    idedata = platformio_api.IDEData(raw_data)
+    idedata = toolchain.IDEData(raw_data)
 
     assert (
         idedata.cc_path
@@ -106,7 +107,7 @@ def test_idedata_cc_path(setup_core: Path) -> None:
 
 def test_flash_image_dataclass() -> None:
     """Test FlashImage dataclass stores path and offset correctly."""
-    image = platformio_api.FlashImage(path=Path("/path/to/image.bin"), offset="0x10000")
+    image = FlashImage(path=Path("/path/to/image.bin"), offset="0x10000")
 
     assert image.path == Path("/path/to/image.bin")
     assert image.offset == "0x10000"
@@ -131,7 +132,7 @@ def test_load_idedata_returns_dict(
     mock_run_platformio_cli_run.return_value = '{"prog_path": "/test/firmware.elf"}'
 
     config = {"name": "test"}
-    result = platformio_api._load_idedata(config)
+    result = toolchain._load_idedata(config)
 
     assert result is not None
     assert isinstance(result, dict)
@@ -160,7 +161,7 @@ def test_load_idedata_uses_cache_when_valid(
     os.utime(idedata_path, (platformio_ini_mtime + 1, platformio_ini_mtime + 1))
 
     config = {"name": "test"}
-    result = platformio_api._load_idedata(config)
+    result = toolchain._load_idedata(config)
 
     # Should not call _run_idedata since cache is valid
     mock_run_platformio_cli_run.assert_not_called()
@@ -193,7 +194,7 @@ def test_load_idedata_regenerates_when_platformio_ini_newer(
     mock_run_platformio_cli_run.return_value = json.dumps(new_data)
 
     config = {"name": "test"}
-    result = platformio_api._load_idedata(config)
+    result = toolchain._load_idedata(config)
 
     # Should call _run_idedata since platformio.ini is newer
     mock_run_platformio_cli_run.assert_called_once()
@@ -227,7 +228,7 @@ def test_load_idedata_regenerates_on_corrupted_cache(
     mock_run_platformio_cli_run.return_value = json.dumps(new_data)
 
     config = {"name": "test"}
-    result = platformio_api._load_idedata(config)
+    result = toolchain._load_idedata(config)
 
     # Should call _run_idedata since cache is corrupted
     mock_run_platformio_cli_run.assert_called_once()
@@ -252,7 +253,7 @@ def test_run_idedata_parses_json_from_output(
         f"Some preamble\n{json.dumps(expected_data)}\nSome postamble"
     )
 
-    result = platformio_api._run_idedata(config)
+    result = toolchain._run_idedata(config)
 
     assert result == expected_data
 
@@ -266,7 +267,7 @@ def test_run_idedata_raises_on_no_json(
     mock_run_platformio_cli_run.return_value = "No JSON in this output"
 
     with pytest.raises(EsphomeError):
-        platformio_api._run_idedata(config)
+        toolchain._run_idedata(config)
 
 
 def test_run_idedata_raises_on_invalid_json(
@@ -278,7 +279,7 @@ def test_run_idedata_raises_on_invalid_json(
 
     # The ValueError from json.loads is re-raised
     with pytest.raises(ValueError):
-        platformio_api._run_idedata(config)
+        toolchain._run_idedata(config)
 
 
 def test_run_platformio_cli_sets_environment_variables(
@@ -289,7 +290,7 @@ def test_run_platformio_cli_sets_environment_variables(
 
     with patch.dict(os.environ, {}, clear=False):
         mock_run_external_process.return_value = 0
-        platformio_api.run_platformio_cli("test", "arg")
+        toolchain.run_platformio_cli("test", "arg")
 
         # Check environment variables were set
         assert os.environ["PLATFORMIO_FORCE_COLOR"] == "true"
@@ -302,11 +303,11 @@ def test_run_platformio_cli_sets_environment_variables(
         assert "PYTHONWARNINGS" in os.environ
 
         # Check command was called correctly — runs PlatformIO as a subprocess
-        # via the esphome.platformio_runner entry point.
+        # via the esphome.platformio.runner entry point.
         mock_run_external_process.assert_called_once()
         args = mock_run_external_process.call_args[0]
         assert "-m" in args
-        assert "esphome.platformio_runner" in args
+        assert "esphome.platformio.runner" in args
         assert "test" in args
         assert "arg" in args
 
@@ -341,8 +342,8 @@ def test_strip_win_long_path_prefix(
     platform: str, input_path: str, expected: str
 ) -> None:
     r"""``\\?\`` and ``\\?\UNC\`` prefixes are stripped only on win32."""
-    with patch("esphome.platformio_api.sys.platform", platform):
-        assert platformio_api._strip_win_long_path_prefix(input_path) == expected
+    with patch("esphome.platformio.toolchain.sys.platform", platform):
+        assert toolchain._strip_win_long_path_prefix(input_path) == expected
 
 
 def test_run_platformio_cli_strips_win_long_path_prefix(
@@ -365,15 +366,15 @@ def test_run_platformio_cli_strips_win_long_path_prefix(
 
     with (
         patch.dict(os.environ, {}, clear=False),
-        patch("esphome.platformio_api.sys.platform", "win32"),
-        patch("esphome.platformio_api.sys.executable", prefixed_exe),
+        patch("esphome.platformio.toolchain.sys.platform", "win32"),
+        patch("esphome.platformio.toolchain.sys.executable", prefixed_exe),
     ):
         # Pop any pre-existing PYTHONEXEPATH so the assertion below reflects
         # what run_platformio_cli set, not whatever the test runner's
         # environment happened to contain.
         os.environ.pop("PYTHONEXEPATH", None)
         mock_run_external_process.return_value = 0
-        platformio_api.run_platformio_cli("test", "arg")
+        toolchain.run_platformio_cli("test", "arg")
 
         # The subprocess is invoked with the stripped executable path.
         mock_run_external_process.assert_called_once()
@@ -397,12 +398,12 @@ def test_run_platformio_cli_does_not_set_pythonexepath_without_strip(
 
     with (
         patch.dict(os.environ, {}, clear=False),
-        patch("esphome.platformio_api.sys.platform", "linux"),
-        patch("esphome.platformio_api.sys.executable", plain_exe),
+        patch("esphome.platformio.toolchain.sys.platform", "linux"),
+        patch("esphome.platformio.toolchain.sys.executable", plain_exe),
     ):
         os.environ.pop("PYTHONEXEPATH", None)
         mock_run_external_process.return_value = 0
-        platformio_api.run_platformio_cli("test", "arg")
+        toolchain.run_platformio_cli("test", "arg")
 
         mock_run_external_process.assert_called_once()
         args = mock_run_external_process.call_args[0]
@@ -418,7 +419,7 @@ def test_run_platformio_cli_run_builds_command(
     mock_run_platformio_cli.return_value = 0
 
     config = {"name": "test"}
-    platformio_api.run_platformio_cli_run(config, True, "extra", "args")
+    toolchain.run_platformio_cli_run(config, True, "extra", "args")
 
     mock_run_platformio_cli.assert_called_once_with(
         "run", "-d", CORE.build_path, "-v", "extra", "args"
@@ -433,7 +434,7 @@ def test_run_compile(setup_core: Path, mock_run_platformio_cli_run: Mock) -> Non
     config = {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 4}}
     mock_run_platformio_cli_run.return_value = 0
 
-    platformio_api.run_compile(config, verbose=True)
+    toolchain.run_compile(config, verbose=True)
 
     mock_run_platformio_cli_run.assert_called_once_with(config, True, "-j4")
 
@@ -460,22 +461,22 @@ def test_get_idedata_caches_result(
     config = {"name": "test"}
 
     # First call should load and cache
-    result1 = platformio_api.get_idedata(config)
+    result1 = toolchain.get_idedata(config)
     mock_run_platformio_cli_run.assert_called_once()
 
     # Second call should use cache from CORE.data
-    result2 = platformio_api.get_idedata(config)
+    result2 = toolchain.get_idedata(config)
     mock_run_platformio_cli_run.assert_called_once()  # Still only called once
 
     assert result1 is result2
-    assert isinstance(result1, platformio_api.IDEData)
+    assert isinstance(result1, toolchain.IDEData)
     assert result1.firmware_elf_path == Path("/test/firmware.elf")
 
 
 def test_idedata_addr2line_path_windows(setup_core: Path) -> None:
     """Test IDEData.addr2line_path on Windows."""
     raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "C:\\tools\\gcc.exe"}
-    idedata = platformio_api.IDEData(raw_data)
+    idedata = toolchain.IDEData(raw_data)
 
     result = idedata.addr2line_path
     assert result == "C:\\tools\\addr2line.exe"
@@ -484,7 +485,7 @@ def test_idedata_addr2line_path_windows(setup_core: Path) -> None:
 def test_idedata_addr2line_path_unix(setup_core: Path) -> None:
     """Test IDEData.addr2line_path on Unix."""
     raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "/usr/bin/gcc"}
-    idedata = platformio_api.IDEData(raw_data)
+    idedata = toolchain.IDEData(raw_data)
 
     result = idedata.addr2line_path
     assert result == "/usr/bin/addr2line"
@@ -493,7 +494,7 @@ def test_idedata_addr2line_path_unix(setup_core: Path) -> None:
 def test_idedata_objdump_path_windows(setup_core: Path) -> None:
     """Test IDEData.objdump_path on Windows."""
     raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "C:\\tools\\gcc.exe"}
-    idedata = platformio_api.IDEData(raw_data)
+    idedata = toolchain.IDEData(raw_data)
 
     result = idedata.objdump_path
     assert result == "C:\\tools\\objdump.exe"
@@ -502,7 +503,7 @@ def test_idedata_objdump_path_windows(setup_core: Path) -> None:
 def test_idedata_objdump_path_unix(setup_core: Path) -> None:
     """Test IDEData.objdump_path on Unix."""
     raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "/usr/bin/gcc"}
-    idedata = platformio_api.IDEData(raw_data)
+    idedata = toolchain.IDEData(raw_data)
 
     result = idedata.objdump_path
     assert result == "/usr/bin/objdump"
@@ -511,7 +512,7 @@ def test_idedata_objdump_path_unix(setup_core: Path) -> None:
 def test_idedata_readelf_path_windows(setup_core: Path) -> None:
     """Test IDEData.readelf_path on Windows."""
     raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "C:\\tools\\gcc.exe"}
-    idedata = platformio_api.IDEData(raw_data)
+    idedata = toolchain.IDEData(raw_data)
 
     result = idedata.readelf_path
     assert result == "C:\\tools\\readelf.exe"
@@ -520,7 +521,7 @@ def test_idedata_readelf_path_windows(setup_core: Path) -> None:
 def test_idedata_readelf_path_unix(setup_core: Path) -> None:
     """Test IDEData.readelf_path on Unix."""
     raw_data = {"prog_path": "/path/to/firmware.elf", "cc_path": "/usr/bin/gcc"}
-    idedata = platformio_api.IDEData(raw_data)
+    idedata = toolchain.IDEData(raw_data)
 
     result = idedata.readelf_path
     assert result == "/usr/bin/readelf"
@@ -546,7 +547,7 @@ def test_patch_structhash(setup_core: Path) -> None:
         },
     ):
         # Call patch_structhash
-        platformio_runner.patch_structhash()
+        runner.patch_structhash()
 
         # Verify both modules had clean_build_dir patched
         # Check that clean_build_dir was set on both modules
@@ -598,7 +599,7 @@ def test_patched_clean_build_dir_removes_outdated(setup_core: Path) -> None:
         },
     ):
         # Call patch_structhash to install the patched function
-        platformio_runner.patch_structhash()
+        runner.patch_structhash()
 
         # Call the patched function
         mock_helpers.clean_build_dir(str(build_dir), [])
@@ -648,7 +649,7 @@ def test_patched_clean_build_dir_keeps_updated(setup_core: Path) -> None:
         },
     ):
         # Call patch_structhash to install the patched function
-        platformio_runner.patch_structhash()
+        runner.patch_structhash()
 
         # Call the patched function
         mock_helpers.clean_build_dir(str(build_dir), [])
@@ -696,7 +697,7 @@ def test_patched_clean_build_dir_creates_missing(setup_core: Path) -> None:
         },
     ):
         # Call patch_structhash to install the patched function
-        platformio_runner.patch_structhash()
+        runner.patch_structhash()
 
         # Call the patched function
         mock_helpers.clean_build_dir(str(build_dir), [])
@@ -706,101 +707,6 @@ def test_patched_clean_build_dir_creates_missing(setup_core: Path) -> None:
 
         # Verify directory was created
         assert build_dir.exists()
-
-
-def test_process_stacktrace_esp8266_exception(setup_core: Path, caplog) -> None:
-    """Test process_stacktrace handles ESP8266 exceptions."""
-    config = {"name": "test"}
-
-    # Test exception type parsing
-    line = "Exception (28):"
-    backtrace_state = False
-
-    result = platformio_api.process_stacktrace(config, line, backtrace_state)
-
-    assert "Access to invalid address: LOAD (wild pointer?)" in caplog.text
-    assert result is False
-
-
-def test_process_stacktrace_esp8266_backtrace(
-    setup_core: Path, mock_decode_pc: Mock
-) -> None:
-    """Test process_stacktrace handles ESP8266 multi-line backtrace."""
-    config = {"name": "test"}
-
-    # Start of backtrace
-    line1 = ">>>stack>>>"
-    state = platformio_api.process_stacktrace(config, line1, False)
-    assert state is True
-
-    # Backtrace content with addresses
-    line2 = "40201234 40205678"
-    state = platformio_api.process_stacktrace(config, line2, state)
-    assert state is True
-    assert mock_decode_pc.call_count == 2
-
-    # End of backtrace
-    line3 = "<<<stack<<<"
-    state = platformio_api.process_stacktrace(config, line3, state)
-    assert state is False
-
-
-def test_process_stacktrace_esp32_backtrace(
-    setup_core: Path, mock_decode_pc: Mock
-) -> None:
-    """Test process_stacktrace handles ESP32 single-line backtrace."""
-    config = {"name": "test"}
-
-    line = "Backtrace: 0x40081234:0x3ffb1234 0x40085678:0x3ffb5678"
-    state = platformio_api.process_stacktrace(config, line, False)
-
-    # Should decode both addresses
-    assert mock_decode_pc.call_count == 2
-    mock_decode_pc.assert_any_call(config, "40081234")
-    mock_decode_pc.assert_any_call(config, "40085678")
-    assert state is False
-
-
-def test_process_stacktrace_bad_alloc(
-    setup_core: Path, mock_decode_pc: Mock, caplog
-) -> None:
-    """Test process_stacktrace handles bad alloc messages."""
-    config = {"name": "test"}
-
-    line = "last failed alloc call: 40201234(512)"
-    state = platformio_api.process_stacktrace(config, line, False)
-
-    assert "Memory allocation of 512 bytes failed at 40201234" in caplog.text
-    mock_decode_pc.assert_called_once_with(config, "40201234")
-    assert state is False
-
-
-def test_process_stacktrace_esp32_crash_handler(
-    setup_core: Path, mock_decode_pc: Mock
-) -> None:
-    """Test process_stacktrace handles ESP32 crash handler backtrace lines."""
-    config = {"name": "test"}
-
-    # Simulate crash handler log lines as they appear from the API/serial
-    line_pc = "[E][esp32.crash:078]:   PC:  0x400D1234  (fault location)"
-    state = platformio_api.process_stacktrace(config, line_pc, False)
-    # PC line is matched by existing STACKTRACE_ESP32_PC_RE
-    mock_decode_pc.assert_called_with(config, "400D1234")
-    assert state is False
-
-    mock_decode_pc.reset_mock()
-
-    line_bt0 = "[E][esp32.crash:080]:   BT0: 0x400D5678  (backtrace)"
-    state = platformio_api.process_stacktrace(config, line_bt0, False)
-    mock_decode_pc.assert_called_once_with(config, "400D5678")
-    assert state is False
-
-    mock_decode_pc.reset_mock()
-
-    line_bt1 = "[E][esp32.crash:080]:   BT1: 0x42005ABC  (backtrace)"
-    state = platformio_api.process_stacktrace(config, line_bt1, False)
-    mock_decode_pc.assert_called_once_with(config, "42005ABC")
-    assert state is False
 
 
 def test_patch_file_downloader_succeeds_first_try() -> None:
@@ -821,7 +727,7 @@ def test_patch_file_downloader_succeeds_first_try() -> None:
             ),
         },
     ):
-        platformio_runner.patch_file_downloader()
+        runner.patch_file_downloader()
 
         from platformio.package.download import FileDownloader
 
@@ -860,7 +766,7 @@ def test_patch_file_downloader_retries_on_failure() -> None:
         ),
         patch("time.sleep") as mock_sleep,
     ):
-        platformio_runner.patch_file_downloader()
+        runner.patch_file_downloader()
 
         from platformio.package.download import FileDownloader
 
@@ -901,7 +807,7 @@ def test_patch_file_downloader_raises_after_max_retries() -> None:
         ),
         patch("time.sleep") as mock_sleep,
     ):
-        platformio_runner.patch_file_downloader()
+        runner.patch_file_downloader()
 
         from platformio.package.download import FileDownloader
 
@@ -949,7 +855,7 @@ def test_patch_file_downloader_closes_session_and_response_between_retries() -> 
         ),
         patch("time.sleep"),
     ):
-        platformio_runner.patch_file_downloader()
+        runner.patch_file_downloader()
 
         from platformio.package.download import FileDownloader
 
@@ -984,9 +890,9 @@ def test_patch_file_downloader_idempotent() -> None:
         },
     ):
         # Patch multiple times
-        platformio_runner.patch_file_downloader()
-        platformio_runner.patch_file_downloader()
-        platformio_runner.patch_file_downloader()
+        runner.patch_file_downloader()
+        runner.patch_file_downloader()
+        runner.patch_file_downloader()
 
         from platformio.package.download import FileDownloader
 
@@ -1004,9 +910,7 @@ def _filter_through_redirect(line: str) -> str:
     from esphome.util import RedirectText
 
     captured = io.StringIO()
-    redirect = RedirectText(
-        captured, filter_lines=platformio_runner.FILTER_PLATFORMIO_LINES
-    )
+    redirect = RedirectText(captured, filter_lines=runner.FILTER_PLATFORMIO_LINES)
     redirect.write(line + "\n")
     return captured.getvalue()
 

@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace resistance {
+namespace esphome::resistance {
 
 enum ResistanceConfiguration {
   UPSTREAM,
@@ -33,5 +32,4 @@ class ResistanceSensor : public Component, public sensor::Sensor {
   float reference_voltage_;
 };
 
-}  // namespace resistance
-}  // namespace esphome
+}  // namespace esphome::resistance

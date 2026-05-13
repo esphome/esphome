@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ruuvi_ble {
+namespace esphome::ruuvi_ble {
 
 static const char *const TAG = "ruuvi_ble";
 
@@ -142,7 +141,6 @@ bool RuuviListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return true;
 }
 
-}  // namespace ruuvi_ble
-}  // namespace esphome
+}  // namespace esphome::ruuvi_ble
 
 #endif

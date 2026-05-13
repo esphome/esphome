@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace qmp6988 {
+namespace esphome::qmp6988 {
 
 /* oversampling */
 enum QMP6988Oversampling : uint8_t {
@@ -106,5 +105,4 @@ class QMP6988Component : public PollingComponent, public i2c::I2CDevice {
   int16_t get_compensated_temperature_(qmp6988_ik_data_t *ik, int32_t dt);
 };
 
-}  // namespace qmp6988
-}  // namespace esphome
+}  // namespace esphome::qmp6988

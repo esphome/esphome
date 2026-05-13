@@ -50,11 +50,32 @@ esphome:
                   format: "After delay, body still: %s"
                   args:
                     - body.c_str()
+              # Regression test for esphome/esphome#16224: a LightControlAction
+              # nested inside on_response with capture_response: true puts
+              # `std::string &` into the trigger's Ts..., which exposed a codegen
+              # bug where the apply lambda's parameter list did not match the
+              # ApplyFn signature.
+              - light.turn_on:
+                  id: test_regression_light
+                  brightness: 100%
+                  effect: "None"
 
 http_request:
   useragent: esphome/tagreader
   timeout: 10s
   verify_ssl: ${verify_ssl}
+
+output:
+  - platform: template
+    id: test_regression_output
+    type: float
+    write_action:
+      - logger.log: "set"
+
+light:
+  - platform: monochromatic
+    id: test_regression_light
+    output: test_regression_output
 
 script:
   - id: does_not_compile

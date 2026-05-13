@@ -68,7 +68,7 @@ void ESPHomeOTAComponent::setup() {
     return;
   }
 
-  err = this->server_->bind((struct sockaddr *) &server, sizeof(server));
+  err = this->server_->bind((struct sockaddr *) &server, sl);
   if (err != 0) {
     this->server_failed_(LOG_STR("bind"));
     return;
@@ -87,6 +87,10 @@ void ESPHomeOTAComponent::setup() {
   // no wakes fire and loop() falls back to the self-disable safety net.
   esphome_fast_select_set_ota_listener_sock(esphome_lwip_get_sock(this->server_->get_fd()));
 #endif
+
+#ifdef USE_OTA_PARTITIONS
+  ota::get_running_app_position(this->running_app_offset_, this->running_app_size_);
+#endif
 }
 
 void ESPHomeOTAComponent::dump_config() {
@@ -100,15 +104,41 @@ void ESPHomeOTAComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Password configured");
   }
 #endif
+#ifdef USE_OTA_PARTITIONS
+  ESP_LOGCONFIG(TAG,
+                "  Partition access allowed\n"
+                "  Running app:\n"
+                "    Partition address: 0x%X\n"
+                "    Used size: %zu bytes (0x%X)",
+                this->running_app_offset_, this->running_app_size_, this->running_app_size_);
+
+#ifdef USE_ESP32
+  ESP_LOGCONFIG(TAG,
+                "  Partition table:\n"
+                "    %-12s %-4s %-8s %-10s %-10s",
+                "Name", "Type", "Subtype", "Address", "Size");
+  esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+  while (it != nullptr) {
+    const esp_partition_t *partition = esp_partition_get(it);
+    ESP_LOGCONFIG(TAG, "    %-12s 0x%-2X 0x%-6X 0x%-8" PRIX32 " 0x%-8" PRIX32, partition->label, partition->type,
+                  partition->subtype, partition->address, partition->size);
+    it = esp_partition_next(it);
+  }
+  esp_partition_iterator_release(it);
+  esp_bootloader_desc_t bootloader_desc;
+  esp_err_t err = esp_ota_get_bootloader_description(nullptr, &bootloader_desc);
+  ESP_LOGCONFIG(TAG, "  Bootloader: ESP-IDF %s", (err == ESP_OK) ? bootloader_desc.idf_ver : "version unknown");
+#endif  // USE_ESP32
+#endif  // USE_OTA_PARTITIONS
 }
 
 void ESPHomeOTAComponent::loop() {
-  // Self-disabling idle loop. Runs when a wake path marks us pending-enable (fast-select
-  // listener filter, raw-TCP accept_fn_, or host select), finds no work, and goes back
-  // to sleep. cleanup_connection_() deliberately leaves the loop enabled for one more
-  // iteration so a connection queued mid-session is still caught here.
+  // Self-disable idle loop where a wake path re-enables on listener readiness
+  // (fast-select, raw-TCP accept_fn_). Host BSD select doesn't, so stay enabled.
   if (this->client_ == nullptr && !this->server_->ready()) {
+#ifndef USE_HOST
     this->disable_loop();
+#endif
     return;
   }
   this->handle_handshake_();
@@ -118,6 +148,7 @@ static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02;
 static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
+static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the OTA handshake and authentication.
@@ -215,6 +246,9 @@ void ESPHomeOTAComponent::handle_handshake_() {
         static_assert(HANDSHAKE_BUF_SIZE >= 2, "handshake_buf_ must hold the 2-byte extended-protocol feature ack");
         this->handshake_buf_[0] = ota::OTA_RESPONSE_FEATURE_FLAGS;
         this->handshake_buf_[1] = (supports_compression ? SERVER_FEATURE_SUPPORTS_COMPRESSION : 0);
+#ifdef USE_OTA_PARTITIONS
+        this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;
+#endif
       } else {
         this->handshake_buf_[0] =
             supports_compression ? ota::OTA_RESPONSE_SUPPORTS_COMPRESSION : ota::OTA_RESPONSE_HEADER_OK;
@@ -305,7 +339,6 @@ void ESPHomeOTAComponent::handle_data_() {
   ///                            wakeable_delay() in read();
   ///                            write() always returns immediately
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
-  bool update_started = false;
   size_t total = 0;
   uint32_t last_progress = 0;
   uint32_t last_data_ms = 0;
@@ -347,10 +380,12 @@ void ESPHomeOTAComponent::handle_data_() {
              (static_cast<size_t>(buf[2]) << 8) | buf[3];
   ESP_LOGV(TAG, "Size is %u bytes", ota_size);
 
+#ifndef USE_OTA_PARTITIONS
   if (ota_type != ota::OTA_TYPE_UPDATE_APP) {
     error_code = ota::OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
+#endif
 
   // Now that we've passed authentication and are actually
   // starting the update, set the warning status and notify
@@ -362,11 +397,10 @@ void ESPHomeOTAComponent::handle_data_() {
   this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
-  // This will block for a few seconds as it locks flash
-  error_code = this->backend_->begin(ota_size);
+  // begin() may block for a few seconds while it locks flash.
+  error_code = this->backend_->begin(ota_size, ota_type);
   if (error_code != ota::OTA_RESPONSE_OK)
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
-  update_started = true;
 
   // Acknowledge prepare OK - 1 byte
   this->write_byte_(ota::OTA_RESPONSE_UPDATE_PREPARE_OK);
@@ -465,13 +499,24 @@ void ESPHomeOTAComponent::handle_data_() {
   this->notify_state_(ota::OTA_COMPLETED, 100.0f, 0);
 #endif
   delay(100);  // NOLINT
+#ifdef USE_OTA_PARTITIONS
+  if (ota_type == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
+    // Skip on_safe_shutdown: nvs_flash_deinit() has already invalidated open NVS handles, so
+    // preferences flush would emit ESP_ERR_NVS_INVALID_HANDLE for every entry. Reboot directly.
+    App.reboot();
+  }
+#endif
   App.safe_reboot();
 
 error:
   this->write_byte_(static_cast<uint8_t>(error_code));
 
-  // Abort backend before cleanup - cleanup_connection_() destroys the backend
-  if (this->backend_ != nullptr && update_started) {
+  // Abort backend before cleanup - cleanup_connection_() destroys the backend.
+  // Always call abort() unconditionally: backends register external partitions before
+  // esp_ota_begin (partition table / bootloader paths), and abort() is responsible for
+  // releasing those even if begin() failed before an OTA handle was opened. The IDF
+  // backend's esp_ota_abort(0) is documented as harmless.
+  if (this->backend_ != nullptr) {
     this->backend_->abort();
   }
 

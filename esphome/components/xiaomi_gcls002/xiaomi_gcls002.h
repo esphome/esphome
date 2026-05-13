@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_gcls002 {
+namespace esphome::xiaomi_gcls002 {
 
 class XiaomiGCLS002 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
@@ -30,7 +29,6 @@ class XiaomiGCLS002 : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   sensor::Sensor *illuminance_{nullptr};
 };
 
-}  // namespace xiaomi_gcls002
-}  // namespace esphome
+}  // namespace esphome::xiaomi_gcls002
 
 #endif

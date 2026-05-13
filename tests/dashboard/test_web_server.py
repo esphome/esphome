@@ -128,8 +128,8 @@ def mock_storage_json() -> Generator[MagicMock]:
 
 @pytest.fixture
 def mock_idedata() -> Generator[MagicMock]:
-    """Fixture to mock platformio_api.IDEData."""
-    with patch("esphome.dashboard.web_server.platformio_api.IDEData") as mock:
+    """Fixture to mock platformio toolchain.IDEData."""
+    with patch("esphome.dashboard.web_server.toolchain.IDEData") as mock:
         yield mock
 
 
