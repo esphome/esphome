@@ -43,12 +43,18 @@ def _parse_size(token: str) -> int:
     return int(token)
 
 
-def _find_app_partition_size(partitions_csv: Path) -> int | None:
-    """Mirror PlatformIO: prefer ``app + ota_0``, else first ``app`` row."""
+def _find_app_partition_size(partitions_csv: Path) -> int:
+    """Return the size of the partition the firmware lands in.
+
+    Prefers ``app + ota_0`` (PlatformIO's
+    ``platforms/espressif32/builder/main.py::_set_default_size`` rule);
+    accepts ``app + factory`` for non-OTA single-image layouts. Raises
+    ``ValueError`` if neither is present so callers don't silently misreport
+    the Flash budget against the wrong partition.
+    """
     if not partitions_csv.is_file():
-        return None
-    primary: int | None = None
-    first: int | None = None
+        raise ValueError(f"partitions.csv not found at {partitions_csv}")
+    factory_size: int | None = None
     for row in csv.reader(partitions_csv.read_text().splitlines()):
         cells = [c.strip() for c in row]
         if not cells or cells[0].startswith("#") or len(cells) < 5:
@@ -57,12 +63,13 @@ def _find_app_partition_size(partitions_csv: Path) -> int | None:
         if ptype not in ("app", "0"):
             continue
         size = _parse_size(psize)
-        if first is None:
-            first = size
         if psubtype == "ota_0":
-            primary = size
-            break
-    return primary if primary is not None else first
+            return size
+        if psubtype == "factory":
+            factory_size = size
+    if factory_size is not None:
+        return factory_size
+    raise ValueError(f"No app+ota_0 or app+factory partition in {partitions_csv}")
 
 
 def _format_bar(used: int, total: int) -> str:
@@ -101,6 +108,9 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     image_size = data.get("image_size")
     if image_size is None or partitions_csv is None:
         return
-    app_size = _find_app_partition_size(partitions_csv)
-    if app_size:
-        print(f"Flash: {_format_bar(image_size, app_size)}")
+    try:
+        app_size = _find_app_partition_size(partitions_csv)
+    except ValueError as e:
+        _LOGGER.debug("Skipping Flash summary: %s", e)
+        return
+    print(f"Flash: {_format_bar(image_size, app_size)}")
