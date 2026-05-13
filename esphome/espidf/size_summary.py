@@ -10,9 +10,10 @@ byte-identical to PlatformIO's output:
 
 The format matches ``script/ci_memory_impact_extract.py`` so CI memory
 analysis works unchanged on native ESP-IDF builds. RAM total is the
-DRAM region size from the linker map; Flash total is the ``app+ota_0``
-partition size from ``partitions.csv``, mirroring PlatformIO's
-``platforms/espressif32/builder/main.py::_set_default_size`` rule.
+DRAM region size from the linker map; Flash total is the first
+``app``-type partition's size from ``partitions.csv`` (OTA slots are
+required to be equal-sized, and ``factory`` is the only alternative,
+so the first row captures the constraint).
 
 Structured size data is produced at link time by a CMake POST_BUILD
 custom command (see ``build_gen/espidf.py``) which writes
