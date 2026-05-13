@@ -49,28 +49,6 @@ SRC_FILE_EXTENSIONS = [
 ESP32_PLATFORM = "espressif32"
 DOMAIN = "pio_components"
 
-#
-# Constants for workarounds
-#
-
-REQUIRES_DETECT_PATTERNS = {
-    "mbedtls": [re.compile(r'^\s*#\s*include\s*[<"]mbedtls[^">]*[">]', re.MULTILINE)],
-    "esp_netif": [
-        re.compile(r'^\s*#\s*include\s*[<"]esp_netif[^">]*[">]', re.MULTILINE)
-    ],
-    "esp_driver_gpio": [
-        re.compile(r'^\s*#\s*include\s*[<"]driver/gpio\.h[^">]*[">]', re.MULTILINE)
-    ],
-    "esp_timer": [
-        re.compile(r'^\s*#\s*include\s*[<"]esp_timer\.h[^">]*[">]', re.MULTILINE)
-    ],
-    "esp_wifi": [
-        re.compile(
-            r'^\s*#\s*include\s*[<"]WiFi\.h[^">]*[">]', re.MULTILINE
-        )  # Arduino WiFi
-    ],
-}
-
 ESPHOME_DATA_KEY = "ESPHOME"
 ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
 
@@ -465,43 +443,6 @@ def _convert_library_to_component(library: Library) -> IDFComponent:
     return IDFComponent(name, version, source)
 
 
-def _detect_requires(build_src_files: list[str]) -> set[str]:
-    """
-    Detect required components from source files.
-
-    Args:
-        build_src_files: List of source file paths to analyze
-
-    Returns:
-        Set of detected required components
-    """
-    detected = set()
-
-    # 1. Process each source file
-    for file in build_src_files:
-        path = Path(file)
-
-        if not path.is_file():
-            continue
-
-        try:
-            content = path.read_text(encoding="utf-8", errors="ignore")
-        except Exception:  # pylint: disable=broad-exception-caught
-            continue
-
-        # 2. Add required component if one of these patterns matches
-        for require_name, patterns in REQUIRES_DETECT_PATTERNS.items():
-            if require_name in detected:
-                continue  # already found
-
-            for pattern in patterns:
-                if pattern.search(content):
-                    detected.add(require_name)
-                    break
-
-    return detected
-
-
 def _split_list_by_condition(
     items: list[str], match_fn: Callable[[str], str | None]
 ) -> tuple[list[str], list[str]]:
@@ -568,13 +509,10 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
         component.path / Path(build_src_dir), build_src_filter
     )
 
-    # Detect in the files which requirements to add. By default in
-    # platformio, all the components are added: we need to detect them
-    # when using ESP-IDF.
-    requires = _detect_requires(build_src_files)
-    # Lib-declared dependencies.
-    for dependency in component.dependencies:
-        requires.add(dependency.get_require_name())
+    # Lib-declared dependencies (from library.json's ``dependencies``).
+    requires: set[str] = {
+        dependency.get_require_name() for dependency in component.dependencies
+    }
     # Project-managed IDF components and built-in components are injected
     # via CMake variables in the top-level CMakeLists -- not baked here --
     # because this CMakeLists is cached under pio_components/<hash>/ and

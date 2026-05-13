@@ -21,7 +21,6 @@ from esphome.espidf.component import (
     _check_library_data,
     _collect_filtered_files,
     _convert_library_to_component,
-    _detect_requires,
     _parse_library_json,
     _parse_library_properties,
     _process_dependencies,
@@ -81,19 +80,6 @@ def test_collect_filtered_files_exclude(tmp_path):
     result = _collect_filtered_files(tmp_path, ["+<*> -<*.cpp>"])
     assert str(f1) in result
     assert str(f2) not in result
-
-
-def test_detect_requires(tmp_path):
-    f = tmp_path / "main.c"
-    f.write_text('#include "mbedtls/foo.h"')
-
-    result = _detect_requires([str(f)])
-    assert "mbedtls" in result
-
-
-def test_detect_requires_ignores_invalid_file(tmp_path):
-    result = _detect_requires([str(tmp_path / "missing.c")])
-    assert result == set()
 
 
 def test_split_list_by_condition():
