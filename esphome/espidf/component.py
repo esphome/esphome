@@ -314,14 +314,6 @@ def _apply_extra_script(component: IDFComponent) -> None:
 T = TypeVar("T")
 
 
-def _get_project_managed_components() -> list[str]:
-    """Names of IDF components registered via esp32's ``add_idf_component``."""
-    from esphome.components.esp32 import KEY_COMPONENTS, KEY_ESP32
-
-    esp32_data = CORE.data.get(KEY_ESP32, {})
-    return list(esp32_data.get(KEY_COMPONENTS, {}).keys())
-
-
 def _ensure_list(obj: T | list[T]) -> list[T]:
     """
     Convert an object to a list if it isn't already a list.
@@ -583,18 +575,10 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # Lib-declared dependencies.
     for dependency in component.dependencies:
         requires.add(dependency.get_require_name())
-    # Mirror PlatformIO's global header visibility for project-level
-    # managed components (those added via the esp32 component's
-    # ``add_idf_component``) so their headers propagate -- e.g. JPEGDEC's
-    # S3 SIMD asm needs ``dsps_fft2r_platform.h`` from ``espressif/esp-dsp``.
-    # Built-in IDF components are added separately via
-    # ``__COMPONENT_REQUIRES_COMMON`` in the top-level CMakeLists once
-    # they're discovered (see ``build_gen.espidf.get_project_cmakelists``).
-    own_deps = {d.get_sanitized_name() for d in component.dependencies}
-    for name in _get_project_managed_components():
-        if name == component.name or name in own_deps:
-            continue
-        requires.add(name.replace("/", "__"))
+    # Project-managed IDF components and built-in components are injected
+    # via CMake variables in the top-level CMakeLists -- not baked here --
+    # because this CMakeLists is cached under pio_components/<hash>/ and
+    # shared across projects. See build_gen.espidf.get_project_cmakelists.
 
     # Only keep sources
     build_src_files = [os.path.relpath(p, component.path) for p in build_src_files]
@@ -633,9 +617,15 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     if build_include_dirs:
         str_include_dirs = " ".join([escape_entry(p) for p in build_include_dirs])
         content += f"  INCLUDE_DIRS {str_include_dirs}\n"
-    if requires:
-        str_requires = " ".join(sorted(requires))
-        content += f"  REQUIRES {str_requires}\n"
+    # Always emit REQUIRES with ``${ESPHOME_PROJECT_MANAGED_COMPONENTS}``
+    # so the project-managed components are picked up at configure time
+    # from the per-project top-level CMakeLists. Lib-specific requires
+    # (detected includes + lib-declared deps) come first; the variable
+    # expands to whatever the current project registered.
+    str_requires = " ".join(
+        [*sorted(requires), "${ESPHOME_PROJECT_MANAGED_COMPONENTS}"]
+    )
+    content += f"  REQUIRES {str_requires}\n"
     content += ")\n"
 
     # Add public and private build flags

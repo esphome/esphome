@@ -142,7 +142,7 @@ def test_generate_cmakelists_txt_with_flags(tmp_component, tmp_path):
         == f"""idf_component_register(
   SRCS "src{sep}main.c"
   INCLUDE_DIRS "src"
-  REQUIRES dep
+  REQUIRES dep ${{ESPHOME_PROJECT_MANAGED_COMPONENTS}}
 )
 target_compile_options(${{COMPONENT_LIB}} PUBLIC
   "-DTEST"
@@ -160,63 +160,19 @@ target_link_libraries(${{COMPONENT_LIB}} INTERFACE
     )
 
 
-def test_generate_cmakelists_txt_includes_managed_components_as_requires(
-    tmp_component, monkeypatch
+def test_generate_cmakelists_txt_references_project_managed_components_variable(
+    tmp_component,
 ):
+    # The CMakeLists is cached under pio_components/<hash>/ and shared
+    # across projects, so the project-managed REQUIRES list is exposed via
+    # a CMake variable expanded at configure time rather than baked here.
     src_dir = tmp_component.path / "src"
     src_dir.mkdir()
     (src_dir / "main.c").write_text("int main() {}")
     tmp_component.data = {}
 
-    monkeypatch.setattr(
-        esphome.espidf.component,
-        "_get_project_managed_components",
-        lambda: ["espressif/esp-dsp", "espressif/arduino-esp32"],
-    )
-
     content = generate_cmakelists_txt(tmp_component)
-    assert "REQUIRES" in content
-    assert "espressif__esp-dsp" in content
-    assert "espressif__arduino-esp32" in content
-
-
-def test_generate_cmakelists_txt_does_not_self_require(tmp_component, monkeypatch):
-    src_dir = tmp_component.path / "src"
-    src_dir.mkdir()
-    (src_dir / "main.c").write_text("int main() {}")
-    tmp_component.data = {}
-
-    monkeypatch.setattr(
-        esphome.espidf.component,
-        "_get_project_managed_components",
-        lambda: [tmp_component.name, "espressif/esp-dsp"],
-    )
-
-    content = generate_cmakelists_txt(tmp_component)
-    assert "owner__name" not in content
-    assert "espressif__esp-dsp" in content
-
-
-def test_generate_cmakelists_txt_skips_own_dependencies(
-    tmp_component, tmp_path, monkeypatch
-):
-    src_dir = tmp_component.path / "src"
-    src_dir.mkdir()
-    (src_dir / "main.c").write_text("int main() {}")
-    tmp_component.data = {}
-
-    dep = IDFComponent("owner/dep", "1.0", source=URLSource("http://dummy.com"))
-    dep.path = tmp_path / "dep"
-    tmp_component.dependencies = [dep]
-
-    monkeypatch.setattr(
-        esphome.espidf.component,
-        "_get_project_managed_components",
-        lambda: ["owner/dep"],
-    )
-
-    content = generate_cmakelists_txt(tmp_component)
-    assert content.count("owner__dep") == 1
+    assert "${ESPHOME_PROJECT_MANAGED_COMPONENTS}" in content
 
 
 def test_generate_idf_component_overwrites_bundled_files(

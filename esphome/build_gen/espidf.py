@@ -88,11 +88,27 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         for flag in project_compile_opts
     )
 
-    # Inject every built-in IDF component as a global REQUIRES so converted
-    # PIO libraries see them in their include path automatically (mirrors
-    # PlatformIO's global header visibility). Only emitted post-discovery
-    # (``minimal=False``) once the freshly-regenerated
-    # ``project_description.json`` reflects the current project.
+    # Project-managed IDF components (registered via the esp32 component's
+    # ``add_idf_component``) are exposed to converted PIO libraries via a
+    # CMake variable rather than per-lib REQUIRES so the lib's CMakeLists
+    # in ``pio_components/`` stays project-agnostic and shareable across
+    # builds. Each lib references ``${ESPHOME_PROJECT_MANAGED_COMPONENTS}``
+    # which expands to this project's list at configure time.
+    from esphome.components.esp32 import KEY_COMPONENTS, KEY_ESP32
+
+    esp32_data = CORE.data.get(KEY_ESP32, {})
+    managed_names = sorted(
+        name.replace("/", "__") for name in esp32_data.get(KEY_COMPONENTS, {})
+    )
+    project_managed_set = (
+        f"set(ESPHOME_PROJECT_MANAGED_COMPONENTS {' '.join(managed_names)})"
+    )
+
+    # Inject built-in IDF components into ``__COMPONENT_REQUIRES_COMMON`` so
+    # every component sees them in its include path (mirrors PlatformIO's
+    # global header visibility). Only emitted post-discovery (``minimal=False``):
+    # the list comes from ``project_description.json`` which may be stale
+    # on the first write from a previous build.
     common_requires = (
         ""
         if minimal
@@ -128,6 +144,8 @@ set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 {extra_compile_options}
+
+{project_managed_set}
 
 {common_requires}
 
