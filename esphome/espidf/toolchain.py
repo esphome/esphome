@@ -12,6 +12,7 @@ import subprocess
 from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE, KEY_IDF_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
+from esphome.espidf.size_summary import print_summary
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -341,8 +342,14 @@ def run_compile(config, verbose: bool) -> int:
 
     args.extend(_get_sdkconfig_args())
     args.append("build")
+    args.append("size")
 
-    return run_idf_py(*args)
+    rc = run_idf_py(*args)
+    if rc == 0:
+        size_json = CORE.relative_build_path("build", "esp_idf_size.json")
+        partitions = CORE.relative_build_path("partitions.csv")
+        print_summary(size_json, partitions if partitions.is_file() else None)
+    return rc
 
 
 def get_firmware_path() -> Path:
