@@ -16,7 +16,7 @@ partition size from ``partitions.csv``, mirroring PlatformIO's
 
 Structured size data is produced at link time by a CMake POST_BUILD
 custom command (see ``build_gen/espidf.py``) which writes
-``esphome_size.json`` next to the ELF. We read that file here rather
+``esp_idf_size.json`` next to the ELF. We read that file here rather
 than re-running ``esp_idf_size`` from Python.
 """
 
