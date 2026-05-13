@@ -140,12 +140,16 @@ def captured_as_build_flags(
     ``target_link_directories`` fine).
     """
     flags: list[str] = []
+    library_root = library_dir.resolve()
     for path in result.libpath:
+        # Anchor relative paths to library_dir (not the current CWD, which
+        # has been restored by the time we get here). Joining an absolute
+        # path against library_dir returns the absolute path unchanged.
+        resolved = (library_dir / path).resolve()
         try:
-            rel = Path(path).resolve().relative_to(library_dir.resolve())
-            flags.append(f"-L{rel}")
+            flags.append(f"-L{resolved.relative_to(library_root)}")
         except ValueError:
-            flags.append(f"-L{path}")
+            flags.append(f"-L{resolved}")
     flags.extend(f"-l{lib}" for lib in result.libs)
     for define in result.cppdefines:
         if isinstance(define, tuple) and len(define) == 2:

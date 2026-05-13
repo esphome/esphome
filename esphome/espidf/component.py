@@ -922,15 +922,16 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
     # Apply additional patches to the library metadata
     _patch_component(component, False)
 
+    # Check if the component is usable with ESP-IDF before executing any
+    # third-party Python from the library (``_apply_extra_script`` below).
+    _check_library_data(component.data)
+
     # If the library declares a PIO ``extraScript``, run it against a
     # fake SCons env so we can fold its captured LIBPATH/LIBS/etc into
     # the build-flag pipeline ``generate_cmakelists_txt`` consumes
     # below. Without this, libraries that wire per-MCU archive linking
     # via extraScript fail to link under native ESP-IDF.
     _apply_extra_script(component)
-
-    # Check if the component is usable with ESP-IDF
-    _check_library_data(component.data)
 
     # Handle the dependencies (convert PlatformIO library to ESP-IDF component if needed)
     _process_dependencies(component)
