@@ -138,6 +138,70 @@ radio_frequency:
 > `100%`. RF hardware handles its own modulation; applying a carrier duty cycle would corrupt the signal. A validation
 > error will occur if `carrier_duty_percent` is set to any other value.
 
+### Using a CC1101 (or other RF front-end)
+
+To use a programmable RF chip like the [CC1101](/components/cc1101) with the radio frequency platform, wire its
+state-control actions to `remote_transmitter`'s `on_transmit` / `on_complete` triggers. The example below shows
+the recommended dual-pin configuration (CC1101 GDO0 → `remote_transmitter`, CC1101 GDO2 → `remote_receiver`).
+For single-pin variants or for more detail, see the
+[CC1101 docs](/components/cc1101#integration-with-remote-receivertransmitter) (open-drain on ESP32,
+auto-switching on ESP8266) — the pin configuration changes, but the trigger wiring shown here is the same.
+
+```yaml
+# CC1101 GDO0 wired to one GPIO pin
+remote_transmitter:
+  id: rf_tx
+  pin: GPIOXX
+  carrier_duty_percent: 100%
+  on_transmit:
+    then:
+      - cc1101.begin_tx: cc1101_radio
+  on_complete:
+    then:
+      - cc1101.begin_rx: cc1101_radio
+
+# CC1101 GDO2 wired to a second GPIO pin
+remote_receiver:
+  id: rf_rx
+  pin: GPIOXX
+
+radio_frequency:
+  - platform: ir_rf_proxy
+    name: RF Proxy Transmitter
+    frequency: 433.92MHz
+    remote_transmitter_id: rf_tx
+    # Optional: retune the CC1101 when an API request specifies a different
+    # carrier frequency.  `x` is the radio_frequency call object.
+    on_control:
+      then:
+        - if:
+            condition:
+              lambda: "return x.get_frequency().has_value() && *x.get_frequency() > 0;"
+            then:
+              - cc1101.set_frequency:
+                  id: cc1101_radio
+                  value: !lambda "return *x.get_frequency();"
+  - platform: ir_rf_proxy
+    name: RF Proxy Receiver
+    frequency: 433.92MHz
+    remote_receiver_id: rf_rx
+```
+
+The triggers used above:
+
+- `on_transmit` on [`remote_transmitter`](/components/remote_transmitter) — fires before each transmission. Call
+  [`cc1101.begin_tx`](/components/cc1101#cc1101begin_tx-action) here to put the chip into TX state.
+- `on_complete` on [`remote_transmitter`](/components/remote_transmitter) — fires after a transmission finishes.
+  Call [`cc1101.begin_rx`](/components/cc1101#cc1101begin_rx-action) here to return the chip to RX state (idle
+  listening).
+- `on_control` on the `radio_frequency` entity — fires when a transmit request arrives, before the underlying
+  transmission begins. The call object (`x`) exposes `get_frequency()`, `get_modulation()`, and
+  `get_repeat_count()` — use this trigger for per-call adjustments such as retuning the chip to the requested
+  carrier frequency.
+
+The same wiring pattern applies to other RF front-ends (SX127x, custom external components) — substitute
+the chip's equivalent state-change actions for `cc1101.begin_tx` / `cc1101.begin_rx`.
+
 ## How It Works
 
 The IR/RF proxy component creates API-accessible entities that can be controlled from Home Assistant or other API
