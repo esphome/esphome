@@ -20,6 +20,7 @@ class Toolchain(StrEnum):
 
     PLATFORMIO = "platformio"
     ESP_IDF = "esp-idf"
+    SDK_NRF = "sdk-nrf"
 
 
 class Platform(StrEnum):

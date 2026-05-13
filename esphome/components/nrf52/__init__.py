@@ -66,6 +66,7 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
+from .framework import check_and_install
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa
@@ -752,9 +753,9 @@ def compile_program(args, config: ConfigType) -> bool:
         return False  # let PlatformIO handle it
 
     from .build import run_west_build, write_cmake_lists
-    from .sdk_setup import check_and_install
 
-    venv_path, sdk_path, toolchain_path = check_and_install()
+    venv_path, sdk_path, toolchain_path = (None, None, None)
+    # check_and_install()
     write_cmake_lists()
     rc = run_west_build(
         venv_path=venv_path,
@@ -787,3 +788,10 @@ def compile_program(args, config: ConfigType) -> bool:
         if nrfutil_rc != 0:
             raise EsphomeError(f"adafruit-nrfutil failed with exit code {nrfutil_rc}")
     return True
+
+
+def run_compile(args, config: ConfigType) -> bool:
+    if CORE.using_toolchain_platformio:
+        return False
+    check_and_install()
+    raise EsphomeError("Native build for nRF52 is not implemented yet")
