@@ -10,10 +10,10 @@ byte-identical to PlatformIO's output:
 
 The format matches ``script/ci_memory_impact_extract.py`` so CI memory
 analysis works unchanged on native ESP-IDF builds. RAM total is the
-DRAM region size from the linker map; Flash total is the first
-``app``-type partition's size from ``partitions.csv`` (OTA slots are
-required to be equal-sized, and ``factory`` is the only alternative,
-so the first row captures the constraint).
+DRAM region size from the linker map; Flash total is taken from
+``partitions.csv`` using PlatformIO's rule (first app partition whose
+subtype is ``factory`` or ``ota_0``; see
+``platform-espressif32/builder/main.py::_update_max_upload_size``).
 
 Structured size data is produced at link time by a CMake POST_BUILD
 custom command (see ``build_gen/espidf.py``) which writes
@@ -47,11 +47,13 @@ def _parse_size(token: str) -> int:
 def _find_app_partition_size(partitions_csv: Path) -> int:
     """Return the size of the firmware's app partition.
 
-    OTA-capable layouts must allocate equal-sized slots (``ota_0``,
-    ``ota_1``, ...) so any slot can become the active image; non-OTA
-    layouts use a single ``factory`` partition. Either way the first
-    ``app``-type row captures the constraint the firmware must fit
-    within. Raises ``ValueError`` if no app partition is present.
+    Mirrors PlatformIO's ``platform-espressif32/builder/main.py::
+    _update_max_upload_size``: take the first ``app``-type partition
+    whose subtype is ``factory`` or ``ota_0``. Order matters because
+    layouts like Adafruit's ``partitions-4MB-tinyuf2.csv`` repurpose
+    ``factory`` for a UF2 bootloader before the real OTA slot, so a
+    naive "prefer factory" rule would pick the wrong row. Raises
+    ``ValueError`` if no qualifying partition is present.
     """
     if not partitions_csv.is_file():
         raise ValueError(f"partitions.csv not found at {partitions_csv}")
@@ -59,10 +61,10 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
         cells = [c.strip() for c in row]
         if not cells or cells[0].startswith("#") or len(cells) < 5:
             continue
-        ptype, psize = cells[1], cells[4]
-        if ptype in ("app", "0"):
+        ptype, psubtype, psize = cells[1], cells[2], cells[4]
+        if ptype in ("app", "0") and psubtype in ("factory", "ota_0"):
             return _parse_size(psize)
-    raise ValueError(f"No app partition in {partitions_csv}")
+    raise ValueError(f"No app+factory or app+ota_0 partition in {partitions_csv}")
 
 
 def _format_bar(used: int, total: int) -> str:
