@@ -391,7 +391,7 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
 }
 
 void MitsubishiCN105::set_mode(Mode mode) {
-  if (PROTOCOL_MODE_MAP.is_valid(mode)) {
+  if (!PROTOCOL_MODE_MAP.is_valid(mode)) {
     ESP_LOGD(TAG, "Setting invalid mode: %u", static_cast<uint8_t>(mode));
     return;
   }
