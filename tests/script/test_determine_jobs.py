@@ -928,6 +928,9 @@ def test_native_idf_components_to_test_full_list_when_get_components_none() -> N
         ),
         # Pure Python-only change outside trigger paths -> empty.
         (["esphome/yaml_util.py"], [], []),
+        # Non-IDF files in esphome/build_gen/ do NOT trigger the full
+        # list -- only esphome/build_gen/espidf.py is a trigger.
+        (["esphome/build_gen/platformio.py"], [], []),
         # Docs / unrelated files -> empty.
         (["README.md"], [], []),
         ([], [], []),

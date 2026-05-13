@@ -519,19 +519,21 @@ NATIVE_IDF_TEST_COMPONENTS = frozenset(
     }
 )
 
-# Path prefixes whose changes always trigger the native ESP-IDF compile test:
-# anything under esphome/espidf/ (the native IDF runner / API / framework /
-# component generator) and esphome/build_gen/ (the espidf build generator).
-NATIVE_IDF_TRIGGER_PATH_PREFIXES = (
-    "esphome/espidf/",
-    "esphome/build_gen/",
-)
+# Path prefixes whose changes always trigger the native ESP-IDF compile
+# test: anything under esphome/espidf/ (the native IDF runner / API /
+# framework / component generator).
+NATIVE_IDF_TRIGGER_PATH_PREFIXES = ("esphome/espidf/",)
 
 # Standalone files that, when changed, also trigger the native ESP-IDF
-# compile test. `test_build_components.py` is the harness the job invokes;
-# the workflow file itself is the job's definition.
+# compile test:
+#   - esphome/build_gen/espidf.py -- the native IDF build generator
+#     (other files under build_gen/ target PlatformIO and don't affect
+#     the native IDF path)
+#   - script/test_build_components.py -- the harness the job invokes
+#   - .github/workflows/ci.yml -- the job's own definition
 NATIVE_IDF_TRIGGER_FILES = frozenset(
     {
+        "esphome/build_gen/espidf.py",
         "script/test_build_components.py",
         ".github/workflows/ci.yml",
     }
@@ -562,8 +564,8 @@ def native_idf_components_to_test(branch: str | None = None) -> list[str]:
     Returns the full list (sorted) when we can't safely narrow:
 
     1. Core C++/Python files changed (``esphome/core/*``).
-    2. Native IDF infrastructure changed (``esphome/espidf/*``,
-       ``esphome/build_gen/*``).
+    2. Native IDF infrastructure changed (``esphome/espidf/*`` or
+       ``esphome/build_gen/espidf.py``).
     3. The test harness or workflow itself changed
        (``script/test_build_components.py``, ``.github/workflows/ci.yml``).
     4. ``get_changed_components()`` returned the full-scan sentinel.
