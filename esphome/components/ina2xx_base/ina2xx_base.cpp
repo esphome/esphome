@@ -5,8 +5,7 @@
 #include <cinttypes>
 #include <cmath>
 
-namespace esphome {
-namespace ina2xx_base {
+namespace esphome::ina2xx_base {
 
 static const char *const TAG = "ina2xx";
 
@@ -600,5 +599,4 @@ bool INA2XX::read_unsigned_16_(uint8_t reg, uint16_t &out) {
 int64_t INA2XX::two_complement_(uint64_t value, uint8_t bits) {
   return (int64_t) (value << (64 - bits)) >> (64 - bits);
 }
-}  // namespace ina2xx_base
-}  // namespace esphome
+}  // namespace esphome::ina2xx_base

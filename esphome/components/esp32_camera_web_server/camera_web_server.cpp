@@ -11,8 +11,7 @@
 #include <esp_http_server.h>
 #include <utility>
 
-namespace esphome {
-namespace esp32_camera_web_server {
+namespace esphome::esp32_camera_web_server {
 
 static const int IMAGE_REQUEST_TIMEOUT = 5000;
 static const char *const TAG = "esp32_camera_web_server";
@@ -242,7 +241,6 @@ esp_err_t CameraWebServer::snapshot_handler_(struct httpd_req *req) {
   return res;
 }
 
-}  // namespace esp32_camera_web_server
-}  // namespace esphome
+}  // namespace esphome::esp32_camera_web_server
 
 #endif  // USE_ESP32

@@ -137,11 +137,12 @@ bool RuntimeStatsCollector::compare_total_time(Component *a, Component *b) {
   return a->runtime_stats_.total_time_us > b->runtime_stats_.total_time_us;
 }
 
-void RuntimeStatsCollector::process_pending_stats(uint32_t current_time) {
-  if ((int32_t) (current_time - this->next_log_time_) >= 0) {
-    this->log_stats_();
-    this->next_log_time_ = current_time + this->log_interval_;
-  }
+// Slow path for process_pending_stats — gate already checked by the inline
+// wrapper in runtime_stats.h. Out-of-line keeps the log_stats_ machinery out
+// of Application::loop().
+void RuntimeStatsCollector::process_pending_stats_slow_(uint32_t current_time) {
+  this->log_stats_();
+  this->next_log_time_ = current_time + this->log_interval_;
 }
 
 }  // namespace runtime_stats

@@ -10,8 +10,7 @@
 
 class UDP;
 
-namespace esphome {
-namespace wled {
+namespace esphome::wled {
 
 class WLEDLightEffect : public light::AddressableLightEffect {
  public:
@@ -42,7 +41,6 @@ class WLEDLightEffect : public light::AddressableLightEffect {
   bool blank_on_start_{true};
 };
 
-}  // namespace wled
-}  // namespace esphome
+}  // namespace esphome::wled
 
 #endif  // USE_ARDUINO

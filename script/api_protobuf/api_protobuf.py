@@ -65,11 +65,31 @@ _enum_max_values: dict[str, int] = {}
 _message_desc_map: dict[str, Any] = {}
 
 
+def _make_ifdef_line(condition: str) -> str:
+    """Return the correct preprocessor open-guard line for a condition string.
+
+    Simple identifiers use ``#ifdef IDENTIFIER``.
+    Compound expressions (containing ``||`` or ``&&``) use
+    ``#if defined(A) || defined(B)`` so that the preprocessor
+    evaluates them correctly.
+    """
+    if any(op in condition for op in ("||", "&&", "!")):
+        # Replace each bare identifier token with defined(token)
+        expr = re.sub(r"\b([A-Za-z_]\w*)\b", r"defined(\1)", condition)
+        return f"#if {expr}"
+    return f"#ifdef {condition}"
+
+
 def indent_list(text: str, padding: str = "  ") -> list[str]:
     """Indent each line of the given text with the specified padding."""
     lines = []
     for line in text.splitlines():
-        if line == "" or line.startswith("#ifdef") or line.startswith("#endif"):
+        if (
+            line == ""
+            or line.startswith("#ifdef")
+            or line.startswith("#if ")
+            or line.startswith("#endif")
+        ):
             p = ""
         else:
             p = padding
@@ -82,7 +102,7 @@ def indent(text: str, padding: str = "  ") -> str:
 
 
 def wrap_with_ifdef(content: str | list[str], ifdef: str | None) -> list[str]:
-    """Wrap content with #ifdef directives if ifdef is provided.
+    """Wrap content with #ifdef / #if directives if ifdef is provided.
 
     Args:
         content: Single string or list of strings to wrap
@@ -96,7 +116,7 @@ def wrap_with_ifdef(content: str | list[str], ifdef: str | None) -> list[str]:
             return [content]
         return content
 
-    result = [f"#ifdef {ifdef}"]
+    result = [_make_ifdef_line(ifdef)]
     if isinstance(content, str):
         result.append(content)
     else:
@@ -163,6 +183,11 @@ class TypeInfo(ABC):
     def force(self) -> bool:
         """Check if this field should always be encoded (skip zero/empty check)."""
         return get_field_opt(self._field, pb.force, False)
+
+    @property
+    def mac_address(self) -> bool:
+        """Check if this uint64 field is a 48-bit MAC address (use 7-byte fast path)."""
+        return get_field_opt(self._field, pb.mac_address, False)
 
     @property
     def max_value(self) -> int | None:
@@ -645,7 +670,21 @@ class UInt64Type(VarintTypeMixin, TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
+        if self.mac_address and force:
+            field_id_size = self.calculate_field_id_size()
+            return (
+                f"size += ProtoSize::calc_uint64_48bit_force({field_id_size}, {name});"
+            )
         return self._get_simple_size_calculation(name, force, "uint64")
+
+    @property
+    def RAW_ENCODE_MAP(self) -> dict[str, str]:  # noqa: N802
+        if self.mac_address:
+            return {
+                **TypeInfo.RAW_ENCODE_MAP,
+                "encode_uint64": "ProtoEncode::encode_varint_raw_48bit(pos, {value});",
+            }
+        return TypeInfo.RAW_ENCODE_MAP
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
@@ -3021,7 +3060,7 @@ def build_service_message_type(
     if source in (SOURCE_BOTH, SOURCE_CLIENT):
         # Only add ifdef when we're actually generating content
         if ifdef is not None:
-            hout += f"#ifdef {ifdef}\n"
+            hout += _make_ifdef_line(ifdef) + "\n"
         # Generate receive handler and switch case
         func = f"on_{snake}"
         has_fields = any(not field.options.deprecated for field in mt.field)
@@ -3302,8 +3341,8 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
                 content += "#endif\n"
                 dump_cpp += "#endif\n"
             if enum_ifdef is not None:
-                content += f"#ifdef {enum_ifdef}\n"
-                dump_cpp += f"#ifdef {enum_ifdef}\n"
+                content += _make_ifdef_line(enum_ifdef) + "\n"
+                dump_cpp += _make_ifdef_line(enum_ifdef) + "\n"
             current_ifdef = enum_ifdef
 
         content += s
@@ -3378,9 +3417,9 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
                 if dump_cpp:
                     dump_cpp += "#endif\n"
             if msg_ifdef is not None:
-                content += f"#ifdef {msg_ifdef}\n"
-                cpp += f"#ifdef {msg_ifdef}\n"
-                dump_cpp += f"#ifdef {msg_ifdef}\n"
+                content += _make_ifdef_line(msg_ifdef) + "\n"
+                cpp += _make_ifdef_line(msg_ifdef) + "\n"
+                dump_cpp += _make_ifdef_line(msg_ifdef) + "\n"
             current_ifdef = msg_ifdef
 
         content += s
@@ -3529,7 +3568,7 @@ static const char *const TAG = "api.service";
         for id_ in sorted(ids):
             _, ifdef, case_label = RECEIVE_CASES[id_]
             if ifdef:
-                result += f"#ifdef {ifdef}\n"
+                result += _make_ifdef_line(ifdef) + "\n"
             result += f"    case {case_label}:  {comment}\n"
             if ifdef:
                 result += "#endif\n"
@@ -3538,8 +3577,13 @@ static const char *const TAG = "api.service";
     # Generate read_message_ as APIConnection method (not base class) so the compiler
     # can devirtualize and inline the on_* handler calls within the same class.
     # APIConnection declares this method in api_connection.h.
+    # Guard with #ifdef USE_API since APIConnection itself is only defined when
+    # USE_API is set; without this, builds that compile this .cpp without
+    # USE_API (e.g. C++ unit tests for api dependencies) fail to find the
+    # class declaration.
 
-    out = "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
+    out = "#ifdef USE_API\n"
+    out += "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
 
     # Auth check block before dispatch switch
     out += "  // Check authentication/connection requirements\n"
@@ -3572,7 +3616,7 @@ static const char *const TAG = "api.service";
     out += "  switch (msg_type) {\n"
     for i, (case, ifdef, case_label) in cases:
         if ifdef is not None:
-            out += f"#ifdef {ifdef}\n"
+            out += _make_ifdef_line(ifdef) + "\n"
 
         c = f"    case {case_label}: {{\n"
         c += indent(case, "      ") + "\n"
@@ -3584,6 +3628,7 @@ static const char *const TAG = "api.service";
     out += "      break;\n"
     out += "  }\n"
     out += "}\n"
+    out += "#endif  // USE_API\n"
     cpp += out
     hpp += "};\n"
 
