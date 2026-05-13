@@ -7,8 +7,7 @@
 #include "esphome/components/uart/uart.h"
 #include "sml_parser.h"
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
 class SmlListener {
  public:
@@ -44,5 +43,4 @@ class Sml : public Component, public uart::UARTDevice {
 bool check_sml_data(const bytes &buffer);
 
 uint8_t get_code(uint8_t byte);
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

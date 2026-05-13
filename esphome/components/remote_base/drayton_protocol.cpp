@@ -3,8 +3,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.drayton";
 
@@ -327,5 +326,4 @@ void DraytonProtocol::dump(const DraytonData &data) {
            ((data.address << 1) & 0xffff), data.data, data.channel, data.command);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

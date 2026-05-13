@@ -5,8 +5,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace ads1115 {
+namespace esphome::ads1115 {
 
 enum ADS1115Multiplexer {
   ADS1115_MULTIPLEXER_P0_N1 = 0b000,
@@ -60,5 +59,4 @@ class ADS1115Component : public Component, public i2c::I2CDevice {
   bool continuous_mode_;
 };
 
-}  // namespace ads1115
-}  // namespace esphome
+}  // namespace esphome::ads1115
