@@ -177,7 +177,8 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
     // on_sent events drain in lockstep without crediting any audio frames.
     this->spdif_encoder_->set_preload_mode(true);
     for (size_t i = 0; i < SPDIF_DMA_BUFFERS_COUNT; i++) {
-      esp_err_t preload_err = this->spdif_encoder_->flush_with_silence(pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS));
+      // i2s_channel_preload_data is non-blocking (returns immediately when the preload buffer fills), so no wait.
+      esp_err_t preload_err = this->spdif_encoder_->flush_with_silence(0);
       if (preload_err != ESP_OK) {
         break;  // DMA preload buffer full or error
       }
