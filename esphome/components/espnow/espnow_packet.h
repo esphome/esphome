@@ -143,6 +143,8 @@ class ESPNowPacket {
     if (des_addr != nullptr) {
       memcpy(this->packet_.receive.info.des_addr, des_addr, ESP_NOW_ETH_ALEN);
     } else {
+      // ESP8266 SDK does not provide the destination address; default to broadcast so
+      // all received packets are routed to broadcast handlers
       memcpy(this->packet_.receive.info.des_addr, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN);
     }
     memcpy(this->packet_.receive.data, data, size);

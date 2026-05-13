@@ -165,7 +165,8 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
 
   // Load new packet data (replaces previous packet)
 #if defined(USE_ESP8266)
-  packet->load_received_data(mac_addr, data, size, esp_now->own_address_);
+  // ESP8266 SDK does not provide destination address.
+  packet->load_received_data(mac_addr, data, size, nullptr);
 #else
   packet->load_received_data(info, data, size);
 #endif
