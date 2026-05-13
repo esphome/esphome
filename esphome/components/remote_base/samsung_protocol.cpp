@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.samsung";
 
@@ -61,5 +60,4 @@ void SamsungProtocol::dump(const SamsungData &data) {
   ESP_LOGI(TAG, "Received Samsung: data=0x%" PRIX64 ", nbits=%d", data.data, data.nbits);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

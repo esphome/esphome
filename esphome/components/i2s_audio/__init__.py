@@ -201,7 +201,7 @@ async def register_i2s_audio_component(var, config):
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(I2SAudioComponent),
-        cv.Required(CONF_I2S_LRCLK_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_I2S_LRCLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_I2S_BCLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_I2S_MCLK_PIN): pins.internal_gpio_output_pin_number,
     },
@@ -290,7 +290,8 @@ async def to_code(config):
     # Helps avoid callbacks being skipped due to processor load
     add_idf_sdkconfig_option("CONFIG_I2S_ISR_IRAM_SAFE", True)
 
-    cg.add(var.set_lrclk_pin(config[CONF_I2S_LRCLK_PIN]))
+    if CONF_I2S_LRCLK_PIN in config:
+        cg.add(var.set_lrclk_pin(config[CONF_I2S_LRCLK_PIN]))
     if CONF_I2S_BCLK_PIN in config:
         cg.add(var.set_bclk_pin(config[CONF_I2S_BCLK_PIN]))
     if CONF_I2S_MCLK_PIN in config:

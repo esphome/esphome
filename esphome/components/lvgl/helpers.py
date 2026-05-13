@@ -5,23 +5,6 @@ from esphome.const import CONF_ARGS, CONF_FORMAT
 
 CONF_IF_NAN = "if_nan"
 
-lv_uses = {
-    "USER_DATA",
-    "LOG",
-    "STYLE",
-    "FONT_PLACEHOLDER",
-    "THEME_DEFAULT",
-}
-
-
-def add_lv_use(*names):
-    for name in names:
-        lv_uses.add(name)
-
-
-lv_fonts_used = set()
-esphome_fonts_used = set()
-lvgl_components_required = set()
 
 # noqa
 f_regex = re.compile(
@@ -66,11 +49,3 @@ def validate_printf(value):
             "Use of 'if_nan' requires a single valid printf-pattern of type %f"
         )
     return value
-
-
-def requires_component(comp):
-    def validator(value):
-        lvgl_components_required.add(comp)
-        return cv.requires_component(comp)(value)
-
-    return validator

@@ -6,8 +6,7 @@
 #include "esphome/components/sun/sun.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace sun {
+namespace esphome::sun {
 
 class SunTextSensor : public text_sensor::TextSensor, public PollingComponent {
  public:
@@ -44,5 +43,4 @@ class SunTextSensor : public text_sensor::TextSensor, public PollingComponent {
   bool sunrise_;
 };
 
-}  // namespace sun
-}  // namespace esphome
+}  // namespace esphome::sun

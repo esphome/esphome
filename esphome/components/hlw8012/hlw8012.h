@@ -7,8 +7,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace hlw8012 {
+namespace esphome::hlw8012 {
 
 enum HLW8012InitialMode { HLW8012_INITIAL_MODE_CURRENT = 0, HLW8012_INITIAL_MODE_VOLTAGE };
 
@@ -72,5 +71,4 @@ class HLW8012Component : public PollingComponent {
   float power_multiplier_{0.0f};
 };
 
-}  // namespace hlw8012
-}  // namespace esphome
+}  // namespace esphome::hlw8012

@@ -48,7 +48,21 @@ def board_has_wifi() -> bool:
     Returns True for unknown/custom boards to avoid rejecting valid
     configurations for boards not in the generated list.
     """
-    board_info = boards.BOARDS.get(get_board())
+    return board_id_has_wifi(get_board())
+
+
+def board_id_has_wifi(board_id: str) -> bool:
+    """Return True if *board_id* has WiFi (CYW43 wireless chip).
+
+    Returns True for unknown/custom boards to avoid rejecting valid
+    configurations for boards not in the generated list.
+
+    Used by device-builder (esphome/device-builder) — separate
+    explicit-arg helper so callers outside the compile pipeline
+    don't need ``CORE`` set up to query the board map. Please keep
+    the signature stable.
+    """
+    board_info = boards.BOARDS.get(board_id)
     if board_info is None:
         return True
     return board_info.get("wifi", False)
@@ -125,7 +139,7 @@ def _parse_platform_version(value):
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(5, 5, 1)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(5, 6, 0)
 
 # The raspberrypi platform version to use for arduino frameworks
 #  - https://github.com/maxgerhardt/platform-raspberrypi/tags
@@ -135,8 +149,8 @@ RECOMMENDED_ARDUINO_PLATFORM_VERSION = "v1.4.0-gcc14-arduinopico460"
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(5, 5, 1), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(5, 5, 1), None),
+        "dev": (cv.Version(5, 6, 0), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(5, 6, 0), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -496,7 +510,7 @@ def process_stacktrace(config, line: str, backtrace_state: bool) -> bool:
 
     if backtrace_state:
         if match := _CRASH_ADDR_RE.search(line):
-            from esphome.platformio_api import get_idedata
+            from esphome.platformio.toolchain import get_idedata
 
             idedata = get_idedata(config)
             if idedata.addr2line_path:

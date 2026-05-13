@@ -40,8 +40,9 @@ import voluptuous as vol
 import yaml
 from yaml.nodes import Node
 
-from esphome import const, platformio_api, yaml_util
+from esphome import const, yaml_util
 from esphome.helpers import get_bool_env, mkdir_p, sort_ip_addresses
+from esphome.platformio import toolchain
 from esphome.storage_json import (
     StorageJSON,
     archive_storage_path,
@@ -1090,7 +1091,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 self.send_error(404 if rc == 2 else 500)
                 return
 
-            idedata = platformio_api.IDEData(json.loads(stdout))
+            idedata = toolchain.IDEData(json.loads(stdout))
 
             found = False
             for image in idedata.extra_flash_images:
