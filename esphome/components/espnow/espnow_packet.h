@@ -30,7 +30,11 @@ struct WifiPacketRxControl {
 struct ESPNowRecvInfo {
   uint8_t src_addr[ESP_NOW_ETH_ALEN]; /**< Source address of ESPNOW packet */
   uint8_t des_addr[ESP_NOW_ETH_ALEN]; /**< Destination address of ESPNOW packet */
-  WifiPacketRxControl *rx_ctrl;       /**< Rx control info of ESPNOW packet */
+#if defined(USE_ESP8266)
+  WifiPacketRxControl *rx_ctrl; /**< Rx control info of ESPNOW packet */
+#else
+  wifi_pkt_rx_ctrl_t *rx_ctrl; /**< Rx control info of ESPNOW packet */
+#endif
 };
 
 using send_callback_t = std::function<void(espnow_err_t)>;
@@ -113,7 +117,11 @@ class ESPNowPacket {
       ESPNowRecvInfo info;                 // Information about the received packet
       uint8_t data[ESP_NOW_MAX_DATA_LEN];  // Data received in the packet
       uint8_t size;                        // Size of the received data
-      WifiPacketRxControl rx_ctrl;         // Status of the received packet
+#if defined(USE_ESP8266)
+      WifiPacketRxControl rx_ctrl;  // Status of the received packet
+#else
+      wifi_pkt_rx_ctrl_t rx_ctrl;  // Status of the received packet
+#endif
     } receive;
 
     // NOLINTNEXTLINE(readability-identifier-naming)
@@ -151,9 +159,7 @@ class ESPNowPacket {
     memcpy(this->packet_.receive.data, data, size);
     this->packet_.receive.size = size;
 
-    this->packet_.receive.rx_ctrl.rssi = info->rx_ctrl->rssi;
-    this->packet_.receive.rx_ctrl.timestamp = info->rx_ctrl->timestamp;
-
+    this->packet_.receive.rx_ctrl = *info->rx_ctrl;
     this->packet_.receive.info.rx_ctrl = &this->packet_.receive.rx_ctrl;
   }
 #endif
