@@ -8,8 +8,7 @@
  * See https://arduino-irremote.github.io/Arduino-IRremote/ir__RC5__RC6_8hpp_source.html
  */
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct RC5XData {
   uint8_t address;
@@ -41,5 +40,4 @@ template<typename... Ts> class RC5XAction : public RemoteTransmitterActionBase<T
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

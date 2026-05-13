@@ -6,8 +6,7 @@
  * See https://arduino-irremote.github.io/Arduino-IRremote/ir__RC5__RC6_8hpp_source.html
  */
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.rc5x";
 
@@ -175,5 +174,4 @@ void RC5XProtocol::dump(const RC5XData &data) {
            data.extension);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base
