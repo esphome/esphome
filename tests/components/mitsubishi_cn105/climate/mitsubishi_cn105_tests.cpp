@@ -16,13 +16,13 @@ TEST(MitsubishiCN105Tests, InitSendsConnectPacket) {
   ctx.sut.set_current_time(123);
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::NOT_CONNECTED);
   EXPECT_TRUE(ctx.uart.tx.empty());
-  EXPECT_FALSE(ctx.sut.write_timeout_start_ms_.has_value());
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 0);
 
   ctx.sut.initialize();
 
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x5A, 0x01, 0x30, 0x02, 0xCA, 0x01, 0xA8));
-  EXPECT_EQ(ctx.sut.write_timeout_start_ms_, std::optional<uint32_t>{123});
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 123);
 }
 
 TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
@@ -32,8 +32,7 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   ctx.uart.tx.clear();  // Remove first connect packet bytes
 
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
-  EXPECT_EQ(ctx.sut.write_timeout_start_ms_, std::optional<uint32_t>{0});
-  EXPECT_FALSE(ctx.sut.status_update_start_ms_.has_value());
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 0);
 
   // Connect response
   ctx.uart.push_rx({0xFC, 0x7A, 0x01, 0x30, 0x00, 0x55});
@@ -47,8 +46,7 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x42, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B));
-  EXPECT_EQ(ctx.sut.write_timeout_start_ms_, std::optional<uint32_t>{200});
-  EXPECT_FALSE(ctx.sut.status_update_start_ms_.has_value());
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 200);
 
   // Clear TX bytes.
   ctx.uart.tx.clear();
@@ -77,8 +75,7 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x42, 0x01, 0x30, 0x10, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7A));
-  EXPECT_EQ(ctx.sut.write_timeout_start_ms_, std::optional<uint32_t>{300});
-  EXPECT_FALSE(ctx.sut.status_update_start_ms_.has_value());
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 300);
 
   // Clear TX bytes.
   ctx.uart.tx.clear();
@@ -101,8 +98,7 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
 
   EXPECT_TRUE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
-  EXPECT_FALSE(ctx.sut.write_timeout_start_ms_.has_value());
-  EXPECT_EQ(ctx.sut.status_update_start_ms_, std::optional<uint32_t>{400});
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 400);
 }
 
 TEST(MitsubishiCN105Tests, NoResponseTriggersReconnect) {
@@ -115,21 +111,21 @@ TEST(MitsubishiCN105Tests, NoResponseTriggersReconnect) {
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
   EXPECT_TRUE(ctx.uart.tx.empty());
-  EXPECT_EQ(ctx.sut.write_timeout_start_ms_, std::optional<uint32_t>{0});
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 0);
 
   // Still no response after 1999ms, no retry yet
   ctx.sut.set_current_time(1999);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
   EXPECT_TRUE(ctx.uart.tx.empty());
-  EXPECT_EQ(ctx.sut.write_timeout_start_ms_, std::optional<uint32_t>{0});
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 0);
 
   // Stop waiting after 2s and retry connect
   ctx.sut.set_current_time(2000);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x5A, 0x01, 0x30, 0x02, 0xCA, 0x01, 0xA8));
-  EXPECT_EQ(ctx.sut.write_timeout_start_ms_, std::optional<uint32_t>{2000});
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 2000);
 }
 
 TEST(MitsubishiCN105Tests, RxWatchdogLimitsProcessingPerUpdate) {
@@ -233,15 +229,12 @@ TEST(MitsubishiCN105Tests, NextStatusUpdateAfterUpdateIntervalMilliseconds) {
   ctx.sut.set_update_interval(2000);
   ctx.sut.set_current_time(80000);
 
-  // No scheduled status update
-  EXPECT_FALSE(ctx.sut.status_update_start_ms_.has_value());
-
   // Status update completed, schedule next status update
   ctx.sut.state_ = TestableMitsubishiCN105::State::STATUS_UPDATED;
   ctx.sut.set_state(TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_UPDATE);
 
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
-  EXPECT_EQ(ctx.sut.status_update_start_ms_, std::optional<uint32_t>{80000});
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 80000);
 
   // Wait for update_interval (ms) before doing another status update
   ASSERT_FALSE(ctx.sut.update());
@@ -257,7 +250,7 @@ TEST(MitsubishiCN105Tests, NextStatusUpdateAfterUpdateIntervalMilliseconds) {
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_FALSE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
-  EXPECT_FALSE(ctx.sut.status_update_start_ms_.has_value());
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 82000);
 }
 
 TEST(MitsubishiCN105Tests, DecodeStatusSettingsPackageTempEncodedA) {
@@ -382,14 +375,14 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   ctx.sut.state_ = TestableMitsubishiCN105::State::STATUS_UPDATED;
   ctx.sut.set_state(TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_UPDATE);
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
-  EXPECT_EQ(ctx.sut.status_update_start_ms_, std::optional<uint32_t>{5000});
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 5000);
   EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 
   // Nothing to do in update (rx empty, no timeout)
   ctx.sut.set_current_time(5500);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_TRUE(ctx.uart.tx.empty());
-  EXPECT_EQ(ctx.sut.status_update_start_ms_, std::optional<uint32_t>{5000});
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 5000);
   EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 
   // Write new values
@@ -402,7 +395,6 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   // Waiting for next status update must be interrupted and new values send to AC
   ctx.sut.set_current_time(6000);
   ASSERT_FALSE(ctx.sut.update());
-  EXPECT_FALSE(ctx.sut.status_update_start_ms_.has_value());
   EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 1000);
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x0F, 0x00, 0x00, 0x01, 0x00,
@@ -414,7 +406,7 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   ctx.sut.set_current_time(6500);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
-  EXPECT_EQ(ctx.sut.status_update_start_ms_, std::optional<uint32_t>{6500 - 1000});
+  EXPECT_EQ(ctx.sut.operation_start_ms_, 6500 - 1000);
   EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 }
 
@@ -502,7 +494,7 @@ TEST(MitsubishiCN105Tests, WriteTimeoutClearsStatusUpdateWaitCreditOnReconnect) 
   ctx.sut.state_ = TestableMitsubishiCN105::State::STATUS_UPDATED;
   ctx.sut.set_state(TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_UPDATE);
   ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
-  ASSERT_EQ(ctx.sut.status_update_start_ms_, std::optional<uint32_t>{5000});
+  ASSERT_EQ(ctx.sut.operation_start_ms_, 5000);
   ASSERT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 
   // Interrupt that wait with a write so credit is accumulated.
@@ -514,7 +506,7 @@ TEST(MitsubishiCN105Tests, WriteTimeoutClearsStatusUpdateWaitCreditOnReconnect) 
   ctx.sut.set_current_time(6000);
   ASSERT_FALSE(ctx.sut.update());
   ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
-  ASSERT_FALSE(ctx.sut.status_update_start_ms_.has_value());
+  ASSERT_EQ(ctx.sut.operation_start_ms_, 6000);
   ASSERT_EQ(ctx.sut.status_update_wait_credit_ms_, 1000);
 
   // Do not ACK the write. Advance time far enough to force timeout/reconnect
@@ -522,8 +514,8 @@ TEST(MitsubishiCN105Tests, WriteTimeoutClearsStatusUpdateWaitCreditOnReconnect) 
   ctx.sut.set_current_time(36000);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_NE(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+  ASSERT_EQ(ctx.sut.operation_start_ms_, 36000);
   EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
-  EXPECT_FALSE(ctx.sut.status_update_start_ms_.has_value());
 }
 
 TEST(MitsubishiCN105Tests, SetOutOfRangeRemoteRoomTempIsIgnored) {
