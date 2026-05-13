@@ -64,7 +64,7 @@ static const LogString *espnow_error_to_str(espnow_err_t error) {
     case ESPNOW_ERR_FAILED:
       return LOG_STR("ESPNow is in fail mode");
     case ESPNOW_ERR_OWN_ADDRESS:
-      return LOG_STR("Message to your self");
+      return LOG_STR("Message to yourself");
     case ESPNOW_ERR_DATA_SIZE:
       return LOG_STR("Data size too large");
     case ESPNOW_ERR_PEER_NOT_SET:
