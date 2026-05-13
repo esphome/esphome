@@ -141,11 +141,13 @@ add_custom_command(
 """
 
 
-def get_component_cmakelists(minimal: bool = False) -> str:
-    """Generate the main component CMakeLists.txt."""
-    idf_requires = [] if minimal else (get_available_components() or [])
-    requires_str = " ".join(idf_requires)
+def get_component_cmakelists() -> str:
+    """Generate the main component CMakeLists.txt.
 
+    No ``REQUIRES`` here -- every component (including src) gets the full
+    discovered IDF component list appended via ``__COMPONENT_REQUIRES_COMMON``
+    set by ``get_project_cmakelists`` in the top-level CMakeLists.
+    """
     # Extract linker options (-Wl, flags). Compile flags (-D, -W) are
     # emitted project-wide via idf_build_set_property in
     # get_project_cmakelists so they reach every component, not just src/.
@@ -164,7 +166,6 @@ file(GLOB_RECURSE app_sources
 idf_component_register(
     SRCS ${{app_sources}}
     INCLUDE_DIRS "." "esphome"
-    REQUIRES {requires_str}
 )
 
 # Apply C++ standard
@@ -196,5 +197,5 @@ def write_project(minimal: bool = False) -> None:
     # Write component CMakeLists.txt in src/
     write_file_if_changed(
         CORE.relative_src_path("CMakeLists.txt"),
-        get_component_cmakelists(minimal=minimal),
+        get_component_cmakelists(),
     )
