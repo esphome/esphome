@@ -112,41 +112,6 @@ async def lvgl_update(lv_component, config):
     await layers_to_code(lv_component, {CONF_BOTTOM_LAYER: bottom})
 
 
-async def layers_to_code(lv_component, config):
-    if top_conf := config.get(CONF_TOP_LAYER):
-        top_layer = lv_expr.display_get_layer_top(lv_component.get_disp())
-        with LocalVariable("top_layer", lv_obj_t, top_layer) as top_layer_obj:
-            top_w = Widget(top_layer_obj, layer_spec, top_conf)
-            await set_obj_properties(top_w, top_conf)
-            await add_widgets(top_w, top_conf)
-    if bottom_conf := config.get(CONF_BOTTOM_LAYER):
-        bottom_layer = lv_expr.display_get_layer_bottom(lv_component.get_disp())
-        with LocalVariable("bottom_layer", lv_obj_t, bottom_layer) as bottom_layer_obj:
-            bottom_w = Widget(bottom_layer_obj, layer_spec, bottom_conf)
-            await set_obj_properties(bottom_w, bottom_conf)
-            await add_widgets(bottom_w, bottom_conf)
-
-
-async def lvgl_update(lv_component, config):
-    bottom = {k.removeprefix("disp_"): v for k, v in config.items() if k in DISP_PROPS}
-    if not bottom:
-        return
-    plural = len(bottom) != 1
-    add_warning(
-        "The propert"
-        + ("ies " if plural else "y ")
-        + "'"
-        + "','".join(k for k in config if k in DISP_PROPS)
-        + "'"
-        + (" are " if plural else " is ")
-        + "deprecated, use 'bottom_layer' instead."
-    )
-    # Preserve default opacity from 8.x
-    if CONF_BG_OPA not in bottom:
-        bottom[CONF_BG_OPA] = 1.0
-    await layers_to_code(lv_component, {CONF_BOTTOM_LAYER: bottom})
-
-
 async def action_to_code(
     widgets: list[Widget],
     action: Callable[[Widget], Any],

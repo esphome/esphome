@@ -238,170 +238,6 @@ class WidgetType:
         """
 
 
-class WidgetType:
-    """
-    Describes a type of Widget, e.g. "bar" or "line"
-    """
-
-    def __init__(
-        self,
-        name: str,
-        w_type: LvType,
-        parts: tuple,
-        schema=None,
-        modify_schema=None,
-        lv_name=None,
-        is_mock: bool = False,
-    ):
-        """
-        :param name: The widget name, e.g. "bar"
-        :param w_type: The C type of the widget
-        :param parts: What parts this widget supports
-        :param schema: The config schema for defining a widget
-        :param modify_schema: A schema to update the widget, defaults to the same as the schema
-        :param lv_name: The name of the LVGL widget in the LVGL library, if different from the name
-        :param is_mock: Whether this widget is a mock widget, i.e. not a real LVGL widget
-        """
-        self.name = name
-        self.lv_name = lv_name or name
-        self.w_type = w_type
-        self.parts = parts
-        if not isinstance(schema, Schema):
-            schema = Schema(schema or {})
-        self.schema = schema
-        if modify_schema is None:
-            modify_schema = schema
-        if not isinstance(modify_schema, Schema):
-            modify_schema = Schema(modify_schema)
-        self.modify_schema = modify_schema
-        self.mock_obj = MockObj(f"lv_{self.lv_name}", "_")
-
-        # Local import to avoid circular import
-        from ..automation import update_to_code
-        from ..schemas import WIDGET_TYPES, base_update_schema
-
-        if not is_mock:
-            if self.name in WIDGET_TYPES:
-                raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
-            WIDGET_TYPES[self.name] = self
-
-            # Register the update action automatically, adding widget-specific properties
-            register_action(
-                f"lvgl.{self.name}.update",
-                ObjUpdateAction,
-                base_update_schema(self, self.parts).extend(self.modify_schema),
-            )(update_to_code)
-
-    @property
-    def animated(self):
-        return False
-
-    @property
-    def required_component(self):
-        return None
-
-    def is_compound(self):
-        return self.w_type.inherits_from(LvCompound)
-
-    async def create_to_code(self, config: dict, parent: MockObj) -> "Widget":
-        """
-        Generate code for a widget creation.
-        :param config: The configuration for the widget
-        :param parent: The parent to which it should be attached
-        """
-
-        creator = await self.obj_creator(parent, config)
-        add_lv_use(self.name)
-        add_lv_use(*self.get_uses())
-        wid = config[CONF_ID]
-        add_line_marks(wid)
-        if self.is_compound():
-            var = cg.new_Pvariable(wid)
-            lv_add(var.set_obj(creator))
-            await self.on_create(var.obj, config)
-        else:
-            var = lv_Pvariable(lv_obj_t, wid)
-            lv_assign(var, creator)
-            await self.on_create(var, config)
-
-        w = Widget.create(wid, var, self, config)
-        if theme := theme_widget_map.get(self.w_type.name):
-            for part, states in theme.items():
-                part = "LV_PART_" + part.upper()
-                for state, style in states.items():
-                    state = "LV_STATE_" + state.upper()
-                    if state == "LV_STATE_DEFAULT":
-                        lv_state = literal(part)
-                    elif part == "LV_PART_MAIN":
-                        lv_state = literal(state)
-                    else:
-                        lv_state = join_enums((state, part))
-                    w.add_style(style, lv_state)
-        await set_obj_properties(w, config)
-        await add_widgets(w, config)
-        await self.to_code(w, config)
-        return w
-
-    async def to_code(self, w: "Widget", config: dict):
-        """
-        Update a widget, also called when creating
-        :param config:
-        :return:
-        """
-
-    async def obj_creator(self, parent: MockObj, config: dict):
-        """
-        Create an instance of the widget type
-        :param parent: The parent to which it should be attached
-        :param config:  Its configuration
-        :return: Generated code as a single text line
-        """
-        return lv_expr.call(f"{self.lv_name}_create", parent)
-
-    async def on_create(self, var: MockObj, config: dict):
-        """
-        Called from to_code when the widget is created, to set up any initial properties
-        :param var: The variable representing the widget
-        :param config: Its configuration
-        """
-
-    def get_uses(self):
-        """
-        Get a list of other widgets used by this one
-        :return:
-        """
-        return ()
-
-    def get_max(self, config: dict):
-        return sys.maxsize
-
-    def get_min(self, config: dict):
-        return -sys.maxsize
-
-    def get_step(self, config: dict):
-        return 1
-
-    def get_scale(self, config: dict):
-        return 1.0
-
-    def validate(self, value):
-        """
-        Provides an opportunity for custom validation for a given widget type
-        :param value:
-        :return:
-        """
-        return value
-
-    def final_validate(self, widget, update_config, widget_config, path):
-        """
-        Allow final validation for a given widget type update action
-        :param widget: A widget
-        :param update_config: The configuration for the update action
-        :param widget_config: The configuration for the widget itself
-        :param path: The path to the widget, for error reporting
-        """
-
-
 class Widget:
     """
     Represents a Widget.
@@ -436,6 +272,12 @@ class Widget:
 
     def has_state(self, state: MockObj):
         return lv_expr.obj_has_state(self.obj, state)
+
+    def is_pressed(self):
+        return self.has_state(LV_STATE.PRESSED)
+
+    def is_checked(self):
+        return self.has_state(LV_STATE.CHECKED)
 
     def add_flag(self, flag):
         if "|" in flag:

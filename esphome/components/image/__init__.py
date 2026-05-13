@@ -18,7 +18,6 @@ from esphome.const import (
     CONF_DEFAULTS,
     CONF_DITHER,
     CONF_FILE,
-    CONF_HEIGHT,
     CONF_ICON,
     CONF_ID,
     CONF_PATH,
@@ -27,10 +26,8 @@ from esphome.const import (
     CONF_SOURCE,
     CONF_TYPE,
     CONF_URL,
-    CONF_WIDTH,
 )
 from esphome.core import CORE, HexInt
-from esphome.final_validate import full_config
 
 _LOGGER = logging.getLogger(__name__)
 

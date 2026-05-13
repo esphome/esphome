@@ -22,10 +22,6 @@ def has_style_props(config) -> bool:
     return any(prop in config for prop in ALL_STYLES)
 
 
-def has_style_props(config) -> bool:
-    return any(prop in config for prop in ALL_STYLES)
-
-
 async def style_set(svar, style):
     for prop, validator in ALL_STYLES.items():
         if (value := style.get(prop)) is not None:
