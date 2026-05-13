@@ -66,7 +66,7 @@ static const LogString *espnow_error_to_str(espnow_err_t error) {
     case ESPNOW_ERR_OWN_ADDRESS:
       return LOG_STR("Message to your self");
     case ESPNOW_ERR_DATA_SIZE:
-      return LOG_STR("Data size to large");
+      return LOG_STR("Data size too large");
     case ESPNOW_ERR_PEER_NOT_SET:
       return LOG_STR("Peer address not set");
     case ESPNOW_ERR_PEER_NOT_PAIRED:
