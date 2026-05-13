@@ -39,6 +39,9 @@ template<auto Unknown, size_t N> struct LookupMap {
 
   constexpr bool reverse_lookup(value_type value, uint8_t &out) const {
     static_assert(N <= std::numeric_limits<uint8_t>::max());
+    if (value == UNKNOWN_VALUE) {
+      return false;
+    }
     for (uint8_t i = 0; i < static_cast<uint8_t>(N); ++i) {
       if (this->table[i] == value) {
         out = i;
@@ -46,11 +49,6 @@ template<auto Unknown, size_t N> struct LookupMap {
       }
     }
     return false;
-  }
-
-  constexpr bool is_valid(value_type value) const {
-    uint8_t raw;
-    return (value != UNKNOWN_VALUE && reverse_lookup(value, raw));
   }
 };
 
@@ -392,7 +390,8 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
 }
 
 void MitsubishiCN105::set_mode(Mode mode) {
-  if (!PROTOCOL_MODE_MAP.is_valid(mode)) {
+  uint8_t placeholder;
+  if (!PROTOCOL_MODE_MAP.reverse_lookup(mode, placeholder)) {
     ESP_LOGD(TAG, "Setting invalid mode: %u", static_cast<uint8_t>(mode));
     return;
   }
@@ -401,7 +400,8 @@ void MitsubishiCN105::set_mode(Mode mode) {
 }
 
 void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {
-  if (!PROTOCOL_FAN_MODE_MAP.is_valid(fan_mode)) {
+  uint8_t placeholder;
+  if (!PROTOCOL_FAN_MODE_MAP.reverse_lookup(fan_mode, placeholder)) {
     ESP_LOGD(TAG, "Setting invalid fan mode: %u", static_cast<uint8_t>(fan_mode));
     return;
   }
