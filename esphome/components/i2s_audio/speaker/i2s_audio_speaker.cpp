@@ -99,7 +99,7 @@ void I2SAudioSpeakerBase::loop() {
   }
 
   if (event_group_bits & SpeakerEventGroupBits::ERR_ESP_NO_MEM) {
-    ESP_LOGE(TAG, "Not enough memory");
+    ESP_LOGE(TAG, "Speaker task setup failed (allocation, preload, or channel enable)");
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
   }
 

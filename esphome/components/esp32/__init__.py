@@ -1754,7 +1754,9 @@ async def to_code(config):
             )
     else:
         cg.add_build_flag("-Wno-error=format")
+        cg.add_build_flag("-Wno-error=maybe-uninitialized")
         cg.add_build_flag("-Wno-error=missing-field-initializers")
+        cg.add_build_flag("-Wno-error=reorder")
         cg.add_build_flag("-Wno-error=volatile")
 
     cg.set_cpp_standard("gnu++20")
