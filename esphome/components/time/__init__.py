@@ -1,3 +1,4 @@
+import errno
 from importlib import resources
 import logging
 
@@ -74,6 +75,12 @@ def _load_tzdata(iana_key: str) -> bytes | None:
         return (resources.files(package) / resource).read_bytes()
     except (FileNotFoundError, ModuleNotFoundError, IsADirectoryError):
         return None
+    except OSError as e:
+        # Windows raises EINVAL for paths with NTFS-illegal chars (e.g. '<'/'>'
+        # in POSIX TZ strings like "<+08>-8" that validate_tz feeds back here).
+        if e.errno == errno.EINVAL:
+            return None
+        raise
 
 
 def _extract_tz_string(tzfile: bytes) -> str:
@@ -338,7 +345,14 @@ TIME_SCHEMA = cv.Schema(
             }
         ),
     }
-).extend(cv.polling_component_schema("15min"))
+).extend(
+    # ``visibility=ADVANCED`` flags the inherited ``update_interval``
+    # field for visual editors — the 15min default is correct for
+    # essentially every user, so editors should keep it tucked under
+    # "advanced" so it doesn't crowd the form. Validation is
+    # unaffected; YAML can override as before.
+    cv.polling_component_schema("15min", visibility=cv.Visibility.ADVANCED)
+)
 
 
 def _emit_dst_rule_fields(prefix, rule):

@@ -113,6 +113,15 @@ def make_data_base(
         return value
 
 
+def make_literal(value: Any) -> ESPLiteralValue | Any:
+    """Wrap a value in an ESPLiteralValue object."""
+    try:
+        return add_class_to_obj(value, ESPLiteralValue)
+    except TypeError:
+        # Adding class failed, ignore error
+        return value
+
+
 def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     """Tags a list/string/dict value with context vars that must be applied to it and its children
     during the substitution pass. If no vars are given, no tagging is done.
@@ -130,7 +139,7 @@ def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
         value.set_context({**value.vars, **(context_vars or {})})
         return value
 
-    if context_vars and isinstance(value, (dict, list, str)):
+    if context_vars and isinstance(value, (dict, list, str, Lambda)):
         value = add_class_to_obj(value, ConfigContext)
         value.set_context(context_vars)
     return value
@@ -525,7 +534,7 @@ class ESPHomeLoaderMixin:
             obj = self.construct_sequence(node)
         elif isinstance(node, yaml.MappingNode):
             obj = self.construct_mapping(node)
-        return add_class_to_obj(obj, ESPLiteralValue)
+        return make_literal(obj)
 
     @_add_data_ref
     def construct_extend(self, node: yaml.Node) -> Extend:

@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp4461 {
+namespace esphome::mcp4461 {
 
 static const char *const TAG = "mcp4461.output";
 
@@ -69,5 +68,4 @@ void Mcp4461Wiper::enable_terminal(char terminal) { this->parent_->enable_termin
 
 void Mcp4461Wiper::disable_terminal(char terminal) { this->parent_->disable_terminal_(this->wiper_, terminal); }
 
-}  // namespace mcp4461
-}  // namespace esphome
+}  // namespace esphome::mcp4461

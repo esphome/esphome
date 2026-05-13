@@ -9,8 +9,7 @@
 #include "hrxl_maxsonar_wr.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hrxl_maxsonar_wr {
+namespace esphome::hrxl_maxsonar_wr {
 
 static const char *const TAG = "hrxl.maxsonar.wr.sensor";
 static const uint8_t ASCII_CR = 0x0D;
@@ -73,5 +72,4 @@ void HrxlMaxsonarWrComponent::dump_config() {
   this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
 }
 
-}  // namespace hrxl_maxsonar_wr
-}  // namespace esphome
+}  // namespace esphome::hrxl_maxsonar_wr

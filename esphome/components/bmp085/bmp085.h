@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace bmp085 {
+namespace esphome::bmp085 {
 
 class BMP085Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -39,5 +38,4 @@ class BMP085Component : public PollingComponent, public i2c::I2CDevice {
   CalibrationData calibration_;
 };
 
-}  // namespace bmp085
-}  // namespace esphome
+}  // namespace esphome::bmp085
