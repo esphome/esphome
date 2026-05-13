@@ -212,12 +212,14 @@ void Application::feed_wdt() {
   this->feed_wdt_with_time(MillisInternal::get());
 }
 
+#if not defined(USE_ESP32) || defined(USE_WATCHDOG)
 void HOT Application::feed_wdt_slow_(uint32_t time) {
   // Callers (both feed_wdt() and feed_wdt_with_time()) have already
   // confirmed the WDT_FEED_INTERVAL_MS rate limit was exceeded.
   arch_feed_wdt();
   this->last_wdt_feed_ = time;
 }
+#endif
 
 #ifdef USE_STATUS_LED
 void HOT Application::service_status_led_slow_(uint32_t time) {

@@ -1564,7 +1564,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
             cv.Optional(CONF_WATCHDOG_TIMEOUT, default="5s"): cv.All(
                 cv.positive_time_period_seconds,
-                cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
+                cv.Range(min=cv.TimePeriod(seconds=0), max=cv.TimePeriod(seconds=60)),
             ),
         }
     ),
@@ -1948,14 +1948,20 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH", True)
 
     # Setup watchdog
-    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)
-    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
-    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
-    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
-    add_idf_sdkconfig_option(
-        "CONFIG_ESP_TASK_WDT_TIMEOUT_S",
-        config[CONF_WATCHDOG_TIMEOUT].total_seconds,
-    )
+    wdt = config[CONF_WATCHDOG_TIMEOUT].total_seconds
+    if wdt < 1:
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", False)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", False)
+    else:
+        cg.add_define("USE_WATCHDOG")
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
+        add_idf_sdkconfig_option(
+            "CONFIG_ESP_TASK_WDT_TIMEOUT_S",
+            max(config[CONF_WATCHDOG_TIMEOUT].total_seconds, 5),
+        )
 
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
