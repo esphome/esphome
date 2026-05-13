@@ -64,15 +64,15 @@ def mock_copy_file_if_changed() -> Generator[Mock, None, None]:
 
 @pytest.fixture
 def mock_run_platformio_cli() -> Generator[Mock, None, None]:
-    """Mock run_platformio_cli for platformio_api."""
-    with patch("esphome.platformio_api.run_platformio_cli") as mock:
+    """Mock run_platformio_cli for platformio toolchain."""
+    with patch("esphome.platformio.toolchain.run_platformio_cli") as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_run_platformio_cli_run() -> Generator[Mock, None, None]:
-    """Mock run_platformio_cli_run for platformio_api."""
-    with patch("esphome.platformio_api.run_platformio_cli_run") as mock:
+    """Mock run_platformio_cli_run for platformio toolchain."""
+    with patch("esphome.platformio.toolchain.run_platformio_cli_run") as mock:
         yield mock
 
 
@@ -92,8 +92,8 @@ def mock_esp8266_decode_pc() -> Generator[Mock, None, None]:
 
 @pytest.fixture
 def mock_run_external_process() -> Generator[Mock, None, None]:
-    """Mock run_external_process for platformio_api."""
-    with patch("esphome.platformio_api.run_external_process") as mock:
+    """Mock run_external_process for platformio toolchain."""
+    with patch("esphome.platformio.toolchain.run_external_process") as mock:
         yield mock
 
 
@@ -113,8 +113,8 @@ def mock_subprocess_run() -> Generator[Mock, None, None]:
 
 @pytest.fixture
 def mock_get_idedata() -> Generator[Mock, None, None]:
-    """Mock get_idedata for platformio_api."""
-    with patch("esphome.platformio_api.get_idedata") as mock:
+    """Mock get_idedata for platformio toolchain."""
+    with patch("esphome.platformio.toolchain.get_idedata") as mock:
         yield mock
 
 
