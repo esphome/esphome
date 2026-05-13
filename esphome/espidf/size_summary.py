@@ -44,32 +44,24 @@ def _parse_size(token: str) -> int:
 
 
 def _find_app_partition_size(partitions_csv: Path) -> int:
-    """Return the size of the partition the firmware lands in.
+    """Return the size of the firmware's app partition.
 
-    Prefers ``app + ota_0`` (PlatformIO's
-    ``platforms/espressif32/builder/main.py::_set_default_size`` rule);
-    accepts ``app + factory`` for non-OTA single-image layouts. Raises
-    ``ValueError`` if neither is present so callers don't silently misreport
-    the Flash budget against the wrong partition.
+    OTA-capable layouts must allocate equal-sized slots (``ota_0``,
+    ``ota_1``, ...) so any slot can become the active image; non-OTA
+    layouts use a single ``factory`` partition. Either way the first
+    ``app``-type row captures the constraint the firmware must fit
+    within. Raises ``ValueError`` if no app partition is present.
     """
     if not partitions_csv.is_file():
         raise ValueError(f"partitions.csv not found at {partitions_csv}")
-    factory_size: int | None = None
     for row in csv.reader(partitions_csv.read_text().splitlines()):
         cells = [c.strip() for c in row]
         if not cells or cells[0].startswith("#") or len(cells) < 5:
             continue
-        ptype, psubtype, psize = cells[1], cells[2], cells[4]
-        if ptype not in ("app", "0"):
-            continue
-        size = _parse_size(psize)
-        if psubtype == "ota_0":
-            return size
-        if psubtype == "factory":
-            factory_size = size
-    if factory_size is not None:
-        return factory_size
-    raise ValueError(f"No app+ota_0 or app+factory partition in {partitions_csv}")
+        ptype, psize = cells[1], cells[4]
+        if ptype in ("app", "0"):
+            return _parse_size(psize)
+    raise ValueError(f"No app partition in {partitions_csv}")
 
 
 def _format_bar(used: int, total: int) -> str:
