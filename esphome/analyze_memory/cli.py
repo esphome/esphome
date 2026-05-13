@@ -5,8 +5,10 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 import heapq
+import json
 from operator import itemgetter
 from pathlib import Path
+import re
 import sys
 from typing import TYPE_CHECKING
 
@@ -721,6 +723,48 @@ def analyze_elf(
     return analyzer.generate_report(detailed)
 
 
+_INI_AUTO_GENERATE_BEGIN = "; ========== AUTO GENERATED CODE BEGIN ==========="
+_INI_AUTO_GENERATE_END = "; =========== AUTO GENERATED CODE END ============"
+
+
+def _read_generated_platformio_env_name(build_path: Path) -> str | None:
+    """Return the generated PlatformIO env name for a build directory."""
+    platformio_ini = build_path / "platformio.ini"
+    if not platformio_ini.is_file():
+        return None
+
+    text = platformio_ini.read_text(encoding="utf-8")
+    begin = text.find(_INI_AUTO_GENERATE_BEGIN)
+    end = text.find(_INI_AUTO_GENERATE_END)
+    if begin != -1 and end != -1 and begin < end:
+        text = text[begin + len(_INI_AUTO_GENERATE_BEGIN) : end]
+
+    env_match = re.search(r"^\[env:([^\]]+)\]", text, flags=re.MULTILINE)
+    return env_match.group(1) if env_match else None
+
+
+def _find_firmware_elf(build_path: Path) -> Path | None:
+    """Find firmware.elf in native and generated PlatformIO build layouts."""
+    candidates = [build_path / "firmware.elf"]
+
+    pioenvs_path = build_path / ".pioenvs"
+    if pioenvs_path.is_dir():
+        if env_name := _read_generated_platformio_env_name(build_path):
+            candidates.append(pioenvs_path / env_name / "firmware.elf")
+        candidates.extend(
+            sorted(
+                pioenvs_path.glob("*/firmware.elf"),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+        )
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def main():
     """CLI entrypoint for memory analysis."""
     if len(sys.argv) < 2:
@@ -735,9 +779,6 @@ def main():
         sys.exit(1)
 
     build_dir = sys.argv[1]
-
-    # Load build directory
-    import json
 
     from esphome.platformio.toolchain import IDEData
 
@@ -759,17 +800,8 @@ def main():
         print(f"Error: {build_path} is not a directory", file=sys.stderr)
         sys.exit(1)
 
-    # Find firmware.elf
-    elf_file = None
-    for elf_candidate in [
-        build_path / "firmware.elf",
-        build_path / ".pioenvs" / build_path.name / "firmware.elf",
-    ]:
-        if elf_candidate.exists():
-            elf_file = str(elf_candidate)
-            break
-
-    if not elf_file:
+    elf_file = _find_firmware_elf(build_path)
+    if elf_file is None:
         print(f"Error: firmware.elf not found in {build_dir}", file=sys.stderr)
         sys.exit(1)
 
@@ -799,7 +831,7 @@ def main():
             file=sys.stderr,
         )
 
-    analyzer = MemoryAnalyzerCLI(elf_file, idedata=idedata)
+    analyzer = MemoryAnalyzerCLI(str(elf_file), idedata=idedata)
     analyzer.analyze()
     report = analyzer.generate_report()
     print(report)

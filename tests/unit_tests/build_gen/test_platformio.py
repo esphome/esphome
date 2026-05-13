@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.build_gen import platformio
+from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 from esphome.core import CORE
 
 
@@ -48,6 +49,21 @@ framework = arduino
     assert content in file_content
     assert platformio.INI_AUTO_GENERATE_BEGIN in file_content
     assert platformio.INI_AUTO_GENERATE_END in file_content
+
+
+def test_get_ini_content_uses_shared_libdeps_env_name(setup_core: Path) -> None:
+    """Embedded builds use the stable PlatformIO env that owns shared libdeps."""
+    CORE.name = "kitchen-display"
+    CORE.build_path = str(setup_core / "build" / "kitchen-display")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    content = platformio.get_ini_content()
+
+    assert "[env:kitchen-display]" not in content
+    assert "[env:rp2040-arduino-" in content
 
 
 def test_write_ini_updates_existing_file(
@@ -185,4 +201,37 @@ def test_write_ini_calls_update_storage_json(
     content = "[env:test]\nplatform = esp32"
 
     platformio.write_ini(content)
+    mock_update_storage_json.assert_called_once()
+
+
+def test_write_ini_updates_storage_after_env_name_is_written(
+    tmp_path: Path,
+    mock_update_storage_json: MagicMock,
+    mock_write_file_if_changed: MagicMock,
+) -> None:
+    """Ensure StorageJSON sees the new generated env."""
+    CORE.build_path = str(tmp_path)
+    ini_file = tmp_path / "platformio.ini"
+    ini_file.write_text(
+        f"{platformio.INI_BASE_FORMAT[0]}"
+        f"{platformio.INI_AUTO_GENERATE_BEGIN}\n"
+        "[env:old-env]\n"
+        "platform = old\n"
+        f"{platformio.INI_AUTO_GENERATE_END}"
+        f"{platformio.INI_BASE_FORMAT[1]}"
+    )
+
+    def write_side_effect(path: Path, contents: str) -> bool:
+        path.write_text(contents)
+        return True
+
+    def update_side_effect() -> None:
+        assert "[env:new-env]" in ini_file.read_text()
+
+    mock_write_file_if_changed.side_effect = write_side_effect
+    mock_update_storage_json.side_effect = update_side_effect
+
+    platformio.write_ini("[env:new-env]\nplatform = new\n")
+
+    mock_write_file_if_changed.assert_called_once()
     mock_update_storage_json.assert_called_once()

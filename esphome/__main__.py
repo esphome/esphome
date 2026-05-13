@@ -814,8 +814,19 @@ def _check_and_emit_build_info() -> None:
 
 def _get_configured_xtal_freq() -> int | None:
     """Read the configured crystal frequency from the sdkconfig file."""
-    sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
-    if not sdkconfig_path.is_file():
+    sdkconfig_paths = [CORE.relative_build_path(f"sdkconfig.{CORE.name}")]
+    if not CORE.using_toolchain_esp_idf:
+        from esphome.platformio.toolchain import platformio_env_name
+
+        sdkconfig_paths.insert(
+            0,
+            CORE.relative_build_path(
+                f"sdkconfig.{platformio_env_name(prefer_existing=True)}"
+            ),
+        )
+
+    sdkconfig_path = next((path for path in sdkconfig_paths if path.is_file()), None)
+    if sdkconfig_path is None:
         return None
     with suppress(OSError, ValueError):
         content = sdkconfig_path.read_text()

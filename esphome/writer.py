@@ -479,15 +479,19 @@ def write_cpp(code_s):
 
 
 def clean_cmake_cache():
+    from esphome.platformio.toolchain import platformio_env_name
+
     pioenvs = CORE.relative_pioenvs_path()
     if pioenvs.is_dir():
-        pioenvs_cmake_path = pioenvs / CORE.name / "CMakeCache.txt"
+        pioenvs_cmake_path = pioenvs / platformio_env_name() / "CMakeCache.txt"
         if pioenvs_cmake_path.is_file():
             _LOGGER.info("Deleting %s", pioenvs_cmake_path)
             pioenvs_cmake_path.unlink()
 
 
 def clean_build(clear_pio_cache: bool = True):
+    from esphome.platformio.toolchain import _platformio_libdeps_dir
+
     # Allow skipping cache cleaning for integration tests
     if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
         _LOGGER.warning("Skipping build cleaning (ESPHOME_SKIP_CLEAN_BUILD set)")
@@ -497,14 +501,11 @@ def clean_build(clear_pio_cache: bool = True):
     if pioenvs.is_dir():
         _LOGGER.info("Deleting %s", pioenvs)
         rmtree(pioenvs)
-    piolibdeps = CORE.relative_piolibdeps_path()
-    if piolibdeps.is_dir():
-        _LOGGER.info("Deleting %s", piolibdeps)
-        rmtree(piolibdeps)
-    shared_piolibdeps = CORE.relative_internal_path("platformio", "libdeps")
-    if shared_piolibdeps.is_dir():
-        _LOGGER.info("Deleting %s", shared_piolibdeps)
-        rmtree(shared_piolibdeps)
+    piolibdeps_dirs = {CORE.relative_piolibdeps_path(), _platformio_libdeps_dir(CORE)}
+    for piolibdeps in piolibdeps_dirs:
+        if piolibdeps.is_dir():
+            _LOGGER.info("Deleting %s", piolibdeps)
+            rmtree(piolibdeps)
     dependencies_lock = CORE.relative_build_path("dependencies.lock")
     if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)

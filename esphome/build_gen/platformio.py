@@ -1,6 +1,7 @@
 from esphome.const import __version__
 from esphome.core import CORE
 from esphome.helpers import mkdir_p, read_file, write_file_if_changed
+from esphome.platformio.toolchain import platformio_env_name
 from esphome.writer import find_begin_end, update_storage_json
 
 INI_AUTO_GENERATE_BEGIN = "; ========== AUTO GENERATED CODE BEGIN ==========="
@@ -51,14 +52,13 @@ def get_ini_content():
     content = "[platformio]\n"
     content += f"description = ESPHome {__version__}\n"
 
-    content += f"[env:{CORE.name}]\n"
+    content += f"[env:{platformio_env_name()}]\n"
     content += format_ini(CORE.platformio_options)
 
     return content
 
 
 def write_ini(content):
-    update_storage_json()
     path = CORE.relative_build_path("platformio.ini")
 
     if path.is_file():
@@ -71,6 +71,7 @@ def write_ini(content):
     full_file = f"{content_format[0] + INI_AUTO_GENERATE_BEGIN}\n{content}"
     full_file += INI_AUTO_GENERATE_END + content_format[1]
     write_file_if_changed(path, full_file)
+    update_storage_json()
 
 
 def write_project():

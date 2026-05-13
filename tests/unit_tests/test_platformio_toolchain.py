@@ -15,9 +15,23 @@ from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, EsphomeError, Library
 from esphome.platformio import runner, toolchain
 from esphome.util import FlashImage
+
+
+def _expected_env_fingerprint(
+    lib_deps: list[str], platformio_options: dict[str, list[str]] | None = None
+) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            {
+                "lib_deps": lib_deps,
+                "platformio_options": platformio_options or {},
+            },
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()[:16]
 
 
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
@@ -309,14 +323,8 @@ def test_run_platformio_cli_sets_environment_variables(
             in Path(os.environ["PLATFORMIO_BUILD_DIR"]).parents
             or Path(os.environ["PLATFORMIO_BUILD_DIR"]) == setup_core / "build" / "test"
         )
-        fingerprint = hashlib.sha256(json.dumps([]).encode()).hexdigest()[:16]
         assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == str(
-            setup_core
-            / ".esphome"
-            / "platformio"
-            / "libdeps"
-            / "esp8266-arduino"
-            / fingerprint
+            setup_core / ".esphome" / "platformio" / "libdeps" / "esp8266-arduino"
         )
         assert "PYTHONWARNINGS" in os.environ
 
@@ -450,27 +458,352 @@ def test_run_platformio_cli_scopes_libdeps_by_toolchain_and_dependencies(
         ],
     )
 
-    fingerprint = hashlib.sha256(
-        json.dumps(
-            [
-                "ESP32Async/ESPAsyncTCP @ 2.0.0",
-                "ESP32Async/ESPAsyncWebServer @ 3.9.6",
-            ]
-        ).encode()
-    ).hexdigest()[:16]
+    fingerprint = _expected_env_fingerprint(
+        [
+            "ESP32Async/ESPAsyncTCP @ 2.0.0",
+            "ESP32Async/ESPAsyncWebServer @ 3.9.6",
+        ]
+    )
 
     with patch.dict(os.environ, {}, clear=True):
         mock_run_external_process.return_value = 0
         toolchain.run_platformio_cli("test")
 
         assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == str(
-            setup_core
-            / ".esphome"
-            / "platformio"
-            / "libdeps"
-            / "rp2040-arduino"
-            / fingerprint
+            setup_core / ".esphome" / "platformio" / "libdeps" / "rp2040-arduino"
         )
+        assert toolchain.platformio_env_name() == f"rp2040-arduino-{fingerprint}"
+
+
+def test_platformio_env_name_includes_preserved_common_libdeps(
+    setup_core: Path,
+) -> None:
+    """Preserved user common lib_deps keep shared PlatformIO envs distinct."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = setup_core / "build" / "test"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.add_platformio_option(
+        "lib_deps",
+        [
+            "ESP32Async/ESPAsyncWebServer @ 3.9.6",
+            "${common.lib_deps}",
+            "ESP32Async/ESPAsyncTCP @ 2.0.0",
+        ],
+    )
+    CORE.relative_build_path().mkdir(parents=True)
+    CORE.relative_build_path("platformio.ini").write_text(
+        """
+[common]
+lib_deps =
+    Custom/Zeta @ 2.0.0
+    Custom/Alpha @ 1.0.0
+""",
+        encoding="utf-8",
+    )
+
+    fingerprint = _expected_env_fingerprint(
+        [
+            "Custom/Alpha @ 1.0.0",
+            "Custom/Zeta @ 2.0.0",
+            "ESP32Async/ESPAsyncTCP @ 2.0.0",
+            "ESP32Async/ESPAsyncWebServer @ 3.9.6",
+        ]
+    )
+
+    assert toolchain.platformio_env_name() == f"rp2040-arduino-{fingerprint}"
+
+
+def test_platformio_env_name_resolves_common_local_libdeps(
+    setup_core: Path,
+) -> None:
+    """Relative preserved common libdeps are fingerprinted by resolved path."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = setup_core / "build" / "test"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    local_lib = setup_core / "build" / "local_lib"
+    local_lib.mkdir(parents=True)
+    CORE.add_platformio_option("lib_deps", ["${common.lib_deps}"])
+    CORE.relative_build_path().mkdir(parents=True)
+    CORE.relative_build_path("platformio.ini").write_text(
+        """
+[common]
+lib_deps =
+    ../local_lib
+""",
+        encoding="utf-8",
+    )
+
+    fingerprint = _expected_env_fingerprint([str(local_lib.resolve())])
+
+    assert toolchain.platformio_env_name() == f"rp2040-arduino-{fingerprint}"
+
+
+def test_platformio_env_name_includes_common_libdeps_before_ini_regeneration(
+    setup_core: Path,
+) -> None:
+    """ESP32 sdkconfig generation sees the same env hash as platformio.ini."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = setup_core / "build" / "test"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.add_library(Library("ESPAsyncTCP", "2.0.0"))
+    CORE.relative_build_path().mkdir(parents=True)
+    CORE.relative_build_path("platformio.ini").write_text(
+        """
+[common]
+lib_deps =
+    Custom/Alpha @ 1.0.0
+""",
+        encoding="utf-8",
+    )
+
+    fingerprint = _expected_env_fingerprint(
+        [
+            "Custom/Alpha @ 1.0.0",
+            "ESPAsyncTCP@2.0.0",
+        ]
+    )
+
+    assert toolchain.platformio_env_name() == f"esp32-arduino-{fingerprint}"
+
+
+def test_platformio_env_name_includes_configured_and_generated_libdeps(
+    setup_core: Path,
+) -> None:
+    """User lib_deps and component-generated libraries share one final env hash."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = setup_core / "build" / "test"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.add_platformio_option("lib_deps", ["User/CustomLib @ 1.0.0"])
+    CORE.add_library(Library("ESPAsyncTCP", "2.0.0"))
+
+    fingerprint = _expected_env_fingerprint(
+        [
+            "ESPAsyncTCP@2.0.0",
+            "User/CustomLib @ 1.0.0",
+        ]
+    )
+
+    assert toolchain.platformio_env_name() == f"esp32-arduino-{fingerprint}"
+
+
+def test_run_platformio_cli_updates_managed_libdeps_between_targets(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Long-lived processes update ESPHome-managed libdeps per target."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    toolchain._managed_platformio_libdeps_dir["value"] = None
+    with patch.dict(os.environ, {}, clear=True):
+        mock_run_external_process.return_value = 0
+        CORE.build_path = str(setup_core / "build" / "esp8266")
+        CORE.data[KEY_CORE] = {
+            KEY_TARGET_PLATFORM: "esp8266",
+            KEY_TARGET_FRAMEWORK: "arduino",
+        }
+        toolchain.run_platformio_cli("test")
+        assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == str(
+            setup_core / ".esphome" / "platformio" / "libdeps" / "esp8266-arduino"
+        )
+
+        CORE.build_path = str(setup_core / "build" / "esp32")
+        CORE.data[KEY_CORE] = {
+            KEY_TARGET_PLATFORM: "esp32",
+            KEY_TARGET_FRAMEWORK: "arduino",
+        }
+        toolchain.run_platformio_cli("test")
+        assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == str(
+            setup_core / ".esphome" / "platformio" / "libdeps" / "esp32-arduino"
+        )
+
+
+def test_run_platformio_cli_preserves_user_libdeps_override(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """User-provided PLATFORMIO_LIBDEPS_DIR remains authoritative."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    toolchain._managed_platformio_libdeps_dir["value"] = None
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    with patch.dict(
+        os.environ, {"PLATFORMIO_LIBDEPS_DIR": "/custom/libdeps"}, clear=True
+    ):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test")
+
+        assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == "/custom/libdeps"
+        assert toolchain._managed_platformio_libdeps_dir["value"] is None
+
+
+def test_run_platformio_cli_preserves_late_user_libdeps_override(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Per-config environment overrides win after a previous managed compile."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    toolchain._managed_platformio_libdeps_dir["value"] = None
+    mock_run_external_process.return_value = 0
+    with patch.dict(os.environ, {}, clear=True):
+        CORE.build_path = str(setup_core / "build" / "first")
+        CORE.data[KEY_CORE] = {
+            KEY_TARGET_PLATFORM: "esp8266",
+            KEY_TARGET_FRAMEWORK: "arduino",
+        }
+        toolchain.run_platformio_cli("test")
+        managed_value = os.environ["PLATFORMIO_LIBDEPS_DIR"]
+
+        os.environ["PLATFORMIO_LIBDEPS_DIR"] = "/custom/libdeps"
+        CORE.build_path = str(setup_core / "build" / "second")
+        toolchain.run_platformio_cli("test")
+
+        assert managed_value != "/custom/libdeps"
+        assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == "/custom/libdeps"
+        assert toolchain._managed_platformio_libdeps_dir["value"] == managed_value
+
+
+def test_platformio_env_name_resolves_local_libdeps(
+    setup_core: Path,
+) -> None:
+    """Relative local libdeps are fingerprinted by resolved project path."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    local_lib = setup_core / "build" / "local_lib"
+    local_lib.mkdir(parents=True)
+    CORE.add_platformio_option("lib_deps", ["../local_lib"])
+
+    fingerprint = _expected_env_fingerprint([str(local_lib.resolve())])
+
+    assert toolchain.platformio_env_name() == f"rp2040-arduino-{fingerprint}"
+
+
+def test_platformio_env_name_includes_toolchain_options(
+    setup_core: Path,
+) -> None:
+    """Selected PlatformIO options keep resolver envs distinct."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.add_platformio_option("lib_deps", ["AsyncTCP-esphome @ 2.1.4"])
+    CORE.add_platformio_option("platform", "platformio/espressif32 @ 6.10.0")
+    CORE.add_platformio_option(
+        "platform_packages", ["framework-arduinoespressif32 @ 3.2.0"]
+    )
+    CORE.add_platformio_option("build_flags", ["-DDEVICE_SPECIFIC"])
+
+    fingerprint = _expected_env_fingerprint(
+        ["AsyncTCP-esphome @ 2.1.4"],
+        {
+            "platform": ["platformio/espressif32 @ 6.10.0"],
+            "platform_packages": ["framework-arduinoespressif32 @ 3.2.0"],
+        },
+    )
+
+    assert toolchain.platformio_env_name() == f"esp32-arduino-{fingerprint}"
+
+
+def test_platformio_env_name_reuses_existing_generated_env(
+    setup_core: Path,
+) -> None:
+    """Upload-only flows reuse the env that the previous compile generated."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.name = "living-room"
+    CORE.build_path = setup_core / "build" / "living-room"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    platformio_ini = CORE.relative_build_path("platformio.ini")
+    platformio_ini.parent.mkdir(parents=True)
+    platformio_ini.write_text(
+        """
+[platformio]
+description = ESPHome test
+
+[env:user-custom]
+platform = custom
+
+; ========== AUTO GENERATED CODE BEGIN ===========
+
+[env:esp8266-arduino-compiled1234]
+lib_deps =
+    ESP8266WiFi
+; =========== AUTO GENERATED CODE END ============
+""",
+        encoding="utf-8",
+    )
+
+    assert (
+        toolchain.platformio_env_name(prefer_existing=True)
+        == "esp8266-arduino-compiled1234"
+    )
+    assert toolchain.platformio_env_name().startswith("esp8266-arduino-")
+
+
+def test_platformio_env_name_reuses_existing_env_with_user_libdeps(
+    setup_core: Path,
+) -> None:
+    """Upload-only flows should not recompute a partial libdeps fingerprint."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.name = "living-room"
+    CORE.build_path = setup_core / "build" / "living-room"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.add_platformio_option("lib_deps", ["User/CustomLib @ 1.0.0"])
+    platformio_ini = CORE.relative_build_path("platformio.ini")
+    platformio_ini.parent.mkdir(parents=True)
+    platformio_ini.write_text(
+        """
+[platformio]
+description = ESPHome test
+
+; ========== AUTO GENERATED CODE BEGIN ===========
+
+[env:esp8266-arduino-compiled1234]
+lib_deps =
+    User/CustomLib @ 1.0.0
+    Component/Generated @ 2.0.0
+; =========== AUTO GENERATED CODE END ============
+""",
+        encoding="utf-8",
+    )
+
+    assert (
+        toolchain.platformio_env_name(prefer_existing=True)
+        == "esp8266-arduino-compiled1234"
+    )
 
 
 @pytest.mark.parametrize(

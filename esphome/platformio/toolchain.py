@@ -1,3 +1,4 @@
+import configparser
 import hashlib
 import json
 import logging
@@ -19,6 +20,18 @@ from esphome.core import CORE, EsphomeError
 from esphome.util import FlashImage, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
+
+_INI_AUTO_GENERATE_BEGIN = "; ========== AUTO GENERATED CODE BEGIN ==========="
+_INI_AUTO_GENERATE_END = "; =========== AUTO GENERATED CODE END ============"
+_PLATFORMIO_ENV_FINGERPRINT_OPTIONS = {
+    "board",
+    "framework",
+    "lib_compat_mode",
+    "lib_ldf_mode",
+    "platform",
+    "platform_packages",
+}
+_managed_platformio_libdeps_dir = {"value": None}
 
 
 def _strip_win_long_path_prefix(path: str) -> str:
@@ -52,9 +65,9 @@ def _strip_win_long_path_prefix(path: str) -> str:
     return path
 
 
-def _platformio_toolchain_cache_key() -> str:
+def _platformio_toolchain_cache_key(core=CORE) -> str:
     """Return the stable key used for toolchain-scoped PlatformIO state."""
-    core_data = CORE.data.get(KEY_CORE, {})
+    core_data = core.data.get(KEY_CORE, {})
     platform = core_data.get(KEY_TARGET_PLATFORM) or "unknown"
     framework = core_data.get(KEY_TARGET_FRAMEWORK) or "unknown"
     return re.sub(r"[^a-zA-Z0-9_.-]", "_", f"{platform}-{framework}")
@@ -65,31 +78,139 @@ def _normalize_platformio_values(value: str | list[str] | None) -> list[str]:
     if value is None:
         return []
     values = [value] if isinstance(value, str) else value
-    return sorted({item for item in values if item and item != "${common.lib_deps}"})
+    return sorted({item for item in values if item})
 
 
-def _platformio_libdeps_dir() -> Path:
-    """Return a libdeps path shared by equivalent embedded PlatformIO configs."""
+def _read_common_platformio_lib_deps() -> list[str]:
+    """Return preserved user lib_deps from the existing platformio.ini common section."""
+    platformio_ini = CORE.relative_build_path("platformio.ini")
+    if not platformio_ini.is_file():
+        return []
+
+    config = configparser.RawConfigParser(strict=False)
+    try:
+        config.read(platformio_ini, encoding="utf-8")
+    except configparser.Error:
+        return []
+
+    if not config.has_option("common", "lib_deps"):
+        return []
+
+    return _normalize_platformio_values(config.get("common", "lib_deps").splitlines())
+
+
+def _platformio_lib_dep_fingerprint_value(lib_dep: str, project_dir: Path) -> str:
+    """Return a stable fingerprint value for one PlatformIO library dependency."""
+    path = Path(lib_dep).expanduser()
+    if path.is_absolute() or lib_dep.startswith((".", "~")):
+        resolved = path if path.is_absolute() else project_dir / path
+        return str(resolved.resolve())
+    return lib_dep
+
+
+def _platformio_libdeps_fingerprint_values() -> list[str]:
+    """Return dependency values with project-local paths resolved for cache safety."""
+    generated_lib_deps = [x.as_lib_dep for x in CORE.platformio_libraries.values()] + [
+        "${common.lib_deps}"
+    ]
+    configured_lib_deps = CORE.platformio_options.get("lib_deps")
+    if isinstance(configured_lib_deps, list):
+        lib_deps = _normalize_platformio_values(
+            configured_lib_deps + generated_lib_deps
+        )
+    else:
+        lib_deps = _normalize_platformio_values(generated_lib_deps)
+
+    project_dir = Path(CORE.build_path)
+    values = []
+    for lib_dep in lib_deps:
+        if lib_dep == "${common.lib_deps}":
+            values.extend(
+                _platformio_lib_dep_fingerprint_value(common_lib_dep, project_dir)
+                for common_lib_dep in _read_common_platformio_lib_deps()
+            )
+            continue
+
+        values.append(_platformio_lib_dep_fingerprint_value(lib_dep, project_dir))
+    return values
+
+
+def _platformio_env_fingerprint_values() -> dict[str, object]:
+    """Return values that must stay compatible inside one PlatformIO env."""
+    platformio_options = {}
+    for key, value in sorted(CORE.platformio_options.items()):
+        if key == "lib_deps":
+            continue
+        if key in _PLATFORMIO_ENV_FINGERPRINT_OPTIONS or key.startswith("board_build."):
+            platformio_options[key] = _normalize_platformio_values(value)
+
+    return {
+        "lib_deps": _platformio_libdeps_fingerprint_values(),
+        "platformio_options": platformio_options,
+    }
+
+
+def _read_generated_platformio_env_name() -> str | None:
+    """Return the env name from an existing generated platformio.ini."""
+    platformio_ini = CORE.relative_build_path("platformio.ini")
+    if not platformio_ini.is_file():
+        return None
+
+    text = platformio_ini.read_text(encoding="utf-8")
+    begin = text.find(_INI_AUTO_GENERATE_BEGIN)
+    end = text.find(_INI_AUTO_GENERATE_END)
+    if begin != -1 and end != -1 and begin < end:
+        text = text[begin + len(_INI_AUTO_GENERATE_BEGIN) : end]
+
+    env_match = re.search(
+        r"^\[env:([^\]]+)\]",
+        text,
+        flags=re.MULTILINE,
+    )
+    return env_match.group(1) if env_match else None
+
+
+def platformio_env_name(*, prefer_existing: bool = False) -> str:
+    """Return the generated PlatformIO env name for this build."""
     target_platform = CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM)
     if target_platform in (PLATFORM_HOST, PLATFORM_NRF52):
-        return CORE.relative_piolibdeps_path()
+        return CORE.name
 
-    lib_deps = _normalize_platformio_values(CORE.platformio_options.get("lib_deps"))
-    if not lib_deps:
-        lib_deps = sorted(x.as_lib_dep for x in CORE.platformio_libraries.values())
+    if prefer_existing and (env_name := _read_generated_platformio_env_name()):
+        return env_name
 
-    fingerprint = hashlib.sha256(json.dumps(lib_deps).encode()).hexdigest()[:16]
-    return CORE.relative_internal_path(
-        "platformio", "libdeps", _platformio_toolchain_cache_key(), fingerprint
+    fingerprint = hashlib.sha256(
+        json.dumps(_platformio_env_fingerprint_values(), sort_keys=True).encode()
+    ).hexdigest()[:16]
+    return f"{_platformio_toolchain_cache_key()}-{fingerprint}"
+
+
+def _platformio_libdeps_dir(core=CORE) -> Path:
+    """Return a libdeps path shared by equivalent embedded PlatformIO configs."""
+    target_platform = core.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM)
+    if target_platform in (PLATFORM_HOST, PLATFORM_NRF52):
+        return core.relative_piolibdeps_path()
+
+    return core.relative_internal_path(
+        "platformio", "libdeps", _platformio_toolchain_cache_key(core)
     )
+
+
+def _set_platformio_libdeps_dir() -> None:
+    """Set ESPHome-managed libdeps dir while preserving user overrides."""
+    libdeps_dir = str(_platformio_libdeps_dir().absolute())
+    current = os.environ.get("PLATFORMIO_LIBDEPS_DIR")
+    if current is not None and current != _managed_platformio_libdeps_dir["value"]:
+        return
+
+    os.environ["PLATFORMIO_LIBDEPS_DIR"] = libdeps_dir
+    _managed_platformio_libdeps_dir["value"] = libdeps_dir
 
 
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
-    os.environ.setdefault(
-        "PLATFORMIO_LIBDEPS_DIR", str(_platformio_libdeps_dir().absolute())
-    )
+    _set_platformio_libdeps_dir()
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)

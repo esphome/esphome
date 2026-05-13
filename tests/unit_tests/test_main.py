@@ -164,6 +164,19 @@ def setup_core(
         CORE.build_path = str(tmp_path / ".esphome" / "build" / name)
 
 
+def expected_platformio_firmware_path(tmp_path: Path, name: str = "test") -> Path:
+    """Return the firmware path for the generated PlatformIO environment."""
+    return (
+        tmp_path
+        / ".esphome"
+        / "build"
+        / name
+        / ".pioenvs"
+        / toolchain.platformio_env_name()
+        / "firmware.bin"
+    )
+
+
 @pytest.fixture
 def mock_no_serial_ports() -> Generator[Mock]:
     """Mock get_serial_ports to return no ports."""
@@ -1616,9 +1629,7 @@ def test_upload_program_ota_success(
 
     assert exit_code == 0
     assert host == "192.168.1.100"
-    expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
-    )
+    expected_firmware = expected_platformio_firmware_path(tmp_path)
     mock_run_ota.assert_called_once_with(
         ["192.168.1.100"], 3232, "secret", expected_firmware, OTA_TYPE_UPDATE_APP
     )
@@ -2117,9 +2128,7 @@ def test_upload_program_web_server_only_auto_dispatches(
 
     assert exit_code == 0
     assert host == "192.168.1.100"
-    expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
-    )
+    expected_firmware = expected_platformio_firmware_path(tmp_path)
     mock_run_web_server_ota.assert_called_once_with(
         ["192.168.1.100"], 80, "admin", "pw", expected_firmware
     )
@@ -2147,9 +2156,7 @@ def test_upload_program_web_server_no_auth(
 
     assert exit_code == 0
     assert host == "192.168.1.100"
-    expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
-    )
+    expected_firmware = expected_platformio_firmware_path(tmp_path)
     mock_run_web_server_ota.assert_called_once_with(
         ["192.168.1.100"], 8080, None, None, expected_firmware
     )
@@ -2376,9 +2383,7 @@ def test_upload_program_ota_with_mqtt_resolution(
     assert exit_code == 0
     assert host == "192.168.1.100"
     mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
-    expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
-    )
+    expected_firmware = expected_platformio_firmware_path(tmp_path)
     mock_run_ota.assert_called_once_with(
         ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
     )
@@ -2424,9 +2429,7 @@ def test_upload_program_ota_with_mqtt_empty_broker(
     # Verify MQTT was attempted but failed gracefully
     mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
     # Verify we fell back to the IP address
-    expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
-    )
+    expected_firmware = expected_platformio_firmware_path(tmp_path)
     mock_run_ota.assert_called_once_with(
         ["192.168.1.50"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
     )
@@ -4389,9 +4392,7 @@ def test_upload_program_ota_static_ip_with_mqttip(
     mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
 
     # Verify espota2.run_ota was called with both IPs
-    expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
-    )
+    expected_firmware = expected_platformio_firmware_path(tmp_path)
     mock_run_ota.assert_called_once_with(
         ["192.168.1.100", "192.168.2.50"],
         3232,
@@ -4436,9 +4437,7 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
     mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
 
     # Verify espota2.run_ota was called with all unique IPs
-    expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
-    )
+    expected_firmware = expected_platformio_firmware_path(tmp_path)
     mock_run_ota.assert_called_once_with(
         ["192.168.2.50", "192.168.2.51", "192.168.1.100"],
         3232,
@@ -4605,9 +4604,7 @@ def test_upload_program_ota_mqtt_timeout_fallback(
     mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
 
     # Verify espota2.run_ota was called with only the static IP (MQTT failed)
-    expected_firmware = (
-        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
-    )
+    expected_firmware = expected_platformio_firmware_path(tmp_path)
     mock_run_ota.assert_called_once_with(
         ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
     )
@@ -4927,7 +4924,7 @@ def _setup_build_info_test(
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
 
     build_path = tmp_path / ".esphome" / "build" / "test_device"
-    pioenvs_path = build_path / ".pioenvs" / "test_device"
+    pioenvs_path = build_path / ".pioenvs" / toolchain.platformio_env_name()
     pioenvs_path.mkdir(parents=True, exist_ok=True)
 
     build_info_path = build_path / "build_info.json"
@@ -5745,6 +5742,29 @@ def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
     assert _get_configured_xtal_freq() == 26
 
 
+def test_get_configured_xtal_freq_reads_generated_platformio_env(
+    tmp_path: Path,
+) -> None:
+    """Generated PlatformIO ESP32 sdkconfig follows the env name."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test-device")
+
+    with patch(
+        "esphome.platformio.toolchain.platformio_env_name",
+        return_value="esp32-arduino-abc123",
+    ):
+        sdkconfig = (
+            tmp_path
+            / ".esphome"
+            / "build"
+            / "test-device"
+            / "sdkconfig.esp32-arduino-abc123"
+        )
+        sdkconfig.parent.mkdir(parents=True)
+        sdkconfig.write_text("CONFIG_XTAL_FREQ=26\n")
+
+        assert _get_configured_xtal_freq() == 26
+
+
 def test_get_configured_xtal_freq_default_40(tmp_path: Path) -> None:
     """Test reading default 40MHz XTAL_FREQ from sdkconfig."""
     CORE.name = "test-device"
@@ -5768,6 +5788,44 @@ def test_get_configured_xtal_freq_no_xtal_line(tmp_path: Path) -> None:
     sdkconfig = tmp_path / "sdkconfig.test-device"
     sdkconfig.write_text("CONFIG_OTHER=123\n")
     assert _get_configured_xtal_freq() is None
+
+
+def test_esp32_write_sdkconfig_uses_generated_platformio_env(
+    tmp_path: Path,
+) -> None:
+    """ESP32 PlatformIO sdkconfig must match the generated $PIOENV."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test-device")
+    CORE.data[KEY_ESP32] = {esp32.KEY_SDKCONFIG_OPTIONS: {"CONFIG_TEST_VALUE": True}}
+
+    with (
+        patch(
+            "esphome.platformio.toolchain.platformio_env_name",
+            return_value="esp32-arduino-abc123",
+        ),
+        patch("esphome.components.esp32.clean_build") as mock_clean_build,
+    ):
+        esp32._write_sdkconfig()
+
+    sdkconfig = (
+        tmp_path
+        / ".esphome"
+        / "build"
+        / "test-device"
+        / "sdkconfig.esp32-arduino-abc123"
+    )
+    internal = (
+        tmp_path
+        / ".esphome"
+        / "build"
+        / "test-device"
+        / "sdkconfig.esp32-arduino-abc123.esphomeinternal"
+    )
+    assert sdkconfig.read_text() == "CONFIG_TEST_VALUE=y\n"
+    assert internal.read_text() == "CONFIG_TEST_VALUE=y\n"
+    assert not (
+        tmp_path / ".esphome" / "build" / "test-device" / "sdkconfig.test-device"
+    ).exists()
+    mock_clean_build.assert_called_once_with(clear_pio_cache=False)
 
 
 def test_crystal_freq_callback_mismatch() -> None:

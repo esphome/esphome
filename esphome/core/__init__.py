@@ -787,12 +787,16 @@ class EsphomeCore:
         # Check if using ESP-IDF toolchain
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", f"{self.name}.bin")
-        if self.is_libretiny:
-            return self.relative_pioenvs_path(self.name, "firmware.uf2")
         if self.is_host:
             # Host builds produce a native ELF/Mach-O named `program`.
             return self.relative_pioenvs_path(self.name, "program")
-        return self.relative_pioenvs_path(self.name, "firmware.bin")
+
+        from esphome.platformio.toolchain import platformio_env_name
+
+        env_name = platformio_env_name(prefer_existing=True)
+        if self.is_libretiny:
+            return self.relative_pioenvs_path(env_name, "firmware.uf2")
+        return self.relative_pioenvs_path(env_name, "firmware.bin")
 
     @property
     def partition_table_bin(self) -> Path:
@@ -803,13 +807,21 @@ class EsphomeCore:
             return self.relative_build_path(
                 "build", "partition_table", "partition-table.bin"
             )
-        return self.relative_pioenvs_path(self.name, "partitions.bin")
+        from esphome.platformio.toolchain import platformio_env_name
+
+        return self.relative_pioenvs_path(
+            platformio_env_name(prefer_existing=True), "partitions.bin"
+        )
 
     @property
     def bootloader_bin(self) -> Path:
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", "bootloader", "bootloader.bin")
-        return self.relative_pioenvs_path(self.name, "bootloader.bin")
+        from esphome.platformio.toolchain import platformio_env_name
+
+        return self.relative_pioenvs_path(
+            platformio_env_name(prefer_existing=True), "bootloader.bin"
+        )
 
     @property
     def target_platform(self):

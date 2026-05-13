@@ -358,13 +358,18 @@ def test_clean_cmake_cache(
 
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
-    mock_core.name = "test_device"
 
     # Verify file exists before
     assert cmake_cache_file.exists()
 
     # Call the function
-    with caplog.at_level("INFO"):
+    with (
+        patch(
+            "esphome.platformio.toolchain.platformio_env_name",
+            return_value="test_device",
+        ),
+        caplog.at_level("INFO"),
+    ):
         clean_cmake_cache()
 
     # Verify file was removed
@@ -412,13 +417,15 @@ def test_clean_cmake_cache_no_cmake_file(
 
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
-    mock_core.name = "test_device"
 
     # Verify file doesn't exist
     assert not cmake_cache_file.exists()
 
     # Call the function - should not crash
-    clean_cmake_cache()
+    with patch(
+        "esphome.platformio.toolchain.platformio_env_name", return_value="test_device"
+    ):
+        clean_cmake_cache()
 
     # Verify file still doesn't exist
     assert not cmake_cache_file.exists()
@@ -479,9 +486,15 @@ def test_clean_build(
     assert platformio_cache_dir.exists()
 
     # Mock PlatformIO's ProjectConfig cache_dir
-    with patch(
-        "platformio.project.config.ProjectConfig.get_instance"
-    ) as mock_get_instance:
+    with (
+        patch(
+            "platformio.project.config.ProjectConfig.get_instance"
+        ) as mock_get_instance,
+        patch(
+            "esphome.platformio.toolchain._platformio_libdeps_dir",
+            return_value=shared_piolibdeps_dir,
+        ),
+    ):
         mock_config = MagicMock()
         mock_get_instance.return_value = mock_config
         mock_config.get.side_effect = lambda section, option: (
@@ -512,7 +525,6 @@ def test_clean_build(
     assert str(idf_build_dir) in caplog.text
     assert str(managed_components_dir) in caplog.text
     assert "PlatformIO cache" in caplog.text
-    mock_core.relative_internal_path.assert_called_once_with("platformio", "libdeps")
 
 
 @patch("esphome.writer.CORE")
@@ -534,7 +546,7 @@ def test_clean_build_partial_exists(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_internal_path.return_value = (
-        tmp_path / ".esphome" / "platformio" / "libdeps"
+        tmp_path / ".esphome" / "platformio" / "libdeps" / "unknown-unknown"
     )
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
@@ -574,7 +586,7 @@ def test_clean_build_nothing_exists(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_internal_path.return_value = (
-        tmp_path / ".esphome" / "platformio" / "libdeps"
+        tmp_path / ".esphome" / "platformio" / "libdeps" / "unknown-unknown"
     )
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
@@ -613,7 +625,7 @@ def test_clean_build_platformio_not_available(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_internal_path.return_value = (
-        tmp_path / ".esphome" / "platformio" / "libdeps"
+        tmp_path / ".esphome" / "platformio" / "libdeps" / "unknown-unknown"
     )
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
@@ -654,7 +666,7 @@ def test_clean_build_empty_cache_dir(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
     mock_core.relative_internal_path.return_value = (
-        tmp_path / ".esphome" / "platformio" / "libdeps"
+        tmp_path / ".esphome" / "platformio" / "libdeps" / "unknown-unknown"
     )
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
@@ -1385,7 +1397,7 @@ def test_clean_build_handles_readonly_files(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
     mock_core.relative_internal_path.return_value = (
-        tmp_path / ".esphome" / "platformio" / "libdeps"
+        tmp_path / ".esphome" / "platformio" / "libdeps" / "unknown-unknown"
     )
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
@@ -1451,6 +1463,9 @@ def test_clean_build_reraises_for_other_errors(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
+    mock_core.relative_internal_path.return_value = (
+        tmp_path / ".esphome" / "platformio" / "libdeps" / "unknown-unknown"
+    )
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     try:

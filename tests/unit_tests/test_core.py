@@ -592,20 +592,28 @@ class TestEsphomeCore:
         assert target.is_esp8266 is True
 
     def test_firmware_bin__default(self, target):
-        """Default platforms produce <pioenvs>/<name>/firmware.bin."""
+        """Default PlatformIO builds use the generated env artifact path."""
         target.name = "test-device"
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
-        assert target.firmware_bin == Path(
-            "foo/build/.pioenvs/test-device/firmware.bin"
-        )
+        with patch(
+            "esphome.platformio.toolchain.platformio_env_name",
+            return_value="esp32-arduino-abc123",
+        ):
+            assert target.firmware_bin == Path(
+                "foo/build/.pioenvs/esp32-arduino-abc123/firmware.bin"
+            )
 
     def test_firmware_bin__libretiny(self, target):
         """The libretiny platform produces firmware.uf2."""
         target.name = "test-device"
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "bk72xx"}
-        assert target.firmware_bin == Path(
-            "foo/build/.pioenvs/test-device/firmware.uf2"
-        )
+        with patch(
+            "esphome.platformio.toolchain.platformio_env_name",
+            return_value="bk72xx-arduino-abc123",
+        ):
+            assert target.firmware_bin == Path(
+                "foo/build/.pioenvs/bk72xx-arduino-abc123/firmware.uf2"
+            )
 
     def test_firmware_bin__host(self, target):
         """Host platform produces a native ELF/Mach-O named `program`,
@@ -890,9 +898,26 @@ class TestEsphomeCore:
         target.name = "test-device"
         target.toolchain = const.Toolchain.PLATFORMIO
 
-        assert target.bootloader_bin == Path(
-            "foo/build/.pioenvs/test-device/bootloader.bin"
-        )
+        with patch(
+            "esphome.platformio.toolchain.platformio_env_name",
+            return_value="esp32-arduino-abc123",
+        ):
+            assert target.bootloader_bin == Path(
+                "foo/build/.pioenvs/esp32-arduino-abc123/bootloader.bin"
+            )
+
+    def test_partition_table_bin__platformio(self, target):
+        """For PlatformIO builds partitions.bin lives in the env-specific .pioenvs directory."""
+        target.name = "test-device"
+        target.toolchain = const.Toolchain.PLATFORMIO
+
+        with patch(
+            "esphome.platformio.toolchain.platformio_env_name",
+            return_value="esp32-arduino-abc123",
+        ):
+            assert target.partition_table_bin == Path(
+                "foo/build/.pioenvs/esp32-arduino-abc123/partitions.bin"
+            )
 
     def test_add_library__extracts_short_name_from_path(self, target):
         """Test add_library extracts short name from library paths like owner/lib."""
