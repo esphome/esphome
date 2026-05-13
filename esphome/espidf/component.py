@@ -322,6 +322,36 @@ def _patch_component(component: IDFComponent, first_pass: bool):
         (component.path / "idf_component.yml").write_text("")
 
 
+def _apply_extra_script(component: IDFComponent) -> None:
+    """Run a PIO ``extraScript`` and fold its captured env vars into
+    ``component.data["build"]["flags"]`` so the existing -L/-l/-D
+    extraction in ``generate_cmakelists_txt`` picks them up."""
+    extra_script = component.data.get("build", {}).get("extraScript")
+    if not extra_script:
+        return
+    # Resolve and confine to the component dir so a malicious library.json
+    # can't escape (e.g. ``"extraScript": "../../etc/passwd"``).
+    library_root = component.path.resolve()
+    script_path = (component.path / extra_script).resolve()
+    if not script_path.is_relative_to(library_root) or not script_path.is_file():
+        return
+    from esphome.components.esp32 import get_esp32_variant
+    from esphome.espidf.extra_script import captured_as_build_flags, run_extra_script
+
+    idf_target = get_esp32_variant().lower().replace("-", "")
+    result = run_extra_script(
+        script_path, library_dir=component.path, idf_target=idf_target
+    )
+    extra_flags = captured_as_build_flags(result, library_dir=component.path)
+    if not extra_flags:
+        return
+    flags = component.data.setdefault("build", {}).setdefault("flags", [])
+    if isinstance(flags, str):
+        flags = [flags]
+    flags.extend(extra_flags)
+    component.data["build"]["flags"] = flags
+
+
 T = TypeVar("T")
 
 
@@ -748,13 +778,6 @@ def _check_library_data(data: dict):
     if not valid_framework:
         raise InvalidIDFComponent(f"Unsupported library frameworks: {frameworks}")
 
-    extra_script = data.get("build", {}).get("extraScript", None)
-    if extra_script:
-        _LOGGER.warning(
-            'Extra scripts are not supported. The script "%s" will not be executed.',
-            extra_script,
-        )
-
 
 def _process_dependencies(component: IDFComponent):
     """
@@ -899,8 +922,16 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
     # Apply additional patches to the library metadata
     _patch_component(component, False)
 
-    # Check if the component is usable with ESP-IDF
+    # Check if the component is usable with ESP-IDF before executing any
+    # third-party Python from the library (``_apply_extra_script`` below).
     _check_library_data(component.data)
+
+    # If the library declares a PIO ``extraScript``, run it against a
+    # fake SCons env so we can fold its captured LIBPATH/LIBS/etc into
+    # the build-flag pipeline ``generate_cmakelists_txt`` consumes
+    # below. Without this, libraries that wire per-MCU archive linking
+    # via extraScript fail to link under native ESP-IDF.
+    _apply_extra_script(component)
 
     # Handle the dependencies (convert PlatformIO library to ESP-IDF component if needed)
     _process_dependencies(component)

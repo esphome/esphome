@@ -423,7 +423,10 @@ jobs:
       - name: Run CodSpeed benchmarks
         uses: CodSpeedHQ/action@3194d9a39c4d46684cb44bf7207fc56626aad8fd # v4.15.1
         with:
-          run: ${{ steps.build.outputs.binary }}
+          run: |
+            . venv/bin/activate
+            ${{ steps.build.outputs.binary }}
+            pytest tests/benchmarks/python/ --codspeed --no-cov
           mode: simulation
 
   clang-tidy-single:
