@@ -2,7 +2,7 @@
 
 #if defined(USE_ESP8266)
 
-#include "espnow_compat.h"
+#include "espnow_types.h"
 
 #include <cstdint>
 

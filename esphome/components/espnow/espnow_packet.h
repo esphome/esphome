@@ -3,7 +3,7 @@
 #if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include "espnow_err.h"
-#include "espnow_compat.h"
+#include "espnow_types.h"
 
 #include <cstdint>
 #include <cstring>

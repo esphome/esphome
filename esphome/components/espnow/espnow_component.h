@@ -6,7 +6,7 @@
 #if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include "esphome/core/lock_free_queue.h"
-#include "espnow_compat.h"
+#include "espnow_types.h"
 #include "espnow_packet.h"
 
 #include "esphome/core/event_pool.h"
