@@ -117,10 +117,8 @@ void CC1101Component::setup() {
   }
 
   // Defer pin mode setup until after all components have completed setup()
-  // This handles the case where remote_transmitter runs after CC1101 and changes pin mode.
-  // When externally managed, do nothing — calling pin_mode() would detach the pin from
-  // the RMT peripheral (or other peripheral routing) and break TX/RX.
-  if (this->gdo0_pin_ != nullptr && !this->gdo0_managed_externally_) {
+  // This handles the case where remote_transmitter runs after CC1101 and changes pin mode
+  if (this->gdo0_pin_ != nullptr) {
     this->defer([this]() {
       this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
       if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
@@ -258,10 +256,7 @@ void CC1101Component::begin_tx() {
   // Ensure Packet Format is 3 (Async Serial)
   this->write_(Register::PKTCTRL0, 0x32);
   ESP_LOGV(TAG, "Beginning TX sequence");
-  // Skip pin direction management when another component owns the pin routing
-  // (e.g. remote_transmitter binding the GPIO to RMT) — calling pin_mode() here
-  // would detach the pin from RMT and silently break transmission.
-  if (this->gdo0_pin_ != nullptr && !this->gdo0_managed_externally_) {
+  if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->detach_interrupt();
     this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
@@ -275,8 +270,7 @@ void CC1101Component::begin_tx() {
 
 void CC1101Component::begin_rx() {
   ESP_LOGV(TAG, "Beginning RX sequence");
-  // See note in begin_tx() about pin management.
-  if (this->gdo0_pin_ != nullptr && !this->gdo0_managed_externally_) {
+  if (this->gdo0_pin_ != nullptr) {
     this->gdo0_pin_->pin_mode(gpio::FLAG_INPUT);
   }
   // Transition through IDLE to ensure FS_AUTOCAL calibration occurs
@@ -693,7 +687,7 @@ void CC1101Component::set_packet_mode(bool value) {
     this->state_.GDO0_CFG = 0x0D;
   }
   if (this->initialized_) {
-    if (this->gdo0_pin_ != nullptr && !this->gdo0_managed_externally_) {
+    if (this->gdo0_pin_ != nullptr) {
       if (value) {
         this->gdo0_pin_->attach_interrupt(&CC1101Component::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
       } else {
