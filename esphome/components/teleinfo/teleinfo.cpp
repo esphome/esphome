@@ -1,8 +1,7 @@
 #include "teleinfo.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace teleinfo {
+namespace esphome::teleinfo {
 
 static const char *const TAG = "teleinfo";
 
@@ -205,5 +204,4 @@ TeleInfo::TeleInfo(bool historical_mode) {
 }
 void TeleInfo::register_teleinfo_listener(TeleInfoListener *listener) { teleinfo_listeners_.push_back(listener); }
 
-}  // namespace teleinfo
-}  // namespace esphome
+}  // namespace esphome::teleinfo

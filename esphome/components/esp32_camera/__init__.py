@@ -399,7 +399,7 @@ async def to_code(config):
     if config[CONF_JPEG_QUALITY] != 0 and config[CONF_PIXEL_FORMAT] != "JPEG":
         cg.add_define("USE_ESP32_CAMERA_JPEG_CONVERSION")
 
-    add_idf_component(name="espressif/esp32-camera", ref="2.1.6")
+    add_idf_component(name="espressif/esp32-camera", ref="2.1.5")
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_NEW", True)
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_LEGACY", False)
 

@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace tm1651 {
+namespace esphome::tm1651 {
 
 enum TM1651Brightness : uint8_t {
   TM1651_DARKEST = 1,
@@ -97,5 +96,4 @@ template<typename... Ts> class TurnOffAction : public Action<Ts...>, public Pare
   void play(const Ts &...x) override { this->parent_->turn_off(); }
 };
 
-}  // namespace tm1651
-}  // namespace esphome
+}  // namespace esphome::tm1651

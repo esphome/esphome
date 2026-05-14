@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include <deque>
 
-namespace esphome {
-namespace ezo {
+namespace esphome::ezo {
 
 static const char *const TAG = "ezo.sensor";
 
@@ -102,5 +101,4 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   uint32_t start_time_ = 0;
 };
 
-}  // namespace ezo
-}  // namespace esphome
+}  // namespace esphome::ezo
