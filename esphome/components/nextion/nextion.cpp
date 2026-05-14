@@ -189,21 +189,23 @@ void Nextion::dump_config() {
 #ifdef USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
   ESP_LOGCONFIG(TAG, "  Skip handshake: YES");
 #else  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
+  if (this->is_setup()) {
+    ESP_LOGCONFIG(TAG,
+                  "  Device Model: %s\n"
+                  "  FW Version: %s\n"
+                  "  Serial Number: %s\n"
+                  "  Flash Size: %" PRIu32 " bytes",
+                  this->device_model_, this->firmware_version_, this->serial_number_, this->flash_size_);
+  }
   ESP_LOGCONFIG(TAG,
-                "  Device Model: %s\n"
-                "  FW Version: %s\n"
-                "  Serial Number: %s\n"
-                "  Flash Size: %" PRIu32 " bytes\n"
+#ifdef USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
+                "  Exit reparse: YES\n"
+#endif  // USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
                 "  Max queue age: %u ms\n"
                 "  Startup override: %u ms\n",
-                this->device_model_, this->firmware_version_, this->serial_number_, this->flash_size_,
-                this->max_q_age_ms_, this->startup_override_ms_);
-#ifdef USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
-  ESP_LOGCONFIG(TAG, "  Exit reparse: YES\n");
-#endif  // USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
-  ESP_LOGCONFIG(TAG,
                 "  Wake On Touch: %s\n"
                 "  Touch Timeout: %" PRIu16,
+                this->max_q_age_ms_, this->startup_override_ms_,
                 YESNO(this->connection_state_.auto_wake_on_touch_), this->touch_sleep_timeout_);
 #endif  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
 
