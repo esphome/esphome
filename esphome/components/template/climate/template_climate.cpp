@@ -27,16 +27,16 @@ void TemplateClimate::setup() {
     this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
   if (this->current_humidity_f_.has_value()) {
-    this->traits_.set_supports_current_humidity(true);
+    this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
   }
   if (this->target_humidity_f_.has_value()) {
-    this->traits_.set_supports_target_humidity(true);
+    this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY);
   }
   if (this->target_temperature_low_f_.has_value()) {
-    this->traits_.set_supports_two_point_target_temperature(true);
+    this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE);
   }
   if (this->action_f_.has_value()) {
-    this->traits_.set_supports_action(true);
+    this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   }
   if (!this->current_temperature_f_.has_value() && !this->current_humidity_f_.has_value() &&
       !this->target_temperature_f_.has_value() && !this->target_temperature_low_f_.has_value() &&
