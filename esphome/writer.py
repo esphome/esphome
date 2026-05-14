@@ -490,6 +490,14 @@ def clean_build(clear_pio_cache: bool = True):
     if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)
         dependencies_lock.unlink()
+    # Native ESP-IDF toolchain artifacts: the IDF CMake/ninja build dir
+    # and the Component Manager's fetched managed components live under
+    # the project's build path, not under .pioenvs / .piolibdeps.
+    for name in ("build", "managed_components"):
+        idf_path = CORE.relative_build_path(name)
+        if idf_path.is_dir():
+            _LOGGER.info("Deleting %s", idf_path)
+            rmtree(idf_path)
 
     if not clear_pio_cache:
         return

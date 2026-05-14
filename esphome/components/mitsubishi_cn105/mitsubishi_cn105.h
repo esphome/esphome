@@ -29,12 +29,36 @@ class MitsubishiCN105 {
     UNKNOWN,
   };
 
+  enum class VaneMode : uint8_t {
+    AUTO,
+    POSITION_1,
+    POSITION_2,
+    POSITION_3,
+    POSITION_4,
+    POSITION_5,
+    SWING,
+    UNKNOWN,
+  };
+
+  enum class WideVaneMode : uint8_t {
+    FAR_LEFT,
+    LEFT,
+    CENTER,
+    RIGHT,
+    FAR_RIGHT,
+    LEFT_RIGHT,
+    SWING,
+    UNKNOWN,
+  };
+
   struct Status {
-    bool power_on{false};
     float target_temperature{NAN};
+    float room_temperature{NAN};
+    bool power_on{false};
     Mode mode{Mode::UNKNOWN};
     FanMode fan_mode{FanMode::UNKNOWN};
-    float room_temperature{NAN};
+    VaneMode vane_mode{VaneMode::UNKNOWN};
+    WideVaneMode wide_vane_mode{WideVaneMode::UNKNOWN};
   };
 
   explicit MitsubishiCN105(uart::UARTDevice &device) : device_(device) {}
@@ -61,6 +85,8 @@ class MitsubishiCN105 {
   void set_target_temperature(float target_temperature);
   void set_mode(Mode mode);
   void set_fan_mode(FanMode fan_mode);
+  void set_vane_mode(VaneMode vane_mode);
+  void set_wide_vane_mode(WideVaneMode mode);
   void set_remote_temperature(float temperature);
   void clear_remote_temperature();
 
@@ -98,7 +124,9 @@ class MitsubishiCN105 {
     POWER = 1,
     MODE = 2,
     FAN = 3,
-    REMOTE_TEMPERATURE = 4,
+    VANE = 4,
+    WIDE_VANE = 5,
+    REMOTE_TEMPERATURE = 6,
   };
 
   struct UpdateFlags {
@@ -142,6 +170,7 @@ class MitsubishiCN105 {
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;
   bool use_temperature_encoding_b_{false};
+  bool set_wide_vane_high_bit_{false};
   FrameParser frame_parser_;
   uint8_t current_status_msg_type_{0};
 
