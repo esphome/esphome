@@ -15,7 +15,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import HexInt
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
@@ -127,11 +127,6 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add_define("USE_ESPNOW")
-
-    if CORE.is_esp8266:
-        # LockFreeQueue uses std::atomic<uint8_t>; the xtensa toolchain emulates
-        # sub-word atomics via libatomic (__atomic_fetch_add_2, __atomic_exchange_2)
-        cg.add_build_flag("-latomic")
 
     if wifi_channel := config.get(CONF_CHANNEL):
         cg.add(var.set_wifi_channel(wifi_channel))
