@@ -1,14 +1,14 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ID,
     DEVICE_CLASS_DURATION,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_HOUR,
 )
-
-from . import filter_lifetime_ns
 
 CONF_MAX_LIFETIME = "max_lifetime"
 CONF_IS_ON = "is_on"
@@ -18,13 +18,14 @@ CONF_CURRENT_SPEED_SENSOR = "current_speed_sensor"
 CONF_RUNTIME_HOURS = "runtime_hours"
 CONF_REMAINING_DAYS = "remaining_days"
 
-FilterLifetimeSensor = filter_lifetime_ns.class_(
+filter_lifetime_ns = cg.esphome_ns.namespace("filter_lifetime")
+FilterLifetime = filter_lifetime_ns.class_(
     "FilterLifetime", sensor.Sensor, cg.PollingComponent
 )
+ResetFilterAction = filter_lifetime_ns.class_("ResetFilterAction", automation.Action)
 
 
 def validate_is_on_config(config):
-    """Validate that is_on lambda and is_on_sensor are not both provided."""
     has_lambda = CONF_IS_ON in config
     has_sensor = CONF_IS_ON_SENSOR in config
     if has_lambda and has_sensor:
@@ -35,7 +36,6 @@ def validate_is_on_config(config):
 
 
 def validate_speed_config(config):
-    """Validate that current_speed lambda and current_speed_sensor are not both provided."""
     has_lambda = CONF_CURRENT_SPEED in config
     has_sensor = CONF_CURRENT_SPEED_SENSOR in config
     if has_lambda and has_sensor:
@@ -47,7 +47,7 @@ def validate_speed_config(config):
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
-        FilterLifetimeSensor,
+        FilterLifetime,
         unit_of_measurement="%",
         accuracy_decimals=2,
         icon="mdi:air-filter",
@@ -86,7 +86,6 @@ async def to_code(config):
 
     cg.add(var.set_max_lifetime(config[CONF_MAX_LIFETIME]))
 
-    # Handle is_on: either lambda or binary_sensor
     if CONF_IS_ON in config:
         is_on_template = await cg.templatable(config[CONF_IS_ON], [], bool)
         cg.add(var.set_is_on_lambda(is_on_template))
@@ -94,7 +93,6 @@ async def to_code(config):
         sens = await cg.get_variable(config[CONF_IS_ON_SENSOR])
         cg.add(var.set_is_on_sensor(sens))
 
-    # Handle current_speed: either lambda or sensor
     if CONF_CURRENT_SPEED in config:
         current_speed_template = await cg.templatable(
             config[CONF_CURRENT_SPEED], [], float
@@ -111,3 +109,18 @@ async def to_code(config):
     if remaining_days_config := config.get(CONF_REMAINING_DAYS):
         sens = await sensor.new_sensor(remaining_days_config)
         cg.add(var.set_remaining_days_sensor(sens))
+
+
+@automation.register_action(
+    "filter_lifetime.reset_filter",
+    ResetFilterAction,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(FilterLifetime),
+        }
+    ),
+    synchronous=True,
+)
+async def reset_filter_action_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, parent)

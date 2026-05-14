@@ -8,6 +8,12 @@ void FilterLifetime::reset_filter() {
   this->runtime_minutes_ = 0.0f;
   this->pref_.save(&this->runtime_minutes_);
   this->publish_state(100.0f);
+  if (this->runtime_hours_sensor_ != nullptr) {
+    this->runtime_hours_sensor_->publish_state(0.0f);
+  }
+  if (this->remaining_days_sensor_ != nullptr) {
+    this->remaining_days_sensor_->publish_state(this->max_lifetime_ * 30.4375f);
+  }
   ESP_LOGI(TAG, "Filter lifetime reset");
 }
 
