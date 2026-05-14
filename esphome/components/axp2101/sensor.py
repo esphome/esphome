@@ -22,9 +22,6 @@ CONF_BATTERY_PRESENT = "battery_present"
 CONF_BATTERY_CHARGING = "battery_charging"
 CONF_BATTERY_STATUS = "battery_status"
 
-CODEOWNERS = ["@mschnaubelt"]
-DEPENDENCIES = ["i2c"]
-
 axp2101_ns = cg.esphome_ns.namespace("axp2101")
 AXP2101Component = axp2101_ns.class_(
     "AXP2101Component", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor
