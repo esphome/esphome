@@ -68,14 +68,15 @@ jobs:
               return;
             }
 
-            // Check for angle brackets not wrapped in backticks.
-            // Astro docs MDX treats bare < as JSX component opening tags.
+            // Check for MDX syntax characters not wrapped in backticks.
+            // Astro docs MDX treats bare `<` as JSX component opening tags and
+            // bare `{` as JS expressions, so both must be escaped in changelog entries.
             const stripped = title.replace(/`[^`]*`/g, '');
-            if (/[<>]/.test(stripped)) {
+            if (/[<>{}]/.test(stripped)) {
               core.setFailed(
-                'PR title contains `<` or `>` not wrapped in backticks.\n' +
-                'Astro docs MDX interprets bare `<` as JSX components.\n' +
-                'Please wrap angle brackets with backticks, e.g.: [component] Add `<feature>` support'
+                'PR title contains `<`, `>`, `{`, or `}` not wrapped in backticks.\n' +
+                'Astro docs MDX interprets bare `<` as JSX components and bare `{` as JS expressions.\n' +
+                'Please wrap these characters with backticks, e.g.: [component] Add `<feature>` support'
               );
               return;
             }
