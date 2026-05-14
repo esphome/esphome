@@ -205,8 +205,8 @@ void Nextion::dump_config() {
                 "  Startup override: %u ms\n",
                 "  Wake On Touch: %s\n"
                 "  Touch Timeout: %" PRIu16,
-                this->max_q_age_ms_, this->startup_override_ms_,
-                YESNO(this->connection_state_.auto_wake_on_touch_), this->touch_sleep_timeout_);
+                this->max_q_age_ms_, this->startup_override_ms_, YESNO(this->connection_state_.auto_wake_on_touch_),
+                this->touch_sleep_timeout_);
 #endif  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
 
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
