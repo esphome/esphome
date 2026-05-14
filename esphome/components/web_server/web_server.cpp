@@ -611,7 +611,7 @@ static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const c
 }
 
 // Helper to get request detail parameter
-static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
+[[maybe_unused]] static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
   return request->arg(ESPHOME_F("detail")) == "all" ? DETAIL_ALL : DETAIL_STATE;
 }
 
