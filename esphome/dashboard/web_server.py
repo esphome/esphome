@@ -494,12 +494,13 @@ class EsphomeCompileHandler(EsphomeCommandWebSocket):
 
 class EsphomeQueueUpdateHandler(EsphomeCommandWebSocket):
     """Handler for the 'Queue Update' process that runs a build and on success adds to update queue."""
+
     configuration: str
 
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         self.configuration = json_message["configuration"]
         config_file = settings.rel_path(self.configuration)
-        
+
         # This triggers the standard compiler, generating logs for the UI
         return [*DASHBOARD_COMMAND, "compile", config_file]
 
@@ -507,21 +508,24 @@ class EsphomeQueueUpdateHandler(EsphomeCommandWebSocket):
         if returncode == 0:
             # Only add to the queue if the build actually succeeded
             DASHBOARD.queued_updates.add(self.configuration)
-            
+
             # Force the dashboard to persist this new state to disk
             if hasattr(DASHBOARD, "save"):
                 DASHBOARD.storage.save()
-                
-            _LOGGER.info("Build successful. %s added to queued updates.", self.configuration)
-            
+
+            _LOGGER.info(
+                "Build successful. %s added to queued updates.", self.configuration
+            )
+
             # 1. Send custom success event BEFORE the base class closes the socket
-            self.write_message({"event": "queued_success", "configuration": self.configuration})
-            
+            self.write_message(
+                {"event": "queued_success", "configuration": self.configuration}
+            )
+
             # 2. Fire the global event bus so the dashboard UI updates the badge instantly
-            DASHBOARD.bus.async_fire("queued_state_changed", {
-                "filename": self.configuration,
-                "state": True
-            })
+            DASHBOARD.bus.async_fire(
+                "queued_state_changed", {"filename": self.configuration, "state": True}
+            )
         else:
             _LOGGER.warning("Queued build failed for %s", self.configuration)
 
@@ -534,27 +538,27 @@ class EsphomeCancelQueueHandler(BaseHandler):
     def post(self) -> None:
         data = json.loads(self.request.body.decode())
         configuration = data.get("configuration")
-        
+
         if configuration in DASHBOARD.queued_updates:
             DASHBOARD.queued_updates.discard(configuration)
-            
+
             # Persist to disk
             if hasattr(DASHBOARD, "storage"):
                 DASHBOARD.storage.save()
-            
+
             # Delete the build artifacts just in case
             node_name = configuration.replace(".yaml", "").replace(".yml", "")
             build_path = Path(settings.config_dir) / ".esphome" / "build" / node_name
             if build_path.exists():
                 import shutil
+
                 shutil.rmtree(build_path, ignore_errors=True)
-                
+
             _LOGGER.info("User cancelled queued update for %s", configuration)
-            
-            DASHBOARD.bus.async_fire("queued_state_changed", {
-                "filename": configuration,
-                "state": False
-            })
+
+            DASHBOARD.bus.async_fire(
+                "queued_state_changed", {"filename": configuration, "state": False}
+            )
 
         self.set_status(204)
 
@@ -757,9 +761,7 @@ class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHand
                 DashboardEvent.IMPORTABLE_DEVICE_REMOVED,
                 self._on_importable_removed,
             ),
-            async_add_listener(
-                "queued_state_changed", self._on_queued_state_changed
-            ),
+            async_add_listener("queued_state_changed", self._on_queued_state_changed),
         ]
 
     def _on_entry_state_changed(self, event: Event) -> None:
@@ -843,10 +845,9 @@ class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHand
             if configuration and hasattr(DASHBOARD, "queued_updates"):
                 DASHBOARD.queued_updates.discard(configuration)
                 # Fire the event so the UI badge disappears immediately
-                DASHBOARD.bus.async_fire("queued_state_changed", {
-                    "filename": configuration,
-                    "state": False
-                })
+                DASHBOARD.bus.async_fire(
+                    "queued_state_changed", {"filename": configuration, "state": False}
+                )
 
     def on_close(self) -> None:
         """Handle WebSocket close."""
