@@ -1,6 +1,8 @@
 #include "servo.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+
+#include <algorithm>
 #include <cinttypes>
 
 namespace esphome::servo {
@@ -53,9 +55,7 @@ void Servo::loop() {
       uint32_t target_runtime = abs((int) ((travel_diff) * this->transition_length_ * 1.0f / 2.0f));
       uint32_t current_runtime = millis() - this->start_millis_;
       float percentage_run = current_runtime * 1.0f / target_runtime * 1.0f;
-      if (percentage_run > 1.0f) {
-        percentage_run = 1.0f;
-      }
+      percentage_run = std::min(percentage_run, 1.0f);
       new_value = this->target_value_ - (1.0f - percentage_run) * (this->target_value_ - this->source_value_);
       this->internal_write(new_value);
     } else {

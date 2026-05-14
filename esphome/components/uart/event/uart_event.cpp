@@ -14,9 +14,7 @@ void UARTEvent::loop() { this->read_data_(); }
 
 void UARTEvent::add_event_matcher(const char *event_name, const uint8_t *match_data, size_t match_data_len) {
   this->matchers_.push_back({event_name, match_data, match_data_len});
-  if (match_data_len > this->max_matcher_len_) {
-    this->max_matcher_len_ = match_data_len;
-  }
+  this->max_matcher_len_ = std::max(this->max_matcher_len_, match_data_len);
 }
 
 void UARTEvent::read_data_() {

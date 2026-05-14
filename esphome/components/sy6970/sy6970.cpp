@@ -2,6 +2,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+
 namespace esphome::sy6970 {
 
 static const char *const TAG = "sy6970";
@@ -119,14 +121,9 @@ void SY6970Component::set_input_current_limit(uint16_t milliamps) {
   if (this->is_failed())
     return;
 
-  if (milliamps < INPUT_CURRENT_MIN) {
-    milliamps = INPUT_CURRENT_MIN;
-  }
+  milliamps = std::max(milliamps, INPUT_CURRENT_MIN);
 
-  uint8_t val = (milliamps - INPUT_CURRENT_MIN) / INPUT_CURRENT_STEP;
-  if (val > 0x3F) {
-    val = 0x3F;
-  }
+  uint8_t val = std::min<uint8_t>((milliamps - INPUT_CURRENT_MIN) / INPUT_CURRENT_STEP, 0x3F);
 
   this->update_register_(SY6970_REG_INPUT_CURRENT_LIMIT, 0x3F, val);
 }
@@ -135,14 +132,9 @@ void SY6970Component::set_charge_target_voltage(uint16_t millivolts) {
   if (this->is_failed())
     return;
 
-  if (millivolts < CHG_VOLTAGE_BASE) {
-    millivolts = CHG_VOLTAGE_BASE;
-  }
+  millivolts = std::max(millivolts, CHG_VOLTAGE_BASE);
 
-  uint8_t val = (millivolts - CHG_VOLTAGE_BASE) / CHG_VOLTAGE_STEP;
-  if (val > 0x3F) {
-    val = 0x3F;
-  }
+  uint8_t val = std::min<uint8_t>((millivolts - CHG_VOLTAGE_BASE) / CHG_VOLTAGE_STEP, 0x3F);
 
   this->update_register_(SY6970_REG_CHARGE_VOLTAGE, 0xFC, val << 2);
 }
@@ -151,14 +143,9 @@ void SY6970Component::set_precharge_current(uint16_t milliamps) {
   if (this->is_failed())
     return;
 
-  if (milliamps < PRE_CHG_BASE_MA) {
-    milliamps = PRE_CHG_BASE_MA;
-  }
+  milliamps = std::max(milliamps, PRE_CHG_BASE_MA);
 
-  uint8_t val = (milliamps - PRE_CHG_BASE_MA) / PRE_CHG_STEP_MA;
-  if (val > 0x0F) {
-    val = 0x0F;
-  }
+  uint8_t val = std::min<uint8_t>((milliamps - PRE_CHG_BASE_MA) / PRE_CHG_STEP_MA, 0x0F);
 
   this->update_register_(SY6970_REG_PRECHARGE_CURRENT, 0xF0, val << 4);
 }
@@ -167,10 +154,7 @@ void SY6970Component::set_charge_current(uint16_t milliamps) {
   if (this->is_failed())
     return;
 
-  uint8_t val = milliamps / 64;
-  if (val > 0x7F) {
-    val = 0x7F;
-  }
+  uint8_t val = std::min<uint8_t>(milliamps / 64, 0x7F);
 
   this->update_register_(SY6970_REG_CHARGE_CURRENT, 0x7F, val);
 }

@@ -51,6 +51,8 @@
 #include "tm1651.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+
 namespace esphome::tm1651 {
 
 static const char *const TAG = "tm1651.display";
@@ -112,8 +114,7 @@ void TM1651Display::set_brightness(uint8_t new_brightness) {
 }
 
 void TM1651Display::set_level(uint8_t new_level) {
-  if (new_level > MAX_DISPLAY_LEVELS)
-    new_level = MAX_DISPLAY_LEVELS;
+  new_level = std::min(new_level, MAX_DISPLAY_LEVELS);
   this->level_ = new_level;
   if (this->display_on_) {
     this->display_level_();
@@ -142,8 +143,7 @@ void TM1651Display::turn_on() {
 // protected
 
 uint8_t TM1651Display::calculate_level_(uint8_t percentage) {
-  if (percentage > PERCENT100)
-    percentage = PERCENT100;
+  percentage = std::min(percentage, PERCENT100);
   // scale 0-100% to 0-7 display levels
   // use integer arithmetic with rounding
   uint16_t initial_scaling = (percentage * MAX_DISPLAY_LEVELS) + PERCENT50;

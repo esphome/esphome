@@ -6,6 +6,8 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/template_lambda.h"
 
+#include <algorithm>
+
 namespace esphome::template_ {
 
 // We keep this separate so we don't have to template and duplicate
@@ -53,9 +55,7 @@ template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
 
     if (hasdata) {
       size_t len = static_cast<uint8_t>(temp[0]);
-      if (len > SZ) {
-        len = SZ;
-      }
+      len = std::min<size_t>(len, SZ);
       value.assign(temp + 1, len);
     }
 

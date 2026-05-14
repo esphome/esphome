@@ -301,9 +301,7 @@ static char *format_hex_internal(char *buffer, size_t buffer_size, const uint8_t
     buffer[0] = '\0';
     return buffer;
   }
-  if (length > max_bytes) {
-    length = max_bytes;
-  }
+  length = std::min(length, max_bytes);
   for (size_t i = 0; i < length; i++) {
     size_t pos = i * stride;
     buffer[pos] = format_hex_char(data[i] >> 4, base);
@@ -356,9 +354,7 @@ char *format_hex_pretty_to(char *buffer, size_t buffer_size, const uint16_t *dat
     buffer[0] = '\0';
     return buffer;
   }
-  if (length > max_values) {
-    length = max_values;
-  }
+  length = std::min(length, max_values);
   for (size_t i = 0; i < length; i++) {
     size_t pos = i * stride;
     buffer[pos] = format_hex_pretty_char((data[i] & 0xF000) >> 12);

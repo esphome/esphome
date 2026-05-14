@@ -6,6 +6,8 @@
 #include "weikai.h"
 #include "esphome/core/helpers.h"
 
+#include <algorithm>
+
 namespace esphome::weikai {
 
 static const char *const TAG = "weikai";
@@ -450,10 +452,8 @@ size_t WeikaiChannel::xfer_fifo_to_buffer_() {
   size_t free;
   while ((to_transfer = this->rx_in_fifo_()) && (free = this->receive_buffer_.free())) {
     // while bytes in fifo and some room in the buffer we transfer
-    if (to_transfer > XFER_MAX_SIZE)
-      to_transfer = XFER_MAX_SIZE;  // we can only do so much
-    if (to_transfer > free)
-      to_transfer = free;  // we'll do the rest next time
+    to_transfer = std::min(to_transfer, XFER_MAX_SIZE);  // we can only do so much
+    to_transfer = std::min(to_transfer, free);           // we'll do the rest next time
     if (to_transfer) {
       uint8_t data[to_transfer];
       this->reg(0).read_fifo(data, to_transfer);

@@ -51,9 +51,7 @@ static const char *const TAG = "wifi";
 
 // CompactString implementation
 CompactString::CompactString(const char *str, size_t len) {
-  if (len > MAX_LENGTH) {
-    len = MAX_LENGTH;  // Clamp to max valid length
-  }
+  len = std::min<size_t>(len, MAX_LENGTH);  // Clamp to max valid length
 
   this->length_ = len;
   if (len <= INLINE_CAPACITY) {
