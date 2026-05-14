@@ -98,6 +98,88 @@ framework = arduino
     assert "platform = old" not in file_content
 
 
+def test_write_ini_migrates_legacy_default_envs(
+    tmp_path: Path, mock_update_storage_json: MagicMock
+) -> None:
+    """Test write_ini migrates preserved default_envs to the stable env name."""
+    CORE.name = "kitchen-switch"
+    CORE.build_path = str(tmp_path)
+
+    ini_file = tmp_path / "platformio.ini"
+    ini_file.write_text(
+        f"""
+[platformio]
+default_envs = kitchen-switch
+
+{platformio.INI_AUTO_GENERATE_BEGIN}
+[env:kitchen-switch]
+platform = old
+{platformio.INI_AUTO_GENERATE_END}
+"""
+    )
+
+    platformio.write_ini(f"[env:{PLATFORMIO_ENV_NAME}]\nplatform = espressif32\n")
+
+    file_content = ini_file.read_text()
+    assert f"default_envs = {PLATFORMIO_ENV_NAME}" in file_content
+    assert "default_envs = kitchen-switch" not in file_content
+
+
+def test_write_ini_migrates_multiline_legacy_default_envs(
+    tmp_path: Path, mock_update_storage_json: MagicMock
+) -> None:
+    """Test write_ini migrates multiline default_envs to the stable env name."""
+    CORE.name = "kitchen-switch"
+    CORE.build_path = str(tmp_path)
+
+    ini_file = tmp_path / "platformio.ini"
+    ini_file.write_text(
+        f"""
+[platformio]
+default_envs =
+    kitchen-switch
+    custom-debug
+
+{platformio.INI_AUTO_GENERATE_BEGIN}
+[env:kitchen-switch]
+platform = old
+{platformio.INI_AUTO_GENERATE_END}
+"""
+    )
+
+    platformio.write_ini(f"[env:{PLATFORMIO_ENV_NAME}]\nplatform = espressif32\n")
+
+    file_content = ini_file.read_text()
+    assert "default_envs =\n    esphome\n    custom-debug" in file_content
+    assert "    kitchen-switch" not in file_content
+
+
+def test_write_ini_preserves_unrelated_default_envs(
+    tmp_path: Path, mock_update_storage_json: MagicMock
+) -> None:
+    """Test write_ini leaves custom default_envs values alone."""
+    CORE.name = "kitchen-switch"
+    CORE.build_path = str(tmp_path)
+
+    ini_file = tmp_path / "platformio.ini"
+    ini_file.write_text(
+        f"""
+[platformio]
+default_envs = custom-debug
+
+{platformio.INI_AUTO_GENERATE_BEGIN}
+[env:kitchen-switch]
+platform = old
+{platformio.INI_AUTO_GENERATE_END}
+"""
+    )
+
+    platformio.write_ini(f"[env:{PLATFORMIO_ENV_NAME}]\nplatform = espressif32\n")
+
+    file_content = ini_file.read_text()
+    assert "default_envs = custom-debug" in file_content
+
+
 def test_write_ini_preserves_custom_sections(
     tmp_path: Path, mock_update_storage_json: MagicMock
 ) -> None:

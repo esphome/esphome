@@ -1,3 +1,5 @@
+import re
+
 from esphome.const import __version__
 from esphome.core import CORE
 from esphome.helpers import mkdir_p, read_file, write_file_if_changed
@@ -60,6 +62,36 @@ def get_ini_content():
     return content
 
 
+def _migrate_legacy_default_envs(text: str) -> str:
+    if CORE.pioenv_name == CORE.name:
+        return text
+
+    def replace_section(match: re.Match[str]) -> str:
+        section_header, section_body = match.groups()
+
+        def replace_default_envs(line_match: re.Match[str]) -> str:
+            prefix = line_match.group(1)
+            value = line_match.group(2) + line_match.group(3)
+            parts = re.split(r"([,\s]+)", value)
+            migrated = [
+                CORE.pioenv_name if part == CORE.name else part for part in parts
+            ]
+            return f"{prefix}{''.join(migrated)}"
+
+        section_body = re.sub(
+            r"(?m)^(\s*default_envs\s*=\s*)([^\n]*)((?:\n[ \t]+[^\n]*)*)",
+            replace_default_envs,
+            section_body,
+        )
+        return f"{section_header}{section_body}"
+
+    return re.sub(
+        r"(?ms)^(\[platformio\]\n)(.*?)(?=^\[|\Z)",
+        replace_section,
+        text,
+    )
+
+
 def write_ini(content):
     update_storage_json()
     path = CORE.relative_build_path("platformio.ini")
@@ -71,6 +103,10 @@ def write_ini(content):
         )
     else:
         content_format = INI_BASE_FORMAT
+    content_format = (
+        _migrate_legacy_default_envs(content_format[0]),
+        _migrate_legacy_default_envs(content_format[1]),
+    )
     full_file = f"{content_format[0] + INI_AUTO_GENERATE_BEGIN}\n{content}"
     full_file += INI_AUTO_GENERATE_END + content_format[1]
     write_file_if_changed(path, full_file)

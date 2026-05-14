@@ -304,6 +304,7 @@ def test_storage_json_from_esphome_core(setup_core: Path) -> None:
     mock_core.is_esp32 = True
     mock_core.build_path = "/build/my_device"
     mock_core.firmware_bin = "/build/my_device/firmware.bin"
+    mock_core.expected_firmware_bin = "/build/my_device/firmware.bin"
     mock_core.loaded_integrations = {"wifi", "api"}
     mock_core.loaded_platforms = {"sensor"}
     mock_core.config = {CONF_MDNS: {CONF_DISABLED: True}}
@@ -343,6 +344,7 @@ def test_storage_json_from_esphome_core_mdns_enabled(setup_core: Path) -> None:
     mock_core.is_esp32 = False
     mock_core.build_path = "/build"
     mock_core.firmware_bin = "/build/firmware.bin"
+    mock_core.expected_firmware_bin = "/build/firmware.bin"
     mock_core.loaded_integrations = set()
     mock_core.loaded_platforms = set()
     mock_core.config = {}  # No MDNS config means enabled

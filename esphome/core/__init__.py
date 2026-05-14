@@ -796,17 +796,39 @@ class EsphomeCore:
             return self.name
         return self.pioenv_name
 
+    def _platformio_artifact_path(
+        self, *path: str | Path, legacy_fallback: bool = True
+    ) -> Path:
+        artifact = self.relative_pioenvs_path(self.pioenv_name, *path)
+        if not legacy_fallback or self.pioenv_name == self.name or artifact.exists():
+            return artifact
+
+        legacy_artifact = self.relative_pioenvs_path(self.name, *path)
+        if legacy_artifact.exists():
+            return legacy_artifact
+        return artifact
+
+    @property
+    def expected_firmware_bin(self) -> Path:
+        if self.using_toolchain_esp_idf:
+            return self.relative_build_path("build", f"{self.name}.bin")
+        if self.is_libretiny:
+            return self._platformio_artifact_path("firmware.uf2", legacy_fallback=False)
+        if self.is_host:
+            return self.relative_pioenvs_path(self.name, "program")
+        return self._platformio_artifact_path("firmware.bin", legacy_fallback=False)
+
     @property
     def firmware_bin(self) -> Path:
         # Check if using ESP-IDF toolchain
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
-            return self.relative_pioenvs_path(self.pioenv_name, "firmware.uf2")
+            return self._platformio_artifact_path("firmware.uf2")
         if self.is_host:
             # Host builds produce a native ELF/Mach-O named `program`.
             return self.relative_pioenvs_path(self.name, "program")
-        return self.relative_pioenvs_path(self.pioenv_name, "firmware.bin")
+        return self._platformio_artifact_path("firmware.bin")
 
     @property
     def partition_table_bin(self) -> Path:
@@ -817,13 +839,13 @@ class EsphomeCore:
             return self.relative_build_path(
                 "build", "partition_table", "partition-table.bin"
             )
-        return self.relative_pioenvs_path(self.pioenv_name, "partitions.bin")
+        return self._platformio_artifact_path("partitions.bin")
 
     @property
     def bootloader_bin(self) -> Path:
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", "bootloader", "bootloader.bin")
-        return self.relative_pioenvs_path(self.pioenv_name, "bootloader.bin")
+        return self._platformio_artifact_path("bootloader.bin")
 
     @property
     def target_platform(self):

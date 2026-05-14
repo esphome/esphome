@@ -184,7 +184,7 @@ class StorageJSON:
             web_port=esph.web_port,
             target_platform=hardware,
             build_path=esph.build_path,
-            firmware_bin_path=esph.firmware_bin,
+            firmware_bin_path=esph.expected_firmware_bin,
             loaded_integrations=esph.loaded_integrations,
             loaded_platforms=esph.loaded_platforms,
             no_mdns=(

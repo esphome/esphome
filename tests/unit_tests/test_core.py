@@ -599,6 +599,33 @@ class TestEsphomeCore:
             f"foo/build/.pioenvs/{const.PLATFORMIO_ENV_NAME}/firmware.bin"
         )
 
+    def test_firmware_bin__default_uses_legacy_artifact_when_stable_missing(
+        self, target, tmp_path
+    ):
+        """Upload-only flows can reuse a pre-upgrade device-named PlatformIO env."""
+        target.name = "test-device"
+        target.build_path = tmp_path
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
+        legacy_firmware = tmp_path / ".pioenvs" / "test-device" / "firmware.bin"
+        legacy_firmware.parent.mkdir(parents=True)
+        legacy_firmware.write_bytes(b"firmware")
+
+        assert target.firmware_bin == legacy_firmware
+
+    def test_expected_firmware_bin__ignores_legacy_artifact(self, target, tmp_path):
+        """Storage sidecars should point at the next stable-env build output."""
+        target.name = "test-device"
+        target.build_path = tmp_path
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
+        legacy_firmware = tmp_path / ".pioenvs" / "test-device" / "firmware.bin"
+        legacy_firmware.parent.mkdir(parents=True)
+        legacy_firmware.write_bytes(b"firmware")
+
+        assert target.expected_firmware_bin == (
+            tmp_path / ".pioenvs" / const.PLATFORMIO_ENV_NAME / "firmware.bin"
+        )
+        assert target.firmware_bin == legacy_firmware
+
     def test_firmware_bin__libretiny(self, target):
         """The libretiny platform produces firmware.uf2."""
         target.name = "test-device"
@@ -606,6 +633,19 @@ class TestEsphomeCore:
         assert target.firmware_bin == Path(
             f"foo/build/.pioenvs/{const.PLATFORMIO_ENV_NAME}/firmware.uf2"
         )
+
+    def test_firmware_bin__libretiny_uses_legacy_artifact_when_stable_missing(
+        self, target, tmp_path
+    ):
+        """Test LibreTiny upload reuses a pre-upgrade device-named UF2 build."""
+        target.name = "test-device"
+        target.build_path = tmp_path
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "bk72xx"}
+        legacy_firmware = tmp_path / ".pioenvs" / "test-device" / "firmware.uf2"
+        legacy_firmware.parent.mkdir(parents=True)
+        legacy_firmware.write_bytes(b"firmware")
+
+        assert target.firmware_bin == legacy_firmware
 
     def test_firmware_bin__host(self, target):
         """Host platform produces a native ELF/Mach-O named `program`,
@@ -944,6 +984,32 @@ class TestEsphomeCore:
         assert target.bootloader_bin == Path(
             f"foo/build/.pioenvs/{const.PLATFORMIO_ENV_NAME}/bootloader.bin"
         )
+
+    def test_bootloader_bin__platformio_uses_legacy_artifact_when_stable_missing(
+        self, target, tmp_path
+    ):
+        """Bootloader OTA can reuse a pre-upgrade device-named PlatformIO env."""
+        target.name = "test-device"
+        target.build_path = tmp_path
+        target.toolchain = const.Toolchain.PLATFORMIO
+        legacy_bootloader = tmp_path / ".pioenvs" / "test-device" / "bootloader.bin"
+        legacy_bootloader.parent.mkdir(parents=True)
+        legacy_bootloader.write_bytes(b"bootloader")
+
+        assert target.bootloader_bin == legacy_bootloader
+
+    def test_partition_table_bin__platformio_uses_legacy_artifact_when_stable_missing(
+        self, target, tmp_path
+    ):
+        """Partition-table OTA can reuse a pre-upgrade device-named PlatformIO env."""
+        target.name = "test-device"
+        target.build_path = tmp_path
+        target.toolchain = const.Toolchain.PLATFORMIO
+        legacy_partitions = tmp_path / ".pioenvs" / "test-device" / "partitions.bin"
+        legacy_partitions.parent.mkdir(parents=True)
+        legacy_partitions.write_bytes(b"partitions")
+
+        assert target.partition_table_bin == legacy_partitions
 
     def test_add_library__extracts_short_name_from_path(self, target):
         """Test add_library extracts short name from library paths like owner/lib."""
