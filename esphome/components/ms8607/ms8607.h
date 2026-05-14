@@ -92,7 +92,7 @@ class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
     uint16_t reference_temperature;
     /// Temperature coefficient of the temperature | TEMPSENS. [C6]
     uint16_t temperature_coefficient_of_temperature;
-  } calibration_values_;
+  } calibration_values_{};
 
   /// Possible failure reasons of this component
   enum class ErrorCode;
@@ -104,7 +104,7 @@ class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
   /// Current step in the multi-step & possibly delayed setup() process
   SetupStatus setup_status_;
   uint32_t reset_interval_{5};
-  uint8_t reset_attempts_remaining_{0};
+  uint8_t reset_attempts_remaining_{3};
 };
 
 }  // namespace esphome::ms8607

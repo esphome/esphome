@@ -71,8 +71,6 @@ void MS8607Component::setup() {
   // I do not know why the device sometimes NACKs the reset command, but
   // try 3 times in case it's a transitory issue on this boot
   // Backoff: executes at now, +5ms, +30ms
-  this->reset_attempts_remaining_ = 3;
-  this->reset_interval_ = 5;
   this->try_reset_();
 }
 
