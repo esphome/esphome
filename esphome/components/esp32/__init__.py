@@ -883,8 +883,9 @@ def _validate_toolchain(value) -> Toolchain:
 
 def _check_versions(config):
     # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
+    # Default flipped to ESP_IDF on this CI test branch.
     if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
+        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.ESP_IDF)
 
     if CORE.using_toolchain_esp_idf:
         return _check_esp_idf_versions(config)
