@@ -33,8 +33,7 @@ canbus::Error Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remo
     ESP_LOGD(TAG, "send standard id=0x%03" PRIx32 " rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request),
              size);
   }
-  if (size > CAN_MAX_DATA_LENGTH)
-    size = CAN_MAX_DATA_LENGTH;
+  size = std::min<uint8_t>(size, CAN_MAX_DATA_LENGTH);
   can_message.can_data_length_code = size;
   can_message.can_id = can_id;
   can_message.use_extended_id = use_extended_id;

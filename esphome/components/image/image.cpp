@@ -3,6 +3,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
+#include <algorithm>
+
 namespace esphome::image {
 
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
@@ -17,10 +19,8 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       img_x0 += clipping.x - x;
     if (clipping.y > y)
       img_y0 += clipping.y - y;
-    if (w > clipping.x2() - x)
-      w = clipping.x2() - x;
-    if (h > clipping.y2() - y)
-      h = clipping.y2() - y;
+    w = std::min(w, clipping.x2() - x);
+    h = std::min(h, clipping.y2() - y);
   }
 
   switch (type_) {

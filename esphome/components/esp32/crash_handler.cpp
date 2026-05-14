@@ -6,6 +6,7 @@
 #include "crash_handler.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstring>
 #include <esp_attr.h>
@@ -152,21 +153,18 @@ void crash_handler_read_and_clear() {
   if (s_raw_crash_data.magic == CRASH_MAGIC && s_raw_crash_data.version == CRASH_DATA_VERSION) {
     s_crash_data_valid = true;
     // Clamp counts to prevent out-of-bounds reads from corrupt .noinit data
-    if (s_raw_crash_data.backtrace_count > MAX_BACKTRACE)
-      s_raw_crash_data.backtrace_count = MAX_BACKTRACE;
-    if (s_raw_crash_data.reg_frame_count > s_raw_crash_data.backtrace_count)
-      s_raw_crash_data.reg_frame_count = s_raw_crash_data.backtrace_count;
-    if (s_raw_crash_data.exception > 4)  // panic_exception_t max value
-      s_raw_crash_data.exception = 4;    // Default to PANIC_EXCEPTION_FAULT
+    s_raw_crash_data.backtrace_count = std::min<uint8_t>(s_raw_crash_data.backtrace_count, MAX_BACKTRACE);
+    s_raw_crash_data.reg_frame_count = std::min(s_raw_crash_data.reg_frame_count, s_raw_crash_data.backtrace_count);
+    // Clamp to panic_exception_t max value (4); default to PANIC_EXCEPTION_FAULT.
+    s_raw_crash_data.exception = std::min<uint8_t>(s_raw_crash_data.exception, 4);
     if (s_raw_crash_data.pseudo_excause > 1)
       s_raw_crash_data.pseudo_excause = 0;
     if (s_raw_crash_data.crashed_core >= SOC_CPU_CORES_NUM)
       s_raw_crash_data.crashed_core = 0;
 #if SOC_CPU_CORES_NUM > 1
-    if (s_raw_crash_data.other_backtrace_count > MAX_BACKTRACE)
-      s_raw_crash_data.other_backtrace_count = MAX_BACKTRACE;
-    if (s_raw_crash_data.other_reg_frame_count > s_raw_crash_data.other_backtrace_count)
-      s_raw_crash_data.other_reg_frame_count = s_raw_crash_data.other_backtrace_count;
+    s_raw_crash_data.other_backtrace_count = std::min<uint8_t>(s_raw_crash_data.other_backtrace_count, MAX_BACKTRACE);
+    s_raw_crash_data.other_reg_frame_count =
+        std::min(s_raw_crash_data.other_reg_frame_count, s_raw_crash_data.other_backtrace_count);
 #endif
   }
   // Don't clear magic here — crash data must survive OTA rollback reboots.

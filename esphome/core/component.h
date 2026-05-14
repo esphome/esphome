@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <functional>
@@ -126,12 +127,10 @@ struct ComponentRuntimeStats {
   void record_time(uint32_t duration_us) {
     this->period_count++;
     this->period_time_us += duration_us;
-    if (duration_us > this->period_max_time_us)
-      this->period_max_time_us = duration_us;
+    this->period_max_time_us = std::max(this->period_max_time_us, duration_us);
     this->total_count++;
     this->total_time_us += duration_us;
-    if (duration_us > this->total_max_time_us)
-      this->total_max_time_us = duration_us;
+    this->total_max_time_us = std::max(this->total_max_time_us, duration_us);
     global_recorded_us += duration_us;
   }
   void reset_period() {

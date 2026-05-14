@@ -254,8 +254,7 @@ bool DisplayMenuComponent::cursor_up_() {
 
     --this->cursor_index_;
 
-    if (this->cursor_index_ < this->top_index_)
-      this->top_index_ = this->cursor_index_;
+    this->top_index_ = std::min(this->top_index_, this->cursor_index_);
   }
 
   return changed;

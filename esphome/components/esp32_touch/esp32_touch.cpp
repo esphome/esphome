@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 namespace esphome::esp32_touch {
@@ -397,8 +398,7 @@ void ESP32TouchComponent::on_shutdown() {
 
 bool ESP32TouchComponent::create_touch_queue_() {
   size_t queue_size = this->children_.size() * 4;
-  if (queue_size < 8)
-    queue_size = 8;
+  queue_size = std::max<uint32_t>(queue_size, 8);
 
   this->touch_queue_ = xQueueCreate(queue_size, sizeof(TouchEvent));
 

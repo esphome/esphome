@@ -37,10 +37,8 @@ void HistoryData::take_sample(float data) {
     this->recent_max_ = data;
     for (int i = 0; i < this->length_; i++) {
       if (!std::isnan(this->samples_[i])) {
-        if (this->recent_max_ < this->samples_[i])
-          this->recent_max_ = this->samples_[i];
-        if (this->recent_min_ > this->samples_[i])
-          this->recent_min_ = this->samples_[i];
+        this->recent_max_ = std::max(this->recent_max_, this->samples_[i]);
+        this->recent_min_ = std::min(this->recent_min_, this->samples_[i]);
       }
     }
   }
@@ -223,12 +221,9 @@ void GraphLegend::init(Graph *g) {
     std::string txtstr = trace->get_name();
     int fw, fos, fbl, fh;
     this->font_label_->measure(txtstr.c_str(), &fw, &fos, &fbl, &fh);
-    if (fw > txtw)
-      txtw = fw;
-    if (fh > txth)
-      txth = fh;
-    if (trace->get_line_thickness() > lt)
-      lt = trace->get_line_thickness();
+    txtw = std::max(txtw, fw);
+    txth = std::max(txth, fh);
+    lt = std::max(lt, trace->get_line_thickness());
     ESP_LOGI(TAGL, "  %s %d %d", txtstr.c_str(), fw, fh);
 
     if (this->values_ != VALUE_POSITION_TYPE_NONE) {
@@ -240,10 +235,8 @@ void GraphLegend::init(Graph *g) {
         value_accuracy_to_buf(valstr, trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
       }
       this->font_value_->measure(valstr, &fw, &fos, &fbl, &fh);
-      if (fw > valw)
-        valw = fw;
-      if (fh > valh)
-        valh = fh;
+      valw = std::max(valw, fw);
+      valh = std::max(valh, fh);
       ESP_LOGI(TAGL, "    %s %d %d", valstr, fw, fh);
     }
   }

@@ -4,6 +4,7 @@
 
 #ifdef USE_RUNTIME_STATS
 
+#include <algorithm>
 #include <cstdint>
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -52,12 +53,10 @@ class RuntimeStatsCollector {
   void record_loop_active(uint32_t active_us, uint32_t before_us, uint32_t tail_us) {
     this->period_active_count_++;
     this->period_active_time_us_ += active_us;
-    if (active_us > this->period_active_max_us_)
-      this->period_active_max_us_ = active_us;
+    this->period_active_max_us_ = std::max(this->period_active_max_us_, active_us);
     this->total_active_count_++;
     this->total_active_time_us_ += active_us;
-    if (active_us > this->total_active_max_us_)
-      this->total_active_max_us_ = active_us;
+    this->total_active_max_us_ = std::max(this->total_active_max_us_, active_us);
 
     this->period_before_time_us_ += before_us;
     this->total_before_time_us_ += before_us;

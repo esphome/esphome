@@ -8,6 +8,7 @@
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <vector>
@@ -561,8 +562,7 @@ class DumpBuffer {
 
   DumpBuffer &append(size_t n, char c) {
     size_t space = CAPACITY - 1 - pos_;
-    if (n > space)
-      n = space;
+    n = std::min(n, space);
     if (n > 0) {
       memset(buf_ + pos_, c, n);
       pos_ += n;
@@ -608,8 +608,7 @@ class DumpBuffer {
  private:
   void append_impl_(const char *str, size_t len) {
     size_t space = CAPACITY - 1 - pos_;
-    if (len > space)
-      len = space;
+    len = std::min(len, space);
     if (len > 0) {
       memcpy(buf_ + pos_, str, len);
       pos_ += len;

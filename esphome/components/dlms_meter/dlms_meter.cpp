@@ -1,5 +1,6 @@
 #include "dlms_meter.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 #if defined(USE_ESP8266_FRAMEWORK_ARDUINO)
@@ -41,9 +42,7 @@ void DlmsMeterComponent::loop() {
     } else {
       // Read all available bytes in batches to reduce UART call overhead.
       // Cap reads to remaining buffer capacity.
-      if (avail > remaining) {
-        avail = remaining;
-      }
+      avail = std::min(avail, remaining);
       uint8_t buf[64];
       while (avail > 0) {
         size_t to_read = std::min(avail, sizeof(buf));

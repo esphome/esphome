@@ -9,6 +9,7 @@
 #ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
 #endif
+#include <algorithm>
 #include <cerrno>
 #include <cinttypes>
 #include <functional>
@@ -2170,9 +2171,7 @@ void APIConnection::process_batch_() {
     total_estimated_size += this->deferred_batch_[i].estimated_size;
   }
   // Clamp to MAX_BATCH_PACKET_SIZE — we won't send more than that per batch
-  if (total_estimated_size > MAX_BATCH_PACKET_SIZE) {
-    total_estimated_size = MAX_BATCH_PACKET_SIZE;
-  }
+  total_estimated_size = std::min(total_estimated_size, MAX_BATCH_PACKET_SIZE);
 
   this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size);
 

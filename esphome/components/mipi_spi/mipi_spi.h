@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <utility>
 
 #include "esphome/components/spi/spi.h"
@@ -615,18 +616,10 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
     if (x < 0 || x >= this->get_width_internal() || y < this->start_line_ || y >= this->end_line_)
       return;
     this->buffer_[(y - this->start_line_) * round_buffer(this->get_width_internal()) + x] = convert_color(color);
-    if (x < this->x_low_) {
-      this->x_low_ = x;
-    }
-    if (x > this->x_high_) {
-      this->x_high_ = x;
-    }
-    if (y < this->y_low_) {
-      this->y_low_ = y;
-    }
-    if (y > this->y_high_) {
-      this->y_high_ = y;
-    }
+    this->x_low_ = std::min(this->x_low_, x);
+    this->x_high_ = std::max(this->x_high_, x);
+    this->y_low_ = std::min(this->y_low_, y);
+    this->y_high_ = std::max(this->y_high_, y);
   }
 
   // Fills the display with a color.

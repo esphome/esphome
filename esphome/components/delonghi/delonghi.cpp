@@ -1,6 +1,8 @@
 #include "delonghi.h"
 #include "esphome/components/remote_base/remote_base.h"
 
+#include <algorithm>
+
 namespace esphome::delonghi {
 
 static const char *const TAG = "delonghi.climate";
@@ -95,9 +97,7 @@ uint8_t DelonghiClimate::temperature_() {
     default:
       temperature = (uint8_t) roundf(this->target_temperature) - DELONGHI_TEMP_OFFSET_COOL;
   }
-  if (temperature > 0x0F) {
-    temperature = 0x0F;  // clamp maximum
-  }
+  temperature = std::min<uint8_t>(temperature, 0x0F);  // clamp maximum
   return temperature;
 }
 

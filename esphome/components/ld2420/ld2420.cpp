@@ -2,6 +2,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
+#include <algorithm>
+
 /*
 Configure commands - little endian
 
@@ -365,16 +367,12 @@ void LD2420Component::auto_calibrate_sensitivity() {
       sum += this->radar_data[gate][sample_number];
 
       // Calculate max value
-      if (this->radar_data[gate][sample_number] > peak) {
-        peak = this->radar_data[gate][sample_number];
-      }
+      peak = std::max(peak, this->radar_data[gate][sample_number]);
     }
 
     // Store average and peak values
     this->gate_avg[gate] = sum / CALIBRATE_SAMPLES;
-    if (this->gate_peak[gate] < peak) {
-      this->gate_peak[gate] = peak;
-    }
+    this->gate_peak[gate] = std::max(this->gate_peak[gate], peak);
 
     uint32_t calculated_value =
         (static_cast<uint32_t>(this->gate_peak[gate]) + (move_factor * static_cast<uint32_t>(this->gate_peak[gate])));

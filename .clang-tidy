@@ -134,7 +134,6 @@ Checks: >-
   -readability-redundant-typename,
   -readability-uppercase-literal-suffix,
   -readability-use-anyofallof,
-  -readability-use-std-min-max,
   -readability-use-concise-preprocessor-directives,
 WarningsAsErrors: '*'
 FormatStyle:     google

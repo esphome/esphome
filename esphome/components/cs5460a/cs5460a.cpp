@@ -1,6 +1,8 @@
 #include "cs5460a.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+
 namespace esphome::cs5460a {
 
 static const char *const TAG = "cs5460a";
@@ -135,8 +137,7 @@ void CS5460AComponent::schedule_next_check_() {
 
   if (time_left > -500) {
     /* But not sooner than in 30ms from now */
-    if (time_left < 30)
-      time_left = 30;
+    time_left = std::max<int32_t>(time_left, 30);
   } else {
     /*
      * If the measurement is more than 0.5s overdue start worrying.  The

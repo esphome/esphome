@@ -4,6 +4,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+
 namespace esphome::ili9xxx {
 
 static const uint16_t SPI_SETUP_US = 100;         // estimated fixed overhead in microseconds for an SPI write
@@ -202,14 +204,10 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
   }
   if (updated) {
     // low and high watermark may speed up drawing from buffer
-    if (x < this->x_low_)
-      this->x_low_ = x;
-    if (y < this->y_low_)
-      this->y_low_ = y;
-    if (x > this->x_high_)
-      this->x_high_ = x;
-    if (y > this->y_high_)
-      this->y_high_ = y;
+    this->x_low_ = std::min(this->x_low_, x);
+    this->y_low_ = std::min(this->y_low_, y);
+    this->x_high_ = std::max(this->x_high_, x);
+    this->y_high_ = std::max(this->y_high_, y);
   }
 }
 

@@ -14,6 +14,8 @@
 #include "esphome/components/power_supply/power_supply.h"
 #endif
 
+#include <algorithm>
+
 namespace esphome::light {
 
 /// Convert the color information from a `LightColorValues` object to a `Color` object (does not apply brightness).
@@ -44,8 +46,7 @@ class AddressableLight : public LightOutput, public Component {
       this->shift_right(-amnt);
       return;
     }
-    if (amnt > this->size())
-      amnt = this->size();
+    amnt = std::min<int32_t>(amnt, this->size());
     this->range(0, -amnt) = this->range(amnt, this->size());
   }
   void shift_right(int32_t amnt) {
@@ -53,8 +54,7 @@ class AddressableLight : public LightOutput, public Component {
       this->shift_left(-amnt);
       return;
     }
-    if (amnt > this->size())
-      amnt = this->size();
+    amnt = std::min<int32_t>(amnt, this->size());
     this->range(amnt, this->size()) = this->range(0, -amnt);
   }
   // Indicates whether an effect that directly updates the output buffer is active to prevent overwriting

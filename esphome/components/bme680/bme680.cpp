@@ -2,6 +2,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
+
 namespace esphome::bme680 {
 
 static const char *const TAG = "bme680.sensor";
@@ -246,10 +248,7 @@ void BME680Component::update() {
 }
 
 uint8_t BME680Component::calc_heater_resistance_(uint16_t temperature) {
-  if (temperature < 200)
-    temperature = 200;
-  if (temperature > 400)
-    temperature = 400;
+  temperature = std::clamp<uint16_t>(temperature, 200, 400);
 
   const int8_t ambient_temperature = this->calibration_.ambient_temperature;
   const int8_t gh1 = this->calibration_.gh1;
