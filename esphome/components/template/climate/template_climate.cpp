@@ -1,8 +1,7 @@
 #include "template_climate.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 static const char *const TAG = "template_climate";
 
@@ -232,5 +231,4 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
   this->publish_state();
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_

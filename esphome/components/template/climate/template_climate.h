@@ -5,8 +5,7 @@
 #include "esphome/core/template_lambda.h"
 #include "esphome/components/climate/climate.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 class TemplateClimate final : public climate::Climate, public Component {
  public:
@@ -123,5 +122,4 @@ class TemplateClimate final : public climate::Climate, public Component {
   std::vector<std::string> custom_preset_strings_;
 };
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
