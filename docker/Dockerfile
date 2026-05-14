@@ -13,7 +13,7 @@ RUN git config --system --add safe.directory "*" \
     && git config --system advice.detachedHead false
 
 # Install build tools for Python packages that require compilation
-# (e.g., ruamel.yaml.clibz used by ESP-IDF's idf-component-manager).
+# (e.g., ruamel.yaml.clib used by ESP-IDF's idf-component-manager).
 # Also install libusb-1.0 at runtime so the ESP-IDF tools installer can
 # validate openocd-esp32 (it dynamically links libusb-1.0.so.0); without
 # it idf_tools.py rejects the openocd install with exit 127 and aborts
