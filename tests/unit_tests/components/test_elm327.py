@@ -72,7 +72,9 @@ def test_elm327_custom_pid_hex_string(tmp_path):
     sensors = "custom_pid:\n      name: Custom\n      pid: '0xFF'"
     yaml_text = BASE_YAML.format(sensors=sensors)
     result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for custom_pid with hex string"
+    assert result is not None, (
+        "Expected validation to succeed for custom_pid with hex string"
+    )
 
 
 def test_elm327_custom_pid_bare_hex(tmp_path):
@@ -80,7 +82,9 @@ def test_elm327_custom_pid_bare_hex(tmp_path):
     sensors = "custom_pid:\n      name: Custom\n      pid: 'FF'"
     yaml_text = BASE_YAML.format(sensors=sensors)
     result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for custom_pid with bare hex"
+    assert result is not None, (
+        "Expected validation to succeed for custom_pid with bare hex"
+    )
 
 
 def test_elm327_custom_pid_integer(tmp_path):
@@ -88,15 +92,21 @@ def test_elm327_custom_pid_integer(tmp_path):
     sensors = "custom_pid:\n      name: Custom\n      pid: 255"
     yaml_text = BASE_YAML.format(sensors=sensors)
     result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for custom_pid with integer"
+    assert result is not None, (
+        "Expected validation to succeed for custom_pid with integer"
+    )
 
 
 def test_elm327_custom_pid_response_bytes(tmp_path):
     """Test that custom_pid with response_bytes validates successfully."""
-    sensors = "custom_pid:\n      name: Custom\n      pid: '0x22'\n      response_bytes: 2"
+    sensors = (
+        "custom_pid:\n      name: Custom\n      pid: '0x22'\n      response_bytes: 2"
+    )
     yaml_text = BASE_YAML.format(sensors=sensors)
     result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for custom_pid with response_bytes"
+    assert result is not None, (
+        "Expected validation to succeed for custom_pid with response_bytes"
+    )
 
 
 def test_elm327_custom_pid_list(tmp_path):
@@ -109,7 +119,9 @@ def test_elm327_custom_pid_list(tmp_path):
         response_bytes: 2"""
     yaml_text = BASE_YAML.format(sensors=sensors)
     result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for multiple custom_pid entries"
+    assert result is not None, (
+        "Expected validation to succeed for multiple custom_pid entries"
+    )
 
 
 def test_elm327_custom_pid_only_no_standard_sensors(tmp_path):
@@ -117,7 +129,9 @@ def test_elm327_custom_pid_only_no_standard_sensors(tmp_path):
     sensors = "custom_pid:\n      name: Custom\n      pid: '0xAB'"
     yaml_text = BASE_YAML.format(sensors=sensors)
     result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed with only custom_pid configured"
+    assert result is not None, (
+        "Expected validation to succeed with only custom_pid configured"
+    )
 
 
 def test_elm327_custom_pid_mode22(tmp_path):
@@ -125,7 +139,9 @@ def test_elm327_custom_pid_mode22(tmp_path):
     sensors = "custom_pid:\n      name: SoC\n      pid: '0xB201'\n      mode: 0x22\n      response_bytes: 2"
     yaml_text = BASE_YAML.format(sensors=sensors)
     result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for mode 22 with 2-byte PID"
+    assert result is not None, (
+        "Expected validation to succeed for mode 22 with 2-byte PID"
+    )
 
 
 def test_elm327_custom_pid_invalid_pid_fails(tmp_path):
@@ -138,7 +154,9 @@ def test_elm327_custom_pid_invalid_pid_fails(tmp_path):
 
 def test_elm327_custom_pid_invalid_response_bytes_fails(tmp_path):
     """Test that response_bytes out of range fails validation."""
-    sensors = "custom_pid:\n      name: Custom\n      pid: '0xFF'\n      response_bytes: 5"
+    sensors = (
+        "custom_pid:\n      name: Custom\n      pid: '0xFF'\n      response_bytes: 5"
+    )
     yaml_text = BASE_YAML.format(sensors=sensors)
     result = _load_and_validate(tmp_path, yaml_text)
     assert result is None, "Expected validation to fail for response_bytes > 4"
@@ -146,7 +164,9 @@ def test_elm327_custom_pid_invalid_response_bytes_fails(tmp_path):
 
 def test_elm327_custom_pid_zero_response_bytes_fails(tmp_path):
     """Test that response_bytes: 0 fails validation."""
-    sensors = "custom_pid:\n      name: Custom\n      pid: '0xFF'\n      response_bytes: 0"
+    sensors = (
+        "custom_pid:\n      name: Custom\n      pid: '0xFF'\n      response_bytes: 0"
+    )
     yaml_text = BASE_YAML.format(sensors=sensors)
     result = _load_and_validate(tmp_path, yaml_text)
     assert result is None, "Expected validation to fail for response_bytes < 1"
@@ -187,4 +207,6 @@ def test_elm327_standard_and_custom_pid_together(tmp_path):
         response_bytes: 2"""
     yaml_text = BASE_YAML.format(sensors=sensors)
     result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for standard + custom_pid"
+    assert result is not None, (
+        "Expected validation to succeed for standard + custom_pid"
+    )
