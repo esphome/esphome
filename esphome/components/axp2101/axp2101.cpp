@@ -45,7 +45,7 @@ void AXP2101Component::update() {
   }
 }
 
-void AXP2101Component::get_temperature_(void) {
+void AXP2101Component::get_temperature_() {
   uint8_t tdie_h6, tdie_l8;
 
   if (this->read_register(0x3C, &tdie_h6, 1) != i2c::ERROR_OK) {
@@ -68,7 +68,7 @@ void AXP2101Component::get_temperature_(void) {
   this->status_clear_warning();
 }
 
-void AXP2101Component::get_battery_percentage_(void) {
+void AXP2101Component::get_battery_percentage_() {
   uint8_t per;
 
   if (this->read_register(0xA4, &per, 1) != i2c::ERROR_OK) {
@@ -82,7 +82,7 @@ void AXP2101Component::get_battery_percentage_(void) {
   this->status_clear_warning();
 }
 
-void AXP2101Component::get_battery_voltage_(void) {
+void AXP2101Component::get_battery_voltage_() {
   uint8_t vbat_h6, vbat_l8;
 
   if (this->read_register(0x34, &vbat_h6, 1) != i2c::ERROR_OK) {
@@ -105,7 +105,7 @@ void AXP2101Component::get_battery_voltage_(void) {
   this->status_clear_warning();
 }
 
-void AXP2101Component::get_status_(void) {
+void AXP2101Component::get_status_() {
   uint8_t pmu_status_1, pmu_status_2;
 
   if (this->read_register(0x00, &pmu_status_1, 1) != i2c::ERROR_OK) {
@@ -162,7 +162,7 @@ void AXP2101Component::get_status_(void) {
   this->status_clear_warning();
 }
 
-void AXP2101Component::shutdown(void) {
+void AXP2101Component::shutdown() {
   uint8_t reg;
 
   if (this->read_register(0x10, &reg, 1) != i2c::ERROR_OK) {
