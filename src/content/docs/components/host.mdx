@@ -33,8 +33,25 @@ host:
 
 The `esphome run yourfile.yaml` command will compile and automatically run the build file on the `host` platform.
 
+## Over-the-Air Updates
+
+The host platform supports [OTA updates](/components/ota/esphome/) via the `esphome` OTA platform on port `8082` (by
+default). When an OTA upload completes successfully, the new binary is validated (matching ELF on Linux or thin Mach-O
+on macOS, with the same architecture as the running executable), atomically renamed over the running binary's path,
+and the process replaces itself with the new image via `execv()`. The PID is preserved across the swap, so any
+supervisor (`systemd`, a wrapper script, etc.) sees the same process continuing to run.
+
+This is primarily intended for development, integration testing, and CI; the same code path that runs on real
+microcontrollers can be exercised end-to-end without flashing hardware.
+
+> [!CAUTION]
+> The OTA endpoint can overwrite the running executable. Set an
+> [OTA password](/components/ota/esphome/#configuration-variables) and either bind the host to a trusted
+> interface only or restrict port `8082` with a firewall rule.
+
 ## See Also
 
 - [SDL display](/components/display/sdl#sdl)
 - [ESPHome Core Configuration](/components/esphome/)
 - [Host Time Source](/components/time/host/)
+- [ESPHome OTA Updates](/components/ota/esphome/)
