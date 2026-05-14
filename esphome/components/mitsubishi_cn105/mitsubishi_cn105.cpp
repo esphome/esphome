@@ -50,6 +50,11 @@ template<auto Unknown, size_t N> struct LookupMap {
     }
     return false;
   }
+
+  constexpr bool is_valid(value_type value) const {
+    uint8_t raw;
+    return reverse_lookup(value, raw);
+  }
 };
 
 template<auto Unknown, class T, std::size_t N> static constexpr auto make_map(const T (&values)[N]) {
@@ -78,6 +83,33 @@ static constexpr auto PROTOCOL_FAN_MODE_MAP = make_map<MitsubishiCN105::FanMode:
     MitsubishiCN105::FanMode::SPEED_4   // 0x06
 });
 
+static constexpr auto PROTOCOL_VANE_MODE_MAP = make_map<MitsubishiCN105::VaneMode::UNKNOWN>({
+    MitsubishiCN105::VaneMode::AUTO,        // 0x00
+    MitsubishiCN105::VaneMode::POSITION_1,  // 0x01
+    MitsubishiCN105::VaneMode::POSITION_2,  // 0x02
+    MitsubishiCN105::VaneMode::POSITION_3,  // 0x03
+    MitsubishiCN105::VaneMode::POSITION_4,  // 0x04
+    MitsubishiCN105::VaneMode::POSITION_5,  // 0x05
+    MitsubishiCN105::VaneMode::UNKNOWN,     // 0x06
+    MitsubishiCN105::VaneMode::SWING        // 0x07
+});
+
+static constexpr auto PROTOCOL_WIDE_VANE_MODE_MAP = make_map<MitsubishiCN105::WideVaneMode::UNKNOWN>({
+    MitsubishiCN105::WideVaneMode::UNKNOWN,     // 0x00
+    MitsubishiCN105::WideVaneMode::FAR_LEFT,    // 0x01
+    MitsubishiCN105::WideVaneMode::LEFT,        // 0x02
+    MitsubishiCN105::WideVaneMode::CENTER,      // 0x03
+    MitsubishiCN105::WideVaneMode::RIGHT,       // 0x04
+    MitsubishiCN105::WideVaneMode::FAR_RIGHT,   // 0x05
+    MitsubishiCN105::WideVaneMode::UNKNOWN,     // 0x06
+    MitsubishiCN105::WideVaneMode::UNKNOWN,     // 0x07
+    MitsubishiCN105::WideVaneMode::LEFT_RIGHT,  // 0x08
+    MitsubishiCN105::WideVaneMode::UNKNOWN,     // 0x09
+    MitsubishiCN105::WideVaneMode::UNKNOWN,     // 0x0A
+    MitsubishiCN105::WideVaneMode::UNKNOWN,     // 0x0B
+    MitsubishiCN105::WideVaneMode::SWING        // 0x0C
+});
+
 static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
   return static_cast<uint8_t>(0xFC - std::accumulate(bytes, bytes + length, uint8_t{0}));
 }
@@ -91,7 +123,7 @@ static constexpr auto make_packet(uint8_t type, const std::array<uint8_t, Payloa
   return packet;
 }
 
-static float decode_temperature(int temp_a, int temp_b, int delta) {
+static constexpr float decode_temperature(int temp_a, int temp_b, int delta) {
   return temp_b != 0 ? (temp_b - 128) / 2.0f : delta + temp_a;
 }
 
@@ -290,9 +322,10 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     this->set_state_(State::STATUS_UPDATED);
   }
 
-  bool changed = previous.power_on != this->status_.power_on || previous.mode != this->status_.mode ||
-                 previous.fan_mode != this->status_.fan_mode ||
-                 previous.target_temperature != this->status_.target_temperature;
+  bool changed =
+      previous.power_on != this->status_.power_on || previous.mode != this->status_.mode ||
+      previous.fan_mode != this->status_.fan_mode || previous.target_temperature != this->status_.target_temperature ||
+      previous.vane_mode != this->status_.vane_mode || previous.wide_vane_mode != this->status_.wide_vane_mode;
 
   if (this->is_room_temperature_enabled()) {
     changed |= previous.room_temperature != this->status_.room_temperature;
@@ -337,6 +370,15 @@ bool MitsubishiCN105::parse_status_settings_(const uint8_t *payload, size_t len)
 
   if (!this->pending_updates_.contains(UpdateFlag::FAN)) {
     this->status_.fan_mode = PROTOCOL_FAN_MODE_MAP.lookup(payload[5]);
+  }
+
+  if (!this->pending_updates_.contains(UpdateFlag::VANE)) {
+    this->status_.vane_mode = PROTOCOL_VANE_MODE_MAP.lookup(payload[6]);
+  }
+
+  this->set_wide_vane_high_bit_ = (payload[9] & 0xF0) == 0x80;
+  if (!this->pending_updates_.contains(UpdateFlag::WIDE_VANE)) {
+    this->status_.wide_vane_mode = PROTOCOL_WIDE_VANE_MODE_MAP.lookup(payload[9] & 0x0F);
   }
 
   return true;
@@ -390,8 +432,7 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
 }
 
 void MitsubishiCN105::set_mode(Mode mode) {
-  uint8_t placeholder;
-  if (!PROTOCOL_MODE_MAP.reverse_lookup(mode, placeholder)) {
+  if (!PROTOCOL_MODE_MAP.is_valid(mode)) {
     ESP_LOGD(TAG, "Setting invalid mode: %u", static_cast<uint8_t>(mode));
     return;
   }
@@ -400,13 +441,30 @@ void MitsubishiCN105::set_mode(Mode mode) {
 }
 
 void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {
-  uint8_t placeholder;
-  if (!PROTOCOL_FAN_MODE_MAP.reverse_lookup(fan_mode, placeholder)) {
+  if (!PROTOCOL_FAN_MODE_MAP.is_valid(fan_mode)) {
     ESP_LOGD(TAG, "Setting invalid fan mode: %u", static_cast<uint8_t>(fan_mode));
     return;
   }
   this->status_.fan_mode = fan_mode;
   this->pending_updates_.set(UpdateFlag::FAN);
+}
+
+void MitsubishiCN105::set_vane_mode(VaneMode vane_mode) {
+  if (!PROTOCOL_VANE_MODE_MAP.is_valid(vane_mode)) {
+    ESP_LOGD(TAG, "Setting invalid vane mode: %u", static_cast<uint8_t>(vane_mode));
+    return;
+  }
+  this->status_.vane_mode = vane_mode;
+  this->pending_updates_.set(UpdateFlag::VANE);
+}
+
+void MitsubishiCN105::set_wide_vane_mode(WideVaneMode wide_vane_mode) {
+  if (!PROTOCOL_WIDE_VANE_MODE_MAP.is_valid(wide_vane_mode)) {
+    ESP_LOGD(TAG, "Setting invalid wide vane mode: %u", static_cast<uint8_t>(wide_vane_mode));
+    return;
+  }
+  this->status_.wide_vane_mode = wide_vane_mode;
+  this->pending_updates_.set(UpdateFlag::WIDE_VANE);
 }
 
 void MitsubishiCN105::apply_settings_() {
@@ -450,7 +508,21 @@ void MitsubishiCN105::apply_settings_() {
       payload[1] |= 0x08;
     }
 
-    this->pending_updates_.clear(UpdateFlag::POWER, UpdateFlag::TEMPERATURE, UpdateFlag::MODE, UpdateFlag::FAN);
+    if (this->pending_updates_.contains(UpdateFlag::VANE) &&
+        PROTOCOL_VANE_MODE_MAP.reverse_lookup(this->status_.vane_mode, payload[7])) {
+      payload[1] |= 0x10;
+    }
+
+    if (this->pending_updates_.contains(UpdateFlag::WIDE_VANE) &&
+        PROTOCOL_WIDE_VANE_MODE_MAP.reverse_lookup(this->status_.wide_vane_mode, payload[13])) {
+      payload[2] |= 0x01;
+      if (this->set_wide_vane_high_bit_) {
+        payload[13] |= 0x80;
+      }
+    }
+
+    this->pending_updates_.clear(UpdateFlag::POWER, UpdateFlag::TEMPERATURE, UpdateFlag::MODE, UpdateFlag::FAN,
+                                 UpdateFlag::VANE, UpdateFlag::WIDE_VANE);
   }
 
   this->send_packet_(make_packet(PACKET_TYPE_WRITE_SETTINGS_REQUEST, payload));
