@@ -495,6 +495,125 @@ def should_run_device_builder(branch: str | None = None) -> bool:
     return False
 
 
+# Components tested by the native ESP-IDF compile-test job. This is the
+# single source of truth: the workflow reads the comma-joined list from the
+# `native-idf-components` output of `determine-jobs` and uses it as the
+# `TEST_COMPONENTS` env on the `test-native-idf` job.
+NATIVE_IDF_TEST_COMPONENTS = frozenset(
+    {
+        "esp32",
+        "api",
+        "heatpumpir",
+        "bme280_i2c",
+        "bh1750",
+        "aht10",
+        "esp32_ble",
+        "esp32_ble_beacon",
+        "esp32_ble_client",
+        "esp32_ble_server",
+        "esp32_ble_tracker",
+        "ble_client",
+        "ble_presence",
+        "ble_rssi",
+        "ble_scanner",
+    }
+)
+
+# Path prefixes whose changes always trigger the native ESP-IDF compile
+# test: anything under esphome/espidf/ (the native IDF runner / API /
+# framework / component generator).
+NATIVE_IDF_TRIGGER_PATH_PREFIXES = ("esphome/espidf/",)
+
+# Standalone files that, when changed, also trigger the native ESP-IDF
+# compile test:
+#   - esphome/build_gen/espidf.py -- the native IDF build generator
+#     (other files under build_gen/ target PlatformIO and don't affect
+#     the native IDF path)
+#   - script/test_build_components.py -- the harness the job invokes
+#   - .github/workflows/ci.yml -- the job's own definition
+NATIVE_IDF_TRIGGER_FILES = frozenset(
+    {
+        "esphome/build_gen/espidf.py",
+        "script/test_build_components.py",
+        ".github/workflows/ci.yml",
+    }
+)
+
+
+def _native_idf_path_or_file_trigger(files: list[str]) -> bool:
+    """Whether any changed file is a native IDF infrastructure / harness trigger."""
+    for file in files:
+        if file in NATIVE_IDF_TRIGGER_FILES:
+            return True
+        if any(file.startswith(prefix) for prefix in NATIVE_IDF_TRIGGER_PATH_PREFIXES):
+            return True
+    return False
+
+
+def native_idf_components_to_test(branch: str | None = None) -> list[str]:
+    """Subset of ``NATIVE_IDF_TEST_COMPONENTS`` the job needs to compile.
+
+    The job builds components with the native ESP-IDF toolchain (no
+    PlatformIO). When only a specific component (or something it depends
+    on) changed, there's no value in re-building every other unrelated
+    component in the test list -- the regular ``component-test`` matrix
+    already covers them via PlatformIO. So we narrow to the intersection
+    of ``NATIVE_IDF_TEST_COMPONENTS`` and the changed-component dependency
+    closure.
+
+    Returns the full list (sorted) when we can't safely narrow:
+
+    1. Core C++/Python files changed (``esphome/core/*``).
+    2. Native IDF infrastructure changed (``esphome/espidf/*`` or
+       ``esphome/build_gen/espidf.py``).
+    3. The test harness or workflow itself changed
+       (``script/test_build_components.py``, ``.github/workflows/ci.yml``).
+
+    Otherwise returns the intersection (sorted), which may be empty -- an
+    empty list signals the job should be skipped.
+
+    The dependency closure is derived from ``files`` via
+    ``get_components_with_dependencies()`` (the same primitive ``main()``
+    uses) so the result honors ``branch``. ``get_changed_components()``
+    is deliberately not used here: it re-invokes ``changed_files()`` with
+    its own default branch, which would silently ignore our ``branch``
+    argument.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        Sorted list of component names to compile.
+    """
+    files = changed_files(branch)
+
+    if core_changed(files) or _native_idf_path_or_file_trigger(files):
+        return sorted(NATIVE_IDF_TEST_COMPONENTS)
+
+    component_files = [f for f in files if filter_component_and_test_files(f)]
+    changed = get_components_with_dependencies(component_files, True)
+
+    return sorted(NATIVE_IDF_TEST_COMPONENTS & set(changed))
+
+
+def should_run_native_idf(branch: str | None = None) -> bool:
+    """Determine if the `test-native-idf` compile-test job should run.
+
+    Runs whenever ``native_idf_components_to_test()`` returns a non-empty
+    list. Skipping the job on unrelated Python-only PRs avoids ~5 min of
+    CI per PR (worse on cold caches). The regular ``component-test``
+    matrix still exercises the same components through PlatformIO when
+    those components change.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        True if the native ESP-IDF compile test should run, False otherwise.
+    """
+    return bool(native_idf_components_to_test(branch))
+
+
 def determine_cpp_unit_tests(
     branch: str | None = None,
 ) -> tuple[bool, list[str]]:
@@ -957,6 +1076,8 @@ def main() -> None:
     run_python_linters = should_run_python_linters(args.branch)
     run_import_time = should_run_import_time(args.branch)
     run_device_builder = should_run_device_builder(args.branch)
+    native_idf_components = native_idf_components_to_test(args.branch)
+    run_native_idf = bool(native_idf_components)
     changed_cpp_file_count = count_changed_cpp_files(args.branch)
 
     # Get changed components
@@ -1102,6 +1223,8 @@ def main() -> None:
         "python_linters": run_python_linters,
         "import_time": run_import_time,
         "device_builder": run_device_builder,
+        "native_idf": run_native_idf,
+        "native_idf_components": ",".join(native_idf_components),
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
         "directly_changed_components_with_tests": list(directly_changed_with_tests),

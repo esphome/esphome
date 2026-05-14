@@ -2434,10 +2434,28 @@ def run_esphome(argv):
     # Commands that don't need fresh external components: logs just connects
     # to the device, and clean is about to delete the build directory.
     skip_external = args.command in ("logs", "clean")
-    config = read_config(
-        dict(args.substitution) if args.substitution else {},
-        skip_external_update=skip_external,
-    )
+    command_line_substitutions = dict(args.substitution) if args.substitution else {}
+
+    # Fast path for upload/logs: reuse the validated-config cache the
+    # last compile wrote. Falls back to read_config when missing/stale.
+    # Skipped when -s overrides are passed, since the cache was written
+    # against the previous substitution set.
+    config: ConfigType | None = None
+    if args.command in ("upload", "logs") and not command_line_substitutions:
+        from esphome.compiled_config import load_compiled_config
+
+        config = load_compiled_config(conf_path)
+        if config is not None:
+            _LOGGER.info(
+                "Loaded validated config cache for %s, skipping validation.",
+                conf_path.name,
+            )
+
+    if config is None:
+        config = read_config(
+            command_line_substitutions,
+            skip_external_update=skip_external,
+        )
     if config is None:
         return 2
     CORE.config = config
