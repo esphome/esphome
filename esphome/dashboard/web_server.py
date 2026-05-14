@@ -529,11 +529,17 @@ class EsphomeCancelQueueHandler(BaseHandler):
     def post(self) -> None:
         data = json.loads(self.request.body.decode())
         configuration = data.get("configuration")
-        if configuration and hasattr(DASHBOARD, "queued_updates"):
+        if configuration in DASHBOARD.queued_updates:
             DASHBOARD.queued_updates.discard(configuration)
             _LOGGER.info("User cancelled queued update for %s", configuration)
+            
+            # ADD THIS: Tell the WebSocket to instantly update the frontend UI!
+            DASHBOARD.bus.async_fire("queued_state_changed", {
+                "filename": configuration,
+                "state": False
+            })
+
         self.set_status(204)
-        self.finish()
 
 
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
