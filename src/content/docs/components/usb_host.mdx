@@ -5,7 +5,7 @@ title: "USB Host Interface"
 import APIRef from '@components/APIRef.astro';
 
 
-The USB Host interface on the ESP32-S3 and ESP32-S2 is used to connect to USB peripheral devices. Multiple
+The USB Host interface on the ESP32-S3, ESP32-S2 and ESP32-P4 is used to connect to USB peripheral devices. Multiple
 devices may be configured, but only one can be connected at any time. By default the device must be directly
 connected to the ESP32, but this can be changed by setting the `enable_hubs` option to `true`.
 
@@ -23,11 +23,18 @@ usb_host:
       pid: 0x1234
 ```
 
+```yaml
+# ESP32-P4 with USB High Speed (512 byte MPS)
+usb_host:
+  max_packet_size: 512
+```
+
 ## Configuration variables
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): The id to use for this component.
 - **enable_hubs** (*Optional*, boolean): Whether to include support for hubs. Defaults to `false`.
 - **max_transfer_requests** (*Optional*, int): Maximum number of concurrent USB transfer requests. Range: 1-32. Defaults to `16`. Increase this value for high-throughput devices (e.g., USB UART at 115200+ baud) if you see "All X transfer slots in use" errors.
+- **max_packet_size** (*Optional*, int): Maximum USB packet size in bytes. Defaults to `64` (USB Full Speed). Valid option values are 64, 128, 256, 512 and 1024. Intended for use with USB-HS capable devices like the ESP32-P4.
 - **devices** (*Optional*, list): A list of devices to configure.
 
 ## Device configuration options

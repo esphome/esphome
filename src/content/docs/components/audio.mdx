@@ -1,0 +1,119 @@
+---
+title: "Audio Codec Configuration"
+description: "Instructions for configuring audio codecs in ESPHome."
+sidebar:
+  label: "Audio"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+This component only works on ESP32 based chips.
+
+The `audio` component lets you explicitly enable audio codecs and tune advanced options for each codec library. By
+default, codecs are enabled automatically by other components that need them. For example, configuring a
+[Speaker Media Player](/components/media_player/speaker/) with FLAC as the preferred format, or embedding an Opus
+[Audio File](/components/audio_file/). Most users do not need to configure this component at all.
+
+Use this component when you want to:
+
+- Build firmware with support for additional codecs that are not pulled in automatically.
+- Override the default memory placement of decoder buffers to reduce stutter at the start of playback or to free up
+  internal RAM.
+- Tune Opus-specific options such as the floating-point implementation or the pseudostack size.
+
+Enabling codecs through this component is **additive**: it cannot disable a codec that another component requires.
+
+```yaml
+# Example configuration entry
+audio:
+  codecs:
+    flac:
+    mp3:
+    opus:
+    wav:
+```
+
+## Configuration variables
+
+- **codecs** (*Optional*, mapping): A mapping that enables and configures individual audio codecs. Each codec key may
+  be left empty to enable the codec with default settings, or populated with the per-codec options described below.
+
+  - **flac** (*Optional*, mapping): Enable and configure the [FLAC](https://github.com/esphome-libs/micro-flac)
+    decoder.
+
+    - **buffer_memory** (*Optional*, string): Where to allocate the FLAC working buffer (typically 16–64 KB for stereo
+      streams). One of `psram` or `internal`. Defaults to `psram` when available, otherwise `internal`.
+
+  - **mp3** (*Optional*, mapping): Enable and configure the [MP3](https://github.com/esphome-libs/micro-mp3) decoder.
+
+    - **buffer_memory** (*Optional*, string): Where to allocate the MP3 decoder state buffers. One of `psram` or
+      `internal`. Defaults to `psram` when available, otherwise `internal`.
+
+  - **opus** (*Optional*, mapping): Enable and configure the [Opus](https://github.com/esphome-libs/micro-opus)
+    decoder.
+
+    - **floating_point** (*Optional*, boolean): Use the floating-point Opus implementation instead of the fixed-point
+      one. Defaults to `true` on the ESP32-S3 (whose FPU is fast enough to benefit) and `false` on other targets,
+      where fixed-point decoding is faster.
+
+    - **state_memory** (*Optional*, string): Where to allocate the Opus decoder state and other persistent buffers
+      (roughly 30–50 KB per instance plus shared tables). One of `psram` or `internal`. Defaults to `psram` when
+      available, otherwise `internal`.
+
+    - **pseudostack** (*Optional*, mapping): Configures the Opus pseudostack — a working-memory buffer used heavily
+      for temporary allocations during decode operations.
+
+      - **threadsafe** (*Optional*, boolean): When `true`, each FreeRTOS task that uses Opus gets its own pseudostack
+        via pthread thread-local storage; safe for concurrent decoding from multiple tasks. When `false`, a single
+        global pseudostack is shared, which uses less memory but is not safe for concurrent use. Defaults to `true`.
+
+      - **buffer_memory** (*Optional*, string): Where to allocate the pseudostack buffer. One of `psram` or `internal`.
+        Defaults to `psram` when available, otherwise `internal`.
+
+      - **size** (*Optional*, integer): Size of the pseudostack buffer, in bytes. Must be between `60000` and
+        `240000`. Defaults to `120000` (120 KB), which can safely decode all stereo Opus files. Increase this value
+        if you encounter "pseudostack overflow" errors.
+
+  - **wav** (*Optional*, mapping): Enable WAV decoding. Has no additional options.
+
+## Memory Placement Tips
+
+The decoder libraries prefer allocating large buffers in PSRAM and fall back to internal RAM if PSRAM is unavailable.
+This is generally the best choice on the ESP32-S3, which has fast PSRAM and a large cache.
+
+On the original ESP32, PSRAM access is significantly slower. If you have internal memory to spare, switching
+`buffer_memory` (and, for Opus, the pseudostack `buffer_memory`) to `internal` can reduce stuttering at the start of
+playback and lower overall CPU usage.
+
+> [!TIP]
+> If playback is fine after the first second or two but starts with audible glitches, try moving the relevant decoder
+> buffer to `internal` memory.
+
+## Advanced Example
+
+```yaml
+audio:
+  codecs:
+    flac:
+      buffer_memory: internal
+    mp3:
+      buffer_memory: psram
+    opus:
+      floating_point: false
+      state_memory: psram
+      pseudostack:
+        threadsafe: false
+        buffer_memory: internal
+        size: 80000
+    wav:
+```
+
+## See Also
+
+- [Audio File](/components/audio_file/)
+- [Speaker Media Player](/components/media_player/speaker/)
+- [micro-flac](https://github.com/esphome-libs/micro-flac)
+- [micro-mp3](https://github.com/esphome-libs/micro-mp3)
+- [micro-opus](https://github.com/esphome-libs/micro-opus)
+- [micro-wav](https://github.com/esphome-libs/micro-wav)
+- <APIRef text="audio.h" path="esphome/components/audio/audio.h" />

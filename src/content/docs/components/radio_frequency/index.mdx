@@ -1,0 +1,126 @@
+---
+description: "Instructions for setting up radio frequency components in ESPHome."
+title: "Radio Frequency Component"
+sidebar:
+  label: "Radio Frequency Component"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+> [!IMPORTANT]
+> This component is EXPERIMENTAL. The API may change at any time
+> without following the normal breaking changes policy. Use at your own risk.
+> Once the API is considered stable, this warning will be removed.
+
+ESPHome has support for components to create radio frequency entities that provide a standardized API for
+transmitting and receiving raw RF signals. A radio frequency entity is represented in ESPHome as a stateless
+component (similar to buttons) that can transmit raw timing sequences or receive and forward timing sequences
+as events to API clients like Home Assistant.
+
+The radio frequency component provides base infrastructure for RF communication, establishing a unified
+interface between ESPHome devices and API clients. This enables runtime signal transmission without
+recompiling firmware, making it ideal for learning and replaying RF commands.
+
+Unlike the [infrared component](/components/infrared), which handles both IR and simple OOK-RF via a shared
+entity type, the radio frequency component is dedicated to RF hardware and exposes RF-specific metadata such
+as carrier frequency range and supported modulation types.
+
+<span id="config-radio_frequency"></span>
+
+## Base Radio Frequency Configuration
+
+All radio frequency components in ESPHome have a platform and a name. The component operates as a stateless
+entity, supporting actions (API commands to device transmissions) and events (device receptions to API
+client broadcasts).
+
+```yaml
+# Example radio frequency configuration
+radio_frequency:
+  - platform: ...
+    name: 433 MHz RF Transceiver
+    id: my_rf_transceiver
+```
+
+Configuration variables:
+
+- **id** (*Optional*, string): Manually specify the ID for code generation. At least one of **id** and **name** must be specified.
+- **name** (*Optional*, string): The name for the radio frequency entity. At least one of **id** and **name** must be specified.
+
+> [!NOTE]
+> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> you want the radio frequency entity to use that name, you can set `name: None`.
+
+- **icon** (*Optional*, icon): Manually set the icon to use for the radio frequency entity in the frontend.
+- **internal** (*Optional*, boolean): Mark this component as internal. Internal components will
+  not be exposed to the frontend (like Home Assistant). Only specifying an `id` without
+  a `name` will implicitly set this to true.
+
+- **disabled_by_default** (*Optional*, boolean): If true, then this entity should not be added to any client's frontend
+  (usually Home Assistant) without the user manually enabling it (via the Home Assistant UI).
+  Defaults to `false`.
+
+- **entity_category** (*Optional*, string): The category of the entity.
+  See [https://developers.home-assistant.io/docs/core/entity/#generic-properties](https://developers.home-assistant.io/docs/core/entity/#generic-properties)
+  for a list of available options. Set to `""` to remove the default entity category.
+
+## How It Works
+
+The radio frequency component operates using raw timing sequences, which represent alternating mark (carrier on)
+and space (carrier off) periods in microseconds. This provides maximum flexibility and can support virtually
+any OOK-based RF protocol.
+
+### Transmitting Signals
+
+When a radio frequency entity supports transmit capability, it can send raw timing sequences through the API.
+Transmission parameters include:
+
+- **Raw timings array**: Alternating mark/space durations in microseconds
+- **Carrier frequency**: The RF carrier frequency in Hz (for example, `433920000` for 433.92 MHz)
+- **Modulation**: The modulation type to use (currently only OOK is supported)
+- **Repeat count**: Number of times to transmit the signal (defaults to 1)
+
+The raw timings format allows API clients like Home Assistant to encode protocol-specific commands into
+raw timings and transmit them through the radio frequency entity.
+
+### Receiving Signals
+
+When a radio frequency entity supports receive capability, it captures raw timing sequences and sends them
+to API clients as events. This enables:
+
+- Learning RF commands from existing remotes
+- Analyzing unknown protocols
+- Creating RF-based automation triggers
+
+Reception is non-blocking and can operate alongside other signal processing components.
+
+### Frequency Metadata
+
+Each radio frequency entity reports hardware capability metadata to API clients:
+
+- **Frequency range**: The minimum and maximum tunable frequency in Hz. If both values are equal (and
+  non-zero), the hardware is fixed-frequency. If both are zero, the range is unspecified.
+- **Supported modulations**: The modulation types supported by the hardware (for example, OOK).
+- **Capabilities**: Whether the entity supports transmitting, receiving, or both.
+
+This metadata allows Home Assistant (and other API clients) to automatically discover which RF hardware is
+available and what it supports, without requiring manual configuration on the API client side.
+
+## Modulation Types
+
+| Value | Name | Description |
+|-------|------|-------------|
+| `0`   | OOK  | On-Off Keying (also known as Amplitude Shift Keying / ASK). The carrier is simply switched on and off to encode data. This is the most common modulation for 433 MHz and 315 MHz remote controls. |
+
+Additional modulation types (FSK, GFSK, etc.) may be implemented in the future.
+
+## Platform Components
+
+No platform implementations are available yet. Platform implementations (such as CC1101 and similar
+hardware) are planned for future releases.
+
+## See Also
+
+- [Infrared Component](/components/infrared) — handles IR and basic OOK-RF via a shared entity type
+- [Remote Transmitter](/components/remote_transmitter)
+- [Remote Receiver](/components/remote_receiver)
+- <APIRef text="radio_frequency.h" path="radio_frequency/radio_frequency.h" />

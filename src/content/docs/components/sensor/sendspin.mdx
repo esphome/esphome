@@ -1,0 +1,57 @@
+---
+description: "Instructions for setting up Sendspin metadata sensors in ESPHome."
+title: "Sendspin Sensor"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The `sendspin` sensor platform exposes numeric metadata about the currently
+playing audio from a [Sendspin](/components/sendspin/) group. The Sendspin
+[hub](/components/sendspin/) must be configured on the same device.
+
+Each sensor reports a single metadata field. Configure one sensor per field you
+want to expose. These sensors are primarily intended as internal sensors to
+drive displays rather than being reported to Home Assistant.
+
+This platform only works on ESP32-based chips.
+
+```yaml
+# Example configuration entry
+sendspin:
+
+sensor:
+  - platform: sendspin
+    name: "Track Progress"
+    type: track_progress
+  - platform: sendspin
+    name: "Track Duration"
+    type: track_duration
+  - platform: sendspin
+    name: "Track Number"
+    type: track
+  - platform: sendspin
+    name: "Year"
+    type: year
+```
+
+## Configuration variables
+
+- **type** (**Required**, string): The metadata field to report. One of:
+  - `track_progress`: The interpolated progress of the currently playing track,
+    in milliseconds. Polled on a fixed interval (defaults to `1s`). Polling is
+    automatically paused while playback is paused and resumed when playback
+    starts again.
+  - `track_duration`: The total duration of the currently playing track, in
+    milliseconds.
+  - `track`: The track number within the album.
+  - `year`: The track's release year.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)):
+  Only used with `type: track_progress`. The interval at which the track
+  progress is republished. Defaults to `1s`.
+- All other options from [Sensor](/components/sensor/#config-sensor).
+
+## See Also
+
+- [Sendspin](/components/sendspin/)
+- [Sensor Components](/components/sensor/)
+- <APIRef text="sendspin_sensor.h" path="esphome/components/sendspin/sensor/sendspin_sensor.h" />

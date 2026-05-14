@@ -1,0 +1,148 @@
+---
+description: "ESP-IDF toolchain"
+title: "ESP-IDF toolchain"
+---
+
+This page explains how the automatic ESP-IDF management works, where it stores data on disk, and how you can customize it with environment variables.
+
+## Overview
+
+When using the ESP-IDF toolchain (`esp32.toolchain: esp-idf` in the configuration or the `--toolchain esp-idf` CLI parameter), ESPHome provides automatic framework management:
+
+- ESPHome downloads the ESP-IDF release archive specified by `esp32.framework.version` (which defaults to the recommended version) into a per-version folder under the ESPHome data directory.
+- ESPHome runs the ESP-IDF tool installer (`idf_tools.py`) to install the required tools such as `cmake` and `ninja` if they are not already available.
+- ESPHome creates and manages a dedicated Python virtual environment per ESP-IDF version and installs the ESP-IDF Python dependencies into it.
+- Builds and ESP-IDF tools (including `idf.py` and `esptool`) run using this managed environment, so you do not need to source `export.sh` or set `IDF_PATH`.
+
+> [!NOTE]
+> If you are using the ESP-IDF toolchain and provide an <code>IDF_PATH</code> environment variable, ESPHome will honor it and use your existing ESP-IDF installation instead of managing its own copy.
+
+## Storage locations
+
+By default, ESPHome stores ESP-IDF frameworks and Python environments under its data directory:
+
+- Base directory: `<data_dir>/idf`
+- Frameworks: `<data_dir>/idf/frameworks/<version>/`
+- Python environments: `<data_dir>/idf/penvs/<version>/`
+
+On a typical installation, `<data_dir>` is the ESPHome data directory, stored in a `.esphome` folder located alongside the configuration file.
+
+You can override the base directory with the `ESPHOME_ESP_IDF_PREFIX` environment variable:
+
+```bash
+export ESPHOME_ESP_IDF_PREFIX="/opt/esphome-esp-idf"
+```
+
+## Default ESP-IDF features
+
+ESPHome selects a default ESP-IDF feature set when it needs to install the framework automatically:
+
+- Default targets: `ESPHOME_IDF_DEFAULT_TARGETS` (defaults to `all`).
+- Default tools: `ESPHOME_IDF_DEFAULT_TOOLS` (defaults to `cmake;ninja`).
+- Tools that must be installed even if present on the system: `ESPHOME_IDF_DEFAULT_TOOLS_FORCE` (defaults to `required`).
+- Default Python requirement feature sets: `ESPHOME_IDF_DEFAULT_FEATURES` (defaults to `core`).
+
+All of these values can be customized via environment variables, using semicolon-separated lists where applicable:
+
+```bash
+# Only install tools for specific targets
+export ESPHOME_IDF_DEFAULT_TARGETS="esp32s2;esp32c3"
+
+# Force installation of extra tools
+export ESPHOME_IDF_DEFAULT_TOOLS="cmake;ninja;openocd"
+
+# Control which requirement sets are installed
+export ESPHOME_IDF_DEFAULT_FEATURES="core;gdbgui"
+```
+
+When no explicit tool list is provided, ESPHome determines which tools to install by merging `ESPHOME_IDF_DEFAULT_TOOLS` and `ESPHOME_IDF_DEFAULT_TOOLS_FORCE`, and then skipping tools that are already available on the system unless they are listed as “force”.
+
+## Download mirrors
+
+ESPHome downloads the ESP-IDF framework and its Python constraints file from configurable mirror URLs.
+
+### Framework archives
+
+Framework archives are downloaded from the list of URLs in `ESPHOME_IDF_FRAMEWORK_MIRRORS`.
+
+The default value is:
+
+```text
+https://github.com/espressif/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.zip
+```
+
+The `{VERSION}` placeholder is replaced by the ESP-IDF version (for example `5.5.2`).
+
+You can provide multiple mirrors separated by semicolons; ESPHome will try each mirror in order until the download succeeds:
+
+```bash
+export ESPHOME_IDF_FRAMEWORK_MIRRORS="\
+https://my.local.mirror/esp-idf-v{VERSION}.zip;\
+https://github.com/espressif/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.zip"
+```
+
+
+### Python constraints file
+
+ESPHome also downloads an ESP-IDF Python constraints file to ensure that the Python environment uses versions compatible with the selected ESP-IDF release.
+
+The list of URLs is configured by `ESP_IDF_CONSTRAINTS_MIRRORS`, which defaults to:
+
+```text
+https://dl.espressif.com/dl/esp-idf/espidf.constraints.v{VERSION}.txt
+```
+
+The `{VERSION}` placeholder is replaced by the ESP-IDF framework version detected in the installed framework.
+
+You can provide multiple mirrors separated by semicolons; ESPHome will try each mirror in order until the download succeeds:
+
+```bash
+export ESP_IDF_CONSTRAINTS_MIRRORS="\
+https://my.local.mirror/espidf.constraints.v{VERSION}.txt;\
+https://dl.espressif.com/dl/esp-idf/espidf.constraints.v{VERSION}.txt"
+```
+
+## Python virtual environment
+
+For each ESP-IDF version, ESPHome creates a dedicated Python virtual environment under:
+
+```text
+<idf_base>/penvs/<version>/
+```
+
+where `<idf_base>` is either the ESPHome data directory or `ESPHOME_ESP_IDF_PREFIX`.
+
+The process:
+
+1. Creates a virtual environment using the host Python interpreter.
+2. Downloads the ESP-IDF Python constraints file for the exact ESP-IDF version.
+3. Upgrades `pip` and `setuptools` inside the environment using those constraints.
+4. Installs the ESP-IDF requirements from `tools/requirements/requirements.<feature>.txt` for each configured feature (`core`, `gdbgui`, `ci`, etc.).
+
+To avoid unnecessary re-installs, ESPHome keeps a stamp file per virtual environment that tracks:
+
+- ESPHome's internal ESP-IDF management version.
+- The ESP-IDF version of the framework.
+- The Python interpreter version used to create the environment.
+
+If the stamp file matches the expected values, ESPHome reuses the existing virtual environment; otherwise it deletes and recreates it.
+
+## Environment used for builds and tools
+
+When ESPHome needs to run ESP-IDF tools, it:
+
+1. Ensures that the ESP-IDF framework and Python environment for the requested version are installed.
+2. Builds an environment dictionary with:
+    - `IDF_TOOLS_PATH` pointing to the ESPHome ESP-IDF tools directory.
+    - `IDF_PATH` pointing to the selected ESP-IDF framework directory.
+    - `ESP_IDF_VERSION` set to the framework version.
+    - `IDF_PYTHON_ENV_PATH` pointing to the virtual environment directory.
+3. Modifies `PATH` so that python resolves to the managed environment's interpreter.
+4. Adds required tool paths and variables returned by the ESP-IDF `export` logic.
+
+This environment is then used for:
+
+- `idf.py` commands (for example when building ESP32 firmware).
+- `esptool` invocations, such as when creating `factory.bin` images.
+- `python` execution, using the managed virtual environment interpreter.
+- `cmake` invocations (which drive the underlying `ninja` build system), resolved from either the host environment or ESPHome-managed tools depending on availability.

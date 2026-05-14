@@ -13,3 +13,6 @@ An average over the `specified time period`, potentially throttling incoming val
 For example a `throttle_average: 60s` will push out a value every 60 seconds, in case at least one sensor value is received within these 60 seconds.
 
 In comparison to the `throttle` filter, it won't discard any values. In comparison to the `sliding_window_moving_average` filter, it supports variable sensor reporting rates without influencing the filter reporting interval (except for the first edge case).
+
+> [!NOTE]
+> The `throttle_average` time period is capped at 24 hours. Configurations specifying a longer period will be rejected at validation time. Multi-day rolling averages are better served by other aggregation strategies (for example, computing the average in Home Assistant) since accumulating a single running sum over many days suffers from floating-point precision loss.

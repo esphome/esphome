@@ -25,7 +25,9 @@ data which this component decodes and updates the configured sensors at the pace
 # Example configuration entry
 uart:
   rx_pin: GPIO16
+  # Most DSMR meters use 115200 baud, but some older ones use 9600 baud.
   baud_rate: 115200
+  # It is recommended to set the rx_buffer_size to at least 1500 bytes to avoid packet loss.
   rx_buffer_size: 1700
 
 dsmr:
@@ -38,7 +40,7 @@ dsmr:
 
   # Optional. 32 character long encryption key.
   # Specify only if your smart meter uses encryption (f.e. if you have "Luxembourg Smarty")
-  decryption_key: !secret decryption_key
+  decryption_key: "00112233445566778899AABBCCDDEEFF"
 
   # Optional. The id of the gas meter. Default=1.
   gas_mbus_id: 1
@@ -68,9 +70,8 @@ dsmr:
   # This works best in combination with a `request_pin`, but this option will work without one, too.
   request_interval: 0ms
 
-  # Optional. The timeout on incoming data while reading a telegram. Default=200ms.
-  # When no new data arrives within the given timeout, the device will consider the current
-  # telegram a loss and starts looking for the header of the next telegram.
+  # Optional. Only used for receiving encrypted telegrams. The delay to detect the inter-frame gap. Default=200ms.
+  # There is no reason to specify this parameter unless you have a very specific use case.
   receive_timeout: 200ms
 
 #
@@ -101,14 +102,7 @@ sensor:
       name: "Energy Produced Tariff 3. OBIS: 1-0:2.8.3"
     energy_returned_tariff4:
       name: "Energy Produced Tariff 4. OBIS: 1-0:2.8.4"
-    energy_delivered_tariff1_ch:
-      name: "Energy Consumed Tariff 1 (CH). OBIS: 1-1:1.8.1"
-    energy_delivered_tariff2_ch:
-      name: "Energy Consumed Tariff 2 (CH). OBIS: 1-1:1.8.2"
-    energy_returned_tariff1_ch:
-      name: "Energy Produced Tariff 1 (CH). OBIS: 1-1:2.8.1"
-    energy_returned_tariff2_ch:
-      name: "Energy Produced Tariff 2 (CH). OBIS: 1-1:2.8.2"
+
     total_imported_energy:
       name: "Reactive Energy Imported (Total). OBIS: 1-0:3.8.0"
     reactive_energy_delivered_tariff1:
@@ -119,6 +113,7 @@ sensor:
       name: "Reactive Energy Imported Tariff 3. OBIS: 1-0:3.8.3"
     reactive_energy_delivered_tariff4:
       name: "Reactive Energy Imported Tariff 4. OBIS: 1-0:3.8.4"
+
     total_exported_energy:
       name: "Reactive Energy Exported (Total). OBIS: 1-0:4.8.0"
     reactive_energy_returned_tariff1:
@@ -129,18 +124,44 @@ sensor:
       name: "Reactive Energy Exported Tariff 3. OBIS: 1-0:4.8.3"
     reactive_energy_returned_tariff4:
       name: "Reactive Energy Exported Tariff 4. OBIS: 1-0:4.8.4"
+
+    energy_delivered_tariff1_ch:
+      name: "Energy Consumed Tariff 1 (CH). OBIS: 1-1:1.8.1"
+    energy_delivered_tariff2_ch:
+      name: "Energy Consumed Tariff 2 (CH). OBIS: 1-1:1.8.2"
+    energy_returned_tariff1_ch:
+      name: "Energy Produced Tariff 1 (CH). OBIS: 1-1:2.8.1"
+    energy_returned_tariff2_ch:
+      name: "Energy Produced Tariff 2 (CH). OBIS: 1-1:2.8.2"
+
+    energy_delivered_tariff1_il:
+      name: "Energy Consumed Tariff 1 (IL). OBIS: 1-0:1.8.11"
+    energy_delivered_tariff2_il:
+      name: "Energy Consumed Tariff 2 (IL). OBIS: 1-0:1.8.12"
+    energy_delivered_tariff3_il:
+      name: "Energy Consumed Tariff 3 (IL). OBIS: 1-0:1.8.13"
+    energy_returned_tariff1_il:
+      name: "Energy Produced Tariff 1 (IL). OBIS: 1-0:2.8.11"
+    energy_returned_tariff2_il:
+      name: "Energy Produced Tariff 2 (IL). OBIS: 1-0:2.8.12"
+    energy_returned_tariff3_il:
+      name: "Energy Produced Tariff 3 (IL). OBIS: 1-0:2.8.13"
+
     power_delivered:
       name: "Power Consumed. OBIS: 1-0:1.7.0"
     power_returned:
       name: "Power Produced. OBIS: 1-0:2.7.0"
-    power_delivered_ch:
-      name: "Power Consumed (CH). OBIS: 1-1:1.7.0"
-    power_returned_ch:
-      name: "Power Produced (CH). OBIS: 1-1:2.7.0"
+
     reactive_power_delivered:
       name: "Reactive Power Imported. OBIS: 1-0:3.7.0"
     reactive_power_returned:
       name: "Reactive Power Exported. OBIS: 1-0:4.7.0"
+
+    power_delivered_ch:
+      name: "Power Consumed (CH). OBIS: 1-1:1.7.0"
+    power_returned_ch:
+      name: "Power Produced (CH). OBIS: 1-1:2.7.0"
+
     electricity_threshold:
       name: "Electricity Threshold. OBIS: 0-0:17.0.0"
     electricity_switch_position:
@@ -149,72 +170,103 @@ sensor:
       name: "Electricity Failures. OBIS: 0-0:96.7.21"
     electricity_long_failures:
       name: "Long Electricity Failures. OBIS: 0-0:96.7.9"
+
     electricity_sags_l1:
       name: "Voltage Sags L1. OBIS: 1-0:32.32.0"
-    electricity_sags_l2:
-      name: "Voltage Sags L2. OBIS: 1-0:52.32.0"
-    electricity_sags_l3:
-      name: "Voltage Sags L3. OBIS: 1-0:72.32.0"
-    electricity_swells_l1:
-      name: "Voltage Swells L1. OBIS: 1-0:32.36.0"
-    electricity_swells_l2:
-      name: "Voltage Swells L2. OBIS: 1-0:52.36.0"
-    electricity_swells_l3:
-      name: "Voltage Swells L3. OBIS: 1-0:72.36.0"
     voltage_sag_time_l1:
       name: "Voltage Sag Time L1. OBIS: 1-0:32.33.0"
-    voltage_sag_time_l2:
-      name: "Voltage Sag Time L2. OBIS: 1-0:52.33.0"
-    voltage_sag_time_l3:
-      name: "Voltage Sag Time L3. OBIS: 1-0:72.33.0"
     voltage_sag_l1:
       name: "Voltage Sag L1. OBIS: 1-0:32.34.0"
+
+    electricity_sags_l2:
+      name: "Voltage Sags L2. OBIS: 1-0:52.32.0"
+    voltage_sag_time_l2:
+      name: "Voltage Sag Time L2. OBIS: 1-0:52.33.0"
     voltage_sag_l2:
       name: "Voltage Sag L2. OBIS: 1-0:52.34.0"
+
+    electricity_sags_l3:
+      name: "Voltage Sags L3. OBIS: 1-0:72.32.0"
+    voltage_sag_time_l3:
+      name: "Voltage Sag Time L3. OBIS: 1-0:72.33.0"
     voltage_sag_l3:
       name: "Voltage Sag L3. OBIS: 1-0:72.34.0"
+
+    electricity_swells_l1:
+      name: "Voltage Swells L1. OBIS: 1-0:32.36.0"
     voltage_swell_time_l1:
       name: "Voltage Swell Time L1. OBIS: 1-0:32.37.0"
-    voltage_swell_time_l2:
-      name: "Voltage Swell Time L2. OBIS: 1-0:52.37.0"
-    voltage_swell_time_l3:
-      name: "Voltage Swell Time L3. OBIS: 1-0:72.37.0"
     voltage_swell_l1:
       name: "Voltage Swell L1. OBIS: 1-0:32.38.0"
+
+    electricity_swells_l2:
+      name: "Voltage Swells L2. OBIS: 1-0:52.36.0"
+    voltage_swell_time_l2:
+      name: "Voltage Swell Time L2. OBIS: 1-0:52.37.0"
     voltage_swell_l2:
       name: "Voltage Swell L2. OBIS: 1-0:52.38.0"
+
+    electricity_swells_l3:
+      name: "Voltage Swells L3. OBIS: 1-0:72.36.0"
+    voltage_swell_time_l3:
+      name: "Voltage Swell Time L3. OBIS: 1-0:72.37.0"
     voltage_swell_l3:
       name: "Voltage Swell L3. OBIS: 1-0:72.38.0"
+
+    voltage_l1:
+      name: "Voltage Phase 1. OBIS: 1-0:32.7.0"
+    voltage_avg_l1:
+      name: "Voltage Avg Phase 1. OBIS: 1-0:32.24.0"
+    voltage_l2:
+      name: "Voltage Phase 2. OBIS: 1-0:52.7.0"
+    voltage_avg_l2:
+      name: "Voltage Avg Phase 2. OBIS: 1-0:52.24.0"
+    voltage_l3:
+      name: "Voltage Phase 3. OBIS: 1-0:72.7.0"
+    voltage_avg_l3:
+      name: "Voltage Avg Phase 3. OBIS: 1-0:72.24.0"
+
+    voltage:
+      name: "Voltage (Overall). OBIS: 1-0:12.7.0"
+    frequency:
+      name: "Grid Frequency. OBIS: 1-0:14.7.0"
+    abs_power:
+      name: "Absolute Active Instantaneous Power. OBIS: 1-0:15.7.0"
+
     current_l1:
       name: "Current Phase 1. OBIS: 1-0:31.7.0"
-    current_l2:
-      name: "Current Phase 2. OBIS: 1-0:51.7.0"
-    current_l3:
-      name: "Current Phase 3. OBIS: 1-0:71.7.0"
-    current:
-      name: "Current. OBIS: 1-0:11.7.0"
-    current_n:
-      name: "Neutral Current. OBIS: 1-0:91.7.0"
-    current_sum:
-      name: "Current Sum. OBIS: 1-0:90.7.0"
     current_fuse_l1:
       name: "Current Fuse Phase 1. OBIS: 1-0:31.4.0"
+    current_l2:
+      name: "Current Phase 2. OBIS: 1-0:51.7.0"
     current_fuse_l2:
       name: "Current Fuse Phase 2. OBIS: 1-0:51.4.0"
+    current_l3:
+      name: "Current Phase 3. OBIS: 1-0:71.7.0"
     current_fuse_l3:
       name: "Current Fuse Phase 3. OBIS: 1-0:71.4.0"
+
     power_delivered_l1:
       name: "Power Consumed Phase 1. OBIS: 1-0:21.7.0"
     power_delivered_l2:
       name: "Power Consumed Phase 2. OBIS: 1-0:41.7.0"
     power_delivered_l3:
       name: "Power Consumed Phase 3. OBIS: 1-0:61.7.0"
+
     power_returned_l1:
       name: "Power Produced Phase 1. OBIS: 1-0:22.7.0"
     power_returned_l2:
       name: "Power Produced Phase 2. OBIS: 1-0:42.7.0"
     power_returned_l3:
       name: "Power Produced Phase 3. OBIS: 1-0:62.7.0"
+
+    current:
+      name: "Current. OBIS: 1-0:11.7.0"
+    current_n:
+      name: "Neutral Current. OBIS: 1-0:91.7.0"
+    current_sum:
+      name: "Current Sum. OBIS: 1-0:90.7.0"
+
     reactive_power_delivered_l1:
       name: "Reactive Power Imported L1. OBIS: 1-0:23.7.0"
     reactive_power_delivered_l2:
@@ -227,50 +279,7 @@ sensor:
       name: "Reactive Power Exported L2. OBIS: 1-0:44.7.0"
     reactive_power_returned_l3:
       name: "Reactive Power Exported L3. OBIS: 1-0:64.7.0"
-    voltage_l1:
-      name: "Voltage Phase 1. OBIS: 1-0:32.7.0"
-    voltage_l2:
-      name: "Voltage Phase 2. OBIS: 1-0:52.7.0"
-    voltage_l3:
-      name: "Voltage Phase 3. OBIS: 1-0:72.7.0"
-    voltage_avg_l1:
-      name: "Voltage Avg Phase 1. OBIS: 1-0:32.24.0"
-    voltage_avg_l2:
-      name: "Voltage Avg Phase 2. OBIS: 1-0:52.24.0"
-    voltage_avg_l3:
-      name: "Voltage Avg Phase 3. OBIS: 1-0:72.24.0"
-    voltage:
-      name: "Voltage (Overall). OBIS: 1-0:12.7.0"
-    frequency:
-      name: "Grid Frequency. OBIS: 1-0:14.7.0"
-    abs_power:
-      name: "Absolute active instantaneous power. OBIS: 1-0:15.7.0"
-    gas_delivered:
-      name: "Gas Consumed. OBIS: 0-gas_mbus_id:24.2.1"
-    gas_delivered_be:
-      name: "Gas Consumed Belgium. OBIS: 0-gas_mbus_id:24.2.3"
-    water_delivered:
-      name: "Water Consumed. OBIS: 0-water_mbus_id:24.2.1"
-    thermal_delivered:
-      name: "Thermal Energy Consumed. OBIS: 0-thermal_mbus_id:24.2.1"
-    sub_delivered:
-      name: "Submeter Volume. OBIS: 0-4:24.2.1"
-    gas_device_type:
-      name: "Gas Device Type. OBIS: 0-gas_mbus_id:24.1.0"
-    gas_valve_position:
-      name: "Gas Valve Position. OBIS: 0-gas_mbus_id:24.4.0"
-    thermal_device_type:
-      name: "Thermal Device Type. OBIS: 0-thermal_mbus_id:24.1.0"
-    thermal_valve_position:
-      name: "Thermal Valve Position. OBIS: 0-thermal_mbus_id:24.4.0"
-    water_device_type:
-      name: "Water Device Type. OBIS: 0-water_mbus_id:24.1.0"
-    water_valve_position:
-      name: "Water Valve Position. OBIS: 0-water_mbus_id:24.4.0"
-    sub_device_type:
-      name: "Submeter Device Type. OBIS: 0-4:24.1.0"
-    sub_valve_position:
-      name: "Submeter Valve Position. OBIS: 0-4:24.4.0"
+
     apparent_delivery_power:
       name: "Apparent Power Delivered. OBIS: 1-0:9.7.0"
     apparent_delivery_power_l1:
@@ -279,6 +288,7 @@ sensor:
       name: "Apparent Power Delivered L2. OBIS: 1-0:49.7.0"
     apparent_delivery_power_l3:
       name: "Apparent Power Delivered L3. OBIS: 1-0:69.7.0"
+
     apparent_return_power:
       name: "Apparent Power Returned. OBIS: 1-0:10.7.0"
     apparent_return_power_l1:
@@ -287,10 +297,46 @@ sensor:
       name: "Apparent Power Returned L2. OBIS: 1-0:50.7.0"
     apparent_return_power_l3:
       name: "Apparent Power Returned L3. OBIS: 1-0:70.7.0"
+
     active_demand_power:
       name: "Active Demand (Avg3 Plus). OBIS: 1-0:1.24.0"
+    active_demand_net:
+      name: "Active Demand (Avg3 Net). OBIS: 1-0:16.24.0"
     active_demand_abs:
-      name: "Active Demand (Avg3) Absolute. OBIS: 1-0:15.24.0"
+      name: "Active Demand (Avg3 Absolute). OBIS: 1-0:15.24.0"
+
+    gas_device_type:
+      name: "Gas Device Type. OBIS: 0-gas_mbus_id:24.1.0"
+    gas_valve_position:
+      name: "Gas Valve Position. OBIS: 0-gas_mbus_id:24.4.0"
+    gas_delivered:
+      name: "Gas Consumed. OBIS: 0-gas_mbus_id:24.2.1"
+    gas_delivered_gj:
+      name: "Gas Consumed (GJ). OBIS: 0-gas_mbus_id:24.2.1"
+    gas_delivered_be:
+      name: "Gas Consumed Belgium. OBIS: 0-gas_mbus_id:24.2.3"
+
+    thermal_device_type:
+      name: "Thermal Device Type. OBIS: 0-thermal_mbus_id:24.1.0"
+    thermal_valve_position:
+      name: "Thermal Valve Position. OBIS: 0-thermal_mbus_id:24.4.0"
+    thermal_delivered:
+      name: "Thermal Energy Consumed. OBIS: 0-thermal_mbus_id:24.2.1"
+
+    water_device_type:
+      name: "Water Device Type. OBIS: 0-water_mbus_id:24.1.0"
+    water_valve_position:
+      name: "Water Valve Position. OBIS: 0-water_mbus_id:24.4.0"
+    water_delivered:
+      name: "Water Consumed. OBIS: 0-water_mbus_id:24.2.1"
+
+    sub_device_type:
+      name: "Submeter Device Type. OBIS: 0-4:24.1.0"
+    sub_valve_position:
+      name: "Submeter Valve Position. OBIS: 0-4:24.4.0"
+    sub_delivered:
+      name: "Submeter Volume. OBIS: 0-4:24.2.1"
+
     active_energy_import_current_average_demand:
       name: "Current Average Quarterly Demand for Peak Tariff Belgium. OBIS: 1-0:1.4.0"
     active_energy_export_current_average_demand:
@@ -315,13 +361,29 @@ sensor:
       name: "Last Completed Import Demand (Apparent). OBIS: 1-0:9.5.0"
     apparent_energy_export_last_completed_demand:
       name: "Last Completed Export Demand (Apparent). OBIS: 1-0:10.5.0"
+
     active_energy_import_maximum_demand_running_month:
       name: "Max Import Demand This Month (Active). OBIS: 1-0:1.6.0"
     active_energy_import_maximum_demand_last_13_months:
       name: "Average of Monthly Max Import (Active, 13 months). OBIS: 0-0:98.1.0"
 
+    power_factor:
+      name: "Power Factor. OBIS: 1-0:13.7.0"
+    power_factor_l1:
+      name: "Power Factor L1. OBIS: 1-0:33.7.0"
+    power_factor_l2:
+      name: "Power Factor L2. OBIS: 1-0:53.7.0"
+    power_factor_l3:
+      name: "Power Factor L3. OBIS: 1-0:73.7.0"
+    min_power_factor:
+      name: "Minimum Power Factor. OBIS: 1-0:13.3.0"
+
+    period_3_for_instantaneous_values:
+      name: "Period 3 for Instantaneous Values. OBIS: 1-0:0.8.2"
+
 text_sensor:
   - platform: dsmr
+
     identification:
       name: "DSMR Identification"
     p1_version:
@@ -330,36 +392,48 @@ text_sensor:
       name: "DSMR Version Belgium. OBIS: 0-0:96.1.4"
     timestamp:
       name: "Telegram Timestamp. OBIS: 0-0:1.0.0"
+    equipment_id:
+      name: "Electric Meter Equipment ID. OBIS: 0-0:96.1.1"
+
+    electricity_tariff_il:
+      name: "Electricity Tariff (IL). OBIS: 0-0:96.14.1"
+    electricity_failure_log_il:
+      name: "Electricity Failure Log (IL). OBIS: 1-0:99.1.0"
+
     electricity_tariff:
       name: "Electricity Tariff. OBIS: 0-0:96.14.0"
     electricity_failure_log:
       name: "Electricity Failure Log. OBIS: 1-0:99.97.0"
+
     message_short:
       name: "Message Short. OBIS: 0-0:96.13.1"
     message_long:
       name: "Message Long. OBIS: 0-0:96.13.0"
-    equipment_id:
-      name: "Electric Meter Equipment ID. OBIS: 0-0:96.1.1"
+
     gas_equipment_id:
       name: "Gas Equipment ID. OBIS: 0-gas_mbus_id:96.1.0"
     gas_equipment_id_be:
       name: "Gas Equipment ID Belgium. OBIS: 0-gas_mbus_id:96.1.1"
+    gas_delivered_text:
+      name: "Unformatted Gas Data. OBIS: 0-gas_mbus_id:24.3.0"
+
     thermal_equipment_id:
       name: "Thermal Equipment ID. OBIS: 0-thermal_mbus_id:96.1.0"
+
     water_equipment_id:
       name: "Water Equipment ID. OBIS: 0-water_mbus_id:96.1.0"
+
     sub_equipment_id:
       name: "Submeter Equipment ID. OBIS: 0-4:96.1.0"
-    gas_delivered_text:
-      name: "Unformatted gas data. OBIS: 0-gas_mbus_id:24.3.0"
-    fw_core_checksum:
-      name: "FW Core Checksum. OBIS: 1-0:0.2.8"
+
     fw_core_version:
       name: "Meter FW Core Version. OBIS: 1-0:0.2.0"
-    fw_module_checksum:
-      name: "FW Module Checksum. OBIS: 1-1:0.2.8"
+    fw_core_checksum:
+      name: "FW Core Checksum. OBIS: 1-0:0.2.8"
     fw_module_version:
       name: "Meter FW Module Version. OBIS: 1-1:0.2.0"
+    fw_module_checksum:
+      name: "FW Module Checksum. OBIS: 1-1:0.2.8"
 
     # The (decrypted) unparsed telegram, marked as an internal sensor.
     # Can also be used to trigger an action based on the last values.
@@ -520,6 +594,22 @@ text_sensor:
           - lambda: |-
               ESP_LOGV("dsmr", "telegram: %s", x.c_str());
               p1_bridge_uart->write_str(x.c_str());
+```
+
+## Troubleshooting
+
+Log the raw input data and enable very verbose logging.
+
+If you have problems receiving data, add these configuration options to the `logger` and `uart` components:
+
+```yaml
+logger:
+  level: VERY_VERBOSE
+
+uart:
+  debug:
+    sequence:
+      - lambda: UARTDebug::log_string(direction, bytes);
 ```
 
 ## See Also

@@ -104,6 +104,8 @@ esp32_ble:
 
   See [ESP32 SDK Documentation](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/bluetooth/esp_gap_ble.html#c.ESP_LE_AUTH_NO_BOND) for details on these modes.
 
+- **use_psram** (*Optional*, boolean): Requests that the Bluetooth stack allocate its memory buffers from PSRAM instead of internal RAM, freeing approximately 40 kB for other uses. Defaults to `false`. Requires PSRAM to be configured.
+
 ## `ble.disable` Action
 
 This action turns off the BLE interface on demand.

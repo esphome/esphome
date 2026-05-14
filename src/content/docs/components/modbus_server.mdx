@@ -1,0 +1,131 @@
+---
+description: "Instructions for setting up the Modbus Server component."
+title: "Modbus Server"
+params:
+  seo:
+    description: Instructions for setting up the Modbus Server component.
+    image: modbus.png
+---
+
+import { Image } from 'astro:assets';
+
+The `modbus_server` component creates a RS485 connection to let your ESPHome node act as a Modbus server, allowing a ModBUS client to read data (like sensor values) from your ESPHome node.
+
+You must set the `role` attribute of the [Modbus](/components/modbus/) to `server`.
+
+<Image src="/images/modbus.png" width={190} height={200} layout="constrained" alt="" />
+
+## Hardware setup
+
+You need an RS485 transceiver module:
+
+<Image src="/images/rs485.jpg" width={300} height={145} layout="constrained" alt="" />
+
+See [How is this RS485 module working?](https://electronics.stackexchange.com/questions/244425/how-is-this-rs485-module-working) on stackexchange for more details.
+
+The transceiver connects to the UART of the MCU. For ESP32, pin `16` to `TXD` and pin `17` to `RXD` are the default ones but any other pins can be used as well. `3.3V` to `VCC` and naturally `GND` to `GND`.
+
+On the bus side, you need 120 Ohm termination resistors at the ends of the bus cable as per Modbus standard. Some transceivers have this already soldered onboard, while some slave devices may have them available via a jumper or a DIP switch.
+
+> [!NOTE]
+> If you are using an ESP8266, serial logging may cause problems reading from UART. For best results, hardware serial is recommended. Software serial may not be able to read all received data if other components spend a lot of time in the `loop()`.
+>
+> For hardware serial only a limited set of pins can be used. Either `tx_pin: GPIO1` and `rx_pin: GPIO3`  or `tx_pin: GPIO15` and `rx_pin: GPIO13`.
+>
+> The disadvantage of using the hardware UART is that you can't use serial logging because the serial logs would be sent to the Modbus device(s) instead, causing errors.
+>
+> Serial logging can be disabled by setting `baud_rate: 0`.
+>
+> See [Logger](/components/logger/) for more details
+>
+> ```yaml
+> logger:
+>     level: <level>
+>     baud_rate: 0
+> ```
+
+## Configuration variables
+
+- **modbus_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the `modbus` hub.
+
+- **address** (**Required**, integer): The Modbus address of the server device.
+
+- **courtesy_response** (*Optional*): Configuration block to enable the courtesy response feature when the device is acting as a Modbus server.
+
+  - **enabled** (*Optional*, boolean): Whether to enable the courtesy response feature.
+    Defaults to `false`.
+  - **register_last_address** (*Optional*, integer): The highest Modbus register address (inclusive) up to which undefined registers are allowed to be read and will be padded with a default value.
+    Any read request that includes undefined registers within this range will return the value specified by `register_value` instead of triggering an exception.
+    Defaults to `65535`
+  - **register_value** (*Optional*, integer): The 16-bit value (range: 0–65535) to return for undefined registers within the address range defined by `register_last_address`.
+    Defaults to `0`.
+
+- **registers** (*Optional*): A list of registers that are responded to when acting as a server.
+
+  - **address** (**Required**, integer): start address of the first register in a range
+  - **value_type** (*Optional*): datatype of the mod_bus register data. The default data type for ModBUS is a 16 bit integer in **big endian** format (network byte order, MSB first)
+
+    - `U_WORD`  : unsigned 16 bit integer, 1 register, `uint16_t`
+    - `S_WORD`  : signed 16 bit integer, 1 register, `int16_t`
+    - `U_DWORD`  : unsigned 32 bit integer, 2 registers, `uint32_t`
+    - `S_DWORD`  : signed 32 bit integer, 2 registers, `int32_t`
+    - `U_DWORD_R`  : **little endian** unsigned 32 bit integer, 2 registers, `uint32_t`
+    - `S_DWORD_R`  : **little endian** signed 32 bit integer, 2 registers, `int32_t`
+    - `U_QWORD`  : unsigned 64 bit integer, 4 registers, `uint64_t`
+    - `S_QWORD`  : signed 64 bit integer, 4 registers `int64_t`
+    - `U_QWORD_R`  : **little endian** unsigned 64 bit integer, 4 registers, `uint64_t`
+    - `S_QWORD_R`  : **little endian** signed 64 bit integer, 4 registers, `int64_t`
+    - `FP32`  : 32 bit IEEE 754 floating point, 2 registers, `float`
+    - `FP32_R`  : **little endian** 32 bit IEEE 754 floating point, 2 registers, `float`
+
+    Defaults to `U_WORD`.
+
+  - **read_lambda** (**Required**, [lambda](/automations/templates#config-lambda)):
+    Lambda that returns the value of this register.
+
+  - **write_lambda** (*Optional*, [lambda](/automations/templates#config-lambda)):
+    Lambda that sets the value of this register. A variable `x` of the appropriate type (`uint16_t`, `int32_t`, etc, see above) is provided with the value,
+    as well as `address` containing the address of this register. You must return `true` if the operation was successful, `false` otherwise, in which case
+    a ModBUS exception code `4` will be sent to the client.
+
+## Example
+
+The following code allows a ModBUS client to read a sensor value from your ESPHome node, that the node itself read from some local sensor.
+
+```yaml
+uart:
+  - id: uart_modbus_server
+    tx_pin: 25
+    rx_pin: 35
+
+modbus:
+  - uart_id: uart_modbus_server
+    id: modbus_server
+    role: server
+
+modbus_server:
+  - modbus_id: modbus_server
+    address: 0x4
+    registers:
+      - address: 0x0002
+        value_type: U_DWORD_R
+        read_lambda: |-
+          return id(uptime_sens).state;
+
+sensor:
+  - platform: uptime
+    id: uptime_sens
+```
+
+## See Also
+
+- [Modbus Component](/components/modbus/)
+- [Modbus Controller](/components/modbus_controller/)
+- [Modbus Controller Sensor](/components/sensor/modbus_controller/)
+- [Modbus Controller Binary Sensor](/components/binary_sensor/modbus_controller/)
+- [Modbus Controller Output](/components/output/modbus_controller/)
+- [Modbus Controller Switch](/components/switch/modbus_controller/)
+- [Modbus Controller Number](/components/number/modbus_controller/)
+- [Modbus Controller Select](/components/select/modbus_controller/)
+- [Modbus Controller Text Sensor](/components/text_sensor/modbus_controller/)
+- [Modbus RTU Protocol Description](https://www.modbustools.com/modbus.html)

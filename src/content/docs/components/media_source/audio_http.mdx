@@ -1,0 +1,65 @@
+---
+description: "Instructions for setting up the Audio HTTP media source in ESPHome."
+title: "Audio HTTP Media Source"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The `audio_http` media source platform plays audio streamed from HTTP and HTTPS URLs. Audio is fetched over the network and decoded
+on the device.
+
+Files are played using the `http://` or `https://` URI scheme.
+
+This component only works on ESP32 based chips.
+
+Decoding is provided by the [microDecoder library](https://github.com/esphome-libs/micro-decoder),
+which supports MP3, FLAC, Opus (Ogg-encapsulated), and WAV. To keep firmware size small, MP3,
+FLAC, and Opus decoders are compiled in only when another component in the configuration
+requests them; WAV is always available. A codec is enabled when any of the following is true:
+
+- An [`audio_file`](/components/media_source/audio_file/) media source is configured with a file of that format.
+- A [speaker media player](/components/media_player/speaker/) pipeline's `format` is set to that codec (or `codec_support_enabled: ALL` is used).
+- A [speaker_source media player](/components/media_player/speaker_source/) pipeline's `format` is set to that codec.
+
+```yaml
+# Example configuration entry
+
+media_source:
+  - platform: audio_http
+    id: http_source
+```
+
+To play a file, send a media URL like `https://example.com/audio/alert.mp3` to a media player that
+uses this media source.
+
+## HTTPS and TLS certificates
+
+HTTPS URLs are validated against ESP-IDF's bundled X.509 certificate store (the same
+Mozilla root CA list used by other ESPHome components). By default, ESPHome includes only
+the common-CA subset, which covers the vast majority of public servers; set
+`use_full_certificate_bundle: true` under the [`esp32`](/components/esp32/) component's
+advanced options for the full bundle. Servers using self-signed certificates or private
+CAs will fail to connect.
+
+To allow connections to such servers, add the [`http_request`](/components/http_request/)
+component with `verify_ssl: false`. This disables server certificate verification globally
+for all TLS connections in the build, including the ones made by `audio_http`. Use it
+only on trusted networks.
+
+<span id="config-audio_http_media_source"></span>
+
+## Configuration variables
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for this media source.
+- **buffer_size** (*Optional*, int): The size of the ring buffer in bytes used to transfer data
+  between the HTTP reader and the audio decoder. Minimum is `5000`, maximum is `1000000`. Defaults
+  to `50000`.
+- **task_stack_in_psram** (*Optional*, boolean): If `true`, the FreeRTOS decode task stack is
+  allocated in PSRAM instead of internal RAM. Requires the [psram](/components/psram/) component. Defaults to `false`.
+- All other options from [Media Source](/components/media_source/).
+
+## See Also
+
+- [Media Source Components](/components/media_source/)
+- <APIRef text="audio_http_media_source.h" path="esphome/components/audio_http/audio_http_media_source.h" />
+- [microDecoder Library (GitHub)](https://github.com/esphome-libs/micro-decoder)
