@@ -1,25 +1,29 @@
+axp2101:
+  id: axp2101_id
+  i2c_id: i2c_bus
+  update_interval: 10s
+  icc_limit: 1000mA
+
 sensor:
   - platform: axp2101
-    id: axp2101_id
-    i2c_id: i2c_bus
-    update_interval: 10s
-    icc_limit: 1000mA
     internal_temperature:
       name: "AXP2101 Temperature"
     battery_level:
       name: "Battery Level"
     battery_voltage:
       name: "Battery Voltage"
+
+binary_sensor:
+  - platform: axp2101
     battery_present:
       name: "Battery Present"
     battery_charging:
       name: "Battery Charging"
-    battery_status:
-      name: "Battery Status"
-
-binary_sensor:
 
 text_sensor:
+  - platform: axp2101
+    battery_status:
+      name: "Battery Status"
 
 button:
   - platform: template
