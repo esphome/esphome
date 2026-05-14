@@ -64,7 +64,8 @@ def _final_validate(config):
             "'tinyusb' cannot be used with 'logger.hardware_uart: USB_CDC' "
             "because both share the USB OTG peripheral. Set "
             "'logger.hardware_uart' to a hardware UART (e.g. UART0), or to "
-            "USB_SERIAL_JTAG on variants that support it (ESP32-S3, ESP32-P4)."
+            "USB_SERIAL_JTAG on variants that support it (ESP32-S3, ESP32-P4)"
+        )
     return config
 
 
