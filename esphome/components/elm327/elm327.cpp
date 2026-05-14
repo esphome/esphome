@@ -45,9 +45,9 @@ void ELM327Component::loop() {
     }
 
     if (c == '>') {
-      while (this->rx_pos_ > 0 && (this->rx_buf_[this->rx_pos_ - 1] == '\r' ||
-                                   this->rx_buf_[this->rx_pos_ - 1] == '\n' ||
-                                   this->rx_buf_[this->rx_pos_ - 1] == ' ')) {
+      while (this->rx_pos_ > 0 &&
+             (this->rx_buf_[this->rx_pos_ - 1] == '\r' || this->rx_buf_[this->rx_pos_ - 1] == '\n' ||
+              this->rx_buf_[this->rx_pos_ - 1] == ' ')) {
         this->rx_pos_--;
       }
       this->rx_buf_[this->rx_pos_] = '\0';
