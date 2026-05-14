@@ -92,7 +92,7 @@ void Esp32HostedUpdate::setup() {
   if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {
     // 16 bytes: "255.255.255" (11 chars) + null + safety margin
     char buf[16];
-    snprintf(buf, sizeof(buf), "%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
+    snprintf(buf, sizeof(buf), "%" PRIu32 ".%" PRIu32 ".%" PRIu32, ver_info.major1, ver_info.minor1, ver_info.patch1);
     this->update_info_.current_version = buf;
   } else {
     this->update_info_.current_version = "unknown";
@@ -120,8 +120,8 @@ void Esp32HostedUpdate::setup() {
         this->state_ = update::UPDATE_STATE_NO_UPDATE;
       }
     } else {
-      ESP_LOGW(TAG, "Invalid app description magic word: 0x%08x (expected 0x%08x)", app_desc->magic_word,
-               ESP_APP_DESC_MAGIC_WORD);
+      ESP_LOGW(TAG, "Invalid app description magic word: 0x%08" PRIx32 " (expected 0x%08" PRIx32 ")",
+               app_desc->magic_word, ESP_APP_DESC_MAGIC_WORD);
       this->state_ = update::UPDATE_STATE_NO_UPDATE;
     }
   } else {

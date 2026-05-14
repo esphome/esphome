@@ -108,8 +108,8 @@ void ESPHomeOTAComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Partition access allowed\n"
                 "  Running app:\n"
-                "    Partition address: 0x%X\n"
-                "    Used size: %zu bytes (0x%X)",
+                "    Partition address: 0x%" PRIX32 "\n"
+                "    Used size: %zu bytes (0x%zX)",
                 this->running_app_offset_, this->running_app_size_, this->running_app_size_);
 
 #ifdef USE_ESP32
@@ -378,7 +378,7 @@ void ESPHomeOTAComponent::handle_data_() {
   }
   ota_size = (static_cast<size_t>(buf[0]) << 24) | (static_cast<size_t>(buf[1]) << 16) |
              (static_cast<size_t>(buf[2]) << 8) | buf[3];
-  ESP_LOGV(TAG, "Size is %u bytes", ota_size);
+  ESP_LOGV(TAG, "Size is %zu bytes", ota_size);
 
 #ifndef USE_OTA_PARTITIONS
   if (ota_type != ota::OTA_TYPE_UPDATE_APP) {
@@ -749,7 +749,7 @@ bool ESPHomeOTAComponent::handle_auth_send_() {
     this->auth_buf_[0] = this->auth_type_;
     hasher.get_hex(buf);
 
-    ESP_LOGV(TAG, "Auth: Nonce is %.*s", hex_size, buf);
+    ESP_LOGV(TAG, "Auth: Nonce is %.*s", (int) hex_size, buf);
   }
 
   // Try to write auth_type + nonce
@@ -809,13 +809,13 @@ bool ESPHomeOTAComponent::handle_auth_read_() {
   hasher.add(nonce, hex_size * 2);  // Add both nonce and cnonce (contiguous in buffer)
   hasher.calculate();
 
-  ESP_LOGV(TAG, "Auth: CNonce is %.*s", hex_size, cnonce);
+  ESP_LOGV(TAG, "Auth: CNonce is %.*s", (int) hex_size, cnonce);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char computed_hash[SHA256_HEX_SIZE + 1];  // Buffer for hex-encoded hash (max expected length + null terminator)
   hasher.get_hex(computed_hash);
-  ESP_LOGV(TAG, "Auth: Result is %.*s", hex_size, computed_hash);
+  ESP_LOGV(TAG, "Auth: Result is %.*s", (int) hex_size, computed_hash);
 #endif
-  ESP_LOGV(TAG, "Auth: Response is %.*s", hex_size, response);
+  ESP_LOGV(TAG, "Auth: Response is %.*s", (int) hex_size, response);
 
   // Compare response
   bool matches = hasher.equals_hex(response);
