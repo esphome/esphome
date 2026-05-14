@@ -510,7 +510,7 @@ class EsphomeQueueUpdateHandler(EsphomeCommandWebSocket):
             
             # Force the dashboard to persist this new state to disk
             if hasattr(DASHBOARD, "save"):
-                DASHBOARD.save()
+                DASHBOARD.storage.save()
                 
             _LOGGER.info("Build successful. %s added to queued updates.", self.configuration)
             
@@ -538,21 +538,19 @@ class EsphomeCancelQueueHandler(BaseHandler):
         if configuration in DASHBOARD.queued_updates:
             DASHBOARD.queued_updates.discard(configuration)
             
-            # Persist the removal to disk so it survives restarts
-            if hasattr(DASHBOARD, "save"):
-                DASHBOARD.save()
-                
-            # Delete the actual compiled artifacts so a startup scanner doesn't find them again
+            # Persist to disk
+            if hasattr(DASHBOARD, "storage"):
+                DASHBOARD.storage.save()
+            
+            # Delete the build artifacts just in case
             node_name = configuration.replace(".yaml", "").replace(".yml", "")
             build_path = Path(settings.config_dir) / ".esphome" / "build" / node_name
-            
             if build_path.exists():
-                import shutil # Usually imported at the top of web_server.py, but safe to include here
+                import shutil
                 shutil.rmtree(build_path, ignore_errors=True)
                 
             _LOGGER.info("User cancelled queued update for %s", configuration)
             
-            # Tell the WebSocket to instantly update the frontend UI!
             DASHBOARD.bus.async_fire("queued_state_changed", {
                 "filename": configuration,
                 "state": False
