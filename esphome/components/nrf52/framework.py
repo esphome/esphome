@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 import platform
 import tempfile
+import os
 
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
@@ -14,7 +15,26 @@ from esphome.espidf.framework import (
     download_from_mirrors,
     rmdir,
 )
-
+from esphome.components.zephyr import (
+    HexValue,
+    add_extra_script,
+    copy_files as zephyr_copy_files,
+    zephyr_add_overlay,
+    zephyr_add_pm_static,
+    zephyr_add_prj_conf,
+    zephyr_data,
+    zephyr_set_core_data,
+    zephyr_setup_preferences,
+    zephyr_to_code,
+)
+from esphome.components.zephyr.const import (
+    BOOTLOADER_MCUBOOT,
+    CONF_CDC_ACM,
+    KEY_BOARD,
+    KEY_BOOTLOADER,
+    KEY_ZEPHYR,
+    CdcAcm,
+)
 _LOGGER = logging.getLogger(__name__)
 
 _WEST_VERSION = "1.5.0"
@@ -129,3 +149,60 @@ def check_and_install() -> (Path, dict[str, str]):
         sentinel.touch()
 
     return (env_python_path, west_env)
+
+def get_component_cmakelists() -> str:
+    # Extract compile options (-W flags, excluding linker flags)
+    compile_opts = [
+        flag
+        for flag in CORE.build_flags
+        if flag.startswith("-W") and not flag.startswith("-Wl,")
+    ]
+    compile_opts_str = "\n    ".join(sorted(compile_opts)) if compile_opts else ""
+
+    # Extract linker options (-Wl, flags)
+    link_opts = [flag for flag in CORE.build_flags if flag.startswith("-Wl,")]
+    link_opts_str = "\n    ".join(sorted(link_opts)) if link_opts else ""
+
+    return f"""\
+cmake_minimum_required(VERSION 3.20.0)
+
+find_package(Zephyr REQUIRED HINTS $ENV{{ZEPHYR_BASE}})
+
+project(esphome)
+
+file(GLOB_RECURSE APP_SOURCES *.cpp *.c)
+target_sources(app PRIVATE ${{APP_SOURCES}})
+"""
+
+
+# SET(CMAKE_CXX_FLAGS  "${{CMAKE_CXX_FLAGS}} {build_flags}")
+# SET(CMAKE_C_FLAGS  "${{CMAKE_C_FLAGS}} {build_flags}")
+# zephyr_ld_options({link_flags})
+
+# target_sources(app PRIVATE {" ".join(source_files)})
+# target_include_directories(app PRIVATE ../src)
+# target_link_options(app INTERFACE {link_flags})
+
+
+# target_include_directories(app PRIVATE src)
+# target_compile_definitions(app PRIVATE
+#     {def_lines}
+# )
+
+
+def build(env_python_path : Path, west_env : dict[str, str]) -> None:
+    _LOGGER.info("Building ...")
+    cmd = [
+        str(env_python_path),
+        "-m",
+        "west",
+        "build",
+        "--board",
+        zephyr_data()[KEY_BOARD],
+        str(CORE.relative_src_path()),
+    ]
+    if not _exec_ok(
+        cmd,
+        env = west_env,
+    ):
+        raise EsphomeError(f"Build failed")

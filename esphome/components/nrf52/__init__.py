@@ -64,7 +64,7 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
-from .framework import check_and_install
+from .framework import check_and_install, get_component_cmakelists, build
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa
@@ -472,7 +472,6 @@ async def _dfu_to_code(dfu_config):
     zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
     await cg.register_component(var, dfu_config)
 
-
 def copy_files() -> None:
     """Copy files to the build directory."""
 
@@ -486,6 +485,11 @@ def copy_files() -> None:
         )
 
     zephyr_copy_files()
+
+    write_file_if_changed(
+        CORE.relative_src_path("CMakeLists.txt"),
+        get_component_cmakelists(),
+    )
 
 
 DFU_PATH = "firmware.zip"
@@ -744,5 +748,5 @@ def compile_program(args, config: ConfigType) -> bool:
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         return False
-    python_path, env = check_and_install()
+    build(*check_and_install())
     raise EsphomeError("Native build for nRF52 is not implemented yet")
