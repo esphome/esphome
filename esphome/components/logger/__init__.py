@@ -511,7 +511,7 @@ def validate_printf(value):
     (?:[-+0 #]{0,5})                   # optional flags
     (?:\d+|\*)?                        # width
     (?:\.(?:\d+|\*))?                  # precision
-    (?:h|l|ll|w|I|I32|I64)?            # size
+    (?:hh|h|ll|l|j|z|t|L|w|I|I32|I64)?  # size
     [cCdiouxXeEfgGaAnpsSZ]             # type
     )
     """  # noqa

@@ -14,7 +14,7 @@ f_regex = re.compile(
     [-+0 #]{0,5}                   # optional flags
     (?:\d+|\*)?                        # width
     (?:\.(?:\d+|\*))?                  # precision
-    (?:h|l|ll|w|I|I32|I64)?            # size
+    (?:hh|h|ll|l|j|z|t|L|w|I|I32|I64)?  # size
     f                                  # type
     )
     """,
@@ -28,7 +28,7 @@ c_regex = re.compile(
     [-+0 #]{0,5}                   # optional flags
     (?:\d+|\*)?                        # width
     (?:\.(?:\d+|\*))?                  # precision
-    (?:h|l|ll|w|I|I32|I64)?            # size
+    (?:hh|h|ll|l|j|z|t|L|w|I|I32|I64)?  # size
     [cCdiouxXeEfgGaAnpsSZ]             # type
     )
     """,
