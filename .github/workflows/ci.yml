@@ -287,7 +287,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           . venv/bin/activate
-          output=$(python script/determine-jobs.py)
+          EXTRA_ARGS=""
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ci-run-all') }}" == "true" ]]; then
+            EXTRA_ARGS="--force-all"
+            echo "::notice::ci-run-all label detected -- forcing every CI job to run"
+          fi
+          output=$(python script/determine-jobs.py $EXTRA_ARGS)
           echo "Test determination output:"
           echo "$output" | jq
 
