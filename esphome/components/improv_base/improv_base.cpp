@@ -5,8 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 
-namespace esphome {
-namespace improv_base {
+namespace esphome::improv_base {
 
 #if defined(USE_ESP32_IMPROV_NEXT_URL) || defined(USE_IMPROV_SERIAL_NEXT_URL)
 static constexpr const char DEVICE_NAME_PLACEHOLDER[] = "{{device_name}}";
@@ -65,5 +64,4 @@ size_t ImprovBase::get_formatted_next_url_(char *buffer, size_t buffer_size) {
 }
 #endif
 
-}  // namespace improv_base
-}  // namespace esphome
+}  // namespace esphome::improv_base

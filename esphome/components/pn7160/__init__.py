@@ -168,6 +168,16 @@ async def pn7160_simple_action_to_code(config, action_id, template_arg, args):
     return var
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_EMULATED_TAG_SCAN, "add_on_emulated_tag_scan_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_FINISHED_WRITE, "add_on_finished_write_callback"
+    ),
+)
+
+
 async def setup_pn7160(var, config):
     await cg.register_component(var, config)
 
@@ -206,15 +216,7 @@ async def setup_pn7160(var, config):
             trigger, [(cg.std_string, "x"), (nfc.NfcTag, "tag")], conf
         )
 
-    for conf in config.get(CONF_ON_EMULATED_TAG_SCAN, []):
-        await automation.build_callback_automation(
-            var, "add_on_emulated_tag_scan_callback", [], conf
-        )
-
-    for conf in config.get(CONF_ON_FINISHED_WRITE, []):
-        await automation.build_callback_automation(
-            var, "add_on_finished_write_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_condition(

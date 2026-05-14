@@ -32,13 +32,6 @@ void BinarySensor::publish_initial_state(bool new_state) {
   this->invalidate_state();
   this->publish_state(new_state);
 }
-void BinarySensor::send_state_internal(bool new_state) {
-  // copy the new state to the visible property for backwards compatibility, before any callbacks
-  this->state = new_state;
-  // Note that set_new_state_ de-dups and will only trigger callbacks if the state has actually changed
-  this->set_new_state(new_state);
-}
-
 bool BinarySensor::set_new_state(const optional<bool> &new_state) {
   if (StatefulEntityBase::set_new_state(new_state)) {
     // weirdly, this file could be compiled even without USE_BINARY_SENSOR defined

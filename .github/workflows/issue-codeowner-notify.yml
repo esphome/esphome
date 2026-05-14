@@ -9,8 +9,8 @@ on:
     types: [labeled]
 
 permissions:
-  issues: write
-  contents: read
+  issues: write   # issues.createComment to mention component codeowners on the newly labelled issue
+  contents: read  # repos.getContent to fetch CODEOWNERS from the default branch
 
 jobs:
   notify-codeowners:
@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Notify codeowners for component issues
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const owner = context.repo.owner;

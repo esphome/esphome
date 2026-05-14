@@ -10,13 +10,10 @@ namespace esphome::light {
 
 static const char *const TAG = "light";
 
-// Helper functions to reduce code size for logging
-static void clamp_and_log_if_invalid(const char *name, float &value, const LogString *param_name, float min = 0.0f,
-                                     float max = 1.0f) {
-  if (value < min || value > max) {
-    ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_ARG(param_name), value, min, max);
-    value = clamp(value, min, max);
-  }
+// Cold-path logger; caller handles the clamp so the in-range hot path avoids
+// the spill/reload around the call.
+static void log_value_out_of_range(const char *name, float value, const LogString *param_name, float min, float max) {
+  ESP_LOGW(TAG, "'%s': %s value %.2f is out of range [%.1f - %.1f]", name, LOG_STR_ARG(param_name), value, min, max);
 }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
@@ -56,6 +53,12 @@ static void log_invalid_parameter(const char *name, const LogString *message) {
 // Index 0 is Unknown (for ColorMode::UNKNOWN), also used as fallback for out-of-range
 PROGMEM_STRING_TABLE(ColorModeHumanStrings, "Unknown", "On/Off", "Brightness", "White", "Color temperature",
                      "Cold/warm white", "RGB", "RGBW", "RGB + color temperature", "RGB + cold/warm white");
+
+// Indices 0-7 match FieldFlags bits 0-7; index 8 is color_temperature.
+// PROGMEM_STRING_TABLE is constexpr-init (no RAM guard variable).
+PROGMEM_STRING_TABLE(ValidateFieldNames, "Brightness", "Color brightness", "Red", "Green", "Blue", "White",
+                     "Cold white", "Warm white", "Color temperature");
+static constexpr uint8_t VALIDATE_CT_INDEX = 8;
 
 static const LogString *color_mode_to_human(ColorMode color_mode) {
   return ColorModeHumanStrings::get_log_str(ColorModeBitPolicy::to_bit(color_mode), 0);
@@ -198,13 +201,13 @@ LightColorValues LightCall::validate_() {
 
   // Ensure there is always a color mode set
   if (!this->has_color_mode()) {
-    this->color_mode_ = this->compute_color_mode_();
+    this->color_mode_ = this->compute_color_mode_(traits);
     this->set_flag_(FLAG_HAS_COLOR_MODE);
   }
   auto color_mode = this->color_mode_;
 
   // Transform calls that use non-native parameters for the current mode.
-  this->transform_parameters_();
+  this->transform_parameters_(traits);
 
   // Business logic adjustments before validation
   // Flag whether an explicit turn off was requested, in which case we'll also stop the effect.
@@ -277,25 +280,37 @@ LightColorValues LightCall::validate_() {
   if (this->has_state())
     v.set_state(this->state_);
 
-    // clamp_and_log_if_invalid already clamps in-place, so assign directly
-    // to avoid redundant clamp code from the setter being inlined.
-#define VALIDATE_AND_APPLY(field, name_str, ...) \
-  if (this->has_##field()) { \
-    clamp_and_log_if_invalid(name, this->field##_, LOG_STR(name_str), ##__VA_ARGS__); \
-    v.field##_ = this->field##_; \
+  // FieldFlags bits 0-7 must match unit_fields_ array indices.
+  static_assert(FLAG_HAS_BRIGHTNESS == 1u << 0 && FLAG_HAS_COLOR_BRIGHTNESS == 1u << 1 && FLAG_HAS_RED == 1u << 2 &&
+                    FLAG_HAS_GREEN == 1u << 3 && FLAG_HAS_BLUE == 1u << 4 && FLAG_HAS_WHITE == 1u << 5 &&
+                    FLAG_HAS_COLD_WHITE == 1u << 6 && FLAG_HAS_WARM_WHITE == 1u << 7,
+                "FieldFlags bits 0-7 must match unit_fields_ indices");
+
+  // Iterate set bits only (ctz + clear-lowest) — HA can drive perform()
+  // at high frequency so the hot path is O(popcount).
+  unsigned active = this->flags_ & CLAMP_FLAGS_MASK;
+  while (active != 0) {
+    unsigned bit = __builtin_ctz(active);
+    active &= active - 1;  // clear lowest set bit
+    float &value = this->unit_fields_[bit];
+    if (float_out_of_unit_range(value)) {
+      log_value_out_of_range(name, value, ValidateFieldNames::get_log_str(bit, 0), 0.0f, 1.0f);
+      value = clamp_unit_float(value);
+    }
+    v.unit_fields_[bit] = value;
   }
 
-  VALIDATE_AND_APPLY(brightness, "Brightness")
-  VALIDATE_AND_APPLY(color_brightness, "Color brightness")
-  VALIDATE_AND_APPLY(red, "Red")
-  VALIDATE_AND_APPLY(green, "Green")
-  VALIDATE_AND_APPLY(blue, "Blue")
-  VALIDATE_AND_APPLY(white, "White")
-  VALIDATE_AND_APPLY(cold_white, "Cold white")
-  VALIDATE_AND_APPLY(warm_white, "Warm white")
-  VALIDATE_AND_APPLY(color_temperature, "Color temperature", traits.get_min_mireds(), traits.get_max_mireds())
-
-#undef VALIDATE_AND_APPLY
+  // color_temperature: runtime range from traits.
+  if (this->has_color_temperature()) {
+    const float ct_min = traits.get_min_mireds();
+    const float ct_max = traits.get_max_mireds();
+    if (this->color_temperature_ < ct_min || this->color_temperature_ > ct_max) {
+      log_value_out_of_range(name, this->color_temperature_, ValidateFieldNames::get_log_str(VALIDATE_CT_INDEX, 0),
+                             ct_min, ct_max);
+      this->color_temperature_ = clamp(this->color_temperature_, ct_min, ct_max);
+    }
+    v.color_temperature_ = this->color_temperature_;
+  }
 
   v.normalize_color();
 
@@ -366,9 +381,7 @@ LightColorValues LightCall::validate_() {
 
   return v;
 }
-void LightCall::transform_parameters_() {
-  auto traits = this->parent_->get_traits();
-
+void LightCall::transform_parameters_(const LightTraits &traits) {
   // Allow CWWW modes to be set with a white value and/or color temperature.
   // This is used in three cases in HA:
   // - CW/WW lights, which set the "brightness" and "color_temperature"
@@ -407,8 +420,8 @@ void LightCall::transform_parameters_() {
     }
   }
 }
-ColorMode LightCall::compute_color_mode_() {
-  auto supported_modes = this->parent_->get_traits().get_supported_color_modes();
+ColorMode LightCall::compute_color_mode_(const LightTraits &traits) {
+  auto supported_modes = traits.get_supported_color_modes();
   int supported_count = supported_modes.size();
 
   // Some lights don't support any color modes (e.g. monochromatic light), leave it at unknown.

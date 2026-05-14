@@ -4,8 +4,7 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 class TuyaTextSensor : public text_sensor::TextSensor, public Component {
  public:
@@ -20,5 +19,4 @@ class TuyaTextSensor : public text_sensor::TextSensor, public Component {
   uint8_t sensor_id_{0};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

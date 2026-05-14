@@ -28,7 +28,7 @@ CONFIG_SCHEMA = cv.Schema(
                 is_polling_component=False,
             )
         )
-        .extend({cv.Required(CONF_MEMORY_DATA): cv.hex_int_range()}),
+        .extend({cv.Required(CONF_MEMORY_DATA): cv.hex_int_range(min=0x00, max=0xFF)}),
     }
 )
 

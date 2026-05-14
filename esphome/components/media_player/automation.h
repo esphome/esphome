@@ -3,9 +3,7 @@
 #include "esphome/core/automation.h"
 #include "media_player.h"
 
-namespace esphome {
-
-namespace media_player {
+namespace esphome::media_player {
 
 template<MediaPlayerCommand Command, typename... Ts>
 class MediaPlayerCommandAction : public Action<Ts...>, public Parented<MediaPlayer> {
@@ -55,16 +53,22 @@ using GroupJoinAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYE
 template<typename... Ts>
 using ClearPlaylistAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST, Ts...>;
 
-template<typename... Ts> class PlayMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
+template<MediaPlayerCommand Command, typename... Ts>
+class MediaPlayerMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(std::string, media_url)
   TEMPLATABLE_VALUE(bool, announcement)
   void play(const Ts &...x) override {
-    this->parent_->make_call()
-        .set_media_url(this->media_url_.value(x...))
-        .set_announcement(this->announcement_.value(x...))
-        .perform();
+    auto call = this->parent_->make_call();
+    if constexpr (Command != MediaPlayerCommand::MEDIA_PLAYER_COMMAND_PLAY)
+      call.set_command(Command);
+    call.set_media_url(this->media_url_.value(x...)).set_announcement(this->announcement_.value(x...)).perform();
   }
 };
+
+template<typename... Ts>
+using PlayMediaAction = MediaPlayerMediaAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_PLAY, Ts...>;
+template<typename... Ts>
+using EnqueueMediaAction = MediaPlayerMediaAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_ENQUEUE, Ts...>;
 
 template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(float, volume)
@@ -130,5 +134,4 @@ template<typename... Ts> class IsMutedCondition : public Condition<Ts...>, publi
   bool check(const Ts &...x) override { return this->parent_->is_muted(); }
 };
 
-}  // namespace media_player
-}  // namespace esphome
+}  // namespace esphome::media_player

@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import audio, esp32, socket, speaker
+from esphome.components import audio, esp32, speaker
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
@@ -111,9 +111,6 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    # Enable wake_loop_threadsafe for immediate command processing from other tasks
-    socket.require_wake_loop_threadsafe()
-
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

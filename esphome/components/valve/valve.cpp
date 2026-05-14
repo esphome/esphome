@@ -6,8 +6,7 @@
 
 #include <strings.h>
 
-namespace esphome {
-namespace valve {
+namespace esphome::valve {
 
 static const char *const TAG = "valve";
 
@@ -176,5 +175,4 @@ void ValveRestoreState::apply(Valve *valve) {
   valve->publish_state();
 }
 
-}  // namespace valve
-}  // namespace esphome
+}  // namespace esphome::valve

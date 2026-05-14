@@ -4,8 +4,7 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/components/output/binary_output.h"
 
-namespace esphome {
-namespace output {
+namespace esphome::output {
 
 class OutputSwitch : public switch_::Switch, public Component {
  public:
@@ -21,5 +20,4 @@ class OutputSwitch : public switch_::Switch, public Component {
   output::BinaryOutput *output_;
 };
 
-}  // namespace output
-}  // namespace esphome
+}  // namespace esphome::output
