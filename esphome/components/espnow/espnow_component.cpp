@@ -359,6 +359,9 @@ void ESPNowComponent::loop() {
       ESP_LOGI(TAG, "Wifi Channel is changed from %d to %" PRId32 ".", this->wifi_channel_, new_channel);
       this->wifi_channel_ = new_channel;
 #if defined(USE_ESP8266)
+      // On ESP8266 the SDK resolves channel=0 to the current channel at esp_now_add_peer()
+      // time and stores it. Peers added before a channel change are still locked to the old
+      // channel, so they must be re-added to pick up the new one.
       auto peers_copy = this->peers_;
       for (const auto &peer : peers_copy) {
         (void) this->del_peer(peer.address);
