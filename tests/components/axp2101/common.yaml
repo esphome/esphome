@@ -17,6 +17,10 @@ sensor:
     battery_status:
       name: "Battery Status"
 
+binary_sensor:
+
+text_sensor:
+
 button:
   - platform: template
     name: "Shutdown"
