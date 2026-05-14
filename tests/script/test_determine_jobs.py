@@ -2659,6 +2659,7 @@ def test_main_force_all_overrides_detection(
     assert output["integration_tests"] is True
     assert output["clang_tidy"] is True
     assert output["clang_tidy_mode"] == "split"
+    assert output["clang_tidy_full_scan"] is True
     assert output["clang_format"] is True
     assert output["python_linters"] is True
     assert output["import_time"] is True

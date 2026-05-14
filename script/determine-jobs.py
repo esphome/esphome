@@ -1179,8 +1179,10 @@ def main() -> None:
     memory_impact = detect_memory_impact_config(args.branch)
 
     # Determine clang-tidy mode based on actual files that will be checked
+    is_full_scan = False
     if run_clang_tidy:
         # Full scan needed if: hash changed OR core files changed
+        # (is_core_change is forced True under --force-all)
         is_full_scan = _is_clang_tidy_full_scan() or is_core_change
 
         if is_full_scan:
@@ -1257,6 +1259,7 @@ def main() -> None:
         "integration_test_buckets": integration_test_buckets,
         "clang_tidy": run_clang_tidy,
         "clang_tidy_mode": clang_tidy_mode,
+        "clang_tidy_full_scan": is_full_scan,
         "clang_format": run_clang_format,
         "python_linters": run_python_linters,
         "import_time": run_import_time,
