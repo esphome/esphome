@@ -13,6 +13,8 @@ class AXP2101Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   void update() override;
 
+  void set_icc_limit(uint8_t limit) { this->icc_limit_ = limit; }
+
   void set_temperature_sensor(sensor::Sensor *s) { temperature_sensor_ = s; }
   void set_battery_remaining_sensor(sensor::Sensor *s) { battery_remaining_sensor_ = s; }
   void set_battery_voltage_sensor(sensor::Sensor *s) { battery_voltage_sensor_ = s; }
@@ -23,6 +25,7 @@ class AXP2101Component : public PollingComponent, public i2c::I2CDevice {
   void shutdown();
 
  protected:
+  uint8_t icc_limit_{0};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *battery_remaining_sensor_{nullptr};
   sensor::Sensor *battery_voltage_sensor_{nullptr};

@@ -3,6 +3,7 @@ sensor:
     id: axp2101_id
     i2c_id: i2c_bus
     update_interval: 10s
+    icc_limit: 1000mA
     internal_temperature:
       name: "AXP2101 Temperature"
     battery_level:

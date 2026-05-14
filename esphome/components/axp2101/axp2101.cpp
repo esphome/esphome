@@ -20,9 +20,9 @@ void AXP2101Component::dump_config() {
     this->status_set_warning();
     return;
   }
-  TODO("move to config property")
-  // increase ICC charging current to 1000mA
-  if (!this->write_byte(0x62, 0x10)) {
+
+  // set ICC charging current
+  if (!this->write_byte(0x62, this->icc_limit_)) {
     ESP_LOGE(TAG, "Setting ICC failed!");
     this->status_set_warning();
     return;
