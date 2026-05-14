@@ -64,7 +64,7 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
-from .framework import check_and_install, get_component_cmakelists, build
+from .framework import build, check_and_install, get_component_cmakelists
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa
@@ -471,6 +471,7 @@ async def _dfu_to_code(dfu_config):
         cg.add(var.set_reset_pin(pin))
     zephyr_add_prj_conf("CDC_ACM_DTE_RATE_CALLBACK_SUPPORT", True)
     await cg.register_component(var, dfu_config)
+
 
 def copy_files() -> None:
     """Copy files to the build directory."""
