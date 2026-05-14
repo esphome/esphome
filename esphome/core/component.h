@@ -65,7 +65,6 @@ inline constexpr uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 /// with component-level NUMERIC_ID values, even if the uint32_t values overlap.
 enum class InternalSchedulerID : uint32_t {
   POLLING_UPDATE = 0,  // PollingComponent interval
-  DELAY_ACTION = 1,    // DelayAction timeout
 };
 
 // Forward declaration

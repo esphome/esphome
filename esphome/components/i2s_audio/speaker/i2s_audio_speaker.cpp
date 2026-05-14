@@ -13,22 +13,16 @@
 
 #include "esp_timer.h"
 
+// esp-audio-libs
+#include <gain.h>
+
 namespace esphome::i2s_audio {
 
 static const char *const TAG = "i2s_audio.speaker";
 
-// Lists the Q15 fixed point scaling factor for volume reduction.
-// Has 100 values representing silence and a reduction [49, 48.5, ... 0.5, 0] dB.
-// dB to PCM scaling factor formula: floating_point_scale_factor = 2^(-db/6.014)
-// float to Q15 fixed point formula: q15_scale_factor = floating_point_scale_factor * 2^(15)
-static const std::vector<int16_t> Q15_VOLUME_SCALING_FACTORS = {
-    0,     116,   122,   130,   137,   146,   154,   163,   173,   183,   194,   206,   218,   231,   244,
-    259,   274,   291,   308,   326,   345,   366,   388,   411,   435,   461,   488,   517,   548,   580,
-    615,   651,   690,   731,   774,   820,   868,   920,   974,   1032,  1094,  1158,  1227,  1300,  1377,
-    1459,  1545,  1637,  1734,  1837,  1946,  2061,  2184,  2313,  2450,  2596,  2750,  2913,  3085,  3269,
-    3462,  3668,  3885,  4116,  4360,  4619,  4893,  5183,  5490,  5816,  6161,  6527,  6914,  7324,  7758,
-    8218,  8706,  9222,  9770,  10349, 10963, 11613, 12302, 13032, 13805, 14624, 15491, 16410, 17384, 18415,
-    19508, 20665, 21891, 23189, 24565, 26022, 27566, 29201, 30933, 32767};
+// Software volume control maps the user-facing [0.0, 1.0] range to a Q31 scale factor.
+// Volumes in (0.0, 1.0) map linearly to a dB reduction in [-49.0, 0.0] dB.
+static constexpr float SOFTWARE_VOLUME_MIN_DB = -49.0f;
 
 void I2SAudioSpeakerBase::setup() {
   this->event_group_ = xEventGroupCreate();
@@ -75,6 +69,17 @@ void I2SAudioSpeakerBase::loop() {
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPING) {
     ESP_LOGV(TAG, "Stopping");
+    // Lockstep-breaking error bits are latched by the task and cleared along with all other bits
+    // when TASK_STOPPED is processed; log them here, exactly once, as the task winds down.
+    if (event_group_bits & SpeakerEventGroupBits::ERR_DROPPED_EVENT) {
+      ESP_LOGE(TAG, "ISR event queue overflow, restarting speaker task to recover timestamp sync");
+    }
+    if (event_group_bits & SpeakerEventGroupBits::ERR_PARTIAL_WRITE) {
+      ESP_LOGE(TAG, "Partial DMA write broke buffer alignment, restarting speaker task");
+    }
+    if (event_group_bits & SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC) {
+      ESP_LOGE(TAG, "Event/record queues desynced, restarting speaker task");
+    }
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::TASK_STOPPING);
     this->state_ = speaker::STATE_STOPPING;
   }
@@ -93,16 +98,9 @@ void I2SAudioSpeakerBase::loop() {
     this->state_ = speaker::STATE_STOPPED;
   }
 
-  // Log any errors encountered by the task
   if (event_group_bits & SpeakerEventGroupBits::ERR_ESP_NO_MEM) {
-    ESP_LOGE(TAG, "Not enough memory");
+    ESP_LOGE(TAG, "Speaker task setup failed (allocation, preload, or channel enable)");
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
-  }
-
-  // Warn if any playback timestamp events are dropped, which drastically reduces synced playback accuracy
-  if (event_group_bits & SpeakerEventGroupBits::WARN_DROPPED_EVENT) {
-    ESP_LOGW(TAG, "Event dropped, synchronized playback accuracy is reduced");
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::WARN_DROPPED_EVENT);
   }
 
   // Handle the speaker's state
@@ -147,14 +145,16 @@ void I2SAudioSpeakerBase::set_volume(float volume) {
   } else
 #endif  // USE_AUDIO_DAC
   {
-    // Fallback to software volume control by using a Q15 fixed point scaling factor.
-    // At maximum volume (1.0), set to INT16_MAX to completely bypass volume processing
+    // Fallback to software volume control by using a Q31 fixed point scaling factor.
+    // At maximum volume (1.0), set to INT32_MAX to bypass volume processing entirely
     // and avoid any floating-point precision issues that could cause slight volume reduction.
     if (volume >= 1.0f) {
-      this->q15_volume_factor_ = INT16_MAX;
+      this->q31_volume_factor_ = INT32_MAX;
+    } else if (volume <= 0.0f) {
+      this->q31_volume_factor_ = 0;
     } else {
-      ssize_t decibel_index = remap<ssize_t, float>(volume, 0.0f, 1.0f, 0, Q15_VOLUME_SCALING_FACTORS.size() - 1);
-      this->q15_volume_factor_ = Q15_VOLUME_SCALING_FACTORS[decibel_index];
+      this->q31_volume_factor_ =
+          esp_audio_libs::gain::db_to_q31(remap<float, float>(volume, 0.0f, 1.0f, SOFTWARE_VOLUME_MIN_DB, 0.0f));
     }
   }
 }
@@ -173,7 +173,7 @@ void I2SAudioSpeakerBase::set_mute_state(bool mute_state) {
   {
     if (mute_state) {
       // Fallback to software volume control and scale by 0
-      this->q15_volume_factor_ = 0;
+      this->q31_volume_factor_ = 0;
     } else {
       // Revert to previous volume when unmuting
       this->set_volume(this->volume_);
@@ -199,7 +199,7 @@ size_t I2SAudioSpeakerBase::play(const uint8_t *data, size_t length, TickType_t 
 
   size_t bytes_written = 0;
   if (this->state_ == speaker::STATE_RUNNING) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
     if (temp_ring_buffer != nullptr) {
       // The weak_ptr locks successfully only while the speaker task owns the ring buffer, so it is safe to write
       bytes_written = temp_ring_buffer->write_without_replacement((void *) data, length, ticks_to_wait);
@@ -211,7 +211,7 @@ size_t I2SAudioSpeakerBase::play(const uint8_t *data, size_t length, TickType_t 
 
 bool I2SAudioSpeakerBase::has_buffered_data() const {
   if (this->audio_ring_buffer_.use_count() > 0) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
     return temp_ring_buffer->available() > 0;
   }
   return false;
@@ -261,7 +261,7 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
 
   err = i2s_channel_init_std_mode(this->tx_handle_, &std_cfg);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to initialize channel");
+    ESP_LOGE(TAG, "Failed to initialize I2S channel");
     i2s_del_channel(this->tx_handle_);
     this->tx_handle_ = nullptr;
     this->parent_->unlock();
@@ -273,6 +273,22 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
   } else {
     // Reset queue to clear any stale events from previous task
     xQueueReset(this->i2s_event_queue_);
+  }
+
+  // Lockstep records queue. One record per in-flight DMA buffer; sized to match the I2S event queue
+  // so a fully-saturated DMA pipeline cannot overflow either side before drain.
+  if (this->write_records_queue_ == nullptr) {
+    this->write_records_queue_ = xQueueCreate(event_queue_size, sizeof(uint32_t));
+  } else {
+    xQueueReset(this->write_records_queue_);
+  }
+
+  if (this->i2s_event_queue_ == nullptr || this->write_records_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate I2S event queue(s)");
+    i2s_del_channel(this->tx_handle_);
+    this->tx_handle_ = nullptr;
+    this->parent_->unlock();
+    return ESP_ERR_NO_MEM;
   }
 
   return ESP_OK;
@@ -297,10 +313,16 @@ bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s
   I2SAudioSpeakerBase *this_speaker = (I2SAudioSpeakerBase *) user_ctx;
 
   if (xQueueIsQueueFullFromISR(this_speaker->i2s_event_queue_)) {
-    // Queue is full, so discard the oldest event and set the warning flag to inform the user
+    // Queue is full, so discard the oldest event. Once we drop a completion event, ``i2s_event_queue_``
+    // and any per-buffer record queue maintained by the task are permanently desynced, so the task
+    // must restart to recover. Set both ERR_DROPPED_EVENT (so loop() can log it) and COMMAND_STOP
+    // (so the task bails immediately, closing the race where loop() could clear the error bit
+    // before the task observes it).
     int64_t dummy;
     xQueueReceiveFromISR(this_speaker->i2s_event_queue_, &dummy, &need_yield1);
-    xEventGroupSetBitsFromISR(this_speaker->event_group_, SpeakerEventGroupBits::WARN_DROPPED_EVENT, &need_yield2);
+    xEventGroupSetBitsFromISR(this_speaker->event_group_,
+                              SpeakerEventGroupBits::ERR_DROPPED_EVENT | SpeakerEventGroupBits::COMMAND_STOP,
+                              &need_yield2);
   }
 
   xQueueSendToBackFromISR(this_speaker->i2s_event_queue_, &now, &need_yield3);
@@ -309,29 +331,14 @@ bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s
 }
 
 void I2SAudioSpeakerBase::apply_software_volume_(uint8_t *data, size_t bytes_read) {
-  if (this->q15_volume_factor_ >= INT16_MAX) {
+  if (this->q31_volume_factor_ == INT32_MAX) {
     return;  // Max volume, no processing needed
   }
 
   const size_t bytes_per_sample = this->current_stream_info_.samples_to_bytes(1);
   const uint32_t len = bytes_read / bytes_per_sample;
 
-  // Use Q16 for samples with 1 or 2 bytes: shifted_sample * gain_factor is Q16 * Q15 -> Q31
-  int32_t shift = 15;                              // Q31 -> Q16
-  int32_t gain_factor = this->q15_volume_factor_;  // Q15
-
-  if (bytes_per_sample >= 3) {
-    // Use Q23 for samples with 3 or 4 bytes: shifted_sample * gain_factor is Q23 * Q8 -> Q31
-    shift = 8;          // Q31 -> Q23
-    gain_factor >>= 7;  // Q15 -> Q8
-  }
-
-  for (uint32_t i = 0; i < len; ++i) {
-    int32_t sample = audio::unpack_audio_sample_to_q31(&data[i * bytes_per_sample], bytes_per_sample);  // Q31
-    sample >>= shift;
-    sample *= gain_factor;  // Q31
-    audio::pack_q31_as_audio_sample(sample, &data[i * bytes_per_sample], bytes_per_sample);
-  }
+  esp_audio_libs::gain::apply(data, data, this->q31_volume_factor_, len, bytes_per_sample);
 }
 
 void I2SAudioSpeakerBase::swap_esp32_mono_samples_(uint8_t *data, size_t bytes_read) {

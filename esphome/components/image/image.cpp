@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace image {
+namespace esphome::image {
 
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
   int img_x0 = 0;
@@ -243,5 +242,4 @@ Image::Image(const uint8_t *data_start, int width, int height, ImageType type, T
   }
 }
 
-}  // namespace image
-}  // namespace esphome
+}  // namespace esphome::image
