@@ -239,23 +239,31 @@ async def to_code(config):
         )
         cg.add(var.set_custom_preset_lambda(template_))
 
-    if CONF_SUPPORTED_MODES in config:
-        cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
+    for mode in config.get(CONF_SUPPORTED_MODES, []):
+        cg.add(var.add_supported_mode(mode))
 
-    if CONF_SUPPORTED_FAN_MODES in config:
-        cg.add(var.set_supported_fan_modes(config[CONF_SUPPORTED_FAN_MODES]))
+    for mode in config.get(CONF_SUPPORTED_FAN_MODES, []):
+        cg.add(var.add_supported_fan_mode(mode))
 
     if CONF_CUSTOM_FAN_MODES in config:
-        cg.add(var.set_supported_custom_fan_modes(config[CONF_CUSTOM_FAN_MODES]))
+        cg.add(
+            var.set_supported_custom_fan_modes(
+                cg.ArrayInitializer(*config[CONF_CUSTOM_FAN_MODES])
+            )
+        )
 
-    if CONF_SUPPORTED_SWING_MODES in config:
-        cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
+    for mode in config.get(CONF_SUPPORTED_SWING_MODES, []):
+        cg.add(var.add_supported_swing_mode(mode))
 
-    if CONF_SUPPORTED_PRESETS in config:
-        cg.add(var.set_supported_presets(config[CONF_SUPPORTED_PRESETS]))
+    for preset in config.get(CONF_SUPPORTED_PRESETS, []):
+        cg.add(var.add_supported_preset(preset))
 
     if CONF_CUSTOM_PRESETS in config:
-        cg.add(var.set_supported_custom_presets(config[CONF_CUSTOM_PRESETS]))
+        cg.add(
+            var.set_supported_custom_presets(
+                cg.ArrayInitializer(*config[CONF_CUSTOM_PRESETS])
+            )
+        )
 
     if CONF_SET_MODE_ACTION in config:
         await automation.build_automation(

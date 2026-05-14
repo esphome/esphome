@@ -19,8 +19,11 @@ from aioesphomeapi import (
 )
 import pytest
 
+from .host_prefs import clear_host_prefs
 from .state_utils import InitialStateHelper
 from .types import APIClientConnectedFactory, RunCompiledFunction
+
+DEVICE_NAME = "tmpl-clim-no-lam-opt"
 
 
 @pytest.mark.asyncio
@@ -33,6 +36,7 @@ async def test_template_climate_no_lambdas_optimistic(
 
     ESPHome owns the state — no lambdas are needed to confirm commands.
     """
+    clear_host_prefs(DEVICE_NAME)
     loop = asyncio.get_running_loop()
     async with run_compiled(yaml_config), api_client_connected() as client:
         state_future: asyncio.Future[aioesphomeapi.ClimateState] = loop.create_future()

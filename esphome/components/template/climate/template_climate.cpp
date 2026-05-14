@@ -5,18 +5,6 @@ namespace esphome::template_ {
 
 static const char *const TAG = "template_climate";
 
-TemplateClimate::TemplateClimate()
-    : set_mode_trigger_(new Trigger<climate::ClimateMode>()),
-      set_target_temperature_trigger_(new Trigger<float>()),
-      set_target_temperature_low_trigger_(new Trigger<float>()),
-      set_target_temperature_high_trigger_(new Trigger<float>()),
-      set_target_humidity_trigger_(new Trigger<float>()),
-      set_fan_mode_trigger_(new Trigger<climate::ClimateFanMode>()),
-      set_custom_fan_mode_trigger_(new Trigger<std::string>()),
-      set_swing_mode_trigger_(new Trigger<climate::ClimateSwingMode>()),
-      set_preset_trigger_(new Trigger<climate::ClimatePreset>()),
-      set_custom_preset_trigger_(new Trigger<std::string>()) {}
-
 void TemplateClimate::setup() {
   auto restore = this->restore_state_();
   if (restore.has_value()) {
@@ -107,10 +95,8 @@ void TemplateClimate::loop() {
   }
 
   if (auto val = this->fan_mode_f_()) {
-    if (this->fan_mode != val) {
-      this->fan_mode = val;
+    if (this->set_fan_mode_(*val))
       changed = true;
-    }
   }
 
   if (auto val = this->custom_fan_mode_f_()) {
@@ -128,10 +114,8 @@ void TemplateClimate::loop() {
   }
 
   if (auto val = this->preset_f_()) {
-    if (this->preset != val) {
-      this->preset = val;
+    if (this->set_preset_(*val))
       changed = true;
-    }
   }
 
   if (auto val = this->custom_preset_f_()) {
@@ -171,61 +155,61 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
   if (auto mode = call.get_mode()) {
     if (apply_state)
       this->mode = *mode;
-    this->set_mode_trigger_->trigger(*mode);
+    this->set_mode_trigger_.trigger(*mode);
   }
 
   if (auto target_temp = call.get_target_temperature()) {
     if (apply_state)
       this->target_temperature = *target_temp;
-    this->set_target_temperature_trigger_->trigger(*target_temp);
+    this->set_target_temperature_trigger_.trigger(*target_temp);
   }
 
   if (auto target_temp_low = call.get_target_temperature_low()) {
     if (apply_state)
       this->target_temperature_low = *target_temp_low;
-    this->set_target_temperature_low_trigger_->trigger(*target_temp_low);
+    this->set_target_temperature_low_trigger_.trigger(*target_temp_low);
   }
 
   if (auto target_temp_high = call.get_target_temperature_high()) {
     if (apply_state)
       this->target_temperature_high = *target_temp_high;
-    this->set_target_temperature_high_trigger_->trigger(*target_temp_high);
+    this->set_target_temperature_high_trigger_.trigger(*target_temp_high);
   }
 
   if (auto target_humidity = call.get_target_humidity()) {
     if (apply_state)
       this->target_humidity = *target_humidity;
-    this->set_target_humidity_trigger_->trigger(*target_humidity);
+    this->set_target_humidity_trigger_.trigger(*target_humidity);
   }
 
   if (auto fan_mode = call.get_fan_mode()) {
     if (apply_state)
-      this->fan_mode = fan_mode;
-    this->set_fan_mode_trigger_->trigger(*fan_mode);
+      this->set_fan_mode_(*fan_mode);
+    this->set_fan_mode_trigger_.trigger(*fan_mode);
   }
 
   if (call.has_custom_fan_mode()) {
     if (apply_state)
       this->set_custom_fan_mode_(call.get_custom_fan_mode());
-    this->set_custom_fan_mode_trigger_->trigger(std::string(call.get_custom_fan_mode()));
+    this->set_custom_fan_mode_trigger_.trigger(std::string(call.get_custom_fan_mode()));
   }
 
   if (auto swing_mode = call.get_swing_mode()) {
     if (apply_state)
       this->swing_mode = *swing_mode;
-    this->set_swing_mode_trigger_->trigger(*swing_mode);
+    this->set_swing_mode_trigger_.trigger(*swing_mode);
   }
 
   if (auto preset = call.get_preset()) {
     if (apply_state)
-      this->preset = preset;
-    this->set_preset_trigger_->trigger(*preset);
+      this->set_preset_(*preset);
+    this->set_preset_trigger_.trigger(*preset);
   }
 
   if (call.has_custom_preset()) {
     if (apply_state)
       this->set_custom_preset_(call.get_custom_preset());
-    this->set_custom_preset_trigger_->trigger(std::string(call.get_custom_preset()));
+    this->set_custom_preset_trigger_.trigger(std::string(call.get_custom_preset()));
   }
 
   this->publish_state();
