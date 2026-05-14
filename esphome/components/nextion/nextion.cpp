@@ -204,7 +204,7 @@ void Nextion::dump_config() {
                 "  Exit reparse: YES\n"
 #endif  // USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
                 "  Max queue age: %u ms\n"
-                "  Startup override: %u ms\n",
+                "  Startup override: %u ms\n"
                 "  Wake On Touch: %s\n"
                 "  Touch Timeout: %" PRIu16,
                 this->max_q_age_ms_, this->startup_override_ms_, YESNO(this->connection_state_.auto_wake_on_touch_),
