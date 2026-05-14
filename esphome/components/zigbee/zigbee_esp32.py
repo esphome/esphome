@@ -36,9 +36,11 @@ from .const import (
     ANALOG_INPUT_APPTYPE,
     BACNET_UNIT_NO_UNITS,
     BACNET_UNITS,
+    CONF_POWER_SOURCE,
     CONF_REPORT,
     CONF_ROUTER,
     KEY_ZIGBEE,
+    POWER_SOURCE,
     REPORT,
     ZigbeeAttribute,
 )
@@ -320,6 +322,7 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
         var.set_basic_cluster(
             config[CONF_MODEL],
             "esphome",
+            cg.RawExpression(POWER_SOURCE[config[CONF_POWER_SOURCE]]),
         )
     )
     for ep in ep_list:

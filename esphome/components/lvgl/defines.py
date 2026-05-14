@@ -20,7 +20,6 @@ from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
 LOGGER = logging.getLogger(__name__)
-lvgl_ns = cg.esphome_ns.namespace("lvgl")
 
 DOMAIN = "lvgl"
 KEY_COLOR_FORMATS = "color_formats"
@@ -399,6 +398,13 @@ LV_EVENT_MAP = {
 }
 
 LV_PRESS_EVENTS = ("PRESS", "PRESSING", "RELEASE")
+
+VALUE_ON_CHANGE = "on_change"
+VALUE_ON_UPDATE = "on_update"
+VALUE_ON_VALUE = "on_value"
+VALUE_ON_RELEASE = "on_release"
+
+LV_VALUE_EVENTS = (VALUE_ON_CHANGE, VALUE_ON_UPDATE, VALUE_ON_VALUE, VALUE_ON_RELEASE)
 
 
 def is_press_event(event: str) -> bool:
@@ -788,6 +794,7 @@ CONF_SKIP = "skip"
 CONF_SYMBOL = "symbol"
 CONF_TAB_ID = "tab_id"
 CONF_TABS = "tabs"
+CONF_THEME = "theme"
 CONF_TICK_STYLE = "tick_style"
 CONF_TIME_FORMAT = "time_format"
 CONF_TILE = "tile"
@@ -799,7 +806,7 @@ CONF_TOUCHSCREENS = "touchscreens"
 CONF_TRANSFORM_ROTATION = "transform_rotation"
 CONF_TRANSFORM_SCALE = "transform_scale"
 CONF_TRANSPARENCY_KEY = "transparency_key"
-CONF_THEME = "theme"
+CONF_TRIGGER = "trigger"
 CONF_UPDATE_ON_RELEASE = "update_on_release"
 CONF_UPDATE_WHEN_DISPLAY_IDLE = "update_when_display_idle"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"

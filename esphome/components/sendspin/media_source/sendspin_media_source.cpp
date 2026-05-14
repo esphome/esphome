@@ -188,14 +188,6 @@ void SendspinMediaSource::on_stream_end() {
   }
 }
 
-// THREAD CONTEXT: Main loop (PlayerRoleListener lifecycle callback)
-void SendspinMediaSource::on_stream_clear() {
-  if (this->get_state() != media_source::MediaSourceState::IDLE) {
-    // Only set to IDLE if we were previously in a non-IDLE state, to avoid duplicate state changes
-    this->set_state_(media_source::MediaSourceState::IDLE);
-  }
-}
-
 // THREAD CONTEXT: Main loop (PlayerRoleListener callback)
 void SendspinMediaSource::on_volume_changed(uint8_t volume) { this->request_volume_(volume / 100.0f); }
 

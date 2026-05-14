@@ -40,6 +40,7 @@ enum VoiceAssistantFeature : uint32_t {
   FEATURE_TIMERS = 1 << 3,
   FEATURE_ANNOUNCE = 1 << 4,
   FEATURE_START_CONVERSATION = 1 << 5,
+  FEATURE_MULTI_CHANNEL_AUDIO = 1 << 6,
 };
 
 enum class State {
@@ -120,6 +121,7 @@ class VoiceAssistant : public Component {
   void failed_to_start();
 
   void set_microphone_source(microphone::MicrophoneSource *mic_source) { this->mic_source_ = mic_source; }
+  void set_microphone_source2(microphone::MicrophoneSource *mic_source2) { this->mic_source2_ = mic_source2; }
 #ifdef USE_MICRO_WAKE_WORD
   void set_micro_wake_word(micro_wake_word::MicroWakeWord *mww) { this->micro_wake_word_ = mww; }
 #endif
@@ -149,6 +151,9 @@ class VoiceAssistant : public Component {
     uint32_t flags = 0;
     flags |= VoiceAssistantFeature::FEATURE_VOICE_ASSISTANT;
     flags |= VoiceAssistantFeature::FEATURE_API_AUDIO;
+    if (this->mic_source2_ != nullptr) {
+      flags |= VoiceAssistantFeature::FEATURE_MULTI_CHANNEL_AUDIO;
+    }
 #ifdef USE_SPEAKER
     if (this->speaker_ != nullptr) {
       flags |= VoiceAssistantFeature::FEATURE_SPEAKER;
@@ -276,6 +281,7 @@ class VoiceAssistant : public Component {
   bool timer_tick_running_{false};
 
   microphone::MicrophoneSource *mic_source_{nullptr};
+  microphone::MicrophoneSource *mic_source2_{nullptr};
 #ifdef USE_SPEAKER
   void write_speaker_();
   speaker::Speaker *speaker_{nullptr};
@@ -301,6 +307,7 @@ class VoiceAssistant : public Component {
   std::string wake_word_;
 
   std::shared_ptr<ring_buffer::RingBuffer> ring_buffer_;
+  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer2_;
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
@@ -309,6 +316,7 @@ class VoiceAssistant : public Component {
   uint32_t conversation_timeout_;
 
   uint8_t *send_buffer_{nullptr};
+  uint8_t *send_buffer2_{nullptr};
 
   bool continuous_{false};
   bool silence_detection_;

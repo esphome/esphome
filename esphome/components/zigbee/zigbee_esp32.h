@@ -43,7 +43,7 @@ class ZigbeeComponent : public Component {
   void dump_config() override;
   esp_err_t create_endpoint(uint8_t endpoint_id, zb_ha_standard_devs_e device_id,
                             esp_zb_cluster_list_t *esp_zb_cluster_list);
-  void set_basic_cluster(const char *model, const char *manufacturer);
+  void set_basic_cluster(const char *model, const char *manufacturer, uint8_t power_source);
   void add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role);
   void create_default_cluster(uint8_t endpoint_id, zb_ha_standard_devs_e device_id);
 
@@ -62,6 +62,7 @@ class ZigbeeComponent : public Component {
 
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
 
+  bool is_battery_powered() { return this->basic_cluster_data_.power_source == ESP_ZB_ZCL_BASIC_POWER_SOURCE_BATTERY; }
   bool is_started() { return this->started; }
   bool is_connected() { return this->connected_; }
   std::atomic<bool> started = false;
@@ -73,6 +74,7 @@ class ZigbeeComponent : public Component {
     uint8_t *model;
     uint8_t *manufacturer;
     uint8_t *date;
+    uint8_t power_source;
   } basic_cluster_data_;
   bool connected_ = false;
 #ifdef ZB_ED_ROLE

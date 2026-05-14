@@ -87,9 +87,8 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 cv.requires_component("nrf52"),
             ),
-            cv.OnlyWith(CONF_POWER_SOURCE, "nrf52", default="DC_SOURCE"): cv.All(
-                cv.enum(POWER_SOURCE, upper=True),
-                cv.requires_component("nrf52"),
+            cv.Optional(CONF_POWER_SOURCE, default="DC_SOURCE"): cv.enum(
+                POWER_SOURCE, upper=True
             ),
             cv.Optional(CONF_IEEE802154_VENDOR_OUI): cv.All(
                 cv.Any(

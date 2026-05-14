@@ -1,6 +1,7 @@
 import importlib
 from pathlib import Path
 import pkgutil
+import re
 
 from esphome.automation import Trigger, build_automation, validate_automation
 import esphome.codegen as cg
@@ -30,12 +31,14 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_BUFFER_SIZE,
+    CONF_ESPHOME,
     CONF_GROUP,
     CONF_ID,
     CONF_LAMBDA,
     CONF_LOG_LEVEL,
     CONF_ON_IDLE,
     CONF_PAGES,
+    CONF_PLATFORMIO_OPTIONS,
     CONF_ROTATION,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
@@ -51,6 +54,7 @@ from . import defines as df, lv_validation as lvalid, widgets
 from .automation import layers_to_code, lvgl_update
 from .defines import (
     CONF_ALIGN_TO_LAMBDA_ID,
+    LOGGER,
     get_focused_widgets,
     get_lv_images_used,
     get_refreshed_widgets,
@@ -148,9 +152,28 @@ def generate_lv_conf_h():
     all_defines = set(
         df.LV_DEFINES + tuple(f"LV_USE_{w.upper()}" for w in WIDGET_TYPES)
     )
-    # Get the defines that are actually used based on the config
+    build_flags = (
+        CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS).get("build_flags", [])
+    )
+    if not isinstance(build_flags, list):
+        build_flags = [build_flags]
+    # Extract define names from build flags like '-DLV_USE_CHART=1', '-D LV_USE_CHART',
+    # or multiple defines in one string.
+    define_pattern = r'-D\s*([A-Z_][A-Z0-9_]*)(?:=[^\s\'"\]]*)?'
+    defines_from_flags = {
+        m.group(1) for flag in build_flags for m in re.finditer(define_pattern, flag)
+    }
+
+    # Get the defines that are actually used based on the config,
     lv_defines = df.get_defines()
-    unused_defines = all_defines - set(lv_defines)
+    clashes = defines_from_flags & lv_defines.keys()
+    if clashes:
+        LOGGER.warning(
+            "Some defines are set both by ESPHome build flags and by LVGL configuration which may lead to unexpected behavior: %s",
+            sorted(list(clashes)),
+        )
+    unused_defines = all_defines - lv_defines.keys() - defines_from_flags
+
     # Create the content of lv_conf.h with the used defines set to their value, and the unused defines disabled
     definitions = [as_macro(m, v) for m, v in lv_defines.items()] + [
         as_macro(m, "0") for m in unused_defines

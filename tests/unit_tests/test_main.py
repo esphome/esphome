@@ -29,7 +29,9 @@ from esphome.__main__ import (
     command_analyze_memory,
     command_bundle,
     command_clean_all,
+    command_config_hash,
     command_rename,
+    command_run,
     command_update_all,
     command_wizard,
     compile_program,
@@ -45,6 +47,7 @@ from esphome.__main__ import (
     has_resolvable_address,
     has_web_server_ota,
     mqtt_get_ip,
+    parse_args,
     run_esphome,
     run_miniterm,
     show_logs,
@@ -3437,6 +3440,33 @@ def test_command_wizard(tmp_path: Path) -> None:
         mock_wizard.assert_called_once_with(config_file)
 
 
+def test_command_config_hash(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+) -> None:
+    """command_config_hash runs codegen then prints CORE.config_hash.
+
+    The printed format must match `0x{config_hash:08x}` used by
+    generate_build_info_data_cpp so the value can be compared byte-for-byte
+    against the ESPHOME_CONFIG_HASH embedded in firmware.
+    """
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+
+    # generate_cpp_contents requires real components to be loaded; mock it out
+    # so this test isolates the command's output contract. The command must
+    # still call it (codegen can mutate config, which affects the hash).
+    with patch("esphome.__main__.generate_cpp_contents") as mock_generate:
+        result = command_config_hash(args, CORE.config)
+
+    assert result == 0
+    mock_generate.assert_called_once_with(CORE.config)
+
+    output = strip_ansi_codes(capfd.readouterr().out).strip()
+    assert re.fullmatch(r"0x[0-9a-f]{8}", output)
+    assert output == f"0x{CORE.config_hash:08x}"
+
+
 def test_command_rename_invalid_characters(
     tmp_path: Path, capfd: CaptureFixture[str]
 ) -> None:
@@ -5823,3 +5853,96 @@ def test_upload_using_esptool_subprocess_passes_crystal_callback(
     call_kwargs = mock_run_external_process.call_args[1]
     assert "line_callbacks" in call_kwargs
     assert len(call_kwargs["line_callbacks"]) == 1
+
+
+def test_parse_args_run_no_states() -> None:
+    """Test that --no-states is parsed for the run command."""
+    args = parse_args(["esphome", "run", "--no-states", "device.yaml"])
+    assert args.no_states is True
+
+
+def test_parse_args_run_no_states_default() -> None:
+    """Test that no_states defaults to False for the run command."""
+    args = parse_args(["esphome", "run", "device.yaml"])
+    assert args.no_states is False
+
+
+def test_parse_args_logs_no_states() -> None:
+    """Test that --no-states is parsed for the logs command."""
+    args = parse_args(["esphome", "logs", "--no-states", "device.yaml"])
+    assert args.no_states is True
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_command_run_passes_no_states_to_show_logs(
+    mock_run_logs: Mock,
+) -> None:
+    """Test that command_run propagates --no-states through to run_logs."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MDNS: {CONF_DISABLED: False},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    args = MockArgs()
+    args.no_states = True
+    args.no_logs = False
+    args.device = None
+
+    with (
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+        patch(
+            "esphome.__main__.choose_upload_log_host",
+            return_value=["192.168.1.100"],
+        ),
+        patch("esphome.__main__.upload_program", return_value=(0, "192.168.1.100")),
+        patch("esphome.__main__.get_serial_ports", return_value=[]),
+    ):
+        result = command_run(args, CORE.config)
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100"], subscribe_states=False
+    )
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_command_run_defaults_subscribe_states_true(
+    mock_run_logs: Mock,
+) -> None:
+    """Test that command_run subscribes states by default (no --no-states)."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MDNS: {CONF_DISABLED: False},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    args = MockArgs()
+    args.no_logs = False
+    args.device = None
+
+    with (
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+        patch(
+            "esphome.__main__.choose_upload_log_host",
+            return_value=["192.168.1.100"],
+        ),
+        patch("esphome.__main__.upload_program", return_value=(0, "192.168.1.100")),
+        patch("esphome.__main__.get_serial_ports", return_value=[]),
+    ):
+        result = command_run(args, CORE.config)
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100"], subscribe_states=True
+    )
