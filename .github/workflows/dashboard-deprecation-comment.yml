@@ -12,6 +12,12 @@ jobs:
   dashboard-deprecation-comment:
     name: Dashboard deprecation comment
     runs-on: ubuntu-latest
+    # Release-bump PRs (bump-X.Y.Z -> beta, beta -> release) inevitably
+    # roll up everything merged into dev since the last cut, which can
+    # include dashboard changes that have already been reviewed once.
+    # The bot's purpose is to warn new contributors before they invest
+    # time -- that only applies to PRs entering dev.
+    if: github.event.pull_request.base.ref == 'dev'
     steps:
       - name: Generate a token
         id: generate-token
