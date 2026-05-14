@@ -9,8 +9,7 @@
 #include "esphome/core/application.h"
 #include <functional>
 
-namespace esphome {
-namespace filter_lifetime {
+namespace esphome::filter_lifetime {
 
 class FilterLifetime : public sensor::Sensor, public PollingComponent {
  public:
@@ -45,5 +44,4 @@ class FilterLifetime : public sensor::Sensor, public PollingComponent {
   sensor::Sensor *remaining_days_sensor_{nullptr};      // Optional: Remaining days sensor
 };
 
-}  // namespace filter_lifetime
-}  // namespace esphome
+}  // namespace esphome::filter_lifetime

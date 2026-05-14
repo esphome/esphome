@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "filter_lifetime.h"
 
-namespace esphome {
-namespace filter_lifetime {
+namespace esphome::filter_lifetime {
 
 template<typename... Ts> class ResetFilterAction : public Action<Ts...> {
  public:
@@ -17,5 +16,4 @@ template<typename... Ts> class ResetFilterAction : public Action<Ts...> {
   FilterLifetime *filter_;
 };
 
-}  // namespace filter_lifetime
-}  // namespace esphome
+}  // namespace esphome::filter_lifetime

@@ -1,8 +1,7 @@
 #include "filter_lifetime.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace filter_lifetime {
+namespace esphome::filter_lifetime {
 static const char *const TAG = "filter_lifetime";
 
 void FilterLifetime::reset_filter() {
@@ -96,5 +95,4 @@ void FilterLifetime::update() {
   }
 }
 
-}  // namespace filter_lifetime
-}  // namespace esphome
+}  // namespace esphome::filter_lifetime
