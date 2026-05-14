@@ -96,8 +96,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             # Deprecated — device info is now always logged. Remove before 2026.11.0.
             cv.Optional(CONF_DUMP_DEVICE_INFO): cv.All(
-                cv.boolean,
-                _deprecated_dump_device_info
+                cv.boolean, _deprecated_dump_device_info
             ),
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
             cv.Optional(CONF_MAX_QUEUE_AGE, default="8000ms"): cv.All(
