@@ -196,6 +196,8 @@ void Nextion::dump_config() {
                   "  Serial Number: %s\n"
                   "  Flash Size: %" PRIu32 " bytes",
                   this->device_model_, this->firmware_version_, this->serial_number_, this->flash_size_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Device info: not yet detected");
   }
   ESP_LOGCONFIG(TAG,
 #ifdef USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
