@@ -443,6 +443,14 @@ def test_clean_build(
     dependencies_lock = tmp_path / "dependencies.lock"
     dependencies_lock.write_text("lock file")
 
+    # Native ESP-IDF toolchain artifacts.
+    idf_build_dir = tmp_path / "build"
+    idf_build_dir.mkdir()
+    (idf_build_dir / "CMakeCache.txt").write_text("cache")
+    managed_components_dir = tmp_path / "managed_components"
+    managed_components_dir.mkdir()
+    (managed_components_dir / "espressif__arduino-esp32").mkdir()
+
     # Create PlatformIO cache directory
     platformio_cache_dir = tmp_path / ".platformio" / ".cache"
     platformio_cache_dir.mkdir(parents=True)
@@ -456,11 +464,14 @@ def test_clean_build(
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.return_value = dependencies_lock
     mock_core.platformio_cache_dir = str(platformio_cache_dir)
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     # Verify all exist before
     assert pioenvs_dir.exists()
     assert piolibdeps_dir.exists()
     assert dependencies_lock.exists()
+    assert idf_build_dir.exists()
+    assert managed_components_dir.exists()
     assert platformio_cache_dir.exists()
 
     # Mock PlatformIO's ProjectConfig cache_dir
@@ -483,6 +494,8 @@ def test_clean_build(
     assert not pioenvs_dir.exists()
     assert not piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
+    assert not idf_build_dir.exists()
+    assert not managed_components_dir.exists()
     assert not platformio_cache_dir.exists()
 
     # Verify logging
@@ -490,6 +503,8 @@ def test_clean_build(
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" in caplog.text
     assert "dependencies.lock" in caplog.text
+    assert str(idf_build_dir) in caplog.text
+    assert str(managed_components_dir) in caplog.text
     assert "PlatformIO cache" in caplog.text
 
 
@@ -511,7 +526,7 @@ def test_clean_build_partial_exists(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
-    mock_core.relative_build_path.return_value = dependencies_lock
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     # Verify only pioenvs exists
     assert pioenvs_dir.exists()
@@ -548,7 +563,7 @@ def test_clean_build_nothing_exists(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
-    mock_core.relative_build_path.return_value = dependencies_lock
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     # Verify nothing exists
     assert not pioenvs_dir.exists()
@@ -584,7 +599,7 @@ def test_clean_build_platformio_not_available(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
-    mock_core.relative_build_path.return_value = dependencies_lock
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     # Verify all exist before
     assert pioenvs_dir.exists()
@@ -622,7 +637,7 @@ def test_clean_build_empty_cache_dir(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
-    mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     # Verify pioenvs exists before
     assert pioenvs_dir.exists()
@@ -1351,7 +1366,7 @@ def test_clean_build_handles_readonly_files(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
-    mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     # Verify file is read-only
     assert not os.access(readonly_file, os.W_OK)
@@ -1415,7 +1430,7 @@ def test_clean_build_reraises_for_other_errors(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
-    mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
 
     try:
         # Mock os.access in writer module to return True (writable)
