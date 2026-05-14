@@ -1,0 +1,21 @@
+sensor:
+  - platform: elm327
+    engine_rpm:
+      name: Engine RPM
+    vehicle_speed:
+      name: Vehicle Speed
+    coolant_temperature:
+      name: Coolant Temperature
+    engine_load:
+      name: Engine Load
+    throttle_position:
+      name: Throttle Position
+    intake_air_temperature:
+      name: Intake Air Temperature
+    maf_rate:
+      name: MAF Rate
+    fuel_level:
+      name: Fuel Level
+    battery_voltage:
+      name: Battery Voltage
+    update_interval: 10s
