@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace axp2101 {
+namespace esphome::axp2101 {
 
 static const char *const TAG = "axp2101";
 
@@ -21,7 +20,7 @@ void AXP2101Component::dump_config() {
     this->status_set_warning();
     return;
   }
-
+  TODO("move to config property")
   // increase ICC charging current to 1000mA
   if (!this->write_byte(0x62, 0x10)) {
     ESP_LOGE(TAG, "Setting ICC failed!");
@@ -31,22 +30,22 @@ void AXP2101Component::dump_config() {
 }
 
 void AXP2101Component::update() {
-  this->getStatus();
+  this->get_status_();
 
   if (this->temperature_sensor_ != nullptr) {
-    this->getTemperature();
+    this->get_temperature_();
   }
 
   if (this->battery_remaining_sensor_ != nullptr) {
-    this->getBatteryPercentage();
+    this->get_battery_percentage_();
   }
 
   if (this->battery_voltage_sensor_ != nullptr) {
-    this->getBatteryVoltage();
+    this->get_battery_voltage_();
   }
 }
 
-void AXP2101Component::getTemperature(void) {
+void AXP2101Component::get_temperature_(void) {
   uint8_t tdie_h6, tdie_l8;
 
   if (this->read_register(0x3C, &tdie_h6, 1) != i2c::ERROR_OK) {
@@ -69,7 +68,7 @@ void AXP2101Component::getTemperature(void) {
   this->status_clear_warning();
 }
 
-void AXP2101Component::getBatteryPercentage(void) {
+void AXP2101Component::get_battery_percentage_(void) {
   uint8_t per;
 
   if (this->read_register(0xA4, &per, 1) != i2c::ERROR_OK) {
@@ -83,7 +82,7 @@ void AXP2101Component::getBatteryPercentage(void) {
   this->status_clear_warning();
 }
 
-void AXP2101Component::getBatteryVoltage(void) {
+void AXP2101Component::get_battery_voltage_(void) {
   uint8_t vbat_h6, vbat_l8;
 
   if (this->read_register(0x34, &vbat_h6, 1) != i2c::ERROR_OK) {
@@ -106,7 +105,7 @@ void AXP2101Component::getBatteryVoltage(void) {
   this->status_clear_warning();
 }
 
-void AXP2101Component::getStatus(void) {
+void AXP2101Component::get_status_(void) {
   uint8_t pmu_status_1, pmu_status_2;
 
   if (this->read_register(0x00, &pmu_status_1, 1) != i2c::ERROR_OK) {
@@ -182,5 +181,4 @@ void AXP2101Component::shutdown(void) {
   }
 }
 
-}  // namespace axp2101
-}  // namespace esphome
+}  // namespace esphome::axp2101

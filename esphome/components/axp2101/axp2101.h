@@ -6,8 +6,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace axp2101 {
+namespace esphome::axp2101 {
 
 class AXP2101Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -31,11 +30,10 @@ class AXP2101Component : public PollingComponent, public i2c::I2CDevice {
   binary_sensor::BinarySensor *battery_charging_sensor_{nullptr};
   text_sensor::TextSensor *battery_status_sensor_{nullptr};
 
-  void getTemperature(void);
-  void getBatteryPercentage(void);
-  void getBatteryVoltage(void);
-  void getStatus(void);
+  void get_temperature_();
+  void get_battery_percentage_();
+  void get_battery_voltage_();
+  void get_status_();
 };
 
-}  // namespace axp2101
-}  // namespace esphome
+}  // namespace esphome::axp2101
