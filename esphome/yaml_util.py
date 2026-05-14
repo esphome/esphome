@@ -48,6 +48,8 @@ _SECRET_VALUES = {}
 # Not thread-safe — config processing is single-threaded today.
 _load_listeners: list[Callable[[Path], None]] = []
 
+DocumentPath = list[str | int]
+
 
 @contextmanager
 def track_yaml_loads() -> Generator[list[Path]]:
@@ -111,6 +113,15 @@ def make_data_base(
         return value
 
 
+def make_literal(value: Any) -> ESPLiteralValue | Any:
+    """Wrap a value in an ESPLiteralValue object."""
+    try:
+        return add_class_to_obj(value, ESPLiteralValue)
+    except TypeError:
+        # Adding class failed, ignore error
+        return value
+
+
 def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     """Tags a list/string/dict value with context vars that must be applied to it and its children
     during the substitution pass. If no vars are given, no tagging is done.
@@ -128,7 +139,7 @@ def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
         value.set_context({**value.vars, **(context_vars or {})})
         return value
 
-    if context_vars and isinstance(value, (dict, list, str)):
+    if context_vars and isinstance(value, (dict, list, str, Lambda)):
         value = add_class_to_obj(value, ConfigContext)
         value.set_context(context_vars)
     return value
@@ -338,10 +349,9 @@ class ESPHomeLoaderMixin:
                 try:
                     hash(key)
                 except TypeError:
-                    # pylint: disable=raise-missing-from
                     raise yaml.constructor.ConstructorError(
                         f'Invalid key "{key}" (not hashable)', key_node.start_mark
-                    )
+                    ) from None
 
                 key = make_data_base(str(key))
                 key.from_node(key_node)
@@ -524,7 +534,7 @@ class ESPHomeLoaderMixin:
             obj = self.construct_sequence(node)
         elif isinstance(node, yaml.MappingNode):
             obj = self.construct_mapping(node)
-        return add_class_to_obj(obj, ESPLiteralValue)
+        return make_literal(obj)
 
     @_add_data_ref
     def construct_extend(self, node: yaml.Node) -> Extend:
@@ -678,6 +688,123 @@ def is_secret(value):
         return _SECRET_VALUES[str(value)]
     except (KeyError, ValueError):
         return None
+
+
+def _path_doc(item: Any) -> str | None:
+    """Return the source document name if *item* carries location info."""
+    if isinstance(item, ESPHomeDataBase) and (r := item.esp_range) is not None:
+        return r.start_mark.document
+    return None
+
+
+def _fmt_mark(loc: Any) -> str:
+    """Render a DocumentLocation as a 1-based 'file line:col' string."""
+    return f"{loc.document} {loc.line + 1}:{loc.column + 1}"
+
+
+def _obj_loc(obj: Any) -> str:
+    """Return formatted source location for *obj*, or '' if it has none."""
+    if isinstance(obj, ESPHomeDataBase) and (r := obj.esp_range) is not None:
+        return _fmt_mark(r.start_mark)
+    return ""
+
+
+def _fmt_segment(seg: list) -> str:
+    """Format a path segment, rendering integers as [n] subscripts."""
+    parts: list[str] = []
+    for item in seg:
+        if isinstance(item, int):
+            if parts:
+                parts[-1] = f"{parts[-1]}[{item}]"
+            else:
+                parts.append(f"[{item}]")
+        else:
+            parts.append(str(item))
+    return "->".join(parts)
+
+
+def _split_into_frames(
+    path: DocumentPath,
+) -> list[tuple[list, str]]:
+    """Group *path* into per-file frames at include boundaries.
+
+    A "frame" is the slice of the path that belongs to one source document.
+    Each path item is either:
+
+      * a **located key** — has an ``ESPHomeDataBase`` source mark; this is
+        what tells us which document owns the surrounding keys.
+      * an **integer** — a list subscript; always attaches to the open frame
+        (renders as ``foo[3]`` on the previous name).
+      * an **unlocated string** — a key with no source mark (e.g. constants
+        like ``CONF_PACKAGES``); it describes the parent of the *next* file,
+        so it migrates to the next frame when the document changes.
+
+    Returns a list of ``(items, "file line:col")`` tuples in walk order
+    (outermost frame first).
+    """
+    frames: list[tuple[list, str]] = []
+    open_frame: list = []
+    next_frame_keys: list = []  # unlocated strings buffered for the next frame
+    open_doc: str | None = None
+    open_loc = ""
+
+    for item in path:
+        doc = _path_doc(item)
+        if doc is None:
+            # Ints subscript the open frame's last name; everything else
+            # (strings, or leading ints with no open frame) is buffered for
+            # the next frame.
+            if isinstance(item, int) and open_doc is not None:
+                open_frame.append(item)
+            else:
+                next_frame_keys.append(item)
+            continue
+        if open_doc is not None and doc != open_doc:
+            # Crossed an include boundary: close the open frame.
+            frames.append((open_frame, open_loc))
+            open_frame = []
+        open_frame.extend(next_frame_keys)
+        next_frame_keys.clear()
+        open_frame.append(item)
+        open_doc = doc
+        open_loc = _fmt_mark(item.esp_range.start_mark)
+
+    if open_doc is not None:
+        # Trailing buffered keys belong to the innermost (last) frame.
+        open_frame.extend(next_frame_keys)
+        frames.append((open_frame, open_loc))
+    return frames
+
+
+def format_path(path: DocumentPath, current_obj: Any) -> str:
+    """Build a human-readable include stack from a config path.
+
+    Each YAML key in *path* that carries an ``ESPHomeDataBase`` ``esp_range``
+    reveals which file it came from.  When the source document changes between
+    consecutive such keys, that is an include boundary.  The path is split
+    into per-file frames and formatted innermost-first, e.g.::
+
+        In: packages->roam in common/package/wifi.yaml 26:10
+          Included from packages->net in common/hardware.yaml 44:2
+          Included from packages->device in my_project.yaml 11:2
+
+    The innermost ``In:`` line uses the location from *current_obj* when
+    available (the value that triggered the error) for extra precision.
+    """
+    frames = _split_into_frames(path)
+    obj_loc = _obj_loc(current_obj)
+
+    if not frames:
+        # No source info anywhere in the path: render as a flat path,
+        # using current_obj's location if it happens to have one.
+        suffix = f" in {obj_loc}" if obj_loc else ""
+        return f"In: {_fmt_segment(path)}{suffix}"
+
+    inner_seg, inner_loc = frames[-1]
+    lines = [f"In: {_fmt_segment(inner_seg)} in {obj_loc or inner_loc}"]
+    for seg, loc in reversed(frames[:-1]):
+        lines.append(f"  Included from {_fmt_segment(seg)} in {loc}")
+    return "\n".join(lines)
 
 
 class ESPHomeDumper(yaml.SafeDumper):

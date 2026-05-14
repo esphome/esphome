@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct RCSwitchData {
   uint64_t code;
@@ -217,5 +216,4 @@ class RCSwitchDumper : public RemoteReceiverDumperBase {
 
 using RCSwitchTrigger = RemoteReceiverTrigger<RCSwitchBase>;
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

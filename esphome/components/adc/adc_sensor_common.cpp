@@ -1,8 +1,7 @@
 #include "adc_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace adc {
+namespace esphome::adc {
 
 static const char *const TAG = "adc.common";
 
@@ -79,5 +78,4 @@ void ADCSensor::set_sample_count(uint8_t sample_count) {
 
 void ADCSensor::set_sampling_mode(SamplingMode sampling_mode) { this->sampling_mode_ = sampling_mode; }
 
-}  // namespace adc
-}  // namespace esphome
+}  // namespace esphome::adc

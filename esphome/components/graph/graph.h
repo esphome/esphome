@@ -123,7 +123,7 @@ class GraphTrace {
 
  protected:
   sensor::Sensor *sensor_{nullptr};
-  std::string name_{""};
+  std::string name_;
   uint8_t line_thickness_{3};
   enum LineType line_type_ { LINE_TYPE_SOLID };
   Color line_color_{COLOR_ON};

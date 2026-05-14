@@ -8,9 +8,10 @@ namespace esphome::lock {
 
 static const char *const TAG = "lock";
 
-// Lock state strings indexed by LockState enum (0-5): NONE(UNKNOWN), LOCKED, UNLOCKED, JAMMED, LOCKING, UNLOCKING
+// Lock state strings indexed by LockState enum.
 // Index 0 is UNKNOWN (for LOCK_STATE_NONE), also used as fallback for out-of-range
-PROGMEM_STRING_TABLE(LockStateStrings, "UNKNOWN", "LOCKED", "UNLOCKED", "JAMMED", "LOCKING", "UNLOCKING");
+PROGMEM_STRING_TABLE(LockStateStrings, "UNKNOWN", "LOCKED", "UNLOCKED", "JAMMED", "LOCKING", "UNLOCKING", "OPENING",
+                     "OPEN");
 
 const LogString *lock_state_to_string(LockState state) {
   return LockStateStrings::get_log_str(static_cast<uint8_t>(state), 0);
@@ -74,12 +75,16 @@ LockCall &LockCall::set_state(optional<LockState> state) {
   return *this;
 }
 LockCall &LockCall::set_state(const char *state) {
-  if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("LOCKED")) == 0) {
+  if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("OPEN")) == 0) {
+    this->set_state(LOCK_STATE_OPEN);
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("LOCKED")) == 0) {
     this->set_state(LOCK_STATE_LOCKED);
   } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("UNLOCKED")) == 0) {
     this->set_state(LOCK_STATE_UNLOCKED);
   } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("JAMMED")) == 0) {
     this->set_state(LOCK_STATE_JAMMED);
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("OPENING")) == 0) {
+    this->set_state(LOCK_STATE_OPENING);
   } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("LOCKING")) == 0) {
     this->set_state(LOCK_STATE_LOCKING);
   } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("UNLOCKING")) == 0) {

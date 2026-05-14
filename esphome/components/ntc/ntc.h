@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace ntc {
+namespace esphome::ntc {
 
 class NTC : public Component, public sensor::Sensor {
  public:
@@ -24,5 +23,4 @@ class NTC : public Component, public sensor::Sensor {
   double c_;
 };
 
-}  // namespace ntc
-}  // namespace esphome
+}  // namespace esphome::ntc

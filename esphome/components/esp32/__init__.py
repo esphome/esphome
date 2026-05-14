@@ -5,6 +5,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import subprocess
 
 from esphome import yaml_util
 import esphome.codegen as cg
@@ -30,22 +31,25 @@ from esphome.const import (
     CONF_SAFE_MODE,
     CONF_SIZE,
     CONF_SOURCE,
+    CONF_TOOLCHAIN,
     CONF_TYPE,
     CONF_VARIANT,
     CONF_VERSION,
+    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_NAME,
-    KEY_NATIVE_IDF,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     ThreadModel,
+    Toolchain,
     __version__,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import CORE, HexInt, Library
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
+from esphome.espidf.component import generate_idf_component
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
@@ -128,22 +132,29 @@ ASSERTION_LEVELS = {
 SIGNING_SCHEMES = {
     "rsa3072": "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME",
     "ecdsa256": "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME",
+    "ecdsa_v1": "CONFIG_SECURE_SIGNED_APPS_ECDSA_SCHEME",
 }
 
-# Chip variants that only support one signing scheme for Secure Boot V2.
+# Chip variants that only support one V2 signing scheme.
 # Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h.
-# Variants not listed in either set support both RSA and ECDSA
+# Variants not listed in either set support both RSA and ECDSA V2
 # (e.g. C5, C6, H2, P4). New variants should be added to the
 # appropriate set if they only support one scheme.
-SIGNED_OTA_RSA_ONLY_VARIANTS = {
-    VARIANT_ESP32,
+# Note: VARIANT_ESP32 is not listed here because it supports V2 RSA only
+# when minimum_chip_revision >= 3.0, which requires special handling.
+SIGNED_OTA_V2_RSA_ONLY_VARIANTS = {
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     VARIANT_ESP32C3,
 }
-SIGNED_OTA_ECC_ONLY_VARIANTS = {
+SIGNED_OTA_V2_ECC_ONLY_VARIANTS = {
     VARIANT_ESP32C2,
     VARIANT_ESP32C61,
+}
+# V1 ECDSA (Secure Boot V1) is only supported on the original ESP32.
+# Based on SOC_SECURE_BOOT_V1 in soc_caps.h.
+SIGNED_OTA_V1_ECDSA_VARIANTS = {
+    VARIANT_ESP32,
 }
 
 COMPILER_OPTIMIZATIONS = {
@@ -456,6 +467,9 @@ def set_core_data(config):
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         CORE.data[KEY_ESP32][KEY_IDF_VERSION] = framework_ver
     elif (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
+        if CORE.using_toolchain_esp_idf:
+            # Official ESP-IDF frameworks don't use extra
+            idf_ver = cv.Version(idf_ver.major, idf_ver.minor, idf_ver.patch)
         CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
     else:
         raise cv.Invalid(
@@ -481,6 +495,18 @@ def get_board(core_obj=None):
 
 
 def get_download_types(storage_json):
+    """Binary-download entries for a built ESP32 firmware.
+
+    Used by:
+    - esphome.dashboard (legacy "Download .bin" button)
+    - device-builder (esphome/device-builder) — same dispatch via
+      ``importlib.import_module(f"esphome.components.{platform}")``
+      then ``module.get_download_types(storage)``. The contract is
+      "returns ``list[dict]`` with at least ``title`` /
+      ``description`` / ``file`` / ``download`` keys"; please keep
+      the shape stable so the new dashboard's download panel
+      doesn't have to special-case per-platform schemas.
+    """
     return [
         {
             "title": "Factory format (Previously Modern)",
@@ -562,6 +588,18 @@ def add_idf_component(
     }
 
 
+def get_managed_component_require_names() -> list[str]:
+    """Return sorted IDF require names for components added via
+    ``add_idf_component`` (``owner/name`` -> ``owner__name``).
+
+    The build_gen layer (``build_gen.espidf.get_project_cmakelists``)
+    feeds this list into ``ESPHOME_PROJECT_MANAGED_COMPONENTS`` so
+    converted PIO libraries can REQUIRE them by name at configure time.
+    """
+    components_registry = CORE.data.get(KEY_ESP32, {}).get(KEY_COMPONENTS, {})
+    return sorted(name.replace("/", "__") for name in components_registry)
+
+
 def exclude_builtin_idf_component(name: str) -> None:
     """Exclude an ESP-IDF component from the build.
 
@@ -631,7 +669,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     return f"{ARDUINO_FRAMEWORK_PKG}@https://github.com/espressif/arduino-esp32/releases/download/{ver}/{filename}"
 
 
-def _format_framework_espidf_version(
+def _format_framework_pio_espidf_version(
     ver: cv.Version, release: str | None = None
 ) -> str:
     # format the given espidf (https://github.com/pioarduino/esp-idf/releases) version to
@@ -671,11 +709,12 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 7),
-    "latest": cv.Version(3, 3, 7),
-    "dev": cv.Version(3, 3, 7),
+    "recommended": cv.Version(3, 3, 8),
+    "latest": cv.Version(3, 3, 8),
+    "dev": cv.Version(3, 3, 8),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(3, 3, 8): cv.Version(55, 3, 38, "1"),
     cv.Version(3, 3, 7): cv.Version(55, 3, 37),
     cv.Version(3, 3, 6): cv.Version(55, 3, 36),
     cv.Version(3, 3, 5): cv.Version(55, 3, 35),
@@ -695,6 +734,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(3, 3, 8): cv.Version(5, 5, 4),
     cv.Version(3, 3, 7): cv.Version(5, 5, 3, "1"),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
     cv.Version(3, 3, 5): cv.Version(5, 5, 2),
@@ -714,17 +754,19 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 3, "1"),
-    "latest": cv.Version(5, 5, 3, "1"),
+    "recommended": cv.Version(5, 5, 4),
+    "latest": cv.Version(5, 5, 4),
     "dev": cv.Version(5, 5, 4),
 }
+
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(
+        6, 0, 1
+    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
-    cv.Version(
-        5, 5, 4
-    ): "https://github.com/pioarduino/platform-espressif32.git#develop",
+    cv.Version(5, 5, 4): cv.Version(55, 3, 38, "1"),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),
@@ -744,13 +786,13 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 37),
-    "latest": cv.Version(55, 3, 37),
+    "recommended": cv.Version(55, 3, 38, "1"),
+    "latest": cv.Version(55, 3, 38, "1"),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
 
-def _check_versions(config):
+def _check_pio_versions(config):
     config = config.copy()
     value = config[CONF_FRAMEWORK]
 
@@ -761,7 +803,7 @@ def _check_versions(config):
             )
 
         platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
-        value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
+        value[CONF_PLATFORM_VERSION] = _parse_pio_platform_version(str(platform_lookup))
 
         if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
             version = ARDUINO_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
@@ -789,7 +831,7 @@ def _check_versions(config):
         platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE,
-            _format_framework_espidf_version(version, value.get(CONF_RELEASE)),
+            _format_framework_pio_espidf_version(version, value.get(CONF_RELEASE)),
         )
         if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = f"pioarduino/framework-espidf@{value[CONF_SOURCE]}"
@@ -799,7 +841,7 @@ def _check_versions(config):
             raise cv.Invalid(
                 "Framework version not recognized; please specify platform_version"
             )
-        value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
+        value[CONF_PLATFORM_VERSION] = _parse_pio_platform_version(str(platform_lookup))
 
     if version != recommended_version:
         _LOGGER.warning(
@@ -807,7 +849,7 @@ def _check_versions(config):
             "If there are connectivity or build issues please remove the manual version."
         )
 
-    if value[CONF_PLATFORM_VERSION] != _parse_platform_version(
+    if value[CONF_PLATFORM_VERSION] != _parse_pio_platform_version(
         str(PLATFORM_VERSION_LOOKUP["recommended"])
     ):
         _LOGGER.warning(
@@ -818,7 +860,38 @@ def _check_versions(config):
     return config
 
 
-def _parse_platform_version(value):
+def _check_esp_idf_versions(config):
+    config = _check_pio_versions(config)
+    value = config[CONF_FRAMEWORK]
+
+    # Remove unwanted keys if present
+    for key in (CONF_SOURCE, CONF_PLATFORM_VERSION):
+        value.pop(key, None)
+
+    # Official ESP-IDF frameworks don't use extra
+    version = cv.Version.parse(value[CONF_VERSION])
+    version = cv.Version(version.major, version.minor, version.patch)
+
+    value[CONF_VERSION] = str(version)
+
+    return config
+
+
+def _validate_toolchain(value) -> Toolchain:
+    return Toolchain(cv.one_of(*(t.value for t in Toolchain), lower=True)(value))
+
+
+def _check_versions(config):
+    # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
+    if CORE.toolchain is None:
+        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
+
+    if CORE.using_toolchain_esp_idf:
+        return _check_esp_idf_versions(config)
+    return _check_pio_versions(config)
+
+
+def _parse_pio_platform_version(value):
     try:
         ver = cv.Version.parse(cv.version_number(value))
         release = f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
@@ -991,25 +1064,73 @@ def final_validate(config):
     if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
         scheme = signed_ota[CONF_SIGNING_SCHEME]
         variant = config[CONF_VARIANT]
-        scheme_variant_conflicts = {
-            "ecdsa256": (SIGNED_OTA_RSA_ONLY_VARIANTS, "rsa3072"),
-            "rsa3072": (SIGNED_OTA_ECC_ONLY_VARIANTS, "ecdsa256"),
-        }
-        if (conflict := scheme_variant_conflicts.get(scheme)) and variant in conflict[
-            0
-        ]:
+        min_rev = advanced.get(CONF_MINIMUM_CHIP_REVISION)
+        scheme_path = [
+            CONF_FRAMEWORK,
+            CONF_ADVANCED,
+            CONF_SIGNED_OTA_VERIFICATION,
+            CONF_SIGNING_SCHEME,
+        ]
+
+        # V1 ECDSA is only available on the original ESP32
+        if scheme == "ecdsa_v1" and variant not in SIGNED_OTA_V1_ECDSA_VARIANTS:
             errs.append(
                 cv.Invalid(
-                    f"Signing scheme '{scheme}' is not supported on "
-                    f"{VARIANT_FRIENDLY[variant]}. Use '{conflict[1]}' instead.",
-                    path=[
-                        CONF_FRAMEWORK,
-                        CONF_ADVANCED,
-                        CONF_SIGNED_OTA_VERIFICATION,
-                        CONF_SIGNING_SCHEME,
-                    ],
+                    f"Signing scheme 'ecdsa_v1' is only supported on "
+                    f"{VARIANT_FRIENDLY[VARIANT_ESP32]}. "
+                    f"Use 'rsa3072' or 'ecdsa256' instead.",
+                    path=scheme_path,
                 )
             )
+        elif variant == VARIANT_ESP32:
+            # On ESP32, V2 RSA requires minimum_chip_revision >= 3.0
+            # Note: string comparison works here because cv.one_of constrains
+            # min_rev to known ESP32_CHIP_REVISIONS values ("0.0".."3.1").
+            if scheme == "rsa3072" and (min_rev is None or min_rev < "3.0"):
+                errs.append(
+                    cv.Invalid(
+                        f"Signing scheme 'rsa3072' on {VARIANT_FRIENDLY[variant]} "
+                        f"requires minimum_chip_revision: '3.0' or higher "
+                        f"(Secure Boot V2 RSA needs chip revision 3.0+). "
+                        f"For older chip revisions, use 'ecdsa_v1' instead.",
+                        path=scheme_path,
+                    )
+                )
+            # ESP32 does not support V2 ECDSA (no SOC_SECURE_BOOT_V2_ECC)
+            elif scheme == "ecdsa256":
+                errs.append(
+                    cv.Invalid(
+                        f"Signing scheme 'ecdsa256' is not supported on "
+                        f"{VARIANT_FRIENDLY[variant]}. Use 'rsa3072' (with "
+                        f"minimum_chip_revision: '3.0') or 'ecdsa_v1' instead.",
+                        path=scheme_path,
+                    )
+                )
+            # V1 on rev 3.0+ -- suggest V2 RSA for stronger security
+            elif scheme == "ecdsa_v1" and min_rev is not None and min_rev >= "3.0":
+                _LOGGER.info(
+                    "Using Secure Boot V1 ECDSA on %s rev %s. "
+                    "Consider using 'rsa3072' (Secure Boot V2 RSA) for "
+                    "stronger security on chip revision 3.0+.",
+                    VARIANT_FRIENDLY[variant],
+                    min_rev,
+                )
+        else:
+            # Non-ESP32 variants: check V2 scheme-variant compatibility
+            scheme_variant_conflicts = {
+                "ecdsa256": (SIGNED_OTA_V2_RSA_ONLY_VARIANTS, "rsa3072"),
+                "rsa3072": (SIGNED_OTA_V2_ECC_ONLY_VARIANTS, "ecdsa256"),
+            }
+            if (
+                conflict := scheme_variant_conflicts.get(scheme)
+            ) and variant in conflict[0]:
+                errs.append(
+                    cv.Invalid(
+                        f"Signing scheme '{scheme}' is not supported on "
+                        f"{VARIANT_FRIENDLY[variant]}. Use '{conflict[1]}' instead.",
+                        path=scheme_path,
+                    )
+                )
         if CONF_OTA not in full_config:
             _LOGGER.warning(
                 "Signed OTA verification is enabled but no OTA component is configured. "
@@ -1058,6 +1179,7 @@ CONF_DISABLE_MBEDTLS_PEER_CERT = "disable_mbedtls_peer_cert"
 CONF_DISABLE_MBEDTLS_PKCS7 = "disable_mbedtls_pkcs7"
 CONF_DISABLE_REGI2C_IN_IRAM = "disable_regi2c_in_iram"
 CONF_DISABLE_FATFS = "disable_fatfs"
+CONF_ADC_ONESHOT_IN_IRAM = "adc_oneshot_in_iram"
 
 # VFS requirement tracking
 # Components that need VFS features can call require_vfs_*() functions
@@ -1071,6 +1193,7 @@ KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
 KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
 KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
+KEY_ADC_ONESHOT_IRAM_REQUIRED = "adc_oneshot_iram_required"
 
 
 def require_vfs_select() -> None:
@@ -1168,6 +1291,17 @@ def require_fatfs() -> None:
     CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
 
 
+def require_adc_oneshot_iram() -> None:
+    """Mark that ADC oneshot IRAM safety is required by a component.
+
+    Call this from components that use the ADC oneshot driver. When flash cache is
+    disabled (e.g., during NVS writes by WiFi, BLE, Zigbee, or power management),
+    the ADC oneshot read function must be in IRAM to avoid crashes.
+    This sets CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM.
+    """
+    CORE.data[KEY_ESP32][KEY_ADC_ONESHOT_IRAM_REQUIRED] = True
+
+
 def _parse_idf_component(value: str) -> ConfigType:
     """Parse IDF component shorthand syntax like 'owner/component^version'"""
     # Match operator followed by version-like string (digit or *)
@@ -1187,7 +1321,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
         cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
         cv.Optional(CONF_RELEASE): cv.string_strict,
         cv.Optional(CONF_SOURCE): cv.string_strict,
-        cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
+        cv.Optional(CONF_PLATFORM_VERSION): _parse_pio_platform_version,
         cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
             cv.string_strict: cv.string_strict
         },
@@ -1209,7 +1343,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_IGNORE_EFUSE_CUSTOM_MAC, default=False): cv.boolean,
                 cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
                 cv.Optional(CONF_MINIMUM_CHIP_REVISION): cv.one_of(
-                    *ESP32_CHIP_REVISIONS
+                    *ESP32_CHIP_REVISIONS, string=True
                 ),
                 cv.Optional(CONF_SRAM1_AS_IRAM, default=False): cv.boolean,
                 # DHCP server is needed for WiFi AP mode. When WiFi component is used,
@@ -1268,6 +1402,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_MBEDTLS_PEER_CERT, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_MBEDTLS_PKCS7, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_REGI2C_IN_IRAM, default=True): cv.boolean,
+                cv.Optional(CONF_ADC_ONESHOT_IN_IRAM, default=False): cv.boolean,
                 cv.Optional(CONF_DISABLE_FATFS, default=True): cv.boolean,
             }
         ),
@@ -1438,6 +1573,11 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
+            cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
+            cv.Optional(CONF_WATCHDOG_TIMEOUT, default="5s"): cv.All(
+                cv.positive_time_period_seconds,
+                cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
+            ),
         }
     ),
     _detect_variant,
@@ -1582,11 +1722,11 @@ async def to_code(config):
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     conf = config[CONF_FRAMEWORK]
 
-    # Check if using native ESP-IDF build (--native-idf)
-    use_platformio = not CORE.data.get(KEY_NATIVE_IDF, False)
+    # Check if using ESP-IDF toolchain
+    use_platformio = not CORE.using_toolchain_esp_idf
     if use_platformio:
         # Clear IDF environment variables to avoid conflicts with PlatformIO's ESP-IDF
-        # but keep them when using --native-idf for native ESP-IDF builds
+        # but keep them when using ESP-IDF toolchain
         for clean_var in ("IDF_PATH", "IDF_TOOLS_PATH"):
             os.environ.pop(clean_var, None)
 
@@ -1626,6 +1766,10 @@ async def to_code(config):
             )
     else:
         cg.add_build_flag("-Wno-error=format")
+        cg.add_build_flag("-Wno-error=maybe-uninitialized")
+        cg.add_build_flag("-Wno-error=missing-field-initializers")
+        cg.add_build_flag("-Wno-error=reorder")
+        cg.add_build_flag("-Wno-error=volatile")
 
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
@@ -1650,6 +1794,11 @@ async def to_code(config):
         CORE.relative_internal_path(".espressif")
     )
 
+    # Both ESP-IDF and ESP32 Arduino builds generate IDF app metadata. Keep
+    # volatile build path/time data out of the binary so equivalent projects can
+    # produce reproducible outputs and downstream tooling can reuse artifacts.
+    add_idf_sdkconfig_option("CONFIG_APP_REPRODUCIBLE_BUILD", True)
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
@@ -1671,7 +1820,17 @@ async def to_code(config):
 
         # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
         # (~11 KB). See printf_stubs.cpp for implementation.
-        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF]:
+        #
+        # The wrap is only beneficial against newlib. Picolibc's tinystdio
+        # implements vsnprintf by building a string-output FILE and calling
+        # vfprintf, so vfprintf is unconditionally linked in by any caller
+        # of snprintf/vsnprintf — effectively every build — and the wrap
+        # saves nothing while costing ~170 B of shim. IDF 5.x defaults to
+        # newlib on every variant; IDF 6.0+ switches to picolibc on every
+        # variant.
+        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF] or idf_version() >= cv.Version(
+            6, 0, 0
+        ):
             cg.add_define("USE_FULL_PRINTF")
         else:
             for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
@@ -1687,7 +1846,7 @@ async def to_code(config):
             if (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
                 cg.add_platformio_option(
                     "platform_packages",
-                    [_format_framework_espidf_version(idf_ver)],
+                    [_format_framework_pio_espidf_version(idf_ver)],
                 )
                 # Use stub package to skip downloading precompiled libs
                 stubs_dir = CORE.relative_build_path("arduino_libs_stub")
@@ -1805,6 +1964,10 @@ async def to_code(config):
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
+    add_idf_sdkconfig_option(
+        "CONFIG_ESP_TASK_WDT_TIMEOUT_S",
+        config[CONF_WATCHDOG_TIMEOUT].total_seconds,
+    )
 
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
@@ -2068,6 +2231,16 @@ async def to_code(config):
     if advanced[CONF_DISABLE_REGI2C_IN_IRAM]:
         add_idf_sdkconfig_option("CONFIG_ESP_REGI2C_CTRL_FUNC_IN_IRAM", False)
 
+    # Place ADC oneshot control functions in IRAM for cache safety
+    # When flash cache is disabled (during NVS writes by WiFi, BLE, Zigbee, Thread,
+    # power management, etc.), ADC reads will crash if these functions are in flash.
+    # Components using ADC call require_adc_oneshot_iram() to force this.
+    if (
+        CORE.data[KEY_ESP32].get(KEY_ADC_ONESHOT_IRAM_REQUIRED, False)
+        or advanced[CONF_ADC_ONESHOT_IN_IRAM]
+    ):
+        add_idf_sdkconfig_option("CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM", True)
+
     # Disable FATFS support
     # Components that need FATFS (SD card, etc.) can call require_fatfs()
     if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
@@ -2291,8 +2464,14 @@ def _write_sdkconfig():
     )
 
     want_opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    # Include the resolved framework version as a Kconfig comment so a
+    # version switch that happens to leave the option set unchanged still
+    # bumps this file's content -- which is what has_outdated_files()
+    # uses to decide whether to reconfigure.
+    framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     contents = (
-        "\n".join(
+        f"# ESPHOME_IDF_VERSION={framework_version}\n"
+        + "\n".join(
             f"{name}={_format_sdkconfig_val(value)}"
             for name, value in sorted(want_opts.items())
         )
@@ -2303,6 +2482,14 @@ def _write_sdkconfig():
         # internal changed, update real one
         write_file_if_changed(sdk_path, contents)
         clean_build(clear_pio_cache=False)
+
+
+def _platformio_library_to_dependency(library: Library) -> tuple[str, dict[str, str]]:
+    dependency: dict[str, str] = {}
+    name, version, path = generate_idf_component(library)
+    dependency["override_path"] = str(path)
+    dependency["version"] = version
+    return name, dependency
 
 
 def _write_idf_component_yml():
@@ -2328,7 +2515,12 @@ def _write_idf_component_yml():
 
         stubs_dir = CORE.relative_build_path("component_stubs")
         stubs_dir.mkdir(exist_ok=True)
-        for component_name in components_to_stub:
+        # Sort so the dict insertion order (and thus the generated
+        # src/idf_component.yml) is deterministic across runs; otherwise
+        # the manifest content shuffles every build, write_file_if_changed
+        # always writes, and ninja keeps triggering CMake re-runs on
+        # otherwise-cached rebuilds.
+        for component_name in sorted(components_to_stub):
             # Create stub directory with minimal CMakeLists.txt
             stub_path = stubs_dir / _idf_component_stub_name(component_name)
             stub_path.mkdir(exist_ok=True)
@@ -2345,6 +2537,21 @@ def _write_idf_component_yml():
             stub_path = stubs_dir / _idf_component_stub_name(component_name)
             if stub_path.exists():
                 rmtree(stub_path)
+
+        if CORE.using_toolchain_esp_idf:
+            add_idf_component(
+                name="espressif/arduino-esp32",
+                ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+            )
+
+    if CORE.using_toolchain_esp_idf:
+        # Try to convert PlatformIO library to ESP-IDF components
+        for name, library in CORE.platformio_libraries.items():
+            # Don't process arduino libraries
+            if name in ARDUINO_DISABLED_LIBRARIES:
+                continue
+            dependency_name, dependency = _platformio_library_to_dependency(library)
+            dependencies[dependency_name] = dependency
 
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
@@ -2397,3 +2604,78 @@ def copy_files():
             CORE.relative_build_path(name).write_bytes(content)
         else:
             copy_file_if_changed(path, CORE.relative_build_path(name))
+
+
+def _decode_pc(config, addr):
+    from esphome.platformio import toolchain
+
+    idedata = toolchain.get_idedata(config)
+    if not idedata.addr2line_path or not idedata.firmware_elf_path:
+        _LOGGER.debug("decode_pc no addr2line")
+        return
+    command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
+    try:
+        translation = subprocess.check_output(command, close_fds=False).decode().strip()
+    except Exception:  # pylint: disable=broad-except
+        _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
+        return
+
+    if "?? ??:0" in translation:
+        # Nothing useful
+        return
+    translation = translation.replace(" at ??:?", "").replace(":?", "")
+    _LOGGER.warning("Decoded %s", translation)
+
+
+def _parse_register(config, regex, line):
+    match = regex.match(line)
+    if match is not None:
+        _decode_pc(config, match.group(1))
+
+
+STACKTRACE_ESP32_PC_RE = re.compile(r".*PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7}).*")
+STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r"EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_C3_PC_RE = re.compile(r"MEPC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_C3_RA_RE = re.compile(r"RA\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_BAD_ALLOC_RE = re.compile(
+    r"^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$"
+)
+STACKTRACE_ESP32_BACKTRACE_RE = re.compile(
+    r"Backtrace:(?:\s*0x[0-9a-fA-F]{8}:0x[0-9a-fA-F]{8})+"
+)
+STACKTRACE_ESP32_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
+# ESP32 crash handler (stored backtrace from previous boot)
+STACKTRACE_ESP32_CRASH_BT_RE = re.compile(r"BT\d+:\s*0x([0-9a-fA-F]{8})")
+
+
+def process_stacktrace(config, line, backtrace_state):
+    line = line.strip()
+
+    # ESP32 PC/EXCVADDR
+    _parse_register(config, STACKTRACE_ESP32_PC_RE, line)
+    _parse_register(config, STACKTRACE_ESP32_EXCVADDR_RE, line)
+    # ESP32-C3 PC/RA
+    _parse_register(config, STACKTRACE_ESP32_C3_PC_RE, line)
+    _parse_register(config, STACKTRACE_ESP32_C3_RA_RE, line)
+
+    # bad alloc
+    match = re.match(STACKTRACE_BAD_ALLOC_RE, line)
+    if match is not None:
+        _LOGGER.warning(
+            "Memory allocation of %s bytes failed at %s", match.group(2), match.group(1)
+        )
+        _decode_pc(config, match.group(1))
+
+    # ESP32 crash handler backtrace (from previous boot)
+    match = re.search(STACKTRACE_ESP32_CRASH_BT_RE, line)
+    if match is not None:
+        _decode_pc(config, match.group(1))
+
+    # ESP32 single-line backtrace
+    match = re.match(STACKTRACE_ESP32_BACKTRACE_RE, line)
+    if match is not None:
+        _LOGGER.warning("Found stack trace! Trying to decode it")
+        for addr in re.finditer(STACKTRACE_ESP32_BACKTRACE_PC_RE, line):
+            _decode_pc(config, addr.group())
+
+    return backtrace_state

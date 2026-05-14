@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <driver/gpio.h>
 
-namespace esphome {
-namespace st7701s {
+namespace esphome::st7701s {
 
 void ST7701S::setup() {
   this->spi_setup();
@@ -195,6 +194,5 @@ void ST7701S::dump_config() {
   ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 }
 
-}  // namespace st7701s
-}  // namespace esphome
+}  // namespace esphome::st7701s
 #endif  // USE_ESP32_VARIANT_ESP32S3

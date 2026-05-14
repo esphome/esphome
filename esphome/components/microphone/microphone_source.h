@@ -9,8 +9,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace esphome {
-namespace microphone {
+namespace esphome::microphone {
 
 static const int32_t MAX_GAIN_FACTOR = 64;
 
@@ -89,5 +88,4 @@ class MicrophoneSource {
   bool passive_;  // Only pass audio if ``mic_`` is already running
 };
 
-}  // namespace microphone
-}  // namespace esphome
+}  // namespace esphome::microphone
