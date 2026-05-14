@@ -5,9 +5,14 @@
 
 #if defined(USE_ESP32) || defined(USE_ESP8266)
 
-#include "esphome/core/lock_free_queue.h"
 #include "espnow_types.h"
 #include "espnow_packet.h"
+
+#ifdef USE_ESP8266
+#include "esp8266_queue.h"
+#else
+#include "esphome/core/lock_free_queue.h"
+#endif
 
 #include "esphome/core/event_pool.h"
 
@@ -25,7 +30,11 @@
 
 namespace esphome::espnow {
 
+#ifdef USE_ESP8266
+template<class T, uint8_t SIZE> using PacketQueue = ESP8266Queue<T, SIZE>;
+#else
 template<class T, uint8_t SIZE> using PacketQueue = LockFreeQueue<T, SIZE>;
+#endif
 
 // Maximum size of the ESPNow event queue (must be a power of 2).
 static constexpr size_t MAX_ESP_NOW_SEND_QUEUE_SIZE = 16;
@@ -170,13 +179,13 @@ class ESPNowComponent : public Component {
   std::vector<ESPNowPeer> peers_{};
 
   uint8_t own_address_[ESP_NOW_ETH_ALEN]{0};
-  LockFreeQueue<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_queue_{};
-  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
-  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
-  // before push() can fail, preventing a pool slot leak.
+  PacketQueue<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_queue_{};
+  // Pool sized to queue capacity (SIZE-1) because the ring buffer holds N-1 elements.
+  // This guarantees allocate() returns nullptr before push() can fail, preventing
+  // a pool slot leak.
   EventPool<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE - 1> receive_packet_pool_{};
 
-  LockFreeQueue<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE> send_packet_queue_{};
+  PacketQueue<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE> send_packet_queue_{};
   // Pool sized to queue capacity (SIZE-1) — see receive_packet_pool_ comment.
   EventPool<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE - 1> send_packet_pool_{};
   ESPNowSendPacket *current_send_packet_{nullptr};  // Currently sending packet, nullptr if none
