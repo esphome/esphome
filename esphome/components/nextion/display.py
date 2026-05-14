@@ -59,14 +59,13 @@ NextionSetBrightnessAction = nextion_ns.class_(
 )
 
 
-def _validate_dump_device_info(config):
-    if CONF_DUMP_DEVICE_INFO in config:
-        _LOGGER.warning(
-            "'dump_device_info' is deprecated and will be removed in ESPHome 2026.11.0. "
-            "Device info is now always logged at connection time. "
-            "Please remove this option from your configuration."
-        )
-    return config
+def _deprecated_dump_device_info(value):
+    _LOGGER.warning(
+        "'dump_device_info' is deprecated and will be removed in ESPHome 2026.11.0. "
+        "Device info is now always logged at connection time. "
+        "Please remove this option from your configuration."
+    )
+    return value
 
 
 def _validate_tft_upload(config):
@@ -96,7 +95,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.Range(max=TimePeriod(milliseconds=255)),
             ),
             # Deprecated — device info is now always logged. Remove before 2026.11.0.
-            cv.Optional(CONF_DUMP_DEVICE_INFO): cv.boolean,
+            cv.Optional(CONF_DUMP_DEVICE_INFO): cv.All(
+                cv.boolean,
+                _deprecated_dump_device_info
+            ),
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
             cv.Optional(CONF_MAX_QUEUE_AGE, default="8000ms"): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -143,7 +145,6 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("5s"))
     .extend(uart.UART_DEVICE_SCHEMA),
-    _validate_dump_device_info,
     _validate_tft_upload,
 )
 
