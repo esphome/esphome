@@ -1,3 +1,4 @@
+from esphome import final_validate as fv
 import esphome.codegen as cg
 from esphome.components import esp32
 from esphome.components.esp32 import (
@@ -8,7 +9,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_HARDWARE_UART, CONF_ID
 
 CODEOWNERS = ["@kbx81"]
 CONFLICTS_WITH = ["usb_host"]
@@ -39,6 +40,25 @@ CONFIG_SCHEMA = cv.All(
         supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3],
     ),
 )
+
+
+def _final_validate(config):
+    full_config = fv.full_config.get()
+    # tinyusb owns the USB OTG peripheral. The logger's USB_CDC backend routes
+    # the ROM console through that same peripheral, so the two cannot coexist.
+    # (USB_SERIAL_JTAG is a separate peripheral and is fine alongside tinyusb.)
+    logger_config = full_config.get("logger")
+    if logger_config and logger_config.get(CONF_HARDWARE_UART) == "USB_CDC":
+        raise cv.Invalid(
+            "'tinyusb' cannot be used with 'logger.hardware_uart: USB_CDC' "
+            "because both share the USB OTG peripheral. Set "
+            "'logger.hardware_uart' to a hardware UART (e.g. UART0), or to "
+            "USB_SERIAL_JTAG on variants that support it (ESP32-S3, ESP32-P4)."
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
