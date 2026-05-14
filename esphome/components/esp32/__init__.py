@@ -2464,8 +2464,14 @@ def _write_sdkconfig():
     )
 
     want_opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    # Include the resolved framework version as a Kconfig comment so a
+    # version switch that happens to leave the option set unchanged still
+    # bumps this file's content -- which is what has_outdated_files()
+    # uses to decide whether to reconfigure.
+    framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     contents = (
-        "\n".join(
+        f"# ESPHOME_IDF_VERSION={framework_version}\n"
+        + "\n".join(
             f"{name}={_format_sdkconfig_val(value)}"
             for name, value in sorted(want_opts.items())
         )

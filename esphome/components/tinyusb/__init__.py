@@ -21,6 +21,13 @@ CONF_USB_PRODUCT_STR = "usb_product_str"
 CONF_USB_SERIAL_STR = "usb_serial_str"
 CONF_USB_VENDOR_ID = "usb_vendor_id"
 
+# Components that provide a USB device class (CDC, HID, MSC, ...) on top of
+# tinyusb. Configuring `tinyusb:` without any of these triggers a 5s hang in
+# esp_tinyusb's driver install (descriptors_set fails with no class and no
+# user-provided full_speed_config), which trips the task watchdog before
+# loop() ever runs.
+_USB_CLASS_COMPONENTS = ("usb_cdc_acm",)
+
 tinyusb_ns = cg.esphome_ns.namespace("tinyusb")
 TinyUSB = tinyusb_ns.class_("TinyUSB", cg.Component)
 
@@ -44,6 +51,10 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(config):
     full_config = fv.full_config.get()
+    if not any(name in full_config for name in _USB_CLASS_COMPONENTS):
+        raise cv.Invalid(
+            "The 'tinyusb' component requires at least one USB class component"
+        )
     # tinyusb owns the USB OTG peripheral. The logger's USB_CDC backend routes
     # the ROM console through that same peripheral, so the two cannot coexist.
     # (USB_SERIAL_JTAG is a separate peripheral and is fine alongside tinyusb.)
@@ -54,7 +65,6 @@ def _final_validate(config):
             "because both share the USB OTG peripheral. Set "
             "'logger.hardware_uart' to a hardware UART (e.g. UART0), or to "
             "USB_SERIAL_JTAG on variants that support it (ESP32-S3, ESP32-P4)."
-        )
     return config
 
 

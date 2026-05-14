@@ -191,23 +191,38 @@ def run_reconfigure() -> int:
 def has_outdated_files():
     """Check if the build configuration is stale.
 
-    Returns True if required build files are missing or if external
-    configuration inputs (IDF install, sdkconfig, CMake's own build/config
-    dir) are newer than CMakeCache.txt. We deliberately don't watch the
-    top-level/src ``CMakeLists.txt`` here -- those are written by
-    ``write_project`` via ``write_file_if_changed`` (so an mtime bump
-    means our content actually changed) and ninja already tracks them as
-    configure-time deps via ``build.ninja``. Including them in this check
-    causes a perpetual reconfigure loop: the two-pass write leaves
-    CMakeLists newer than CMakeCache.txt, and CMake doesn't restamp the
-    cache when only ``idf_build_set_property`` values change, so the
-    check would trip on every subsequent build.
+    Returns True if required build files are missing or if ESPHome's
+    resolved build inputs are newer than CMakeCache.txt:
+
+    - ``sdkconfig.<name>.esphomeinternal`` -- the canonical "what state
+      did ESPHome resolve the YAML to" snapshot. Any change in build
+      flags, enabled components, framework version, or target ends up
+      rewriting it (we embed a ``# ESPHOME_IDF_VERSION=`` comment line
+      for the version case where the option set would otherwise be
+      identical).
+    - ``src/idf_component.yml`` -- the project manifest. Managed
+      component additions/removals (e.g. via ``add_idf_component``) can
+      happen without any sdkconfig impact, and ``_write_idf_component_yml``
+      already deletes ``dependencies.lock`` on a change but that signal
+      gets lost as soon as the lock is missing.
+
+    We deliberately don't watch:
+    - The top-level/src ``CMakeLists.txt`` -- ESPHome owns those, and
+      ninja already tracks them as configure-time deps. Including them
+      causes a perpetual reconfigure loop because CMake doesn't restamp
+      ``CMakeCache.txt`` when only ``idf_build_set_property`` values
+      change between configures.
+    - ``$IDF_PATH`` and CMake's ``build/config/`` -- both have mtime
+      semantics that fire after the wrong configure (or not at all in
+      common cases like in-place IDF version replacement). The sdkconfig
+      and manifest hashes subsume the meaningful signal.
     """
     cmakecache_txt_path = CORE.relative_build_path("build/CMakeCache.txt")
     build_config_path = CORE.relative_build_path("build/config")
     sdkconfig_internal_path = CORE.relative_build_path(
         f"sdkconfig.{CORE.name}.esphomeinternal"
     )
+    idf_component_yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependency_lock_path = CORE.relative_build_path("dependencies.lock")
     build_ninja_path = CORE.relative_build_path("build/build.ninja")
 
@@ -225,12 +240,8 @@ def has_outdated_files():
     cmakecache_txt_mtime = os.path.getmtime(cmakecache_txt_path)
     return any(
         os.path.getmtime(f) > cmakecache_txt_mtime
-        for f in [
-            _get_idf_path(),
-            sdkconfig_internal_path,
-            build_config_path,
-        ]
-        if f and os.path.exists(f)
+        for f in [sdkconfig_internal_path, idf_component_yml_path]
+        if f.exists()
     )
 
 
