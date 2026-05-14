@@ -508,7 +508,7 @@ class EsphomeQueueUpdateHandler(EsphomeCommandWebSocket):
             # Only add to the queue if the build actually succeeded
             DASHBOARD.queued_updates.add(self.configuration)
             
-            # FIX: Force the dashboard to persist this new state to disk
+            # Force the dashboard to persist this new state to disk
             if hasattr(DASHBOARD, "save"):
                 DASHBOARD.save()
                 
@@ -538,11 +538,11 @@ class EsphomeCancelQueueHandler(BaseHandler):
         if configuration in DASHBOARD.queued_updates:
             DASHBOARD.queued_updates.discard(configuration)
             
-            # FIX 1: Persist the removal to disk so it survives restarts
+            # Persist the removal to disk so it survives restarts
             if hasattr(DASHBOARD, "save"):
                 DASHBOARD.save()
                 
-            # FIX 2: Delete the actual compiled artifacts so a startup scanner doesn't find them again
+            # Delete the actual compiled artifacts so a startup scanner doesn't find them again
             node_name = configuration.replace(".yaml", "").replace(".yml", "")
             build_path = Path(settings.config_dir) / ".esphome" / "build" / node_name
             
