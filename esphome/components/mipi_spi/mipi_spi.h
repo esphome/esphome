@@ -616,10 +616,10 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
     if (x < 0 || x >= this->get_width_internal() || y < this->start_line_ || y >= this->end_line_)
       return;
     this->buffer_[(y - this->start_line_) * round_buffer(this->get_width_internal()) + x] = convert_color(color);
-    this->x_low_ = std::min(this->x_low_, x);
-    this->x_high_ = std::max(this->x_high_, x);
-    this->y_low_ = std::min(this->y_low_, y);
-    this->y_high_ = std::max(this->y_high_, y);
+    this->x_low_ = std::min<uint16_t>(this->x_low_, x);
+    this->x_high_ = std::max<uint16_t>(this->x_high_, x);
+    this->y_low_ = std::min<uint16_t>(this->y_low_, y);
+    this->y_high_ = std::max<uint16_t>(this->y_high_, y);
   }
 
   // Fills the display with a color.

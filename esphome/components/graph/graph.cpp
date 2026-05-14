@@ -223,7 +223,7 @@ void GraphLegend::init(Graph *g) {
     this->font_label_->measure(txtstr.c_str(), &fw, &fos, &fbl, &fh);
     txtw = std::max(txtw, fw);
     txth = std::max(txth, fh);
-    lt = std::max(lt, trace->get_line_thickness());
+    lt = std::max<int>(lt, trace->get_line_thickness());
     ESP_LOGI(TAGL, "  %s %d %d", txtstr.c_str(), fw, fh);
 
     if (this->values_ != VALUE_POSITION_TYPE_NONE) {
