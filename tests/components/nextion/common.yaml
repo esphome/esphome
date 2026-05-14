@@ -299,7 +299,7 @@ display:
         - lambda: |-
             // key: StringRef, value: int32_t
             if (key == "temperature_raw") {
-              ESP_LOGD("nextion.custom", "%s=%d", key.c_str(), value);
+              ESP_LOGD("nextion.custom", "%s=%" PRId32, key.c_str(), value);
             }
     on_custom_binary_sensor:
       then:

@@ -11,6 +11,7 @@
 #include <esp_ota_ops.h>
 #include <nvs_flash.h>
 
+#include <cinttypes>
 #include <cstring>
 
 namespace esphome::ota {
@@ -44,32 +45,14 @@ static const esp_partition_t *find_app_partition_at(uint32_t address, size_t min
 // can write to it; abort() releases it on error.
 OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_app_offset, size_t running_app_size,
                                                               PartitionTablePlan &plan) {
-  esp_err_t err = esp_partition_register_external(
-      nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE, "PrimaryPrtTable",
-      ESP_PARTITION_TYPE_PARTITION_TABLE, ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY, &this->partition_table_part_);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_partition_register_external failed (err=0x%X)", err);
-    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+  OTAResponseTypes validate_result = this->register_and_validate_partition_table_part_();
+  if (validate_result != OTA_RESPONSE_OK) {
+    return validate_result;
   }
 
   int num_partitions = 0;
-  const esp_partition_info_t *existing_partition_table = nullptr;
-  esp_partition_mmap_handle_t partition_table_map;
-  err = esp_partition_mmap(this->partition_table_part_, 0, ESP_PARTITION_TABLE_MAX_LEN, ESP_PARTITION_MMAP_DATA,
-                           reinterpret_cast<const void **>(&existing_partition_table), &partition_table_map);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_partition_mmap failed (err=0x%X)", err);
-    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
-  }
-  err = esp_partition_table_verify(existing_partition_table, true, &num_partitions);
-  esp_partition_munmap(partition_table_map);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_partition_table_verify failed (existing partition table) (err=0x%X)", err);
-    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
-  }
-
   const esp_partition_info_t *new_partition_table = reinterpret_cast<const esp_partition_info_t *>(this->buf_);
-  err = esp_partition_table_verify(new_partition_table, true, &num_partitions);
+  esp_err_t err = esp_partition_table_verify(new_partition_table, true, &num_partitions);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_partition_table_verify failed (new partition table) (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
@@ -135,10 +118,20 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
     // Rejecting here is non-destructive (no flash op has run yet); the user can safely retry with
     // a different .bin. Log enough info that they can pick the right method without guessing.
     ESP_LOGE(TAG,
-             "Running app at 0x%X (%u bytes used) does not fit any compatible slot in the new "
-             "partition table. Pick a migration method whose size limit is at least %u bytes and "
-             "retry; no flash content was modified.",
-             running_app_offset, running_app_size, running_app_size);
+             "The new partition table must contain a compatible app partition with:\n"
+             "  size: at least %" PRIu32 " bytes (0x%" PRIX32 ")\n"
+             "  address: one of",
+             (uint32_t) running_app_size, (uint32_t) running_app_size);
+    esp_partition_iterator_t it = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+    while (it != nullptr) {
+      const esp_partition_t *partition = esp_partition_get(it);
+      if (partition->size >= running_app_size) {
+        ESP_LOGE(TAG, "    0x%" PRIX32, partition->address);
+      }
+      it = esp_partition_next(it);
+    }
+    esp_partition_iterator_release(it);
+    ESP_LOGE(TAG, "Upload a different partition table. No flash content was modified.");
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   if (app_partitions_found < 2) {
@@ -154,11 +147,11 @@ OTAResponseTypes IDFOTABackend::validate_new_partition_table_(uint32_t running_a
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   if (otadata_overlap) {
+    // Unlikely, the otadata partition is before the start of the first app partition in most cases
     ESP_LOGE(TAG,
-             "New otadata partition overlaps with the running app at 0x%X (size %u). The chosen "
-             "partition table is not compatible with this device's current flash layout; pick a "
-             "different migration method.",
-             running_app_offset, running_app_size);
+             "New otadata partition overlaps with the running app at address: 0x%" PRIX32 ", running app size: %" PRIu32
+             " bytes",
+             running_app_offset, (uint32_t) running_app_size);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
 
@@ -198,8 +191,8 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
   // can leave the device unbootable until it is recovered with a serial flash.
   ESP_LOGE(TAG, "Starting partition table update.\n"
                 "  DO NOT REMOVE POWER until the device reboots successfully.\n"
-                "  Loss of power during this operation may render the device unable to boot until\n"
-                "  it is recovered via a serial flash.");
+                "  Loss of power during this operation may render the device\n"
+                "  unable to boot until it is recovered via a serial flash.");
 
   // One guard over the whole critical section in case an IDF call takes longer than expected on
   // some chip variant.
@@ -214,10 +207,10 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     // which leaves esp_ota_get_running_partition() returning nullptr.
     const esp_partition_t *running_app_part = find_app_partition_at(running_app_offset, running_app_size);
     if (running_app_part == nullptr) {
-      ESP_LOGE(TAG, "Cannot resolve running app partition at offset 0x%X", running_app_offset);
+      ESP_LOGE(TAG, "Cannot resolve running app partition at address 0x%" PRIX32, running_app_offset);
       return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
     }
-    ESP_LOGD(TAG, "Copying running app from 0x%X to 0x%X (size: 0x%X)", running_app_part->address,
+    ESP_LOGD(TAG, "Copying running app from 0x%" PRIX32 " to 0x%" PRIX32 " (size: 0x%zX)", running_app_part->address,
              plan.copy_dest_part->address, running_app_size);
     err = esp_partition_copy(plan.copy_dest_part, 0, running_app_part, 0, running_app_size);
     if (err != ESP_OK) {
@@ -268,11 +261,38 @@ OTAResponseTypes IDFOTABackend::update_partition_table() {
     ESP_LOGE(TAG, "Selected app partition not found after partition table update");
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
   }
-  ESP_LOGD(TAG, "Setting next boot partition to 0x%X", new_boot_partition->address);
+  ESP_LOGD(TAG, "Setting next boot partition to 0x%" PRIX32, new_boot_partition->address);
   err = esp_ota_set_boot_partition(new_boot_partition);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (err=0x%X)", err);
     return OTA_RESPONSE_ERROR_PARTITION_TABLE_UPDATE;
+  }
+  return OTA_RESPONSE_OK;
+}
+
+OTAResponseTypes IDFOTABackend::register_and_validate_partition_table_part_() {
+  esp_err_t err = esp_partition_register_external(
+      nullptr, ESP_PRIMARY_PARTITION_TABLE_OFFSET, ESP_PARTITION_TABLE_SIZE, "PrimaryPrtTable",
+      ESP_PARTITION_TYPE_PARTITION_TABLE, ESP_PARTITION_SUBTYPE_PARTITION_TABLE_PRIMARY, &this->partition_table_part_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_partition_register_external failed (partition table) (err=0x%X)", err);
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+  }
+
+  int num_partitions = 0;
+  const esp_partition_info_t *existing_partition_table = nullptr;
+  esp_partition_mmap_handle_t partition_table_map;
+  err = esp_partition_mmap(this->partition_table_part_, 0, ESP_PARTITION_TABLE_MAX_LEN, ESP_PARTITION_MMAP_DATA,
+                           reinterpret_cast<const void **>(&existing_partition_table), &partition_table_map);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_partition_mmap failed (partition table) (err=0x%X)", err);
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
+  }
+  err = esp_partition_table_verify(existing_partition_table, true, &num_partitions);
+  esp_partition_munmap(partition_table_map);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_partition_table_verify failed (existing partition table) (err=0x%X)", err);
+    return OTA_RESPONSE_ERROR_PARTITION_TABLE_VERIFY;
   }
   return OTA_RESPONSE_OK;
 }

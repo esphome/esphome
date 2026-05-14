@@ -206,11 +206,14 @@ async def to_code(config: ConfigType) -> None:
         )
 
     # sendspin-cpp library
-    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.4.0")
+    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.5.0")
 
     cg.add_define("USE_SENDSPIN", True)  # for MDNS
 
     data = _get_data()
+
+    # The color role is not yet wired up in ESPHome; disable it in the library for now.
+    esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
 
     # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
     # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
@@ -264,7 +267,7 @@ async def to_code(config: ConfigType) -> None:
 
         # Library defaults: priority 18 (one above httpd_priority 17 so the decoder is not
         # starved by the HTTP server during the initial encoded-audio burst at stream start),
-        # interpolation/decode buffer locations PREFER_EXTERNAL.
+        # decode buffer location PREFER_EXTERNAL.
         player_struct_fields = [
             ("audio_formats", audio_format_structs),
             ("audio_buffer_capacity", player_cfg[CONF_BUFFER_SIZE]),

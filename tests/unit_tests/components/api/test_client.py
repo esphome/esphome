@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from esphome.components import esp32
 from esphome.components.api import client as api_client
 from esphome.core import EsphomeError
 
@@ -18,11 +19,11 @@ def test_decoder_swallows_esphome_error() -> None:
     reconnect.
     """
     config = {"esphome": {"name": "test"}}
-    processor = api_client._LogLineProcessor(config, None)
 
     with patch.object(
-        api_client, "process_stacktrace", side_effect=EsphomeError("no idedata")
+        esp32, "process_stacktrace", side_effect=EsphomeError("no idedata")
     ) as mock_process:
+        processor = api_client._LogLineProcessor(config, esp32.process_stacktrace)
         processor.process_line("PC: 0x4010496e")
 
     assert mock_process.called
@@ -47,9 +48,9 @@ def test_decoder_warning_uses_fallback_for_empty_error(caplog) -> None:
     must show a useful explanation rather than empty parens.
     """
     config = {"esphome": {"name": "test"}}
-    processor = api_client._LogLineProcessor(config, None)
 
-    with patch.object(api_client, "process_stacktrace", side_effect=EsphomeError()):
+    with patch.object(esp32, "process_stacktrace", side_effect=EsphomeError()):
+        processor = api_client._LogLineProcessor(config, esp32.process_stacktrace)
         processor.process_line("PC: 0x4010496e")
 
     warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
@@ -65,11 +66,11 @@ def test_decoder_short_circuits_after_failure() -> None:
     stall log streaming.
     """
     config = {"esphome": {"name": "test"}}
-    processor = api_client._LogLineProcessor(config, None)
 
     with patch.object(
-        api_client, "process_stacktrace", side_effect=EsphomeError("no idedata")
+        esp32, "process_stacktrace", side_effect=EsphomeError("no idedata")
     ) as mock_process:
+        processor = api_client._LogLineProcessor(config, esp32.process_stacktrace)
         processor.process_line("PC: 0x4010496e")
         processor.process_line("BT0: 0x4010496e")
         processor.process_line("BT1: 0x401049aa")
@@ -80,18 +81,18 @@ def test_decoder_short_circuits_after_failure() -> None:
 def test_decoder_threads_backtrace_state() -> None:
     """When decoding succeeds, backtrace_state is threaded across calls."""
     config = {"esphome": {"name": "test"}}
-    processor = api_client._LogLineProcessor(config, None)
 
     with patch.object(
-        api_client, "process_stacktrace", side_effect=[True, False]
+        esp32, "process_stacktrace", side_effect=[True, False]
     ) as mock_process:
+        processor = api_client._LogLineProcessor(config, esp32.process_stacktrace)
         processor.process_line(">>>stack>>>")
         assert processor.backtrace_state is True
         processor.process_line("<<<stack<<<")
         assert processor.backtrace_state is False
 
-    assert mock_process.call_args_list[0].kwargs == {"backtrace_state": False}
-    assert mock_process.call_args_list[1].kwargs == {"backtrace_state": True}
+    assert not mock_process.call_args_list[0].args[-1]
+    assert mock_process.call_args_list[1].args[-1]
 
 
 def test_decoder_uses_platform_handler_when_provided() -> None:
@@ -105,7 +106,7 @@ def test_decoder_uses_platform_handler_when_provided() -> None:
 
     processor = api_client._LogLineProcessor(config, platform_handler)
 
-    with patch.object(api_client, "process_stacktrace") as mock_generic:
+    with patch.object(esp32, "process_stacktrace") as mock_generic:
         processor.process_line("BT0: 0x4010496e")
 
     assert calls == [(config, "BT0: 0x4010496e", False)]

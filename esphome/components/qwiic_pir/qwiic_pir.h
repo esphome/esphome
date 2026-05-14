@@ -12,8 +12,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace qwiic_pir {
+namespace esphome::qwiic_pir {
 
 // Qwiic PIR I2C Register Addresses
 enum {
@@ -65,5 +64,4 @@ class QwiicPIRComponent : public Component, public i2c::I2CDevice, public binary
   void clear_events_();
 };
 
-}  // namespace qwiic_pir
-}  // namespace esphome
+}  // namespace esphome::qwiic_pir

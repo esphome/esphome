@@ -9,8 +9,7 @@
 #include "WiFiUdp.h"
 #endif
 
-namespace esphome {
-namespace wake_on_lan {
+namespace esphome::wake_on_lan {
 
 class WakeOnLanButton : public button::Button, public Component {
  public:
@@ -31,6 +30,6 @@ class WakeOnLanButton : public button::Button, public Component {
   uint8_t macaddr_[6];
 };
 
-}  // namespace wake_on_lan
-}  // namespace esphome
+}  // namespace esphome::wake_on_lan
+
 #endif

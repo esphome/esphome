@@ -16,8 +16,8 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_IGNORE_PIN_VALIDATION_ERROR,
     CONF_NUMBER,
-    KEY_NATIVE_IDF,
     PlatformFramework,
+    Toolchain,
 )
 from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
@@ -266,7 +266,7 @@ def test_native_idf_enables_reproducible_build(
 
     CORE.config_path = component_config_path("reproducible_build.yaml")
     CORE.config = read_config({})
-    CORE.data[KEY_NATIVE_IDF] = True
+    CORE.toolchain = Toolchain.ESP_IDF
     generate_cpp_contents(CORE.config)
 
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
