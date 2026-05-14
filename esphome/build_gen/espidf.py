@@ -65,7 +65,7 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # esp_idf_size 2.x (bundled with IDF >=6.0) made NG the default and
     # removed the --ng flag; on 1.x (IDF 5.5) --ng is required to get
     # --format=raw because the legacy mode doesn't support it.
-    size_ng_flag = "--ng " if idf_version() < cv.Version(6, 0, 0) else ""
+    size_ng_flag = "--ng" if idf_version() < cv.Version(6, 0, 0) else ""
 
     # Project-wide compile options: -D defines and -W warning flags (skip
     # -Wl, linker flags — those go on the src component via
@@ -152,7 +152,7 @@ project({CORE.name})
 # Emit raw JSON size data for ESPHome to read post-build.
 add_custom_command(
     TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
-    COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag}--format=raw
+    COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=raw
             -o ${{CMAKE_BINARY_DIR}}/esp_idf_size.json
             ${{CMAKE_PROJECT_NAME}}.map
     WORKING_DIRECTORY ${{CMAKE_BINARY_DIR}}
