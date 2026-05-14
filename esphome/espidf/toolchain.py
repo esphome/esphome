@@ -191,13 +191,19 @@ def run_reconfigure() -> int:
 def has_outdated_files():
     """Check if the build configuration is stale.
 
-    Returns True if required build files are missing or if configuration inputs
-    are newer than the generated CMake/Ninja build artifacts.
+    Returns True if required build files are missing or if external
+    configuration inputs (IDF install, sdkconfig, CMake's own build/config
+    dir) are newer than CMakeCache.txt. We deliberately don't watch the
+    top-level/src ``CMakeLists.txt`` here -- those are written by
+    ``write_project`` via ``write_file_if_changed`` (so an mtime bump
+    means our content actually changed) and ninja already tracks them as
+    configure-time deps via ``build.ninja``. Including them in this check
+    causes a perpetual reconfigure loop: the two-pass write leaves
+    CMakeLists newer than CMakeCache.txt, and CMake doesn't restamp the
+    cache when only ``idf_build_set_property`` values change, so the
+    check would trip on every subsequent build.
     """
     cmakecache_txt_path = CORE.relative_build_path("build/CMakeCache.txt")
-
-    cmakelists_txt_build_path = CORE.relative_build_path("CMakeLists.txt")
-    cmakelists_txt_src_path = CORE.relative_src_path("CMakeLists.txt")
     build_config_path = CORE.relative_build_path("build/config")
     sdkconfig_internal_path = CORE.relative_build_path(
         f"sdkconfig.{CORE.name}.esphomeinternal"
@@ -221,8 +227,6 @@ def has_outdated_files():
         os.path.getmtime(f) > cmakecache_txt_mtime
         for f in [
             _get_idf_path(),
-            cmakelists_txt_build_path,
-            cmakelists_txt_src_path,
             sdkconfig_internal_path,
             build_config_path,
         ]
@@ -302,21 +306,13 @@ def run_compile(config, verbose: bool) -> int:
             return rc
         _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
         write_project(minimal=False)
-        # The post-discovery rewrite leaves CMakeLists newer than
-        # CMakeCache.txt. CMake won't re-touch CMakeCache.txt on a
-        # configure that only changes idf_build_set_property values
-        # (those aren't cache variables), so has_outdated_files() would
-        # return True on every subsequent build, perpetually retriggering
-        # the two-pass. Touch CMakeCache.txt now so its mtime stays past
-        # the rewritten CMakeLists.
-        cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
-        if cmakecache.is_file():
-            os.utime(cmakecache)
         if CORE.testing_mode:
             # Reconfigure again so cmake is up to date with the full
             # component list before the build's idf.py invocation runs --
             # idf.py build would otherwise re-run cmake and regenerate
             # memory.ld, wiping the DRAM/IRAM patches applied below.
+            # Outside testing mode ninja's own configure-time dep on
+            # CMakeLists.txt handles the re-run as part of the build step.
             rc = run_reconfigure()
             if rc != 0:
                 _LOGGER.error("Reconfigure with discovered components failed")
