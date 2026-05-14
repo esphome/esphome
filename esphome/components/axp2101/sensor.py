@@ -18,6 +18,9 @@ from esphome.const import (
     UNIT_VOLT,
 )
 
+CODEOWNERS = ["@mschnaubelt"]
+DEPENDENCIES = ["i2c"]
+
 CONF_BATTERY_PRESENT = "battery_present"
 CONF_BATTERY_CHARGING = "battery_charging"
 CONF_BATTERY_STATUS = "battery_status"
