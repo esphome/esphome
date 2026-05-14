@@ -35,79 +35,6 @@ def _load_and_validate(tmp_path, yaml_text):
         return config.read_config({})
 
 
-def test_elm327_engine_rpm_sensor(tmp_path):
-    """Test that engine_rpm sensor validates successfully."""
-    yaml_text = BASE_YAML.format(sensors="engine_rpm:\n      name: Engine RPM")
-    result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for engine_rpm sensor"
-
-
-def test_elm327_vehicle_speed_sensor(tmp_path):
-    """Test that vehicle_speed sensor validates successfully."""
-    yaml_text = BASE_YAML.format(sensors="vehicle_speed:\n      name: Vehicle Speed")
-    result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for vehicle_speed sensor"
-
-
-def test_elm327_coolant_temperature_sensor(tmp_path):
-    """Test that coolant_temperature sensor validates successfully."""
-    yaml_text = BASE_YAML.format(
-        sensors="coolant_temperature:\n      name: Coolant Temp"
-    )
-    result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for coolant_temperature"
-
-
-def test_elm327_engine_load_sensor(tmp_path):
-    """Test that engine_load sensor validates successfully."""
-    yaml_text = BASE_YAML.format(sensors="engine_load:\n      name: Engine Load")
-    result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for engine_load"
-
-
-def test_elm327_throttle_position_sensor(tmp_path):
-    """Test that throttle_position sensor validates successfully."""
-    yaml_text = BASE_YAML.format(
-        sensors="throttle_position:\n      name: Throttle Position"
-    )
-    result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for throttle_position"
-
-
-def test_elm327_intake_air_temperature_sensor(tmp_path):
-    """Test that intake_air_temperature sensor validates successfully."""
-    yaml_text = BASE_YAML.format(
-        sensors="intake_air_temperature:\n      name: Intake Air Temp"
-    )
-    result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, (
-        "Expected validation to succeed for intake_air_temperature"
-    )
-
-
-def test_elm327_maf_rate_sensor(tmp_path):
-    """Test that maf_rate sensor validates successfully."""
-    yaml_text = BASE_YAML.format(sensors="maf_rate:\n      name: MAF Rate")
-    result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for maf_rate"
-
-
-def test_elm327_fuel_level_sensor(tmp_path):
-    """Test that fuel_level sensor validates successfully."""
-    yaml_text = BASE_YAML.format(sensors="fuel_level:\n      name: Fuel Level")
-    result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for fuel_level"
-
-
-def test_elm327_battery_voltage_sensor(tmp_path):
-    """Test that battery_voltage sensor validates successfully."""
-    yaml_text = BASE_YAML.format(
-        sensors="battery_voltage:\n      name: Battery Voltage"
-    )
-    result = _load_and_validate(tmp_path, yaml_text)
-    assert result is not None, "Expected validation to succeed for battery_voltage"
-
-
 def test_elm327_all_sensors(tmp_path):
     """Test that all sensors together validate successfully."""
     sensors = """engine_rpm:
@@ -138,3 +65,126 @@ def test_elm327_no_sensors_fails(tmp_path):
     yaml_text = BASE_YAML.format(sensors="")
     result = _load_and_validate(tmp_path, yaml_text)
     assert result is None, "Expected validation to fail when no sensors configured"
+
+
+def test_elm327_custom_pid_hex_string(tmp_path):
+    """Test that custom_pid with hex string PID validates successfully."""
+    sensors = "custom_pid:\n      name: Custom\n      pid: '0xFF'"
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is not None, "Expected validation to succeed for custom_pid with hex string"
+
+
+def test_elm327_custom_pid_bare_hex(tmp_path):
+    """Test that custom_pid with bare hex string (no 0x prefix) validates successfully."""
+    sensors = "custom_pid:\n      name: Custom\n      pid: 'FF'"
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is not None, "Expected validation to succeed for custom_pid with bare hex"
+
+
+def test_elm327_custom_pid_integer(tmp_path):
+    """Test that custom_pid with integer PID validates successfully."""
+    sensors = "custom_pid:\n      name: Custom\n      pid: 255"
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is not None, "Expected validation to succeed for custom_pid with integer"
+
+
+def test_elm327_custom_pid_response_bytes(tmp_path):
+    """Test that custom_pid with response_bytes validates successfully."""
+    sensors = "custom_pid:\n      name: Custom\n      pid: '0x22'\n      response_bytes: 2"
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is not None, "Expected validation to succeed for custom_pid with response_bytes"
+
+
+def test_elm327_custom_pid_list(tmp_path):
+    """Test that multiple custom_pid entries validate successfully."""
+    sensors = """custom_pid:
+      - name: First
+        pid: '0x01'
+      - name: Second
+        pid: '0x02'
+        response_bytes: 2"""
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is not None, "Expected validation to succeed for multiple custom_pid entries"
+
+
+def test_elm327_custom_pid_only_no_standard_sensors(tmp_path):
+    """Test that custom_pid alone (no standard sensors) validates successfully."""
+    sensors = "custom_pid:\n      name: Custom\n      pid: '0xAB'"
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is not None, "Expected validation to succeed with only custom_pid configured"
+
+
+def test_elm327_custom_pid_mode22(tmp_path):
+    """Test that custom_pid with mode 22 and 2-byte PID validates successfully."""
+    sensors = "custom_pid:\n      name: SoC\n      pid: '0xB201'\n      mode: 0x22\n      response_bytes: 2"
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is not None, "Expected validation to succeed for mode 22 with 2-byte PID"
+
+
+def test_elm327_custom_pid_invalid_pid_fails(tmp_path):
+    """Test that an invalid PID value fails validation."""
+    sensors = "custom_pid:\n      name: Custom\n      pid: '0x1FFFF'"
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is None, "Expected validation to fail for PID > 0xFFFF"
+
+
+def test_elm327_custom_pid_invalid_response_bytes_fails(tmp_path):
+    """Test that response_bytes out of range fails validation."""
+    sensors = "custom_pid:\n      name: Custom\n      pid: '0xFF'\n      response_bytes: 5"
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is None, "Expected validation to fail for response_bytes > 4"
+
+
+def test_elm327_custom_pid_zero_response_bytes_fails(tmp_path):
+    """Test that response_bytes: 0 fails validation."""
+    sensors = "custom_pid:\n      name: Custom\n      pid: '0xFF'\n      response_bytes: 0"
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is None, "Expected validation to fail for response_bytes < 1"
+
+
+def test_elm327_custom_pid_invalid_mode_low_fails(tmp_path):
+    """Test that mode: 0 fails validation."""
+    sensors = "custom_pid:\n      name: Custom\n      pid: '0xFF'\n      mode: 0"
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is None, "Expected validation to fail for mode < 0x01"
+
+
+def test_elm327_custom_pid_invalid_mode_high_fails(tmp_path):
+    """Test that mode: 64 (0x40) fails validation."""
+    sensors = "custom_pid:\n      name: Custom\n      pid: '0xFF'\n      mode: 64"
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is None, "Expected validation to fail for mode > 0x3F"
+
+
+def test_elm327_custom_pid_non_hex_string_fails(tmp_path):
+    """Test that a non-hex PID string fails validation."""
+    sensors = "custom_pid:\n      name: Custom\n      pid: 'xyz'"
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is None, "Expected validation to fail for non-hex PID string"
+
+
+def test_elm327_standard_and_custom_pid_together(tmp_path):
+    """Test that standard sensors and custom_pid can be combined."""
+    sensors = """engine_rpm:
+      name: Engine RPM
+    custom_pid:
+      - name: SoC
+        pid: '0xB201'
+        mode: 0x22
+        response_bytes: 2"""
+    yaml_text = BASE_YAML.format(sensors=sensors)
+    result = _load_and_validate(tmp_path, yaml_text)
+    assert result is not None, "Expected validation to succeed for standard + custom_pid"

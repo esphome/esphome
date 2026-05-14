@@ -18,4 +18,11 @@ sensor:
       name: Fuel Level
     battery_voltage:
       name: Battery Voltage
+    custom_pid:
+      - name: Custom Mode 01
+        pid: "0x01"
+      - name: Custom Mode 22
+        pid: "0xB201"
+        mode: 0x22
+        response_bytes: 2
     update_interval: 10s

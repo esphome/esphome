@@ -120,6 +120,10 @@ void ELM327Component::dump_config() {
   LOG_SENSOR("  ", "MAF Rate", this->maf_rate_);
   LOG_SENSOR("  ", "Fuel Level", this->fuel_level_);
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
+  for (const auto &cfg : this->custom_pids_) {
+    ESP_LOGCONFIG(TAG, "  Custom PID mode=0x%02X pid=0x%04X (%u byte(s)):", cfg.mode, cfg.pid, cfg.response_bytes);
+    LOG_SENSOR("    ", "Sensor", cfg.sensor);
+  }
 }
 
 void ELM327Component::send_cmd_(const char *cmd) {
@@ -228,47 +232,60 @@ void ELM327Component::send_next_query_() {
     this->sensor_index_++;
   }
 
-  if (this->sensor_index_ >= NUM_SENSORS) {
-    this->state_ = State::IDLE;
-    this->status_clear_warning();
+  if (this->sensor_index_ < NUM_SENSORS) {
+    char cmd[7];
+    switch (this->sensor_index_) {
+      case 0:
+        snprintf(cmd, sizeof(cmd), "01%02X", PID_ENGINE_RPM);
+        break;
+      case 1:
+        snprintf(cmd, sizeof(cmd), "01%02X", PID_VEHICLE_SPEED);
+        break;
+      case 2:
+        snprintf(cmd, sizeof(cmd), "01%02X", PID_COOLANT_TEMP);
+        break;
+      case 3:
+        snprintf(cmd, sizeof(cmd), "01%02X", PID_ENGINE_LOAD);
+        break;
+      case 4:
+        snprintf(cmd, sizeof(cmd), "01%02X", PID_THROTTLE);
+        break;
+      case 5:
+        snprintf(cmd, sizeof(cmd), "01%02X", PID_INTAKE_AIR_TEMP);
+        break;
+      case 6:
+        snprintf(cmd, sizeof(cmd), "01%02X", PID_MAF_RATE);
+        break;
+      case 7:
+        snprintf(cmd, sizeof(cmd), "01%02X", PID_FUEL_LEVEL);
+        break;
+      case 8:
+        snprintf(cmd, sizeof(cmd), "ATRV");
+        break;
+      default:
+        break;
+    }
+    this->send_cmd_(cmd);
+    this->state_ = State::QUERYING;
     return;
   }
 
-  char cmd[7];
-  switch (this->sensor_index_) {
-    case 0:
-      snprintf(cmd, sizeof(cmd), "01%02X", PID_ENGINE_RPM);
-      break;
-    case 1:
-      snprintf(cmd, sizeof(cmd), "01%02X", PID_VEHICLE_SPEED);
-      break;
-    case 2:
-      snprintf(cmd, sizeof(cmd), "01%02X", PID_COOLANT_TEMP);
-      break;
-    case 3:
-      snprintf(cmd, sizeof(cmd), "01%02X", PID_ENGINE_LOAD);
-      break;
-    case 4:
-      snprintf(cmd, sizeof(cmd), "01%02X", PID_THROTTLE);
-      break;
-    case 5:
-      snprintf(cmd, sizeof(cmd), "01%02X", PID_INTAKE_AIR_TEMP);
-      break;
-    case 6:
-      snprintf(cmd, sizeof(cmd), "01%02X", PID_MAF_RATE);
-      break;
-    case 7:
-      snprintf(cmd, sizeof(cmd), "01%02X", PID_FUEL_LEVEL);
-      break;
-    case 8:
-      snprintf(cmd, sizeof(cmd), "ATRV");
-      break;
-    default:
-      break;
+  uint8_t custom_idx = this->sensor_index_ - NUM_SENSORS;
+  if (custom_idx < this->custom_pids_.size()) {
+    const auto &cfg = this->custom_pids_[custom_idx];
+    char cmd[7];
+    if (cfg.pid > 0xFF) {
+      snprintf(cmd, sizeof(cmd), "%02X%04X", cfg.mode, cfg.pid);
+    } else {
+      snprintf(cmd, sizeof(cmd), "%02X%02X", cfg.mode, static_cast<uint8_t>(cfg.pid));
+    }
+    this->send_cmd_(cmd);
+    this->state_ = State::QUERYING;
+    return;
   }
 
-  this->send_cmd_(cmd);
-  this->state_ = State::QUERYING;
+  this->state_ = State::IDLE;
+  this->status_clear_warning();
 }
 
 void ELM327Component::publish_pid_(uint8_t sensor_index, const char *response) {
@@ -276,6 +293,25 @@ void ELM327Component::publish_pid_(uint8_t sensor_index, const char *response) {
       strstr(response, "UNABLE") != nullptr || strstr(response, "?") != nullptr) {
     ESP_LOGW(TAG, "Sensor %u: %s", sensor_index, response);
     this->status_set_warning();
+    return;
+  }
+
+  if (sensor_index >= NUM_SENSORS) {
+    uint8_t custom_idx = sensor_index - NUM_SENSORS;
+    const auto &cfg = this->custom_pids_[custom_idx];
+    // 2-byte PIDs produce a 3-token header (mode echo + PID high + PID low)
+    uint8_t header_bytes = (cfg.pid > 0xFF) ? 3 : 2;
+    uint8_t data[4];
+    if (!parse_response_bytes(response, data, cfg.response_bytes, header_bytes)) {
+      ESP_LOGW(TAG, "Failed to parse custom PID 0x%04X response: %s", cfg.pid, response);
+      this->status_set_warning();
+      return;
+    }
+    uint32_t value = 0;
+    for (uint8_t i = 0; i < cfg.response_bytes; i++) {
+      value = (value << 8) | data[i];
+    }
+    cfg.sensor->publish_state(static_cast<float>(value));
     return;
   }
 
@@ -329,8 +365,11 @@ void ELM327Component::publish_pid_(uint8_t sensor_index, const char *response) {
   }
 }
 
-bool ELM327Component::parse_response_bytes(const char *response, uint8_t *data, uint8_t expected_bytes) {
-  // ATH0 response: "41 0C 1A F8" or "410C1AF8" — first two bytes are mode echo and PID, skip them.
+bool ELM327Component::parse_response_bytes(const char *response, uint8_t *data, uint8_t expected_bytes,
+                                           uint8_t header_bytes) {
+  // ATH0 response format: "<mode_echo> [<pid_bytes>...] <data_bytes...>"
+  // Mode 01 (1-byte PID): "41 0C 1A F8"  — header_bytes=2
+  // Mode 22 (2-byte PID): "62 B2 01 AB CD" — header_bytes=3
   const char *p = response;
   uint8_t tokens[8];
   uint8_t token_count = 0;
@@ -352,12 +391,12 @@ bool ELM327Component::parse_response_bytes(const char *response, uint8_t *data, 
     p += 2;
   }
 
-  if (token_count < 2 + expected_bytes) {
+  if (token_count < header_bytes + expected_bytes) {
     return false;
   }
 
   for (uint8_t i = 0; i < expected_bytes; i++) {
-    data[i] = tokens[2 + i];
+    data[i] = tokens[header_bytes + i];
   }
 
   return true;
