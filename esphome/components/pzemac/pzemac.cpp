@@ -1,8 +1,7 @@
 #include "pzemac.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pzemac {
+namespace esphome::pzemac {
 
 static const char *const TAG = "pzemac";
 
@@ -135,5 +134,4 @@ void PZEMAC::reset_energy_() {
   this->send_raw(cmd);
 }
 
-}  // namespace pzemac
-}  // namespace esphome
+}  // namespace esphome::pzemac

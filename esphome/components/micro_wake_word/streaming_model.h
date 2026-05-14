@@ -10,8 +10,7 @@
 #include <tensorflow/lite/micro/micro_interpreter.h>
 #include <tensorflow/lite/micro/micro_mutable_op_resolver.h>
 
-namespace esphome {
-namespace micro_wake_word {
+namespace esphome::micro_wake_word {
 
 static const uint8_t MIN_SLICES_BEFORE_DETECTION = 100;
 static const uint32_t STREAMING_MODEL_VARIABLE_ARENA_SIZE = 1024;
@@ -155,7 +154,6 @@ class VADModel final : public StreamingModel {
   DetectionEvent determine_detected() override;
 };
 
-}  // namespace micro_wake_word
-}  // namespace esphome
+}  // namespace esphome::micro_wake_word
 
 #endif

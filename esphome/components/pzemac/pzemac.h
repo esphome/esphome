@@ -7,8 +7,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace pzemac {
+namespace esphome::pzemac {
 
 template<typename... Ts> class ResetEnergyAction;
 
@@ -52,5 +51,4 @@ template<typename... Ts> class ResetEnergyAction : public Action<Ts...> {
   PZEMAC *pzemac_;
 };
 
-}  // namespace pzemac
-}  // namespace esphome
+}  // namespace esphome::pzemac

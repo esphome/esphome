@@ -9,8 +9,15 @@ from esphome import core, yaml_util
 from esphome.components import substitutions
 from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
-from esphome.core import EsphomeError
+from esphome.core import DocumentLocation, DocumentRange, EsphomeError
 from esphome.util import OrderedDict
+from esphome.yaml_util import (
+    ESPHomeDataBase,
+    ESPLiteralValue,
+    format_path,
+    make_data_base,
+    make_literal,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -383,6 +390,21 @@ def test_track_yaml_loads_cleanup_on_exception(tmp_path: Path) -> None:
     assert len(yaml_util._load_listeners) == before
 
 
+def test_track_yaml_loads_no_duplicate_load_on_top_level_include_failure(
+    tmp_path: Path,
+) -> None:
+    """A failed top-level !include must not record any file twice in track_yaml_loads."""
+    main = tmp_path / "main.yaml"
+    main.write_text("!include missing.yaml\n")
+
+    with yaml_util.track_yaml_loads() as loaded, pytest.raises(EsphomeError):
+        yaml_util.load_yaml(main)
+
+    assert len(loaded) == len(set(loaded)), (
+        f"Files loaded more than once during a failed top-level include: {loaded}"
+    )
+
+
 @pytest.mark.parametrize(
     "data",
     [
@@ -712,3 +734,235 @@ def test_yaml_merge_chain_include_depth_exceeded() -> None:
     yaml_text = "base:\n  <<: !include loop.yaml\n"
     with pytest.raises(EsphomeError, match="Maximum include chain depth"):
         yaml_util.parse_yaml(parent, io.StringIO(yaml_text), self_referencing_loader)
+
+
+def _located(value, doc: str, line: int, col: int):
+    """Return *value* wrapped with a fake ESPHomeDataBase source location."""
+    loc = DocumentLocation(doc, line, col)
+    obj = make_data_base(value)
+    if isinstance(obj, ESPHomeDataBase):
+        obj._esp_range = DocumentRange(loc, loc)
+    return obj
+
+
+def test_format_path_no_location_info_returns_flat_path():
+    """Plain path items with no esp_range produce a simple flat 'In:' line."""
+    result = format_path(["wifi", "ssid"], None)
+    assert result == "In: wifi->ssid"
+
+
+def test_format_path_no_location_info_current_obj_adds_file():
+    """When path has no location but current_obj does, its location is shown."""
+    obj = _located("${var}", "main.yaml", 5, 10)
+    result = format_path(["wifi", "ssid"], obj)
+    assert result == "In: wifi->ssid in main.yaml 6:11"
+
+
+def test_format_path_single_frame_no_include_boundary():
+    """All located keys from the same document → single 'In:' line, no 'Included from'."""
+    path = ["packages", _located("pkg1", "root.yaml", 5, 2)]
+    result = format_path(path, None)
+    assert result.startswith("In: packages->pkg1 in root.yaml 6:3")
+    assert "Included from" not in result
+
+
+def test_format_path_two_frames_shows_included_from():
+    """Keys from two different documents produce 'In:' + one 'Included from' line."""
+    path = [
+        "packages",
+        _located("device", "root.yaml", 10, 2),
+        "packages",
+        _located("inner", "hardware.yaml", 3, 2),
+    ]
+    result = format_path(path, None)
+    assert "In: packages->inner in hardware.yaml 4:3" in result
+    assert "Included from packages->device in root.yaml 11:3" in result
+
+
+def test_format_path_three_frames_full_include_stack():
+    """Three document levels produce two 'Included from' lines in correct order."""
+    path = [
+        "packages",
+        _located("device", "root.yaml", 10, 2),
+        "packages",
+        _located("_wifi_", "hardware.yaml", 43, 2),
+        "packages",
+        _located("_roam_", "wifi.yaml", 25, 2),
+    ]
+    result = format_path(path, None)
+    lines = result.splitlines()
+    assert lines[0].startswith("In: packages->_roam_ in wifi.yaml")
+    assert lines[1].startswith("  Included from packages->_wifi_ in hardware.yaml")
+    assert lines[2].startswith("  Included from packages->device in root.yaml")
+
+
+def test_format_path_current_obj_overrides_innermost_location():
+    """current_obj's esp_range replaces the key's column for the 'In:' line."""
+    path = ["packages", _located("pkg1", "root.yaml", 5, 2)]
+    # Value (the expression) sits at column 10, not column 2 like the key
+    value = _located("${undefined}", "root.yaml", 5, 10)
+    result = format_path(path, value)
+    assert "6:11" in result
+    assert "6:3" not in result
+
+
+def test_format_path_empty_path_with_no_location():
+    """Empty path with no location info returns 'In: '."""
+    result = format_path([], None)
+    assert result == "In: "
+
+
+def test_format_path_integer_path_items_formatted_as_subscript():
+    """Integer indices are rendered as [n] subscripts in the flat fallback."""
+    result = format_path(["packages", 0], None)
+    assert result == "In: packages[0]"
+
+
+def test_format_path_integer_list_index_attached_to_previous_frame():
+    """A list index between two include boundaries attaches to the outer frame."""
+    path = [
+        "packages",
+        _located("packages", "main.yaml", 5, 0),
+        0,
+        _located("packages", "level1.yaml", 2, 0),
+        0,
+        _located("esphome", "level2.yaml", 0, 0),
+        _located("name", "level2.yaml", 1, 8),
+    ]
+    result = format_path(path, None)
+    lines = result.splitlines()
+    assert lines[0].startswith("In: esphome->name in level2.yaml")
+    assert "packages[0]" in lines[1] and "level1.yaml" in lines[1]
+    assert "packages[0]" in lines[2] and "main.yaml" in lines[2]
+
+
+def test_format_path_trailing_unlocated_string_after_located_key():
+    """Plain string keys after the last located key must still appear in output."""
+    path = [_located("packages", "main.yaml", 5, 0), "sub", "key"]
+    result = format_path(path, None)
+    assert result == "In: packages->sub->key in main.yaml 6:1"
+
+
+def test_format_path_trailing_unlocated_int_attaches_to_current_frame():
+    """Trailing ints attach to the open frame's last key (subscript), strings
+    buffer until end-of-path and then flush behind."""
+    path = [_located("packages", "main.yaml", 5, 0), 0, "sub"]
+    result = format_path(path, None)
+    # Int attaches to 'packages' as [0] subscript; trailing 'sub' is flushed
+    # at end and appears after.
+    assert result == "In: packages[0]->sub in main.yaml 6:1"
+
+
+def test_format_path_only_trailing_unlocated_strings_are_preserved():
+    """Trailing pending items must not be silently dropped after the last frame."""
+    path = [
+        _located("packages", "main.yaml", 5, 0),
+        _located("inner", "hardware.yaml", 3, 0),
+        "tail1",
+        "tail2",
+    ]
+    result = format_path(path, None)
+    lines = result.splitlines()
+    assert lines[0] == "In: inner->tail1->tail2 in hardware.yaml 4:1"
+    assert lines[1] == "  Included from packages in main.yaml 6:1"
+
+
+def test_format_path_leading_int_with_no_current_doc_goes_to_pending():
+    """An int before any located key is buffered and shown in the first frame."""
+    path = [0, _located("name", "main.yaml", 1, 0)]
+    result = format_path(path, None)
+    # Leading ints have no preceding name to subscript onto, so they render
+    # as bare [n] in the formatted segment.
+    assert result == "In: [0]->name in main.yaml 2:1"
+
+
+def test_format_path_only_unlocated_int_returns_flat_fallback():
+    """Path with only an int and no location info renders via the flat fallback."""
+    result = format_path([0], None)
+    assert result == "In: [0]"
+
+
+def test_format_path_current_obj_in_different_doc_than_innermost_frame():
+    """current_obj's location is preferred even when its document differs from the frame's."""
+    path = [_located("packages", "root.yaml", 1, 0)]
+    value = _located("${var}", "other.yaml", 9, 4)
+    result = format_path(path, value)
+    # Innermost line uses current_obj's mark (other.yaml 10:5), not the key's.
+    assert result == "In: packages in other.yaml 10:5"
+
+
+def test_format_path_current_obj_without_location_falls_back_to_key():
+    """An ESPHomeDataBase current_obj with no esp_range falls back to the key's location."""
+
+    class _NoRange(ESPHomeDataBase, str):
+        pass
+
+    obj = _NoRange.__new__(_NoRange, "value")
+    str.__init__(obj)
+    # No _esp_range set on this instance.
+    assert obj.esp_range is None
+
+    path = [_located("packages", "main.yaml", 5, 2)]
+    result = format_path(path, obj)
+    assert result == "In: packages in main.yaml 6:3"
+
+
+def test_format_path_empty_path_with_located_current_obj():
+    """An empty path with a located current_obj still surfaces the location."""
+    obj = _located("${var}", "main.yaml", 0, 0)
+    result = format_path([], obj)
+    assert result == "In:  in main.yaml 1:1"
+
+
+def test_make_literal_wraps_dict() -> None:
+    """A dict is wrapped so it becomes an ESPLiteralValue instance."""
+    value = {"key": "${var}"}
+    result = make_literal(value)
+    assert isinstance(result, ESPLiteralValue)
+    assert isinstance(result, dict)
+    assert result == {"key": "${var}"}
+
+
+def test_make_literal_wraps_list() -> None:
+    """A list is wrapped so it becomes an ESPLiteralValue instance."""
+    value = ["${var}", "plain"]
+    result = make_literal(value)
+    assert isinstance(result, ESPLiteralValue)
+    assert isinstance(result, list)
+    assert result == ["${var}", "plain"]
+
+
+def test_make_literal_wraps_string() -> None:
+    """A string is wrapped so it becomes an ESPLiteralValue instance."""
+    result = make_literal("${var}")
+    assert isinstance(result, ESPLiteralValue)
+    assert result == "${var}"
+
+
+def test_make_literal_returns_already_wrapped_value_unchanged() -> None:
+    """Wrapping a value that is already an ESPLiteralValue returns it as-is."""
+    value = make_literal({"key": "value"})
+    assert isinstance(value, ESPLiteralValue)
+    result = make_literal(value)
+    assert result is value
+
+
+def test_make_literal_returns_none_unchanged() -> None:
+    """Values whose class cannot be augmented (e.g. ``None``) are returned as-is."""
+    result = make_literal(None)
+    assert result is None
+
+
+def test_make_literal_blocks_substitution() -> None:
+    """A value wrapped with make_literal is skipped by the substitution pass."""
+    value = make_literal({"pin": "${PIN}"})
+    result = substitutions.substitute(
+        value,
+        path=[],
+        parent_context=substitutions.ContextVars(),
+        strict_undefined=False,
+    )
+    # The literal block must remain untouched, even though the variable is
+    # undefined in the context.
+    assert result == {"pin": "${PIN}"}
+    assert isinstance(result, ESPLiteralValue)

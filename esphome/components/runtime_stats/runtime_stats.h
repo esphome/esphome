@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -26,14 +27,24 @@ class RuntimeStatsCollector {
   }
   uint32_t get_log_interval() const { return this->log_interval_; }
 
-  // Process any pending stats printing (should be called after component loop)
-  void process_pending_stats(uint32_t current_time);
+  // Process any pending stats printing. Called on every Application::loop()
+  // tick, so the common "not yet time to log" path must be cheap — inline
+  // the gate check and keep the actual logging work out-of-line.
+  void ESPHOME_ALWAYS_INLINE process_pending_stats(uint32_t current_time) {
+    if ((int32_t) (current_time - this->next_log_time_) >= 0) [[unlikely]] {
+      this->process_pending_stats_slow_(current_time);
+    }
+  }
 
   // Record the wall time of one main loop iteration excluding the yield/sleep.
   // Called once per loop from Application::loop().
   //   active_us = total time between loop start and just before yield.
-  //   before_us = time spent in before_loop_tasks_ (scheduler + ISR enable_loop).
-  //   tail_us   = time spent in after_loop_tasks_ + the trailing record/stats prefix.
+  //   before_us = time spent in Phase A (scheduler tick) excluding time
+  //               already attributed to per-component stats.
+  //   tail_us   = time spent in after_component_phase_ + the trailing record/stats
+  //               prefix. Only meaningful on component-phase ticks; reported
+  //               as 0 on Phase A-only ticks (no component phase ran, so any
+  //               overhead between Phase A and stats belongs to "residual").
   // Residual overhead at log time = active − Σ(component) − before − tail,
   // which captures per-iteration inter-component bookkeeping (set_current_component,
   // WarnIfComponentBlockingGuard construction/destruction, feed_wdt_with_time calls,
@@ -55,6 +66,7 @@ class RuntimeStatsCollector {
   }
 
  protected:
+  void process_pending_stats_slow_(uint32_t current_time);
   void log_stats_();
   // Static comparators — member functions have friend access, lambdas do not
   static bool compare_period_time(Component *a, Component *b);

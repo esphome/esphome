@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <algorithm>
 
-namespace esphome {
-namespace tcs34725 {
+namespace esphome::tcs34725 {
 
 static const char *const TAG = "tcs34725";
 
@@ -348,5 +347,4 @@ void TCS34725Component::set_glass_attenuation_factor(float ga) {
   this->glass_attenuation_ = ga;
 }
 
-}  // namespace tcs34725
-}  // namespace esphome
+}  // namespace esphome::tcs34725

@@ -3,8 +3,7 @@
 
 // https://download.epsondevice.com/td/pdf/app/RX8130CE_en.pdf
 
-namespace esphome {
-namespace rx8130 {
+namespace esphome::rx8130 {
 
 static const uint8_t RX8130_REG_SEC = 0x10;
 static const uint8_t RX8130_REG_MIN = 0x11;
@@ -121,5 +120,4 @@ void RX8130Component::stop_(bool stop) {
   }
 }
 
-}  // namespace rx8130
-}  // namespace esphome
+}  // namespace esphome::rx8130
