@@ -14,12 +14,6 @@ esphome:
           sensitivity: 6
       - dfrobot_sen0395.reset
 
-uart:
-  - id: uart_dfrobot_sen0395
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 dfrobot_sen0395:
   - id: mmwave
 

@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace htu21d {
+namespace esphome::htu21d {
 
 enum HTU21DSensorModels { HTU21D_SENSOR_MODEL_HTU21D = 0, HTU21D_SENSOR_MODEL_SI7021, HTU21D_SENSOR_MODEL_SHT21 };
 
@@ -28,8 +27,6 @@ class HTU21DComponent : public PollingComponent, public i2c::I2CDevice {
   void set_heater_level(uint8_t level);
   uint8_t get_heater_level();
 
-  float get_setup_priority() const override;
-
  protected:
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
@@ -41,7 +38,7 @@ template<typename... Ts> class SetHeaterLevelAction : public Action<Ts...>, publ
  public:
   TEMPLATABLE_VALUE(uint8_t, level)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto level = this->level_.value(x...);
 
     this->parent_->set_heater_level(level);
@@ -52,12 +49,11 @@ template<typename... Ts> class SetHeaterAction : public Action<Ts...>, public Pa
  public:
   TEMPLATABLE_VALUE(bool, status)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto status = this->status_.value(x...);
 
     this->parent_->set_heater(status);
   }
 };
 
-}  // namespace htu21d
-}  // namespace esphome
+}  // namespace esphome::htu21d

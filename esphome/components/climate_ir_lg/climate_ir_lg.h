@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace climate_ir_lg {
+namespace esphome::climate_ir_lg {
 
 // Temperature
 const uint8_t TEMP_MIN = 18;  // Celsius
@@ -23,7 +22,8 @@ class LgIrClimate : public climate_ir::ClimateIR {
   void control(const climate::ClimateCall &call) override {
     this->send_swing_cmd_ = call.get_swing_mode().has_value();
     // swing resets after unit powered off
-    if (call.get_mode().has_value() && *call.get_mode() == climate::CLIMATE_MODE_OFF)
+    auto mode = call.get_mode();
+    if (mode.has_value() && *mode == climate::CLIMATE_MODE_OFF)
       this->swing_mode = climate::CLIMATE_SWING_OFF;
     climate_ir::ClimateIR::control(call);
   }
@@ -53,5 +53,4 @@ class LgIrClimate : public climate_ir::ClimateIR {
   climate::ClimateMode mode_before_{climate::CLIMATE_MODE_OFF};
 };
 
-}  // namespace climate_ir_lg
-}  // namespace esphome
+}  // namespace esphome::climate_ir_lg

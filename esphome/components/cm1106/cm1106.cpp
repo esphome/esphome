@@ -3,8 +3,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace cm1106 {
+namespace esphome::cm1106 {
 
 static const char *const TAG = "cm1106";
 static const uint8_t C_M1106_CMD_GET_CO2[4] = {0x11, 0x01, 0x01, 0xED};
@@ -13,7 +12,7 @@ static const uint8_t C_M1106_CMD_SET_CO2_CALIB_RESPONSE[4] = {0x16, 0x01, 0x03, 
 
 uint8_t cm1106_checksum(const uint8_t *response, size_t len) {
   uint8_t crc = 0;
-  for (int i = 0; i < len - 1; i++) {
+  for (size_t i = 0; i < len - 1; i++) {
     crc -= response[i];
   }
   return crc;
@@ -107,5 +106,4 @@ void CM1106Component::dump_config() {
   }
 }
 
-}  // namespace cm1106
-}  // namespace esphome
+}  // namespace esphome::cm1106

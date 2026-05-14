@@ -25,23 +25,7 @@
 #include "IPAddress.h"
 #endif
 
-namespace esphome {
-namespace statsd {
-
-using sensor_type_t = enum { TYPE_SENSOR, TYPE_BINARY_SENSOR };
-
-using sensors_t = struct {
-  const char *name;
-  sensor_type_t type;
-  union {
-#ifdef USE_SENSOR
-    esphome::sensor::Sensor *sensor;
-#endif
-#ifdef USE_BINARY_SENSOR
-    esphome::binary_sensor::BinarySensor *binary_sensor;
-#endif
-  };
-};
+namespace esphome::statsd {
 
 class StatsdComponent : public PollingComponent {
  public:
@@ -71,6 +55,20 @@ class StatsdComponent : public PollingComponent {
   const char *prefix_;
   uint16_t port_;
 
+  using sensor_type_t = enum { TYPE_SENSOR, TYPE_BINARY_SENSOR };
+  using sensors_t = struct {
+    const char *name;
+    sensor_type_t type;
+    union {
+#ifdef USE_SENSOR
+      esphome::sensor::Sensor *sensor;
+#endif
+#ifdef USE_BINARY_SENSOR
+      esphome::binary_sensor::BinarySensor *binary_sensor;
+#endif
+    };
+  };
+
   std::vector<sensors_t> sensors_;
 
 #ifdef USE_ESP8266
@@ -83,6 +81,6 @@ class StatsdComponent : public PollingComponent {
   void send_(std::string *out);
 };
 
-}  // namespace statsd
-}  // namespace esphome
+}  // namespace esphome::statsd
+
 #endif

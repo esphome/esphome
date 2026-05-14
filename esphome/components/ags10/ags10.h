@@ -5,8 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace ags10 {
+namespace esphome::ags10 {
 
 class AGS10Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -105,7 +104,7 @@ template<typename... Ts> class AGS10NewI2cAddressAction : public Action<Ts...>, 
  public:
   TEMPLATABLE_VALUE(uint8_t, new_address)
 
-  void play(Ts... x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
 };
 
 enum AGS10SetZeroPointActionMode {
@@ -122,7 +121,7 @@ template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...>, p
   TEMPLATABLE_VALUE(uint16_t, value)
   TEMPLATABLE_VALUE(AGS10SetZeroPointActionMode, mode)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     switch (this->mode_.value(x...)) {
       case FACTORY_DEFAULT:
         this->parent_->set_zero_point_with_factory_defaults();
@@ -136,5 +135,4 @@ template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...>, p
     }
   }
 };
-}  // namespace ags10
-}  // namespace esphome
+}  // namespace esphome::ags10

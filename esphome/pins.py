@@ -118,11 +118,11 @@ class PinRegistry(dict):
                         parent_config = fconf.get_config_for_path(parent_path)
                         final_val_fun(pin_config, parent_config)
                     allow_others = pin_config.get(CONF_ALLOW_OTHER_USES, False)
-                    if count != 1 and not allow_others:
+                    if count != 1 and not allow_others and not CORE.testing_mode:
                         raise cv.Invalid(
                             f"Pin {pin_config[CONF_NUMBER]} is used in multiple places"
                         )
-                    if count == 1 and allow_others:
+                    if count == 1 and allow_others and not CORE.testing_mode:
                         raise cv.Invalid(
                             f"Pin {pin_config[CONF_NUMBER]} incorrectly sets {CONF_ALLOW_OTHER_USES}: true"
                         )
@@ -274,7 +274,7 @@ def check_strapping_pin(conf, strapping_pin_list: set[int], logger: Logger):
         logger.warning(
             f"GPIO{num} is a strapping PIN and should only be used for I/O with care.\n"
             "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
-            "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
+            "See https://esphome.io/guides/faq/#why-am-i-getting-a-warning-about-strapping-pins",
         )
     # mitigate undisciplined use of strapping:
     if num not in strapping_pin_list and conf.get(CONF_IGNORE_STRAPPING_WARNING):

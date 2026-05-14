@@ -1,13 +1,9 @@
-i2c:
-  - id: i2c_inkplate
-    scl: 16
-    sda: 17
-
 esp32:
   cpu_frequency: 240MHz
 
 display:
   - platform: inkplate
+    i2c_id: i2c_bus
     id: inkplate_display
     greyscale: false
     partial_updating: false

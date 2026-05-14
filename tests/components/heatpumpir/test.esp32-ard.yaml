@@ -1,4 +1,4 @@
-substitutions:
-  pin: GPIO2
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-ard.yaml
 
 <<: !include common.yaml

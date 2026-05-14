@@ -4,8 +4,7 @@
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
 
-namespace esphome {
-namespace wake_on_lan {
+namespace esphome::wake_on_lan {
 
 static const char *const TAG = "wake_on_lan.button";
 static const uint8_t PREFIX[6] = {255, 255, 255, 255, 255, 255};
@@ -67,8 +66,8 @@ void WakeOnLanButton::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
   if (this->broadcast_socket_ == nullptr) {
+    this->status_set_error(LOG_STR("Could not create socket"));
     this->mark_failed();
-    this->status_set_error("Could not create socket");
     return;
   }
   int enable = 1;
@@ -84,6 +83,6 @@ void WakeOnLanButton::setup() {
 #endif
 }
 
-}  // namespace wake_on_lan
-}  // namespace esphome
+}  // namespace esphome::wake_on_lan
+
 #endif

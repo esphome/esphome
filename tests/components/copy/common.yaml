@@ -7,6 +7,9 @@ fan:
   - platform: speed
     id: fan_speed
     output: fan_output_1
+    preset_modes:
+      - Eco
+      - Turbo
   - platform: copy
     source_id: fan_speed
     name: Fan Speed Copy

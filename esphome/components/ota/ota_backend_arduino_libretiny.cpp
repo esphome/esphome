@@ -7,14 +7,16 @@
 
 #include <Update.h>
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 static const char *const TAG = "ota.arduino_libretiny";
 
-std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ArduinoLibreTinyOTABackend>(); }
+std::unique_ptr<ArduinoLibreTinyOTABackend> make_ota_backend() { return make_unique<ArduinoLibreTinyOTABackend>(); }
 
-OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size) {
+OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (ota_type != OTA_TYPE_UPDATE_APP) {
+    return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+  }
   // Handle UPDATE_SIZE_UNKNOWN (0) which is used by web server OTA
   // where the exact firmware size is unknown due to multipart encoding
   if (image_size == 0) {
@@ -66,7 +68,5 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::end() {
 
 void ArduinoLibreTinyOTABackend::abort() { Update.abort(); }
 
-}  // namespace ota
-}  // namespace esphome
-
+}  // namespace esphome::ota
 #endif  // USE_LIBRETINY

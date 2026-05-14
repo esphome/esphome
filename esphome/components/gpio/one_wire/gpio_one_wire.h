@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/one_wire/one_wire.h"
 
-namespace esphome {
-namespace gpio {
+namespace esphome::gpio {
 
 class GPIOOneWireBus : public one_wire::OneWireBus, public Component {
  public:
@@ -38,5 +37,4 @@ class GPIOOneWireBus : public one_wire::OneWireBus, public Component {
   bool read_bit_(uint32_t *t);
 };
 
-}  // namespace gpio
-}  // namespace esphome
+}  // namespace esphome::gpio

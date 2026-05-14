@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace touchscreen {
+namespace esphome::touchscreen {
 
 class TouchscreenBinarySensor : public binary_sensor::BinarySensor,
                                 public Component,
@@ -44,5 +43,4 @@ class TouchscreenBinarySensor : public binary_sensor::BinarySensor,
   std::vector<display::DisplayPage *> pages_{};
 };
 
-}  // namespace touchscreen
-}  // namespace esphome
+}  // namespace esphome::touchscreen

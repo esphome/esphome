@@ -20,16 +20,6 @@ CONFIG_SCHEMA = (
         device_class=DEVICE_CLASS_ILLUMINANCE,
         state_class=STATE_CLASS_MEASUREMENT,
     )
-    .extend(
-        {
-            cv.Optional("resolution"): cv.invalid(
-                "The 'resolution' option has been removed. The optimal value is now dynamically calculated."
-            ),
-            cv.Optional("measurement_duration"): cv.invalid(
-                "The 'measurement_duration' option has been removed. The optimal value is now dynamically calculated."
-            ),
-        }
-    )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x23))
 )

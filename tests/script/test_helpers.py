@@ -1,5 +1,6 @@
 """Unit tests for script/helpers.py module."""
 
+from collections.abc import Generator
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,14 @@ _filter_changed_local = helpers._filter_changed_local
 build_all_include = helpers.build_all_include
 print_file_list = helpers.print_file_list
 get_all_dependencies = helpers.get_all_dependencies
+
+
+@pytest.fixture(autouse=True)
+def clear_helpers_cache() -> None:
+    """Clear cached functions before each test."""
+    helpers._get_github_event_data.cache_clear()
+    helpers._get_changed_files_github_actions.cache_clear()
+    helpers.get_components_per_integration_fixture.cache_clear()
 
 
 @pytest.mark.parametrize(
@@ -1003,8 +1012,8 @@ def test_get_all_dependencies_handles_missing_components() -> None:
         comp.dependencies = ["missing_comp"]
         comp.auto_load = []
 
-        mock_get_component.side_effect = (
-            lambda name: comp if name == "existing" else None
+        mock_get_component.side_effect = lambda name: (
+            comp if name == "existing" else None
         )
 
         result = helpers.get_all_dependencies({"existing", "nonexistent"})
@@ -1017,6 +1026,51 @@ def test_get_all_dependencies_empty_set() -> None:
     """Test with empty initial component set."""
     result = helpers.get_all_dependencies(set())
     assert result == set()
+
+
+def test_get_all_dependencies_platform_component() -> None:
+    """Platform components (domain.component) are looked up via get_platform,
+    not get_component."""
+    platform_comp = Mock()
+    platform_comp.dependencies = []
+    platform_comp.auto_load = []
+
+    with (
+        patch("esphome.loader.get_component") as mock_get_component,
+        patch("esphome.loader.get_platform") as mock_get_platform,
+    ):
+        mock_get_platform.return_value = platform_comp
+        mock_get_component.return_value = None
+
+        result = helpers.get_all_dependencies({"sensor.bthome"})
+
+        mock_get_platform.assert_called_once_with("sensor", "bthome")
+        mock_get_component.assert_not_called()
+        assert result == {"sensor.bthome"}
+
+
+def test_get_all_dependencies_platform_component_with_dependencies() -> None:
+    """Dependencies of a platform component are resolved transitively."""
+    platform_comp = Mock()
+    platform_comp.dependencies = ["sensor"]
+    platform_comp.auto_load = []
+
+    sensor_comp = Mock()
+    sensor_comp.dependencies = []
+    sensor_comp.auto_load = []
+
+    with (
+        patch("esphome.loader.get_component") as mock_get_component,
+        patch("esphome.loader.get_platform") as mock_get_platform,
+    ):
+        mock_get_platform.return_value = platform_comp
+        mock_get_component.side_effect = lambda name: (
+            sensor_comp if name == "sensor" else None
+        )
+
+        result = helpers.get_all_dependencies({"sensor.bthome"})
+
+        assert result == {"sensor.bthome", "sensor"}
 
 
 def test_get_components_from_integration_fixtures() -> None:
@@ -1036,7 +1090,7 @@ def test_get_components_from_integration_fixtures() -> None:
         "gpio",
     }
 
-    mock_yaml_file = Mock()
+    mock_yaml_file = Mock(stem="test_fixture")
 
     with (
         patch("pathlib.Path.glob") as mock_glob,
@@ -1047,6 +1101,55 @@ def test_get_components_from_integration_fixtures() -> None:
         components = helpers.get_components_from_integration_fixtures()
 
         assert components == expected_components
+
+
+def test_get_components_from_integration_fixtures_skips_yaml_anchors() -> None:
+    """Test that YAML anchor keys (starting with '.') are excluded."""
+    yaml_content = {
+        "sensor": [{"platform": "template", "name": "test"}],
+        "esphome": {"name": "test"},
+        ".sensor_filters": {"filters": [{"timeout": "50ms"}]},
+        ".binary_filters": {"filters": [{"settle": "50ms"}]},
+    }
+
+    mock_yaml_file = Mock(stem="test_fixture")
+
+    with (
+        patch("pathlib.Path.glob") as mock_glob,
+        patch("esphome.yaml_util.load_yaml", return_value=yaml_content),
+    ):
+        mock_glob.return_value = [mock_yaml_file]
+
+        components = helpers.get_components_from_integration_fixtures()
+
+        assert ".sensor_filters" not in components
+        assert ".binary_filters" not in components
+        assert components == {"sensor", "esphome", "template"}
+
+
+def test_get_integration_test_files_for_components_real_fixtures() -> None:
+    """Test that component changes map to the correct real integration test files.
+
+    This test uses real fixtures to verify the mapping stays correct
+    as new tests are added.
+    """
+    # modbus should include at least the modbus test
+    modbus_tests = helpers.get_integration_test_files_for_components({"modbus"})
+    assert "tests/integration/test_uart_mock_modbus.py" in modbus_tests
+
+    # ld2410 should include at least the ld2410 test
+    ld2410_tests = helpers.get_integration_test_files_for_components({"ld2410"})
+    assert "tests/integration/test_uart_mock_ld2410.py" in ld2410_tests
+
+    # syslog should include at least the syslog test
+    syslog_tests = helpers.get_integration_test_files_for_components({"syslog"})
+    assert "tests/integration/test_syslog.py" in syslog_tests
+
+    # A component not used by any fixture should return nothing
+    fake_tests = helpers.get_integration_test_files_for_components(
+        {"nonexistent_component_xyz"}
+    )
+    assert fake_tests == []
 
 
 @pytest.mark.parametrize(
@@ -1065,3 +1168,627 @@ def test_parse_list_components_output(output: str, expected: list[str]) -> None:
     """Test parse_list_components_output function."""
     result = helpers.parse_list_components_output(output)
     assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("file_path", "expected_component"),
+    [
+        # Component files
+        ("esphome/components/wifi/wifi.cpp", "wifi"),
+        ("esphome/components/uart/uart.h", "uart"),
+        ("esphome/components/api/api_server.cpp", "api"),
+        ("esphome/components/sensor/sensor.cpp", "sensor"),
+        # Test files
+        ("tests/components/uart/test.esp32-idf.yaml", "uart"),
+        ("tests/components/wifi/test.esp8266-ard.yaml", "wifi"),
+        ("tests/components/sensor/test.esp32-idf.yaml", "sensor"),
+        ("tests/components/api/test_api.cpp", "api"),
+        ("tests/components/uart/common.h", "uart"),
+        # Non-component files
+        ("esphome/core/component.cpp", None),
+        ("esphome/core/helpers.h", None),
+        ("tests/integration/test_api.py", None),
+        ("tests/unit_tests/test_helpers.py", None),
+        ("README.md", None),
+        ("script/helpers.py", None),
+        # Edge cases
+        ("esphome/components/", None),  # No component name
+        ("tests/components/", None),  # No component name
+        ("esphome/components", None),  # No trailing slash
+        ("tests/components", None),  # No trailing slash
+        # Files in component directories that are not components
+        ("tests/components/.gitignore", None),  # Hidden file
+        ("tests/components/README.md", None),  # Documentation file
+        ("esphome/components/__init__.py", None),  # Python init file
+        ("tests/components/main.cpp", None),  # File with extension
+    ],
+)
+def test_get_component_from_path(
+    file_path: str, expected_component: str | None
+) -> None:
+    """Test extraction of component names from file paths."""
+    result = helpers.get_component_from_path(file_path)
+    assert result == expected_component
+
+
+# Components graph cache tests
+
+
+@pytest.fixture
+def mock_git_output() -> str:
+    """Fixture for mock git ls-files output with realistic component files.
+
+    Includes examples of AUTO_LOAD in sensor.py and binary_sensor.py files,
+    which is why we need to hash all .py files, not just __init__.py.
+    """
+    return (
+        "100644 abc123... 0 esphome/components/wifi/__init__.py\n"
+        "100644 def456... 0 esphome/components/api/__init__.py\n"
+        "100644 ghi789... 0 esphome/components/xiaomi_lywsd03mmc/__init__.py\n"
+        "100644 jkl012... 0 esphome/components/xiaomi_lywsd03mmc/sensor.py\n"
+        "100644 mno345... 0 esphome/components/xiaomi_cgpr1/__init__.py\n"
+        "100644 pqr678... 0 esphome/components/xiaomi_cgpr1/binary_sensor.py\n"
+    )
+
+
+@pytest.fixture
+def mock_cache_file(tmp_path: Path) -> Path:
+    """Fixture for a temporary cache file path."""
+    return tmp_path / "components_graph.json"
+
+
+@pytest.fixture(autouse=True)
+def clear_cache_key_cache() -> None:
+    """Clear the components graph cache key cache before each test."""
+    helpers.get_components_graph_cache_key.cache_clear()
+
+
+@pytest.fixture
+def mock_subprocess_run() -> Generator[Mock, None, None]:
+    """Fixture to mock subprocess.run for git commands."""
+    with patch("subprocess.run") as mock_run:
+        yield mock_run
+
+
+def test_cache_key_generation(mock_git_output: str, mock_subprocess_run: Mock) -> None:
+    """Test that cache key is generated based on git file hashes."""
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    key = helpers.get_components_graph_cache_key()
+
+    # Should be a 64-character hex string (SHA256)
+    assert len(key) == 64
+    assert all(c in "0123456789abcdef" for c in key)
+
+
+def test_cache_key_consistent_for_same_files(
+    mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that same git output produces same cache key."""
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    key1 = helpers.get_components_graph_cache_key()
+    key2 = helpers.get_components_graph_cache_key()
+
+    assert key1 == key2
+
+
+def test_cache_key_different_for_changed_files(mock_subprocess_run: Mock) -> None:
+    """Test that different git output produces different cache key.
+
+    This test demonstrates that changes to any .py file (not just __init__.py)
+    will invalidate the cache, which is important because AUTO_LOAD can be
+    defined in sensor.py, binary_sensor.py, etc.
+    """
+    mock_result1 = Mock()
+    mock_result1.stdout = (
+        "100644 abc123... 0 esphome/components/xiaomi_lywsd03mmc/sensor.py\n"
+    )
+
+    mock_result2 = Mock()
+    # Same file, different hash - simulates a change to AUTO_LOAD
+    mock_result2.stdout = (
+        "100644 xyz789... 0 esphome/components/xiaomi_lywsd03mmc/sensor.py\n"
+    )
+
+    mock_subprocess_run.return_value = mock_result1
+    key1 = helpers.get_components_graph_cache_key()
+
+    helpers.get_components_graph_cache_key.cache_clear()
+    mock_subprocess_run.return_value = mock_result2
+    key2 = helpers.get_components_graph_cache_key()
+
+    assert key1 != key2
+
+
+def test_cache_key_uses_git_ls_files(
+    mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that git ls-files command is called correctly."""
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    helpers.get_components_graph_cache_key()
+
+    # Verify git ls-files was called with correct arguments
+    mock_subprocess_run.assert_called_once()
+    call_args = mock_subprocess_run.call_args
+    assert call_args[0][0] == [
+        "git",
+        "ls-files",
+        "-s",
+        "esphome/components/**/*.py",
+    ]
+    assert call_args[1]["capture_output"] is True
+    assert call_args[1]["text"] is True
+    assert call_args[1]["check"] is True
+    assert call_args[1]["close_fds"] is False
+
+
+def test_cache_hit_returns_cached_graph(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache hit returns cached data without rebuilding."""
+    mock_graph = {"wifi": ["network"], "api": ["socket"]}
+    cache_key = "a" * 64
+    cache_data = {
+        "_version": helpers.COMPONENTS_GRAPH_CACHE_VERSION,
+        "_cache_key": cache_key,
+        "graph": mock_graph,
+    }
+
+    # Write cache file
+    cache_file = tmp_path / "components_graph.json"
+    cache_file.write_text(json.dumps(cache_data))
+
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    with (
+        patch("helpers.get_components_graph_cache_key", return_value=cache_key),
+        patch("helpers.temp_folder", str(tmp_path)),
+    ):
+        result = helpers.create_components_graph()
+        assert result == mock_graph
+
+
+def test_cache_miss_no_cache_file(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache miss rebuilds graph when no cache file exists."""
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    # Create minimal components directory structure
+    components_dir = tmp_path / "esphome" / "components"
+    components_dir.mkdir(parents=True)
+
+    with (
+        patch("helpers.root_path", str(tmp_path)),
+        patch("helpers.temp_folder", str(tmp_path / ".temp")),
+        patch("helpers.get_components_graph_cache_key", return_value="test_key"),
+    ):
+        result = helpers.create_components_graph()
+        # Should return empty graph for empty components directory
+        assert result == {}
+
+
+def test_cache_miss_version_mismatch(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache miss rebuilds graph when version doesn't match."""
+    cache_data = {
+        "_version": 999,  # Wrong version
+        "_cache_key": "test_key",
+        "graph": {"old": ["data"]},
+    }
+
+    cache_file = tmp_path / ".temp" / "components_graph.json"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_text(json.dumps(cache_data))
+
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    # Create minimal components directory structure
+    components_dir = tmp_path / "esphome" / "components"
+    components_dir.mkdir(parents=True)
+
+    with (
+        patch("helpers.root_path", str(tmp_path)),
+        patch("helpers.temp_folder", str(tmp_path / ".temp")),
+        patch("helpers.get_components_graph_cache_key", return_value="test_key"),
+    ):
+        result = helpers.create_components_graph()
+        # Should rebuild and return empty graph, not use cached data
+        assert result == {}
+
+
+def test_cache_miss_key_mismatch(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache miss rebuilds graph when cache key doesn't match."""
+    cache_data = {
+        "_version": helpers.COMPONENTS_GRAPH_CACHE_VERSION,
+        "_cache_key": "old_key",
+        "graph": {"old": ["data"]},
+    }
+
+    cache_file = tmp_path / ".temp" / "components_graph.json"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_text(json.dumps(cache_data))
+
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    # Create minimal components directory structure
+    components_dir = tmp_path / "esphome" / "components"
+    components_dir.mkdir(parents=True)
+
+    with (
+        patch("helpers.root_path", str(tmp_path)),
+        patch("helpers.temp_folder", str(tmp_path / ".temp")),
+        patch("helpers.get_components_graph_cache_key", return_value="new_key"),
+    ):
+        result = helpers.create_components_graph()
+        # Should rebuild and return empty graph, not use cached data with old key
+        assert result == {}
+
+
+def test_cache_miss_corrupted_json(
+    tmp_path: Path, mock_git_output: str, mock_subprocess_run: Mock
+) -> None:
+    """Test that cache miss rebuilds graph when cache file has invalid JSON."""
+    cache_file = tmp_path / ".temp" / "components_graph.json"
+    cache_file.parent.mkdir(parents=True)
+    cache_file.write_text("{invalid json")
+
+    mock_result = Mock()
+    mock_result.stdout = mock_git_output
+    mock_subprocess_run.return_value = mock_result
+
+    # Create minimal components directory structure
+    components_dir = tmp_path / "esphome" / "components"
+    components_dir.mkdir(parents=True)
+
+    with (
+        patch("helpers.root_path", str(tmp_path)),
+        patch("helpers.temp_folder", str(tmp_path / ".temp")),
+        patch("helpers.get_components_graph_cache_key", return_value="test_key"),
+    ):
+        result = helpers.create_components_graph()
+        # Should handle corruption gracefully and rebuild
+        assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# parse_component_metadata / split_conflicting_groups
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_components(tmp_path: Path) -> Path:
+    """Create a fake esphome/components/ tree and return the repo root.
+
+    Component layout (tested against split_conflicting_groups):
+
+        alpha          -- CONFLICTS_WITH=["beta"]
+        beta           -- CONFLICTS_WITH=["alpha"]
+        beta_variant   -- AUTO_LOAD=["beta"]
+        gamma          -- (no metadata)
+        one_sided      -- CONFLICTS_WITH=["plain"]  (plain does not reject back)
+        plain          -- no CONFLICTS_WITH
+        callable_auto  -- AUTO_LOAD is a function (not a list literal) -> ignored
+        broken         -- __init__.py has a SyntaxError
+    """
+    components = tmp_path / "esphome" / "components"
+    components.mkdir(parents=True)
+
+    def write(name: str, body: str) -> None:
+        (components / name).mkdir()
+        (components / name / "__init__.py").write_text(body)
+
+    write("alpha", 'CONFLICTS_WITH = ["beta"]\n')
+    write("beta", 'CONFLICTS_WITH = ["alpha"]\n')
+    write("beta_variant", 'AUTO_LOAD = ["beta"]\n')
+    write("gamma", "")
+    write("one_sided", 'CONFLICTS_WITH = ["plain"]\n')
+    write("plain", "")
+    write("callable_auto", "def AUTO_LOAD():\n    return ['beta']\n")
+    write("broken", "this is not valid python !!!")
+    helpers.parse_component_metadata.cache_clear()
+    return tmp_path
+
+
+def test_parse_component_metadata_list_literals(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    meta = helpers.parse_component_metadata("alpha")
+    assert meta.conflicts_with == frozenset({"beta"})
+    assert meta.auto_load == frozenset()
+
+    variant = helpers.parse_component_metadata("beta_variant")
+    assert variant.auto_load == frozenset({"beta"})
+    assert variant.conflicts_with == frozenset()
+
+
+def test_parse_component_metadata_missing_empty_and_callable(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    # Unknown component -> empty metadata, not an error.
+    unknown = helpers.parse_component_metadata("does_not_exist")
+    assert unknown == helpers.ComponentMetadata()
+
+    # Empty __init__.py -> empty metadata.
+    assert helpers.parse_component_metadata("gamma") == helpers.ComponentMetadata()
+
+    # Callable AUTO_LOAD cannot be statically evaluated -> empty.
+    callable_meta = helpers.parse_component_metadata("callable_auto")
+    assert callable_meta.auto_load == frozenset()
+
+    # SyntaxError in __init__.py must not raise.
+    assert helpers.parse_component_metadata("broken") == helpers.ComponentMetadata()
+
+
+def test_split_conflicting_groups_splits_direct_conflict(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    result = helpers.split_conflicting_groups(
+        {("esp32", "i2c"): ["alpha", "beta", "gamma"]}
+    )
+    # alpha and beta must end up in different buckets; gamma has no conflicts.
+    buckets = list(result.values())
+    assert any("alpha" in b for b in buckets)
+    assert any("beta" in b for b in buckets)
+    for bucket in buckets:
+        assert not ({"alpha", "beta"} <= set(bucket))
+    # Gamma sticks with whichever bucket it landed in first (alpha's).
+    all_members = {c for b in buckets for c in b}
+    assert all_members == {"alpha", "beta", "gamma"}
+
+
+def test_split_conflicting_groups_propagates_through_auto_load(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A component that AUTO_LOADs a conflicting one must also be split out."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    result = helpers.split_conflicting_groups(
+        {("esp32", "i2c"): ["alpha", "beta_variant"]}
+    )
+    buckets = list(result.values())
+    for bucket in buckets:
+        assert not ({"alpha", "beta_variant"} <= set(bucket))
+    assert sum(len(b) for b in buckets) == 2
+
+
+def test_split_conflicting_groups_symmetric_one_sided_declaration(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """If only one side declares CONFLICTS_WITH, the pair must still be split."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    result = helpers.split_conflicting_groups(
+        {("esp32", "i2c"): ["one_sided", "plain"]}
+    )
+    buckets = list(result.values())
+    for bucket in buckets:
+        assert not ({"one_sided", "plain"} <= set(bucket))
+
+
+def test_split_conflicting_groups_preserves_non_conflicting_group(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    original = {("esp32", "i2c"): ["alpha", "gamma", "plain"]}
+    result = helpers.split_conflicting_groups(original)
+    # All three are mutually compatible -- the group must not be split.
+    assert result == original
+
+
+def test_split_conflicting_groups_preserves_original_signature_for_first_bucket(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """When a group is split, the first bucket keeps the original signature key."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    result = helpers.split_conflicting_groups({("esp32", "i2c"): ["alpha", "beta"]})
+    keys = set(result.keys())
+    assert ("esp32", "i2c") in keys
+    # One additional bucket with a disambiguated signature.
+    extra = keys - {("esp32", "i2c")}
+    assert len(extra) == 1
+    platform, signature = next(iter(extra))
+    assert platform == "esp32"
+    assert signature.startswith("i2c__conflict")
+
+
+# ---------------------------------------------------------------------------
+# get_component_test_files / is_validate_only_file
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_component_tests(tmp_path: Path) -> Path:
+    """Create a fake tests/components/ tree and return the repo root.
+
+    Layout for component "demo":
+        test.esp32-idf.yaml
+        test.esp8266-ard.yaml
+        test-variant.esp32-idf.yaml
+        validate.esp32-idf.yaml
+        validate-legacy.esp32-idf.yaml
+
+    Layout for component "validate_only":
+        validate.esp32-idf.yaml      (only validate files)
+
+    Layout for component "no_tests":
+        common.yaml                  (no test/validate files at all)
+    """
+    tests_dir = tmp_path / "tests" / "components"
+
+    demo = tests_dir / "demo"
+    demo.mkdir(parents=True)
+    (demo / "test.esp32-idf.yaml").write_text("")
+    (demo / "test.esp8266-ard.yaml").write_text("")
+    (demo / "test-variant.esp32-idf.yaml").write_text("")
+    (demo / "validate.esp32-idf.yaml").write_text("")
+    (demo / "validate-legacy.esp32-idf.yaml").write_text("")
+
+    validate_only = tests_dir / "validate_only"
+    validate_only.mkdir(parents=True)
+    (validate_only / "validate.esp32-idf.yaml").write_text("")
+
+    no_tests = tests_dir / "no_tests"
+    no_tests.mkdir(parents=True)
+    (no_tests / "common.yaml").write_text("")
+
+    return tmp_path
+
+
+def _names(paths: list[Path]) -> set[str]:
+    return {p.name for p in paths}
+
+
+def test_get_component_test_files_default_excludes_validate(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """Default behaviour: only base test.*.yaml; no variants, no validate."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files("demo")
+
+    assert _names(files) == {"test.esp32-idf.yaml", "test.esp8266-ard.yaml"}
+
+
+def test_get_component_test_files_all_variants_excludes_validate(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """all_variants=True picks up test variants but still skips validate."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files("demo", all_variants=True)
+
+    assert _names(files) == {
+        "test.esp32-idf.yaml",
+        "test.esp8266-ard.yaml",
+        "test-variant.esp32-idf.yaml",
+    }
+
+
+def test_get_component_test_files_include_validate_base_only(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """include_validate=True with base-only adds validate.*.yaml only."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files("demo", include_validate=True)
+
+    assert _names(files) == {
+        "test.esp32-idf.yaml",
+        "test.esp8266-ard.yaml",
+        "validate.esp32-idf.yaml",
+    }
+
+
+def test_get_component_test_files_include_validate_all_variants(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """include_validate=True with all_variants adds validate variants too."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files(
+        "demo", all_variants=True, include_validate=True
+    )
+
+    assert _names(files) == {
+        "test.esp32-idf.yaml",
+        "test.esp8266-ard.yaml",
+        "test-variant.esp32-idf.yaml",
+        "validate.esp32-idf.yaml",
+        "validate-legacy.esp32-idf.yaml",
+    }
+
+
+def test_get_component_test_files_validate_only_component(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A component with only validate files is invisible without the flag."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    assert helpers.get_component_test_files("validate_only") == []
+    assert helpers.get_component_test_files("validate_only", all_variants=True) == []
+
+    files = helpers.get_component_test_files(
+        "validate_only", all_variants=True, include_validate=True
+    )
+    assert _names(files) == {"validate.esp32-idf.yaml"}
+
+
+def test_get_component_test_files_missing_component(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """Unknown components return an empty list, regardless of flags."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    assert (
+        helpers.get_component_test_files(
+            "does_not_exist", all_variants=True, include_validate=True
+        )
+        == []
+    )
+
+
+def test_get_component_test_files_component_without_tests(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A component with only common.yaml and no test/validate files returns []."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    assert (
+        helpers.get_component_test_files(
+            "no_tests", all_variants=True, include_validate=True
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [
+        ("validate.esp32-idf.yaml", True),
+        ("validate-legacy.esp32-idf.yaml", True),
+        ("validate.host.yaml", True),
+        ("test.esp32-idf.yaml", False),
+        ("test-variant.esp32-idf.yaml", False),
+        ("common.yaml", False),
+        # Defensive: a hypothetical name starting with "validate" but not
+        # following the grammar must not be classified as a validate file.
+        ("validatesomething.yaml", False),
+    ],
+)
+def test_is_validate_only_file(filename: str, expected: bool, tmp_path: Path) -> None:
+    assert helpers.is_validate_only_file(tmp_path / filename) is expected

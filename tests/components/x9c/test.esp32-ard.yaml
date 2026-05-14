@@ -1,6 +1,0 @@
-substitutions:
-  cs_pin: GPIO13
-  inc_pin: GPIO14
-  ud_pin: GPIO15
-
-<<: !include common.yaml

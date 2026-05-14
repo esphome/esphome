@@ -1,11 +1,3 @@
-output:
-  - platform: ${light_platform}
-    id: light_output_1
-    pin: ${pin_o1}
-  - platform: ${light_platform}
-    id: light_output_2
-    pin: ${pin_o2}
-
 light:
   - platform: cwww
     name: CWWW Light

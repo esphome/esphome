@@ -3,7 +3,7 @@
 //
 #pragma once
 
-#if defined(USE_ESP_IDF) && defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32) && defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_buffer.h"
@@ -11,8 +11,7 @@
 
 #include "esp_lcd_panel_rgb.h"
 
-namespace esphome {
-namespace qspi_dbi {
+namespace esphome::qspi_dbi {
 
 constexpr static const char *const TAG = "display.qspi_dbi";
 static const uint8_t SW_RESET_CMD = 0x01;
@@ -168,6 +167,5 @@ class QspiDbi : public display::DisplayBuffer,
   esp_lcd_panel_handle_t handle_{};
 };
 
-}  // namespace qspi_dbi
-}  // namespace esphome
+}  // namespace esphome::qspi_dbi
 #endif

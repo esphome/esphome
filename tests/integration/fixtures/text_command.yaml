@@ -1,0 +1,37 @@
+esphome:
+  name: host-text-command-test
+
+host:
+
+api:
+  batch_delay: 0ms
+
+logger:
+
+text:
+  - platform: template
+    name: "Test Text"
+    id: test_text
+    optimistic: true
+    min_length: 0
+    max_length: 255
+    mode: text
+    initial_value: "initial"
+
+  - platform: template
+    name: "Test Password"
+    id: test_password
+    optimistic: true
+    min_length: 4
+    max_length: 32
+    mode: password
+    initial_value: "secret"
+
+  - platform: template
+    name: "Test Text Long"
+    id: test_text_long
+    optimistic: true
+    min_length: 0
+    max_length: 255
+    mode: text
+    initial_value: ""

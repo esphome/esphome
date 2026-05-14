@@ -10,17 +10,10 @@
 #ifdef USE_ESP32
 #ifdef USE_ESP32_BLE_ADVERTISING
 
-#include <esp_bt.h>
 #include <esp_gap_ble_api.h>
 #include <esp_gatts_api.h>
 
 namespace esphome::esp32_ble {
-
-using raw_adv_data_t = struct {
-  uint8_t *data;
-  size_t length;
-  esp_power_level_t power_level;
-};
 
 class ESPBTUUID;
 

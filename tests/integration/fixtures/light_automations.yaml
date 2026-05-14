@@ -1,0 +1,26 @@
+esphome:
+  name: light-automations-test
+
+host:
+api:  # Port will be automatically injected
+logger:
+  level: DEBUG
+
+output:
+  - platform: template
+    id: test_output
+    type: binary
+    write_action:
+      - lambda: ""
+
+light:
+  - platform: binary
+    id: test_light
+    name: "Test Light"
+    output: test_output
+    on_turn_on:
+      - logger.log: "TRIGGER: on_turn_on fired"
+    on_turn_off:
+      - logger.log: "TRIGGER: on_turn_off fired"
+    on_state:
+      - logger.log: "TRIGGER: on_state fired"

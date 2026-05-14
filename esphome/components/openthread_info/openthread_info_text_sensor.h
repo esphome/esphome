@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #ifdef USE_OPENTHREAD
 
-namespace esphome {
-namespace openthread_info {
+namespace esphome::openthread_info {
 
 using esphome::openthread::InstanceLock;
 
@@ -26,7 +25,7 @@ class OpenThreadInstancePollingComponent : public PollingComponent {
   virtual void update_instance(otInstance *instance) = 0;
 };
 
-class IPAddressOpenThreadInfo : public PollingComponent, public text_sensor::TextSensor {
+class IPAddressOpenThreadInfo final : public PollingComponent, public text_sensor::TextSensor {
  public:
   void update() override {
     std::optional<otIp6Address> address = openthread::global_openthread_component->get_omr_address();
@@ -34,13 +33,12 @@ class IPAddressOpenThreadInfo : public PollingComponent, public text_sensor::Tex
       return;
     }
 
-    char address_as_string[40];
-    otIp6AddressToString(&*address, address_as_string, 40);
-    std::string ip = address_as_string;
+    char buf[OT_IP6_ADDRESS_STRING_SIZE];
+    otIp6AddressToString(&*address, buf, sizeof(buf));
 
-    if (this->last_ip_ != ip) {
-      this->last_ip_ = ip;
-      this->publish_state(this->last_ip_);
+    if (this->last_ip_ != buf) {
+      this->last_ip_ = buf;
+      this->publish_state(buf);
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
@@ -50,7 +48,7 @@ class IPAddressOpenThreadInfo : public PollingComponent, public text_sensor::Tex
   std::string last_ip_;
 };
 
-class RoleOpenThreadInfo : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
+class RoleOpenThreadInfo final : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
  public:
   void update_instance(otInstance *instance) override {
     otDeviceRole role = otThreadGetDeviceRole(instance);
@@ -66,7 +64,7 @@ class RoleOpenThreadInfo : public OpenThreadInstancePollingComponent, public tex
   otDeviceRole last_role_;
 };
 
-class Rloc16OpenThreadInfo : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
+class Rloc16OpenThreadInfo final : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
  public:
   void update_instance(otInstance *instance) override {
     uint16_t rloc16 = otThreadGetRloc16(instance);
@@ -77,30 +75,30 @@ class Rloc16OpenThreadInfo : public OpenThreadInstancePollingComponent, public t
       this->publish_state(buf);
     }
   }
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void dump_config() override;
 
  protected:
   uint16_t last_rloc16_;
 };
 
-class ExtAddrOpenThreadInfo : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
+class ExtAddrOpenThreadInfo final : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
  public:
   void update_instance(otInstance *instance) override {
     const auto *extaddr = otLinkGetExtendedAddress(instance);
     if (!std::equal(this->last_extaddr_.begin(), this->last_extaddr_.end(), extaddr->m8)) {
       std::copy(extaddr->m8, extaddr->m8 + 8, this->last_extaddr_.begin());
-      this->publish_state(format_hex(extaddr->m8, 8));
+      char buf[format_hex_size(8)];
+      format_hex_to(buf, extaddr->m8, 8);
+      this->publish_state(buf);
     }
   }
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void dump_config() override;
 
  protected:
   std::array<uint8_t, 8> last_extaddr_{};
 };
 
-class Eui64OpenThreadInfo : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
+class Eui64OpenThreadInfo final : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
  public:
   void update_instance(otInstance *instance) override {
     otExtAddress addr;
@@ -108,26 +106,28 @@ class Eui64OpenThreadInfo : public OpenThreadInstancePollingComponent, public te
 
     if (!std::equal(this->last_eui64_.begin(), this->last_eui64_.end(), addr.m8)) {
       std::copy(addr.m8, addr.m8 + 8, this->last_eui64_.begin());
-      this->publish_state(format_hex(this->last_eui64_.begin(), 8));
+      char buf[format_hex_size(8)];
+      format_hex_to(buf, this->last_eui64_.data(), 8);
+      this->publish_state(buf);
     }
   }
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void dump_config() override;
 
  protected:
   std::array<uint8_t, 8> last_eui64_{};
 };
 
-class ChannelOpenThreadInfo : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
+class ChannelOpenThreadInfo final : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
  public:
   void update_instance(otInstance *instance) override {
     uint8_t channel = otLinkGetChannel(instance);
     if (this->last_channel_ != channel) {
       this->last_channel_ = channel;
-      this->publish_state(std::to_string(this->last_channel_));
+      char buf[4];  // max "255" + null
+      snprintf(buf, sizeof(buf), "%u", channel);
+      this->publish_state(buf);
     }
   }
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void dump_config() override;
 
  protected:
@@ -149,7 +149,7 @@ class DatasetOpenThreadInfo : public OpenThreadInstancePollingComponent {
   virtual void update_dataset(otOperationalDataset *dataset) = 0;
 };
 
-class NetworkNameOpenThreadInfo : public DatasetOpenThreadInfo, public text_sensor::TextSensor {
+class NetworkNameOpenThreadInfo final : public DatasetOpenThreadInfo, public text_sensor::TextSensor {
  public:
   void update_dataset(otOperationalDataset *dataset) override {
     if (this->last_network_name_ != dataset->mNetworkName.m8) {
@@ -157,29 +157,29 @@ class NetworkNameOpenThreadInfo : public DatasetOpenThreadInfo, public text_sens
       this->publish_state(this->last_network_name_);
     }
   }
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void dump_config() override;
 
  protected:
   std::string last_network_name_;
 };
 
-class NetworkKeyOpenThreadInfo : public DatasetOpenThreadInfo, public text_sensor::TextSensor {
+class NetworkKeyOpenThreadInfo final : public DatasetOpenThreadInfo, public text_sensor::TextSensor {
  public:
   void update_dataset(otOperationalDataset *dataset) override {
     if (!std::equal(this->last_key_.begin(), this->last_key_.end(), dataset->mNetworkKey.m8)) {
       std::copy(dataset->mNetworkKey.m8, dataset->mNetworkKey.m8 + 16, this->last_key_.begin());
-      this->publish_state(format_hex(dataset->mNetworkKey.m8, 16));
+      char buf[format_hex_size(16)];
+      format_hex_to(buf, dataset->mNetworkKey.m8, 16);
+      this->publish_state(buf);
     }
   }
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void dump_config() override;
 
  protected:
   std::array<uint8_t, 16> last_key_{};
 };
 
-class PanIdOpenThreadInfo : public DatasetOpenThreadInfo, public text_sensor::TextSensor {
+class PanIdOpenThreadInfo final : public DatasetOpenThreadInfo, public text_sensor::TextSensor {
  public:
   void update_dataset(otOperationalDataset *dataset) override {
     uint16_t panid = dataset->mPanId;
@@ -190,29 +190,28 @@ class PanIdOpenThreadInfo : public DatasetOpenThreadInfo, public text_sensor::Te
       this->publish_state(buf);
     }
   }
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void dump_config() override;
 
  protected:
   uint16_t last_panid_;
 };
 
-class ExtPanIdOpenThreadInfo : public DatasetOpenThreadInfo, public text_sensor::TextSensor {
+class ExtPanIdOpenThreadInfo final : public DatasetOpenThreadInfo, public text_sensor::TextSensor {
  public:
   void update_dataset(otOperationalDataset *dataset) override {
     if (!std::equal(this->last_extpanid_.begin(), this->last_extpanid_.end(), dataset->mExtendedPanId.m8)) {
       std::copy(dataset->mExtendedPanId.m8, dataset->mExtendedPanId.m8 + 8, this->last_extpanid_.begin());
-      this->publish_state(format_hex(this->last_extpanid_.begin(), 8));
+      char buf[format_hex_size(8)];
+      format_hex_to(buf, this->last_extpanid_.data(), 8);
+      this->publish_state(buf);
     }
   }
 
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void dump_config() override;
 
  protected:
   std::array<uint8_t, 8> last_extpanid_{};
 };
 
-}  // namespace openthread_info
-}  // namespace esphome
+}  // namespace esphome::openthread_info
 #endif

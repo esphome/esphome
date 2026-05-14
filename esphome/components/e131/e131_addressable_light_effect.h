@@ -3,8 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/light/addressable_light_effect.h"
 #ifdef USE_NETWORK
-namespace esphome {
-namespace e131 {
+
+namespace esphome::e131 {
 
 class E131Component;
 struct E131Packet;
@@ -13,7 +13,7 @@ enum E131LightChannels { E131_MONO = 1, E131_RGB = 3, E131_RGBW = 4 };
 
 class E131AddressableLightEffect : public light::AddressableLightEffect {
  public:
-  E131AddressableLightEffect(const std::string &name);
+  E131AddressableLightEffect(const char *name);
 
   void start() override;
   void stop() override;
@@ -40,6 +40,6 @@ class E131AddressableLightEffect : public light::AddressableLightEffect {
   friend class E131Component;
 };
 
-}  // namespace e131
-}  // namespace esphome
+}  // namespace esphome::e131
+
 #endif

@@ -1,0 +1,61 @@
+substitutions:
+  package_options:
+    alternative_package:
+      alternative_component:
+        - id: component8
+          value: 8
+    fancy_package:
+      fancy_component:
+        - id: component9
+          value: 9
+
+  pin: 12
+  some_switches:
+    - platform: gpio
+      id: switch1
+      pin: ${pin}
+    - platform: gpio
+      id: switch2
+      pin: ${pin+1}
+
+  package_selection: fancy_package
+
+packages:
+  - ${ package_options[package_selection] }
+  - some_component:
+      - id: component1
+        value: 1
+  - some_component:
+      - id: component2
+        value: 2
+  - switch: ${ some_switches }
+  - packages:
+      package_with_defaults: !include
+        file: display.yaml
+        vars:
+          native_width: 100
+          high_dpi: false
+      my_package:
+        packages:
+          - packages:
+              special_package:
+                substitutions:
+                  extended_component: component5
+                some_component:
+                  - id: component3
+                    value: 3
+        some_component:
+          - id: component4
+            value: 4
+          - id: !extend ${ extended_component }
+            power: 200
+            value: 79
+    some_component:
+      - id: component5
+        value: 5
+
+some_component:
+  - id: component6
+    value: 6
+  - id: component7
+    value: 7

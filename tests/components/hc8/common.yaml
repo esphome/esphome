@@ -1,0 +1,13 @@
+esphome:
+  on_boot:
+    then:
+      - hc8.calibrate:
+          id: hc8_sensor
+          baseline: 420
+
+sensor:
+  - platform: hc8
+    id: hc8_sensor
+    co2:
+      name: HC8 CO2 Value
+    update_interval: 15s

@@ -1,9 +1,3 @@
-spi:
-  - id: spi_main_lcd
-    clk_pin: 16
-    mosi_pin: 17
-    miso_pin: 15
-
 display:
   - platform: ili9xxx
     id: main_lcd
@@ -12,6 +6,7 @@ display:
     dc_pin: 13
     reset_pin: 21
     invert_colors: false
+    data_rate: 20MHz
     lambda: |-
       // Draw an analog clock in the center of the screen
       int centerX = it.get_width() / 2;

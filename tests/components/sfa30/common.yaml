@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_sfa30
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: sfa30
+    i2c_id: i2c_bus
     formaldehyde:
       name: SFA30 formaldehyde
     temperature:

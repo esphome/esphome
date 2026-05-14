@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace veml3235 {
+namespace esphome::veml3235 {
 
 static const char *const TAG = "veml3235.sensor";
 
@@ -225,5 +224,4 @@ void VEML3235Sensor::dump_config() {
                 digital_gain, gain, integration_time);
 }
 
-}  // namespace veml3235
-}  // namespace esphome
+}  // namespace esphome::veml3235

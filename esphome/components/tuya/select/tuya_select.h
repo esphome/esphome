@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 class TuyaSelect : public select::Select, public Component {
  public:
@@ -23,7 +22,7 @@ class TuyaSelect : public select::Select, public Component {
   void set_select_mappings(std::vector<uint8_t> mappings) { this->mappings_ = std::move(mappings); }
 
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override;
 
   Tuya *parent_;
   bool optimistic_ = false;
@@ -32,5 +31,4 @@ class TuyaSelect : public select::Select, public Component {
   bool is_int_ = false;
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

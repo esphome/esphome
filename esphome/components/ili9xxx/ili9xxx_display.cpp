@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ili9xxx {
+namespace esphome::ili9xxx {
 
 static const uint16_t SPI_SETUP_US = 100;         // estimated fixed overhead in microseconds for an SPI write
 static const uint16_t SPI_MAX_BLOCK_SIZE = 4092;  // Max size of continuous SPI transfer
@@ -131,6 +130,13 @@ float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWA
 void ILI9XXXDisplay::fill(Color color) {
   if (!this->check_buffer_())
     return;
+
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   uint16_t new_color = 0;
   this->x_low_ = 0;
   this->y_low_ = 0;
@@ -222,6 +228,10 @@ void ILI9XXXDisplay::update() {
 }
 
 void ILI9XXXDisplay::display_() {
+  // buffer may be null if allocation failed
+  if (this->buffer_ == nullptr) {
+    return;
+  }
   // check if something was displayed
   if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
     return;
@@ -325,7 +335,7 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
       // we could deal here with a non-zero y_offset, but if x_offset is zero, y_offset probably will be so don't bother
       this->write_array(ptr, w * h * 2);
     } else {
-      for (size_t y = 0; y != h; y++) {
+      for (size_t y = 0; y != static_cast<size_t>(h); y++) {
         this->write_array(ptr + (y + y_offset) * stride + x_offset, w * 2);
       }
     }
@@ -349,7 +359,7 @@ void ILI9XXXDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, cons
         App.feed_wdt();
       }
       // end of line? Skip to the next.
-      if (++pixel == w) {
+      if (++pixel == static_cast<size_t>(w)) {
         pixel = 0;
         ptr += (x_pad + x_offset) * 2;
       }
@@ -459,5 +469,4 @@ void ILI9XXXDisplay::invert_colors(bool invert) {
 int ILI9XXXDisplay::get_width_internal() { return this->width_; }
 int ILI9XXXDisplay::get_height_internal() { return this->height_; }
 
-}  // namespace ili9xxx
-}  // namespace esphome
+}  // namespace esphome::ili9xxx

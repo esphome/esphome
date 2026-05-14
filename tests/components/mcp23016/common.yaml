@@ -1,10 +1,10 @@
-i2c:
-  - id: i2c_mcp23016
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 mcp23016:
-  id: mcp23016_hub
+  - i2c_id: i2c_bus
+    id: mcp23016_hub
+  - i2c_id: i2c_bus
+    id: mcp23016_hub_int
+    address: 0x21
+    interrupt_pin: ${interrupt_pin}
 
 binary_sensor:
   - platform: gpio

@@ -1,11 +1,11 @@
 #include "time_entity.h"
-
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #ifdef USE_DATETIME_TIME
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace datetime {
+namespace esphome::datetime {
 
 static const char *const TAG = "datetime.time_entity";
 
@@ -26,9 +26,11 @@ void TimeEntity::publish_state() {
     return;
   }
   this->set_has_state(true);
-  ESP_LOGD(TAG, "'%s': Sending time %02d:%02d:%02d", this->get_name().c_str(), this->hour_, this->minute_,
-           this->second_);
+  ESP_LOGV(TAG, "'%s' >> %02d:%02d:%02d", this->get_name().c_str(), this->hour_, this->minute_, this->second_);
   this->state_callback_.call();
+#if defined(USE_DATETIME_TIME) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_time_update(this);
+#endif
 }
 
 TimeCall TimeEntity::make_call() { return TimeCall(this); }
@@ -50,15 +52,15 @@ void TimeCall::validate_() {
 
 void TimeCall::perform() {
   this->validate_();
-  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   if (this->hour_.has_value()) {
-    ESP_LOGD(TAG, " Hour: %d", *this->hour_);
+    ESP_LOGV(TAG, " Hour: %d", *this->hour_);
   }
   if (this->minute_.has_value()) {
-    ESP_LOGD(TAG, " Minute: %d", *this->minute_);
+    ESP_LOGV(TAG, " Minute: %d", *this->minute_);
   }
   if (this->second_.has_value()) {
-    ESP_LOGD(TAG, " Second: %d", *this->second_);
+    ESP_LOGV(TAG, " Second: %d", *this->second_);
   }
   this->parent_->control(*this);
 }
@@ -72,9 +74,9 @@ TimeCall &TimeCall::set_time(uint8_t hour, uint8_t minute, uint8_t second) {
 
 TimeCall &TimeCall::set_time(ESPTime time) { return this->set_time(time.hour, time.minute, time.second); };
 
-TimeCall &TimeCall::set_time(const std::string &time) {
+TimeCall &TimeCall::set_time(const char *time, size_t len) {
   ESPTime val{};
-  if (!ESPTime::strptime(time, val)) {
+  if (!ESPTime::strptime(time, len, val)) {
     ESP_LOGE(TAG, "Could not convert the time string to an ESPTime object");
     return *this;
   }
@@ -148,7 +150,6 @@ bool OnTimeTrigger::matches_(const ESPTime &time) const {
 }
 #endif
 
-}  // namespace datetime
-}  // namespace esphome
+}  // namespace esphome::datetime
 
 #endif  // USE_DATETIME_TIME

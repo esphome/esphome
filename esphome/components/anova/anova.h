@@ -10,8 +10,7 @@
 
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace anova {
+namespace esphome::anova {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -28,7 +27,7 @@ class Anova : public climate::Climate, public esphome::ble_client::BLEClientNode
   void dump_config() override;
   climate::ClimateTraits traits() override {
     auto traits = climate::ClimateTraits();
-    traits.set_supports_current_temperature(true);
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
     traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::ClimateMode::CLIMATE_MODE_HEAT});
     traits.set_visual_min_temperature(25.0);
     traits.set_visual_max_temperature(100.0);
@@ -45,7 +44,6 @@ class Anova : public climate::Climate, public esphome::ble_client::BLEClientNode
   bool fahrenheit_;
 };
 
-}  // namespace anova
-}  // namespace esphome
+}  // namespace esphome::anova
 
 #endif

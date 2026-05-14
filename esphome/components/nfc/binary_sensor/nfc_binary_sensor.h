@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 class NfcTagBinarySensor : public binary_sensor::BinarySensor,
                            public Component,
@@ -19,11 +18,11 @@ class NfcTagBinarySensor : public binary_sensor::BinarySensor,
 
   void set_ndef_match_string(const std::string &str);
   void set_tag_name(const std::string &str);
-  void set_uid(const std::vector<uint8_t> &uid);
+  void set_uid(const NfcTagUid &uid);
 
   bool tag_match_ndef_string(const std::shared_ptr<NdefMessage> &msg);
   bool tag_match_tag_name(const std::shared_ptr<NdefMessage> &msg);
-  bool tag_match_uid(const std::vector<uint8_t> &data);
+  bool tag_match_uid(const NfcTagUid &data);
 
   void tag_off(NfcTag &tag) override;
   void tag_on(NfcTag &tag) override;
@@ -31,8 +30,7 @@ class NfcTagBinarySensor : public binary_sensor::BinarySensor,
  protected:
   bool match_tag_name_{false};
   std::string match_string_;
-  std::vector<uint8_t> uid_;
+  NfcTagUid uid_;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc
