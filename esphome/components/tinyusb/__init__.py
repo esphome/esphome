@@ -26,7 +26,7 @@ CONF_USB_VENDOR_ID = "usb_vendor_id"
 # esp_tinyusb's driver install (descriptors_set fails with no class and no
 # user-provided full_speed_config), which trips the task watchdog before
 # loop() ever runs.
-_USB_CLASS_COMPONENTS = ("usb_cdc_acm",)
+_USB_CLASS_COMPONENTS = ("usb_cdc_acm", "tinyusb_keyboard")
 
 tinyusb_ns = cg.esphome_ns.namespace("tinyusb")
 TinyUSB = tinyusb_ns.class_("TinyUSB", cg.Component)
