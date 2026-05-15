@@ -30,6 +30,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Create sync branch
+        # Switch off dev before pre-commit runs so the
+        # no-commit-to-branch hook passes (it blocks dev/release/beta).
+        run: git checkout -B sync/device-classes
+
       - name: Checkout Home Assistant
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -45,15 +50,27 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e lib/home-assistant
-          pip install -r requirements_test.txt pre-commit
+          # Project requirements are needed so pylint can resolve runtime
+          # imports (e.g. smpclient in esphome/components/nrf52/ota.py).
+          pip install -r requirements.txt -r requirements_test.txt pre-commit
 
       - name: Sync
         run: |
           python ./script/sync-device_class.py
 
-      - name: Run pre-commit hooks
-        run: |
-          python script/run-in-env.py pre-commit run --all-files
+      - name: Apply pre-commit auto-fixes
+        # First pass: let formatters (ruff, end-of-file-fixer, etc.) modify
+        # files. pre-commit exits non-zero whenever a hook touches anything,
+        # which would otherwise abort the workflow before the auto-fixes
+        # can flow into the sync PR.
+        run: python script/run-in-env.py pre-commit run --all-files || true
+
+      - name: Verify pre-commit clean
+        # Second pass: re-run all hooks against the now-fixed tree.
+        # Auto-fixers exit 0 (nothing to change); any remaining failure
+        # from a check-only hook (pylint / flake8 / yamllint / ci-custom)
+        # is a real issue and fails the workflow loudly.
+        run: python script/run-in-env.py pre-commit run --all-files
 
       - name: Commit changes
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
