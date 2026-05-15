@@ -1192,7 +1192,11 @@ def _load_config(
 ) -> Config:
     """Load the configuration file."""
     try:
-        config = yaml_util.load_yaml(CORE.config_path)
+        with yaml_util.track_yaml_loads() as loaded_files:
+            config = yaml_util.load_yaml(CORE.config_path)
+        # Stash for components that want the on-disk YAML at codegen time
+        # (e.g. store_yaml embeds them into firmware for recovery).
+        CORE.data["yaml_sources"] = loaded_files
     except EsphomeError as e:
         raise InvalidYAMLError(e) from e
 

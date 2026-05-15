@@ -703,6 +703,15 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
+#ifdef USE_STORE_YAML
+    case 149 /* GetYamlRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_get_yaml_request"));
+#endif
+      this->on_get_yaml_request();
+      break;
+    }
+#endif
     default:
       break;
   }

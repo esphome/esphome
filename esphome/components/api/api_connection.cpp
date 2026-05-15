@@ -52,6 +52,9 @@
 #ifdef USE_RADIO_FREQUENCY
 #include "esphome/components/radio_frequency/radio_frequency.h"
 #endif
+#ifdef USE_STORE_YAML
+#include "esphome/components/store_yaml/store_yaml.h"
+#endif
 
 namespace esphome::api {
 
@@ -309,6 +312,10 @@ void APIConnection::loop() {
   // Process camera last - state updates are higher priority
   // (missing a frame is fine, missing a state update is not)
   this->try_send_camera_image_();
+#endif
+
+#ifdef USE_STORE_YAML
+  this->try_send_store_yaml_();
 #endif
 }
 
@@ -1160,6 +1167,71 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 
     App.scheduler.set_timeout(this->parent_, "api_camera_stop_stream", CAMERA_STOP_STREAM,
                               []() { camera::Camera::instance()->stop_stream(esphome::camera::API_REQUESTER); });
+  }
+}
+#endif
+
+#ifdef USE_STORE_YAML
+// Chunk size per GetYamlResponse. Small enough to leave room for the protobuf frame
+// inside the 65535-byte API limit and friendly to TCP MSS.
+static constexpr size_t STORE_YAML_CHUNK_SIZE = 512;
+// Scratch buffer used to copy a chunk from PROGMEM (needed on ESP8266; harmless elsewhere).
+static uint8_t store_yaml_chunk_buf[STORE_YAML_CHUNK_SIZE];
+
+void APIConnection::on_get_yaml_request() {
+  if (store_yaml::global_store_yaml == nullptr || store_yaml::global_store_yaml->get_data() == nullptr) {
+    // No blob — send a single done=true response so the client doesn't hang.
+    GetYamlResponse resp;
+    resp.done = true;
+    this->send_message(resp);
+    return;
+  }
+  this->store_yaml_pos_ = 0;
+  this->try_send_store_yaml_();
+}
+
+void APIConnection::try_send_store_yaml_() {
+  if (this->store_yaml_pos_ == std::numeric_limits<size_t>::max())
+    return;
+  auto *comp = store_yaml::global_store_yaml;
+  if (comp == nullptr)
+    return;
+
+  const uint8_t *data = comp->get_data();
+  const size_t total = comp->get_size();
+
+  while (this->store_yaml_pos_ < total || this->store_yaml_pos_ == 0) {
+    if (!this->helper_->can_write_without_blocking())
+      return;
+
+    const size_t remaining = total - this->store_yaml_pos_;
+    const size_t to_send = remaining < STORE_YAML_CHUNK_SIZE ? remaining : STORE_YAML_CHUNK_SIZE;
+
+    // Copy from PROGMEM into a stack buffer. progmem_read_byte is a no-op except on ESP8266.
+    for (size_t i = 0; i < to_send; i++) {
+      store_yaml_chunk_buf[i] = progmem_read_byte(&data[this->store_yaml_pos_ + i]);
+    }
+
+    GetYamlResponse resp;
+    resp.set_data(store_yaml_chunk_buf, to_send);
+    const bool first = this->store_yaml_pos_ == 0;
+    if (first) {
+      resp.total_size = static_cast<uint32_t>(total);
+      resp.encoding = StringRef(store_yaml::ENCODING);
+    }
+    this->store_yaml_pos_ += to_send;
+    const bool done = this->store_yaml_pos_ >= total;
+    resp.done = done;
+
+    if (!this->send_message(resp)) {
+      // Send failed; rewind so we retry this chunk next loop.
+      this->store_yaml_pos_ -= to_send;
+      return;
+    }
+    if (done) {
+      this->store_yaml_pos_ = std::numeric_limits<size_t>::max();
+      return;
+    }
   }
 }
 #endif

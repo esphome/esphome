@@ -120,6 +120,9 @@ class APIConnection final : public APIServerConnectionBase {
   void set_camera_state(std::shared_ptr<camera::CameraImage> image);
   void on_camera_image_request(const CameraImageRequest &msg);
 #endif
+#ifdef USE_STORE_YAML
+  void on_get_yaml_request();
+#endif
 #ifdef USE_CLIMATE
   bool send_climate_state(climate::Climate *climate);
   void on_climate_command_request(const ClimateCommandRequest &msg);
@@ -392,6 +395,12 @@ class APIConnection final : public APIServerConnectionBase {
 
 #ifdef USE_CAMERA
   void try_send_camera_image_();
+#endif
+
+#ifdef USE_STORE_YAML
+  void try_send_store_yaml_();
+  // Streaming offset into the PROGMEM blob; max() means "not streaming".
+  size_t store_yaml_pos_{std::numeric_limits<size_t>::max()};
 #endif
 
 #ifdef USE_API_HOMEASSISTANT_STATES

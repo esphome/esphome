@@ -26,6 +26,9 @@ bleak==2.1.1
 smpclient==6.0.0
 requests==2.34.1
 
+# zstd compression for store_yaml component (stdlib in 3.14+)
+backports.zstd==1.5.0; python_version < "3.14"
+
 # esp-idf >= 5.0 requires this
 pyparsing >= 3.3.2
 

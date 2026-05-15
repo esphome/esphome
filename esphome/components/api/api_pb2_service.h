@@ -236,6 +236,10 @@ class APIServerConnectionBase {
 #ifdef USE_BLUETOOTH_PROXY
   void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &value){};
 #endif
+
+#ifdef USE_STORE_YAML
+  void on_get_yaml_request(){};
+#endif
 };
 
 }  // namespace esphome::api

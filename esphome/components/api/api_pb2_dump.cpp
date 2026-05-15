@@ -2718,6 +2718,16 @@ const char *BluetoothSetConnectionParamsResponse::dump_to(DumpBuffer &out) const
   return out.c_str();
 }
 #endif
+#ifdef USE_STORE_YAML
+const char *GetYamlResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("GetYamlResponse"));
+  dump_bytes_field(out, ESPHOME_PSTR("data"), this->data_ptr_, this->data_len_);
+  dump_field(out, ESPHOME_PSTR("done"), this->done);
+  dump_field(out, ESPHOME_PSTR("total_size"), this->total_size);
+  dump_field(out, ESPHOME_PSTR("encoding"), this->encoding);
+  return out.c_str();
+}
+#endif
 
 }  // namespace esphome::api
 

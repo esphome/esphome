@@ -76,6 +76,8 @@ service APIConnection {
   rpc serial_proxy_set_modem_pins(SerialProxySetModemPinsRequest) returns (void) {}
   rpc serial_proxy_get_modem_pins(SerialProxyGetModemPinsRequest) returns (void) {}
   rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
+
+  rpc get_yaml(GetYamlRequest) returns (void) {}
 }
 
 
@@ -2732,4 +2734,28 @@ message BluetoothSetConnectionParamsResponse {
 
   uint64 address = 1;
   int32 error = 2;
+}
+
+// ==================== STORE YAML ====================
+// Embed the user's YAML in firmware and stream it back over the API so a lost
+// config can be recovered from a running device. The device only stores the
+// compressed bytes; decompression happens client-side.
+message GetYamlRequest {
+  option (id) = 149;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_STORE_YAML";
+  option (no_delay) = true;
+}
+
+message GetYamlResponse {
+  option (id) = 150;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_STORE_YAML";
+
+  bytes data = 1;
+  bool done = 2;
+  // total compressed size, populated on the first chunk
+  uint32 total_size = 3;
+  // compression encoding, populated on the first chunk ("zstd")
+  string encoding = 4 [(max_data_length) = 8];
 }
