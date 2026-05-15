@@ -27,7 +27,14 @@ template<typename... Ts> class PressAction : public Action<Ts...> {
       auto s = this->key_.value(x...);
       uint8_t mods = this->modifiers_.value_or(x..., 0);
       if (!s.empty()) {
-        this->parent_->press_key(0x04 + (s[0] - 'a'), mods);
+        uint8_t keycode = 0x27;  // '0'
+        if (s[0] >= 'a' && s[0] <= 'z') {
+          keycode = 0x04 + static_cast<uint8_t>(s[0] - 'a');
+        } else if (s[0] >= '1' && s[0] <= '9') {
+          keycode = 0x1E + static_cast<uint8_t>(s[0] - '1');
+        }
+
+        this->parent_->press_key(keycode, mods);
       }
     }
   }
