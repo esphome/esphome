@@ -1,0 +1,13 @@
+esphome:
+  name: store-yaml-test
+  areas:
+    - id: living_room
+      name: "Living Room"
+
+host:
+
+logger:
+
+api:
+
+store_yaml:
