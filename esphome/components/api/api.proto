@@ -298,6 +298,11 @@ message DeviceInfoResponse {
 
   // Serial proxy instance metadata
   repeated SerialProxyInfo serial_proxies = 25 [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
+
+  // Whether this firmware embeds its YAML configuration for recovery via
+  // `get_yaml`. Clients use this to skip the request entirely when the
+  // device cannot answer it instead of waiting for a timeout.
+  bool has_store_yaml = 26 [(field_ifdef) = "USE_STORE_YAML"];
 }
 
 message ListEntitiesRequest {

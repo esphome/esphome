@@ -972,6 +972,9 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
     out.append("\n");
   }
 #endif
+#ifdef USE_STORE_YAML
+  dump_field(out, ESPHOME_PSTR("has_store_yaml"), this->has_store_yaml);
+#endif
   return out.c_str();
 }
 const char *ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const {

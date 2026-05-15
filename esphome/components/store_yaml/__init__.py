@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 import struct
 from types import ModuleType
@@ -85,8 +86,11 @@ def _gather_files(include_secrets: bool) -> list[tuple[str, bytes]]:
         try:
             rel_str = path.relative_to(root).as_posix()
         except ValueError:
-            # Outside the project root (e.g. secrets.yaml in $HOME); store basename only.
-            rel_str = path.name
+            # Outside the project root (e.g. ../common.yaml or a secrets file in
+            # $HOME). Use a relative path with ".." components instead of just
+            # the basename so the include graph is preserved and files from
+            # different directories with the same basename don't collide.
+            rel_str = os.path.relpath(path, root).replace(os.sep, "/")
 
         files.append((rel_str, content))
 

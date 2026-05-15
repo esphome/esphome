@@ -1191,25 +1191,34 @@ def _load_config(
     command_line_substitutions: dict[str, Any], skip_external_update: bool = False
 ) -> Config:
     """Load the configuration file."""
-    try:
-        with yaml_util.track_yaml_loads() as loaded_files:
+    # Keep the file-load listener active across both the YAML parse and the
+    # validation pass. Substitution and packages resolve deferred `!include`
+    # references during validation (and remote packages download YAML on
+    # demand), so the listener must still be installed when those secondary
+    # loads happen. Components that want the on-disk YAML at codegen time
+    # (e.g. store_yaml for firmware recovery) read the list out of
+    # CORE.data["yaml_sources"] after a successful validation.
+    with yaml_util.track_yaml_loads() as loaded_files:
+        try:
             config = yaml_util.load_yaml(CORE.config_path)
-            # Resolve deferred !include / package references so the listener
-            # captures every reachable file. Components that want the on-disk
-            # YAML at codegen time (e.g. store_yaml for firmware recovery)
-            # read the list out of CORE.data["yaml_sources"] below.
+            # Resolve any deferred `!include`/package references whose paths
+            # don't depend on substitutions, so they're captured here too.
             yaml_util.force_load_include_files(config)
-        CORE.data["yaml_sources"] = loaded_files
-    except EsphomeError as e:
-        raise InvalidYAMLError(e) from e
+        except EsphomeError as e:
+            raise InvalidYAMLError(e) from e
 
-    try:
-        return validate_config(config, command_line_substitutions, skip_external_update)
-    except EsphomeError:
-        raise
-    except Exception:
-        _LOGGER.error("Unexpected exception while reading configuration:")
-        raise
+        try:
+            result = validate_config(
+                config, command_line_substitutions, skip_external_update
+            )
+        except EsphomeError:
+            raise
+        except Exception:
+            _LOGGER.error("Unexpected exception while reading configuration:")
+            raise
+
+    CORE.data["yaml_sources"] = loaded_files
+    return result
 
 
 def load_config(

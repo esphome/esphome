@@ -1874,6 +1874,9 @@ bool APIConnection::send_device_info_response_() {
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
+#ifdef USE_STORE_YAML
+  resp.has_store_yaml = store_yaml::global_store_yaml != nullptr && store_yaml::global_store_yaml->get_size() > 0;
+#endif
 #ifdef ESPHOME_PROJECT_NAME
 #ifdef USE_ESP8266
   static const char PROJECT_NAME_PROGMEM[] PROGMEM = ESPHOME_PROJECT_NAME;
@@ -2121,10 +2124,15 @@ bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
 bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn,
                                   const void *msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  // Skip dump for log messages (recursive logging risk) and camera frames (high-frequency noise)
+  // Skip dump for log messages (recursive logging risk), camera frames (high-frequency noise),
+  // and YAML recovery payloads (every chunk would log the embedded config, including any
+  // secrets the user opted into).
   if (message_type != SubscribeLogsResponse::MESSAGE_TYPE
 #ifdef USE_CAMERA
       && message_type != CameraImageResponse::MESSAGE_TYPE
+#endif
+#ifdef USE_STORE_YAML
+      && message_type != GetYamlResponse::MESSAGE_TYPE
 #endif
   ) {
     auto *proto_msg = static_cast<const ProtoMessage *>(msg);
