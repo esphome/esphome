@@ -64,33 +64,29 @@ def _gather_files(include_secrets: bool) -> list[tuple[str, bytes]]:
 
     seen: set[Path] = set()
     files: list[tuple[str, bytes]] = []
+    # ``track_yaml_loads`` already returns resolved Path objects, so no extra
+    # ``.resolve()`` work is needed here. The symlink edge case (``secrets.yaml``
+    # symlinked to a non-secrets filename) is not detectable at this layer
+    # because the original path is lost by the resolver upstream.
     for path in sources:
-        resolved = Path(path).resolve()
-        if resolved in seen:
+        if path in seen:
             continue
-        seen.add(resolved)
+        seen.add(path)
 
-        # Either secrets.yaml or secrets.yml. Symlinks are followed by resolve()
-        # above, so we re-check the original path's name too in case someone
-        # symlinks `secrets.yaml` to a differently-named target.
-        is_secret = resolved.name in SECRETS_FILES or Path(path).name in SECRETS_FILES
-        if is_secret and not include_secrets:
+        if path.name in SECRETS_FILES and not include_secrets:
             content = REDACTED_PLACEHOLDER
         else:
             try:
-                content = resolved.read_bytes()
+                content = path.read_bytes()
             except OSError as err:
-                _LOGGER.warning(
-                    "store_yaml: skipping unreadable %s (%s)", resolved, err
-                )
+                _LOGGER.warning("store_yaml: skipping unreadable %s (%s)", path, err)
                 continue
 
         try:
-            rel = resolved.relative_to(root)
-            rel_str = rel.as_posix()
+            rel_str = path.relative_to(root).as_posix()
         except ValueError:
             # Outside the project root (e.g. secrets.yaml in $HOME); store basename only.
-            rel_str = resolved.name
+            rel_str = path.name
 
         files.append((rel_str, content))
 
