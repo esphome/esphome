@@ -2602,3 +2602,142 @@ def test_main_validate_only_excludes_transitive_components(
     # Only foo (directly changed, validate-only). bar is a transitive dep
     # and still needs compile despite no source change of its own.
     assert output["validate_only_components"] == ["foo"]
+
+
+def test_main_force_all_overrides_detection(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_native_idf_components_to_test: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--force-all bypasses per-feature detection and runs every job.
+
+    Detection mocks all return False/empty (which would normally skip
+    everything) -- the flag must override them. Also verifies clang-tidy
+    goes to ``split`` (full scan) and the component-test matrix is
+    populated from disk rather than from changed-files.
+    """
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_native_idf_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+    mock_changed_files.return_value = []
+
+    with (
+        patch("sys.argv", ["determine-jobs.py", "--force-all"]),
+        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(determine_jobs, "should_run_benchmarks", return_value=False),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["integration_tests"] is True
+    assert output["clang_tidy"] is True
+    assert output["clang_tidy_mode"] == "split"
+    assert output["clang_tidy_full_scan"] is True
+    assert output["clang_format"] is True
+    assert output["python_linters"] is True
+    assert output["import_time"] is True
+    assert output["device_builder"] is True
+    assert output["native_idf"] is True
+    # native_idf_components is a CSV of NATIVE_IDF_TEST_COMPONENTS
+    assert "esp32" in output["native_idf_components"].split(",")
+    assert output["cpp_unit_tests_run_all"] is True
+    assert output["cpp_unit_tests_components"] == []
+    assert output["benchmarks"] is True
+    # Detection helpers must not be consulted when --force-all is set
+    mock_determine_integration_tests.assert_not_called()
+    mock_should_run_clang_tidy.assert_not_called()
+    mock_should_run_clang_format.assert_not_called()
+    mock_should_run_python_linters.assert_not_called()
+    mock_should_run_import_time.assert_not_called()
+    mock_should_run_device_builder.assert_not_called()
+    mock_native_idf_components_to_test.assert_not_called()
+    mock_determine_cpp_unit_tests.assert_not_called()
+    # Component matrix is populated from disk (tests/components/ in the repo)
+    assert output["component_test_count"] > 0
+    assert len(output["component_test_batches"]) > 0
+
+
+def test_main_force_all_off_uses_detection(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_native_idf_components_to_test: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without --force-all, detection helpers drive the decision (regression guard)."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_native_idf_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+    mock_changed_files.return_value = []
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs, "create_intelligent_batches", return_value=([], {})
+        ),
+        patch.object(determine_jobs, "should_run_benchmarks", return_value=False),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["integration_tests"] is False
+    assert output["clang_tidy"] is False
+    assert output["clang_format"] is False
+    assert output["python_linters"] is False
+    assert output["native_idf"] is False
+    assert output["component_test_count"] == 0
+    mock_determine_integration_tests.assert_called_once()
+    mock_should_run_clang_tidy.assert_called_once()
