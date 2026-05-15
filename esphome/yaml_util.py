@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
+from dataclasses import dataclass, field
 import functools
 import inspect
 from io import BytesIO, TextIOBase, TextIOWrapper
@@ -299,6 +300,7 @@ def force_load_include_files(
             )
 
 
+@dataclass(slots=True)
 class DiscoveredYamlFiles:
     """Result of :func:`discover_user_yaml_files`.
 
@@ -309,11 +311,8 @@ class DiscoveredYamlFiles:
     flagged as secrets).
     """
 
-    __slots__ = ("files", "secrets")
-
-    def __init__(self, files: list[Path], secrets: set[Path]) -> None:
-        self.files = files
-        self.secrets = secrets
+    files: list[Path] = field(default_factory=list)
+    secrets: set[Path] = field(default_factory=set)
 
 
 def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
