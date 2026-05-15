@@ -50,8 +50,8 @@ void TinyUSB::setup() {
       0x00, /* bAlternateSetting */
       0x01, /* bNumEndpoints */
       0x03, /* bInterfaceClass = HID */
-      0x00, /* bInterfaceSubClass = None */
-      0x00, /* bInterfaceProtocol = None */
+      0x01, /* bInterfaceSubClass = Boot */
+      0x01, /* bInterfaceProtocol = Keyboard */
       0x00, /* iInterface (no string descriptor) */
 
       /* HID Descriptor (9) */
