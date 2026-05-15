@@ -52,14 +52,22 @@ jobs:
           path: venv
           # yamllint disable-line rule:line-length
           key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ steps.cache-key.outputs.key }}
+      - name: Set up uv
+        # Only needed on cache miss to populate the venv. ``uv pip install``
+        # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
+        # that ``. venv/bin/activate`` see an identical layout.
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
       - name: Create Python virtual environment
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           python -m venv venv
           . venv/bin/activate
           python --version
-          pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt pre-commit
-          pip install -e .
+          uv pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt pre-commit
+          uv pip install -e .
 
   pylint:
     name: Check pylint
@@ -351,14 +359,20 @@ jobs:
         with:
           path: venv
           key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
+      - name: Set up uv
+        # Only needed on cache miss to populate the venv.
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
       - name: Create Python virtual environment
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           python -m venv venv
           . venv/bin/activate
           python --version
-          pip install -r requirements.txt -r requirements_test.txt
-          pip install -e .
+          uv pip install -r requirements.txt -r requirements_test.txt
+          uv pip install -e .
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run integration tests
