@@ -390,6 +390,21 @@ def test_track_yaml_loads_cleanup_on_exception(tmp_path: Path) -> None:
     assert len(yaml_util._load_listeners) == before
 
 
+def test_track_yaml_loads_no_duplicate_load_on_top_level_include_failure(
+    tmp_path: Path,
+) -> None:
+    """A failed top-level !include must not record any file twice in track_yaml_loads."""
+    main = tmp_path / "main.yaml"
+    main.write_text("!include missing.yaml\n")
+
+    with yaml_util.track_yaml_loads() as loaded, pytest.raises(EsphomeError):
+        yaml_util.load_yaml(main)
+
+    assert len(loaded) == len(set(loaded)), (
+        f"Files loaded more than once during a failed top-level include: {loaded}"
+    )
+
+
 @pytest.mark.parametrize(
     "data",
     [
