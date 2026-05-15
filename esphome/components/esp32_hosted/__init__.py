@@ -236,12 +236,6 @@ async def to_code(config):
         True,
     )
 
-    # Enable PicolibC Newlib compatibility shim on IDF 6.0+ to fix missing type
-    if esp32.idf_version() >= cv.Version(6, 0, 0):
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY", True
-        )
-
     # Transport-specific configuration
     if transport == "sdio":
         _configure_sdio(config)
@@ -255,7 +249,7 @@ async def to_code(config):
         esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.5.1")
         esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.2")
         esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.6")
+        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.7")
     else:
         esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="0.13.0")
         esp32.add_idf_component(name="espressif/eppp_link", ref="0.2.0")
