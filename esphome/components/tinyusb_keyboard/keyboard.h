@@ -9,16 +9,12 @@ namespace esphome::tinyusb_keyboard {
 
 class TinyUSBKeyboard : public Component {
  public:
-  void setup() override;
   void dump_config() override;
 
   void press_key(uint8_t keycode, uint8_t modifiers = 0);
   void release_keys();
   void press_media(uint16_t usage);
   void release_media();
-
- protected:
-  bool ready_{false};
 };
 
 }  // namespace esphome::tinyusb_keyboard

@@ -76,23 +76,11 @@ static const uint8_t HID_REPORT_DESCRIPTOR[] = {
     0xC0              /* End Collection (Consumer) */
 };
 
-void TinyUSBKeyboard::setup() {
-  // If TinyUSB is not initialized, we can't operate. We rely on tinyusb component
-  // to install the driver. Check tud_ready().
-  if (!tud_ready()) {
-    ESP_LOGW(TAG, "TinyUSB not ready at setup().");
-    this->ready_ = false;
-  } else {
-    this->ready_ = true;
-  }
-}
-
 void TinyUSBKeyboard::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TinyUSB Keyboard component:\n"
-                "  Ready at setup(): %s\n"
                 "  tud_ready(): %s\n",
-                this->ready_ ? "YES" : "NO", tud_ready() ? "YES" : "NO");
+                tud_ready() ? "YES" : "NO");
 }
 
 void TinyUSBKeyboard::press_key(uint8_t keycode, uint8_t modifiers) {
