@@ -181,7 +181,7 @@ jobs:
         # own CI). No ``--cov`` here -- this is purely a downstream
         # smoke check against this PR's esphome code.
         working-directory: device-builder
-        run: pytest -q -n auto --maxfail=5 --durations=10 --no-cov --ignore=tests/benchmarks
+        run: pytest -q -n auto --maxfail=5 --durations=30 --no-cov --ignore=tests/benchmarks
 
   pytest:
     name: Run pytest
@@ -222,12 +222,12 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           . ./venv/Scripts/activate.ps1
-          pytest -vv --cov-report=xml --tb=native -n auto tests --ignore=tests/integration/
+          pytest -vv --cov-report=xml --tb=native --durations=30 -n auto tests --ignore=tests/integration/
       - name: Run pytest
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: |
           . venv/bin/activate
-          pytest -vv --cov-report=xml --tb=native -n auto tests --ignore=tests/integration/
+          pytest -vv --cov-report=xml --tb=native --durations=30 -n auto tests --ignore=tests/integration/
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
         with:
@@ -370,7 +370,7 @@ jobs:
           . venv/bin/activate
           mapfile -t test_files < <(echo "$BUCKET_TESTS" | jq -r '.[]')
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
-          pytest -vv --no-cov --tb=native -n auto "${test_files[@]}"
+          pytest -vv --no-cov --tb=native --durations=30 -n auto "${test_files[@]}"
 
   cpp-unit-tests:
     name: Run C++ unit tests
