@@ -1195,43 +1195,42 @@ void APIConnection::try_send_store_yaml_() {
   if (this->store_yaml_pos_ == std::numeric_limits<size_t>::max())
     return;
   auto *comp = store_yaml::global_store_yaml;
-  if (comp == nullptr)
+  if (comp == nullptr) {
+    this->store_yaml_pos_ = std::numeric_limits<size_t>::max();
     return;
+  }
 
   const size_t total = comp->get_size();
 
-  while (this->store_yaml_pos_ < total || this->store_yaml_pos_ == 0) {
+  // Camera-style streaming: advance the position only after a successful send,
+  // so a WOULD_BLOCK simply retries the same chunk on the next loop iteration.
+  while (this->store_yaml_pos_ < total) {
     if (!this->helper_->can_write_without_blocking())
       return;
 
     const size_t remaining = total - this->store_yaml_pos_;
     const size_t to_send = remaining < STORE_YAML_CHUNK_SIZE ? remaining : STORE_YAML_CHUNK_SIZE;
 
-    // Pulls a chunk out of PROGMEM into a stack buffer; on ESP8266 this routes
+    // Copy a chunk out of PROGMEM into a stack buffer; on ESP8266 this routes
     // through progmem_read_byte, on every other platform it's a plain byte copy.
     comp->read_chunk(this->store_yaml_pos_, store_yaml_chunk_buf, to_send);
 
     GetYamlResponse resp;
     resp.set_data(store_yaml_chunk_buf, to_send);
-    const bool first = this->store_yaml_pos_ == 0;
-    if (first) {
+    if (this->store_yaml_pos_ == 0) {
       resp.total_size = static_cast<uint32_t>(total);
       resp.encoding = StringRef(store_yaml::ENCODING);
     }
-    this->store_yaml_pos_ += to_send;
-    const bool done = this->store_yaml_pos_ >= total;
-    resp.done = done;
+    resp.done = (this->store_yaml_pos_ + to_send) >= total;
 
-    if (!this->send_message(resp)) {
-      // Send failed; rewind so we retry this chunk next loop.
-      this->store_yaml_pos_ -= to_send;
-      return;
-    }
-    if (done) {
-      this->store_yaml_pos_ = std::numeric_limits<size_t>::max();
-      return;
-    }
+    if (!this->send_message(resp))
+      return;  // retry on next loop, pos unchanged
+
+    this->store_yaml_pos_ += to_send;
   }
+
+  // Reached end successfully — final response (with done=true) already sent above.
+  this->store_yaml_pos_ = std::numeric_limits<size_t>::max();
 }
 #endif
 
