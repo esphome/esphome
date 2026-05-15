@@ -2757,10 +2757,10 @@ message GetYamlResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_STORE_YAML";
 
-  bytes data = 1;
+  bytes data = 1 [(force) = true];
   bool done = 2;
-  // total compressed size, populated on the first chunk
+  // Sent on the first chunk only — the client is expected to cache it.
+  // (firmware bandwidth/flash is expensive; the client has gigabytes.)
   uint32 total_size = 3;
-  // compression encoding, populated on the first chunk ("zstd")
   string encoding = 4 [(max_data_length) = 8];
 }
