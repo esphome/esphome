@@ -6,7 +6,7 @@ import struct
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_RAW_DATA_ID
+from esphome.const import CONF_ID, CONF_RAW_DATA_ID, SECRETS_FILES
 from esphome.core import CORE, EsphomeError, HexInt
 
 _LOGGER = logging.getLogger(__name__)
@@ -69,7 +69,10 @@ def _gather_files(include_secrets: bool) -> list[tuple[str, bytes]]:
             continue
         seen.add(resolved)
 
-        is_secret = resolved.name == "secrets.yaml"
+        # Either secrets.yaml or secrets.yml. Symlinks are followed by resolve()
+        # above, so we re-check the original path's name too in case someone
+        # symlinks `secrets.yaml` to a differently-named target.
+        is_secret = resolved.name in SECRETS_FILES or Path(path).name in SECRETS_FILES
         if is_secret and not include_secrets:
             content = REDACTED_PLACEHOLDER
         else:

@@ -1194,8 +1194,11 @@ def _load_config(
     try:
         with yaml_util.track_yaml_loads() as loaded_files:
             config = yaml_util.load_yaml(CORE.config_path)
-        # Stash for components that want the on-disk YAML at codegen time
-        # (e.g. store_yaml embeds them into firmware for recovery).
+            # Resolve deferred !include / package references so the listener
+            # captures every reachable file. Components that want the on-disk
+            # YAML at codegen time (e.g. store_yaml for firmware recovery)
+            # read the list out of CORE.data["yaml_sources"] below.
+            yaml_util.force_load_include_files(config)
         CORE.data["yaml_sources"] = loaded_files
     except EsphomeError as e:
         raise InvalidYAMLError(e) from e
