@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 import struct
+from types import ModuleType
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -35,7 +36,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def _import_zstd():
+def _import_zstd() -> ModuleType:
     try:
         from compression import zstd  # noqa: PLC0415 — Python 3.14+ stdlib
     except ImportError:
