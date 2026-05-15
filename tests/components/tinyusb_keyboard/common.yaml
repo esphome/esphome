@@ -37,3 +37,15 @@ binary_sensor:
     on_release:
       - tinyusb_keyboard.media_release:
           id: kb
+
+  - platform: gpio
+    pin: 15
+    name: "Shift + 1 Button"
+    on_press:
+      - tinyusb_keyboard.press:
+          id: kb
+          key: "1"
+          modifiers: 0x02  # Left Shift
+    on_release:
+      - tinyusb_keyboard.release:
+          id: kb
