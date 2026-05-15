@@ -50,15 +50,15 @@ void TinyUSB::setup() {
       0x00, /* bAlternateSetting */
       0x01, /* bNumEndpoints */
       0x03, /* bInterfaceClass = HID */
-      0x01, /* bInterfaceSubClass = Boot */
-      0x01, /* bInterfaceProtocol = Keyboard */
+      0x00, /* bInterfaceSubClass = None */
+      0x00, /* bInterfaceProtocol = None */
       0x00, /* iInterface (no string descriptor) */
 
       /* HID Descriptor (9) */
       0x09,       /* bLength */
       0x21,       /* bDescriptorType = HID */
       0x11, 0x01, /* bcdHID = 1.11 */
-      0x21,       /* bCountryCode (0x21 used previously) */
+      0x00,       /* bCountryCode */
       0x01,       /* bNumDescriptors */
       0x22,       /* bDescriptorType (Report) */
       (uint8_t) (sizeof(esphome::tinyusb_keyboard::HID_REPORT_DESCRIPTOR) & 0xFF),
