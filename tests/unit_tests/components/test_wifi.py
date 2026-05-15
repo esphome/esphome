@@ -3,8 +3,20 @@
 import pytest
 
 from esphome.components.esp32 import const
-from esphome.components.wifi import has_native_wifi, variant_has_wifi
-from esphome.const import Platform
+from esphome.components.wifi import (
+    check_placeholder_credentials,
+    has_native_wifi,
+    variant_has_wifi,
+)
+from esphome.const import (
+    CONF_AP,
+    CONF_NETWORKS,
+    CONF_SSID,
+    CONF_WIFI,
+    PLACEHOLDER_WIFI_SSID,
+    Platform,
+)
+from esphome.core import EsphomeError, Lambda
 
 
 @pytest.mark.parametrize(
@@ -123,3 +135,65 @@ def test_has_native_wifi_esp32_without_variant_assumes_wifi() -> None:
 def test_has_native_wifi_rp2040_without_board_assumes_wifi() -> None:
     """RP2040 without a board id falls open to True (custom-board default)."""
     assert has_native_wifi(platform=Platform.RP2040) is True
+
+
+def _wifi_config(
+    *,
+    networks: list[dict] | None = None,
+    ap: dict | None = None,
+) -> dict:
+    """Build a minimal config dict matching the post-validation shape."""
+    wifi: dict = {}
+    if networks is not None:
+        wifi[CONF_NETWORKS] = networks
+    if ap is not None:
+        wifi[CONF_AP] = ap
+    return {CONF_WIFI: wifi}
+
+
+def test_check_placeholder_credentials_passes_with_real_ssid() -> None:
+    """A real SSID compiles without complaint."""
+    config = _wifi_config(networks=[{CONF_SSID: "home_network"}])
+    assert check_placeholder_credentials(config) is None
+
+
+def test_check_placeholder_credentials_refuses_placeholder_ssid() -> None:
+    """The placeholder SSID is rejected with an actionable message."""
+    config = _wifi_config(networks=[{CONF_SSID: PLACEHOLDER_WIFI_SSID}])
+    with pytest.raises(EsphomeError) as exc_info:
+        check_placeholder_credentials(config)
+    message = str(exc_info.value)
+    assert "wifi.networks[0].ssid" in message
+    assert "secrets.yaml" in message
+
+
+def test_check_placeholder_credentials_refuses_placeholder_in_second_network() -> None:
+    """Index reporting picks the placeholder out of a mixed network list."""
+    config = _wifi_config(
+        networks=[
+            {CONF_SSID: "home_network"},
+            {CONF_SSID: PLACEHOLDER_WIFI_SSID},
+        ],
+    )
+    with pytest.raises(EsphomeError) as exc_info:
+        check_placeholder_credentials(config)
+    assert "wifi.networks[1].ssid" in str(exc_info.value)
+
+
+def test_check_placeholder_credentials_refuses_placeholder_ap_ssid() -> None:
+    """An AP using the placeholder broadcast name is also refused."""
+    config = _wifi_config(ap={CONF_SSID: PLACEHOLDER_WIFI_SSID})
+    with pytest.raises(EsphomeError) as exc_info:
+        check_placeholder_credentials(config)
+    assert "wifi.ap.ssid" in str(exc_info.value)
+
+
+def test_check_placeholder_credentials_no_wifi_passes() -> None:
+    """Ethernet-only / wifi-less configs skip the check entirely."""
+    assert check_placeholder_credentials({}) is None
+
+
+def test_check_placeholder_credentials_skips_template_ssid() -> None:
+    """A templated (Lambda) SSID is not a string and is skipped."""
+    config = _wifi_config(networks=[{CONF_SSID: Lambda('return "x";')}])
+    assert check_placeholder_credentials(config) is None
