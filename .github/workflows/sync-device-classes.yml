@@ -30,11 +30,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Create sync branch
-        # Switch off dev before pre-commit runs so the
-        # no-commit-to-branch hook passes (it blocks dev/release/beta).
-        run: git checkout -B sync/device-classes
-
       - name: Checkout Home Assistant
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -71,22 +66,26 @@ jobs:
         # which would otherwise abort the workflow before the auto-fixes
         # can flow into the sync PR.
         #
-        # pylint is skipped: this workflow only installs a subset of the
-        # runtime deps (HA + requirements*.txt), so pylint surfaces
-        # import-error / relative-beyond-top-level noise that the main CI
-        # already gates on real PRs.
+        # SKIP:
+        #   - no-commit-to-branch is a local guard against committing on
+        #     dev/release/beta; CI runs on dev by definition, and
+        #     peter-evans/create-pull-request creates the branch itself.
+        #   - pylint surfaces import-error / relative-beyond-top-level
+        #     noise here because this workflow installs only a subset of
+        #     the runtime deps (HA + requirements*.txt); main CI already
+        #     gates pylint on real PRs.
         env:
-          SKIP: pylint
+          SKIP: pylint,no-commit-to-branch
         run: python script/run-in-env.py pre-commit run --all-files || true
 
       - name: Verify pre-commit clean
         # Second pass: re-run all hooks against the now-fixed tree.
         # Auto-fixers exit 0 (nothing to change); any remaining failure
         # from a check-only hook (flake8 / yamllint / ci-custom) is a
-        # real issue and fails the workflow loudly. pylint stays skipped
-        # for the same reason as above.
+        # real issue and fails the workflow loudly. Same SKIP list as
+        # above for the same reasons.
         env:
-          SKIP: pylint
+          SKIP: pylint,no-commit-to-branch
         run: python script/run-in-env.py pre-commit run --all-files
 
       - name: Commit changes
