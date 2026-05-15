@@ -1175,7 +1175,11 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 // Chunk size per GetYamlResponse. Small enough to leave room for the protobuf frame
 // inside the 65535-byte API limit and friendly to TCP MSS.
 static constexpr size_t STORE_YAML_CHUNK_SIZE = 512;
-// Scratch buffer used to copy a chunk from PROGMEM (needed on ESP8266; harmless elsewhere).
+// Scratch buffer used to copy a chunk from PROGMEM (needed on ESP8266; harmless
+// elsewhere). Shared across connections is safe because the API loop is
+// single-threaded and each chunk is filled and consumed atomically inside one
+// `try_send_store_yaml_` iteration.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static uint8_t store_yaml_chunk_buf[STORE_YAML_CHUNK_SIZE];
 
 void APIConnection::on_get_yaml_request() {

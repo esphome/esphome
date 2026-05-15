@@ -1191,33 +1191,28 @@ def _load_config(
     command_line_substitutions: dict[str, Any], skip_external_update: bool = False
 ) -> Config:
     """Load the configuration file."""
-    # Keep the file-load listener active across both the YAML parse and the
-    # validation pass. Substitution and packages resolve deferred `!include`
-    # references during validation (and remote packages download YAML on
-    # demand), so the listener must still be installed when those secondary
-    # loads happen. Components that want the on-disk YAML at codegen time
-    # (e.g. store_yaml for firmware recovery) read the list out of
-    # CORE.data["yaml_sources"] after a successful validation.
-    with yaml_util.track_yaml_loads() as loaded_files:
-        try:
-            config = yaml_util.load_yaml(CORE.config_path)
-            # Resolve any deferred `!include`/package references whose paths
-            # don't depend on substitutions, so they're captured here too.
-            yaml_util.force_load_include_files(config)
-        except EsphomeError as e:
-            raise InvalidYAMLError(e) from e
+    try:
+        config = yaml_util.load_yaml(CORE.config_path)
+    except EsphomeError as e:
+        raise InvalidYAMLError(e) from e
 
-        try:
-            result = validate_config(
-                config, command_line_substitutions, skip_external_update
-            )
-        except EsphomeError:
-            raise
-        except Exception:
-            _LOGGER.error("Unexpected exception while reading configuration:")
-            raise
+    try:
+        result = validate_config(
+            config, command_line_substitutions, skip_external_update
+        )
+    except EsphomeError:
+        raise
+    except Exception:
+        _LOGGER.error("Unexpected exception while reading configuration:")
+        raise
 
-    CORE.data["yaml_sources"] = loaded_files
+    # Discover the user's on-disk YAML files via a fresh re-parse — same
+    # pattern bundle.py uses. Doing it post-validation (rather than keeping a
+    # listener installed across validation) avoids capturing framework YAML
+    # that components load internally (e.g. LVGL's `hello_world.yaml`). The
+    # result is consumed by components like store_yaml that want to embed the
+    # user's configuration in firmware for recovery.
+    CORE.data["yaml_sources"] = yaml_util.discover_user_yaml_files(CORE.config_path)
     return result
 
 

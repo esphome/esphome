@@ -8,8 +8,9 @@ from types import ModuleType
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_RAW_DATA_ID, SECRETS_FILES
+from esphome.const import CONF_API, CONF_ID, CONF_RAW_DATA_ID
 from esphome.core import CORE, EsphomeError, HexInt
+import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,6 +18,10 @@ CODEOWNERS = ["@bdraco"]
 DEPENDENCIES = ["api"]
 
 CONF_INCLUDE_SECRETS = "include_secrets"
+# Avoid an `_api:` substring in the key name so the integration-test harness
+# (which naively str-replaces `api:` to inject a port directive) doesn't
+# clobber configs that opt into this escape hatch.
+CONF_ALLOW_UNENCRYPTED = "allow_unencrypted"
 
 store_yaml_ns = cg.esphome_ns.namespace("store_yaml")
 StoreYamlComponent = store_yaml_ns.class_("StoreYamlComponent", cg.Component)
@@ -33,8 +38,36 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(StoreYamlComponent),
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
         cv.Optional(CONF_INCLUDE_SECRETS, default=False): cv.boolean,
+        cv.Optional(CONF_ALLOW_UNENCRYPTED, default=False): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+def _final_validate(config):
+    """Require API encryption: an unauthenticated client could otherwise pull
+    the embedded YAML (which may include Wi-Fi credentials or opted-in
+    secrets). The escape hatch ``allow_unencrypted_api: true`` exists for
+    isolated lab setups where the user has accepted the trade-off."""
+    full = fv.full_config.get()
+    api_conf = full.get(CONF_API, {})
+    if api_conf.get("encryption"):
+        return config
+    if config.get(CONF_ALLOW_UNENCRYPTED):
+        _LOGGER.warning(
+            "store_yaml is enabled without API encryption; any client that can "
+            "reach the device on the network can pull the embedded YAML."
+        )
+        return config
+    raise cv.Invalid(
+        "store_yaml requires API encryption (configure `api.encryption.key`). "
+        "Without encryption, the embedded YAML — which may contain Wi-Fi "
+        "credentials or opted-in secrets — can be read by any client that "
+        "reaches the device. Set `store_yaml.allow_unencrypted: true` to "
+        "override after acknowledging the risk."
+    )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _import_zstd() -> ModuleType:
@@ -53,8 +86,8 @@ def _import_zstd() -> ModuleType:
 
 def _gather_files(include_secrets: bool) -> list[tuple[str, bytes]]:
     """Read each YAML file the config loader touched, return (relative_path, content) pairs."""
-    sources = CORE.data.get("yaml_sources")
-    if not sources:
+    discovered = CORE.data.get("yaml_sources")
+    if not discovered or not discovered.files:
         raise EsphomeError(
             "store_yaml could not find any tracked YAML files; the config loader "
             "did not populate CORE.data['yaml_sources']."
@@ -62,19 +95,14 @@ def _gather_files(include_secrets: bool) -> list[tuple[str, bytes]]:
 
     config_path = Path(CORE.config_path).resolve()
     root = config_path.parent
+    secret_paths = discovered.secrets
 
-    seen: set[Path] = set()
     files: list[tuple[str, bytes]] = []
-    # ``track_yaml_loads`` already returns resolved Path objects, so no extra
-    # ``.resolve()`` work is needed here. The symlink edge case (``secrets.yaml``
-    # symlinked to a non-secrets filename) is not detectable at this layer
-    # because the original path is lost by the resolver upstream.
-    for path in sources:
-        if path in seen:
-            continue
-        seen.add(path)
-
-        if path.name in SECRETS_FILES and not include_secrets:
+    for path in discovered.files:
+        # `secret_paths` was collected from the *un-resolved* basename, so a
+        # `secrets.yaml` symlinked to a differently-named target is still
+        # treated as secrets here.
+        if path in secret_paths and not include_secrets:
             content = REDACTED_PLACEHOLDER
         else:
             try:
