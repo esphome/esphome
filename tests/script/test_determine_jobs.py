@@ -1518,6 +1518,7 @@ def test_clang_tidy_mode_full_scan(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -1529,6 +1530,9 @@ def test_clang_tidy_mode_full_scan(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
+    # Without this mock, main() runs the real determine_cpp_unit_tests
+    # which loads the full component graph (~5s import of every component).
+    mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
     mock_changed_files.return_value = []
@@ -1584,6 +1588,7 @@ def test_clang_tidy_mode_targeted_scan(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -1595,6 +1600,9 @@ def test_clang_tidy_mode_targeted_scan(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
+    # Without this mock, main() runs the real determine_cpp_unit_tests
+    # which loads the full component graph (~5s import of every component).
+    mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Create component names
     components = [f"comp{i}" for i in range(component_count)]
