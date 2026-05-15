@@ -2659,6 +2659,15 @@ def test_main_force_all_overrides_detection(
             return_value={"should_run": "false"},
         ),
         patch.object(determine_jobs, "should_run_benchmarks", return_value=False),
+        # create_intelligent_batches scans every tests/components/<name>/*.yaml
+        # under --force-all (~2500 YAML loads, ~10s in CI). This test only
+        # asserts that main() routes to it and returns non-empty -- the
+        # batching logic itself has its own dedicated tests.
+        patch.object(
+            determine_jobs,
+            "create_intelligent_batches",
+            return_value=([["fake_batch"]], None),
+        ),
     ):
         determine_jobs.main()
 
