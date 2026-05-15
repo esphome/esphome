@@ -3,7 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "tinyusb_default_config.h"
-#ifdef TINYUSB_KEYBOARD
+#ifdef USE_TINYUSB_KEYBOARD
 #include "../tinyusb_keyboard/keyboard.h"
 #endif
 
@@ -29,7 +29,7 @@ void TinyUSB::setup() {
       .string_count = SIZE,
   };
 
-#ifdef TINYUSB_KEYBOARD
+#ifdef USE_TINYUSB_KEYBOARD
   // esp_tinyusb requires a valid full-speed configuration descriptor when HID is enabled.
   // This is a minimal keyboard HID configuration descriptor, not much thought has been put into the contents.
   static const uint8_t fs_configuration_descriptor[] = {

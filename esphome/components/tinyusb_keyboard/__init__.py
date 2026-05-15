@@ -53,7 +53,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     # Ensure TinyUSB HID support is enabled in IDF sdkconfig so HID APIs/headers are available
     add_idf_sdkconfig_option("CONFIG_TINYUSB_HID_COUNT", 1)
-    cg.add_define("TINYUSB_KEYBOARD")
+    cg.add_define("USE_TINYUSB_KEYBOARD")
 
 
 PRESS_ACTION_SCHEMA = maybe_simple_id(
