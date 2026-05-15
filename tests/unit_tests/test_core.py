@@ -942,7 +942,16 @@ class TestEsphomeCore:
         target.toolchain = const.Toolchain.PLATFORMIO
 
         assert target.bootloader_bin == Path(
-            "foo/build/.pioenvs/test-device/bootloader.bin"
+            f"foo/build/.pioenvs/{const.PLATFORMIO_ENV_NAME}/bootloader.bin"
+        )
+
+    def test_partition_table_bin__platformio(self, target):
+        """For PlatformIO builds partitions.bin lives in the stable env."""
+        target.name = "test-device"
+        target.toolchain = const.Toolchain.PLATFORMIO
+
+        assert target.partition_table_bin == Path(
+            f"foo/build/.pioenvs/{const.PLATFORMIO_ENV_NAME}/partitions.bin"
         )
 
     def test_add_library__extracts_short_name_from_path(self, target):

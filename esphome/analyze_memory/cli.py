@@ -739,6 +739,7 @@ def main():
     import json
     from pathlib import Path
 
+    from esphome.const import PLATFORMIO_ENV_NAME
     from esphome.platformio.toolchain import IDEData
 
     build_path = Path(build_dir)
@@ -763,6 +764,7 @@ def main():
     elf_file = None
     for elf_candidate in [
         build_path / "firmware.elf",
+        build_path / ".pioenvs" / PLATFORMIO_ENV_NAME / "firmware.elf",
         build_path / ".pioenvs" / build_path.name / "firmware.elf",
     ]:
         if elf_candidate.exists():

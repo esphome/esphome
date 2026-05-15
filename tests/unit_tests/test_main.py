@@ -4946,6 +4946,31 @@ def test_command_analyze_memory_no_idedata(
     assert "Failed to get IDE data for memory analysis" in caplog.text
 
 
+def test_standalone_analyze_memory_finds_stable_platformio_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mock_memory_analyzer_cli: Mock,
+    capsys: CaptureFixture,
+) -> None:
+    """Standalone memory analysis should find firmware.elf in the stable env."""
+    from esphome.analyze_memory import cli
+
+    build_path = tmp_path / ".esphome" / "build" / "test-device"
+    firmware_path = build_path / ".pioenvs" / PLATFORMIO_ENV_NAME / "firmware.elf"
+    firmware_path.parent.mkdir(parents=True)
+    firmware_path.write_text("mock elf file")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["esphome.analyze_memory", "test-device"])
+
+    cli.main()
+
+    mock_memory_analyzer_cli.assert_called_once_with(str(firmware_path), idedata=None)
+    mock_memory_analyzer_cli.return_value.analyze.assert_called_once_with()
+    captured = capsys.readouterr()
+    assert "Mock Memory Report" in captured.out
+
+
 @pytest.fixture
 def mock_compile_build_info_run_compile() -> Generator[Mock]:
     """Mock toolchain.run_compile for build_info tests."""
