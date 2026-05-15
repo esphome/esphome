@@ -46,13 +46,22 @@ jobs:
         with:
           python-version: "3.14"
 
+      - name: Set up uv
+        # An order of magnitude faster than pip on cold boots, with its
+        # own wheel cache. ``--system`` (below) installs into the
+        # setup-python interpreter so subsequent ``pre-commit`` /
+        # ``script/run-in-env.py`` steps find the deps without a
+        # ``uv run`` prefix.
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
       - name: Install Home Assistant
         run: |
-          python -m pip install --upgrade pip
-          pip install -e lib/home-assistant
+          uv pip install --system -e lib/home-assistant
           # Project requirements are needed so pylint can resolve runtime
           # imports (e.g. smpclient in esphome/components/nrf52/ota.py).
-          pip install -r requirements.txt -r requirements_test.txt pre-commit
+          uv pip install --system -r requirements.txt -r requirements_test.txt pre-commit
 
       - name: Sync
         run: |
