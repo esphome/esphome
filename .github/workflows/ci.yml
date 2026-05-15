@@ -39,7 +39,11 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Generate cache-key
         id: cache-key
-        run: echo key="${{ hashFiles('requirements.txt', 'requirements_dev.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
+        # PROBE: salt prefix forces every venv-cache restore in this
+        # workflow run to miss so the uv install path from #16451 is
+        # actually exercised across Linux/macOS/Windows x 3.11/3.13/3.14.
+        # DO NOT MERGE -- remove this salt before landing.
+        run: echo key="uvprobe-${{ hashFiles('requirements.txt', 'requirements_dev.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
