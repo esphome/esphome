@@ -11,6 +11,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_API, CONF_ID, CONF_RAW_DATA_ID
 from esphome.core import CORE, EsphomeError, HexInt
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     """Require API encryption: an unauthenticated client could otherwise pull
     the embedded YAML (which may include Wi-Fi credentials or opted-in
     secrets). The escape hatch ``allow_unencrypted_api: true`` exists for
@@ -145,7 +146,7 @@ def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
     return b"".join(parts)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_STORE_YAML")
 
     zstd = _import_zstd()

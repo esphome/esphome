@@ -15,7 +15,6 @@ class StoreYamlComponent : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Called once from codegen with the PROGMEM blob.
   void set_data(const uint8_t *data, size_t size, size_t uncompressed_size) {
