@@ -1,3 +1,5 @@
+import string
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -16,6 +18,7 @@ DEPENDENCIES = ["tinyusb"]
 
 CONF_MODIFIERS = "modifiers"
 CONF_USAGE = "usage"
+ALLOWED_CHARS = string.ascii_lowercase + string.digits
 
 tinyusb_keyboard_ns = cg.esphome_ns.namespace("tinyusb_keyboard")
 TinyUSBKeyboard = tinyusb_keyboard_ns.class_("TinyUSBKeyboard", cg.Component)
@@ -38,6 +41,13 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def validate_string_key(value):
+    value = cv.string(value)
+    if value not in ALLOWED_CHARS:
+        raise cv.Invalid("key must be a lowercase letter (a-z) or digit (0-9)")
+    return value
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -49,7 +59,9 @@ async def to_code(config):
 PRESS_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(TinyUSBKeyboard),
-        cv.Required(CONF_KEY): cv.Any(cv.All(cv.string, cv.Length(1)), cv.uint8_t),
+        cv.Required(CONF_KEY): cv.Any(
+            cv.All(cv.Length(1), validate_string_key), cv.uint8_t
+        ),
         cv.Optional(CONF_MODIFIERS, default=0): cv.uint8_t,
     }
 )
@@ -83,7 +95,7 @@ async def tinyusb_keyboard_press_to_code(config, action_id, template_arg, args):
 
     key = config[CONF_KEY]
     if isinstance(key, str):
-        key_template = await cg.templatable(key.lower(), args, cg.std_string)
+        key_template = await cg.templatable(key, args, cg.std_string)
         cg.add(var.set_key(key_template))
     else:
         key_template = await cg.templatable(key, args, cg.uint8)
