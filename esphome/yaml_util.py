@@ -627,15 +627,18 @@ def _resolve_include(res) -> Any:
 def _loader_wrappers():
     return WeakKeyDictionary()
 
+
 def _wrap_loader(yaml_loader):
     # Wraps an external loader to make sure _resolve_include is applied.
     # Cache wrappers to avoid repeated wrapping and recursive re-wrapping.
     wrappers = _loader_wrappers()
     wrapper = wrappers.get(yaml_loader)
     if wrapper is None:
+
         @functools.wraps(yaml_loader)
         def wrapper(fname: Path):
             return _resolve_include(yaml_loader(fname))
+
         wrappers[yaml_loader] = wrapper
         wrappers[wrapper] = wrapper
     return wrapper
