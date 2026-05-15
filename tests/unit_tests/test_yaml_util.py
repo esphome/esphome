@@ -1011,23 +1011,31 @@ class _StubInclude:
         return self._load_result
 
 
-def test_force_load_include_files_resolves_nested_includes() -> None:
+@pytest.fixture
+def patch_include_file():
+    """Replace `IncludeFile` with `_StubInclude` so isinstance checks in
+    `force_load_include_files` match the stubs constructed by tests."""
+    with patch("esphome.yaml_util.IncludeFile", _StubInclude):
+        yield
+
+
+def test_force_load_include_files_resolves_nested_includes(
+    patch_include_file: None,
+) -> None:
     """A tree of dict/list/IncludeFile is walked and every IncludeFile is loaded."""
     inner = _StubInclude("inner.yaml")
     outer = _StubInclude("outer.yaml", load_result={"nested": inner})
-    tree = [{"a": outer}, "scalar"]
-    with patch("esphome.yaml_util.IncludeFile", _StubInclude):
-        force_load_include_files(tree)
+    force_load_include_files([{"a": outer}, "scalar"])
     assert outer.load_calls == 1
     assert inner.load_calls == 1
 
 
-def test_force_load_include_files_seen_guard_prevents_double_load() -> None:
+def test_force_load_include_files_seen_guard_prevents_double_load(
+    patch_include_file: None,
+) -> None:
     """The same IncludeFile referenced from two branches loads once."""
     stub = _StubInclude("once.yaml")
-    tree = {"a": stub, "b": [stub]}
-    with patch("esphome.yaml_util.IncludeFile", _StubInclude):
-        force_load_include_files(tree)
+    force_load_include_files({"a": stub, "b": [stub]})
     assert stub.load_calls == 1
 
 
@@ -1042,46 +1050,38 @@ def test_force_load_include_files_handles_cyclic_containers() -> None:
     force_load_include_files(cyclic_list)
 
 
-def test_force_load_include_files_warns_on_unresolved_by_default(
+@pytest.mark.parametrize(
+    ("warn_on_unresolved", "expect_level"),
+    [
+        pytest.param(True, "WARNING", id="default-warns"),
+        pytest.param(False, "DEBUG", id="opt-in-demotes"),
+    ],
+)
+def test_force_load_include_files_unresolved_log_level(
+    patch_include_file: None,
     caplog: pytest.LogCaptureFixture,
+    warn_on_unresolved: bool,
+    expect_level: str,
 ) -> None:
-    """Substitution-templated include paths surface as warnings by default."""
+    """Substitution-templated include paths skip the load and log at the
+    level chosen by `warn_on_unresolved`."""
     stub = _StubInclude("${var}.yaml", unresolved=True)
-    with (
-        caplog.at_level("DEBUG", logger="esphome.yaml_util"),
-        patch("esphome.yaml_util.IncludeFile", _StubInclude),
-    ):
-        force_load_include_files({"k": stub})
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        force_load_include_files({"k": stub}, warn_on_unresolved=warn_on_unresolved)
     assert stub.load_calls == 0
-    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
-    assert any("Cannot resolve !include" in r.message for r in warnings)
-
-
-def test_force_load_include_files_demotes_unresolved_warning(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """`warn_on_unresolved=False` keeps the same skip but logs at DEBUG."""
-    stub = _StubInclude("${var}.yaml", unresolved=True)
-    with (
-        caplog.at_level("DEBUG", logger="esphome.yaml_util"),
-        patch("esphome.yaml_util.IncludeFile", _StubInclude),
-    ):
-        force_load_include_files({"k": stub}, warn_on_unresolved=False)
-    assert stub.load_calls == 0
-    levels = {r.levelname for r in caplog.records if "Cannot resolve" in r.message}
-    assert "WARNING" not in levels
-    assert "DEBUG" in levels
+    matching = [
+        r.levelname for r in caplog.records if "Cannot resolve !include" in r.message
+    ]
+    assert matching == [expect_level]
 
 
 def test_force_load_include_files_warns_on_load_failure(
+    patch_include_file: None,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """An `EsphomeError` raised by `load()` is caught and logged, not propagated."""
     stub = _StubInclude("missing.yaml", raise_on_load=EsphomeError("boom"))
-    with (
-        caplog.at_level("WARNING", logger="esphome.yaml_util"),
-        patch("esphome.yaml_util.IncludeFile", _StubInclude),
-    ):
+    with caplog.at_level("WARNING", logger="esphome.yaml_util"):
         force_load_include_files({"k": stub})
     assert any(
         "Failed to load !include" in r.message and "missing.yaml" in r.message
@@ -1099,64 +1099,55 @@ def test_discovered_yaml_files_holds_files_and_secrets() -> None:
 
 
 def _write(tmp_path: Path, name: str, content: str) -> Path:
+    """Write `content` to `tmp_path/name`, creating parent dirs as needed."""
     path = tmp_path / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
     return path
 
 
+def _write_entry_including(tmp_path: Path, included_name: str) -> Path:
+    """Write a minimal entry yaml that `!include`s `included_name`."""
+    return _write(
+        tmp_path,
+        "entry.yaml",
+        f"esphome:\n  name: test\nwifi: !include {included_name}\n",
+    )
+
+
 def test_discover_user_yaml_files_captures_includes(tmp_path: Path) -> None:
     """A `!include` in the entry yaml is force-loaded so the listener fires."""
     _write(tmp_path, "wifi.yaml", "ssid: my_ssid\npassword: my_pw\n")
-    entry = _write(
-        tmp_path,
-        "entry.yaml",
-        "esphome:\n  name: test\nwifi: !include wifi.yaml\n",
-    )
-    discovered = discover_user_yaml_files(entry)
+    discovered = discover_user_yaml_files(_write_entry_including(tmp_path, "wifi.yaml"))
     names = {p.name for p in discovered.files}
     assert names == {"entry.yaml", "wifi.yaml"}
     assert discovered.secrets == set()
 
 
-def test_discover_user_yaml_files_flags_secrets_yaml(tmp_path: Path) -> None:
-    """`secrets.yaml` referenced via `!include` is captured under `.secrets`."""
-    _write(tmp_path, "secrets.yaml", "api_key: redacted_in_test\n")
-    entry = _write(
-        tmp_path,
-        "entry.yaml",
-        "esphome:\n  name: test\nwifi: !include secrets.yaml\n",
-    )
-    discovered = discover_user_yaml_files(entry)
-    assert (tmp_path / "secrets.yaml").resolve() in discovered.secrets
-
-
-def test_discover_user_yaml_files_flags_secrets_yml_extension(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    "secret_name",
+    [
+        pytest.param("secrets.yaml", id="yaml"),
+        pytest.param("secrets.yml", id="yml"),
+    ],
+)
+def test_discover_user_yaml_files_flags_secrets_filename(
+    tmp_path: Path, secret_name: str
 ) -> None:
-    """`secrets.yml` (yml extension) is treated the same as `secrets.yaml`."""
-    _write(tmp_path, "secrets.yml", "key: value\n")
-    entry = _write(
-        tmp_path,
-        "entry.yaml",
-        "esphome:\n  name: test\nwifi: !include secrets.yml\n",
-    )
-    discovered = discover_user_yaml_files(entry)
-    assert (tmp_path / "secrets.yml").resolve() in discovered.secrets
+    """Both `secrets.yaml` and `secrets.yml` get flagged in `.secrets`."""
+    _write(tmp_path, secret_name, "key: value\n")
+    discovered = discover_user_yaml_files(_write_entry_including(tmp_path, secret_name))
+    assert (tmp_path / secret_name).resolve() in discovered.secrets
 
 
 def test_discover_user_yaml_files_flags_secrets_symlink(tmp_path: Path) -> None:
     """`secrets.yaml` symlinked to a non-secrets-named target is still flagged
     because the un-resolved basename is what gets recorded."""
     target = _write(tmp_path, "real_creds.yaml", "key: value\n")
-    link = tmp_path / "secrets.yaml"
-    link.symlink_to(target)
-    entry = _write(
-        tmp_path,
-        "entry.yaml",
-        "esphome:\n  name: test\nwifi: !include secrets.yaml\n",
+    (tmp_path / "secrets.yaml").symlink_to(target)
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "secrets.yaml")
     )
-    discovered = discover_user_yaml_files(entry)
     # The recorded "secret path" is the resolved target — even though its
     # basename is `real_creds.yaml`, it's still in `.secrets`.
     assert target.resolve() in discovered.secrets
