@@ -684,8 +684,10 @@ void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType 
     case 4:
       data.push_back(value >> 24);
       data.push_back(value >> 16);
+      [[fallthrough]];
     case 2:
       data.push_back(value >> 8);
+      [[fallthrough]];
     case 1:
       data.push_back(value >> 0);
       break;
