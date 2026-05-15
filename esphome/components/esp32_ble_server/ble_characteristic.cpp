@@ -220,9 +220,9 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
         response.attr_value.offset = 0;
         response.attr_value.len = this->value_.size();
         if (response.attr_value.len > ESP_GATT_MAX_ATTR_LEN) {
-            ESP_LOGW(TAG, "Characteristic length %u exceeds buffer size of %u, truncating",
-                response.attr_value.len, ESP_GATT_MAX_ATTR_LEN);
-            response.attr_value.len = ESP_GATT_MAX_ATTR_LEN;
+          ESP_LOGW(TAG, "Characteristic length %u exceeds buffer size of %u, truncating", response.attr_value.len,
+                   ESP_GATT_MAX_ATTR_LEN);
+          response.attr_value.len = ESP_GATT_MAX_ATTR_LEN;
         }
         memcpy(response.attr_value.value, this->value_.data(), response.attr_value.len);
         this->value_read_offset_ = 0;
